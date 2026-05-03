@@ -2,6 +2,7 @@ from pathlib import Path
 
 import typer
 
+from academic_prep.jobs import create_job
 from academic_prep.profile import init_profile as create_profile
 
 app = typer.Typer(
@@ -33,9 +34,26 @@ def new_job(
     institution: str = typer.Option(..., "--institution", help="Hiring institution."),
     deadline: str = typer.Option("unknown", "--deadline", help="Application deadline."),
     source_url: str = typer.Option("", "--source-url", help="Original job advert URL."),
+    jobs_dir: Path = typer.Option(Path("jobs"), "--jobs-dir", help="Directory for job folders."),
+    advert_file: Path | None = typer.Option(
+        None,
+        "--advert-file",
+        help="Local .md or .txt job advert file to import.",
+    ),
 ) -> None:
     """Create a local job folder and advert file."""
-    typer.echo(f"Job creation is not implemented yet: {title} at {institution} ({deadline}, {source_url})")
+    try:
+        job_dir = create_job(
+            jobs_dir=jobs_dir,
+            title=title,
+            institution=institution,
+            deadline=deadline,
+            source_url=source_url,
+            advert_file=advert_file,
+        )
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    typer.echo(f"Created job at {job_dir}")
 
 
 @app.command("run")
