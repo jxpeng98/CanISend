@@ -5,6 +5,7 @@ import typer
 from academic_prep.jobs import create_job
 from academic_prep.pipeline import run_pipeline as run_job_pipeline
 from academic_prep.profile import init_profile as create_profile
+from academic_prep.rss import fetch_rss_text, filter_job_leads, parse_jobs_ac_uk_rss, write_job_leads
 from academic_prep.typst import render_typst_files
 
 app = typer.Typer(
@@ -56,6 +57,31 @@ def new_job(
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
     typer.echo(f"Created job at {job_dir}")
+
+
+@app.command("fetch-jobs-ac-uk")
+def fetch_jobs_ac_uk(
+    feed_url: str = typer.Option("", "--feed-url", help="jobs.ac.uk RSS feed URL."),
+    rss_file: Path | None = typer.Option(
+        None,
+        "--rss-file",
+        help="Local RSS XML file for testing or offline import.",
+    ),
+    output: Path = typer.Option(Path("job_leads/jobs_ac_uk.json"), "--output", help="JSON output path."),
+    include: list[str] = typer.Option([], "--include", help="Include jobs matching this keyword."),
+    exclude: list[str] = typer.Option([], "--exclude", help="Exclude jobs matching this keyword."),
+    limit: int = typer.Option(100, "--limit", help="Maximum number of leads to write."),
+) -> None:
+    """Fetch jobs.ac.uk RSS leads and apply local keyword filters."""
+    if rss_file is None and not feed_url:
+        raise typer.BadParameter("Provide --feed-url or --rss-file.")
+
+    xml_text = rss_file.read_text(encoding="utf-8") if rss_file is not None else fetch_rss_text(feed_url)
+    leads = parse_jobs_ac_uk_rss(xml_text, feed_url=feed_url)
+    filtered = filter_job_leads(leads, include_keywords=include, exclude_keywords=exclude)
+    limited = filtered[:limit]
+    write_job_leads(output, limited)
+    typer.echo(f"Wrote {len(limited)} jobs.ac.uk leads to {output}")
 
 
 @app.command("run")

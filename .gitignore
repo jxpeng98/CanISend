@@ -9,5 +9,7 @@ dist/
 build/
 jobs/*
 !jobs/.gitkeep
+job_leads/
 profile/*
 !profile/.gitkeep
+.vscode/

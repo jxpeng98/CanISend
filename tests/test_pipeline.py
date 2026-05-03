@@ -79,3 +79,5 @@ Desirable criteria:
     for output in expected_outputs:
         assert (job_dir / output).exists()
     assert "Remaining Actions Before Submission" in (job_dir / "06_final_application_package.md").read_text()
+    assert '@preview/modernpro-coverletter:0.0.8' in (job_dir / "typst" / "cover_letter.typ").read_text()
+    assert '@preview/modernpro-coverletter:0.0.8' in (job_dir / "typst" / "application_package.typ").read_text()

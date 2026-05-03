@@ -95,16 +95,17 @@ V1 should implement:
 2. A local `templates/typst/` folder containing reusable Typst templates.
 3. A `jobs/<job-slug>/` folder for each application preparation task.
 4. `job.yaml` as lightweight job metadata and status tracking.
-5. Job advert import from pasted text, local Markdown, or local TXT.
-6. `parsed_job.json` generation from `job_advert.md`.
-7. Fit report generation with evidence references.
-8. Cover letter draft generation with conservative academic language.
-9. CV tailoring notes rather than full automatic CV rewriting.
-10. Criteria coverage checking against essential and desirable criteria.
-11. Final application package generation.
-12. Typst source generation using project-managed templates.
-13. Optional Typst PDF compilation via explicit CLI command or flag.
-14. An LLM provider abstraction supporting:
+5. jobs.ac.uk RSS lead fetching with local keyword include/exclude filters.
+6. Job advert import from pasted text, local Markdown, or local TXT.
+7. `parsed_job.json` generation from `job_advert.md`.
+8. Fit report generation with evidence references.
+9. Cover letter draft generation with conservative academic language.
+10. CV tailoring notes rather than full automatic CV rewriting.
+11. Criteria coverage checking against essential and desirable criteria.
+12. Final application package generation.
+13. Typst source generation using project-managed templates based on `modernpro-cv` and `modernpro-coverletter`.
+14. Optional Typst PDF compilation via explicit CLI command or flag.
+15. An LLM provider abstraction supporting:
     - OpenAI-compatible API provider.
     - Configurable local command provider for CLI-based model access.
 
@@ -119,7 +120,6 @@ V1 must not implement:
 - Form filling on university application portals.
 - Automatic completion of Equal Opportunities forms.
 - Automatic responses to right-to-work, visa, disability, criminal record, or other sensitive declarations.
-- RSS import.
 - Web crawling.
 - URL scraping.
 - PDF job advert import.
@@ -132,6 +132,8 @@ V1 must not implement:
 - Default PDF/DOCX export as the main delivery mechanism.
 
 These features may appear in the roadmap, but they are not V1 requirements.
+
+V1 RSS support is intentionally limited to jobs.ac.uk RSS feeds and local filtering. It does not scrape individual job pages.
 
 ---
 
@@ -982,8 +984,8 @@ Possible additions:
 
 Possible additions:
 
-- jobs.ac.uk RSS import.
-- HigherEdJobs RSS import.
+- Additional jobs.ac.uk feed presets.
+- HigherEdJobs feed support if a stable feed source is available.
 - EURAXESS import.
 - Duplicate detection.
 
