@@ -2,6 +2,8 @@ from pathlib import Path
 
 import typer
 
+from academic_prep.profile import init_profile as create_profile
+
 app = typer.Typer(
     help="Prepare academic job application materials from local files.",
     no_args_is_help=True,
@@ -17,7 +19,12 @@ def init_profile(
     ),
 ) -> None:
     """Create starter profile files."""
-    typer.echo(f"Profile initialization is not implemented yet: {profile_dir}")
+    created = create_profile(profile_dir)
+    typer.echo(f"Profile ready at {profile_dir}")
+    if created:
+        typer.echo(f"Created {len(created)} profile files.")
+    else:
+        typer.echo("No files created; existing profile files were left unchanged.")
 
 
 @app.command("new-job")
