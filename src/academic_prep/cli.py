@@ -3,6 +3,7 @@ from pathlib import Path
 import typer
 
 from academic_prep.jobs import create_job
+from academic_prep.pipeline import run_pipeline as run_job_pipeline
 from academic_prep.profile import init_profile as create_profile
 
 app = typer.Typer(
@@ -61,7 +62,8 @@ def run_pipeline(
     job: Path = typer.Option(..., "--job", help="Path to the job folder."),
 ) -> None:
     """Run the application preparation pipeline for one job."""
-    typer.echo(f"Pipeline execution is not implemented yet: {job}")
+    written = run_job_pipeline(job)
+    typer.echo(f"Generated {len(written)} files for {job}")
 
 
 @app.command("render-typst")
