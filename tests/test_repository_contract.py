@@ -41,3 +41,26 @@ def test_docs_record_rss_and_privacy_contracts():
     assert "profile/ is ignored by git" in readme
     assert "jobs.ac.uk RSS" in proposal
     assert "RSS import." not in proposal
+
+
+def test_readme_documents_complete_workflow_and_round_two_tasks():
+    root = Path(__file__).resolve().parents[1]
+    readme = (root / "README.md").read_text()
+
+    expected_sections = [
+        "## Complete Workflow",
+        "### 1. Install and verify the CLI",
+        "### 2. Prepare local private profile data",
+        "### 3. Fetch jobs.ac.uk RSS leads",
+        "### 4. Select one advert and create a job workspace",
+        "### 5. Run the application preparation pipeline",
+        "### 6. Review and edit generated materials",
+        "### 7. Render Typst outputs when needed",
+        "### 8. Submit manually outside the tool",
+        "## Round 2 Task Queue",
+    ]
+
+    for section in expected_sections:
+        assert section in readme
+    assert "LLM-backed parser" in readme
+    assert "evidence citation" in readme
