@@ -67,12 +67,13 @@ def test_readme_documents_complete_workflow_and_round_two_tasks():
         "## Complete Workflow",
         "### 1. Install and verify the CLI",
         "### 2. Prepare local private profile data",
-        "### 3. Fetch jobs.ac.uk RSS leads",
-        "### 4. Select one advert and create a job workspace",
-        "### 5. Run the application preparation pipeline",
-        "### 6. Review and edit generated materials",
-        "### 7. Render Typst outputs when needed",
-        "### 8. Submit manually outside the tool",
+        "### 3. Generate normalized profile evidence",
+        "### 4. Fetch jobs.ac.uk RSS leads",
+        "### 5. Select one advert and create a job workspace",
+        "### 6. Run the application preparation pipeline",
+        "### 7. Review and edit generated materials",
+        "### 8. Render Typst outputs when needed",
+        "### 9. Submit manually outside the tool",
         "## Round 2 Task Queue",
     ]
 
@@ -84,6 +85,7 @@ def test_readme_documents_complete_workflow_and_round_two_tasks():
     assert "agent-skills/" in readme
     assert "profile/profile.yaml" in readme
     assert "profile/generated/" in readme
+    assert "extract-profile-evidence" in readme
 
 
 def test_proposal_documents_prompt_skill_split_and_typst_profile():
@@ -94,4 +96,5 @@ def test_proposal_documents_prompt_skill_split_and_typst_profile():
     assert "agent-skills/" in proposal
     assert "profile/profile.yaml" in proposal
     assert "profile/generated/" in proposal
+    assert "extract-profile-evidence" in proposal
     assert "Prompt files should live in `skills/`" not in proposal

@@ -81,3 +81,48 @@ Desirable criteria:
     assert "Remaining Actions Before Submission" in (job_dir / "06_final_application_package.md").read_text()
     assert '@preview/modernpro-coverletter:0.0.8' in (job_dir / "typst" / "cover_letter.typ").read_text()
     assert '@preview/modernpro-coverletter:0.0.8' in (job_dir / "typst" / "application_package.typ").read_text()
+
+
+def test_run_pipeline_reads_generated_profile_evidence(tmp_path):
+    job_dir = tmp_path / "jobs" / "2026-06-15_university-x_lecturer-in-economics"
+    job_dir.mkdir(parents=True)
+    (job_dir / "job.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "id": "2026-06-15_university-x_lecturer-in-economics",
+                "title": "Lecturer in Economics",
+                "institution": "University X",
+                "department": "",
+                "location": "",
+                "deadline": "2026-06-15",
+                "source_url": "",
+                "status": "advert_imported",
+                "created_at": "2026-05-03T23:00:00Z",
+                "updated_at": "2026-05-03T23:00:00Z",
+                "notes": "",
+            },
+            sort_keys=False,
+        )
+    )
+    (job_dir / "job_advert.md").write_text(
+        "# Lecturer in Economics\n\n"
+        "Essential criteria:\n"
+        "- Evidence of teaching excellence\n"
+    )
+    profile_dir = tmp_path / "profile"
+    generated_dir = profile_dir / "generated"
+    generated_dir.mkdir(parents=True)
+    (generated_dir / "cv.evidence.md").write_text(
+        "# Evidence: cv\n\n"
+        "## Teaching\n\n"
+        "- `job`: position: Teaching Assistant, institution: University X\n"
+    )
+    runner = CliRunner()
+
+    result = runner.invoke(app, ["run", "--job", str(job_dir), "--profile-dir", str(profile_dir)])
+
+    assert result.exit_code == 0
+    fit_report = (job_dir / "02_fit_report.md").read_text()
+    criteria_checklist = (job_dir / "05_criteria_checklist.md").read_text()
+    assert "profile/generated/cv.evidence.md#Teaching" in fit_report
+    assert "Teaching Assistant" in criteria_checklist

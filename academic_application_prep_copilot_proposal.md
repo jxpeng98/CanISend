@@ -226,7 +226,7 @@ V1 should treat each job folder as one complete application preparation task.
 ### 5.1 Initialize Profile
 
 ```bash
-academic-prep init-profile
+academic-prep init-profile --mode hybrid
 ```
 
 Creates the local profile folder if it does not exist:
@@ -256,7 +256,24 @@ Markdown files are one evidence source. Typst files can also be the human-facing
 
 The local manifest is `profile/profile.yaml`. The normalized evidence layer should live under `profile/generated/`. Generated materials must cite evidence from Markdown files or generated evidence files at file + section/item level.
 
-### 5.2 Create a Job
+### 5.2 Generate Profile Evidence
+
+```bash
+academic-prep extract-profile-evidence --profile-dir profile
+```
+
+This reads `profile/profile.yaml`, extracts supported evidence from Typst-first profile sources, and writes Markdown evidence files under:
+
+```text
+profile/generated/
+  cv.evidence.md
+  research_statement.evidence.md
+  teaching_statement.evidence.md
+```
+
+The job pipeline should read this normalized evidence layer before generating fit reports, criteria checks, or application drafts.
+
+### 5.3 Create a Job
 
 ```bash
 academic-prep new-job \
@@ -276,7 +293,7 @@ jobs/2026-06-15_university-x_lecturer-in-economics/
 
 The user may paste the advert into the CLI, or import a local `.md` or `.txt` file.
 
-### 5.3 Run the Preparation Pipeline
+### 5.4 Run the Preparation Pipeline
 
 ```bash
 academic-prep run --job jobs/2026-06-15_university-x_lecturer-in-economics
@@ -300,7 +317,7 @@ jobs/2026-06-15_university-x_lecturer-in-economics/
     application_package.typ
 ```
 
-### 5.4 Render Typst Outputs
+### 5.5 Render Typst Outputs
 
 ```bash
 academic-prep render-typst --job jobs/2026-06-15_university-x_lecturer-in-economics

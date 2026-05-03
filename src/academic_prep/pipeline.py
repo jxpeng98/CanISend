@@ -6,23 +6,25 @@ from typing import Any
 
 import yaml
 
+from academic_prep.evidence import EvidenceReference, load_generated_evidence
 from academic_prep.parse import parse_job_advert
 
 
-def run_pipeline(job_dir: Path) -> list[Path]:
+def run_pipeline(job_dir: Path, profile_dir: Path = Path("profile")) -> list[Path]:
     metadata_path = job_dir / "job.yaml"
     advert_path = job_dir / "job_advert.md"
     metadata = yaml.safe_load(metadata_path.read_text(encoding="utf-8"))
     advert_text = advert_path.read_text(encoding="utf-8")
 
     parsed_job = parse_job_advert(advert_text, metadata)
+    evidence = load_generated_evidence(profile_dir)
     written = [
         _write_json(job_dir / "parsed_job.json", parsed_job),
         _write_text(job_dir / "01_job_summary.md", _job_summary(parsed_job)),
-        _write_text(job_dir / "02_fit_report.md", _fit_report(parsed_job)),
+        _write_text(job_dir / "02_fit_report.md", _fit_report(parsed_job, evidence)),
         _write_text(job_dir / "03_cover_letter_draft.md", _cover_letter(parsed_job)),
         _write_text(job_dir / "04_cv_tailoring_notes.md", _cv_notes(parsed_job)),
-        _write_text(job_dir / "05_criteria_checklist.md", _criteria_checklist(parsed_job)),
+        _write_text(job_dir / "05_criteria_checklist.md", _criteria_checklist(parsed_job, evidence)),
         _write_text(job_dir / "06_final_application_package.md", _final_package(parsed_job)),
     ]
 
@@ -61,8 +63,9 @@ def _job_summary(parsed_job: dict[str, Any]) -> str:
 """
 
 
-def _fit_report(parsed_job: dict[str, Any]) -> str:
+def _fit_report(parsed_job: dict[str, Any], evidence: list[EvidenceReference]) -> str:
     essential = "\n".join(f"- {item['criterion']}" for item in parsed_job["essential_criteria"]) or "- No essential criteria extracted."
+    evidence_summary = _evidence_summary(evidence)
     return f"""# Fit Report
 
 ## Extracted Essential Criteria
@@ -71,7 +74,7 @@ def _fit_report(parsed_job: dict[str, Any]) -> str:
 
 ## Evidence Review
 
-Manual profile evidence review is required. Strong-fit claims must cite profile files and sections before use in final materials.
+{evidence_summary}
 
 ## Application Risks
 
@@ -121,18 +124,44 @@ def _cv_notes(parsed_job: dict[str, Any]) -> str:
 """
 
 
-def _criteria_checklist(parsed_job: dict[str, Any]) -> str:
+def _criteria_checklist(parsed_job: dict[str, Any], evidence: list[EvidenceReference]) -> str:
+    evidence_source = _first_evidence_source(evidence)
+    evidence_text = _first_evidence_text(evidence)
     rows = [
         "| Criterion | Coverage | Evidence Source | Risk | Suggested Improvement |",
         "|---|---|---|---|---|",
     ]
     for item in parsed_job["essential_criteria"]:
-        rows.append(f"| {item['criterion']} | missing | Not yet linked | High | Add explicit evidence from profile files. |")
+        coverage = "partial" if evidence else "missing"
+        rows.append(f"| {item['criterion']} | {coverage} | {evidence_source} | High | Review evidence: {evidence_text} |")
     for item in parsed_job["desirable_criteria"]:
-        rows.append(f"| {item['criterion']} | missing | Not yet linked | Medium | Add supporting evidence if available. |")
+        coverage = "partial" if evidence else "missing"
+        rows.append(f"| {item['criterion']} | {coverage} | {evidence_source} | Medium | Review evidence: {evidence_text} |")
     if len(rows) == 2:
         rows.append("| No criteria extracted | missing | Not available | High | Review the advert manually. |")
     return "# Criteria Coverage Checklist\n\n" + "\n".join(rows) + "\n"
+
+
+def _evidence_summary(evidence: list[EvidenceReference]) -> str:
+    if not evidence:
+        return "Manual profile evidence review is required. Strong-fit claims must cite profile files and sections before use in final materials."
+    lines = ["Generated profile evidence is available:"]
+    for item in evidence:
+        lines.append(f"- `{item.source_file}#{item.section}`: {item.text}")
+    return "\n".join(lines)
+
+
+def _first_evidence_source(evidence: list[EvidenceReference]) -> str:
+    if not evidence:
+        return "Not yet linked"
+    item = evidence[0]
+    return f"`{item.source_file}#{item.section}`"
+
+
+def _first_evidence_text(evidence: list[EvidenceReference]) -> str:
+    if not evidence:
+        return "Add explicit evidence from profile files."
+    return evidence[0].text
 
 
 def _final_package(parsed_job: dict[str, Any]) -> str:

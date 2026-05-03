@@ -2,6 +2,7 @@ from pathlib import Path
 
 import typer
 
+from academic_prep.evidence import extract_profile_evidence
 from academic_prep.jobs import create_job
 from academic_prep.pipeline import run_pipeline as run_job_pipeline
 from academic_prep.profile import init_profile as create_profile
@@ -37,6 +38,19 @@ def init_profile(
         typer.echo(f"Created {len(created)} profile files.")
     else:
         typer.echo("No files created; existing profile files were left unchanged.")
+
+
+@app.command("extract-profile-evidence")
+def extract_profile_evidence_command(
+    profile_dir: Path = typer.Option(
+        Path("profile"),
+        "--profile-dir",
+        help="Directory containing profile.yaml and Typst profile sources.",
+    ),
+) -> None:
+    """Generate normalized evidence Markdown from local profile sources."""
+    written = extract_profile_evidence(profile_dir)
+    typer.echo(f"Generated {len(written)} evidence files.")
 
 
 @app.command("new-job")
@@ -95,9 +109,14 @@ def fetch_jobs_ac_uk(
 @app.command("run")
 def run_pipeline(
     job: Path = typer.Option(..., "--job", help="Path to the job folder."),
+    profile_dir: Path = typer.Option(
+        Path("profile"),
+        "--profile-dir",
+        help="Directory containing generated profile evidence.",
+    ),
 ) -> None:
     """Run the application preparation pipeline for one job."""
-    written = run_job_pipeline(job)
+    written = run_job_pipeline(job, profile_dir=profile_dir)
     typer.echo(f"Generated {len(written)} files for {job}")
 
 

@@ -12,5 +12,6 @@ def test_cli_help_shows_core_commands():
     assert "init-profile" in result.output
     assert "new-job" in result.output
     assert "fetch-jobs-ac-uk" in result.output
+    assert "extract-profile-evidence" in result.output
     assert "run" in result.output
     assert "render-typst" in result.output

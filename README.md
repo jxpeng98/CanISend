@@ -58,7 +58,28 @@ uv run academic-prep init-profile --mode typst
 
 Fill these files with your private academic profile. Typst can be the human-facing source format, but the matcher/checker should read normalized evidence from `profile/generated/`. The local `profile/profile.yaml` manifest records which Typst files correspond to CV, cover letter base, research statement, teaching statement, and generated evidence outputs.
 
-### 3. Fetch jobs.ac.uk RSS leads
+### 3. Generate normalized profile evidence
+
+Generate Markdown evidence files from the local profile manifest and Typst sources:
+
+```bash
+uv run academic-prep extract-profile-evidence
+```
+
+This reads `profile/profile.yaml`, extracts supported evidence from `profile/typst/*.typ`, and writes normalized files under `profile/generated/`.
+
+Current extraction support is intentionally conservative:
+
+- `#section("...")`
+- Typst headings such as `= Research Statement`
+- `#education(...)`
+- `#job(...)`
+- `#award(...)`
+- publication references such as `+ @paper2025`
+
+Run this again whenever the private Typst profile sources change.
+
+### 4. Fetch jobs.ac.uk RSS leads
 
 Open the jobs.ac.uk RSS index and copy a raw RSS Feed link from one of:
 
@@ -88,7 +109,7 @@ uv run academic-prep fetch-jobs-ac-uk \
   --output job_leads/jobs_ac_uk.json
 ```
 
-### 4. Select one advert and create a job workspace
+### 5. Select one advert and create a job workspace
 
 Create one job folder per application preparation task:
 
@@ -118,12 +139,20 @@ uv run academic-prep new-job \
   --advert-file path/to/job_advert.md
 ```
 
-### 5. Run the application preparation pipeline
+### 6. Run the application preparation pipeline
 
 Run the local pipeline for the selected job:
 
 ```bash
 uv run academic-prep run --job jobs/2026-06-15_university-x_lecturer-in-economics
+```
+
+To use a non-default profile folder:
+
+```bash
+uv run academic-prep run \
+  --job jobs/2026-06-15_university-x_lecturer-in-economics \
+  --profile-dir path/to/profile
 ```
 
 Current V1 foundation output:
@@ -144,7 +173,7 @@ jobs/<job-slug>/
 
 The current parser/generator is deterministic and scaffold-level. Round 2 replaces this with LLM-backed parser and generation steps while preserving the same file contracts.
 
-### 6. Review and edit generated materials
+### 7. Review and edit generated materials
 
 Review outputs in this order:
 
@@ -157,7 +186,7 @@ Review outputs in this order:
 
 Generated material is draft-only. Any claim about publications, teaching, service, awards, grants, or supervision must be supported by `profile/` evidence.
 
-### 7. Render Typst outputs when needed
+### 8. Render Typst outputs when needed
 
 The project uses public Typst Universe templates:
 
@@ -172,7 +201,7 @@ uv run academic-prep render-typst --job jobs/2026-06-15_university-x_lecturer-in
 
 This requires a local `typst` binary. Source generation does not require Typst; only PDF rendering does.
 
-### 8. Submit manually outside the tool
+### 9. Submit manually outside the tool
 
 Before submitting:
 
