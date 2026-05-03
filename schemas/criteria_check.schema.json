@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CriteriaCheck",
+  "type": "object",
+  "required": ["criteria"],
+  "properties": {
+    "criteria": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["criterion", "coverage", "evidence_source", "risk", "suggested_improvement"],
+        "properties": {
+          "criterion": {"type": "string"},
+          "coverage": {"enum": ["strong", "partial", "weak", "missing"]},
+          "evidence_source": {"type": "string"},
+          "risk": {"enum": ["low", "medium", "high"]},
+          "suggested_improvement": {"type": "string"}
+        }
+      }
+    }
+  }
+}

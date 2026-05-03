@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ParsedJob",
+  "type": "object",
+  "required": [
+    "title",
+    "institution",
+    "department",
+    "location",
+    "deadline",
+    "salary",
+    "contract_type",
+    "role_type",
+    "research_fields",
+    "teaching_fields",
+    "essential_criteria",
+    "desirable_criteria",
+    "required_documents",
+    "application_url",
+    "unknown_fields",
+    "notes"
+  ],
+  "properties": {
+    "title": {"type": "string"},
+    "institution": {"type": "string"},
+    "department": {"type": "string"},
+    "location": {"type": "string"},
+    "deadline": {"type": "string"},
+    "salary": {"type": "string"},
+    "contract_type": {"type": "string"},
+    "role_type": {"type": "string"},
+    "research_fields": {"type": "array", "items": {"type": "string"}},
+    "teaching_fields": {"type": "array", "items": {"type": "string"}},
+    "essential_criteria": {"type": "array", "items": {"$ref": "#/$defs/criterion"}},
+    "desirable_criteria": {"type": "array", "items": {"$ref": "#/$defs/criterion"}},
+    "required_documents": {"type": "array", "items": {"type": "string"}},
+    "application_url": {"type": "string"},
+    "unknown_fields": {"type": "array", "items": {"type": "string"}},
+    "notes": {"type": "string"}
+  },
+  "$defs": {
+    "criterion": {
+      "type": "object",
+      "required": ["criterion", "source_text"],
+      "properties": {
+        "criterion": {"type": "string"},
+        "source_text": {"type": "string"}
+      }
+    }
+  }
+}
