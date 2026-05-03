@@ -25,6 +25,9 @@ def test_init_profile_creates_starter_evidence_files(tmp_path):
         assert (profile_dir / filename).exists()
     assert "# CV" in (profile_dir / "cv.md").read_text()
     assert "name:" in (profile_dir / "personal_profile.yaml").read_text()
+    assert (profile_dir / "profile.yaml").exists()
+    assert (profile_dir / "typst" / "cv.typ").exists()
+    assert (profile_dir / "generated" / ".gitkeep").exists()
 
 
 def test_init_profile_does_not_overwrite_existing_files(tmp_path):
@@ -38,3 +41,17 @@ def test_init_profile_does_not_overwrite_existing_files(tmp_path):
 
     assert result.exit_code == 0
     assert cv_file.read_text() == "existing cv content\n"
+
+
+def test_init_profile_typst_mode_creates_only_typst_manifest_and_sources(tmp_path):
+    profile_dir = tmp_path / "profile"
+    runner = CliRunner()
+
+    result = runner.invoke(app, ["init-profile", "--profile-dir", str(profile_dir), "--mode", "typst"])
+
+    assert result.exit_code == 0
+    assert (profile_dir / "profile.yaml").exists()
+    assert (profile_dir / "typst" / "cv.typ").exists()
+    assert (profile_dir / "typst" / "research_statement.typ").exists()
+    assert (profile_dir / "generated" / ".gitkeep").exists()
+    assert not (profile_dir / "cv.md").exists()

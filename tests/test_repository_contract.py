@@ -7,12 +7,17 @@ def test_v1_contract_files_exist():
         "templates/typst/cover_letter.typ",
         "templates/typst/cv_notes.typ",
         "templates/typst/application_package.typ",
-        "skills/job_parser.md",
-        "skills/profile_matcher.md",
-        "skills/cover_letter_writer.md",
-        "skills/cv_tailor.md",
-        "skills/criteria_checker.md",
-        "skills/package_builder.md",
+        "prompts/job_parser.md",
+        "prompts/profile_matcher.md",
+        "prompts/cover_letter_writer.md",
+        "prompts/cv_tailor.md",
+        "prompts/criteria_checker.md",
+        "prompts/package_builder.md",
+        "agent-skills/academic-application-prep/SKILL.md",
+        "agent-skills/academic-application-prep/references/workflow.md",
+        "agent-skills/academic-application-prep/references/file-contracts.md",
+        "agent-skills/academic-application-prep/references/typst-profile.md",
+        "agent-skills/academic-application-prep/references/privacy.md",
         "schemas/parsed_job.schema.json",
         "schemas/fit_report.schema.json",
         "schemas/criteria_check.schema.json",
@@ -43,6 +48,17 @@ def test_docs_record_rss_and_privacy_contracts():
     assert "RSS import." not in proposal
 
 
+def test_agent_skill_has_standard_frontmatter_and_references():
+    root = Path(__file__).resolve().parents[1]
+    skill = (root / "agent-skills/academic-application-prep/SKILL.md").read_text()
+
+    assert skill.startswith("---\n")
+    assert "name: academic-application-prep" in skill
+    assert "description: Use when" in skill
+    assert "references/workflow.md" in skill
+    assert "references/typst-profile.md" in skill
+
+
 def test_readme_documents_complete_workflow_and_round_two_tasks():
     root = Path(__file__).resolve().parents[1]
     readme = (root / "README.md").read_text()
@@ -64,3 +80,18 @@ def test_readme_documents_complete_workflow_and_round_two_tasks():
         assert section in readme
     assert "LLM-backed parser" in readme
     assert "evidence citation" in readme
+    assert "prompts/" in readme
+    assert "agent-skills/" in readme
+    assert "profile/profile.yaml" in readme
+    assert "profile/generated/" in readme
+
+
+def test_proposal_documents_prompt_skill_split_and_typst_profile():
+    root = Path(__file__).resolve().parents[1]
+    proposal = (root / "academic_application_prep_copilot_proposal.md").read_text()
+
+    assert "prompts/" in proposal
+    assert "agent-skills/" in proposal
+    assert "profile/profile.yaml" in proposal
+    assert "profile/generated/" in proposal
+    assert "Prompt files should live in `skills/`" not in proposal

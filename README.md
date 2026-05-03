@@ -21,7 +21,7 @@ During development, prefer `uv run academic-prep ...`. If the package is install
 
 ### 2. Prepare local private profile data
 
-Create starter profile files:
+Create starter profile files. The default mode is `hybrid`, which creates both Markdown evidence files and Typst-first profile sources:
 
 ```bash
 uv run academic-prep init-profile
@@ -31,6 +31,7 @@ This creates local Markdown/YAML evidence files under `profile/`:
 
 ```text
 profile/
+  profile.yaml
   cv.md
   publications.md
   teaching_experience.md
@@ -40,9 +41,22 @@ profile/
   grants_awards.md
   references.md
   personal_profile.yaml
+  typst/
+    cv.typ
+    cover_letter_base.typ
+    research_statement.typ
+    teaching_statement.typ
+  generated/
+    .gitkeep
 ```
 
-Fill these files with your private academic profile. Keep headings and bullet points clear because later matching uses file + section/item evidence citation.
+If you already maintain your CV and statements in Typst using `modernpro-cv` and `modernpro-coverletter`, initialize only the Typst profile scaffold:
+
+```bash
+uv run academic-prep init-profile --mode typst
+```
+
+Fill these files with your private academic profile. Typst can be the human-facing source format, but the matcher/checker should read normalized evidence from `profile/generated/`. The local `profile/profile.yaml` manifest records which Typst files correspond to CV, cover letter base, research statement, teaching statement, and generated evidence outputs.
 
 ### 3. Fetch jobs.ac.uk RSS leads
 
@@ -189,6 +203,27 @@ The intended direction is:
 - Use `modernpro-coverletter` for cover letters and statement/application package style outputs.
 - Keep personal content in ignored local folders.
 
+## Project Skills and Prompts
+
+This repository separates application prompts from agent-readable skills:
+
+- `prompts/` contains LLM prompt files used by the application pipeline.
+- `agent-skills/` contains standard `SKILL.md` directories that Codex, Claude Code, Gemini, or another agent can read as project guidance.
+
+The main project skill is:
+
+```text
+agent-skills/academic-application-prep/
+  SKILL.md
+  references/
+    workflow.md
+    file-contracts.md
+    typst-profile.md
+    privacy.md
+```
+
+Agents should load this skill when working on academic application preparation, file contracts, Typst-first profile handling, or privacy-sensitive generated materials.
+
 ## Round 2 Task Queue
 
 Round 2 should turn the current scaffold into a useful evidence-grounded preparation pipeline.
@@ -200,6 +235,7 @@ Round 2 should turn the current scaffold into a useful evidence-grounded prepara
 
 2. **Profile evidence index and evidence citation**
    - Parse `profile/*.md` headings and bullet items.
+   - Parse Typst-first profile sources under `profile/typst/`.
    - Build file + section/item evidence references.
    - Use evidence citation in fit reports, criteria checks, and drafts.
 

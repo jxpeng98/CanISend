@@ -168,13 +168,22 @@ auto-academic-jobs/
   jobs/
     .gitkeep
 
-  skills/
+  prompts/
     job_parser.md
     profile_matcher.md
     cover_letter_writer.md
     cv_tailor.md
     criteria_checker.md
     package_builder.md
+
+  agent-skills/
+    academic-application-prep/
+      SKILL.md
+      references/
+        workflow.md
+        file-contracts.md
+        typst-profile.md
+        privacy.md
 
   schemas/
     parsed_job.schema.json
@@ -224,6 +233,7 @@ Creates the local profile folder if it does not exist:
 
 ```text
 profile/
+  profile.yaml
   cv.md
   publications.md
   teaching_experience.md
@@ -233,9 +243,18 @@ profile/
   grants_awards.md
   references.md
   personal_profile.yaml
+  typst/
+    cv.typ
+    cover_letter_base.typ
+    research_statement.typ
+    teaching_statement.typ
+  generated/
+    .gitkeep
 ```
 
-The profile files are the canonical evidence base. Generated materials must cite evidence from these files.
+Markdown files are one evidence source. Typst files can also be the human-facing profile source when the user already maintains CV and statements with `modernpro-cv` and `modernpro-coverletter`.
+
+The local manifest is `profile/profile.yaml`. The normalized evidence layer should live under `profile/generated/`. Generated materials must cite evidence from Markdown files or generated evidence files at file + section/item level.
 
 ### 5.2 Create a Job
 
@@ -530,12 +549,12 @@ The command provider should:
 
 Dedicated provider adapters for specific CLIs may be added later if needed.
 
-### 7.4 Prompt Files
+### 7.4 Prompt Files and Agent Skills
 
-Prompt files should live in `skills/`:
+Application prompt files should live in `prompts/`:
 
 ```text
-skills/
+prompts/
   job_parser.md
   profile_matcher.md
   cover_letter_writer.md
@@ -553,6 +572,21 @@ Each prompt file should define:
 - Constraints
 - Evidence rules
 - Quality criteria
+
+Codex-readable project skills should live separately in `agent-skills/`:
+
+```text
+agent-skills/
+  academic-application-prep/
+    SKILL.md
+    references/
+      workflow.md
+      file-contracts.md
+      typst-profile.md
+      privacy.md
+```
+
+This split prevents application prompts from being confused with agent skills.
 
 ---
 
@@ -870,7 +904,7 @@ Deliverables:
 
 - `parsed_job.json`
 - `01_job_summary.md`
-- `skills/job_parser.md`
+- `prompts/job_parser.md`
 
 Acceptance criteria:
 

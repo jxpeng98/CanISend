@@ -21,9 +21,17 @@ def init_profile(
         "--profile-dir",
         help="Directory for Markdown profile evidence files.",
     ),
+    mode: str = typer.Option(
+        "hybrid",
+        "--mode",
+        help="Profile scaffold mode: markdown, typst, or hybrid.",
+    ),
 ) -> None:
     """Create starter profile files."""
-    created = create_profile(profile_dir)
+    try:
+        created = create_profile(profile_dir, mode=mode)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
     typer.echo(f"Profile ready at {profile_dir}")
     if created:
         typer.echo(f"Created {len(created)} profile files.")

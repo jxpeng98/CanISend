@@ -78,15 +78,106 @@ location_preferences: []
 }
 
 
-def init_profile(profile_dir: Path) -> list[Path]:
+TYPST_PROFILE_TEMPLATES: dict[str, str] = {
+    "profile.yaml": """profile_mode: hybrid
+canonical_evidence_dir: generated
+sources:
+  cv: typst/cv.typ
+  cover_letter_base: typst/cover_letter_base.typ
+  research_statement: typst/research_statement.typ
+  teaching_statement: typst/teaching_statement.typ
+generated:
+  cv_evidence: generated/cv.evidence.md
+  research_statement_evidence: generated/research_statement.evidence.md
+  teaching_statement_evidence: generated/teaching_statement.evidence.md
+privacy:
+  commit_real_profile: false
+""",
+    "typst/cv.typ": """#import "@preview/fontawesome:0.6.0": *
+#import "@preview/modernpro-cv:1.3.0": *
+
+#show: cv-single.with(
+  font-type: "PT Serif",
+  name: [Applicant Name],
+  address: [],
+  contacts: (),
+)
+
+#section("Education")
+
+#section("Research")
+
+#section("Teaching")
+""",
+    "typst/cover_letter_base.typ": """#import "@preview/fontawesome:0.6.0": *
+#import "@preview/modernpro-coverletter:0.0.8": *
+
+#show: coverletter.with(
+  font-type: "PT Serif",
+  name: [Applicant Name],
+  address: [],
+  salutation: [Yours sincerely,],
+  contacts: (),
+  recipient: (
+    start-title: [Dear Selection Committee,],
+    cl-title: [Academic Job Application],
+    date: [],
+    department: [],
+    institution: [],
+    address: [],
+    postcode: [],
+  ),
+)
+""",
+    "typst/research_statement.typ": """#import "@preview/modernpro-coverletter:0.0.8": *
+
+#show: statement.with(
+  font-type: "PT Serif",
+  name: [Applicant Name],
+  address: [],
+  contacts: (),
+)
+
+= Research Statement
+""",
+    "typst/teaching_statement.typ": """#import "@preview/modernpro-coverletter:0.0.8": *
+
+#show: statement.with(
+  font-type: "PT Serif",
+  name: [Applicant Name],
+  address: [],
+  contacts: (),
+)
+
+= Teaching Statement
+""",
+    "generated/.gitkeep": "",
+}
+
+
+def init_profile(profile_dir: Path, mode: str = "hybrid") -> list[Path]:
+    if mode not in {"markdown", "typst", "hybrid"}:
+        raise ValueError("profile mode must be markdown, typst, or hybrid")
+
     profile_dir.mkdir(parents=True, exist_ok=True)
     created: list[Path] = []
 
-    for filename, content in PROFILE_TEMPLATES.items():
+    if mode in {"markdown", "hybrid"}:
+        created.extend(_write_templates(profile_dir, PROFILE_TEMPLATES))
+
+    if mode in {"typst", "hybrid"}:
+        created.extend(_write_templates(profile_dir, TYPST_PROFILE_TEMPLATES))
+
+    return created
+
+
+def _write_templates(profile_dir: Path, templates: dict[str, str]) -> list[Path]:
+    created: list[Path] = []
+    for filename, content in templates.items():
         path = profile_dir / filename
         if path.exists():
             continue
+        path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
         created.append(path)
-
     return created
