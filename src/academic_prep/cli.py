@@ -5,6 +5,7 @@ import typer
 from academic_prep.jobs import create_job
 from academic_prep.pipeline import run_pipeline as run_job_pipeline
 from academic_prep.profile import init_profile as create_profile
+from academic_prep.typst import render_typst_files
 
 app = typer.Typer(
     help="Prepare academic job application materials from local files.",
@@ -69,6 +70,15 @@ def run_pipeline(
 @app.command("render-typst")
 def render_typst(
     job: Path = typer.Option(..., "--job", help="Path to the job folder."),
+    typst_bin: str = typer.Option("typst", "--typst-bin", help="Typst executable path or command name."),
 ) -> None:
     """Render generated Typst files for one job."""
-    typer.echo(f"Typst rendering is not implemented yet: {job}")
+    try:
+        rendered = render_typst_files(job, typst_bin=typst_bin)
+    except FileNotFoundError as exc:
+        typer.echo(str(exc))
+        raise typer.Exit(code=1) from exc
+    except RuntimeError as exc:
+        typer.echo(str(exc))
+        raise typer.Exit(code=1) from exc
+    typer.echo(f"Rendered {len(rendered)} PDF files for {job}")
