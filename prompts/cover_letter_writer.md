@@ -14,6 +14,24 @@ Generate a reviewable cover letter draft aligned to the parsed job and profile e
 - `02_fit_report.md`
 - Markdown files under `profile/`
 
+### parsed_job.json
+
+```json
+{parsed_job}
+```
+
+### profile evidence
+
+```json
+{profile_evidence}
+```
+
+### fit report
+
+```markdown
+{fit_report}
+```
+
 ## Output Format
 
 Markdown cover letter draft.
@@ -22,5 +40,6 @@ Markdown cover letter draft.
 
 - Do not invent experience.
 - Use specific evidence rather than generic enthusiasm.
+- Cite evidence exactly as backticked `profile/generated/file.evidence.md#Section` references.
 - Keep claims proportionate and reviewable.
 - Leave explicit placeholders where the user must decide content.

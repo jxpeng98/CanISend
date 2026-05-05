@@ -87,6 +87,7 @@ def test_readme_documents_complete_workflow_and_round_two_tasks():
     assert "profile/generated/" in readme
     assert "extract-profile-evidence" in readme
     assert "--llm-parser" in readme
+    assert "--llm-drafts" in readme
     assert "ACADEMIC_PREP_LLM_PROVIDER" in readme
 
 
@@ -100,4 +101,5 @@ def test_proposal_documents_prompt_skill_split_and_typst_profile():
     assert "profile/generated/" in proposal
     assert "extract-profile-evidence" in proposal
     assert "--llm-parser" in proposal
+    assert "--llm-drafts" in proposal
     assert "Prompt files should live in `skills/`" not in proposal

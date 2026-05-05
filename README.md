@@ -172,7 +172,26 @@ uv run academic-prep run \
   --llm-parser
 ```
 
+To keep deterministic parsing but use provider-backed evidence-grounded drafts, opt in with `--llm-drafts`:
+
+```bash
+uv run academic-prep run \
+  --job jobs/2026-06-15_university-x_lecturer-in-economics \
+  --llm-drafts
+```
+
+You can combine both switches when provider-backed parsing and drafting are both desired:
+
+```bash
+uv run academic-prep run \
+  --job jobs/2026-06-15_university-x_lecturer-in-economics \
+  --llm-parser \
+  --llm-drafts
+```
+
 The LLM parser must return JSON matching the `parsed_job.json` contract. Invalid JSON, missing required fields, or criteria without source text fail clearly instead of silently inventing data.
+
+The LLM draft generator writes `02_fit_report.md`, `03_cover_letter_draft.md`, `04_cv_tailoring_notes.md`, and `05_criteria_checklist.md`. Draft outputs must cite profile evidence as backticked `profile/generated/file.evidence.md#Section` references; unknown citations fail validation.
 
 To use a non-default profile folder:
 
@@ -198,7 +217,7 @@ jobs/<job-slug>/
     application_package.typ
 ```
 
-The current generator is deterministic and scaffold-level. Later rounds replace generation and matching steps with LLM-backed implementations while preserving the same file contracts.
+The default generator remains deterministic and scaffold-level. `--llm-drafts` replaces matching and drafting steps with provider-backed generation while preserving the same file contracts.
 
 ### 7. Review and edit generated materials
 

@@ -202,3 +202,78 @@ def test_run_pipeline_can_use_llm_parser_with_command_provider(tmp_path, monkeyp
     prompt = captured_prompt.read_text()
     assert prompt.count("Raw advert text") == 1
     assert "University X" in prompt
+
+
+def test_run_pipeline_can_use_llm_drafts_with_command_provider(tmp_path, monkeypatch):
+    job_dir = tmp_path / "jobs" / "2026-06-15_university-x_lecturer-in-economics"
+    job_dir.mkdir(parents=True)
+    (job_dir / "job.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "id": "2026-06-15_university-x_lecturer-in-economics",
+                "title": "Lecturer in Economics",
+                "institution": "University X",
+                "department": "",
+                "location": "",
+                "deadline": "2026-06-15",
+                "source_url": "https://example.edu/jobs/123",
+                "status": "advert_imported",
+                "created_at": "2026-05-03T23:00:00Z",
+                "updated_at": "2026-05-03T23:00:00Z",
+                "notes": "",
+            },
+            sort_keys=False,
+        )
+    )
+    (job_dir / "job_advert.md").write_text(
+        "# Lecturer in Economics\n\n"
+        "Teaching fields: Econometrics\n\n"
+        "Essential criteria:\n"
+        "- Evidence of teaching excellence\n"
+    )
+    profile_dir = tmp_path / "profile"
+    generated_dir = profile_dir / "generated"
+    generated_dir.mkdir(parents=True)
+    (generated_dir / "cv.evidence.md").write_text(
+        "# Evidence: cv\n\n"
+        "## Teaching\n\n"
+        "- `job`: Teaching Assistant for Econometrics\n"
+    )
+    fake_generator = tmp_path / "fake_generator.py"
+    fake_generator.write_text(
+        "import sys\n"
+        "prompt = sys.stdin.read()\n"
+        "citation = '`profile/generated/cv.evidence.md#Teaching`'\n"
+        "if '# Profile Matcher' in prompt:\n"
+        "    print(f'# Fit Report\\n\\n- Strong teaching fit for econometrics ({citation}).')\n"
+        "elif '# Cover Letter Writer' in prompt:\n"
+        "    print(f'# Cover Letter Draft\\n\\nI can contribute to econometrics teaching ({citation}).')\n"
+        "elif '# CV Tailor' in prompt:\n"
+        "    print(f'# CV Tailoring Notes\\n\\n- Move teaching evidence higher ({citation}).')\n"
+        "elif '# Criteria Checker' in prompt:\n"
+        "    print(f'# Criteria Coverage Checklist\\n\\n| Criterion | Coverage | Evidence Source | Risk | Suggested Improvement |\\n|---|---|---|---|---|\\n| Evidence of teaching excellence | strong | {citation} | low | Keep the evidence visible. |')\n"
+        "else:\n"
+        "    raise SystemExit('unexpected prompt')\n"
+    )
+    monkeypatch.setenv("ACADEMIC_PREP_LLM_PROVIDER", "command")
+    monkeypatch.setenv("ACADEMIC_PREP_LLM_COMMAND", f"{sys.executable} {fake_generator}")
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "run",
+            "--job",
+            str(job_dir),
+            "--profile-dir",
+            str(profile_dir),
+            "--llm-drafts",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Strong teaching fit for econometrics" in (job_dir / "02_fit_report.md").read_text()
+    assert "I can contribute to econometrics teaching" in (job_dir / "03_cover_letter_draft.md").read_text()
+    assert "Move teaching evidence higher" in (job_dir / "04_cv_tailoring_notes.md").read_text()
+    assert "strong" in (job_dir / "05_criteria_checklist.md").read_text()
+    assert "Strong teaching fit for econometrics" in (job_dir / "typst" / "application_package.typ").read_text()

@@ -8,6 +8,7 @@ import yaml
 
 from academic_prep.evidence import EvidenceReference, load_generated_evidence
 from academic_prep.llm import load_llm_config, provider_from_config
+from academic_prep.materials import ApplicationMaterials, generate_materials_with_provider
 from academic_prep.parse import parse_job_advert, parse_job_advert_with_provider
 
 
@@ -15,6 +16,7 @@ def run_pipeline(
     job_dir: Path,
     profile_dir: Path = Path("profile"),
     use_llm_parser: bool = False,
+    use_llm_drafts: bool = False,
     prompt_dir: Path = Path("prompts"),
 ) -> list[Path]:
     metadata_path = job_dir / "job.yaml"
@@ -24,19 +26,26 @@ def run_pipeline(
 
     parsed_job = _parse_job(advert_text, metadata, use_llm_parser=use_llm_parser, prompt_dir=prompt_dir)
     evidence = load_generated_evidence(profile_dir)
+    materials = _materials(
+        parsed_job,
+        evidence,
+        use_llm_drafts=use_llm_drafts,
+        prompt_dir=prompt_dir,
+    )
+    final_package = _final_package(parsed_job, materials)
     written = [
         _write_json(job_dir / "parsed_job.json", parsed_job),
         _write_text(job_dir / "01_job_summary.md", _job_summary(parsed_job)),
-        _write_text(job_dir / "02_fit_report.md", _fit_report(parsed_job, evidence)),
-        _write_text(job_dir / "03_cover_letter_draft.md", _cover_letter(parsed_job)),
-        _write_text(job_dir / "04_cv_tailoring_notes.md", _cv_notes(parsed_job)),
-        _write_text(job_dir / "05_criteria_checklist.md", _criteria_checklist(parsed_job, evidence)),
-        _write_text(job_dir / "06_final_application_package.md", _final_package(parsed_job)),
+        _write_text(job_dir / "02_fit_report.md", materials.fit_report),
+        _write_text(job_dir / "03_cover_letter_draft.md", materials.cover_letter_draft),
+        _write_text(job_dir / "04_cv_tailoring_notes.md", materials.cv_tailoring_notes),
+        _write_text(job_dir / "05_criteria_checklist.md", materials.criteria_checklist),
+        _write_text(job_dir / "06_final_application_package.md", final_package),
     ]
 
     typst_dir = job_dir / "typst"
-    written.append(_write_text(typst_dir / "cover_letter.typ", _modernpro_coverletter_source(_cover_letter(parsed_job))))
-    written.append(_write_text(typst_dir / "application_package.typ", _modernpro_package_source(_final_package(parsed_job))))
+    written.append(_write_text(typst_dir / "cover_letter.typ", _modernpro_coverletter_source(materials.cover_letter_draft)))
+    written.append(_write_text(typst_dir / "application_package.typ", _modernpro_package_source(final_package)))
 
     metadata["status"] = "packaged"
     metadata_path.write_text(yaml.safe_dump(metadata, sort_keys=False), encoding="utf-8")
@@ -60,6 +69,30 @@ def _parse_job(
         metadata=metadata,
         provider=provider,
         prompt_text=prompt_text,
+    )
+
+
+def _materials(
+    parsed_job: dict[str, Any],
+    evidence: list[EvidenceReference],
+    *,
+    use_llm_drafts: bool,
+    prompt_dir: Path,
+) -> ApplicationMaterials:
+    if not use_llm_drafts:
+        return ApplicationMaterials(
+            fit_report=_fit_report(parsed_job, evidence),
+            cover_letter_draft=_cover_letter(parsed_job),
+            cv_tailoring_notes=_cv_notes(parsed_job),
+            criteria_checklist=_criteria_checklist(parsed_job, evidence),
+        )
+
+    provider = provider_from_config(load_llm_config())
+    return generate_materials_with_provider(
+        parsed_job=parsed_job,
+        evidence=evidence,
+        provider=provider,
+        prompt_dir=prompt_dir,
     )
 
 
@@ -190,7 +223,7 @@ def _first_evidence_text(evidence: list[EvidenceReference]) -> str:
     return evidence[0].text
 
 
-def _final_package(parsed_job: dict[str, Any]) -> str:
+def _final_package(parsed_job: dict[str, Any], materials: ApplicationMaterials) -> str:
     return f"""# Final Application Package
 
 ## Job Information
@@ -207,19 +240,19 @@ Use the extracted criteria to decide the main application angle after profile ev
 
 ## Fit Report Summary
 
-See `02_fit_report.md`.
+{materials.fit_report.strip()}
 
 ## Cover Letter Draft
 
-See `03_cover_letter_draft.md`.
+{materials.cover_letter_draft.strip()}
 
 ## CV Tailoring Notes
 
-See `04_cv_tailoring_notes.md`.
+{materials.cv_tailoring_notes.strip()}
 
 ## Criteria Coverage Checklist
 
-See `05_criteria_checklist.md`.
+{materials.criteria_checklist.strip()}
 
 ## Required Documents Checklist
 

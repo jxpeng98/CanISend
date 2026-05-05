@@ -307,14 +307,34 @@ academic-prep run \
   --llm-parser
 ```
 
+The default matcher and draft generator should also remain deterministic. LLM-backed materials must be an explicit opt-in:
+
+```bash
+academic-prep run \
+  --job jobs/2026-06-15_university-x_lecturer-in-economics \
+  --llm-drafts
+```
+
+Provider-backed parsing and drafting may be combined:
+
+```bash
+academic-prep run \
+  --job jobs/2026-06-15_university-x_lecturer-in-economics \
+  --llm-parser \
+  --llm-drafts
+```
+
 The pipeline should also allow prompt directory overrides for experiments while keeping the built-in file contracts stable:
 
 ```bash
 academic-prep run \
   --job jobs/2026-06-15_university-x_lecturer-in-economics \
   --llm-parser \
+  --llm-drafts \
   --prompt-dir prompts
 ```
+
+LLM-backed materials should cite profile evidence as backticked `profile/generated/file.evidence.md#Section` references. Unknown evidence citations should fail validation rather than allowing unsupported claims into application-facing drafts.
 
 Expected generated files:
 
@@ -958,6 +978,7 @@ Deliverables:
 Acceptance criteria:
 
 - Strong claims cite evidence.
+- Unknown evidence citations fail validation.
 - Gaps are visible.
 - Cover letter draft is useful but clearly reviewable.
 

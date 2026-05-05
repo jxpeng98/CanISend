@@ -119,6 +119,11 @@ def run_pipeline(
         "--llm-parser",
         help="Use configured LLM provider and prompts/job_parser.md instead of deterministic parsing.",
     ),
+    llm_drafts: bool = typer.Option(
+        False,
+        "--llm-drafts",
+        help="Use configured LLM provider for fit report, cover letter, CV notes, and criteria checklist.",
+    ),
     prompt_dir: Path = typer.Option(
         Path("prompts"),
         "--prompt-dir",
@@ -130,6 +135,7 @@ def run_pipeline(
         job,
         profile_dir=profile_dir,
         use_llm_parser=llm_parser,
+        use_llm_drafts=llm_drafts,
         prompt_dir=prompt_dir,
     )
     typer.echo(f"Generated {len(written)} files for {job}")
