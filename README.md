@@ -23,6 +23,9 @@ The workspace contains private profile data, job leads, job folders, editable pr
   academic-prep.yaml
   .env.example
   .gitignore
+  AGENTS.md
+  CLAUDE.md
+  GEMINI.md
   profile/
   jobs/
   job_leads/
@@ -32,7 +35,7 @@ The workspace contains private profile data, job leads, job folders, editable pr
   agent-skills/
 ```
 
-The package keeps built-in defaults for prompts, schemas, templates, examples, and agent skills. If a workspace-local default file is missing, the CLI falls back to the packaged copy. If a local file exists, it is treated as the user's editable override.
+The package keeps built-in defaults for prompts, schemas, templates, examples, agent skills, and platform bridge files. If a workspace-local default file is missing, the CLI falls back to the packaged copy. If a local file exists, it is treated as the user's editable override.
 
 To update:
 
@@ -43,6 +46,8 @@ academic-prep doctor --workspace ~/AcademicApplications
 ```
 
 `update-workspace` preserves local prompt/template/skill edits by default. Use `--overwrite` only when you intentionally want to replace local default-resource copies with the package version.
+
+`AGENTS.md`, `CLAUDE.md`, and `GEMINI.md` are lightweight bridge files for Codex-style agents, Claude Code, Gemini CLI, and IDE agents. They all point to `agent-skills/academic-application-prep/SKILL.md` so the same workflow is usable across platforms.
 
 Developers who want to change the tool itself should fork or clone the repository and use `uv run academic-prep ...`.
 
@@ -434,6 +439,7 @@ agent-skills/academic-application-prep/
   references/
     workflow.md
     job-lifecycle.md
+    platforms.md
     file-contracts.md
     typst-profile.md
     provider-config.md
@@ -445,6 +451,8 @@ agent-skills/academic-application-prep/
 Agents should load this skill when working on academic application preparation, file contracts, Typst-first profile handling, provider setup, evidence quality gates, agent orchestration, or privacy-sensitive generated materials.
 
 Codex, Claude Code, Gemini, or another local agent should coordinate through the skill and CLI: fetch RSS leads, create a job from a chosen lead, ensure the full advert is present, extract profile evidence, run parser/draft generation, review citations, and optionally render Typst. Agents must not scrape pages, submit applications, or commit private profile/job data.
+
+`platform-bridges/` contains the bridge templates copied into user workspaces. `references/platforms.md` explains how to use the same skill through Codex/AGENTS.md, Claude Code/CLAUDE.md, Gemini CLI/GEMINI.md, and IDE agents that only read project instruction files.
 
 ## Round 2 Task Queue
 

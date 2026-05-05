@@ -89,6 +89,7 @@ def update_workspace_defaults(workspace: Path, *, overwrite: bool = False) -> li
     copied.extend(copy_resource_tree("templates", workspace / "templates", overwrite=overwrite))
     copied.extend(copy_resource_tree("schemas", workspace / "schemas", overwrite=overwrite))
     copied.extend(copy_resource_tree("agent-skills", workspace / "agent-skills", overwrite=overwrite))
+    copied.extend(copy_resource_tree("platform-bridges", workspace, overwrite=overwrite))
     return copied
 
 

@@ -24,9 +24,13 @@ def test_v1_contract_files_exist():
         "agent-skills/academic-application-prep/references/typst-profile.md",
         "agent-skills/academic-application-prep/references/agent-orchestration.md",
         "agent-skills/academic-application-prep/references/job-lifecycle.md",
+        "agent-skills/academic-application-prep/references/platforms.md",
         "agent-skills/academic-application-prep/references/privacy.md",
         "agent-skills/academic-application-prep/references/provider-config.md",
         "agent-skills/academic-application-prep/references/quality-gates.md",
+        "platform-bridges/AGENTS.md",
+        "platform-bridges/CLAUDE.md",
+        "platform-bridges/GEMINI.md",
         "schemas/parsed_job.schema.json",
         "schemas/fit_report.schema.json",
         "schemas/criteria_check.schema.json",
@@ -75,6 +79,7 @@ def test_agent_skill_has_standard_frontmatter_and_references():
     assert "references/provider-config.md" in skill
     assert "references/quality-gates.md" in skill
     assert "references/job-lifecycle.md" in skill
+    assert "references/platforms.md" in skill
     assert "$academic-application-prep" in metadata
     assert "display_name: \"Academic Application Prep\"" in metadata
     assert len(skill.splitlines()) < 120
@@ -86,6 +91,7 @@ def test_agent_skill_references_capture_operational_gates():
     quality = (references / "quality-gates.md").read_text()
     provider = (references / "provider-config.md").read_text()
     lifecycle = (references / "job-lifecycle.md").read_text()
+    platforms = (references / "platforms.md").read_text()
 
     assert "profile/generated/" in quality
     assert "unknown citations fail validation" in quality
@@ -93,6 +99,21 @@ def test_agent_skill_references_capture_operational_gates():
     assert "OPENAI_BASE_URL" in provider
     assert "status: lead_imported" in lifecycle
     assert "status: packaged" in lifecycle
+    assert "AGENTS.md" in platforms
+    assert "CLAUDE.md" in platforms
+    assert "GEMINI.md" in platforms
+    assert "IDE" in platforms
+
+
+def test_platform_bridges_point_to_project_skill():
+    root = Path(__file__).resolve().parents[1]
+    bridges = root / "platform-bridges"
+
+    for filename in ["AGENTS.md", "CLAUDE.md", "GEMINI.md"]:
+        bridge = (bridges / filename).read_text()
+        assert "agent-skills/academic-application-prep/SKILL.md" in bridge
+        assert "academic-prep doctor --workspace" in bridge
+        assert "profile/" in bridge
 
 
 def test_readme_documents_complete_workflow_and_round_two_tasks():

@@ -18,6 +18,10 @@ REQUIRED_WHEEL_RESOURCES = [
     "academic_prep/resources/agent-skills/academic-application-prep/references/provider-config.md",
     "academic_prep/resources/agent-skills/academic-application-prep/references/quality-gates.md",
     "academic_prep/resources/agent-skills/academic-application-prep/references/job-lifecycle.md",
+    "academic_prep/resources/agent-skills/academic-application-prep/references/platforms.md",
+    "academic_prep/resources/platform-bridges/AGENTS.md",
+    "academic_prep/resources/platform-bridges/CLAUDE.md",
+    "academic_prep/resources/platform-bridges/GEMINI.md",
     "academic_prep/resources/examples/end_to_end/README.md",
 ]
 

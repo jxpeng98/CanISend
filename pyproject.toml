@@ -30,6 +30,7 @@ packages = ["src/academic_prep"]
 "templates" = "academic_prep/resources/templates"
 "schemas" = "academic_prep/resources/schemas"
 "agent-skills" = "academic_prep/resources/agent-skills"
+"platform-bridges" = "academic_prep/resources/platform-bridges"
 "examples" = "academic_prep/resources/examples"
 ".env.example" = "academic_prep/resources/.env.example"
 

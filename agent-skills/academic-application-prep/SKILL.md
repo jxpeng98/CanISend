@@ -35,6 +35,7 @@ Read only the reference files needed for the current task:
 - `references/typst-profile.md`: Typst-first profile handling with `modernpro-cv` and `modernpro-coverletter`.
 - `references/provider-config.md`: OpenAI-compatible and local command provider configuration.
 - `references/quality-gates.md`: evidence, parser, draft, package, Typst, and privacy review gates.
+- `references/platforms.md`: how to expose this skill in Codex, Claude Code, Gemini CLI, and IDE agents.
 - `references/agent-orchestration.md`: Codex, Claude Code, Gemini coordination patterns.
 - `references/privacy.md`: privacy and git-safety rules.
 

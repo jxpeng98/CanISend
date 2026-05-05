@@ -28,6 +28,10 @@ def test_init_workspace_creates_user_layout_and_default_resources(tmp_path):
     assert (workspace / "templates" / "typst" / "cover_letter.typ").exists()
     assert (workspace / "schemas" / "parsed_job.schema.json").exists()
     assert (workspace / "agent-skills" / "academic-application-prep" / "SKILL.md").exists()
+    assert (workspace / "AGENTS.md").exists()
+    assert (workspace / "CLAUDE.md").exists()
+    assert (workspace / "GEMINI.md").exists()
+    assert "agent-skills/academic-application-prep/SKILL.md" in (workspace / "AGENTS.md").read_text()
     config = yaml.safe_load((workspace / "academic-prep.yaml").read_text())
     profile_manifest = yaml.safe_load((workspace / "profile" / "profile.yaml").read_text())
     assert config["profile_dir"] == "profile"
@@ -46,6 +50,19 @@ def test_init_workspace_does_not_overwrite_local_prompt_by_default(tmp_path):
 
     assert result.exit_code == 0
     assert local_prompt.read_text() == "custom prompt\n"
+
+
+def test_init_workspace_does_not_overwrite_platform_bridge_by_default(tmp_path):
+    workspace = tmp_path / "workspace"
+    bridge = workspace / "AGENTS.md"
+    bridge.parent.mkdir(parents=True)
+    bridge.write_text("custom agent instructions\n")
+    runner = CliRunner()
+
+    result = runner.invoke(app, ["init-workspace", "--workspace", str(workspace)])
+
+    assert result.exit_code == 0
+    assert bridge.read_text() == "custom agent instructions\n"
 
 
 def test_run_uses_packaged_prompts_when_workspace_has_no_prompt_overrides(tmp_path, monkeypatch):
@@ -237,4 +254,5 @@ def test_pyproject_packages_runtime_resources():
     assert force_include["templates"] == "academic_prep/resources/templates"
     assert force_include["schemas"] == "academic_prep/resources/schemas"
     assert force_include["agent-skills"] == "academic_prep/resources/agent-skills"
+    assert force_include["platform-bridges"] == "academic_prep/resources/platform-bridges"
     assert force_include["examples"] == "academic_prep/resources/examples"
