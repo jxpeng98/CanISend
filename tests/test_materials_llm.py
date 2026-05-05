@@ -76,6 +76,7 @@ def evidence() -> list[EvidenceReference]:
         EvidenceReference(
             source_file="profile/generated/cv.evidence.md",
             section="Teaching",
+            item_id="cv-001",
             text="`job`: Teaching Assistant for Econometrics",
         )
     ]
@@ -95,7 +96,7 @@ def test_generate_materials_with_provider_injects_context_and_validates_citation
     assert "Move teaching evidence higher" in materials.cv_tailoring_notes
     assert "Evidence of teaching excellence" in materials.criteria_checklist
     assert len(provider.prompts) == 4
-    assert all("profile/generated/cv.evidence.md#Teaching" in prompt for prompt in provider.prompts)
+    assert all("profile/generated/cv.evidence.md#Teaching/cv-001" in prompt for prompt in provider.prompts)
     assert all("Evidence of teaching excellence" in prompt for prompt in provider.prompts)
 
 
@@ -109,6 +110,18 @@ def test_validate_material_citations_rejects_unknown_profile_reference():
 
     with pytest.raises(MaterialValidationError, match="unknown evidence citation"):
         validate_material_citations(materials, evidence())
+
+
+def test_validate_material_citations_accepts_item_level_profile_reference():
+    item_citation = "`profile/generated/cv.evidence.md#Teaching/cv-001`"
+    materials = ApplicationMaterials(
+        fit_report=f"# Fit Report\n\nClaim ({item_citation}).",
+        cover_letter_draft=f"# Cover Letter Draft\n\nClaim ({item_citation}).",
+        cv_tailoring_notes=f"# CV Tailoring Notes\n\nClaim ({item_citation}).",
+        criteria_checklist=f"# Criteria Coverage Checklist\n\nClaim ({item_citation}).",
+    )
+
+    validate_material_citations(materials, evidence())
 
 
 def test_validate_material_citations_requires_citations_when_evidence_exists():

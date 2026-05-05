@@ -20,40 +20,114 @@ class EvidenceReference:
     source_file: str
     section: str
     text: str
+    item_id: str = ""
+
+    @property
+    def citation(self) -> str:
+        section_citation = f"{self.source_file}#{self.section}"
+        if not self.item_id:
+            return section_citation
+        return f"{section_citation}/{self.item_id}"
+
+    @property
+    def section_citation(self) -> str:
+        return f"{self.source_file}#{self.section}"
+
+
+EVIDENCE_BLOCK_FUNCTIONS = {
+    "award",
+    "conference",
+    "dated-entry",
+    "education",
+    "employment",
+    "entry",
+    "event",
+    "experience",
+    "grant",
+    "job",
+    "presentation",
+    "project",
+    "publication",
+    "reference",
+    "references",
+    "research",
+    "service",
+    "skill",
+    "skills",
+    "supervision",
+    "talk",
+    "teaching",
+}
 
 
 def extract_typst_evidence(path: Path) -> list[EvidenceItem]:
     section = "Unsectioned"
     evidence: list[EvidenceItem] = []
+    statement_lines: list[str] = []
+    content_started = False
 
-    for raw_line in path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line:
-            continue
-
-        section_match = re.match(r'#section\("([^"]+)"\)', line)
-        if section_match:
-            section = section_match.group(1)
-            continue
-
-        heading_match = re.match(r"=+\s+(.+)", line)
-        if heading_match:
-            section = heading_match.group(1).strip()
-            continue
-
-        block_match = re.match(r"#(education|job|award|references?)\((.*)\)", line)
-        if block_match:
+    def flush_statement() -> None:
+        nonlocal statement_lines
+        text = _clean_statement_lines(statement_lines)
+        if text:
             evidence.append(
                 EvidenceItem(
                     source_file=str(path),
                     section=section,
-                    kind=block_match.group(1),
-                    text=_clean_typst_inline(block_match.group(2)),
+                    kind="statement",
+                    text=text,
+                )
+            )
+        statement_lines = []
+
+    lines = path.read_text(encoding="utf-8").splitlines()
+    index = 0
+    while index < len(lines):
+        raw_line = lines[index]
+        line = raw_line.strip()
+        if not line:
+            index += 1
+            continue
+
+        section_match = re.match(r'#section\("([^"]+)"\)', line)
+        if section_match:
+            flush_statement()
+            section = section_match.group(1)
+            content_started = True
+            index += 1
+            continue
+
+        heading_match = re.match(r"=+\s+(.+)", line)
+        if heading_match:
+            flush_statement()
+            section = heading_match.group(1).strip()
+            content_started = True
+            index += 1
+            continue
+
+        block_name = _typst_call_name(line)
+        if block_name in EVIDENCE_BLOCK_FUNCTIONS:
+            flush_statement()
+            block_text, index = _collect_typst_call(lines, index)
+            evidence.append(
+                EvidenceItem(
+                    source_file=str(path),
+                    section=section,
+                    kind=block_name,
+                    text=_clean_typst_inline(_strip_typst_call(block_name, block_text)),
                 )
             )
             continue
 
+        if line.startswith("#"):
+            if "(" in line and _paren_delta(line) > 0:
+                _, index = _collect_typst_call(lines, index)
+            else:
+                index += 1
+            continue
+
         if line.startswith("+ @"):
+            flush_statement()
             evidence.append(
                 EvidenceItem(
                     source_file=str(path),
@@ -62,6 +136,15 @@ def extract_typst_evidence(path: Path) -> list[EvidenceItem]:
                     text=line[2:].strip(),
                 )
             )
+            index += 1
+            continue
+
+        if content_started and _is_statement_line(line):
+            statement_lines.append(line)
+
+        index += 1
+
+    flush_statement()
 
     return evidence
 
@@ -100,21 +183,73 @@ def load_generated_evidence(profile_dir: Path) -> list[EvidenceReference]:
             if line.startswith("## "):
                 section = line[3:].strip()
             elif line.startswith("- "):
+                item_id, text = _parse_evidence_markdown_item(line)
                 references.append(
                     EvidenceReference(
                         source_file=str(relative),
                         section=section,
-                        text=line[2:].strip(),
+                        item_id=item_id,
+                        text=text,
                     )
                 )
     return references
 
 
+def _typst_call_name(line: str) -> str:
+    match = re.match(r"#([A-Za-z][\w-]*)\s*\(", line)
+    return match.group(1) if match else ""
+
+
+def _collect_typst_call(lines: list[str], start_index: int) -> tuple[str, int]:
+    collected: list[str] = []
+    balance = 0
+
+    for index in range(start_index, len(lines)):
+        line = lines[index].strip()
+        collected.append(line)
+        balance += _paren_delta(line)
+        if balance <= 0:
+            return "\n".join(collected), index + 1
+
+    return "\n".join(collected), len(lines)
+
+
+def _paren_delta(line: str) -> int:
+    return line.count("(") - line.count(")")
+
+
+def _strip_typst_call(name: str, call_text: str) -> str:
+    text = call_text.strip()
+    text = re.sub(rf"^#{re.escape(name)}\s*\(", "", text, count=1)
+    if text.endswith(")"):
+        text = text[:-1]
+    return text
+
+
+def _is_statement_line(line: str) -> bool:
+    if line.startswith(("//", "%", "|")):
+        return False
+    if re.match(r"^[A-Za-z0-9_-]+\s*:", line):
+        return False
+    return bool(re.search(r"[A-Za-z]", line))
+
+
+def _clean_statement_lines(lines: list[str]) -> str:
+    cleaned: list[str] = []
+    for line in lines:
+        if line.startswith(("- ", "+ ")):
+            line = line[2:].strip()
+        cleaned.append(line)
+    return _clean_typst_inline(" ".join(cleaned))
+
+
 def _clean_typst_inline(value: str) -> str:
     value = value.replace("[", "").replace("]", "")
     value = value.replace('"', "")
+    value = value.replace("\n", " ")
+    value = re.sub(r",\s*", ", ", value)
     value = re.sub(r"\s+", " ", value)
-    return value.strip()
+    return value.strip(" ,")
 
 
 def _output_path_for_source(profile_dir: Path, source_key: str, generated: dict[str, str]) -> Path:
@@ -127,13 +262,27 @@ def _evidence_markdown(source_key: str, evidence: list[EvidenceItem]) -> str:
     lines = [f"# Evidence: {source_key}", ""]
     current_section = ""
 
-    for item in evidence:
+    item_prefix = _evidence_item_prefix(source_key)
+    for index, item in enumerate(evidence, start=1):
         if item.section != current_section:
             current_section = item.section
             lines.extend([f"## {current_section}", ""])
-        lines.append(f"- `{item.kind}`: {item.text}")
+        item_id = f"{item_prefix}-{index:03d}"
+        lines.append(f"- [{item_id}] `{item.kind}`: {item.text}")
 
     if not evidence:
         lines.append("_No evidence extracted._")
 
     return "\n".join(lines).rstrip() + "\n"
+
+
+def _evidence_item_prefix(source_key: str) -> str:
+    prefix = re.sub(r"[^A-Za-z0-9]+", "-", source_key).strip("-").lower()
+    return prefix or "item"
+
+
+def _parse_evidence_markdown_item(line: str) -> tuple[str, str]:
+    item_match = re.match(r"- \[([^\]]+)\]\s+(.*)", line)
+    if item_match:
+        return item_match.group(1).strip(), item_match.group(2).strip()
+    return "", line[2:].strip()

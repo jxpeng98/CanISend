@@ -40,6 +40,6 @@ Markdown cover letter draft.
 
 - Do not invent experience.
 - Use specific evidence rather than generic enthusiasm.
-- Cite evidence exactly as backticked `profile/generated/file.evidence.md#Section` references.
+- Cite evidence exactly as backticked `profile/generated/file.evidence.md#Section/item-id` references when `item_id` is available.
 - Keep claims proportionate and reviewable.
 - Leave explicit placeholders where the user must decide content.

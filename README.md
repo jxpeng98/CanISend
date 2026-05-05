@@ -183,14 +183,18 @@ academic-prep extract-profile-evidence --workspace ~/AcademicApplications
 
 This reads `profile/profile.yaml`, extracts supported evidence from `profile/typst/*.typ`, and writes normalized files under `profile/generated/`.
 
-Current extraction support is intentionally conservative:
+Current extraction support is intentionally conservative but Typst-first:
 
 - `#section("...")`
 - Typst headings such as `= Research Statement`
 - `#education(...)`
 - `#job(...)`
 - `#award(...)`
+- modernpro-style entries such as `#dated-entry(...)`, `#entry(...)`, and `#event(...)`, including multi-line calls
+- statement paragraphs and bullet lines under Typst headings
 - publication references such as `+ @paper2025`
+
+Generated evidence items receive stable local IDs such as `cv-001` and are cited as `profile/generated/cv.evidence.md#Teaching/cv-001`. Older section-level citations like `profile/generated/cv.evidence.md#Teaching` are still accepted for compatibility, but item-level citations are preferred for new LLM output.
 
 Run this again whenever the private Typst profile sources change.
 
@@ -326,7 +330,7 @@ academic-prep run \
 
 The LLM parser must return JSON matching the `parsed_job.json` contract. Invalid JSON, missing required fields, or criteria without source text fail clearly instead of silently inventing data.
 
-The LLM draft generator writes `02_fit_report.md`, `03_cover_letter_draft.md`, `04_cv_tailoring_notes.md`, and `05_criteria_checklist.md`. Draft outputs must cite profile evidence as backticked `profile/generated/file.evidence.md#Section` references; unknown citations fail validation.
+The LLM draft generator writes `02_fit_report.md`, `03_cover_letter_draft.md`, `04_cv_tailoring_notes.md`, and `05_criteria_checklist.md`. Draft outputs should cite profile evidence as backticked `profile/generated/file.evidence.md#Section/item-id` references when an item ID is available; unknown citations fail validation.
 
 To use a non-default profile folder:
 
@@ -464,9 +468,9 @@ Round 2 should turn the current scaffold into a useful evidence-grounded prepara
    - Add schema validation and clear fallback errors.
 
 2. **Profile evidence index and evidence citation**
-   - Parse `profile/*.md` headings and bullet items.
    - Parse Typst-first profile sources under `profile/typst/`.
-   - Build file + section/item evidence references.
+   - Extract modernpro-style CV entries and statement paragraphs.
+   - Build file + section/item evidence references with stable item IDs.
    - Use evidence citation in fit reports, criteria checks, and drafts.
 
 3. **LLM-backed profile matcher**

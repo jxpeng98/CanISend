@@ -40,5 +40,5 @@ Markdown notes with prioritized edits.
 
 - Recommend section ordering, emphasis, and bullet revisions.
 - Do not add unsupported experience.
-- Cite evidence exactly as backticked `profile/generated/file.evidence.md#Section` references.
+- Cite evidence exactly as backticked `profile/generated/file.evidence.md#Section/item-id` references when `item_id` is available.
 - Identify whether the role needs teaching-focused or research-focused emphasis.

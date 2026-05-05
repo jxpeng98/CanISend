@@ -32,6 +32,6 @@ Markdown report with research fit, teaching fit, methods/data fit, department fi
 ## Constraints
 
 - Every strong-fit claim must cite profile file and section/item evidence.
-- Cite evidence exactly as backticked `profile/generated/file.evidence.md#Section` references.
+- Cite evidence exactly as backticked `profile/generated/file.evidence.md#Section/item-id` references when `item_id` is available.
 - Do not invent publications, teaching, grants, awards, supervision, or service.
 - Every gap should include a practical repair suggestion.

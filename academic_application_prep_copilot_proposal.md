@@ -348,7 +348,7 @@ academic-prep run \
   --prompt-dir prompts
 ```
 
-LLM-backed materials should cite profile evidence as backticked `profile/generated/file.evidence.md#Section` references. Unknown evidence citations should fail validation rather than allowing unsupported claims into application-facing drafts.
+LLM-backed materials should cite profile evidence as backticked `profile/generated/file.evidence.md#Section/item-id` references when generated item IDs are available. Unknown evidence citations should fail validation rather than allowing unsupported claims into application-facing drafts.
 
 Expected generated files:
 

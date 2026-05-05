@@ -217,7 +217,7 @@ def _evidence_summary(evidence: list[EvidenceReference]) -> str:
         return "Manual profile evidence review is required. Strong-fit claims must cite profile files and sections before use in final materials."
     lines = ["Generated profile evidence is available:"]
     for item in evidence:
-        lines.append(f"- `{item.source_file}#{item.section}`: {item.text}")
+        lines.append(f"- `{item.citation}`: {item.text}")
     return "\n".join(lines)
 
 
@@ -225,7 +225,7 @@ def _first_evidence_source(evidence: list[EvidenceReference]) -> str:
     if not evidence:
         return "Not yet linked"
     item = evidence[0]
-    return f"`{item.source_file}#{item.section}`"
+    return f"`{item.citation}`"
 
 
 def _first_evidence_text(evidence: list[EvidenceReference]) -> str:

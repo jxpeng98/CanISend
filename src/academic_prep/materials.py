@@ -123,9 +123,11 @@ def _render_material_prompt(
 def _evidence_json(evidence: list[EvidenceReference]) -> str:
     data = [
         {
-            "citation": f"{item.source_file}#{item.section}",
+            "citation": item.citation,
+            "section_citation": item.section_citation,
             "source_file": item.source_file,
             "section": item.section,
+            "item_id": item.item_id,
             "text": item.text,
         }
         for item in evidence
@@ -134,7 +136,11 @@ def _evidence_json(evidence: list[EvidenceReference]) -> str:
 
 
 def _allowed_citations(evidence: list[EvidenceReference]) -> set[str]:
-    return {f"{item.source_file}#{item.section}" for item in evidence}
+    allowed: set[str] = set()
+    for item in evidence:
+        allowed.add(item.section_citation)
+        allowed.add(item.citation)
+    return allowed
 
 
 def _markdown_citations(markdown: str) -> set[str]:
