@@ -92,14 +92,14 @@ Check local readiness:
 academic-prep doctor --workspace ~/AcademicApplications
 ```
 
-Then run subsequent commands from that workspace, or pass absolute paths to `--profile-dir`, `--jobs-dir`, `--leads-file`, and `--job`.
+The CLI reads `academic-prep.yaml` from `--workspace` and resolves configured relative paths inside that workspace. The examples below keep `--workspace ~/AcademicApplications` so they can run from any current directory. If you `cd ~/AcademicApplications`, you can omit `--workspace`.
 
 ### 3. Prepare local private profile data
 
 Create starter profile files. The default mode is `hybrid`, which creates both Markdown evidence files and Typst-first profile sources:
 
 ```bash
-uv run academic-prep init-profile
+academic-prep init-profile --workspace ~/AcademicApplications --mode hybrid
 ```
 
 This creates local Markdown/YAML evidence files under `profile/`:
@@ -128,7 +128,7 @@ profile/
 If you already maintain your CV and statements in Typst using `modernpro-cv` and `modernpro-coverletter`, initialize only the Typst profile scaffold:
 
 ```bash
-uv run academic-prep init-profile --mode typst
+academic-prep init-profile --workspace ~/AcademicApplications --mode typst
 ```
 
 Fill these files with your private academic profile. In normal use, `profile/typst/cv.typ`, `profile/typst/research_statement.typ`, `profile/typst/teaching_statement.typ`, and `profile/typst/cover_letter_base.typ` should be your already-written modernpro-based sources. Typst can be the human-facing source format, but the matcher/checker should read normalized evidence from `profile/generated/`. The local `profile/profile.yaml` manifest records which Typst files correspond to CV, cover letter base, research statement, teaching statement, and generated evidence outputs.
@@ -138,7 +138,7 @@ Fill these files with your private academic profile. In normal use, `profile/typ
 Generate Markdown evidence files from the local profile manifest and Typst sources:
 
 ```bash
-uv run academic-prep extract-profile-evidence
+academic-prep extract-profile-evidence --workspace ~/AcademicApplications
 ```
 
 This reads `profile/profile.yaml`, extracts supported evidence from `profile/typst/*.typ`, and writes normalized files under `profile/generated/`.
@@ -165,12 +165,12 @@ Open the jobs.ac.uk RSS index and copy a raw RSS Feed link from one of:
 Fetch and filter leads locally:
 
 ```bash
-uv run academic-prep fetch-jobs-ac-uk \
+academic-prep fetch-jobs-ac-uk \
+  --workspace ~/AcademicApplications \
   --feed-url "https://www.jobs.ac.uk/path/to/raw/rss/feed" \
   --include economics \
   --include finance \
-  --exclude phd \
-  --output job_leads/jobs_ac_uk.json
+  --exclude phd
 ```
 
 Filtering is local and keyword-based. V1 does not scrape individual job pages. Review `job_leads/jobs_ac_uk.json`, choose a role, then copy the advert text manually from the source page.
@@ -178,10 +178,10 @@ Filtering is local and keyword-based. V1 does not scrape individual job pages. R
 For offline testing, use a saved RSS XML file:
 
 ```bash
-uv run academic-prep fetch-jobs-ac-uk \
+academic-prep fetch-jobs-ac-uk \
+  --workspace ~/AcademicApplications \
   --rss-file samples/jobs_ac_uk.xml \
-  --include lecturer \
-  --output job_leads/jobs_ac_uk.json
+  --include lecturer
 ```
 
 ### 6. Select one advert and create a job workspace
@@ -189,8 +189,8 @@ uv run academic-prep fetch-jobs-ac-uk \
 Create one job folder per application preparation task. If the role came from `job_leads/jobs_ac_uk.json`, initialize the folder from the selected zero-based lead index:
 
 ```bash
-uv run academic-prep new-job-from-lead \
-  --leads-file job_leads/jobs_ac_uk.json \
+academic-prep new-job-from-lead \
+  --workspace ~/AcademicApplications \
   --lead-index 0 \
   --institution "University X" \
   --deadline "2026-06-15"
@@ -201,7 +201,8 @@ This writes the RSS title, source URL, published date, and RSS description into 
 You can also create a job manually:
 
 ```bash
-uv run academic-prep new-job \
+academic-prep new-job \
+  --workspace ~/AcademicApplications \
   --title "Lecturer in Economics" \
   --institution "University X" \
   --deadline "2026-06-15" \
@@ -219,7 +220,8 @@ jobs/2026-06-15_university-x_lecturer-in-economics/
 Paste the selected advert into `job_advert.md`, or import a local Markdown/TXT advert:
 
 ```bash
-uv run academic-prep new-job \
+academic-prep new-job \
+  --workspace ~/AcademicApplications \
   --title "Lecturer in Economics" \
   --institution "University X" \
   --deadline "2026-06-15" \
@@ -231,7 +233,9 @@ uv run academic-prep new-job \
 Run the local pipeline for the selected job:
 
 ```bash
-uv run academic-prep run --job jobs/2026-06-15_university-x_lecturer-in-economics
+academic-prep run \
+  --workspace ~/AcademicApplications \
+  --job jobs/2026-06-15_university-x_lecturer-in-economics
 ```
 
 This default run uses the deterministic local parser. To use the LLM-backed job parser, opt in explicitly and configure a provider:
@@ -242,7 +246,8 @@ OPENAI_API_KEY=...
 OPENAI_BASE_URL=https://api.openai.com/v1
 OPENAI_MODEL=...
 
-uv run academic-prep run \
+academic-prep run \
+  --workspace ~/AcademicApplications \
   --job jobs/2026-06-15_university-x_lecturer-in-economics \
   --llm-parser
 ```
@@ -254,7 +259,8 @@ ACADEMIC_PREP_LLM_PROVIDER=command
 ACADEMIC_PREP_LLM_COMMAND="codex exec --json"
 ACADEMIC_PREP_LLM_TIMEOUT_SECONDS=300
 
-uv run academic-prep run \
+academic-prep run \
+  --workspace ~/AcademicApplications \
   --job jobs/2026-06-15_university-x_lecturer-in-economics \
   --llm-parser
 ```
@@ -262,7 +268,8 @@ uv run academic-prep run \
 To keep deterministic parsing but use provider-backed evidence-grounded drafts, opt in with `--llm-drafts`:
 
 ```bash
-uv run academic-prep run \
+academic-prep run \
+  --workspace ~/AcademicApplications \
   --job jobs/2026-06-15_university-x_lecturer-in-economics \
   --llm-drafts
 ```
@@ -270,7 +277,8 @@ uv run academic-prep run \
 You can combine both switches when provider-backed parsing and drafting are both desired:
 
 ```bash
-uv run academic-prep run \
+academic-prep run \
+  --workspace ~/AcademicApplications \
   --job jobs/2026-06-15_university-x_lecturer-in-economics \
   --llm-parser \
   --llm-drafts
@@ -283,7 +291,8 @@ The LLM draft generator writes `02_fit_report.md`, `03_cover_letter_draft.md`, `
 To use a non-default profile folder:
 
 ```bash
-uv run academic-prep run \
+academic-prep run \
+  --workspace ~/AcademicApplications \
   --job jobs/2026-06-15_university-x_lecturer-in-economics \
   --profile-dir path/to/profile
 ```
@@ -333,7 +342,9 @@ The project uses public Typst Universe templates:
 Generate PDF outputs only when needed:
 
 ```bash
-uv run academic-prep render-typst --job jobs/2026-06-15_university-x_lecturer-in-economics
+academic-prep render-typst \
+  --workspace ~/AcademicApplications \
+  --job jobs/2026-06-15_university-x_lecturer-in-economics
 ```
 
 This requires a local `typst` binary. Source generation does not require Typst; only PDF rendering does.

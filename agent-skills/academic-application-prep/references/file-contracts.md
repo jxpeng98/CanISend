@@ -1,6 +1,8 @@
 # File Contracts
 
-User workspaces are initialized with `academic-prep init-workspace` and contain `academic-prep.yaml`.
+User workspaces are initialized with `academic-prep init-workspace --workspace <private-workspace>` and contain `academic-prep.yaml`.
+
+CLI commands read `academic-prep.yaml` from `--workspace`; configured relative paths are resolved inside that workspace so agents can run from any current directory.
 
 Application prompts live in `prompts/`. Workspace-local prompts override packaged defaults; missing prompt files fall back to packaged copies.
 

@@ -13,6 +13,15 @@ from academic_prep.resource_files import copy_resource_tree
 
 
 WORKSPACE_CONFIG = "academic-prep.yaml"
+DEFAULT_WORKSPACE_CONFIG = {
+    "profile_dir": "profile",
+    "jobs_dir": "jobs",
+    "job_leads_dir": "job_leads",
+    "prompt_dir": "prompts",
+    "template_dir": "templates",
+    "schema_dir": "schemas",
+    "agent_skills_dir": "agent-skills",
+}
 
 
 @dataclass(frozen=True)
@@ -20,6 +29,42 @@ class WorkspaceStatus:
     label: str
     path: str
     ok: bool
+
+
+@dataclass(frozen=True)
+class WorkspaceConfig:
+    root: Path
+    values: dict[str, str]
+
+    def path(self, key: str, override: Path | None = None) -> Path:
+        raw_value = override if override is not None else Path(self.values[key])
+        return _resolve_under_workspace(self.root, raw_value)
+
+    def lead_file(self, override: Path | None = None) -> Path:
+        if override is not None:
+            return _resolve_under_workspace(self.root, override)
+        return self.path("job_leads_dir") / "jobs_ac_uk.json"
+
+    def job_dir(self, job: Path) -> Path:
+        expanded = job.expanduser()
+        if expanded.is_absolute():
+            return expanded
+        if len(expanded.parts) == 1:
+            return self.path("jobs_dir") / expanded
+        return self.root / expanded
+
+
+def load_workspace_config(workspace: Path = Path(".")) -> WorkspaceConfig:
+    root = workspace.expanduser().resolve()
+    config_path = root / WORKSPACE_CONFIG
+    values = dict(DEFAULT_WORKSPACE_CONFIG)
+    if config_path.exists():
+        loaded = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+        for key in DEFAULT_WORKSPACE_CONFIG:
+            raw_value = loaded.get(key)
+            if raw_value is not None and str(raw_value).strip():
+                values[key] = str(raw_value)
+    return WorkspaceConfig(root=root, values=values)
 
 
 def init_workspace(workspace: Path, *, profile_mode: str = "typst", overwrite: bool = False) -> list[Path]:
@@ -103,18 +148,7 @@ def _ensure_marker(path: Path) -> list[Path]:
 
 
 def _workspace_config_text() -> str:
-    return yaml.safe_dump(
-        {
-            "profile_dir": "profile",
-            "jobs_dir": "jobs",
-            "job_leads_dir": "job_leads",
-            "prompt_dir": "prompts",
-            "template_dir": "templates",
-            "schema_dir": "schemas",
-            "agent_skills_dir": "agent-skills",
-        },
-        sort_keys=False,
-    )
+    return yaml.safe_dump(DEFAULT_WORKSPACE_CONFIG, sort_keys=False)
 
 
 def _workspace_gitignore_text() -> str:
@@ -130,3 +164,10 @@ job_leads/
 __pycache__/
 .pytest_cache/
 """
+
+
+def _resolve_under_workspace(root: Path, path: Path) -> Path:
+    expanded = path.expanduser()
+    if expanded.is_absolute():
+        return expanded
+    return root / expanded

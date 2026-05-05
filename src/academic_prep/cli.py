@@ -8,7 +8,12 @@ from academic_prep.pipeline import run_pipeline as run_job_pipeline
 from academic_prep.profile import init_profile as create_profile
 from academic_prep.rss import fetch_rss_text, filter_job_leads, parse_jobs_ac_uk_rss, write_job_leads
 from academic_prep.typst import render_typst_files
-from academic_prep.workspace import doctor_lines, init_workspace as create_workspace, update_workspace_defaults
+from academic_prep.workspace import (
+    doctor_lines,
+    init_workspace as create_workspace,
+    load_workspace_config,
+    update_workspace_defaults,
+)
 
 app = typer.Typer(
     help="Prepare academic job application materials from local files.",
@@ -18,10 +23,15 @@ app = typer.Typer(
 
 @app.command("init-profile")
 def init_profile(
-    profile_dir: Path = typer.Option(
-        Path("profile"),
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="User workspace directory containing academic-prep.yaml.",
+    ),
+    profile_dir: Path | None = typer.Option(
+        None,
         "--profile-dir",
-        help="Directory for Markdown profile evidence files.",
+        help="Directory for profile evidence files. Relative paths are resolved against --workspace.",
     ),
     mode: str = typer.Option(
         "hybrid",
@@ -30,11 +40,13 @@ def init_profile(
     ),
 ) -> None:
     """Create starter profile files."""
+    config = load_workspace_config(workspace)
+    resolved_profile_dir = config.path("profile_dir", profile_dir)
     try:
-        created = create_profile(profile_dir, mode=mode)
+        created = create_profile(resolved_profile_dir, mode=mode)
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
-    typer.echo(f"Profile ready at {profile_dir}")
+    typer.echo(f"Profile ready at {resolved_profile_dir}")
     if created:
         typer.echo(f"Created {len(created)} profile files.")
     else:
@@ -108,14 +120,20 @@ def doctor(
 
 @app.command("extract-profile-evidence")
 def extract_profile_evidence_command(
-    profile_dir: Path = typer.Option(
-        Path("profile"),
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="User workspace directory containing academic-prep.yaml.",
+    ),
+    profile_dir: Path | None = typer.Option(
+        None,
         "--profile-dir",
-        help="Directory containing profile.yaml and Typst profile sources.",
+        help="Directory containing profile.yaml and Typst profile sources. Relative paths are resolved against --workspace.",
     ),
 ) -> None:
     """Generate normalized evidence Markdown from local profile sources."""
-    written = extract_profile_evidence(profile_dir)
+    config = load_workspace_config(workspace)
+    written = extract_profile_evidence(config.path("profile_dir", profile_dir))
     typer.echo(f"Generated {len(written)} evidence files.")
 
 
@@ -125,7 +143,16 @@ def new_job(
     institution: str = typer.Option(..., "--institution", help="Hiring institution."),
     deadline: str = typer.Option("unknown", "--deadline", help="Application deadline."),
     source_url: str = typer.Option("", "--source-url", help="Original job advert URL."),
-    jobs_dir: Path = typer.Option(Path("jobs"), "--jobs-dir", help="Directory for job folders."),
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="User workspace directory containing academic-prep.yaml.",
+    ),
+    jobs_dir: Path | None = typer.Option(
+        None,
+        "--jobs-dir",
+        help="Directory for job folders. Relative paths are resolved against --workspace.",
+    ),
     advert_file: Path | None = typer.Option(
         None,
         "--advert-file",
@@ -133,9 +160,10 @@ def new_job(
     ),
 ) -> None:
     """Create a local job folder and advert file."""
+    config = load_workspace_config(workspace)
     try:
         job_dir = create_job(
-            jobs_dir=jobs_dir,
+            jobs_dir=config.path("jobs_dir", jobs_dir),
             title=title,
             institution=institution,
             deadline=deadline,
@@ -149,23 +177,33 @@ def new_job(
 
 @app.command("new-job-from-lead")
 def new_job_from_lead(
-    leads_file: Path = typer.Option(
-        Path("job_leads/jobs_ac_uk.json"),
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="User workspace directory containing academic-prep.yaml.",
+    ),
+    leads_file: Path | None = typer.Option(
+        None,
         "--leads-file",
-        help="Local RSS lead JSON file created by fetch-jobs-ac-uk.",
+        help="Local RSS lead JSON file created by fetch-jobs-ac-uk. Relative paths are resolved against --workspace.",
     ),
     lead_index: int = typer.Option(..., "--lead-index", help="Zero-based index of the selected lead."),
     institution: str = typer.Option(..., "--institution", help="Hiring institution for the job workspace."),
     deadline: str = typer.Option("unknown", "--deadline", help="Application deadline."),
     title: str | None = typer.Option(None, "--title", help="Override the RSS lead title."),
-    jobs_dir: Path = typer.Option(Path("jobs"), "--jobs-dir", help="Directory for job folders."),
+    jobs_dir: Path | None = typer.Option(
+        None,
+        "--jobs-dir",
+        help="Directory for job folders. Relative paths are resolved against --workspace.",
+    ),
 ) -> None:
     """Create a local job folder from a selected RSS lead without scraping."""
+    config = load_workspace_config(workspace)
     try:
         job_dir = create_job_from_lead(
-            leads_file=leads_file,
+            leads_file=config.lead_file(leads_file),
             lead_index=lead_index,
-            jobs_dir=jobs_dir,
+            jobs_dir=config.path("jobs_dir", jobs_dir),
             institution=institution,
             deadline=deadline,
             title=title,
@@ -177,13 +215,22 @@ def new_job_from_lead(
 
 @app.command("fetch-jobs-ac-uk")
 def fetch_jobs_ac_uk(
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="User workspace directory containing academic-prep.yaml.",
+    ),
     feed_url: str = typer.Option("", "--feed-url", help="jobs.ac.uk RSS feed URL."),
     rss_file: Path | None = typer.Option(
         None,
         "--rss-file",
         help="Local RSS XML file for testing or offline import.",
     ),
-    output: Path = typer.Option(Path("job_leads/jobs_ac_uk.json"), "--output", help="JSON output path."),
+    output: Path | None = typer.Option(
+        None,
+        "--output",
+        help="JSON output path. Relative paths are resolved against --workspace.",
+    ),
     include: list[str] = typer.Option([], "--include", help="Include jobs matching this keyword."),
     exclude: list[str] = typer.Option([], "--exclude", help="Exclude jobs matching this keyword."),
     limit: int = typer.Option(100, "--limit", help="Maximum number of leads to write."),
@@ -192,21 +239,28 @@ def fetch_jobs_ac_uk(
     if rss_file is None and not feed_url:
         raise typer.BadParameter("Provide --feed-url or --rss-file.")
 
+    config = load_workspace_config(workspace)
+    output_path = config.lead_file(output)
     xml_text = rss_file.read_text(encoding="utf-8") if rss_file is not None else fetch_rss_text(feed_url)
     leads = parse_jobs_ac_uk_rss(xml_text, feed_url=feed_url)
     filtered = filter_job_leads(leads, include_keywords=include, exclude_keywords=exclude)
     limited = filtered[:limit]
-    write_job_leads(output, limited)
-    typer.echo(f"Wrote {len(limited)} jobs.ac.uk leads to {output}")
+    write_job_leads(output_path, limited)
+    typer.echo(f"Wrote {len(limited)} jobs.ac.uk leads to {output_path}")
 
 
 @app.command("run")
 def run_pipeline(
     job: Path = typer.Option(..., "--job", help="Path to the job folder."),
-    profile_dir: Path = typer.Option(
-        Path("profile"),
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="User workspace directory containing academic-prep.yaml.",
+    ),
+    profile_dir: Path | None = typer.Option(
+        None,
         "--profile-dir",
-        help="Directory containing generated profile evidence.",
+        help="Directory containing generated profile evidence. Relative paths are resolved against --workspace.",
     ),
     llm_parser: bool = typer.Option(
         False,
@@ -218,35 +272,44 @@ def run_pipeline(
         "--llm-drafts",
         help="Use configured LLM provider for fit report, cover letter, CV notes, and criteria checklist.",
     ),
-    prompt_dir: Path = typer.Option(
-        Path("prompts"),
+    prompt_dir: Path | None = typer.Option(
+        None,
         "--prompt-dir",
-        help="Directory containing application prompt files.",
+        help="Directory containing application prompt files. Relative paths are resolved against --workspace.",
     ),
 ) -> None:
     """Run the application preparation pipeline for one job."""
+    config = load_workspace_config(workspace)
+    job_dir = config.job_dir(job)
     written = run_job_pipeline(
-        job,
-        profile_dir=profile_dir,
+        job_dir,
+        profile_dir=config.path("profile_dir", profile_dir),
         use_llm_parser=llm_parser,
         use_llm_drafts=llm_drafts,
-        prompt_dir=prompt_dir,
+        prompt_dir=config.path("prompt_dir", prompt_dir),
     )
-    typer.echo(f"Generated {len(written)} files for {job}")
+    typer.echo(f"Generated {len(written)} files for {job_dir}")
 
 
 @app.command("render-typst")
 def render_typst(
     job: Path = typer.Option(..., "--job", help="Path to the job folder."),
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="User workspace directory containing academic-prep.yaml.",
+    ),
     typst_bin: str = typer.Option("typst", "--typst-bin", help="Typst executable path or command name."),
 ) -> None:
     """Render generated Typst files for one job."""
+    config = load_workspace_config(workspace)
+    job_dir = config.job_dir(job)
     try:
-        rendered = render_typst_files(job, typst_bin=typst_bin)
+        rendered = render_typst_files(job_dir, typst_bin=typst_bin)
     except FileNotFoundError as exc:
         typer.echo(str(exc))
         raise typer.Exit(code=1) from exc
     except RuntimeError as exc:
         typer.echo(str(exc))
         raise typer.Exit(code=1) from exc
-    typer.echo(f"Rendered {len(rendered)} PDF files for {job}")
+    typer.echo(f"Rendered {len(rendered)} PDF files for {job_dir}")

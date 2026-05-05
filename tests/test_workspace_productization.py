@@ -117,6 +117,118 @@ def test_doctor_reports_workspace_and_provider_status(tmp_path, monkeypatch):
     assert "LLM provider: command" in result.output
 
 
+def test_new_job_uses_workspace_config_when_called_from_elsewhere(tmp_path, monkeypatch):
+    workspace = tmp_path / "workspace"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    runner = CliRunner()
+    runner.invoke(app, ["init-workspace", "--workspace", str(workspace), "--profile-mode", "typst"])
+    config_path = workspace / "academic-prep.yaml"
+    config = yaml.safe_load(config_path.read_text())
+    config["jobs_dir"] = "applications"
+    config_path.write_text(yaml.safe_dump(config, sort_keys=False))
+    monkeypatch.chdir(outside)
+
+    result = runner.invoke(
+        app,
+        [
+            "new-job",
+            "--workspace",
+            str(workspace),
+            "--title",
+            "Lecturer in Applied Economics",
+            "--institution",
+            "Example University",
+            "--deadline",
+            "2026-06-15",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert (workspace / "applications" / "2026-06-15_example-university_lecturer-in-applied-economics" / "job.yaml").exists()
+    assert not (outside / "applications").exists()
+
+
+def test_rss_lead_workflow_uses_workspace_default_paths(tmp_path, monkeypatch):
+    workspace = tmp_path / "workspace"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    runner = CliRunner()
+    example_dir = Path(__file__).resolve().parents[1] / "examples" / "end_to_end"
+    runner.invoke(app, ["init-workspace", "--workspace", str(workspace), "--profile-mode", "typst"])
+    monkeypatch.chdir(outside)
+
+    fetch_result = runner.invoke(
+        app,
+        [
+            "fetch-jobs-ac-uk",
+            "--workspace",
+            str(workspace),
+            "--rss-file",
+            str(example_dir / "jobs_ac_uk_sample.xml"),
+            "--include",
+            "lecturer",
+        ],
+    )
+    create_result = runner.invoke(
+        app,
+        [
+            "new-job-from-lead",
+            "--workspace",
+            str(workspace),
+            "--lead-index",
+            "0",
+            "--institution",
+            "Example University",
+            "--deadline",
+            "2026-06-15",
+        ],
+    )
+
+    assert fetch_result.exit_code == 0
+    assert create_result.exit_code == 0
+    assert (workspace / "job_leads" / "jobs_ac_uk.json").exists()
+    assert (workspace / "jobs" / "2026-06-15_example-university_lecturer-in-applied-economics" / "job_advert.md").exists()
+    assert not (outside / "job_leads").exists()
+    assert not (outside / "jobs").exists()
+
+
+def test_run_resolves_job_and_profile_paths_against_workspace(tmp_path, monkeypatch):
+    workspace = tmp_path / "workspace"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    runner = CliRunner()
+    example_dir = Path(__file__).resolve().parents[1] / "examples" / "end_to_end"
+    job_slug = "2026-06-15_example-university_lecturer-in-applied-economics"
+    runner.invoke(app, ["init-workspace", "--workspace", str(workspace), "--profile-mode", "typst"])
+    shutil.copytree(example_dir / "profile", workspace / "profile", dirs_exist_ok=True)
+    runner.invoke(
+        app,
+        [
+            "new-job",
+            "--workspace",
+            str(workspace),
+            "--title",
+            "Lecturer in Applied Economics",
+            "--institution",
+            "Example University",
+            "--deadline",
+            "2026-06-15",
+            "--advert-file",
+            str(example_dir / "full_job_advert.md"),
+        ],
+    )
+    monkeypatch.chdir(outside)
+
+    evidence_result = runner.invoke(app, ["extract-profile-evidence", "--workspace", str(workspace)])
+    run_result = runner.invoke(app, ["run", "--workspace", str(workspace), "--job", f"jobs/{job_slug}"])
+
+    assert evidence_result.exit_code == 0
+    assert run_result.exit_code == 0
+    assert (workspace / "jobs" / job_slug / "parsed_job.json").exists()
+    assert not (outside / "profile").exists()
+
+
 def test_pyproject_packages_runtime_resources():
     config = tomllib.loads(Path("pyproject.toml").read_text())
     force_include = config["tool"]["hatch"]["build"]["targets"]["wheel"]["force-include"]
