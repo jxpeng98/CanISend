@@ -114,9 +114,24 @@ def run_pipeline(
         "--profile-dir",
         help="Directory containing generated profile evidence.",
     ),
+    llm_parser: bool = typer.Option(
+        False,
+        "--llm-parser",
+        help="Use configured LLM provider and prompts/job_parser.md instead of deterministic parsing.",
+    ),
+    prompt_dir: Path = typer.Option(
+        Path("prompts"),
+        "--prompt-dir",
+        help="Directory containing application prompt files.",
+    ),
 ) -> None:
     """Run the application preparation pipeline for one job."""
-    written = run_job_pipeline(job, profile_dir=profile_dir)
+    written = run_job_pipeline(
+        job,
+        profile_dir=profile_dir,
+        use_llm_parser=llm_parser,
+        prompt_dir=prompt_dir,
+    )
     typer.echo(f"Generated {len(written)} files for {job}")
 
 

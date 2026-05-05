@@ -7,16 +7,22 @@ from typing import Any
 import yaml
 
 from academic_prep.evidence import EvidenceReference, load_generated_evidence
-from academic_prep.parse import parse_job_advert
+from academic_prep.llm import load_llm_config, provider_from_config
+from academic_prep.parse import parse_job_advert, parse_job_advert_with_provider
 
 
-def run_pipeline(job_dir: Path, profile_dir: Path = Path("profile")) -> list[Path]:
+def run_pipeline(
+    job_dir: Path,
+    profile_dir: Path = Path("profile"),
+    use_llm_parser: bool = False,
+    prompt_dir: Path = Path("prompts"),
+) -> list[Path]:
     metadata_path = job_dir / "job.yaml"
     advert_path = job_dir / "job_advert.md"
     metadata = yaml.safe_load(metadata_path.read_text(encoding="utf-8"))
     advert_text = advert_path.read_text(encoding="utf-8")
 
-    parsed_job = parse_job_advert(advert_text, metadata)
+    parsed_job = _parse_job(advert_text, metadata, use_llm_parser=use_llm_parser, prompt_dir=prompt_dir)
     evidence = load_generated_evidence(profile_dir)
     written = [
         _write_json(job_dir / "parsed_job.json", parsed_job),
@@ -35,6 +41,26 @@ def run_pipeline(job_dir: Path, profile_dir: Path = Path("profile")) -> list[Pat
     metadata["status"] = "packaged"
     metadata_path.write_text(yaml.safe_dump(metadata, sort_keys=False), encoding="utf-8")
     return written
+
+
+def _parse_job(
+    advert_text: str,
+    metadata: dict[str, Any],
+    *,
+    use_llm_parser: bool,
+    prompt_dir: Path,
+) -> dict[str, Any]:
+    if not use_llm_parser:
+        return parse_job_advert(advert_text, metadata)
+
+    prompt_text = (prompt_dir / "job_parser.md").read_text(encoding="utf-8")
+    provider = provider_from_config(load_llm_config())
+    return parse_job_advert_with_provider(
+        advert_text=advert_text,
+        metadata=metadata,
+        provider=provider,
+        prompt_text=prompt_text,
+    )
 
 
 def _write_json(path: Path, data: dict[str, Any]) -> Path:

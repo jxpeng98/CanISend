@@ -299,6 +299,23 @@ The user may paste the advert into the CLI, or import a local `.md` or `.txt` fi
 academic-prep run --job jobs/2026-06-15_university-x_lecturer-in-economics
 ```
 
+The default parser should be deterministic and local. The LLM-backed parser must be an explicit opt-in so a blank project can run without provider credentials:
+
+```bash
+academic-prep run \
+  --job jobs/2026-06-15_university-x_lecturer-in-economics \
+  --llm-parser
+```
+
+The pipeline should also allow prompt directory overrides for experiments while keeping the built-in file contracts stable:
+
+```bash
+academic-prep run \
+  --job jobs/2026-06-15_university-x_lecturer-in-economics \
+  --llm-parser \
+  --prompt-dir prompts
+```
+
 Expected generated files:
 
 ```text

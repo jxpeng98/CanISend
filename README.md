@@ -147,6 +147,33 @@ Run the local pipeline for the selected job:
 uv run academic-prep run --job jobs/2026-06-15_university-x_lecturer-in-economics
 ```
 
+This default run uses the deterministic local parser. To use the LLM-backed job parser, opt in explicitly and configure a provider:
+
+```bash
+ACADEMIC_PREP_LLM_PROVIDER=openai-compatible
+OPENAI_API_KEY=...
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_MODEL=...
+
+uv run academic-prep run \
+  --job jobs/2026-06-15_university-x_lecturer-in-economics \
+  --llm-parser
+```
+
+For local CLI model access, use the generic command provider instead of hardcoding a vendor adapter:
+
+```bash
+ACADEMIC_PREP_LLM_PROVIDER=command
+ACADEMIC_PREP_LLM_COMMAND="codex exec --json"
+ACADEMIC_PREP_LLM_TIMEOUT_SECONDS=300
+
+uv run academic-prep run \
+  --job jobs/2026-06-15_university-x_lecturer-in-economics \
+  --llm-parser
+```
+
+The LLM parser must return JSON matching the `parsed_job.json` contract. Invalid JSON, missing required fields, or criteria without source text fail clearly instead of silently inventing data.
+
 To use a non-default profile folder:
 
 ```bash
@@ -171,7 +198,7 @@ jobs/<job-slug>/
     application_package.typ
 ```
 
-The current parser/generator is deterministic and scaffold-level. Round 2 replaces this with LLM-backed parser and generation steps while preserving the same file contracts.
+The current generator is deterministic and scaffold-level. Later rounds replace generation and matching steps with LLM-backed implementations while preserving the same file contracts.
 
 ### 7. Review and edit generated materials
 

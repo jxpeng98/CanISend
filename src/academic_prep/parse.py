@@ -1,6 +1,33 @@
 from __future__ import annotations
 
+import json
 from typing import Any
+
+from academic_prep.llm import LLMProvider
+
+
+REQUIRED_PARSED_JOB_FIELDS = [
+    "title",
+    "institution",
+    "department",
+    "location",
+    "deadline",
+    "salary",
+    "contract_type",
+    "role_type",
+    "research_fields",
+    "teaching_fields",
+    "essential_criteria",
+    "desirable_criteria",
+    "required_documents",
+    "application_url",
+    "unknown_fields",
+    "notes",
+]
+
+
+class ParsedJobValidationError(ValueError):
+    pass
 
 
 def parse_job_advert(advert_text: str, metadata: dict[str, Any]) -> dict[str, Any]:
@@ -22,6 +49,69 @@ def parse_job_advert(advert_text: str, metadata: dict[str, Any]) -> dict[str, An
         "unknown_fields": [],
         "notes": "",
     }
+
+
+def parse_job_advert_with_provider(
+    *,
+    advert_text: str,
+    metadata: dict[str, Any],
+    provider: LLMProvider,
+    prompt_text: str,
+) -> dict[str, Any]:
+    prompt = prompt_text.replace("{job_metadata}", json.dumps(metadata, indent=2, default=str))
+    prompt = prompt.replace("{job_advert}", advert_text)
+    response = provider.complete(prompt)
+    parsed = _loads_llm_json(response.content)
+    validate_parsed_job(parsed)
+    return parsed
+
+
+def validate_parsed_job(parsed_job: dict[str, Any]) -> None:
+    for field in REQUIRED_PARSED_JOB_FIELDS:
+        if field not in parsed_job:
+            raise ParsedJobValidationError(f"missing required field: {field}")
+
+    for field in [
+        "research_fields",
+        "teaching_fields",
+        "essential_criteria",
+        "desirable_criteria",
+        "required_documents",
+        "unknown_fields",
+    ]:
+        if not isinstance(parsed_job[field], list):
+            raise ParsedJobValidationError(f"field must be a list: {field}")
+
+    for field in ["essential_criteria", "desirable_criteria"]:
+        for index, criterion in enumerate(parsed_job[field]):
+            if not isinstance(criterion, dict):
+                raise ParsedJobValidationError(f"{field}[{index}] must be an object")
+            if "criterion" not in criterion:
+                raise ParsedJobValidationError(f"{field}[{index}] missing criterion")
+            if "source_text" not in criterion:
+                raise ParsedJobValidationError(f"{field}[{index}] missing source_text")
+
+
+def _loads_llm_json(content: str) -> dict[str, Any]:
+    stripped = content.strip()
+    if stripped.startswith("```"):
+        stripped = _strip_json_fence(stripped)
+    try:
+        parsed = json.loads(stripped)
+    except json.JSONDecodeError as exc:
+        raise ParsedJobValidationError(f"LLM parser returned invalid JSON: {exc.msg}") from exc
+    if not isinstance(parsed, dict):
+        raise ParsedJobValidationError("LLM parser returned JSON that is not an object")
+    return parsed
+
+
+def _strip_json_fence(content: str) -> str:
+    lines = content.splitlines()
+    if lines and lines[0].startswith("```"):
+        lines = lines[1:]
+    if lines and lines[-1].startswith("```"):
+        lines = lines[:-1]
+    return "\n".join(lines).strip()
 
 
 def _metadata_value(metadata: dict[str, Any], key: str) -> str:

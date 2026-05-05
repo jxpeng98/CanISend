@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 from os import environ
 import shlex
 import subprocess
 from typing import Mapping
+from urllib.request import Request, urlopen
 
 
 @dataclass(frozen=True)
@@ -60,7 +62,25 @@ class OpenAICompatibleProvider(LLMProvider):
             raise ValueError("openai-compatible provider requires OPENAI_API_KEY")
         if not self.config.openai_model:
             raise ValueError("openai-compatible provider requires OPENAI_MODEL")
-        raise NotImplementedError("OpenAI-compatible API calls will be implemented in the parser milestone.")
+        base_url = (self.config.openai_base_url or "https://api.openai.com/v1").rstrip("/")
+        payload = {
+            "model": self.config.openai_model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0,
+        }
+        request = Request(
+            f"{base_url}/chat/completions",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {self.config.openai_api_key}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        with urlopen(request, timeout=self.config.timeout_seconds) as response:
+            data = json.loads(response.read().decode("utf-8"))
+        content = data["choices"][0]["message"]["content"]
+        return LLMResponse(content=content, provider="openai-compatible")
 
 
 def load_llm_config(env: Mapping[str, str] | None = None) -> LLMConfig:

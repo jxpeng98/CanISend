@@ -1,4 +1,5 @@
 import json
+import sys
 
 import yaml
 from typer.testing import CliRunner
@@ -126,3 +127,78 @@ def test_run_pipeline_reads_generated_profile_evidence(tmp_path):
     criteria_checklist = (job_dir / "05_criteria_checklist.md").read_text()
     assert "profile/generated/cv.evidence.md#Teaching" in fit_report
     assert "Teaching Assistant" in criteria_checklist
+
+
+def test_run_pipeline_can_use_llm_parser_with_command_provider(tmp_path, monkeypatch):
+    job_dir = tmp_path / "jobs" / "2026-06-15_university-x_lecturer-in-economics"
+    job_dir.mkdir(parents=True)
+    (job_dir / "job.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "id": "2026-06-15_university-x_lecturer-in-economics",
+                "title": "Lecturer in Economics",
+                "institution": "University X",
+                "department": "",
+                "location": "",
+                "deadline": "2026-06-15",
+                "source_url": "https://example.edu/jobs/123",
+                "status": "advert_imported",
+                "created_at": "2026-05-03T23:00:00Z",
+                "updated_at": "2026-05-03T23:00:00Z",
+                "notes": "",
+            },
+            sort_keys=False,
+        )
+    )
+    (job_dir / "job_advert.md").write_text("Raw advert text")
+    prompt_dir = tmp_path / "prompts"
+    prompt_dir.mkdir()
+    (prompt_dir / "job_parser.md").write_text("Parse this:\n{job_metadata}\n{job_advert}")
+    captured_prompt = tmp_path / "captured_prompt.txt"
+    fake_parser = tmp_path / "fake_parser.py"
+    fake_parser.write_text(
+        "import json\n"
+        "import pathlib\n"
+        "import sys\n"
+        f"pathlib.Path({str(captured_prompt)!r}).write_text(sys.stdin.read())\n"
+        "print(json.dumps({\n"
+        "  'title': 'LLM Parsed Lecturer',\n"
+        "  'institution': 'University X',\n"
+        "  'department': 'Economics',\n"
+        "  'location': 'United Kingdom',\n"
+        "  'deadline': '2026-06-15',\n"
+        "  'salary': 'unknown',\n"
+        "  'contract_type': 'unknown',\n"
+        "  'role_type': 'Lecturer',\n"
+        "  'research_fields': ['Economics'],\n"
+        "  'teaching_fields': ['Econometrics'],\n"
+        "  'essential_criteria': [{'criterion': 'PhD', 'source_text': 'PhD'}],\n"
+        "  'desirable_criteria': [],\n"
+        "  'required_documents': ['CV'],\n"
+        "  'application_url': 'https://example.edu/jobs/123',\n"
+        "  'unknown_fields': [],\n"
+        "  'notes': ''\n"
+        "}))\n"
+    )
+    monkeypatch.setenv("ACADEMIC_PREP_LLM_PROVIDER", "command")
+    monkeypatch.setenv("ACADEMIC_PREP_LLM_COMMAND", f"{sys.executable} {fake_parser}")
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "run",
+            "--job",
+            str(job_dir),
+            "--llm-parser",
+            "--prompt-dir",
+            str(prompt_dir),
+        ],
+    )
+
+    assert result.exit_code == 0
+    parsed_job = json.loads((job_dir / "parsed_job.json").read_text())
+    assert parsed_job["title"] == "LLM Parsed Lecturer"
+    prompt = captured_prompt.read_text()
+    assert prompt.count("Raw advert text") == 1
+    assert "University X" in prompt

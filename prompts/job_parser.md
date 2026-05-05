@@ -13,6 +13,18 @@ Convert the raw job advert into `parsed_job.json` and a concise job summary.
 - `job_advert.md`
 - `job.yaml`
 
+### job.yaml
+
+```json
+{job_metadata}
+```
+
+### job_advert.md
+
+```markdown
+{job_advert}
+```
+
 ## Output Format
 
 Return JSON matching `schemas/parsed_job.schema.json`.
