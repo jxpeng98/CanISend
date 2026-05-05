@@ -7,6 +7,7 @@ from typing import Mapping
 
 import yaml
 
+from academic_prep import __version__
 from academic_prep.llm import LLMConfig, load_llm_config
 from academic_prep.profile import init_profile
 from academic_prep.resource_files import copy_resource_tree
@@ -110,7 +111,7 @@ def doctor_lines(workspace: Path, *, env: Mapping[str, str] | None = None) -> li
             (workspace / "agent-skills" / "academic-application-prep" / "SKILL.md").exists(),
         ),
     ]
-    lines = [f"Workspace: {workspace.resolve()}"]
+    lines = [f"academic-application-prep: {__version__}", f"Workspace: {workspace.resolve()}"]
     for status in statuses:
         marker = "ok" if status.ok else "missing"
         lines.append(f"- {status.path}: {marker} ({status.label})")

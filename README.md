@@ -46,6 +46,41 @@ academic-prep doctor --workspace ~/AcademicApplications
 
 Developers who want to change the tool itself should fork or clone the repository and use `uv run academic-prep ...`.
 
+## Release And Update Workflow
+
+Releases are designed for normal users to consume as an installed CLI, not as a forked repository.
+
+Maintainer release checks:
+
+```bash
+uv run pytest -v
+uv build
+uv run python -m academic_prep.package_check dist/*.whl
+```
+
+The package check verifies that runtime resources are present in the wheel, including prompts, Typst templates, schemas, examples, `.env.example`, and `agent-skills/`.
+
+CI runs the same test/build/resource-check sequence on pushes and pull requests. The release workflow builds distributions once, checks packaged resources, and publishes through PyPI Trusted Publishing with OIDC:
+
+- Manual `workflow_dispatch` with `publish_target=testpypi` publishes to TestPyPI.
+- A published GitHub Release publishes to PyPI.
+- The workflow uses `pypa/gh-action-pypi-publish@release/v1`; no PyPI API token should be stored in the repository.
+
+Before the first publish, configure Trusted Publishing on TestPyPI and PyPI for this repository and the `.github/workflows/release.yml` workflow. Use GitHub environments named `testpypi` and `pypi` so releases can require manual approval if desired.
+
+Version updates should change both:
+
+- `pyproject.toml` project version
+- `src/academic_prep/__init__.py` `__version__`
+
+After upgrading, users should refresh default workspace resources without overwriting local edits:
+
+```bash
+uv tool upgrade academic-application-prep
+academic-prep update-workspace --workspace ~/AcademicApplications
+academic-prep doctor --workspace ~/AcademicApplications
+```
+
 ## Example
 
 The repository includes a fully local, fake-data workflow under `examples/end_to_end/`. It demonstrates:

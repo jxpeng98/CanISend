@@ -1,0 +1,34 @@
+name: ci
+
+on:
+  push:
+    branches:
+      - main
+      - "feature/**"
+  pull_request:
+
+jobs:
+  test-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install project
+        run: uv sync --all-extras --dev
+
+      - name: Run tests
+        run: uv run pytest -v
+
+      - name: Build distributions
+        run: uv build
+
+      - name: Check packaged resources
+        run: uv run python -m academic_prep.package_check dist/*.whl
