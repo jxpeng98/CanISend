@@ -25,6 +25,7 @@ Use this reference before saying generated application materials are ready for u
 - `03_cover_letter_draft.md` is application-facing English and does not include unsupported claims.
 - `04_cv_tailoring_notes.md` tells the user what to adjust in the private CV, but does not rewrite the CV unless asked.
 - `05_criteria_checklist.md` covers all extracted essential criteria.
+- `07_material_review_checklist.md` tracks cover letter draft and CV tailoring notes review actions before Typst rendering.
 - Each non-missing criterion row cites item-level evidence when evidence exists.
 - LLM-backed drafts with unknown citations fail validation; unknown citations fail validation by design.
 
@@ -52,5 +53,6 @@ Review files in this order:
 5. `02_fit_report.md`
 6. `03_cover_letter_draft.md`
 7. `04_cv_tailoring_notes.md`
-8. `typst/cover_letter_content.json`
-9. `06_final_application_package.md`
+8. `07_material_review_checklist.md`
+9. `typst/cover_letter_content.json`
+10. `06_final_application_package.md`

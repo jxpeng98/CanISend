@@ -98,6 +98,7 @@ def test_agent_skill_references_capture_operational_gates():
     assert "item-level citations are preferred" in quality.lower()
     assert "section-level citations" in quality
     assert "unknown citations fail validation" in quality
+    assert "07_material_review_checklist.md" in quality
     assert "ACADEMIC_PREP_LLM_PROVIDER=command" in provider
     assert "OPENAI_BASE_URL" in provider
     assert "status: lead_imported" in lifecycle
@@ -181,9 +182,24 @@ def test_readme_documents_complete_workflow_and_round_two_tasks():
     assert "--llm-parser" in readme
     assert "--llm-drafts" in readme
     assert "cover_letter_content.json" in readme
+    assert "07_material_review_checklist.md" in readme
     assert "examples/end_to_end" in readme
     assert "Codex, Claude Code, Gemini" in readme
     assert "ACADEMIC_PREP_LLM_PROVIDER" in readme
+
+
+def test_docs_record_material_review_management_artifact():
+    root = Path(__file__).resolve().parents[1]
+    readme = (root / "README.md").read_text()
+    proposal = (root / "academic_application_prep_copilot_proposal.md").read_text()
+    contracts = (root / "agent-skills/academic-application-prep/references/file-contracts.md").read_text()
+    workflow = (root / "agent-skills/academic-application-prep/references/workflow.md").read_text()
+
+    assert "07_material_review_checklist.md" in readme
+    assert "07_material_review_checklist.md" in proposal
+    assert "07_material_review_checklist.md" in contracts
+    assert "07_material_review_checklist.md" in workflow
+    assert "cover letter draft, CV tailoring notes" in readme
 
 
 def test_proposal_documents_prompt_skill_split_and_typst_profile():

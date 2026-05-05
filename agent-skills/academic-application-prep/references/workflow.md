@@ -102,8 +102,9 @@ Review, in order:
 3. `02_fit_report.md`
 4. `03_cover_letter_draft.md`
 5. `04_cv_tailoring_notes.md`
-6. `typst/cover_letter_content.json`
-7. `06_final_application_package.md`
+6. `07_material_review_checklist.md`
+7. `typst/cover_letter_content.json`
+8. `06_final_application_package.md`
 
 Apply `quality-gates.md` before treating any output as usable.
 In particular, check item-level citations, unsupported claims, required-document coverage, and private-file safety before presenting a package as ready.

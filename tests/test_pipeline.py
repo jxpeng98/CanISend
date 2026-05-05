@@ -74,6 +74,7 @@ Desirable criteria:
         "04_cv_tailoring_notes.md",
         "05_criteria_checklist.md",
         "06_final_application_package.md",
+        "07_material_review_checklist.md",
         "typst/cover_letter_content.json",
         "typst/cover_letter.typ",
         "typst/application_package_content.json",
@@ -94,6 +95,57 @@ Desirable criteria:
     assert "## Research Fit" not in cover_source
     assert cover_content["recipient"]["institution"] == "University X"
     assert cover_content["job"]["title"] == "Lecturer in Economics"
+    review_checklist = (job_dir / "07_material_review_checklist.md").read_text()
+    assert "03_cover_letter_draft.md" in review_checklist
+    assert "04_cv_tailoring_notes.md" in review_checklist
+    assert "Manual judgement required" in review_checklist
+
+
+def test_run_pipeline_writes_material_review_checklist_with_item_level_evidence(tmp_path):
+    job_dir = tmp_path / "jobs" / "2026-06-15_university-x_lecturer-in-economics"
+    job_dir.mkdir(parents=True)
+    (job_dir / "job.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "id": "2026-06-15_university-x_lecturer-in-economics",
+                "title": "Lecturer in Economics",
+                "institution": "University X",
+                "department": "Department of Economics",
+                "location": "United Kingdom",
+                "deadline": "2026-06-15",
+                "source_url": "https://example.edu/jobs/123",
+                "status": "advert_imported",
+                "created_at": "2026-05-03T23:00:00Z",
+                "updated_at": "2026-05-03T23:00:00Z",
+                "notes": "",
+            },
+            sort_keys=False,
+        )
+    )
+    (job_dir / "job_advert.md").write_text(
+        "# Lecturer in Economics\n\n"
+        "Teaching fields: Econometrics\n\n"
+        "Essential criteria:\n"
+        "- Evidence of teaching excellence\n"
+    )
+    profile_dir = tmp_path / "profile"
+    generated_dir = profile_dir / "generated"
+    generated_dir.mkdir(parents=True)
+    (generated_dir / "cv.evidence.md").write_text(
+        "# Evidence: cv\n\n"
+        "## Teaching\n\n"
+        "- [cv-001] `job`: Teaching Assistant for Econometrics\n"
+    )
+    runner = CliRunner()
+
+    result = runner.invoke(app, ["run", "--job", str(job_dir), "--profile-dir", str(profile_dir)])
+
+    assert result.exit_code == 0
+    review_checklist = (job_dir / "07_material_review_checklist.md").read_text()
+    assert "`profile/generated/cv.evidence.md#Teaching/cv-001`" in review_checklist
+    assert "Cover Letter Draft" in review_checklist
+    assert "CV Tailoring Notes" in review_checklist
+    assert "Do not edit `profile/typst/cv.typ` unless the user explicitly asks." in review_checklist
 
 
 def test_run_pipeline_reads_generated_profile_evidence(tmp_path):

@@ -345,7 +345,7 @@ academic-prep run \
 
 The LLM parser must return JSON matching the `parsed_job.json` contract. Invalid JSON, missing required fields, or criteria without source text fail clearly instead of silently inventing data.
 
-The LLM draft generator writes `02_fit_report.md`, `03_cover_letter_draft.md`, `04_cv_tailoring_notes.md`, and `05_criteria_checklist.md`. Draft outputs should cite profile evidence as backticked `profile/generated/file.evidence.md#Section/item-id` references when an item ID is available; unknown citations fail validation.
+The LLM draft generator writes `02_fit_report.md`, `03_cover_letter_draft.md`, `04_cv_tailoring_notes.md`, and `05_criteria_checklist.md`. Draft outputs should cite profile evidence as backticked `profile/generated/file.evidence.md#Section/item-id` references when an item ID is available; unknown citations fail validation. The pipeline also writes `07_material_review_checklist.md` to manage the cover letter draft, CV tailoring notes, unresolved placeholders, and final review actions.
 
 To use a non-default profile folder:
 
@@ -367,6 +367,7 @@ jobs/<job-slug>/
   04_cv_tailoring_notes.md
   05_criteria_checklist.md
   06_final_application_package.md
+  07_material_review_checklist.md
   typst/
     cover_letter_content.json
     cover_letter.typ
@@ -387,7 +388,8 @@ Review outputs in this order:
 3. `02_fit_report.md`: identify gaps and unsupported claims.
 4. `03_cover_letter_draft.md`: edit claims and tone manually.
 5. `04_cv_tailoring_notes.md`: apply edits to your private CV source.
-6. `06_final_application_package.md`: use as the final preparation dossier.
+6. `07_material_review_checklist.md`: manage the cover letter draft, CV tailoring notes, placeholders, item-level citations, and next manual actions.
+7. `06_final_application_package.md`: use as the final preparation dossier.
 
 Generated material is draft-only. Any claim about publications, teaching, service, awards, grants, or supervision must be supported by `profile/` evidence.
 

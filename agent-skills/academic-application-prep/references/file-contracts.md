@@ -82,6 +82,7 @@ parsed_job.json
 04_cv_tailoring_notes.md
 05_criteria_checklist.md
 06_final_application_package.md
+07_material_review_checklist.md
 typst/
   cover_letter_content.json
   cover_letter.typ
@@ -97,5 +98,6 @@ RSS lead outputs live in ignored `job_leads/`.
 - `job_advert.md`: full advert text. RSS-created jobs start with lead metadata and require manual full advert paste.
 - `parsed_job.json`: structured advert data. Missing fields should remain empty or unknown; do not invent.
 - `02_fit_report.md`, `03_cover_letter_draft.md`, `04_cv_tailoring_notes.md`, `05_criteria_checklist.md`: evidence-grounded Markdown review artifacts.
+- `07_material_review_checklist.md`: management artifact for cover letter draft, CV tailoring notes, placeholders, item-level citations, and manual follow-up actions.
 - `typst/cover_letter_content.json`: structured content consumed by `cover_letter.typ`.
 - `typst/application_package_content.json`: structured content consumed by `application_package.typ`.

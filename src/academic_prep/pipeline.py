@@ -9,6 +9,7 @@ import yaml
 from academic_prep.evidence import EvidenceReference, load_generated_evidence
 from academic_prep.llm import load_llm_config, provider_from_config
 from academic_prep.materials import ApplicationMaterials, generate_materials_with_provider
+from academic_prep.material_review import build_material_review_checklist
 from academic_prep.parse import parse_job_advert, parse_job_advert_with_provider
 from academic_prep.resource_files import read_resource_text
 from academic_prep.typst_mapping import (
@@ -40,6 +41,7 @@ def run_pipeline(
         prompt_dir=prompt_dir,
     )
     final_package = _final_package(parsed_job, materials)
+    material_review = build_material_review_checklist(parsed_job, materials)
     written = [
         _write_json(job_dir / "parsed_job.json", parsed_job),
         _write_text(job_dir / "01_job_summary.md", _job_summary(parsed_job)),
@@ -48,6 +50,7 @@ def run_pipeline(
         _write_text(job_dir / "04_cv_tailoring_notes.md", materials.cv_tailoring_notes),
         _write_text(job_dir / "05_criteria_checklist.md", materials.criteria_checklist),
         _write_text(job_dir / "06_final_application_package.md", final_package),
+        _write_text(job_dir / "07_material_review_checklist.md", material_review),
     ]
 
     typst_dir = job_dir / "typst"

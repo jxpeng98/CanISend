@@ -78,6 +78,7 @@ Application-facing generated outputs should be written in English:
 - `04_cv_tailoring_notes.md`
 - `05_criteria_checklist.md`
 - `06_final_application_package.md`
+- `07_material_review_checklist.md`
 - Typst source files under `typst/`
 - Optional PDF files under `pdf/` when rendering is requested
 
@@ -363,6 +364,7 @@ jobs/2026-06-15_university-x_lecturer-in-economics/
   04_cv_tailoring_notes.md
   05_criteria_checklist.md
   06_final_application_package.md
+  07_material_review_checklist.md
   typst/
     cover_letter_content.json
     cover_letter.typ
@@ -442,6 +444,7 @@ jobs/<job-slug>/
   04_cv_tailoring_notes.md
   05_criteria_checklist.md
   06_final_application_package.md
+  07_material_review_checklist.md
   typst/
     cover_letter_content.json
     cover_letter.typ
@@ -1014,6 +1017,7 @@ Deliverables:
 
 - `05_criteria_checklist.md`
 - `06_final_application_package.md`
+- `07_material_review_checklist.md`
 - `typst/cover_letter_content.json`
 - `typst/application_package_content.json`
 - `typst/application_package.typ`
