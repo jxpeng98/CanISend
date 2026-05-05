@@ -1,6 +1,8 @@
 from datetime import UTC, datetime
+import json
 from pathlib import Path
 import re
+from typing import Any
 
 import yaml
 
@@ -24,18 +26,69 @@ def create_job(
     source_url: str = "",
     advert_file: Path | None = None,
 ) -> Path:
-    job_id = build_job_slug(deadline, institution, title)
-    job_dir = jobs_dir / job_id
-    job_dir.mkdir(parents=True, exist_ok=False)
-
     advert_text = ""
     status = "new"
+    notes = ""
     if advert_file is not None:
         if advert_file.suffix.lower() not in {".md", ".txt"}:
             raise ValueError("V1 only imports local .md or .txt job advert files.")
         advert_text = advert_file.read_text(encoding="utf-8")
         status = "advert_imported"
 
+    return _write_job_workspace(
+        jobs_dir=jobs_dir,
+        title=title,
+        institution=institution,
+        deadline=deadline,
+        source_url=source_url,
+        advert_text=advert_text,
+        status=status,
+        notes=notes,
+    )
+
+
+def create_job_from_lead(
+    *,
+    leads_file: Path,
+    lead_index: int,
+    jobs_dir: Path,
+    institution: str,
+    deadline: str = "unknown",
+    title: str | None = None,
+) -> Path:
+    lead = _load_lead(leads_file, lead_index)
+    lead_title = (title or str(lead.get("title", ""))).strip()
+    if not lead_title:
+        raise ValueError("Selected lead does not contain a title; provide --title.")
+    if not institution.strip():
+        raise ValueError("Provide --institution when creating a job from an RSS lead.")
+
+    return _write_job_workspace(
+        jobs_dir=jobs_dir,
+        title=lead_title,
+        institution=institution,
+        deadline=deadline,
+        source_url=str(lead.get("source_url", "")),
+        advert_text=_lead_advert_markdown(lead, lead_title),
+        status="lead_imported",
+        notes="Created from RSS lead only; paste and review the full advert manually.",
+    )
+
+
+def _write_job_workspace(
+    *,
+    jobs_dir: Path,
+    title: str,
+    institution: str,
+    deadline: str,
+    source_url: str,
+    advert_text: str,
+    status: str,
+    notes: str,
+) -> Path:
+    job_id = build_job_slug(deadline, institution, title)
+    job_dir = jobs_dir / job_id
+    job_dir.mkdir(parents=True, exist_ok=False)
     (job_dir / "job_advert.md").write_text(advert_text, encoding="utf-8")
 
     now = datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
@@ -50,8 +103,48 @@ def create_job(
         "status": status,
         "created_at": now,
         "updated_at": now,
-        "notes": "",
+        "notes": notes,
     }
     (job_dir / "job.yaml").write_text(yaml.safe_dump(metadata, sort_keys=False), encoding="utf-8")
 
     return job_dir
+
+
+def _load_lead(leads_file: Path, lead_index: int) -> dict[str, Any]:
+    if lead_index < 0:
+        raise ValueError("Lead index must be zero or greater.")
+    leads = json.loads(leads_file.read_text(encoding="utf-8"))
+    if not isinstance(leads, list):
+        raise ValueError("Lead file must contain a JSON list.")
+    try:
+        lead = leads[lead_index]
+    except IndexError as exc:
+        raise ValueError(f"Lead index {lead_index} is out of range.") from exc
+    if not isinstance(lead, dict):
+        raise ValueError(f"Lead index {lead_index} is not an object.")
+    return lead
+
+
+def _lead_advert_markdown(lead: dict[str, Any], title: str) -> str:
+    lines = [
+        f"# {title}",
+        "",
+        "> RSS lead only. Paste the full advert manually below before final generation.",
+        "",
+        "## RSS Lead Metadata",
+        "",
+        f"- Source: {lead.get('source', 'unknown') or 'unknown'}",
+        f"- Source URL: {lead.get('source_url', '')}",
+        f"- Published: {lead.get('published_at', '')}",
+        f"- Source feed: {lead.get('source_feed', '')}",
+        "",
+        "## RSS Description",
+        "",
+        str(lead.get("description", "")).strip() or "_No RSS description available._",
+        "",
+        "## Full Advert",
+        "",
+        "Paste the full advert manually here before relying on parsed criteria or generated drafts.",
+        "",
+    ]
+    return "\n".join(lines)

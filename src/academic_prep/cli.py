@@ -3,7 +3,7 @@ from pathlib import Path
 import typer
 
 from academic_prep.evidence import extract_profile_evidence
-from academic_prep.jobs import create_job
+from academic_prep.jobs import create_job, create_job_from_lead
 from academic_prep.pipeline import run_pipeline as run_job_pipeline
 from academic_prep.profile import init_profile as create_profile
 from academic_prep.rss import fetch_rss_text, filter_job_leads, parse_jobs_ac_uk_rss, write_job_leads
@@ -79,6 +79,34 @@ def new_job(
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
     typer.echo(f"Created job at {job_dir}")
+
+
+@app.command("new-job-from-lead")
+def new_job_from_lead(
+    leads_file: Path = typer.Option(
+        Path("job_leads/jobs_ac_uk.json"),
+        "--leads-file",
+        help="Local RSS lead JSON file created by fetch-jobs-ac-uk.",
+    ),
+    lead_index: int = typer.Option(..., "--lead-index", help="Zero-based index of the selected lead."),
+    institution: str = typer.Option(..., "--institution", help="Hiring institution for the job workspace."),
+    deadline: str = typer.Option("unknown", "--deadline", help="Application deadline."),
+    title: str | None = typer.Option(None, "--title", help="Override the RSS lead title."),
+    jobs_dir: Path = typer.Option(Path("jobs"), "--jobs-dir", help="Directory for job folders."),
+) -> None:
+    """Create a local job folder from a selected RSS lead without scraping."""
+    try:
+        job_dir = create_job_from_lead(
+            leads_file=leads_file,
+            lead_index=lead_index,
+            jobs_dir=jobs_dir,
+            institution=institution,
+            deadline=deadline,
+            title=title,
+        )
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    typer.echo(f"Created job from lead at {job_dir}")
 
 
 @app.command("fetch-jobs-ac-uk")

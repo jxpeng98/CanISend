@@ -43,8 +43,10 @@ def test_docs_record_rss_and_privacy_contracts():
     proposal = (root / "academic_application_prep_copilot_proposal.md").read_text()
 
     assert "jobs.ac.uk RSS" in readme
+    assert "new-job-from-lead" in readme
     assert "profile/ is ignored by git" in readme
     assert "jobs.ac.uk RSS" in proposal
+    assert "new-job-from-lead" in proposal
     assert "RSS import." not in proposal
 
 

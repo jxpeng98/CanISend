@@ -111,7 +111,19 @@ uv run academic-prep fetch-jobs-ac-uk \
 
 ### 5. Select one advert and create a job workspace
 
-Create one job folder per application preparation task:
+Create one job folder per application preparation task. If the role came from `job_leads/jobs_ac_uk.json`, initialize the folder from the selected zero-based lead index:
+
+```bash
+uv run academic-prep new-job-from-lead \
+  --leads-file job_leads/jobs_ac_uk.json \
+  --lead-index 0 \
+  --institution "University X" \
+  --deadline "2026-06-15"
+```
+
+This writes the RSS title, source URL, published date, and RSS description into `job_advert.md` with a clear `RSS lead only` notice. It does not fetch or scrape the full advert page; paste the complete advert manually before relying on parsed criteria or generated drafts.
+
+You can also create a job manually:
 
 ```bash
 uv run academic-prep new-job \
@@ -330,7 +342,7 @@ Round 2 should turn the current scaffold into a useful evidence-grounded prepara
    - Keep placeholders only where manual judgement is required.
 
 6. **jobs.ac.uk lead-to-job workflow**
-   - Add a command to inspect RSS lead JSON and initialize a job workspace from a selected lead.
+   - Use `new-job-from-lead` to initialize a job workspace from selected RSS lead JSON.
    - Keep advert text entry manual unless a later scope explicitly allows page scraping.
 
 7. **Typst data mapping**

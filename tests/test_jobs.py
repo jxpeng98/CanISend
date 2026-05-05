@@ -68,3 +68,85 @@ def test_new_job_imports_local_advert_file_unchanged(tmp_path):
     assert (job_dir / "job_advert.md").read_text() == "# Lecturer role\n\nEssential: PhD.\n"
     metadata = yaml.safe_load((job_dir / "job.yaml").read_text())
     assert metadata["status"] == "advert_imported"
+
+
+def test_new_job_from_lead_creates_workspace_without_scraping(tmp_path):
+    jobs_dir = tmp_path / "jobs"
+    leads_file = tmp_path / "jobs_ac_uk.json"
+    leads_file.write_text(
+        """[
+  {
+    "title": "Lecturer in Economics",
+    "source_url": "https://www.jobs.ac.uk/job/ABC123/lecturer-in-economics",
+    "description": "Teach econometrics and finance. Permanent academic role.",
+    "published_at": "Mon, 04 May 2026 09:00:00 GMT",
+    "source": "jobs.ac.uk",
+    "source_feed": "https://www.jobs.ac.uk/jobs/rss"
+  }
+]
+"""
+    )
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "new-job-from-lead",
+            "--leads-file",
+            str(leads_file),
+            "--lead-index",
+            "0",
+            "--institution",
+            "University X",
+            "--deadline",
+            "2026-06-15",
+            "--jobs-dir",
+            str(jobs_dir),
+        ],
+    )
+
+    assert result.exit_code == 0
+    job_dir = jobs_dir / "2026-06-15_university-x_lecturer-in-economics"
+    metadata = yaml.safe_load((job_dir / "job.yaml").read_text())
+    assert metadata["title"] == "Lecturer in Economics"
+    assert metadata["institution"] == "University X"
+    assert metadata["source_url"] == "https://www.jobs.ac.uk/job/ABC123/lecturer-in-economics"
+    assert metadata["status"] == "lead_imported"
+    advert = (job_dir / "job_advert.md").read_text()
+    assert "Teach econometrics and finance" in advert
+    assert "RSS lead only" in advert
+    assert "Paste the full advert manually" in advert
+
+
+def test_new_job_from_lead_rejects_negative_index(tmp_path):
+    leads_file = tmp_path / "jobs_ac_uk.json"
+    leads_file.write_text(
+        """[
+  {
+    "title": "Lecturer in Economics",
+    "source_url": "https://www.jobs.ac.uk/job/ABC123/lecturer-in-economics",
+    "description": "Teach econometrics.",
+    "published_at": "Mon, 04 May 2026 09:00:00 GMT",
+    "source": "jobs.ac.uk",
+    "source_feed": "https://www.jobs.ac.uk/jobs/rss"
+  }
+]
+"""
+    )
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "new-job-from-lead",
+            "--leads-file",
+            str(leads_file),
+            "--lead-index",
+            "-1",
+            "--institution",
+            "University X",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "Lead index must be zero or greater" in result.output

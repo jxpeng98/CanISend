@@ -275,6 +275,20 @@ The job pipeline should read this normalized evidence layer before generating fi
 
 ### 5.3 Create a Job
 
+From a selected local RSS lead:
+
+```bash
+academic-prep new-job-from-lead \
+  --leads-file job_leads/jobs_ac_uk.json \
+  --lead-index 0 \
+  --institution "University X" \
+  --deadline "2026-06-15"
+```
+
+This should create a job workspace from the local JSON lead only. It should not scrape the source page. The generated `job_advert.md` should preserve the RSS title, source URL, published date, and description, then clearly ask the user to paste the full advert manually before relying on parser or generator output.
+
+Manual job creation should also remain available:
+
 ```bash
 academic-prep new-job \
   --title "Lecturer in Economics" \
@@ -929,12 +943,14 @@ Acceptance criteria:
 Deliverables:
 
 - `academic-prep new-job`
+- `academic-prep new-job-from-lead`
 - `job.yaml`
 - `job_advert.md`
 
 Acceptance criteria:
 
 - A pasted, `.md`, or `.txt` advert creates one isolated job folder.
+- A selected local RSS lead can initialize one job folder without web scraping.
 - URL is stored only as metadata.
 
 ### Milestone 3: LLM Provider Layer
