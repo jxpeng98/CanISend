@@ -32,7 +32,7 @@ Regenerate normalized evidence whenever profile sources change:
 academic-prep extract-profile-evidence --workspace <private-workspace>
 ```
 
-Agents should read generated evidence from `profile/generated/`, not directly rely on prose claims in the private CV.
+Agents should read generated evidence from `profile/generated/`, not directly rely on prose claims in the private CV. New claims should cite item-level citations such as `profile/generated/cv.evidence.md#Teaching/cv-001`.
 
 ## 3. Fetch And Select Leads
 
@@ -106,6 +106,7 @@ Review, in order:
 7. `06_final_application_package.md`
 
 Apply `quality-gates.md` before treating any output as usable.
+In particular, check item-level citations, unsupported claims, required-document coverage, and private-file safety before presenting a package as ready.
 
 ## 7. Optional Typst Rendering
 

@@ -58,6 +58,16 @@ profile/generated/*.evidence.md
 
 Generated evidence citations use `profile/generated/file.evidence.md#Section`.
 
+Generated evidence items should have stable local IDs:
+
+```markdown
+## Teaching
+
+- [cv-001] `job`: position: Teaching Assistant, institution: University X
+```
+
+New materials should cite item-level evidence as `profile/generated/file.evidence.md#Section/item-id`, for example `profile/generated/cv.evidence.md#Teaching/cv-001`. Section-level citations remain a compatibility fallback, not the preferred new output.
+
 ## Job Folder
 
 Each application task lives in ignored `jobs/<job-slug>/` and contains:

@@ -7,7 +7,9 @@ Use this reference before saying generated application materials are ready for u
 - `profile/profile.yaml` exists.
 - `profile/generated/` contains current evidence files.
 - Strong claims cite normalized evidence, not private Typst prose directly.
-- Every citation points to an existing generated evidence file and section.
+- Every citation points to an existing generated evidence file, section, and item when an item ID exists.
+- New agent output should use item-level citations such as `profile/generated/file.evidence.md#Section/item-id`.
+- Item-level citations are preferred; section-level citations are compatibility only for older outputs or manually reviewed fallbacks.
 - Missing evidence is reported as a gap.
 
 ## Job Advert Gate
@@ -23,6 +25,7 @@ Use this reference before saying generated application materials are ready for u
 - `03_cover_letter_draft.md` is application-facing English and does not include unsupported claims.
 - `04_cv_tailoring_notes.md` tells the user what to adjust in the private CV, but does not rewrite the CV unless asked.
 - `05_criteria_checklist.md` covers all extracted essential criteria.
+- Each non-missing criterion row cites item-level evidence when evidence exists.
 - LLM-backed drafts with unknown citations fail validation; unknown citations fail validation by design.
 
 ## Typst Gate

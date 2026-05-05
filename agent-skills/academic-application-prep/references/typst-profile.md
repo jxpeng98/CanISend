@@ -48,7 +48,11 @@ Current extraction is conservative. It recognizes:
 - `#section("...")`
 - Typst headings such as `= Research Statement`
 - common modernpro-style blocks such as `#education(...)`, `#job(...)`, `#award(...)`, and reference/publication blocks
+- multi-line modernpro-style entries such as `#dated-entry(...)`, `#entry(...)`, and `#event(...)`
+- statement paragraphs and bullet lines under Typst headings
 - publication list lines such as `+ @paper2025`
+
+Generated evidence receives stable item IDs such as `cv-001`. New generated materials should cite `profile/generated/file.evidence.md#Section/item-id` instead of citing private Typst source directly.
 
 If an important claim is not extracted into `profile/generated/`, report it as a profile evidence gap and ask the user whether to add structured evidence. Do not cite unextracted private Typst prose as if it were normalized evidence.
 

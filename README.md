@@ -51,6 +51,21 @@ academic-prep doctor --workspace ~/AcademicApplications
 
 Developers who want to change the tool itself should fork or clone the repository and use `uv run academic-prep ...`.
 
+## User Workflow At A Glance
+
+For normal users, the project is an installed CLI plus a private workspace:
+
+1. Install or upgrade the CLI with `uv tool install academic-application-prep` or `uv tool upgrade academic-application-prep`.
+2. Create or refresh a private workspace with `academic-prep init-workspace --workspace ~/AcademicApplications` or `academic-prep update-workspace --workspace ~/AcademicApplications`.
+3. Put your real modernpro CV and statements under `~/AcademicApplications/profile/typst/`. These files stay local and are ignored by git.
+4. Generate normalized evidence with `academic-prep extract-profile-evidence --workspace ~/AcademicApplications`.
+5. Fetch jobs.ac.uk RSS leads with `academic-prep fetch-jobs-ac-uk --workspace ~/AcademicApplications --feed-url "<rss-url>"`.
+6. Choose one lead and create a job folder with `academic-prep new-job-from-lead`. Paste the full advert into `jobs/<job-slug>/job_advert.md`.
+7. Configure an OpenAI-compatible provider or local command provider. Run the LLM-backed pipeline with `academic-prep run --workspace ~/AcademicApplications --job jobs/<job-slug> --llm-parser --llm-drafts`.
+8. Review item-level evidence citations such as `profile/generated/cv.evidence.md#Teaching/cv-001`, unsupported claims, criteria coverage, and the generated cover letter content JSON.
+9. Render Typst only when needed with `academic-prep render-typst --workspace ~/AcademicApplications --job jobs/<job-slug>`.
+10. Submit manually through the institution portal outside this tool.
+
 ## Release And Update Workflow
 
 Releases are designed for normal users to consume as an installed CLI, not as a forked repository.

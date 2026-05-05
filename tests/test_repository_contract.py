@@ -94,6 +94,9 @@ def test_agent_skill_references_capture_operational_gates():
     platforms = (references / "platforms.md").read_text()
 
     assert "profile/generated/" in quality
+    assert "profile/generated/file.evidence.md#Section/item-id" in quality
+    assert "item-level citations are preferred" in quality.lower()
+    assert "section-level citations" in quality
     assert "unknown citations fail validation" in quality
     assert "ACADEMIC_PREP_LLM_PROVIDER=command" in provider
     assert "OPENAI_BASE_URL" in provider
@@ -103,6 +106,37 @@ def test_agent_skill_references_capture_operational_gates():
     assert "CLAUDE.md" in platforms
     assert "GEMINI.md" in platforms
     assert "IDE" in platforms
+
+
+def test_agent_skill_documents_typst_first_item_level_evidence_contract():
+    root = Path(__file__).resolve().parents[1]
+    references = root / "agent-skills/academic-application-prep" / "references"
+    contracts = (references / "file-contracts.md").read_text()
+    typst_profile = (references / "typst-profile.md").read_text()
+    workflow = (references / "workflow.md").read_text()
+
+    assert "profile/generated/file.evidence.md#Section/item-id" in contracts
+    assert "cv-001" in contracts
+    assert "#dated-entry(...)" in typst_profile
+    assert "#entry(...)" in typst_profile
+    assert "statement paragraphs" in typst_profile
+    assert "item-level citations" in workflow
+    assert "quality-gates.md" in workflow
+
+
+def test_readme_has_user_perspective_workflow_at_a_glance():
+    root = Path(__file__).resolve().parents[1]
+    readme = (root / "README.md").read_text()
+
+    assert "## User Workflow At A Glance" in readme
+    assert "Install or upgrade the CLI" in readme
+    assert "Put your real modernpro CV and statements" in readme
+    assert "Fetch jobs.ac.uk RSS leads" in readme
+    assert "Paste the full advert" in readme
+    assert "Run the LLM-backed pipeline" in readme
+    assert "Review item-level evidence citations" in readme
+    assert "Render Typst only when needed" in readme
+    assert "Submit manually" in readme
 
 
 def test_platform_bridges_point_to_project_skill():
