@@ -1,27 +1,48 @@
 ---
 name: academic-application-prep
-description: Use when preparing academic job application materials, parsing academic job adverts, matching criteria to a local profile, working with Typst-first academic profiles, or maintaining this project.
+description: Use when preparing academic job application materials, coordinating Codex, Claude Code, Gemini, or another local agent around an academic-prep workspace, fetching or filtering jobs.ac.uk RSS leads, parsing job adverts, matching criteria to private profile evidence, reviewing evidence citations, generating or checking modernpro Typst cover letter/application package outputs, or maintaining this project.
 ---
 
 # Academic Application Prep
 
-## Use This Project Safely
+## Operating Mode
 
-This project prepares academic job application materials only. It does not submit applications, fill portals, create accounts, or answer sensitive declarations.
+Treat this as a local-first preparation workflow. The tool helps prepare materials; it must not submit applications, create accounts, fill portals, scrape job pages, or answer sensitive declarations.
+
+Start by identifying the private workspace and, when relevant, the job folder:
+
+```bash
+academic-prep doctor --workspace <private-workspace>
+```
+
+From a development checkout, prefix CLI commands with `uv run`.
+
+## Hard Boundaries
+
+- Treat `profile/`, `jobs/`, `job_leads/`, generated PDFs, and `.env` as private local data.
+- Do not commit real CVs, statements, references, job adverts, generated packages, PDFs, API keys, or source URLs that reveal application strategy.
+- Do not fabricate applicant evidence. Mark missing evidence as a gap.
+- Do not convert Markdown to Typst line by line. Use structured content JSON and modernpro Typst templates.
+- Do not run LLM-backed parser or draft steps unless provider config is available and the user has opted in.
 
 ## References
 
-- For the user workflow, read `references/workflow.md`.
-- For repository file contracts, read `references/file-contracts.md`.
-- For Typst-first profile handling, read `references/typst-profile.md`.
-- For Codex, Claude Code, Gemini, or other agent orchestration, read `references/agent-orchestration.md`.
-- For privacy rules, read `references/privacy.md`.
+Read only the reference files needed for the current task:
 
-## Core Rules
+- `references/workflow.md`: end-to-end CLI flow from workspace init to final manual submission.
+- `references/job-lifecycle.md`: job folder state machine and next action by file/status.
+- `references/file-contracts.md`: exact workspace, profile, job, prompt, schema, and Typst file contracts.
+- `references/typst-profile.md`: Typst-first profile handling with `modernpro-cv` and `modernpro-coverletter`.
+- `references/provider-config.md`: OpenAI-compatible and local command provider configuration.
+- `references/quality-gates.md`: evidence, parser, draft, package, Typst, and privacy review gates.
+- `references/agent-orchestration.md`: Codex, Claude Code, Gemini coordination patterns.
+- `references/privacy.md`: privacy and git-safety rules.
 
-- Treat `profile/`, `jobs/`, and `job_leads/` as private local data.
-- Use `prompts/` for application LLM prompts; do not call them Codex skills.
-- Use `agent-skills/` for Codex-readable skills.
-- Require profile evidence citations before using strong application claims.
-- Keep generated materials human-reviewable and conservative.
-- Coordinate the workflow through local files and CLI commands; do not scrape pages or submit applications.
+## Default Sequence
+
+1. Run or request `academic-prep doctor --workspace <private-workspace>`.
+2. Determine current job state from `job.yaml` and generated files. Read `references/job-lifecycle.md` when uncertain.
+3. Keep profile evidence current with `academic-prep extract-profile-evidence --workspace <private-workspace>`.
+4. Use `academic-prep run --workspace <private-workspace> --job jobs/<job-slug>` for deterministic generation.
+5. Add `--llm-parser` and/or `--llm-drafts` only after checking `references/provider-config.md`.
+6. Review outputs against `references/quality-gates.md` before rendering or presenting final package materials.

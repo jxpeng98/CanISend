@@ -1,0 +1,4 @@
+interface:
+  display_name: "Academic Application Prep"
+  short_description: "Evidence-grounded academic applications"
+  default_prompt: "Use $academic-application-prep to coordinate a private academic job application preparation workflow."

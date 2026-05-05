@@ -1,25 +1,73 @@
 # Agent Orchestration
 
-This project is intended to work well with Codex, Claude Code, Gemini, or another local coding agent.
+Use this reference when Codex, Claude Code, Gemini, or another local agent coordinates the preparation workflow.
 
-Before touching private data, agents can inspect `examples/end_to_end/README.md` and run `uv run pytest tests/test_examples.py -v` from a development checkout to see the full local workflow with fake data.
+## Common Starting Point
 
-Agents should coordinate the workflow through private workspace files and CLI commands:
+Before touching private data:
 
-1. Read this skill before changing prompts, file contracts, or workflow behavior.
-2. For a new installed-package workspace, run `academic-prep init-workspace --workspace <private-workspace>` and `academic-prep doctor --workspace <private-workspace>`.
-3. Fetch or refresh jobs.ac.uk RSS leads with `academic-prep fetch-jobs-ac-uk --workspace <private-workspace>`.
-4. Ask the user to choose a lead, or use an explicitly provided lead index.
-5. Create the job workspace with `academic-prep new-job-from-lead --workspace <private-workspace>`.
-6. Ensure the full advert is pasted into `jobs/<job-slug>/job_advert.md`; RSS leads are not full adverts.
-7. Run `academic-prep extract-profile-evidence --workspace <private-workspace>` when private profile Typst sources changed.
-8. Run `academic-prep run --workspace <private-workspace> --job jobs/<job-slug>` with `--llm-parser` and `--llm-drafts` only when provider config is available.
-9. Review generated evidence citations, criteria coverage, cover letter content JSON, and final package before rendering.
-10. Optionally run `academic-prep render-typst --workspace <private-workspace> --job jobs/<job-slug>`.
-11. Leave final submission, sensitive declarations, and portal interaction to the user.
+```bash
+academic-prep doctor --workspace <private-workspace>
+```
 
 From a development checkout, prefix CLI commands with `uv run`.
 
-Agents must treat `profile/`, `jobs/`, and `job_leads/` as private local data. Do not commit real CVs, statements, job adverts, generated packages, PDFs, or source URLs that reveal application strategy.
+If the agent is maintaining the repository rather than preparing a private application, inspect `examples/end_to_end/README.md` and run:
 
-The Typst layer is structured. Agents should update `03_cover_letter_draft.md` or `jobs/<job-slug>/typst/cover_letter_content.json` and let `cover_letter.typ` use `modernpro-coverletter`; do not replace this with line-by-line Markdown-to-Typst conversion.
+```bash
+uv run pytest tests/test_examples.py -v
+```
+
+## Coordination Rules
+
+1. Read `workflow.md` for the end-to-end sequence.
+2. Read `job-lifecycle.md` to decide the next action from current job state.
+3. Read `provider-config.md` before enabling `--llm-parser` or `--llm-drafts`.
+4. Read `quality-gates.md` before presenting materials as ready for review.
+5. Read `privacy.md` before staging, committing, quoting, or summarizing private files.
+
+Agents should coordinate through CLI commands and local files, not through hidden state.
+
+## Suggested Agent Roles
+
+Use separate agents only when the user explicitly asks for multi-agent work.
+
+- Lead coordinator: runs `doctor`, identifies workspace/job state, chooses next command, and checks privacy boundaries.
+- Lead scout: fetches jobs.ac.uk RSS leads and summarizes candidate roles without scraping full pages.
+- Evidence reviewer: checks `profile/generated/` coverage and reports gaps without editing private Typst sources.
+- Draft reviewer: checks fit report, cover letter, CV notes, and criteria checklist against quality gates.
+- Typst reviewer: checks `cover_letter_content.json` and optional PDF rendering.
+
+When multiple agents are used, give each agent a bounded task and disjoint write scope. Do not have two agents edit the same job output file at the same time.
+
+## Handoff Format
+
+Use this compact handoff when passing work between agents or tools:
+
+```text
+Workspace: <private-workspace>
+Job: jobs/<job-slug>
+Current status: <job.yaml status or missing>
+Last command run: <command>
+Relevant files changed: <paths>
+Next recommended action: <action>
+Privacy notes: <any private files touched, or "none staged">
+```
+
+## Provider Coordination
+
+The local command provider can point at Codex, Claude Code, Gemini, or another CLI. The command must read stdin and write stdout. Do not assume one provider exists; check config and ask the user before using model-backed steps.
+
+For command-provider tasks, prefer prompts that require JSON or evidence-cited Markdown output. Reject output that omits required citations when evidence exists.
+
+## Boundaries
+
+Agents must not:
+
+- commit `profile/`, `jobs/`, `job_leads/`, `.env`, PDFs, or real application material
+- scrape full job pages in V1
+- submit applications or interact with portals
+- answer sensitive declarations
+- fabricate applicant experience, publications, teaching, service, grants, awards, or references
+
+The Typst layer is structured. Agents may update `03_cover_letter_draft.md` or `jobs/<job-slug>/typst/cover_letter_content.json`; they should not replace this with line-by-line Markdown-to-Typst conversion.

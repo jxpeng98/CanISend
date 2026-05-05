@@ -47,6 +47,7 @@ def test_package_check_reports_missing_wheel_resources(tmp_path):
 
     assert "academic_prep/resources/templates/typst/cover_letter.typ" in missing
     assert "academic_prep/resources/agent-skills/academic-application-prep/SKILL.md" in missing
+    assert "academic_prep/resources/agent-skills/academic-application-prep/agents/openai.yaml" in missing
 
 
 def test_ci_workflow_runs_tests_build_and_package_resource_check():

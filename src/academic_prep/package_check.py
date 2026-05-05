@@ -14,6 +14,10 @@ REQUIRED_WHEEL_RESOURCES = [
     "academic_prep/resources/templates/typst/application_package.typ",
     "academic_prep/resources/schemas/parsed_job.schema.json",
     "academic_prep/resources/agent-skills/academic-application-prep/SKILL.md",
+    "academic_prep/resources/agent-skills/academic-application-prep/agents/openai.yaml",
+    "academic_prep/resources/agent-skills/academic-application-prep/references/provider-config.md",
+    "academic_prep/resources/agent-skills/academic-application-prep/references/quality-gates.md",
+    "academic_prep/resources/agent-skills/academic-application-prep/references/job-lifecycle.md",
     "academic_prep/resources/examples/end_to_end/README.md",
 ]
 

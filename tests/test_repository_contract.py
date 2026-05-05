@@ -18,11 +18,15 @@ def test_v1_contract_files_exist():
         "prompts/criteria_checker.md",
         "prompts/package_builder.md",
         "agent-skills/academic-application-prep/SKILL.md",
+        "agent-skills/academic-application-prep/agents/openai.yaml",
         "agent-skills/academic-application-prep/references/workflow.md",
         "agent-skills/academic-application-prep/references/file-contracts.md",
         "agent-skills/academic-application-prep/references/typst-profile.md",
         "agent-skills/academic-application-prep/references/agent-orchestration.md",
+        "agent-skills/academic-application-prep/references/job-lifecycle.md",
         "agent-skills/academic-application-prep/references/privacy.md",
+        "agent-skills/academic-application-prep/references/provider-config.md",
+        "agent-skills/academic-application-prep/references/quality-gates.md",
         "schemas/parsed_job.schema.json",
         "schemas/fit_report.schema.json",
         "schemas/criteria_check.schema.json",
@@ -58,13 +62,37 @@ def test_docs_record_rss_and_privacy_contracts():
 def test_agent_skill_has_standard_frontmatter_and_references():
     root = Path(__file__).resolve().parents[1]
     skill = (root / "agent-skills/academic-application-prep/SKILL.md").read_text()
+    metadata = (root / "agent-skills/academic-application-prep/agents/openai.yaml").read_text()
 
     assert skill.startswith("---\n")
     assert "name: academic-application-prep" in skill
     assert "description: Use when" in skill
+    assert "Codex, Claude Code, Gemini" in skill
+    assert "jobs.ac.uk RSS" in skill
     assert "references/workflow.md" in skill
     assert "references/typst-profile.md" in skill
     assert "references/agent-orchestration.md" in skill
+    assert "references/provider-config.md" in skill
+    assert "references/quality-gates.md" in skill
+    assert "references/job-lifecycle.md" in skill
+    assert "$academic-application-prep" in metadata
+    assert "display_name: \"Academic Application Prep\"" in metadata
+    assert len(skill.splitlines()) < 120
+
+
+def test_agent_skill_references_capture_operational_gates():
+    root = Path(__file__).resolve().parents[1]
+    references = root / "agent-skills/academic-application-prep" / "references"
+    quality = (references / "quality-gates.md").read_text()
+    provider = (references / "provider-config.md").read_text()
+    lifecycle = (references / "job-lifecycle.md").read_text()
+
+    assert "profile/generated/" in quality
+    assert "unknown citations fail validation" in quality
+    assert "ACADEMIC_PREP_LLM_PROVIDER=command" in provider
+    assert "OPENAI_BASE_URL" in provider
+    assert "status: lead_imported" in lifecycle
+    assert "status: packaged" in lifecycle
 
 
 def test_readme_documents_complete_workflow_and_round_two_tasks():

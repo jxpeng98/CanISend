@@ -429,15 +429,20 @@ The main project skill is:
 ```text
 agent-skills/academic-application-prep/
   SKILL.md
+  agents/
+    openai.yaml
   references/
     workflow.md
+    job-lifecycle.md
     file-contracts.md
     typst-profile.md
+    provider-config.md
+    quality-gates.md
     agent-orchestration.md
     privacy.md
 ```
 
-Agents should load this skill when working on academic application preparation, file contracts, Typst-first profile handling, agent orchestration, or privacy-sensitive generated materials.
+Agents should load this skill when working on academic application preparation, file contracts, Typst-first profile handling, provider setup, evidence quality gates, agent orchestration, or privacy-sensitive generated materials.
 
 Codex, Claude Code, Gemini, or another local agent should coordinate through the skill and CLI: fetch RSS leads, create a job from a chosen lead, ensure the full advert is present, extract profile evidence, run parser/draft generation, review citations, and optionally render Typst. Agents must not scrape pages, submit applications, or commit private profile/job data.
 
