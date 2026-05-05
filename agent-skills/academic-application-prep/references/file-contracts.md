@@ -1,8 +1,10 @@
 # File Contracts
 
-Application prompts live in `prompts/`.
+User workspaces are initialized with `academic-prep init-workspace` and contain `academic-prep.yaml`.
 
-Codex-readable project skills live in `agent-skills/`.
+Application prompts live in `prompts/`. Workspace-local prompts override packaged defaults; missing prompt files fall back to packaged copies.
+
+Codex-readable project skills live in `agent-skills/`. Workspace-local skills are copied defaults that can be edited by the user.
 
 Private local profile data lives in ignored `profile/`.
 

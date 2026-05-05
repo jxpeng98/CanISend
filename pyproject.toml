@@ -25,6 +25,14 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/academic_prep"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"prompts" = "academic_prep/resources/prompts"
+"templates" = "academic_prep/resources/templates"
+"schemas" = "academic_prep/resources/schemas"
+"agent-skills" = "academic_prep/resources/agent-skills"
+"examples" = "academic_prep/resources/examples"
+".env.example" = "academic_prep/resources/.env.example"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]

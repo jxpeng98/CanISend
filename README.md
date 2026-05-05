@@ -1,10 +1,50 @@
 # Academic Application Preparation Copilot
 
-Local-first CLI tooling for preparing academic job application materials from a job advert and a Markdown-based academic profile.
+Local-first CLI tooling for preparing academic job application materials from a job advert and a private academic profile.
 
 This project prepares materials only. It does not submit applications, create university accounts, fill web forms, or answer sensitive declarations.
 
 See `academic_application_prep_copilot_proposal.md` for the V1 engineering proposal.
+
+## Installation Model
+
+Normal users should install the package and create a separate private workspace. They do not need to fork this repository.
+
+```bash
+uv tool install academic-application-prep
+academic-prep init-workspace --workspace ~/AcademicApplications
+academic-prep doctor --workspace ~/AcademicApplications
+```
+
+The workspace contains private profile data, job leads, job folders, editable prompt copies, Typst templates, schemas, and agent-readable skills:
+
+```text
+~/AcademicApplications/
+  academic-prep.yaml
+  .env.example
+  .gitignore
+  profile/
+  jobs/
+  job_leads/
+  prompts/
+  templates/
+  schemas/
+  agent-skills/
+```
+
+The package keeps built-in defaults for prompts, schemas, templates, examples, and agent skills. If a workspace-local default file is missing, the CLI falls back to the packaged copy. If a local file exists, it is treated as the user's editable override.
+
+To update:
+
+```bash
+uv tool upgrade academic-application-prep
+academic-prep update-workspace --workspace ~/AcademicApplications
+academic-prep doctor --workspace ~/AcademicApplications
+```
+
+`update-workspace` preserves local prompt/template/skill edits by default. Use `--overwrite` only when you intentionally want to replace local default-resource copies with the package version.
+
+Developers who want to change the tool itself should fork or clone the repository and use `uv run academic-prep ...`.
 
 ## Example
 
@@ -22,7 +62,14 @@ Run or inspect `examples/end_to_end/README.md` before adapting the workflow to p
 
 ### 1. Install and verify the CLI
 
-From the repository root:
+For normal use:
+
+```bash
+uv tool install academic-application-prep
+academic-prep --help
+```
+
+From a development checkout:
 
 ```bash
 uv run academic-prep --help
@@ -31,7 +78,23 @@ uv run pytest -v
 
 During development, prefer `uv run academic-prep ...`. If the package is installed into an environment, the same commands are available as `academic-prep ...`.
 
-### 2. Prepare local private profile data
+### 2. Initialize a private workspace
+
+Create a user workspace. The default profile mode is Typst-first because the intended workflow starts from an already-written `modernpro-cv` CV and `modernpro-coverletter` cover letter or statements:
+
+```bash
+academic-prep init-workspace --workspace ~/AcademicApplications
+```
+
+Check local readiness:
+
+```bash
+academic-prep doctor --workspace ~/AcademicApplications
+```
+
+Then run subsequent commands from that workspace, or pass absolute paths to `--profile-dir`, `--jobs-dir`, `--leads-file`, and `--job`.
+
+### 3. Prepare local private profile data
 
 Create starter profile files. The default mode is `hybrid`, which creates both Markdown evidence files and Typst-first profile sources:
 
@@ -70,7 +133,7 @@ uv run academic-prep init-profile --mode typst
 
 Fill these files with your private academic profile. In normal use, `profile/typst/cv.typ`, `profile/typst/research_statement.typ`, `profile/typst/teaching_statement.typ`, and `profile/typst/cover_letter_base.typ` should be your already-written modernpro-based sources. Typst can be the human-facing source format, but the matcher/checker should read normalized evidence from `profile/generated/`. The local `profile/profile.yaml` manifest records which Typst files correspond to CV, cover letter base, research statement, teaching statement, and generated evidence outputs.
 
-### 3. Generate normalized profile evidence
+### 4. Generate normalized profile evidence
 
 Generate Markdown evidence files from the local profile manifest and Typst sources:
 
@@ -91,7 +154,7 @@ Current extraction support is intentionally conservative:
 
 Run this again whenever the private Typst profile sources change.
 
-### 4. Fetch jobs.ac.uk RSS leads
+### 5. Fetch jobs.ac.uk RSS leads
 
 Open the jobs.ac.uk RSS index and copy a raw RSS Feed link from one of:
 
@@ -121,7 +184,7 @@ uv run academic-prep fetch-jobs-ac-uk \
   --output job_leads/jobs_ac_uk.json
 ```
 
-### 5. Select one advert and create a job workspace
+### 6. Select one advert and create a job workspace
 
 Create one job folder per application preparation task. If the role came from `job_leads/jobs_ac_uk.json`, initialize the folder from the selected zero-based lead index:
 
@@ -163,7 +226,7 @@ uv run academic-prep new-job \
   --advert-file path/to/job_advert.md
 ```
 
-### 6. Run the application preparation pipeline
+### 7. Run the application preparation pipeline
 
 Run the local pipeline for the selected job:
 
@@ -247,7 +310,7 @@ The default generator remains deterministic and scaffold-level. `--llm-drafts` r
 
 Typst generation is structured. `cover_letter_content.json` maps job-specific opening, fit sections, closing, and recipient fields into `modernpro-coverletter`; `cover_letter.typ` reads that data file. It is not a line-by-line Markdown-to-Typst conversion.
 
-### 7. Review and edit generated materials
+### 8. Review and edit generated materials
 
 Review outputs in this order:
 
@@ -260,7 +323,7 @@ Review outputs in this order:
 
 Generated material is draft-only. Any claim about publications, teaching, service, awards, grants, or supervision must be supported by `profile/` evidence.
 
-### 8. Render Typst outputs when needed
+### 9. Render Typst outputs when needed
 
 The project uses public Typst Universe templates:
 
@@ -275,7 +338,7 @@ uv run academic-prep render-typst --job jobs/2026-06-15_university-x_lecturer-in
 
 This requires a local `typst` binary. Source generation does not require Typst; only PDF rendering does.
 
-### 9. Submit manually outside the tool
+### 10. Submit manually outside the tool
 
 Before submitting:
 
@@ -290,7 +353,7 @@ The tool prepares application materials. It does not submit anything.
 
 This repository is intended to be open source. Personal application data should stay local:
 
-- `profile/ is ignored by git` except for `.gitkeep`.
+- `profile/` is ignored by git except for `.gitkeep`.
 - `jobs/` generated job folders are ignored by git.
 - `job_leads/` RSS outputs are ignored by git.
 - API keys belong in local environment variables or `.env`, which is ignored by git.

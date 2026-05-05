@@ -8,6 +8,7 @@ from typing import Any
 
 from academic_prep.evidence import EvidenceReference
 from academic_prep.llm import LLMProvider
+from academic_prep.resource_files import read_resource_text
 
 
 @dataclass(frozen=True)
@@ -95,7 +96,7 @@ def _complete_material(
     cover_letter_draft: str = "",
 ) -> str:
     prompt = _render_material_prompt(
-        prompt_path.read_text(encoding="utf-8"),
+        read_resource_text(f"prompts/{prompt_path.name}", local_path=prompt_path),
         parsed_job=parsed_job,
         evidence=evidence,
         fit_report=fit_report,

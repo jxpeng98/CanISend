@@ -10,6 +10,7 @@ from academic_prep.evidence import EvidenceReference, load_generated_evidence
 from academic_prep.llm import load_llm_config, provider_from_config
 from academic_prep.materials import ApplicationMaterials, generate_materials_with_provider
 from academic_prep.parse import parse_job_advert, parse_job_advert_with_provider
+from academic_prep.resource_files import read_resource_text
 from academic_prep.typst_mapping import (
     build_application_package_content,
     build_cover_letter_content,
@@ -72,7 +73,7 @@ def _parse_job(
     if not use_llm_parser:
         return parse_job_advert(advert_text, metadata)
 
-    prompt_text = (prompt_dir / "job_parser.md").read_text(encoding="utf-8")
+    prompt_text = read_resource_text("prompts/job_parser.md", local_path=prompt_dir / "job_parser.md")
     provider = provider_from_config(load_llm_config())
     return parse_job_advert_with_provider(
         advert_text=advert_text,
@@ -285,4 +286,3 @@ def _required_documents_list(parsed_job: dict[str, Any]) -> str:
     if not documents:
         return "- Required documents were not extracted; check the advert manually."
     return "\n".join(f"- [ ] {document}" for document in documents)
-

@@ -49,7 +49,7 @@ def test_docs_record_rss_and_privacy_contracts():
 
     assert "jobs.ac.uk RSS" in readme
     assert "new-job-from-lead" in readme
-    assert "profile/ is ignored by git" in readme
+    assert "`profile/` is ignored by git" in readme
     assert "jobs.ac.uk RSS" in proposal
     assert "new-job-from-lead" in proposal
     assert "RSS import." not in proposal
@@ -74,14 +74,15 @@ def test_readme_documents_complete_workflow_and_round_two_tasks():
     expected_sections = [
         "## Complete Workflow",
         "### 1. Install and verify the CLI",
-        "### 2. Prepare local private profile data",
-        "### 3. Generate normalized profile evidence",
-        "### 4. Fetch jobs.ac.uk RSS leads",
-        "### 5. Select one advert and create a job workspace",
-        "### 6. Run the application preparation pipeline",
-        "### 7. Review and edit generated materials",
-        "### 8. Render Typst outputs when needed",
-        "### 9. Submit manually outside the tool",
+        "### 2. Initialize a private workspace",
+        "### 3. Prepare local private profile data",
+        "### 4. Generate normalized profile evidence",
+        "### 5. Fetch jobs.ac.uk RSS leads",
+        "### 6. Select one advert and create a job workspace",
+        "### 7. Run the application preparation pipeline",
+        "### 8. Review and edit generated materials",
+        "### 9. Render Typst outputs when needed",
+        "### 10. Submit manually outside the tool",
         "## Round 2 Task Queue",
     ]
 

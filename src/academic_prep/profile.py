@@ -166,9 +166,15 @@ def init_profile(profile_dir: Path, mode: str = "hybrid") -> list[Path]:
         created.extend(_write_templates(profile_dir, PROFILE_TEMPLATES))
 
     if mode in {"typst", "hybrid"}:
-        created.extend(_write_templates(profile_dir, TYPST_PROFILE_TEMPLATES))
+        created.extend(_write_templates(profile_dir, _typst_templates_for_mode(mode)))
 
     return created
+
+
+def _typst_templates_for_mode(mode: str) -> dict[str, str]:
+    templates = dict(TYPST_PROFILE_TEMPLATES)
+    templates["profile.yaml"] = templates["profile.yaml"].replace("profile_mode: hybrid", f"profile_mode: {mode}")
+    return templates
 
 
 def _write_templates(profile_dir: Path, templates: dict[str, str]) -> list[Path]:

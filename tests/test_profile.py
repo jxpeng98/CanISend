@@ -1,4 +1,5 @@
 from typer.testing import CliRunner
+import yaml
 
 from academic_prep.cli import app
 
@@ -26,6 +27,8 @@ def test_init_profile_creates_starter_evidence_files(tmp_path):
     assert "# CV" in (profile_dir / "cv.md").read_text()
     assert "name:" in (profile_dir / "personal_profile.yaml").read_text()
     assert (profile_dir / "profile.yaml").exists()
+    manifest = yaml.safe_load((profile_dir / "profile.yaml").read_text())
+    assert manifest["profile_mode"] == "hybrid"
     assert (profile_dir / "typst" / "cv.typ").exists()
     assert (profile_dir / "generated" / ".gitkeep").exists()
 
@@ -51,6 +54,8 @@ def test_init_profile_typst_mode_creates_only_typst_manifest_and_sources(tmp_pat
 
     assert result.exit_code == 0
     assert (profile_dir / "profile.yaml").exists()
+    manifest = yaml.safe_load((profile_dir / "profile.yaml").read_text())
+    assert manifest["profile_mode"] == "typst"
     assert (profile_dir / "typst" / "cv.typ").exists()
     assert (profile_dir / "typst" / "research_statement.typ").exists()
     assert (profile_dir / "generated" / ".gitkeep").exists()

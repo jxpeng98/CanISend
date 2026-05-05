@@ -8,6 +8,7 @@ from academic_prep.pipeline import run_pipeline as run_job_pipeline
 from academic_prep.profile import init_profile as create_profile
 from academic_prep.rss import fetch_rss_text, filter_job_leads, parse_jobs_ac_uk_rss, write_job_leads
 from academic_prep.typst import render_typst_files
+from academic_prep.workspace import doctor_lines, init_workspace as create_workspace, update_workspace_defaults
 
 app = typer.Typer(
     help="Prepare academic job application materials from local files.",
@@ -38,6 +39,71 @@ def init_profile(
         typer.echo(f"Created {len(created)} profile files.")
     else:
         typer.echo("No files created; existing profile files were left unchanged.")
+
+
+@app.command("init-workspace")
+def init_workspace(
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="User workspace directory for private profile, jobs, local prompts, and agent skills.",
+    ),
+    profile_mode: str = typer.Option(
+        "typst",
+        "--profile-mode",
+        help="Profile scaffold mode: markdown, typst, or hybrid.",
+    ),
+    overwrite: bool = typer.Option(
+        False,
+        "--overwrite",
+        help="Overwrite existing default resources and config files.",
+    ),
+) -> None:
+    """Create a productized user workspace without requiring a repository fork."""
+    try:
+        created = create_workspace(workspace, profile_mode=profile_mode, overwrite=overwrite)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    typer.echo(f"Workspace ready at {workspace}")
+    if created:
+        typer.echo(f"Created or updated {len(created)} files.")
+    else:
+        typer.echo("No files changed; existing workspace files were left unchanged.")
+
+
+@app.command("update-workspace")
+def update_workspace(
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="User workspace directory whose default resources should be refreshed.",
+    ),
+    overwrite: bool = typer.Option(
+        False,
+        "--overwrite",
+        help="Overwrite local default-resource copies. Leave off to preserve local edits.",
+    ),
+) -> None:
+    """Copy current packaged prompts, templates, schemas, and agent skills into a workspace."""
+    copied = update_workspace_defaults(workspace, overwrite=overwrite)
+    typer.echo(f"Workspace defaults checked at {workspace}")
+    if copied:
+        typer.echo(f"Created or updated {len(copied)} files.")
+    else:
+        typer.echo("No default files changed; existing local files were left unchanged.")
+
+
+@app.command("doctor")
+def doctor(
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="User workspace directory to inspect.",
+    ),
+) -> None:
+    """Report local workspace, provider, and rendering readiness."""
+    for line in doctor_lines(workspace):
+        typer.echo(line)
 
 
 @app.command("extract-profile-evidence")
