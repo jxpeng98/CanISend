@@ -7,6 +7,10 @@ def test_v1_contract_files_exist():
         "templates/typst/cover_letter.typ",
         "templates/typst/cv_notes.typ",
         "templates/typst/application_package.typ",
+        "examples/end_to_end/README.md",
+        "examples/end_to_end/jobs_ac_uk_sample.xml",
+        "examples/end_to_end/full_job_advert.md",
+        "examples/end_to_end/fake_llm_provider.py",
         "prompts/job_parser.md",
         "prompts/profile_matcher.md",
         "prompts/cover_letter_writer.md",
@@ -93,6 +97,7 @@ def test_readme_documents_complete_workflow_and_round_two_tasks():
     assert "--llm-parser" in readme
     assert "--llm-drafts" in readme
     assert "cover_letter_content.json" in readme
+    assert "examples/end_to_end" in readme
     assert "Codex, Claude Code, Gemini" in readme
     assert "ACADEMIC_PREP_LLM_PROVIDER" in readme
 

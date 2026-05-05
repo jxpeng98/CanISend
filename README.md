@@ -6,6 +6,18 @@ This project prepares materials only. It does not submit applications, create un
 
 See `academic_application_prep_copilot_proposal.md` for the V1 engineering proposal.
 
+## Example
+
+The repository includes a fully local, fake-data workflow under `examples/end_to_end/`. It demonstrates:
+
+- jobs.ac.uk RSS lead import
+- `new-job-from-lead`
+- Typst-first profile evidence extraction
+- command-provider LLM parser and draft generation
+- structured `modernpro-coverletter` outputs via `cover_letter_content.json`
+
+Run or inspect `examples/end_to_end/README.md` before adapting the workflow to private profile and job data.
+
 ## Complete Workflow
 
 ### 1. Install and verify the CLI

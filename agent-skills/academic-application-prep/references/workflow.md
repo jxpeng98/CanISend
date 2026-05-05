@@ -1,5 +1,7 @@
 # Workflow
 
+For a fake-data reference workflow, inspect `examples/end_to_end/README.md`.
+
 1. Run `uv run academic-prep init-profile --mode hybrid`.
 2. Fill local private profile files under ignored `profile/`.
 3. Run `uv run academic-prep extract-profile-evidence`.

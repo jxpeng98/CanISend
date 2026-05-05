@@ -2,6 +2,8 @@
 
 This project is intended to work well with Codex, Claude Code, Gemini, or another local coding agent.
 
+Before touching private data, agents can inspect `examples/end_to_end/README.md` and run `uv run pytest tests/test_examples.py -v` to see the full local workflow with fake data.
+
 Agents should coordinate the workflow through repository files and CLI commands:
 
 1. Read this skill before changing prompts, file contracts, or workflow behavior.

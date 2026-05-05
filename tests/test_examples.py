@@ -1,0 +1,88 @@
+import json
+from pathlib import Path
+import shutil
+import sys
+
+from typer.testing import CliRunner
+
+from academic_prep.cli import app
+
+
+def test_end_to_end_example_runs_full_local_workflow(tmp_path, monkeypatch):
+    root = Path(__file__).resolve().parents[1]
+    example_dir = root / "examples" / "end_to_end"
+    profile_dir = tmp_path / "profile"
+    jobs_dir = tmp_path / "jobs"
+    leads_file = tmp_path / "job_leads" / "jobs_ac_uk.json"
+    full_advert = example_dir / "full_job_advert.md"
+    fake_provider = example_dir / "fake_llm_provider.py"
+    runner = CliRunner()
+
+    shutil.copytree(example_dir / "profile", profile_dir)
+
+    fetch_result = runner.invoke(
+        app,
+        [
+            "fetch-jobs-ac-uk",
+            "--rss-file",
+            str(example_dir / "jobs_ac_uk_sample.xml"),
+            "--output",
+            str(leads_file),
+            "--include",
+            "economics",
+        ],
+    )
+    assert fetch_result.exit_code == 0
+    assert json.loads(leads_file.read_text())[0]["title"] == "Lecturer in Applied Economics"
+
+    job_result = runner.invoke(
+        app,
+        [
+            "new-job-from-lead",
+            "--leads-file",
+            str(leads_file),
+            "--lead-index",
+            "0",
+            "--institution",
+            "Example University",
+            "--deadline",
+            "2026-06-15",
+            "--jobs-dir",
+            str(jobs_dir),
+        ],
+    )
+    assert job_result.exit_code == 0
+    job_dir = jobs_dir / "2026-06-15_example-university_lecturer-in-applied-economics"
+    shutil.copyfile(full_advert, job_dir / "job_advert.md")
+
+    evidence_result = runner.invoke(app, ["extract-profile-evidence", "--profile-dir", str(profile_dir)])
+    assert evidence_result.exit_code == 0
+    assert (profile_dir / "generated" / "cv.evidence.md").exists()
+
+    monkeypatch.setenv("ACADEMIC_PREP_LLM_PROVIDER", "command")
+    monkeypatch.setenv("ACADEMIC_PREP_LLM_COMMAND", f"{sys.executable} {fake_provider}")
+    run_result = runner.invoke(
+        app,
+        [
+            "run",
+            "--job",
+            str(job_dir),
+            "--profile-dir",
+            str(profile_dir),
+            "--llm-parser",
+            "--llm-drafts",
+        ],
+    )
+    assert run_result.exit_code == 0
+
+    parsed_job = json.loads((job_dir / "parsed_job.json").read_text())
+    cover_content = json.loads((job_dir / "typst" / "cover_letter_content.json").read_text())
+    package_content = json.loads((job_dir / "typst" / "application_package_content.json").read_text())
+    cover_source = (job_dir / "typst" / "cover_letter.typ").read_text()
+
+    assert parsed_job["title"] == "Lecturer in Applied Economics"
+    assert cover_content["recipient"]["institution"] == "Example University"
+    assert "econometrics teaching" in cover_content["sections"]["teaching_fit"]
+    assert "profile/generated/cv.evidence.md#Teaching" in package_content["cover_letter"]
+    assert 'json("cover_letter_content.json")' in cover_source
+    assert '@preview/modernpro-coverletter:0.0.8' in cover_source
