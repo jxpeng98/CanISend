@@ -74,14 +74,26 @@ Desirable criteria:
         "04_cv_tailoring_notes.md",
         "05_criteria_checklist.md",
         "06_final_application_package.md",
+        "typst/cover_letter_content.json",
         "typst/cover_letter.typ",
+        "typst/application_package_content.json",
         "typst/application_package.typ",
     ]
     for output in expected_outputs:
         assert (job_dir / output).exists()
     assert "Remaining Actions Before Submission" in (job_dir / "06_final_application_package.md").read_text()
-    assert '@preview/modernpro-coverletter:0.0.8' in (job_dir / "typst" / "cover_letter.typ").read_text()
-    assert '@preview/modernpro-coverletter:0.0.8' in (job_dir / "typst" / "application_package.typ").read_text()
+    cover_source = (job_dir / "typst" / "cover_letter.typ").read_text()
+    package_source = (job_dir / "typst" / "application_package.typ").read_text()
+    cover_content = json.loads((job_dir / "typst" / "cover_letter_content.json").read_text())
+    assert '@preview/modernpro-coverletter:0.0.8' in cover_source
+    assert '@preview/modernpro-coverletter:0.0.8' in package_source
+    assert 'json("cover_letter_content.json")' in cover_source
+    assert 'json("application_package_content.json")' in package_source
+    assert "content.sections.research_fit" in cover_source
+    assert "# Cover Letter Draft" not in cover_source
+    assert "## Research Fit" not in cover_source
+    assert cover_content["recipient"]["institution"] == "University X"
+    assert cover_content["job"]["title"] == "Lecturer in Economics"
 
 
 def test_run_pipeline_reads_generated_profile_evidence(tmp_path):
@@ -276,4 +288,6 @@ def test_run_pipeline_can_use_llm_drafts_with_command_provider(tmp_path, monkeyp
     assert "I can contribute to econometrics teaching" in (job_dir / "03_cover_letter_draft.md").read_text()
     assert "Move teaching evidence higher" in (job_dir / "04_cv_tailoring_notes.md").read_text()
     assert "strong" in (job_dir / "05_criteria_checklist.md").read_text()
-    assert "Strong teaching fit for econometrics" in (job_dir / "typst" / "application_package.typ").read_text()
+    package_content = json.loads((job_dir / "typst" / "application_package_content.json").read_text())
+    assert "Strong teaching fit for econometrics" in package_content["fit_report"]
+    assert "I can contribute to econometrics teaching" in package_content["cover_letter"]

@@ -26,3 +26,5 @@ profile/generated/
 ```
 
 The evidence layer is what matchers and checkers should read. Typst remains the human-facing source format.
+
+Users may replace the starter Typst files with fully written private sources that already use `modernpro-cv` and `modernpro-coverletter`. The application pipeline should not rewrite those profile sources. For each job, it writes structured Typst data under `jobs/<job-slug>/typst/` and maps that data into `modernpro-coverletter` source files.

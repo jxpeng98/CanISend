@@ -1,25 +1,40 @@
 // Base cover letter template for AAP Copilot generated source files.
-// Uses the public Typst Universe package maintained outside this project.
+// Generated job-specific sources should read cover_letter_content.json.
 #import "@preview/fontawesome:0.6.0": *
 #import "@preview/modernpro-coverletter:0.0.8": *
 
-#let cover-letter(body) = [
+#let cover-letter(content) = [
   #show: coverletter.with(
     font-type: "PT Serif",
     margin: (left: 2cm, right: 2cm, top: 3cm, bottom: 2cm),
     name: [Applicant Name],
     address: [],
-    salutation: [Yours sincerely,],
+    salutation: [#content.salutation],
     contacts: (),
     recipient: (
-      start-title: [Dear Selection Committee,],
-      cl-title: [Academic Job Application],
-      date: [],
-      department: [],
-      institution: [],
-      address: [],
-      postcode: [],
+      start-title: [#content.recipient.start_title],
+      cl-title: [#content.recipient.cl_title],
+      date: [#content.recipient.date],
+      department: [#content.recipient.department],
+      institution: [#content.recipient.institution],
+      address: [#content.recipient.address],
+      postcode: [#content.recipient.postcode],
     ),
   )
-  #body
+
+  #content.opening
+
+  == Research Fit
+  #content.sections.research_fit
+
+  == Teaching Fit
+  #content.sections.teaching_fit
+
+  == Departmental Contribution
+  #content.sections.departmental_contribution
+
+  == Service and Leadership
+  #content.sections.service_leadership
+
+  #content.closing
 ]

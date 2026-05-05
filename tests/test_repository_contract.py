@@ -17,6 +17,7 @@ def test_v1_contract_files_exist():
         "agent-skills/academic-application-prep/references/workflow.md",
         "agent-skills/academic-application-prep/references/file-contracts.md",
         "agent-skills/academic-application-prep/references/typst-profile.md",
+        "agent-skills/academic-application-prep/references/agent-orchestration.md",
         "agent-skills/academic-application-prep/references/privacy.md",
         "schemas/parsed_job.schema.json",
         "schemas/fit_report.schema.json",
@@ -59,6 +60,7 @@ def test_agent_skill_has_standard_frontmatter_and_references():
     assert "description: Use when" in skill
     assert "references/workflow.md" in skill
     assert "references/typst-profile.md" in skill
+    assert "references/agent-orchestration.md" in skill
 
 
 def test_readme_documents_complete_workflow_and_round_two_tasks():
@@ -90,6 +92,8 @@ def test_readme_documents_complete_workflow_and_round_two_tasks():
     assert "extract-profile-evidence" in readme
     assert "--llm-parser" in readme
     assert "--llm-drafts" in readme
+    assert "cover_letter_content.json" in readme
+    assert "Codex, Claude Code, Gemini" in readme
     assert "ACADEMIC_PREP_LLM_PROVIDER" in readme
 
 
@@ -104,4 +108,6 @@ def test_proposal_documents_prompt_skill_split_and_typst_profile():
     assert "extract-profile-evidence" in proposal
     assert "--llm-parser" in proposal
     assert "--llm-drafts" in proposal
+    assert "cover_letter_content.json" in proposal
+    assert "Codex, Claude Code, Gemini" in proposal
     assert "Prompt files should live in `skills/`" not in proposal

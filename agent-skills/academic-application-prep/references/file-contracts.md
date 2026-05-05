@@ -19,6 +19,10 @@ parsed_job.json
 05_criteria_checklist.md
 06_final_application_package.md
 typst/
+  cover_letter_content.json
+  cover_letter.typ
+  application_package_content.json
+  application_package.typ
 ```
 
 RSS lead outputs live in ignored `job_leads/`.

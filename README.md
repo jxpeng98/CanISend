@@ -56,7 +56,7 @@ If you already maintain your CV and statements in Typst using `modernpro-cv` and
 uv run academic-prep init-profile --mode typst
 ```
 
-Fill these files with your private academic profile. Typst can be the human-facing source format, but the matcher/checker should read normalized evidence from `profile/generated/`. The local `profile/profile.yaml` manifest records which Typst files correspond to CV, cover letter base, research statement, teaching statement, and generated evidence outputs.
+Fill these files with your private academic profile. In normal use, `profile/typst/cv.typ`, `profile/typst/research_statement.typ`, `profile/typst/teaching_statement.typ`, and `profile/typst/cover_letter_base.typ` should be your already-written modernpro-based sources. Typst can be the human-facing source format, but the matcher/checker should read normalized evidence from `profile/generated/`. The local `profile/profile.yaml` manifest records which Typst files correspond to CV, cover letter base, research statement, teaching statement, and generated evidence outputs.
 
 ### 3. Generate normalized profile evidence
 
@@ -225,11 +225,15 @@ jobs/<job-slug>/
   05_criteria_checklist.md
   06_final_application_package.md
   typst/
+    cover_letter_content.json
     cover_letter.typ
+    application_package_content.json
     application_package.typ
 ```
 
 The default generator remains deterministic and scaffold-level. `--llm-drafts` replaces matching and drafting steps with provider-backed generation while preserving the same file contracts.
+
+Typst generation is structured. `cover_letter_content.json` maps job-specific opening, fit sections, closing, and recipient fields into `modernpro-coverletter`; `cover_letter.typ` reads that data file. It is not a line-by-line Markdown-to-Typst conversion.
 
 ### 7. Review and edit generated materials
 
@@ -288,6 +292,8 @@ The intended direction is:
 
 - Use `modernpro-cv` for CV-style sources and later CV tailoring exports.
 - Use `modernpro-coverletter` for cover letters and statement/application package style outputs.
+- Keep user-authored CV and statement Typst sources in `profile/typst/`; the pipeline should not rewrite them.
+- Generate job-specific `cover_letter_content.json` and `application_package_content.json` for modernpro rendering.
 - Keep personal content in ignored local folders.
 
 ## Project Skills and Prompts
@@ -306,10 +312,13 @@ agent-skills/academic-application-prep/
     workflow.md
     file-contracts.md
     typst-profile.md
+    agent-orchestration.md
     privacy.md
 ```
 
-Agents should load this skill when working on academic application preparation, file contracts, Typst-first profile handling, or privacy-sensitive generated materials.
+Agents should load this skill when working on academic application preparation, file contracts, Typst-first profile handling, agent orchestration, or privacy-sensitive generated materials.
+
+Codex, Claude Code, Gemini, or another local agent should coordinate through the skill and CLI: fetch RSS leads, create a job from a chosen lead, ensure the full advert is present, extract profile evidence, run parser/draft generation, review citations, and optionally render Typst. Agents must not scrape pages, submit applications, or commit private profile/job data.
 
 ## Round 2 Task Queue
 

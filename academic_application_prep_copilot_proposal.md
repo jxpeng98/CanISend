@@ -364,9 +364,13 @@ jobs/2026-06-15_university-x_lecturer-in-economics/
   05_criteria_checklist.md
   06_final_application_package.md
   typst/
+    cover_letter_content.json
     cover_letter.typ
+    application_package_content.json
     application_package.typ
 ```
+
+Typst generation should be structured. `cover_letter_content.json` should map opening text, fit sections, closing text, and recipient fields into `modernpro-coverletter`; `cover_letter.typ` should read that data file. V1 should not use line-by-line Markdown-to-Typst conversion as the document production model.
 
 ### 5.5 Render Typst Outputs
 
@@ -439,7 +443,9 @@ jobs/<job-slug>/
   05_criteria_checklist.md
   06_final_application_package.md
   typst/
+    cover_letter_content.json
     cover_letter.typ
+    application_package_content.json
     application_package.typ
   pdf/
     cover_letter.pdf
@@ -651,10 +657,13 @@ agent-skills/
       workflow.md
       file-contracts.md
       typst-profile.md
+      agent-orchestration.md
       privacy.md
 ```
 
 This split prevents application prompts from being confused with agent skills.
+
+Codex, Claude Code, Gemini, or another local agent should use the project skill to coordinate the workflow from RSS lead to final application package: fetch leads, create a job workspace, confirm the full advert is present, extract profile evidence, run parser/draft generation, review citations, and optionally render Typst. Agents should not scrape pages, submit applications, or commit private job/profile data.
 
 ---
 
@@ -662,13 +671,14 @@ This split prevents application prompts from being confused with agent skills.
 
 ### 8.1 Profile Initialization
 
-Creates the local `profile/` folder and starter Markdown/YAML files.
+Creates the local `profile/` folder and starter Markdown/YAML/Typst files.
 
 Acceptance criteria:
 
 - Does not overwrite existing profile files unless the user explicitly confirms.
 - Creates files with headings that support evidence references.
-- Explains that Markdown is the canonical evidence source.
+- Supports users who already maintain private `modernpro-cv` and `modernpro-coverletter` Typst sources.
+- Explains that generated Markdown evidence is the matcher/checker input, while Typst remains the human-facing source.
 
 ### 8.2 Job Import
 
@@ -1004,12 +1014,15 @@ Deliverables:
 
 - `05_criteria_checklist.md`
 - `06_final_application_package.md`
+- `typst/cover_letter_content.json`
+- `typst/application_package_content.json`
 - `typst/application_package.typ`
 
 Acceptance criteria:
 
 - Criteria checklist is actionable.
 - Final package includes remaining manual actions.
+- Cover letter Typst source maps structured content into `modernpro-coverletter`.
 - Typst source is generated without requiring PDF compilation.
 
 ### Milestone 7: Optional Typst Rendering
