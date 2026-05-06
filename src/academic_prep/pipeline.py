@@ -8,7 +8,18 @@ import yaml
 
 from academic_prep.evidence import EvidenceReference, load_generated_evidence
 from academic_prep.llm import load_llm_config, provider_from_config
-from academic_prep.materials import ApplicationMaterials, generate_materials_with_provider
+from academic_prep.match import (
+    EvidenceIndex,
+    format_cover_letter_draft,
+    format_criteria_checklist,
+    format_cv_notes,
+    format_fit_report,
+)
+from academic_prep.materials import (
+    ApplicationMaterials,
+    generate_final_package_with_provider,
+    generate_materials_with_provider,
+)
 from academic_prep.material_review import build_material_review_checklist
 from academic_prep.parse import parse_job_advert, parse_job_advert_with_provider
 from academic_prep.resource_files import read_resource_text
@@ -40,7 +51,16 @@ def run_pipeline(
         use_llm_drafts=use_llm_drafts,
         prompt_dir=prompt_dir,
     )
-    final_package = _final_package(parsed_job, materials)
+    if use_llm_drafts:
+        provider = provider_from_config(load_llm_config())
+        final_package = generate_final_package_with_provider(
+            parsed_job=parsed_job,
+            materials=materials,
+            provider=provider,
+            prompt_dir=prompt_dir,
+        )
+    else:
+        final_package = _final_package(parsed_job, materials)
     material_review = build_material_review_checklist(parsed_job, materials)
     written = [
         _write_json(job_dir / "parsed_job.json", parsed_job),
@@ -94,11 +114,21 @@ def _materials(
     prompt_dir: Path,
 ) -> ApplicationMaterials:
     if not use_llm_drafts:
+        index = EvidenceIndex(evidence)
+        essential_matches = [
+            index.match_criterion(item["criterion"])
+            for item in parsed_job["essential_criteria"]
+        ]
+        desirable_matches = [
+            index.match_criterion(item["criterion"])
+            for item in parsed_job["desirable_criteria"]
+        ]
+        all_matches = essential_matches + desirable_matches
         return ApplicationMaterials(
-            fit_report=_fit_report(parsed_job, evidence),
-            cover_letter_draft=_cover_letter(parsed_job),
-            cv_tailoring_notes=_cv_notes(parsed_job),
-            criteria_checklist=_criteria_checklist(parsed_job, evidence),
+            fit_report=format_fit_report(essential_matches, desirable_matches, evidence),
+            cover_letter_draft=format_cover_letter_draft(parsed_job, all_matches),
+            cv_tailoring_notes=format_cv_notes(parsed_job, all_matches),
+            criteria_checklist=format_criteria_checklist(essential_matches, desirable_matches),
         )
 
     provider = provider_from_config(load_llm_config())
@@ -134,107 +164,6 @@ def _job_summary(parsed_job: dict[str, Any]) -> str:
 - Salary: {parsed_job["salary"]}
 - Required documents: {", ".join(parsed_job["required_documents"]) or "unknown"}
 """
-
-
-def _fit_report(parsed_job: dict[str, Any], evidence: list[EvidenceReference]) -> str:
-    essential = "\n".join(f"- {item['criterion']}" for item in parsed_job["essential_criteria"]) or "- No essential criteria extracted."
-    evidence_summary = _evidence_summary(evidence)
-    return f"""# Fit Report
-
-## Extracted Essential Criteria
-
-{essential}
-
-## Evidence Review
-
-{evidence_summary}
-
-## Application Risks
-
-- Confirm that every essential criterion is explicitly covered in the CV or cover letter.
-- Add evidence references before treating this report as final.
-"""
-
-
-def _cover_letter(parsed_job: dict[str, Any]) -> str:
-    return f"""# Cover Letter Draft
-
-Dear Selection Committee,
-
-I am writing to apply for the position of {parsed_job["title"]} at {parsed_job["institution"]}.
-
-## Research Fit
-
-[Add evidence-based research fit using profile file and section references.]
-
-## Teaching Fit
-
-[Add evidence-based teaching fit using profile file and section references.]
-
-## Departmental Contribution
-
-[Add specific departmental fit after reviewing the advert and department context.]
-
-## Service and Leadership
-
-[Add only supported service or leadership evidence.]
-
-Yours sincerely,
-
-[Applicant name]
-"""
-
-
-def _cv_notes(parsed_job: dict[str, Any]) -> str:
-    teaching_fields = ", ".join(parsed_job["teaching_fields"]) or "the advertised teaching areas"
-    research_fields = ", ".join(parsed_job["research_fields"]) or "the advertised research areas"
-    return f"""# CV Tailoring Notes
-
-1. Move evidence related to {teaching_fields} higher if this is a teaching-heavy role.
-2. Foreground research projects related to {research_fields}.
-3. Make essential criteria visible in the CV before submission.
-4. Add profile evidence references before using these notes as final guidance.
-"""
-
-
-def _criteria_checklist(parsed_job: dict[str, Any], evidence: list[EvidenceReference]) -> str:
-    evidence_source = _first_evidence_source(evidence)
-    evidence_text = _first_evidence_text(evidence)
-    rows = [
-        "| Criterion | Coverage | Evidence Source | Risk | Suggested Improvement |",
-        "|---|---|---|---|---|",
-    ]
-    for item in parsed_job["essential_criteria"]:
-        coverage = "partial" if evidence else "missing"
-        rows.append(f"| {item['criterion']} | {coverage} | {evidence_source} | High | Review evidence: {evidence_text} |")
-    for item in parsed_job["desirable_criteria"]:
-        coverage = "partial" if evidence else "missing"
-        rows.append(f"| {item['criterion']} | {coverage} | {evidence_source} | Medium | Review evidence: {evidence_text} |")
-    if len(rows) == 2:
-        rows.append("| No criteria extracted | missing | Not available | High | Review the advert manually. |")
-    return "# Criteria Coverage Checklist\n\n" + "\n".join(rows) + "\n"
-
-
-def _evidence_summary(evidence: list[EvidenceReference]) -> str:
-    if not evidence:
-        return "Manual profile evidence review is required. Strong-fit claims must cite profile files and sections before use in final materials."
-    lines = ["Generated profile evidence is available:"]
-    for item in evidence:
-        lines.append(f"- `{item.citation}`: {item.text}")
-    return "\n".join(lines)
-
-
-def _first_evidence_source(evidence: list[EvidenceReference]) -> str:
-    if not evidence:
-        return "Not yet linked"
-    item = evidence[0]
-    return f"`{item.citation}`"
-
-
-def _first_evidence_text(evidence: list[EvidenceReference]) -> str:
-    if not evidence:
-        return "Add explicit evidence from profile files."
-    return evidence[0].text
 
 
 def _final_package(parsed_job: dict[str, Any], materials: ApplicationMaterials) -> str:

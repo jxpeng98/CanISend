@@ -118,7 +118,46 @@ def doctor_lines(workspace: Path, *, env: Mapping[str, str] | None = None) -> li
         lines.append(f"- {status.path}: {marker} ({status.label})")
     lines.append(_llm_status_line(config))
     lines.append(f"- Typst binary: {'found' if which('typst') else 'missing'}")
+    lines.append(_evidence_staleness_line(workspace))
+    lines.append(_config_validation_line(workspace))
     return lines
+
+
+def _evidence_staleness_line(workspace: Path) -> str:
+    profile_dir = workspace / "profile"
+    manifest_path = profile_dir / "profile.yaml"
+    if not manifest_path.exists():
+        return "- Evidence staleness: cannot check (profile/profile.yaml missing)"
+    try:
+        import yaml
+
+        manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+        sources = manifest.get("sources", {})
+        stale: list[str] = []
+        for source_key, source_value in sources.items():
+            source_path = profile_dir / source_value
+            if not source_path.exists():
+                continue
+            gen_dir = profile_dir / "generated"
+            evidence_path = gen_dir / f"{source_key}.evidence.md"
+            if evidence_path.exists() and source_path.stat().st_mtime > evidence_path.stat().st_mtime:
+                stale.append(source_key)
+        if stale:
+            return f"- Evidence staleness: STALE ({', '.join(stale)} source(s) newer than generated evidence)"
+        if sources and any((profile_dir / "generated" / f"{k}.evidence.md").exists() for k in sources):
+            return "- Evidence staleness: up to date"
+        return "- Evidence staleness: no generated evidence found (run extract-profile-evidence)"
+    except Exception:
+        return "- Evidence staleness: check failed"
+
+
+def _config_validation_line(workspace: Path) -> str:
+    from academic_prep.config_schema import validate_workspace_config
+
+    warnings = validate_workspace_config(workspace / WORKSPACE_CONFIG)
+    if not warnings:
+        return "- Config validation: ok"
+    return f"- Config validation: {len(warnings)} warning(s) (see doctor output for details)"
 
 
 def _llm_status_line(config: LLMConfig) -> str:

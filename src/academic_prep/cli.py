@@ -3,7 +3,7 @@ from pathlib import Path
 import typer
 
 from academic_prep.evidence import extract_profile_evidence
-from academic_prep.jobs import create_job, create_job_from_lead
+from academic_prep.jobs import create_job, create_job_from_lead, list_jobs as list_job_folders
 from academic_prep.pipeline import run_pipeline as run_job_pipeline
 from academic_prep.profile import init_profile as create_profile
 from academic_prep.rss import fetch_rss_text, filter_job_leads, parse_jobs_ac_uk_rss, write_job_leads
@@ -213,6 +213,32 @@ def new_job_from_lead(
     typer.echo(f"Created job from lead at {job_dir}")
 
 
+@app.command("list-jobs")
+def list_jobs_command(
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="User workspace directory containing academic-prep.yaml.",
+    ),
+    jobs_dir: Path | None = typer.Option(
+        None,
+        "--jobs-dir",
+        help="Directory containing job folders. Relative paths are resolved against --workspace.",
+    ),
+) -> None:
+    """List all job folders with status, deadline, and institution."""
+    config = load_workspace_config(workspace)
+    jobs = list_job_folders(config.path("jobs_dir", jobs_dir))
+    if not jobs:
+        typer.echo("No job folders found.")
+        return
+    typer.echo(f"{'Deadline':<12} {'Status':<18} {'Institution':<30} {'Title'}")
+    typer.echo("-" * 90)
+    for job in jobs:
+        typer.echo(f"{job['deadline']:<12} {job['status']:<18} {job['institution'][:28]:<30} {job['title'][:40]}")
+    typer.echo(f"\n{len(jobs)} job(s) found.")
+
+
 @app.command("fetch-jobs-ac-uk")
 def fetch_jobs_ac_uk(
     workspace: Path = typer.Option(
@@ -277,10 +303,56 @@ def run_pipeline(
         "--prompt-dir",
         help="Directory containing application prompt files. Relative paths are resolved against --workspace.",
     ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Preview what would be generated without writing any files.",
+    ),
 ) -> None:
     """Run the application preparation pipeline for one job."""
     config = load_workspace_config(workspace)
     job_dir = config.job_dir(job)
+    if dry_run:
+        from academic_prep.evidence import load_generated_evidence
+        from academic_prep.llm import load_llm_config, provider_from_config
+        from academic_prep.parse import parse_job_advert, parse_job_advert_with_provider
+        from academic_prep.resource_files import read_resource_text
+
+        import yaml as _yaml
+
+        metadata = _yaml.safe_load((job_dir / "job.yaml").read_text(encoding="utf-8"))
+        advert_text = (job_dir / "job_advert.md").read_text(encoding="utf-8")
+        evidence = load_generated_evidence(config.path("profile_dir", profile_dir))
+        if llm_parser:
+            prompt_text = read_resource_text("prompts/job_parser.md", local_path=config.path("prompt_dir", prompt_dir) / "job_parser.md")
+            provider = provider_from_config(load_llm_config())
+            parsed_job = parse_job_advert_with_provider(advert_text=advert_text, metadata=metadata, provider=provider, prompt_text=prompt_text)
+            typer.echo("Parser: LLM-backed")
+        else:
+            parsed_job = parse_job_advert(advert_text, metadata)
+            typer.echo("Parser: deterministic")
+
+        typer.echo(f"  Title: {parsed_job['title']}")
+        typer.echo(f"  Institution: {parsed_job['institution']}")
+        typer.echo(f"  Essential criteria: {len(parsed_job['essential_criteria'])}")
+        typer.echo(f"  Desirable criteria: {len(parsed_job['desirable_criteria'])}")
+        typer.echo(f"  Required documents: {len(parsed_job['required_documents'])}")
+        typer.echo(f"  Evidence items available: {len(evidence)}")
+        typer.echo(f"\nOutputs that would be generated:")
+
+        outputs = [
+            "parsed_job.json", "01_job_summary.md", "02_fit_report.md",
+            "03_cover_letter_draft.md", "04_cv_tailoring_notes.md",
+            "05_criteria_checklist.md", "06_final_application_package.md",
+            "07_material_review_checklist.md",
+            "typst/cover_letter_content.json", "typst/cover_letter.typ",
+            "typst/application_package_content.json", "typst/application_package.typ",
+        ]
+        for output in outputs:
+            typer.echo(f"  - {job_dir}/{output}")
+        typer.echo(f"\nDraft mode: {'LLM-backed' if llm_drafts else 'deterministic'}")
+        return
+
     written = run_job_pipeline(
         job_dir,
         profile_dir=config.path("profile_dir", profile_dir),

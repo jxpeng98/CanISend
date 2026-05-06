@@ -190,7 +190,8 @@ def test_run_pipeline_reads_generated_profile_evidence(tmp_path):
     fit_report = (job_dir / "02_fit_report.md").read_text()
     criteria_checklist = (job_dir / "05_criteria_checklist.md").read_text()
     assert "profile/generated/cv.evidence.md#Teaching" in fit_report
-    assert "Teaching Assistant" in criteria_checklist
+    assert "Evidence of teaching excellence" in criteria_checklist
+    assert "coverage" in criteria_checklist.lower()
 
 
 def test_run_pipeline_can_use_llm_parser_with_command_provider(tmp_path, monkeypatch):
@@ -316,6 +317,8 @@ def test_run_pipeline_can_use_llm_drafts_with_command_provider(tmp_path, monkeyp
         "    print(f'# CV Tailoring Notes\\n\\n- Move teaching evidence higher ({citation}).')\n"
         "elif '# Criteria Checker' in prompt:\n"
         "    print(f'# Criteria Coverage Checklist\\n\\n| Criterion | Coverage | Evidence Source | Risk | Suggested Improvement |\\n|---|---|---|---|---|\\n| Evidence of teaching excellence | strong | {citation} | low | Keep the evidence visible. |')\n"
+        "elif '# Package Builder' in prompt:\n"
+        "    print('# Final Application Package\\n\\n## Job Information\\n\\n- Title: Lecturer in Economics\\n- Institution: University X')\n"
         "else:\n"
         "    raise SystemExit('unexpected prompt')\n"
     )

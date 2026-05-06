@@ -53,6 +53,20 @@ def main() -> None:
             f"| Active research agenda in applied economics | partial | {CITATION} | medium | Add a research-project citation from the profile before final use. |\n"
         )
         return
+    if "# Package Builder" in prompt:
+        print(
+            "# Final Application Package\n\n"
+            "## Job Information\n\n"
+            "- Title: Lecturer in Applied Economics\n"
+            "- Institution: Example University\n\n"
+            "## Application Strategy\n\n"
+            "Use the extracted criteria to decide the main application angle.\n\n"
+            "## Required Documents\n\n"
+            "- [ ] CV\n- [ ] Cover letter\n- [ ] Research statement\n- [ ] Teaching statement\n\n"
+            "## Manual Submission Notes\n\n"
+            "The system has prepared materials only.\n"
+        )
+        return
     raise SystemExit("fake provider received an unknown prompt")
 
 

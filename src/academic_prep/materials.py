@@ -68,6 +68,34 @@ def generate_materials_with_provider(
     return materials
 
 
+def generate_final_package_with_provider(
+    *,
+    parsed_job: dict[str, Any],
+    materials: ApplicationMaterials,
+    provider: LLMProvider,
+    prompt_dir: Path = Path("prompts"),
+) -> str:
+    prompt_text = read_resource_text("prompts/package_builder.md", local_path=prompt_dir / "package_builder.md")
+    input_context = json.dumps(
+        {
+            "job_summary": {
+                "title": parsed_job["title"],
+                "institution": parsed_job["institution"],
+                "department": parsed_job["department"],
+                "deadline": parsed_job["deadline"],
+            },
+            "fit_report": materials.fit_report,
+            "cover_letter_draft": materials.cover_letter_draft,
+            "cv_tailoring_notes": materials.cv_tailoring_notes,
+            "criteria_checklist": materials.criteria_checklist,
+        },
+        indent=2,
+        default=str,
+    )
+    prompt = prompt_text.replace("{input_context}", input_context)
+    return provider.complete(prompt).content.strip() + "\n"
+
+
 def validate_material_citations(materials: ApplicationMaterials, evidence: list[EvidenceReference]) -> None:
     allowed = _allowed_citations(evidence)
     required = {

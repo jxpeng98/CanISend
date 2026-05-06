@@ -125,6 +125,34 @@ def _load_lead(leads_file: Path, lead_index: int) -> dict[str, Any]:
     return lead
 
 
+def list_jobs(jobs_dir: Path) -> list[dict[str, Any]]:
+    if not jobs_dir.exists():
+        return []
+    entries: list[dict[str, Any]] = []
+    for job_dir in sorted(jobs_dir.iterdir()):
+        if not job_dir.is_dir():
+            continue
+        yaml_path = job_dir / "job.yaml"
+        if not yaml_path.exists():
+            continue
+        try:
+            metadata = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+        except yaml.YAMLError:
+            continue
+        if not isinstance(metadata, dict):
+            continue
+        entries.append({
+            "id": metadata.get("id", job_dir.name),
+            "title": metadata.get("title", "unknown"),
+            "institution": metadata.get("institution", "unknown"),
+            "deadline": metadata.get("deadline", "unknown"),
+            "status": metadata.get("status", "unknown"),
+            "path": str(job_dir),
+        })
+    entries.sort(key=lambda e: (e["deadline"], e["institution"]))
+    return entries
+
+
 def _lead_advert_markdown(lead: dict[str, Any], title: str) -> str:
     lines = [
         f"# {title}",
