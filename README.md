@@ -75,6 +75,7 @@ Maintainer release checks:
 ```bash
 uv run pytest -v
 uv build
+uvx twine check dist/*
 uv run python -m academic_prep.package_check dist/*.whl
 ```
 
@@ -85,6 +86,12 @@ CI runs the same test/build/resource-check sequence on pushes and pull requests.
 - Manual `workflow_dispatch` with `publish_target=testpypi` publishes to TestPyPI.
 - A published GitHub Release publishes to PyPI.
 - The workflow uses `pypa/gh-action-pypi-publish@release/v1`; no PyPI API token should be stored in the repository.
+
+Use `RELEASE.md` for the full TestPyPI dry run and PyPI release playbook. The TestPyPI workflow can be triggered with:
+
+```bash
+gh workflow run release.yml -f publish_target=testpypi
+```
 
 Before the first publish, configure Trusted Publishing on TestPyPI and PyPI for this repository and the `.github/workflows/release.yml` workflow. Use GitHub environments named `testpypi` and `pypi` so releases can require manual approval if desired.
 

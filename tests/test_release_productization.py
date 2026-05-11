@@ -96,6 +96,8 @@ def test_release_workflow_publishes_with_trusted_publishing():
     workflow_path = Path(".github/workflows/release.yml")
     rendered = workflow_path.read_text()
 
+    assert "publish_target:" in rendered
+    assert "github.event.inputs.publish_target == 'testpypi'" in rendered
     assert "id-token: write" in rendered
     assert "pypa/gh-action-pypi-publish@release/v1" in rendered
     assert "repository-url: https://test.pypi.org/legacy/" in rendered
@@ -105,6 +107,20 @@ def test_release_workflow_publishes_with_trusted_publishing():
     assert "python -m venv /tmp/aap-smoke" in rendered
 
 
+def test_release_playbook_documents_testpypi_dry_run():
+    playbook = Path("RELEASE.md").read_text()
+
+    assert "## TestPyPI Dry Run" in playbook
+    assert "uv run pytest" in playbook
+    assert "uvx twine check dist/*" in playbook
+    assert "uv run python -m academic_prep.package_check dist/*.whl" in playbook
+    assert "gh workflow run release.yml -f publish_target=testpypi" in playbook
+    assert "https://test.pypi.org/legacy/" in playbook
+    assert "--index-url https://test.pypi.org/simple/" in playbook
+    assert "--extra-index-url https://pypi.org/simple/" in playbook
+    assert "academic-prep doctor --workspace" in playbook
+
+
 def test_readme_documents_release_and_update_workflow():
     readme = Path("README.md").read_text()
 
@@ -112,5 +128,7 @@ def test_readme_documents_release_and_update_workflow():
     assert "Trusted Publishing" in readme
     assert "TestPyPI" in readme
     assert "PyPI" in readme
+    assert "RELEASE.md" in readme
+    assert "gh workflow run release.yml -f publish_target=testpypi" in readme
     assert "uv tool upgrade academic-application-prep" in readme
     assert "academic-prep doctor --workspace ~/AcademicApplications" in readme

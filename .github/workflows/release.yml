@@ -2,6 +2,14 @@ name: release
 
 on:
   workflow_dispatch:
+    inputs:
+      publish_target:
+        description: "Manual publish target. Manual dispatch is for TestPyPI dry runs."
+        required: true
+        default: testpypi
+        type: choice
+        options:
+          - testpypi
   release:
     types:
       - published
@@ -52,7 +60,7 @@ jobs:
             dist/*.whl
 
   publish-testpypi:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.publish_target == 'testpypi'
     needs: build
     runs-on: ubuntu-latest
     environment:
