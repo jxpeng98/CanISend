@@ -4,11 +4,45 @@ version = "0.1.0"
 description = "Local-first academic job application preparation copilot."
 readme = "README.md"
 requires-python = ">=3.11"
+license = "MIT"
+authors = [
+    { name = "Peng Jiaxin" },
+]
+maintainers = [
+    { name = "Peng Jiaxin" },
+]
+keywords = [
+    "academic jobs",
+    "applications",
+    "cli",
+    "typst",
+    "llm",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Education",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Office/Business",
+    "Topic :: Text Processing :: Markup",
+]
 dependencies = [
     "pydantic>=2.7",
     "pyyaml>=6.0",
     "typer>=0.12",
 ]
+
+[project.urls]
+Homepage = "https://github.com/pengjiaxin/auto-academic-jobs"
+Repository = "https://github.com/pengjiaxin/auto-academic-jobs"
+Issues = "https://github.com/pengjiaxin/auto-academic-jobs/issues"
+Documentation = "https://github.com/pengjiaxin/auto-academic-jobs#readme"
 
 [project.scripts]
 academic-prep = "academic_prep.cli:app"

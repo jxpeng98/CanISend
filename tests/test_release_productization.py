@@ -29,6 +29,31 @@ def test_package_version_matches_project_metadata():
     assert __version__ == metadata["project"]["version"]
 
 
+def test_project_metadata_is_ready_for_public_package_index():
+    metadata = tomllib.loads(Path("pyproject.toml").read_text())["project"]
+
+    assert metadata["license"] == "MIT"
+    assert {"name": "Peng Jiaxin"} in metadata["authors"]
+    assert "academic jobs" in metadata["keywords"]
+    assert "Development Status :: 3 - Alpha" in metadata["classifiers"]
+    assert "License :: OSI Approved :: MIT License" in metadata["classifiers"]
+    assert "Programming Language :: Python :: 3.12" in metadata["classifiers"]
+    assert metadata["urls"]["Repository"]
+    assert metadata["urls"]["Issues"]
+
+
+def test_repository_has_release_notes_and_license():
+    license_text = Path("LICENSE").read_text()
+    changelog = Path("CHANGELOG.md").read_text()
+    gitignore = Path(".gitignore").read_text()
+
+    assert "MIT License" in license_text
+    assert "Copyright (c) 2026 Peng Jiaxin" in license_text
+    assert "## 0.1.0" in changelog
+    assert "Alpha" in changelog
+    assert ".claude/" in gitignore
+
+
 def test_package_check_detects_required_wheel_resources(tmp_path):
     wheel_path = tmp_path / "academic_application_prep-0.1.0-py3-none-any.whl"
     with zipfile.ZipFile(wheel_path, "w") as wheel:
@@ -62,6 +87,9 @@ def test_ci_workflow_runs_tests_build_and_package_resource_check():
     assert "uv run pytest -v" in rendered
     assert "uv build" in rendered
     assert "python -m academic_prep.package_check dist/*.whl" in rendered
+    assert "uvx twine check dist/*" in rendered
+    assert "python -m venv /tmp/aap-smoke" in rendered
+    assert "/tmp/aap-smoke/bin/academic-prep doctor --workspace /tmp/aap-workspace" in rendered
 
 
 def test_release_workflow_publishes_with_trusted_publishing():
@@ -73,6 +101,8 @@ def test_release_workflow_publishes_with_trusted_publishing():
     assert "repository-url: https://test.pypi.org/legacy/" in rendered
     assert "environment:" in rendered
     assert "dist/*.whl" in rendered
+    assert "uvx twine check dist/*" in rendered
+    assert "python -m venv /tmp/aap-smoke" in rendered
 
 
 def test_readme_documents_release_and_update_workflow():

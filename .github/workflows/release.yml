@@ -29,8 +29,19 @@ jobs:
       - name: Build distributions
         run: uv build
 
+      - name: Check package metadata
+        run: uvx twine check dist/*
+
       - name: Check packaged resources
         run: uv run python -m academic_prep.package_check dist/*.whl
+
+      - name: Smoke test built wheel
+        run: |
+          python -m venv /tmp/aap-smoke
+          /tmp/aap-smoke/bin/pip install dist/*.whl
+          /tmp/aap-smoke/bin/academic-prep --help
+          /tmp/aap-smoke/bin/academic-prep init-workspace --workspace /tmp/aap-workspace
+          /tmp/aap-smoke/bin/academic-prep doctor --workspace /tmp/aap-workspace
 
       - name: Upload distributions
         uses: actions/upload-artifact@v4
