@@ -5,7 +5,7 @@ from importlib.resources.abc import Traversable
 from pathlib import Path
 
 
-RESOURCE_PACKAGE = "academic_prep.resources"
+RESOURCE_PACKAGE = "canisend.resources"
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 

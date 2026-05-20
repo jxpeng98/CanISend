@@ -9,11 +9,13 @@ The default deterministic pipeline needs no provider.
 LLM-backed behavior is explicit opt-in:
 
 ```bash
-academic-prep run --workspace <private-workspace> --job jobs/<job-slug> --llm-parser
-academic-prep run --workspace <private-workspace> --job jobs/<job-slug> --llm-drafts
+canisend run --workspace <private-workspace> --job jobs/<job-slug> --llm-parser
+canisend run --workspace <private-workspace> --job jobs/<job-slug> --llm-drafts
 ```
 
 Use both flags only when the user wants both provider-backed parsing and provider-backed drafting.
+
+The provider environment variable prefix remains `ACADEMIC_PREP_LLM_*` in V1 for compatibility with existing local workspaces and scripts. Treat it as the stable V1 provider config surface unless a later release documents a migration.
 
 ## OpenAI-Compatible Provider
 
@@ -49,7 +51,7 @@ ACADEMIC_PREP_LLM_COMMAND="claude -p"
 ACADEMIC_PREP_LLM_COMMAND="gemini -p"
 ```
 
-Do not assume a specific CLI is installed. Run `academic-prep doctor --workspace <private-workspace>` and ask the user to configure missing provider settings.
+Do not assume a specific CLI is installed. Run `canisend doctor --workspace <private-workspace>` and ask the user to configure missing provider settings.
 
 ## Output Requirements
 

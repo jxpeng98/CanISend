@@ -7,8 +7,8 @@ Use this reference for the normal installed-package workflow. From a development
 For a new user workspace:
 
 ```bash
-academic-prep init-workspace --workspace <private-workspace>
-academic-prep doctor --workspace <private-workspace>
+canisend init-workspace --workspace <private-workspace>
+canisend doctor --workspace <private-workspace>
 ```
 
 For an existing workspace, start with `doctor` and resolve missing profile, prompt, skill, provider, or Typst items before generating application-facing material.
@@ -16,8 +16,8 @@ For an existing workspace, start with `doctor` and resolve missing profile, prom
 After package upgrades:
 
 ```bash
-academic-prep update-workspace --workspace <private-workspace>
-academic-prep doctor --workspace <private-workspace>
+canisend update-workspace --workspace <private-workspace>
+canisend doctor --workspace <private-workspace>
 ```
 
 Use `--overwrite` only when the user intentionally wants packaged defaults to replace local prompt, template, or skill edits.
@@ -29,7 +29,7 @@ The user should keep real CV and statement sources in ignored `profile/`. In Typ
 Regenerate normalized evidence whenever profile sources change:
 
 ```bash
-academic-prep extract-profile-evidence --workspace <private-workspace>
+canisend extract-profile-evidence --workspace <private-workspace>
 ```
 
 Agents should read generated evidence from `profile/generated/`, not directly rely on prose claims in the private CV. New claims should cite item-level citations such as `profile/generated/cv.evidence.md#Teaching/cv-001`.
@@ -39,7 +39,7 @@ Agents should read generated evidence from `profile/generated/`, not directly re
 Fetch jobs.ac.uk RSS leads locally:
 
 ```bash
-academic-prep fetch-jobs-ac-uk \
+canisend fetch-jobs-ac-uk \
   --workspace <private-workspace> \
   --feed-url "<jobs-ac-uk-rss-url>" \
   --include "<keyword>" \
@@ -53,7 +53,7 @@ RSS leads are discovery records, not full adverts. Ask the user to choose a lead
 From an RSS lead:
 
 ```bash
-academic-prep new-job-from-lead \
+canisend new-job-from-lead \
   --workspace <private-workspace> \
   --lead-index <index> \
   --institution "<institution>" \
@@ -63,7 +63,7 @@ academic-prep new-job-from-lead \
 Manual job creation:
 
 ```bash
-academic-prep new-job \
+canisend new-job \
   --workspace <private-workspace> \
   --title "<job title>" \
   --institution "<institution>" \
@@ -78,13 +78,13 @@ Paste or import the full selected advert into `jobs/<job-slug>/job_advert.md` be
 Deterministic baseline:
 
 ```bash
-academic-prep run --workspace <private-workspace> --job jobs/<job-slug>
+canisend run --workspace <private-workspace> --job jobs/<job-slug>
 ```
 
 LLM-backed parse and draft generation require explicit opt-in and provider configuration:
 
 ```bash
-academic-prep run \
+canisend run \
   --workspace <private-workspace> \
   --job jobs/<job-slug> \
   --llm-parser \
@@ -114,7 +114,7 @@ In particular, check item-level citations, unsupported claims, required-document
 Render only when the user asks for PDFs or needs local PDF review:
 
 ```bash
-academic-prep render-typst --workspace <private-workspace> --job jobs/<job-slug>
+canisend render-typst --workspace <private-workspace> --job jobs/<job-slug>
 ```
 
 Rendering requires a local `typst` binary. Source generation does not.

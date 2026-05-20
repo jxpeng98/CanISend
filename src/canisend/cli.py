@@ -2,13 +2,13 @@ from pathlib import Path
 
 import typer
 
-from academic_prep.evidence import extract_profile_evidence
-from academic_prep.jobs import create_job, create_job_from_lead, list_jobs as list_job_folders
-from academic_prep.pipeline import run_pipeline as run_job_pipeline
-from academic_prep.profile import init_profile as create_profile
-from academic_prep.rss import fetch_rss_text, filter_job_leads, parse_jobs_ac_uk_rss, write_job_leads
-from academic_prep.typst import render_typst_files
-from academic_prep.workspace import (
+from canisend.evidence import extract_profile_evidence
+from canisend.jobs import create_job, create_job_from_lead, list_jobs as list_job_folders
+from canisend.pipeline import run_pipeline as run_job_pipeline
+from canisend.profile import init_profile as create_profile
+from canisend.rss import fetch_rss_text, filter_job_leads, parse_jobs_ac_uk_rss, write_job_leads
+from canisend.typst import render_typst_files
+from canisend.workspace import (
     doctor_lines,
     init_workspace as create_workspace,
     load_workspace_config,
@@ -16,7 +16,7 @@ from academic_prep.workspace import (
 )
 
 app = typer.Typer(
-    help="Prepare academic job application materials from local files.",
+    help="Prepare evidence-backed academic and professional job application materials from local files.",
     no_args_is_help=True,
 )
 
@@ -26,7 +26,7 @@ def init_profile(
     workspace: Path = typer.Option(
         Path("."),
         "--workspace",
-        help="User workspace directory containing academic-prep.yaml.",
+        help="User workspace directory containing canisend.yaml.",
     ),
     profile_dir: Path | None = typer.Option(
         None,
@@ -123,7 +123,7 @@ def extract_profile_evidence_command(
     workspace: Path = typer.Option(
         Path("."),
         "--workspace",
-        help="User workspace directory containing academic-prep.yaml.",
+        help="User workspace directory containing canisend.yaml.",
     ),
     profile_dir: Path | None = typer.Option(
         None,
@@ -146,7 +146,7 @@ def new_job(
     workspace: Path = typer.Option(
         Path("."),
         "--workspace",
-        help="User workspace directory containing academic-prep.yaml.",
+        help="User workspace directory containing canisend.yaml.",
     ),
     jobs_dir: Path | None = typer.Option(
         None,
@@ -180,7 +180,7 @@ def new_job_from_lead(
     workspace: Path = typer.Option(
         Path("."),
         "--workspace",
-        help="User workspace directory containing academic-prep.yaml.",
+        help="User workspace directory containing canisend.yaml.",
     ),
     leads_file: Path | None = typer.Option(
         None,
@@ -218,7 +218,7 @@ def list_jobs_command(
     workspace: Path = typer.Option(
         Path("."),
         "--workspace",
-        help="User workspace directory containing academic-prep.yaml.",
+        help="User workspace directory containing canisend.yaml.",
     ),
     jobs_dir: Path | None = typer.Option(
         None,
@@ -244,7 +244,7 @@ def fetch_jobs_ac_uk(
     workspace: Path = typer.Option(
         Path("."),
         "--workspace",
-        help="User workspace directory containing academic-prep.yaml.",
+        help="User workspace directory containing canisend.yaml.",
     ),
     feed_url: str = typer.Option("", "--feed-url", help="jobs.ac.uk RSS feed URL."),
     rss_file: Path | None = typer.Option(
@@ -281,7 +281,7 @@ def run_pipeline(
     workspace: Path = typer.Option(
         Path("."),
         "--workspace",
-        help="User workspace directory containing academic-prep.yaml.",
+        help="User workspace directory containing canisend.yaml.",
     ),
     profile_dir: Path | None = typer.Option(
         None,
@@ -313,10 +313,10 @@ def run_pipeline(
     config = load_workspace_config(workspace)
     job_dir = config.job_dir(job)
     if dry_run:
-        from academic_prep.evidence import load_generated_evidence
-        from academic_prep.llm import load_llm_config, provider_from_config
-        from academic_prep.parse import parse_job_advert, parse_job_advert_with_provider
-        from academic_prep.resource_files import read_resource_text
+        from canisend.evidence import load_generated_evidence
+        from canisend.llm import load_llm_config, provider_from_config
+        from canisend.parse import parse_job_advert, parse_job_advert_with_provider
+        from canisend.resource_files import read_resource_text
 
         import yaml as _yaml
 
@@ -369,7 +369,7 @@ def render_typst(
     workspace: Path = typer.Option(
         Path("."),
         "--workspace",
-        help="User workspace directory containing academic-prep.yaml.",
+        help="User workspace directory containing canisend.yaml.",
     ),
     typst_bin: str = typer.Option("typst", "--typst-bin", help="Typst executable path or command name."),
 ) -> None:

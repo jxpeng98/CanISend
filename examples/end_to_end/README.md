@@ -25,17 +25,17 @@ examples/end_to_end/
 From the repository root:
 
 ```bash
-WORKDIR=/tmp/aap-example
+WORKDIR=/tmp/canisend-example
 rm -rf "$WORKDIR"
 mkdir -p "$WORKDIR"
 cp -R examples/end_to_end/profile "$WORKDIR/profile"
 
-uv run academic-prep fetch-jobs-ac-uk \
+uv run canisend fetch-jobs-ac-uk \
   --rss-file examples/end_to_end/jobs_ac_uk_sample.xml \
   --output "$WORKDIR/job_leads/jobs_ac_uk.json" \
   --include economics
 
-uv run academic-prep new-job-from-lead \
+uv run canisend new-job-from-lead \
   --leads-file "$WORKDIR/job_leads/jobs_ac_uk.json" \
   --lead-index 0 \
   --institution "Example University" \
@@ -45,11 +45,11 @@ uv run academic-prep new-job-from-lead \
 JOB="$WORKDIR/jobs/2026-06-15_example-university_lecturer-in-applied-economics"
 cp examples/end_to_end/full_job_advert.md "$JOB/job_advert.md"
 
-uv run academic-prep extract-profile-evidence --profile-dir "$WORKDIR/profile"
+uv run canisend extract-profile-evidence --profile-dir "$WORKDIR/profile"
 
 ACADEMIC_PREP_LLM_PROVIDER=command \
 ACADEMIC_PREP_LLM_COMMAND="python examples/end_to_end/fake_llm_provider.py" \
-uv run academic-prep run \
+uv run canisend run \
   --job "$JOB" \
   --profile-dir "$WORKDIR/profile" \
   --llm-parser \

@@ -1,7 +1,7 @@
 import yaml
 from typer.testing import CliRunner
 
-from academic_prep.cli import app
+from canisend.cli import app
 
 
 def test_new_job_creates_slugged_job_folder_and_metadata(tmp_path):

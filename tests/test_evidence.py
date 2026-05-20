@@ -1,7 +1,7 @@
 from typer.testing import CliRunner
 
-from academic_prep.cli import app
-from academic_prep.evidence import (
+from canisend.cli import app
+from canisend.evidence import (
     extract_profile_evidence,
     extract_typst_evidence,
     load_generated_evidence,

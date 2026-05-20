@@ -1,6 +1,6 @@
 from typer.testing import CliRunner
 
-from academic_prep.cli import app
+from canisend.cli import app
 
 
 def test_render_typst_compiles_generated_typst_files_to_pdf(tmp_path):

@@ -17,17 +17,17 @@ def test_v1_contract_files_exist():
         "prompts/cv_tailor.md",
         "prompts/criteria_checker.md",
         "prompts/package_builder.md",
-        "agent-skills/academic-application-prep/SKILL.md",
-        "agent-skills/academic-application-prep/agents/openai.yaml",
-        "agent-skills/academic-application-prep/references/workflow.md",
-        "agent-skills/academic-application-prep/references/file-contracts.md",
-        "agent-skills/academic-application-prep/references/typst-profile.md",
-        "agent-skills/academic-application-prep/references/agent-orchestration.md",
-        "agent-skills/academic-application-prep/references/job-lifecycle.md",
-        "agent-skills/academic-application-prep/references/platforms.md",
-        "agent-skills/academic-application-prep/references/privacy.md",
-        "agent-skills/academic-application-prep/references/provider-config.md",
-        "agent-skills/academic-application-prep/references/quality-gates.md",
+        "agent-skills/canisend/SKILL.md",
+        "agent-skills/canisend/agents/openai.yaml",
+        "agent-skills/canisend/references/workflow.md",
+        "agent-skills/canisend/references/file-contracts.md",
+        "agent-skills/canisend/references/typst-profile.md",
+        "agent-skills/canisend/references/agent-orchestration.md",
+        "agent-skills/canisend/references/job-lifecycle.md",
+        "agent-skills/canisend/references/platforms.md",
+        "agent-skills/canisend/references/privacy.md",
+        "agent-skills/canisend/references/provider-config.md",
+        "agent-skills/canisend/references/quality-gates.md",
         "platform-bridges/AGENTS.md",
         "platform-bridges/CLAUDE.md",
         "platform-bridges/GEMINI.md",
@@ -53,7 +53,7 @@ def test_typst_templates_use_modernpro_packages():
 def test_docs_record_rss_and_privacy_contracts():
     root = Path(__file__).resolve().parents[1]
     readme = (root / "README.md").read_text()
-    proposal = (root / "academic_application_prep_copilot_proposal.md").read_text()
+    proposal = (root / "canisend_v1_proposal.md").read_text()
 
     assert "jobs.ac.uk RSS" in readme
     assert "new-job-from-lead" in readme
@@ -65,11 +65,14 @@ def test_docs_record_rss_and_privacy_contracts():
 
 def test_agent_skill_has_standard_frontmatter_and_references():
     root = Path(__file__).resolve().parents[1]
-    skill = (root / "agent-skills/academic-application-prep/SKILL.md").read_text()
-    metadata = (root / "agent-skills/academic-application-prep/agents/openai.yaml").read_text()
+    skill = (root / "agent-skills/canisend/SKILL.md").read_text()
+    metadata = (root / "agent-skills/canisend/agents/openai.yaml").read_text()
 
     assert skill.startswith("---\n")
-    assert "name: academic-application-prep" in skill
+    assert "name: canisend" in skill
+    assert "CanISend" in skill
+    assert "这也能投" in skill
+    assert "No claims without receipts" in skill
     assert "description: Use when" in skill
     assert "Codex, Claude Code, Gemini" in skill
     assert "jobs.ac.uk RSS" in skill
@@ -80,14 +83,14 @@ def test_agent_skill_has_standard_frontmatter_and_references():
     assert "references/quality-gates.md" in skill
     assert "references/job-lifecycle.md" in skill
     assert "references/platforms.md" in skill
-    assert "$academic-application-prep" in metadata
-    assert "display_name: \"Academic Application Prep\"" in metadata
+    assert "$canisend" in metadata
+    assert "display_name: \"CanISend\"" in metadata
     assert len(skill.splitlines()) < 120
 
 
 def test_agent_skill_references_capture_operational_gates():
     root = Path(__file__).resolve().parents[1]
-    references = root / "agent-skills/academic-application-prep" / "references"
+    references = root / "agent-skills/canisend" / "references"
     quality = (references / "quality-gates.md").read_text()
     provider = (references / "provider-config.md").read_text()
     lifecycle = (references / "job-lifecycle.md").read_text()
@@ -111,7 +114,7 @@ def test_agent_skill_references_capture_operational_gates():
 
 def test_agent_skill_documents_typst_first_item_level_evidence_contract():
     root = Path(__file__).resolve().parents[1]
-    references = root / "agent-skills/academic-application-prep" / "references"
+    references = root / "agent-skills/canisend" / "references"
     contracts = (references / "file-contracts.md").read_text()
     typst_profile = (references / "typst-profile.md").read_text()
     workflow = (references / "workflow.md").read_text()
@@ -146,8 +149,8 @@ def test_platform_bridges_point_to_project_skill():
 
     for filename in ["AGENTS.md", "CLAUDE.md", "GEMINI.md"]:
         bridge = (bridges / filename).read_text()
-        assert "agent-skills/academic-application-prep/SKILL.md" in bridge
-        assert "academic-prep doctor --workspace" in bridge
+        assert "agent-skills/canisend/SKILL.md" in bridge
+        assert "canisend doctor --workspace" in bridge
         assert "profile/" in bridge
 
 
@@ -191,9 +194,9 @@ def test_readme_documents_complete_workflow_and_round_two_tasks():
 def test_docs_record_material_review_management_artifact():
     root = Path(__file__).resolve().parents[1]
     readme = (root / "README.md").read_text()
-    proposal = (root / "academic_application_prep_copilot_proposal.md").read_text()
-    contracts = (root / "agent-skills/academic-application-prep/references/file-contracts.md").read_text()
-    workflow = (root / "agent-skills/academic-application-prep/references/workflow.md").read_text()
+    proposal = (root / "canisend_v1_proposal.md").read_text()
+    contracts = (root / "agent-skills/canisend/references/file-contracts.md").read_text()
+    workflow = (root / "agent-skills/canisend/references/workflow.md").read_text()
 
     assert "07_material_review_checklist.md" in readme
     assert "07_material_review_checklist.md" in proposal
@@ -204,7 +207,7 @@ def test_docs_record_material_review_management_artifact():
 
 def test_proposal_documents_prompt_skill_split_and_typst_profile():
     root = Path(__file__).resolve().parents[1]
-    proposal = (root / "academic_application_prep_copilot_proposal.md").read_text()
+    proposal = (root / "canisend_v1_proposal.md").read_text()
 
     assert "prompts/" in proposal
     assert "agent-skills/" in proposal

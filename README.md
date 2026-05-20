@@ -1,26 +1,30 @@
-# Academic Application Preparation Copilot
+# CanISend
 
-Local-first CLI tooling for preparing academic job application materials from a job advert and a private academic profile.
+这也能投. Evidence-backed application prep for academic and professional jobs.
+
+Core principle: 别编了 / No claims without receipts.
+
+Local-first CLI tooling for preparing job application materials from a job advert and a private profile.
 
 This project prepares materials only. It does not submit applications, create university accounts, fill web forms, or answer sensitive declarations.
 
-See `academic_application_prep_copilot_proposal.md` for the V1 engineering proposal.
+See `canisend_v1_proposal.md` for the V1 engineering proposal.
 
 ## Installation Model
 
 Normal users should install the package and create a separate private workspace. They do not need to fork this repository.
 
 ```bash
-uv tool install academic-application-prep
-academic-prep init-workspace --workspace ~/AcademicApplications
-academic-prep doctor --workspace ~/AcademicApplications
+uv tool install canisend
+canisend init-workspace --workspace ~/CanISendWorkspace
+canisend doctor --workspace ~/CanISendWorkspace
 ```
 
 The workspace contains private profile data, job leads, job folders, editable prompt copies, Typst templates, schemas, and agent-readable skills:
 
 ```text
-~/AcademicApplications/
-  academic-prep.yaml
+~/CanISendWorkspace/
+  canisend.yaml
   .env.example
   .gitignore
   AGENTS.md
@@ -40,30 +44,30 @@ The package keeps built-in defaults for prompts, schemas, templates, examples, a
 To update:
 
 ```bash
-uv tool upgrade academic-application-prep
-academic-prep update-workspace --workspace ~/AcademicApplications
-academic-prep doctor --workspace ~/AcademicApplications
+uv tool upgrade canisend
+canisend update-workspace --workspace ~/CanISendWorkspace
+canisend doctor --workspace ~/CanISendWorkspace
 ```
 
 `update-workspace` preserves local prompt/template/skill edits by default. Use `--overwrite` only when you intentionally want to replace local default-resource copies with the package version.
 
-`AGENTS.md`, `CLAUDE.md`, and `GEMINI.md` are lightweight bridge files for Codex-style agents, Claude Code, Gemini CLI, and IDE agents. They all point to `agent-skills/academic-application-prep/SKILL.md` so the same workflow is usable across platforms.
+`AGENTS.md`, `CLAUDE.md`, and `GEMINI.md` are lightweight bridge files for Codex-style agents, Claude Code, Gemini CLI, and IDE agents. They all point to `agent-skills/canisend/SKILL.md` so the same workflow is usable across platforms.
 
-Developers who want to change the tool itself should fork or clone the repository and use `uv run academic-prep ...`.
+Developers who want to change the tool itself should fork or clone the repository and use `uv run canisend ...`.
 
 ## User Workflow At A Glance
 
 For normal users, the project is an installed CLI plus a private workspace:
 
-1. Install or upgrade the CLI with `uv tool install academic-application-prep` or `uv tool upgrade academic-application-prep`.
-2. Create or refresh a private workspace with `academic-prep init-workspace --workspace ~/AcademicApplications` or `academic-prep update-workspace --workspace ~/AcademicApplications`.
-3. Put your real modernpro CV and statements under `~/AcademicApplications/profile/typst/`. These files stay local and are ignored by git.
-4. Generate normalized evidence with `academic-prep extract-profile-evidence --workspace ~/AcademicApplications`.
-5. Fetch jobs.ac.uk RSS leads with `academic-prep fetch-jobs-ac-uk --workspace ~/AcademicApplications --feed-url "<rss-url>"`.
-6. Choose one lead and create a job folder with `academic-prep new-job-from-lead`. Paste the full advert into `jobs/<job-slug>/job_advert.md`.
-7. Configure an OpenAI-compatible provider or local command provider. Run the LLM-backed pipeline with `academic-prep run --workspace ~/AcademicApplications --job jobs/<job-slug> --llm-parser --llm-drafts`.
+1. Install or upgrade the CLI with `uv tool install canisend` or `uv tool upgrade canisend`.
+2. Create or refresh a private workspace with `canisend init-workspace --workspace ~/CanISendWorkspace` or `canisend update-workspace --workspace ~/CanISendWorkspace`.
+3. Put your real modernpro CV and statements under `~/CanISendWorkspace/profile/typst/`. These files stay local and are ignored by git.
+4. Generate normalized evidence with `canisend extract-profile-evidence --workspace ~/CanISendWorkspace`.
+5. Fetch jobs.ac.uk RSS leads with `canisend fetch-jobs-ac-uk --workspace ~/CanISendWorkspace --feed-url "<rss-url>"`.
+6. Choose one lead and create a job folder with `canisend new-job-from-lead`. Paste the full advert into `jobs/<job-slug>/job_advert.md`.
+7. Configure an OpenAI-compatible provider or local command provider. Run the LLM-backed pipeline with `canisend run --workspace ~/CanISendWorkspace --job jobs/<job-slug> --llm-parser --llm-drafts`.
 8. Review item-level evidence citations such as `profile/generated/cv.evidence.md#Teaching/cv-001`, unsupported claims, criteria coverage, and the generated cover letter content JSON.
-9. Render Typst only when needed with `academic-prep render-typst --workspace ~/AcademicApplications --job jobs/<job-slug>`.
+9. Render Typst only when needed with `canisend render-typst --workspace ~/CanISendWorkspace --job jobs/<job-slug>`.
 10. Submit manually through the institution portal outside this tool.
 
 ## Release And Update Workflow
@@ -76,7 +80,7 @@ Maintainer release checks:
 uv run pytest -v
 uv build
 uvx twine check dist/*
-uv run python -m academic_prep.package_check dist/*.whl
+uv run python -m canisend.package_check dist/*.whl
 ```
 
 The package check verifies that runtime resources are present in the wheel, including prompts, Typst templates, schemas, examples, `.env.example`, and `agent-skills/`.
@@ -98,14 +102,14 @@ Before the first publish, configure Trusted Publishing on TestPyPI and PyPI for 
 Version updates should change both:
 
 - `pyproject.toml` project version
-- `src/academic_prep/__init__.py` `__version__`
+- `src/canisend/__init__.py` `__version__`
 
 After upgrading, users should refresh default workspace resources without overwriting local edits:
 
 ```bash
-uv tool upgrade academic-application-prep
-academic-prep update-workspace --workspace ~/AcademicApplications
-academic-prep doctor --workspace ~/AcademicApplications
+uv tool upgrade canisend
+canisend update-workspace --workspace ~/CanISendWorkspace
+canisend doctor --workspace ~/CanISendWorkspace
 ```
 
 ## Example
@@ -127,41 +131,43 @@ Run or inspect `examples/end_to_end/README.md` before adapting the workflow to p
 For normal use:
 
 ```bash
-uv tool install academic-application-prep
-academic-prep --help
+uv tool install canisend
+canisend --help
 ```
 
 From a development checkout:
 
 ```bash
-uv run academic-prep --help
+uv run canisend --help
 uv run pytest -v
 ```
 
-During development, prefer `uv run academic-prep ...`. If the package is installed into an environment, the same commands are available as `academic-prep ...`.
+During development, prefer `uv run canisend ...`. If the package is installed into an environment, the same commands are available as `canisend ...`.
 
 ### 2. Initialize a private workspace
 
 Create a user workspace. The default profile mode is Typst-first because the intended workflow starts from an already-written `modernpro-cv` CV and `modernpro-coverletter` cover letter or statements:
 
 ```bash
-academic-prep init-workspace --workspace ~/AcademicApplications
+canisend init-workspace --workspace ~/CanISendWorkspace
 ```
 
 Check local readiness:
 
 ```bash
-academic-prep doctor --workspace ~/AcademicApplications
+canisend doctor --workspace ~/CanISendWorkspace
 ```
 
-The CLI reads `academic-prep.yaml` from `--workspace` and resolves configured relative paths inside that workspace. The examples below keep `--workspace ~/AcademicApplications` so they can run from any current directory. If you `cd ~/AcademicApplications`, you can omit `--workspace`.
+The CLI reads `canisend.yaml` from `--workspace` and resolves configured relative paths inside that workspace. The examples below keep `--workspace ~/CanISendWorkspace` so they can run from any current directory. If you `cd ~/CanISendWorkspace`, you can omit `--workspace`.
+
+LLM provider environment variables keep the V1-compatible `ACADEMIC_PREP_LLM_*` prefix even though the package and CLI are now `canisend`.
 
 ### 3. Prepare local private profile data
 
 Create starter profile files. The default mode is `hybrid`, which creates both Markdown evidence files and Typst-first profile sources:
 
 ```bash
-academic-prep init-profile --workspace ~/AcademicApplications --mode hybrid
+canisend init-profile --workspace ~/CanISendWorkspace --mode hybrid
 ```
 
 This creates local Markdown/YAML evidence files under `profile/`:
@@ -190,7 +196,7 @@ profile/
 If you already maintain your CV and statements in Typst using `modernpro-cv` and `modernpro-coverletter`, initialize only the Typst profile scaffold:
 
 ```bash
-academic-prep init-profile --workspace ~/AcademicApplications --mode typst
+canisend init-profile --workspace ~/CanISendWorkspace --mode typst
 ```
 
 Fill these files with your private academic profile. In normal use, `profile/typst/cv.typ`, `profile/typst/research_statement.typ`, `profile/typst/teaching_statement.typ`, and `profile/typst/cover_letter_base.typ` should be your already-written modernpro-based sources. Typst can be the human-facing source format, but the matcher/checker should read normalized evidence from `profile/generated/`. The local `profile/profile.yaml` manifest records which Typst files correspond to CV, cover letter base, research statement, teaching statement, and generated evidence outputs.
@@ -200,7 +206,7 @@ Fill these files with your private academic profile. In normal use, `profile/typ
 Generate Markdown evidence files from the local profile manifest and Typst sources:
 
 ```bash
-academic-prep extract-profile-evidence --workspace ~/AcademicApplications
+canisend extract-profile-evidence --workspace ~/CanISendWorkspace
 ```
 
 This reads `profile/profile.yaml`, extracts supported evidence from `profile/typst/*.typ`, and writes normalized files under `profile/generated/`.
@@ -231,8 +237,8 @@ Open the jobs.ac.uk RSS index and copy a raw RSS Feed link from one of:
 Fetch and filter leads locally:
 
 ```bash
-academic-prep fetch-jobs-ac-uk \
-  --workspace ~/AcademicApplications \
+canisend fetch-jobs-ac-uk \
+  --workspace ~/CanISendWorkspace \
   --feed-url "https://www.jobs.ac.uk/path/to/raw/rss/feed" \
   --include economics \
   --include finance \
@@ -244,8 +250,8 @@ Filtering is local and keyword-based. V1 does not scrape individual job pages. R
 For offline testing, use a saved RSS XML file:
 
 ```bash
-academic-prep fetch-jobs-ac-uk \
-  --workspace ~/AcademicApplications \
+canisend fetch-jobs-ac-uk \
+  --workspace ~/CanISendWorkspace \
   --rss-file samples/jobs_ac_uk.xml \
   --include lecturer
 ```
@@ -255,8 +261,8 @@ academic-prep fetch-jobs-ac-uk \
 Create one job folder per application preparation task. If the role came from `job_leads/jobs_ac_uk.json`, initialize the folder from the selected zero-based lead index:
 
 ```bash
-academic-prep new-job-from-lead \
-  --workspace ~/AcademicApplications \
+canisend new-job-from-lead \
+  --workspace ~/CanISendWorkspace \
   --lead-index 0 \
   --institution "University X" \
   --deadline "2026-06-15"
@@ -267,8 +273,8 @@ This writes the RSS title, source URL, published date, and RSS description into 
 You can also create a job manually:
 
 ```bash
-academic-prep new-job \
-  --workspace ~/AcademicApplications \
+canisend new-job \
+  --workspace ~/CanISendWorkspace \
   --title "Lecturer in Economics" \
   --institution "University X" \
   --deadline "2026-06-15" \
@@ -286,8 +292,8 @@ jobs/2026-06-15_university-x_lecturer-in-economics/
 Paste the selected advert into `job_advert.md`, or import a local Markdown/TXT advert:
 
 ```bash
-academic-prep new-job \
-  --workspace ~/AcademicApplications \
+canisend new-job \
+  --workspace ~/CanISendWorkspace \
   --title "Lecturer in Economics" \
   --institution "University X" \
   --deadline "2026-06-15" \
@@ -299,8 +305,8 @@ academic-prep new-job \
 Run the local pipeline for the selected job:
 
 ```bash
-academic-prep run \
-  --workspace ~/AcademicApplications \
+canisend run \
+  --workspace ~/CanISendWorkspace \
   --job jobs/2026-06-15_university-x_lecturer-in-economics
 ```
 
@@ -312,8 +318,8 @@ OPENAI_API_KEY=...
 OPENAI_BASE_URL=https://api.openai.com/v1
 OPENAI_MODEL=...
 
-academic-prep run \
-  --workspace ~/AcademicApplications \
+canisend run \
+  --workspace ~/CanISendWorkspace \
   --job jobs/2026-06-15_university-x_lecturer-in-economics \
   --llm-parser
 ```
@@ -325,8 +331,8 @@ ACADEMIC_PREP_LLM_PROVIDER=command
 ACADEMIC_PREP_LLM_COMMAND="codex exec --json"
 ACADEMIC_PREP_LLM_TIMEOUT_SECONDS=300
 
-academic-prep run \
-  --workspace ~/AcademicApplications \
+canisend run \
+  --workspace ~/CanISendWorkspace \
   --job jobs/2026-06-15_university-x_lecturer-in-economics \
   --llm-parser
 ```
@@ -334,8 +340,8 @@ academic-prep run \
 To keep deterministic parsing but use provider-backed evidence-grounded drafts, opt in with `--llm-drafts`:
 
 ```bash
-academic-prep run \
-  --workspace ~/AcademicApplications \
+canisend run \
+  --workspace ~/CanISendWorkspace \
   --job jobs/2026-06-15_university-x_lecturer-in-economics \
   --llm-drafts
 ```
@@ -343,8 +349,8 @@ academic-prep run \
 You can combine both switches when provider-backed parsing and drafting are both desired:
 
 ```bash
-academic-prep run \
-  --workspace ~/AcademicApplications \
+canisend run \
+  --workspace ~/CanISendWorkspace \
   --job jobs/2026-06-15_university-x_lecturer-in-economics \
   --llm-parser \
   --llm-drafts
@@ -357,8 +363,8 @@ The LLM draft generator writes `02_fit_report.md`, `03_cover_letter_draft.md`, `
 To use a non-default profile folder:
 
 ```bash
-academic-prep run \
-  --workspace ~/AcademicApplications \
+canisend run \
+  --workspace ~/CanISendWorkspace \
   --job jobs/2026-06-15_university-x_lecturer-in-economics \
   --profile-dir path/to/profile
 ```
@@ -410,8 +416,8 @@ The project uses public Typst Universe templates:
 Generate PDF outputs only when needed:
 
 ```bash
-academic-prep render-typst \
-  --workspace ~/AcademicApplications \
+canisend render-typst \
+  --workspace ~/CanISendWorkspace \
   --job jobs/2026-06-15_university-x_lecturer-in-economics
 ```
 
@@ -460,7 +466,7 @@ This repository separates application prompts from agent-readable skills:
 The main project skill is:
 
 ```text
-agent-skills/academic-application-prep/
+agent-skills/canisend/
   SKILL.md
   agents/
     openai.yaml

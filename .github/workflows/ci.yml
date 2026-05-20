@@ -34,12 +34,12 @@ jobs:
         run: uvx twine check dist/*
 
       - name: Check packaged resources
-        run: uv run python -m academic_prep.package_check dist/*.whl
+        run: uv run python -m canisend.package_check dist/*.whl
 
       - name: Smoke test built wheel
         run: |
-          python -m venv /tmp/aap-smoke
-          /tmp/aap-smoke/bin/pip install dist/*.whl
-          /tmp/aap-smoke/bin/academic-prep --help
-          /tmp/aap-smoke/bin/academic-prep init-workspace --workspace /tmp/aap-workspace
-          /tmp/aap-smoke/bin/academic-prep doctor --workspace /tmp/aap-workspace
+          python -m venv /tmp/canisend-smoke
+          /tmp/canisend-smoke/bin/pip install dist/*.whl
+          /tmp/canisend-smoke/bin/canisend --help
+          /tmp/canisend-smoke/bin/canisend init-workspace --workspace /tmp/canisend-workspace
+          /tmp/canisend-smoke/bin/canisend doctor --workspace /tmp/canisend-workspace

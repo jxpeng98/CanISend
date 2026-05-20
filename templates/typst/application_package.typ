@@ -1,4 +1,4 @@
-// Base application package template for AAP Copilot generated source files.
+// Base application package template for CanISend generated source files.
 // Generated job-specific sources should read application_package_content.json.
 #import "@preview/fontawesome:0.6.0": *
 #import "@preview/modernpro-coverletter:0.0.8": *

@@ -1,5 +1,5 @@
-from academic_prep.evidence import EvidenceReference
-from academic_prep.match import (
+from canisend.evidence import EvidenceReference
+from canisend.match import (
     CriterionMatch,
     EvidenceIndex,
     coverage_label,

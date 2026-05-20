@@ -1,20 +1,24 @@
-# Academic Application Preparation Copilot - V1 Engineering Proposal
+# CanISend - V1 Engineering Proposal
 
 ## 1. Project Definition
 
-**Project name:** Academic Application Preparation Copilot
+**Project name:** CanISend
 
-**Short name:** AAP Copilot
+**Short name:** CanISend
 
-**Chinese positioning:** 学术岗位申请材料准备助手
+**Chinese nickname:** 这也能投
 
-AAP Copilot is a **local-first, auditable, semi-automated academic job application material preparation system**. It helps a user turn an academic job advert and a local academic profile into evidence-based application materials, criteria coverage checks, and Typst-ready source files.
+**Core principle:** 别编了 / No claims without receipts
+
+**Chinese positioning:** 学术岗位申请材料准备助手，未来可扩展到 broader professional job applications
+
+CanISend is a **local-first, auditable, semi-automated job application material preparation system**. V1 focuses on academic jobs, but the brand and architecture leave room for professional job applications later. It helps a user turn a job advert and a local profile into evidence-based application materials, criteria coverage checks, and Typst-ready source files.
 
 This project is **not** an auto-application bot. It prepares materials; it does not create accounts, fill application portals, submit forms, or answer sensitive declarations.
 
 ### 1.1 One-Sentence Definition
 
-AAP Copilot is a local CLI tool that converts academic job adverts and a Markdown-based academic profile into tailored, evidence-grounded application materials and Typst-ready source files for manual review and submission.
+CanISend is a local CLI tool that converts job adverts and a local evidence profile into tailored, evidence-grounded application materials and Typst-ready source files for manual review and submission.
 
 ### 1.2 Target Users
 
@@ -143,7 +147,7 @@ V1 RSS support is intentionally limited to jobs.ac.uk RSS feeds and local filter
 The project should be initialized from an empty folder into this structure:
 
 ```text
-auto-academic-jobs/
+canisend/
   README.md
   pyproject.toml
   .env.example
@@ -178,7 +182,7 @@ auto-academic-jobs/
     package_builder.md
 
   agent-skills/
-    academic-application-prep/
+    canisend/
       SKILL.md
       references/
         workflow.md
@@ -192,7 +196,7 @@ auto-academic-jobs/
     criteria_check.schema.json
 
   src/
-    academic_prep/
+    canisend/
       __init__.py
       cli.py
       config.py
@@ -227,7 +231,7 @@ V1 should treat each job folder as one complete application preparation task.
 ### 5.1 Initialize Profile
 
 ```bash
-academic-prep init-profile --mode hybrid
+canisend init-profile --mode hybrid
 ```
 
 Creates the local profile folder if it does not exist:
@@ -260,7 +264,7 @@ The local manifest is `profile/profile.yaml`. The normalized evidence layer shou
 ### 5.2 Generate Profile Evidence
 
 ```bash
-academic-prep extract-profile-evidence --profile-dir profile
+canisend extract-profile-evidence --profile-dir profile
 ```
 
 This reads `profile/profile.yaml`, extracts supported evidence from Typst-first profile sources, and writes Markdown evidence files under:
@@ -279,7 +283,7 @@ The job pipeline should read this normalized evidence layer before generating fi
 From a selected local RSS lead:
 
 ```bash
-academic-prep new-job-from-lead \
+canisend new-job-from-lead \
   --leads-file job_leads/jobs_ac_uk.json \
   --lead-index 0 \
   --institution "University X" \
@@ -291,7 +295,7 @@ This should create a job workspace from the local JSON lead only. It should not 
 Manual job creation should also remain available:
 
 ```bash
-academic-prep new-job \
+canisend new-job \
   --title "Lecturer in Economics" \
   --institution "University X" \
   --deadline "2026-06-15" \
@@ -311,13 +315,13 @@ The user may paste the advert into the CLI, or import a local `.md` or `.txt` fi
 ### 5.4 Run the Preparation Pipeline
 
 ```bash
-academic-prep run --job jobs/2026-06-15_university-x_lecturer-in-economics
+canisend run --job jobs/2026-06-15_university-x_lecturer-in-economics
 ```
 
 The default parser should be deterministic and local. The LLM-backed parser must be an explicit opt-in so a blank project can run without provider credentials:
 
 ```bash
-academic-prep run \
+canisend run \
   --job jobs/2026-06-15_university-x_lecturer-in-economics \
   --llm-parser
 ```
@@ -325,7 +329,7 @@ academic-prep run \
 The default matcher and draft generator should also remain deterministic. LLM-backed materials must be an explicit opt-in:
 
 ```bash
-academic-prep run \
+canisend run \
   --job jobs/2026-06-15_university-x_lecturer-in-economics \
   --llm-drafts
 ```
@@ -333,7 +337,7 @@ academic-prep run \
 Provider-backed parsing and drafting may be combined:
 
 ```bash
-academic-prep run \
+canisend run \
   --job jobs/2026-06-15_university-x_lecturer-in-economics \
   --llm-parser \
   --llm-drafts
@@ -342,7 +346,7 @@ academic-prep run \
 The pipeline should also allow prompt directory overrides for experiments while keeping the built-in file contracts stable:
 
 ```bash
-academic-prep run \
+canisend run \
   --job jobs/2026-06-15_university-x_lecturer-in-economics \
   --llm-parser \
   --llm-drafts \
@@ -377,7 +381,7 @@ Typst generation should be structured. `cover_letter_content.json` should map op
 ### 5.5 Render Typst Outputs
 
 ```bash
-academic-prep render-typst --job jobs/2026-06-15_university-x_lecturer-in-economics
+canisend render-typst --job jobs/2026-06-15_university-x_lecturer-in-economics
 ```
 
 Rendering is optional. The command should:
@@ -654,7 +658,7 @@ Codex-readable project skills should live separately in `agent-skills/`:
 
 ```text
 agent-skills/
-  academic-application-prep/
+  canisend/
     SKILL.md
     references/
       workflow.md
@@ -941,8 +945,8 @@ V1 should not require a database, web server, dashboard, browser automation, or 
 Deliverables:
 
 - `pyproject.toml`
-- `src/academic_prep/`
-- `academic-prep init-profile`
+- `src/canisend/`
+- `canisend init-profile`
 - Starter `profile/` files
 - `.env.example`
 
@@ -955,8 +959,8 @@ Acceptance criteria:
 
 Deliverables:
 
-- `academic-prep new-job`
-- `academic-prep new-job-from-lead`
+- `canisend new-job`
+- `canisend new-job-from-lead`
 - `job.yaml`
 - `job_advert.md`
 
@@ -1033,7 +1037,7 @@ Acceptance criteria:
 
 Deliverables:
 
-- `academic-prep render-typst`
+- `canisend render-typst`
 - Optional `pdf/` output folder
 
 Acceptance criteria:
@@ -1128,7 +1132,7 @@ Even in later versions, final application submission should remain manual unless
 
 ## 14. Final V1 Summary
 
-AAP Copilot V1 should be implemented as:
+CanISend V1 should be implemented as:
 
 ```text
 Python CLI + local files + Markdown evidence base + LLM provider abstraction + Typst source generation

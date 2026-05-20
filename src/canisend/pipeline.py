@@ -6,24 +6,24 @@ from typing import Any
 
 import yaml
 
-from academic_prep.evidence import EvidenceReference, load_generated_evidence
-from academic_prep.llm import load_llm_config, provider_from_config
-from academic_prep.match import (
+from canisend.evidence import EvidenceReference, load_generated_evidence
+from canisend.llm import load_llm_config, provider_from_config
+from canisend.match import (
     EvidenceIndex,
     format_cover_letter_draft,
     format_criteria_checklist,
     format_cv_notes,
     format_fit_report,
 )
-from academic_prep.materials import (
+from canisend.materials import (
     ApplicationMaterials,
     generate_final_package_with_provider,
     generate_materials_with_provider,
 )
-from academic_prep.material_review import build_material_review_checklist
-from academic_prep.parse import parse_job_advert, parse_job_advert_with_provider
-from academic_prep.resource_files import read_resource_text
-from academic_prep.typst_mapping import (
+from canisend.material_review import build_material_review_checklist
+from canisend.parse import parse_job_advert, parse_job_advert_with_provider
+from canisend.resource_files import read_resource_text
+from canisend.typst_mapping import (
     build_application_package_content,
     build_cover_letter_content,
     render_modernpro_application_package_source,

@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from academic_prep.llm import LLMProvider
+from canisend.llm import LLMProvider
 
 
 REQUIRED_PARSED_JOB_FIELDS = [

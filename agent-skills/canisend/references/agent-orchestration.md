@@ -7,7 +7,7 @@ Use this reference when Codex, Claude Code, Gemini, or another local agent coord
 Before touching private data:
 
 ```bash
-academic-prep doctor --workspace <private-workspace>
+canisend doctor --workspace <private-workspace>
 ```
 
 From a development checkout, prefix CLI commands with `uv run`.

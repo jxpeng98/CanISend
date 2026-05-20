@@ -4,7 +4,7 @@ import sys
 import yaml
 from typer.testing import CliRunner
 
-from academic_prep.cli import app
+from canisend.cli import app
 
 
 def test_run_pipeline_generates_parsed_job_and_application_outputs(tmp_path):

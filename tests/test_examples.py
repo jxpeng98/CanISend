@@ -5,7 +5,7 @@ import sys
 
 from typer.testing import CliRunner
 
-from academic_prep.cli import app
+from canisend.cli import app
 
 
 def test_end_to_end_example_runs_full_local_workflow(tmp_path, monkeypatch):

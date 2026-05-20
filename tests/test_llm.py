@@ -2,7 +2,7 @@ import sys
 
 import pytest
 
-from academic_prep.llm import CommandProvider, LLMConfig, OpenAICompatibleProvider, load_llm_config
+from canisend.llm import CommandProvider, LLMConfig, OpenAICompatibleProvider, load_llm_config
 
 
 def test_load_llm_config_defaults_to_openai_compatible_provider():
@@ -71,7 +71,7 @@ def test_openai_compatible_provider_posts_chat_completion_request(monkeypatch):
         captured["timeout"] = timeout
         return FakeResponse()
 
-    monkeypatch.setattr("academic_prep.llm.urlopen", fake_urlopen)
+    monkeypatch.setattr("canisend.llm.urlopen", fake_urlopen)
     config = LLMConfig(
         provider="openai-compatible",
         openai_api_key="test-key",

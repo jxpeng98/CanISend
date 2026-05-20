@@ -1,0 +1,60 @@
+from __future__ import annotations
+
+from pathlib import Path
+import sys
+import zipfile
+
+
+REQUIRED_WHEEL_RESOURCES = [
+    "canisend/resources/.env.example",
+    "canisend/resources/prompts/job_parser.md",
+    "canisend/resources/prompts/profile_matcher.md",
+    "canisend/resources/prompts/cover_letter_writer.md",
+    "canisend/resources/templates/typst/cover_letter.typ",
+    "canisend/resources/templates/typst/application_package.typ",
+    "canisend/resources/schemas/parsed_job.schema.json",
+    "canisend/resources/agent-skills/canisend/SKILL.md",
+    "canisend/resources/agent-skills/canisend/agents/openai.yaml",
+    "canisend/resources/agent-skills/canisend/references/provider-config.md",
+    "canisend/resources/agent-skills/canisend/references/quality-gates.md",
+    "canisend/resources/agent-skills/canisend/references/job-lifecycle.md",
+    "canisend/resources/agent-skills/canisend/references/platforms.md",
+    "canisend/resources/platform-bridges/AGENTS.md",
+    "canisend/resources/platform-bridges/CLAUDE.md",
+    "canisend/resources/platform-bridges/GEMINI.md",
+    "canisend/resources/examples/end_to_end/README.md",
+]
+
+
+def required_wheel_resources() -> list[str]:
+    return list(REQUIRED_WHEEL_RESOURCES)
+
+
+def missing_wheel_resources(wheel_path: Path) -> list[str]:
+    with zipfile.ZipFile(wheel_path) as wheel:
+        names = set(wheel.namelist())
+    return [resource for resource in REQUIRED_WHEEL_RESOURCES if resource not in names]
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = sys.argv[1:] if argv is None else argv
+    if not args:
+        print("Usage: python -m canisend.package_check dist/*.whl", file=sys.stderr)
+        return 2
+
+    exit_code = 0
+    for raw_path in args:
+        wheel_path = Path(raw_path)
+        missing = missing_wheel_resources(wheel_path)
+        if missing:
+            exit_code = 1
+            print(f"{wheel_path}: missing packaged resources:", file=sys.stderr)
+            for resource in missing:
+                print(f"- {resource}", file=sys.stderr)
+        else:
+            print(f"{wheel_path}: packaged resources ok")
+    return exit_code
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

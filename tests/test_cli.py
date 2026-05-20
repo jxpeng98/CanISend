@@ -1,6 +1,6 @@
 from typer.testing import CliRunner
 
-from academic_prep.cli import app
+from canisend.cli import app
 
 
 def test_cli_help_shows_core_commands():

@@ -7,7 +7,7 @@ import tomllib
 import yaml
 from typer.testing import CliRunner
 
-from academic_prep.cli import app
+from canisend.cli import app
 
 
 def test_init_workspace_creates_user_layout_and_default_resources(tmp_path):
@@ -17,7 +17,7 @@ def test_init_workspace_creates_user_layout_and_default_resources(tmp_path):
     result = runner.invoke(app, ["init-workspace", "--workspace", str(workspace), "--profile-mode", "typst"])
 
     assert result.exit_code == 0
-    assert (workspace / "academic-prep.yaml").exists()
+    assert (workspace / "canisend.yaml").exists()
     assert (workspace / ".env.example").exists()
     assert (workspace / ".gitignore").exists()
     assert (workspace / "profile" / "profile.yaml").exists()
@@ -27,12 +27,12 @@ def test_init_workspace_creates_user_layout_and_default_resources(tmp_path):
     assert (workspace / "prompts" / "job_parser.md").exists()
     assert (workspace / "templates" / "typst" / "cover_letter.typ").exists()
     assert (workspace / "schemas" / "parsed_job.schema.json").exists()
-    assert (workspace / "agent-skills" / "academic-application-prep" / "SKILL.md").exists()
+    assert (workspace / "agent-skills" / "canisend" / "SKILL.md").exists()
     assert (workspace / "AGENTS.md").exists()
     assert (workspace / "CLAUDE.md").exists()
     assert (workspace / "GEMINI.md").exists()
-    assert "agent-skills/academic-application-prep/SKILL.md" in (workspace / "AGENTS.md").read_text()
-    config = yaml.safe_load((workspace / "academic-prep.yaml").read_text())
+    assert "agent-skills/canisend/SKILL.md" in (workspace / "AGENTS.md").read_text()
+    config = yaml.safe_load((workspace / "canisend.yaml").read_text())
     profile_manifest = yaml.safe_load((workspace / "profile" / "profile.yaml").read_text())
     assert config["profile_dir"] == "profile"
     assert config["jobs_dir"] == "jobs"
@@ -140,7 +140,7 @@ def test_new_job_uses_workspace_config_when_called_from_elsewhere(tmp_path, monk
     outside.mkdir()
     runner = CliRunner()
     runner.invoke(app, ["init-workspace", "--workspace", str(workspace), "--profile-mode", "typst"])
-    config_path = workspace / "academic-prep.yaml"
+    config_path = workspace / "canisend.yaml"
     config = yaml.safe_load(config_path.read_text())
     config["jobs_dir"] = "applications"
     config_path.write_text(yaml.safe_dump(config, sort_keys=False))
@@ -250,9 +250,9 @@ def test_pyproject_packages_runtime_resources():
     config = tomllib.loads(Path("pyproject.toml").read_text())
     force_include = config["tool"]["hatch"]["build"]["targets"]["wheel"]["force-include"]
 
-    assert force_include["prompts"] == "academic_prep/resources/prompts"
-    assert force_include["templates"] == "academic_prep/resources/templates"
-    assert force_include["schemas"] == "academic_prep/resources/schemas"
-    assert force_include["agent-skills"] == "academic_prep/resources/agent-skills"
-    assert force_include["platform-bridges"] == "academic_prep/resources/platform-bridges"
-    assert force_include["examples"] == "academic_prep/resources/examples"
+    assert force_include["prompts"] == "canisend/resources/prompts"
+    assert force_include["templates"] == "canisend/resources/templates"
+    assert force_include["schemas"] == "canisend/resources/schemas"
+    assert force_include["agent-skills"] == "canisend/resources/agent-skills"
+    assert force_include["platform-bridges"] == "canisend/resources/platform-bridges"
+    assert force_include["examples"] == "canisend/resources/examples"

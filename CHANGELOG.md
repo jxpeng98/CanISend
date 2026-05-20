@@ -4,7 +4,7 @@
 
 Initial alpha release of the local-first academic application preparation CLI.
 
-- Added installable `academic-prep` CLI and private workspace workflow.
+- Added installable `canisend` CLI and private workspace workflow.
 - Added jobs.ac.uk RSS lead import with local keyword filtering.
 - Added Typst-first private profile scaffolding and normalized evidence extraction.
 - Added OpenAI-compatible and local command LLM provider support.

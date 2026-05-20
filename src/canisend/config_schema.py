@@ -19,26 +19,26 @@ VALID_CONFIG_KEYS = {
 
 def validate_workspace_config(config_path: Path) -> list[str]:
     if not config_path.exists():
-        return ["academic-prep.yaml not found. Run `academic-prep init-workspace` to create it."]
+        return ["canisend.yaml not found. Run `canisend init-workspace` to create it."]
 
     try:
         data = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     except yaml.YAMLError as exc:
-        return [f"academic-prep.yaml is not valid YAML: {exc}"]
+        return [f"canisend.yaml is not valid YAML: {exc}"]
 
     if not isinstance(data, dict):
-        return ["academic-prep.yaml must contain a mapping of key-value pairs."]
+        return ["canisend.yaml must contain a mapping of key-value pairs."]
 
     warnings: list[str] = []
     for key, value in data.items():
         if key not in VALID_CONFIG_KEYS:
-            warnings.append(f"Unknown key in academic-prep.yaml: '{key}'. Valid keys: {', '.join(sorted(VALID_CONFIG_KEYS))}")
+            warnings.append(f"Unknown key in canisend.yaml: '{key}'. Valid keys: {', '.join(sorted(VALID_CONFIG_KEYS))}")
         if not isinstance(value, (str, type(None))):
             warnings.append(f"Value for '{key}' must be a string or null, got {type(value).__name__}.")
 
     for key in VALID_CONFIG_KEYS:
         if key not in data:
-            warnings.append(f"Missing key in academic-prep.yaml: '{key}'. Default will be used: '{_default_for(key)}'.")
+            warnings.append(f"Missing key in canisend.yaml: '{key}'. Default will be used: '{_default_for(key)}'.")
 
     return warnings
 

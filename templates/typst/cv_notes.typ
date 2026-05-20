@@ -1,4 +1,4 @@
-// Base CV/CV-notes template for AAP Copilot generated source files.
+// Base CV/CV-notes template for CanISend generated source files.
 // Uses the public Typst Universe package maintained outside this project.
 #import "@preview/fontawesome:0.6.0": *
 #import "@preview/modernpro-cv:1.3.0": *

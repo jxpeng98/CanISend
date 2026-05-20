@@ -7,13 +7,13 @@ from typing import Mapping
 
 import yaml
 
-from academic_prep import __version__
-from academic_prep.llm import LLMConfig, load_llm_config
-from academic_prep.profile import init_profile
-from academic_prep.resource_files import copy_resource_tree
+from canisend import __version__
+from canisend.llm import LLMConfig, load_llm_config
+from canisend.profile import init_profile
+from canisend.resource_files import copy_resource_tree
 
 
-WORKSPACE_CONFIG = "academic-prep.yaml"
+WORKSPACE_CONFIG = "canisend.yaml"
 DEFAULT_WORKSPACE_CONFIG = {
     "profile_dir": "profile",
     "jobs_dir": "jobs",
@@ -108,11 +108,11 @@ def doctor_lines(workspace: Path, *, env: Mapping[str, str] | None = None) -> li
         ),
         WorkspaceStatus(
             "agent skill",
-            "agent-skills/academic-application-prep/SKILL.md",
-            (workspace / "agent-skills" / "academic-application-prep" / "SKILL.md").exists(),
+            "agent-skills/canisend/SKILL.md",
+            (workspace / "agent-skills" / "canisend" / "SKILL.md").exists(),
         ),
     ]
-    lines = [f"academic-application-prep: {__version__}", f"Workspace: {workspace.resolve()}"]
+    lines = [f"canisend: {__version__}", f"Workspace: {workspace.resolve()}"]
     for status in statuses:
         marker = "ok" if status.ok else "missing"
         lines.append(f"- {status.path}: {marker} ({status.label})")
@@ -152,7 +152,7 @@ def _evidence_staleness_line(workspace: Path) -> str:
 
 
 def _config_validation_line(workspace: Path) -> str:
-    from academic_prep.config_schema import validate_workspace_config
+    from canisend.config_schema import validate_workspace_config
 
     warnings = validate_workspace_config(workspace / WORKSPACE_CONFIG)
     if not warnings:

@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from academic_prep.materials import ApplicationMaterials
+from canisend.materials import ApplicationMaterials
 
 
 MATERIAL_FILES = {

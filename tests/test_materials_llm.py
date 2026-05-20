@@ -1,8 +1,8 @@
 import pytest
 
-from academic_prep.evidence import EvidenceReference
-from academic_prep.llm import LLMResponse
-from academic_prep.materials import (
+from canisend.evidence import EvidenceReference
+from canisend.llm import LLMResponse
+from canisend.materials import (
     ApplicationMaterials,
     MaterialValidationError,
     generate_materials_with_provider,

@@ -4,10 +4,10 @@ Use this reference when reading, writing, or validating project files.
 
 ## Workspace Root
 
-User workspaces are initialized with `academic-prep init-workspace --workspace <private-workspace>` and contain:
+User workspaces are initialized with `canisend init-workspace --workspace <private-workspace>` and contain:
 
 ```text
-academic-prep.yaml
+canisend.yaml
 .env.example
 .gitignore
 profile/
@@ -19,7 +19,7 @@ schemas/
 agent-skills/
 ```
 
-CLI commands read `academic-prep.yaml` from `--workspace`; configured relative paths are resolved inside that workspace so agents can run from any current directory.
+CLI commands read `canisend.yaml` from `--workspace`; configured relative paths are resolved inside that workspace so agents can run from any current directory.
 
 Default config keys:
 

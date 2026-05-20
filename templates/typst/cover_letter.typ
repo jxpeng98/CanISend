@@ -1,4 +1,4 @@
-// Base cover letter template for AAP Copilot generated source files.
+// Base cover letter template for CanISend generated source files.
 // Generated job-specific sources should read cover_letter_content.json.
 #import "@preview/fontawesome:0.6.0": *
 #import "@preview/modernpro-coverletter:0.0.8": *

@@ -1,7 +1,7 @@
 import json
 
-from academic_prep.materials import ApplicationMaterials
-from academic_prep.typst_mapping import (
+from canisend.materials import ApplicationMaterials
+from canisend.typst_mapping import (
     build_cover_letter_content,
     render_modernpro_application_package_source,
     render_modernpro_cover_letter_source,

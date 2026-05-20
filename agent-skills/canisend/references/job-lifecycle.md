@@ -16,8 +16,8 @@ Use this reference to decide the next action from current files and `job.yaml` s
 Run:
 
 ```bash
-academic-prep init-workspace --workspace <private-workspace>
-academic-prep doctor --workspace <private-workspace>
+canisend init-workspace --workspace <private-workspace>
+canisend doctor --workspace <private-workspace>
 ```
 
 ### Workspace exists, no job
@@ -25,8 +25,8 @@ academic-prep doctor --workspace <private-workspace>
 Fetch leads or create a job:
 
 ```bash
-academic-prep fetch-jobs-ac-uk --workspace <private-workspace> --feed-url "<rss-url>"
-academic-prep new-job-from-lead --workspace <private-workspace> --lead-index <index> --institution "<institution>"
+canisend fetch-jobs-ac-uk --workspace <private-workspace> --feed-url "<rss-url>"
+canisend new-job-from-lead --workspace <private-workspace> --lead-index <index> --institution "<institution>"
 ```
 
 ### `status: lead_imported`
@@ -38,8 +38,8 @@ Open `jobs/<job-slug>/job_advert.md`. If the `Full Advert` section still contain
 Regenerate evidence, then run the pipeline:
 
 ```bash
-academic-prep extract-profile-evidence --workspace <private-workspace>
-academic-prep run --workspace <private-workspace> --job jobs/<job-slug>
+canisend extract-profile-evidence --workspace <private-workspace>
+canisend run --workspace <private-workspace> --job jobs/<job-slug>
 ```
 
 Use `--llm-parser` or `--llm-drafts` only when provider config is ready and the user wants model-backed steps.
@@ -59,5 +59,5 @@ Review quality gates before rendering:
 - Missing `job.yaml`: recreate the job folder from a lead or manual job metadata.
 - Missing `job_advert.md`: create it before parsing.
 - Missing `profile/generated/*.evidence.md`: run `extract-profile-evidence`.
-- Missing `parsed_job.json`: run `academic-prep run`.
+- Missing `parsed_job.json`: run `canisend run`.
 - Existing generated outputs after advert/profile changes: rerun the pipeline and review diffs.

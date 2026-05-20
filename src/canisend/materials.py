@@ -6,9 +6,9 @@ from pathlib import Path
 import re
 from typing import Any
 
-from academic_prep.evidence import EvidenceReference
-from academic_prep.llm import LLMProvider
-from academic_prep.resource_files import read_resource_text
+from canisend.evidence import EvidenceReference
+from canisend.llm import LLMProvider
+from canisend.resource_files import read_resource_text
 
 
 @dataclass(frozen=True)

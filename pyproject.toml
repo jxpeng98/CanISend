@@ -1,7 +1,7 @@
 [project]
-name = "academic-application-prep"
+name = "canisend"
 version = "0.1.0"
-description = "Local-first academic job application preparation copilot."
+description = "Evidence-backed application prep for academic and professional jobs."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
@@ -13,6 +13,7 @@ maintainers = [
 ]
 keywords = [
     "academic jobs",
+    "professional jobs",
     "applications",
     "cli",
     "typst",
@@ -39,13 +40,13 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/pengjiaxin/auto-academic-jobs"
-Repository = "https://github.com/pengjiaxin/auto-academic-jobs"
-Issues = "https://github.com/pengjiaxin/auto-academic-jobs/issues"
-Documentation = "https://github.com/pengjiaxin/auto-academic-jobs#readme"
+Homepage = "https://github.com/pengjiaxin/canisend"
+Repository = "https://github.com/pengjiaxin/canisend"
+Issues = "https://github.com/pengjiaxin/canisend/issues"
+Documentation = "https://github.com/pengjiaxin/canisend#readme"
 
 [project.scripts]
-academic-prep = "academic_prep.cli:app"
+canisend = "canisend.cli:app"
 
 [dependency-groups]
 dev = [
@@ -57,16 +58,16 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/academic_prep"]
+packages = ["src/canisend"]
 
 [tool.hatch.build.targets.wheel.force-include]
-"prompts" = "academic_prep/resources/prompts"
-"templates" = "academic_prep/resources/templates"
-"schemas" = "academic_prep/resources/schemas"
-"agent-skills" = "academic_prep/resources/agent-skills"
-"platform-bridges" = "academic_prep/resources/platform-bridges"
-"examples" = "academic_prep/resources/examples"
-".env.example" = "academic_prep/resources/.env.example"
+"prompts" = "canisend/resources/prompts"
+"templates" = "canisend/resources/templates"
+"schemas" = "canisend/resources/schemas"
+"agent-skills" = "canisend/resources/agent-skills"
+"platform-bridges" = "canisend/resources/platform-bridges"
+"examples" = "canisend/resources/examples"
+".env.example" = "canisend/resources/.env.example"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

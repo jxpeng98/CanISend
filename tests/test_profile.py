@@ -1,7 +1,7 @@
 from typer.testing import CliRunner
 import yaml
 
-from academic_prep.cli import app
+from canisend.cli import app
 
 
 def test_init_profile_creates_starter_evidence_files(tmp_path):

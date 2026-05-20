@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import re
 
-from academic_prep.evidence import EvidenceReference
+from canisend.evidence import EvidenceReference
 
 
 KIND_KEYWORDS: dict[str, list[str]] = {

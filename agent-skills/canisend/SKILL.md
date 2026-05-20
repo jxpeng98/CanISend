@@ -1,9 +1,13 @@
 ---
-name: academic-application-prep
-description: Use when preparing academic job application materials, coordinating Codex, Claude Code, Gemini, or another local agent around an academic-prep workspace, fetching or filtering jobs.ac.uk RSS leads, parsing job adverts, matching criteria to private profile evidence, reviewing evidence citations, generating or checking modernpro Typst cover letter/application package outputs, or maintaining this project.
+name: canisend
+description: Use when preparing evidence-backed academic or professional job application materials, coordinating Codex, Claude Code, Gemini, or another local agent around a CanISend workspace, fetching or filtering jobs.ac.uk RSS leads, parsing job adverts, matching criteria to private profile evidence, reviewing evidence citations, generating or checking modernpro Typst cover letter/application package outputs, or maintaining this project.
 ---
 
-# Academic Application Prep
+# CanISend
+
+Chinese nickname: 这也能投.
+
+Core principle: 别编了 / No claims without receipts.
 
 ## Operating Mode
 
@@ -12,7 +16,7 @@ Treat this as a local-first preparation workflow. The tool helps prepare materia
 Start by identifying the private workspace and, when relevant, the job folder:
 
 ```bash
-academic-prep doctor --workspace <private-workspace>
+canisend doctor --workspace <private-workspace>
 ```
 
 From a development checkout, prefix CLI commands with `uv run`.
@@ -41,9 +45,9 @@ Read only the reference files needed for the current task:
 
 ## Default Sequence
 
-1. Run or request `academic-prep doctor --workspace <private-workspace>`.
+1. Run or request `canisend doctor --workspace <private-workspace>`.
 2. Determine current job state from `job.yaml` and generated files. Read `references/job-lifecycle.md` when uncertain.
-3. Keep profile evidence current with `academic-prep extract-profile-evidence --workspace <private-workspace>`.
-4. Use `academic-prep run --workspace <private-workspace> --job jobs/<job-slug>` for deterministic generation.
+3. Keep profile evidence current with `canisend extract-profile-evidence --workspace <private-workspace>`.
+4. Use `canisend run --workspace <private-workspace> --job jobs/<job-slug>` for deterministic generation.
 5. Add `--llm-parser` and/or `--llm-drafts` only after checking `references/provider-config.md`.
 6. Review outputs against `references/quality-gates.md` before rendering or presenting final package materials.

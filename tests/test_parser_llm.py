@@ -2,8 +2,8 @@ import json
 
 import pytest
 
-from academic_prep.llm import LLMResponse
-from academic_prep.parse import ParsedJobValidationError, parse_job_advert_with_provider
+from canisend.llm import LLMResponse
+from canisend.parse import ParsedJobValidationError, parse_job_advert_with_provider
 
 
 class FakeProvider:

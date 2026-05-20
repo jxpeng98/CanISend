@@ -2,8 +2,8 @@ import json
 
 from typer.testing import CliRunner
 
-from academic_prep.cli import app
-from academic_prep.rss import filter_job_leads, parse_jobs_ac_uk_rss
+from canisend.cli import app
+from canisend.rss import filter_job_leads, parse_jobs_ac_uk_rss
 
 
 SAMPLE_RSS = """<?xml version="1.0" encoding="UTF-8"?>

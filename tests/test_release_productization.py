@@ -7,9 +7,9 @@ import zipfile
 import yaml
 from typer.testing import CliRunner
 
-from academic_prep import __version__
-from academic_prep.cli import app
-from academic_prep.package_check import missing_wheel_resources, required_wheel_resources
+from canisend import __version__
+from canisend.cli import app
+from canisend.package_check import missing_wheel_resources, required_wheel_resources
 
 
 def test_doctor_reports_installed_package_version(tmp_path):
@@ -20,7 +20,7 @@ def test_doctor_reports_installed_package_version(tmp_path):
     result = runner.invoke(app, ["doctor", "--workspace", str(workspace)])
 
     assert result.exit_code == 0
-    assert f"academic-application-prep: {__version__}" in result.output
+    assert f"canisend: {__version__}" in result.output
 
 
 def test_package_version_matches_project_metadata():
@@ -32,9 +32,12 @@ def test_package_version_matches_project_metadata():
 def test_project_metadata_is_ready_for_public_package_index():
     metadata = tomllib.loads(Path("pyproject.toml").read_text())["project"]
 
+    assert metadata["name"] == "canisend"
+    assert metadata["description"] == "Evidence-backed application prep for academic and professional jobs."
     assert metadata["license"] == "MIT"
     assert {"name": "Peng Jiaxin"} in metadata["authors"]
     assert "academic jobs" in metadata["keywords"]
+    assert "professional jobs" in metadata["keywords"]
     assert "Development Status :: 3 - Alpha" in metadata["classifiers"]
     assert "License :: OSI Approved :: MIT License" in metadata["classifiers"]
     assert "Programming Language :: Python :: 3.12" in metadata["classifiers"]
@@ -55,7 +58,7 @@ def test_repository_has_release_notes_and_license():
 
 
 def test_package_check_detects_required_wheel_resources(tmp_path):
-    wheel_path = tmp_path / "academic_application_prep-0.1.0-py3-none-any.whl"
+    wheel_path = tmp_path / "canisend-0.1.0-py3-none-any.whl"
     with zipfile.ZipFile(wheel_path, "w") as wheel:
         for resource in required_wheel_resources():
             wheel.writestr(resource, "ok")
@@ -64,17 +67,17 @@ def test_package_check_detects_required_wheel_resources(tmp_path):
 
 
 def test_package_check_reports_missing_wheel_resources(tmp_path):
-    wheel_path = tmp_path / "academic_application_prep-0.1.0-py3-none-any.whl"
+    wheel_path = tmp_path / "canisend-0.1.0-py3-none-any.whl"
     with zipfile.ZipFile(wheel_path, "w") as wheel:
-        wheel.writestr("academic_prep/resources/prompts/job_parser.md", "ok")
+        wheel.writestr("canisend/resources/prompts/job_parser.md", "ok")
 
     missing = missing_wheel_resources(wheel_path)
 
-    assert "academic_prep/resources/templates/typst/cover_letter.typ" in missing
-    assert "academic_prep/resources/agent-skills/academic-application-prep/SKILL.md" in missing
-    assert "academic_prep/resources/agent-skills/academic-application-prep/agents/openai.yaml" in missing
-    assert "academic_prep/resources/agent-skills/academic-application-prep/references/platforms.md" in missing
-    assert "academic_prep/resources/platform-bridges/AGENTS.md" in missing
+    assert "canisend/resources/templates/typst/cover_letter.typ" in missing
+    assert "canisend/resources/agent-skills/canisend/SKILL.md" in missing
+    assert "canisend/resources/agent-skills/canisend/agents/openai.yaml" in missing
+    assert "canisend/resources/agent-skills/canisend/references/platforms.md" in missing
+    assert "canisend/resources/platform-bridges/AGENTS.md" in missing
 
 
 def test_ci_workflow_runs_tests_build_and_package_resource_check():
@@ -86,10 +89,10 @@ def test_ci_workflow_runs_tests_build_and_package_resource_check():
     assert workflow["name"] == "ci"
     assert "uv run pytest -v" in rendered
     assert "uv build" in rendered
-    assert "python -m academic_prep.package_check dist/*.whl" in rendered
+    assert "python -m canisend.package_check dist/*.whl" in rendered
     assert "uvx twine check dist/*" in rendered
-    assert "python -m venv /tmp/aap-smoke" in rendered
-    assert "/tmp/aap-smoke/bin/academic-prep doctor --workspace /tmp/aap-workspace" in rendered
+    assert "python -m venv /tmp/canisend-smoke" in rendered
+    assert "/tmp/canisend-smoke/bin/canisend doctor --workspace /tmp/canisend-workspace" in rendered
 
 
 def test_release_workflow_publishes_with_trusted_publishing():
@@ -104,7 +107,7 @@ def test_release_workflow_publishes_with_trusted_publishing():
     assert "environment:" in rendered
     assert "dist/*.whl" in rendered
     assert "uvx twine check dist/*" in rendered
-    assert "python -m venv /tmp/aap-smoke" in rendered
+    assert "python -m venv /tmp/canisend-smoke" in rendered
 
 
 def test_release_playbook_documents_testpypi_dry_run():
@@ -113,12 +116,12 @@ def test_release_playbook_documents_testpypi_dry_run():
     assert "## TestPyPI Dry Run" in playbook
     assert "uv run pytest" in playbook
     assert "uvx twine check dist/*" in playbook
-    assert "uv run python -m academic_prep.package_check dist/*.whl" in playbook
+    assert "uv run python -m canisend.package_check dist/*.whl" in playbook
     assert "gh workflow run release.yml -f publish_target=testpypi" in playbook
     assert "https://test.pypi.org/legacy/" in playbook
     assert "--index-url https://test.pypi.org/simple/" in playbook
     assert "--extra-index-url https://pypi.org/simple/" in playbook
-    assert "academic-prep doctor --workspace" in playbook
+    assert "canisend doctor --workspace" in playbook
 
 
 def test_readme_documents_release_and_update_workflow():
@@ -130,5 +133,5 @@ def test_readme_documents_release_and_update_workflow():
     assert "PyPI" in readme
     assert "RELEASE.md" in readme
     assert "gh workflow run release.yml -f publish_target=testpypi" in readme
-    assert "uv tool upgrade academic-application-prep" in readme
-    assert "academic-prep doctor --workspace ~/AcademicApplications" in readme
+    assert "uv tool upgrade canisend" in readme
+    assert "canisend doctor --workspace ~/CanISendWorkspace" in readme
