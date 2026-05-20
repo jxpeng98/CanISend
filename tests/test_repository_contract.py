@@ -133,6 +133,8 @@ def test_readme_has_user_perspective_workflow_at_a_glance():
     readme = (root / "README.md").read_text()
 
     assert "## User Workflow At A Glance" in readme
+    assert "canisend run-example" in readme
+    assert "/tmp/canisend-example" in readme
     assert "Install or upgrade the CLI" in readme
     assert "Put your real modernpro CV and statements" in readme
     assert "Fetch jobs.ac.uk RSS leads" in readme

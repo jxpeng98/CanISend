@@ -8,6 +8,51 @@ from typer.testing import CliRunner
 from canisend.cli import app
 
 
+def test_run_example_command_creates_complete_local_workspace(tmp_path, monkeypatch):
+    workspace = tmp_path / "canisend-example"
+    runner = CliRunner()
+    monkeypatch.setenv("OPENAI_API_KEY", "secret-from-user-shell")
+
+    result = runner.invoke(app, ["run-example", "--workspace", str(workspace)])
+
+    assert result.exit_code == 0, result.output
+    assert "Example workflow complete" in result.output
+    assert "jobs/2026-06-15_example-university_lecturer-in-applied-economics" in result.output
+    assert (workspace / "canisend.yaml").exists()
+    assert (workspace / "example_inputs" / "jobs_ac_uk_sample.xml").exists()
+    assert (workspace / "example_inputs" / "full_job_advert.md").exists()
+    assert (workspace / "example_inputs" / "fake_llm_provider.py").exists()
+    assert (workspace / "job_leads" / "jobs_ac_uk.json").exists()
+    assert (workspace / "profile" / "generated" / "cv.evidence.md").exists()
+
+    job_dir = workspace / "jobs" / "2026-06-15_example-university_lecturer-in-applied-economics"
+    parsed_job = json.loads((job_dir / "parsed_job.json").read_text())
+    cover_content = json.loads((job_dir / "typst" / "cover_letter_content.json").read_text())
+    package_content = json.loads((job_dir / "typst" / "application_package_content.json").read_text())
+    job_metadata = (job_dir / "job.yaml").read_text()
+
+    assert parsed_job["title"] == "Lecturer in Applied Economics"
+    assert cover_content["recipient"]["institution"] == "Example University"
+    assert "profile/generated/cv.evidence.md#Teaching" in package_content["cover_letter"]
+    assert (job_dir / "07_material_review_checklist.md").exists()
+    assert (job_dir / "typst" / "application_package.typ").exists()
+    assert "status: packaged" in job_metadata
+
+
+def test_run_example_overwrite_refuses_unmarked_workspace(tmp_path):
+    workspace = tmp_path / "private-workspace"
+    private_file = workspace / "profile" / "cv.typ"
+    private_file.parent.mkdir(parents=True)
+    private_file.write_text("real private cv\n")
+    runner = CliRunner()
+
+    result = runner.invoke(app, ["run-example", "--workspace", str(workspace), "--overwrite"])
+
+    assert result.exit_code != 0
+    assert "CanISend example workspace" in result.output
+    assert private_file.read_text() == "real private cv\n"
+
+
 def test_end_to_end_example_runs_full_local_workflow(tmp_path, monkeypatch):
     root = Path(__file__).resolve().parents[1]
     example_dir = root / "examples" / "end_to_end"

@@ -66,6 +66,26 @@ def test_package_check_detects_required_wheel_resources(tmp_path):
     assert missing_wheel_resources(wheel_path) == []
 
 
+def test_package_check_requires_all_run_example_resources():
+    resources = set(required_wheel_resources())
+
+    expected = {
+        "canisend/resources/prompts/cv_tailor.md",
+        "canisend/resources/prompts/criteria_checker.md",
+        "canisend/resources/prompts/package_builder.md",
+        "canisend/resources/examples/end_to_end/jobs_ac_uk_sample.xml",
+        "canisend/resources/examples/end_to_end/full_job_advert.md",
+        "canisend/resources/examples/end_to_end/fake_llm_provider.py",
+        "canisend/resources/examples/end_to_end/profile/profile.yaml",
+        "canisend/resources/examples/end_to_end/profile/typst/cv.typ",
+        "canisend/resources/examples/end_to_end/profile/typst/cover_letter_base.typ",
+        "canisend/resources/examples/end_to_end/profile/typst/research_statement.typ",
+        "canisend/resources/examples/end_to_end/profile/typst/teaching_statement.typ",
+    }
+
+    assert expected <= resources
+
+
 def test_package_check_reports_missing_wheel_resources(tmp_path):
     wheel_path = tmp_path / "canisend-0.1.0-py3-none-any.whl"
     with zipfile.ZipFile(wheel_path, "w") as wheel:

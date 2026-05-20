@@ -10,6 +10,9 @@ REQUIRED_WHEEL_RESOURCES = [
     "canisend/resources/prompts/job_parser.md",
     "canisend/resources/prompts/profile_matcher.md",
     "canisend/resources/prompts/cover_letter_writer.md",
+    "canisend/resources/prompts/cv_tailor.md",
+    "canisend/resources/prompts/criteria_checker.md",
+    "canisend/resources/prompts/package_builder.md",
     "canisend/resources/templates/typst/cover_letter.typ",
     "canisend/resources/templates/typst/application_package.typ",
     "canisend/resources/schemas/parsed_job.schema.json",
@@ -23,6 +26,14 @@ REQUIRED_WHEEL_RESOURCES = [
     "canisend/resources/platform-bridges/CLAUDE.md",
     "canisend/resources/platform-bridges/GEMINI.md",
     "canisend/resources/examples/end_to_end/README.md",
+    "canisend/resources/examples/end_to_end/jobs_ac_uk_sample.xml",
+    "canisend/resources/examples/end_to_end/full_job_advert.md",
+    "canisend/resources/examples/end_to_end/fake_llm_provider.py",
+    "canisend/resources/examples/end_to_end/profile/profile.yaml",
+    "canisend/resources/examples/end_to_end/profile/typst/cv.typ",
+    "canisend/resources/examples/end_to_end/profile/typst/cover_letter_base.typ",
+    "canisend/resources/examples/end_to_end/profile/typst/research_statement.typ",
+    "canisend/resources/examples/end_to_end/profile/typst/teaching_statement.typ",
 ]
 
 

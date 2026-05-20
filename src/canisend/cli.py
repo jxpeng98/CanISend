@@ -3,6 +3,7 @@ from pathlib import Path
 import typer
 
 from canisend.evidence import extract_profile_evidence
+from canisend.examples import run_packaged_example
 from canisend.jobs import create_job, create_job_from_lead, list_jobs as list_job_folders
 from canisend.pipeline import run_pipeline as run_job_pipeline
 from canisend.profile import init_profile as create_profile
@@ -116,6 +117,44 @@ def doctor(
     """Report local workspace, provider, and rendering readiness."""
     for line in doctor_lines(workspace):
         typer.echo(line)
+
+
+@app.command("run-example")
+def run_example(
+    workspace: Path = typer.Option(
+        Path("/tmp/canisend-example"),
+        "--workspace",
+        help="Directory where the packaged fake-data example workspace should be created.",
+    ),
+    overwrite: bool = typer.Option(
+        False,
+        "--overwrite",
+        help="Replace an existing non-empty example workspace.",
+    ),
+) -> None:
+    """Run the packaged end-to-end fake-data workflow locally."""
+    try:
+        result = run_packaged_example(workspace, overwrite=overwrite)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    typer.echo(f"Example workflow complete at {result.workspace}")
+    typer.echo(f"Job: {result.job_dir.relative_to(result.workspace)}")
+    typer.echo(f"RSS leads: {result.leads_file.relative_to(result.workspace)}")
+    typer.echo("Key outputs:")
+    for output in [
+        "parsed_job.json",
+        "02_fit_report.md",
+        "03_cover_letter_draft.md",
+        "05_criteria_checklist.md",
+        "07_material_review_checklist.md",
+        "typst/cover_letter_content.json",
+        "typst/cover_letter.typ",
+        "typst/application_package_content.json",
+        "typst/application_package.typ",
+    ]:
+        typer.echo(f"  - {result.job_dir.relative_to(result.workspace) / output}")
+    typer.echo("Next: inspect the generated job folder, then try the same workflow with your private workspace.")
 
 
 @app.command("extract-profile-evidence")

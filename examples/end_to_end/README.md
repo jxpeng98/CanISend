@@ -22,6 +22,14 @@ examples/end_to_end/
 
 ## Run Manually
 
+Installed users can run the whole packaged example with:
+
+```bash
+canisend run-example --workspace /tmp/canisend-example --overwrite
+```
+
+The manual sequence below is useful when developing the project or debugging individual steps.
+
 From the repository root:
 
 ```bash

@@ -55,20 +55,43 @@ canisend doctor --workspace ~/CanISendWorkspace
 
 Developers who want to change the tool itself should fork or clone the repository and use `uv run canisend ...`.
 
+## Prove It Works Locally
+
+After installing, run the packaged fake-data workflow before using private profile or job data:
+
+```bash
+canisend run-example --workspace /tmp/canisend-example --overwrite
+```
+
+This creates a disposable workspace, imports the packaged jobs.ac.uk sample RSS, creates one job folder, extracts fake Typst profile evidence, runs the command-provider fake LLM parser/draft generator, and writes the same files a real job workflow produces.
+
+Inspect:
+
+```text
+/tmp/canisend-example/jobs/2026-06-15_example-university_lecturer-in-applied-economics/
+  parsed_job.json
+  02_fit_report.md
+  03_cover_letter_draft.md
+  05_criteria_checklist.md
+  07_material_review_checklist.md
+  typst/
+```
+
 ## User Workflow At A Glance
 
 For normal users, the project is an installed CLI plus a private workspace:
 
 1. Install or upgrade the CLI with `uv tool install canisend` or `uv tool upgrade canisend`.
-2. Create or refresh a private workspace with `canisend init-workspace --workspace ~/CanISendWorkspace` or `canisend update-workspace --workspace ~/CanISendWorkspace`.
-3. Put your real modernpro CV and statements under `~/CanISendWorkspace/profile/typst/`. These files stay local and are ignored by git.
-4. Generate normalized evidence with `canisend extract-profile-evidence --workspace ~/CanISendWorkspace`.
-5. Fetch jobs.ac.uk RSS leads with `canisend fetch-jobs-ac-uk --workspace ~/CanISendWorkspace --feed-url "<rss-url>"`.
-6. Choose one lead and create a job folder with `canisend new-job-from-lead`. Paste the full advert into `jobs/<job-slug>/job_advert.md`.
-7. Configure an OpenAI-compatible provider or local command provider. Run the LLM-backed pipeline with `canisend run --workspace ~/CanISendWorkspace --job jobs/<job-slug> --llm-parser --llm-drafts`.
-8. Review item-level evidence citations such as `profile/generated/cv.evidence.md#Teaching/cv-001`, unsupported claims, criteria coverage, and the generated cover letter content JSON.
-9. Render Typst only when needed with `canisend render-typst --workspace ~/CanISendWorkspace --job jobs/<job-slug>`.
-10. Submit manually through the institution portal outside this tool.
+2. Verify the full local pipeline with `canisend run-example --workspace /tmp/canisend-example --overwrite`.
+3. Create or refresh a private workspace with `canisend init-workspace --workspace ~/CanISendWorkspace` or `canisend update-workspace --workspace ~/CanISendWorkspace`.
+4. Put your real modernpro CV and statements under `~/CanISendWorkspace/profile/typst/`. These files stay local and are ignored by git.
+5. Generate normalized evidence with `canisend extract-profile-evidence --workspace ~/CanISendWorkspace`.
+6. Fetch jobs.ac.uk RSS leads with `canisend fetch-jobs-ac-uk --workspace ~/CanISendWorkspace --feed-url "<rss-url>"`.
+7. Choose one lead and create a job folder with `canisend new-job-from-lead`. Paste the full advert into `jobs/<job-slug>/job_advert.md`.
+8. Configure an OpenAI-compatible provider or local command provider. Run the LLM-backed pipeline with `canisend run --workspace ~/CanISendWorkspace --job jobs/<job-slug> --llm-parser --llm-drafts`.
+9. Review item-level evidence citations such as `profile/generated/cv.evidence.md#Teaching/cv-001`, unsupported claims, criteria coverage, and the generated cover letter content JSON.
+10. Render Typst only when needed with `canisend render-typst --workspace ~/CanISendWorkspace --job jobs/<job-slug>`.
+11. Submit manually through the institution portal outside this tool.
 
 ## Release And Update Workflow
 
@@ -123,6 +146,8 @@ The repository includes a fully local, fake-data workflow under `examples/end_to
 - structured `modernpro-coverletter` outputs via `cover_letter_content.json`
 
 Run or inspect `examples/end_to_end/README.md` before adapting the workflow to private profile and job data.
+
+Installed users can run the same fixture with `canisend run-example --workspace /tmp/canisend-example --overwrite`.
 
 ## Complete Workflow
 

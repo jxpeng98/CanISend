@@ -1,13 +1,19 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 
 
 CITATION = "`profile/generated/cv.evidence.md#Teaching`"
+FORBIDDEN_SECRET_ENV = ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY")
 
 
 def main() -> None:
+    for key in FORBIDDEN_SECRET_ENV:
+        if os.environ.get(key):
+            raise SystemExit(f"fake provider received secret env var: {key}")
+
     prompt = sys.stdin.read()
     if "# Job Parser" in prompt:
         print(json.dumps(parsed_job(), indent=2))
