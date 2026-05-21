@@ -41,8 +41,8 @@ def test_project_metadata_is_ready_for_public_package_index():
     assert "Development Status :: 3 - Alpha" in metadata["classifiers"]
     assert "License :: OSI Approved :: MIT License" in metadata["classifiers"]
     assert "Programming Language :: Python :: 3.12" in metadata["classifiers"]
-    assert metadata["urls"]["Repository"]
-    assert metadata["urls"]["Issues"]
+    assert metadata["urls"]["Repository"] == "https://github.com/jxpeng98/CanISend"
+    assert metadata["urls"]["Issues"] == "https://github.com/jxpeng98/CanISend/issues"
 
 
 def test_repository_has_release_notes_and_license():
@@ -139,6 +139,8 @@ def test_release_playbook_documents_testpypi_dry_run():
     assert "uv run python -m canisend.package_check dist/*.whl" in playbook
     assert "gh workflow run release.yml -f publish_target=testpypi" in playbook
     assert "https://test.pypi.org/legacy/" in playbook
+    assert "Repository: `CanISend`" in playbook
+    assert "`repository`: `jxpeng98/CanISend`" in playbook
     assert "--index-url https://test.pypi.org/simple/" in playbook
     assert "--extra-index-url https://pypi.org/simple/" in playbook
     assert "canisend doctor --workspace" in playbook
@@ -152,6 +154,7 @@ def test_readme_documents_release_and_update_workflow():
     assert "TestPyPI" in readme
     assert "PyPI" in readme
     assert "RELEASE.md" in readme
+    assert "jxpeng98/CanISend" in readme
     assert "gh workflow run release.yml -f publish_target=testpypi" in readme
     assert "uv tool upgrade canisend" in readme
     assert "canisend doctor --workspace ~/CanISendWorkspace" in readme

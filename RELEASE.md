@@ -30,8 +30,8 @@ Configure Trusted Publishing before the first remote publish.
 TestPyPI:
 
 - Project: `canisend`
-- Owner: repository owner on GitHub
-- Repository: `canisend`
+- Owner: `jxpeng98`
+- Repository: `CanISend`
 - Workflow: `.github/workflows/release.yml`
 - Environment: `testpypi`
 - Upload endpoint used by the workflow: `https://test.pypi.org/legacy/`
@@ -39,12 +39,18 @@ TestPyPI:
 PyPI:
 
 - Project: `canisend`
-- Owner: repository owner on GitHub
-- Repository: `canisend`
+- Owner: `jxpeng98`
+- Repository: `CanISend`
 - Workflow: `.github/workflows/release.yml`
 - Environment: `pypi`
 
 PyPI's Trusted Publishing flow uses GitHub Actions OIDC with `id-token: write`; no PyPI API token should be stored in this repository.
+
+The TestPyPI dry-run token should present claims matching:
+
+- `repository`: `jxpeng98/CanISend`
+- `workflow_ref`: `jxpeng98/CanISend/.github/workflows/release.yml@refs/heads/main`
+- `environment`: `testpypi`
 
 ## TestPyPI Dry Run
 

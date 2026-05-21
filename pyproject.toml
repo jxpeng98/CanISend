@@ -40,10 +40,10 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/pengjiaxin/canisend"
-Repository = "https://github.com/pengjiaxin/canisend"
-Issues = "https://github.com/pengjiaxin/canisend/issues"
-Documentation = "https://github.com/pengjiaxin/canisend#readme"
+Homepage = "https://github.com/jxpeng98/CanISend"
+Repository = "https://github.com/jxpeng98/CanISend"
+Issues = "https://github.com/jxpeng98/CanISend/issues"
+Documentation = "https://github.com/jxpeng98/CanISend#readme"
 
 [project.scripts]
 canisend = "canisend.cli:app"

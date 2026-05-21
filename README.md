@@ -120,7 +120,7 @@ Use `RELEASE.md` for the full TestPyPI dry run and PyPI release playbook. The Te
 gh workflow run release.yml -f publish_target=testpypi
 ```
 
-Before the first publish, configure Trusted Publishing on TestPyPI and PyPI for this repository and the `.github/workflows/release.yml` workflow. Use GitHub environments named `testpypi` and `pypi` so releases can require manual approval if desired.
+Before the first publish, configure Trusted Publishing on TestPyPI and PyPI for `jxpeng98/CanISend` and the `.github/workflows/release.yml` workflow. Use GitHub environments named `testpypi` and `pypi` so releases can require manual approval if desired.
 
 Version updates should change both:
 
