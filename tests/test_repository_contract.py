@@ -31,6 +31,7 @@ def test_v1_contract_files_exist():
         "platform-bridges/AGENTS.md",
         "platform-bridges/CLAUDE.md",
         "platform-bridges/GEMINI.md",
+        "scripts/release.py",
         "schemas/parsed_job.schema.json",
         "schemas/fit_report.schema.json",
         "schemas/criteria_check.schema.json",

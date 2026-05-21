@@ -133,6 +133,11 @@ def test_release_workflow_publishes_with_trusted_publishing():
 def test_release_playbook_documents_testpypi_dry_run():
     playbook = Path("RELEASE.md").read_text()
 
+    assert "## Release Channels" in playbook
+    assert "python scripts/release.py test" in playbook
+    assert "python scripts/release.py beta --version 0.2.0b1" in playbook
+    assert "python scripts/release.py stable --version 0.2.0" in playbook
+    assert "TestPyPI succeeds before creating the GitHub Release" in playbook
     assert "## TestPyPI Dry Run" in playbook
     assert "uv run pytest" in playbook
     assert "uvx twine check dist/*" in playbook
@@ -156,6 +161,9 @@ def test_readme_documents_release_and_update_workflow():
     assert "RELEASE.md" in readme
     assert "jxpeng98/CanISend" in readme
     assert "Trusted Publisher" in readme
+    assert "python scripts/release.py test" in readme
+    assert "python scripts/release.py beta" in readme
+    assert "python scripts/release.py stable" in readme
     assert "gh workflow run release.yml -f publish_target=testpypi" in readme
     assert "uv tool upgrade canisend" in readme
     assert "canisend doctor --workspace ~/CanISendWorkspace" in readme

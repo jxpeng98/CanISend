@@ -314,6 +314,16 @@ Trigger TestPyPI:
 gh workflow run release.yml -f publish_target=testpypi --ref main
 ```
 
+Preferred release orchestration:
+
+```bash
+python scripts/release.py test --version 0.2.0
+python scripts/release.py beta --version 0.2.0b1
+python scripts/release.py stable --version 0.2.0
+```
+
+For `beta` and `stable`, the script waits for TestPyPI to succeed before creating the GitHub Release, then waits for the PyPI publish workflow.
+
 Use `RELEASE.md` for the full TestPyPI and PyPI release playbook. Version updates must change both `pyproject.toml` and `src/canisend/__init__.py`.
 
 ## Repository Layout

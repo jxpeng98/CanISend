@@ -2,6 +2,24 @@
 
 Use this playbook for package release preparation and TestPyPI dry runs.
 
+## Release Channels
+
+Use `scripts/release.py` as the main release orchestrator:
+
+```bash
+python scripts/release.py test --version 0.2.0
+python scripts/release.py beta --version 0.2.0b1
+python scripts/release.py stable --version 0.2.0
+```
+
+Channel behavior:
+
+- `test`: runs local checks, publishes the current version to TestPyPI, waits for the workflow, then smoke-tests installation from TestPyPI.
+- `beta`: requires a PEP 440 prerelease version such as `0.2.0b1`; TestPyPI succeeds before creating the GitHub Release, then the script waits for the prerelease PyPI workflow.
+- `stable`: requires a final version such as `0.2.0`; TestPyPI succeeds before creating the GitHub Release, then the script waits for the stable PyPI workflow.
+
+The script intentionally creates the PyPI publish trigger only after TestPyPI succeeds. It does not bypass Trusted Publishing, GitHub environments, version checks, or the release workflow.
+
 ## Local Release Checks
 
 Run these before triggering any remote publish workflow:
