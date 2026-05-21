@@ -8,14 +8,12 @@ usage() {
   cat <<'EOF'
 Usage: scripts/release.sh {test|beta|stable} [options]
 
-Trigger CanISend TestPyPI, beta, or stable release flows.
+Run local release checks, create a release tag, and push it to trigger GitHub Actions.
 
 Options:
   --version VERSION        Version to release. Defaults to pyproject.toml.
-  --ref REF               Git ref used by GitHub Actions. Defaults to main.
+  --ref REF               Git ref or commit to tag. Defaults to HEAD.
   --skip-local-checks     Skip local pytest/build/package checks.
-  --skip-testpypi-smoke   Skip install smoke test from TestPyPI.
-  --no-wait-pypi          Do not wait for PyPI publish after GitHub Release.
   -h, --help              Show this help text.
 EOF
 }
@@ -36,14 +34,6 @@ print_command() {
 
 run() {
   print_command "$@"
-  if [[ "$DRY_RUN" == "1" ]]; then
-    return 0
-  fi
-  "$@"
-}
-
-capture() {
-  print_command "$@" >&2
   if [[ "$DRY_RUN" == "1" ]]; then
     return 0
   fi
@@ -97,97 +87,39 @@ local_release_checks() {
   run uv run python -m canisend.package_check "${wheels[@]}"
 }
 
-latest_test_run_id() {
-  local ref="$1"
-
-  if [[ "$DRY_RUN" == "1" ]]; then
-    printf '%s\n' "${CANISEND_RELEASE_FAKE_TEST_RUN_ID:-123456}"
-    return 0
-  fi
-
-  local run_id
-  run_id="$(
-    capture gh run list \
-      --workflow release.yml \
-      --event workflow_dispatch \
-      --branch "$ref" \
-      --json databaseId,status,conclusion,createdAt \
-      --limit 1 \
-      --jq '.[0].databaseId'
-  )"
-  [[ -n "$run_id" && "$run_id" != "null" ]] || die "No workflow_dispatch release run found after triggering TestPyPI"
-  printf '%s\n' "$run_id"
-}
-
-latest_pypi_release_run_id() {
-  if [[ "$DRY_RUN" == "1" ]]; then
-    printf '%s\n' "${CANISEND_RELEASE_FAKE_PYPI_RUN_ID:-654321}"
-    return 0
-  fi
-
-  local run_id
-  run_id="$(
-    capture gh run list \
-      --workflow release.yml \
-      --event release \
-      --json databaseId,status,conclusion,createdAt \
-      --limit 1 \
-      --jq '.[0].databaseId'
-  )"
-  [[ -n "$run_id" && "$run_id" != "null" ]] || die "No release-event workflow run found after creating the GitHub Release"
-  printf '%s\n' "$run_id"
-}
-
-trigger_testpypi() {
-  local ref="$1"
-  local run_id
-
-  run gh workflow run release.yml -f publish_target=testpypi --ref "$ref"
-  run_id="$(latest_test_run_id "$ref")"
-  run gh run watch "$run_id" --exit-status
-}
-
-smoke_test_testpypi() {
-  local version="$1"
-  local venv="/tmp/canisend-testpypi-$version"
-  local workspace="/tmp/canisend-testpypi-workspace-$version"
-
-  run uv venv "$venv"
-  run "$venv/bin/pip" install \
-    --index-url https://test.pypi.org/simple/ \
-    --extra-index-url https://pypi.org/simple/ \
-    "canisend==$version"
-  run "$venv/bin/canisend" --help
-  run "$venv/bin/canisend" init-workspace --workspace "$workspace"
-  run "$venv/bin/canisend" doctor --workspace "$workspace"
-}
-
-create_github_release() {
+tag_name_for_channel() {
   local channel="$1"
   local version="$2"
-  local ref="$3"
-  local label="Stable"
 
-  if [[ "$channel" == "beta" ]]; then
-    label="Beta"
-    run gh release create "v$version" \
-      --target "$ref" \
-      --title "CanISend $version" \
-      --notes "$label release $version. See CHANGELOG.md and RELEASE.md for details." \
-      --prerelease
-    return 0
+  if [[ "$channel" == "test" ]]; then
+    printf 'test/v%s\n' "$version"
+  else
+    printf 'v%s\n' "$version"
   fi
-
-  run gh release create "v$version" \
-    --target "$ref" \
-    --title "CanISend $version" \
-    --notes "$label release $version. See CHANGELOG.md and RELEASE.md for details."
 }
 
-wait_for_pypi_publish() {
-  local run_id
-  run_id="$(latest_pypi_release_run_id)"
-  run gh run watch "$run_id" --exit-status
+tag_message_for_channel() {
+  local channel="$1"
+  local version="$2"
+
+  case "$channel" in
+    test) printf 'CanISend %s TestPyPI\n' "$version" ;;
+    beta) printf 'CanISend %s beta\n' "$version" ;;
+    stable) printf 'CanISend %s stable\n' "$version" ;;
+  esac
+}
+
+create_and_push_tag() {
+  local tag="$1"
+  local ref="$2"
+  local message="$3"
+
+  if [[ "$DRY_RUN" != "1" ]] && git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+    die "Tag already exists locally: $tag"
+  fi
+
+  run git tag -a "$tag" "$ref" -m "$message"
+  run git push origin "$tag"
 }
 
 main() {
@@ -210,10 +142,8 @@ main() {
   esac
 
   local version=""
-  local ref="main"
+  local ref="HEAD"
   local skip_local_checks=0
-  local skip_testpypi_smoke=0
-  local wait_pypi=1
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -229,12 +159,6 @@ main() {
         ;;
       --skip-local-checks)
         skip_local_checks=1
-        ;;
-      --skip-testpypi-smoke)
-        skip_testpypi_smoke=1
-        ;;
-      --no-wait-pypi)
-        wait_pypi=0
         ;;
       -h|--help)
         usage
@@ -253,7 +177,7 @@ main() {
 
   validate_version_for_channel "$channel" "$version"
 
-  if [[ "$DRY_RUN" != "1" && "$channel" != "test" ]]; then
+  if [[ "$DRY_RUN" != "1" ]]; then
     local project_version
     project_version="$(read_project_version)"
     [[ "$version" == "$project_version" ]] || die "--version $version does not match project version $project_version"
@@ -263,23 +187,12 @@ main() {
     local_release_checks
   fi
 
-  trigger_testpypi "$ref"
+  local tag message
+  tag="$(tag_name_for_channel "$channel" "$version")"
+  message="$(tag_message_for_channel "$channel" "$version")"
+  create_and_push_tag "$tag" "$ref" "$message"
 
-  if [[ "$skip_testpypi_smoke" == "0" ]]; then
-    smoke_test_testpypi "$version"
-  fi
-
-  if [[ "$channel" == "test" ]]; then
-    return 0
-  fi
-
-  create_github_release "$channel" "$version" "$ref"
-
-  if [[ "$wait_pypi" == "1" ]]; then
-    wait_for_pypi_publish
-  fi
-
-  printf '%s release v%s created and PyPI publish workflow was triggered.\n' "$channel" "$version"
+  printf 'Pushed %s. GitHub Actions release.yml will publish TestPyPI first and then promote eligible release tags.\n' "$tag"
 }
 
 main "$@"

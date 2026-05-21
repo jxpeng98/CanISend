@@ -119,11 +119,21 @@ def test_release_workflow_publishes_with_trusted_publishing():
     workflow_path = Path(".github/workflows/release.yml")
     rendered = workflow_path.read_text()
 
-    assert "publish_target:" in rendered
-    assert "github.event.inputs.publish_target == 'testpypi'" in rendered
+    assert "push:" in rendered
+    assert "tags:" in rendered
+    assert '"v*"' in rendered
+    assert '"test/v*"' in rendered
+    assert "workflow_dispatch:" not in rendered
+    assert "github.event.inputs.publish_target" not in rendered
+    assert "github.event_name == 'release'" not in rendered
+    assert "publish_pypi=true" in rendered
     assert "id-token: write" in rendered
     assert "pypa/gh-action-pypi-publish@release/v1" in rendered
     assert "repository-url: https://test.pypi.org/legacy/" in rendered
+    assert "needs: [build, publish-testpypi, smoke-test-testpypi]" in rendered
+    assert "Create GitHub Release" in rendered
+    assert "gh release create \"$GITHUB_REF_NAME\"" in rendered
+    assert "--prerelease" in rendered
     assert "environment:" in rendered
     assert "dist/*.whl" in rendered
     assert "uvx twine check dist/*" in rendered
@@ -137,12 +147,15 @@ def test_release_playbook_documents_testpypi_dry_run():
     assert "scripts/release.sh test" in playbook
     assert "scripts/release.sh beta --version 0.2.0b1" in playbook
     assert "scripts/release.sh stable --version 0.2.0" in playbook
-    assert "TestPyPI succeeds before creating the GitHub Release" in playbook
+    assert "test/v0.2.0.dev1" in playbook
+    assert "v0.2.0b1" in playbook
+    assert "v0.2.0" in playbook
+    assert "publishes to PyPI only after TestPyPI publish and smoke testing succeed" in playbook
     assert "## TestPyPI Dry Run" in playbook
     assert "uv run pytest" in playbook
     assert "uvx twine check dist/*" in playbook
     assert "uv run python -m canisend.package_check dist/*.whl" in playbook
-    assert "gh workflow run release.yml -f publish_target=testpypi" in playbook
+    assert "gh workflow run release.yml" not in playbook
     assert "https://test.pypi.org/legacy/" in playbook
     assert "Repository: `CanISend`" in playbook
     assert "`repository`: `jxpeng98/CanISend`" in playbook
@@ -164,6 +177,7 @@ def test_readme_documents_release_and_update_workflow():
     assert "scripts/release.sh test" in readme
     assert "scripts/release.sh beta" in readme
     assert "scripts/release.sh stable" in readme
-    assert "gh workflow run release.yml -f publish_target=testpypi" in readme
+    assert "git tag" in readme
+    assert "gh workflow run release.yml" not in readme
     assert "uv tool upgrade canisend" in readme
     assert "canisend doctor --workspace ~/CanISendWorkspace" in readme

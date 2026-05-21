@@ -304,25 +304,29 @@ uv run python -m canisend.package_check dist/*.whl
 
 CI runs the same test/build/resource-check sequence on pushes and pull requests. The release workflow uses PyPI Trusted Publishing with OIDC:
 
-- Manual `workflow_dispatch` with `publish_target=testpypi` publishes to TestPyPI.
-- A published GitHub Release publishes to PyPI.
+- Pushing `test/v<version>` publishes to TestPyPI only.
+- Pushing `v<version>bN` or `v<version>rcN` publishes to TestPyPI, smoke-tests the TestPyPI package, then publishes a PyPI prerelease and creates a GitHub prerelease.
+- Pushing `v<version>` publishes to TestPyPI, smoke-tests the TestPyPI package, then publishes a stable PyPI release and creates a GitHub Release.
 - TestPyPI and PyPI need a Trusted Publisher for `.github/workflows/release.yml` with environments named `testpypi` and `pypi`.
 
-Trigger TestPyPI:
+Preferred tag-driven release orchestration:
 
 ```bash
-gh workflow run release.yml -f publish_target=testpypi --ref main
-```
-
-Preferred release orchestration:
-
-```bash
-scripts/release.sh test --version 0.2.0
+scripts/release.sh test --version 0.2.0.dev1
 scripts/release.sh beta --version 0.2.0b1
 scripts/release.sh stable --version 0.2.0
 ```
 
-For `beta` and `stable`, the script waits for TestPyPI to succeed before creating the GitHub Release, then waits for the PyPI publish workflow.
+The script runs local checks, then creates and pushes the matching git tag:
+
+```bash
+git tag -a test/v0.2.0.dev1 HEAD -m "CanISend 0.2.0.dev1 TestPyPI"
+git tag -a v0.2.0b1 HEAD -m "CanISend 0.2.0b1 beta"
+git tag -a v0.2.0 HEAD -m "CanISend 0.2.0 stable"
+```
+
+`release.yml` is the only remote publisher. It always publishes to TestPyPI first, and only promotes `v*` tags to beta or stable PyPI after the TestPyPI publish and smoke test succeed.
+Use `test/v*` with a disposable version because TestPyPI package versions cannot be overwritten.
 
 Use `RELEASE.md` for the full TestPyPI and PyPI release playbook. Version updates must change both `pyproject.toml` and `src/canisend/__init__.py`.
 

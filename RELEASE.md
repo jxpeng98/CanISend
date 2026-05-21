@@ -7,18 +7,18 @@ Use this playbook for package release preparation and TestPyPI dry runs.
 Use `scripts/release.sh` as the main release orchestrator:
 
 ```bash
-scripts/release.sh test --version 0.2.0
+scripts/release.sh test --version 0.2.0.dev1
 scripts/release.sh beta --version 0.2.0b1
 scripts/release.sh stable --version 0.2.0
 ```
 
 Channel behavior:
 
-- `test`: runs local checks, publishes the current version to TestPyPI, waits for the workflow, then smoke-tests installation from TestPyPI.
-- `beta`: requires a PEP 440 prerelease version such as `0.2.0b1`; TestPyPI succeeds before creating the GitHub Release, then the script waits for the prerelease PyPI workflow.
-- `stable`: requires a final version such as `0.2.0`; TestPyPI succeeds before creating the GitHub Release, then the script waits for the stable PyPI workflow.
+- `test`: creates and pushes `test/v0.2.0.dev1`; `release.yml` publishes to TestPyPI and smoke-tests installation from TestPyPI. Use a disposable version because TestPyPI versions cannot be overwritten.
+- `beta`: requires a PEP 440 prerelease version such as `0.2.0b1`; creates and pushes `v0.2.0b1`; `release.yml` publishes to TestPyPI first, then PyPI as a prerelease, then creates a GitHub prerelease.
+- `stable`: requires a final version such as `0.2.0`; creates and pushes `v0.2.0`; `release.yml` publishes to TestPyPI first, then PyPI as a stable release, then creates a GitHub Release.
 
-The script intentionally creates the PyPI publish trigger only after TestPyPI succeeds. It does not bypass Trusted Publishing, GitHub environments, version checks, or the release workflow.
+The script does not call `gh workflow run` or create GitHub releases locally. Its remote action is only `git push origin <tag>`. The workflow intentionally publishes to PyPI only after TestPyPI publish and smoke testing succeed.
 
 ## Local Release Checks
 
@@ -64,18 +64,18 @@ PyPI:
 
 PyPI's Trusted Publishing flow uses GitHub Actions OIDC with `id-token: write`; no PyPI API token should be stored in this repository.
 
-The TestPyPI dry-run token should present claims matching:
+The TestPyPI Trusted Publisher should accept claims from tag-triggered workflow runs matching:
 
 - `repository`: `jxpeng98/CanISend`
-- `workflow_ref`: `jxpeng98/CanISend/.github/workflows/release.yml@refs/heads/main`
+- `workflow_ref`: `jxpeng98/CanISend/.github/workflows/release.yml@refs/tags/test/v0.2.0.dev1` for TestPyPI-only tags, or `refs/tags/v0.2.0b1` / `refs/tags/v0.2.0` for beta and stable tags.
 - `environment`: `testpypi`
 
 ## TestPyPI Dry Run
 
-After pushing the release workflow to GitHub and configuring TestPyPI Trusted Publishing, trigger the manual workflow:
+After pushing the release workflow to GitHub and configuring TestPyPI Trusted Publishing, push a TestPyPI-only tag:
 
 ```bash
-gh workflow run release.yml -f publish_target=testpypi
+scripts/release.sh test --version 0.2.0.dev1
 ```
 
 Watch the run:
@@ -102,13 +102,13 @@ Check that the TestPyPI project page renders the README and metadata correctly b
 
 ## PyPI Release
 
-Only publish to PyPI after the TestPyPI dry run passes.
+Only publish to PyPI from `v*` tags. The workflow itself gates PyPI on TestPyPI publish and smoke-test success.
 
 1. Confirm `pyproject.toml` and `src/canisend/__init__.py` have the intended version.
 2. Confirm `CHANGELOG.md` has release notes for that version.
 3. Confirm local release checks pass.
-4. Create a GitHub Release for the version tag.
-5. The published GitHub Release triggers `.github/workflows/release.yml` and publishes to PyPI through the `pypi` environment.
+4. Run `scripts/release.sh beta --version 0.2.0b1` for prerelease publishing, or `scripts/release.sh stable --version 0.2.0` for stable publishing.
+5. The pushed tag triggers `.github/workflows/release.yml`, publishes to TestPyPI, smoke-tests TestPyPI, publishes to PyPI through the `pypi` environment, and creates the GitHub Release.
 
 Post-release smoke test:
 

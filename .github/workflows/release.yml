@@ -1,24 +1,64 @@
 name: release
 
 on:
-  workflow_dispatch:
-    inputs:
-      publish_target:
-        description: "Manual publish target. Manual dispatch is for TestPyPI dry runs."
-        required: true
-        default: testpypi
-        type: choice
-        options:
-          - testpypi
-  release:
-    types:
-      - published
+  push:
+    tags:
+      - "v*"
+      - "test/v*"
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.release-metadata.outputs.version }}
+      release_channel: ${{ steps.release-metadata.outputs.release_channel }}
+      prerelease: ${{ steps.release-metadata.outputs.prerelease }}
+      publish_pypi: ${{ steps.release-metadata.outputs.publish_pypi }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Resolve release metadata
+        id: release-metadata
+        shell: bash
+        run: |
+          tag="$GITHUB_REF_NAME"
+          publish_pypi=false
+          prerelease=false
+
+          if [[ "$tag" == test/v* ]]; then
+            version="${tag#test/v}"
+            release_channel=test
+          elif [[ "$tag" == v* ]]; then
+            version="${tag#v}"
+            publish_pypi=true
+            if [[ "$version" =~ (a|b|rc)[0-9]+$ ]]; then
+              release_channel=beta
+              prerelease=true
+            else
+              release_channel=stable
+            fi
+          else
+            echo "Unsupported release tag: $tag" >&2
+            exit 1
+          fi
+
+          pyproject_version="$(sed -nE 's/^version = "([^"]+)"/\1/p' pyproject.toml | head -n 1)"
+          package_version="$(sed -nE 's/^__version__ = "([^"]+)"/\1/p' src/canisend/__init__.py | head -n 1)"
+
+          if [[ "$version" != "$pyproject_version" ]]; then
+            echo "Tag version $version does not match pyproject.toml $pyproject_version" >&2
+            exit 1
+          fi
+
+          if [[ "$pyproject_version" != "$package_version" ]]; then
+            echo "pyproject.toml $pyproject_version does not match __init__.py $package_version" >&2
+            exit 1
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "release_channel=$release_channel" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+          echo "publish_pypi=$publish_pypi" >> "$GITHUB_OUTPUT"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
@@ -60,7 +100,6 @@ jobs:
             dist/*.whl
 
   publish-testpypi:
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.publish_target == 'testpypi'
     needs: build
     runs-on: ubuntu-latest
     environment:
@@ -80,9 +119,39 @@ jobs:
         with:
           repository-url: https://test.pypi.org/legacy/
 
+  smoke-test-testpypi:
+    needs: [build, publish-testpypi]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Smoke test TestPyPI package
+        shell: bash
+        run: |
+          version="${{ needs.build.outputs.version }}"
+          python -m venv /tmp/canisend-testpypi
+          for attempt in 1 2 3 4 5; do
+            if /tmp/canisend-testpypi/bin/pip install \
+              --index-url https://test.pypi.org/simple/ \
+              --extra-index-url https://pypi.org/simple/ \
+              "canisend==$version"; then
+              break
+            fi
+            if [[ "$attempt" == "5" ]]; then
+              exit 1
+            fi
+            sleep 20
+          done
+          /tmp/canisend-testpypi/bin/canisend --help
+          /tmp/canisend-testpypi/bin/canisend init-workspace --workspace /tmp/canisend-testpypi-workspace
+          /tmp/canisend-testpypi/bin/canisend doctor --workspace /tmp/canisend-testpypi-workspace
+
   publish-pypi:
-    if: github.event_name == 'release'
-    needs: build
+    if: needs.build.outputs.publish_pypi == 'true'
+    needs: [build, publish-testpypi, smoke-test-testpypi]
     runs-on: ubuntu-latest
     environment:
       name: pypi
@@ -98,3 +167,30 @@ jobs:
 
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+
+  create-github-release:
+    if: needs.build.outputs.publish_pypi == 'true'
+    needs: [build, publish-pypi]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
+          RELEASE_CHANNEL: ${{ needs.build.outputs.release_channel }}
+          PRERELEASE: ${{ needs.build.outputs.prerelease }}
+        shell: bash
+        run: |
+          label="${RELEASE_CHANNEL^}"
+          args=(
+            gh release create "$GITHUB_REF_NAME"
+            --verify-tag
+            --title "CanISend $VERSION"
+            --notes "$label release $VERSION. See CHANGELOG.md and RELEASE.md for details."
+          )
+          if [[ "$PRERELEASE" == "true" ]]; then
+            args+=(--prerelease)
+          fi
+          "${args[@]}"
