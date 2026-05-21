@@ -134,6 +134,9 @@ def test_release_workflow_publishes_with_trusted_publishing():
     assert "Create GitHub Release" in rendered
     assert "gh release create \"$GITHUB_REF_NAME\"" in rendered
     assert "--prerelease" in rendered
+    create_release_job = rendered[rendered.index("  create-github-release:") :]
+    assert "uses: actions/checkout@v4" in create_release_job
+    assert create_release_job.index("uses: actions/checkout@v4") < create_release_job.index("gh release create")
     assert "environment:" in rendered
     assert "dist/*.whl" in rendered
     assert "uvx twine check dist/*" in rendered
