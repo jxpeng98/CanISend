@@ -149,12 +149,13 @@ def test_release_playbook_documents_testpypi_dry_run():
 def test_readme_documents_release_and_update_workflow():
     readme = Path("README.md").read_text()
 
-    assert "## Release And Update Workflow" in readme
+    assert "## Maintainer Release" in readme
     assert "Trusted Publishing" in readme
     assert "TestPyPI" in readme
     assert "PyPI" in readme
     assert "RELEASE.md" in readme
     assert "jxpeng98/CanISend" in readme
+    assert "Trusted Publisher" in readme
     assert "gh workflow run release.yml -f publish_target=testpypi" in readme
     assert "uv tool upgrade canisend" in readme
     assert "canisend doctor --workspace ~/CanISendWorkspace" in readme

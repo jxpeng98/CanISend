@@ -170,18 +170,21 @@ def test_agent_skill_documents_typst_first_item_level_evidence_contract():
     assert "quality-gates.md" in workflow
 
 
-def test_readme_has_user_perspective_workflow_at_a_glance():
+def test_readme_has_release_page_quick_start():
     root = Path(__file__).resolve().parents[1]
     readme = (root / "README.md").read_text()
 
-    assert "## User Workflow At A Glance" in readme
+    assert "github/actions/workflow/status/jxpeng98/CanISend/ci.yml" in readme
+    assert "TestPyPI" in readme
+    assert "python-3.11%2B" in readme
+    assert "license-MIT" in readme
+    assert "## Quick Start" in readme
     assert "canisend run-example" in readme
     assert "/tmp/canisend-example" in readme
-    assert "Install or upgrade the CLI" in readme
+    assert "uv tool install" in readme
     assert "Put your real modernpro CV and statements" in readme
     assert "Fetch jobs.ac.uk RSS leads" in readme
     assert "Paste the full advert" in readme
-    assert "Run the LLM-backed pipeline" in readme
     assert "Review item-level evidence citations" in readme
     assert "Render Typst only when needed" in readme
     assert "Submit manually" in readme
@@ -198,23 +201,23 @@ def test_platform_bridges_point_to_project_skill():
         assert "profile/" in bridge
 
 
-def test_readme_documents_complete_workflow_and_round_two_tasks():
+def test_readme_documents_core_workflow_and_agent_usage():
     root = Path(__file__).resolve().parents[1]
     readme = (root / "README.md").read_text()
 
     expected_sections = [
-        "## Complete Workflow",
-        "### 1. Install and verify the CLI",
-        "### 2. Initialize a private workspace",
-        "### 3. Prepare local private profile data",
-        "### 4. Generate normalized profile evidence",
-        "### 5. Fetch jobs.ac.uk RSS leads",
-        "### 6. Select one advert and create a job workspace",
-        "### 7. Run the application preparation pipeline",
-        "### 8. Review and edit generated materials",
-        "### 9. Render Typst outputs when needed",
-        "### 10. Submit manually outside the tool",
-        "## Round 2 Task Queue",
+        "## What It Does",
+        "## Quick Start",
+        "## Core Workflow",
+        "### 1. Initialize a private workspace",
+        "### 2. Prepare profile evidence",
+        "### 3. Import leads and create one job folder",
+        "### 4. Generate draft materials",
+        "### 5. Review, render, and submit manually",
+        "## Agent Usage",
+        "## Privacy Boundaries",
+        "## Maintainer Release",
+        "## Repository Layout",
     ]
 
     for section in expected_sections:
@@ -233,6 +236,8 @@ def test_readme_documents_complete_workflow_and_round_two_tasks():
     assert "examples/end_to_end" in readme
     assert "Codex, Claude Code, Gemini" in readme
     assert "ACADEMIC_PREP_LLM_PROVIDER" in readme
+    assert "AGENTS.md" in readme
+    assert "CLAUDE.md" in readme
 
 
 def test_docs_record_material_review_management_artifact():
