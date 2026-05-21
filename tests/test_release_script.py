@@ -110,6 +110,27 @@ def test_stable_release_pushes_final_tag_for_tag_driven_workflow():
     assert "gh run watch" not in result.stdout
 
 
+def test_dry_run_release_does_not_require_attached_branch(tmp_path):
+    repo = create_minimal_release_repo(tmp_path)
+    run_git(repo, "checkout", "--detach")
+    env = os.environ.copy()
+    env["CANISEND_RELEASE_DRY_RUN"] = "1"
+
+    result = subprocess.run(
+        ["bash", "scripts/release.sh", "beta", "--version", "0.2.0b1", "--skip-local-checks"],
+        cwd=repo,
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=env,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "git push origin main" in result.stdout
+    assert "git push origin v0.2.0b1" in result.stdout
+
+
 def test_beta_release_bumps_version_files_before_tagging(tmp_path):
     repo = create_minimal_release_repo(tmp_path)
 

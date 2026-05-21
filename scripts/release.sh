@@ -79,20 +79,32 @@ update_version_files() {
   rm -f pyproject.toml.bak src/canisend/__init__.py.bak
 }
 
+refresh_lock_file() {
+  if [[ ! -f uv.lock ]]; then
+    return 0
+  fi
+
+  run uv lock
+}
+
 commit_version_bump() {
   local version="$1"
+  local bump_files=(pyproject.toml src/canisend/__init__.py)
+  if [[ -f uv.lock ]]; then
+    bump_files+=(uv.lock)
+  fi
 
   if [[ "$DRY_RUN" == "1" ]]; then
-    print_command git add pyproject.toml src/canisend/__init__.py
+    print_command git add "${bump_files[@]}"
     print_command git commit -m "chore: bump version to $version"
     return 0
   fi
 
-  if git diff --quiet -- pyproject.toml src/canisend/__init__.py; then
+  if git diff --quiet -- "${bump_files[@]}"; then
     return 0
   fi
 
-  run git add pyproject.toml src/canisend/__init__.py
+  run git add "${bump_files[@]}"
   run git commit -m "chore: bump version to $version"
 }
 
@@ -162,6 +174,14 @@ create_and_push_tag() {
     die "Tag already exists on origin: $tag"
   fi
 
+  if [[ "$DRY_RUN" == "1" ]]; then
+    branch="${CANISEND_RELEASE_DRY_RUN_BRANCH:-main}"
+    run git tag -a "$tag" HEAD -m "$message"
+    run git push origin "$branch"
+    run git push origin "$tag"
+    return 0
+  fi
+
   branch="$(git branch --show-current)"
   [[ -n "$branch" ]] || die "Cannot release from a detached HEAD."
 
@@ -221,6 +241,7 @@ main() {
 
   ensure_clean_worktree
   update_version_files "$version"
+  refresh_lock_file
 
   if [[ "$DRY_RUN" != "1" ]]; then
     local project_version
