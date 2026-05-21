@@ -112,6 +112,48 @@ def test_agent_skill_references_capture_operational_gates():
     assert "IDE" in platforms
 
 
+def test_agent_skill_defines_release_ready_agent_boundaries():
+    root = Path(__file__).resolve().parents[1]
+    skill = (root / "agent-skills/canisend/SKILL.md").read_text()
+    privacy = (root / "agent-skills/canisend/references/privacy.md").read_text()
+    quality = (root / "agent-skills/canisend/references/quality-gates.md").read_text()
+    provider = (root / "agent-skills/canisend/references/provider-config.md").read_text()
+    workflow = (root / "agent-skills/canisend/references/workflow.md").read_text()
+
+    assert "Agent Contract" in skill
+    assert "Allowed by default" in skill
+    assert "Requires explicit user approval" in skill
+    assert "Always forbidden" in skill
+    assert "Do not claim materials are ready" in skill
+    assert "do not stage private files" in skill.lower()
+
+    assert "Do Not Read Unless Needed" in privacy
+    assert "Do Not Quote In Chat" in privacy
+    assert "Do Not Stage Or Commit" in privacy
+    assert "full job adverts" in privacy
+    assert "source URLs" in privacy
+
+    assert "Ready Claim Gate" in quality
+    assert "Do not use ready, final, complete, or submission-ready" in quality
+    assert "Manual Submission Gate" in quality
+    assert "explicit opt-in" in provider
+    assert "transmits private advert and evidence context" in provider
+    assert "ask before enabling" in workflow
+
+
+def test_platform_bridges_expose_agent_boundaries_immediately():
+    root = Path(__file__).resolve().parents[1]
+    bridges = root / "platform-bridges"
+
+    for filename in ["AGENTS.md", "CLAUDE.md", "GEMINI.md"]:
+        bridge = (bridges / filename).read_text()
+        assert "Allowed by default" in bridge
+        assert "Ask first" in bridge
+        assert "Never do" in bridge
+        assert "Do not quote private materials" in bridge
+        assert "Do not stage private files" in bridge
+
+
 def test_agent_skill_documents_typst_first_item_level_evidence_contract():
     root = Path(__file__).resolve().parents[1]
     references = root / "agent-skills/canisend" / "references"

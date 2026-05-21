@@ -12,8 +12,11 @@ If running from outside the workspace, replace `.` with the workspace path.
 
 Core rules:
 
-- Treat `profile/`, `jobs/`, `job_leads/`, `.env`, and generated PDFs as private.
-- Do not submit applications, fill portals, scrape full job pages, or answer sensitive declarations.
+- Allowed by default: run local `canisend` commands, inspect generated evidence, and review job artifacts needed for the current task.
+- Ask first: before reading full private CVs, statements, full job adverts, references, source URLs, or before enabling LLM-backed flags.
+- Never do: submit applications, fill portals, create accounts, scrape full job pages, answer sensitive declarations, upload packages, or fabricate evidence.
+- Do not quote private materials in chat unless the user explicitly asks.
+- Do not stage private files such as `profile/`, `jobs/`, `job_leads/`, `.env`, PDFs, or real application packages.
 - Use `canisend` CLI commands for workspace actions.
 - Read `agent-skills/canisend/references/platforms.md` for cross-platform guidance.
 - Read `agent-skills/canisend/references/quality-gates.md` before presenting generated materials as ready.

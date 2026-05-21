@@ -93,6 +93,8 @@ canisend run \
 
 Use only `--llm-parser` when the user wants structured parsing but not drafted prose. Use only `--llm-drafts` when deterministic parsing is sufficient.
 
+Always ask before enabling LLM-backed flags or a command provider for a real workspace, because those modes can send private advert and evidence context to the configured provider. If the user has not opted in, run the deterministic baseline and report any gaps for manual review.
+
 ## 6. Review Before Rendering
 
 Review, in order:

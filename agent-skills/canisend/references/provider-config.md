@@ -15,6 +15,8 @@ canisend run --workspace <private-workspace> --job jobs/<job-slug> --llm-drafts
 
 Use both flags only when the user wants both provider-backed parsing and provider-backed drafting.
 
+Before enabling provider-backed parsing or drafting, tell the user it transmits private advert and evidence context to the configured provider or local command. Do not add `--llm-parser`, `--llm-drafts`, or `ACADEMIC_PREP_LLM_PROVIDER=command` on the user's behalf unless they explicitly approve that mode for the current workspace or job.
+
 The provider environment variable prefix remains `ACADEMIC_PREP_LLM_*` in V1 for compatibility with existing local workspaces and scripts. Treat it as the stable V1 provider config surface unless a later release documents a migration.
 
 ## OpenAI-Compatible Provider
@@ -42,6 +44,8 @@ ACADEMIC_PREP_LLM_TIMEOUT_SECONDS=300
 ```
 
 The command must read the prompt from stdin and write the completion to stdout. It should return non-zero on failure.
+
+The command provider inherits the same privacy boundary as any other LLM-backed mode: it may receive the full prompt, advert text, parsed job metadata, generated evidence references, and draft context. Keep `.env` and API keys out of prompts and logs.
 
 Examples the user may adapt:
 

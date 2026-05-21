@@ -1,6 +1,6 @@
 ---
 name: canisend
-description: Use when preparing evidence-backed academic or professional job application materials, coordinating Codex, Claude Code, Gemini, or another local agent around a CanISend workspace, fetching or filtering jobs.ac.uk RSS leads, parsing job adverts, matching criteria to private profile evidence, reviewing evidence citations, generating or checking modernpro Typst cover letter/application package outputs, or maintaining this project.
+description: Use when preparing evidence-backed academic or professional job application materials in a CanISend workspace, coordinating Codex, Claude Code, Gemini, or another local agent, handling jobs.ac.uk RSS leads, matching criteria to private profile evidence, reviewing citations, or checking modernpro Typst outputs.
 ---
 
 # CanISend
@@ -21,13 +21,27 @@ canisend doctor --workspace <private-workspace>
 
 From a development checkout, prefix CLI commands with `uv run`.
 
-## Hard Boundaries
+## Agent Contract
 
-- Treat `profile/`, `jobs/`, `job_leads/`, generated PDFs, and `.env` as private local data.
-- Do not commit real CVs, statements, references, job adverts, generated packages, PDFs, API keys, or source URLs that reveal application strategy.
-- Do not fabricate applicant evidence. Mark missing evidence as a gap.
-- Do not convert Markdown to Typst line by line. Use structured content JSON and modernpro Typst templates.
-- Do not run LLM-backed parser or draft steps unless provider config is available and the user has opted in.
+Allowed by default:
+
+- Inspect workspace structure, run `doctor`, list job state, and read generated evidence needed for the current task.
+- Run deterministic commands such as `extract-profile-evidence`, `fetch-jobs-ac-uk`, `new-job`, `new-job-from-lead`, `run`, and `render-typst` when inputs are local and clear.
+- Edit generated drafts, prompt overrides, templates, examples, docs, tests, and skill files within the user's stated scope.
+
+Requires explicit user approval:
+
+- Reading full private CVs, statements, references, full job adverts, or source URLs when a narrow generated-evidence summary is enough.
+- Enabling `--llm-parser`, `--llm-drafts`, or a command provider because that can transmit private advert and evidence context.
+- Rendering PDFs, overwriting local defaults, or changing workspace-local prompts/templates that may contain private preferences.
+
+Always forbidden:
+
+- Do not submit applications, create accounts, fill portals, answer sensitive declarations, upload packages, or scrape full job pages.
+- Do not fabricate applicant evidence; mark missing evidence as a gap.
+- Do not stage private files: `profile/`, `jobs/`, `job_leads/`, `.env`, PDFs, real source URLs, or generated application packages.
+- Do not quote private materials in chat beyond narrow summaries unless the user explicitly asks.
+- Do not claim materials are ready, final, complete, or submission-ready until `references/quality-gates.md` has been checked.
 
 ## References
 

@@ -2,6 +2,10 @@
 
 Use this reference before saying generated application materials are ready for user review, Typst rendering, or manual submission.
 
+## Ready Claim Gate
+
+Do not use ready, final, complete, or submission-ready for generated materials until the relevant gates below have been checked against the current job folder. If a gate is not checked, say what remains unchecked instead.
+
 ## Profile Evidence Gate
 
 - `profile/profile.yaml` exists.
@@ -41,6 +45,12 @@ Use this reference before saying generated application materials are ready for u
 - Real `profile/`, `jobs/`, `job_leads/`, PDFs, `.env`, and private source URLs are not staged.
 - Sensitive declarations are left to the user.
 - The final package is a preparation dossier, not proof of submission.
+
+## Manual Submission Gate
+
+- The tool stops at preparation; the user submits manually outside CanISend.
+- Portal uploads, account creation, equality monitoring, visa, right-to-work, disability, health, criminal record, conflict, and other sensitive declarations remain user-only.
+- Generated material can be described as reviewed only for the checks actually performed.
 
 ## Review Order
 
