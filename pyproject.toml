@@ -1,6 +1,6 @@
 [project]
 name = "canisend"
-version = "0.2.0b1"
+version = "0.2.0b2"
 description = "Evidence-backed application prep for academic and professional jobs."
 readme = "README.md"
 requires-python = ">=3.11"
