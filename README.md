@@ -317,9 +317,9 @@ gh workflow run release.yml -f publish_target=testpypi --ref main
 Preferred release orchestration:
 
 ```bash
-python scripts/release.py test --version 0.2.0
-python scripts/release.py beta --version 0.2.0b1
-python scripts/release.py stable --version 0.2.0
+scripts/release.sh test --version 0.2.0
+scripts/release.sh beta --version 0.2.0b1
+scripts/release.sh stable --version 0.2.0
 ```
 
 For `beta` and `stable`, the script waits for TestPyPI to succeed before creating the GitHub Release, then waits for the PyPI publish workflow.

@@ -4,12 +4,12 @@ Use this playbook for package release preparation and TestPyPI dry runs.
 
 ## Release Channels
 
-Use `scripts/release.py` as the main release orchestrator:
+Use `scripts/release.sh` as the main release orchestrator:
 
 ```bash
-python scripts/release.py test --version 0.2.0
-python scripts/release.py beta --version 0.2.0b1
-python scripts/release.py stable --version 0.2.0
+scripts/release.sh test --version 0.2.0
+scripts/release.sh beta --version 0.2.0b1
+scripts/release.sh stable --version 0.2.0
 ```
 
 Channel behavior:
