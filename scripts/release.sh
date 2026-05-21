@@ -12,7 +12,6 @@ Run local release checks, create a release tag, and push it to trigger GitHub Ac
 
 Options:
   --version VERSION        Version to release. Defaults to pyproject.toml.
-  --ref REF               Git ref or commit to tag. Defaults to HEAD.
   --skip-local-checks     Skip local pytest/build/package checks.
   -h, --help              Show this help text.
 EOF
@@ -40,6 +39,16 @@ run() {
   "$@"
 }
 
+ensure_clean_worktree() {
+  if [[ "$DRY_RUN" == "1" ]]; then
+    return 0
+  fi
+
+  local status
+  status="$(git status --porcelain)"
+  [[ -z "$status" ]] || die "Working tree must be clean before release version bump."
+}
+
 read_project_version() {
   local pyproject_version package_version
   pyproject_version="$(
@@ -54,6 +63,37 @@ read_project_version() {
   [[ "$pyproject_version" == "$package_version" ]] || die "Version mismatch: pyproject.toml=$pyproject_version, __init__.py=$package_version"
 
   printf '%s\n' "$pyproject_version"
+}
+
+update_version_files() {
+  local version="$1"
+
+  if [[ "$DRY_RUN" == "1" ]]; then
+    print_command sed -i.bak -E "s/^version = \"[^\"]+\"/version = \"$version\"/" pyproject.toml
+    print_command sed -i.bak -E "s/^__version__ = \"[^\"]+\"/__version__ = \"$version\"/" src/canisend/__init__.py
+    return 0
+  fi
+
+  sed -i.bak -E "s/^version = \"[^\"]+\"/version = \"$version\"/" pyproject.toml
+  sed -i.bak -E "s/^__version__ = \"[^\"]+\"/__version__ = \"$version\"/" src/canisend/__init__.py
+  rm -f pyproject.toml.bak src/canisend/__init__.py.bak
+}
+
+commit_version_bump() {
+  local version="$1"
+
+  if [[ "$DRY_RUN" == "1" ]]; then
+    print_command git add pyproject.toml src/canisend/__init__.py
+    print_command git commit -m "chore: bump version to $version"
+    return 0
+  fi
+
+  if git diff --quiet -- pyproject.toml src/canisend/__init__.py; then
+    return 0
+  fi
+
+  run git add pyproject.toml src/canisend/__init__.py
+  run git commit -m "chore: bump version to $version"
 }
 
 is_prerelease() {
@@ -111,14 +151,22 @@ tag_message_for_channel() {
 
 create_and_push_tag() {
   local tag="$1"
-  local ref="$2"
-  local message="$3"
+  local message="$2"
+  local branch
 
   if [[ "$DRY_RUN" != "1" ]] && git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
     die "Tag already exists locally: $tag"
   fi
 
-  run git tag -a "$tag" "$ref" -m "$message"
+  if [[ "$DRY_RUN" != "1" ]] && git ls-remote --exit-code --tags origin "$tag" >/dev/null 2>&1; then
+    die "Tag already exists on origin: $tag"
+  fi
+
+  branch="$(git branch --show-current)"
+  [[ -n "$branch" ]] || die "Cannot release from a detached HEAD."
+
+  run git tag -a "$tag" HEAD -m "$message"
+  run git push origin "$branch"
   run git push origin "$tag"
 }
 
@@ -142,7 +190,6 @@ main() {
   esac
 
   local version=""
-  local ref="HEAD"
   local skip_local_checks=0
 
   while [[ $# -gt 0 ]]; do
@@ -151,11 +198,6 @@ main() {
         shift
         [[ $# -gt 0 ]] || die "--version requires a value"
         version="$1"
-        ;;
-      --ref)
-        shift
-        [[ $# -gt 0 ]] || die "--ref requires a value"
-        ref="$1"
         ;;
       --skip-local-checks)
         skip_local_checks=1
@@ -177,6 +219,9 @@ main() {
 
   validate_version_for_channel "$channel" "$version"
 
+  ensure_clean_worktree
+  update_version_files "$version"
+
   if [[ "$DRY_RUN" != "1" ]]; then
     local project_version
     project_version="$(read_project_version)"
@@ -190,7 +235,8 @@ main() {
   local tag message
   tag="$(tag_name_for_channel "$channel" "$version")"
   message="$(tag_message_for_channel "$channel" "$version")"
-  create_and_push_tag "$tag" "$ref" "$message"
+  commit_version_bump "$version"
+  create_and_push_tag "$tag" "$message"
 
   printf 'Pushed %s. GitHub Actions release.yml will publish TestPyPI first and then promote eligible release tags.\n' "$tag"
 }

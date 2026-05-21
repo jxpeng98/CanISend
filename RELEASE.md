@@ -18,7 +18,7 @@ Channel behavior:
 - `beta`: requires a PEP 440 prerelease version such as `0.2.0b1`; creates and pushes `v0.2.0b1`; `release.yml` publishes to TestPyPI first, then PyPI as a prerelease, then creates a GitHub prerelease.
 - `stable`: requires a final version such as `0.2.0`; creates and pushes `v0.2.0`; `release.yml` publishes to TestPyPI first, then PyPI as a stable release, then creates a GitHub Release.
 
-The script does not call `gh workflow run` or create GitHub releases locally. Its remote action is only `git push origin <tag>`. The workflow intentionally publishes to PyPI only after TestPyPI publish and smoke testing succeed.
+The script does not call `gh workflow run` or create GitHub releases locally. It updates both version files, commits the version bump, pushes the current branch, then pushes the release tag. The workflow intentionally publishes to PyPI only after TestPyPI publish and smoke testing succeed.
 
 ## Local Release Checks
 
@@ -104,10 +104,10 @@ Check that the TestPyPI project page renders the README and metadata correctly b
 
 Only publish to PyPI from `v*` tags. The workflow itself gates PyPI on TestPyPI publish and smoke-test success.
 
-1. Confirm `pyproject.toml` and `src/canisend/__init__.py` have the intended version.
-2. Confirm `CHANGELOG.md` has release notes for that version.
-3. Confirm local release checks pass.
-4. Run `scripts/release.sh beta --version 0.2.0b1` for prerelease publishing, or `scripts/release.sh stable --version 0.2.0` for stable publishing.
+1. Confirm `CHANGELOG.md` has release notes for the intended version.
+2. Confirm the git working tree is clean.
+3. Run `scripts/release.sh beta --version 0.2.0b1` for prerelease publishing, or `scripts/release.sh stable --version 0.2.0` for stable publishing.
+4. The script bumps `pyproject.toml` and `src/canisend/__init__.py`, runs local release checks, commits the version bump, pushes the current branch, and pushes the release tag.
 5. The pushed tag triggers `.github/workflows/release.yml`, publishes to TestPyPI, smoke-tests TestPyPI, publishes to PyPI through the `pypi` environment, and creates the GitHub Release.
 
 Post-release smoke test:

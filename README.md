@@ -317,7 +317,7 @@ scripts/release.sh beta --version 0.2.0b1
 scripts/release.sh stable --version 0.2.0
 ```
 
-The script runs local checks, then creates and pushes the matching git tag:
+The script updates `pyproject.toml` and `src/canisend/__init__.py`, runs local checks, commits the version bump, pushes the current branch, then creates and pushes the matching git tag:
 
 ```bash
 git tag -a test/v0.2.0.dev1 HEAD -m "CanISend 0.2.0.dev1 TestPyPI"

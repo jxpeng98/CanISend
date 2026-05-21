@@ -150,6 +150,7 @@ def test_release_playbook_documents_testpypi_dry_run():
     assert "test/v0.2.0.dev1" in playbook
     assert "v0.2.0b1" in playbook
     assert "v0.2.0" in playbook
+    assert "commits the version bump" in playbook
     assert "publishes to PyPI only after TestPyPI publish and smoke testing succeed" in playbook
     assert "## TestPyPI Dry Run" in playbook
     assert "uv run pytest" in playbook
@@ -178,6 +179,7 @@ def test_readme_documents_release_and_update_workflow():
     assert "scripts/release.sh beta" in readme
     assert "scripts/release.sh stable" in readme
     assert "git tag" in readme
+    assert "commits the version bump" in readme
     assert "gh workflow run release.yml" not in readme
     assert "uv tool upgrade canisend" in readme
     assert "canisend doctor --workspace ~/CanISendWorkspace" in readme
