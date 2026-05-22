@@ -1,41 +1,81 @@
-# CanISend
+<p align="center">
+  <img src="assets/canisend-logo.svg" alt="这也能投 logo" width="132">
+</p>
 
-[![CI](https://img.shields.io/github/actions/workflow/status/jxpeng98/CanISend/ci.yml?branch=main&label=ci)](https://github.com/jxpeng98/CanISend/actions/workflows/ci.yml)
-[![TestPyPI](https://img.shields.io/badge/TestPyPI-0.1.0-blue)](https://test.pypi.org/project/canisend/0.1.0/)
-![Python](https://img.shields.io/badge/python-3.11%2B-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
+<p align="center">
+  <a href="https://github.com/jxpeng98/CanISend/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/jxpeng98/CanISend/ci.yml?branch=main&label=ci" alt="CI status"></a>
+  <a href="https://test.pypi.org/project/canisend/"><img src="https://img.shields.io/badge/TestPyPI-0.2.0b2-blue" alt="TestPyPI"></a>
+  <img src="https://img.shields.io/badge/python-3.11%2B-blue" alt="Python 3.11+">
+  <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT license">
+</p>
 
-这也能投. Evidence-backed application prep for academic and professional jobs.
+# 这也能投/CanISend
 
-Core principle: 别编了 / No claims without receipts.
+Evidence-backed application prep for academic and professional jobs. CLI/package name: `canisend`.
 
-CanISend is a local-first CLI for preparing job application materials from a job advert and a private profile. It prepares materials only. It does not submit applications, create accounts, fill portals, scrape full job pages, upload packages, or answer sensitive declarations.
+这也能投是一款 local-first CLI：从职位广告和本地私人履历证据出发，生成可检查的申请材料包，包括 parsed criteria、fit report、cover letter draft、CV tailoring notes、material checklist 和 Typst-ready source。强主张应当能追溯到本地证据。
+
+It prepares materials only. It does not submit applications, create accounts, fill portals, scrape full job pages, upload packages, or answer sensitive declarations.
 
 ## What It Does
 
-- Creates a private workspace for profile evidence, job folders, prompts, Typst templates, and agent instructions.
+- Creates a private workspace for profile evidence, job folders, prompts, Typst templates, schemas, and agent instructions.
 - Imports and filters jobs.ac.uk RSS leads without scraping full job pages.
-- Creates one local job folder per application and keeps the full advert entry manual.
+- Creates one local folder per application, with the full advert kept as a manual input.
 - Extracts normalized evidence from Typst-first profile sources into `profile/generated/`.
-- Generates parsed job data, fit reports, cover letter drafts, CV tailoring notes, criteria checklists, material review checklists, and structured Typst content.
-- Supports deterministic local generation by default, with explicit opt-in for an LLM-backed parser or LLM-backed drafts.
-- Provides Codex, Claude Code, Gemini, and IDE-agent bridge files through `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, and `agent-skills/canisend/SKILL.md`.
+- Generates `parsed_job.json`, fit reports, cover letter drafts, CV tailoring notes, criteria checklists, material review checklists, and structured Typst content.
+- Runs deterministic local generation by default, with explicit opt-in for an LLM-backed parser or LLM-backed drafts.
+- Ships bridge files for Codex, Claude Code, Gemini, and IDE agents through `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, and `agent-skills/canisend/SKILL.md`.
 
 ## Quick Start
 
-Install from PyPI after the production release:
+Choose one installation method. CanISend requires Python 3.11 or newer.
+
+### Install as an isolated CLI with `uv`
+
+Use this after the production release is available on PyPI:
 
 ```bash
 uv tool install canisend
 ```
 
-For the current TestPyPI alpha:
+### Install as an isolated CLI with `pipx`
+
+If you prefer the `pip` ecosystem but still want an isolated command-line tool:
+
+```bash
+pipx install canisend
+```
+
+### Install with `pip` in a virtual environment
+
+Use this when you want CanISend available inside a project-specific Python environment:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install canisend
+```
+
+### Install the current TestPyPI beta
+
+For the current beta, install `canisend==0.2.0b2` from TestPyPI while still resolving dependencies from PyPI:
 
 ```bash
 uv tool install \
   --index-url https://test.pypi.org/simple/ \
   --extra-index-url https://pypi.org/simple/ \
-  canisend==0.1.0
+  canisend==0.2.0b2
+```
+
+Or with `pip` inside an active virtual environment:
+
+```bash
+python -m pip install \
+  --index-url https://test.pypi.org/simple/ \
+  --extra-index-url https://pypi.org/simple/ \
+  canisend==0.2.0b2
 ```
 
 Run the packaged fake-data workflow before using private profile or job data:
@@ -44,7 +84,7 @@ Run the packaged fake-data workflow before using private profile or job data:
 canisend run-example --workspace /tmp/canisend-example --overwrite
 ```
 
-Inspect:
+Inspect the generated dossier:
 
 ```text
 /tmp/canisend-example/jobs/2026-06-15_example-university_lecturer-in-applied-economics/
@@ -65,9 +105,18 @@ uv run canisend run-example --workspace /tmp/canisend-example --overwrite
 
 ## Core Workflow
 
+```text
+private profile -> generated evidence -> job folder -> parsed criteria
+      |                                      |
+      v                                      v
+item-level receipts                 draft materials + review checklist
+      |                                      |
+      +------------ manual review -----------+
+```
+
 ### 1. Initialize a private workspace
 
-Normal users should use an installed CLI plus a separate private workspace. They do not need to fork this repository.
+Normal users should install the CLI and keep private application data in a separate workspace. They do not need to fork this repository.
 
 ```bash
 canisend init-workspace --workspace ~/CanISendWorkspace
@@ -101,7 +150,7 @@ canisend update-workspace --workspace ~/CanISendWorkspace
 canisend doctor --workspace ~/CanISendWorkspace
 ```
 
-`update-workspace` preserves local prompt, template, and skill edits by default. Use `--overwrite` only when you intentionally want packaged defaults to replace local copies.
+`update-workspace` preserves local prompt, template, and skill edits by default. Use `--overwrite` only when packaged defaults should replace local copies.
 
 ### 2. Prepare profile evidence
 
@@ -239,11 +288,11 @@ canisend render-typst \
   --job jobs/<job-slug>
 ```
 
-Rendering requires a local `typst` binary. Source generation does not. Submit manually through the institution portal outside CanISend.
+Rendering requires a local `typst` binary. Source generation does not. Submit manually through the institution portal outside this tool.
 
 ## Agent Usage
 
-Codex, Claude Code, Gemini, and other local agents can run CanISend by opening the private workspace as the project root.
+Codex, Claude Code, Gemini, and other local agents can run the `canisend` workflow by opening the private workspace as the project root.
 
 - Codex and AGENTS.md-aware tools should read `AGENTS.md`.
 - Claude Code should read `CLAUDE.md`, which imports `agent-skills/canisend/SKILL.md`.
@@ -287,7 +336,7 @@ This repository is intended to be open source. Personal application data should 
 - `.env`, API keys, rendered PDFs, real source URLs, and generated application packages should not be committed.
 - Sensitive declarations such as right-to-work, visa, disability, equality monitoring, health, criminal record, and conflicts remain user-only.
 
-CanISend is a preparation dossier tool, not proof of submission.
+这也能投只是材料准备工具，不是提交凭证。
 
 ## Maintainer Release
 
@@ -320,9 +369,9 @@ scripts/release.sh stable --version 0.2.0
 The script updates `pyproject.toml` and `src/canisend/__init__.py`, runs local checks, commits the version bump, pushes the current branch, then creates and pushes the matching git tag:
 
 ```bash
-git tag -a test/v0.2.0.dev1 HEAD -m "CanISend 0.2.0.dev1 TestPyPI"
-git tag -a v0.2.0b1 HEAD -m "CanISend 0.2.0b1 beta"
-git tag -a v0.2.0 HEAD -m "CanISend 0.2.0 stable"
+git tag -a test/v0.2.0.dev1 HEAD -m "canisend 0.2.0.dev1 TestPyPI"
+git tag -a v0.2.0b1 HEAD -m "canisend 0.2.0b1 beta"
+git tag -a v0.2.0 HEAD -m "canisend 0.2.0 stable"
 ```
 
 `release.yml` is the only remote publisher. It always publishes to TestPyPI first, and only promotes `v*` tags to beta or stable PyPI after the TestPyPI publish and smoke test succeed.
@@ -337,10 +386,11 @@ src/canisend/             CLI and application pipeline
 prompts/                  LLM prompt templates
 templates/typst/          modernpro Typst templates
 schemas/                  JSON schema contracts
-agent-skills/             CanISend skill and agent references
+agent-skills/             canisend skill and agent references
 platform-bridges/         AGENTS.md, CLAUDE.md, GEMINI.md workspace bridges
 examples/end_to_end/      fully local fake-data workflow
 tests/                    CLI, pipeline, packaging, release, and contract tests
+assets/                   project logo and README media
 RELEASE.md                maintainer release playbook
 ```
 

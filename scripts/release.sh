@@ -87,6 +87,32 @@ refresh_lock_file() {
   run uv lock
 }
 
+add_unique_bump_file() {
+  local file="$1"
+  local existing
+  [[ -n "$file" ]] || return 0
+
+  for existing in "${bump_files[@]}"; do
+    if [[ "$existing" == "$file" ]]; then
+      return 0
+    fi
+  done
+
+  bump_files+=("$file")
+}
+
+add_changed_tracked_files_to_bump_list() {
+  local file
+
+  while IFS= read -r -d '' file; do
+    add_unique_bump_file "$file"
+  done < <(git diff --name-only -z)
+
+  while IFS= read -r -d '' file; do
+    add_unique_bump_file "$file"
+  done < <(git diff --cached --name-only -z)
+}
+
 commit_version_bump() {
   local version="$1"
   local bump_files=(pyproject.toml src/canisend/__init__.py)
@@ -95,16 +121,18 @@ commit_version_bump() {
   fi
 
   if [[ "$DRY_RUN" == "1" ]]; then
-    print_command git add "${bump_files[@]}"
+    print_command git add -- "${bump_files[@]}"
     print_command git commit -m "chore: bump version to $version"
     return 0
   fi
 
-  if git diff --quiet -- "${bump_files[@]}"; then
+  add_changed_tracked_files_to_bump_list
+
+  if git diff --quiet -- "${bump_files[@]}" && git diff --cached --quiet -- "${bump_files[@]}"; then
     return 0
   fi
 
-  run git add "${bump_files[@]}"
+  run git add -- "${bump_files[@]}"
   run git commit -m "chore: bump version to $version"
 }
 

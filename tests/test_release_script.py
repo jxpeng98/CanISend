@@ -150,3 +150,42 @@ def test_beta_release_bumps_version_files_before_tagging(tmp_path):
     assert "v0.2.0b1" in run_git(repo, "tag", "--points-at", "HEAD").stdout
     assert 'version = "0.2.0b1"' in run_git(repo, "show", "v0.2.0b1:pyproject.toml").stdout
     assert "v0.2.0b1" in run_git(repo, "ls-remote", "--tags", "origin", "v0.2.0b1").stdout
+
+
+def test_release_bump_commit_includes_tracked_files_changed_by_automation(tmp_path):
+    repo = create_minimal_release_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    fake_uv = bin_dir / "uv"
+    fake_uv.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        "if [[ \"${1:-}\" == \"lock\" ]]; then\n"
+        "  printf 'lock refreshed\\n' > uv.lock\n"
+        "  printf 'automation refreshed\\n' > release-state.txt\n"
+        "  exit 0\n"
+        "fi\n"
+        "exit 2\n"
+    )
+    fake_uv.chmod(0o755)
+    (repo / "uv.lock").write_text("initial lock\n")
+    (repo / "release-state.txt").write_text("initial state\n")
+    run_git(repo, "add", "uv.lock", "release-state.txt")
+    run_git(repo, "commit", "-m", "add lock refresh state")
+
+    env = os.environ.copy()
+    env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+    result = subprocess.run(
+        ["bash", "scripts/release.sh", "beta", "--version", "0.2.0b1", "--skip-local-checks"],
+        cwd=repo,
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=env,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "automation refreshed" in run_git(repo, "show", "HEAD:release-state.txt").stdout
+    assert "automation refreshed" in run_git(repo, "show", "v0.2.0b1:release-state.txt").stdout
+    assert run_git(repo, "status", "--porcelain").stdout == ""
