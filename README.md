@@ -326,6 +326,29 @@ agent-skills/canisend/
 
 `prompts/` contains LLM prompt files used by the application pipeline. `agent-skills/` contains agent-readable workflow and quality guidance.
 
+## Skill Distribution
+
+The project also ships a reusable skill pack for cases where you want a narrower agent behavior without opening a CanISend workspace as the active project. The root Codex plugin manifest at `.codex-plugin/plugin.json` exposes `skills/` as a Codex plugin manifest, while the original `agent-skills/canisend/` workspace skill remains unchanged.
+
+Use the main `canisend` skill for full workspace and job-package workflows. Use material-specific skills for focused tasks such as `canisend-research-statement`, `canisend-cover-letter`, `canisend-cv-tailoring`, `canisend-criteria-check`, and `canisend-material-review`.
+
+For a Codex marketplace repository, mount this repository as the plugin source:
+
+```bash
+git submodule add https://github.com/jxpeng98/CanISend plugins/canisend
+```
+
+Then add a marketplace entry that points to `./plugins/canisend`.
+
+To export skills from an installed package instead of a checkout:
+
+```bash
+canisend export-skills --target ~/plugins/canisend --kind codex-plugin
+canisend export-skills --target ~/.claude/skills --kind skills-only
+```
+
+`codex-plugin` writes `.codex-plugin/` plus `skills/`. `skills-only` writes only the skill folders for agents that install skills directly.
+
 ## Privacy Boundaries
 
 This repository is intended to be open source. Personal application data should stay local:
@@ -387,6 +410,8 @@ prompts/                  LLM prompt templates
 templates/typst/          modernpro Typst templates
 schemas/                  JSON schema contracts
 agent-skills/             canisend skill and agent references
+skills/                   reusable Codex and Claude skill pack
+.codex-plugin/            Codex plugin manifest for the skill pack
 platform-bridges/         AGENTS.md, CLAUDE.md, GEMINI.md workspace bridges
 examples/end_to_end/      fully local fake-data workflow
 tests/                    CLI, pipeline, packaging, release, and contract tests

@@ -1,0 +1,4 @@
+interface:
+  display_name: "CanISend Research Statement"
+  short_description: "Strengthen research statements with evidence"
+  default_prompt: "Use $canisend-research-statement to improve this research statement with evidence-backed claims."
