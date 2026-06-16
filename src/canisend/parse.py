@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from canisend.llm import LLMProvider
@@ -129,10 +130,26 @@ def _heading_title(text: str) -> str:
     return ""
 
 
+def _plain_line(line: str) -> str:
+    stripped = line.strip()
+    stripped = re.sub(r"^#+\s*", "", stripped).strip()
+    stripped = re.sub(r"^(?:[-*+]\s+|\d+[\.)]\s+)", "", stripped).strip()
+    stripped = re.sub(r"^#+\s*", "", stripped).strip()
+    return stripped
+
+
+def _bullet_text(line: str) -> str:
+    stripped = line.strip()
+    match = re.match(r"^(?:[-*+]\s+|\d+[\.)]\s+)(.+)$", stripped)
+    if not match:
+        return ""
+    return _plain_line(match.group(1))
+
+
 def _field(text: str, label: str) -> str:
     prefix = f"{label.lower()}:"
     for line in text.splitlines():
-        stripped = line.strip()
+        stripped = _plain_line(line)
         if stripped.lower().startswith(prefix):
             return stripped[len(prefix) :].strip()
     return ""
@@ -150,7 +167,7 @@ def _criteria(text: str, section: str) -> list[dict[str, str]]:
     section_prefix = f"{section} criteria"
 
     for line in text.splitlines():
-        stripped = line.strip()
+        stripped = _plain_line(line)
         lowered = stripped.lower()
         if lowered.startswith("essential criteria"):
             active = section == "essential"
@@ -160,8 +177,9 @@ def _criteria(text: str, section: str) -> list[dict[str, str]]:
             continue
         if lowered.endswith(":") and not lowered.startswith(section_prefix):
             active = False
-        if active and stripped.startswith("- "):
-            criterion = stripped[2:].strip()
+        bullet = _bullet_text(line)
+        if active and bullet:
+            criterion = bullet
             criteria.append({"criterion": criterion, "source_text": criterion})
 
     return criteria
