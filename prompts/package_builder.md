@@ -16,6 +16,12 @@ Combine generated outputs into `06_final_application_package.md`.
 - `04_cv_tailoring_notes.md`
 - `05_criteria_checklist.md`
 
+## Input Context
+
+```json
+{input_context}
+```
+
 ## Output Format
 
 Markdown package with job information, strategy, generated materials, required documents, manual submission notes, and remaining actions.

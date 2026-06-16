@@ -56,6 +56,7 @@ def run_pipeline(
         final_package = generate_final_package_with_provider(
             parsed_job=parsed_job,
             materials=materials,
+            evidence=evidence,
             provider=provider,
             prompt_dir=prompt_dir,
         )
