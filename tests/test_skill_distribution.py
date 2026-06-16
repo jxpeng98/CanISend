@@ -7,6 +7,7 @@ import pytest
 import yaml
 from typer.testing import CliRunner
 
+from canisend import __version__
 from canisend.cli import app
 from canisend.package_check import required_wheel_resources
 
@@ -27,6 +28,7 @@ def test_top_level_codex_plugin_manifest_exposes_skill_pack():
     manifest = json.loads(manifest_path.read_text())
 
     assert manifest["name"] == "canisend"
+    assert manifest["version"] == __version__
     assert manifest["skills"] == "./skills/"
     assert manifest["author"]["name"] == "Peng Jiaxin"
     assert manifest["interface"]["displayName"] == "CanISend"
