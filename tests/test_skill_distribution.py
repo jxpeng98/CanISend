@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -20,6 +21,10 @@ EXPECTED_SKILLS = [
     "canisend-criteria-check",
     "canisend-material-review",
 ]
+
+
+def _strip_ansi(value: str) -> str:
+    return re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", value)
 
 
 def test_top_level_codex_plugin_manifest_exposes_skill_pack():
@@ -133,5 +138,5 @@ def test_export_skills_refuses_non_empty_target_without_overwrite(tmp_path):
     result = runner.invoke(app, ["export-skills", "--target", str(target), "--kind", "codex-plugin"])
 
     assert result.exit_code != 0
-    assert "Use --overwrite" in result.output
+    assert "Use --overwrite" in _strip_ansi(result.output)
     assert (target / "local.txt").read_text() == "keep me\n"
