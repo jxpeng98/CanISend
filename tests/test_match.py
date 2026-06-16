@@ -103,6 +103,29 @@ def test_match_criterion_missing_coverage():
     assert len(result.matched_items) == 0
 
 
+def test_match_criterion_does_not_mark_kind_only_matches_as_strong():
+    items = [
+        EvidenceReference(
+            source_file="profile/generated/cv.evidence.md",
+            section="Research",
+            item_id="cv-001",
+            text="`publication`: Article on medieval trade networks",
+        ),
+        EvidenceReference(
+            source_file="profile/generated/cv.evidence.md",
+            section="Research",
+            item_id="cv-002",
+            text="`conference`: Presentation on archival methods",
+        ),
+    ]
+    index = EvidenceIndex(items)
+
+    result = index.match_criterion("Strong research record in econometrics")
+
+    assert result.coverage == "weak"
+    assert len(result.matched_items) == 2
+
+
 def test_coverage_label():
     items = [
         EvidenceReference(
@@ -203,6 +226,34 @@ def test_format_cv_notes():
     assert "Teaching Assistant" in notes
 
 
+def test_format_cv_notes_preserves_evidence_citations():
+    evidence = EvidenceReference(
+        source_file="profile/generated/cv.evidence.md",
+        section="Teaching",
+        item_id="cv-001",
+        text="Led econometrics seminars.",
+    )
+    match = CriterionMatch(
+        criterion="Teaching experience in econometrics",
+        coverage="partial",
+        matched_items=[evidence],
+        suggestion="Some evidence found.",
+    )
+    parsed_job = {
+        "title": "Lecturer",
+        "institution": "University X",
+        "teaching_fields": ["Econometrics"],
+        "research_fields": ["Economics"],
+    }
+
+    notes = format_cv_notes(parsed_job, [match])
+
+    assert (
+        "Led econometrics seminars. (`profile/generated/cv.evidence.md#Teaching/cv-001`)"
+        in notes
+    )
+
+
 def test_format_cover_letter_draft():
     matches = [
         CriterionMatch(
@@ -227,3 +278,29 @@ def test_format_cover_letter_draft():
     assert "Teaching Assistant" in draft
     assert "Dear Selection Committee" in draft
     assert "Yours sincerely" in draft
+
+
+def test_format_cover_letter_draft_preserves_evidence_citations():
+    evidence = EvidenceReference(
+        source_file="profile/generated/cv.evidence.md",
+        section="Teaching",
+        item_id="cv-001",
+        text="Led econometrics seminars.",
+    )
+    match = CriterionMatch(
+        criterion="Teaching experience in econometrics",
+        coverage="partial",
+        matched_items=[evidence],
+        suggestion="Some evidence found.",
+    )
+    parsed_job = {
+        "title": "Lecturer",
+        "institution": "University X",
+    }
+
+    draft = format_cover_letter_draft(parsed_job, [match])
+
+    assert (
+        "Led econometrics seminars. (`profile/generated/cv.evidence.md#Teaching/cv-001`)"
+        in draft
+    )

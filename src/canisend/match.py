@@ -84,14 +84,18 @@ class EvidenceIndex:
 
     def match_criterion(self, criterion_text: str) -> CriterionMatch:
         matches = self.search(criterion_text)
-        match_count = len(matches)
         related_kinds = _criterion_kinds(criterion_text.lower())
+        direct_matches = [
+            item
+            for item in matches
+            if _direct_overlap_score(criterion_text.lower(), item) > 0
+        ]
 
-        if match_count >= 2:
+        if len(direct_matches) >= 2:
             coverage = "strong"
-        elif match_count == 1:
+        elif len(direct_matches) == 1:
             coverage = "partial"
-        elif related_kinds:
+        elif matches or related_kinds:
             coverage = "weak"
         else:
             coverage = "missing"
@@ -106,12 +110,16 @@ class EvidenceIndex:
 
 
 def coverage_label(matches: list[EvidenceReference], criterion_text: str) -> str:
-    match_count = len(matches)
-    if match_count >= 2:
+    direct_match_count = sum(
+        1
+        for item in matches
+        if _direct_overlap_score(criterion_text.lower(), item) > 0
+    )
+    if direct_match_count >= 2:
         return "strong"
-    if match_count == 1:
+    if direct_match_count == 1:
         return "partial"
-    if _criterion_kinds(criterion_text.lower()):
+    if matches or _criterion_kinds(criterion_text.lower()):
         return "weak"
     return "missing"
 
@@ -177,11 +185,11 @@ def format_cover_letter_draft(parsed_job: dict, matches: list[CriterionMatch]) -
         if m.coverage in ("strong", "partial") and m.matched_items:
             kind_text = _primary_kind(m)
             if kind_text in ("research", "publication"):
-                sections["research"].extend(item.text for item in m.matched_items[:2])
+                sections["research"].extend(_evidence_bullet(item) for item in m.matched_items[:2])
             elif kind_text in ("teaching", "supervision"):
-                sections["teaching"].extend(item.text for item in m.matched_items[:2])
+                sections["teaching"].extend(_evidence_bullet(item) for item in m.matched_items[:2])
             elif kind_text == "service":
-                sections["service"].extend(item.text for item in m.matched_items[:2])
+                sections["service"].extend(_evidence_bullet(item) for item in m.matched_items[:2])
 
     lines = [
         "# Cover Letter Draft",
@@ -232,9 +240,9 @@ def format_cv_notes(parsed_job: dict, matches: list[CriterionMatch]) -> str:
         if m.coverage in ("strong", "partial") and m.matched_items:
             kind = _primary_kind(m)
             if kind in ("teaching", "supervision"):
-                teaching_items.extend(item.text for item in m.matched_items[:1])
+                teaching_items.extend(_evidence_bullet(item) for item in m.matched_items[:1])
             elif kind in ("research", "publication"):
-                research_items.extend(item.text for item in m.matched_items[:1])
+                research_items.extend(_evidence_bullet(item) for item in m.matched_items[:1])
 
     lines = ["# CV Tailoring Notes", ""]
 
@@ -341,6 +349,15 @@ def _match_score(query: str, item: EvidenceReference) -> int:
     return score
 
 
+def _direct_overlap_score(query: str, item: EvidenceReference) -> int:
+    item_text = item.text.lower()
+    return sum(
+        1
+        for token in _tokenize(query)
+        if len(token) >= 4 and token in item_text
+    )
+
+
 def _coverage_suggestion(
     coverage: str,
     criterion: str,
@@ -377,6 +394,10 @@ def _kind_summary(evidence: list[EvidenceReference]) -> str:
         kinds.update(_target_kinds(item))
     kinds.discard("unknown")
     return ", ".join(sorted(kinds)) if kinds else "no categorized kinds"
+
+
+def _evidence_bullet(item: EvidenceReference) -> str:
+    return f"{item.text} (`{item.citation}`)"
 
 
 def _primary_kind(match: CriterionMatch) -> str:
