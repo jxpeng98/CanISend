@@ -71,12 +71,26 @@ update_version_files() {
   if [[ "$DRY_RUN" == "1" ]]; then
     print_command sed -i.bak -E "s/^version = \"[^\"]+\"/version = \"$version\"/" pyproject.toml
     print_command sed -i.bak -E "s/^__version__ = \"[^\"]+\"/__version__ = \"$version\"/" src/canisend/__init__.py
+    if [[ -f README.md ]]; then
+      print_command sed -i.bak -E "s/TestPyPI-[0-9][0-9A-Za-z.]*-blue/TestPyPI-$version-blue/g" README.md
+      print_command sed -i.bak -E "s/canisend==[0-9][0-9A-Za-z.]*/canisend==$version/g" README.md
+    fi
+    if [[ -f .codex-plugin/plugin.json ]]; then
+      print_command sed -i.bak -E "s/\"version\": \"[^\"]+\"/\"version\": \"$version\"/" .codex-plugin/plugin.json
+    fi
     return 0
   fi
 
   sed -i.bak -E "s/^version = \"[^\"]+\"/version = \"$version\"/" pyproject.toml
   sed -i.bak -E "s/^__version__ = \"[^\"]+\"/__version__ = \"$version\"/" src/canisend/__init__.py
-  rm -f pyproject.toml.bak src/canisend/__init__.py.bak
+  if [[ -f README.md ]]; then
+    sed -i.bak -E "s/TestPyPI-[0-9][0-9A-Za-z.]*-blue/TestPyPI-$version-blue/g" README.md
+    sed -i.bak -E "s/canisend==[0-9][0-9A-Za-z.]*/canisend==$version/g" README.md
+  fi
+  if [[ -f .codex-plugin/plugin.json ]]; then
+    sed -i.bak -E "s/\"version\": \"[^\"]+\"/\"version\": \"$version\"/" .codex-plugin/plugin.json
+  fi
+  rm -f pyproject.toml.bak src/canisend/__init__.py.bak README.md.bak .codex-plugin/plugin.json.bak
 }
 
 refresh_lock_file() {
@@ -118,6 +132,12 @@ commit_version_bump() {
   local bump_files=(pyproject.toml src/canisend/__init__.py)
   if [[ -f uv.lock ]]; then
     bump_files+=(uv.lock)
+  fi
+  if [[ -f README.md ]]; then
+    bump_files+=(README.md)
+  fi
+  if [[ -f .codex-plugin/plugin.json ]]; then
+    bump_files+=(.codex-plugin/plugin.json)
   fi
 
   if [[ "$DRY_RUN" == "1" ]]; then

@@ -38,10 +38,18 @@ def create_minimal_release_repo(tmp_path: Path) -> Path:
     repo.mkdir()
     (repo / "scripts").mkdir()
     (repo / "src" / "canisend").mkdir(parents=True)
+    (repo / ".codex-plugin").mkdir()
 
     shutil.copy2(SCRIPT, repo / "scripts" / "release.sh")
     (repo / "pyproject.toml").write_text('[project]\nname = "canisend"\nversion = "0.1.0"\n')
     (repo / "src" / "canisend" / "__init__.py").write_text('__version__ = "0.1.0"\n')
+    (repo / "README.md").write_text(
+        "![TestPyPI](https://img.shields.io/badge/TestPyPI-0.1.0-blue)\n"
+        "Install `canisend==0.1.0` from TestPyPI.\n"
+    )
+    (repo / ".codex-plugin" / "plugin.json").write_text(
+        '{\n  "name": "canisend",\n  "version": "0.1.0"\n}\n'
+    )
 
     origin = tmp_path / "origin.git"
     subprocess.run(["git", "init", "--bare", str(origin)], check=True, text=True, capture_output=True)
@@ -49,7 +57,15 @@ def create_minimal_release_repo(tmp_path: Path) -> Path:
     run_git(repo, "config", "user.name", "Release Test")
     run_git(repo, "config", "user.email", "release-test@example.com")
     run_git(repo, "remote", "add", "origin", str(origin))
-    run_git(repo, "add", "pyproject.toml", "src/canisend/__init__.py", "scripts/release.sh")
+    run_git(
+        repo,
+        "add",
+        "pyproject.toml",
+        "src/canisend/__init__.py",
+        "README.md",
+        ".codex-plugin/plugin.json",
+        "scripts/release.sh",
+    )
     run_git(repo, "commit", "-m", "initial")
     return repo
 
@@ -146,9 +162,14 @@ def test_beta_release_bumps_version_files_before_tagging(tmp_path):
     assert result.returncode == 0, result.stderr
     assert 'version = "0.2.0b1"' in (repo / "pyproject.toml").read_text()
     assert '__version__ = "0.2.0b1"' in (repo / "src" / "canisend" / "__init__.py").read_text()
+    assert "TestPyPI-0.2.0b1-blue" in (repo / "README.md").read_text()
+    assert "canisend==0.2.0b1" in (repo / "README.md").read_text()
+    assert '"version": "0.2.0b1"' in (repo / ".codex-plugin" / "plugin.json").read_text()
     assert "chore: bump version to 0.2.0b1" in run_git(repo, "log", "-1", "--pretty=%s").stdout
     assert "v0.2.0b1" in run_git(repo, "tag", "--points-at", "HEAD").stdout
     assert 'version = "0.2.0b1"' in run_git(repo, "show", "v0.2.0b1:pyproject.toml").stdout
+    assert "TestPyPI-0.2.0b1-blue" in run_git(repo, "show", "v0.2.0b1:README.md").stdout
+    assert '"version": "0.2.0b1"' in run_git(repo, "show", "v0.2.0b1:.codex-plugin/plugin.json").stdout
     assert "v0.2.0b1" in run_git(repo, "ls-remote", "--tags", "origin", "v0.2.0b1").stdout
 
 
