@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 import shutil
 import sys
@@ -8,6 +9,7 @@ import yaml
 from typer.testing import CliRunner
 
 from canisend.cli import app
+from canisend.workspace import doctor_lines
 
 
 def test_init_workspace_creates_user_layout_and_default_resources(tmp_path):
@@ -132,6 +134,49 @@ def test_doctor_reports_workspace_and_provider_status(tmp_path, monkeypatch):
     assert "profile/profile.yaml" in result.output
     assert "agent skill" in result.output
     assert "LLM provider: command" in result.output
+
+
+def test_doctor_includes_config_warning_details(tmp_path):
+    workspace = tmp_path / "workspace"
+    runner = CliRunner()
+    runner.invoke(app, ["init-workspace", "--workspace", str(workspace), "--profile-mode", "typst"])
+    config_path = workspace / "canisend.yaml"
+    config = yaml.safe_load(config_path.read_text())
+    config["surprise_key"] = "unexpected"
+    config_path.write_text(yaml.safe_dump(config, sort_keys=False))
+
+    config_line = next(line for line in doctor_lines(workspace) if line.startswith("- Config validation:"))
+
+    assert "Unknown key in canisend.yaml: 'surprise_key'" in config_line
+    assert "see doctor output" not in config_line
+
+
+def test_doctor_checks_staleness_for_custom_generated_evidence_path(tmp_path):
+    workspace = tmp_path / "workspace"
+    runner = CliRunner()
+    runner.invoke(app, ["init-workspace", "--workspace", str(workspace), "--profile-mode", "typst"])
+    profile_dir = workspace / "profile"
+    manifest_path = profile_dir / "profile.yaml"
+    manifest = yaml.safe_load(manifest_path.read_text())
+    manifest["sources"] = {"cv": "typst/cv.typ"}
+    manifest["generated"] = {"cv_evidence": "custom/cv-items.md"}
+    manifest_path.write_text(yaml.safe_dump(manifest, sort_keys=False))
+    source_path = profile_dir / "typst" / "cv.typ"
+    evidence_path = profile_dir / "custom" / "cv-items.md"
+    evidence_path.parent.mkdir(parents=True)
+    evidence_path.write_text("# Evidence\n")
+    os.utime(source_path, (100, 100))
+    os.utime(evidence_path, (200, 200))
+
+    lines = doctor_lines(workspace)
+
+    assert "- Evidence staleness: up to date" in lines
+
+    os.utime(source_path, (300, 300))
+
+    lines = doctor_lines(workspace)
+
+    assert "- Evidence staleness: STALE (cv source(s) newer than generated evidence)" in lines
 
 
 def test_new_job_uses_workspace_config_when_called_from_elsewhere(tmp_path, monkeypatch):

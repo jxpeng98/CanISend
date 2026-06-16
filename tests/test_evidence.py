@@ -135,6 +135,57 @@ def test_extract_profile_evidence_writes_stable_item_ids_and_loads_item_level_re
     assert references[1].item_id == "cv-002"
 
 
+def test_load_generated_evidence_uses_manifest_custom_generated_paths(tmp_path):
+    profile_dir = tmp_path / "profile"
+    typst_dir = profile_dir / "typst"
+    typst_dir.mkdir(parents=True)
+    (profile_dir / "profile.yaml").write_text(
+        "sources:\n"
+        "  cv: typst/cv.typ\n"
+        "generated:\n"
+        "  cv_evidence: custom/cv-items.md\n"
+    )
+    (typst_dir / "cv.typ").write_text(
+        '#section("Teaching")\n'
+        '#job(position: "Teaching Assistant", institution: [University X], date: "2023")\n'
+    )
+
+    extract_profile_evidence(profile_dir)
+
+    references = load_generated_evidence(profile_dir)
+
+    assert len(references) == 1
+    assert references[0].source_file == "profile/custom/cv-items.md"
+    assert references[0].section == "Teaching"
+    assert references[0].item_id == "cv-001"
+    assert references[0].citation == "profile/custom/cv-items.md#Teaching/cv-001"
+
+
+def test_load_generated_evidence_does_not_fallback_when_manifest_custom_path_is_missing(tmp_path):
+    profile_dir = tmp_path / "profile"
+    typst_dir = profile_dir / "typst"
+    generated_dir = profile_dir / "generated"
+    typst_dir.mkdir(parents=True)
+    generated_dir.mkdir()
+    (profile_dir / "profile.yaml").write_text(
+        "sources:\n"
+        "  cv: typst/cv.typ\n"
+        "generated:\n"
+        "  cv_evidence: custom/cv-items.md\n"
+    )
+    (typst_dir / "cv.typ").write_text(
+        '#section("Teaching")\n'
+        '#job(position: "Teaching Assistant", institution: [University X], date: "2023")\n'
+    )
+    (generated_dir / "cv.evidence.md").write_text(
+        "# Evidence: cv\n\n"
+        "## Teaching\n\n"
+        "- [cv-001] `job`: old default evidence\n"
+    )
+
+    assert load_generated_evidence(profile_dir) == []
+
+
 def test_extract_profile_evidence_cli_writes_generated_evidence(tmp_path):
     profile_dir = tmp_path / "profile"
     typst_dir = profile_dir / "typst"
