@@ -210,3 +210,56 @@ def test_release_bump_commit_includes_tracked_files_changed_by_automation(tmp_pa
     assert "automation refreshed" in run_git(repo, "show", "HEAD:release-state.txt").stdout
     assert "automation refreshed" in run_git(repo, "show", "v0.2.0b1:release-state.txt").stdout
     assert run_git(repo, "status", "--porcelain").stdout == ""
+
+
+def test_release_checks_only_current_version_distributions(tmp_path):
+    repo = create_minimal_release_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    fake_uv = bin_dir / "uv"
+    fake_uv.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        "if [[ \"${1:-}\" == \"lock\" ]]; then exit 0; fi\n"
+        "if [[ \"${1:-}\" == \"run\" && \"${2:-}\" == \"pytest\" ]]; then exit 0; fi\n"
+        "if [[ \"${1:-}\" == \"build\" ]]; then\n"
+        "  mkdir -p dist\n"
+        "  : > dist/canisend-0.1.0-py3-none-any.whl\n"
+        "  : > dist/canisend-0.1.0.tar.gz\n"
+        "  : > dist/canisend-0.2.0b1-py3-none-any.whl\n"
+        "  : > dist/canisend-0.2.0b1.tar.gz\n"
+        "  exit 0\n"
+        "fi\n"
+        "if [[ \"${1:-}\" == \"run\" && \"${2:-}\" == \"python\" ]]; then\n"
+        "  printf '%s\\n' \"$*\" > package-check-args.txt\n"
+        "  exit 0\n"
+        "fi\n"
+        "exit 2\n"
+    )
+    fake_uv.chmod(0o755)
+    fake_uvx = bin_dir / "uvx"
+    fake_uvx.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        "printf '%s\\n' \"$*\" > twine-args.txt\n"
+    )
+    fake_uvx.chmod(0o755)
+
+    env = os.environ.copy()
+    env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+    result = subprocess.run(
+        ["bash", "scripts/release.sh", "beta", "--version", "0.2.0b1"],
+        cwd=repo,
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=env,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "dist/canisend-0.2.0b1-py3-none-any.whl" in (repo / "twine-args.txt").read_text()
+    assert "dist/canisend-0.2.0b1.tar.gz" in (repo / "twine-args.txt").read_text()
+    assert "dist/canisend-0.1.0" not in (repo / "twine-args.txt").read_text()
+    assert "dist/canisend-0.2.0b1-py3-none-any.whl" in (repo / "package-check-args.txt").read_text()
+    assert "dist/canisend-0.1.0" not in (repo / "package-check-args.txt").read_text()

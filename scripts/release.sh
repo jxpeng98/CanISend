@@ -174,11 +174,14 @@ validate_version_for_channel() {
 }
 
 local_release_checks() {
+  local version
+  version="$(read_project_version)"
+
   run uv run pytest -v
   run uv build
 
-  local distributions=(dist/*)
-  local wheels=(dist/*.whl)
+  local distributions=(dist/canisend-"$version"*)
+  local wheels=(dist/canisend-"$version"-*.whl)
 
   ((${#distributions[@]} > 0)) || die "uv build did not create any distributions under dist/"
   ((${#wheels[@]} > 0)) || die "uv build did not create a wheel under dist/"
