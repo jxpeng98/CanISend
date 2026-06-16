@@ -164,7 +164,8 @@ def run_example(
     try:
         result = run_packaged_example(workspace, overwrite=overwrite)
     except ValueError as exc:
-        raise typer.BadParameter(str(exc)) from exc
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
 
     typer.echo(f"Example workflow complete at {result.workspace}")
     typer.echo(f"Job: {result.job_dir.relative_to(result.workspace)}")
