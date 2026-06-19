@@ -72,6 +72,7 @@ def generate_final_package_with_provider(
     *,
     parsed_job: dict[str, Any],
     materials: ApplicationMaterials,
+    evidence: list[EvidenceReference],
     provider: LLMProvider,
     prompt_dir: Path = Path("prompts"),
 ) -> str:
@@ -93,11 +94,17 @@ def generate_final_package_with_provider(
         default=str,
     )
     prompt = prompt_text.replace("{input_context}", input_context)
-    return provider.complete(prompt).content.strip() + "\n"
+    content = provider.complete(prompt).content.strip() + "\n"
+    validate_markdown_citations(
+        "final_package",
+        content,
+        evidence,
+        require_citation=bool(evidence),
+    )
+    return content
 
 
 def validate_material_citations(materials: ApplicationMaterials, evidence: list[EvidenceReference]) -> None:
-    allowed = _allowed_citations(evidence)
     required = {
         "fit_report": materials.fit_report,
         "cover_letter_draft": materials.cover_letter_draft,
@@ -106,12 +113,23 @@ def validate_material_citations(materials: ApplicationMaterials, evidence: list[
     }
 
     for name, markdown in required.items():
-        citations = _markdown_citations(markdown)
-        unknown = sorted(citations - allowed)
-        if unknown:
-            raise MaterialValidationError(f"{name} contains unknown evidence citation: {unknown[0]}")
-        if evidence and not citations:
-            raise MaterialValidationError(f"{name} must cite at least one profile evidence reference")
+        validate_markdown_citations(name, markdown, evidence, require_citation=True)
+
+
+def validate_markdown_citations(
+    name: str,
+    markdown: str,
+    evidence: list[EvidenceReference],
+    *,
+    require_citation: bool = False,
+) -> None:
+    allowed = _allowed_citations(evidence)
+    citations = _markdown_citations(markdown)
+    unknown = sorted(citations - allowed)
+    if unknown:
+        raise MaterialValidationError(f"{name} contains unknown evidence citation: {unknown[0]}")
+    if require_citation and evidence and not citations:
+        raise MaterialValidationError(f"{name} must cite at least one profile evidence reference")
 
 
 def _complete_material(

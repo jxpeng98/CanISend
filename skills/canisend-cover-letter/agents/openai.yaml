@@ -1,0 +1,4 @@
+interface:
+  display_name: "CanISend Cover Letter"
+  short_description: "Tailor cover letters to job criteria"
+  default_prompt: "Use $canisend-cover-letter to tailor this cover letter to the job criteria."

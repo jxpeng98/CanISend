@@ -170,12 +170,8 @@ def extract_profile_evidence(profile_dir: Path) -> list[Path]:
 
 
 def load_generated_evidence(profile_dir: Path) -> list[EvidenceReference]:
-    generated_dir = profile_dir / "generated"
-    if not generated_dir.exists():
-        return []
-
     references: list[EvidenceReference] = []
-    for path in sorted(generated_dir.glob("*.evidence.md")):
+    for path in _generated_evidence_paths(profile_dir):
         section = "Unsectioned"
         relative = path.relative_to(profile_dir.parent) if profile_dir.parent in path.parents else path
         for raw_line in path.read_text(encoding="utf-8").splitlines():
@@ -193,6 +189,53 @@ def load_generated_evidence(profile_dir: Path) -> list[EvidenceReference]:
                     )
                 )
     return references
+
+
+def _generated_evidence_paths(profile_dir: Path) -> list[Path]:
+    manifest_paths = _manifest_generated_evidence_paths(profile_dir)
+    if manifest_paths is not None:
+        return manifest_paths
+
+    generated_dir = profile_dir / "generated"
+    if not generated_dir.exists():
+        return []
+    return sorted(generated_dir.glob("*.evidence.md"))
+
+
+def _manifest_generated_evidence_paths(profile_dir: Path) -> list[Path] | None:
+    manifest_path = profile_dir / "profile.yaml"
+    if not manifest_path.exists():
+        return None
+
+    try:
+        manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+    except yaml.YAMLError:
+        return None
+    if not isinstance(manifest, dict):
+        return None
+
+    sources = manifest.get("sources")
+    generated = manifest.get("generated")
+    if sources is None and generated is None:
+        return None
+    if sources is not None and not isinstance(sources, dict):
+        return None
+    if generated is not None and not isinstance(generated, dict):
+        return None
+
+    source_map = sources or {}
+    generated_map = generated or {}
+    paths: list[Path] = []
+
+    for source_key, source_value in source_map.items():
+        if not str(source_value).endswith(".typ"):
+            continue
+        paths.append(_output_path_for_source(profile_dir, str(source_key), generated_map))
+
+    paths.extend(profile_dir / Path(str(path)) for path in generated_map.values())
+
+    unique_paths = sorted({path for path in paths if path.exists()})
+    return unique_paths
 
 
 def _typst_call_name(line: str) -> str:

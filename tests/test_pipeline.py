@@ -318,7 +318,7 @@ def test_run_pipeline_can_use_llm_drafts_with_command_provider(tmp_path, monkeyp
         "elif '# Criteria Checker' in prompt:\n"
         "    print(f'# Criteria Coverage Checklist\\n\\n| Criterion | Coverage | Evidence Source | Risk | Suggested Improvement |\\n|---|---|---|---|---|\\n| Evidence of teaching excellence | strong | {citation} | low | Keep the evidence visible. |')\n"
         "elif '# Package Builder' in prompt:\n"
-        "    print('# Final Application Package\\n\\n## Job Information\\n\\n- Title: Lecturer in Economics\\n- Institution: University X')\n"
+        "    print(f'# Final Application Package\\n\\n## Job Information\\n\\n- Title: Lecturer in Economics\\n- Institution: University X\\n- Evidence: {citation}')\n"
         "else:\n"
         "    raise SystemExit('unexpected prompt')\n"
     )

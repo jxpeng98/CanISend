@@ -30,9 +30,11 @@ def test_run_example_command_creates_complete_local_workspace(tmp_path, monkeypa
     cover_content = json.loads((job_dir / "typst" / "cover_letter_content.json").read_text())
     package_content = json.loads((job_dir / "typst" / "application_package_content.json").read_text())
     job_metadata = (job_dir / "job.yaml").read_text()
+    final_package = (job_dir / "06_final_application_package.md").read_text()
 
     assert parsed_job["title"] == "Lecturer in Applied Economics"
     assert cover_content["recipient"]["institution"] == "Example University"
+    assert final_package.startswith("# Final Application Package\n")
     assert "profile/generated/cv.evidence.md#Teaching" in package_content["cover_letter"]
     assert (job_dir / "07_material_review_checklist.md").exists()
     assert (job_dir / "typst" / "application_package.typ").exists()
@@ -124,10 +126,12 @@ def test_end_to_end_example_runs_full_local_workflow(tmp_path, monkeypatch):
     cover_content = json.loads((job_dir / "typst" / "cover_letter_content.json").read_text())
     package_content = json.loads((job_dir / "typst" / "application_package_content.json").read_text())
     cover_source = (job_dir / "typst" / "cover_letter.typ").read_text()
+    final_package = (job_dir / "06_final_application_package.md").read_text()
 
     assert parsed_job["title"] == "Lecturer in Applied Economics"
     assert cover_content["recipient"]["institution"] == "Example University"
     assert "econometrics teaching" in cover_content["sections"]["teaching_fit"]
+    assert final_package.startswith("# Final Application Package\n")
     assert "profile/generated/cv.evidence.md#Teaching" in package_content["cover_letter"]
     assert 'json("cover_letter_content.json")' in cover_source
     assert '@preview/modernpro-coverletter:0.0.8' in cover_source

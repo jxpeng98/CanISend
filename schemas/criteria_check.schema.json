@@ -1,6 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "CriteriaCheck",
+  "description": "Structured content contract for criteria checklist rows. Current CanISend CLI outputs 05_criteria_checklist.md as Markdown; this schema is for future JSON/structured exports or parsed row-equivalent validation, not direct Markdown-file validation.",
   "type": "object",
   "required": ["criteria"],
   "properties": {
@@ -13,7 +14,7 @@
           "criterion": {"type": "string"},
           "coverage": {"enum": ["strong", "partial", "weak", "missing"]},
           "evidence_source": {"type": "string"},
-          "risk": {"enum": ["low", "medium", "high"]},
+          "risk": {"enum": ["Low", "Medium", "High"]},
           "suggested_improvement": {"type": "string"}
         }
       }

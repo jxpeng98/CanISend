@@ -15,10 +15,11 @@ def main() -> None:
             raise SystemExit(f"fake provider received secret env var: {key}")
 
     prompt = sys.stdin.read()
-    if "# Job Parser" in prompt:
+    heading = first_prompt_heading(prompt)
+    if heading == "# Job Parser":
         print(json.dumps(parsed_job(), indent=2))
         return
-    if "# Profile Matcher" in prompt:
+    if heading == "# Profile Matcher":
         print(
             "# Fit Report\n\n"
             f"- Strong teaching fit: the profile includes econometrics teaching evidence ({CITATION}).\n"
@@ -26,7 +27,7 @@ def main() -> None:
             "- Gap: add department-specific evidence after reviewing the full advert.\n"
         )
         return
-    if "# Cover Letter Writer" in prompt:
+    if heading == "# Cover Letter Writer":
         print(
             "# Cover Letter Draft\n\n"
             "Dear Selection Committee,\n\n"
@@ -43,14 +44,14 @@ def main() -> None:
             "[Applicant name]\n"
         )
         return
-    if "# CV Tailor" in prompt:
+    if heading == "# CV Tailor":
         print(
             "# CV Tailoring Notes\n\n"
             f"- Move econometrics teaching evidence higher in the CV ({CITATION}).\n"
             f"- Foreground applied economics projects only where the profile supports them ({CITATION}).\n"
         )
         return
-    if "# Criteria Checker" in prompt:
+    if heading == "# Criteria Checker":
         print(
             "# Criteria Coverage Checklist\n\n"
             "| Criterion | Coverage | Evidence Source | Risk | Suggested Improvement |\n"
@@ -59,14 +60,14 @@ def main() -> None:
             f"| Active research agenda in applied economics | partial | {CITATION} | medium | Add a research-project citation from the profile before final use. |\n"
         )
         return
-    if "# Package Builder" in prompt:
+    if heading == "# Package Builder":
         print(
             "# Final Application Package\n\n"
             "## Job Information\n\n"
             "- Title: Lecturer in Applied Economics\n"
             "- Institution: Example University\n\n"
             "## Application Strategy\n\n"
-            "Use the extracted criteria to decide the main application angle.\n\n"
+            f"Use the extracted criteria to decide the main application angle ({CITATION}).\n\n"
             "## Required Documents\n\n"
             "- [ ] CV\n- [ ] Cover letter\n- [ ] Research statement\n- [ ] Teaching statement\n\n"
             "## Manual Submission Notes\n\n"
@@ -74,6 +75,14 @@ def main() -> None:
         )
         return
     raise SystemExit("fake provider received an unknown prompt")
+
+
+def first_prompt_heading(prompt: str) -> str:
+    for raw_line in prompt.splitlines():
+        line = raw_line.strip()
+        if line.startswith("#"):
+            return line
+    return ""
 
 
 def parsed_job() -> dict:

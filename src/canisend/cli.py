@@ -8,6 +8,7 @@ from canisend.jobs import create_job, create_job_from_lead, list_jobs as list_jo
 from canisend.pipeline import run_pipeline as run_job_pipeline
 from canisend.profile import init_profile as create_profile
 from canisend.rss import fetch_rss_text, filter_job_leads, parse_jobs_ac_uk_rss, write_job_leads
+from canisend.skill_distribution import export_skill_distribution
 from canisend.typst import render_typst_files
 from canisend.workspace import (
     doctor_lines,
@@ -106,6 +107,33 @@ def update_workspace(
         typer.echo("No default files changed; existing local files were left unchanged.")
 
 
+@app.command("export-skills")
+def export_skills(
+    target: Path = typer.Option(
+        ...,
+        "--target",
+        help="Directory to receive the CanISend skill distribution.",
+    ),
+    kind: str = typer.Option(
+        "codex-plugin",
+        "--kind",
+        help="Export kind: codex-plugin or skills-only.",
+    ),
+    overwrite: bool = typer.Option(
+        False,
+        "--overwrite",
+        help="Write into a non-empty target directory.",
+    ),
+) -> None:
+    """Export packaged CanISend skills for Codex marketplace or Claude skills usage."""
+    try:
+        copied = export_skill_distribution(target, kind=kind, overwrite=overwrite)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    typer.echo(f"Exported CanISend {kind} distribution to {target}")
+    typer.echo(f"Wrote {len(copied)} files.")
+
+
 @app.command("doctor")
 def doctor(
     workspace: Path = typer.Option(
@@ -136,7 +164,8 @@ def run_example(
     try:
         result = run_packaged_example(workspace, overwrite=overwrite)
     except ValueError as exc:
-        raise typer.BadParameter(str(exc)) from exc
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
 
     typer.echo(f"Example workflow complete at {result.workspace}")
     typer.echo(f"Job: {result.job_dir.relative_to(result.workspace)}")

@@ -241,6 +241,17 @@ def test_readme_documents_core_workflow_and_agent_usage():
     assert "CLAUDE.md" in readme
 
 
+def test_readme_documents_skill_distribution_pack():
+    root = Path(__file__).resolve().parents[1]
+    readme = (root / "README.md").read_text()
+
+    assert "## Skill Distribution" in readme
+    assert "canisend export-skills" in readme
+    assert "git submodule add https://github.com/jxpeng98/CanISend plugins/canisend" in readme
+    assert "canisend-research-statement" in readme
+    assert "Codex plugin manifest" in readme
+
+
 def test_docs_record_material_review_management_artifact():
     root = Path(__file__).resolve().parents[1]
     readme = (root / "README.md").read_text()

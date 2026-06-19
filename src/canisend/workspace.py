@@ -133,22 +133,31 @@ def _evidence_staleness_line(workspace: Path) -> str:
 
         manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
         sources = manifest.get("sources", {})
+        generated = manifest.get("generated", {})
         stale: list[str] = []
         for source_key, source_value in sources.items():
             source_path = profile_dir / source_value
             if not source_path.exists():
                 continue
-            gen_dir = profile_dir / "generated"
-            evidence_path = gen_dir / f"{source_key}.evidence.md"
+            evidence_path = _generated_evidence_path(profile_dir, source_key, generated)
             if evidence_path.exists() and source_path.stat().st_mtime > evidence_path.stat().st_mtime:
                 stale.append(source_key)
         if stale:
             return f"- Evidence staleness: STALE ({', '.join(stale)} source(s) newer than generated evidence)"
-        if sources and any((profile_dir / "generated" / f"{k}.evidence.md").exists() for k in sources):
+        if sources and any(_generated_evidence_path(profile_dir, k, generated).exists() for k in sources):
             return "- Evidence staleness: up to date"
         return "- Evidence staleness: no generated evidence found (run extract-profile-evidence)"
     except Exception:
         return "- Evidence staleness: check failed"
+
+
+def _generated_evidence_path(profile_dir: Path, source_key: str, generated: object) -> Path:
+    default_output = f"generated/{source_key}.evidence.md"
+    if isinstance(generated, dict):
+        output = generated.get(f"{source_key}_evidence", default_output)
+    else:
+        output = default_output
+    return profile_dir / Path(str(output))
 
 
 def _config_validation_line(workspace: Path) -> str:
@@ -157,7 +166,7 @@ def _config_validation_line(workspace: Path) -> str:
     warnings = validate_workspace_config(workspace / WORKSPACE_CONFIG)
     if not warnings:
         return "- Config validation: ok"
-    return f"- Config validation: {len(warnings)} warning(s) (see doctor output for details)"
+    return f"- Config validation: {'; '.join(warnings)}"
 
 
 def _llm_status_line(config: LLMConfig) -> str:

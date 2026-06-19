@@ -29,6 +29,13 @@ def test_package_version_matches_project_metadata():
     assert __version__ == metadata["project"]["version"]
 
 
+def test_readme_testpypi_version_matches_package_version():
+    readme = Path("README.md").read_text()
+
+    assert f"canisend=={__version__}" in readme
+    assert f"TestPyPI-{__version__}-blue" in readme
+
+
 def test_project_metadata_is_ready_for_public_package_index():
     metadata = tomllib.loads(Path("pyproject.toml").read_text())["project"]
 

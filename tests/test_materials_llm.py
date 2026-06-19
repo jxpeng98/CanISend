@@ -5,9 +5,20 @@ from canisend.llm import LLMResponse
 from canisend.materials import (
     ApplicationMaterials,
     MaterialValidationError,
+    generate_final_package_with_provider,
     generate_materials_with_provider,
     validate_material_citations,
 )
+
+
+class FakeProvider:
+    def __init__(self, content: str) -> None:
+        self.content = content
+        self.prompts: list[str] = []
+
+    def complete(self, prompt: str) -> LLMResponse:
+        self.prompts.append(prompt)
+        return LLMResponse(content=self.content, provider="fake")
 
 
 class RoutingProvider:
@@ -98,6 +109,46 @@ def test_generate_materials_with_provider_injects_context_and_validates_citation
     assert len(provider.prompts) == 4
     assert all("profile/generated/cv.evidence.md#Teaching/cv-001" in prompt for prompt in provider.prompts)
     assert all("Evidence of teaching excellence" in prompt for prompt in provider.prompts)
+
+
+def test_generate_final_package_with_provider_rejects_unknown_citation():
+    provider = FakeProvider(
+        "# Final Package\n\nClaim (`profile/generated/cv.evidence.md#Teaching/unknown`)."
+    )
+    materials = ApplicationMaterials(
+        fit_report="# Fit\n\nClaim (`profile/generated/cv.evidence.md#Teaching/cv-001`).",
+        cover_letter_draft="# Cover\n\nClaim (`profile/generated/cv.evidence.md#Teaching/cv-001`).",
+        cv_tailoring_notes="# Notes\n\nClaim (`profile/generated/cv.evidence.md#Teaching/cv-001`).",
+        criteria_checklist="# Criteria\n\nClaim (`profile/generated/cv.evidence.md#Teaching/cv-001`).",
+    )
+
+    with pytest.raises(MaterialValidationError, match="final_package contains unknown evidence citation"):
+        generate_final_package_with_provider(
+            parsed_job=parsed_job(),
+            materials=materials,
+            evidence=evidence(),
+            provider=provider,
+        )
+
+
+def test_generate_final_package_with_provider_sends_citation_context_to_provider():
+    citation = "profile/generated/cv.evidence.md#Teaching/cv-001"
+    provider = FakeProvider(f"# Final Package\n\nClaim (`{citation}`).")
+    materials = ApplicationMaterials(
+        fit_report=f"# Fit\n\nClaim (`{citation}`).",
+        cover_letter_draft=f"# Cover\n\nClaim (`{citation}`).",
+        cv_tailoring_notes=f"# Notes\n\nClaim (`{citation}`).",
+        criteria_checklist=f"# Criteria\n\nClaim (`{citation}`).",
+    )
+
+    generate_final_package_with_provider(
+        parsed_job=parsed_job(),
+        materials=materials,
+        evidence=evidence(),
+        provider=provider,
+    )
+
+    assert citation in provider.prompts[0]
 
 
 def test_validate_material_citations_rejects_unknown_profile_reference():

@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://github.com/jxpeng98/CanISend/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/jxpeng98/CanISend/ci.yml?branch=main&label=ci" alt="CI status"></a>
-  <a href="https://test.pypi.org/project/canisend/"><img src="https://img.shields.io/badge/TestPyPI-0.2.0b2-blue" alt="TestPyPI"></a>
+  <a href="https://test.pypi.org/project/canisend/"><img src="https://img.shields.io/badge/TestPyPI-0.2.0b5-blue" alt="TestPyPI"></a>
   <img src="https://img.shields.io/badge/python-3.11%2B-blue" alt="Python 3.11+">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT license">
 </p>
@@ -60,13 +60,13 @@ python -m pip install canisend
 
 ### Install the current TestPyPI beta
 
-For the current beta, install `canisend==0.2.0b2` from TestPyPI while still resolving dependencies from PyPI:
+For the current beta, install `canisend==0.2.0b5` from TestPyPI while still resolving dependencies from PyPI:
 
 ```bash
 uv tool install \
   --index-url https://test.pypi.org/simple/ \
   --extra-index-url https://pypi.org/simple/ \
-  canisend==0.2.0b2
+  canisend==0.2.0b5
 ```
 
 Or with `pip` inside an active virtual environment:
@@ -75,7 +75,7 @@ Or with `pip` inside an active virtual environment:
 python -m pip install \
   --index-url https://test.pypi.org/simple/ \
   --extra-index-url https://pypi.org/simple/ \
-  canisend==0.2.0b2
+  canisend==0.2.0b5
 ```
 
 Run the packaged fake-data workflow before using private profile or job data:
@@ -326,6 +326,29 @@ agent-skills/canisend/
 
 `prompts/` contains LLM prompt files used by the application pipeline. `agent-skills/` contains agent-readable workflow and quality guidance.
 
+## Skill Distribution
+
+The project also ships a reusable skill pack for cases where you want a narrower agent behavior without opening a CanISend workspace as the active project. The root Codex plugin manifest at `.codex-plugin/plugin.json` exposes `skills/` as a Codex plugin manifest, while the original `agent-skills/canisend/` workspace skill remains unchanged.
+
+Use the main `canisend` skill for full workspace and job-package workflows. Use material-specific skills for focused tasks such as `canisend-research-statement`, `canisend-cover-letter`, `canisend-cv-tailoring`, `canisend-criteria-check`, and `canisend-material-review`.
+
+For a Codex marketplace repository, mount this repository as the plugin source:
+
+```bash
+git submodule add https://github.com/jxpeng98/CanISend plugins/canisend
+```
+
+Then add a marketplace entry that points to `./plugins/canisend`.
+
+To export skills from an installed package instead of a checkout:
+
+```bash
+canisend export-skills --target ~/plugins/canisend --kind codex-plugin
+canisend export-skills --target ~/.claude/skills --kind skills-only
+```
+
+`codex-plugin` writes `.codex-plugin/` plus `skills/`. `skills-only` writes only the skill folders for agents that install skills directly.
+
 ## Privacy Boundaries
 
 This repository is intended to be open source. Personal application data should stay local:
@@ -387,6 +410,8 @@ prompts/                  LLM prompt templates
 templates/typst/          modernpro Typst templates
 schemas/                  JSON schema contracts
 agent-skills/             canisend skill and agent references
+skills/                   reusable Codex and Claude skill pack
+.codex-plugin/            Codex plugin manifest for the skill pack
 platform-bridges/         AGENTS.md, CLAUDE.md, GEMINI.md workspace bridges
 examples/end_to_end/      fully local fake-data workflow
 tests/                    CLI, pipeline, packaging, release, and contract tests
