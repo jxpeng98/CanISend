@@ -221,7 +221,7 @@ def test_release_checks_only_current_version_distributions(tmp_path):
         "#!/usr/bin/env bash\n"
         "set -euo pipefail\n"
         "if [[ \"${1:-}\" == \"lock\" ]]; then exit 0; fi\n"
-        "if [[ \"${1:-}\" == \"run\" && \"${2:-}\" == \"pytest\" ]]; then exit 0; fi\n"
+        "if [[ \"${1:-}\" == \"run\" && \"${2:-}\" == \"python\" && \"${3:-}\" == \"-m\" && \"${4:-}\" == \"pytest\" ]]; then exit 0; fi\n"
         "if [[ \"${1:-}\" == \"build\" ]]; then\n"
         "  mkdir -p dist\n"
         "  : > dist/canisend-0.1.0-py3-none-any.whl\n"

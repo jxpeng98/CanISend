@@ -383,7 +383,7 @@ Release automation lives in GitHub Actions for `jxpeng98/CanISend`.
 Local checks:
 
 ```bash
-uv run pytest -v
+uv run python -m pytest -v
 uv build
 uvx twine check dist/*
 uv run python -m canisend.package_check dist/*.whl

@@ -25,7 +25,7 @@ The script does not call `gh workflow run` or create GitHub releases locally. It
 Run these before triggering any remote publish workflow:
 
 ```bash
-uv run pytest
+uv run python -m pytest
 uv build
 uvx twine check dist/*
 uv run python -m canisend.package_check dist/*.whl

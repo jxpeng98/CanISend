@@ -177,7 +177,7 @@ local_release_checks() {
   local version
   version="$(read_project_version)"
 
-  run uv run pytest -v
+  run uv run python -m pytest -v
   run uv build
 
   local distributions=(dist/canisend-"$version"*)

@@ -115,7 +115,7 @@ def test_ci_workflow_runs_tests_build_and_package_resource_check():
     rendered = workflow_path.read_text()
 
     assert workflow["name"] == "ci"
-    assert "uv run pytest -v" in rendered
+    assert "uv run python -m pytest -v" in rendered
     assert "uv build" in rendered
     assert "python -m canisend.package_check dist/*.whl" in rendered
     assert "uvx twine check dist/*" in rendered
@@ -164,7 +164,7 @@ def test_release_playbook_documents_testpypi_dry_run():
     assert "commits the version bump" in playbook
     assert "publishes to PyPI only after TestPyPI publish and smoke testing succeed" in playbook
     assert "## TestPyPI Dry Run" in playbook
-    assert "uv run pytest" in playbook
+    assert "uv run python -m pytest" in playbook
     assert "uvx twine check dist/*" in playbook
     assert "uv run python -m canisend.package_check dist/*.whl" in playbook
     assert "gh workflow run release.yml" not in playbook
