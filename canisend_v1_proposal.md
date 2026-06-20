@@ -626,7 +626,7 @@ The command provider should:
 - Capture stdout as the model response.
 - Treat non-zero exit status as failure.
 - Enforce a timeout.
-- Avoid hardcoding Codex, Gemini, Claude Code, or any one CLI in V1.
+- Avoid hardcoding Codex, Claude Code, or any one CLI in V1.
 
 Dedicated provider adapters for specific CLIs may be added later if needed.
 
@@ -670,7 +670,7 @@ agent-skills/
 
 This split prevents application prompts from being confused with agent skills.
 
-Codex, Claude Code, Gemini, or another local agent should use the project skill to coordinate the workflow from RSS lead to final application package: fetch leads, create a job workspace, confirm the full advert is present, extract profile evidence, run parser/draft generation, review citations, and optionally render Typst. Agents should not scrape pages, submit applications, or commit private job/profile data.
+Codex, Claude Code, and IDE agents should use the project skill to coordinate the workflow from RSS lead to final application package: fetch leads, create a job workspace, confirm the full advert is present, extract profile evidence, run parser/draft generation, review citations, and optionally render Typst. Agents should not scrape pages, submit applications, or commit private job/profile data.
 
 ---
 
@@ -1091,7 +1091,6 @@ Possible additions:
 Possible additions:
 
 - Dedicated Codex CLI adapter.
-- Dedicated Gemini CLI adapter.
 - Dedicated Claude Code adapter.
 - Provider capability detection.
 - Prompt/result logging for audit.

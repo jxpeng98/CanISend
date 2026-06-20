@@ -51,6 +51,19 @@ def test_command_provider_requires_command():
         CommandProvider(config).complete("hello")
 
 
+def test_command_provider_rejects_empty_stdout(tmp_path):
+    script = tmp_path / "empty_model.py"
+    script.write_text("import sys\nsys.stdin.read()\n")
+    config = LLMConfig(
+        provider="command",
+        command=f"{sys.executable} {script}",
+        timeout_seconds=5,
+    )
+
+    with pytest.raises(RuntimeError, match="empty response"):
+        CommandProvider(config).complete("hello")
+
+
 def test_openai_compatible_provider_posts_chat_completion_request(monkeypatch):
     captured = {}
 

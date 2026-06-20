@@ -103,6 +103,7 @@ def test_package_check_requires_distributed_skill_pack_resources():
     }
 
     assert expected <= resources
+    assert "canisend/resources/platform-bridges/GEMINI.md" not in resources
 
 
 def test_export_skills_writes_codex_plugin_distribution(tmp_path):

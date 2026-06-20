@@ -35,7 +35,7 @@ ACADEMIC_PREP_LLM_TIMEOUT_SECONDS=300
 
 ## Local Command Provider
 
-Use this when the user wants Codex, Claude Code, Gemini, or another local CLI to act as the model provider:
+Use this when the user wants Codex, Claude Code, or another local CLI to act as the model provider:
 
 ```bash
 ACADEMIC_PREP_LLM_PROVIDER=command
@@ -52,7 +52,6 @@ Examples the user may adapt:
 ```bash
 ACADEMIC_PREP_LLM_COMMAND="codex exec --json"
 ACADEMIC_PREP_LLM_COMMAND="claude -p"
-ACADEMIC_PREP_LLM_COMMAND="gemini -p"
 ```
 
 Do not assume a specific CLI is installed. Run `canisend doctor --workspace <private-workspace>` and ask the user to configure missing provider settings.

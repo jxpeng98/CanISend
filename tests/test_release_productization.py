@@ -91,6 +91,7 @@ def test_package_check_requires_all_run_example_resources():
     }
 
     assert expected <= resources
+    assert "canisend/resources/platform-bridges/GEMINI.md" not in resources
 
 
 def test_package_check_reports_missing_wheel_resources(tmp_path):

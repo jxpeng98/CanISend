@@ -1,6 +1,6 @@
 ---
 name: canisend
-description: Use when preparing evidence-backed academic or professional job application materials in a CanISend workspace, coordinating Codex, Claude Code, Gemini, or another local agent, handling jobs.ac.uk RSS leads, matching criteria to private profile evidence, reviewing citations, or checking modernpro Typst outputs.
+description: Use when preparing evidence-backed academic or professional job application materials in a CanISend workspace, coordinating Codex, Claude Code, and IDE agents, handling jobs.ac.uk RSS leads, matching criteria to private profile evidence, reviewing citations, or checking modernpro Typst outputs.
 ---
 
 # CanISend
@@ -53,8 +53,8 @@ Read only the reference files needed for the current task:
 - `references/typst-profile.md`: Typst-first profile handling with `modernpro-cv` and `modernpro-coverletter`.
 - `references/provider-config.md`: OpenAI-compatible and local command provider configuration.
 - `references/quality-gates.md`: evidence, parser, draft, package, Typst, and privacy review gates.
-- `references/platforms.md`: how to expose this skill in Codex, Claude Code, Gemini CLI, and IDE agents.
-- `references/agent-orchestration.md`: Codex, Claude Code, Gemini coordination patterns.
+- `references/platforms.md`: how to expose this skill in Codex, Claude Code, and IDE agents.
+- `references/agent-orchestration.md`: Codex, Claude Code, and IDE agent coordination patterns.
 - `references/privacy.md`: privacy and git-safety rules.
 
 ## Default Sequence

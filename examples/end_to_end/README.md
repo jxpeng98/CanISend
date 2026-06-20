@@ -77,4 +77,4 @@ $JOB/typst/application_package_content.json
 $JOB/typst/application_package.typ
 ```
 
-The fake provider is deterministic. It exists only so Codex, Claude Code, Gemini, and tests can exercise the file contracts without API keys.
+The fake provider is deterministic. It exists only so Codex, Claude Code, IDE agents, and tests can exercise the file contracts without API keys.

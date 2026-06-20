@@ -71,6 +71,25 @@ def test_parse_job_advert_with_provider_allows_json_braces_in_prompt_template():
     assert "Advert" in provider.prompt
 
 
+def test_parse_job_advert_with_provider_extracts_single_fenced_json_object():
+    provider = FakeProvider(
+        "Here is the parsed job:\n\n"
+        "```json\n"
+        f"{json.dumps(valid_parsed_job())}\n"
+        "```\n"
+        "Please verify manually."
+    )
+
+    parsed_job = parse_job_advert_with_provider(
+        advert_text="Advert",
+        metadata={"title": "Lecturer"},
+        provider=provider,
+        prompt_text="{job_metadata}\n{job_advert}",
+    )
+
+    assert parsed_job["title"] == "Lecturer in Economics"
+
+
 def test_parse_job_advert_with_provider_rejects_missing_required_fields():
     provider = FakeProvider(json.dumps({"title": "Lecturer in Economics"}))
 

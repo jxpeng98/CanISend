@@ -95,12 +95,20 @@ def validate_parsed_job(parsed_job: dict[str, Any]) -> None:
 
 def _loads_llm_json(content: str) -> dict[str, Any]:
     stripped = content.strip()
+    if not stripped:
+        raise ParsedJobValidationError("LLM parser returned an empty response")
     if stripped.startswith("```"):
         stripped = _strip_json_fence(stripped)
+    else:
+        fenced = _single_json_fence(stripped)
+        if fenced is not None:
+            stripped = fenced
     try:
         parsed = json.loads(stripped)
     except json.JSONDecodeError as exc:
-        raise ParsedJobValidationError(f"LLM parser returned invalid JSON: {exc.msg}") from exc
+        raise ParsedJobValidationError(
+            f"LLM parser returned invalid JSON: {exc.msg}. Return exactly one JSON object."
+        ) from exc
     if not isinstance(parsed, dict):
         raise ParsedJobValidationError("LLM parser returned JSON that is not an object")
     return parsed
@@ -113,6 +121,13 @@ def _strip_json_fence(content: str) -> str:
     if lines and lines[-1].startswith("```"):
         lines = lines[:-1]
     return "\n".join(lines).strip()
+
+
+def _single_json_fence(content: str) -> str | None:
+    matches = re.findall(r"```(?:json)?\s*\n(.*?)\n```", content, flags=re.DOTALL | re.IGNORECASE)
+    if len(matches) != 1:
+        return None
+    return matches[0].strip()
 
 
 def _metadata_value(metadata: dict[str, Any], key: str) -> str:

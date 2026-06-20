@@ -50,7 +50,10 @@ class CommandProvider(LLMProvider):
             stderr = result.stderr.strip()
             raise RuntimeError(f"LLM command failed with exit code {result.returncode}: {stderr}")
 
-        return LLMResponse(content=result.stdout.strip(), provider="command")
+        content = result.stdout.strip()
+        if not content:
+            raise RuntimeError("LLM command returned an empty response")
+        return LLMResponse(content=content, provider="command")
 
 
 class OpenAICompatibleProvider(LLMProvider):

@@ -150,3 +150,44 @@ def test_new_job_from_lead_rejects_negative_index(tmp_path):
 
     assert result.exit_code != 0
     assert "Lead index must be zero or greater" in result.output
+
+
+def test_list_jobs_shows_next_action_for_each_lifecycle_state(tmp_path):
+    workspace = tmp_path / "workspace"
+    jobs_dir = workspace / "jobs"
+    jobs_dir.mkdir(parents=True)
+    _write_job(jobs_dir / "new-role", status="new", title="New Role")
+    _write_job(jobs_dir / "lead-role", status="lead_imported", title="Lead Role")
+    packaged = jobs_dir / "packaged-role"
+    _write_job(packaged, status="packaged", title="Packaged Role")
+    (packaged / "07_material_review_checklist.md").write_text("# Checklist\n", encoding="utf-8")
+    runner = CliRunner()
+
+    result = runner.invoke(app, ["list-jobs", "--workspace", str(workspace)])
+
+    assert result.exit_code == 0
+    assert "Next action" in result.output
+    assert "New Role" in result.output
+    assert "add advert" in result.output
+    assert "Lead Role" in result.output
+    assert "paste full advert" in result.output
+    assert "Packaged Role" in result.output
+    assert "run check-package" in result.output
+
+
+def _write_job(job_dir, *, status: str, title: str) -> None:
+    job_dir.mkdir(parents=True)
+    (job_dir / "job.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "id": job_dir.name,
+                "title": title,
+                "institution": "University X",
+                "deadline": "2026-06-15",
+                "status": status,
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    (job_dir / "job_advert.md").write_text("", encoding="utf-8")

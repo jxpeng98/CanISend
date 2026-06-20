@@ -25,7 +25,7 @@ It prepares materials only. It does not submit applications, create accounts, fi
 - Extracts normalized evidence from Typst-first profile sources into `profile/generated/`.
 - Generates `parsed_job.json`, fit reports, cover letter drafts, CV tailoring notes, criteria checklists, material review checklists, and structured Typst content.
 - Runs deterministic local generation by default, with explicit opt-in for an LLM-backed parser or LLM-backed drafts.
-- Ships bridge files for Codex, Claude Code, Gemini, and IDE agents through `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, and `agent-skills/canisend/SKILL.md`.
+- Ships bridge files for Codex, Claude Code, and IDE agents through `AGENTS.md`, `CLAUDE.md`, and `agent-skills/canisend/SKILL.md`.
 
 ## Quick Start
 
@@ -132,7 +132,6 @@ The workspace contains private profile data, job leads, job folders, editable pr
   .gitignore
   AGENTS.md
   CLAUDE.md
-  GEMINI.md
   profile/
   jobs/
   job_leads/
@@ -151,6 +150,13 @@ canisend doctor --workspace ~/CanISendWorkspace
 ```
 
 `update-workspace` preserves local prompt, template, and skill edits by default. Use `--overwrite` only when packaged defaults should replace local copies.
+If `doctor` reports deprecated packaged files from an older release, remove only those retired defaults with:
+
+```bash
+canisend update-workspace --workspace ~/CanISendWorkspace --prune-deprecated
+```
+
+`doctor` also reports local default resources that differ from the packaged version. Use `update-workspace --overwrite` only after deciding those local prompt, template, schema, or bridge edits should be replaced.
 
 ### 2. Prepare profile evidence
 
@@ -280,6 +286,16 @@ Review files in this order:
 
 Use `07_material_review_checklist.md` to track the cover letter draft, CV tailoring notes, placeholders, item-level evidence citation checks, and next manual actions.
 
+Run a read-only package check before treating generated materials as ready for user review:
+
+```bash
+canisend check-package \
+  --workspace ~/CanISendWorkspace \
+  --job jobs/<job-slug>
+```
+
+The check reports missing package files, invalid Typst content JSON, unresolved bracketed placeholders, and unknown profile evidence citations. It does not generate or modify files.
+
 Render Typst only when needed:
 
 ```bash
@@ -292,12 +308,11 @@ Rendering requires a local `typst` binary. Source generation does not. Submit ma
 
 ## Agent Usage
 
-Codex, Claude Code, Gemini, and other local agents can run the `canisend` workflow by opening the private workspace as the project root.
+Codex, Claude Code, and IDE agents can run the `canisend` workflow by opening the private workspace as the project root.
 
 - Codex and AGENTS.md-aware tools should read `AGENTS.md`.
 - Claude Code should read `CLAUDE.md`, which imports `agent-skills/canisend/SKILL.md`.
-- Gemini CLI should read `GEMINI.md`.
-- IDE agents can read any bridge file and then `agent-skills/canisend/SKILL.md`.
+- IDE agents can read `AGENTS.md` and then `agent-skills/canisend/SKILL.md`.
 
 Agents should start with:
 
@@ -412,7 +427,7 @@ schemas/                  JSON schema contracts
 agent-skills/             canisend skill and agent references
 skills/                   reusable Codex and Claude skill pack
 .codex-plugin/            Codex plugin manifest for the skill pack
-platform-bridges/         AGENTS.md, CLAUDE.md, GEMINI.md workspace bridges
+platform-bridges/         AGENTS.md and CLAUDE.md workspace bridges
 examples/end_to_end/      fully local fake-data workflow
 tests/                    CLI, pipeline, packaging, release, and contract tests
 assets/                   project logo and README media

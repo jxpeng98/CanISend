@@ -7,6 +7,7 @@ from canisend.examples import run_packaged_example
 from canisend.jobs import create_job, create_job_from_lead, list_jobs as list_job_folders
 from canisend.pipeline import run_pipeline as run_job_pipeline
 from canisend.profile import init_profile as create_profile
+from canisend.ready_check import check_application_package
 from canisend.rss import fetch_rss_text, filter_job_leads, parse_jobs_ac_uk_rss, write_job_leads
 from canisend.skill_distribution import export_skill_distribution
 from canisend.typst import render_typst_files
@@ -14,6 +15,7 @@ from canisend.workspace import (
     doctor_lines,
     init_workspace as create_workspace,
     load_workspace_config,
+    prune_deprecated_workspace_files,
     update_workspace_defaults,
 )
 
@@ -97,14 +99,23 @@ def update_workspace(
         "--overwrite",
         help="Overwrite local default-resource copies. Leave off to preserve local edits.",
     ),
+    prune_deprecated: bool = typer.Option(
+        False,
+        "--prune-deprecated",
+        help="Remove deprecated packaged workspace files such as retired platform bridges.",
+    ),
 ) -> None:
     """Copy current packaged prompts, templates, schemas, and agent skills into a workspace."""
     copied = update_workspace_defaults(workspace, overwrite=overwrite)
+    removed = prune_deprecated_workspace_files(workspace) if prune_deprecated else []
     typer.echo(f"Workspace defaults checked at {workspace}")
     if copied:
         typer.echo(f"Created or updated {len(copied)} files.")
     else:
         typer.echo("No default files changed; existing local files were left unchanged.")
+    if prune_deprecated:
+        suffix = "file" if len(removed) == 1 else "files"
+        typer.echo(f"Removed {len(removed)} deprecated {suffix}.")
 
 
 @app.command("export-skills")
@@ -184,6 +195,36 @@ def run_example(
     ]:
         typer.echo(f"  - {result.job_dir.relative_to(result.workspace) / output}")
     typer.echo("Next: inspect the generated job folder, then try the same workflow with your private workspace.")
+
+
+@app.command("check-package")
+def check_package(
+    job: Path = typer.Option(
+        ...,
+        "--job",
+        help="Job folder path or slug. Slugs are resolved under the workspace jobs directory.",
+    ),
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="User workspace directory containing canisend.yaml.",
+    ),
+    profile_dir: Path | None = typer.Option(
+        None,
+        "--profile-dir",
+        help="Directory containing generated profile evidence. Relative paths are resolved against --workspace.",
+    ),
+) -> None:
+    """Check whether a generated application package has unresolved issues."""
+    config = load_workspace_config(workspace)
+    result = check_application_package(
+        job_dir=config.job_dir(job),
+        profile_dir=config.path("profile_dir", profile_dir),
+    )
+    for line in result.output_lines():
+        typer.echo(line)
+    if not result.ok:
+        raise typer.Exit(code=1)
 
 
 @app.command("extract-profile-evidence")
@@ -300,10 +341,16 @@ def list_jobs_command(
     if not jobs:
         typer.echo("No job folders found.")
         return
-    typer.echo(f"{'Deadline':<12} {'Status':<18} {'Institution':<30} {'Title'}")
-    typer.echo("-" * 90)
+    typer.echo(f"{'Deadline':<12} {'Status':<18} {'Institution':<30} {'Title':<40} {'Next action'}")
+    typer.echo("-" * 120)
     for job in jobs:
-        typer.echo(f"{job['deadline']:<12} {job['status']:<18} {job['institution'][:28]:<30} {job['title'][:40]}")
+        typer.echo(
+            f"{job['deadline']:<12} "
+            f"{job['status']:<18} "
+            f"{job['institution'][:28]:<30} "
+            f"{job['title'][:40]:<40} "
+            f"{job['next_action']}"
+        )
     typer.echo(f"\n{len(jobs)} job(s) found.")
 
 

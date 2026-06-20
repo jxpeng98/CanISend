@@ -40,7 +40,6 @@ REQUIRED_WHEEL_RESOURCES = [
     "canisend/resources/agent-skills/canisend/references/platforms.md",
     "canisend/resources/platform-bridges/AGENTS.md",
     "canisend/resources/platform-bridges/CLAUDE.md",
-    "canisend/resources/platform-bridges/GEMINI.md",
     "canisend/resources/examples/end_to_end/README.md",
     "canisend/resources/examples/end_to_end/jobs_ac_uk_sample.xml",
     "canisend/resources/examples/end_to_end/full_job_advert.md",

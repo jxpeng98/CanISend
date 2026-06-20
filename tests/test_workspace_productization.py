@@ -32,7 +32,7 @@ def test_init_workspace_creates_user_layout_and_default_resources(tmp_path):
     assert (workspace / "agent-skills" / "canisend" / "SKILL.md").exists()
     assert (workspace / "AGENTS.md").exists()
     assert (workspace / "CLAUDE.md").exists()
-    assert (workspace / "GEMINI.md").exists()
+    assert not (workspace / "GEMINI.md").exists()
     assert "agent-skills/canisend/SKILL.md" in (workspace / "AGENTS.md").read_text()
     config = yaml.safe_load((workspace / "canisend.yaml").read_text())
     profile_manifest = yaml.safe_load((workspace / "profile" / "profile.yaml").read_text())
@@ -65,6 +65,30 @@ def test_init_workspace_does_not_overwrite_platform_bridge_by_default(tmp_path):
 
     assert result.exit_code == 0
     assert bridge.read_text() == "custom agent instructions\n"
+
+
+def test_doctor_reports_deprecated_workspace_bridge(tmp_path):
+    workspace = tmp_path / "workspace"
+    runner = CliRunner()
+    runner.invoke(app, ["init-workspace", "--workspace", str(workspace), "--profile-mode", "typst"])
+    (workspace / "GEMINI.md").write_text("old bridge\n", encoding="utf-8")
+
+    lines = doctor_lines(workspace)
+
+    assert "- Deprecated files: GEMINI.md (run `canisend update-workspace --prune-deprecated`)" in lines
+
+
+def test_update_workspace_prunes_deprecated_bridge_when_requested(tmp_path):
+    workspace = tmp_path / "workspace"
+    runner = CliRunner()
+    runner.invoke(app, ["init-workspace", "--workspace", str(workspace), "--profile-mode", "typst"])
+    (workspace / "GEMINI.md").write_text("old bridge\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["update-workspace", "--workspace", str(workspace), "--prune-deprecated"])
+
+    assert result.exit_code == 0
+    assert not (workspace / "GEMINI.md").exists()
+    assert "Removed 1 deprecated file." in result.output
 
 
 def test_run_uses_packaged_prompts_when_workspace_has_no_prompt_overrides(tmp_path, monkeypatch):
@@ -149,6 +173,29 @@ def test_doctor_includes_config_warning_details(tmp_path):
 
     assert "Unknown key in canisend.yaml: 'surprise_key'" in config_line
     assert "see doctor output" not in config_line
+
+
+def test_doctor_reports_stale_default_resources(tmp_path):
+    workspace = tmp_path / "workspace"
+    runner = CliRunner()
+    runner.invoke(app, ["init-workspace", "--workspace", str(workspace), "--profile-mode", "typst"])
+    (workspace / "prompts" / "job_parser.md").write_text("local stale prompt\n", encoding="utf-8")
+
+    lines = doctor_lines(workspace)
+
+    assert "- Default resources: stale/local edits (prompts/job_parser.md)" in lines
+
+
+def test_update_workspace_overwrite_restores_stale_default_resources(tmp_path):
+    workspace = tmp_path / "workspace"
+    runner = CliRunner()
+    runner.invoke(app, ["init-workspace", "--workspace", str(workspace), "--profile-mode", "typst"])
+    (workspace / "prompts" / "job_parser.md").write_text("local stale prompt\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["update-workspace", "--workspace", str(workspace), "--overwrite"])
+
+    assert result.exit_code == 0
+    assert "- Default resources: up to date" in doctor_lines(workspace)
 
 
 def test_doctor_checks_staleness_for_custom_generated_evidence_path(tmp_path):

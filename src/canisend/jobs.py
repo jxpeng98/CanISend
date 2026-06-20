@@ -147,10 +147,25 @@ def list_jobs(jobs_dir: Path) -> list[dict[str, Any]]:
             "institution": metadata.get("institution", "unknown"),
             "deadline": metadata.get("deadline", "unknown"),
             "status": metadata.get("status", "unknown"),
+            "next_action": next_job_action(job_dir, str(metadata.get("status", "unknown"))),
             "path": str(job_dir),
         })
     entries.sort(key=lambda e: (e["deadline"], e["institution"]))
     return entries
+
+
+def next_job_action(job_dir: Path, status: str) -> str:
+    if status == "lead_imported":
+        return "paste full advert"
+    if status == "new":
+        return "add advert"
+    if status == "advert_imported":
+        return "run extract-profile-evidence, then run"
+    if status == "packaged":
+        if (job_dir / "07_material_review_checklist.md").exists():
+            return "run check-package"
+        return "rerun package generation"
+    return "inspect job.yaml"
 
 
 def _lead_advert_markdown(lead: dict[str, Any], title: str) -> str:

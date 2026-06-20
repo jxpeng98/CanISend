@@ -21,7 +21,6 @@ Any platform can use the skill by reading `SKILL.md`, then loading only the need
 ```text
 AGENTS.md
 CLAUDE.md
-GEMINI.md
 ```
 
 They all point agents to `agent-skills/canisend/SKILL.md` and start with `canisend doctor --workspace <private-workspace>`.
@@ -38,18 +37,12 @@ Claude Code can use root `CLAUDE.md` as project memory. The bridge uses `@agent-
 
 If imports are disabled or unavailable, ask Claude to read `agent-skills/canisend/SKILL.md` manually.
 
-## Gemini CLI And GEMINI.md
-
-Gemini CLI can use root `GEMINI.md` context files and import syntax. The bridge imports the skill and tells Gemini to use the workspace CLI rather than hidden state.
-
-If a Gemini setup customizes context file names, configure it to include `GEMINI.md` or `AGENTS.md`.
-
 ## IDE Agents
 
 For VS Code, Cursor, Zed, JetBrains, Copilot-style chat, and other IDE agents:
 
 1. Open the private workspace as the project root.
-2. Ask the agent to read `AGENTS.md`, `CLAUDE.md`, or `GEMINI.md` if the IDE does not load one automatically.
+2. Ask the agent to read `AGENTS.md` if the IDE does not load one automatically.
 3. Ask the agent to use `agent-skills/canisend/SKILL.md`.
 4. Keep all actions routed through `canisend --workspace <private-workspace>`.
 

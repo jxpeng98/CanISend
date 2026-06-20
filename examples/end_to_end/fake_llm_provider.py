@@ -6,7 +6,7 @@ import sys
 
 
 CITATION = "`profile/generated/cv.evidence.md#Teaching`"
-FORBIDDEN_SECRET_ENV = ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY")
+FORBIDDEN_SECRET_ENV = ("OPENAI_API_KEY", "ANTHROPIC_API_KEY")
 
 
 def main() -> None:

@@ -10,7 +10,7 @@ import yaml
 from canisend import __version__
 from canisend.llm import LLMConfig, load_llm_config
 from canisend.profile import init_profile
-from canisend.resource_files import copy_resource_tree
+from canisend.resource_files import copy_resource_tree, read_resource_text
 
 
 WORKSPACE_CONFIG = "canisend.yaml"
@@ -22,6 +22,15 @@ DEFAULT_WORKSPACE_CONFIG = {
     "template_dir": "templates",
     "schema_dir": "schemas",
     "agent_skills_dir": "agent-skills",
+}
+DEPRECATED_WORKSPACE_FILES = ("GEMINI.md",)
+DEFAULT_RESOURCE_CHECKS = {
+    "prompts/job_parser.md": "prompts/job_parser.md",
+    "templates/typst/cover_letter.typ": "templates/typst/cover_letter.typ",
+    "schemas/parsed_job.schema.json": "schemas/parsed_job.schema.json",
+    "agent-skills/canisend/SKILL.md": "agent-skills/canisend/SKILL.md",
+    "AGENTS.md": "platform-bridges/AGENTS.md",
+    "CLAUDE.md": "platform-bridges/CLAUDE.md",
 }
 
 
@@ -93,6 +102,18 @@ def update_workspace_defaults(workspace: Path, *, overwrite: bool = False) -> li
     return copied
 
 
+def deprecated_workspace_files(workspace: Path) -> list[Path]:
+    return [workspace / filename for filename in DEPRECATED_WORKSPACE_FILES if (workspace / filename).exists()]
+
+
+def prune_deprecated_workspace_files(workspace: Path) -> list[Path]:
+    removed: list[Path] = []
+    for path in deprecated_workspace_files(workspace):
+        path.unlink()
+        removed.append(path)
+    return removed
+
+
 def doctor_lines(workspace: Path, *, env: Mapping[str, str] | None = None) -> list[str]:
     config = load_llm_config(env)
     statuses = [
@@ -120,6 +141,8 @@ def doctor_lines(workspace: Path, *, env: Mapping[str, str] | None = None) -> li
     lines.append(f"- Typst binary: {'found' if which('typst') else 'missing'}")
     lines.append(_evidence_staleness_line(workspace))
     lines.append(_config_validation_line(workspace))
+    lines.append(_deprecated_files_line(workspace))
+    lines.append(_default_resources_line(workspace))
     return lines
 
 
@@ -167,6 +190,32 @@ def _config_validation_line(workspace: Path) -> str:
     if not warnings:
         return "- Config validation: ok"
     return f"- Config validation: {'; '.join(warnings)}"
+
+
+def _deprecated_files_line(workspace: Path) -> str:
+    deprecated = deprecated_workspace_files(workspace)
+    if not deprecated:
+        return "- Deprecated files: none"
+    names = ", ".join(path.name for path in deprecated)
+    return f"- Deprecated files: {names} (run `canisend update-workspace --prune-deprecated`)"
+
+
+def _default_resources_line(workspace: Path) -> str:
+    stale = _stale_default_resources(workspace)
+    if not stale:
+        return "- Default resources: up to date"
+    return f"- Default resources: stale/local edits ({', '.join(stale)})"
+
+
+def _stale_default_resources(workspace: Path) -> list[str]:
+    stale: list[str] = []
+    for local_relative, resource_relative in DEFAULT_RESOURCE_CHECKS.items():
+        local_path = workspace / local_relative
+        if not local_path.exists():
+            continue
+        if local_path.read_text(encoding="utf-8") != read_resource_text(resource_relative):
+            stale.append(local_relative)
+    return stale
 
 
 def _llm_status_line(config: LLMConfig) -> str:

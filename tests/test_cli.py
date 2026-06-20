@@ -25,6 +25,7 @@ def test_cli_help_shows_core_commands():
     assert "fetch-jobs-ac-uk" in output
     assert "extract-profile-evidence" in output
     assert "run" in output
+    assert "check-package" in output
     assert "render-typst" in output
 
 

@@ -1,6 +1,6 @@
 # Agent Orchestration
 
-Use this reference when Codex, Claude Code, Gemini, or another local agent coordinates the preparation workflow.
+Use this reference when Codex, Claude Code, or another local agent coordinates the preparation workflow.
 
 ## Common Starting Point
 
@@ -56,7 +56,7 @@ Privacy notes: <any private files touched, or "none staged">
 
 ## Provider Coordination
 
-The local command provider can point at Codex, Claude Code, Gemini, or another CLI. The command must read stdin and write stdout. Do not assume one provider exists; check config and ask the user before using model-backed steps.
+The local command provider can point at Codex, Claude Code, or another CLI. The command must read stdin and write stdout. Do not assume one provider exists; check config and ask the user before using model-backed steps.
 
 For command-provider tasks, prefer prompts that require JSON or evidence-cited Markdown output. Reject output that omits required citations when evidence exists.
 

@@ -30,7 +30,6 @@ def test_v1_contract_files_exist():
         "agent-skills/canisend/references/quality-gates.md",
         "platform-bridges/AGENTS.md",
         "platform-bridges/CLAUDE.md",
-        "platform-bridges/GEMINI.md",
         "scripts/release.sh",
         "schemas/parsed_job.schema.json",
         "schemas/fit_report.schema.json",
@@ -75,7 +74,8 @@ def test_agent_skill_has_standard_frontmatter_and_references():
     assert "这也能投" in skill
     assert "No claims without receipts" in skill
     assert "description: Use when" in skill
-    assert "Codex, Claude Code, Gemini" in skill
+    assert "Codex, Claude Code, and IDE agents" in skill
+    assert "Gemini" not in skill
     assert "jobs.ac.uk RSS" in skill
     assert "references/workflow.md" in skill
     assert "references/typst-profile.md" in skill
@@ -105,11 +105,14 @@ def test_agent_skill_references_capture_operational_gates():
     assert "07_material_review_checklist.md" in quality
     assert "ACADEMIC_PREP_LLM_PROVIDER=command" in provider
     assert "OPENAI_BASE_URL" in provider
+    assert "Gemini" not in provider
+    assert "gemini" not in provider
     assert "status: lead_imported" in lifecycle
     assert "status: packaged" in lifecycle
     assert "AGENTS.md" in platforms
     assert "CLAUDE.md" in platforms
-    assert "GEMINI.md" in platforms
+    assert "GEMINI.md" not in platforms
+    assert "Gemini" not in platforms
     assert "IDE" in platforms
 
 
@@ -146,7 +149,8 @@ def test_platform_bridges_expose_agent_boundaries_immediately():
     root = Path(__file__).resolve().parents[1]
     bridges = root / "platform-bridges"
 
-    for filename in ["AGENTS.md", "CLAUDE.md", "GEMINI.md"]:
+    assert not (bridges / "GEMINI.md").exists()
+    for filename in ["AGENTS.md", "CLAUDE.md"]:
         bridge = (bridges / filename).read_text()
         assert "Allowed by default" in bridge
         assert "Ask first" in bridge
@@ -195,7 +199,8 @@ def test_platform_bridges_point_to_project_skill():
     root = Path(__file__).resolve().parents[1]
     bridges = root / "platform-bridges"
 
-    for filename in ["AGENTS.md", "CLAUDE.md", "GEMINI.md"]:
+    assert not (bridges / "GEMINI.md").exists()
+    for filename in ["AGENTS.md", "CLAUDE.md"]:
         bridge = (bridges / filename).read_text()
         assert "agent-skills/canisend/SKILL.md" in bridge
         assert "canisend doctor --workspace" in bridge
@@ -235,7 +240,9 @@ def test_readme_documents_core_workflow_and_agent_usage():
     assert "cover_letter_content.json" in readme
     assert "07_material_review_checklist.md" in readme
     assert "examples/end_to_end" in readme
-    assert "Codex, Claude Code, Gemini" in readme
+    assert "Codex, Claude Code, and IDE agents" in readme
+    assert "GEMINI.md" not in readme
+    assert "Gemini" not in readme
     assert "ACADEMIC_PREP_LLM_PROVIDER" in readme
     assert "AGENTS.md" in readme
     assert "CLAUDE.md" in readme
@@ -278,5 +285,6 @@ def test_proposal_documents_prompt_skill_split_and_typst_profile():
     assert "--llm-parser" in proposal
     assert "--llm-drafts" in proposal
     assert "cover_letter_content.json" in proposal
-    assert "Codex, Claude Code, Gemini" in proposal
+    assert "Codex, Claude Code, and IDE agents" in proposal
+    assert "Gemini" not in proposal
     assert "Prompt files should live in `skills/`" not in proposal
