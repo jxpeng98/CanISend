@@ -34,6 +34,7 @@ classifiers = [
     "Topic :: Text Processing :: Markup",
 ]
 dependencies = [
+    "packaging>=24.0",
     "pydantic>=2.7",
     "pyyaml>=6.0",
     "typer>=0.12",

@@ -2,6 +2,7 @@ from pathlib import Path
 
 import typer
 
+from canisend import __version__
 from canisend.evidence import extract_profile_evidence
 from canisend.examples import run_packaged_example
 from canisend.jobs import create_job, create_job_from_lead, list_jobs as list_job_folders
@@ -11,6 +12,7 @@ from canisend.ready_check import check_application_package
 from canisend.rss import fetch_rss_text, filter_job_leads, parse_jobs_ac_uk_rss, write_job_leads
 from canisend.skill_distribution import export_skill_distribution
 from canisend.typst import render_typst_files
+from canisend.versioning import fetch_remote_versions, format_version_report
 from canisend.workspace import (
     doctor_lines,
     init_workspace as create_workspace,
@@ -19,10 +21,65 @@ from canisend.workspace import (
     update_workspace_defaults,
 )
 
+
+APP_HELP = """Prepare evidence-backed academic and professional job application materials from local files.
+
+Common workflow:
+  canisend init-workspace --workspace ~/CanISendWorkspace
+  canisend doctor --workspace ~/CanISendWorkspace
+  canisend init-profile --workspace ~/CanISendWorkspace --mode typst
+  canisend extract-profile-evidence --workspace ~/CanISendWorkspace
+  canisend new-job --workspace ~/CanISendWorkspace --title ... --institution ...
+  canisend run --workspace ~/CanISendWorkspace --job jobs/<job-slug>
+  canisend check-package --workspace ~/CanISendWorkspace --job jobs/<job-slug>
+
+Version checks:
+  canisend --version
+  canisend version
+"""
+
 app = typer.Typer(
-    help="Prepare evidence-backed academic and professional job application materials from local files.",
+    help=APP_HELP,
     no_args_is_help=True,
 )
+
+
+def _version_callback(value: bool) -> None:
+    if not value:
+        return
+    _echo_version_report()
+    raise typer.Exit()
+
+
+def _echo_version_report() -> None:
+    try:
+        remote = fetch_remote_versions()
+        error = None
+    except Exception as exc:
+        remote = None
+        error = str(exc)
+
+    for line in format_version_report(local_version=__version__, remote=remote, error=error):
+        typer.echo(line)
+
+
+@app.callback()
+def main(
+    version: bool = typer.Option(
+        False,
+        "--version",
+        callback=_version_callback,
+        is_eager=True,
+        help="Show local, remote stable, and remote prerelease versions, then exit.",
+    ),
+) -> None:
+    """CanISend command-line interface."""
+
+
+@app.command("version")
+def version_command() -> None:
+    """Show local, remote stable, and remote prerelease version information."""
+    _echo_version_report()
 
 
 @app.command("init-profile")
