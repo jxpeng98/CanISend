@@ -44,6 +44,16 @@ def _default_resource(relative_path: str) -> Traversable | Path:
 
 
 def _copy_directory(source: Traversable | Path, destination: Path, *, overwrite: bool, copied: list[Path]) -> None:
+    source_path = _resolve_filesystem_path(source)
+    destination_path = destination.resolve()
+    if source_path is not None:
+        if destination_path == source_path:
+            return
+        if source_path in destination_path.parents:
+            raise ValueError(
+                f"Cannot copy resource directory into itself: {source_path} -> {destination_path}"
+            )
+
     destination.mkdir(parents=True, exist_ok=True)
     for child in source.iterdir():
         child_destination = destination / child.name
@@ -60,3 +70,9 @@ def _copy_file(source: Traversable | Path, destination: Path, *, overwrite: bool
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_bytes(source.read_bytes())
     copied.append(destination)
+
+
+def _resolve_filesystem_path(source: Traversable | Path) -> Path | None:
+    if not isinstance(source, Path):
+        return None
+    return source.resolve()

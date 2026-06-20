@@ -106,7 +106,10 @@ def update_workspace(
     ),
 ) -> None:
     """Copy current packaged prompts, templates, schemas, and agent skills into a workspace."""
-    copied = update_workspace_defaults(workspace, overwrite=overwrite)
+    try:
+        copied = update_workspace_defaults(workspace, overwrite=overwrite)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
     removed = prune_deprecated_workspace_files(workspace) if prune_deprecated else []
     typer.echo(f"Workspace defaults checked at {workspace}")
     if copied:
