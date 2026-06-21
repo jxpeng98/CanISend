@@ -27,6 +27,7 @@ def test_init_workspace_creates_user_layout_and_default_resources(tmp_path):
     assert (workspace / "jobs" / ".gitkeep").exists()
     assert (workspace / "job_leads" / ".gitkeep").exists()
     assert (workspace / "prompts" / "job_parser.md").exists()
+    assert (workspace / "prompts" / "profile_evidence_augmenter.md").exists()
     assert (workspace / "templates" / "typst" / "cover_letter.typ").exists()
     assert (workspace / "schemas" / "parsed_job.schema.json").exists()
     assert (workspace / "agent-skills" / "canisend" / "SKILL.md").exists()
@@ -34,6 +35,8 @@ def test_init_workspace_creates_user_layout_and_default_resources(tmp_path):
     assert (workspace / "CLAUDE.md").exists()
     assert not (workspace / "GEMINI.md").exists()
     assert "agent-skills/canisend/SKILL.md" in (workspace / "AGENTS.md").read_text()
+    assert "Agent-assisted mode is not local-only" in (workspace / "AGENTS.md").read_text()
+    assert "agent model provider" in (workspace / "CLAUDE.md").read_text()
     config = yaml.safe_load((workspace / "canisend.yaml").read_text())
     profile_manifest = yaml.safe_load((workspace / "profile" / "profile.yaml").read_text())
     assert config["profile_dir"] == "profile"

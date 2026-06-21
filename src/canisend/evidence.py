@@ -1,10 +1,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 from pathlib import Path
 import re
+from typing import Any
 
 import yaml
+
+from canisend.llm import LLMProvider
+from canisend.resource_files import read_resource_text
 
 
 @dataclass(frozen=True)
@@ -34,6 +39,10 @@ class EvidenceReference:
         return f"{self.source_file}#{self.section}"
 
 
+class EvidenceAugmentationError(ValueError):
+    pass
+
+
 EVIDENCE_BLOCK_FUNCTIONS = {
     "award",
     "conference",
@@ -61,10 +70,25 @@ EVIDENCE_BLOCK_FUNCTIONS = {
 
 
 def extract_typst_evidence(path: Path) -> list[EvidenceItem]:
-    section = "Unsectioned"
+    return _extract_typst_evidence_from_lines(
+        path=path,
+        lines=path.read_text(encoding="utf-8").splitlines(),
+        initial_section="Unsectioned",
+        infer_section_titles=False,
+    )
+
+
+def _extract_typst_evidence_from_lines(
+    *,
+    path: Path,
+    lines: list[str],
+    initial_section: str,
+    infer_section_titles: bool,
+) -> list[EvidenceItem]:
+    section = initial_section
     evidence: list[EvidenceItem] = []
     statement_lines: list[str] = []
-    content_started = False
+    content_started = section != "Unsectioned"
 
     def flush_statement() -> None:
         nonlocal statement_lines
@@ -80,7 +104,6 @@ def extract_typst_evidence(path: Path) -> list[EvidenceItem]:
             )
         statement_lines = []
 
-    lines = path.read_text(encoding="utf-8").splitlines()
     index = 0
     while index < len(lines):
         raw_line = lines[index]
@@ -88,6 +111,17 @@ def extract_typst_evidence(path: Path) -> list[EvidenceItem]:
         if not line:
             index += 1
             continue
+
+        if infer_section_titles:
+            title_match = re.match(r"title:\s*(.+?)(?:,)?$", line)
+            if title_match:
+                title = _clean_typst_inline(title_match.group(1))
+                if title:
+                    flush_statement()
+                    section = title
+                    content_started = True
+                index += 1
+                continue
 
         section_match = re.match(r'#section\("([^"]+)"\)', line)
         if section_match:
@@ -121,7 +155,15 @@ def extract_typst_evidence(path: Path) -> list[EvidenceItem]:
 
         if line.startswith("#"):
             if "(" in line and _paren_delta(line) > 0:
-                _, index = _collect_typst_call(lines, index)
+                block_text, index = _collect_typst_call(lines, index)
+                evidence.extend(
+                    _extract_typst_evidence_from_lines(
+                        path=path,
+                        lines=_inner_typst_lines(block_text),
+                        initial_section=section,
+                        infer_section_titles=True,
+                    )
+                )
             else:
                 index += 1
             continue
@@ -149,7 +191,12 @@ def extract_typst_evidence(path: Path) -> list[EvidenceItem]:
     return evidence
 
 
-def extract_profile_evidence(profile_dir: Path) -> list[Path]:
+def extract_profile_evidence(
+    profile_dir: Path,
+    *,
+    llm_provider: LLMProvider | None = None,
+    prompt_dir: Path = Path("prompts"),
+) -> list[Path]:
     manifest_path = profile_dir / "profile.yaml"
     manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
     sources = manifest.get("sources", {})
@@ -162,11 +209,81 @@ def extract_profile_evidence(profile_dir: Path) -> list[Path]:
         source_path = profile_dir / source_value
         output_path = _output_path_for_source(profile_dir, source_key, generated)
         evidence = extract_typst_evidence(source_path)
+        if llm_provider is not None:
+            evidence = augment_typst_evidence_with_provider(
+                source_key=str(source_key),
+                source_path=source_path,
+                source_text=source_path.read_text(encoding="utf-8"),
+                local_evidence=evidence,
+                provider=llm_provider,
+                prompt_text=read_resource_text(
+                    "prompts/profile_evidence_augmenter.md",
+                    local_path=prompt_dir / "profile_evidence_augmenter.md",
+                ),
+            )
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(_evidence_markdown(source_key, evidence), encoding="utf-8")
         written.append(output_path)
 
     return written
+
+
+def augment_typst_evidence_with_provider(
+    *,
+    source_key: str,
+    source_path: Path,
+    source_text: str,
+    local_evidence: list[EvidenceItem],
+    provider: LLMProvider,
+    prompt_text: str,
+) -> list[EvidenceItem]:
+    prompt = _render_augmentation_prompt(
+        prompt_text,
+        source_key=source_key,
+        source_path=source_path,
+        source_text=source_text,
+        local_evidence=local_evidence,
+    )
+    response = provider.complete(prompt)
+    parsed = _loads_evidence_augmentation_json(response.content)
+    raw_items = parsed.get("items")
+    if not isinstance(raw_items, list):
+        raise EvidenceAugmentationError("LLM evidence augmenter returned JSON without an items list")
+
+    augmented = list(local_evidence)
+    seen = {_normalize_evidence_text(item.text) for item in augmented}
+    normalized_source = _normalize_source_support(source_text)
+
+    for index, raw_item in enumerate(raw_items):
+        if not isinstance(raw_item, dict):
+            raise EvidenceAugmentationError(f"LLM evidence augmenter items[{index}] must be an object")
+
+        text = _string_field(raw_item, "text")
+        source_quote = _string_field(raw_item, "source_text")
+        if not text or not source_quote:
+            continue
+        normalized_quote = _normalize_source_support(source_quote)
+        if not normalized_quote or normalized_quote not in normalized_source:
+            continue
+
+        cleaned_text = _clean_typst_inline(text)
+        normalized_text = _normalize_evidence_text(cleaned_text)
+        if not cleaned_text or normalized_text in seen:
+            continue
+
+        section = _clean_typst_inline(_string_field(raw_item, "section")) or "Unsectioned"
+        kind = _safe_evidence_kind(_string_field(raw_item, "kind")) or "llm-augmented"
+        augmented.append(
+            EvidenceItem(
+                source_file=str(source_path),
+                section=section,
+                kind=kind,
+                text=cleaned_text,
+            )
+        )
+        seen.add(normalized_text)
+
+    return augmented
 
 
 def load_generated_evidence(profile_dir: Path) -> list[EvidenceReference]:
@@ -238,6 +355,94 @@ def _manifest_generated_evidence_paths(profile_dir: Path) -> list[Path] | None:
     return unique_paths
 
 
+def _render_augmentation_prompt(
+    prompt_text: str,
+    *,
+    source_key: str,
+    source_path: Path,
+    source_text: str,
+    local_evidence: list[EvidenceItem],
+) -> str:
+    rendered = prompt_text.replace("{source_key}", source_key)
+    rendered = rendered.replace("{source_path}", source_path.name)
+    rendered = rendered.replace("{source_text}", source_text)
+    rendered = rendered.replace("{local_evidence}", _evidence_items_json(local_evidence))
+    return rendered
+
+
+def _evidence_items_json(evidence: list[EvidenceItem]) -> str:
+    data = [
+        {
+            "section": item.section,
+            "kind": item.kind,
+            "text": item.text,
+        }
+        for item in evidence
+    ]
+    return json.dumps(data, indent=2, default=str)
+
+
+def _loads_evidence_augmentation_json(content: str) -> dict[str, Any]:
+    stripped = content.strip()
+    if not stripped:
+        raise EvidenceAugmentationError("LLM evidence augmenter returned an empty response")
+    if stripped.startswith("```"):
+        stripped = _strip_json_fence(stripped)
+    else:
+        fenced = _single_json_fence(stripped)
+        if fenced is not None:
+            stripped = fenced
+    try:
+        parsed = json.loads(stripped)
+    except json.JSONDecodeError as exc:
+        raise EvidenceAugmentationError(
+            f"LLM evidence augmenter returned invalid JSON: {exc.msg}. Return exactly one JSON object."
+        ) from exc
+    if not isinstance(parsed, dict):
+        raise EvidenceAugmentationError("LLM evidence augmenter returned JSON that is not an object")
+    return parsed
+
+
+def _strip_json_fence(content: str) -> str:
+    lines = content.splitlines()
+    if lines and lines[0].startswith("```"):
+        lines = lines[1:]
+    if lines and lines[-1].startswith("```"):
+        lines = lines[:-1]
+    return "\n".join(lines).strip()
+
+
+def _single_json_fence(content: str) -> str | None:
+    matches = re.findall(r"```(?:json)?\s*\n(.*?)\n```", content, flags=re.DOTALL | re.IGNORECASE)
+    if len(matches) != 1:
+        return None
+    return matches[0].strip()
+
+
+def _string_field(item: dict[str, Any], field: str) -> str:
+    value = item.get(field, "")
+    if value is None:
+        return ""
+    if isinstance(value, (dict, list)):
+        return ""
+    return str(value).strip()
+
+
+def _safe_evidence_kind(value: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9_-]+", "-", value.strip().lower()).strip("-")
+    return cleaned[:50]
+
+
+def _normalize_evidence_text(text: str) -> str:
+    return re.sub(r"\s+", " ", _clean_typst_inline(text)).strip().casefold()
+
+
+def _normalize_source_support(text: str) -> str:
+    cleaned = _clean_typst_inline(text)
+    cleaned = re.sub(r"[^\w\s]", " ", cleaned)
+    return re.sub(r"\s+", " ", cleaned).strip().casefold()
+
+
 def _typst_call_name(line: str) -> str:
     match = re.match(r"#([A-Za-z][\w-]*)\s*\(", line)
     return match.group(1) if match else ""
@@ -255,6 +460,13 @@ def _collect_typst_call(lines: list[str], start_index: int) -> tuple[str, int]:
             return "\n".join(collected), index + 1
 
     return "\n".join(collected), len(lines)
+
+
+def _inner_typst_lines(block_text: str) -> list[str]:
+    lines = block_text.splitlines()
+    if len(lines) <= 2:
+        return []
+    return lines[1:-1]
 
 
 def _paren_delta(line: str) -> int:

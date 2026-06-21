@@ -13,6 +13,7 @@ REQUIRED_WHEEL_RESOURCES = [
     "canisend/resources/prompts/cv_tailor.md",
     "canisend/resources/prompts/criteria_checker.md",
     "canisend/resources/prompts/package_builder.md",
+    "canisend/resources/prompts/profile_evidence_augmenter.md",
     "canisend/resources/templates/typst/cover_letter.typ",
     "canisend/resources/templates/typst/application_package.typ",
     "canisend/resources/schemas/parsed_job.schema.json",

@@ -45,6 +45,8 @@ Do not use ready, final, complete, or submission-ready for generated materials u
 - Real `profile/`, `jobs/`, `job_leads/`, PDFs, `.env`, and private source URLs are not staged.
 - Sensitive declarations are left to the user.
 - The final package is a preparation dossier, not proof of submission.
+- Agent-assisted reviews report any full private sources read directly.
+- LLM-backed CLI runs report which flags/providers were used.
 
 ## Manual Submission Gate
 

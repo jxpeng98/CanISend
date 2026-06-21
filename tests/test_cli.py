@@ -46,6 +46,16 @@ def test_run_help_shows_llm_draft_flag():
     assert "--llm-drafts" in output
 
 
+def test_extract_profile_evidence_help_shows_llm_augment_flag():
+    runner = CliRunner()
+
+    result = runner.invoke(app, ["extract-profile-evidence", "--help"])
+    output = strip_ansi(result.output)
+
+    assert result.exit_code == 0
+    assert "--llm-augment" in output
+
+
 def test_cli_version_option_shows_local_and_remote_versions(monkeypatch):
     runner = CliRunner()
 

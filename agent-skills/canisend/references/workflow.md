@@ -34,6 +34,8 @@ canisend extract-profile-evidence --workspace <private-workspace>
 
 Agents should read generated evidence from `profile/generated/`, not directly rely on prose claims in the private CV. New claims should cite item-level citations such as `profile/generated/cv.evidence.md#Teaching/cv-001`.
 
+If generated evidence is incomplete, first report the gap. Read raw profile sources only with user approval, because in agent-assisted mode the content read by the agent may be processed by the agent model provider. `extract-profile-evidence --llm-augment` must also be explicit opt-in; it rejects augmented items that do not cite a local source chunk.
+
 ## 3. Fetch And Select Leads
 
 Fetch jobs.ac.uk RSS leads locally:
@@ -93,7 +95,7 @@ canisend run \
 
 Use only `--llm-parser` when the user wants structured parsing but not drafted prose. Use only `--llm-drafts` when deterministic parsing is sufficient.
 
-Always ask before enabling LLM-backed flags or a command provider for a real workspace, because those modes can send private advert and evidence context to the configured provider. If the user has not opted in, run the deterministic baseline and report any gaps for manual review.
+Always ask before enabling LLM-backed flags or a command provider for a real workspace, because those modes can send selected private advert, profile, evidence, and draft context to the configured provider. If the user has not opted in, run the deterministic baseline and report any gaps for manual review.
 
 ## 6. Review Before Rendering
 
@@ -110,6 +112,8 @@ Review, in order:
 
 Apply `quality-gates.md` before treating any output as usable.
 In particular, check item-level citations, unsupported claims, required-document coverage, and private-file safety before presenting a package as ready.
+
+In agent-assisted mode, also report which private sources were read directly, which LLM-backed CLI flags were used, and which remaining claims need manual confirmation.
 
 ## 7. Optional Typst Rendering
 

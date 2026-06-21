@@ -17,6 +17,7 @@ def test_v1_contract_files_exist():
         "prompts/cv_tailor.md",
         "prompts/criteria_checker.md",
         "prompts/package_builder.md",
+        "prompts/profile_evidence_augmenter.md",
         "agent-skills/canisend/SKILL.md",
         "agent-skills/canisend/agents/openai.yaml",
         "agent-skills/canisend/references/workflow.md",
@@ -134,6 +135,8 @@ def test_agent_skill_defines_release_ready_agent_boundaries():
     assert "Do Not Read Unless Needed" in privacy
     assert "Do Not Quote In Chat" in privacy
     assert "Do Not Stage Or Commit" in privacy
+    assert "Agent-assisted mode" in privacy
+    assert "not a promise that agent-assisted or LLM-backed workflows keep all content away from models" in privacy
     assert "full job adverts" in privacy
     assert "source URLs" in privacy
 
@@ -237,6 +240,7 @@ def test_readme_documents_core_workflow_and_agent_usage():
     assert "extract-profile-evidence" in readme
     assert "--llm-parser" in readme
     assert "--llm-drafts" in readme
+    assert "--llm-augment" in readme
     assert "cover_letter_content.json" in readme
     assert "07_material_review_checklist.md" in readme
     assert "examples/end_to_end" in readme

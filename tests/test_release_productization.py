@@ -80,6 +80,7 @@ def test_package_check_requires_all_run_example_resources():
         "canisend/resources/prompts/cv_tailor.md",
         "canisend/resources/prompts/criteria_checker.md",
         "canisend/resources/prompts/package_builder.md",
+        "canisend/resources/prompts/profile_evidence_augmenter.md",
         "canisend/resources/examples/end_to_end/jobs_ac_uk_sample.xml",
         "canisend/resources/examples/end_to_end/full_job_advert.md",
         "canisend/resources/examples/end_to_end/fake_llm_provider.py",

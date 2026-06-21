@@ -14,6 +14,16 @@ canisend doctor --workspace <private-workspace>
 
 Any platform can use the skill by reading `SKILL.md`, then loading only the needed one-level reference files. The CLI remains the source of truth for workspace actions.
 
+## Mode Transparency
+
+All platforms must distinguish direct CLI work from agent-assisted work:
+
+- Direct CLI deterministic mode can be local-only when no LLM flags or providers are used.
+- Agent-assisted mode is not local-only; content read by Codex, Claude Code, or another AI agent may be processed by that agent's model provider.
+- LLM-backed CLI mode sends selected context to the configured provider or command when explicit flags are enabled.
+
+Bridge files should make this distinction visible before an agent reads full private materials.
+
 ## Workspace Bridge Files
 
 `canisend init-workspace` copies these bridge files into the workspace root:
@@ -29,7 +39,7 @@ Existing bridge files are not overwritten unless the user passes `--overwrite`.
 
 ## Codex And AGENTS.md
 
-Codex and other AGENTS.md-aware agents should read root `AGENTS.md`. The bridge file summarizes privacy boundaries and points to the project skill. If a Codex runtime supports native skills, prefer invoking `$canisend`; otherwise read the skill folder directly.
+Codex and other AGENTS.md-aware agents should read root `AGENTS.md`. The bridge file summarizes mode boundaries and points to the project skill. If a Codex runtime supports native skills, prefer invoking `$canisend`; otherwise read the skill folder directly.
 
 ## Claude Code And CLAUDE.md
 
@@ -52,4 +62,5 @@ For VS Code, Cursor, Zed, JetBrains, Copilot-style chat, and other IDE agents:
 - Root bridge file exists for the target platform.
 - The bridge points to `agent-skills/canisend/SKILL.md`.
 - The agent understands private paths: `profile/`, `jobs/`, `job_leads/`, `.env`, PDFs.
+- The agent understands that agent-read private content may enter the agent model context.
 - The agent reads `quality-gates.md` before presenting generated materials as ready.

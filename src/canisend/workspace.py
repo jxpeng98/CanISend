@@ -26,6 +26,7 @@ DEFAULT_WORKSPACE_CONFIG = {
 DEPRECATED_WORKSPACE_FILES = ("GEMINI.md",)
 DEFAULT_RESOURCE_CHECKS = {
     "prompts/job_parser.md": "prompts/job_parser.md",
+    "prompts/profile_evidence_augmenter.md": "prompts/profile_evidence_augmenter.md",
     "templates/typst/cover_letter.typ": "templates/typst/cover_letter.typ",
     "schemas/parsed_job.schema.json": "schemas/parsed_job.schema.json",
     "agent-skills/canisend/SKILL.md": "agent-skills/canisend/SKILL.md",

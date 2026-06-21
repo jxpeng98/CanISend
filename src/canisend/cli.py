@@ -3,7 +3,7 @@ from pathlib import Path
 import typer
 
 from canisend import __version__
-from canisend.evidence import extract_profile_evidence
+from canisend.evidence import EvidenceAugmentationError, extract_profile_evidence
 from canisend.examples import run_packaged_example
 from canisend.jobs import create_job, create_job_from_lead, list_jobs as list_job_folders
 from canisend.pipeline import run_pipeline as run_job_pipeline
@@ -299,10 +299,34 @@ def extract_profile_evidence_command(
         "--profile-dir",
         help="Directory containing profile.yaml and Typst profile sources. Relative paths are resolved against --workspace.",
     ),
+    llm_augment: bool = typer.Option(
+        False,
+        "--llm-augment",
+        help="Use the configured LLM provider to supplement locally extracted profile evidence.",
+    ),
+    prompt_dir: Path | None = typer.Option(
+        None,
+        "--prompt-dir",
+        help="Directory containing prompt files. Relative paths are resolved against --workspace.",
+    ),
 ) -> None:
     """Generate normalized evidence Markdown from local profile sources."""
     config = load_workspace_config(workspace)
-    written = extract_profile_evidence(config.path("profile_dir", profile_dir))
+    provider = None
+    if llm_augment:
+        from canisend.llm import load_llm_config, provider_from_config
+
+        provider = provider_from_config(load_llm_config())
+        typer.echo("Evidence augmentation: LLM-backed")
+    try:
+        written = extract_profile_evidence(
+            config.path("profile_dir", profile_dir),
+            llm_provider=provider,
+            prompt_dir=config.path("prompt_dir", prompt_dir),
+        )
+    except EvidenceAugmentationError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
     typer.echo(f"Generated {len(written)} evidence files.")
 
 

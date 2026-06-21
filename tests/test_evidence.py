@@ -1,11 +1,25 @@
+import sys
+
 from typer.testing import CliRunner
 
 from canisend.cli import app
 from canisend.evidence import (
+    EvidenceAugmentationError,
     extract_profile_evidence,
     extract_typst_evidence,
     load_generated_evidence,
 )
+from canisend.llm import LLMResponse
+
+
+class FakeProvider:
+    def __init__(self, content: str) -> None:
+        self.content = content
+        self.prompts: list[str] = []
+
+    def complete(self, prompt: str) -> LLMResponse:
+        self.prompts.append(prompt)
+        return LLMResponse(content=self.content, provider="fake")
 
 
 def test_extract_typst_evidence_from_modernpro_cv_blocks(tmp_path):
@@ -60,6 +74,40 @@ def test_extract_typst_evidence_from_modernpro_multiline_blocks(tmp_path):
     assert "Curriculum Design" in evidence[1].text
     assert evidence[2].section == "Service"
     assert "Admissions Interview Panel" in evidence[2].text
+
+
+def test_extract_typst_evidence_from_sections_data_structure(tmp_path):
+    typst_file = tmp_path / "cv.typ"
+    typst_file.write_text(
+        "#let sections = (\n"
+        "  education: (\n"
+        '    title: "Education",\n'
+        "    items: (\n"
+        "      #education(\n"
+        "        institution: [University X],\n"
+        "        major: [Economics],\n"
+        "        degree: [PhD],\n"
+        "        date: [2026],\n"
+        "      ),\n"
+        "    ),\n"
+        "  ),\n"
+        "  teaching: (\n"
+        "    title: [Teaching],\n"
+        "    items: (\n"
+        "      #job(position: [Teaching Fellow], institution: [University X], date: [2024--2026]),\n"
+        "    ),\n"
+        "  ),\n"
+        ")\n"
+        "#render-sections(sections: sections)\n"
+    )
+
+    evidence = extract_typst_evidence(typst_file)
+
+    assert [item.kind for item in evidence] == ["education", "job"]
+    assert evidence[0].section == "Education"
+    assert "University X" in evidence[0].text
+    assert evidence[1].section == "Teaching"
+    assert "Teaching Fellow" in evidence[1].text
 
 
 def test_extract_typst_evidence_captures_statement_paragraphs_as_claims(tmp_path):
@@ -207,3 +255,134 @@ def test_extract_profile_evidence_cli_writes_generated_evidence(tmp_path):
     assert result.exit_code == 0
     assert "Generated 1 evidence files" in result.output
     assert "Teaching Assistant" in (profile_dir / "generated" / "cv.evidence.md").read_text()
+
+
+def test_extract_profile_evidence_cli_llm_augment_uses_configured_provider(tmp_path, monkeypatch):
+    profile_dir = tmp_path / "profile"
+    typst_dir = profile_dir / "typst"
+    typst_dir.mkdir(parents=True)
+    (profile_dir / "profile.yaml").write_text(
+        "sources:\n"
+        "  cv: typst/cv.typ\n"
+        "generated:\n"
+        "  cv_evidence: generated/cv.evidence.md\n"
+    )
+    (typst_dir / "cv.typ").write_text(
+        "#let sections = (\n"
+        "  service: (\n"
+        "    title: [Service],\n"
+        "    items: (\n"
+        "      note: [Organised applicant visit day.],\n"
+        "    ),\n"
+        "  ),\n"
+        ")\n"
+    )
+    model = tmp_path / "augmenter.py"
+    model.write_text(
+        "import json\n"
+        "import sys\n"
+        "sys.stdin.read()\n"
+        "print(json.dumps({'items': [{'section': 'Service', 'kind': 'service', "
+        "'text': 'Organised applicant visit day.', "
+        "'source_text': 'Organised applicant visit day.'}]}))\n"
+    )
+    monkeypatch.setenv("ACADEMIC_PREP_LLM_PROVIDER", "command")
+    monkeypatch.setenv("ACADEMIC_PREP_LLM_COMMAND", f"{sys.executable} {model}")
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        ["extract-profile-evidence", "--profile-dir", str(profile_dir), "--llm-augment"],
+    )
+
+    assert result.exit_code == 0
+    assert "Evidence augmentation: LLM-backed" in result.output
+    assert "Generated 1 evidence files" in result.output
+    assert "Organised applicant visit day" in (profile_dir / "generated" / "cv.evidence.md").read_text()
+
+
+def test_extract_profile_evidence_llm_augment_adds_supported_items(tmp_path):
+    profile_dir = tmp_path / "profile"
+    typst_dir = profile_dir / "typst"
+    typst_dir.mkdir(parents=True)
+    (profile_dir / "profile.yaml").write_text(
+        "sources:\n"
+        "  cv: typst/cv.typ\n"
+        "generated:\n"
+        "  cv_evidence: generated/cv.evidence.md\n"
+    )
+    (typst_dir / "cv.typ").write_text(
+        "#let sections = (\n"
+        "  teaching: (\n"
+        "    title: [Teaching],\n"
+        "    items: (\n"
+        "      description: [Designed applied econometrics assessment.],\n"
+        "    ),\n"
+        "  ),\n"
+        ")\n"
+    )
+    provider = FakeProvider(
+        '{"items": ['
+        '{"section": "Teaching", "kind": "llm-augmented", '
+        '"text": "Designed applied econometrics assessment.", '
+        '"source_text": "Designed applied econometrics assessment."}'
+        "]}"
+    )
+
+    extract_profile_evidence(profile_dir, llm_provider=provider)
+
+    content = (profile_dir / "generated" / "cv.evidence.md").read_text()
+    assert "Designed applied econometrics assessment" in content
+    assert "profile_evidence_augmenter" not in provider.prompts[0]
+    assert "Designed applied econometrics assessment" in provider.prompts[0]
+    assert str(typst_dir) not in provider.prompts[0]
+
+
+def test_extract_profile_evidence_llm_augment_rejects_unsupported_items(tmp_path):
+    profile_dir = tmp_path / "profile"
+    typst_dir = profile_dir / "typst"
+    typst_dir.mkdir(parents=True)
+    (profile_dir / "profile.yaml").write_text(
+        "sources:\n"
+        "  cv: typst/cv.typ\n"
+        "generated:\n"
+        "  cv_evidence: generated/cv.evidence.md\n"
+    )
+    (typst_dir / "cv.typ").write_text(
+        '#section("Teaching")\n'
+        '#job(position: "Teaching Assistant", institution: [University X], date: "2023")\n'
+    )
+    provider = FakeProvider(
+        '{"items": ['
+        '{"section": "Research", "kind": "publication", '
+        '"text": "Published a top journal article.", '
+        '"source_text": "Published a top journal article."}'
+        "]}"
+    )
+
+    extract_profile_evidence(profile_dir, llm_provider=provider)
+
+    content = (profile_dir / "generated" / "cv.evidence.md").read_text()
+    assert "Teaching Assistant" in content
+    assert "Published a top journal article" not in content
+
+
+def test_extract_profile_evidence_llm_augment_rejects_invalid_json(tmp_path):
+    profile_dir = tmp_path / "profile"
+    typst_dir = profile_dir / "typst"
+    typst_dir.mkdir(parents=True)
+    (profile_dir / "profile.yaml").write_text(
+        "sources:\n"
+        "  cv: typst/cv.typ\n"
+        "generated:\n"
+        "  cv_evidence: generated/cv.evidence.md\n"
+    )
+    (typst_dir / "cv.typ").write_text('#section("Teaching")\n')
+    provider = FakeProvider("not json")
+
+    try:
+        extract_profile_evidence(profile_dir, llm_provider=provider)
+    except EvidenceAugmentationError as exc:
+        assert "invalid JSON" in str(exc)
+    else:
+        raise AssertionError("Expected EvidenceAugmentationError")

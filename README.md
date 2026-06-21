@@ -24,7 +24,7 @@ It prepares materials only. It does not submit applications, create accounts, fi
 - Creates one local folder per application, with the full advert kept as a manual input.
 - Extracts normalized evidence from Typst-first profile sources into `profile/generated/`.
 - Generates `parsed_job.json`, fit reports, cover letter drafts, CV tailoring notes, criteria checklists, material review checklists, and structured Typst content.
-- Runs deterministic local generation by default, with explicit opt-in for an LLM-backed parser or LLM-backed drafts.
+- Runs deterministic local generation by default, with explicit opt-in for LLM-backed evidence augmentation, parsing, or drafting.
 - Ships bridge files for Codex, Claude Code, and IDE agents through `AGENTS.md`, `CLAUDE.md`, and `agent-skills/canisend/SKILL.md`.
 
 ## Quick Start
@@ -174,6 +174,14 @@ Generate normalized evidence:
 canisend extract-profile-evidence --workspace ~/CanISendWorkspace
 ```
 
+When local Typst extraction misses evidence, you can explicitly opt into provider-backed augmentation:
+
+```bash
+canisend extract-profile-evidence \
+  --workspace ~/CanISendWorkspace \
+  --llm-augment
+```
+
 The profile manifest lives at `profile/profile.yaml`. Generated evidence is written to `profile/generated/` and cited with item-level references such as:
 
 ```text
@@ -246,13 +254,17 @@ jobs/<job-slug>/
     application_package.typ
 ```
 
-LLM-backed parser and draft generation are explicit opt-in modes. Configure a provider before using them:
+LLM-backed evidence augmentation, parser, and draft generation are explicit opt-in modes. Configure a provider before using them:
 
 ```bash
 ACADEMIC_PREP_LLM_PROVIDER=openai-compatible
 OPENAI_API_KEY=...
 OPENAI_BASE_URL=https://api.openai.com/v1
 OPENAI_MODEL=...
+
+canisend extract-profile-evidence \
+  --workspace ~/CanISendWorkspace \
+  --llm-augment
 
 canisend run \
   --workspace ~/CanISendWorkspace \
@@ -269,7 +281,7 @@ ACADEMIC_PREP_LLM_COMMAND="codex exec --json"
 ACADEMIC_PREP_LLM_TIMEOUT_SECONDS=300
 ```
 
-The LLM-backed parser must return JSON matching the `parsed_job.json` contract. Draft outputs must cite profile evidence; unknown citations fail validation. Missing evidence should be marked as a gap, not replaced with unsupported claims.
+The LLM-backed evidence augmenter only accepts items tied to a supporting `source_text` found in the local profile source. The LLM-backed parser must return JSON matching the `parsed_job.json` contract. Draft outputs must cite profile evidence; unknown citations fail validation. Missing evidence should be marked as a gap, not replaced with unsupported claims.
 
 ### 5. Review, render, and submit manually
 
@@ -308,7 +320,7 @@ Rendering requires a local `typst` binary. Source generation does not. Submit ma
 
 ## Agent Usage
 
-Codex, Claude Code, and IDE agents can run the `canisend` workflow by opening the private workspace as the project root.
+Codex, Claude Code, and IDE agents can run the `canisend` workflow by opening the private workspace as the project root. This is an agent-assisted workflow, not a local-only workflow: any file, PDF, webpage, or generated material the agent reads or summarizes may be processed by the agent model provider.
 
 - Codex and AGENTS.md-aware tools should read `AGENTS.md`.
 - Claude Code should read `CLAUDE.md`, which imports `agent-skills/canisend/SKILL.md`.
@@ -320,7 +332,13 @@ Agents should start with:
 canisend doctor --workspace .
 ```
 
-They may run local CLI commands, inspect generated evidence, and review current job artifacts. They must ask first before reading full private CVs, full job adverts, references, source URLs, or enabling LLM-backed flags. They must not scrape pages, submit applications, upload packages, fabricate evidence, or commit private profile/job data.
+They may run local deterministic CLI commands, inspect generated evidence, and review current job artifacts. They must ask first before reading full private CVs, statements, full job adverts, references, PDFs, source URLs, generated packages, or enabling LLM-backed CLI flags/providers. They must not scrape pages, submit applications, upload packages, fabricate evidence, or commit private profile/job data.
+
+Privacy modes:
+
+- Direct CLI deterministic mode can be local-only when no agent reads private content and no LLM flags/providers are used.
+- Agent-assisted mode means agent-read content may enter the agent model context.
+- LLM-backed CLI mode means selected context may be sent to the configured provider or local command through flags such as `extract-profile-evidence --llm-augment`, `--llm-parser`, or `--llm-drafts`.
 
 Detailed agent guidance lives in:
 

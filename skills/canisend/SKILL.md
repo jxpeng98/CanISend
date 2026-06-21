@@ -9,9 +9,11 @@ Chinese nickname: 这也能投.
 
 Core principle: 别编了 / No claims without receipts.
 
-## Operating Mode
+## Operating Modes
 
-Treat this as a local-first preparation workflow. The tool helps prepare materials; it must not submit applications, create accounts, fill portals, scrape job pages, or answer sensitive declarations.
+Treat CanISend as local-first only in direct CLI deterministic mode. If an agent such as Codex or Claude Code reads files, PDFs, webpages, or generated materials, that content may be processed by the agent model provider. If the CLI is run with LLM-backed flags or a command provider, selected advert, profile, evidence, and draft context may be transmitted to the configured provider.
+
+The tool helps prepare materials; it must not submit applications, create accounts, fill portals, scrape job pages, upload packages, or answer sensitive declarations.
 
 Start by identifying the private workspace and, when relevant, the job folder:
 
@@ -31,8 +33,8 @@ Allowed by default:
 
 Requires explicit user approval:
 
-- Reading full private CVs, statements, references, full job adverts, or source URLs when a narrow generated-evidence summary is enough.
-- Enabling `--llm-parser`, `--llm-drafts`, or a command provider because that can transmit private advert and evidence context.
+- Reading full private CVs, statements, references, full job adverts, PDFs, source URLs, or generated application packages when a narrow generated-evidence summary is enough. In agent-assisted mode, tell the user that content read by the agent may enter the agent model context.
+- Enabling `extract-profile-evidence --llm-augment`, `--llm-parser`, `--llm-drafts`, or a command provider because that can transmit private advert, profile, evidence, and draft context.
 - Rendering PDFs, overwriting local defaults, or changing workspace-local prompts/templates that may contain private preferences.
 
 Always forbidden:
@@ -63,5 +65,5 @@ Read only the reference files needed for the current task:
 2. Determine current job state from `job.yaml` and generated files. Read `references/job-lifecycle.md` when uncertain.
 3. Keep profile evidence current with `canisend extract-profile-evidence --workspace <private-workspace>`.
 4. Use `canisend run --workspace <private-workspace> --job jobs/<job-slug>` for deterministic generation.
-5. Add `--llm-parser` and/or `--llm-drafts` only after checking `references/provider-config.md`.
+5. Add `extract-profile-evidence --llm-augment`, `--llm-parser`, or `--llm-drafts` only after checking `references/provider-config.md` and getting explicit user approval.
 6. Review outputs against `references/quality-gates.md` before rendering or presenting final package materials.

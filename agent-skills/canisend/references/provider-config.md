@@ -1,6 +1,6 @@
 # Provider Config
 
-Use this reference before running LLM-backed parser or draft generation.
+Use this reference before running LLM-backed profile-evidence augmentation, parser, draft generation, or command-provider workflows.
 
 ## Provider Modes
 
@@ -11,11 +11,14 @@ LLM-backed behavior is explicit opt-in:
 ```bash
 canisend run --workspace <private-workspace> --job jobs/<job-slug> --llm-parser
 canisend run --workspace <private-workspace> --job jobs/<job-slug> --llm-drafts
+canisend extract-profile-evidence --workspace <private-workspace> --llm-augment
 ```
 
-Use both flags only when the user wants both provider-backed parsing and provider-backed drafting.
+Use each flag only when the user wants that provider-backed step.
 
-Before enabling provider-backed parsing or drafting, tell the user it transmits private advert and evidence context to the configured provider or local command. Do not add `--llm-parser`, `--llm-drafts`, or `ACADEMIC_PREP_LLM_PROVIDER=command` on the user's behalf unless they explicitly approve that mode for the current workspace or job.
+Profile evidence augmentation is explicit opt-in through `extract-profile-evidence --llm-augment`. It is not enabled by default.
+
+Before enabling provider-backed parsing, drafting, profile augmentation, or a command provider, tell the user it transmits private advert and evidence context, plus any selected profile and draft context, to the configured provider or local command. Do not add `--llm-augment`, `--llm-parser`, `--llm-drafts`, or `ACADEMIC_PREP_LLM_PROVIDER=command` on the user's behalf unless they explicitly approve that mode for the current workspace or job.
 
 The provider environment variable prefix remains `ACADEMIC_PREP_LLM_*` in V1 for compatibility with existing local workspaces and scripts. Treat it as the stable V1 provider config surface unless a later release documents a migration.
 
@@ -45,7 +48,7 @@ ACADEMIC_PREP_LLM_TIMEOUT_SECONDS=300
 
 The command must read the prompt from stdin and write the completion to stdout. It should return non-zero on failure.
 
-The command provider inherits the same privacy boundary as any other LLM-backed mode: it may receive the full prompt, advert text, parsed job metadata, generated evidence references, and draft context. Keep `.env` and API keys out of prompts and logs.
+The command provider inherits the same privacy boundary as any other LLM-backed mode: it may receive the full prompt, advert text, parsed job metadata, profile source snippets, generated evidence references, and draft context. Keep `.env` and API keys out of prompts and logs.
 
 Examples the user may adapt:
 
@@ -67,3 +70,5 @@ Draft providers must cite evidence as backticked references such as:
 ```
 
 Unknown citations fail validation. Missing evidence should be marked as a risk or gap, not replaced with unsupported claims.
+
+Profile-evidence augmentation providers must return structured evidence tied to local source chunks or existing generated evidence. Items without a verifiable local source are rejected and must not become unsupported claims.

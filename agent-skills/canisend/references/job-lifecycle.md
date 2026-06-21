@@ -42,7 +42,7 @@ canisend extract-profile-evidence --workspace <private-workspace>
 canisend run --workspace <private-workspace> --job jobs/<job-slug>
 ```
 
-Use `--llm-parser` or `--llm-drafts` only when provider config is ready and the user wants model-backed steps.
+Use `extract-profile-evidence --llm-augment`, `--llm-parser`, or `--llm-drafts` only when provider config is ready and the user explicitly wants model-backed steps.
 
 ### `status: packaged`
 

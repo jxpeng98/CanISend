@@ -12,6 +12,12 @@ canisend doctor --workspace <private-workspace>
 
 From a development checkout, prefix CLI commands with `uv run`.
 
+Start by naming the mode:
+
+- Direct CLI deterministic mode: local CLI work without model-backed flags.
+- Agent-assisted mode: the agent may process any file, PDF, webpage, or generated material it reads.
+- LLM-backed CLI mode: the CLI sends selected context to the configured provider or command.
+
 If the agent is maintaining the repository rather than preparing a private application, inspect `examples/end_to_end/README.md` and run:
 
 ```bash
@@ -22,19 +28,28 @@ uv run pytest tests/test_examples.py -v
 
 1. Read `workflow.md` for the end-to-end sequence.
 2. Read `job-lifecycle.md` to decide the next action from current job state.
-3. Read `provider-config.md` before enabling `--llm-parser` or `--llm-drafts`.
-4. Read `quality-gates.md` before presenting materials as ready for review.
-5. Read `privacy.md` before staging, committing, quoting, or summarizing private files.
+3. Read `privacy.md` before reading full private sources, summarizing private files, staging, or committing.
+4. Read `provider-config.md` before enabling `extract-profile-evidence --llm-augment`, `--llm-parser`, `--llm-drafts`, or command providers.
+5. Read `quality-gates.md` before presenting materials as ready for review.
+6. Prefer generated evidence and structured job artifacts before raw private sources.
 
 Agents should coordinate through CLI commands and local files, not through hidden state.
+
+## Consent Tiers
+
+- Tier 0: workspace structure, `doctor`, public templates, prompts, schemas, and generated metadata. Agents may inspect these by default.
+- Tier 1: generated evidence, `job.yaml`, `parsed_job.json`, and current job review artifacts. Agents may inspect these when needed for the current task.
+- Tier 2: full CVs, statements, references, full job adverts, PDFs, source URLs, generated application packages, and institution-specific strategy. Ask first and state that agent-read content may enter the agent model context.
+- Tier 3: LLM-backed CLI flags and command-provider runs. Ask first and state that selected private context may be sent to the configured provider or command.
 
 ## Suggested Agent Roles
 
 Use separate agents only when the user explicitly asks for multi-agent work.
 
-- Lead coordinator: runs `doctor`, identifies workspace/job state, chooses next command, and checks privacy boundaries.
+- Lead coordinator: runs `doctor`, declares the mode, identifies workspace/job state, chooses next command, and checks privacy boundaries.
 - Lead scout: fetches jobs.ac.uk RSS leads and summarizes candidate roles without scraping full pages.
 - Evidence reviewer: checks `profile/generated/` coverage and reports gaps without editing private Typst sources.
+- Source reviewer: after explicit approval, reads bounded private sources to repair or verify evidence gaps.
 - Draft reviewer: checks fit report, cover letter, CV notes, and criteria checklist against quality gates.
 - Typst reviewer: checks `cover_letter_content.json` and optional PDF rendering.
 
@@ -47,9 +62,12 @@ Use this compact handoff when passing work between agents or tools:
 ```text
 Workspace: <private-workspace>
 Job: jobs/<job-slug>
+Mode: direct-cli-deterministic | agent-assisted | llm-backed-cli
 Current status: <job.yaml status or missing>
 Last command run: <command>
 Relevant files changed: <paths>
+Private sources read directly: <paths or "none">
+LLM-backed flags/providers used: <flags/provider or "none">
 Next recommended action: <action>
 Privacy notes: <any private files touched, or "none staged">
 ```
@@ -59,6 +77,8 @@ Privacy notes: <any private files touched, or "none staged">
 The local command provider can point at Codex, Claude Code, or another CLI. The command must read stdin and write stdout. Do not assume one provider exists; check config and ask the user before using model-backed steps.
 
 For command-provider tasks, prefer prompts that require JSON or evidence-cited Markdown output. Reject output that omits required citations when evidence exists.
+
+Agent-assisted work and command-provider work are different boundaries. In agent-assisted work, the agent model can see whatever the agent reads. In command-provider work, the CLI sends a prompt to the configured provider or local command. Both require clear scope, but they are not the same execution path.
 
 ## Boundaries
 

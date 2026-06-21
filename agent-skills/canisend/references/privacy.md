@@ -2,6 +2,16 @@
 
 Use this reference before reading, writing, staging, committing, or quoting user application data.
 
+## Execution Modes
+
+CanISend has three distinct privacy modes:
+
+- Direct CLI deterministic mode: commands such as `doctor`, `extract-profile-evidence`, `fetch-jobs-ac-uk`, `new-job`, and `run` without LLM flags can operate locally without sending profile or job text to a model provider.
+- Agent-assisted mode: when Codex, Claude Code, or another AI agent reads or summarizes files, PDFs, webpages, generated evidence, job adverts, or package drafts, that content may be processed by the agent model provider. Do not call this local-only.
+- LLM-backed CLI mode: `extract-profile-evidence --llm-augment`, `--llm-parser`, `--llm-drafts`, or `ACADEMIC_PREP_LLM_PROVIDER=command` may transmit selected private advert, profile, evidence, and draft context to the configured provider.
+
+The privacy boundary controls consent, scope, git safety, and forbidden actions. It is not a promise that agent-assisted or LLM-backed workflows keep all content away from models.
+
 ## Private By Default
 
 Do not commit real applicant data.
@@ -29,6 +39,16 @@ Prefer generated evidence and metadata over raw private source files. Read full 
 
 Ask first before reading private materials if the user asked for general workflow help, release work, repo maintenance, or another task that does not require private content.
 
+When asking to read private materials in agent-assisted mode, state that the content read by the agent may enter the agent model context. When enabling LLM-backed CLI flags, state that the configured provider or command may receive selected private context.
+
+## Data Minimization
+
+- Prefer `profile/generated/*.evidence.md` over raw `profile/typst/*.typ`.
+- Prefer `job.yaml`, `parsed_job.json`, and review checklists over full job adverts when sufficient.
+- Read only the current job folder unless the user explicitly asks for cross-job comparison.
+- Summarize narrow facts instead of quoting private text.
+- If full source review is necessary, read the smallest relevant file or section and explain why.
+
 ## Sensitive Actions Agents Must Not Do
 
 - Do not submit an application.
@@ -42,6 +62,20 @@ Ask first before reading private materials if the user asked for general workflo
 Do not quote private materials unless the user explicitly asks. This includes full CV sections, full job adverts, cover letters, statement paragraphs, names, emails, phone numbers, reference details, source URLs, and institution-specific application strategy.
 
 Use narrow summaries such as "the advert asks for econometrics teaching" or "the evidence file has two teaching items" when that is enough.
+
+## Consent Language For Agents
+
+Use direct language before crossing a boundary:
+
+```text
+To improve this package I need to read <file/path or source type>. Because this is agent-assisted mode, the content I read may be processed by the agent model provider. Do you want me to proceed?
+```
+
+For LLM-backed CLI flags:
+
+```text
+This command may transmit selected private advert/profile/evidence context to the configured LLM provider or local command. Do you want to run it for this job/workspace?
+```
 
 ## Before Staging Or Commit
 
