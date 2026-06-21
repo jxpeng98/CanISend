@@ -36,6 +36,7 @@ classifiers = [
 dependencies = [
     "packaging>=24.0",
     "pydantic>=2.7",
+    "pypdf>=5.0",
     "pyyaml>=6.0",
     "typer>=0.12",
 ]
