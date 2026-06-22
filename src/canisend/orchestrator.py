@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 import glob
 import json
 from pathlib import Path
+import re
 import shlex
 import shutil
 import subprocess
@@ -13,6 +14,9 @@ from typing import Any
 from uuid import uuid4
 
 import yaml
+
+
+SAFE_SEGMENT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
 
 
 class OrchestrationError(ValueError):
@@ -158,6 +162,7 @@ def _parse_tasks(raw_tasks: Any, workers: dict[str, WorkerConfig]) -> dict[str, 
         task_id = str(raw_task.get("id", "")).strip()
         if not task_id:
             raise OrchestrationError("Task id is required")
+        _validate_safe_segment(task_id, label="Task id")
         if task_id in tasks:
             raise OrchestrationError(f"Duplicate task id: {task_id}")
 
@@ -175,22 +180,20 @@ def _parse_tasks(raw_tasks: Any, workers: dict[str, WorkerConfig]) -> dict[str, 
                 f"Task {task_id!r} privacy tier exceeds worker {worker_name!r} privacy tier limit"
             )
 
-        outputs = _tuple_field(raw_task, "outputs")
-        writes = _tuple_field(raw_task, "writes") or outputs
+        inputs = _normalized_relative_paths(raw_task, "inputs", f"task {task_id!r} inputs")
+        outputs = _normalized_relative_paths(raw_task, "outputs", f"task {task_id!r} outputs")
+        writes = _normalized_relative_paths(raw_task, "writes", f"task {task_id!r} writes") or outputs
         task = OrchestrationTask(
             id=task_id,
             worker=worker_name,
             role=role,
             privacy_tier=privacy_tier,
-            inputs=_tuple_field(raw_task, "inputs"),
+            inputs=inputs,
             outputs=outputs,
             writes=writes,
             depends_on=_tuple_field(raw_task, "depends_on"),
             agent_count=_agent_count(raw_task.get("agent_count", 1), task_id),
         )
-        _validate_relative_paths(task.inputs, f"task {task_id!r} inputs")
-        _validate_relative_paths(task.outputs, f"task {task_id!r} outputs")
-        _validate_relative_paths(task.writes, f"task {task_id!r} writes")
         tasks[task_id] = task
     return tasks
 
@@ -291,6 +294,7 @@ def _execute_plan(
 ) -> OrchestrationResult:
     worker_argv = {worker.name: _worker_argv(worker) for worker in plan.workers.values()}
     run_id = run_id or _default_run_id()
+    _validate_safe_segment(run_id, label="run_id")
     run_dir = job_dir / "orchestration" / "runs" / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(plan_path, run_dir / "plan.yaml")
@@ -579,14 +583,12 @@ def _worker_argv(worker: WorkerConfig) -> list[str]:
 def _redact_command(argv: list[str]) -> list[str]:
     redacted: list[str] = []
     redact_next = False
-    sensitive_names = ("api-key", "apikey", "password", "secret", "token")
     for token in argv:
-        lower = token.lower()
         if redact_next:
             redacted.append("[redacted]")
             redact_next = False
             continue
-        if any(name in lower for name in sensitive_names):
+        if _is_sensitive_key(token):
             if "=" in token:
                 redacted.append(token.split("=", 1)[0] + "=[redacted]")
             else:
@@ -595,6 +597,12 @@ def _redact_command(argv: list[str]) -> list[str]:
             continue
         redacted.append(token)
     return redacted
+
+
+def _is_sensitive_key(token: str) -> bool:
+    key = token.split("=", 1)[0].lstrip("-")
+    normalized = re.sub(r"[^a-z0-9]", "", key.lower())
+    return any(name in normalized for name in ("apikey", "password", "secret", "token"))
 
 
 def _timeout_output(value: str | bytes | None) -> str:
@@ -661,8 +669,18 @@ def _privacy_tier(value: Any, label: str) -> int:
     return privacy_tier
 
 
-def _validate_relative_paths(paths: tuple[str, ...], label: str) -> None:
-    for raw_path in paths:
-        path = Path(raw_path)
-        if path.is_absolute() or ".." in path.parts:
-            raise OrchestrationError(f"{label} must use workspace-relative paths: {raw_path}")
+def _normalized_relative_paths(raw: dict[str, Any], field: str, label: str) -> tuple[str, ...]:
+    return tuple(_normalize_relative_path(raw_path, label) for raw_path in _tuple_field(raw, field))
+
+
+def _normalize_relative_path(raw_path: str, label: str) -> str:
+    path = Path(raw_path)
+    normalized = path.as_posix()
+    if path.is_absolute() or ".." in path.parts or normalized in {"", "."}:
+        raise OrchestrationError(f"{label} must use workspace-relative file paths: {raw_path}")
+    return normalized
+
+
+def _validate_safe_segment(value: str, *, label: str) -> None:
+    if value in {".", ".."} or not SAFE_SEGMENT_RE.fullmatch(value):
+        raise OrchestrationError(f"{label} must be a single safe path segment: {value}")

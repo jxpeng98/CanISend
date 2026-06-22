@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sys
 import time
 from pathlib import Path
@@ -64,6 +65,15 @@ def test_load_orchestration_plan_rejects_duplicate_task_ids(tmp_path):
     plan_path = write_plan(tmp_path / "plan.yaml", plan)
 
     with pytest.raises(OrchestrationError, match="Duplicate task id"):
+        load_orchestration_plan(plan_path)
+
+
+def test_load_orchestration_plan_rejects_unsafe_task_ids(tmp_path):
+    plan = base_plan()
+    plan["tasks"][0]["id"] = "../escape"
+    plan_path = write_plan(tmp_path / "plan.yaml", plan)
+
+    with pytest.raises(OrchestrationError, match="safe path segment"):
         load_orchestration_plan(plan_path)
 
 
@@ -135,6 +145,30 @@ def test_load_orchestration_plan_rejects_parallel_write_conflicts(tmp_path):
         load_orchestration_plan(plan_path)
 
 
+def test_load_orchestration_plan_rejects_normalized_parallel_write_conflicts(tmp_path):
+    plan = base_plan()
+    plan["tasks"] = [
+        {
+            "id": "a",
+            "worker": "echo",
+            "role": "a",
+            "outputs": ["shared.md"],
+            "writes": ["shared.md"],
+        },
+        {
+            "id": "b",
+            "worker": "echo",
+            "role": "b",
+            "outputs": ["./shared.md"],
+            "writes": ["./shared.md"],
+        },
+    ]
+    plan_path = write_plan(tmp_path / "plan.yaml", plan)
+
+    with pytest.raises(OrchestrationError, match="write conflict"):
+        load_orchestration_plan(plan_path)
+
+
 def test_load_orchestration_plan_rejects_worker_parallelism_below_one(tmp_path):
     plan = base_plan()
     plan["workers"]["echo"]["max_parallel_tasks"] = 0
@@ -172,6 +206,14 @@ def test_run_orchestration_rejects_missing_inputs_before_dry_run(tmp_path):
 
     with pytest.raises(OrchestrationError, match="missing input"):
         run_orchestration(workspace=workspace, job_dir=job_dir, plan_path=plan_path, dry_run=True)
+
+
+def test_run_orchestration_rejects_unsafe_run_id(tmp_path):
+    workspace, job_dir = base_job(tmp_path)
+    plan_path = write_plan(tmp_path / "plan.yaml", base_plan())
+
+    with pytest.raises(OrchestrationError, match="safe path segment"):
+        run_orchestration(workspace=workspace, job_dir=job_dir, plan_path=plan_path, run_id="../../escape")
 
 
 def test_run_orchestration_requires_private_source_opt_in(tmp_path):
@@ -255,6 +297,28 @@ def test_run_orchestration_executes_worker_and_writes_artifacts(tmp_path):
     assert result.task_statuses["review"] == "succeeded"
     assert (run_task_dir / "stdout.txt").exists()
     assert "RESULT:Role: job_parser_reviewer" in (job_dir / "orchestration" / "reviews" / "review.md").read_text()
+
+
+def test_run_orchestration_redacts_api_key_spellings_in_status(tmp_path):
+    workspace, job_dir = base_job(tmp_path)
+    worker = tmp_path / "worker.py"
+    worker.write_text("print('ok')\n", encoding="utf-8")
+    plan = base_plan()
+    plan["workers"]["echo"]["command"] = (
+        f"{sys.executable} {worker} --api_key sk-next OPENAI_API_KEY=sk-env"
+    )
+    plan_path = write_plan(tmp_path / "plan.yaml", plan)
+
+    run_orchestration(workspace=workspace, job_dir=job_dir, plan_path=plan_path, run_id="redact")
+
+    status = json.loads(
+        (job_dir / "orchestration" / "runs" / "redact" / "tasks" / "review" / "status.json").read_text()
+    )
+    command = " ".join(status["command"])
+    assert "sk-next" not in command
+    assert "sk-env" not in command
+    assert "--api_key [redacted]" in command
+    assert "OPENAI_API_KEY=[redacted]" in command
 
 
 def test_run_orchestration_runs_independent_tasks_in_parallel_for_one_worker(tmp_path):
