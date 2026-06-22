@@ -53,6 +53,7 @@ class OrchestrationTask:
     writes: tuple[str, ...] = ()
     depends_on: tuple[str, ...] = ()
     agent_count: int = 1
+    edits_profile_input: bool = False
 
 
 @dataclass(frozen=True)
@@ -89,6 +90,7 @@ def load_orchestration_plan(path: Path) -> OrchestrationPlan:
     tasks = _parse_tasks(raw.get("tasks", []), workers)
     _validate_dependencies(tasks)
     _validate_write_conflicts(tasks)
+    _validate_profile_input_edit_declarations(tasks)
     return OrchestrationPlan(workers=workers, tasks=tasks)
 
 
@@ -100,6 +102,8 @@ def run_orchestration(
     dry_run: bool = False,
     allow_private_sources: bool = False,
     allow_provider_backed: bool = False,
+    allow_profile_input_edits: bool = False,
+    profile_input_edit_confirmations: int = 0,
     fail_fast: bool = False,
     run_id: str | None = None,
 ) -> OrchestrationResult:
@@ -108,6 +112,11 @@ def run_orchestration(
         plan,
         allow_private_sources=allow_private_sources,
         allow_provider_backed=allow_provider_backed,
+    )
+    _validate_profile_input_edit_flags(
+        plan,
+        allow_profile_input_edits=allow_profile_input_edits,
+        profile_input_edit_confirmations=profile_input_edit_confirmations,
     )
     _validate_inputs(plan, workspace=workspace, job_dir=job_dir)
     if dry_run:
@@ -223,6 +232,7 @@ def _parse_tasks(raw_tasks: Any, workers: dict[str, WorkerConfig]) -> dict[str, 
             writes=writes,
             depends_on=_tuple_field(raw_task, "depends_on"),
             agent_count=_agent_count(raw_task.get("agent_count", 1), task_id),
+            edits_profile_input=bool(raw_task.get("edits_profile_input", False)),
         )
         tasks[task_id] = task
     return tasks
@@ -269,6 +279,48 @@ def _validate_write_conflicts(tasks: dict[str, OrchestrationTask]) -> None:
             raise OrchestrationError(
                 f"Task {first.id!r} and task {second.id!r} have a write conflict: {paths}"
             )
+
+
+def _validate_profile_input_edit_declarations(tasks: dict[str, OrchestrationTask]) -> None:
+    for task in tasks.values():
+        writes_profile_input = any(_is_profile_input_path(path) for path in task.writes)
+        if writes_profile_input and not task.edits_profile_input:
+            raise OrchestrationError(
+                f"Task {task.id!r} writes profile input files and must set edits_profile_input: true"
+            )
+        if task.edits_profile_input:
+            if not writes_profile_input:
+                raise OrchestrationError(
+                    f"Task {task.id!r} sets edits_profile_input but does not write a profile input path"
+                )
+            if task.privacy_tier < 2:
+                raise OrchestrationError(f"Task {task.id!r} profile input edits require privacy tier 2 or higher")
+            if not task.depends_on:
+                raise OrchestrationError(
+                    f"Task {task.id!r} profile input edits must depend on at least one prior review task"
+                )
+
+
+def _validate_profile_input_edit_flags(
+    plan: OrchestrationPlan,
+    *,
+    allow_profile_input_edits: bool,
+    profile_input_edit_confirmations: int,
+) -> None:
+    profile_edit_tasks = [task for task in plan.tasks.values() if task.edits_profile_input]
+    if not profile_edit_tasks:
+        return
+    if not allow_profile_input_edits:
+        raise OrchestrationError("Profile input edit tasks require --allow-profile-input-edits")
+    if profile_input_edit_confirmations < 2:
+        raise OrchestrationError("Profile input edit tasks require two profile input edit confirmations")
+
+
+def _is_profile_input_path(value: str) -> bool:
+    parts = Path(value).parts
+    if not parts or parts[0] != "profile":
+        return False
+    return len(parts) == 1 or parts[1] != "generated"
 
 
 def _depends_on(tasks: dict[str, OrchestrationTask], task_id: str, candidate_dependency: str) -> bool:
@@ -514,7 +566,7 @@ def _run_task(
     (task_dir / "stderr.txt").write_text(stderr, encoding="utf-8")
     (task_dir / "result.md").write_text(stdout, encoding="utf-8")
     if status == "succeeded":
-        _promote_task_output(task, job_dir=job_dir, stdout=stdout)
+        _promote_task_output(task, workspace=workspace, job_dir=job_dir, stdout=stdout)
 
     _write_json(
         task_dir / "status.json",
@@ -529,6 +581,7 @@ def _run_task(
             "outputs": list(task.outputs),
             "writes": list(task.writes),
             "privacy_tier": task.privacy_tier,
+            "edits_profile_input": task.edits_profile_input,
         },
     )
     return TaskExecution(task_id=task.id, status=status, exit_code=exit_code)
@@ -555,11 +608,25 @@ def _task_prompt(task: OrchestrationTask, *, workspace: Path, job_dir: Path) -> 
             f"Task: {task.id}",
             f"Privacy tier: {task.privacy_tier}",
             f"Agent count: {task.agent_count}",
+            f"Edits profile input: {'yes' if task.edits_profile_input else 'no'}",
             "",
+            *_profile_input_edit_prompt_lines(task),
             "Inputs:",
             *_input_blocks(task, workspace=workspace, job_dir=job_dir),
         ]
     )
+
+
+def _profile_input_edit_prompt_lines(task: OrchestrationTask) -> list[str]:
+    if not task.edits_profile_input:
+        return []
+    return [
+        "Profile input edit constraints:",
+        "- Modify original profile input only within the declared writes list.",
+        "- Preserve truthful evidence and do not add unsupported claims.",
+        "- Keep the edit minimal; unresolved judgement should remain as a review note, not a source change.",
+        "",
+    ]
 
 
 def _input_blocks(task: OrchestrationTask, *, workspace: Path, job_dir: Path) -> list[str]:
@@ -570,12 +637,19 @@ def _input_blocks(task: OrchestrationTask, *, workspace: Path, job_dir: Path) ->
     return blocks
 
 
-def _promote_task_output(task: OrchestrationTask, *, job_dir: Path, stdout: str) -> None:
+def _promote_task_output(task: OrchestrationTask, *, workspace: Path, job_dir: Path, stdout: str) -> None:
     if not task.outputs:
         return
-    output_path = job_dir / task.outputs[0]
+    output_path = _resolve_output_path(task.outputs[0], workspace=workspace, job_dir=job_dir)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(stdout, encoding="utf-8")
+
+
+def _resolve_output_path(output_path: str, *, workspace: Path, job_dir: Path) -> Path:
+    path = Path(output_path)
+    if _is_profile_input_path(output_path):
+        return workspace / path
+    return job_dir / path
 
 
 def _write_skipped_task_status(task: OrchestrationTask, *, run_dir: Path, reason: str) -> None:

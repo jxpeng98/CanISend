@@ -331,6 +331,21 @@ def orchestrate(
         "--allow-provider-backed",
         help="Allow Tier 3 provider-backed tasks declared in the plan.",
     ),
+    allow_profile_input_edits: bool = typer.Option(
+        False,
+        "--allow-profile-input-edits",
+        help="Allow declared profile input edit tasks that can modify original profile source files.",
+    ),
+    confirm_profile_input_edit: bool = typer.Option(
+        False,
+        "--confirm-profile-input-edit",
+        help="First confirmation that original profile source files may be modified.",
+    ),
+    confirm_profile_input_edit_again: bool = typer.Option(
+        False,
+        "--confirm-profile-input-edit-again",
+        help="Second confirmation that original profile source files may be modified.",
+    ),
     fail_fast: bool = typer.Option(
         False,
         "--fail-fast",
@@ -347,6 +362,10 @@ def orchestrate(
             dry_run=dry_run,
             allow_private_sources=allow_private_sources,
             allow_provider_backed=allow_provider_backed,
+            allow_profile_input_edits=allow_profile_input_edits,
+            profile_input_edit_confirmations=(
+                int(confirm_profile_input_edit) + int(confirm_profile_input_edit_again)
+            ),
             fail_fast=fail_fast,
         )
     except OrchestrationError as exc:

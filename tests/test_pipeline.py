@@ -261,7 +261,8 @@ def test_run_pipeline_writes_material_review_checklist_with_item_level_evidence(
     assert "`profile/generated/cv.evidence.md#Teaching/cv-001`" in review_checklist
     assert "Cover Letter Draft" in review_checklist
     assert "CV Tailoring Notes" in review_checklist
-    assert "Do not edit `profile/typst/cv.typ` unless the user explicitly asks." in review_checklist
+    assert "Do not edit `profile/typst/cv.typ` unless the user explicitly asks" in review_checklist
+    assert "edits_profile_input: true" in review_checklist
 
 
 def test_run_pipeline_reads_generated_profile_evidence(tmp_path):

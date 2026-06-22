@@ -131,8 +131,11 @@ def test_agent_skill_defines_release_ready_agent_boundaries():
     assert "Always forbidden" in skill
     assert "Do not claim materials are ready" in skill
     assert "do not stage private files" in skill.lower()
+    assert "edits_profile_input" in skill
 
     assert "Do Not Read Unless Needed" in privacy
+    assert "Original Profile Input Edits" in privacy
+    assert "--confirm-profile-input-edit-again" in privacy
     assert "Do Not Quote In Chat" in privacy
     assert "Do Not Stage Or Commit" in privacy
     assert "Agent-assisted mode" in privacy
@@ -141,6 +144,7 @@ def test_agent_skill_defines_release_ready_agent_boundaries():
     assert "source URLs" in privacy
 
     assert "Ready Claim Gate" in quality
+    assert "Profile Input Edit Gate" in quality
     assert "Do not use ready, final, complete, or submission-ready" in quality
     assert "Manual Submission Gate" in quality
     assert "explicit opt-in" in provider
@@ -247,6 +251,8 @@ def test_readme_documents_core_workflow_and_agent_usage():
     assert "--llm-drafts" in readme
     assert "--llm-augment" in readme
     assert "canisend orchestrate" in readme
+    assert "edits_profile_input" in readme
+    assert "--confirm-profile-input-edit-again" in readme
     assert "typst/cover_letter.typ" in readme
     assert "typst/application_package.typ" in readme
     assert "directly edit `typst/cover_letter.typ`" in readme

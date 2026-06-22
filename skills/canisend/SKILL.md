@@ -36,11 +36,13 @@ Requires explicit user approval:
 - Reading full private CVs, statements, references, full job adverts, PDFs, source URLs, or generated application packages when a narrow generated-evidence summary is enough. In agent-assisted mode, tell the user that content read by the agent may enter the agent model context.
 - Enabling `extract-profile-evidence --llm-augment`, `--llm-parser`, `--llm-drafts`, or a command provider because that can transmit private advert, profile, evidence, and draft context.
 - Rendering PDFs, overwriting local defaults, or changing workspace-local prompts/templates that may contain private preferences.
+- Modifying original profile inputs under `profile/` outside `profile/generated/`. Prefer job-folder suggestions; write source inputs only through an orchestrator task with `edits_profile_input: true`, a prior review dependency, privacy tier 2+, and two explicit profile-edit confirmations.
 
 Always forbidden:
 
 - Do not submit applications, create accounts, fill portals, answer sensitive declarations, upload packages, or scrape full job pages.
 - Do not fabricate applicant evidence; mark missing evidence as a gap.
+- Do not edit original `profile/` sources during ordinary draft review.
 - Do not stage private files: `profile/`, `jobs/`, `job_leads/`, `.env`, PDFs, real source URLs, or generated application packages.
 - Do not quote private materials in chat beyond narrow summaries unless the user explicitly asks.
 - Do not claim materials are ready, final, complete, or submission-ready until `references/quality-gates.md` has been checked.

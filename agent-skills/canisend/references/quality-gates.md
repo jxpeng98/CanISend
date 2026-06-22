@@ -48,6 +48,13 @@ Do not use ready, final, complete, or submission-ready for generated materials u
 - Agent-assisted reviews report any full private sources read directly.
 - LLM-backed CLI runs report which flags/providers were used.
 
+## Profile Input Edit Gate
+
+- Profile improvement ideas are recorded as suggestions before source files are changed.
+- Original `profile/` inputs outside `profile/generated/` are edited only through `canisend orchestrate`.
+- Any profile-input edit task declares `edits_profile_input: true`, uses privacy tier 2+, depends on a prior review task, and writes only the intended profile source file.
+- The run includes both profile edit confirmations: `--confirm-profile-input-edit` and `--confirm-profile-input-edit-again`.
+
 ## Manual Submission Gate
 
 - The tool stops at preparation; the user submits manually outside CanISend.

@@ -49,6 +49,12 @@ When asking to read private materials in agent-assisted mode, state that the con
 - Summarize narrow facts instead of quoting private text.
 - If full source review is necessary, read the smallest relevant file or section and explain why.
 
+## Original Profile Input Edits
+
+Treat `profile/` sources outside `profile/generated/` as user-owned inputs, not normal outputs. When generated materials reveal a strong profile improvement, first write a suggestion or patch note inside the job folder.
+
+Only modify original profile inputs after repeated user confirmation and orchestrator review. The plan must declare `edits_profile_input: true`, write only the intended `profile/...` path, use privacy tier 2 or higher, and depend on a prior review task. Launch it only with `--allow-profile-input-edits --confirm-profile-input-edit --confirm-profile-input-edit-again`.
+
 ## Sensitive Actions Agents Must Not Do
 
 - Do not submit an application.
@@ -69,6 +75,12 @@ Use direct language before crossing a boundary:
 
 ```text
 To improve this package I need to read <file/path or source type>. Because this is agent-assisted mode, the content I read may be processed by the agent model provider. Do you want me to proceed?
+```
+
+Before modifying original profile inputs:
+
+```text
+This would modify your original profile source, not just generated application materials. It should only happen after review and repeated confirmation. Do you want this orchestrator profile-input edit to proceed?
 ```
 
 For LLM-backed CLI flags:

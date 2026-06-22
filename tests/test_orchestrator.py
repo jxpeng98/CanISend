@@ -347,6 +347,138 @@ def test_run_orchestration_requires_provider_backed_opt_in(tmp_path):
     assert result.task_statuses["review"] == "ready"
 
 
+def test_load_orchestration_plan_rejects_profile_input_writes_without_declaration(tmp_path):
+    plan = base_plan()
+    plan["tasks"][0]["writes"] = ["profile/typst/cv.typ"]
+    plan_path = write_plan(tmp_path / "plan.yaml", plan)
+
+    with pytest.raises(OrchestrationError, match="edits_profile_input"):
+        load_orchestration_plan(plan_path)
+
+
+def test_load_orchestration_plan_requires_profile_input_edit_privacy_and_dependency(tmp_path):
+    plan = base_plan()
+    plan["tasks"][0]["writes"] = ["profile/typst/cv.typ"]
+    plan["tasks"][0]["edits_profile_input"] = True
+    plan_path = write_plan(tmp_path / "plan.yaml", plan)
+
+    with pytest.raises(OrchestrationError, match="privacy tier 2"):
+        load_orchestration_plan(plan_path)
+
+    plan["workers"]["echo"]["privacy_tier_limit"] = 2
+    plan["tasks"][0]["privacy_tier"] = 2
+    plan_path = write_plan(tmp_path / "plan.yaml", plan)
+
+    with pytest.raises(OrchestrationError, match="depend on"):
+        load_orchestration_plan(plan_path)
+
+
+def test_run_orchestration_requires_profile_input_edit_confirmations(tmp_path):
+    workspace, job_dir = base_job(tmp_path)
+    plan = base_plan()
+    plan["workers"]["echo"]["privacy_tier_limit"] = 2
+    plan["tasks"].append(
+        {
+            "id": "profile-edit",
+            "worker": "echo",
+            "role": "profile_source_editor",
+            "privacy_tier": 2,
+            "inputs": ["profile/generated/cv.evidence.md"],
+            "outputs": ["profile/typst/cv.typ"],
+            "writes": ["profile/typst/cv.typ"],
+            "depends_on": ["review"],
+            "edits_profile_input": True,
+        }
+    )
+    plan_path = write_plan(tmp_path / "plan.yaml", plan)
+
+    with pytest.raises(OrchestrationError, match="allow-profile-input-edits"):
+        run_orchestration(
+            workspace=workspace,
+            job_dir=job_dir,
+            plan_path=plan_path,
+            dry_run=True,
+            allow_private_sources=True,
+        )
+
+    with pytest.raises(OrchestrationError, match="two profile input edit confirmations"):
+        run_orchestration(
+            workspace=workspace,
+            job_dir=job_dir,
+            plan_path=plan_path,
+            dry_run=True,
+            allow_private_sources=True,
+            allow_profile_input_edits=True,
+            profile_input_edit_confirmations=1,
+        )
+
+    result = run_orchestration(
+        workspace=workspace,
+        job_dir=job_dir,
+        plan_path=plan_path,
+        dry_run=True,
+        allow_private_sources=True,
+        allow_profile_input_edits=True,
+        profile_input_edit_confirmations=2,
+    )
+
+    assert result.task_statuses["profile-edit"] == "ready"
+
+
+def test_run_orchestration_can_write_confirmed_profile_input_edits_to_workspace_profile(tmp_path):
+    workspace, job_dir = base_job(tmp_path)
+    profile_source = workspace / "profile" / "typst" / "cv.typ"
+    profile_source.parent.mkdir(parents=True)
+    profile_source.write_text("old profile\n", encoding="utf-8")
+    worker = tmp_path / "worker.py"
+    worker.write_text("print('updated profile')\n", encoding="utf-8")
+    plan = {
+        "workers": {
+            "python": {
+                "command": f"{sys.executable} {worker}",
+                "max_parallel_tasks": 1,
+                "privacy_tier_limit": 2,
+            }
+        },
+        "tasks": [
+            {
+                "id": "review",
+                "worker": "python",
+                "role": "profile_improvement_reviewer",
+                "privacy_tier": 1,
+                "inputs": ["parsed_job.json"],
+                "outputs": ["orchestration/reviews/profile.md"],
+                "writes": ["orchestration/reviews/profile.md"],
+            },
+            {
+                "id": "profile-edit",
+                "worker": "python",
+                "role": "profile_source_editor",
+                "privacy_tier": 2,
+                "inputs": ["profile/generated/cv.evidence.md"],
+                "outputs": ["profile/typst/cv.typ"],
+                "writes": ["profile/typst/cv.typ"],
+                "depends_on": ["review"],
+                "edits_profile_input": True,
+            },
+        ],
+    }
+    plan_path = write_plan(tmp_path / "plan.yaml", plan)
+
+    result = run_orchestration(
+        workspace=workspace,
+        job_dir=job_dir,
+        plan_path=plan_path,
+        run_id="profile-edit",
+        allow_private_sources=True,
+        allow_profile_input_edits=True,
+        profile_input_edit_confirmations=2,
+    )
+
+    assert result.ok
+    assert profile_source.read_text(encoding="utf-8") == "updated profile\n"
+
+
 def test_run_orchestration_executes_worker_and_writes_artifacts(tmp_path):
     workspace, job_dir = base_job(tmp_path)
     worker = tmp_path / "worker.py"

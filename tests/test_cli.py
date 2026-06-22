@@ -60,6 +60,18 @@ def test_extract_profile_evidence_help_shows_llm_augment_flag():
     assert "--llm-augment" in output
 
 
+def test_orchestrate_help_shows_profile_input_edit_safety_flags():
+    runner = CliRunner()
+
+    result = runner.invoke(app, ["orchestrate", "--help"])
+    output = strip_ansi(result.output)
+
+    assert result.exit_code == 0
+    assert "--allow-profile-input-edits" in output
+    assert "--confirm-profile-input-edit" in output
+    assert "Second confirmation" in output
+
+
 def test_cli_version_option_shows_local_and_remote_versions(monkeypatch):
     runner = CliRunner()
 
@@ -181,3 +193,93 @@ tasks:
     assert "Orchestration run:" in result.output
     assert "review: succeeded" in result.output
     assert "CLI:Role: job_parser_reviewer" in (job_dir / "orchestration" / "reviews" / "review.md").read_text()
+
+
+def test_orchestrate_profile_input_edits_require_two_cli_confirmations(tmp_path):
+    workspace = tmp_path / "workspace"
+    job_dir = workspace / "jobs" / "job"
+    profile_dir = workspace / "profile" / "generated"
+    job_dir.mkdir(parents=True)
+    profile_dir.mkdir(parents=True)
+    (workspace / "canisend.yaml").write_text("jobs_dir: jobs\n", encoding="utf-8")
+    (job_dir / "parsed_job.json").write_text('{"title": "Lecturer"}\n', encoding="utf-8")
+    (profile_dir / "cv.evidence.md").write_text("# Evidence\n", encoding="utf-8")
+    worker = tmp_path / "worker.py"
+    worker.write_text("print('ok')\n", encoding="utf-8")
+    plan = tmp_path / "plan.yaml"
+    plan.write_text(
+        f"""
+workers:
+  python:
+    command: "{sys.executable} {worker}"
+    max_parallel_tasks: 1
+    privacy_tier_limit: 2
+tasks:
+  - id: review
+    worker: python
+    role: profile_improvement_reviewer
+    privacy_tier: 1
+    inputs:
+      - parsed_job.json
+    outputs:
+      - orchestration/reviews/profile.md
+    writes:
+      - orchestration/reviews/profile.md
+  - id: profile-edit
+    worker: python
+    role: profile_source_editor
+    privacy_tier: 2
+    inputs:
+      - profile/generated/cv.evidence.md
+    outputs:
+      - profile/typst/cv.typ
+    writes:
+      - profile/typst/cv.typ
+    depends_on:
+      - review
+    edits_profile_input: true
+""",
+        encoding="utf-8",
+    )
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "orchestrate",
+            "--workspace",
+            str(workspace),
+            "--job",
+            "job",
+            "--plan",
+            str(plan),
+            "--dry-run",
+            "--allow-private-sources",
+            "--allow-profile-input-edits",
+            "--confirm-profile-input-edit",
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "two profile input edit confirmations" in result.output
+
+    result = runner.invoke(
+        app,
+        [
+            "orchestrate",
+            "--workspace",
+            str(workspace),
+            "--job",
+            "job",
+            "--plan",
+            str(plan),
+            "--dry-run",
+            "--allow-private-sources",
+            "--allow-profile-input-edits",
+            "--confirm-profile-input-edit",
+            "--confirm-profile-input-edit-again",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "profile-edit: ready" in result.output

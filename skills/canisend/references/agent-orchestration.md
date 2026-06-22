@@ -76,7 +76,36 @@ Worker entries declare:
 - `supports_native_subagents`: whether that CLI can run several native subagents within one task.
 - `privacy_tier_limit`: highest privacy tier the worker may receive.
 
-Task entries declare `role`, `inputs`, `outputs`, `writes`, `depends_on`, `privacy_tier`, and optional `agent_count`. Use `agent_count` only when the worker supports native subagents and the task can safely split work internally. Keep `writes` disjoint unless an explicit dependency serializes the tasks.
+Task entries declare `role`, `inputs`, `outputs`, `writes`, `depends_on`, `privacy_tier`, optional `agent_count`, and optional `edits_profile_input`. Use `agent_count` only when the worker supports native subagents and the task can safely split work internally. Keep `writes` disjoint unless an explicit dependency serializes the tasks.
+
+## Profile Input Edit Tasks
+
+Do not edit original profile sources as part of ordinary draft review. If repeated review shows a stable improvement to the source CV or statements, first produce job-folder suggestions. A source edit task must:
+
+- set `edits_profile_input: true`
+- write only the intended `profile/...` source path outside `profile/generated/`
+- use `privacy_tier: 2` or higher
+- depend on at least one prior review task
+- be launched with `--allow-private-sources --allow-profile-input-edits --confirm-profile-input-edit --confirm-profile-input-edit-again`
+
+```yaml
+tasks:
+  - id: profile-source-review
+    worker: codex-reviewer
+    role: profile_improvement_reviewer
+    inputs: ["03_cover_letter_draft.md", "04_cv_tailoring_notes.md"]
+    outputs: ["orchestration/reviews/profile-source-suggestions.md"]
+    writes: ["orchestration/reviews/profile-source-suggestions.md"]
+  - id: profile-source-edit
+    worker: codex-reviewer
+    role: profile_source_editor
+    privacy_tier: 2
+    inputs: ["orchestration/reviews/profile-source-suggestions.md", "profile/generated/cv.evidence.md"]
+    outputs: ["profile/typst/cv.typ"]
+    writes: ["profile/typst/cv.typ"]
+    depends_on: ["profile-source-review"]
+    edits_profile_input: true
+```
 
 ## Handoff Format
 

@@ -66,7 +66,8 @@ def build_material_review_checklist(parsed_job: dict[str, Any], materials: Appli
             "",
             "- Resolve placeholders before copying text into a final cover letter.",
             "- Confirm every strong-fit claim has item-level evidence when evidence exists.",
-            "- Do not edit `profile/typst/cv.typ` unless the user explicitly asks.",
+            "- Do not edit `profile/typst/cv.typ` unless the user explicitly asks; prefer job-folder suggestions first.",
+            "- If original profile inputs should change, use an orchestrator `edits_profile_input: true` task with two profile-edit confirmations.",
             "- Apply CV changes manually in the private profile source, then rerun `extract-profile-evidence` and `run` if the evidence changed.",
             "- Review and edit `typst/cover_letter.typ` and `typst/application_package.typ` directly before rendering final PDFs.",
         ]
