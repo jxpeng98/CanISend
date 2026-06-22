@@ -205,6 +205,8 @@ def test_validate_fetch_url_rejects_credentials() -> None:
 def test_validate_fetch_url_rejects_unsafe_host_characters() -> None:
     with pytest.raises(JobImportError, match="Fetch URL host contains unsafe characters"):
         validate_fetch_url("https://example.edu-->/jobs/123")
+    with pytest.raises(JobImportError, match="Fetch URL port is invalid"):
+        validate_fetch_url("https://example.edu:-->/jobs/123")
 
 
 def test_extract_html_text_removes_scripts_styles_and_tags() -> None:

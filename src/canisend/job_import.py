@@ -136,7 +136,14 @@ def validate_fetch_url(source_url: str) -> str:
         raise JobImportError("Fetch URL must not include credentials.")
     if not re.fullmatch(r"[A-Za-z0-9.-]+", parsed.hostname):
         raise JobImportError("Fetch URL host contains unsafe characters.")
-    return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, parsed.query, ""))
+    try:
+        port = parsed.port
+    except ValueError as exc:
+        raise JobImportError("Fetch URL port is invalid.") from exc
+    safe_netloc = parsed.hostname
+    if port is not None:
+        safe_netloc = f"{safe_netloc}:{port}"
+    return urlunsplit((parsed.scheme, safe_netloc, parsed.path, parsed.query, ""))
 
 
 def _provenance_url(fetch_url: str) -> str:
