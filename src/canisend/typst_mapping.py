@@ -48,6 +48,7 @@ def build_cover_letter_content(parsed_job: dict[str, Any], materials: Applicatio
                 "Add supported service or leadership evidence.",
             ),
         },
+        "additional_sections": _additional_sections(sections),
         "closing": "I would welcome the opportunity to discuss how my work fits the role.",
         "salutation": "Yours sincerely,",
     }
@@ -67,6 +68,10 @@ def build_application_package_content(parsed_job: dict[str, Any], materials: App
         "cv_tailoring_notes": materials.cv_tailoring_notes,
         "criteria_checklist": materials.criteria_checklist,
         "final_package": final_package,
+        "remaining_actions": _final_package_section(
+            final_package,
+            ("remaining actions before submission", "remaining actions"),
+        ),
     }
 
 
@@ -115,6 +120,8 @@ def render_modernpro_cover_letter_source(content: dict[str, Any]) -> str:
 == Service and Leadership
 {markdown_to_typst(sections["service_leadership"])}
 
+{_render_additional_sections(content.get("additional_sections", {}))}
+
 // CANISEND: section closing
 {markdown_to_typst(content["closing"])}
 """
@@ -160,6 +167,10 @@ def render_modernpro_application_package_source(content: dict[str, Any]) -> str:
 // CANISEND: section criteria_checklist
 == Criteria Checklist
 {markdown_to_typst(content["criteria_checklist"])}
+
+// CANISEND: section remaining_actions
+== Remaining Actions
+{markdown_to_typst(content.get("remaining_actions") or content["final_package"])}
 """
 
 
@@ -169,6 +180,9 @@ def typst_text(value: str) -> str:
         .replace("\\", "\\\\")
         .replace("#", "\\#")
         .replace("$", "\\$")
+        .replace("@", "\\@")
+        .replace("<", "\\<")
+        .replace(">", "\\>")
         .replace("[", "\\[")
         .replace("]", "\\]")
     )
@@ -240,6 +254,46 @@ def _clean_block(value: str) -> str:
 def _section_or_placeholder(sections: dict[str, str], key: str, placeholder: str) -> str:
     value = sections.get(key, "").strip()
     return value or f"[{placeholder}]"
+
+
+def _additional_sections(sections: dict[str, str]) -> dict[str, str]:
+    known = {*SECTION_KEYS.values(), "_preamble"}
+    return {
+        _section_title(key): value
+        for key, value in sections.items()
+        if key not in known and value.strip()
+    }
+
+
+def _section_title(key: str) -> str:
+    return " ".join(part.capitalize() for part in key.split("_") if part)
+
+
+def _render_additional_sections(sections: dict[str, str]) -> str:
+    if not sections:
+        return ""
+    rendered = ["// CANISEND: section additional_sections"]
+    for title, body in sections.items():
+        rendered.append(f"== {typst_text(title)}")
+        rendered.append(markdown_to_typst(body))
+        rendered.append("")
+    return "\n".join(rendered).rstrip()
+
+
+def _final_package_section(markdown_text: str, headings: tuple[str, ...]) -> str:
+    current_matches = False
+    lines: list[str] = []
+    for raw_line in markdown_text.splitlines():
+        line = raw_line.rstrip()
+        if line.startswith("#"):
+            heading = line.lstrip("#").strip().lower()
+            if current_matches and line.startswith("#"):
+                break
+            current_matches = heading in headings
+            continue
+        if current_matches:
+            lines.append(line)
+    return _clean_block("\n".join(lines))
 
 
 def _unknown_to_empty(value: str) -> str:
