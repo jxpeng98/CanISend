@@ -65,7 +65,7 @@ def test_cli_version_option_shows_local_and_remote_versions(monkeypatch):
 
     monkeypatch.setattr(
         "canisend.cli.fetch_remote_versions",
-        lambda: PyPIVersionInfo(stable="0.2.0", prerelease="0.3.0rc1"),
+        lambda: PyPIVersionInfo(stable="0.2.1", prerelease="0.3.0rc1"),
     )
 
     result = runner.invoke(app, ["--version"])
@@ -74,9 +74,9 @@ def test_cli_version_option_shows_local_and_remote_versions(monkeypatch):
     assert result.exit_code == 0
     assert "CanISend version" in output
     assert f"Local package      {__version__}" in output
-    assert "Remote stable      0.2.0" in output
+    assert "Remote stable      0.2.1" in output
     assert "Remote prerelease  0.3.0rc1" in output
-    assert "Stable update available: 0.2.0" in output
+    assert "Stable update available: 0.2.1" in output
     assert "Prerelease available: 0.3.0rc1" in output
     assert "Upgrade" in output
 
