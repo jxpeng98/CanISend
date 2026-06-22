@@ -1487,7 +1487,7 @@ git commit -m "docs(agent): document orchestration and Typst editing"
 **Files:**
 - Inspect all changed files.
 
-- [ ] **Step 1: Run focused test suite**
+- [x] **Step 1: Run focused test suite**
 
 Run:
 
@@ -1497,7 +1497,7 @@ uv run pytest tests/test_job_import.py tests/test_jobs.py tests/test_material_re
 
 Expected: PASS.
 
-- [ ] **Step 2: Run full test suite**
+- [x] **Step 2: Run full test suite**
 
 Run:
 
@@ -1507,7 +1507,7 @@ uv run pytest -q
 
 Expected: PASS.
 
-- [ ] **Step 3: Check repository diff and private-file safety**
+- [x] **Step 3: Check repository diff and private-file safety**
 
 Run:
 
@@ -1518,7 +1518,7 @@ git diff --check
 
 Expected: only intended source, tests, docs, and lockfile changes; no whitespace errors; no private `profile/`, `jobs/`, `job_leads/`, `.env`, or real PDFs staged.
 
-- [ ] **Step 4: Commit final cleanup if needed**
+- [x] **Step 4: Commit final cleanup if needed**
 
 If formatting, docs, or tests required cleanup after prior commits:
 
@@ -1527,7 +1527,7 @@ git add README.md canisend_v1_proposal.md pyproject.toml uv.lock src/canisend te
 git commit -m "chore: finalize orchestrator implementation"
 ```
 
-- [ ] **Step 5: Summarize verification evidence**
+- [x] **Step 5: Summarize verification evidence**
 
 Record in the final response:
 
