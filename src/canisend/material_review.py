@@ -53,6 +53,8 @@ def build_material_review_checklist(parsed_job: dict[str, Any], materials: Appli
             "",
             _review_section("CV Tailoring Notes", materials.cv_tailoring_notes),
             "",
+            _strict_hr_review_section(parsed_job, materials),
+            "",
             "## Management Actions",
             "",
             "- Resolve placeholders before copying text into a final cover letter.",
@@ -82,6 +84,63 @@ def _review_section(label: str, markdown: str) -> str:
     else:
         lines.append("- Manual judgement required: confirm wording, emphasis, and proportionality before use.")
     return "\n".join(lines)
+
+
+def _strict_hr_review_section(parsed_job: dict[str, Any], materials: ApplicationMaterials) -> str:
+    coverage = _criteria_coverage(materials.criteria_checklist)
+    lines = [
+        "## Strict University HR Review",
+        "",
+        "- Review lens: strict university HR / shortlisting panel.",
+        "- Standard: every advertised essential criterion must be visible, proportionate, and evidence-backed before submission.",
+        "",
+        "| Essential Criterion | HR Status | Reason |",
+        "|---|---|---|",
+    ]
+    essentials = parsed_job.get("essential_criteria", [])
+    if not essentials:
+        lines.append(
+            "| No essential criteria extracted | BLOCKER | Review the JD manually before relying on generated materials. |"
+        )
+        return "\n".join(lines)
+
+    for item in essentials:
+        criterion = str(item.get("criterion", "")).strip()
+        label = coverage.get(_criterion_key(criterion))
+        if label is None:
+            lines.append(f"| {criterion} | BLOCKER | Missing from criteria checklist. |")
+        elif label in {"weak", "missing"}:
+            lines.append(
+                f"| {criterion} | BLOCKER | Coverage is {label}; strengthen evidence and JD wording. |"
+            )
+        elif label == "partial":
+            lines.append(
+                f"| {criterion} | REVIEW | Partial coverage; make fit more explicit for HR screening. |"
+            )
+        else:
+            lines.append(
+                f"| {criterion} | OK | Strong coverage recorded; confirm claim wording stays proportional. |"
+            )
+    return "\n".join(lines)
+
+
+def _criteria_coverage(markdown: str) -> dict[str, str]:
+    coverage: dict[str, str] = {}
+    for line in markdown.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("|") or "---" in stripped or "Criterion" in stripped:
+            continue
+        cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+        if len(cells) < 2:
+            continue
+        label = cells[1].strip().lower()
+        if label in {"strong", "partial", "weak", "missing"}:
+            coverage[_criterion_key(cells[0])] = label
+    return coverage
+
+
+def _criterion_key(value: str) -> str:
+    return re.sub(r"\s+", " ", value).strip().lower()
 
 
 def _markdown_citations(markdown: str) -> set[str]:
