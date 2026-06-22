@@ -358,7 +358,21 @@ canisend orchestrate \
   --dry-run
 ```
 
-Worker entries declare `command`, `max_parallel_tasks`, `supports_native_subagents`, and `privacy_tier_limit`. Task entries declare `role`, `inputs`, `outputs`, `writes`, `depends_on`, `privacy_tier`, and optional `agent_count` for CLIs that can run several native subagents under one task. The orchestrator runs dependency-ready tasks in parallel, enforces worker concurrency limits, writes run artifacts under `jobs/<job-slug>/orchestration/runs/`, and requires `--allow-private-sources` or `--allow-provider-backed` for higher privacy tiers.
+Worker entries declare either `kind` or `command`. Built-in `kind` values are `codex`, `claude`, `antigravity`, `agy`, and `custom`; `antigravity` and `agy` share the same default command. Use `command` to override the preset for the CLI installed on your machine, and use `prompt_mode` to choose how the generated task prompt is delivered: `stdin`, `arg`, or `none`.
+
+```yaml
+workers:
+  codex-reviewer:
+    kind: codex
+  claude-reviewer:
+    kind: claude
+    prompt_mode: arg
+  agy-reviewer:
+    kind: agy
+    command: "agy --print"
+```
+
+Worker entries also support `max_parallel_tasks`, `supports_native_subagents`, and `privacy_tier_limit`. Task entries declare `role`, `inputs`, `outputs`, `writes`, `depends_on`, `privacy_tier`, and optional `agent_count` for CLIs that can run several native subagents under one task. The orchestrator runs dependency-ready tasks in parallel, enforces worker concurrency limits, writes run artifacts under `jobs/<job-slug>/orchestration/runs/`, and requires `--allow-private-sources` or `--allow-provider-backed` for higher privacy tiers.
 
 Privacy modes:
 

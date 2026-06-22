@@ -69,7 +69,9 @@ canisend orchestrate \
 
 Worker entries declare:
 
-- `command`: local CLI command that reads the task prompt from stdin and writes the result to stdout.
+- `kind`: optional preset for `codex`, `claude`, `antigravity`, `agy`, or `custom`.
+- `command`: optional local CLI command. This overrides the preset command when `kind` is set.
+- `prompt_mode`: how the task prompt is delivered: `stdin`, `arg`, or `none`.
 - `max_parallel_tasks`: maximum concurrent tasks for that worker.
 - `supports_native_subagents`: whether that CLI can run several native subagents within one task.
 - `privacy_tier_limit`: highest privacy tier the worker may receive.
@@ -95,7 +97,11 @@ Privacy notes: <any private files touched, or "none staged">
 
 ## Provider Coordination
 
-The local command provider can point at Codex, Claude Code, or another CLI. The command must read stdin and write stdout. Do not assume one provider exists; check config and ask the user before using model-backed steps.
+The local command provider can point at Codex, Claude Code, or another CLI, but it is separate from
+`canisend orchestrate`. Command-provider commands must read stdin and write stdout. Orchestrator
+workers can instead use presets and `prompt_mode`, including `prompt_mode: arg` for CLIs that expect
+the prompt as a command argument. Do not assume one provider exists; check config and ask the user
+before using model-backed steps.
 
 For command-provider tasks, prefer prompts that require JSON or evidence-cited Markdown output. Reject output that omits required citations when evidence exists.
 

@@ -86,6 +86,90 @@ def test_load_orchestration_plan_rejects_missing_worker(tmp_path):
         load_orchestration_plan(plan_path)
 
 
+def test_load_orchestration_plan_supports_claude_worker_preset_without_command(tmp_path):
+    plan = base_plan()
+    plan["workers"] = {
+        "claude-reviewer": {
+            "kind": "claude",
+            "max_parallel_tasks": 2,
+            "privacy_tier_limit": 2,
+        }
+    }
+    plan["tasks"][0]["worker"] = "claude-reviewer"
+    plan_path = write_plan(tmp_path / "plan.yaml", plan)
+
+    loaded = load_orchestration_plan(plan_path)
+
+    worker = loaded.workers["claude-reviewer"]
+    assert worker.kind == "claude"
+    assert worker.command == "claude"
+    assert worker.prompt_mode == "arg"
+    assert worker.max_parallel_tasks == 2
+    assert worker.privacy_tier_limit == 2
+
+
+def test_load_orchestration_plan_supports_antigravity_aliases(tmp_path):
+    plan = base_plan()
+    plan["workers"] = {
+        "agy-reviewer": {"kind": "agy"},
+        "antigravity-reviewer": {"kind": "antigravity"},
+    }
+    plan["tasks"] = [
+        {
+            "id": "agy",
+            "worker": "agy-reviewer",
+            "role": "r",
+            "inputs": ["parsed_job.json"],
+            "outputs": ["orchestration/reviews/agy.md"],
+            "writes": ["orchestration/reviews/agy.md"],
+        },
+        {
+            "id": "antigravity",
+            "worker": "antigravity-reviewer",
+            "role": "r",
+            "inputs": ["parsed_job.json"],
+            "outputs": ["orchestration/reviews/antigravity.md"],
+            "writes": ["orchestration/reviews/antigravity.md"],
+        },
+    ]
+    plan_path = write_plan(tmp_path / "plan.yaml", plan)
+
+    loaded = load_orchestration_plan(plan_path)
+
+    assert loaded.workers["agy-reviewer"].kind == "agy"
+    assert loaded.workers["antigravity-reviewer"].kind == "agy"
+    assert loaded.workers["agy-reviewer"].command == "agy --print"
+    assert loaded.workers["antigravity-reviewer"].command == "agy --print"
+    assert loaded.workers["agy-reviewer"].prompt_mode == "arg"
+    assert loaded.workers["antigravity-reviewer"].prompt_mode == "arg"
+
+
+def test_load_orchestration_plan_prefers_explicit_command_over_preset(tmp_path):
+    plan = base_plan()
+    plan["workers"]["echo"] = {
+        "kind": "claude",
+        "command": sys.executable,
+        "prompt_mode": "stdin",
+    }
+    plan_path = write_plan(tmp_path / "plan.yaml", plan)
+
+    loaded = load_orchestration_plan(plan_path)
+
+    worker = loaded.workers["echo"]
+    assert worker.kind == "claude"
+    assert worker.command == sys.executable
+    assert worker.prompt_mode == "stdin"
+
+
+def test_load_orchestration_plan_rejects_unknown_worker_kind(tmp_path):
+    plan = base_plan()
+    plan["workers"]["echo"] = {"kind": "mystery"}
+    plan_path = write_plan(tmp_path / "plan.yaml", plan)
+
+    with pytest.raises(OrchestrationError, match="Unknown worker kind"):
+        load_orchestration_plan(plan_path)
+
+
 def test_load_orchestration_plan_rejects_missing_dependency(tmp_path):
     plan = base_plan()
     plan["tasks"][0]["depends_on"] = ["missing"]
@@ -297,6 +381,53 @@ def test_run_orchestration_executes_worker_and_writes_artifacts(tmp_path):
     assert result.task_statuses["review"] == "succeeded"
     assert (run_task_dir / "stdout.txt").exists()
     assert "RESULT:Role: job_parser_reviewer" in (job_dir / "orchestration" / "reviews" / "review.md").read_text()
+
+
+def test_run_orchestration_prompt_mode_arg_passes_prompt_as_argument(tmp_path):
+    workspace, job_dir = base_job(tmp_path)
+    worker = tmp_path / "arg_worker.py"
+    worker.write_text(
+        "import sys\n"
+        "print('ARG:' + sys.argv[1].splitlines()[0])\n",
+        encoding="utf-8",
+    )
+    plan = base_plan()
+    plan["workers"]["echo"] = {
+        "command": f"{sys.executable} {worker}",
+        "prompt_mode": "arg",
+    }
+    plan_path = write_plan(tmp_path / "plan.yaml", plan)
+
+    result = run_orchestration(workspace=workspace, job_dir=job_dir, plan_path=plan_path, run_id="arg-mode")
+
+    assert result.ok
+    assert "ARG:Role: job_parser_reviewer" in (
+        job_dir / "orchestration" / "reviews" / "review.md"
+    ).read_text()
+
+
+def test_run_orchestration_prompt_mode_none_writes_prompt_without_passing_it(tmp_path):
+    workspace, job_dir = base_job(tmp_path)
+    worker = tmp_path / "none_worker.py"
+    worker.write_text(
+        "import sys\n"
+        "data = sys.stdin.read()\n"
+        "print('STDIN-LEN:' + str(len(data)))\n",
+        encoding="utf-8",
+    )
+    plan = base_plan()
+    plan["workers"]["echo"] = {
+        "command": f"{sys.executable} {worker}",
+        "prompt_mode": "none",
+    }
+    plan_path = write_plan(tmp_path / "plan.yaml", plan)
+
+    result = run_orchestration(workspace=workspace, job_dir=job_dir, plan_path=plan_path, run_id="none-mode")
+
+    task_dir = job_dir / "orchestration" / "runs" / "none-mode" / "tasks" / "review"
+    assert result.ok
+    assert (task_dir / "prompt.md").exists()
+    assert "STDIN-LEN:0" in (job_dir / "orchestration" / "reviews" / "review.md").read_text()
 
 
 def test_run_orchestration_redacts_api_key_spellings_in_status(tmp_path):

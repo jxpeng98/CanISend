@@ -71,12 +71,14 @@ workers:
     supports_native_subagents: true
     privacy_tier_limit: 1
   claude:
-    command: "claude -p"
+    kind: claude
+    prompt_mode: arg
     max_parallel_tasks: 2
     supports_native_subagents: true
     privacy_tier_limit: 1
   antigravity:
-    command: "antigravity run"
+    kind: agy
+    command: "agy --print"
     max_parallel_tasks: 2
     supports_native_subagents: true
     privacy_tier_limit: 1

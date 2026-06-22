@@ -17,6 +17,13 @@ import yaml
 
 
 SAFE_SEGMENT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+PROMPT_MODES = {"arg", "none", "stdin"}
+WORKER_KIND_ALIASES = {"antigravity": "agy"}
+WORKER_PRESETS = {
+    "codex": {"command": "codex exec", "prompt_mode": "stdin"},
+    "claude": {"command": "claude", "prompt_mode": "arg"},
+    "agy": {"command": "agy --print", "prompt_mode": "arg"},
+}
 
 
 class OrchestrationError(ValueError):
@@ -27,6 +34,8 @@ class OrchestrationError(ValueError):
 class WorkerConfig:
     name: str
     command: str
+    kind: str = "custom"
+    prompt_mode: str = "stdin"
     max_parallel_tasks: int = 1
     supports_native_subagents: bool = False
     privacy_tier_limit: int = 1
@@ -126,9 +135,16 @@ def _parse_workers(raw_workers: Any) -> dict[str, WorkerConfig]:
     for name, raw_worker in raw_workers.items():
         if not isinstance(raw_worker, dict):
             raise OrchestrationError(f"Worker {name!r} must be a mapping")
-        command = str(raw_worker.get("command", "")).strip()
+
+        kind = _worker_kind(raw_worker, str(name))
+        preset = WORKER_PRESETS.get(kind, {})
+        command = str(raw_worker.get("command") or preset.get("command", "")).strip()
         if not command:
             raise OrchestrationError(f"Worker {name!r} must define command")
+        prompt_mode = str(raw_worker.get("prompt_mode") or preset.get("prompt_mode", "stdin")).strip().lower()
+        if prompt_mode not in PROMPT_MODES:
+            allowed = ", ".join(sorted(PROMPT_MODES))
+            raise OrchestrationError(f"Worker {name!r} prompt_mode must be one of: {allowed}")
 
         max_parallel_tasks = _int_field(raw_worker, "max_parallel_tasks", default=1)
         if max_parallel_tasks < 1:
@@ -142,12 +158,26 @@ def _parse_workers(raw_workers: Any) -> dict[str, WorkerConfig]:
         workers[str(name)] = WorkerConfig(
             name=str(name),
             command=command,
+            kind=kind,
+            prompt_mode=prompt_mode,
             max_parallel_tasks=max_parallel_tasks,
             supports_native_subagents=bool(raw_worker.get("supports_native_subagents", False)),
             privacy_tier_limit=privacy_tier_limit,
             timeout_seconds=timeout_seconds,
         )
     return workers
+
+
+def _worker_kind(raw_worker: dict[str, Any], worker_name: str) -> str:
+    raw_kind = raw_worker.get("kind")
+    if raw_kind is None:
+        return "custom"
+    kind = str(raw_kind).strip().lower()
+    kind = WORKER_KIND_ALIASES.get(kind, kind)
+    if kind == "custom" or kind in WORKER_PRESETS:
+        return kind
+    supported = ", ".join(sorted([*WORKER_PRESETS, "antigravity", "custom"]))
+    raise OrchestrationError(f"Unknown worker kind for {worker_name!r}: {raw_kind!r}. Supported kinds: {supported}")
 
 
 def _parse_tasks(raw_tasks: Any, workers: dict[str, WorkerConfig]) -> dict[str, OrchestrationTask]:
@@ -455,14 +485,21 @@ def _run_task(
     started_at = _utc_now()
 
     try:
+        invocation_argv, input_text, stdin = _worker_invocation(worker, argv, prompt)
+        run_kwargs: dict[str, Any] = {
+            "cwd": workspace,
+            "text": True,
+            "capture_output": True,
+            "timeout": worker.timeout_seconds,
+            "check": False,
+        }
+        if input_text is not None:
+            run_kwargs["input"] = input_text
+        else:
+            run_kwargs["stdin"] = stdin
         completed = subprocess.run(
-            argv,
-            cwd=workspace,
-            input=prompt,
-            text=True,
-            capture_output=True,
-            timeout=worker.timeout_seconds,
-            check=False,
+            invocation_argv,
+            **run_kwargs,
         )
         stdout = completed.stdout
         stderr = completed.stderr
@@ -495,6 +532,20 @@ def _run_task(
         },
     )
     return TaskExecution(task_id=task.id, status=status, exit_code=exit_code)
+
+
+def _worker_invocation(
+    worker: WorkerConfig,
+    argv: list[str],
+    prompt: str,
+) -> tuple[list[str], str | None, int | None]:
+    if worker.prompt_mode == "stdin":
+        return argv, prompt, None
+    if worker.prompt_mode == "arg":
+        return [*argv, prompt], None, subprocess.DEVNULL
+    if worker.prompt_mode == "none":
+        return argv, None, subprocess.DEVNULL
+    raise OrchestrationError(f"Worker {worker.name!r} prompt_mode is unsupported: {worker.prompt_mode}")
 
 
 def _task_prompt(task: OrchestrationTask, *, workspace: Path, job_dir: Path) -> str:

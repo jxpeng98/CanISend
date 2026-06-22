@@ -46,7 +46,9 @@ ACADEMIC_PREP_LLM_COMMAND="codex exec --json"
 ACADEMIC_PREP_LLM_TIMEOUT_SECONDS=300
 ```
 
-The command must read the prompt from stdin and write the completion to stdout. It should return non-zero on failure.
+The command provider is separate from `canisend orchestrate`: it must read the prompt from stdin and
+write the completion to stdout. It should return non-zero on failure. If a CLI expects the prompt as
+an argument, use an adapter command or use orchestrator worker `prompt_mode: arg` instead.
 
 The command provider inherits the same privacy boundary as any other LLM-backed mode: it may receive the full prompt, advert text, parsed job metadata, profile source snippets, generated evidence references, and draft context. Keep `.env` and API keys out of prompts and logs.
 
@@ -54,7 +56,7 @@ Examples the user may adapt:
 
 ```bash
 ACADEMIC_PREP_LLM_COMMAND="codex exec --json"
-ACADEMIC_PREP_LLM_COMMAND="claude -p"
+ACADEMIC_PREP_LLM_COMMAND="my-stdin-compatible-model-cli"
 ```
 
 Do not assume a specific CLI is installed. Run `canisend doctor --workspace <private-workspace>` and ask the user to configure missing provider settings.
