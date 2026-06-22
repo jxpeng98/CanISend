@@ -132,8 +132,10 @@ def validate_fetch_url(source_url: str) -> str:
         raise JobImportError("Only http:// and https:// URLs can be fetched.")
     if not parsed.hostname:
         raise JobImportError("Fetch URL must include a host.")
-    if parsed.username or parsed.password:
+    if parsed.username is not None or parsed.password is not None:
         raise JobImportError("Fetch URL must not include credentials.")
+    if not re.fullmatch(r"[A-Za-z0-9.-]+", parsed.hostname):
+        raise JobImportError("Fetch URL host contains unsafe characters.")
     return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, parsed.query, ""))
 
 
