@@ -44,12 +44,45 @@ def test_new_job_creates_slugged_job_folder_and_metadata(tmp_path):
     assert metadata["deadline"] == "2026-06-15"
     assert metadata["source_url"] == "https://example.edu/jobs/123"
     assert metadata["status"] == "new"
+    assert metadata["english_variant"] == "needs_confirmation"
+    assert metadata["writing_style"] == "needs_confirmation"
     assert "created_at" in metadata
     assert "updated_at" in metadata
     advert = (job_dir / "job_advert.md").read_text()
     assert "Source URL saved" in advert
     assert "https://example.edu/jobs/123" in advert
     assert "full advert still needs manual paste, PDF import, or explicit fetch" in advert
+
+
+def test_new_job_accepts_language_and_style_preferences(tmp_path):
+    jobs_dir = tmp_path / "jobs"
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "new-job",
+            "--title",
+            "Lecturer in Economics",
+            "--institution",
+            "University X",
+            "--deadline",
+            "2026-06-15",
+            "--english-variant",
+            "US English",
+            "--writing-style",
+            "direct, warm, evidence-led",
+            "--jobs-dir",
+            str(jobs_dir),
+        ],
+    )
+
+    assert result.exit_code == 0
+    metadata = yaml.safe_load(
+        (jobs_dir / "2026-06-15_university-x_lecturer-in-economics" / "job.yaml").read_text()
+    )
+    assert metadata["english_variant"] == "us"
+    assert metadata["writing_style"] == "direct, warm, evidence-led"
 
 
 def test_new_job_imports_local_advert_file_unchanged(tmp_path):

@@ -19,6 +19,7 @@ def test_check_package_reports_missing_required_outputs(tmp_path):
     assert result.exit_code == 1
     assert "Package check failed" in result.output
     assert "missing parsed_job.json" in result.output
+    assert "missing 00_preparation_questions.md" in result.output
     assert "missing 07_material_review_checklist.md" in result.output
 
 
@@ -99,6 +100,7 @@ def _complete_workspace(tmp_path: Path) -> tuple[Path, Path]:
     )
     citation = "`profile/generated/cv.evidence.md#Teaching/cv-001`"
     markdown_files = {
+        "00_preparation_questions.md": "# Preparation Questions\n\n- English variant: us\n- Writing style: direct\n",
         "01_job_summary.md": "# Job Summary\n\n- Title: Lecturer\n",
         "02_fit_report.md": f"# Fit Report\n\nTeaching evidence {citation}.\n",
         "03_cover_letter_draft.md": f"# Cover Letter Draft\n\nI can support teaching ({citation}).\n",

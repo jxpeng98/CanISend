@@ -29,12 +29,14 @@ def generate_materials_with_provider(
     evidence: list[EvidenceReference],
     provider: LLMProvider,
     prompt_dir: Path = Path("prompts"),
+    style_context: str = "",
 ) -> ApplicationMaterials:
     fit_report = _complete_material(
         provider=provider,
         prompt_path=prompt_dir / "profile_matcher.md",
         parsed_job=parsed_job,
         evidence=evidence,
+        style_context=style_context,
     )
     cover_letter = _complete_material(
         provider=provider,
@@ -42,6 +44,7 @@ def generate_materials_with_provider(
         parsed_job=parsed_job,
         evidence=evidence,
         fit_report=fit_report,
+        style_context=style_context,
     )
     cv_notes = _complete_material(
         provider=provider,
@@ -49,6 +52,7 @@ def generate_materials_with_provider(
         parsed_job=parsed_job,
         evidence=evidence,
         fit_report=fit_report,
+        style_context=style_context,
     )
     checklist = _complete_material(
         provider=provider,
@@ -57,6 +61,7 @@ def generate_materials_with_provider(
         evidence=evidence,
         fit_report=fit_report,
         cover_letter_draft=cover_letter,
+        style_context=style_context,
     )
     materials = ApplicationMaterials(
         fit_report=fit_report,
@@ -75,6 +80,7 @@ def generate_final_package_with_provider(
     evidence: list[EvidenceReference],
     provider: LLMProvider,
     prompt_dir: Path = Path("prompts"),
+    style_context: str = "",
 ) -> str:
     prompt_text = read_resource_text("prompts/package_builder.md", local_path=prompt_dir / "package_builder.md")
     input_context = json.dumps(
@@ -89,6 +95,7 @@ def generate_final_package_with_provider(
             "cover_letter_draft": materials.cover_letter_draft,
             "cv_tailoring_notes": materials.cv_tailoring_notes,
             "criteria_checklist": materials.criteria_checklist,
+            "style_context": style_context,
         },
         indent=2,
         default=str,
@@ -140,6 +147,7 @@ def _complete_material(
     evidence: list[EvidenceReference],
     fit_report: str = "",
     cover_letter_draft: str = "",
+    style_context: str = "",
 ) -> str:
     prompt = _render_material_prompt(
         read_resource_text(f"prompts/{prompt_path.name}", local_path=prompt_path),
@@ -147,6 +155,7 @@ def _complete_material(
         evidence=evidence,
         fit_report=fit_report,
         cover_letter_draft=cover_letter_draft,
+        style_context=style_context,
     )
     return provider.complete(prompt).content.strip() + "\n"
 
@@ -158,11 +167,13 @@ def _render_material_prompt(
     evidence: list[EvidenceReference],
     fit_report: str = "",
     cover_letter_draft: str = "",
+    style_context: str = "",
 ) -> str:
     rendered = prompt_text.replace("{parsed_job}", json.dumps(parsed_job, indent=2, default=str))
     rendered = rendered.replace("{profile_evidence}", _evidence_json(evidence))
     rendered = rendered.replace("{fit_report}", fit_report)
     rendered = rendered.replace("{cover_letter_draft}", cover_letter_draft)
+    rendered = rendered.replace("{style_context}", style_context)
     return rendered
 
 

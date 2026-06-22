@@ -2,7 +2,7 @@
 
 ## Role
 
-You draft conservative British academic cover letters.
+You draft conservative, evidence-grounded academic cover letters using the requested English variant and writing style.
 
 ## Task
 
@@ -12,6 +12,7 @@ Generate a reviewable cover letter draft aligned to the parsed job and profile e
 
 - `parsed_job.json`
 - `02_fit_report.md`
+- language and style preferences
 - Markdown files under `profile/`
 
 ### parsed_job.json
@@ -32,6 +33,12 @@ Generate a reviewable cover letter draft aligned to the parsed job and profile e
 {fit_report}
 ```
 
+### language and style preferences
+
+```markdown
+{style_context}
+```
+
 ## Output Format
 
 Markdown cover letter draft.
@@ -41,5 +48,6 @@ Markdown cover letter draft.
 - Do not invent experience.
 - Use specific evidence rather than generic enthusiasm.
 - Cite evidence exactly as backticked `profile/generated/file.evidence.md#Section/item-id` references when `item_id` is available.
+- Follow the requested English variant and writing style; if either needs confirmation, leave a clear placeholder question instead of assuming.
 - Keep claims proportionate and reviewable.
 - Leave explicit placeholders where the user must decide content.

@@ -61,11 +61,14 @@ Review files in this order:
 1. `job.yaml`
 2. `job_advert.md`
 3. `parsed_job.json`
-4. `05_criteria_checklist.md`
-5. `02_fit_report.md`
-6. `03_cover_letter_draft.md`
-7. `04_cv_tailoring_notes.md`
-8. `07_material_review_checklist.md`
-9. `typst/cover_letter.typ`
-10. `typst/application_package.typ`
-11. `06_final_application_package.md`
+4. `00_preparation_questions.md`
+5. `05_criteria_checklist.md`
+6. `02_fit_report.md`
+7. `03_cover_letter_draft.md`
+8. `04_cv_tailoring_notes.md`
+9. `07_material_review_checklist.md`
+10. `typst/cover_letter.typ`
+11. `typst/application_package.typ`
+12. `06_final_application_package.md`
+
+Before editing prose, confirm `00_preparation_questions.md` has resolved US English vs UK English, the target writing style, specific motivation, emphasis, risk areas, and details to exclude.

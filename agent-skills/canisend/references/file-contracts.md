@@ -76,6 +76,7 @@ Each application task lives in ignored `jobs/<job-slug>/` and contains:
 job.yaml
 job_advert.md
 parsed_job.json
+00_preparation_questions.md
 01_job_summary.md
 02_fit_report.md
 03_cover_letter_draft.md
@@ -92,9 +93,10 @@ RSS lead outputs live in ignored `job_leads/`.
 
 ## Output Contracts
 
-- `job.yaml`: lightweight tracking fields, including `title`, `institution`, `deadline`, `source_url`, `status`, `created_at`, and `updated_at`.
+- `job.yaml`: lightweight tracking fields, including `title`, `institution`, `deadline`, `source_url`, `status`, `english_variant`, `writing_style`, `created_at`, and `updated_at`.
 - `job_advert.md`: full advert text. RSS-created jobs start with lead metadata and require manual full advert paste.
 - `parsed_job.json`: structured advert data. Missing fields should remain empty or unknown; do not invent.
+- `00_preparation_questions.md`: grill-me checklist for confirming US English vs UK English, writing style, specific motivation, emphasis, risks, and excluded details before treating materials as final.
 - `02_fit_report.md`, `03_cover_letter_draft.md`, `04_cv_tailoring_notes.md`, `05_criteria_checklist.md`: evidence-grounded Markdown review artifacts.
 - `07_material_review_checklist.md`: management artifact for cover letter draft, CV tailoring notes, placeholders, item-level citations, and manual follow-up actions.
 - `typst/cover_letter.typ`: editable Typst source for the final cover letter, with stable `// CANISEND: section ...` markers.

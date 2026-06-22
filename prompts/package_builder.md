@@ -15,6 +15,7 @@ Combine generated outputs into `06_final_application_package.md`.
 - `03_cover_letter_draft.md`
 - `04_cv_tailoring_notes.md`
 - `05_criteria_checklist.md`
+- language and style preferences inside `input_context.style_context`
 
 ## Input Context
 
@@ -30,4 +31,5 @@ Markdown package with job information, strategy, generated materials, required d
 
 - Do not imply that the application has been submitted.
 - Make remaining manual actions explicit.
+- Preserve language and style preferences from `input_context.style_context`.
 - Keep sensitive declarations outside automation.

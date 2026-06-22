@@ -259,6 +259,7 @@ def run_example(
     typer.echo("Key outputs:")
     for output in [
         "parsed_job.json",
+        "00_preparation_questions.md",
         "02_fit_report.md",
         "03_cover_letter_draft.md",
         "05_criteria_checklist.md",
@@ -428,6 +429,16 @@ def new_job(
         "--fetch-url",
         help="Explicitly fetch --source-url and import readable HTML text into job_advert.md.",
     ),
+    english_variant: str = typer.Option(
+        "",
+        "--english-variant",
+        help="Preferred English variant for drafted materials: uk, us, or needs_confirmation.",
+    ),
+    writing_style: str = typer.Option(
+        "",
+        "--writing-style",
+        help="Preferred writing style, e.g. 'direct, warm, evidence-led'.",
+    ),
 ) -> None:
     """Create a local job folder and advert file."""
     config = load_workspace_config(workspace)
@@ -440,6 +451,8 @@ def new_job(
             source_url=source_url,
             advert_file=advert_file,
             fetch_url=fetch_url,
+            english_variant=english_variant,
+            writing_style=writing_style,
         )
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
@@ -462,6 +475,16 @@ def new_job_from_lead(
     institution: str = typer.Option(..., "--institution", help="Hiring institution for the job workspace."),
     deadline: str = typer.Option("unknown", "--deadline", help="Application deadline."),
     title: str | None = typer.Option(None, "--title", help="Override the RSS lead title."),
+    english_variant: str = typer.Option(
+        "",
+        "--english-variant",
+        help="Preferred English variant for drafted materials: uk, us, or needs_confirmation.",
+    ),
+    writing_style: str = typer.Option(
+        "",
+        "--writing-style",
+        help="Preferred writing style, e.g. 'direct, warm, evidence-led'.",
+    ),
     jobs_dir: Path | None = typer.Option(
         None,
         "--jobs-dir",
@@ -478,6 +501,8 @@ def new_job_from_lead(
             institution=institution,
             deadline=deadline,
             title=title,
+            english_variant=english_variant,
+            writing_style=writing_style,
         )
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
@@ -623,7 +648,7 @@ def run_pipeline(
         typer.echo(f"\nOutputs that would be generated:")
 
         outputs = [
-            "parsed_job.json", "01_job_summary.md", "02_fit_report.md",
+            "parsed_job.json", "00_preparation_questions.md", "01_job_summary.md", "02_fit_report.md",
             "03_cover_letter_draft.md", "04_cv_tailoring_notes.md",
             "05_criteria_checklist.md", "06_final_application_package.md",
             "07_material_review_checklist.md",

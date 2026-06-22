@@ -11,6 +11,7 @@ Generate an evidence-grounded fit report.
 ## Inputs
 
 - `parsed_job.json`
+- language and style preferences
 - Markdown files under `profile/`
 
 ### parsed_job.json
@@ -25,6 +26,12 @@ Generate an evidence-grounded fit report.
 {profile_evidence}
 ```
 
+### language and style preferences
+
+```markdown
+{style_context}
+```
+
 ## Output Format
 
 Markdown report with research fit, teaching fit, methods/data fit, department fit, evidence strength, gaps, and risks.
@@ -33,5 +40,6 @@ Markdown report with research fit, teaching fit, methods/data fit, department fi
 
 - Every strong-fit claim must cite profile file and section/item evidence.
 - Cite evidence exactly as backticked `profile/generated/file.evidence.md#Section/item-id` references when `item_id` is available.
+- Use the requested English variant and writing style for prose, while keeping fit judgements precise.
 - Do not invent publications, teaching, grants, awards, supervision, or service.
 - Every gap should include a practical repair suggestion.

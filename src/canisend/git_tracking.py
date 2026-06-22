@@ -6,6 +6,7 @@ import subprocess
 
 
 APPLICATION_MATERIAL_RELATIVE_PATHS = [
+    "00_preparation_questions.md",
     "02_fit_report.md",
     "03_cover_letter_draft.md",
     "04_cv_tailoring_notes.md",

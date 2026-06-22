@@ -23,7 +23,7 @@ It prepares materials only. It does not submit applications, create accounts, fi
 - Imports and filters jobs.ac.uk RSS leads without scraping full job pages.
 - Creates one local folder per application, with the full advert kept as a manual input.
 - Extracts normalized evidence from Typst-first profile sources into `profile/generated/`.
-- Generates `parsed_job.json`, fit reports, cover letter drafts, CV tailoring notes, criteria checklists, material review checklists, and structured Typst content.
+- Generates `parsed_job.json`, preparation questions, fit reports, cover letter drafts, CV tailoring notes, criteria checklists, material review checklists, and structured Typst content.
 - Runs deterministic local generation by default, with explicit opt-in for LLM-backed evidence augmentation, parsing, or drafting.
 - Ships bridge files for Codex, Claude Code, and IDE agents through `AGENTS.md`, `CLAUDE.md`, and `agent-skills/canisend/SKILL.md`.
 
@@ -89,6 +89,7 @@ Inspect the generated dossier:
 ```text
 /tmp/canisend-example/jobs/2026-06-15_example-university_lecturer-in-applied-economics/
   parsed_job.json
+  00_preparation_questions.md
   02_fit_report.md
   03_cover_letter_draft.md
   05_criteria_checklist.md
@@ -220,8 +221,12 @@ canisend new-job \
   --title "Lecturer in Economics" \
   --institution "University X" \
   --deadline "2026-06-15" \
+  --english-variant "UK English" \
+  --writing-style "direct, warm, evidence-led" \
   --source-url "https://www.jobs.ac.uk/job/example"
 ```
+
+If these preferences are unknown, leave them unset. CanISend will mark them as `needs_confirmation` and include language/style questions in `00_preparation_questions.md`.
 
 Paste the full advert into `jobs/<job-slug>/job_advert.md` before relying on parsed criteria or generated drafts. V1 does not scrape full job pages.
 
@@ -240,6 +245,7 @@ Generated output includes:
 ```text
 jobs/<job-slug>/
   parsed_job.json
+  00_preparation_questions.md
   01_job_summary.md
   02_fit_report.md
   03_cover_letter_draft.md
@@ -263,7 +269,7 @@ canisend run \
   --git-add-materials
 ```
 
-Without the flag, interactive terminals are asked whether to add generated application materials to git; non-interactive runs skip git staging unless the flag is set. CanISend stages only the generated fit report, cover letter draft, CV tailoring notes, criteria checklist, final package, material review checklist, and editable Typst sources. It does not stage raw adverts, source URLs, parsed job JSON, compatibility JSON, PDFs, or profile files, and it never commits automatically.
+Without the flag, interactive terminals are asked whether to add generated application materials to git; non-interactive runs skip git staging unless the flag is set. CanISend stages only the generated preparation questions, fit report, cover letter draft, CV tailoring notes, criteria checklist, final package, material review checklist, and editable Typst sources. It does not stage raw adverts, source URLs, parsed job JSON, compatibility JSON, PDFs, or profile files, and it never commits automatically.
 
 LLM-backed evidence augmentation, parser, and draft generation are explicit opt-in modes. Configure a provider before using them:
 
@@ -299,16 +305,17 @@ The LLM-backed evidence augmenter only accepts items tied to a supporting `sourc
 Review files in this order:
 
 1. `parsed_job.json`
-2. `05_criteria_checklist.md`
-3. `02_fit_report.md`
-4. `03_cover_letter_draft.md`
-5. `04_cv_tailoring_notes.md`
-6. `07_material_review_checklist.md`
-7. `typst/cover_letter.typ`
-8. `typst/application_package.typ`
-9. `06_final_application_package.md`
+2. `00_preparation_questions.md`
+3. `05_criteria_checklist.md`
+4. `02_fit_report.md`
+5. `03_cover_letter_draft.md`
+6. `04_cv_tailoring_notes.md`
+7. `07_material_review_checklist.md`
+8. `typst/cover_letter.typ`
+9. `typst/application_package.typ`
+10. `06_final_application_package.md`
 
-Use `07_material_review_checklist.md` to track the cover letter draft, CV tailoring notes, placeholders, item-level evidence citation checks, and next manual actions.
+Use `00_preparation_questions.md` to confirm US English vs UK English, writing style, and the grill-me details that make the application specific. Use `07_material_review_checklist.md` to track the cover letter draft, CV tailoring notes, placeholders, item-level evidence citation checks, and next manual actions.
 
 After reviewing the Markdown drafts, directly edit `typst/cover_letter.typ` and `typst/application_package.typ` for final wording and layout. The files include stable `// CANISEND: section ...` markers so agents can make bounded edits without rewriting the whole Typst source.
 

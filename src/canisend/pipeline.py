@@ -45,11 +45,13 @@ def run_pipeline(
 
     parsed_job = _parse_job(advert_text, metadata, use_llm_parser=use_llm_parser, prompt_dir=prompt_dir)
     evidence = load_generated_evidence(profile_dir)
+    style_context = _style_context(metadata)
     materials = _materials(
         parsed_job,
         evidence,
         use_llm_drafts=use_llm_drafts,
         prompt_dir=prompt_dir,
+        style_context=style_context,
     )
     if use_llm_drafts:
         provider = provider_from_config(load_llm_config())
@@ -59,12 +61,14 @@ def run_pipeline(
             evidence=evidence,
             provider=provider,
             prompt_dir=prompt_dir,
+            style_context=style_context,
         )
     else:
         final_package = _final_package(parsed_job, materials)
     material_review = build_material_review_checklist(parsed_job, materials)
     written = [
         _write_json(job_dir / "parsed_job.json", parsed_job),
+        _write_text(job_dir / "00_preparation_questions.md", _preparation_questions(parsed_job, metadata)),
         _write_text(job_dir / "01_job_summary.md", _job_summary(parsed_job)),
         _write_text(job_dir / "02_fit_report.md", materials.fit_report),
         _write_text(job_dir / "03_cover_letter_draft.md", materials.cover_letter_draft),
@@ -116,6 +120,7 @@ def _materials(
     *,
     use_llm_drafts: bool,
     prompt_dir: Path,
+    style_context: str,
 ) -> ApplicationMaterials:
     if not use_llm_drafts:
         index = EvidenceIndex(evidence)
@@ -141,6 +146,7 @@ def _materials(
         evidence=evidence,
         provider=provider,
         prompt_dir=prompt_dir,
+        style_context=style_context,
     )
 
 
@@ -167,6 +173,53 @@ def _job_summary(parsed_job: dict[str, Any]) -> str:
 - Contract: {parsed_job["contract_type"]}
 - Salary: {parsed_job["salary"]}
 - Required documents: {", ".join(parsed_job["required_documents"]) or "unknown"}
+"""
+
+
+def _style_context(metadata: dict[str, Any]) -> str:
+    variant = str(metadata.get("english_variant") or "needs_confirmation")
+    style = str(metadata.get("writing_style") or "needs_confirmation")
+    variant_label = {
+        "uk": "UK English",
+        "us": "US English",
+        "needs_confirmation": "needs confirmation: ask whether to use US English or UK English",
+    }.get(variant, variant)
+    style_label = style if style != "needs_confirmation" else "needs confirmation: ask for preferred writing style"
+    return "\n".join(
+        [
+            "## Language and Style Preferences",
+            "",
+            f"- English variant: {variant_label}",
+            f"- Writing style: {style_label}",
+            "- Preserve evidence citations and do not invent details to satisfy style preferences.",
+        ]
+    )
+
+
+def _preparation_questions(parsed_job: dict[str, Any], metadata: dict[str, Any]) -> str:
+    return f"""# Preparation Questions
+
+Use this as a short grill me checklist before treating generated materials as final.
+
+## Language And Style
+
+- Confirm whether the materials should use US English or UK English.
+- Confirm writing style: direct, warm, formal, concise, evidence-led, or another target voice.
+- Confirm whether the role or institution expects local spelling, title conventions, or sector-specific tone.
+
+## Content Details To Confirm
+
+- What is the specific motivation for {parsed_job["institution"]} and this {parsed_job["title"]} role?
+- Which 2-3 evidence-backed achievements should be most visible?
+- Which criteria are real strengths, and which are stretch or risk areas?
+- Which teaching, research, service, leadership, or industry details should not be overclaimed?
+- Are there any details the user wants excluded from cover letters, CV notes, or statements?
+
+## Current Metadata
+
+- English variant: {metadata.get("english_variant", "needs_confirmation")}
+- Writing style: {metadata.get("writing_style", "needs_confirmation")}
+- Status: {metadata.get("status", "unknown")}
 """
 
 

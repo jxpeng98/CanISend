@@ -10,6 +10,7 @@ from canisend.materials import MaterialValidationError, validate_markdown_citati
 
 
 REQUIRED_MARKDOWN_FILES = [
+    "00_preparation_questions.md",
     "01_job_summary.md",
     "02_fit_report.md",
     "03_cover_letter_draft.md",

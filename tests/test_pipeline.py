@@ -117,6 +117,7 @@ Desirable criteria:
         "Teaching statement",
     ]
     expected_outputs = [
+        "00_preparation_questions.md",
         "01_job_summary.md",
         "02_fit_report.md",
         "03_cover_letter_draft.md",
@@ -131,6 +132,11 @@ Desirable criteria:
     ]
     for output in expected_outputs:
         assert (job_dir / output).exists()
+    prep_questions = (job_dir / "00_preparation_questions.md").read_text()
+    assert "US English or UK English" in prep_questions
+    assert "grill me" in prep_questions.lower()
+    assert "writing style" in prep_questions.lower()
+    assert "specific motivation" in prep_questions.lower()
     assert "Remaining Actions Before Submission" in (job_dir / "06_final_application_package.md").read_text()
     cover_source = (job_dir / "typst" / "cover_letter.typ").read_text()
     package_source = (job_dir / "typst" / "application_package.typ").read_text()
@@ -165,7 +171,7 @@ def test_run_git_add_materials_flag_stages_generated_application_materials(tmp_p
     result = runner.invoke(app, ["run", "--job", str(job_dir), "--git-add-materials"])
 
     assert result.exit_code == 0
-    assert "Added 8 generated application material files to git." in result.output
+    assert "Added 9 generated application material files to git." in result.output
     assert len(calls) == 1
     command, cwd = calls[0]
     assert command[:4] == ["git", "add", "-f", "--"]
@@ -190,7 +196,7 @@ def test_run_interactive_git_add_materials_prompt_can_stage_outputs(tmp_path, mo
     result = runner.invoke(app, ["run", "--job", str(job_dir)])
 
     assert result.exit_code == 0
-    assert "Added 8 generated application material files to git." in result.output
+    assert "Added 9 generated application material files to git." in result.output
     assert len(calls) == 1
 
 
@@ -396,6 +402,8 @@ def test_run_pipeline_can_use_llm_drafts_with_command_provider(tmp_path, monkeyp
                 "created_at": "2026-05-03T23:00:00Z",
                 "updated_at": "2026-05-03T23:00:00Z",
                 "notes": "",
+                "english_variant": "us",
+                "writing_style": "direct and warm",
             },
             sort_keys=False,
         )
@@ -422,6 +430,8 @@ def test_run_pipeline_can_use_llm_drafts_with_command_provider(tmp_path, monkeyp
         "if '# Profile Matcher' in prompt:\n"
         "    print(f'# Fit Report\\n\\n- Strong teaching fit for econometrics ({citation}).')\n"
         "elif '# Cover Letter Writer' in prompt:\n"
+        "    assert 'US English' in prompt, prompt\n"
+        "    assert 'direct and warm' in prompt, prompt\n"
         "    print(f'# Cover Letter Draft\\n\\nI can contribute to econometrics teaching ({citation}).')\n"
         "elif '# CV Tailor' in prompt:\n"
         "    print(f'# CV Tailoring Notes\\n\\n- Move teaching evidence higher ({citation}).')\n"

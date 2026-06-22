@@ -28,6 +28,8 @@ def create_job(
     source_url: str = "",
     advert_file: Path | None = None,
     fetch_url: bool = False,
+    english_variant: str = "",
+    writing_style: str = "",
 ) -> Path:
     advert_text = ""
     status = "new"
@@ -64,6 +66,8 @@ def create_job(
         advert_text=advert_text,
         status=status,
         notes=notes,
+        english_variant=english_variant,
+        writing_style=writing_style,
     )
 
 
@@ -75,6 +79,8 @@ def create_job_from_lead(
     institution: str,
     deadline: str = "unknown",
     title: str | None = None,
+    english_variant: str = "",
+    writing_style: str = "",
 ) -> Path:
     lead = _load_lead(leads_file, lead_index)
     lead_title = (title or str(lead.get("title", ""))).strip()
@@ -92,6 +98,8 @@ def create_job_from_lead(
         advert_text=_lead_advert_markdown(lead, lead_title),
         status="lead_imported",
         notes="Created from RSS lead only; paste and review the full advert manually.",
+        english_variant=english_variant,
+        writing_style=writing_style,
     )
 
 
@@ -105,6 +113,8 @@ def _write_job_workspace(
     advert_text: str,
     status: str,
     notes: str,
+    english_variant: str,
+    writing_style: str,
 ) -> Path:
     job_id = build_job_slug(deadline, institution, title)
     job_dir = jobs_dir / job_id
@@ -121,6 +131,8 @@ def _write_job_workspace(
         "deadline": deadline,
         "source_url": source_url,
         "status": status,
+        "english_variant": normalize_english_variant(english_variant),
+        "writing_style": normalize_writing_style(writing_style),
         "created_at": now,
         "updated_at": now,
         "notes": notes,
@@ -128,6 +140,36 @@ def _write_job_workspace(
     (job_dir / "job.yaml").write_text(yaml.safe_dump(metadata, sort_keys=False), encoding="utf-8")
 
     return job_dir
+
+
+def normalize_english_variant(value: str) -> str:
+    normalized = value.strip().lower().replace(".", "")
+    normalized = re.sub(r"[\s-]+", "_", normalized)
+    if not normalized:
+        return "needs_confirmation"
+    aliases = {
+        "british": "uk",
+        "british_english": "uk",
+        "en_gb": "uk",
+        "gb": "uk",
+        "uk_english": "uk",
+        "american": "us",
+        "american_english": "us",
+        "en_us": "us",
+        "usa": "us",
+        "us_english": "us",
+        "needs_confirmation": "needs_confirmation",
+        "need_confirmation": "needs_confirmation",
+        "confirm": "needs_confirmation",
+    }
+    normalized = aliases.get(normalized, normalized)
+    if normalized not in {"uk", "us", "needs_confirmation"}:
+        raise ValueError("English variant must be uk, us, or needs_confirmation.")
+    return normalized
+
+
+def normalize_writing_style(value: str) -> str:
+    return value.strip() or "needs_confirmation"
 
 
 def _source_url_stub(source_url: str) -> str:

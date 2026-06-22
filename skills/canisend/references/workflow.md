@@ -102,17 +102,18 @@ Always ask before enabling LLM-backed flags or a command provider for a real wor
 Review, in order:
 
 1. `parsed_job.json`
-2. `05_criteria_checklist.md`
-3. `02_fit_report.md`
-4. `03_cover_letter_draft.md`
-5. `04_cv_tailoring_notes.md`
-6. `07_material_review_checklist.md`
-7. `typst/cover_letter.typ`
-8. `typst/application_package.typ`
-9. `06_final_application_package.md`
+2. `00_preparation_questions.md`
+3. `05_criteria_checklist.md`
+4. `02_fit_report.md`
+5. `03_cover_letter_draft.md`
+6. `04_cv_tailoring_notes.md`
+7. `07_material_review_checklist.md`
+8. `typst/cover_letter.typ`
+9. `typst/application_package.typ`
+10. `06_final_application_package.md`
 
 Apply `quality-gates.md` before treating any output as usable.
-In particular, check item-level citations, unsupported claims, required-document coverage, and private-file safety before presenting a package as ready.
+In particular, check language/style confirmation, item-level citations, unsupported claims, required-document coverage, and private-file safety before presenting a package as ready.
 
 In agent-assisted mode, also report which private sources were read directly, which LLM-backed CLI flags were used, and which remaining claims need manual confirmation.
 
