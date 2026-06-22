@@ -5,8 +5,11 @@ from html.parser import HTMLParser
 from pathlib import Path
 import re
 from typing import Any, Callable
-from urllib.parse import urlparse
+from urllib.parse import quote, unquote, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
+
+
+_DEFAULT_MAX_BYTES = 2_000_000
 
 
 class JobImportError(ValueError):
@@ -23,14 +26,22 @@ class ImportedAdvert:
 class _ReadableHTMLParser(HTMLParser):
     _BLOCK_TAGS = {
         "article",
+        "blockquote",
         "br",
         "div",
         "h1",
         "h2",
         "h3",
         "li",
+        "main",
+        "ol",
         "p",
         "section",
+        "table",
+        "td",
+        "th",
+        "tr",
+        "ul",
     }
     _SKIP_TAGS = {"noscript", "script", "style"}
 
@@ -63,8 +74,14 @@ class _ReadableHTMLParser(HTMLParser):
 def import_advert_file(path: Path) -> ImportedAdvert:
     suffix = path.suffix.lower()
     if suffix in {".md", ".txt"}:
+        if not path.is_file():
+            raise JobImportError(f"Could not read job advert file {path}: not a file.")
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeError) as exc:
+            raise JobImportError(f"Could not read job advert file {path}: {exc}") from exc
         return ImportedAdvert(
-            text=path.read_text(encoding="utf-8"),
+            text=text,
             status="advert_imported",
         )
     if suffix == ".pdf":
@@ -110,12 +127,43 @@ def validate_fetch_url(source_url: str) -> str:
     url = source_url.strip()
     if not url:
         raise JobImportError("--fetch-url requires --source-url.")
-    parsed = urlparse(url)
-    if parsed.scheme not in {"http", "https"}:
+    parsed = urlsplit(url)
+    if parsed.scheme.lower() not in {"http", "https"}:
         raise JobImportError("Only http:// and https:// URLs can be fetched.")
     if not parsed.hostname:
         raise JobImportError("Fetch URL must include a host.")
-    return url
+    if parsed.username or parsed.password:
+        raise JobImportError("Fetch URL must not include credentials.")
+    return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, parsed.query, ""))
+
+
+def _provenance_url(fetch_url: str) -> str:
+    parsed = urlsplit(fetch_url)
+    safe_path = quote(unquote(parsed.path), safe="/:@!$&'()*+,;=%")
+    safe_query = "redacted" if parsed.query else ""
+    return urlunsplit((parsed.scheme, parsed.netloc, safe_path, safe_query, ""))
+
+
+def _read_limited_response(response: Any, *, max_bytes: int) -> bytes:
+    content_length = response.headers.get("Content-Length")
+    if content_length:
+        try:
+            length = int(content_length)
+        except ValueError:
+            length = None
+        if length is not None and length > max_bytes:
+            raise JobImportError(
+                f"Fetched URL response is larger than the configured limit "
+                f"of {max_bytes} bytes."
+            )
+
+    raw = response.read(max_bytes + 1)
+    if len(raw) > max_bytes:
+        raise JobImportError(
+            f"Fetched URL response is larger than the configured limit "
+            f"of {max_bytes} bytes."
+        )
+    return raw
 
 
 def fetch_advert_from_url(
@@ -123,8 +171,10 @@ def fetch_advert_from_url(
     *,
     opener: Callable[..., Any] = urlopen,
     timeout: int = 30,
+    max_bytes: int = _DEFAULT_MAX_BYTES,
 ) -> ImportedAdvert:
     url = validate_fetch_url(source_url)
+    provenance_url = _provenance_url(url)
     request = Request(url, headers={"User-Agent": "CanISend/0.2 job-advert-import"})
     try:
         with opener(request, timeout=timeout) as response:
@@ -132,7 +182,7 @@ def fetch_advert_from_url(
             if "html" not in content_type.lower():
                 detail = content_type or "unknown content type"
                 raise JobImportError(f"Fetched URL did not return HTML: {detail}")
-            raw = response.read()
+            raw = _read_limited_response(response, max_bytes=max_bytes)
     except JobImportError:
         raise
     except Exception as exc:
@@ -145,14 +195,14 @@ def fetch_advert_from_url(
         )
 
     header = (
-        f"<!-- Fetched from {url}. "
-        "Review extracted text before relying on parsed criteria. -->\n\n"
+        f"Fetched from {provenance_url}\n"
+        "Review extracted text before relying on parsed criteria.\n\n"
     )
     return ImportedAdvert(
         text=header + text.rstrip() + "\n",
         status="advert_imported",
         notes=(
-            f"Fetched from {url}; "
+            f"Fetched from {provenance_url}; "
             "review extracted text before relying on parsed criteria."
         ),
     )
