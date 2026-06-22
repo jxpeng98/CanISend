@@ -6,6 +6,7 @@ from canisend import __version__
 from canisend.evidence import EvidenceAugmentationError, extract_profile_evidence
 from canisend.examples import run_packaged_example
 from canisend.jobs import create_job, create_job_from_lead, list_jobs as list_job_folders
+from canisend.orchestrator import OrchestrationError, run_orchestration
 from canisend.pipeline import run_pipeline as run_job_pipeline
 from canisend.profile import init_profile as create_profile
 from canisend.ready_check import check_application_package
@@ -283,6 +284,63 @@ def check_package(
     )
     for line in result.output_lines():
         typer.echo(line)
+    if not result.ok:
+        raise typer.Exit(code=1)
+
+
+@app.command("orchestrate")
+def orchestrate(
+    job: Path = typer.Option(
+        ...,
+        "--job",
+        help="Job folder path or slug. Slugs are resolved under the workspace jobs directory.",
+    ),
+    plan: Path = typer.Option(..., "--plan", help="Local orchestration YAML plan."),
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="User workspace directory containing canisend.yaml.",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Validate and print task readiness without launching workers.",
+    ),
+    allow_private_sources: bool = typer.Option(
+        False,
+        "--allow-private-sources",
+        help="Allow Tier 2 private-source tasks declared in the plan.",
+    ),
+    allow_provider_backed: bool = typer.Option(
+        False,
+        "--allow-provider-backed",
+        help="Allow Tier 3 provider-backed tasks declared in the plan.",
+    ),
+    fail_fast: bool = typer.Option(
+        False,
+        "--fail-fast",
+        help="Stop scheduling unrelated tasks after the first failure.",
+    ),
+) -> None:
+    """Coordinate multiple local agent CLI workers for one job."""
+    config = load_workspace_config(workspace)
+    try:
+        result = run_orchestration(
+            workspace=config.root,
+            job_dir=config.job_dir(job),
+            plan_path=plan,
+            dry_run=dry_run,
+            allow_private_sources=allow_private_sources,
+            allow_provider_backed=allow_provider_backed,
+            fail_fast=fail_fast,
+        )
+    except OrchestrationError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    if result.run_dir is not None:
+        typer.echo(f"Orchestration run: {result.run_dir}")
+    for task_id, status in sorted(result.task_statuses.items()):
+        typer.echo(f"{task_id}: {status}")
     if not result.ok:
         raise typer.Exit(code=1)
 

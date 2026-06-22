@@ -1,4 +1,5 @@
 import re
+import sys
 
 from typer.testing import CliRunner
 
@@ -32,6 +33,7 @@ def test_cli_help_shows_core_commands():
     assert "extract-profile-evidence" in output
     assert "run" in output
     assert "check-package" in output
+    assert "orchestrate" in output
     assert "render-typst" in output
 
 
@@ -93,3 +95,87 @@ def test_cli_version_command_shows_local_and_remote_versions(monkeypatch):
     assert f"Local package      {__version__}" in output
     assert "Remote stable      0.2.0" in output
     assert "Remote prerelease  0.3.0rc1" in output
+
+
+def test_orchestrate_dry_run_lists_ready_tasks(tmp_path):
+    workspace = tmp_path / "workspace"
+    job_dir = workspace / "jobs" / "job"
+    job_dir.mkdir(parents=True)
+    (workspace / "canisend.yaml").write_text("jobs_dir: jobs\n", encoding="utf-8")
+    (job_dir / "parsed_job.json").write_text('{"title": "Lecturer"}\n', encoding="utf-8")
+    worker = tmp_path / "worker.py"
+    worker.write_text("print('ok')\n", encoding="utf-8")
+    plan = tmp_path / "plan.yaml"
+    plan.write_text(
+        f"""
+workers:
+  python:
+    command: "{sys.executable} {worker}"
+    max_parallel_tasks: 1
+tasks:
+  - id: review
+    worker: python
+    role: job_parser_reviewer
+    privacy_tier: 1
+    inputs:
+      - parsed_job.json
+    outputs:
+      - orchestration/reviews/review.md
+    writes:
+      - orchestration/reviews/review.md
+""",
+        encoding="utf-8",
+    )
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        ["orchestrate", "--workspace", str(workspace), "--job", "job", "--plan", str(plan), "--dry-run"],
+    )
+
+    assert result.exit_code == 0
+    assert "review: ready" in result.output
+
+
+def test_orchestrate_executes_plan_and_reports_run_dir(tmp_path):
+    workspace = tmp_path / "workspace"
+    job_dir = workspace / "jobs" / "job"
+    job_dir.mkdir(parents=True)
+    (workspace / "canisend.yaml").write_text("jobs_dir: jobs\n", encoding="utf-8")
+    (job_dir / "parsed_job.json").write_text('{"title": "Lecturer"}\n', encoding="utf-8")
+    worker = tmp_path / "worker.py"
+    worker.write_text(
+        "import sys\n"
+        "prompt = sys.stdin.read()\n"
+        "print('CLI:' + prompt.splitlines()[0])\n",
+        encoding="utf-8",
+    )
+    plan = tmp_path / "plan.yaml"
+    plan.write_text(
+        f"""
+workers:
+  python:
+    command: "{sys.executable} {worker}"
+    max_parallel_tasks: 1
+tasks:
+  - id: review
+    worker: python
+    role: job_parser_reviewer
+    privacy_tier: 1
+    inputs:
+      - parsed_job.json
+    outputs:
+      - orchestration/reviews/review.md
+    writes:
+      - orchestration/reviews/review.md
+""",
+        encoding="utf-8",
+    )
+    runner = CliRunner()
+
+    result = runner.invoke(app, ["orchestrate", "--workspace", str(workspace), "--job", "job", "--plan", str(plan)])
+
+    assert result.exit_code == 0
+    assert "Orchestration run:" in result.output
+    assert "review: succeeded" in result.output
+    assert "CLI:Role: job_parser_reviewer" in (job_dir / "orchestration" / "reviews" / "review.md").read_text()

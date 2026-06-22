@@ -1283,7 +1283,7 @@ git commit -m "feat(orchestrator): run local agent tasks concurrently"
 - Modify: `src/canisend/cli.py`
 - Modify: `tests/test_cli.py`
 
-- [ ] **Step 1: Add failing CLI tests**
+- [x] **Step 1: Add failing CLI tests**
 
 Append to `tests/test_cli.py`:
 
@@ -1329,7 +1329,7 @@ tasks:
 
 Add `import sys` at the top of `tests/test_cli.py` if missing.
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
 
 Run:
 
@@ -1339,7 +1339,7 @@ uv run pytest tests/test_cli.py::test_orchestrate_dry_run_lists_ready_tasks -q
 
 Expected: FAIL because command does not exist.
 
-- [ ] **Step 3: Add CLI command**
+- [x] **Step 3: Add CLI command**
 
 In `src/canisend/cli.py`, import:
 
@@ -1383,7 +1383,7 @@ def orchestrate(
         raise typer.Exit(code=1)
 ```
 
-- [ ] **Step 4: Run test to verify pass**
+- [x] **Step 4: Run test to verify pass**
 
 Run:
 
@@ -1393,7 +1393,7 @@ uv run pytest tests/test_cli.py::test_orchestrate_dry_run_lists_ready_tasks test
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 Run:
 
