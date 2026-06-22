@@ -80,7 +80,10 @@ def run_pipeline(
     written.append(_write_json(typst_dir / "cover_letter_content.json", cover_letter_content))
     written.append(_write_text(typst_dir / "cover_letter.typ", render_modernpro_cover_letter_source(cover_letter_content)))
     written.append(_write_json(typst_dir / "application_package_content.json", application_package_content))
-    written.append(_write_text(typst_dir / "application_package.typ", render_modernpro_application_package_source()))
+    written.append(_write_text(
+        typst_dir / "application_package.typ",
+        render_modernpro_application_package_source(application_package_content),
+    ))
 
     metadata["status"] = "packaged"
     metadata_path.write_text(yaml.safe_dump(metadata, sort_keys=False), encoding="utf-8")

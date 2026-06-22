@@ -35,7 +35,7 @@
 - Modify: `pyproject.toml`
 - Modify: `uv.lock`
 
-- [ ] **Step 1: Add `pypdf` dependency**
+- [x] **Step 1: Add `pypdf` dependency**
 
 Run:
 
@@ -45,7 +45,7 @@ uv add "pypdf>=5.0"
 
 Expected: `pyproject.toml` includes `pypdf>=5.0` and `uv.lock` is updated.
 
-- [ ] **Step 2: Write failing tests for text, PDF, URL validation, and HTML extraction**
+- [x] **Step 2: Write failing tests for text, PDF, URL validation, and HTML extraction**
 
 Create `tests/test_job_import.py`:
 
@@ -165,7 +165,7 @@ def test_fetch_advert_from_url_reads_html_with_injected_opener():
     assert "Fetched from https://example.edu/jobs/123" in imported.notes
 ```
 
-- [ ] **Step 3: Run tests to verify failure**
+- [x] **Step 3: Run tests to verify failure**
 
 Run:
 
@@ -175,7 +175,7 @@ uv run pytest tests/test_job_import.py -q
 
 Expected: FAIL because `canisend.job_import` does not exist.
 
-- [ ] **Step 4: Implement `src/canisend/job_import.py`**
+- [x] **Step 4: Implement `src/canisend/job_import.py`**
 
 Add:
 
@@ -308,7 +308,7 @@ def extract_html_text(html: str) -> str:
     return "\n".join(compact).strip()
 ```
 
-- [ ] **Step 5: Run tests to verify pass**
+- [x] **Step 5: Run tests to verify pass**
 
 Run:
 
@@ -318,7 +318,7 @@ uv run pytest tests/test_job_import.py -q
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 Run:
 
@@ -336,7 +336,7 @@ git commit -m "feat(job-intake): add advert import helpers"
 - Modify: `src/canisend/cli.py`
 - Modify: `tests/test_jobs.py`
 
-- [ ] **Step 1: Write failing CLI tests**
+- [x] **Step 1: Write failing CLI tests**
 
 Append to `tests/test_jobs.py`:
 
@@ -442,7 +442,7 @@ advert = (job_dir / "job_advert.md").read_text()
 assert "Source URL saved" in advert
 ```
 
-- [ ] **Step 2: Run tests to verify failure**
+- [x] **Step 2: Run tests to verify failure**
 
 Run:
 
@@ -452,7 +452,7 @@ uv run pytest tests/test_jobs.py -q
 
 Expected: FAIL because `--fetch-url` is unknown and source URL still writes an empty advert.
 
-- [ ] **Step 3: Update `src/canisend/jobs.py`**
+- [x] **Step 3: Update `src/canisend/jobs.py`**
 
 Modify imports:
 
@@ -519,7 +519,7 @@ def _source_url_stub(source_url: str) -> str:
     )
 ```
 
-- [ ] **Step 4: Update `src/canisend/cli.py`**
+- [x] **Step 4: Update `src/canisend/cli.py`**
 
 Add option to `new_job`:
 
@@ -537,7 +537,7 @@ Pass it into `create_job`:
             fetch_url=fetch_url,
 ```
 
-- [ ] **Step 5: Run tests to verify pass**
+- [x] **Step 5: Run tests to verify pass**
 
 Run:
 
@@ -547,7 +547,7 @@ uv run pytest tests/test_jobs.py tests/test_job_import.py -q
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 Run:
 
@@ -565,7 +565,7 @@ git commit -m "feat(job-intake): support URL and PDF job imports"
 - Create: `tests/test_material_review.py`
 - Modify: `skills/canisend-material-review/SKILL.md`
 
-- [ ] **Step 1: Write failing strict HR tests**
+- [x] **Step 1: Write failing strict HR tests**
 
 Create `tests/test_material_review.py`:
 
@@ -638,7 +638,7 @@ def test_material_review_flags_weak_or_missing_essential_coverage():
     assert checklist.count("BLOCKER") == 2
 ```
 
-- [ ] **Step 2: Run tests to verify failure**
+- [x] **Step 2: Run tests to verify failure**
 
 Run:
 
@@ -648,7 +648,7 @@ uv run pytest tests/test_material_review.py -q
 
 Expected: FAIL because strict HR section does not exist.
 
-- [ ] **Step 3: Implement strict HR section in `material_review.py`**
+- [x] **Step 3: Implement strict HR section in `material_review.py`**
 
 Add `_strict_hr_review_section(parsed_job, materials)` and call it before `Management Actions`:
 
@@ -710,7 +710,7 @@ def _criterion_key(value: str) -> str:
     return re.sub(r"\s+", " ", value).strip().lower()
 ```
 
-- [ ] **Step 4: Update material-review skill**
+- [x] **Step 4: Update material-review skill**
 
 In `skills/canisend-material-review/SKILL.md`, add to Workflow:
 
@@ -721,7 +721,7 @@ In `skills/canisend-material-review/SKILL.md`, add to Workflow:
 
 Renumber the remaining steps. Make the same change in any mirrored workspace skill only if tests require it.
 
-- [ ] **Step 5: Run tests to verify pass**
+- [x] **Step 5: Run tests to verify pass**
 
 Run:
 
@@ -731,7 +731,7 @@ uv run pytest tests/test_material_review.py tests/test_pipeline.py::test_run_pip
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 Run:
 
@@ -750,7 +750,7 @@ git commit -m "feat(review): add strict university HR checklist"
 - Modify: `tests/test_typst_mapping.py`
 - Modify: `tests/test_pipeline.py`
 
-- [ ] **Step 1: Rewrite Typst tests for direct content**
+- [x] **Step 1: Rewrite Typst tests for direct content**
 
 In `tests/test_typst_mapping.py`, replace JSON-contract assertions with:
 
@@ -796,7 +796,7 @@ assert "// CANISEND: section research_fit" in cover_source
 assert "// CANISEND: section criteria_checklist" in package_source
 ```
 
-- [ ] **Step 2: Run tests to verify failure**
+- [x] **Step 2: Run tests to verify failure**
 
 Run:
 
@@ -806,7 +806,7 @@ uv run pytest tests/test_typst_mapping.py tests/test_pipeline.py::test_run_pipel
 
 Expected: FAIL because renderers still depend on JSON.
 
-- [ ] **Step 3: Implement direct Typst rendering**
+- [x] **Step 3: Implement direct Typst rendering**
 
 In `src/canisend/typst_mapping.py`, add:
 
@@ -872,7 +872,7 @@ def markdown_to_typst(markdown_text: str) -> str:
     return "\n".join(lines).strip()
 ```
 
-- [ ] **Step 4: Update pipeline call**
+- [x] **Step 4: Update pipeline call**
 
 Change:
 
@@ -888,7 +888,7 @@ written.append(_write_text(typst_dir / "application_package.typ", render_modernp
 
 Keep writing `cover_letter_content.json` and `application_package_content.json` as compatibility/debug files for this release.
 
-- [ ] **Step 5: Run tests to verify pass**
+- [x] **Step 5: Run tests to verify pass**
 
 Run:
 
@@ -898,7 +898,7 @@ uv run pytest tests/test_typst_mapping.py tests/test_pipeline.py tests/test_typs
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 Run:
 

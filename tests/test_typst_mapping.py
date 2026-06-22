@@ -2,6 +2,7 @@ import json
 
 from canisend.materials import ApplicationMaterials
 from canisend.typst_mapping import (
+    build_application_package_content,
     build_cover_letter_content,
     render_modernpro_application_package_source,
     render_modernpro_cover_letter_source,
@@ -77,27 +78,38 @@ def test_build_cover_letter_content_extracts_structured_sections():
     assert content["closing"].startswith("I would welcome")
 
 
-def test_render_modernpro_cover_letter_source_uses_content_json_contract():
+def test_render_modernpro_cover_letter_source_embeds_editable_content():
     content = build_cover_letter_content(parsed_job(), materials())
 
     source = render_modernpro_cover_letter_source(content)
 
     assert '@preview/modernpro-coverletter:0.0.8' in source
-    assert 'json("cover_letter_content.json")' in source
+    assert 'json("cover_letter_content.json")' not in source
     assert "coverletter.with" in source
-    assert "content.recipient.institution" in source
-    assert "content.sections.research_fit" in source
+    assert "// CANISEND: section opening" in source
+    assert "// CANISEND: section research_fit" in source
+    assert "I am writing to apply for the Lecturer in Economics role." in source
+    assert "My research fits the department's applied economics focus." in source
     assert "# Cover Letter Draft" not in source
-    assert "## Research Fit" not in source
 
 
-def test_render_modernpro_application_package_source_uses_structured_content_json():
-    source = render_modernpro_application_package_source()
+def test_render_modernpro_application_package_source_embeds_editable_content():
+    content = build_application_package_content(
+        parsed_job(),
+        materials(),
+        "# Final Application Package\n\n## Remaining Actions\n\n- Review manually.",
+    )
+
+    source = render_modernpro_application_package_source(content)
 
     assert '@preview/modernpro-coverletter:0.0.8' in source
-    assert 'json("application_package_content.json")' in source
+    assert 'json("application_package_content.json")' not in source
     assert "statement.with" in source
-    assert "package.cover_letter" in source
+    assert "// CANISEND: section job_information" in source
+    assert "// CANISEND: section fit_report" in source
+    assert "// CANISEND: section criteria_checklist" in source
+    assert "= Fit Report" in source
+    assert "- Move econometrics teaching higher." in source
 
 
 def test_cover_letter_content_is_json_serializable():

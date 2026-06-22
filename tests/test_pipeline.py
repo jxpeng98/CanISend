@@ -88,9 +88,10 @@ Desirable criteria:
     cover_content = json.loads((job_dir / "typst" / "cover_letter_content.json").read_text())
     assert '@preview/modernpro-coverletter:0.0.8' in cover_source
     assert '@preview/modernpro-coverletter:0.0.8' in package_source
-    assert 'json("cover_letter_content.json")' in cover_source
-    assert 'json("application_package_content.json")' in package_source
-    assert "content.sections.research_fit" in cover_source
+    assert 'json("cover_letter_content.json")' not in cover_source
+    assert 'json("application_package_content.json")' not in package_source
+    assert "// CANISEND: section research_fit" in cover_source
+    assert "// CANISEND: section criteria_checklist" in package_source
     assert "# Cover Letter Draft" not in cover_source
     assert "## Research Fit" not in cover_source
     assert cover_content["recipient"]["institution"] == "University X"

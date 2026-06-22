@@ -35,7 +35,7 @@ def build_material_review_checklist(parsed_job: dict[str, Any], materials: Appli
     lines = [
         "# Material Review Checklist",
         "",
-        "Use this management checklist before treating the cover letter draft, CV tailoring notes, or Typst content JSON as ready for user review.",
+        "Use this management checklist before treating the cover letter draft, CV tailoring notes, or editable Typst outputs as ready for user review.",
         "",
         "## Job Context",
         "",
@@ -68,7 +68,7 @@ def build_material_review_checklist(parsed_job: dict[str, Any], materials: Appli
             "- Confirm every strong-fit claim has item-level evidence when evidence exists.",
             "- Do not edit `profile/typst/cv.typ` unless the user explicitly asks.",
             "- Apply CV changes manually in the private profile source, then rerun `extract-profile-evidence` and `run` if the evidence changed.",
-            "- Keep `typst/cover_letter_content.json` aligned with the reviewed cover letter draft before rendering.",
+            "- Review and edit `typst/cover_letter.typ` and `typst/application_package.typ` directly before rendering final PDFs.",
         ]
     )
 

@@ -133,5 +133,6 @@ def test_end_to_end_example_runs_full_local_workflow(tmp_path, monkeypatch):
     assert "econometrics teaching" in cover_content["sections"]["teaching_fit"]
     assert final_package.startswith("# Final Application Package\n")
     assert "profile/generated/cv.evidence.md#Teaching" in package_content["cover_letter"]
-    assert 'json("cover_letter_content.json")' in cover_source
+    assert 'json("cover_letter_content.json")' not in cover_source
+    assert "// CANISEND: section research_fit" in cover_source
     assert '@preview/modernpro-coverletter:0.0.8' in cover_source
