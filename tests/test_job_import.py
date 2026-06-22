@@ -35,10 +35,11 @@ class EmptyReader:
 
 
 class FakeResponse:
-    headers = {"Content-Type": "text/html; charset=utf-8"}
-
-    def __init__(self, body: str) -> None:
+    def __init__(
+        self, body: str, content_type: str = "text/html; charset=utf-8"
+    ) -> None:
         self.body = body.encode("utf-8")
+        self.headers = {"Content-Type": content_type}
 
     def __enter__(self) -> "FakeResponse":
         return self
@@ -78,6 +79,32 @@ def test_extract_pdf_text_uses_reader_factory(tmp_path: Path) -> None:
 
     assert "Lecturer in Economics" in text
     assert "Essential criteria" in text
+
+
+def test_import_advert_file_adds_pdf_provenance_header_and_notes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pdf = tmp_path / "job-description.pdf"
+    pdf.write_bytes(b"%PDF fake")
+
+    monkeypatch.setattr(
+        "canisend.job_import.extract_pdf_text",
+        lambda path: "Lecturer in Economics\nEssential criteria\nPhD",
+    )
+
+    imported = import_advert_file(pdf)
+
+    assert imported.status == "advert_imported"
+    assert imported.text.startswith(
+        "<!-- Imported from local PDF: job-description.pdf. "
+        "Review extracted text before relying on parsed criteria. -->\n\n"
+    )
+    assert "Lecturer in Economics" in imported.text
+    assert imported.text.endswith("PhD\n")
+    assert imported.notes == (
+        "Imported from local PDF job-description.pdf; "
+        "review extracted text before relying on parsed criteria."
+    )
 
 
 def test_extract_pdf_text_rejects_empty_text(tmp_path: Path) -> None:
@@ -133,3 +160,15 @@ def test_fetch_advert_from_url_reads_html_with_injected_opener() -> None:
     assert "Lecturer" in imported.text
     assert "PhD required." in imported.text
     assert "Fetched from https://example.edu/jobs/123" in imported.notes
+
+
+def test_fetch_advert_from_url_rejects_non_html_content_type() -> None:
+    def opener(request, timeout):
+        assert request.full_url == "https://example.edu/jobs/123"
+        return FakeResponse(
+            '{"title":"Lecturer"}',
+            content_type="application/json",
+        )
+
+    with pytest.raises(JobImportError, match="Fetched URL did not return HTML"):
+        fetch_advert_from_url("https://example.edu/jobs/123", opener=opener)
