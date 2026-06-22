@@ -6,6 +6,8 @@ from typing import Any
 
 import yaml
 
+from canisend.job_import import JobImportError, fetch_advert_from_url, import_advert_file
+
 
 def slugify(value: str) -> str:
     normalized = value.strip().lower()
@@ -25,15 +27,31 @@ def create_job(
     deadline: str,
     source_url: str = "",
     advert_file: Path | None = None,
+    fetch_url: bool = False,
 ) -> Path:
     advert_text = ""
     status = "new"
     notes = ""
+    if advert_file is not None and fetch_url:
+        raise ValueError("Use either --advert-file or --fetch-url, not both.")
     if advert_file is not None:
-        if advert_file.suffix.lower() not in {".md", ".txt"}:
-            raise ValueError("V1 only imports local .md or .txt job advert files.")
-        advert_text = advert_file.read_text(encoding="utf-8")
-        status = "advert_imported"
+        try:
+            imported = import_advert_file(advert_file)
+        except JobImportError as exc:
+            raise ValueError(str(exc)) from exc
+        advert_text = imported.text
+        status = imported.status
+        notes = imported.notes
+    elif fetch_url:
+        try:
+            imported = fetch_advert_from_url(source_url)
+        except JobImportError as exc:
+            raise ValueError(str(exc)) from exc
+        advert_text = imported.text
+        status = imported.status
+        notes = imported.notes
+    elif source_url.strip():
+        advert_text = _source_url_stub(source_url)
 
     return _write_job_workspace(
         jobs_dir=jobs_dir,
@@ -108,6 +126,19 @@ def _write_job_workspace(
     (job_dir / "job.yaml").write_text(yaml.safe_dump(metadata, sort_keys=False), encoding="utf-8")
 
     return job_dir
+
+
+def _source_url_stub(source_url: str) -> str:
+    return "\n".join(
+        [
+            "# Job Advert Pending Import",
+            "",
+            f"Source URL saved: {source_url}",
+            "",
+            "The full advert still needs manual paste, PDF import, or explicit fetch before final parsing.",
+            "",
+        ]
+    )
 
 
 def _load_lead(leads_file: Path, lead_index: int) -> dict[str, Any]:

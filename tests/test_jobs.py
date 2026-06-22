@@ -37,7 +37,10 @@ def test_new_job_creates_slugged_job_folder_and_metadata(tmp_path):
     assert metadata["status"] == "new"
     assert "created_at" in metadata
     assert "updated_at" in metadata
-    assert (job_dir / "job_advert.md").read_text() == ""
+    advert = (job_dir / "job_advert.md").read_text()
+    assert "Source URL saved" in advert
+    assert "https://example.edu/jobs/123" in advert
+    assert "full advert still needs manual paste, PDF import, or explicit fetch" in advert
 
 
 def test_new_job_imports_local_advert_file_unchanged(tmp_path):
@@ -68,6 +71,100 @@ def test_new_job_imports_local_advert_file_unchanged(tmp_path):
     assert (job_dir / "job_advert.md").read_text() == "# Lecturer role\n\nEssential: PhD.\n"
     metadata = yaml.safe_load((job_dir / "job.yaml").read_text())
     assert metadata["status"] == "advert_imported"
+
+
+def test_new_job_with_source_url_writes_metadata_stub(tmp_path):
+    jobs_dir = tmp_path / "jobs"
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "new-job",
+            "--title",
+            "Lecturer in Economics",
+            "--institution",
+            "University X",
+            "--deadline",
+            "2026-06-15",
+            "--source-url",
+            "https://example.edu/jobs/123",
+            "--jobs-dir",
+            str(jobs_dir),
+        ],
+    )
+
+    assert result.exit_code == 0
+    job_dir = jobs_dir / "2026-06-15_university-x_lecturer-in-economics"
+    metadata = yaml.safe_load((job_dir / "job.yaml").read_text())
+    assert metadata["status"] == "new"
+    advert = (job_dir / "job_advert.md").read_text()
+    assert "Source URL saved" in advert
+    assert "https://example.edu/jobs/123" in advert
+    assert "full advert still needs manual paste, PDF import, or explicit fetch" in advert
+
+
+def test_new_job_fetch_url_requires_source_url(tmp_path):
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "new-job",
+            "--title",
+            "Lecturer",
+            "--institution",
+            "University X",
+            "--fetch-url",
+            "--jobs-dir",
+            str(tmp_path / "jobs"),
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "--fetch-url requires --source-url" in result.output
+    assert not (tmp_path / "jobs").exists()
+
+
+def test_new_job_fetch_url_imports_fetched_advert(tmp_path, monkeypatch):
+    jobs_dir = tmp_path / "jobs"
+
+    def fake_fetch(source_url: str):
+        from canisend.job_import import ImportedAdvert
+
+        return ImportedAdvert(
+            text="# Lecturer\n\nEssential criteria:\n- PhD\n",
+            status="advert_imported",
+            notes=f"Fetched from {source_url}; review extracted text.",
+        )
+
+    monkeypatch.setattr("canisend.jobs.fetch_advert_from_url", fake_fetch)
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "new-job",
+            "--title",
+            "Lecturer",
+            "--institution",
+            "University X",
+            "--deadline",
+            "2026-06-15",
+            "--source-url",
+            "https://example.edu/jobs/123",
+            "--fetch-url",
+            "--jobs-dir",
+            str(jobs_dir),
+        ],
+    )
+
+    assert result.exit_code == 0
+    job_dir = jobs_dir / "2026-06-15_university-x_lecturer"
+    metadata = yaml.safe_load((job_dir / "job.yaml").read_text())
+    assert metadata["status"] == "advert_imported"
+    assert "Fetched from https://example.edu/jobs/123" in metadata["notes"]
+    assert "Essential criteria" in (job_dir / "job_advert.md").read_text()
 
 
 def test_new_job_from_lead_creates_workspace_without_scraping(tmp_path):

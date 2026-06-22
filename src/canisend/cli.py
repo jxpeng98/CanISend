@@ -349,7 +349,12 @@ def new_job(
     advert_file: Path | None = typer.Option(
         None,
         "--advert-file",
-        help="Local .md or .txt job advert file to import.",
+        help="Local .md, .txt, or .pdf job advert file to import.",
+    ),
+    fetch_url: bool = typer.Option(
+        False,
+        "--fetch-url",
+        help="Explicitly fetch --source-url and import readable HTML text into job_advert.md.",
     ),
 ) -> None:
     """Create a local job folder and advert file."""
@@ -362,6 +367,7 @@ def new_job(
             deadline=deadline,
             source_url=source_url,
             advert_file=advert_file,
+            fetch_url=fetch_url,
         )
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
