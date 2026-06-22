@@ -29,6 +29,8 @@ REQUIRED_WHEEL_RESOURCES = [
     "canisend/resources/skills/canisend-cover-letter/agents/openai.yaml",
     "canisend/resources/skills/canisend-cv-tailoring/SKILL.md",
     "canisend/resources/skills/canisend-cv-tailoring/agents/openai.yaml",
+    "canisend/resources/skills/canisend-humanizer/SKILL.md",
+    "canisend/resources/skills/canisend-humanizer/agents/openai.yaml",
     "canisend/resources/skills/canisend-criteria-check/SKILL.md",
     "canisend/resources/skills/canisend-criteria-check/agents/openai.yaml",
     "canisend/resources/skills/canisend-material-review/SKILL.md",

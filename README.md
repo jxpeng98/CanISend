@@ -403,7 +403,7 @@ agent-skills/canisend/
 
 The project also ships a reusable skill pack for cases where you want a narrower agent behavior without opening a CanISend workspace as the active project. The root Codex plugin manifest at `.codex-plugin/plugin.json` exposes `skills/` as a Codex plugin manifest, while the original `agent-skills/canisend/` workspace skill remains unchanged.
 
-Use the main `canisend` skill for full workspace and job-package workflows. Use material-specific skills for focused tasks such as `canisend-research-statement`, `canisend-cover-letter`, `canisend-cv-tailoring`, `canisend-criteria-check`, and `canisend-material-review`.
+Use the main `canisend` skill for full workspace and job-package workflows. Use material-specific skills for focused tasks such as `canisend-research-statement`, `canisend-cover-letter`, `canisend-cv-tailoring`, `canisend-humanizer`, `canisend-criteria-check`, and `canisend-material-review`.
 
 For a Codex marketplace repository, mount this repository as the plugin source:
 

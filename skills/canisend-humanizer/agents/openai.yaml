@@ -1,0 +1,4 @@
+interface:
+  display_name: "CanISend Humanizer"
+  short_description: "Humanize application text without weakening evidence"
+  default_prompt: "Use $canisend-humanizer to make this CanISend application text more coherent, grounded, and human."
