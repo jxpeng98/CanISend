@@ -1420,7 +1420,7 @@ git commit -m "feat(cli): expose local agent orchestration"
 - Modify: `tests/test_repository_contract.py`
 - Modify: `tests/test_skill_distribution.py`
 
-- [ ] **Step 1: Add failing documentation contract tests**
+- [x] **Step 1: Add failing documentation contract tests**
 
 Update `tests/test_repository_contract.py`:
 
@@ -1441,7 +1441,7 @@ assert "agent_count" in orchestration
 assert "supports_native_subagents" in orchestration
 ```
 
-- [ ] **Step 2: Run tests to verify failure**
+- [x] **Step 2: Run tests to verify failure**
 
 Run:
 
@@ -1451,7 +1451,7 @@ uv run pytest tests/test_repository_contract.py tests/test_skill_distribution.py
 
 Expected: FAIL because docs still describe JSON as the editing contract.
 
-- [ ] **Step 3: Update README and references**
+- [x] **Step 3: Update README and references**
 
 Make these content changes:
 
@@ -1461,7 +1461,7 @@ Make these content changes:
 - Explain that JSON content files, if emitted, are compatibility/debug outputs only.
 - Mirror relevant reference updates under both `skills/canisend/references/` and `agent-skills/canisend/references/`.
 
-- [ ] **Step 4: Run docs tests to verify pass**
+- [x] **Step 4: Run docs tests to verify pass**
 
 Run:
 
@@ -1471,7 +1471,7 @@ uv run pytest tests/test_repository_contract.py tests/test_skill_distribution.py
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 Run:
 

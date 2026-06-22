@@ -84,9 +84,7 @@ parsed_job.json
 06_final_application_package.md
 07_material_review_checklist.md
 typst/
-  cover_letter_content.json
   cover_letter.typ
-  application_package_content.json
   application_package.typ
 ```
 
@@ -99,5 +97,7 @@ RSS lead outputs live in ignored `job_leads/`.
 - `parsed_job.json`: structured advert data. Missing fields should remain empty or unknown; do not invent.
 - `02_fit_report.md`, `03_cover_letter_draft.md`, `04_cv_tailoring_notes.md`, `05_criteria_checklist.md`: evidence-grounded Markdown review artifacts.
 - `07_material_review_checklist.md`: management artifact for cover letter draft, CV tailoring notes, placeholders, item-level citations, and manual follow-up actions.
-- `typst/cover_letter_content.json`: structured content consumed by `cover_letter.typ`.
-- `typst/application_package_content.json`: structured content consumed by `application_package.typ`.
+- `typst/cover_letter.typ`: editable Typst source for the final cover letter, with stable `// CANISEND: section ...` markers.
+- `typst/application_package.typ`: editable Typst source for the final package, including remaining actions and review sections.
+
+The pipeline may emit content JSON compatibility/debug artifacts under `typst/`, but agents should treat the `.typ` files as the editing contract.

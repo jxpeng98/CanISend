@@ -35,8 +35,8 @@ Do not use ready, final, complete, or submission-ready for generated materials u
 
 ## Typst Gate
 
-- `typst/cover_letter_content.json` contains structured fields consumed by `cover_letter.typ`.
-- `typst/application_package_content.json` contains final package sections.
+- `typst/cover_letter.typ` directly contains the cover letter text and stable section markers.
+- `typst/application_package.typ` directly contains the package text, criteria checklist, and remaining actions.
 - Generated `.typ` files use `modernpro-coverletter` or `modernpro-cv` templates rather than Markdown-to-Typst conversion.
 - PDF rendering is optional and requires local Typst.
 
@@ -66,5 +66,6 @@ Review files in this order:
 6. `03_cover_letter_draft.md`
 7. `04_cv_tailoring_notes.md`
 8. `07_material_review_checklist.md`
-9. `typst/cover_letter_content.json`
-10. `06_final_application_package.md`
+9. `typst/cover_letter.typ`
+10. `typst/application_package.typ`
+11. `06_final_application_package.md`

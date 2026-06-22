@@ -51,9 +51,30 @@ Use separate agents only when the user explicitly asks for multi-agent work.
 - Evidence reviewer: checks `profile/generated/` coverage and reports gaps without editing private Typst sources.
 - Source reviewer: after explicit approval, reads bounded private sources to repair or verify evidence gaps.
 - Draft reviewer: checks fit report, cover letter, CV notes, and criteria checklist against quality gates.
-- Typst reviewer: checks `cover_letter_content.json` and optional PDF rendering.
+- Typst reviewer: checks `typst/cover_letter.typ`, `typst/application_package.typ`, section markers, and optional PDF rendering.
 
 When multiple agents are used, give each agent a bounded task and disjoint write scope. Do not have two agents edit the same job output file at the same time.
+
+## Local Orchestrator Plans
+
+Use `canisend orchestrate` when the user explicitly wants several local CLI workers to coordinate on one job:
+
+```bash
+canisend orchestrate \
+  --workspace <private-workspace> \
+  --job jobs/<job-slug> \
+  --plan orchestration.yaml \
+  --dry-run
+```
+
+Worker entries declare:
+
+- `command`: local CLI command that reads the task prompt from stdin and writes the result to stdout.
+- `max_parallel_tasks`: maximum concurrent tasks for that worker.
+- `supports_native_subagents`: whether that CLI can run several native subagents within one task.
+- `privacy_tier_limit`: highest privacy tier the worker may receive.
+
+Task entries declare `role`, `inputs`, `outputs`, `writes`, `depends_on`, `privacy_tier`, and optional `agent_count`. Use `agent_count` only when the worker supports native subagents and the task can safely split work internally. Keep `writes` disjoint unless an explicit dependency serializes the tasks.
 
 ## Handoff Format
 
@@ -90,4 +111,4 @@ Agents must not:
 - answer sensitive declarations
 - fabricate applicant experience, publications, teaching, service, grants, awards, or references
 
-The Typst layer is structured. Agents may update `03_cover_letter_draft.md` or `jobs/<job-slug>/typst/cover_letter_content.json`; they should not replace this with line-by-line Markdown-to-Typst conversion.
+The Typst layer is structured. Agents may update `03_cover_letter_draft.md`, then directly edit bounded sections in `jobs/<job-slug>/typst/cover_letter.typ` or `jobs/<job-slug>/typst/application_package.typ`. Do not rewrite unrelated Typst sections.

@@ -38,8 +38,8 @@ Users may replace the starter Typst files with fully written private sources tha
 - Treat `profile/typst/*.typ` as private user-authored source.
 - Do not rewrite the user's CV or statements unless the user explicitly asks for edits to those private files.
 - Prefer writing suggestions to `04_cv_tailoring_notes.md` over directly changing `profile/typst/cv.typ`.
-- When generating application-specific cover letter content, edit Markdown drafts or `jobs/<job-slug>/typst/cover_letter_content.json`.
-- Keep `cover_letter.typ` as a structured renderer that imports `modernpro-coverletter`.
+- When finalizing application-specific cover letter content, edit Markdown drafts first, then directly edit `jobs/<job-slug>/typst/cover_letter.typ`.
+- Keep generated job-specific `.typ` files bounded by `// CANISEND: section ...` markers; do not rewrite unrelated sections.
 
 ## Evidence Extraction Limits
 
@@ -62,10 +62,8 @@ The pipeline writes:
 
 ```text
 jobs/<job-slug>/typst/
-  cover_letter_content.json
   cover_letter.typ
-  application_package_content.json
   application_package.typ
 ```
 
-The content JSON files are the preferred agent-editable interface. The `.typ` files should remain stable renderer sources unless the template contract changes.
+The `.typ` files are the preferred agent-editable interface. Content JSON artifacts may exist for compatibility/debugging, but they are secondary and should not be the normal editing surface.

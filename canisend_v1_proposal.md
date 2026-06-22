@@ -370,13 +370,11 @@ jobs/2026-06-15_university-x_lecturer-in-economics/
   06_final_application_package.md
   07_material_review_checklist.md
   typst/
-    cover_letter_content.json
     cover_letter.typ
-    application_package_content.json
     application_package.typ
 ```
 
-Typst generation should be structured. `cover_letter_content.json` should map opening text, fit sections, closing text, and recipient fields into `modernpro-coverletter`; `cover_letter.typ` should read that data file. V1 should not use line-by-line Markdown-to-Typst conversion as the document production model.
+Typst generation should be structured and directly editable. `typst/cover_letter.typ` should contain the actual cover letter text with stable section markers for opening, research fit, teaching fit, departmental contribution, service/leadership, and closing. `typst/application_package.typ` should contain the application-package text with stable markers for job information, fit report, cover letter, CV tailoring notes, criteria checklist, and remaining actions. Content JSON files, if emitted, are compatibility/debug outputs rather than the editing contract.
 
 ### 5.5 Render Typst Outputs
 
@@ -450,9 +448,7 @@ jobs/<job-slug>/
   06_final_application_package.md
   07_material_review_checklist.md
   typst/
-    cover_letter_content.json
     cover_letter.typ
-    application_package_content.json
     application_package.typ
   pdf/
     cover_letter.pdf
@@ -1022,15 +1018,14 @@ Deliverables:
 - `05_criteria_checklist.md`
 - `06_final_application_package.md`
 - `07_material_review_checklist.md`
-- `typst/cover_letter_content.json`
-- `typst/application_package_content.json`
+- `typst/cover_letter.typ`
 - `typst/application_package.typ`
 
 Acceptance criteria:
 
 - Criteria checklist is actionable.
 - Final package includes remaining manual actions.
-- Cover letter Typst source maps structured content into `modernpro-coverletter`.
+- Cover letter Typst source directly embeds editable application text using `modernpro-coverletter`.
 - Typst source is generated without requiring PDF compilation.
 
 ### Milestone 7: Optional Typst Rendering

@@ -248,11 +248,11 @@ jobs/<job-slug>/
   06_final_application_package.md
   07_material_review_checklist.md
   typst/
-    cover_letter_content.json
     cover_letter.typ
-    application_package_content.json
     application_package.typ
 ```
+
+Generated Typst files are the editable source of truth for final formatting. Content JSON files may still be emitted as compatibility/debug artifacts, but normal edits should happen in the `.typ` files.
 
 LLM-backed evidence augmentation, parser, and draft generation are explicit opt-in modes. Configure a provider before using them:
 
@@ -293,10 +293,13 @@ Review files in this order:
 4. `03_cover_letter_draft.md`
 5. `04_cv_tailoring_notes.md`
 6. `07_material_review_checklist.md`
-7. `typst/cover_letter_content.json`
-8. `06_final_application_package.md`
+7. `typst/cover_letter.typ`
+8. `typst/application_package.typ`
+9. `06_final_application_package.md`
 
 Use `07_material_review_checklist.md` to track the cover letter draft, CV tailoring notes, placeholders, item-level evidence citation checks, and next manual actions.
+
+After reviewing the Markdown drafts, directly edit `typst/cover_letter.typ` and `typst/application_package.typ` for final wording and layout. The files include stable `// CANISEND: section ...` markers so agents can make bounded edits without rewriting the whole Typst source.
 
 Run a read-only package check before treating generated materials as ready for user review:
 
@@ -306,7 +309,7 @@ canisend check-package \
   --job jobs/<job-slug>
 ```
 
-The check reports missing package files, invalid Typst content JSON, unresolved bracketed placeholders, and unknown profile evidence citations. It does not generate or modify files.
+The check reports missing package files, invalid generated Typst sources, unresolved bracketed placeholders, and unknown profile evidence citations. It does not generate or modify files.
 
 Render Typst only when needed:
 
@@ -333,6 +336,18 @@ canisend doctor --workspace .
 ```
 
 They may run local deterministic CLI commands, inspect generated evidence, and review current job artifacts. They must ask first before reading full private CVs, statements, full job adverts, references, PDFs, source URLs, generated packages, or enabling LLM-backed CLI flags/providers. They must not scrape pages, submit applications, upload packages, fabricate evidence, or commit private profile/job data.
+
+For coordinated multi-CLI review, use `canisend orchestrate` with an explicit local YAML plan:
+
+```bash
+canisend orchestrate \
+  --workspace ~/CanISendWorkspace \
+  --job jobs/<job-slug> \
+  --plan orchestration.yaml \
+  --dry-run
+```
+
+Worker entries declare `command`, `max_parallel_tasks`, `supports_native_subagents`, and `privacy_tier_limit`. Task entries declare `role`, `inputs`, `outputs`, `writes`, `depends_on`, `privacy_tier`, and optional `agent_count` for CLIs that can run several native subagents under one task. The orchestrator runs dependency-ready tasks in parallel, enforces worker concurrency limits, writes run artifacts under `jobs/<job-slug>/orchestration/runs/`, and requires `--allow-private-sources` or `--allow-provider-backed` for higher privacy tiers.
 
 Privacy modes:
 
