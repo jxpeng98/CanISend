@@ -67,3 +67,61 @@ def test_material_review_flags_weak_or_missing_essential_coverage():
     assert "Strong research record" in checklist
     assert "Teaching excellence" in checklist
     assert checklist.count("BLOCKER") == 2
+
+
+def test_material_review_blocks_strong_coverage_without_evidence_source():
+    parsed_job = {
+        "title": "Lecturer",
+        "institution": "University X",
+        "deadline": "2026-06-15",
+        "required_documents": [],
+        "essential_criteria": [
+            {"criterion": "Teaching excellence", "source_text": "Teaching excellence"},
+        ],
+        "desirable_criteria": [],
+    }
+    materials = ApplicationMaterials(
+        fit_report="# Fit\n",
+        cover_letter_draft="# Cover\n",
+        cv_tailoring_notes="# Notes\n",
+        criteria_checklist=(
+            "| Criterion | Coverage | Evidence Source | Risk | Suggested Improvement |\n"
+            "|---|---|---|---|---|\n"
+            "| Teaching excellence | strong | Not yet linked | Low | Add citation. |\n"
+        ),
+    )
+
+    checklist = build_material_review_checklist(parsed_job, materials)
+
+    assert "| Teaching excellence | BLOCKER | Coverage is strong but evidence source is not linked. |" in checklist
+
+
+def test_material_review_escapes_criteria_for_markdown_tables():
+    parsed_job = {
+        "title": "Lecturer",
+        "institution": "University X",
+        "deadline": "2026-06-15",
+        "required_documents": [],
+        "essential_criteria": [
+            {
+                "criterion": "Criterion 1: teaching | research\nleadership",
+                "source_text": "Criterion 1: teaching | research\nleadership",
+            },
+        ],
+        "desirable_criteria": [],
+    }
+    materials = ApplicationMaterials(
+        fit_report="# Fit\n",
+        cover_letter_draft="# Cover\n",
+        cv_tailoring_notes="# Notes\n",
+        criteria_checklist=(
+            "| Criterion | Coverage | Evidence Source | Risk | Suggested Improvement |\n"
+            "|---|---|---|---|---|\n"
+            "| Criterion 1: teaching \\| research leadership | partial | `profile/generated/cv.evidence.md#Teaching/cv-001` | Medium | Clarify. |\n"
+        ),
+    )
+
+    checklist = build_material_review_checklist(parsed_job, materials)
+
+    assert "Criterion 1: teaching \\| research leadership" in checklist
+    assert "| Criterion 1: teaching \\| research leadership | REVIEW |" in checklist

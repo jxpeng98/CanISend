@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 import re
 from typing import Any
 
@@ -10,6 +11,12 @@ MATERIAL_FILES = {
     "Cover Letter Draft": "03_cover_letter_draft.md",
     "CV Tailoring Notes": "04_cv_tailoring_notes.md",
 }
+
+
+@dataclass(frozen=True)
+class CriteriaCoverage:
+    label: str
+    evidence_source: str
 
 
 def build_material_review_checklist(parsed_job: dict[str, Any], materials: ApplicationMaterials) -> str:
@@ -106,41 +113,99 @@ def _strict_hr_review_section(parsed_job: dict[str, Any], materials: Application
 
     for item in essentials:
         criterion = str(item.get("criterion", "")).strip()
-        label = coverage.get(_criterion_key(criterion))
-        if label is None:
-            lines.append(f"| {criterion} | BLOCKER | Missing from criteria checklist. |")
+        escaped_criterion = _markdown_table_cell(criterion)
+        item_coverage = coverage.get(_criterion_key(criterion))
+        if item_coverage is None:
+            lines.append(f"| {escaped_criterion} | BLOCKER | Missing from criteria checklist. |")
+            continue
+
+        label = item_coverage.label
+        if label == "strong" and not _has_linked_evidence_source(item_coverage.evidence_source):
+            lines.append(
+                f"| {escaped_criterion} | BLOCKER | Coverage is strong but evidence source is not linked. |"
+            )
         elif label in {"weak", "missing"}:
             lines.append(
-                f"| {criterion} | BLOCKER | Coverage is {label}; strengthen evidence and JD wording. |"
+                f"| {escaped_criterion} | BLOCKER | Coverage is {label}; strengthen evidence and JD wording. |"
             )
         elif label == "partial":
             lines.append(
-                f"| {criterion} | REVIEW | Partial coverage; make fit more explicit for HR screening. |"
+                f"| {escaped_criterion} | REVIEW | Partial coverage; make fit more explicit for HR screening. |"
             )
         else:
             lines.append(
-                f"| {criterion} | OK | Strong coverage recorded; confirm claim wording stays proportional. |"
+                f"| {escaped_criterion} | OK | Strong coverage recorded; confirm claim wording stays proportional. |"
             )
     return "\n".join(lines)
 
 
-def _criteria_coverage(markdown: str) -> dict[str, str]:
-    coverage: dict[str, str] = {}
+def _criteria_coverage(markdown: str) -> dict[str, CriteriaCoverage]:
+    coverage: dict[str, CriteriaCoverage] = {}
     for line in markdown.splitlines():
         stripped = line.strip()
-        if not stripped.startswith("|") or "---" in stripped or "Criterion" in stripped:
+        if not stripped.startswith("|"):
             continue
-        cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+        cells = _markdown_table_cells(stripped)
         if len(cells) < 2:
+            continue
+        if _is_table_header(cells) or _is_table_separator(cells):
             continue
         label = cells[1].strip().lower()
         if label in {"strong", "partial", "weak", "missing"}:
-            coverage[_criterion_key(cells[0])] = label
+            evidence_source = cells[2].strip() if len(cells) > 2 else ""
+            coverage[_criterion_key(cells[0])] = CriteriaCoverage(
+                label=label,
+                evidence_source=evidence_source,
+            )
     return coverage
 
 
 def _criterion_key(value: str) -> str:
-    return re.sub(r"\s+", " ", value).strip().lower()
+    normalized = value.replace("\\|", "|")
+    return re.sub(r"\s+", " ", normalized).strip().lower()
+
+
+def _markdown_table_cell(value: str) -> str:
+    normalized = re.sub(r"\s+", " ", value).strip()
+    return normalized.replace("|", "\\|")
+
+
+def _markdown_table_cells(row: str) -> list[str]:
+    cells: list[str] = []
+    current: list[str] = []
+    escaped = False
+    for char in row.strip().strip("|"):
+        if escaped:
+            current.append("\\" + char if char == "|" else char)
+            escaped = False
+            continue
+        if char == "\\":
+            escaped = True
+            continue
+        if char == "|":
+            cells.append("".join(current).strip())
+            current = []
+            continue
+        current.append(char)
+    if escaped:
+        current.append("\\")
+    cells.append("".join(current).strip())
+    return cells
+
+
+def _is_table_header(cells: list[str]) -> bool:
+    return len(cells) >= 2 and cells[0].strip().lower() == "criterion" and cells[1].strip().lower() == "coverage"
+
+
+def _is_table_separator(cells: list[str]) -> bool:
+    return all(re.fullmatch(r":?-{3,}:?", cell.strip()) for cell in cells if cell.strip())
+
+
+def _has_linked_evidence_source(value: str) -> bool:
+    lowered = value.strip().lower()
+    if not lowered or lowered in {"not yet linked", "none", "n/a", "missing"}:
+        return False
+    return "profile/generated/" in lowered and ".md#" in lowered
 
 
 def _markdown_citations(markdown: str) -> set[str]:
