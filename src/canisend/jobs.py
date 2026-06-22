@@ -42,6 +42,7 @@ def create_job(
         advert_text = imported.text
         status = imported.status
         notes = imported.notes
+        source_url = imported.metadata_source_url or source_url
     elif fetch_url:
         try:
             imported = fetch_advert_from_url(source_url)
@@ -50,6 +51,7 @@ def create_job(
         advert_text = imported.text
         status = imported.status
         notes = imported.notes
+        source_url = imported.metadata_source_url or source_url
     elif source_url.strip():
         advert_text = _source_url_stub(source_url)
 

@@ -276,9 +276,11 @@ def test_fetch_advert_from_url_redacts_query_and_strips_fragment() -> None:
 
     assert "https://example.edu/jobs/123?redacted" in imported.text
     assert "https://example.edu/jobs/123?redacted" in imported.notes
+    assert imported.metadata_source_url == "https://example.edu/jobs/123?redacted"
     for sensitive_part in ("token=secret", "session=abc", "#details"):
         assert sensitive_part not in imported.text
         assert sensitive_part not in imported.notes
+        assert sensitive_part not in imported.metadata_source_url
     assert "<!--" not in imported.text
 
 

@@ -21,6 +21,7 @@ class ImportedAdvert:
     text: str
     status: str
     notes: str = ""
+    metadata_source_url: str = ""
 
 
 class _ReadableHTMLParser(HTMLParser):
@@ -214,6 +215,7 @@ def fetch_advert_from_url(
             f"Fetched from {provenance_url}; "
             "review extracted text before relying on parsed criteria."
         ),
+        metadata_source_url=provenance_url,
     )
 
 

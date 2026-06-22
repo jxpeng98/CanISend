@@ -136,6 +136,7 @@ def test_new_job_fetch_url_imports_fetched_advert(tmp_path, monkeypatch):
             text="# Lecturer\n\nEssential criteria:\n- PhD\n",
             status="advert_imported",
             notes=f"Fetched from {source_url}; review extracted text.",
+            metadata_source_url="https://example.edu/jobs/123?redacted",
         )
 
     monkeypatch.setattr("canisend.jobs.fetch_advert_from_url", fake_fetch)
@@ -164,6 +165,7 @@ def test_new_job_fetch_url_imports_fetched_advert(tmp_path, monkeypatch):
     metadata = yaml.safe_load((job_dir / "job.yaml").read_text())
     assert metadata["status"] == "advert_imported"
     assert "Fetched from https://example.edu/jobs/123" in metadata["notes"]
+    assert metadata["source_url"] == "https://example.edu/jobs/123?redacted"
     assert "Essential criteria" in (job_dir / "job_advert.md").read_text()
 
 
