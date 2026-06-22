@@ -1,7 +1,16 @@
+import re
+
 import yaml
 from typer.testing import CliRunner
 
 from canisend.cli import app
+
+
+ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def strip_ansi(text: str) -> str:
+    return ANSI_ESCAPE_RE.sub("", text)
 
 
 def test_new_job_creates_slugged_job_folder_and_metadata(tmp_path):
@@ -122,7 +131,7 @@ def test_new_job_fetch_url_requires_source_url(tmp_path):
     )
 
     assert result.exit_code != 0
-    assert "--fetch-url requires --source-url" in result.output
+    assert "--fetch-url requires --source-url" in strip_ansi(result.output)
     assert not (tmp_path / "jobs").exists()
 
 
