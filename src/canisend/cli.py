@@ -1,10 +1,12 @@
 from pathlib import Path
+import sys
 
 import typer
 
 from canisend import __version__
 from canisend.evidence import EvidenceAugmentationError, extract_profile_evidence
 from canisend.examples import run_packaged_example
+from canisend.git_tracking import GitTrackingError, git_add_application_materials
 from canisend.jobs import create_job, create_job_from_lead, list_jobs as list_job_folders
 from canisend.orchestrator import OrchestrationError, run_orchestration
 from canisend.pipeline import run_pipeline as run_job_pipeline
@@ -62,6 +64,18 @@ def _echo_version_report() -> None:
 
     for line in format_version_report(local_version=__version__, remote=remote, error=error):
         typer.echo(line)
+
+
+def _stdin_is_interactive() -> bool:
+    return sys.stdin.isatty()
+
+
+def _should_git_add_materials(value: bool | None) -> bool:
+    if value is not None:
+        return value
+    if not _stdin_is_interactive():
+        return False
+    return typer.confirm("Add generated application materials to git?", default=False)
 
 
 @app.callback()
@@ -571,6 +585,11 @@ def run_pipeline(
         "--dry-run",
         help="Preview what would be generated without writing any files.",
     ),
+    git_add_materials: bool | None = typer.Option(
+        None,
+        "--git-add-materials/--no-git-add-materials",
+        help="Ask git to stage generated application materials after a successful run.",
+    ),
 ) -> None:
     """Run the application preparation pipeline for one job."""
     config = load_workspace_config(workspace)
@@ -624,6 +643,14 @@ def run_pipeline(
         prompt_dir=config.path("prompt_dir", prompt_dir),
     )
     typer.echo(f"Generated {len(written)} files for {job_dir}")
+    if _should_git_add_materials(git_add_materials):
+        try:
+            git_result = git_add_application_materials(job_dir, repo_dir=config.root)
+        except GitTrackingError as exc:
+            typer.echo(f"Could not add generated application materials to git: {exc}", err=True)
+            return
+        suffix = "file" if len(git_result.files) == 1 else "files"
+        typer.echo(f"Added {len(git_result.files)} generated application material {suffix} to git.")
 
 
 @app.command("render-typst")

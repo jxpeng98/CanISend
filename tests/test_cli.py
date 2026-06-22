@@ -46,6 +46,8 @@ def test_run_help_shows_llm_draft_flag():
     assert result.exit_code == 0
     assert "--llm-parser" in output
     assert "--llm-drafts" in output
+    assert "--git-add-materials" in output
+    assert "--no-git-add-materi" in output
 
 
 def test_extract_profile_evidence_help_shows_llm_augment_flag():

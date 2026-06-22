@@ -254,6 +254,17 @@ jobs/<job-slug>/
 
 Generated Typst files are the editable source of truth for final formatting. Content JSON files may still be emitted as compatibility/debug artifacts, but normal edits should happen in the `.typ` files.
 
+To track edits to generated application materials in a private git repository, opt in after generation:
+
+```bash
+canisend run \
+  --workspace ~/CanISendWorkspace \
+  --job jobs/<job-slug> \
+  --git-add-materials
+```
+
+Without the flag, interactive terminals are asked whether to add generated application materials to git; non-interactive runs skip git staging unless the flag is set. CanISend stages only the generated fit report, cover letter draft, CV tailoring notes, criteria checklist, final package, material review checklist, and editable Typst sources. It does not stage raw adverts, source URLs, parsed job JSON, compatibility JSON, PDFs, or profile files, and it never commits automatically.
+
 LLM-backed evidence augmentation, parser, and draft generation are explicit opt-in modes. Configure a provider before using them:
 
 ```bash
@@ -402,9 +413,9 @@ canisend export-skills --target ~/.claude/skills --kind skills-only
 This repository is intended to be open source. Personal application data should stay local:
 
 - `profile/` is ignored by git except for `.gitkeep`.
-- `jobs/` generated job folders are ignored by git.
+- `jobs/` generated job folders are ignored by git unless selected generated materials are explicitly staged with `canisend run --git-add-materials`.
 - `job_leads/` RSS outputs are ignored by git.
-- `.env`, API keys, rendered PDFs, real source URLs, and generated application packages should not be committed.
+- `.env`, API keys, rendered PDFs, raw job adverts, real source URLs, parsed job JSON, and profile files should not be committed.
 - Sensitive declarations such as right-to-work, visa, disability, equality monitoring, health, criminal record, and conflicts remain user-only.
 
 这也能投只是材料准备工具，不是提交凭证。
