@@ -15,10 +15,14 @@ from canisend.package_check import required_wheel_resources
 
 EXPECTED_SKILLS = [
     "canisend",
+    "canisend-job-fit",
     "canisend-research-statement",
+    "canisend-teaching-statement",
     "canisend-cover-letter",
     "canisend-cv-tailoring",
     "canisend-humanizer",
+    "canisend-application-email",
+    "canisend-interview-prep",
     "canisend-criteria-check",
     "canisend-material-review",
 ]
@@ -96,10 +100,14 @@ def test_package_check_requires_distributed_skill_pack_resources():
         "canisend/resources/.codex-plugin/plugin.json",
         "canisend/resources/skills/canisend/SKILL.md",
         "canisend/resources/skills/canisend/references/privacy.md",
+        "canisend/resources/skills/canisend-job-fit/SKILL.md",
         "canisend/resources/skills/canisend-research-statement/SKILL.md",
+        "canisend/resources/skills/canisend-teaching-statement/SKILL.md",
         "canisend/resources/skills/canisend-cover-letter/SKILL.md",
         "canisend/resources/skills/canisend-cv-tailoring/SKILL.md",
         "canisend/resources/skills/canisend-humanizer/SKILL.md",
+        "canisend/resources/skills/canisend-application-email/SKILL.md",
+        "canisend/resources/skills/canisend-interview-prep/SKILL.md",
         "canisend/resources/skills/canisend-criteria-check/SKILL.md",
         "canisend/resources/skills/canisend-material-review/SKILL.md",
     }
@@ -129,8 +137,10 @@ def test_export_skills_writes_skills_only_distribution(tmp_path):
     assert result.exit_code == 0
     assert not (target / ".codex-plugin").exists()
     assert (target / "canisend" / "SKILL.md").exists()
+    assert (target / "canisend-job-fit" / "SKILL.md").exists()
     assert (target / "canisend-cover-letter" / "SKILL.md").exists()
     assert (target / "canisend-humanizer" / "SKILL.md").exists()
+    assert (target / "canisend-interview-prep" / "SKILL.md").exists()
 
 
 def test_export_skills_refuses_non_empty_target_without_overwrite(tmp_path):

@@ -1,0 +1,4 @@
+interface:
+  display_name: "CanISend Application Email"
+  short_description: "Draft concise application-related emails"
+  default_prompt: "Use $canisend-application-email to draft a concise job application email from this CanISend context."

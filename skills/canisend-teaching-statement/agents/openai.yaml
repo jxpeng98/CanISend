@@ -1,0 +1,4 @@
+interface:
+  display_name: "CanISend Teaching Statement"
+  short_description: "Tailor teaching statements to role criteria"
+  default_prompt: "Use $canisend-teaching-statement to tailor this teaching statement to the job criteria and evidence."

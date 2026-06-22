@@ -1,0 +1,4 @@
+interface:
+  display_name: "CanISend Interview Prep"
+  short_description: "Prepare evidence-backed interview answers"
+  default_prompt: "Use $canisend-interview-prep to prepare interview questions and evidence-backed answer points from this CanISend job."
