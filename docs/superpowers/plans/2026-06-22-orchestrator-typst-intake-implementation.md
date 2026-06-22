@@ -1126,7 +1126,7 @@ git commit -m "feat(orchestrator): validate local agent plans"
 - Modify: `src/canisend/orchestrator.py`
 - Modify: `tests/test_orchestrator.py`
 
-- [ ] **Step 1: Add failing execution tests**
+- [x] **Step 1: Add failing execution tests**
 
 Append to `tests/test_orchestrator.py`:
 
@@ -1217,7 +1217,7 @@ def test_run_orchestration_skips_downstream_after_failure(tmp_path):
     assert result.task_statuses["b"] == "skipped"
 ```
 
-- [ ] **Step 2: Run tests to verify failure**
+- [x] **Step 2: Run tests to verify failure**
 
 Run:
 
@@ -1227,7 +1227,7 @@ uv run pytest tests/test_orchestrator.py -q
 
 Expected: FAIL because execution path is not implemented.
 
-- [ ] **Step 3: Implement execution**
+- [x] **Step 3: Implement execution**
 
 In `src/canisend/orchestrator.py`, implement:
 
@@ -1256,7 +1256,7 @@ def _task_prompt(task: OrchestrationTask, *, workspace: Path, job_dir: Path) -> 
     )
 ```
 
-- [ ] **Step 4: Run tests to verify pass**
+- [x] **Step 4: Run tests to verify pass**
 
 Run:
 
@@ -1266,7 +1266,7 @@ uv run pytest tests/test_orchestrator.py -q
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 Run:
 

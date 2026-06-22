@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -218,3 +219,119 @@ def test_run_orchestration_requires_provider_backed_opt_in(tmp_path):
         allow_provider_backed=True,
     )
     assert result.task_statuses["review"] == "ready"
+
+
+def test_run_orchestration_executes_worker_and_writes_artifacts(tmp_path):
+    workspace, job_dir = base_job(tmp_path)
+    worker = tmp_path / "worker.py"
+    worker.write_text(
+        "import sys\n"
+        "prompt = sys.stdin.read()\n"
+        "print('RESULT:' + prompt.splitlines()[0])\n",
+        encoding="utf-8",
+    )
+    plan_path = write_plan(
+        tmp_path / "plan.yaml",
+        {
+            "workers": {"python": {"command": f"{sys.executable} {worker}", "max_parallel_tasks": 1}},
+            "tasks": [
+                {
+                    "id": "review",
+                    "worker": "python",
+                    "role": "job_parser_reviewer",
+                    "privacy_tier": 1,
+                    "inputs": ["parsed_job.json"],
+                    "outputs": ["orchestration/reviews/review.md"],
+                    "writes": ["orchestration/reviews/review.md"],
+                }
+            ],
+        },
+    )
+
+    result = run_orchestration(workspace=workspace, job_dir=job_dir, plan_path=plan_path, run_id="run-test")
+
+    run_task_dir = job_dir / "orchestration" / "runs" / "run-test" / "tasks" / "review"
+    assert result.ok
+    assert result.task_statuses["review"] == "succeeded"
+    assert (run_task_dir / "stdout.txt").exists()
+    assert "RESULT:Role: job_parser_reviewer" in (job_dir / "orchestration" / "reviews" / "review.md").read_text()
+
+
+def test_run_orchestration_runs_independent_tasks_in_parallel_for_one_worker(tmp_path):
+    workspace, job_dir = base_job(tmp_path)
+    worker = tmp_path / "slow_worker.py"
+    worker.write_text(
+        "import time\n"
+        "time.sleep(0.4)\n"
+        "print('done')\n",
+        encoding="utf-8",
+    )
+    plan_path = write_plan(
+        tmp_path / "plan.yaml",
+        {
+            "workers": {"python": {"command": f"{sys.executable} {worker}", "max_parallel_tasks": 2}},
+            "tasks": [
+                {
+                    "id": "a",
+                    "worker": "python",
+                    "role": "r",
+                    "inputs": ["parsed_job.json"],
+                    "outputs": ["orchestration/reviews/a.md"],
+                    "writes": ["orchestration/reviews/a.md"],
+                },
+                {
+                    "id": "b",
+                    "worker": "python",
+                    "role": "r",
+                    "inputs": ["parsed_job.json"],
+                    "outputs": ["orchestration/reviews/b.md"],
+                    "writes": ["orchestration/reviews/b.md"],
+                },
+            ],
+        },
+    )
+
+    started = time.monotonic()
+    result = run_orchestration(workspace=workspace, job_dir=job_dir, plan_path=plan_path, run_id="parallel")
+    elapsed = time.monotonic() - started
+
+    assert result.ok
+    assert result.task_statuses == {"a": "succeeded", "b": "succeeded"}
+    assert elapsed < 0.75
+
+
+def test_run_orchestration_skips_downstream_after_failure(tmp_path):
+    workspace, job_dir = base_job(tmp_path)
+    worker = tmp_path / "fail_worker.py"
+    worker.write_text("import sys\nsys.exit(2)\n", encoding="utf-8")
+    plan_path = write_plan(
+        tmp_path / "plan.yaml",
+        {
+            "workers": {"python": {"command": f"{sys.executable} {worker}", "max_parallel_tasks": 1}},
+            "tasks": [
+                {
+                    "id": "a",
+                    "worker": "python",
+                    "role": "r",
+                    "inputs": ["parsed_job.json"],
+                    "outputs": ["orchestration/reviews/a.md"],
+                    "writes": ["orchestration/reviews/a.md"],
+                },
+                {
+                    "id": "b",
+                    "worker": "python",
+                    "role": "r",
+                    "depends_on": ["a"],
+                    "inputs": ["parsed_job.json"],
+                    "outputs": ["orchestration/reviews/b.md"],
+                    "writes": ["orchestration/reviews/b.md"],
+                },
+            ],
+        },
+    )
+
+    result = run_orchestration(workspace=workspace, job_dir=job_dir, plan_path=plan_path, run_id="failed")
+
+    assert not result.ok
+    assert result.task_statuses["a"] == "failed"
+    assert result.task_statuses["b"] == "skipped"

@@ -1,8 +1,16 @@
 from __future__ import annotations
 
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass
+from datetime import UTC, datetime
+import glob
+import json
 from pathlib import Path
+import shlex
+import shutil
+import subprocess
 from typing import Any
+from uuid import uuid4
 
 import yaml
 
@@ -46,6 +54,13 @@ class OrchestrationResult:
     run_dir: Path | None
     dry_run: bool
     task_statuses: dict[str, str]
+
+
+@dataclass(frozen=True)
+class TaskExecution:
+    task_id: str
+    status: str
+    exit_code: int | None
 
 
 def load_orchestration_plan(path: Path) -> OrchestrationPlan:
@@ -246,13 +261,23 @@ def _validate_privacy_flags(
 def _validate_inputs(plan: OrchestrationPlan, *, workspace: Path, job_dir: Path) -> None:
     for task in plan.tasks.values():
         for input_path in task.inputs:
-            if not _input_exists(input_path, workspace=workspace, job_dir=job_dir):
+            if not _resolve_input_paths(input_path, workspace=workspace, job_dir=job_dir):
                 raise OrchestrationError(f"Task {task.id!r} missing input: {input_path}")
 
 
-def _input_exists(input_path: str, *, workspace: Path, job_dir: Path) -> bool:
+def _resolve_input_paths(input_path: str, *, workspace: Path, job_dir: Path) -> list[Path]:
     path = Path(input_path)
-    return (job_dir / path).exists() or (workspace / path).exists()
+    if glob.has_magic(input_path):
+        matches = [*job_dir.glob(input_path), *workspace.glob(input_path)]
+        return sorted({match.resolve() for match in matches if match.exists()})
+
+    job_path = job_dir / path
+    if job_path.exists():
+        return [job_path]
+    workspace_path = workspace / path
+    if workspace_path.exists():
+        return [workspace_path]
+    return []
 
 
 def _execute_plan(
@@ -264,7 +289,333 @@ def _execute_plan(
     fail_fast: bool,
     run_id: str | None,
 ) -> OrchestrationResult:
-    raise OrchestrationError("Orchestration execution is not implemented yet; use dry_run=True")
+    worker_argv = {worker.name: _worker_argv(worker) for worker in plan.workers.values()}
+    run_id = run_id or _default_run_id()
+    run_dir = job_dir / "orchestration" / "runs" / run_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(plan_path, run_dir / "plan.yaml")
+
+    task_statuses = {task_id: "pending" for task_id in plan.tasks}
+    worker_in_flight = {worker_name: 0 for worker_name in plan.workers}
+    running_writes: dict[str, set[str]] = {}
+    pending = set(plan.tasks)
+    futures: dict[Future[TaskExecution], str] = {}
+    started_at = _utc_now()
+
+    max_workers = sum(worker.max_parallel_tasks for worker in plan.workers.values())
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        while pending or futures:
+            _skip_blocked_tasks(plan, pending=pending, task_statuses=task_statuses, run_dir=run_dir)
+            scheduled = _schedule_ready_tasks(
+                plan,
+                pending=pending,
+                task_statuses=task_statuses,
+                worker_in_flight=worker_in_flight,
+                running_writes=running_writes,
+                futures=futures,
+                executor=executor,
+                worker_argv=worker_argv,
+                workspace=workspace,
+                job_dir=job_dir,
+                run_dir=run_dir,
+            )
+            if not futures:
+                if pending and not scheduled:
+                    for task_id in sorted(pending):
+                        task_statuses[task_id] = "skipped"
+                        _write_skipped_task_status(plan.tasks[task_id], run_dir=run_dir, reason="not dependency-ready")
+                    pending.clear()
+                break
+
+            done, _ = wait(futures, return_when=FIRST_COMPLETED)
+            for future in done:
+                task_id = futures.pop(future)
+                task = plan.tasks[task_id]
+                worker_in_flight[task.worker] -= 1
+                running_writes.pop(task_id, None)
+                try:
+                    execution = future.result()
+                except Exception as exc:  # pragma: no cover - defensive artifact path
+                    execution = _write_internal_task_failure(task, run_dir=run_dir, error=exc)
+                task_statuses[task_id] = execution.status
+                if fail_fast and execution.status == "failed":
+                    for pending_task_id in sorted(pending):
+                        task_statuses[pending_task_id] = "skipped"
+                        _write_skipped_task_status(
+                            plan.tasks[pending_task_id],
+                            run_dir=run_dir,
+                            reason=f"fail-fast after {task_id}",
+                        )
+                    pending.clear()
+
+    ok = all(status == "succeeded" for status in task_statuses.values())
+    _write_json(
+        run_dir / "status.json",
+        {
+            "ok": ok,
+            "run_id": run_id,
+            "started_at": started_at,
+            "finished_at": _utc_now(),
+            "task_statuses": task_statuses,
+        },
+    )
+    return OrchestrationResult(ok=ok, run_dir=run_dir, dry_run=False, task_statuses=task_statuses)
+
+
+def _schedule_ready_tasks(
+    plan: OrchestrationPlan,
+    *,
+    pending: set[str],
+    task_statuses: dict[str, str],
+    worker_in_flight: dict[str, int],
+    running_writes: dict[str, set[str]],
+    futures: dict[Future[TaskExecution], str],
+    executor: ThreadPoolExecutor,
+    worker_argv: dict[str, list[str]],
+    workspace: Path,
+    job_dir: Path,
+    run_dir: Path,
+) -> bool:
+    scheduled = False
+    for task_id in sorted(pending):
+        task = plan.tasks[task_id]
+        worker = plan.workers[task.worker]
+        if not all(task_statuses[dependency] == "succeeded" for dependency in task.depends_on):
+            continue
+        if worker_in_flight[worker.name] >= worker.max_parallel_tasks:
+            continue
+        if _has_running_write_conflict(task, running_writes):
+            continue
+
+        task_statuses[task_id] = "running"
+        pending.remove(task_id)
+        worker_in_flight[worker.name] += 1
+        running_writes[task_id] = set(task.writes)
+        future = executor.submit(
+            _run_task,
+            task,
+            worker,
+            worker_argv[worker.name],
+            workspace=workspace,
+            job_dir=job_dir,
+            run_dir=run_dir,
+        )
+        futures[future] = task_id
+        scheduled = True
+    return scheduled
+
+
+def _skip_blocked_tasks(
+    plan: OrchestrationPlan,
+    *,
+    pending: set[str],
+    task_statuses: dict[str, str],
+    run_dir: Path,
+) -> None:
+    changed = True
+    while changed:
+        changed = False
+        for task_id in sorted(pending):
+            task = plan.tasks[task_id]
+            blocked_by = [
+                dependency
+                for dependency in task.depends_on
+                if task_statuses[dependency] in {"failed", "skipped"}
+            ]
+            if not blocked_by:
+                continue
+            task_statuses[task_id] = "skipped"
+            pending.remove(task_id)
+            _write_skipped_task_status(task, run_dir=run_dir, reason=f"blocked by {', '.join(blocked_by)}")
+            changed = True
+
+
+def _has_running_write_conflict(task: OrchestrationTask, running_writes: dict[str, set[str]]) -> bool:
+    task_writes = set(task.writes)
+    return any(task_writes.intersection(writes) for writes in running_writes.values())
+
+
+def _run_task(
+    task: OrchestrationTask,
+    worker: WorkerConfig,
+    argv: list[str],
+    *,
+    workspace: Path,
+    job_dir: Path,
+    run_dir: Path,
+) -> TaskExecution:
+    task_dir = run_dir / "tasks" / task.id
+    task_dir.mkdir(parents=True, exist_ok=True)
+    prompt = _task_prompt(task, workspace=workspace, job_dir=job_dir)
+    (task_dir / "prompt.md").write_text(prompt, encoding="utf-8")
+    started_at = _utc_now()
+
+    try:
+        completed = subprocess.run(
+            argv,
+            cwd=workspace,
+            input=prompt,
+            text=True,
+            capture_output=True,
+            timeout=worker.timeout_seconds,
+            check=False,
+        )
+        stdout = completed.stdout
+        stderr = completed.stderr
+        exit_code: int | None = completed.returncode
+    except subprocess.TimeoutExpired as exc:
+        stdout = _timeout_output(exc.stdout)
+        stderr = (_timeout_output(exc.stderr) + f"\nTimed out after {worker.timeout_seconds} seconds").strip()
+        exit_code = None
+
+    status = "succeeded" if exit_code == 0 else "failed"
+    (task_dir / "stdout.txt").write_text(stdout, encoding="utf-8")
+    (task_dir / "stderr.txt").write_text(stderr, encoding="utf-8")
+    (task_dir / "result.md").write_text(stdout, encoding="utf-8")
+    if status == "succeeded":
+        _promote_task_output(task, job_dir=job_dir, stdout=stdout)
+
+    _write_json(
+        task_dir / "status.json",
+        {
+            "task_id": task.id,
+            "status": status,
+            "command": _redact_command(argv),
+            "started_at": started_at,
+            "finished_at": _utc_now(),
+            "exit_code": exit_code,
+            "inputs": list(task.inputs),
+            "outputs": list(task.outputs),
+            "writes": list(task.writes),
+            "privacy_tier": task.privacy_tier,
+        },
+    )
+    return TaskExecution(task_id=task.id, status=status, exit_code=exit_code)
+
+
+def _task_prompt(task: OrchestrationTask, *, workspace: Path, job_dir: Path) -> str:
+    return "\n".join(
+        [
+            f"Role: {task.role}",
+            f"Task: {task.id}",
+            f"Privacy tier: {task.privacy_tier}",
+            f"Agent count: {task.agent_count}",
+            "",
+            "Inputs:",
+            *_input_blocks(task, workspace=workspace, job_dir=job_dir),
+        ]
+    )
+
+
+def _input_blocks(task: OrchestrationTask, *, workspace: Path, job_dir: Path) -> list[str]:
+    blocks: list[str] = []
+    for input_path in task.inputs:
+        for resolved in _resolve_input_paths(input_path, workspace=workspace, job_dir=job_dir):
+            blocks.append(f"## {input_path}\n\n{resolved.read_text(encoding='utf-8', errors='replace')}")
+    return blocks
+
+
+def _promote_task_output(task: OrchestrationTask, *, job_dir: Path, stdout: str) -> None:
+    if not task.outputs:
+        return
+    output_path = job_dir / task.outputs[0]
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(stdout, encoding="utf-8")
+
+
+def _write_skipped_task_status(task: OrchestrationTask, *, run_dir: Path, reason: str) -> None:
+    task_dir = run_dir / "tasks" / task.id
+    task_dir.mkdir(parents=True, exist_ok=True)
+    _write_json(
+        task_dir / "status.json",
+        {
+            "task_id": task.id,
+            "status": "skipped",
+            "reason": reason,
+            "finished_at": _utc_now(),
+            "inputs": list(task.inputs),
+            "outputs": list(task.outputs),
+            "writes": list(task.writes),
+            "privacy_tier": task.privacy_tier,
+        },
+    )
+
+
+def _write_internal_task_failure(task: OrchestrationTask, *, run_dir: Path, error: Exception) -> TaskExecution:
+    task_dir = run_dir / "tasks" / task.id
+    task_dir.mkdir(parents=True, exist_ok=True)
+    message = str(error)
+    (task_dir / "stderr.txt").write_text(message, encoding="utf-8")
+    (task_dir / "stdout.txt").write_text("", encoding="utf-8")
+    (task_dir / "result.md").write_text("", encoding="utf-8")
+    _write_json(
+        task_dir / "status.json",
+        {
+            "task_id": task.id,
+            "status": "failed",
+            "error": message,
+            "finished_at": _utc_now(),
+        },
+    )
+    return TaskExecution(task_id=task.id, status="failed", exit_code=None)
+
+
+def _worker_argv(worker: WorkerConfig) -> list[str]:
+    argv = shlex.split(worker.command)
+    if not argv:
+        raise OrchestrationError(f"Worker {worker.name!r} command is empty")
+
+    executable = argv[0]
+    if Path(executable).name == executable:
+        resolved = shutil.which(executable)
+        if resolved is None:
+            raise OrchestrationError(f"Worker {worker.name!r} command is unavailable: {executable}")
+        argv[0] = resolved
+    elif not Path(executable).exists():
+        raise OrchestrationError(f"Worker {worker.name!r} command is unavailable: {executable}")
+    return argv
+
+
+def _redact_command(argv: list[str]) -> list[str]:
+    redacted: list[str] = []
+    redact_next = False
+    sensitive_names = ("api-key", "apikey", "password", "secret", "token")
+    for token in argv:
+        lower = token.lower()
+        if redact_next:
+            redacted.append("[redacted]")
+            redact_next = False
+            continue
+        if any(name in lower for name in sensitive_names):
+            if "=" in token:
+                redacted.append(token.split("=", 1)[0] + "=[redacted]")
+            else:
+                redacted.append(token)
+                redact_next = token.startswith("-")
+            continue
+        redacted.append(token)
+    return redacted
+
+
+def _timeout_output(value: str | bytes | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value
+
+
+def _write_json(path: Path, data: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _utc_now() -> str:
+    return datetime.now(UTC).isoformat()
+
+
+def _default_run_id() -> str:
+    return f"{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}-{uuid4().hex[:8]}"
 
 
 def _tuple_field(raw: dict[str, Any], field: str) -> tuple[str, ...]:
