@@ -915,7 +915,7 @@ git commit -m "feat(typst): render editable source files directly"
 - Create: `src/canisend/orchestrator.py`
 - Create: `tests/test_orchestrator.py`
 
-- [ ] **Step 1: Write failing plan validation and dry-run tests**
+- [x] **Step 1: Write failing plan validation and dry-run tests**
 
 Create `tests/test_orchestrator.py` with:
 
@@ -993,7 +993,7 @@ def test_run_orchestration_dry_run_returns_execution_order(tmp_path):
     assert result.task_statuses["review"] == "ready"
 ```
 
-- [ ] **Step 2: Run tests to verify failure**
+- [x] **Step 2: Run tests to verify failure**
 
 Run:
 
@@ -1003,7 +1003,7 @@ uv run pytest tests/test_orchestrator.py -q
 
 Expected: FAIL because `canisend.orchestrator` does not exist.
 
-- [ ] **Step 3: Implement dataclasses and plan validation**
+- [x] **Step 3: Implement dataclasses and plan validation**
 
 Create `src/canisend/orchestrator.py` with:
 
@@ -1068,7 +1068,7 @@ class OrchestrationResult:
 
 Implement `load_orchestration_plan(path)` to parse YAML, build dataclasses, reject duplicate IDs, missing workers, missing dependencies, cycles, write conflicts without dependencies, invalid privacy tiers, and worker `max_parallel_tasks < 1`.
 
-- [ ] **Step 4: Implement dry-run path**
+- [x] **Step 4: Implement dry-run path**
 
 Implement:
 
@@ -1099,7 +1099,7 @@ def run_orchestration(
     )
 ```
 
-- [ ] **Step 5: Run tests to verify pass**
+- [x] **Step 5: Run tests to verify pass**
 
 Run:
 
@@ -1109,7 +1109,7 @@ uv run pytest tests/test_orchestrator.py::test_load_orchestration_plan_rejects_d
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 Run:
 
