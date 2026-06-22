@@ -1,11 +1,14 @@
 from pathlib import Path
+import sys
 
 import typer
 
 from canisend import __version__
 from canisend.evidence import EvidenceAugmentationError, extract_profile_evidence
 from canisend.examples import run_packaged_example
+from canisend.git_tracking import GitTrackingError, git_add_application_materials
 from canisend.jobs import create_job, create_job_from_lead, list_jobs as list_job_folders
+from canisend.orchestrator import OrchestrationError, run_orchestration
 from canisend.pipeline import run_pipeline as run_job_pipeline
 from canisend.profile import init_profile as create_profile
 from canisend.ready_check import check_application_package
@@ -61,6 +64,18 @@ def _echo_version_report() -> None:
 
     for line in format_version_report(local_version=__version__, remote=remote, error=error):
         typer.echo(line)
+
+
+def _stdin_is_interactive() -> bool:
+    return sys.stdin.isatty()
+
+
+def _should_git_add_materials(value: bool | None) -> bool:
+    if value is not None:
+        return value
+    if not _stdin_is_interactive():
+        return False
+    return typer.confirm("Add generated application materials to git?", default=False)
 
 
 @app.callback()
@@ -287,6 +302,63 @@ def check_package(
         raise typer.Exit(code=1)
 
 
+@app.command("orchestrate")
+def orchestrate(
+    job: Path = typer.Option(
+        ...,
+        "--job",
+        help="Job folder path or slug. Slugs are resolved under the workspace jobs directory.",
+    ),
+    plan: Path = typer.Option(..., "--plan", help="Local orchestration YAML plan."),
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="User workspace directory containing canisend.yaml.",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Validate and print task readiness without launching workers.",
+    ),
+    allow_private_sources: bool = typer.Option(
+        False,
+        "--allow-private-sources",
+        help="Allow Tier 2 private-source tasks declared in the plan.",
+    ),
+    allow_provider_backed: bool = typer.Option(
+        False,
+        "--allow-provider-backed",
+        help="Allow Tier 3 provider-backed tasks declared in the plan.",
+    ),
+    fail_fast: bool = typer.Option(
+        False,
+        "--fail-fast",
+        help="Stop scheduling unrelated tasks after the first failure.",
+    ),
+) -> None:
+    """Coordinate multiple local agent CLI workers for one job."""
+    config = load_workspace_config(workspace)
+    try:
+        result = run_orchestration(
+            workspace=config.root,
+            job_dir=config.job_dir(job),
+            plan_path=plan,
+            dry_run=dry_run,
+            allow_private_sources=allow_private_sources,
+            allow_provider_backed=allow_provider_backed,
+            fail_fast=fail_fast,
+        )
+    except OrchestrationError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    if result.run_dir is not None:
+        typer.echo(f"Orchestration run: {result.run_dir}")
+    for task_id, status in sorted(result.task_statuses.items()):
+        typer.echo(f"{task_id}: {status}")
+    if not result.ok:
+        raise typer.Exit(code=1)
+
+
 @app.command("extract-profile-evidence")
 def extract_profile_evidence_command(
     workspace: Path = typer.Option(
@@ -349,7 +421,12 @@ def new_job(
     advert_file: Path | None = typer.Option(
         None,
         "--advert-file",
-        help="Local .md or .txt job advert file to import.",
+        help="Local .md, .txt, or .pdf job advert file to import.",
+    ),
+    fetch_url: bool = typer.Option(
+        False,
+        "--fetch-url",
+        help="Explicitly fetch --source-url and import readable HTML text into job_advert.md.",
     ),
 ) -> None:
     """Create a local job folder and advert file."""
@@ -362,6 +439,7 @@ def new_job(
             deadline=deadline,
             source_url=source_url,
             advert_file=advert_file,
+            fetch_url=fetch_url,
         )
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
@@ -507,6 +585,11 @@ def run_pipeline(
         "--dry-run",
         help="Preview what would be generated without writing any files.",
     ),
+    git_add_materials: bool | None = typer.Option(
+        None,
+        "--git-add-materials/--no-git-add-materials",
+        help="Ask git to stage generated application materials after a successful run.",
+    ),
 ) -> None:
     """Run the application preparation pipeline for one job."""
     config = load_workspace_config(workspace)
@@ -560,6 +643,14 @@ def run_pipeline(
         prompt_dir=config.path("prompt_dir", prompt_dir),
     )
     typer.echo(f"Generated {len(written)} files for {job_dir}")
+    if _should_git_add_materials(git_add_materials):
+        try:
+            git_result = git_add_application_materials(job_dir, repo_dir=config.root)
+        except GitTrackingError as exc:
+            typer.echo(f"Could not add generated application materials to git: {exc}", err=True)
+            return
+        suffix = "file" if len(git_result.files) == 1 else "files"
+        typer.echo(f"Added {len(git_result.files)} generated application material {suffix} to git.")
 
 
 @app.command("render-typst")

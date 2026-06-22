@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://github.com/jxpeng98/CanISend/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/jxpeng98/CanISend/ci.yml?branch=main&label=ci" alt="CI status"></a>
-  <a href="https://test.pypi.org/project/canisend/"><img src="https://img.shields.io/badge/TestPyPI-0.2.0b9-blue" alt="TestPyPI"></a>
+  <a href="https://test.pypi.org/project/canisend/"><img src="https://img.shields.io/badge/TestPyPI-0.2.0-blue" alt="TestPyPI"></a>
   <img src="https://img.shields.io/badge/python-3.11%2B-blue" alt="Python 3.11+">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT license">
 </p>
@@ -58,15 +58,15 @@ python -m pip install --upgrade pip
 python -m pip install canisend
 ```
 
-### Install the current TestPyPI beta
+### Install the current TestPyPI build
 
-For the current beta, install `canisend==0.2.0b9` from TestPyPI while still resolving dependencies from PyPI:
+For the current TestPyPI build, install `canisend==0.2.0` while still resolving dependencies from PyPI:
 
 ```bash
 uv tool install \
   --index-url https://test.pypi.org/simple/ \
   --extra-index-url https://pypi.org/simple/ \
-  canisend==0.2.0b9
+  canisend==0.2.0
 ```
 
 Or with `pip` inside an active virtual environment:
@@ -75,7 +75,7 @@ Or with `pip` inside an active virtual environment:
 python -m pip install \
   --index-url https://test.pypi.org/simple/ \
   --extra-index-url https://pypi.org/simple/ \
-  canisend==0.2.0b9
+  canisend==0.2.0
 ```
 
 Run the packaged fake-data workflow before using private profile or job data:
@@ -248,11 +248,22 @@ jobs/<job-slug>/
   06_final_application_package.md
   07_material_review_checklist.md
   typst/
-    cover_letter_content.json
     cover_letter.typ
-    application_package_content.json
     application_package.typ
 ```
+
+Generated Typst files are the editable source of truth for final formatting. Content JSON files may still be emitted as compatibility/debug artifacts, but normal edits should happen in the `.typ` files.
+
+To track edits to generated application materials in a private git repository, opt in after generation:
+
+```bash
+canisend run \
+  --workspace ~/CanISendWorkspace \
+  --job jobs/<job-slug> \
+  --git-add-materials
+```
+
+Without the flag, interactive terminals are asked whether to add generated application materials to git; non-interactive runs skip git staging unless the flag is set. CanISend stages only the generated fit report, cover letter draft, CV tailoring notes, criteria checklist, final package, material review checklist, and editable Typst sources. It does not stage raw adverts, source URLs, parsed job JSON, compatibility JSON, PDFs, or profile files, and it never commits automatically.
 
 LLM-backed evidence augmentation, parser, and draft generation are explicit opt-in modes. Configure a provider before using them:
 
@@ -293,10 +304,13 @@ Review files in this order:
 4. `03_cover_letter_draft.md`
 5. `04_cv_tailoring_notes.md`
 6. `07_material_review_checklist.md`
-7. `typst/cover_letter_content.json`
-8. `06_final_application_package.md`
+7. `typst/cover_letter.typ`
+8. `typst/application_package.typ`
+9. `06_final_application_package.md`
 
 Use `07_material_review_checklist.md` to track the cover letter draft, CV tailoring notes, placeholders, item-level evidence citation checks, and next manual actions.
+
+After reviewing the Markdown drafts, directly edit `typst/cover_letter.typ` and `typst/application_package.typ` for final wording and layout. The files include stable `// CANISEND: section ...` markers so agents can make bounded edits without rewriting the whole Typst source.
 
 Run a read-only package check before treating generated materials as ready for user review:
 
@@ -306,7 +320,7 @@ canisend check-package \
   --job jobs/<job-slug>
 ```
 
-The check reports missing package files, invalid Typst content JSON, unresolved bracketed placeholders, and unknown profile evidence citations. It does not generate or modify files.
+The check reports missing package files, invalid generated Typst sources, unresolved bracketed placeholders, and unknown profile evidence citations. It does not generate or modify files.
 
 Render Typst only when needed:
 
@@ -333,6 +347,18 @@ canisend doctor --workspace .
 ```
 
 They may run local deterministic CLI commands, inspect generated evidence, and review current job artifacts. They must ask first before reading full private CVs, statements, full job adverts, references, PDFs, source URLs, generated packages, or enabling LLM-backed CLI flags/providers. They must not scrape pages, submit applications, upload packages, fabricate evidence, or commit private profile/job data.
+
+For coordinated multi-CLI review, use `canisend orchestrate` with an explicit local YAML plan:
+
+```bash
+canisend orchestrate \
+  --workspace ~/CanISendWorkspace \
+  --job jobs/<job-slug> \
+  --plan orchestration.yaml \
+  --dry-run
+```
+
+Worker entries declare `command`, `max_parallel_tasks`, `supports_native_subagents`, and `privacy_tier_limit`. Task entries declare `role`, `inputs`, `outputs`, `writes`, `depends_on`, `privacy_tier`, and optional `agent_count` for CLIs that can run several native subagents under one task. The orchestrator runs dependency-ready tasks in parallel, enforces worker concurrency limits, writes run artifacts under `jobs/<job-slug>/orchestration/runs/`, and requires `--allow-private-sources` or `--allow-provider-backed` for higher privacy tiers.
 
 Privacy modes:
 
@@ -387,9 +413,9 @@ canisend export-skills --target ~/.claude/skills --kind skills-only
 This repository is intended to be open source. Personal application data should stay local:
 
 - `profile/` is ignored by git except for `.gitkeep`.
-- `jobs/` generated job folders are ignored by git.
+- `jobs/` generated job folders are ignored by git unless selected generated materials are explicitly staged with `canisend run --git-add-materials`.
 - `job_leads/` RSS outputs are ignored by git.
-- `.env`, API keys, rendered PDFs, real source URLs, and generated application packages should not be committed.
+- `.env`, API keys, rendered PDFs, raw job adverts, real source URLs, parsed job JSON, and profile files should not be committed.
 - Sensitive declarations such as right-to-work, visa, disability, equality monitoring, health, criminal record, and conflicts remain user-only.
 
 这也能投只是材料准备工具，不是提交凭证。

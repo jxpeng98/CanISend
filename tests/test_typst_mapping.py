@@ -1,8 +1,12 @@
 import json
+import shutil
+import subprocess
 
 from canisend.materials import ApplicationMaterials
 from canisend.typst_mapping import (
+    build_application_package_content,
     build_cover_letter_content,
+    markdown_to_typst,
     render_modernpro_application_package_source,
     render_modernpro_cover_letter_source,
 )
@@ -77,27 +81,106 @@ def test_build_cover_letter_content_extracts_structured_sections():
     assert content["closing"].startswith("I would welcome")
 
 
-def test_render_modernpro_cover_letter_source_uses_content_json_contract():
+def test_render_modernpro_cover_letter_source_embeds_editable_content():
     content = build_cover_letter_content(parsed_job(), materials())
 
     source = render_modernpro_cover_letter_source(content)
 
     assert '@preview/modernpro-coverletter:0.0.8' in source
-    assert 'json("cover_letter_content.json")' in source
+    assert 'json("cover_letter_content.json")' not in source
     assert "coverletter.with" in source
-    assert "content.recipient.institution" in source
-    assert "content.sections.research_fit" in source
+    assert "// CANISEND: section opening" in source
+    assert "// CANISEND: section research_fit" in source
+    assert "I am writing to apply for the Lecturer in Economics role." in source
+    assert "My research fits the department's applied economics focus." in source
     assert "# Cover Letter Draft" not in source
-    assert "## Research Fit" not in source
 
 
-def test_render_modernpro_application_package_source_uses_structured_content_json():
-    source = render_modernpro_application_package_source()
+def test_render_modernpro_cover_letter_source_preserves_unknown_sections():
+    base = materials()
+    custom = ApplicationMaterials(
+        fit_report=base.fit_report,
+        cover_letter_draft=base.cover_letter_draft.replace(
+            "## Teaching Fit",
+            "## Motivation\n\nI am motivated by the department's public economics group.\n\n## Teaching Fit",
+        ),
+        cv_tailoring_notes=base.cv_tailoring_notes,
+        criteria_checklist=base.criteria_checklist,
+    )
+    content = build_cover_letter_content(parsed_job(), custom)
+
+    source = render_modernpro_cover_letter_source(content)
+
+    assert content["additional_sections"]["Motivation"].startswith("I am motivated")
+    assert "// CANISEND: section additional_sections" in source
+    assert "== Motivation" in source
+    assert "I am motivated by the department's public economics group." in source
+
+
+def test_render_modernpro_application_package_source_embeds_editable_content():
+    content = build_application_package_content(
+        parsed_job(),
+        materials(),
+        "# Final Application Package\n\n## Remaining Actions\n\n- Review manually.",
+    )
+
+    source = render_modernpro_application_package_source(content)
 
     assert '@preview/modernpro-coverletter:0.0.8' in source
-    assert 'json("application_package_content.json")' in source
+    assert 'json("application_package_content.json")' not in source
     assert "statement.with" in source
-    assert "package.cover_letter" in source
+    assert "// CANISEND: section job_information" in source
+    assert "// CANISEND: section fit_report" in source
+    assert "// CANISEND: section criteria_checklist" in source
+    assert "// CANISEND: section remaining_actions" in source
+    assert "= Fit Report" in source
+    assert "- Move econometrics teaching higher." in source
+    assert "- Review manually." in source
+
+
+def test_render_modernpro_sources_escape_typst_special_references():
+    custom_job = parsed_job()
+    custom_job["application_url"] = "https://example.edu/jobs/123?contact=user@example.edu"
+    base = materials()
+    custom = ApplicationMaterials(
+        fit_report="Contact user@example.edu and see <https://example.edu/profile>.",
+        cover_letter_draft=base.cover_letter_draft.replace(
+            "My research fits the department's applied economics focus.",
+            "My research fits; contact user@example.edu or <https://example.edu/profile>.",
+        ),
+        cv_tailoring_notes=base.cv_tailoring_notes,
+        criteria_checklist=base.criteria_checklist,
+    )
+
+    cover_source = render_modernpro_cover_letter_source(build_cover_letter_content(custom_job, custom))
+    package_source = render_modernpro_application_package_source(
+        build_application_package_content(custom_job, custom, "# Final Application Package\n")
+    )
+
+    assert "user\\@example.edu" in cover_source
+    assert "\\<https://example.edu/profile\\>" in cover_source
+    assert "contact=user\\@example.edu" in package_source
+
+
+def test_markdown_to_typst_escaped_references_compile_when_typst_is_available(tmp_path):
+    typst = shutil.which("typst")
+    if typst is None:
+        return
+    source = tmp_path / "escaped.typ"
+    output = tmp_path / "escaped.pdf"
+    source.write_text(
+        markdown_to_typst("Contact user@example.edu and <https://example.edu/profile>."),
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [typst, "compile", str(source), str(output)],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
 
 
 def test_cover_letter_content_is_json_serializable():

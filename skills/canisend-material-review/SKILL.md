@@ -28,6 +28,8 @@ Read only what the current task requires:
 1. Identify the workspace and run or request `canisend doctor --workspace <private-workspace>`.
 2. Prefer `07_material_review_checklist.md`, generated application package files, and `profile/generated/` evidence.
 3. Check evidence citations, missing claims, private data exposure, and Typst/rendering readiness.
-4. Report blockers, gaps, and review notes without claiming submission readiness early.
-5. If PDFs or rendered artifacts are needed, ask before rendering.
-6. Before saying materials are ready, check `../canisend/references/quality-gates.md`.
+4. Review like a strict university HR or shortlisting panel member: every essential criterion must be visible, proportionate, and evidence-backed.
+5. Treat weak or missing essential criteria as blockers, not polish items.
+6. Report blockers, gaps, and review notes without claiming submission readiness early.
+7. If PDFs or rendered artifacts are needed, ask before rendering.
+8. Before saying materials are ready, check `../canisend/references/quality-gates.md`.

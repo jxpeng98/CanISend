@@ -1,10 +1,59 @@
 import json
+from pathlib import Path
+import subprocess
 import sys
 
 import yaml
 from typer.testing import CliRunner
 
 from canisend.cli import app
+from canisend.git_tracking import APPLICATION_MATERIAL_RELATIVE_PATHS
+
+
+def _write_basic_job(tmp_path: Path) -> Path:
+    job_dir = tmp_path / "jobs" / "2026-06-15_university-x_lecturer-in-economics"
+    job_dir.mkdir(parents=True)
+    (job_dir / "job.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "id": "2026-06-15_university-x_lecturer-in-economics",
+                "title": "Lecturer in Economics",
+                "institution": "University X",
+                "department": "Department of Economics",
+                "location": "United Kingdom",
+                "deadline": "2026-06-15",
+                "source_url": "https://example.edu/jobs/123",
+                "status": "advert_imported",
+                "created_at": "2026-05-03T23:00:00Z",
+                "updated_at": "2026-05-03T23:00:00Z",
+                "notes": "",
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    (job_dir / "job_advert.md").write_text(
+        """# Lecturer in Economics
+
+Department: Department of Economics
+Location: United Kingdom
+Salary: Grade 7
+Contract: Permanent
+Role type: Lecturer
+Research fields: Economics, Finance, Econometrics
+Teaching fields: Statistics, Econometrics
+Required documents: CV, Cover letter, Research statement, Teaching statement
+
+Essential criteria:
+- PhD or near completion in Economics or related field
+- Evidence of teaching excellence
+
+Desirable criteria:
+- Experience supervising dissertations
+""",
+        encoding="utf-8",
+    )
+    return job_dir
 
 
 def test_run_pipeline_generates_parsed_job_and_application_outputs(tmp_path):
@@ -88,9 +137,10 @@ Desirable criteria:
     cover_content = json.loads((job_dir / "typst" / "cover_letter_content.json").read_text())
     assert '@preview/modernpro-coverletter:0.0.8' in cover_source
     assert '@preview/modernpro-coverletter:0.0.8' in package_source
-    assert 'json("cover_letter_content.json")' in cover_source
-    assert 'json("application_package_content.json")' in package_source
-    assert "content.sections.research_fit" in cover_source
+    assert 'json("cover_letter_content.json")' not in cover_source
+    assert 'json("application_package_content.json")' not in package_source
+    assert "// CANISEND: section research_fit" in cover_source
+    assert "// CANISEND: section criteria_checklist" in package_source
     assert "# Cover Letter Draft" not in cover_source
     assert "## Research Fit" not in cover_source
     assert cover_content["recipient"]["institution"] == "University X"
@@ -99,6 +149,66 @@ Desirable criteria:
     assert "03_cover_letter_draft.md" in review_checklist
     assert "04_cv_tailoring_notes.md" in review_checklist
     assert "Manual judgement required" in review_checklist
+
+
+def test_run_git_add_materials_flag_stages_generated_application_materials(tmp_path, monkeypatch):
+    job_dir = _write_basic_job(tmp_path)
+    calls = []
+
+    def fake_run(command, *, cwd, text, capture_output, check):
+        calls.append((command, cwd))
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr("canisend.git_tracking.subprocess.run", fake_run)
+    runner = CliRunner()
+
+    result = runner.invoke(app, ["run", "--job", str(job_dir), "--git-add-materials"])
+
+    assert result.exit_code == 0
+    assert "Added 8 generated application material files to git." in result.output
+    assert len(calls) == 1
+    command, cwd = calls[0]
+    assert command[:4] == ["git", "add", "-f", "--"]
+    assert cwd == Path(".").resolve()
+    staged = set(command[4:])
+    assert staged == {str(job_dir / relative_path) for relative_path in APPLICATION_MATERIAL_RELATIVE_PATHS}
+
+
+def test_run_interactive_git_add_materials_prompt_can_stage_outputs(tmp_path, monkeypatch):
+    job_dir = _write_basic_job(tmp_path)
+    calls = []
+
+    def fake_run(command, *, cwd, text, capture_output, check):
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr("canisend.cli._stdin_is_interactive", lambda: True)
+    monkeypatch.setattr("canisend.cli.typer.confirm", lambda message, default: True)
+    monkeypatch.setattr("canisend.git_tracking.subprocess.run", fake_run)
+    runner = CliRunner()
+
+    result = runner.invoke(app, ["run", "--job", str(job_dir)])
+
+    assert result.exit_code == 0
+    assert "Added 8 generated application material files to git." in result.output
+    assert len(calls) == 1
+
+
+def test_run_skips_git_add_materials_prompt_when_noninteractive(tmp_path, monkeypatch):
+    job_dir = _write_basic_job(tmp_path)
+    calls = []
+
+    def fake_run(command, *, cwd, text, capture_output, check):
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr("canisend.git_tracking.subprocess.run", fake_run)
+    runner = CliRunner()
+
+    result = runner.invoke(app, ["run", "--job", str(job_dir)])
+
+    assert result.exit_code == 0
+    assert calls == []
 
 
 def test_run_pipeline_writes_material_review_checklist_with_item_level_evidence(tmp_path):

@@ -51,7 +51,7 @@ Review quality gates before rendering:
 1. Confirm `parsed_job.json` matches the advert.
 2. Confirm criteria checklist covers essential criteria.
 3. Confirm strong claims cite `profile/generated/` evidence.
-4. Confirm `typst/cover_letter_content.json` matches the edited cover letter.
+4. Confirm `typst/cover_letter.typ` matches the edited cover letter.
 5. Render Typst only when the user wants PDFs.
 
 ## Missing Or Inconsistent Files

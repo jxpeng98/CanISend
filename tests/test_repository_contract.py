@@ -168,6 +168,7 @@ def test_agent_skill_documents_typst_first_item_level_evidence_contract():
     contracts = (references / "file-contracts.md").read_text()
     typst_profile = (references / "typst-profile.md").read_text()
     workflow = (references / "workflow.md").read_text()
+    orchestration = (references / "agent-orchestration.md").read_text()
 
     assert "profile/generated/file.evidence.md#Section/item-id" in contracts
     assert "cv-001" in contracts
@@ -176,6 +177,10 @@ def test_agent_skill_documents_typst_first_item_level_evidence_contract():
     assert "statement paragraphs" in typst_profile
     assert "item-level citations" in workflow
     assert "quality-gates.md" in workflow
+    assert "canisend orchestrate" in orchestration
+    assert "max_parallel_tasks" in orchestration
+    assert "agent_count" in orchestration
+    assert "supports_native_subagents" in orchestration
 
 
 def test_readme_has_release_page_quick_start():
@@ -241,7 +246,11 @@ def test_readme_documents_core_workflow_and_agent_usage():
     assert "--llm-parser" in readme
     assert "--llm-drafts" in readme
     assert "--llm-augment" in readme
-    assert "cover_letter_content.json" in readme
+    assert "canisend orchestrate" in readme
+    assert "typst/cover_letter.typ" in readme
+    assert "typst/application_package.typ" in readme
+    assert "directly edit `typst/cover_letter.typ`" in readme
+    assert "cover_letter_content.json" not in readme
     assert "07_material_review_checklist.md" in readme
     assert "examples/end_to_end" in readme
     assert "Codex, Claude Code, and IDE agents" in readme
@@ -288,7 +297,8 @@ def test_proposal_documents_prompt_skill_split_and_typst_profile():
     assert "extract-profile-evidence" in proposal
     assert "--llm-parser" in proposal
     assert "--llm-drafts" in proposal
-    assert "cover_letter_content.json" in proposal
+    assert "typst/cover_letter.typ" in proposal
+    assert "cover_letter_content.json" not in proposal
     assert "Codex, Claude Code, and IDE agents" in proposal
     assert "Gemini" not in proposal
     assert "Prompt files should live in `skills/`" not in proposal
