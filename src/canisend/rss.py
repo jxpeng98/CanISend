@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from html import unescape
-import ipaddress
 import json
 from pathlib import Path
 import re
@@ -10,6 +9,13 @@ from typing import Any, Callable
 from urllib.parse import urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 import xml.etree.ElementTree as ET
+
+from canisend.network_safety import (
+    AddressResolver,
+    ResolvedAddressError,
+    require_public_resolved_addresses,
+    resolve_host_addresses,
+)
 
 
 ATOM_NAMESPACE = "http://www.w3.org/2005/Atom"
@@ -200,8 +206,9 @@ def fetch_rss_text(
     *,
     opener: Callable[..., Any] = urlopen,
     max_bytes: int = DEFAULT_MAX_FEED_BYTES,
+    resolver: AddressResolver | None = None,
 ) -> str:
-    url = _validate_feed_url(feed_url)
+    url = _validate_feed_url(feed_url, resolver=resolver)
     if max_bytes <= 0:
         raise JobFeedError("Feed response byte limit must be greater than zero.")
 
@@ -209,7 +216,7 @@ def fetch_rss_text(
     try:
         with opener(request, timeout=timeout_seconds) as response:
             final_url = response.geturl() if hasattr(response, "geturl") else request.full_url
-            _validate_feed_url(str(final_url or request.full_url))
+            _validate_feed_url(str(final_url or request.full_url), resolver=resolver)
             content_type = response.headers.get("Content-Type", "")
             _validate_feed_content_type(content_type)
             raw = _read_limited_response(response, max_bytes=max_bytes)
@@ -230,7 +237,11 @@ def write_job_leads(path: Path, leads: list[JobLead]) -> Path:
     return path
 
 
-def _validate_feed_url(feed_url: str) -> str:
+def _validate_feed_url(
+    feed_url: str,
+    *,
+    resolver: AddressResolver | None = None,
+) -> str:
     url = feed_url.strip()
     try:
         parsed = urlsplit(url)
@@ -256,11 +267,12 @@ def _validate_feed_url(feed_url: str) -> str:
         raise JobFeedError("Job feed URL must not target localhost.")
 
     try:
-        address = ipaddress.ip_address(hostname)
-    except ValueError:
-        address = None
-    if address is not None and not address.is_global:
-        raise JobFeedError("Job feed URL IP address must be publicly routable.")
+        require_public_resolved_addresses(
+            hostname,
+            resolver=resolver or resolve_host_addresses,
+        )
+    except ResolvedAddressError as exc:
+        raise JobFeedError(str(exc)) from exc
     return url
 
 

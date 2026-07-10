@@ -57,6 +57,7 @@ def test_agent_capabilities_is_workspace_and_provider_independent(monkeypatch) -
     monkeypatch.setattr("canisend.cli.workspace_report", fail, raising=False)
     monkeypatch.setattr("canisend.llm.subprocess.run", fail)
     monkeypatch.setattr("canisend.llm.urlopen", fail)
+    monkeypatch.setattr("canisend.llm.provider_from_config", fail)
 
     result = CliRunner().invoke(app, ["agent", "capabilities", "--format", "json"])
 
@@ -96,6 +97,7 @@ def test_agent_context_with_job_returns_derived_snapshot_without_private_bodies(
 
     monkeypatch.setattr("canisend.llm.subprocess.run", fail_provider_call)
     monkeypatch.setattr("canisend.llm.urlopen", fail_provider_call)
+    monkeypatch.setattr("canisend.llm.provider_from_config", fail_provider_call)
 
     result = CliRunner().invoke(
         app,

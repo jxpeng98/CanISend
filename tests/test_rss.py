@@ -14,6 +14,14 @@ from canisend.rss import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _public_dns(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "canisend.rss.resolve_host_addresses",
+        lambda hostname: ("93.184.216.34",),
+    )
+
+
 SAMPLE_RSS = """<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0">
   <channel>
@@ -243,6 +251,47 @@ def test_fetch_rss_text_revalidates_redirect_destination_before_reading():
         fetch_rss_text(
             "https://example.edu/jobs.xml",
             opener=lambda request, timeout: response,
+        )
+
+    assert response.read_sizes == []
+
+
+@pytest.mark.parametrize(
+    "addresses",
+    [
+        ("127.0.0.1",),
+        ("169.254.10.20",),
+        ("172.16.0.5",),
+        ("93.184.216.34", "192.168.1.20"),
+        ("::1",),
+    ],
+)
+def test_fetch_rss_text_rejects_non_public_resolved_addresses_before_opening(addresses):
+    def opener(*args, **kwargs):
+        raise AssertionError("unsafe resolved address reached the opener")
+
+    with pytest.raises(JobFeedError, match="resolved.*publicly routable"):
+        fetch_rss_text(
+            "https://example.edu/jobs.xml",
+            opener=opener,
+            resolver=lambda hostname: addresses,
+        )
+
+
+def test_fetch_rss_text_revalidates_redirect_hostname_resolution_before_reading():
+    response = FakeFeedResponse(
+        SAMPLE_RSS.encode("utf-8"),
+        final_url="https://redirect.example/jobs.xml",
+    )
+
+    def resolver(hostname: str):
+        return ("10.0.0.9",) if hostname == "redirect.example" else ("93.184.216.34",)
+
+    with pytest.raises(JobFeedError, match="resolved.*publicly routable"):
+        fetch_rss_text(
+            "https://example.edu/jobs.xml",
+            opener=lambda request, timeout: response,
+            resolver=resolver,
         )
 
     assert response.read_sizes == []

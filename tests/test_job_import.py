@@ -15,6 +15,14 @@ from canisend.job_import import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _public_dns(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "canisend.job_import.resolve_host_addresses",
+        lambda hostname: ("93.184.216.34",),
+    )
+
+
 class FakePage:
     def __init__(self, text: str) -> None:
         self.extract_text_value = text
@@ -318,6 +326,47 @@ def test_fetch_advert_from_url_revalidates_redirect_destination() -> None:
 
     with pytest.raises(JobImportError, match="publicly routable"):
         fetch_advert_from_url("https://example.edu/jobs/123", opener=opener)
+
+
+@pytest.mark.parametrize(
+    "addresses",
+    [
+        ("127.0.0.1",),
+        ("169.254.10.20",),
+        ("10.0.0.8",),
+        ("93.184.216.34", "192.168.1.20"),
+        ("::1",),
+    ],
+)
+def test_fetch_advert_from_url_rejects_non_public_resolved_addresses_before_opening(addresses) -> None:
+    def opener(*args, **kwargs):
+        raise AssertionError("unsafe resolved address reached the opener")
+
+    with pytest.raises(JobImportError, match="resolved.*publicly routable"):
+        fetch_advert_from_url(
+            "https://example.edu/jobs/123",
+            opener=opener,
+            resolver=lambda hostname: addresses,
+        )
+
+
+def test_fetch_advert_from_url_revalidates_redirect_hostname_resolution() -> None:
+    response = FakeResponse(
+        "<html><body><h1>Lecturer</h1></body></html>",
+        final_url="https://redirect.example/jobs/1",
+    )
+
+    def resolver(hostname: str):
+        return ("10.0.0.9",) if hostname == "redirect.example" else ("93.184.216.34",)
+
+    with pytest.raises(JobImportError, match="resolved.*publicly routable"):
+        fetch_advert_from_url(
+            "https://example.edu/jobs/123",
+            opener=lambda request, timeout: response,
+            resolver=resolver,
+        )
+
+    assert response.read_sizes == []
 
 
 def test_fetch_advert_from_url_redacts_query_and_strips_fragment() -> None:

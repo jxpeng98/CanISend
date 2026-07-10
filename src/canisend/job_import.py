@@ -3,12 +3,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from io import BytesIO
-import ipaddress
 from pathlib import Path
 import re
 from typing import Any, Callable
 from urllib.parse import quote, unquote, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
+
+from canisend.network_safety import (
+    AddressResolver,
+    ResolvedAddressError,
+    require_public_resolved_addresses,
+    resolve_host_addresses,
+)
 
 
 _DEFAULT_MAX_BYTES = 2_000_000
@@ -150,7 +156,11 @@ def _extract_pdf_reader_text(reader: Any) -> str:
     return text
 
 
-def validate_fetch_url(source_url: str) -> str:
+def validate_fetch_url(
+    source_url: str,
+    *,
+    resolver: AddressResolver | None = None,
+) -> str:
     url = source_url.strip()
     if not url:
         raise JobImportError("--fetch-url requires --source-url.")
@@ -175,11 +185,12 @@ def validate_fetch_url(source_url: str) -> str:
     ):
         raise JobImportError("Fetch URL must not target localhost.")
     try:
-        address = ipaddress.ip_address(hostname)
-    except ValueError:
-        address = None
-    if address is not None and not address.is_global:
-        raise JobImportError("Fetch URL IP address must be publicly routable.")
+        require_public_resolved_addresses(
+            hostname,
+            resolver=resolver or resolve_host_addresses,
+        )
+    except ResolvedAddressError as exc:
+        raise JobImportError(str(exc)) from exc
 
     safe_netloc = parsed.hostname
     if port is not None:
@@ -222,13 +233,17 @@ def fetch_advert_from_url(
     opener: Callable[..., Any] = urlopen,
     timeout: int = 30,
     max_bytes: int = _DEFAULT_MAX_BYTES,
+    resolver: AddressResolver | None = None,
 ) -> ImportedAdvert:
-    url = validate_fetch_url(source_url)
+    url = validate_fetch_url(source_url, resolver=resolver)
     request = Request(url, headers={"User-Agent": "CanISend/0.2 job-advert-import"})
     try:
         with opener(request, timeout=timeout) as response:
             final_url = response.geturl() if hasattr(response, "geturl") else request.full_url
-            validated_final_url = validate_fetch_url(str(final_url or request.full_url))
+            validated_final_url = validate_fetch_url(
+                str(final_url or request.full_url),
+                resolver=resolver,
+            )
             content_type = response.headers.get("Content-Type", "")
             media_type = content_type.partition(";")[0].strip().lower()
             if "html" not in media_type and media_type != "application/pdf":

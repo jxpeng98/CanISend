@@ -1050,22 +1050,17 @@ def run_pipeline(
     job_dir = config.job_dir(job)
     if dry_run:
         from canisend.evidence import load_generated_evidence
-        from canisend.llm import load_llm_config, provider_from_config
-        from canisend.parse import parse_job_advert, parse_job_advert_with_provider
-        from canisend.resource_files import read_resource_text
+        from canisend.parse import parse_job_advert
 
         import yaml as _yaml
 
         metadata = _yaml.safe_load((job_dir / "job.yaml").read_text(encoding="utf-8"))
         advert_text = (job_dir / "job_advert.md").read_text(encoding="utf-8")
         evidence = load_generated_evidence(config.path("profile_dir", profile_dir))
+        parsed_job = parse_job_advert(advert_text, metadata)
         if llm_parser:
-            prompt_text = read_resource_text("prompts/job_parser.md", local_path=config.path("prompt_dir", prompt_dir) / "job_parser.md")
-            provider = provider_from_config(load_llm_config())
-            parsed_job = parse_job_advert_with_provider(advert_text=advert_text, metadata=metadata, provider=provider, prompt_text=prompt_text)
-            typer.echo("Parser: LLM-backed")
+            typer.echo("Parser: LLM-backed (planned; not executed in dry run)")
         else:
-            parsed_job = parse_job_advert(advert_text, metadata)
             typer.echo("Parser: deterministic")
 
         typer.echo(f"  Title: {parsed_job['title']}")
@@ -1086,7 +1081,12 @@ def run_pipeline(
         ]
         for output in outputs:
             typer.echo(f"  - {job_dir}/{output}")
-        typer.echo(f"\nDraft mode: {'LLM-backed' if llm_drafts else 'deterministic'}")
+        draft_mode = (
+            "LLM-backed (planned; not executed in dry run)"
+            if llm_drafts
+            else "deterministic"
+        )
+        typer.echo(f"\nDraft mode: {draft_mode}")
         return
 
     written = run_job_pipeline(

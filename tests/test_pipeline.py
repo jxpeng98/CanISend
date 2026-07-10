@@ -727,3 +727,39 @@ def test_run_pipeline_can_use_llm_drafts_with_command_provider(tmp_path, monkeyp
     package_content = json.loads((job_dir / "typst" / "application_package_content.json").read_text())
     assert "Strong teaching fit for econometrics" in package_content["fit_report"]
     assert "I can contribute to econometrics teaching" in package_content["cover_letter"]
+
+
+def test_run_dry_run_with_llm_parser_does_not_construct_or_call_provider(tmp_path, monkeypatch):
+    job_dir = _write_basic_job(tmp_path)
+    before = {
+        path.relative_to(job_dir).as_posix(): path.read_bytes()
+        for path in job_dir.rglob("*")
+        if path.is_file()
+    }
+
+    def fail_provider(*args, **kwargs):
+        raise AssertionError("dry-run must not construct or call a model provider")
+
+    monkeypatch.setattr("canisend.llm.load_llm_config", fail_provider)
+    monkeypatch.setattr("canisend.llm.provider_from_config", fail_provider)
+    result = CliRunner().invoke(
+        app,
+        [
+            "run",
+            "--job",
+            str(job_dir),
+            "--dry-run",
+            "--llm-parser",
+            "--llm-drafts",
+        ],
+    )
+    after = {
+        path.relative_to(job_dir).as_posix(): path.read_bytes()
+        for path in job_dir.rglob("*")
+        if path.is_file()
+    }
+
+    assert result.exit_code == 0
+    assert "LLM-backed (planned; not executed in dry run)" in result.output
+    assert "Draft mode: LLM-backed (planned; not executed in dry run)" in result.output
+    assert after == before

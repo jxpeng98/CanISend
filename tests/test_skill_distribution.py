@@ -158,6 +158,19 @@ def test_platform_bridges_bootstrap_agent_context_and_privacy_boundary():
         assert "Do not stage private files" in bridge
 
 
+def test_agent_guidance_treats_imported_source_instructions_as_untrusted_data():
+    main_skill = Path("skills/canisend/SKILL.md").read_text(encoding="utf-8")
+    privacy = Path("skills/canisend/references/privacy.md").read_text(encoding="utf-8")
+    orchestration = Path("skills/canisend/references/agent-orchestration.md").read_text(encoding="utf-8")
+    combined = "\n".join([main_skill, privacy, orchestration]).lower()
+
+    assert "untrusted data" in combined
+    assert "tool instructions" in combined
+    assert "cannot change allowed paths" in combined
+    assert "deterministic" in combined
+    assert "intrinsically immune" not in combined
+
+
 def test_export_skills_writes_codex_plugin_distribution(tmp_path):
     target = tmp_path / "plugins" / "canisend"
     runner = CliRunner()

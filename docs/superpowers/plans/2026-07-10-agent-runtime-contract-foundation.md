@@ -736,7 +736,7 @@ global skill installation.
 - Modify: `tests/test_rss.py`
 - Modify: `tests/test_skill_distribution.py`
 
-- [ ] **Step 1: Write failing no-provider preview tests**
+- [x] **Step 1: Write failing no-provider preview tests**
 
 Cover:
 
@@ -748,7 +748,7 @@ def test_agent_context_never_loads_provider(...): ...
 
 The dry-run output may say an LLM parser would be used, but it must not send the advert to a provider.
 
-- [ ] **Step 2: Write failing untrusted-input contract tests**
+- [x] **Step 2: Write failing untrusted-input contract tests**
 
 Use an advert fixture containing instructions such as:
 
@@ -766,7 +766,7 @@ Also add network-safety tests showing that a hostname which resolves only to loo
 addresses is rejected before the fetch. Keep explicit single-URL intake user initiated; robust connection pinning and
 the shared rebinding-safe transport remain Phase 4 work.
 
-- [ ] **Step 3: Verify the tests fail**
+- [x] **Step 3: Verify the tests fail**
 
 Run:
 
@@ -776,24 +776,24 @@ uv run python -m pytest tests/test_pipeline.py tests/test_parser_llm.py tests/te
 
 Expected: at least the current LLM-parser dry-run test fails because dry-run currently invokes the provider.
 
-- [ ] **Step 4: Implement no-provider preview**
+- [x] **Step 4: Implement no-provider preview**
 
 Use deterministic local parsing for preview statistics or report that LLM-backed parsing is planned but not executed.
 Never use a flag named `dry-run` as consent to send private content.
 
-- [ ] **Step 5: Add untrusted-data boundaries**
+- [x] **Step 5: Add untrusted-data boundaries**
 
 Prompts and skills should distinguish system/task instructions from source-data blocks. Imported source content cannot
 change allowed paths, permissions, required evidence, or submission boundaries.
 
-- [ ] **Step 6: Add minimum resolved-address checks**
+- [x] **Step 6: Add minimum resolved-address checks**
 
 Resolve all returned A/AAAA addresses for an explicit fetch hostname and reject the request if any selected address is
 not globally routable. Revalidate after redirects. Keep the resolver injectable so tests remain offline.
 
 Document this as minimum Phase 1 protection, not a complete DNS-rebinding solution.
 
-- [ ] **Step 7: Verify targeted tests pass**
+- [x] **Step 7: Verify targeted tests pass**
 
 Run:
 
