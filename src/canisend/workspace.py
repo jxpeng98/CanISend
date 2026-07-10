@@ -12,6 +12,7 @@ from canisend.agent_protocol import AgentResponse, ArtifactReference, NextAction
 from canisend.llm import LLMConfig, load_llm_config
 from canisend.profile import init_profile
 from canisend.resource_files import copy_resource_tree, read_resource_text
+from canisend.skill_distribution import install_workspace_skill_pack
 
 
 WORKSPACE_CONFIG = "canisend.yaml"
@@ -30,7 +31,7 @@ DEFAULT_RESOURCE_CHECKS = {
     "prompts/profile_evidence_augmenter.md": "prompts/profile_evidence_augmenter.md",
     "templates/typst/cover_letter.typ": "templates/typst/cover_letter.typ",
     "schemas/parsed_job.schema.json": "schemas/parsed_job.schema.json",
-    "agent-skills/canisend/SKILL.md": "agent-skills/canisend/SKILL.md",
+    "agent-skills/canisend/SKILL.md": "skills/canisend/SKILL.md",
     "AGENTS.md": "platform-bridges/AGENTS.md",
     "CLAUDE.md": "platform-bridges/CLAUDE.md",
 }
@@ -130,7 +131,7 @@ def update_workspace_defaults(workspace: Path, *, overwrite: bool = False) -> li
     copied.extend(copy_resource_tree("prompts", workspace / "prompts", overwrite=overwrite))
     copied.extend(copy_resource_tree("templates", workspace / "templates", overwrite=overwrite))
     copied.extend(copy_resource_tree("schemas", workspace / "schemas", overwrite=overwrite))
-    copied.extend(copy_resource_tree("agent-skills", workspace / "agent-skills", overwrite=overwrite))
+    copied.extend(install_workspace_skill_pack(workspace / "agent-skills", overwrite=overwrite))
     copied.extend(copy_resource_tree("platform-bridges", workspace, overwrite=overwrite))
     return copied
 

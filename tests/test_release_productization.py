@@ -96,6 +96,19 @@ def test_package_check_requires_all_run_example_resources():
     assert "canisend/resources/platform-bridges/GEMINI.md" not in resources
 
 
+def test_package_check_requires_self_contained_workspace_skill_pack():
+    resources = set(required_wheel_resources())
+
+    for skill_name in [
+        "canisend",
+        "canisend-job-intake",
+        "canisend-application-package",
+        "canisend-submission-readiness",
+    ]:
+        assert f"canisend/resources/skills/{skill_name}/SKILL.md" in resources
+        assert f"canisend/resources/skills/{skill_name}/agents/openai.yaml" in resources
+
+
 def test_package_check_reports_missing_wheel_resources(tmp_path):
     wheel_path = tmp_path / "canisend-0.1.0-py3-none-any.whl"
     with zipfile.ZipFile(wheel_path, "w") as wheel:

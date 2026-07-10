@@ -662,7 +662,7 @@ skills that are not installed there.
 - Modify: `skills/canisend/SKILL.md`
 - Modify: mirrored workspace skill only through the repository's chosen canonical-sync process
 
-- [ ] **Step 1: Write failing workspace distribution tests**
+- [x] **Step 1: Write failing workspace distribution tests**
 
 Assert a new workspace contains:
 
@@ -679,7 +679,7 @@ Add an old-workspace fixture containing only `agent-skills/canisend` with a loca
 `update-workspace` without overwrite, focused skills should be added while the edited main skill remains unchanged.
 An explicit overwrite may replace packaged defaults according to the existing policy.
 
-- [ ] **Step 2: Verify the tests fail**
+- [x] **Step 2: Verify the tests fail**
 
 Run:
 
@@ -689,7 +689,7 @@ uv run python -m pytest tests/test_workspace_productization.py tests/test_skill_
 
 Expected: fail because only the monolithic workspace skill is copied.
 
-- [ ] **Step 3: Choose and implement one canonical source**
+- [x] **Step 3: Choose and implement one canonical source**
 
 Use `skills/` as the canonical distributed pack and copy it into workspace-local `agent-skills/`. Retain the packaged
 `agent-skills/canisend` mirror for one compatibility release if existing package/resource tests or older workspaces
@@ -697,12 +697,12 @@ still require it.
 
 Do not overwrite workspace-local skill edits unless the user explicitly uses the existing overwrite behavior.
 
-- [ ] **Step 4: Update bootstrap guidance**
+- [x] **Step 4: Update bootstrap guidance**
 
 Bridge files should bootstrap the main skill, identify the workspace, declare the privacy boundary, and call
 `canisend agent context --format json`. Focused business routing remains in the skill pack.
 
-- [ ] **Step 5: Verify package and distribution tests pass**
+- [x] **Step 5: Verify package and distribution tests pass**
 
 Run:
 

@@ -15,11 +15,14 @@ Treat CanISend as local-first only in direct CLI deterministic mode. If an agent
 
 The tool helps prepare materials; it must not submit applications, create accounts, fill portals, scrape job pages, upload packages, or answer sensitive declarations.
 
-Start by identifying the private workspace and, when relevant, the job folder:
+Start by identifying the private workspace and, when relevant, the job folder through the versioned agent contract:
 
 ```bash
-canisend doctor --workspace <private-workspace>
+canisend agent context --workspace <private-workspace> --format json
+canisend agent context --workspace <private-workspace> --job jobs/<job-slug> --format json
 ```
+
+Use `canisend doctor --workspace <private-workspace>` when a human-readable environment diagnostic is also useful.
 
 From a development checkout, prefix CLI commands with `uv run`.
 
@@ -72,7 +75,7 @@ When the focused skills are installed:
 
 ## Default Sequence
 
-1. Run or request `canisend doctor --workspace <private-workspace>`.
+1. Run `canisend agent context --workspace <private-workspace> --format json`; add `--job jobs/<job-slug>` when known.
 2. Determine current job state from `job.yaml` and generated files. Read `references/job-lifecycle.md` when uncertain.
 3. Keep profile evidence current with `canisend extract-profile-evidence --workspace <private-workspace>`.
 4. Use `canisend run --workspace <private-workspace> --job jobs/<job-slug>` for deterministic generation.

@@ -11,6 +11,7 @@ from typer.testing import CliRunner
 from canisend import __version__
 from canisend.cli import app
 from canisend.package_check import required_wheel_resources
+from canisend.skill_distribution import CANONICAL_SKILL_RESOURCE
 
 
 EXPECTED_SKILLS = [
@@ -85,6 +86,18 @@ def test_distributed_canisend_skill_mirrors_workspace_skill():
         ).read_text()
 
 
+def test_skills_directory_is_the_canonical_workspace_pack():
+    assert CANONICAL_SKILL_RESOURCE == "skills"
+
+
+def test_main_skill_focused_routes_exist_in_canonical_pack():
+    contents = Path("skills/canisend/SKILL.md").read_text(encoding="utf-8")
+    routes = set(re.findall(r"\$(canisend-[a-z0-9-]+)", contents))
+
+    assert routes
+    assert all((Path("skills") / route / "SKILL.md").is_file() for route in routes)
+
+
 def test_material_skills_reference_shared_canisend_rules():
     for skill_name in EXPECTED_SKILLS:
         if skill_name == "canisend":
@@ -133,6 +146,16 @@ def test_package_check_requires_distributed_skill_pack_resources():
 
     assert expected <= resources
     assert "canisend/resources/platform-bridges/GEMINI.md" not in resources
+
+
+def test_platform_bridges_bootstrap_agent_context_and_privacy_boundary():
+    for bridge_path in [Path("platform-bridges/AGENTS.md"), Path("platform-bridges/CLAUDE.md")]:
+        bridge = bridge_path.read_text(encoding="utf-8")
+
+        assert "agent-skills/canisend/SKILL.md" in bridge
+        assert "canisend agent context --workspace . --format json" in bridge
+        assert "Ask first" in bridge
+        assert "Do not stage private files" in bridge
 
 
 def test_export_skills_writes_codex_plugin_distribution(tmp_path):

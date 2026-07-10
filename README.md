@@ -25,7 +25,7 @@ It prepares materials only. It does not submit applications, create accounts, fi
 - Extracts normalized evidence from Typst-first profile sources into `profile/generated/`.
 - Generates `parsed_job.json`, preparation questions, fit reports, cover letter drafts, CV tailoring notes, criteria checklists, material review checklists, and structured Typst content.
 - Runs deterministic local generation by default, with explicit opt-in for LLM-backed evidence augmentation, parsing, or drafting.
-- Ships bridge files for Codex, Claude Code, and IDE agents through `AGENTS.md`, `CLAUDE.md`, and `agent-skills/canisend/SKILL.md`.
+- Ships bridge files plus a self-contained workspace skill pack for Codex, Claude Code, and IDE agents.
 
 ## Quick Start
 
@@ -140,6 +140,10 @@ The workspace contains private profile data, job leads, job folders, editable pr
   templates/
   schemas/
   agent-skills/
+    canisend/
+    canisend-job-intake/
+    canisend-application-package/
+    canisend-submission-readiness/
 ```
 
 After upgrades:
@@ -413,8 +417,10 @@ Codex, Claude Code, and IDE agents can run the `canisend` workflow by opening th
 Agents should start with:
 
 ```bash
-canisend doctor --workspace .
+canisend agent context --workspace . --format json
 ```
+
+Use `canisend doctor --workspace .` when a human-readable environment diagnostic is also useful.
 
 They may run local deterministic CLI commands, inspect generated evidence, and review current job artifacts. They must ask first before reading full private CVs, statements, full job adverts, references, PDFs, source URLs, generated packages, or enabling LLM-backed CLI flags/providers. They must not scrape pages, submit applications, upload packages, fabricate evidence, or commit private profile/job data.
 
@@ -469,11 +475,15 @@ agent-skills/canisend/
     privacy.md
 ```
 
-`prompts/` contains LLM prompt files used by the application pipeline. `agent-skills/` contains agent-readable workflow and quality guidance.
+`prompts/` contains LLM prompt files used by the application pipeline. Workspace-local `agent-skills/` contains the
+complete main and focused skill pack, so routes from the main skill do not depend on a global installation.
 
 ## Skill Distribution
 
-The project also ships a reusable skill pack for cases where you want a narrower agent behavior without opening a CanISend workspace as the active project. The root Codex plugin manifest at `.codex-plugin/plugin.json` exposes `skills/` as a Codex plugin manifest, while `agent-skills/canisend/` remains the mirrored workspace skill copied into user workspaces.
+The project also ships a reusable skill pack for cases where you want a narrower agent behavior without opening a
+CanISend workspace as the active project. `skills/` is the canonical pack used by exports and workspace updates. The
+root Codex plugin manifest at `.codex-plugin/plugin.json` exposes that pack, while `agent-skills/canisend/` remains a
+one-release compatibility mirror of the canonical main skill.
 
 Use the main `canisend` skill for full workspace workflows. Use `canisend-job-intake` for source-to-advert intake,
 `canisend-application-package` for coordinated package construction, and `canisend-submission-readiness` for the final
@@ -561,8 +571,8 @@ src/canisend/             CLI and application pipeline
 prompts/                  LLM prompt templates
 templates/typst/          modernpro Typst templates
 schemas/                  JSON schema contracts
-agent-skills/             canisend skill and agent references
-skills/                   reusable Codex and Claude skill pack
+agent-skills/             one-release compatibility mirror of the main skill
+skills/                   canonical reusable and workspace-installed skill pack
 .codex-plugin/            Codex plugin manifest for the skill pack
 platform-bridges/         AGENTS.md and CLAUDE.md workspace bridges
 examples/end_to_end/      fully local fake-data workflow

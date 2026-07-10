@@ -2,13 +2,14 @@
 
 @agent-skills/canisend/SKILL.md
 
-Start every workflow by checking the private workspace:
+Start every workflow by identifying the private workspace and requesting its machine-readable context:
 
 ```bash
-canisend doctor --workspace .
+canisend agent context --workspace . --format json
 ```
 
 If running from outside the workspace, replace `.` with the workspace path.
+Use `canisend doctor --workspace .` when a human-readable environment diagnostic is also useful.
 
 Agent boundaries:
 

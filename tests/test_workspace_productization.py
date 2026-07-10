@@ -1,6 +1,7 @@
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import sys
 import tomllib
@@ -31,6 +32,9 @@ def test_init_workspace_creates_user_layout_and_default_resources(tmp_path):
     assert (workspace / "templates" / "typst" / "cover_letter.typ").exists()
     assert (workspace / "schemas" / "parsed_job.schema.json").exists()
     assert (workspace / "agent-skills" / "canisend" / "SKILL.md").exists()
+    assert (workspace / "agent-skills" / "canisend-job-intake" / "SKILL.md").exists()
+    assert (workspace / "agent-skills" / "canisend-application-package" / "SKILL.md").exists()
+    assert (workspace / "agent-skills" / "canisend-submission-readiness" / "SKILL.md").exists()
     assert (workspace / "AGENTS.md").exists()
     assert (workspace / "CLAUDE.md").exists()
     assert not (workspace / "GEMINI.md").exists()
@@ -42,6 +46,52 @@ def test_init_workspace_creates_user_layout_and_default_resources(tmp_path):
     assert config["profile_dir"] == "profile"
     assert config["jobs_dir"] == "jobs"
     assert profile_manifest["profile_mode"] == "typst"
+
+
+def test_workspace_skill_pack_resolves_every_focused_route(tmp_path):
+    workspace = tmp_path / "workspace"
+    runner = CliRunner()
+    runner.invoke(app, ["init-workspace", "--workspace", str(workspace), "--profile-mode", "typst"])
+
+    main_skill = (workspace / "agent-skills" / "canisend" / "SKILL.md").read_text(encoding="utf-8")
+    routed_skills = set(re.findall(r"\$(canisend-[a-z0-9-]+)", main_skill))
+
+    assert routed_skills
+    assert all(
+        (workspace / "agent-skills" / skill_name / "SKILL.md").is_file()
+        for skill_name in routed_skills
+    )
+
+
+def test_update_workspace_adds_focused_skills_without_overwriting_local_main_skill(tmp_path):
+    workspace = tmp_path / "legacy-workspace"
+    local_main = workspace / "agent-skills" / "canisend" / "SKILL.md"
+    local_main.parent.mkdir(parents=True)
+    local_main.write_text("local workspace customization\n", encoding="utf-8")
+    runner = CliRunner()
+
+    result = runner.invoke(app, ["update-workspace", "--workspace", str(workspace)])
+
+    assert result.exit_code == 0
+    assert local_main.read_text(encoding="utf-8") == "local workspace customization\n"
+    assert (workspace / "agent-skills" / "canisend-job-intake" / "SKILL.md").is_file()
+    assert (workspace / "agent-skills" / "canisend-application-package" / "SKILL.md").is_file()
+    assert (workspace / "agent-skills" / "canisend-submission-readiness" / "SKILL.md").is_file()
+
+
+def test_update_workspace_overwrite_refreshes_main_skill_from_canonical_pack(tmp_path):
+    workspace = tmp_path / "legacy-workspace"
+    local_main = workspace / "agent-skills" / "canisend" / "SKILL.md"
+    local_main.parent.mkdir(parents=True)
+    local_main.write_text("local workspace customization\n", encoding="utf-8")
+
+    result = CliRunner().invoke(
+        app,
+        ["update-workspace", "--workspace", str(workspace), "--overwrite"],
+    )
+
+    assert result.exit_code == 0
+    assert local_main.read_text(encoding="utf-8") == Path("skills/canisend/SKILL.md").read_text(encoding="utf-8")
 
 
 def test_init_workspace_does_not_overwrite_local_prompt_by_default(tmp_path):
@@ -443,6 +493,7 @@ def test_pyproject_packages_runtime_resources():
     assert force_include["prompts"] == "canisend/resources/prompts"
     assert force_include["templates"] == "canisend/resources/templates"
     assert force_include["schemas"] == "canisend/resources/schemas"
+    assert force_include["skills"] == "canisend/resources/skills"
     assert force_include["agent-skills"] == "canisend/resources/agent-skills"
     assert force_include["platform-bridges"] == "canisend/resources/platform-bridges"
     assert force_include["examples"] == "canisend/resources/examples"

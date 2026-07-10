@@ -10,13 +10,14 @@ Be explicit about the mode you are operating in:
 - Agent-assisted mode is not local-only: any file, PDF, webpage, or generated material you read or summarize may be processed by the agent model provider.
 - LLM-backed CLI mode: `extract-profile-evidence --llm-augment`, `--llm-parser`, `--llm-drafts`, or a command provider may transmit selected private advert, profile, evidence, and draft context to the configured provider.
 
-Start every workflow by checking the private workspace:
+Start every workflow by identifying the private workspace and requesting its machine-readable context:
 
 ```bash
-canisend doctor --workspace .
+canisend agent context --workspace . --format json
 ```
 
 If running from outside the workspace, replace `.` with the workspace path.
+Use `canisend doctor --workspace .` when a human-readable environment diagnostic is also useful.
 
 Core rules:
 

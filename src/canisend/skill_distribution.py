@@ -6,6 +6,20 @@ from canisend.resource_files import copy_resource_tree
 
 
 VALID_EXPORT_KINDS = {"codex-plugin", "skills-only"}
+CANONICAL_SKILL_RESOURCE = "skills"
+
+
+def install_workspace_skill_pack(
+    destination: Path,
+    *,
+    overwrite: bool = False,
+) -> list[Path]:
+    """Install the canonical skill pack into a workspace-local agent-skills directory."""
+    return copy_resource_tree(
+        CANONICAL_SKILL_RESOURCE,
+        destination,
+        overwrite=overwrite,
+    )
 
 
 def export_skill_distribution(target: Path, *, kind: str, overwrite: bool = False) -> list[Path]:
@@ -21,9 +35,9 @@ def export_skill_distribution(target: Path, *, kind: str, overwrite: bool = Fals
     copied: list[Path] = []
     if kind == "codex-plugin":
         copied.extend(copy_resource_tree(".codex-plugin", target / ".codex-plugin", overwrite=True))
-        copied.extend(copy_resource_tree("skills", target / "skills", overwrite=True))
+        copied.extend(copy_resource_tree(CANONICAL_SKILL_RESOURCE, target / "skills", overwrite=True))
     else:
-        copied.extend(copy_resource_tree("skills", target, overwrite=True))
+        copied.extend(copy_resource_tree(CANONICAL_SKILL_RESOURCE, target, overwrite=True))
     return copied
 
 
