@@ -7,6 +7,7 @@ import pytest
 from canisend.job_import import (
     JobImportError,
     extract_html_text,
+    extract_pdf_bytes,
     extract_pdf_text,
     fetch_advert_from_url,
     import_advert_file,
@@ -37,13 +38,15 @@ class EmptyReader:
 class FakeResponse:
     def __init__(
         self,
-        body: str,
+        body: str | bytes,
         content_type: str = "text/html; charset=utf-8",
         content_length: str | None = None,
+        final_url: str | None = None,
     ) -> None:
-        self.body = body.encode("utf-8")
+        self.body = body.encode("utf-8") if isinstance(body, str) else body
         self.headers = {"Content-Type": content_type}
         self.read_sizes: list[int] = []
+        self.final_url = final_url
         if content_length is not None:
             self.headers["Content-Length"] = content_length
 
@@ -58,6 +61,9 @@ class FakeResponse:
         if size < 0:
             return self.body
         return self.body[:size]
+
+    def geturl(self) -> str | None:
+        return self.final_url
 
 
 def _minimal_pdf_bytes(text: str) -> bytes:
@@ -143,6 +149,12 @@ def test_extract_pdf_text_reads_small_real_pdf(tmp_path: Path) -> None:
     assert "Lecturer PDF smoke" in text
 
 
+def test_extract_pdf_bytes_reads_pdf_without_persisting_remote_file() -> None:
+    text = extract_pdf_bytes(_minimal_pdf_bytes("Remote Lecturer PDF"))
+
+    assert "Remote Lecturer PDF" in text
+
+
 def test_import_advert_file_adds_pdf_provenance_header_and_notes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -209,6 +221,21 @@ def test_validate_fetch_url_rejects_unsafe_host_characters() -> None:
         validate_fetch_url("https://example.edu:-->/jobs/123")
 
 
+@pytest.mark.parametrize(
+    "source_url",
+    [
+        "http://localhost/jobs/123",
+        "http://jobs.local/123",
+        "http://127.0.0.1/jobs/123",
+        "http://169.254.169.254/latest/meta-data",
+        "http://10.0.0.1/jobs/123",
+    ],
+)
+def test_validate_fetch_url_rejects_local_or_non_public_hosts(source_url: str) -> None:
+    with pytest.raises(JobImportError, match="localhost|publicly routable"):
+        validate_fetch_url(source_url)
+
+
 def test_extract_html_text_removes_scripts_styles_and_tags() -> None:
     html = """
     <html><head><style>.x{}</style><script>alert(1)</script></head>
@@ -262,6 +289,37 @@ def test_fetch_advert_from_url_reads_html_with_injected_opener() -> None:
     assert "Fetched from https://example.edu/jobs/123" in imported.notes
 
 
+def test_fetch_advert_from_url_reads_direct_pdf_link() -> None:
+    def opener(request, timeout):
+        assert request.full_url == "https://example.edu/jobs/lecturer.pdf"
+        return FakeResponse(
+            _minimal_pdf_bytes("Lecturer PDF advert"),
+            content_type="application/pdf",
+        )
+
+    imported = fetch_advert_from_url(
+        "https://example.edu/jobs/lecturer.pdf",
+        opener=opener,
+    )
+
+    assert imported.status == "advert_imported"
+    assert "Lecturer PDF advert" in imported.text
+    assert "Fetched PDF from https://example.edu/jobs/lecturer.pdf" in imported.text
+    assert "Fetched PDF from https://example.edu/jobs/lecturer.pdf" in imported.notes
+    assert imported.metadata_source_url == "https://example.edu/jobs/lecturer.pdf"
+
+
+def test_fetch_advert_from_url_revalidates_redirect_destination() -> None:
+    def opener(request, timeout):
+        return FakeResponse(
+            "<html><body><h1>Lecturer</h1></body></html>",
+            final_url="http://127.0.0.1/internal-job",
+        )
+
+    with pytest.raises(JobImportError, match="publicly routable"):
+        fetch_advert_from_url("https://example.edu/jobs/123", opener=opener)
+
+
 def test_fetch_advert_from_url_redacts_query_and_strips_fragment() -> None:
     def opener(request, timeout):
         assert request.full_url == (
@@ -299,7 +357,7 @@ def test_fetch_advert_from_url_uses_safe_non_comment_provenance() -> None:
     assert "token=secret" not in imported.notes
 
 
-def test_fetch_advert_from_url_rejects_non_html_content_type() -> None:
+def test_fetch_advert_from_url_rejects_non_advert_content_type() -> None:
     def opener(request, timeout):
         assert request.full_url == "https://example.edu/jobs/123"
         return FakeResponse(
@@ -307,7 +365,7 @@ def test_fetch_advert_from_url_rejects_non_html_content_type() -> None:
             content_type="application/json",
         )
 
-    with pytest.raises(JobImportError, match="Fetched URL did not return HTML"):
+    with pytest.raises(JobImportError, match="Fetched URL did not return HTML or PDF"):
         fetch_advert_from_url("https://example.edu/jobs/123", opener=opener)
 
 

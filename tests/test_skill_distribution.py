@@ -15,6 +15,8 @@ from canisend.package_check import required_wheel_resources
 
 EXPECTED_SKILLS = [
     "canisend",
+    "canisend-job-intake",
+    "canisend-application-package",
     "canisend-job-fit",
     "canisend-research-statement",
     "canisend-teaching-statement",
@@ -25,6 +27,7 @@ EXPECTED_SKILLS = [
     "canisend-interview-prep",
     "canisend-criteria-check",
     "canisend-material-review",
+    "canisend-submission-readiness",
 ]
 
 
@@ -93,6 +96,14 @@ def test_material_skills_reference_shared_canisend_rules():
         assert "Do not fabricate" in contents
 
 
+def test_main_skill_routes_focused_intake_package_and_readiness_workflows():
+    contents = Path("skills/canisend/SKILL.md").read_text()
+
+    assert "$canisend-job-intake" in contents
+    assert "$canisend-application-package" in contents
+    assert "$canisend-submission-readiness" in contents
+
+
 def test_package_check_requires_distributed_skill_pack_resources():
     resources = set(required_wheel_resources())
 
@@ -100,6 +111,12 @@ def test_package_check_requires_distributed_skill_pack_resources():
         "canisend/resources/.codex-plugin/plugin.json",
         "canisend/resources/skills/canisend/SKILL.md",
         "canisend/resources/skills/canisend/references/privacy.md",
+        "canisend/resources/skills/canisend/references/job-lifecycle.md",
+        "canisend/resources/skills/canisend/references/workflow.md",
+        "canisend/resources/skills/canisend-job-intake/SKILL.md",
+        "canisend/resources/skills/canisend-job-intake/agents/openai.yaml",
+        "canisend/resources/skills/canisend-application-package/SKILL.md",
+        "canisend/resources/skills/canisend-application-package/agents/openai.yaml",
         "canisend/resources/skills/canisend-job-fit/SKILL.md",
         "canisend/resources/skills/canisend-research-statement/SKILL.md",
         "canisend/resources/skills/canisend-teaching-statement/SKILL.md",
@@ -110,6 +127,8 @@ def test_package_check_requires_distributed_skill_pack_resources():
         "canisend/resources/skills/canisend-interview-prep/SKILL.md",
         "canisend/resources/skills/canisend-criteria-check/SKILL.md",
         "canisend/resources/skills/canisend-material-review/SKILL.md",
+        "canisend/resources/skills/canisend-submission-readiness/SKILL.md",
+        "canisend/resources/skills/canisend-submission-readiness/agents/openai.yaml",
     }
 
     assert expected <= resources
@@ -126,6 +145,9 @@ def test_export_skills_writes_codex_plugin_distribution(tmp_path):
     assert (target / ".codex-plugin" / "plugin.json").exists()
     assert (target / "skills" / "canisend" / "SKILL.md").exists()
     assert (target / "skills" / "canisend-research-statement" / "SKILL.md").exists()
+    assert (target / "skills" / "canisend-job-intake" / "SKILL.md").exists()
+    assert (target / "skills" / "canisend-application-package" / "SKILL.md").exists()
+    assert (target / "skills" / "canisend-submission-readiness" / "SKILL.md").exists()
 
 
 def test_export_skills_writes_skills_only_distribution(tmp_path):
@@ -141,6 +163,9 @@ def test_export_skills_writes_skills_only_distribution(tmp_path):
     assert (target / "canisend-cover-letter" / "SKILL.md").exists()
     assert (target / "canisend-humanizer" / "SKILL.md").exists()
     assert (target / "canisend-interview-prep" / "SKILL.md").exists()
+    assert (target / "canisend-job-intake" / "SKILL.md").exists()
+    assert (target / "canisend-application-package" / "SKILL.md").exists()
+    assert (target / "canisend-submission-readiness" / "SKILL.md").exists()
 
 
 def test_export_skills_refuses_non_empty_target_without_overwrite(tmp_path):

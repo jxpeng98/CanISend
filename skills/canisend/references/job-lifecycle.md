@@ -5,7 +5,7 @@ Use this reference to decide the next action from current files and `job.yaml` s
 ## Status Values
 
 - `status: new`: job folder exists, but the advert may be empty or manually pending.
-- `status: lead_imported`: job was created from an RSS lead. The full advert still needs manual paste or import.
+- `status: lead_imported`: job was created from an RSS or Atom feed lead. The full advert still needs manual paste or import.
 - `status: advert_imported`: job was created with a local advert file.
 - `status: packaged`: pipeline generated parsed data, reports, drafts, final package, and Typst sources.
 
@@ -26,12 +26,13 @@ Fetch leads or create a job:
 
 ```bash
 canisend fetch-jobs-ac-uk --workspace <private-workspace> --feed-url "<rss-url>"
+canisend fetch-job-feed --workspace <private-workspace> --source-name "<source>" --feed-url "<feed-url>"
 canisend new-job-from-lead --workspace <private-workspace> --lead-index <index> --institution "<institution>"
 ```
 
 ### `status: lead_imported`
 
-Open `jobs/<job-slug>/job_advert.md`. If the `Full Advert` section still contains placeholder text, ask the user to paste the full advert. Do not rely on RSS description alone for final criteria matching.
+Open `jobs/<job-slug>/job_advert.md`. If the `Full Advert` section still contains placeholder text, ask the user to paste or explicitly import the full advert. Do not rely on a feed description alone for final criteria matching.
 
 ### `status: new` or `status: advert_imported`
 
@@ -61,3 +62,5 @@ Review quality gates before rendering:
 - Missing `profile/generated/*.evidence.md`: run `extract-profile-evidence`.
 - Missing `parsed_job.json`: run `canisend run`.
 - Existing generated outputs after advert/profile changes: rerun the pipeline and review diffs.
+- A `typst/*.generated.typ` file after rerun: the editable `.typ` had user changes and was preserved; review and merge
+  the candidate intentionally.

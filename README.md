@@ -15,12 +15,12 @@ Evidence-backed application prep for academic and professional jobs. CLI/package
 
 这也能投是一款 local-first CLI：从职位广告和本地私人履历证据出发，生成可检查的申请材料包，包括 parsed criteria、fit report、cover letter draft、CV tailoring notes、material checklist 和 Typst-ready source。强主张应当能追溯到本地证据。
 
-It prepares materials only. It does not submit applications, create accounts, fill portals, scrape full job pages, upload packages, or answer sensitive declarations.
+It prepares materials only. It does not submit applications, create accounts, fill portals, crawl job sites, upload packages, or answer sensitive declarations. A user may explicitly import one supplied advert URL; CanISend does not run background page discovery or broad scraping.
 
 ## What It Does
 
 - Creates a private workspace for profile evidence, job folders, prompts, Typst templates, schemas, and agent instructions.
-- Imports and filters jobs.ac.uk RSS leads without scraping full job pages.
+- Imports and filters jobs.ac.uk RSS plus generic RSS/Atom leads without crawling full job pages.
 - Creates one local folder per application, with the full advert kept as a manual input.
 - Extracts normalized evidence from Typst-first profile sources into `profile/generated/`.
 - Generates `parsed_job.json`, preparation questions, fit reports, cover letter drafts, CV tailoring notes, criteria checklists, material review checklists, and structured Typst content.
@@ -203,6 +203,20 @@ canisend fetch-jobs-ac-uk \
   --exclude phd
 ```
 
+Any stable RSS or Atom source can use the generic entrypoint:
+
+```bash
+canisend fetch-job-feed \
+  --workspace ~/CanISendWorkspace \
+  --source-name "Example University" \
+  --feed-url "https://example.edu/jobs.atom" \
+  --include economics \
+  --exclude phd
+```
+
+Generic feeds default to `job_leads/<source-name>.json`. They use the same normalized lead fields and local filters as
+jobs.ac.uk. Feed records are discovery leads, not full adverts.
+
 Create a job folder from a selected zero-based lead index:
 
 ```bash
@@ -211,6 +225,16 @@ canisend new-job-from-lead \
   --lead-index 0 \
   --institution "University X" \
   --deadline "2026-06-15"
+```
+
+For a generic feed output, pass its lead file explicitly:
+
+```bash
+canisend new-job-from-lead \
+  --workspace ~/CanISendWorkspace \
+  --leads-file job_leads/example-university.json \
+  --lead-index 0 \
+  --institution "Example University"
 ```
 
 You can also create a job manually:
@@ -228,7 +252,28 @@ canisend new-job \
 
 If these preferences are unknown, leave them unset. CanISend will mark them as `needs_confirmation` and include language/style questions in `00_preparation_questions.md`.
 
-Paste the full advert into `jobs/<job-slug>/job_advert.md` before relying on parsed criteria or generated drafts. V1 does not scrape full job pages.
+Paste the full advert, or import it from a supported local file, into `jobs/<job-slug>/job_advert.md` before relying on parsed criteria or generated
+drafts. A user-provided PDF is a first-class intake path:
+
+```bash
+canisend new-job \
+  --workspace ~/CanISendWorkspace \
+  --title "Lecturer in Economics" \
+  --institution "University X" \
+  --advert-file ~/Downloads/lecturer-job.pdf
+```
+
+`--source-url` records metadata only. When the user explicitly wants one supplied URL imported, add `--fetch-url`;
+the response may be HTML or PDF. This bounded one-URL import is different from crawling or searching a site:
+
+```bash
+canisend new-job \
+  --workspace ~/CanISendWorkspace \
+  --title "Lecturer in Economics" \
+  --institution "University X" \
+  --source-url "https://example.edu/jobs/123" \
+  --fetch-url
+```
 
 ### 4. Generate draft materials
 
@@ -259,6 +304,12 @@ jobs/<job-slug>/
 ```
 
 Generated Typst files are the editable source of truth for final formatting. Content JSON files may still be emitted as compatibility/debug artifacts, but normal edits should happen in the `.typ` files.
+
+CanISend records hashes of its generated Typst baseline. On a later `run`, an unchanged source updates normally. If a
+source has been edited, the user version is preserved and the new generation is written as `*.generated.typ` for
+review instead of silently overwriting the edit. While a candidate is pending, `check-package` and `render-typst`
+refuse to proceed, and `run --git-add-materials` skips staging so Markdown and Typst cannot be recorded as a mismatched
+set.
 
 To track edits to generated application materials in a private git repository, opt in after generation:
 
@@ -327,7 +378,19 @@ canisend check-package \
   --job jobs/<job-slug>
 ```
 
-The check reports missing package files, invalid generated Typst sources, unresolved bracketed placeholders, and unknown profile evidence citations. It does not generate or modify files.
+The check reports incomplete advert or parsed-job inputs, missing or structurally incomplete Typst sources, explicit review blockers,
+unresolved bracketed placeholders, and unknown profile evidence citations. It does not modify files unless an explicit
+machine-readable gate report is requested:
+
+```bash
+canisend check-package \
+  --workspace ~/CanISendWorkspace \
+  --job jobs/<job-slug> \
+  --write-report
+```
+
+The report records safe relative input labels and SHA-256 hashes. A later `canisend run` marks an existing report
+`STALE`, so it cannot be mistaken for a check of regenerated materials.
 
 Render Typst only when needed:
 
@@ -410,9 +473,16 @@ agent-skills/canisend/
 
 ## Skill Distribution
 
-The project also ships a reusable skill pack for cases where you want a narrower agent behavior without opening a CanISend workspace as the active project. The root Codex plugin manifest at `.codex-plugin/plugin.json` exposes `skills/` as a Codex plugin manifest, while the original `agent-skills/canisend/` workspace skill remains unchanged.
+The project also ships a reusable skill pack for cases where you want a narrower agent behavior without opening a CanISend workspace as the active project. The root Codex plugin manifest at `.codex-plugin/plugin.json` exposes `skills/` as a Codex plugin manifest, while `agent-skills/canisend/` remains the mirrored workspace skill copied into user workspaces.
 
-Use the main `canisend` skill for full workspace and job-package workflows. Use focused skills for tasks such as `canisend-job-fit`, `canisend-research-statement`, `canisend-teaching-statement`, `canisend-cover-letter`, `canisend-cv-tailoring`, `canisend-humanizer`, `canisend-application-email`, `canisend-interview-prep`, `canisend-criteria-check`, and `canisend-material-review`.
+Use the main `canisend` skill for full workspace workflows. Use `canisend-job-intake` for source-to-advert intake,
+`canisend-application-package` for coordinated package construction, and `canisend-submission-readiness` for the final
+manual-submission gate. Material-focused skills cover job fit, research and teaching statements, cover letters, CV
+tailoring, humanization, application email, interview preparation, criteria checks, and material review.
+
+The material-focused skill IDs are `canisend-job-fit`, `canisend-research-statement`,
+`canisend-teaching-statement`, `canisend-cover-letter`, `canisend-cv-tailoring`, `canisend-humanizer`,
+`canisend-application-email`, `canisend-interview-prep`, `canisend-criteria-check`, and `canisend-material-review`.
 
 For a Codex marketplace repository, mount this repository as the plugin source:
 
@@ -437,7 +507,7 @@ This repository is intended to be open source. Personal application data should 
 
 - `profile/` is ignored by git except for `.gitkeep`.
 - `jobs/` generated job folders are ignored by git unless selected generated materials are explicitly staged with `canisend run --git-add-materials`.
-- `job_leads/` RSS outputs are ignored by git.
+- `job_leads/` feed outputs are ignored by git.
 - `.env`, API keys, rendered PDFs, raw job adverts, real source URLs, parsed job JSON, and profile files should not be committed.
 - Sensitive declarations such as right-to-work, visa, disability, equality monitoring, health, criminal record, and conflicts remain user-only.
 
@@ -501,4 +571,8 @@ assets/                   project logo and README media
 RELEASE.md                maintainer release playbook
 ```
 
-See `canisend_v1_proposal.md` for the original V1 engineering proposal.
+See `canisend_v1_proposal.md` for the original V1 engineering proposal,
+`docs/superpowers/specs/2026-07-09-discovery-and-workflow-v2-design.md` for detailed multi-source and stage-hardening
+constraints, and `docs/superpowers/specs/2026-07-10-agent-native-workflow-roadmap.md` for the current agent-native
+delivery roadmap. Phase 1 is specified in
+`docs/superpowers/plans/2026-07-10-agent-runtime-contract-foundation.md`.

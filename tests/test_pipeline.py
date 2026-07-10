@@ -1,3 +1,4 @@
+import hashlib
 import json
 from pathlib import Path
 import subprocess
@@ -54,6 +55,17 @@ Desirable criteria:
         encoding="utf-8",
     )
     return job_dir
+
+
+def _set_advert_title(job_dir: Path, title: str) -> None:
+    advert_path = job_dir / "job_advert.md"
+    lines = advert_path.read_text(encoding="utf-8").splitlines()
+    lines[0] = f"# {title}"
+    advert_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _file_hash(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def test_run_pipeline_generates_parsed_job_and_application_outputs(tmp_path):
@@ -155,6 +167,198 @@ Desirable criteria:
     assert "03_cover_letter_draft.md" in review_checklist
     assert "04_cv_tailoring_notes.md" in review_checklist
     assert "Manual judgement required" in review_checklist
+    updated_metadata = yaml.safe_load((job_dir / "job.yaml").read_text(encoding="utf-8"))
+    assert updated_metadata["status"] == "packaged"
+    assert updated_metadata["updated_at"] != "2026-05-03T23:00:00Z"
+    assert updated_metadata["updated_at"].endswith("Z")
+
+
+def test_run_pipeline_updates_unedited_generated_typst_sources(tmp_path):
+    job_dir = _write_basic_job(tmp_path)
+    runner = CliRunner()
+
+    first_result = runner.invoke(app, ["run", "--job", str(job_dir), "--no-git-add-materials"])
+    primary_path = job_dir / "typst" / "cover_letter.typ"
+    first_source = primary_path.read_text(encoding="utf-8")
+
+    _set_advert_title(job_dir, "Senior Lecturer in Economics")
+    second_result = runner.invoke(app, ["run", "--job", str(job_dir), "--no-git-add-materials"])
+
+    assert first_result.exit_code == 0
+    assert second_result.exit_code == 0
+    assert primary_path.read_text(encoding="utf-8") != first_source
+    assert "Senior Lecturer in Economics" in primary_path.read_text(encoding="utf-8")
+    assert not (job_dir / "typst" / "cover_letter.generated.typ").exists()
+    manifest = json.loads(
+        (job_dir / "typst" / ".canisend-generated.json").read_text(encoding="utf-8")
+    )
+    assert set(manifest["files"]) == {"cover_letter.typ", "application_package.typ"}
+    record = manifest["files"]["cover_letter.typ"]
+    assert record["primary_hash"] == _file_hash(primary_path)
+    assert record["candidate_hash"] is None
+    package_path = job_dir / "typst" / "application_package.typ"
+    assert manifest["files"]["application_package.typ"]["primary_hash"] == _file_hash(
+        package_path
+    )
+
+
+def test_run_pipeline_marks_existing_gate_report_stale(tmp_path):
+    job_dir = _write_basic_job(tmp_path)
+    report_path = job_dir / "application_gate_report.json"
+    report_path.write_text(
+        json.dumps({"schema_version": "1.0.0", "status": "PASS", "input_hashes": {}}),
+        encoding="utf-8",
+    )
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        ["run", "--job", str(job_dir), "--no-git-add-materials"],
+    )
+
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    assert result.exit_code == 0
+    assert report["status"] == "STALE"
+    assert report["invalidated_at"].endswith("Z")
+    assert report["invalidation_reason"] == "application artifacts were regenerated"
+
+
+def test_run_pipeline_initializes_matching_legacy_typst_without_candidate(tmp_path):
+    job_dir = _write_basic_job(tmp_path)
+    runner = CliRunner()
+    first_result = runner.invoke(app, ["run", "--job", str(job_dir), "--no-git-add-materials"])
+    typst_dir = job_dir / "typst"
+    manifest_path = typst_dir / ".canisend-generated.json"
+    primary_path = typst_dir / "cover_letter.typ"
+    original_hash = _file_hash(primary_path)
+    manifest_path.unlink()
+
+    result = runner.invoke(app, ["run", "--job", str(job_dir), "--no-git-add-materials"])
+
+    assert first_result.exit_code == 0
+    assert result.exit_code == 0
+    assert _file_hash(primary_path) == original_hash
+    assert not (typst_dir / "cover_letter.generated.typ").exists()
+    assert "WARNING: Preserved edited Typst source" not in result.output
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["files"]["cover_letter.typ"]["primary_hash"] == original_hash
+
+
+def test_run_pipeline_preserves_edited_typst_and_writes_candidate(tmp_path):
+    job_dir = _write_basic_job(tmp_path)
+    runner = CliRunner()
+    first_result = runner.invoke(app, ["run", "--job", str(job_dir), "--no-git-add-materials"])
+    primary_path = job_dir / "typst" / "cover_letter.typ"
+    primary_generated_hash = _file_hash(primary_path)
+    edited_source = primary_path.read_text(encoding="utf-8") + "\n// USER EDIT\n"
+    primary_path.write_text(edited_source, encoding="utf-8")
+    _set_advert_title(job_dir, "Senior Lecturer in Economics")
+
+    result = runner.invoke(app, ["run", "--job", str(job_dir), "--no-git-add-materials"])
+
+    candidate_path = job_dir / "typst" / "cover_letter.generated.typ"
+    assert first_result.exit_code == 0
+    assert result.exit_code == 0
+    assert primary_path.read_text(encoding="utf-8") == edited_source
+    assert candidate_path.exists()
+    assert "Senior Lecturer in Economics" in candidate_path.read_text(encoding="utf-8")
+    assert "WARNING: Preserved edited Typst source" in result.output
+    assert str(candidate_path) in result.output
+    manifest = json.loads(
+        (job_dir / "typst" / ".canisend-generated.json").read_text(encoding="utf-8")
+    )
+    record = manifest["files"]["cover_letter.typ"]
+    assert record["primary_hash"] == primary_generated_hash
+    assert record["candidate_hash"] == _file_hash(candidate_path)
+
+
+def test_run_pipeline_updates_primary_after_generated_candidate_is_adopted(tmp_path):
+    job_dir = _write_basic_job(tmp_path)
+    runner = CliRunner()
+    first_result = runner.invoke(app, ["run", "--job", str(job_dir), "--no-git-add-materials"])
+    primary_path = job_dir / "typst" / "cover_letter.typ"
+    primary_path.write_text(
+        primary_path.read_text(encoding="utf-8") + "\n// USER EDIT\n",
+        encoding="utf-8",
+    )
+    _set_advert_title(job_dir, "Senior Lecturer in Economics")
+    conflict_result = runner.invoke(app, ["run", "--job", str(job_dir), "--no-git-add-materials"])
+    candidate_path = job_dir / "typst" / "cover_letter.generated.typ"
+    adopted_candidate = candidate_path.read_text(encoding="utf-8")
+    primary_path.write_text(adopted_candidate, encoding="utf-8")
+    _set_advert_title(job_dir, "Professor of Applied Economics")
+
+    result = runner.invoke(app, ["run", "--job", str(job_dir), "--no-git-add-materials"])
+
+    assert first_result.exit_code == 0
+    assert conflict_result.exit_code == 0
+    assert result.exit_code == 0
+    assert "Professor of Applied Economics" in primary_path.read_text(encoding="utf-8")
+    assert primary_path.read_text(encoding="utf-8") != adopted_candidate
+    assert not candidate_path.exists()
+    assert "WARNING: Preserved edited Typst source" not in result.output
+    manifest = json.loads(
+        (job_dir / "typst" / ".canisend-generated.json").read_text(encoding="utf-8")
+    )
+    record = manifest["files"]["cover_letter.typ"]
+    assert record["primary_hash"] == _file_hash(primary_path)
+    assert record["candidate_hash"] is None
+
+
+def test_run_pipeline_preserves_separately_edited_candidate_after_adoption(tmp_path):
+    job_dir = _write_basic_job(tmp_path)
+    runner = CliRunner()
+    first_result = runner.invoke(app, ["run", "--job", str(job_dir), "--no-git-add-materials"])
+    primary_path = job_dir / "typst" / "cover_letter.typ"
+    primary_path.write_text(
+        primary_path.read_text(encoding="utf-8") + "\n// USER EDIT\n",
+        encoding="utf-8",
+    )
+    _set_advert_title(job_dir, "Senior Lecturer in Economics")
+    conflict_result = runner.invoke(app, ["run", "--job", str(job_dir), "--no-git-add-materials"])
+    candidate_path = job_dir / "typst" / "cover_letter.generated.typ"
+    primary_path.write_text(candidate_path.read_text(encoding="utf-8"), encoding="utf-8")
+    edited_candidate = candidate_path.read_text(encoding="utf-8") + "\n// CANDIDATE EDIT\n"
+    candidate_path.write_text(edited_candidate, encoding="utf-8")
+    _set_advert_title(job_dir, "Professor of Applied Economics")
+
+    result = runner.invoke(app, ["run", "--job", str(job_dir), "--no-git-add-materials"])
+
+    assert first_result.exit_code == 0
+    assert conflict_result.exit_code == 0
+    assert result.exit_code == 0
+    assert "Professor of Applied Economics" in primary_path.read_text(encoding="utf-8")
+    assert candidate_path.read_text(encoding="utf-8") == edited_candidate
+    manifest = json.loads(
+        (job_dir / "typst" / ".canisend-generated.json").read_text(encoding="utf-8")
+    )
+    assert manifest["files"]["cover_letter.typ"]["candidate_hash"] is None
+
+
+def test_run_pipeline_treats_unknown_manifest_version_conservatively(tmp_path):
+    job_dir = _write_basic_job(tmp_path)
+    runner = CliRunner()
+    first_result = runner.invoke(app, ["run", "--job", str(job_dir), "--no-git-add-materials"])
+    typst_dir = job_dir / "typst"
+    primary_path = typst_dir / "cover_letter.typ"
+    edited_source = primary_path.read_text(encoding="utf-8") + "\n// USER EDIT\n"
+    primary_path.write_text(edited_source, encoding="utf-8")
+    manifest_path = typst_dir / ".canisend-generated.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["version"] = 999
+    manifest["files"]["cover_letter.typ"]["primary_hash"] = _file_hash(primary_path)
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    _set_advert_title(job_dir, "Senior Lecturer in Economics")
+
+    result = runner.invoke(app, ["run", "--job", str(job_dir), "--no-git-add-materials"])
+
+    assert first_result.exit_code == 0
+    assert result.exit_code == 0
+    assert primary_path.read_text(encoding="utf-8") == edited_source
+    assert (typst_dir / "cover_letter.generated.typ").exists()
+    assert "WARNING: Preserved edited Typst source" in result.output
+    rewritten_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert rewritten_manifest["version"] == 1
 
 
 def test_run_git_add_materials_flag_stages_generated_application_materials(tmp_path, monkeypatch):
@@ -178,6 +382,62 @@ def test_run_git_add_materials_flag_stages_generated_application_materials(tmp_p
     assert cwd == Path(".").resolve()
     staged = set(command[4:])
     assert staged == {str(job_dir / relative_path) for relative_path in APPLICATION_MATERIAL_RELATIVE_PATHS}
+
+
+def test_run_skips_git_staging_when_typst_candidate_requires_reconciliation(tmp_path, monkeypatch):
+    job_dir = _write_basic_job(tmp_path)
+    runner = CliRunner()
+    first_result = runner.invoke(
+        app,
+        ["run", "--job", str(job_dir), "--no-git-add-materials"],
+    )
+    primary_path = job_dir / "typst" / "cover_letter.typ"
+    primary_path.write_text(
+        primary_path.read_text(encoding="utf-8") + "\n// USER EDIT\n",
+        encoding="utf-8",
+    )
+    _set_advert_title(job_dir, "Senior Lecturer in Economics")
+    calls = []
+
+    def fake_run(command, *, cwd, text, capture_output, check):
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr("canisend.git_tracking.subprocess.run", fake_run)
+
+    result = runner.invoke(app, ["run", "--job", str(job_dir), "--git-add-materials"])
+
+    assert first_result.exit_code == 0
+    assert result.exit_code == 0
+    assert "Skipped git staging" in result.output
+    assert (job_dir / "typst" / "cover_letter.generated.typ").exists()
+    assert calls == []
+
+
+def test_run_skips_git_staging_for_preexisting_pending_typst_candidate(tmp_path, monkeypatch):
+    job_dir = _write_basic_job(tmp_path)
+    runner = CliRunner()
+    first_result = runner.invoke(
+        app,
+        ["run", "--job", str(job_dir), "--no-git-add-materials"],
+    )
+    candidate_path = job_dir / "typst" / "cover_letter.generated.typ"
+    candidate_path.write_text("// separately edited candidate\n", encoding="utf-8")
+    calls = []
+
+    def fake_run(command, *, cwd, text, capture_output, check):
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr("canisend.git_tracking.subprocess.run", fake_run)
+
+    result = runner.invoke(app, ["run", "--job", str(job_dir), "--git-add-materials"])
+
+    assert first_result.exit_code == 0
+    assert result.exit_code == 0
+    assert "Pending Typst candidate" in result.output
+    assert "Skipped git staging" in result.output
+    assert calls == []
 
 
 def test_run_interactive_git_add_materials_prompt_can_stage_outputs(tmp_path, monkeypatch):

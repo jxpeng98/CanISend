@@ -1,3 +1,4 @@
+import json
 import re
 
 import yaml
@@ -210,6 +211,65 @@ def test_new_job_fetch_url_imports_fetched_advert(tmp_path, monkeypatch):
     assert metadata["source_url"] == "https://example.edu/jobs/123?redacted"
     assert "Essential criteria" in (job_dir / "job_advert.md").read_text()
 
+    pipeline_result = runner.invoke(
+        app,
+        ["run", "--job", str(job_dir), "--no-git-add-materials"],
+    )
+
+    assert pipeline_result.exit_code == 0
+    parsed_job = json.loads((job_dir / "parsed_job.json").read_text(encoding="utf-8"))
+    assert parsed_job["title"] == "Lecturer"
+    assert parsed_job["essential_criteria"][0]["criterion"] == "PhD"
+
+
+def test_new_job_pdf_import_flows_into_job_parser(tmp_path, monkeypatch):
+    jobs_dir = tmp_path / "jobs"
+    pdf_file = tmp_path / "lecturer.pdf"
+    pdf_file.write_bytes(b"%PDF fake")
+    monkeypatch.setattr(
+        "canisend.job_import.extract_pdf_text",
+        lambda path: (
+            "# Lecturer in Economics\n\n"
+            "Department: Economics\n"
+            "Required documents: CV, Cover letter\n\n"
+            "Essential criteria:\n"
+            "- PhD in Economics\n"
+        ),
+    )
+    runner = CliRunner()
+
+    intake_result = runner.invoke(
+        app,
+        [
+            "new-job",
+            "--title",
+            "Lecturer in Economics",
+            "--institution",
+            "University X",
+            "--deadline",
+            "2026-06-15",
+            "--advert-file",
+            str(pdf_file),
+            "--jobs-dir",
+            str(jobs_dir),
+        ],
+    )
+
+    job_dir = jobs_dir / "2026-06-15_university-x_lecturer-in-economics"
+    pipeline_result = runner.invoke(
+        app,
+        ["run", "--job", str(job_dir), "--no-git-add-materials"],
+    )
+
+    assert intake_result.exit_code == 0
+    assert pipeline_result.exit_code == 0
+    metadata = yaml.safe_load((job_dir / "job.yaml").read_text(encoding="utf-8"))
+    parsed_job = json.loads((job_dir / "parsed_job.json").read_text(encoding="utf-8"))
+    assert metadata["notes"].startswith("Imported from local PDF lecturer.pdf")
+    assert parsed_job["title"] == "Lecturer in Economics"
+    assert parsed_job["required_documents"] == ["CV", "Cover letter"]
+    assert parsed_job["essential_criteria"][0]["criterion"] == "PhD in Economics"
+
 
 def test_new_job_from_lead_creates_workspace_without_scraping(tmp_path):
     jobs_dir = tmp_path / "jobs"
@@ -255,8 +315,40 @@ def test_new_job_from_lead_creates_workspace_without_scraping(tmp_path):
     assert metadata["status"] == "lead_imported"
     advert = (job_dir / "job_advert.md").read_text()
     assert "Teach econometrics and finance" in advert
-    assert "RSS lead only" in advert
-    assert "Paste the full advert manually" in advert
+    assert "Feed lead only" in advert
+    assert "Paste or import the full advert" in advert
+
+
+def test_new_job_from_feed_lead_uses_source_neutral_empty_description(tmp_path):
+    jobs_dir = tmp_path / "jobs"
+    leads_file = tmp_path / "atom.json"
+    leads_file.write_text(
+        '[{"title":"Research Fellow","source_url":"https://example.edu/jobs/1",'
+        '"description":"","published_at":"","source":"Example",'
+        '"source_feed":"https://example.edu/jobs.atom"}]\n',
+        encoding="utf-8",
+    )
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "new-job-from-lead",
+            "--leads-file",
+            str(leads_file),
+            "--lead-index",
+            "0",
+            "--institution",
+            "Example University",
+            "--jobs-dir",
+            str(jobs_dir),
+        ],
+    )
+
+    assert result.exit_code == 0
+    advert = next(jobs_dir.iterdir()).joinpath("job_advert.md").read_text(encoding="utf-8")
+    assert "No feed description available" in advert
+    assert "No RSS description" not in advert
 
 
 def test_new_job_from_lead_rejects_negative_index(tmp_path):

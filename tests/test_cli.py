@@ -30,6 +30,7 @@ def test_cli_help_shows_core_commands():
     assert "new-job-from-lead" in output
     assert "list-jobs" in output
     assert "fetch-jobs-ac-uk" in output
+    assert "fetch-job-feed" in output
     assert "extract-profile-evidence" in output
     assert "run" in output
     assert "check-package" in output

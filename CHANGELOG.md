@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Added generic RSS 2.0, RSS 1.0, and Atom job-feed ingestion while preserving the jobs.ac.uk command.
+- Added bounded feed transport, provenance redaction, source collision protection, and safer input validation.
+- Kept direct user intake as a first-class path for local PDF/text adverts and single HTML or PDF job URLs.
+- Added strict APP-Q package gates with metadata, evidence freshness, Typst structure, blocker, and input-hash checks.
+- Added Typst regeneration protection so user edits produce reviewable candidates instead of being overwritten.
+- Added focused job-intake, application-package, and submission-readiness skills.
+- Added the multi-source discovery and stage-hardening V2 design roadmap.
+
 ## 0.1.0 - Alpha
 
 Initial alpha release of the local-first academic application preparation CLI.

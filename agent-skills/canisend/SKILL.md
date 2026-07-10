@@ -1,6 +1,6 @@
 ---
 name: canisend
-description: Use when preparing evidence-backed academic or professional job application materials in a CanISend workspace, coordinating Codex, Claude Code, and IDE agents, handling jobs.ac.uk RSS leads, matching criteria to private profile evidence, reviewing citations, or checking modernpro Typst outputs.
+description: Use when preparing evidence-backed academic or professional job application materials in a CanISend workspace, routing jobs.ac.uk RSS or generic RSS and Atom intake, coordinating complete-package work, matching criteria to private profile evidence, or checking citations, readiness, and modernpro Typst outputs.
 ---
 
 # CanISend
@@ -28,7 +28,7 @@ From a development checkout, prefix CLI commands with `uv run`.
 Allowed by default:
 
 - Inspect workspace structure, run `doctor`, list job state, and read generated evidence needed for the current task.
-- Run deterministic commands such as `extract-profile-evidence`, `fetch-jobs-ac-uk`, `new-job`, `new-job-from-lead`, `run`, and `render-typst` when inputs are local and clear.
+- Run deterministic commands such as `extract-profile-evidence`, `fetch-job-feed`, `fetch-jobs-ac-uk`, `new-job`, `new-job-from-lead`, `run`, `check-package`, and `render-typst` when inputs are local and clear.
 - Edit generated drafts, prompt overrides, templates, examples, docs, tests, and skill files within the user's stated scope.
 
 Requires explicit user approval:
@@ -60,6 +60,15 @@ Read only the reference files needed for the current task:
 - `references/platforms.md`: how to expose this skill in Codex, Claude Code, and IDE agents.
 - `references/agent-orchestration.md`: Codex, Claude Code, and IDE agent coordination patterns.
 - `references/privacy.md`: privacy and git-safety rules.
+
+## Focused Skill Routing
+
+When the focused skills are installed:
+
+- Use `$canisend-job-intake` to move from an RSS, Atom, manual, or local-file source to one job folder with a verified full advert.
+- Use `$canisend-application-package` to construct or integrate the complete multi-document application package.
+- Use `$canisend-submission-readiness` for a strict whole-package gate before the user submits manually.
+- Keep document-specific drafting in the matching material skill and use `$canisend-material-review` for narrower material review.
 
 ## Default Sequence
 

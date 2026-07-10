@@ -60,7 +60,8 @@ Only modify original profile inputs after repeated user confirmation and orchest
 - Do not submit an application.
 - Do not create or log in to university portal accounts.
 - Do not fill equality, disability, visa, right-to-work, criminal record, conflict, health, or other sensitive declarations.
-- Do not scrape full job pages unless the project scope changes and the user explicitly approves it.
+- Do not crawl job sites or scrape search-result pages. `new-job --fetch-url` is limited to one user-supplied advert URL
+  and still requires explicit user intent.
 - Do not upload generated PDFs or application packages anywhere.
 
 ## Do Not Quote In Chat

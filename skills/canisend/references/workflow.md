@@ -48,11 +48,21 @@ canisend fetch-jobs-ac-uk \
   --exclude "<keyword>"
 ```
 
-RSS leads are discovery records, not full adverts. Ask the user to choose a lead index unless they already provided one.
+Use the generic command for another stable RSS or Atom source:
+
+```bash
+canisend fetch-job-feed \
+  --workspace <private-workspace> \
+  --source-name "<source label>" \
+  --feed-url "<rss-or-atom-url>"
+```
+
+Feed leads are discovery records, not full adverts. Ask the user to choose a lead index unless they already provided
+one. Generic source files are written under `job_leads/<source-name>.json` and should be passed with `--leads-file`.
 
 ## 4. Create One Job Workspace
 
-From an RSS lead:
+From a feed lead:
 
 ```bash
 canisend new-job-from-lead \
@@ -73,7 +83,10 @@ canisend new-job \
   --source-url "<source-url>"
 ```
 
-Paste or import the full selected advert into `jobs/<job-slug>/job_advert.md` before relying on parser output.
+Paste or import the full selected advert into `jobs/<job-slug>/job_advert.md` before relying on parser output. Direct
+intake may use `new-job --advert-file <advert.pdf|advert.md|advert.txt>`.
+`new-job --source-url` records metadata only. Use `--fetch-url` only when the user explicitly asks to import that one
+supplied HTML or PDF advert; it does not authorize site crawling or search-result scraping.
 
 ## 5. Generate Draft Package
 
@@ -114,6 +127,12 @@ Review, in order:
 
 Apply `quality-gates.md` before treating any output as usable.
 In particular, check language/style confirmation, item-level citations, unsupported claims, required-document coverage, and private-file safety before presenting a package as ready.
+
+Repeated generation protects edited Typst sources. If `run` reports a `*.generated.typ` candidate, compare it with the
+preserved user-edited `.typ` file and merge intentionally before rendering.
+
+Use `canisend check-package --write-report` when a machine-readable `application_gate_report.json` is useful. Without
+that flag, the check remains read-only.
 
 In agent-assisted mode, also report which private sources were read directly, which LLM-backed CLI flags were used, and which remaining claims need manual confirmation.
 

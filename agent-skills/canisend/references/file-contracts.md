@@ -89,17 +89,23 @@ typst/
   application_package.typ
 ```
 
-RSS lead outputs live in ignored `job_leads/`.
+RSS and Atom lead outputs live in ignored `job_leads/`.
 
 ## Output Contracts
 
 - `job.yaml`: lightweight tracking fields, including `title`, `institution`, `deadline`, `source_url`, `status`, `english_variant`, `writing_style`, `created_at`, and `updated_at`.
-- `job_advert.md`: full advert text. RSS-created jobs start with lead metadata and require manual full advert paste.
+- `job_advert.md`: full advert text. Feed-created jobs start with lead metadata and require manual full advert paste or
+  an explicit one-URL import.
 - `parsed_job.json`: structured advert data. Missing fields should remain empty or unknown; do not invent.
 - `00_preparation_questions.md`: grill-me checklist for confirming US English vs UK English, writing style, specific motivation, emphasis, risks, and excluded details before treating materials as final.
 - `02_fit_report.md`, `03_cover_letter_draft.md`, `04_cv_tailoring_notes.md`, `05_criteria_checklist.md`: evidence-grounded Markdown review artifacts.
 - `07_material_review_checklist.md`: management artifact for cover letter draft, CV tailoring notes, placeholders, item-level citations, and manual follow-up actions.
 - `typst/cover_letter.typ`: editable Typst source for the final cover letter, with stable `// CANISEND: section ...` markers.
 - `typst/application_package.typ`: editable Typst source for the final package, including remaining actions and review sections.
+- `typst/.canisend-generated.json`: generated-hash metadata used to avoid overwriting user-edited Typst files.
+- `typst/*.generated.typ`: candidate regeneration written only when the corresponding editable `.typ` has diverged
+  from its generated baseline.
+- `application_gate_report.json`: optional machine-readable `APP-Q*` report written only by an explicit
+  `check-package --write-report` request.
 
 The pipeline may emit content JSON compatibility/debug artifacts under `typst/`, but agents should treat the `.typ` files as the editing contract.

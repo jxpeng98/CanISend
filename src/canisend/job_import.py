@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from html.parser import HTMLParser
+from io import BytesIO
+import ipaddress
 from pathlib import Path
 import re
 from typing import Any, Callable
@@ -113,11 +115,35 @@ def extract_pdf_text(
         reader_factory = PdfReader
 
     try:
-        reader = reader_factory(path)
-        pages = [page.extract_text() or "" for page in reader.pages]
+        return _extract_pdf_reader_text(reader_factory(path))
+    except JobImportError:
+        raise
     except Exception as exc:
         raise JobImportError(f"Could not read PDF advert: {exc}") from exc
 
+
+def extract_pdf_bytes(
+    pdf_bytes: bytes,
+    *,
+    reader_factory: Callable[[Any], Any] | None = None,
+) -> str:
+    if reader_factory is None:
+        try:
+            from pypdf import PdfReader
+        except ImportError as exc:
+            raise JobImportError("PDF import requires the pypdf package.") from exc
+        reader_factory = PdfReader
+
+    try:
+        return _extract_pdf_reader_text(reader_factory(BytesIO(pdf_bytes)))
+    except JobImportError:
+        raise
+    except Exception as exc:
+        raise JobImportError(f"Could not read PDF advert: {exc}") from exc
+
+
+def _extract_pdf_reader_text(reader: Any) -> str:
+    pages = [page.extract_text() or "" for page in reader.pages]
     text = "\n\n".join(page.strip() for page in pages if page.strip()).strip()
     if not text:
         raise JobImportError("No text could be extracted from the PDF advert.")
@@ -141,6 +167,20 @@ def validate_fetch_url(source_url: str) -> str:
         port = parsed.port
     except ValueError as exc:
         raise JobImportError("Fetch URL port is invalid.") from exc
+    hostname = parsed.hostname.rstrip(".").lower()
+    if (
+        hostname in {"localhost", "localhost.localdomain", "ip6-localhost", "ip6-loopback"}
+        or hostname.endswith(".localhost")
+        or hostname.endswith(".local")
+    ):
+        raise JobImportError("Fetch URL must not target localhost.")
+    try:
+        address = ipaddress.ip_address(hostname)
+    except ValueError:
+        address = None
+    if address is not None and not address.is_global:
+        raise JobImportError("Fetch URL IP address must be publicly routable.")
+
     safe_netloc = parsed.hostname
     if port is not None:
         safe_netloc = f"{safe_netloc}:{port}"
@@ -184,35 +224,53 @@ def fetch_advert_from_url(
     max_bytes: int = _DEFAULT_MAX_BYTES,
 ) -> ImportedAdvert:
     url = validate_fetch_url(source_url)
-    provenance_url = _provenance_url(url)
     request = Request(url, headers={"User-Agent": "CanISend/0.2 job-advert-import"})
     try:
         with opener(request, timeout=timeout) as response:
+            final_url = response.geturl() if hasattr(response, "geturl") else request.full_url
+            validated_final_url = validate_fetch_url(str(final_url or request.full_url))
             content_type = response.headers.get("Content-Type", "")
-            if "html" not in content_type.lower():
+            media_type = content_type.partition(";")[0].strip().lower()
+            if "html" not in media_type and media_type != "application/pdf":
                 detail = content_type or "unknown content type"
-                raise JobImportError(f"Fetched URL did not return HTML: {detail}")
+                raise JobImportError(f"Fetched URL did not return HTML or PDF: {detail}")
             raw = _read_limited_response(response, max_bytes=max_bytes)
     except JobImportError:
         raise
     except Exception as exc:
         raise JobImportError(f"Could not fetch job URL: {exc}") from exc
 
-    text = extract_html_text(raw.decode("utf-8", errors="replace"))
+    provenance_url = _provenance_url(validated_final_url)
+    if media_type == "application/pdf":
+        text = extract_pdf_bytes(raw)
+        source_label = "PDF from"
+    else:
+        charset_match = re.search(
+            r"(?:^|;)\s*charset\s*=\s*['\"]?([^;'\"\s]+)",
+            content_type,
+            flags=re.IGNORECASE,
+        )
+        charset = charset_match.group(1) if charset_match else "utf-8"
+        try:
+            html = raw.decode(charset, errors="replace")
+        except LookupError as exc:
+            raise JobImportError(f"Fetched URL declares unsupported charset: {charset}") from exc
+        text = extract_html_text(html)
+        source_label = "from"
     if not text:
         raise JobImportError(
             "No readable text could be extracted from the fetched job page."
         )
 
     header = (
-        f"Fetched from {provenance_url}\n"
+        f"Fetched {source_label} {provenance_url}\n"
         "Review extracted text before relying on parsed criteria.\n\n"
     )
     return ImportedAdvert(
         text=header + text.rstrip() + "\n",
         status="advert_imported",
         notes=(
-            f"Fetched from {provenance_url}; "
+            f"Fetched {source_label} {provenance_url}; "
             "review extracted text before relying on parsed criteria."
         ),
         metadata_source_url=provenance_url,

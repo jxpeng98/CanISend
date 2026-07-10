@@ -18,7 +18,7 @@ Do not use ready, final, complete, or submission-ready for generated materials u
 
 ## Job Advert Gate
 
-- RSS-created jobs no longer rely only on RSS description.
+- Feed-created jobs no longer rely only on RSS or Atom description.
 - `job_advert.md` contains the full advert or the user has explicitly accepted partial processing.
 - `parsed_job.json` title, institution, deadline, required documents, essential criteria, and source URL match the advert.
 - Missing advert fields are left empty or unknown; do not invent.
@@ -38,7 +38,18 @@ Do not use ready, final, complete, or submission-ready for generated materials u
 - `typst/cover_letter.typ` directly contains the cover letter text and stable section markers.
 - `typst/application_package.typ` directly contains the package text, criteria checklist, and remaining actions.
 - Generated `.typ` files use `modernpro-coverletter` or `modernpro-cv` templates rather than Markdown-to-Typst conversion.
+- If a rerun writes `*.generated.typ`, the preserved editable source and candidate have been compared and reconciled.
+- No `typst/*.generated.typ` candidate remains; pending candidates block package readiness and rendering.
 - PDF rendering is optional and requires local Typst.
+
+## Executable Gate Report
+
+- `canisend check-package` checks `APP-Q1` advert integrity, `APP-Q2` evidence traceability, `APP-Q3` artifact
+  completeness, and `APP-Q4` unresolved human-review blockers.
+- `check-package --write-report` writes `application_gate_report.json`; without the flag the check is read-only.
+- The report includes SHA-256 hashes under safe relative labels. Any later input or material edit changes those hashes
+  and requires a fresh check.
+- A later `canisend run` marks an existing report `STALE`; rerun `check-package --write-report` after reconciliation.
 
 ## Privacy Gate
 

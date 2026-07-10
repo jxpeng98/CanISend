@@ -1,5 +1,8 @@
+import hashlib
+import json
 from pathlib import Path
 import sys
+import unicodedata
 
 import typer
 
@@ -7,12 +10,19 @@ from canisend import __version__
 from canisend.evidence import EvidenceAugmentationError, extract_profile_evidence
 from canisend.examples import run_packaged_example
 from canisend.git_tracking import GitTrackingError, git_add_application_materials
-from canisend.jobs import create_job, create_job_from_lead, list_jobs as list_job_folders
+from canisend.jobs import create_job, create_job_from_lead, list_jobs as list_job_folders, slugify
 from canisend.orchestrator import OrchestrationError, run_orchestration
 from canisend.pipeline import run_pipeline as run_job_pipeline
 from canisend.profile import init_profile as create_profile
 from canisend.ready_check import check_application_package
-from canisend.rss import fetch_rss_text, filter_job_leads, parse_jobs_ac_uk_rss, write_job_leads
+from canisend.rss import (
+    JobFeedError,
+    fetch_rss_text,
+    filter_job_leads,
+    parse_job_feed,
+    parse_jobs_ac_uk_rss,
+    write_job_leads,
+)
 from canisend.skill_distribution import export_skill_distribution
 from canisend.typst import render_typst_files
 from canisend.versioning import fetch_remote_versions, format_version_report
@@ -76,6 +86,55 @@ def _should_git_add_materials(value: bool | None) -> bool:
     if not _stdin_is_interactive():
         return False
     return typer.confirm("Add generated application materials to git?", default=False)
+
+
+def _validate_lead_limit(limit: int) -> None:
+    if limit < 0:
+        raise typer.BadParameter("--limit must be zero or greater.")
+
+
+def _validate_feed_input(feed_url: str, rss_file: Path | None) -> None:
+    if rss_file is None and not feed_url:
+        raise typer.BadParameter("Provide exactly one of --feed-url or --rss-file.")
+    if rss_file is not None and feed_url:
+        raise typer.BadParameter("Use either --feed-url or --rss-file, not both.")
+
+
+def _feed_source_slug(source_label: str) -> str:
+    if any(unicodedata.category(character).startswith("C") for character in source_label):
+        raise typer.BadParameter("--source-name must not contain control characters.")
+    if not any(character.isalnum() for character in source_label):
+        raise typer.BadParameter("--source-name must contain a letter or number.")
+    ascii_slug = slugify(source_label)
+    if ascii_slug:
+        return ascii_slug
+    digest = hashlib.sha256(source_label.encode("utf-8")).hexdigest()[:10]
+    return f"source-{digest}"
+
+
+def _ensure_default_feed_output_matches_source(path: Path, source_label: str) -> None:
+    if not path.exists():
+        return
+    try:
+        existing = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise typer.BadParameter(
+            f"Default output {path} already exists and cannot be verified; use --output explicitly."
+        ) from exc
+    if not isinstance(existing, list):
+        raise typer.BadParameter(
+            f"Default output {path} is not a lead list; use --output explicitly."
+        )
+    existing_sources = {
+        str(item.get("source", "")).strip()
+        for item in existing
+        if isinstance(item, dict) and str(item.get("source", "")).strip()
+    }
+    if existing_sources and existing_sources != {source_label}:
+        labels = ", ".join(sorted(existing_sources))
+        raise typer.BadParameter(
+            f"Default output {path} already belongs to source {labels}; use --output explicitly."
+        )
 
 
 @app.callback()
@@ -290,6 +349,11 @@ def check_package(
         "--profile-dir",
         help="Directory containing generated profile evidence. Relative paths are resolved against --workspace.",
     ),
+    write_report: bool = typer.Option(
+        False,
+        "--write-report",
+        help="Write application_gate_report.json to the job directory after checking.",
+    ),
 ) -> None:
     """Check whether a generated application package has unresolved issues."""
     config = load_workspace_config(workspace)
@@ -299,6 +363,13 @@ def check_package(
     )
     for line in result.output_lines():
         typer.echo(line)
+    if write_report:
+        try:
+            report_path = result.write_report()
+        except ValueError as exc:
+            typer.echo(str(exc), err=True)
+        else:
+            typer.echo(f"Application gate report: {report_path}")
     if not result.ok:
         raise typer.Exit(code=1)
 
@@ -446,7 +517,7 @@ def new_job(
     fetch_url: bool = typer.Option(
         False,
         "--fetch-url",
-        help="Explicitly fetch --source-url and import readable HTML text into job_advert.md.",
+        help="Explicitly fetch --source-url and import readable HTML or PDF text into job_advert.md.",
     ),
     english_variant: str = typer.Option(
         "",
@@ -488,12 +559,12 @@ def new_job_from_lead(
     leads_file: Path | None = typer.Option(
         None,
         "--leads-file",
-        help="Local RSS lead JSON file created by fetch-jobs-ac-uk. Relative paths are resolved against --workspace.",
+        help="Local lead JSON file created by fetch-jobs-ac-uk or fetch-job-feed. Relative paths are resolved against --workspace.",
     ),
     lead_index: int = typer.Option(..., "--lead-index", help="Zero-based index of the selected lead."),
     institution: str = typer.Option(..., "--institution", help="Hiring institution for the job workspace."),
     deadline: str = typer.Option("unknown", "--deadline", help="Application deadline."),
-    title: str | None = typer.Option(None, "--title", help="Override the RSS lead title."),
+    title: str | None = typer.Option(None, "--title", help="Override the feed lead title."),
     english_variant: str = typer.Option(
         "",
         "--english-variant",
@@ -510,7 +581,7 @@ def new_job_from_lead(
         help="Directory for job folders. Relative paths are resolved against --workspace.",
     ),
 ) -> None:
-    """Create a local job folder from a selected RSS lead without scraping."""
+    """Create a local job folder from a selected RSS or Atom lead without crawling."""
     config = load_workspace_config(workspace)
     try:
         job_dir = create_job_from_lead(
@@ -583,17 +654,69 @@ def fetch_jobs_ac_uk(
     limit: int = typer.Option(100, "--limit", help="Maximum number of leads to write."),
 ) -> None:
     """Fetch jobs.ac.uk RSS leads and apply local keyword filters."""
-    if rss_file is None and not feed_url:
-        raise typer.BadParameter("Provide --feed-url or --rss-file.")
+    _validate_feed_input(feed_url, rss_file)
+    _validate_lead_limit(limit)
 
     config = load_workspace_config(workspace)
     output_path = config.lead_file(output)
-    xml_text = rss_file.read_text(encoding="utf-8") if rss_file is not None else fetch_rss_text(feed_url)
-    leads = parse_jobs_ac_uk_rss(xml_text, feed_url=feed_url)
+    try:
+        xml_text = rss_file.read_text(encoding="utf-8") if rss_file is not None else fetch_rss_text(feed_url)
+        leads = parse_jobs_ac_uk_rss(xml_text, feed_url=feed_url)
+    except (JobFeedError, OSError, UnicodeError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
     filtered = filter_job_leads(leads, include_keywords=include, exclude_keywords=exclude)
     limited = filtered[:limit]
     write_job_leads(output_path, limited)
     typer.echo(f"Wrote {len(limited)} jobs.ac.uk leads to {output_path}")
+
+
+@app.command("fetch-job-feed")
+def fetch_job_feed(
+    source_name: str = typer.Option(..., "--source-name", help="Label for the job feed source."),
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="User workspace directory containing canisend.yaml.",
+    ),
+    feed_url: str = typer.Option("", "--feed-url", help="RSS or Atom feed URL."),
+    rss_file: Path | None = typer.Option(
+        None,
+        "--rss-file",
+        help="Local RSS or Atom XML file for testing or offline import.",
+    ),
+    output: Path | None = typer.Option(
+        None,
+        "--output",
+        help="JSON output path. Relative paths are resolved against --workspace.",
+    ),
+    include: list[str] = typer.Option([], "--include", help="Include jobs matching this keyword."),
+    exclude: list[str] = typer.Option([], "--exclude", help="Exclude jobs matching this keyword."),
+    limit: int = typer.Option(100, "--limit", help="Maximum number of leads to write."),
+) -> None:
+    """Fetch a generic RSS or Atom job feed and apply local keyword filters."""
+    source_label = source_name.strip()
+    if not source_label:
+        raise typer.BadParameter("--source-name must not be empty.")
+    source_slug = _feed_source_slug(source_label)
+    _validate_feed_input(feed_url, rss_file)
+    _validate_lead_limit(limit)
+
+    config = load_workspace_config(workspace)
+    default_output = output is None
+    output_path = config.lead_file(output) if output is not None else (
+        config.path("job_leads_dir") / f"{source_slug}.json"
+    )
+    if default_output:
+        _ensure_default_feed_output_matches_source(output_path, source_label)
+    try:
+        xml_text = rss_file.read_text(encoding="utf-8") if rss_file is not None else fetch_rss_text(feed_url)
+        leads = parse_job_feed(xml_text, feed_url=feed_url, source_name=source_label)
+    except (JobFeedError, OSError, UnicodeError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    filtered = filter_job_leads(leads, include_keywords=include, exclude_keywords=exclude)
+    limited = filtered[:limit]
+    write_job_leads(output_path, limited)
+    typer.echo(f"Wrote {len(limited)} {source_label} leads to {output_path}")
 
 
 @app.command("run")
@@ -687,6 +810,32 @@ def run_pipeline(
         prompt_dir=config.path("prompt_dir", prompt_dir),
     )
     typer.echo(f"Generated {len(written)} files for {job_dir}")
+    written_candidate_paths = {
+        path for path in written if path.name.endswith(".generated.typ")
+    }
+    candidate_paths = sorted((job_dir / "typst").glob("*.generated.typ"))
+    for candidate_path in candidate_paths:
+        primary_path = candidate_path.with_name(
+            candidate_path.name.removesuffix(".generated.typ") + ".typ"
+        )
+        if candidate_path in written_candidate_paths:
+            message = (
+                "WARNING: Preserved edited Typst source "
+                f"{primary_path}; wrote the new generated candidate to {candidate_path}. "
+                "Replace the primary file with the candidate to adopt it."
+            )
+        else:
+            message = (
+                f"WARNING: Pending Typst candidate {candidate_path} still requires reconciliation "
+                f"with {primary_path}."
+            )
+        typer.echo(message, err=True)
+    if candidate_paths:
+        typer.echo(
+            "Skipped git staging because the generated Markdown and preserved Typst sources need reconciliation.",
+            err=True,
+        )
+        return
     if _should_git_add_materials(git_add_materials):
         try:
             git_result = git_add_application_materials(job_dir, repo_dir=config.root)

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +31,11 @@ from canisend.typst_mapping import (
     render_modernpro_application_package_source,
     render_modernpro_cover_letter_source,
 )
+
+
+TYPST_GENERATION_MANIFEST = ".canisend-generated.json"
+TYPST_GENERATION_MANIFEST_VERSION = 1
+APPLICATION_GATE_REPORT = "application_gate_report.json"
 
 
 def run_pipeline(
@@ -66,6 +73,7 @@ def run_pipeline(
     else:
         final_package = _final_package(parsed_job, materials)
     material_review = build_material_review_checklist(parsed_job, materials)
+    _invalidate_application_gate_report(job_dir)
     written = [
         _write_json(job_dir / "parsed_job.json", parsed_job),
         _write_text(job_dir / "00_preparation_questions.md", _preparation_questions(parsed_job, metadata)),
@@ -82,14 +90,21 @@ def run_pipeline(
     cover_letter_content = build_cover_letter_content(parsed_job, materials)
     application_package_content = build_application_package_content(parsed_job, materials, final_package)
     written.append(_write_json(typst_dir / "cover_letter_content.json", cover_letter_content))
-    written.append(_write_text(typst_dir / "cover_letter.typ", render_modernpro_cover_letter_source(cover_letter_content)))
     written.append(_write_json(typst_dir / "application_package_content.json", application_package_content))
-    written.append(_write_text(
-        typst_dir / "application_package.typ",
-        render_modernpro_application_package_source(application_package_content),
-    ))
+    written.extend(
+        _write_protected_typst_sources(
+            typst_dir,
+            {
+                "cover_letter.typ": render_modernpro_cover_letter_source(cover_letter_content),
+                "application_package.typ": render_modernpro_application_package_source(
+                    application_package_content
+                ),
+            },
+        )
+    )
 
     metadata["status"] = "packaged"
+    metadata["updated_at"] = _utc_now()
     metadata_path.write_text(yaml.safe_dump(metadata, sort_keys=False), encoding="utf-8")
     return written
 
@@ -160,6 +175,116 @@ def _write_text(path: Path, text: str) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
     return path
+
+
+def _invalidate_application_gate_report(job_dir: Path) -> None:
+    report_path = job_dir / APPLICATION_GATE_REPORT
+    if not report_path.is_file():
+        return
+    try:
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return
+    if not isinstance(report, dict):
+        return
+    report["status"] = "STALE"
+    report["invalidated_at"] = _utc_now()
+    report["invalidation_reason"] = "application artifacts were regenerated"
+    _write_json(report_path, report)
+
+
+def _write_protected_typst_sources(typst_dir: Path, sources: dict[str, str]) -> list[Path]:
+    """Write generated Typst without overwriting a user-edited primary source."""
+    manifest_path = typst_dir / TYPST_GENERATION_MANIFEST
+    manifest = _load_typst_generation_manifest(manifest_path)
+    file_records = manifest["files"]
+    written: list[Path] = []
+
+    for filename, source in sources.items():
+        primary_path = typst_dir / filename
+        candidate_path = primary_path.with_name(f"{primary_path.stem}.generated{primary_path.suffix}")
+        record = file_records.get(filename)
+        if not isinstance(record, dict):
+            record = {}
+
+        primary_hash = _manifest_hash(record.get("primary_hash"))
+        candidate_hash = _manifest_hash(record.get("candidate_hash"))
+
+        generated_hash = _hash_text(source)
+        if not primary_path.exists():
+            written.append(_write_text(primary_path, source))
+            primary_hash = generated_hash
+        else:
+            current_hash = _hash_file(primary_path)
+            adopted_candidate = candidate_hash is not None and current_hash == candidate_hash
+            safe_primary = current_hash == primary_hash or current_hash == generated_hash
+            if safe_primary or adopted_candidate:
+                written.append(_write_text(primary_path, source))
+                primary_hash = generated_hash
+                if adopted_candidate:
+                    candidate_is_unchanged = (
+                        candidate_path.is_file()
+                        and _hash_file(candidate_path) == candidate_hash
+                    )
+                    if candidate_is_unchanged:
+                        candidate_path.unlink()
+                    candidate_hash = None
+            else:
+                written.append(_write_text(candidate_path, source))
+                candidate_hash = generated_hash
+
+        file_records[filename] = {
+            "primary_hash": primary_hash,
+            "candidate_hash": candidate_hash,
+        }
+
+    _write_json(manifest_path, manifest)
+    return written
+
+
+def _load_typst_generation_manifest(path: Path) -> dict[str, Any]:
+    if path.is_file():
+        try:
+            loaded = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            loaded = None
+        if (
+            isinstance(loaded, dict)
+            and type(loaded.get("version")) is int
+            and loaded["version"] == TYPST_GENERATION_MANIFEST_VERSION
+            and isinstance(loaded.get("files"), dict)
+        ):
+            return {
+                "version": TYPST_GENERATION_MANIFEST_VERSION,
+                "files": dict(loaded["files"]),
+            }
+    return {
+        "version": TYPST_GENERATION_MANIFEST_VERSION,
+        "files": {},
+    }
+
+
+def _manifest_hash(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip().lower()
+    if len(normalized) != 64 or any(
+        character not in "0123456789abcdef" for character in normalized
+    ):
+        return None
+    return normalized
+
+
+def _hash_text(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _hash_file(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _utc_now() -> str:
+    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def _job_summary(parsed_job: dict[str, Any]) -> str:

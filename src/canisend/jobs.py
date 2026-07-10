@@ -87,7 +87,7 @@ def create_job_from_lead(
     if not lead_title:
         raise ValueError("Selected lead does not contain a title; provide --title.")
     if not institution.strip():
-        raise ValueError("Provide --institution when creating a job from an RSS lead.")
+        raise ValueError("Provide --institution when creating a job from a feed lead.")
 
     return _write_job_workspace(
         jobs_dir=jobs_dir,
@@ -97,7 +97,7 @@ def create_job_from_lead(
         source_url=str(lead.get("source_url", "")),
         advert_text=_lead_advert_markdown(lead, lead_title),
         status="lead_imported",
-        notes="Created from RSS lead only; paste and review the full advert manually.",
+        notes="Created from a feed lead only; paste or import and review the full advert.",
         english_variant=english_variant,
         writing_style=writing_style,
     )
@@ -247,18 +247,18 @@ def _lead_advert_markdown(lead: dict[str, Any], title: str) -> str:
     lines = [
         f"# {title}",
         "",
-        "> RSS lead only. Paste the full advert manually below before final generation.",
+        "> Feed lead only (RSS/Atom). Paste or import the full advert below before final generation.",
         "",
-        "## RSS Lead Metadata",
+        "## Feed Lead Metadata",
         "",
         f"- Source: {lead.get('source', 'unknown') or 'unknown'}",
         f"- Source URL: {lead.get('source_url', '')}",
         f"- Published: {lead.get('published_at', '')}",
         f"- Source feed: {lead.get('source_feed', '')}",
         "",
-        "## RSS Description",
+        "## Feed Description",
         "",
-        str(lead.get("description", "")).strip() or "_No RSS description available._",
+        str(lead.get("description", "")).strip() or "_No feed description available._",
         "",
         "## Full Advert",
         "",

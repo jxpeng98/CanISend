@@ -47,7 +47,7 @@ Agents should coordinate through CLI commands and local files, not through hidde
 Use separate agents only when the user explicitly asks for multi-agent work.
 
 - Lead coordinator: runs `doctor`, declares the mode, identifies workspace/job state, chooses next command, and checks privacy boundaries.
-- Lead scout: fetches jobs.ac.uk RSS leads and summarizes candidate roles without scraping full pages.
+- Lead scout: fetches jobs.ac.uk or generic RSS/Atom leads and summarizes candidate roles without crawling job pages.
 - Evidence reviewer: checks `profile/generated/` coverage and reports gaps without editing private Typst sources.
 - Source reviewer: after explicit approval, reads bounded private sources to repair or verify evidence gaps.
 - Draft reviewer: checks fit report, cover letter, CV notes, and criteria checklist against quality gates.
@@ -141,7 +141,7 @@ Agent-assisted work and command-provider work are different boundaries. In agent
 Agents must not:
 
 - commit `profile/`, `jobs/`, `job_leads/`, `.env`, PDFs, or real application material
-- scrape full job pages in V1
+- crawl job sites or scrape search-result pages
 - submit applications or interact with portals
 - answer sensitive declarations
 - fabricate applicant experience, publications, teaching, service, grants, awards, or references
