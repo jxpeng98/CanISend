@@ -1,0 +1,45 @@
+{
+  "protocol": "canisend.agent/v1",
+  "schema_version": "1.0.0",
+  "operation": "agent.context",
+  "required_top_level": [
+    "protocol",
+    "schema_version",
+    "request_id",
+    "operation",
+    "ok",
+    "capabilities",
+    "job",
+    "jobs",
+    "workflow",
+    "artifacts",
+    "missing_fields",
+    "required_consents",
+    "warnings",
+    "blockers",
+    "next_actions",
+    "gate",
+    "error",
+    "extensions"
+  ],
+  "required_job_fields": [
+    "id",
+    "path",
+    "title",
+    "institution",
+    "deadline",
+    "status",
+    "next_action"
+  ],
+  "required_workflow_fields": [
+    "phase",
+    "readiness",
+    "derived"
+  ],
+  "forbidden_body_fields": [
+    "job_advert_body",
+    "profile_body",
+    "package_body",
+    "source_url_query"
+  ]
+}

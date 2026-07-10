@@ -897,7 +897,7 @@ host-agent execution surfaces exist.
 - Modify: `src/canisend/package_check.py`
 - Modify: `tests/test_release_productization.py`
 
-- [ ] **Step 1: Write the failing end-to-end contract test**
+- [x] **Step 1: Write the failing end-to-end contract test**
 
 Using only fake local data:
 
@@ -910,7 +910,7 @@ Using only fake local data:
 7. run a blocked package check and inspect its structured blockers;
 8. verify no response contains the full advert or fake profile body.
 
-- [ ] **Step 2: Verify the test fails**
+- [x] **Step 2: Verify the test fails**
 
 Run:
 
@@ -920,7 +920,7 @@ uv run python -m pytest tests/test_agent_contract_end_to_end.py -q
 
 Expected: fail until all Phase 1 commands and resources are integrated.
 
-- [ ] **Step 3: Document the host-neutral handoff**
+- [x] **Step 3: Document the host-neutral handoff**
 
 The example should show that host A and host B both call:
 
@@ -934,11 +934,11 @@ canisend agent context \
 No previous prompt or chat transcript is required. Explain that semantic stage preparation and result application begin
 in Phase 2.
 
-- [ ] **Step 4: Package the example contract resources**
+- [x] **Step 4: Package the example contract resources**
 
 Add required example files and the new agent schema to the wheel resource checks.
 
-- [ ] **Step 5: Verify targeted tests pass**
+- [x] **Step 5: Verify targeted tests pass**
 
 Run:
 

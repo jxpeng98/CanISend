@@ -422,6 +422,11 @@ canisend agent context --workspace . --format json
 
 Use `canisend doctor --workspace .` when a human-readable environment diagnostic is also useful.
 
+A fresh Codex, Claude Code, or IDE shell session resumes from the same durable workspace state by running the same
+`agent context` command; it does not need the previous chat transcript. The fake-data conformance fixture under
+`examples/agent_handoff/` demonstrates this host-neutral handoff. Phase 2 adds semantic task/result exchange and local
+MCP transport.
+
 They may run local deterministic CLI commands, inspect generated evidence, and review current job artifacts. They must ask first before reading full private CVs, statements, full job adverts, references, PDFs, source URLs, generated packages, or enabling LLM-backed CLI flags/providers. They must not scrape pages, submit applications, upload packages, fabricate evidence, or commit private profile/job data.
 
 Original profile inputs under `profile/` are protected. Agents should normally produce profile-improvement suggestions inside the job folder, not rewrite the source CV or statements. A write back to `profile/typst/*.typ`, `profile/*.md`, or other non-generated profile input is allowed only through an orchestrator task that declares `edits_profile_input: true`, depends on a prior review task, uses privacy tier 2 or higher, and is launched with `--allow-profile-input-edits --confirm-profile-input-edit --confirm-profile-input-edit-again`.
@@ -556,7 +561,7 @@ The script updates `pyproject.toml` and `src/canisend/__init__.py`, runs local c
 ```bash
 git tag -a test/v0.3.0.dev1 HEAD -m "canisend 0.3.0.dev1 TestPyPI"
 git tag -a v0.3.0a1 HEAD -m "canisend 0.3.0a1 prerelease"
-git tag -a v0.2.0 HEAD -m "canisend 0.2.0 stable"
+git tag -a v0.3.0 HEAD -m "canisend 0.3.0 stable"
 ```
 
 `release.yml` is the only remote publisher. It always publishes to TestPyPI first, and only promotes `v*` tags to
@@ -579,6 +584,7 @@ skills/                   canonical reusable and workspace-installed skill pack
 .codex-plugin/            Codex plugin manifest for the skill pack
 platform-bridges/         AGENTS.md and CLAUDE.md workspace bridges
 examples/end_to_end/      fully local fake-data workflow
+examples/agent_handoff/   host-neutral agent contract fixtures
 tests/                    CLI, pipeline, packaging, release, and contract tests
 assets/                   project logo and README media
 RELEASE.md                maintainer release playbook

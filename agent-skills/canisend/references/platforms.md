@@ -9,7 +9,8 @@ The portable contract is:
 ```text
 agent-skills/canisend/SKILL.md
 agent-skills/canisend/references/*.md
-canisend doctor --workspace <private-workspace>
+agent-skills/canisend-*/SKILL.md
+canisend agent context --workspace <private-workspace> --format json
 ```
 
 Any platform can use the skill by reading `SKILL.md`, then loading only the needed one-level reference files. The CLI remains the source of truth for workspace actions.
@@ -33,7 +34,7 @@ AGENTS.md
 CLAUDE.md
 ```
 
-They all point agents to `agent-skills/canisend/SKILL.md` and start with `canisend doctor --workspace <private-workspace>`.
+They all point agents to `agent-skills/canisend/SKILL.md` and start with `canisend agent context --workspace <private-workspace> --format json`.
 
 Existing bridge files are not overwritten unless the user passes `--overwrite`.
 
@@ -58,9 +59,20 @@ For VS Code, Cursor, Zed, JetBrains, Copilot-style chat, and other IDE agents:
 
 ## Compatibility Checklist
 
-- `canisend doctor --workspace <private-workspace>` reports workspace readiness.
+- `canisend agent capabilities --format json` reports the supported protocol and operations.
+- `canisend agent context --workspace <private-workspace> --format json` reports safe workspace state.
+- `canisend doctor --workspace <private-workspace>` remains available for human-readable diagnostics.
 - Root bridge file exists for the target platform.
 - The bridge points to `agent-skills/canisend/SKILL.md`.
 - The agent understands private paths: `profile/`, `jobs/`, `job_leads/`, `.env`, PDFs.
 - The agent understands that agent-read private content may enter the agent model context.
 - The agent reads `quality-gates.md` before presenting generated materials as ready.
+
+## Fresh-Session Handoff
+
+A new shell-capable host resumes from workspace files, not a previous chat transcript. Host A and host B should run
+the same `agent context` command with the workspace and optional job path. Apart from dynamic `request_id` values, an
+unchanged workspace yields the same semantic context, artifact hashes, blockers, consents, and next actions.
+
+This Phase 1 claim covers Codex CLI/App sessions with command access, Claude Code, and IDE shell agents. Native local
+MCP transport, TaskSpec/TaskResult execution, and candidate promotion begin in Phase 2.

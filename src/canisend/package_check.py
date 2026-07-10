@@ -78,6 +78,9 @@ REQUIRED_WHEEL_RESOURCES = [
     "canisend/resources/examples/end_to_end/profile/typst/cover_letter_base.typ",
     "canisend/resources/examples/end_to_end/profile/typst/research_statement.typ",
     "canisend/resources/examples/end_to_end/profile/typst/teaching_statement.typ",
+    "canisend/resources/examples/agent_handoff/README.md",
+    "canisend/resources/examples/agent_handoff/expected_capabilities.json",
+    "canisend/resources/examples/agent_handoff/expected_context_shape.json",
 ]
 
 

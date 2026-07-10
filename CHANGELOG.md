@@ -4,6 +4,7 @@
 
 - Added the versioned `canisend.agent/v1` agent protocol, JSON Schema, capabilities, workspace/job context, and structured
   output for initial intake, listing, diagnostics, and package-gate commands.
+- Added packaged fake-data capability/context fixtures proving fresh-session handoff from durable workspace state.
 - Added conservative workflow-state derivation, privacy-tiered artifact references, explicit consent requirements,
   stable operational error envelopes, and opaque external-path handling.
 - Made workspace skill installation self-contained from the canonical `skills/` pack and updated Codex/Claude

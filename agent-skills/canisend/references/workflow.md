@@ -8,16 +8,18 @@ For a new user workspace:
 
 ```bash
 canisend init-workspace --workspace <private-workspace>
-canisend doctor --workspace <private-workspace>
+canisend agent context --workspace <private-workspace> --format json
 ```
 
-For an existing workspace, start with `doctor` and resolve missing profile, prompt, skill, provider, or Typst items before generating application-facing material.
+For an existing workspace, start with `agent context`. Use `doctor` when a human-readable environment diagnostic is
+also useful, and resolve missing profile, prompt, skill, provider, or Typst items before generating
+application-facing material.
 
 After package upgrades:
 
 ```bash
 canisend update-workspace --workspace <private-workspace>
-canisend doctor --workspace <private-workspace>
+canisend agent context --workspace <private-workspace> --format json
 ```
 
 Use `--overwrite` only when the user intentionally wants packaged defaults to replace local prompt, template, or skill edits.
@@ -87,6 +89,17 @@ Paste or import the full selected advert into `jobs/<job-slug>/job_advert.md` be
 intake may use `new-job --advert-file <advert.pdf|advert.md|advert.txt>`.
 `new-job --source-url` records metadata only. Use `--fetch-url` only when the user explicitly asks to import that one
 supplied HTML or PDF advert; it does not authorize site crawling or search-result scraping.
+
+After creating or selecting a job, any fresh host session can resume with:
+
+```bash
+canisend agent context \
+  --workspace <private-workspace> \
+  --job jobs/<job-slug> \
+  --format json
+```
+
+The workspace is authoritative; no previous prompt or chat transcript is required.
 
 ## 5. Generate Draft Package
 
