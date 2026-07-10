@@ -1,5 +1,6 @@
 import re
 import sys
+import json
 
 from typer.testing import CliRunner
 
@@ -59,6 +60,149 @@ def test_phase_one_commands_advertise_additive_format_option():
 
         assert result.exit_code == 0
         assert "--format" in strip_ansi(result.output)
+
+
+def test_new_job_json_rejects_unsupported_advert_type_with_stable_error(tmp_path):
+    workspace = tmp_path / "workspace"
+    advert = tmp_path / "Peng_Private_Advert.docx"
+    advert.write_text("PRIVATE DOCX BODY", encoding="utf-8")
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "new-job",
+            "--workspace",
+            str(workspace),
+            "--title",
+            "Lecturer",
+            "--institution",
+            "University X",
+            "--advert-file",
+            str(advert),
+            "--format",
+            "json",
+        ],
+    )
+    payload = json.loads(result.stdout)
+
+    assert result.exit_code == 1
+    assert result.stdout.count("\n") == 1
+    assert payload["ok"] is False
+    assert payload["error"]["code"] == "input.invalid"
+    assert "Peng_Private_Advert" not in result.stdout + result.stderr
+    assert "PRIVATE DOCX BODY" not in result.stdout + result.stderr
+
+
+def test_new_job_json_maps_failed_url_import_without_query_leak(tmp_path, monkeypatch):
+    from canisend.job_import import JobImportError
+
+    def fail_fetch(source_url: str):
+        raise JobImportError(f"failed private URL: {source_url}")
+
+    monkeypatch.setattr("canisend.jobs.fetch_advert_from_url", fail_fetch)
+    workspace = tmp_path / "workspace"
+    result = CliRunner().invoke(
+        app,
+        [
+            "new-job",
+            "--workspace",
+            str(workspace),
+            "--title",
+            "Lecturer",
+            "--institution",
+            "University X",
+            "--source-url",
+            "https://example.edu/jobs/1?token=private-token",
+            "--fetch-url",
+            "--format",
+            "json",
+        ],
+    )
+    payload = json.loads(result.stdout)
+
+    assert result.exit_code == 1
+    assert payload["error"]["code"] == "source.import_failed"
+    assert payload["error"]["retryable"] is True
+    assert "private-token" not in result.stdout + result.stderr
+
+
+def test_new_job_json_maps_existing_job_collision_without_path_leak(tmp_path):
+    workspace = tmp_path / "workspace"
+    args = [
+        "new-job",
+        "--workspace",
+        str(workspace),
+        "--title",
+        "Lecturer",
+        "--institution",
+        "University X",
+        "--deadline",
+        "2026-08-01",
+    ]
+    runner = CliRunner()
+    first = runner.invoke(app, args)
+
+    result = runner.invoke(app, [*args, "--format", "json"])
+    payload = json.loads(result.stdout)
+
+    assert first.exit_code == 0
+    assert result.exit_code == 1
+    assert payload["error"]["code"] == "input.invalid"
+    assert "already exists" in payload["error"]["message"].lower()
+    assert str(workspace) not in result.stdout + result.stderr
+
+
+def test_new_job_json_maps_unexpected_exception_without_traceback(tmp_path, monkeypatch):
+    def fail_create_job(**kwargs):
+        raise RuntimeError("PRIVATE INTERNAL TRACE DETAIL")
+
+    monkeypatch.setattr("canisend.cli.create_job", fail_create_job)
+    result = CliRunner().invoke(
+        app,
+        [
+            "new-job",
+            "--workspace",
+            str(tmp_path / "workspace"),
+            "--title",
+            "Lecturer",
+            "--institution",
+            "University X",
+            "--format",
+            "json",
+        ],
+    )
+    payload = json.loads(result.stdout)
+
+    assert result.exit_code == 1
+    assert payload["error"]["code"] == "operation.failed"
+    assert "PRIVATE INTERNAL TRACE DETAIL" not in result.stdout + result.stderr
+    assert "Traceback" not in result.stdout + result.stderr
+
+
+def test_check_package_json_missing_job_is_operational_error(tmp_path):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    (workspace / "canisend.yaml").write_text("jobs_dir: jobs\n", encoding="utf-8")
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "check-package",
+            "--workspace",
+            str(workspace),
+            "--job",
+            "missing-role",
+            "--format",
+            "json",
+        ],
+    )
+    payload = json.loads(result.stdout)
+
+    assert result.exit_code == 1
+    assert payload["ok"] is False
+    assert payload["error"]["code"] == "job.not_found"
+    assert payload["gate"] is None
+    assert str(workspace) not in result.stdout + result.stderr
 
 
 def test_extract_profile_evidence_help_shows_llm_augment_flag():

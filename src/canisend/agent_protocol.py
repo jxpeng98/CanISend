@@ -56,6 +56,17 @@ SUPPORTED_AGENT_OPERATIONS = (
     "job.list",
     "package.check",
 )
+KNOWN_AGENT_ERROR_CODES = frozenset(
+    {
+        "workspace.invalid",
+        "workspace.not_initialized",
+        "job.not_found",
+        "job.invalid_metadata",
+        "input.invalid",
+        "source.import_failed",
+        "operation.failed",
+    }
+)
 
 _DOTTED_ID_RE = re.compile(r"^[a-z][a-z0-9_-]*(?:\.[a-z][a-z0-9_-]*)+$")
 _SLUG_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_.-]*$")
@@ -335,13 +346,31 @@ def error_response(
     message: str,
     retryable: bool = False,
     hint: str | None = None,
+    job: JobReference | None = None,
+    jobs: list[JobReference] | None = None,
+    workflow: WorkflowSnapshotReference | None = None,
+    artifacts: list[ArtifactReference] | None = None,
+    missing_fields: list[str] | None = None,
+    required_consents: list[ConsentRequirement] | None = None,
     warnings: list[str] | None = None,
+    blockers: list[str] | None = None,
+    next_actions: list[NextAction] | None = None,
+    gate: GateOutcome | None = None,
     extensions: dict[str, JsonScalar] | None = None,
 ) -> AgentResponse:
     return AgentResponse(
         operation=operation,
         ok=False,
+        job=job,
+        jobs=jobs or [],
+        workflow=workflow,
+        artifacts=artifacts or [],
+        missing_fields=missing_fields or [],
+        required_consents=required_consents or [],
         warnings=warnings or [],
+        blockers=blockers or [],
+        next_actions=next_actions or [],
+        gate=gate,
         error=AgentError(
             code=code,
             message=message,

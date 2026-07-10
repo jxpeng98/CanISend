@@ -134,6 +134,7 @@ def test_agent_context_with_job_returns_derived_snapshot_without_private_bodies(
 def test_agent_context_missing_job_returns_stable_json_error(tmp_path: Path) -> None:
     workspace = tmp_path / "workspace"
     workspace.mkdir()
+    (workspace / "canisend.yaml").write_text("jobs_dir: jobs\n", encoding="utf-8")
 
     result = CliRunner().invoke(
         app,
@@ -155,6 +156,50 @@ def test_agent_context_missing_job_returns_stable_json_error(tmp_path: Path) -> 
     assert payload["ok"] is False
     assert payload["error"]["code"] == "job.not_found"
     assert str(workspace) not in result.stdout
+
+
+def test_agent_context_missing_workspace_configuration_is_json_error(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+
+    result = CliRunner().invoke(
+        app,
+        ["agent", "context", "--workspace", str(workspace), "--format", "json"],
+    )
+    payload = json.loads(result.stdout)
+
+    assert result.exit_code == 1
+    assert result.stdout.count("\n") == 1
+    assert payload["ok"] is False
+    assert payload["error"]["code"] == "workspace.not_initialized"
+    assert str(workspace) not in result.stdout
+
+
+def test_agent_context_invalid_job_metadata_is_json_error(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    job_dir = workspace / "jobs" / "invalid-role"
+    job_dir.mkdir(parents=True)
+    (workspace / "canisend.yaml").write_text("jobs_dir: jobs\n", encoding="utf-8")
+    (job_dir / "job.yaml").write_text("- invalid\n- metadata\n", encoding="utf-8")
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "agent",
+            "context",
+            "--workspace",
+            str(workspace),
+            "--job",
+            "jobs/invalid-role",
+            "--format",
+            "json",
+        ],
+    )
+    payload = json.loads(result.stdout)
+
+    assert result.exit_code == 1
+    assert payload["error"]["code"] == "job.invalid_metadata"
+    assert "invalid\n- metadata" not in result.stdout
 
 
 def test_agent_text_presenter_uses_the_same_typed_context(tmp_path: Path) -> None:
@@ -191,6 +236,10 @@ def _context_workspace(tmp_path: Path) -> Path:
     job_dir.mkdir(parents=True)
     evidence.parent.mkdir(parents=True)
     source.write_text("PRIVATE PROFILE BODY\n", encoding="utf-8")
+    (workspace / "canisend.yaml").write_text(
+        "profile_dir: profile\njobs_dir: jobs\n",
+        encoding="utf-8",
+    )
     evidence.write_text("generated evidence\n", encoding="utf-8")
     os.utime(source, (100, 100))
     os.utime(evidence, (200, 200))

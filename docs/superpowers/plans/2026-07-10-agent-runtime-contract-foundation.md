@@ -589,7 +589,7 @@ Expected: pass.
 - Modify: `tests/test_agent_cli.py`
 - Modify: `tests/test_cli.py`
 
-- [ ] **Step 1: Write failing error-path tests**
+- [x] **Step 1: Write failing error-path tests**
 
 Cover:
 
@@ -613,7 +613,7 @@ Every post-parse failure test should assert:
 - no duplicate human error in stdout;
 - no raw private content, credentials, or URL query values in stdout or stderr.
 
-- [ ] **Step 2: Verify the tests fail**
+- [x] **Step 2: Verify the tests fail**
 
 Run:
 
@@ -623,7 +623,7 @@ uv run python -m pytest tests/test_agent_cli.py tests/test_cli.py -q
 
 Expected: fail because current Typer exceptions produce human-oriented output.
 
-- [ ] **Step 3: Implement operation-level exception mapping**
+- [x] **Step 3: Implement operation-level exception mapping**
 
 Map known domain exceptions at the command boundary. Keep the underlying exceptions useful to Python callers. Do not
 introduce a broad catch that masks programmer errors in text mode or tests.
@@ -631,7 +631,7 @@ introduce a broad catch that masks programmer errors in text mode or tests.
 Document that malformed CLI syntax remains Typer exit `2` text during Phase 1; full pre-parse JSON error handling is a
 future compatibility decision.
 
-- [ ] **Step 4: Verify targeted tests pass**
+- [x] **Step 4: Verify targeted tests pass**
 
 Run:
 

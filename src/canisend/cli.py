@@ -10,8 +10,10 @@ from canisend import __version__
 from canisend.agent_protocol import (
     AgentResponse,
     agent_response_lines,
+    artifact_reference_from_path,
     default_agent_capabilities,
     dumps_agent_response,
+    error_response,
     success_response,
 )
 from canisend.evidence import EvidenceAugmentationError, extract_profile_evidence
@@ -205,15 +207,37 @@ def agent_context(
     ),
 ) -> None:
     """Return privacy-safe workspace or job context for a host agent."""
-    if job is None:
-        response = workspace_report_agent_response(
-            workspace_report(workspace),
+    _validate_output_format(output_format)
+    try:
+        report = workspace_report(workspace)
+        workspace_response = workspace_report_agent_response(
+            report,
             operation="agent.context",
         )
-    else:
-        response = workflow_snapshot_agent_response(
-            derive_workflow_snapshot(workspace, job),
+        if report.check("workspace_config").status == "missing":
+            response = error_response(
+                operation="agent.context",
+                code="workspace.not_initialized",
+                message="The requested directory is not an initialized CanISend workspace.",
+                artifacts=workspace_response.artifacts,
+                missing_fields=["canisend.yaml"],
+                warnings=workspace_response.warnings,
+                next_actions=workspace_response.next_actions,
+            )
+        elif job is None:
+            response = workspace_response
+        else:
+            response = workflow_snapshot_agent_response(
+                derive_workflow_snapshot(workspace, job),
+                operation="agent.context",
+            )
+    except Exception:
+        if output_format != "json":
+            raise
+        response = error_response(
             operation="agent.context",
+            code="operation.failed",
+            message="CanISend could not derive the requested agent context.",
         )
     _emit_agent_response(response, output_format=output_format)
 
@@ -232,6 +256,26 @@ def _emit_agent_response(response: AgentResponse, *, output_format: str) -> None
 def _validate_output_format(output_format: str) -> None:
     if output_format not in {"text", "json"}:
         raise typer.BadParameter("--format must be text or json.")
+
+
+def _emit_operation_error(
+    *,
+    operation: str,
+    code: str,
+    message: str,
+    retryable: bool = False,
+    artifacts=None,
+) -> None:
+    _emit_agent_response(
+        error_response(
+            operation=operation,
+            code=code,
+            message=message,
+            retryable=retryable,
+            artifacts=artifacts or [],
+        ),
+        output_format="json",
+    )
 
 
 @app.command("version")
@@ -457,11 +501,38 @@ def check_package(
 ) -> None:
     """Check whether a generated application package has unresolved issues."""
     _validate_output_format(output_format)
-    config = load_workspace_config(workspace)
-    result = check_application_package(
-        job_dir=config.job_dir(job),
-        profile_dir=config.path("profile_dir", profile_dir),
-    )
+    try:
+        config = load_workspace_config(workspace)
+        job_dir = config.job_dir(job)
+        if output_format == "json" and not job_dir.is_dir():
+            reference = artifact_reference_from_path(
+                workspace=config.root,
+                path=job_dir,
+                kind="job_directory",
+                privacy_tier=2,
+                trust_level="trusted_local",
+                media_type="inode/directory",
+            )
+            _emit_operation_error(
+                operation="package.check",
+                code="job.not_found",
+                message="The requested job directory does not exist.",
+                artifacts=[reference],
+            )
+        result = check_application_package(
+            job_dir=job_dir,
+            profile_dir=config.path("profile_dir", profile_dir),
+        )
+    except typer.Exit:
+        raise
+    except Exception:
+        if output_format != "json":
+            raise
+        _emit_operation_error(
+            operation="package.check",
+            code="operation.failed",
+            message="The application package check could not be completed.",
+        )
     report_path = None
     report_write_failed = False
     if write_report:
@@ -651,8 +722,8 @@ def new_job(
 ) -> None:
     """Create a local job folder and advert file."""
     _validate_output_format(output_format)
-    config = load_workspace_config(workspace)
     try:
+        config = load_workspace_config(workspace)
         job_dir = create_job(
             jobs_dir=config.path("jobs_dir", jobs_dir),
             title=title,
@@ -664,8 +735,45 @@ def new_job(
             english_variant=english_variant,
             writing_style=writing_style,
         )
+    except FileExistsError:
+        if output_format != "json":
+            raise
+        _emit_operation_error(
+            operation="job.intake",
+            code="input.invalid",
+            message="A job with this identifier already exists.",
+        )
     except ValueError as exc:
+        if output_format == "json":
+            invalid_source_options = advert_file is not None and fetch_url
+            unsupported_file = advert_file is not None and advert_file.suffix.lower() not in {".md", ".txt", ".pdf"}
+            if invalid_source_options or unsupported_file:
+                _emit_operation_error(
+                    operation="job.intake",
+                    code="input.invalid",
+                    message="The requested job intake options are invalid.",
+                )
+            if advert_file is not None or fetch_url:
+                _emit_operation_error(
+                    operation="job.intake",
+                    code="source.import_failed",
+                    message="The job advert source could not be imported safely.",
+                    retryable=fetch_url,
+                )
+            _emit_operation_error(
+                operation="job.intake",
+                code="input.invalid",
+                message="The requested job metadata is invalid.",
+            )
         raise typer.BadParameter(str(exc)) from exc
+    except Exception:
+        if output_format != "json":
+            raise
+        _emit_operation_error(
+            operation="job.intake",
+            code="operation.failed",
+            message="The job intake operation failed unexpectedly.",
+        )
     response = job_intake_agent_response(config.root, job_dir, operation="job.intake")
     if output_format == "json":
         _emit_agent_response(response, output_format="json")
@@ -712,8 +820,8 @@ def new_job_from_lead(
 ) -> None:
     """Create a local job folder from a selected RSS or Atom lead without crawling."""
     _validate_output_format(output_format)
-    config = load_workspace_config(workspace)
     try:
+        config = load_workspace_config(workspace)
         job_dir = create_job_from_lead(
             leads_file=config.lead_file(leads_file),
             lead_index=lead_index,
@@ -724,8 +832,30 @@ def new_job_from_lead(
             english_variant=english_variant,
             writing_style=writing_style,
         )
+    except FileExistsError:
+        if output_format != "json":
+            raise
+        _emit_operation_error(
+            operation="job.intake_from_lead",
+            code="input.invalid",
+            message="A job with this identifier already exists.",
+        )
     except ValueError as exc:
+        if output_format == "json":
+            _emit_operation_error(
+                operation="job.intake_from_lead",
+                code="input.invalid",
+                message="The selected lead or job metadata is invalid.",
+            )
         raise typer.BadParameter(str(exc)) from exc
+    except Exception:
+        if output_format != "json":
+            raise
+        _emit_operation_error(
+            operation="job.intake_from_lead",
+            code="operation.failed",
+            message="The lead intake operation failed unexpectedly.",
+        )
     response = job_intake_agent_response(
         config.root,
         job_dir,
@@ -757,9 +887,18 @@ def list_jobs_command(
 ) -> None:
     """List all job folders with status, deadline, and institution."""
     _validate_output_format(output_format)
-    config = load_workspace_config(workspace)
-    jobs = list_job_folders(config.path("jobs_dir", jobs_dir))
-    response = job_list_agent_response(config.root, jobs)
+    try:
+        config = load_workspace_config(workspace)
+        jobs = list_job_folders(config.path("jobs_dir", jobs_dir))
+        response = job_list_agent_response(config.root, jobs)
+    except Exception:
+        if output_format != "json":
+            raise
+        _emit_operation_error(
+            operation="job.list",
+            code="operation.failed",
+            message="CanISend could not list the requested job workspace.",
+        )
     if output_format == "json":
         _emit_agent_response(response, output_format="json")
         return
