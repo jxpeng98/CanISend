@@ -424,6 +424,92 @@ def test_check_package_writes_machine_readable_gate_report_only_when_requested(t
     } in report["issues"]
 
 
+def test_check_package_json_pass_is_read_only_by_default(tmp_path):
+    workspace, job_dir = _complete_workspace(tmp_path)
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "check-package",
+            "--workspace",
+            str(workspace),
+            "--job",
+            "example-role",
+            "--format",
+            "json",
+        ],
+    )
+    payload = json.loads(result.stdout)
+
+    assert result.exit_code == 0
+    assert payload["operation"] == "package.check"
+    assert payload["ok"] is True
+    assert payload["gate"] == {"status": "PASS", "issue_count": 0, "report_path": None}
+    assert [action["id"] for action in payload["next_actions"]] == ["package.review"]
+    assert not (job_dir / "application_gate_report.json").exists()
+    assert str(workspace) not in result.stdout
+
+
+def test_check_package_json_fail_is_completed_gate_with_safe_blockers(tmp_path):
+    workspace, job_dir = _complete_workspace(tmp_path)
+    private_text = "PRIVATE REVIEW BODY"
+    (job_dir / "07_material_review_checklist.md").write_text(
+        f"# Review\n\n{private_text}\n\n- BLOCKER: resolve criterion.\n",
+        encoding="utf-8",
+    )
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "check-package",
+            "--workspace",
+            str(workspace),
+            "--job",
+            "example-role",
+            "--format",
+            "json",
+        ],
+    )
+    payload = json.loads(result.stdout)
+
+    assert result.exit_code == 1
+    assert payload["ok"] is True
+    assert payload["error"] is None
+    assert payload["gate"]["status"] == "FAIL"
+    assert payload["gate"]["issue_count"] >= 1
+    assert payload["blockers"]
+    assert [action["id"] for action in payload["next_actions"]] == ["package.resolve_blockers"]
+    assert private_text not in result.stdout
+    assert not (job_dir / "application_gate_report.json").exists()
+
+
+def test_check_package_json_writes_report_only_when_explicit(tmp_path):
+    workspace, job_dir = _complete_workspace(tmp_path)
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "check-package",
+            "--workspace",
+            str(workspace),
+            "--job",
+            "example-role",
+            "--write-report",
+            "--format",
+            "json",
+        ],
+    )
+    payload = json.loads(result.stdout)
+
+    assert result.exit_code == 0
+    assert (job_dir / "application_gate_report.json").exists()
+    assert payload["gate"]["report_path"] == "jobs/example-role/application_gate_report.json"
+    assert any(
+        artifact["kind"] == "application_gate_report" and artifact["exists"]
+        for artifact in payload["artifacts"]
+    )
+
+
 def _complete_workspace(tmp_path: Path) -> tuple[Path, Path]:
     workspace = tmp_path / "workspace"
     profile_dir = workspace / "profile"

@@ -21,7 +21,7 @@ from canisend.jobs import create_job, create_job_from_lead, list_jobs as list_jo
 from canisend.orchestrator import OrchestrationError, run_orchestration
 from canisend.pipeline import run_pipeline as run_job_pipeline
 from canisend.profile import init_profile as create_profile
-from canisend.ready_check import check_application_package
+from canisend.ready_check import check_application_package, package_check_agent_response
 from canisend.rss import (
     JobFeedError,
     fetch_rss_text,
@@ -33,7 +33,12 @@ from canisend.rss import (
 from canisend.skill_distribution import export_skill_distribution
 from canisend.typst import render_typst_files
 from canisend.versioning import fetch_remote_versions, format_version_report
-from canisend.workflow_state import derive_workflow_snapshot, workflow_snapshot_agent_response
+from canisend.workflow_state import (
+    derive_workflow_snapshot,
+    job_intake_agent_response,
+    job_list_agent_response,
+    workflow_snapshot_agent_response,
+)
 from canisend.workspace import (
     doctor_lines,
     init_workspace as create_workspace,
@@ -214,8 +219,7 @@ def agent_context(
 
 
 def _emit_agent_response(response: AgentResponse, *, output_format: str) -> None:
-    if output_format not in {"text", "json"}:
-        raise typer.BadParameter("--format must be text or json.")
+    _validate_output_format(output_format)
     if output_format == "json":
         typer.echo(dumps_agent_response(response), nl=False)
     else:
@@ -223,6 +227,11 @@ def _emit_agent_response(response: AgentResponse, *, output_format: str) -> None
             typer.echo(line)
     if not response.ok:
         raise typer.Exit(code=1)
+
+
+def _validate_output_format(output_format: str) -> None:
+    if output_format not in {"text", "json"}:
+        raise typer.BadParameter("--format must be text or json.")
 
 
 @app.command("version")
@@ -440,21 +449,40 @@ def check_package(
         "--write-report",
         help="Write application_gate_report.json to the job directory after checking.",
     ),
+    output_format: str = typer.Option(
+        "text",
+        "--format",
+        help="Output format: text or json.",
+    ),
 ) -> None:
     """Check whether a generated application package has unresolved issues."""
+    _validate_output_format(output_format)
     config = load_workspace_config(workspace)
     result = check_application_package(
         job_dir=config.job_dir(job),
         profile_dir=config.path("profile_dir", profile_dir),
     )
-    for line in result.output_lines():
-        typer.echo(line)
+    report_path = None
+    report_write_failed = False
     if write_report:
         try:
             report_path = result.write_report()
         except ValueError as exc:
-            typer.echo(str(exc), err=True)
-        else:
+            report_write_failed = True
+            if output_format == "text":
+                typer.echo(str(exc), err=True)
+    response = package_check_agent_response(
+        result,
+        workspace=config.root,
+        report_path=report_path,
+        report_write_failed=report_write_failed,
+    )
+    if output_format == "json":
+        _emit_agent_response(response, output_format="json")
+    else:
+        for line in result.output_lines():
+            typer.echo(line)
+        if report_path is not None:
             typer.echo(f"Application gate report: {report_path}")
     if not result.ok:
         raise typer.Exit(code=1)
@@ -615,8 +643,14 @@ def new_job(
         "--writing-style",
         help="Preferred writing style, e.g. 'direct, warm, evidence-led'.",
     ),
+    output_format: str = typer.Option(
+        "text",
+        "--format",
+        help="Output format: text or json.",
+    ),
 ) -> None:
     """Create a local job folder and advert file."""
+    _validate_output_format(output_format)
     config = load_workspace_config(workspace)
     try:
         job_dir = create_job(
@@ -632,7 +666,11 @@ def new_job(
         )
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
-    typer.echo(f"Created job at {job_dir}")
+    response = job_intake_agent_response(config.root, job_dir, operation="job.intake")
+    if output_format == "json":
+        _emit_agent_response(response, output_format="json")
+    else:
+        typer.echo(f"Created job at {job_dir}")
 
 
 @app.command("new-job-from-lead")
@@ -666,8 +704,14 @@ def new_job_from_lead(
         "--jobs-dir",
         help="Directory for job folders. Relative paths are resolved against --workspace.",
     ),
+    output_format: str = typer.Option(
+        "text",
+        "--format",
+        help="Output format: text or json.",
+    ),
 ) -> None:
     """Create a local job folder from a selected RSS or Atom lead without crawling."""
+    _validate_output_format(output_format)
     config = load_workspace_config(workspace)
     try:
         job_dir = create_job_from_lead(
@@ -682,7 +726,15 @@ def new_job_from_lead(
         )
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
-    typer.echo(f"Created job from lead at {job_dir}")
+    response = job_intake_agent_response(
+        config.root,
+        job_dir,
+        operation="job.intake_from_lead",
+    )
+    if output_format == "json":
+        _emit_agent_response(response, output_format="json")
+    else:
+        typer.echo(f"Created job from lead at {job_dir}")
 
 
 @app.command("list-jobs")
@@ -697,10 +749,20 @@ def list_jobs_command(
         "--jobs-dir",
         help="Directory containing job folders. Relative paths are resolved against --workspace.",
     ),
+    output_format: str = typer.Option(
+        "text",
+        "--format",
+        help="Output format: text or json.",
+    ),
 ) -> None:
     """List all job folders with status, deadline, and institution."""
+    _validate_output_format(output_format)
     config = load_workspace_config(workspace)
     jobs = list_job_folders(config.path("jobs_dir", jobs_dir))
+    response = job_list_agent_response(config.root, jobs)
+    if output_format == "json":
+        _emit_agent_response(response, output_format="json")
+        return
     if not jobs:
         typer.echo("No job folders found.")
         return

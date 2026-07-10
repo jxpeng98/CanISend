@@ -530,7 +530,7 @@ Expected: pass.
 `fetch-job-feed`, `fetch-jobs-ac-uk`, `run`, `render-typst`, and `orchestrate` remain text-only until their service
 contracts are addressed in their roadmap phases.
 
-- [ ] **Step 1: Write failing golden-response tests**
+- [x] **Step 1: Write failing golden-response tests**
 
 For each Phase 1 command, assert:
 
@@ -546,7 +546,7 @@ For each Phase 1 command, assert:
 For `new-job`, cover manual metadata, local PDF, and explicit single-URL import through fake openers or service-level
 fixtures. Network access must not be required by tests.
 
-- [ ] **Step 2: Verify the tests fail**
+- [x] **Step 2: Verify the tests fail**
 
 Run:
 
@@ -556,19 +556,19 @@ uv run python -m pytest tests/test_cli.py tests/test_jobs.py tests/test_ready_ch
 
 Expected: new JSON-mode tests fail.
 
-- [ ] **Step 3: Refactor command presentation, not domain behavior**
+- [x] **Step 3: Refactor command presentation, not domain behavior**
 
 Have each command construct a typed operation result from the existing service outcome, then select the text or JSON
 presenter. Avoid branching the underlying import, listing, or package-check logic by output format.
 
-- [ ] **Step 4: Preserve write semantics**
+- [x] **Step 4: Preserve write semantics**
 
 - `new-job` and `new-job-from-lead` write the same files as before;
 - `list-jobs` remains read-only;
 - `check-package` remains read-only unless `--write-report` is explicitly supplied;
 - selecting JSON must never imply permission to read or return private bodies.
 
-- [ ] **Step 5: Verify targeted tests pass**
+- [x] **Step 5: Verify targeted tests pass**
 
 Run:
 

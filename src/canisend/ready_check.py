@@ -9,6 +9,14 @@ import re
 
 import yaml
 
+from canisend.agent_protocol import (
+    AgentResponse,
+    GateOutcome,
+    NextAction,
+    WorkflowSnapshotReference,
+    artifact_reference_from_path,
+    success_response,
+)
 from canisend.evidence import load_generated_evidence
 from canisend.jobs import job_advert_is_stub
 from canisend.materials import MaterialValidationError, validate_markdown_citations
@@ -120,6 +128,85 @@ class PackageCheckResult:
         report_path = self.job_dir / APPLICATION_GATE_REPORT
         report_path.write_text(json.dumps(self.report_data(), indent=2) + "\n", encoding="utf-8")
         return report_path
+
+
+def package_check_agent_response(
+    result: PackageCheckResult,
+    *,
+    workspace: Path,
+    report_path: Path | None = None,
+    report_write_failed: bool = False,
+) -> AgentResponse:
+    workspace_root = workspace.expanduser().resolve()
+    artifacts = [
+        artifact_reference_from_path(
+            workspace=workspace_root,
+            path=result.job_dir,
+            kind="job_directory",
+            privacy_tier=2,
+            trust_level="generated_candidate",
+            media_type="inode/directory",
+        )
+    ]
+    safe_report_path: str | None = None
+    if report_path is not None:
+        report_reference = artifact_reference_from_path(
+            workspace=workspace_root,
+            path=report_path,
+            kind="application_gate_report",
+            privacy_tier=1,
+            trust_level="validated",
+            media_type="application/json",
+            include_hash=True,
+        )
+        artifacts.append(report_reference)
+        safe_report_path = report_reference.path
+
+    if result.ok:
+        workflow = WorkflowSnapshotReference(phase="render", readiness="review_required")
+        actions = [
+            NextAction(
+                id="package.review",
+                label="Perform final human review before manual submission",
+            )
+        ]
+        blockers: list[str] = []
+    else:
+        workflow = WorkflowSnapshotReference(phase="verify", readiness="blocked")
+        actions = [
+            NextAction(
+                id="package.resolve_blockers",
+                label="Resolve application gate blockers",
+            )
+        ]
+        blockers = [
+            f"{issue.gate}: {_safe_gate_issue_path(issue.path)} requires review"
+            for issue in result.issues
+        ]
+
+    warnings = ["The application gate report could not be written."] if report_write_failed else []
+    return success_response(
+        operation="package.check",
+        workflow=workflow,
+        artifacts=artifacts,
+        warnings=warnings,
+        blockers=blockers,
+        next_actions=actions,
+        gate=GateOutcome(
+            status=result.status,
+            issue_count=len(result.issues),
+            report_path=safe_report_path,
+        ),
+    )
+
+
+def _safe_gate_issue_path(value: str) -> str:
+    if not value or "\\" in value:
+        return "job"
+    path = Path(value)
+    if path.is_absolute() or any(part in {".", ".."} for part in path.parts):
+        return "job"
+    return "/".join(re.sub(r"[^A-Za-z0-9_.-]", "_", part) for part in path.parts)
 
 
 def check_application_package(job_dir: Path, profile_dir: Path) -> PackageCheckResult:

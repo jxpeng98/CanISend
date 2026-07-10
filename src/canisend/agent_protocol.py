@@ -188,6 +188,7 @@ class JobReference(ProtocolModel):
     institution: str = Field(min_length=1)
     deadline: str
     status: str = Field(min_length=1)
+    next_action: NextAction | None = None
 
     @field_validator("path")
     @classmethod
@@ -250,6 +251,7 @@ class AgentResponse(ProtocolModel):
     ok: bool
     capabilities: AgentCapabilities | None = None
     job: JobReference | None = None
+    jobs: list[JobReference] = Field(default_factory=list)
     workflow: WorkflowSnapshotReference | None = None
     artifacts: list[ArtifactReference] = Field(default_factory=list)
     missing_fields: list[str] = Field(default_factory=list)
@@ -297,6 +299,7 @@ def success_response(
     operation: str,
     capabilities: AgentCapabilities | None = None,
     job: JobReference | None = None,
+    jobs: list[JobReference] | None = None,
     workflow: WorkflowSnapshotReference | None = None,
     artifacts: list[ArtifactReference] | None = None,
     missing_fields: list[str] | None = None,
@@ -312,6 +315,7 @@ def success_response(
         ok=True,
         capabilities=capabilities,
         job=job,
+        jobs=jobs or [],
         workflow=workflow,
         artifacts=artifacts or [],
         missing_fields=missing_fields or [],
@@ -376,6 +380,9 @@ def agent_response_lines(response: AgentResponse) -> list[str]:
         )
     if response.job is not None:
         lines.append(f"Job: {response.job.id} — {response.job.title} at {response.job.institution}")
+    for job in response.jobs:
+        suffix = f"; next: {job.next_action.id}" if job.next_action is not None else ""
+        lines.append(f"Job: {job.id} — {job.title} at {job.institution} ({job.status}{suffix})")
     if response.workflow is not None:
         lines.append(f"Workflow: {response.workflow.phase} ({response.workflow.readiness})")
     for artifact in response.artifacts:

@@ -51,6 +51,16 @@ def test_run_help_shows_llm_draft_flag():
     assert "--no-git-add-materi" in output
 
 
+def test_phase_one_commands_advertise_additive_format_option():
+    runner = CliRunner()
+
+    for command in ["doctor", "new-job", "new-job-from-lead", "list-jobs", "check-package"]:
+        result = runner.invoke(app, [command, "--help"])
+
+        assert result.exit_code == 0
+        assert "--format" in strip_ansi(result.output)
+
+
 def test_extract_profile_evidence_help_shows_llm_augment_flag():
     runner = CliRunner()
 

@@ -85,6 +85,60 @@ def workflow_snapshot_agent_response(
     )
 
 
+def job_intake_agent_response(
+    workspace: Path,
+    job_dir: Path,
+    *,
+    operation: str,
+) -> AgentResponse:
+    snapshot = derive_workflow_snapshot(workspace, job_dir)
+    if snapshot.error_code != "input.invalid":
+        return workflow_snapshot_agent_response(snapshot, operation=operation)
+    return success_response(
+        operation=operation,
+        workflow=snapshot.workflow,
+        artifacts=list(snapshot.artifacts),
+        warnings=[
+            "The job was created outside the workspace and is represented by an opaque identifier."
+        ],
+        blockers=list(snapshot.blockers),
+        next_actions=[
+            NextAction(
+                id="job.move_into_workspace",
+                label="Move the job into the configured workspace before agent processing",
+            )
+        ],
+    )
+
+
+def job_list_agent_response(
+    workspace: Path,
+    entries: list[dict[str, object]],
+) -> AgentResponse:
+    jobs: list[JobReference] = []
+    artifacts: list[ArtifactReference] = []
+    warnings: list[str] = []
+    for entry in entries:
+        raw_path = entry.get("path")
+        if raw_path is None:
+            continue
+        snapshot = derive_workflow_snapshot(workspace, Path(str(raw_path)))
+        if snapshot.job is None:
+            artifacts.extend(snapshot.artifacts)
+            warnings.append("A job outside the workspace was omitted from typed job summaries.")
+            continue
+        action = snapshot.next_actions[0] if snapshot.next_actions else None
+        safe_action = NextAction(id=action.id, label=action.label) if action is not None else None
+        jobs.append(snapshot.job.model_copy(update={"next_action": safe_action}))
+    return success_response(
+        operation="job.list",
+        jobs=jobs,
+        artifacts=artifacts,
+        warnings=list(dict.fromkeys(warnings)),
+        extensions={"canisend.job_count": len(jobs)},
+    )
+
+
 def derive_workflow_snapshot(workspace: Path, job: Path) -> DerivedWorkflowSnapshot:
     root = workspace.expanduser().resolve()
     config = load_workspace_config(root)

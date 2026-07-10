@@ -1,4 +1,6 @@
 import json
+import os
+from pathlib import Path
 import re
 
 import yaml
@@ -442,6 +444,281 @@ def test_job_advert_stub_detection_is_source_neutral():
         "## Full Advert\n\nPaste the full advert manually here.\n"
     ) is True
     assert job_advert_is_stub("# Full role\n\nEssential: PhD.\n") is False
+
+
+def test_new_job_json_returns_safe_intake_snapshot(tmp_path):
+    workspace = tmp_path / "workspace"
+    result = CliRunner().invoke(
+        app,
+        [
+            "new-job",
+            "--workspace",
+            str(workspace),
+            "--title",
+            "Lecturer in Economics",
+            "--institution",
+            "University X",
+            "--deadline",
+            "2026-08-01",
+            "--format",
+            "json",
+        ],
+    )
+    payload = json.loads(result.stdout)
+
+    assert result.exit_code == 0
+    assert result.stdout.count("\n") == 1
+    assert ANSI_ESCAPE_RE.search(result.stdout) is None
+    assert payload["operation"] == "job.intake"
+    assert payload["request_id"].startswith("req_")
+    assert payload["job"]["path"] == "jobs/2026-08-01_university-x_lecturer-in-economics"
+    assert payload["workflow"]["phase"] == "intake"
+    assert payload["workflow"]["readiness"] == "blocked"
+    assert [action["id"] for action in payload["next_actions"]] == ["job.import_advert"]
+    assert str(workspace) not in result.stdout
+
+
+def test_new_job_json_hides_external_pdf_name_and_body(tmp_path, monkeypatch):
+    workspace = tmp_path / "workspace"
+    advert = tmp_path / "Peng_Private_Job.pdf"
+    advert.write_bytes(b"%PDF fake")
+    monkeypatch.setattr(
+        "canisend.job_import.extract_pdf_text",
+        lambda path: "PRIVATE PDF BODY Essential: PhD",
+    )
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "new-job",
+            "--workspace",
+            str(workspace),
+            "--title",
+            "Lecturer",
+            "--institution",
+            "University X",
+            "--deadline",
+            "2026-08-01",
+            "--advert-file",
+            str(advert),
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["operation"] == "job.intake"
+    assert payload["workflow"]["phase"] == "evidence"
+    assert "Peng_Private_Job" not in result.stdout
+    assert "PRIVATE PDF BODY" not in result.stdout
+    assert str(tmp_path) not in result.stdout
+
+
+def test_new_job_json_hides_url_query_and_fetched_body(tmp_path, monkeypatch):
+    from canisend.job_import import ImportedAdvert
+
+    workspace = tmp_path / "workspace"
+
+    def fake_fetch(source_url: str) -> ImportedAdvert:
+        assert "token=private-token" in source_url
+        return ImportedAdvert(
+            text="# Full role\n\nPRIVATE FETCHED BODY\n",
+            status="advert_imported",
+            notes="Fetched and reviewed.",
+            metadata_source_url="https://example.edu/jobs/1?redacted",
+        )
+
+    monkeypatch.setattr("canisend.jobs.fetch_advert_from_url", fake_fetch)
+    result = CliRunner().invoke(
+        app,
+        [
+            "new-job",
+            "--workspace",
+            str(workspace),
+            "--title",
+            "Lecturer",
+            "--institution",
+            "University X",
+            "--deadline",
+            "2026-08-01",
+            "--source-url",
+            "https://example.edu/jobs/1?token=private-token",
+            "--fetch-url",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert json.loads(result.stdout)["operation"] == "job.intake"
+    assert "private-token" not in result.stdout
+    assert "PRIVATE FETCHED BODY" not in result.stdout
+
+
+def test_new_job_json_uses_opaque_reference_for_parent_escape(tmp_path):
+    workspace = tmp_path / "workspace"
+    outside_name = "Peng_Private_Jobs"
+    result = CliRunner().invoke(
+        app,
+        [
+            "new-job",
+            "--workspace",
+            str(workspace),
+            "--jobs-dir",
+            f"../{outside_name}",
+            "--title",
+            "Lecturer",
+            "--institution",
+            "University X",
+            "--deadline",
+            "2026-08-01",
+            "--format",
+            "json",
+        ],
+    )
+    payload = json.loads(result.stdout)
+
+    assert result.exit_code == 0
+    assert payload["job"] is None
+    assert payload["artifacts"][0]["path"] is None
+    assert payload["artifacts"][0]["opaque_id"].startswith("external-")
+    assert outside_name not in result.stdout
+    assert str(tmp_path) not in result.stdout
+
+
+def test_new_job_json_uses_opaque_reference_for_absolute_jobs_dir(tmp_path):
+    workspace = tmp_path / "workspace"
+    outside = tmp_path / "Peng_Absolute_Jobs"
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "new-job",
+            "--workspace",
+            str(workspace),
+            "--jobs-dir",
+            str(outside),
+            "--title",
+            "Lecturer",
+            "--institution",
+            "University X",
+            "--deadline",
+            "2026-08-01",
+            "--format",
+            "json",
+        ],
+    )
+    payload = json.loads(result.stdout)
+
+    assert result.exit_code == 0
+    assert payload["job"] is None
+    assert payload["artifacts"][0]["opaque_id"].startswith("external-")
+    assert "Peng_Absolute_Jobs" not in result.stdout
+    assert str(tmp_path) not in result.stdout
+
+
+@pytest.mark.skipif(os.name == "nt", reason="symlink creation may require elevated Windows privileges")
+def test_new_job_json_uses_opaque_reference_for_symlink_escape(tmp_path):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    outside = tmp_path / "Peng_Symlink_Target"
+    outside.mkdir()
+    link = workspace / "linked-jobs"
+    link.symlink_to(outside, target_is_directory=True)
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "new-job",
+            "--workspace",
+            str(workspace),
+            "--jobs-dir",
+            "linked-jobs",
+            "--title",
+            "Lecturer",
+            "--institution",
+            "University X",
+            "--deadline",
+            "2026-08-01",
+            "--format",
+            "json",
+        ],
+    )
+    payload = json.loads(result.stdout)
+
+    assert result.exit_code == 0
+    assert payload["artifacts"][0]["opaque_id"].startswith("external-")
+    assert "Peng_Symlink_Target" not in result.stdout
+
+
+def test_new_job_from_lead_json_returns_intake_action_without_lead_body(tmp_path):
+    workspace = tmp_path / "workspace"
+    leads = workspace / "job_leads" / "source.json"
+    leads.parent.mkdir(parents=True)
+    leads.write_text(
+        json.dumps(
+            [
+                {
+                    "title": "Lecturer",
+                    "source_url": "https://example.edu/jobs/1",
+                    "description": "PRIVATE LEAD BODY",
+                    "source": "Example",
+                    "source_feed": "https://example.edu/feed",
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "new-job-from-lead",
+            "--workspace",
+            str(workspace),
+            "--leads-file",
+            "job_leads/source.json",
+            "--lead-index",
+            "0",
+            "--institution",
+            "University X",
+            "--deadline",
+            "2026-08-01",
+            "--format",
+            "json",
+        ],
+    )
+    payload = json.loads(result.stdout)
+
+    assert result.exit_code == 0
+    assert payload["operation"] == "job.intake_from_lead"
+    assert payload["job"]["status"] == "lead_imported"
+    assert [action["id"] for action in payload["next_actions"]] == ["job.import_advert"]
+    assert "PRIVATE LEAD BODY" not in result.stdout
+
+
+def test_list_jobs_json_returns_relative_typed_summaries_without_writes(tmp_path):
+    workspace = tmp_path / "workspace"
+    jobs_dir = workspace / "jobs"
+    jobs_dir.mkdir(parents=True)
+    _write_job(jobs_dir / "new-role", status="new", title="New Role")
+    _write_job(jobs_dir / "lead-role", status="lead_imported", title="Lead Role")
+    before = sorted(path.relative_to(workspace).as_posix() for path in workspace.rglob("*"))
+
+    result = CliRunner().invoke(
+        app,
+        ["list-jobs", "--workspace", str(workspace), "--format", "json"],
+    )
+    payload = json.loads(result.stdout)
+
+    assert result.exit_code == 0
+    assert payload["operation"] == "job.list"
+    assert [job["id"] for job in payload["jobs"]] == ["lead-role", "new-role"]
+    assert all(job["path"].startswith("jobs/") for job in payload["jobs"])
+    assert {job["next_action"]["id"] for job in payload["jobs"]} == {"job.import_advert"}
+    assert str(workspace) not in result.stdout
+    assert sorted(path.relative_to(workspace).as_posix() for path in workspace.rglob("*")) == before
 
 
 def _write_job(job_dir, *, status: str, title: str) -> None:

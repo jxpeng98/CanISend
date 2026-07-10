@@ -35,6 +35,10 @@
         { "type": "null" }
       ]
     },
+    "jobs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/jobReference" }
+    },
     "workflow": {
       "oneOf": [
         { "$ref": "#/$defs/workflowSnapshotReference" },
@@ -95,6 +99,7 @@
     "ok",
     "capabilities",
     "job",
+    "jobs",
     "workflow",
     "artifacts",
     "missing_fields",
@@ -314,9 +319,15 @@
         "title": { "type": "string", "minLength": 1 },
         "institution": { "type": "string", "minLength": 1 },
         "deadline": { "type": "string" },
-        "status": { "type": "string", "minLength": 1 }
+        "status": { "type": "string", "minLength": 1 },
+        "next_action": {
+          "oneOf": [
+            { "$ref": "#/$defs/nextAction" },
+            { "type": "null" }
+          ]
+        }
       },
-      "required": ["id", "path", "title", "institution", "deadline", "status"]
+      "required": ["id", "path", "title", "institution", "deadline", "status", "next_action"]
     },
     "workflowSnapshotReference": {
       "type": "object",
