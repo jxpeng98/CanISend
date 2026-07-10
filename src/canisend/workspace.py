@@ -3,11 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 from shutil import which
-from typing import Mapping
+from typing import Literal, Mapping
 
 import yaml
 
 from canisend import __version__
+from canisend.agent_protocol import AgentResponse, ArtifactReference, NextAction, success_response
 from canisend.llm import LLMConfig, load_llm_config
 from canisend.profile import init_profile
 from canisend.resource_files import copy_resource_tree, read_resource_text
@@ -35,11 +36,42 @@ DEFAULT_RESOURCE_CHECKS = {
 }
 
 
+WorkspaceCheckStatus = Literal[
+    "ok",
+    "missing",
+    "configured",
+    "unconfigured",
+    "unsupported",
+    "found",
+    "current",
+    "stale",
+    "not_generated",
+    "warning",
+    "error",
+]
+
+
 @dataclass(frozen=True)
-class WorkspaceStatus:
+class WorkspaceCheck:
+    id: str
     label: str
-    path: str
-    ok: bool
+    status: WorkspaceCheckStatus
+    path: str | None = None
+    detail: str | None = None
+    items: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class WorkspaceReport:
+    version: str
+    root: Path
+    checks: tuple[WorkspaceCheck, ...]
+
+    def check(self, check_id: str) -> WorkspaceCheck:
+        for check in self.checks:
+            if check.id == check_id:
+                return check
+        raise KeyError(check_id)
 
 
 @dataclass(frozen=True)
@@ -115,46 +147,115 @@ def prune_deprecated_workspace_files(workspace: Path) -> list[Path]:
     return removed
 
 
-def doctor_lines(workspace: Path, *, env: Mapping[str, str] | None = None) -> list[str]:
+def workspace_report(workspace: Path, *, env: Mapping[str, str] | None = None) -> WorkspaceReport:
+    root = workspace.expanduser().resolve()
     config = load_llm_config(env)
-    statuses = [
-        WorkspaceStatus("workspace config", WORKSPACE_CONFIG, (workspace / WORKSPACE_CONFIG).exists()),
-        WorkspaceStatus("profile manifest", "profile/profile.yaml", (workspace / "profile" / "profile.yaml").exists()),
-        WorkspaceStatus("jobs directory", "jobs", (workspace / "jobs").exists()),
-        WorkspaceStatus("RSS leads directory", "job_leads", (workspace / "job_leads").exists()),
-        WorkspaceStatus("prompt defaults", "prompts/job_parser.md", (workspace / "prompts" / "job_parser.md").exists()),
-        WorkspaceStatus(
-            "Typst template defaults",
-            "templates/typst/cover_letter.typ",
-            (workspace / "templates" / "typst" / "cover_letter.typ").exists(),
-        ),
-        WorkspaceStatus(
-            "agent skill",
-            "agent-skills/canisend/SKILL.md",
-            (workspace / "agent-skills" / "canisend" / "SKILL.md").exists(),
-        ),
+    path_checks = [
+        ("workspace_config", "workspace config", WORKSPACE_CONFIG),
+        ("profile_manifest", "profile manifest", "profile/profile.yaml"),
+        ("jobs_directory", "jobs directory", "jobs"),
+        ("rss_leads_directory", "RSS leads directory", "job_leads"),
+        ("prompt_defaults", "prompt defaults", "prompts/job_parser.md"),
+        ("typst_template_defaults", "Typst template defaults", "templates/typst/cover_letter.typ"),
+        ("agent_skill", "agent skill", "agent-skills/canisend/SKILL.md"),
     ]
-    lines = [f"canisend: {__version__}", f"Workspace: {workspace.resolve()}"]
-    for status in statuses:
-        marker = "ok" if status.ok else "missing"
-        lines.append(f"- {status.path}: {marker} ({status.label})")
-    lines.append(_llm_status_line(config))
-    lines.append(f"- Typst binary: {'found' if which('typst') else 'missing'}")
-    lines.append(_evidence_staleness_line(workspace))
-    lines.append(_config_validation_line(workspace))
-    lines.append(_deprecated_files_line(workspace))
-    lines.append(_default_resources_line(workspace))
+    checks = [
+        WorkspaceCheck(
+            id=check_id,
+            label=label,
+            status="ok" if (root / relative_path).exists() else "missing",
+            path=relative_path,
+        )
+        for check_id, label, relative_path in path_checks
+    ]
+    checks.extend(
+        [
+            _llm_status_check(config),
+            WorkspaceCheck(
+                id="typst_binary",
+                label="Typst binary",
+                status="found" if which("typst") else "missing",
+            ),
+            _evidence_staleness_check(root),
+            _config_validation_check(root),
+            _deprecated_files_check(root),
+            _default_resources_check(root),
+        ]
+    )
+    return WorkspaceReport(version=__version__, root=root, checks=tuple(checks))
+
+
+def doctor_lines(workspace: Path, *, env: Mapping[str, str] | None = None) -> list[str]:
+    report = workspace_report(workspace, env=env)
+    lines = [f"canisend: {report.version}", f"Workspace: {report.root}"]
+    for check in report.checks:
+        lines.append(_doctor_check_line(check))
     return lines
 
 
-def _evidence_staleness_line(workspace: Path) -> str:
+def workspace_report_agent_response(report: WorkspaceReport) -> AgentResponse:
+    artifact_policy = {
+        "workspace_config": (1, "validated", "application/yaml"),
+        "profile_manifest": (2, "trusted_local", "application/yaml"),
+        "jobs_directory": (2, "trusted_local", "inode/directory"),
+        "rss_leads_directory": (1, "untrusted_import", "inode/directory"),
+        "prompt_defaults": (0, "trusted_local", "text/markdown"),
+        "typst_template_defaults": (0, "trusted_local", "text/plain"),
+        "agent_skill": (0, "trusted_local", "text/markdown"),
+    }
+    artifacts = []
+    for check in report.checks:
+        if check.path is None or check.id not in artifact_policy:
+            continue
+        privacy_tier, trust_level, media_type = artifact_policy[check.id]
+        artifacts.append(
+            ArtifactReference(
+                kind=check.id,
+                path=check.path,
+                exists=check.status == "ok",
+                privacy_tier=privacy_tier,
+                trust_level=trust_level,
+                media_type=media_type,
+            )
+        )
+
+    missing_fields = [
+        check.path
+        for check in report.checks
+        if check.path is not None and check.status == "missing"
+    ]
+    warnings = _agent_safe_workspace_warnings(report)
+    actions = _workspace_next_actions(report)
+    provider = report.check("llm_provider")
+    typst = report.check("typst_binary")
+    return success_response(
+        operation="workspace.inspect",
+        artifacts=artifacts,
+        missing_fields=missing_fields,
+        warnings=warnings,
+        next_actions=actions,
+        extensions={
+            "canisend.version": report.version,
+            "canisend.workspace_initialized": report.check("workspace_config").status == "ok",
+            "canisend.provider": provider.detail if provider.detail in {"command", "openai-compatible"} else "unsupported",
+            "canisend.provider_configured": provider.status == "configured",
+            "canisend.typst_available": typst.status == "found",
+            "canisend.diagnostic_check_count": len(report.checks),
+        },
+    )
+
+
+def _evidence_staleness_check(workspace: Path) -> WorkspaceCheck:
     profile_dir = workspace / "profile"
     manifest_path = profile_dir / "profile.yaml"
     if not manifest_path.exists():
-        return "- Evidence staleness: cannot check (profile/profile.yaml missing)"
+        return WorkspaceCheck(
+            id="evidence_freshness",
+            label="Evidence staleness",
+            status="missing",
+            detail="profile manifest missing",
+        )
     try:
-        import yaml
-
         manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
         sources = manifest.get("sources", {})
         generated = manifest.get("generated", {})
@@ -167,12 +268,17 @@ def _evidence_staleness_line(workspace: Path) -> str:
             if evidence_path.exists() and source_path.stat().st_mtime > evidence_path.stat().st_mtime:
                 stale.append(source_key)
         if stale:
-            return f"- Evidence staleness: STALE ({', '.join(stale)} source(s) newer than generated evidence)"
+            return WorkspaceCheck(
+                id="evidence_freshness",
+                label="Evidence staleness",
+                status="stale",
+                items=tuple(stale),
+            )
         if sources and any(_generated_evidence_path(profile_dir, k, generated).exists() for k in sources):
-            return "- Evidence staleness: up to date"
-        return "- Evidence staleness: no generated evidence found (run extract-profile-evidence)"
+            return WorkspaceCheck(id="evidence_freshness", label="Evidence staleness", status="current")
+        return WorkspaceCheck(id="evidence_freshness", label="Evidence staleness", status="not_generated")
     except Exception:
-        return "- Evidence staleness: check failed"
+        return WorkspaceCheck(id="evidence_freshness", label="Evidence staleness", status="error")
 
 
 def _generated_evidence_path(profile_dir: Path, source_key: str, generated: object) -> Path:
@@ -184,28 +290,42 @@ def _generated_evidence_path(profile_dir: Path, source_key: str, generated: obje
     return profile_dir / Path(str(output))
 
 
-def _config_validation_line(workspace: Path) -> str:
+def _config_validation_check(workspace: Path) -> WorkspaceCheck:
     from canisend.config_schema import validate_workspace_config
 
     warnings = validate_workspace_config(workspace / WORKSPACE_CONFIG)
     if not warnings:
-        return "- Config validation: ok"
-    return f"- Config validation: {'; '.join(warnings)}"
+        return WorkspaceCheck(id="config_validation", label="Config validation", status="ok")
+    return WorkspaceCheck(
+        id="config_validation",
+        label="Config validation",
+        status="warning",
+        items=tuple(warnings),
+    )
 
 
-def _deprecated_files_line(workspace: Path) -> str:
+def _deprecated_files_check(workspace: Path) -> WorkspaceCheck:
     deprecated = deprecated_workspace_files(workspace)
     if not deprecated:
-        return "- Deprecated files: none"
-    names = ", ".join(path.name for path in deprecated)
-    return f"- Deprecated files: {names} (run `canisend update-workspace --prune-deprecated`)"
+        return WorkspaceCheck(id="deprecated_files", label="Deprecated files", status="ok")
+    return WorkspaceCheck(
+        id="deprecated_files",
+        label="Deprecated files",
+        status="warning",
+        items=tuple(path.name for path in deprecated),
+    )
 
 
-def _default_resources_line(workspace: Path) -> str:
+def _default_resources_check(workspace: Path) -> WorkspaceCheck:
     stale = _stale_default_resources(workspace)
     if not stale:
-        return "- Default resources: up to date"
-    return f"- Default resources: stale/local edits ({', '.join(stale)})"
+        return WorkspaceCheck(id="default_resources", label="Default resources", status="current")
+    return WorkspaceCheck(
+        id="default_resources",
+        label="Default resources",
+        status="stale",
+        items=tuple(stale),
+    )
 
 
 def _stale_default_resources(workspace: Path) -> list[str]:
@@ -219,14 +339,95 @@ def _stale_default_resources(workspace: Path) -> list[str]:
     return stale
 
 
-def _llm_status_line(config: LLMConfig) -> str:
+def _llm_status_check(config: LLMConfig) -> WorkspaceCheck:
     if config.provider == "command":
-        state = "configured" if config.command.strip() else "missing command"
+        status: WorkspaceCheckStatus = "configured" if config.command.strip() else "unconfigured"
+        state = "configured" if status == "configured" else "missing command"
     elif config.provider == "openai-compatible":
-        state = "configured" if config.openai_api_key and config.openai_model else "missing API key or model"
+        status = "configured" if config.openai_api_key and config.openai_model else "unconfigured"
+        state = "configured" if status == "configured" else "missing API key or model"
     else:
+        status = "unsupported"
         state = "unsupported provider"
-    return f"- LLM provider: {config.provider} ({state})"
+    return WorkspaceCheck(
+        id="llm_provider",
+        label="LLM provider",
+        status=status,
+        detail=config.provider,
+        items=(state,),
+    )
+
+
+def _doctor_check_line(check: WorkspaceCheck) -> str:
+    if check.path is not None:
+        return f"- {check.path}: {check.status} ({check.label})"
+    if check.id == "llm_provider":
+        return f"- LLM provider: {check.detail} ({check.items[0]})"
+    if check.id == "typst_binary":
+        return f"- Typst binary: {check.status}"
+    if check.id == "evidence_freshness":
+        if check.status == "missing":
+            return "- Evidence staleness: cannot check (profile/profile.yaml missing)"
+        if check.status == "stale":
+            return f"- Evidence staleness: STALE ({', '.join(check.items)} source(s) newer than generated evidence)"
+        if check.status == "current":
+            return "- Evidence staleness: up to date"
+        if check.status == "not_generated":
+            return "- Evidence staleness: no generated evidence found (run extract-profile-evidence)"
+        return "- Evidence staleness: check failed"
+    if check.id == "config_validation":
+        return "- Config validation: ok" if check.status == "ok" else f"- Config validation: {'; '.join(check.items)}"
+    if check.id == "deprecated_files":
+        if check.status == "ok":
+            return "- Deprecated files: none"
+        return (
+            f"- Deprecated files: {', '.join(check.items)} "
+            "(run `canisend update-workspace --prune-deprecated`)"
+        )
+    if check.id == "default_resources":
+        if check.status == "current":
+            return "- Default resources: up to date"
+        return f"- Default resources: stale/local edits ({', '.join(check.items)})"
+    raise ValueError(f"unsupported workspace check: {check.id}")
+
+
+def _agent_safe_workspace_warnings(report: WorkspaceReport) -> list[str]:
+    warnings: list[str] = []
+    for check in report.checks:
+        if check.path is not None and check.status == "missing":
+            warnings.append(f"Missing workspace artifact: {check.path}")
+        elif check.id == "llm_provider" and check.status != "configured":
+            warnings.append("The configured model-provider integration is not ready.")
+        elif check.id == "typst_binary" and check.status == "missing":
+            warnings.append("The Typst binary is not available.")
+        elif check.id == "evidence_freshness" and check.status != "current":
+            warnings.append("Profile evidence is not current.")
+        elif check.id == "config_validation" and check.status != "ok":
+            warnings.append(f"Workspace configuration has {len(check.items)} validation warning(s).")
+        elif check.id == "deprecated_files" and check.status != "ok":
+            warnings.append("Deprecated workspace bridge files are present.")
+        elif check.id == "default_resources" and check.status != "current":
+            warnings.append("Packaged workspace defaults differ from local copies.")
+    return warnings
+
+
+def _workspace_next_actions(report: WorkspaceReport) -> list[NextAction]:
+    actions: list[NextAction] = []
+    if report.check("workspace_config").status == "missing":
+        actions.append(NextAction(id="workspace.initialize", label="Initialize the CanISend workspace"))
+    if report.check("profile_manifest").status == "missing":
+        actions.append(NextAction(id="profile.initialize", label="Initialize the applicant profile"))
+    if report.check("evidence_freshness").status in {"stale", "not_generated"}:
+        actions.append(NextAction(id="profile.extract_evidence", label="Refresh profile evidence"))
+    if report.check("default_resources").status == "stale":
+        actions.append(NextAction(id="workspace.update_defaults", label="Review workspace default updates"))
+    if report.check("deprecated_files").status == "warning":
+        actions.append(NextAction(id="workspace.prune_deprecated", label="Remove deprecated workspace bridges"))
+    if report.check("llm_provider").status != "configured":
+        actions.append(NextAction(id="provider.configure", label="Configure a model-provider integration"))
+    if report.check("typst_binary").status == "missing":
+        actions.append(NextAction(id="runtime.install_typst", label="Install Typst for PDF rendering"))
+    return actions
 
 
 def _write_text_if_needed(path: Path, text: str, *, overwrite: bool) -> list[Path]:

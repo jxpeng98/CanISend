@@ -7,6 +7,7 @@ import unicodedata
 import typer
 
 from canisend import __version__
+from canisend.agent_protocol import dumps_agent_response
 from canisend.evidence import EvidenceAugmentationError, extract_profile_evidence
 from canisend.examples import run_packaged_example
 from canisend.git_tracking import GitTrackingError, git_add_application_materials
@@ -32,6 +33,8 @@ from canisend.workspace import (
     load_workspace_config,
     prune_deprecated_workspace_files,
     update_workspace_defaults,
+    workspace_report,
+    workspace_report_agent_response,
 )
 
 
@@ -286,8 +289,19 @@ def doctor(
         "--workspace",
         help="User workspace directory to inspect.",
     ),
+    output_format: str = typer.Option(
+        "text",
+        "--format",
+        help="Output format: text or json.",
+    ),
 ) -> None:
     """Report local workspace, provider, and rendering readiness."""
+    if output_format not in {"text", "json"}:
+        raise typer.BadParameter("--format must be text or json.")
+    if output_format == "json":
+        response = workspace_report_agent_response(workspace_report(workspace))
+        typer.echo(dumps_agent_response(response), nl=False)
+        return
     for line in doctor_lines(workspace):
         typer.echo(line)
 

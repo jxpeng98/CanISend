@@ -307,7 +307,7 @@ them.
 - Modify: `tests/test_workspace_productization.py`
 - Modify: `tests/test_release_productization.py`
 
-- [ ] **Step 1: Write failing structured-diagnostics tests**
+- [x] **Step 1: Write failing structured-diagnostics tests**
 
 Add tests for a new structured service result rather than parsing `doctor_lines()`:
 
@@ -325,7 +325,7 @@ def test_doctor_text_output_remains_compatible(tmp_path): ...
 def test_doctor_json_output_is_one_valid_agent_response(tmp_path): ...
 ```
 
-- [ ] **Step 2: Verify the tests fail**
+- [x] **Step 2: Verify the tests fail**
 
 Run:
 
@@ -335,7 +335,7 @@ uv run python -m pytest tests/test_workspace_productization.py tests/test_releas
 
 Expected: new tests fail because only line-oriented diagnostics exist.
 
-- [ ] **Step 3: Add a structured workspace report**
+- [x] **Step 3: Add a structured workspace report**
 
 Refactor the current checks so one service result feeds both:
 
@@ -344,12 +344,12 @@ Refactor the current checks so one service result feeds both:
 
 Do not change the meaning or order of existing text output without an explicit compatibility test update.
 
-- [ ] **Step 4: Add `doctor --format text|json`**
+- [x] **Step 4: Add `doctor --format text|json`**
 
 JSON mode uses `operation: workspace.inspect`. It returns structured checks, warnings, and next actions without raw
 profile content or environment values.
 
-- [ ] **Step 5: Verify targeted tests pass**
+- [x] **Step 5: Verify targeted tests pass**
 
 Run:
 

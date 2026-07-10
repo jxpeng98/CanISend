@@ -9,7 +9,7 @@ import yaml
 from typer.testing import CliRunner
 
 from canisend.cli import app
-from canisend.workspace import doctor_lines
+from canisend.workspace import doctor_lines, workspace_report
 
 
 def test_init_workspace_creates_user_layout_and_default_resources(tmp_path):
@@ -161,6 +161,101 @@ def test_doctor_reports_workspace_and_provider_status(tmp_path, monkeypatch):
     assert "profile/profile.yaml" in result.output
     assert "agent skill" in result.output
     assert "LLM provider: command" in result.output
+
+
+def test_workspace_report_contains_typed_checks_and_version(tmp_path):
+    workspace = tmp_path / "workspace"
+    runner = CliRunner()
+    runner.invoke(app, ["init-workspace", "--workspace", str(workspace), "--profile-mode", "typst"])
+
+    report = workspace_report(workspace, env={})
+
+    assert report.version
+    assert report.root == workspace.resolve()
+    assert report.check("workspace_config").status == "ok"
+    assert report.check("profile_manifest").path == "profile/profile.yaml"
+    assert report.check("evidence_freshness").status == "not_generated"
+    assert all(check.id and check.label for check in report.checks)
+
+
+def test_workspace_report_marks_missing_profile_manifest(tmp_path):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+
+    report = workspace_report(workspace, env={})
+
+    check = report.check("profile_manifest")
+    assert check.status == "missing"
+    assert check.path == "profile/profile.yaml"
+
+
+def test_workspace_report_reports_evidence_freshness_without_private_text(tmp_path):
+    workspace = tmp_path / "workspace"
+    runner = CliRunner()
+    runner.invoke(app, ["init-workspace", "--workspace", str(workspace), "--profile-mode", "typst"])
+    source = workspace / "profile" / "typst" / "cv.typ"
+    source.write_text("PRIVATE APPLICANT BODY", encoding="utf-8")
+    manifest = workspace / "profile" / "profile.yaml"
+    manifest_data = yaml.safe_load(manifest.read_text(encoding="utf-8"))
+    manifest_data["sources"] = {"cv": "typst/cv.typ"}
+    manifest.write_text(yaml.safe_dump(manifest_data, sort_keys=False), encoding="utf-8")
+
+    report = workspace_report(workspace, env={})
+    rendered = repr(report)
+
+    assert report.check("evidence_freshness").status == "not_generated"
+    assert "PRIVATE APPLICANT BODY" not in rendered
+
+
+def test_workspace_report_has_no_provider_call_side_effect(tmp_path, monkeypatch):
+    workspace = tmp_path / "workspace"
+    runner = CliRunner()
+    runner.invoke(app, ["init-workspace", "--workspace", str(workspace), "--profile-mode", "typst"])
+
+    def fail_provider_call(*args, **kwargs):
+        raise AssertionError("workspace inspection must not contact or execute a provider")
+
+    monkeypatch.setattr("canisend.llm.subprocess.run", fail_provider_call)
+    monkeypatch.setattr("canisend.llm.urlopen", fail_provider_call)
+
+    report = workspace_report(
+        workspace,
+        env={
+            "ACADEMIC_PREP_LLM_PROVIDER": "command",
+            "ACADEMIC_PREP_LLM_COMMAND": "would-run-if-called",
+        },
+    )
+
+    assert report.check("llm_provider").status == "configured"
+
+
+def test_doctor_text_output_remains_compatible(tmp_path):
+    workspace = tmp_path / "workspace"
+    runner = CliRunner()
+    runner.invoke(app, ["init-workspace", "--workspace", str(workspace), "--profile-mode", "typst"])
+
+    result = runner.invoke(app, ["doctor", "--workspace", str(workspace), "--format", "text"])
+
+    assert result.exit_code == 0
+    assert result.output.splitlines() == doctor_lines(workspace)
+
+
+def test_doctor_json_output_is_one_valid_agent_response(tmp_path):
+    workspace = tmp_path / "workspace"
+    runner = CliRunner()
+    runner.invoke(app, ["init-workspace", "--workspace", str(workspace), "--profile-mode", "typst"])
+
+    result = runner.invoke(app, ["doctor", "--workspace", str(workspace), "--format", "json"])
+    payload = json.loads(result.stdout)
+
+    assert result.exit_code == 0
+    assert result.stdout.endswith("\n")
+    assert result.stdout.count("\n") == 1
+    assert payload["operation"] == "workspace.inspect"
+    assert payload["ok"] is True
+    assert payload["error"] is None
+    assert any(artifact["path"] == "profile/profile.yaml" for artifact in payload["artifacts"])
+    assert str(workspace) not in result.stdout
 
 
 def test_doctor_includes_config_warning_details(tmp_path):
