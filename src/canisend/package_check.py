@@ -17,6 +17,7 @@ REQUIRED_WHEEL_RESOURCES = [
     "canisend/resources/templates/typst/cover_letter.typ",
     "canisend/resources/templates/typst/application_package.typ",
     "canisend/resources/schemas/parsed_job.schema.json",
+    "canisend/resources/schemas/agent-response.schema.json",
     "canisend/resources/.codex-plugin/plugin.json",
     "canisend/resources/skills/canisend/SKILL.md",
     "canisend/resources/skills/canisend/agents/openai.yaml",

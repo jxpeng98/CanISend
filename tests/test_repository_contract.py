@@ -35,6 +35,7 @@ def test_v1_contract_files_exist():
         "schemas/parsed_job.schema.json",
         "schemas/fit_report.schema.json",
         "schemas/criteria_check.schema.json",
+        "schemas/agent-response.schema.json",
     ]
 
     for path in expected_files:

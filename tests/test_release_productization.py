@@ -77,6 +77,7 @@ def test_package_check_requires_all_run_example_resources():
     resources = set(required_wheel_resources())
 
     expected = {
+        "canisend/resources/schemas/agent-response.schema.json",
         "canisend/resources/prompts/cv_tailor.md",
         "canisend/resources/prompts/criteria_checker.md",
         "canisend/resources/prompts/package_builder.md",

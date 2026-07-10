@@ -217,9 +217,9 @@ Every agent-facing operation will return a versioned envelope in JSON mode:
 JSON output contains safe metadata, relative paths, privacy tiers, and hashes by default. It does not include full CV,
 advert, reference, or application-package text.
 
-Producer models reject undeclared fields so implementation mistakes cannot leak arbitrary data. Consumers ignore
-unknown additive fields within the same major protocol version. Breaking semantic changes require a new major protocol
-value and capability negotiation.
+Producer models reject undeclared fields so implementation mistakes cannot leak arbitrary data. Experimental scalar
+metadata uses a namespaced `extensions` mapping. A new core field requires a response-schema revision; breaking
+semantic changes require a new major protocol value and capability negotiation.
 
 ### Host-Agent Task Contract
 

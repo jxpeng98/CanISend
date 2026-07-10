@@ -75,8 +75,9 @@ not by itself imply a breaking protocol or workspace migration.
   distinguish operational errors from reviewed blockers.
 - Typer argument/usage failures continue to use exit `2` and Typer text during Phase 1.
 - JSON serialization must never depend on terminal width, colors, or locale.
-- Producer models reject undeclared fields to prevent accidental leakage. Consumers must ignore unknown fields within
-  the same major protocol version; breaking semantic changes require a new major protocol value.
+- Producer models reject undeclared fields to prevent accidental leakage. Experimental scalar metadata is confined to
+  a namespaced `extensions` mapping. New core fields require a schema revision; breaking semantic changes require a
+  new major protocol value.
 
 ### Path And Privacy Policy
 
@@ -134,7 +135,7 @@ healthy before changing public interfaces.
 - Review: `docs/superpowers/specs/2026-07-09-discovery-and-workflow-v2-design.md`
 - Review: current source and test changes shown by `git status --short`
 
-- [ ] **Step 1: Record the pre-phase worktree**
+- [x] **Step 1: Record the pre-phase worktree**
 
 Run:
 
@@ -149,7 +150,7 @@ unrelated private workspace content is staged.
 The existing `v0.2.0` tag must not be reused for this post-tag feature set. The first candidate release for this
 roadmap is `0.3.0a1` after Phase 1 acceptance.
 
-- [ ] **Step 2: Run the full offline baseline**
+- [x] **Step 2: Run the full offline baseline**
 
 Run:
 
@@ -159,7 +160,7 @@ uv run python -m pytest -q
 
 Expected at plan authoring time: `295 passed`.
 
-- [ ] **Step 3: Verify the release artifact baseline**
+- [x] **Step 3: Verify the release artifact baseline**
 
 Run:
 
@@ -171,7 +172,7 @@ uv run python -m canisend.package_check dist/*.whl
 
 Expected: build, metadata, and packaged-resource checks pass.
 
-- [ ] **Step 4: Freeze the compatibility slice**
+- [x] **Step 4: Freeze the compatibility slice**
 
 Review and land the existing Slice 1 changes through the project's normal git workflow before mixing them with
 protocol implementation. Do not discard or rewrite user changes to obtain a clean tree.
@@ -201,14 +202,14 @@ commit or review boundary.
 - Modify: `tests/test_release_productization.py`
 - Modify: `tests/test_repository_contract.py`
 
-- [ ] **Step 0: Accept the Phase 1 architecture decisions**
+- [x] **Step 0: Accept the Phase 1 architecture decisions**
 
 Record the six decisions listed by the roadmap before freezing public field names. Each ADR should contain context,
 decision, rejected alternatives, compatibility consequences, and conditions that would require revisiting it.
 
 Tests and implementation must use the accepted semantics rather than silently redefining them in code.
 
-- [ ] **Step 1: Write failing model tests**
+- [x] **Step 1: Write failing model tests**
 
 Cover at least:
 
@@ -254,7 +255,7 @@ Recommended minimal envelope:
 }
 ```
 
-- [ ] **Step 2: Verify the tests fail**
+- [x] **Step 2: Verify the tests fail**
 
 Run:
 
@@ -264,7 +265,7 @@ uv run python -m pytest tests/test_agent_protocol.py -q
 
 Expected: fail because the module and schema do not exist.
 
-- [ ] **Step 3: Implement the smallest typed protocol**
+- [x] **Step 3: Implement the smallest typed protocol**
 
 Use Pydantic models with forbidden extra fields for public protocol objects. Keep protocol construction separate from
 Typer. Add helpers for:
@@ -277,12 +278,12 @@ Typer. Add helpers for:
 
 Do not add TaskSpec, TaskResult, provider, model, token, or run-manifest fields in Phase 1.
 
-- [ ] **Step 4: Package the schema**
+- [x] **Step 4: Package the schema**
 
 Add the schema to `REQUIRED_WHEEL_RESOURCES` and repository contract tests. Verify it is included by the existing Hatch
 `schemas` resource mapping.
 
-- [ ] **Step 5: Verify targeted tests pass**
+- [x] **Step 5: Verify targeted tests pass**
 
 Run:
 
