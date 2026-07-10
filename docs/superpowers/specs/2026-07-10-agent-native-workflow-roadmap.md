@@ -1,6 +1,6 @@
 # Agent-Native Application Workflow Roadmap
 
-**Status:** Proposed
+**Status:** Active — Phase 1 implementation and local exit review complete; remote candidate CI pending
 
 **Date:** 2026-07-10
 
@@ -265,6 +265,9 @@ artifact conventions. Platform-native promotion and 1.0 release remain blocked o
 ## Phase 1: Agent Contract Foundation
 
 **Candidate milestone:** 0.3.0a1
+
+**Phase status:** Implemented and locally accepted on 2026-07-10. Release promotion remains gated on a pushed
+candidate and successful remote CI.
 
 **Objective:** Make the existing workflow safely inspectable and callable by an agent without parsing human-oriented
 terminal output.

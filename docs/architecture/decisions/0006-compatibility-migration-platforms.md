@@ -42,4 +42,3 @@ refresh as data migration would create unsafe upgrade expectations.
 
 Revisit when Phase 2 adds persistent stage state and local MCP, and whenever a new persistent schema or supported host
 is introduced.
-

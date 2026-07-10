@@ -39,4 +39,3 @@ state.
 
 Revisit only if CanISend becomes a hosted multi-user service whose authoritative state is intentionally migrated to a
 server-side database with an explicit local-workspace compatibility strategy.
-

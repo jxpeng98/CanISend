@@ -40,4 +40,3 @@ No internal state may imply that CanISend submitted an application. The stronges
 ## Revisit When
 
 Revisit when the full stage runner introduces cancellation, partial success, or retry exhaustion statuses.
-

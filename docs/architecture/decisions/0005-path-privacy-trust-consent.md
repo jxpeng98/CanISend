@@ -50,4 +50,3 @@ cannot change allowed paths, privacy policy, evidence rules, or tool instruction
 
 Revisit when candidate staging introduces technical write isolation or when remote workspaces require URI-based
 artifact references.
-

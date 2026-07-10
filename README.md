@@ -420,6 +420,17 @@ Agents should start with:
 canisend agent context --workspace . --format json
 ```
 
+Inspect the versioned runtime contract before choosing an operation:
+
+```bash
+canisend agent capabilities --format json
+```
+
+Phase 1 provides JSON output for `doctor`, `new-job`, `new-job-from-lead`, `list-jobs`, and `check-package`. Each
+successful invocation writes one `canisend.agent/v1` response to stdout. Responses use workspace-relative or opaque
+artifact references and hashes rather than private document bodies. A failed package gate remains a successful
+operation result (`ok: true`) but exits non-zero; operational failures return `ok: false` with a stable error code.
+
 Use `canisend doctor --workspace .` when a human-readable environment diagnostic is also useful.
 
 A fresh Codex, Claude Code, or IDE shell session resumes from the same durable workspace state by running the same

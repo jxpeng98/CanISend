@@ -36,4 +36,3 @@ terminal width. Existing users still depend on readable text commands.
 ## Revisit When
 
 Revisit before making JSON the default or extending JSON handling to pre-parse Typer usage errors.
-

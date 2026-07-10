@@ -41,4 +41,3 @@ Phase 1 emits only schema `1.0.0`; multi-schema response negotiation may be adde
 
 Revisit when schema `1.1.0` or protocol `v2` is proposed, at which point compatibility fixtures and negotiation behavior
 must be implemented with the change.
-

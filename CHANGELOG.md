@@ -13,6 +13,8 @@
   validation for initial and redirected URL/feed hosts.
 - Added generic RSS 2.0, RSS 1.0, and Atom job-feed ingestion while preserving the jobs.ac.uk command.
 - Added bounded feed transport, provenance redaction, source collision protection, and safer input validation.
+- Expanded CI coverage to Python 3.11 through 3.13, added cross-OS CLI smoke checks, and guarded stable releases
+  against unpushed or non-main-reachable candidate commits.
 - Kept direct user intake as a first-class path for local PDF/text adverts and single HTML or PDF job URLs.
 - Added strict APP-Q package gates with metadata, evidence freshness, Typst structure, blocker, and input-hash checks.
 - Added Typst regeneration protection so user edits produce reviewable candidates instead of being overwritten.

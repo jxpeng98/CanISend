@@ -959,7 +959,7 @@ Expected: pass.
 - Update: `README.md`
 - Update roadmap status only after every exit criterion passes
 
-- [ ] **Step 1: Run focused contract and compatibility suites**
+- [x] **Step 1: Run focused contract and compatibility suites**
 
 Run:
 
@@ -983,7 +983,7 @@ uv run python -m pytest \
 
 Expected: pass.
 
-- [ ] **Step 2: Run the complete suite**
+- [x] **Step 2: Run the complete suite**
 
 Run:
 
@@ -993,7 +993,7 @@ uv run python -m pytest -q
 
 Expected: all tests pass.
 
-- [ ] **Step 3: Build and inspect distributions**
+- [x] **Step 3: Build and inspect distributions**
 
 Run:
 
@@ -1005,7 +1005,7 @@ uv run python -m canisend.package_check dist/*.whl
 
 Expected: pass.
 
-- [ ] **Step 4: Smoke-test the built wheel**
+- [x] **Step 4: Smoke-test the built wheel**
 
 Use the existing release playbook to install the wheel in a clean temporary environment, initialize a workspace, and
 run:
@@ -1018,7 +1018,7 @@ canisend agent context --workspace <workspace> --format json
 
 Expected: each command returns one schema-valid response and the initialized workspace contains all routed skills.
 
-- [ ] **Step 5: Review the diff by concern**
+- [x] **Step 5: Review the diff by concern**
 
 Confirm:
 
@@ -1029,6 +1029,17 @@ Confirm:
 - focused skill routes resolve in initialized workspaces;
 - no TaskSpec, MCP, stage runner, or source adapter work leaked into Phase 1;
 - no private workspace or real application artifact is staged.
+
+### Exit Review Record — 2026-07-10
+
+- Focused contract and compatibility suite: 257 passed.
+- Complete suite: 391 passed independently on CPython 3.11.15, 3.12.12, and 3.13.14.
+- Distribution checks: sdist and wheel built; Twine metadata and packaged-resource inspection passed.
+- Clean-wheel smoke: CPython 3.12.12 returned valid protocol metadata for `doctor`, `agent capabilities`, and
+  `agent context`; the initialized workspace contained 14 routed skills.
+- Boundary review: repository, protocol, and skill-distribution suites passed; no private workspace path, real
+  application artifact, secret value, or Phase 2 runtime implementation was found in the change set.
+- Remote candidate CI is intentionally pending because this branch has not been pushed.
 
 ---
 
@@ -1055,20 +1066,21 @@ Confirm:
 
 Phase 1 is complete only when all of the following are true:
 
-- [ ] `canisend.agent/v1` has reviewed typed models and a packaged JSON schema.
-- [ ] `doctor`, `new-job`, `new-job-from-lead`, `list-jobs`, and `check-package` support valid JSON output.
-- [ ] `agent capabilities` and `agent context` are deterministic, read-only, and provider-free.
-- [ ] Workflow context reports phase, readiness, missing fields, consents, blockers, and next actions conservatively.
-- [ ] Default JSON responses contain references and hashes, not full Tier 2 private content.
-- [ ] Known operational failures return stable error codes after successful CLI argument parsing.
-- [ ] Existing text-mode behavior remains compatible.
-- [ ] Every focused skill routed by the workspace main skill is installed in a new workspace.
-- [ ] `run --dry-run` does not contact an LLM provider.
-- [ ] Imported source content is explicitly treated as untrusted data in prompts and skills.
-- [ ] Cross-session fake-data handoff works without prior chat history.
-- [ ] Python 3.11, 3.12, and 3.13 CI passes on the candidate commit.
-- [ ] Stable release tooling rejects an unpushed or non-main-reachable stable candidate.
-- [ ] The full test suite, build, metadata check, wheel resource check, and clean smoke test pass.
+- [x] `canisend.agent/v1` has reviewed typed models and a packaged JSON schema.
+- [x] `doctor`, `new-job`, `new-job-from-lead`, `list-jobs`, and `check-package` support valid JSON output.
+- [x] `agent capabilities` and `agent context` are deterministic, read-only, and provider-free.
+- [x] Workflow context reports phase, readiness, missing fields, consents, blockers, and next actions conservatively.
+- [x] Default JSON responses contain references and hashes, not full Tier 2 private content.
+- [x] Known operational failures return stable error codes after successful CLI argument parsing.
+- [x] Existing text-mode behavior remains compatible.
+- [x] Every focused skill routed by the workspace main skill is installed in a new workspace.
+- [x] `run --dry-run` does not contact an LLM provider.
+- [x] Imported source content is explicitly treated as untrusted data in prompts and skills.
+- [x] Cross-session fake-data handoff works without prior chat history.
+- [x] Python 3.11, 3.12, and 3.13 candidate suites pass locally and the CI matrix is configured.
+- [ ] Remote CI passes on the pushed candidate commit.
+- [x] Stable release tooling rejects an unpushed or non-main-reachable stable candidate.
+- [x] The full test suite, build, metadata check, wheel resource check, and clean smoke test pass.
 
 ## What Starts Immediately After Phase 1
 
