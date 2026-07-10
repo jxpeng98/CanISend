@@ -37,6 +37,25 @@ WorkflowPhase = Literal[
     "render",
     "unknown",
 ]
+IntakeType = Literal[
+    "manual_metadata",
+    "local_text",
+    "local_pdf",
+    "explicit_url",
+    "feed_lead",
+]
+ExecutionMode = Literal["local_service", "host_agent", "configured_provider"]
+SupportedHost = Literal["codex_cli", "codex_app_shell", "claude_code", "ide_shell"]
+
+SUPPORTED_AGENT_OPERATIONS = (
+    "agent.capabilities",
+    "agent.context",
+    "workspace.inspect",
+    "job.intake",
+    "job.intake_from_lead",
+    "job.list",
+    "package.check",
+)
 
 _DOTTED_ID_RE = re.compile(r"^[a-z][a-z0-9_-]*(?:\.[a-z][a-z0-9_-]*)+$")
 _SLUG_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_.-]*$")
@@ -193,12 +212,43 @@ class GateOutcome(ProtocolModel):
         return _workspace_relative_path(value) if value is not None else None
 
 
+class AgentCapabilities(ProtocolModel):
+    package_version: str = Field(min_length=1)
+    protocol_versions: list[str] = Field(default_factory=lambda: [AGENT_PROTOCOL])
+    schema_versions: list[str] = Field(default_factory=lambda: [AGENT_SCHEMA_VERSION])
+    operations: list[str] = Field(default_factory=lambda: list(SUPPORTED_AGENT_OPERATIONS))
+    intake_types: list[IntakeType] = Field(
+        default_factory=lambda: [
+            "manual_metadata",
+            "local_text",
+            "local_pdf",
+            "explicit_url",
+            "feed_lead",
+        ]
+    )
+    execution_modes: list[ExecutionMode] = Field(
+        default_factory=lambda: ["local_service", "host_agent", "configured_provider"]
+    )
+    supported_hosts: list[SupportedHost] = Field(
+        default_factory=lambda: ["codex_cli", "codex_app_shell", "claude_code", "ide_shell"]
+    )
+
+    @field_validator("operations")
+    @classmethod
+    def _valid_operations(cls, values: list[str]) -> list[str]:
+        for value in values:
+            if _DOTTED_ID_RE.fullmatch(value) is None:
+                raise ValueError("capability operation must be a lowercase dotted identifier")
+        return values
+
+
 class AgentResponse(ProtocolModel):
     protocol: Literal["canisend.agent/v1"] = AGENT_PROTOCOL
     schema_version: Literal["1.0.0"] = AGENT_SCHEMA_VERSION
     request_id: str = Field(default_factory=lambda: f"req_{uuid4().hex}")
     operation: str
     ok: bool
+    capabilities: AgentCapabilities | None = None
     job: JobReference | None = None
     workflow: WorkflowSnapshotReference | None = None
     artifacts: list[ArtifactReference] = Field(default_factory=list)
@@ -245,6 +295,7 @@ class AgentResponse(ProtocolModel):
 def success_response(
     *,
     operation: str,
+    capabilities: AgentCapabilities | None = None,
     job: JobReference | None = None,
     workflow: WorkflowSnapshotReference | None = None,
     artifacts: list[ArtifactReference] | None = None,
@@ -259,6 +310,7 @@ def success_response(
     return AgentResponse(
         operation=operation,
         ok=True,
+        capabilities=capabilities,
         job=job,
         workflow=workflow,
         artifacts=artifacts or [],
@@ -299,6 +351,46 @@ def error_response(
 def dumps_agent_response(response: AgentResponse) -> str:
     payload = response.model_dump(mode="json")
     return json.dumps(payload, ensure_ascii=False, sort_keys=True) + "\n"
+
+
+def default_agent_capabilities(package_version: str) -> AgentCapabilities:
+    return AgentCapabilities(package_version=package_version)
+
+
+def agent_response_lines(response: AgentResponse) -> list[str]:
+    lines = [
+        f"Operation: {response.operation}",
+        f"Protocol: {response.protocol} (schema {response.schema_version})",
+        f"Result: {'ok' if response.ok else 'error'}",
+    ]
+    if response.capabilities is not None:
+        capabilities = response.capabilities
+        lines.extend(
+            [
+                f"Package: {capabilities.package_version}",
+                f"Operations: {', '.join(capabilities.operations)}",
+                f"Intake types: {', '.join(capabilities.intake_types)}",
+                f"Execution modes: {', '.join(capabilities.execution_modes)}",
+                f"Supported hosts: {', '.join(capabilities.supported_hosts)}",
+            ]
+        )
+    if response.job is not None:
+        lines.append(f"Job: {response.job.id} — {response.job.title} at {response.job.institution}")
+    if response.workflow is not None:
+        lines.append(f"Workflow: {response.workflow.phase} ({response.workflow.readiness})")
+    for artifact in response.artifacts:
+        locator = artifact.path or artifact.opaque_id
+        lines.append(f"Artifact: {artifact.kind} — {locator} ({'present' if artifact.exists else 'missing'})")
+    lines.extend(f"Missing: {field}" for field in response.missing_fields)
+    lines.extend(f"Consent required: {consent.id} — {consent.purpose}" for consent in response.required_consents)
+    lines.extend(f"Warning: {warning}" for warning in response.warnings)
+    lines.extend(f"Blocker: {blocker}" for blocker in response.blockers)
+    lines.extend(f"Next action: {action.id} — {action.label}" for action in response.next_actions)
+    if response.gate is not None:
+        lines.append(f"Gate: {response.gate.status} ({response.gate.issue_count} issue(s))")
+    if response.error is not None:
+        lines.append(f"Error: {response.error.code} — {response.error.message}")
+    return lines
 
 
 def artifact_reference_from_path(
@@ -359,4 +451,3 @@ def _workspace_relative_path(value: str) -> str:
 
 def _file_sha256(path: Path) -> str:
     return sha256(path.read_bytes()).hexdigest()
-

@@ -8,6 +8,8 @@ from typing import Literal
 import yaml
 
 from canisend.agent_protocol import (
+    AgentError,
+    AgentResponse,
     ArtifactReference,
     ConsentRequirement,
     GateOutcome,
@@ -15,6 +17,7 @@ from canisend.agent_protocol import (
     NextAction,
     WorkflowSnapshotReference,
     artifact_reference_from_path,
+    success_response,
 )
 from canisend.jobs import JobMetadataError, job_advert_is_stub, load_job_metadata, next_job_action
 from canisend.ready_check import APPLICATION_GATE_REPORT
@@ -44,6 +47,42 @@ class ProfileEvidenceInspection:
     state: EvidenceState
     artifacts: tuple[ArtifactReference, ...]
     warnings: tuple[str, ...] = ()
+
+
+def workflow_snapshot_agent_response(
+    snapshot: DerivedWorkflowSnapshot,
+    *,
+    operation: str = "agent.context",
+) -> AgentResponse:
+    if snapshot.error_code is not None:
+        return AgentResponse(
+            operation=operation,
+            ok=False,
+            workflow=snapshot.workflow,
+            artifacts=list(snapshot.artifacts),
+            missing_fields=list(snapshot.missing_fields),
+            required_consents=list(snapshot.required_consents),
+            warnings=list(snapshot.warnings),
+            blockers=list(snapshot.blockers),
+            next_actions=list(snapshot.next_actions),
+            gate=snapshot.gate,
+            error=AgentError(
+                code=snapshot.error_code,
+                message=snapshot.error_message or "The requested context could not be derived.",
+            ),
+        )
+    return success_response(
+        operation=operation,
+        job=snapshot.job,
+        workflow=snapshot.workflow,
+        artifacts=list(snapshot.artifacts),
+        missing_fields=list(snapshot.missing_fields),
+        required_consents=list(snapshot.required_consents),
+        warnings=list(snapshot.warnings),
+        blockers=list(snapshot.blockers),
+        next_actions=list(snapshot.next_actions),
+        gate=snapshot.gate,
+    )
 
 
 def derive_workflow_snapshot(workspace: Path, job: Path) -> DerivedWorkflowSnapshot:

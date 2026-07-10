@@ -7,7 +7,13 @@ import unicodedata
 import typer
 
 from canisend import __version__
-from canisend.agent_protocol import dumps_agent_response
+from canisend.agent_protocol import (
+    AgentResponse,
+    agent_response_lines,
+    default_agent_capabilities,
+    dumps_agent_response,
+    success_response,
+)
 from canisend.evidence import EvidenceAugmentationError, extract_profile_evidence
 from canisend.examples import run_packaged_example
 from canisend.git_tracking import GitTrackingError, git_add_application_materials
@@ -27,6 +33,7 @@ from canisend.rss import (
 from canisend.skill_distribution import export_skill_distribution
 from canisend.typst import render_typst_files
 from canisend.versioning import fetch_remote_versions, format_version_report
+from canisend.workflow_state import derive_workflow_snapshot, workflow_snapshot_agent_response
 from canisend.workspace import (
     doctor_lines,
     init_workspace as create_workspace,
@@ -58,6 +65,11 @@ app = typer.Typer(
     help=APP_HELP,
     no_args_is_help=True,
 )
+agent_app = typer.Typer(
+    help="Inspect CanISend's versioned host-agent contract and safe workspace context.",
+    no_args_is_help=True,
+)
+app.add_typer(agent_app, name="agent")
 
 
 def _version_callback(value: bool) -> None:
@@ -151,6 +163,66 @@ def main(
     ),
 ) -> None:
     """CanISend command-line interface."""
+
+
+@agent_app.command("capabilities")
+def agent_capabilities(
+    output_format: str = typer.Option(
+        "text",
+        "--format",
+        help="Output format: text or json.",
+    ),
+) -> None:
+    """Report workspace-independent protocol and operation capabilities."""
+    response = success_response(
+        operation="agent.capabilities",
+        capabilities=default_agent_capabilities(__version__),
+    )
+    _emit_agent_response(response, output_format=output_format)
+
+
+@agent_app.command("context")
+def agent_context(
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="User workspace directory to inspect.",
+    ),
+    job: Path | None = typer.Option(
+        None,
+        "--job",
+        help="Optional job directory or workspace-relative job identifier to inspect.",
+    ),
+    output_format: str = typer.Option(
+        "text",
+        "--format",
+        help="Output format: text or json.",
+    ),
+) -> None:
+    """Return privacy-safe workspace or job context for a host agent."""
+    if job is None:
+        response = workspace_report_agent_response(
+            workspace_report(workspace),
+            operation="agent.context",
+        )
+    else:
+        response = workflow_snapshot_agent_response(
+            derive_workflow_snapshot(workspace, job),
+            operation="agent.context",
+        )
+    _emit_agent_response(response, output_format=output_format)
+
+
+def _emit_agent_response(response: AgentResponse, *, output_format: str) -> None:
+    if output_format not in {"text", "json"}:
+        raise typer.BadParameter("--format must be text or json.")
+    if output_format == "json":
+        typer.echo(dumps_agent_response(response), nl=False)
+    else:
+        for line in agent_response_lines(response):
+            typer.echo(line)
+    if not response.ok:
+        raise typer.Exit(code=1)
 
 
 @app.command("version")

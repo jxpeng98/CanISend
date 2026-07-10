@@ -20,6 +20,7 @@ from canisend.agent_protocol import (
     NextAction,
     WorkflowSnapshotReference,
     artifact_reference_from_path,
+    default_agent_capabilities,
     dumps_agent_response,
     error_response,
     success_response,
@@ -310,4 +311,14 @@ def test_agent_response_model_dump_conforms_to_packaged_schema() -> None:
     )
 
     Draft202012Validator.check_schema(schema)
+    Draft202012Validator(schema).validate(response.model_dump(mode="json"))
+
+
+def test_agent_capability_response_conforms_to_packaged_schema() -> None:
+    schema = json.loads(Path("schemas/agent-response.schema.json").read_text(encoding="utf-8"))
+    response = success_response(
+        operation="agent.capabilities",
+        capabilities=default_agent_capabilities("0.2.0"),
+    )
+
     Draft202012Validator(schema).validate(response.model_dump(mode="json"))

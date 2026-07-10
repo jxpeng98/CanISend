@@ -450,7 +450,7 @@ Expected: pass.
 - Modify: `src/canisend/workflow_state.py`
 - Create: `tests/test_agent_cli.py`
 
-- [ ] **Step 1: Write failing CLI tests**
+- [x] **Step 1: Write failing CLI tests**
 
 Add tests for:
 
@@ -472,7 +472,7 @@ Assertions should cover:
 - no workspace mutation;
 - no network or provider call.
 
-- [ ] **Step 2: Verify the tests fail**
+- [x] **Step 2: Verify the tests fail**
 
 Run:
 
@@ -482,7 +482,7 @@ uv run python -m pytest tests/test_agent_cli.py -q
 
 Expected: fail because the `agent` command group does not exist.
 
-- [ ] **Step 3: Add a Typer sub-application**
+- [x] **Step 3: Add a Typer sub-application**
 
 Register an `agent` command group. Keep the command functions thin and route all state through the typed protocol and
 workflow services.
@@ -490,12 +490,12 @@ workflow services.
 `agent capabilities` must be workspace-independent and must not inspect private files. `agent context` may inspect
 safe file metadata and hashes but must not emit Tier 2 bodies.
 
-- [ ] **Step 4: Add a small text presenter**
+- [x] **Step 4: Add a small text presenter**
 
 Text output is useful for debugging but must be generated from the same typed result as JSON. Do not create a second
 context decision path.
 
-- [ ] **Step 5: Verify targeted tests pass**
+- [x] **Step 5: Verify targeted tests pass**
 
 Run:
 

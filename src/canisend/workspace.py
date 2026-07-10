@@ -193,7 +193,11 @@ def doctor_lines(workspace: Path, *, env: Mapping[str, str] | None = None) -> li
     return lines
 
 
-def workspace_report_agent_response(report: WorkspaceReport) -> AgentResponse:
+def workspace_report_agent_response(
+    report: WorkspaceReport,
+    *,
+    operation: str = "workspace.inspect",
+) -> AgentResponse:
     artifact_policy = {
         "workspace_config": (1, "validated", "application/yaml"),
         "profile_manifest": (2, "trusted_local", "application/yaml"),
@@ -229,7 +233,7 @@ def workspace_report_agent_response(report: WorkspaceReport) -> AgentResponse:
     provider = report.check("llm_provider")
     typst = report.check("typst_binary")
     return success_response(
-        operation="workspace.inspect",
+        operation=operation,
         artifacts=artifacts,
         missing_fields=missing_fields,
         warnings=warnings,

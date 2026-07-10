@@ -23,6 +23,12 @@
     "ok": {
       "type": "boolean"
     },
+    "capabilities": {
+      "oneOf": [
+        { "$ref": "#/$defs/agentCapabilities" },
+        { "type": "null" }
+      ]
+    },
     "job": {
       "oneOf": [
         { "$ref": "#/$defs/jobReference" },
@@ -87,6 +93,7 @@
     "request_id",
     "operation",
     "ok",
+    "capabilities",
     "job",
     "workflow",
     "artifacts",
@@ -150,6 +157,60 @@
         "hint": { "type": ["string", "null"] }
       },
       "required": ["code", "message", "retryable", "hint"]
+    },
+    "agentCapabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "package_version": { "type": "string", "minLength": 1 },
+        "protocol_versions": {
+          "type": "array",
+          "items": { "const": "canisend.agent/v1" },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "schema_versions": {
+          "type": "array",
+          "items": { "const": "1.0.0" },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "operations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/dottedIdentifier" },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "intake_types": {
+          "type": "array",
+          "items": {
+            "enum": ["manual_metadata", "local_text", "local_pdf", "explicit_url", "feed_lead"]
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "execution_modes": {
+          "type": "array",
+          "items": { "enum": ["local_service", "host_agent", "configured_provider"] },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "supported_hosts": {
+          "type": "array",
+          "items": { "enum": ["codex_cli", "codex_app_shell", "claude_code", "ide_shell"] },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "package_version",
+        "protocol_versions",
+        "schema_versions",
+        "operations",
+        "intake_types",
+        "execution_modes",
+        "supported_hosts"
+      ]
     },
     "artifactReference": {
       "type": "object",
