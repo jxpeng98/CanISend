@@ -215,30 +215,87 @@ tag_message_for_channel() {
 create_and_push_tag() {
   local tag="$1"
   local message="$2"
-  local branch
-
-  if [[ "$DRY_RUN" != "1" ]] && git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
-    die "Tag already exists locally: $tag"
-  fi
-
-  if [[ "$DRY_RUN" != "1" ]] && git ls-remote --exit-code --tags origin "$tag" >/dev/null 2>&1; then
-    die "Tag already exists on origin: $tag"
-  fi
 
   if [[ "$DRY_RUN" == "1" ]]; then
-    branch="${CANISEND_RELEASE_DRY_RUN_BRANCH:-main}"
     run git tag -a "$tag" HEAD -m "$message"
-    run git push origin "$branch"
     run git push origin "$tag"
     return 0
   fi
 
+  run git tag -a "$tag" HEAD -m "$message"
+  run git push origin "$tag"
+}
+
+release_branch() {
+  if [[ "$DRY_RUN" == "1" ]]; then
+    printf '%s\n' "${CANISEND_RELEASE_DRY_RUN_BRANCH:-main}"
+    return 0
+  fi
+
+  local branch
   branch="$(git branch --show-current)"
   [[ -n "$branch" ]] || die "Cannot release from a detached HEAD."
+  printf '%s\n' "$branch"
+}
 
-  run git tag -a "$tag" HEAD -m "$message"
+ensure_tag_available() {
+  local tag="$1"
+  if [[ "$DRY_RUN" == "1" ]]; then
+    return 0
+  fi
+
+  if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+    die "Tag already exists locally: $tag"
+  fi
+  if git ls-remote --exit-code --tags origin "$tag" >/dev/null 2>&1; then
+    die "Tag already exists on origin: $tag"
+  fi
+}
+
+ensure_release_branch_policy() {
+  local channel="$1"
+  local branch="$2"
+
+  if [[ "$channel" == "stable" && "$branch" != "main" ]]; then
+    die "stable releases must start from main; current branch is $branch"
+  fi
+  if [[ "$channel" != "stable" && "$branch" != "main" ]]; then
+    printf 'Prerelease channel %s permits a non-main source branch after review: %s\n' "$channel" "$branch"
+  fi
+  if [[ "$channel" != "stable" || "$DRY_RUN" == "1" ]]; then
+    return 0
+  fi
+
+  run git fetch origin main
+  git rev-parse --verify refs/remotes/origin/main >/dev/null 2>&1 \
+    || die "origin/main is unavailable; push or fetch the reviewed stable source first."
+  git merge-base --is-ancestor HEAD refs/remotes/origin/main \
+    || die "stable release source is not reachable from origin/main."
+}
+
+push_and_verify_candidate() {
+  local branch="$1"
+  local channel="$2"
+
   run git push origin "$branch"
-  run git push origin "$tag"
+  if [[ "$DRY_RUN" == "1" ]]; then
+    return 0
+  fi
+
+  local local_head remote_head
+  local_head="$(git rev-parse HEAD)"
+  remote_head="$(
+    git ls-remote --exit-code --heads origin "refs/heads/$branch" | awk 'NR == 1 { print $1 }'
+  )"
+  [[ -n "$remote_head" && "$remote_head" == "$local_head" ]] \
+    || die "Candidate commit is not the current origin/$branch head."
+  printf 'Verified candidate commit on origin/%s: %s\n' "$branch" "$local_head"
+
+  if [[ "$channel" == "stable" ]]; then
+    run git fetch origin main
+    git merge-base --is-ancestor HEAD refs/remotes/origin/main \
+      || die "stable release candidate is not reachable from origin/main."
+  fi
 }
 
 main() {
@@ -290,6 +347,13 @@ main() {
 
   validate_version_for_channel "$channel" "$version"
 
+  local tag message branch
+  tag="$(tag_name_for_channel "$channel" "$version")"
+  message="$(tag_message_for_channel "$channel" "$version")"
+  branch="$(release_branch)"
+  ensure_tag_available "$tag"
+  ensure_release_branch_policy "$channel" "$branch"
+
   ensure_clean_worktree
   update_version_files "$version"
   refresh_lock_file
@@ -304,10 +368,8 @@ main() {
     local_release_checks
   fi
 
-  local tag message
-  tag="$(tag_name_for_channel "$channel" "$version")"
-  message="$(tag_message_for_channel "$channel" "$version")"
   commit_version_bump "$version"
+  push_and_verify_candidate "$branch" "$channel"
   create_and_push_tag "$tag" "$message"
 
   printf 'Pushed %s. GitHub Actions release.yml will publish TestPyPI first and then promote eligible release tags.\n' "$tag"

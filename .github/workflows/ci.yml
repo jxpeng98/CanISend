@@ -5,11 +5,39 @@ on:
     branches:
       - main
       - "feature/**"
+      - "feat/**"
   pull_request:
 
 jobs:
-  test-build:
+  test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install project
+        run: uv sync --all-extras --dev
+
+      - name: Run tests
+        run: uv run python -m pytest -v
+
+  smoke:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v4
 
@@ -24,8 +52,29 @@ jobs:
       - name: Install project
         run: uv sync --all-extras --dev
 
-      - name: Run tests
-        run: uv run python -m pytest -v
+      - name: Smoke test CLI contract
+        run: |
+          uv run canisend --help
+          uv run canisend init-workspace --workspace .ci-smoke-workspace
+          uv run canisend doctor --workspace .ci-smoke-workspace --format json
+          uv run canisend agent capabilities --format json
+
+  build-package:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install project
+        run: uv sync --all-extras --dev
 
       - name: Build distributions
         run: uv build
@@ -42,4 +91,5 @@ jobs:
           /tmp/canisend-smoke/bin/pip install dist/*.whl
           /tmp/canisend-smoke/bin/canisend --help
           /tmp/canisend-smoke/bin/canisend init-workspace --workspace /tmp/canisend-workspace
-          /tmp/canisend-smoke/bin/canisend doctor --workspace /tmp/canisend-workspace
+          /tmp/canisend-smoke/bin/canisend doctor --workspace /tmp/canisend-workspace --format json
+          /tmp/canisend-smoke/bin/canisend agent capabilities --format json

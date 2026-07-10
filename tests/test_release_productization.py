@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
 import tomllib
 import zipfile
 
@@ -138,6 +139,26 @@ def test_ci_workflow_runs_tests_build_and_package_resource_check():
     assert "/tmp/canisend-smoke/bin/canisend doctor --workspace /tmp/canisend-workspace" in rendered
 
 
+def test_ci_covers_supported_python_versions_and_cross_os_cli_smoke():
+    workflow = yaml.safe_load(Path(".github/workflows/ci.yml").read_text())
+    jobs = workflow["jobs"]
+
+    assert jobs["test"]["strategy"]["matrix"]["python-version"] == ["3.11", "3.12", "3.13"]
+    assert jobs["build-package"]["needs"] == "test"
+    assert "strategy" not in jobs["build-package"]
+    assert jobs["smoke"]["strategy"]["matrix"]["os"] == [
+        "ubuntu-latest",
+        "macos-latest",
+        "windows-latest",
+    ]
+    smoke = json.dumps(jobs["smoke"])
+    assert 'python-version: "3.12"' in Path(".github/workflows/ci.yml").read_text()
+    assert "canisend --help" in smoke
+    assert "init-workspace" in smoke
+    assert "doctor --workspace .ci-smoke-workspace --format json" in smoke
+    assert "agent capabilities --format json" in smoke
+
+
 def test_release_workflow_publishes_with_trusted_publishing():
     workflow_path = Path(".github/workflows/release.yml")
     rendered = workflow_path.read_text()
@@ -166,16 +187,31 @@ def test_release_workflow_publishes_with_trusted_publishing():
     assert "python -m venv /tmp/canisend-smoke" in rendered
 
 
+def test_release_workflow_guards_stable_tag_source_provenance():
+    rendered = Path(".github/workflows/release.yml").read_text()
+
+    assert "fetch-depth: 0" in rendered
+    assert "Verify release source provenance" in rendered
+    assert 'if [[ "$release_channel" == "stable" ]]' in rendered
+    assert "git fetch origin main" in rendered
+    assert 'git merge-base --is-ancestor "$GITHUB_SHA" "origin/main"' in rendered
+    assert "Prerelease tags may originate from a reviewed non-main branch" in rendered
+
+
 def test_release_playbook_documents_testpypi_dry_run():
     playbook = Path("RELEASE.md").read_text()
 
     assert "## Release Channels" in playbook
     assert "scripts/release.sh test" in playbook
-    assert "scripts/release.sh beta --version 0.2.0b1" in playbook
-    assert "scripts/release.sh stable --version 0.2.0" in playbook
-    assert "test/v0.2.0.dev1" in playbook
-    assert "v0.2.0b1" in playbook
-    assert "v0.2.0" in playbook
+    assert "scripts/release.sh beta --version 0.3.0a1" in playbook
+    assert "scripts/release.sh stable --version 0.3.0" in playbook
+    assert "test/v0.3.0.dev1" in playbook
+    assert "v0.3.0a1" in playbook
+    assert "v0.3.0" in playbook
+    assert "Do not reuse `v0.2.0`" in playbook
+    assert "stable" in playbook and "origin/main" in playbook
+    assert "prerelease" in playbook and "non-main branch" in playbook
+    assert "candidate commit" in playbook and "pushed" in playbook
     assert "commits the version bump" in playbook
     assert "publishes to PyPI only after TestPyPI publish and smoke testing succeed" in playbook
     assert "## TestPyPI Dry Run" in playbook
@@ -189,6 +225,15 @@ def test_release_playbook_documents_testpypi_dry_run():
     assert "--index-url https://test.pypi.org/simple/" in playbook
     assert "--extra-index-url https://pypi.org/simple/" in playbook
     assert "canisend doctor --workspace" in playbook
+
+
+def test_changelog_records_published_020_before_unreleased_phase_one_work():
+    changelog = Path("CHANGELOG.md").read_text()
+
+    assert "## Unreleased" in changelog
+    assert "## 0.2.0 - 2026-06-22" in changelog
+    assert changelog.index("## Unreleased") < changelog.index("## 0.2.0 - 2026-06-22")
+    assert "agent protocol" in changelog.lower()
 
 
 def test_readme_documents_release_and_update_workflow():

@@ -546,20 +546,23 @@ CI runs the same test/build/resource-check sequence on pushes and pull requests.
 Preferred tag-driven release orchestration:
 
 ```bash
-scripts/release.sh test --version 0.2.0.dev1
-scripts/release.sh beta --version 0.2.0b1
-scripts/release.sh stable --version 0.2.0
+scripts/release.sh test --version 0.3.0.dev1
+scripts/release.sh beta --version 0.3.0a1
+scripts/release.sh stable --version 0.3.0
 ```
 
 The script updates `pyproject.toml` and `src/canisend/__init__.py`, runs local checks, commits the version bump, pushes the current branch, then creates and pushes the matching git tag:
 
 ```bash
-git tag -a test/v0.2.0.dev1 HEAD -m "canisend 0.2.0.dev1 TestPyPI"
-git tag -a v0.2.0b1 HEAD -m "canisend 0.2.0b1 beta"
+git tag -a test/v0.3.0.dev1 HEAD -m "canisend 0.3.0.dev1 TestPyPI"
+git tag -a v0.3.0a1 HEAD -m "canisend 0.3.0a1 prerelease"
 git tag -a v0.2.0 HEAD -m "canisend 0.2.0 stable"
 ```
 
-`release.yml` is the only remote publisher. It always publishes to TestPyPI first, and only promotes `v*` tags to beta or stable PyPI after the TestPyPI publish and smoke test succeed.
+`release.yml` is the only remote publisher. It always publishes to TestPyPI first, and only promotes `v*` tags to
+prerelease or stable PyPI after the TestPyPI publish and smoke test succeed. The release script verifies the candidate
+commit on its remote branch before tagging; stable releases must be reachable from `origin/main`. Published tags,
+including `v0.2.0`, are never reused.
 Use `test/v*` with a disposable version because TestPyPI package versions cannot be overwritten.
 
 Use `RELEASE.md` for the full TestPyPI and PyPI release playbook. Version updates must change both `pyproject.toml` and `src/canisend/__init__.py`.

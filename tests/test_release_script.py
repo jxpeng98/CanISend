@@ -70,6 +70,32 @@ def create_minimal_release_repo(tmp_path: Path) -> Path:
     return repo
 
 
+def push_main(repo: Path) -> None:
+    run_git(repo, "push", "-u", "origin", "main")
+
+
+def invoke_repo_release(
+    repo: Path,
+    channel: str,
+    version: str,
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [
+            "bash",
+            "scripts/release.sh",
+            channel,
+            "--version",
+            version,
+            "--skip-local-checks",
+        ],
+        cwd=repo,
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+
 def test_release_shell_script_has_valid_syntax():
     result = subprocess.run(["bash", "-n", str(SCRIPT)], check=False, text=True, capture_output=True)
 
@@ -263,3 +289,72 @@ def test_release_checks_only_current_version_distributions(tmp_path):
     assert "dist/canisend-0.1.0" not in (repo / "twine-args.txt").read_text()
     assert "dist/canisend-0.2.0b1-py3-none-any.whl" in (repo / "package-check-args.txt").read_text()
     assert "dist/canisend-0.1.0" not in (repo / "package-check-args.txt").read_text()
+
+
+def test_stable_release_requires_main_and_rejects_unreachable_feature_commit(tmp_path):
+    repo = create_minimal_release_repo(tmp_path)
+    push_main(repo)
+    run_git(repo, "switch", "-c", "feature/release")
+    (repo / "feature.txt").write_text("feature-only\n", encoding="utf-8")
+    run_git(repo, "add", "feature.txt")
+    run_git(repo, "commit", "-m", "feature commit")
+
+    result = invoke_repo_release(repo, "stable", "0.2.0")
+
+    assert result.returncode != 0
+    assert "stable releases must start from main" in result.stderr
+    assert 'version = "0.1.0"' in (repo / "pyproject.toml").read_text()
+    assert "v0.2.0" not in run_git(repo, "tag").stdout
+
+
+def test_stable_release_pushes_and_verifies_candidate_on_origin_main(tmp_path):
+    repo = create_minimal_release_repo(tmp_path)
+    push_main(repo)
+
+    result = invoke_repo_release(repo, "stable", "0.2.0")
+
+    assert result.returncode == 0, result.stderr
+    local_head = run_git(repo, "rev-parse", "HEAD").stdout.strip()
+    remote_head = run_git(repo, "ls-remote", "--heads", "origin", "main").stdout.split()[0]
+    assert remote_head == local_head
+    assert "Verified candidate commit on origin/main" in result.stdout
+    assert "v0.2.0" in run_git(repo, "ls-remote", "--tags", "origin", "v0.2.0").stdout
+
+
+def test_beta_release_allows_reviewed_non_main_branch_and_pushes_candidate(tmp_path):
+    repo = create_minimal_release_repo(tmp_path)
+    push_main(repo)
+    run_git(repo, "switch", "-c", "feature/beta")
+    (repo / "feature.txt").write_text("beta feature\n", encoding="utf-8")
+    run_git(repo, "add", "feature.txt")
+    run_git(repo, "commit", "-m", "beta feature")
+
+    result = invoke_repo_release(repo, "beta", "0.2.0b1")
+
+    assert result.returncode == 0, result.stderr
+    local_head = run_git(repo, "rev-parse", "HEAD").stdout.strip()
+    remote_head = run_git(repo, "ls-remote", "--heads", "origin", "feature/beta").stdout.split()[0]
+    assert remote_head == local_head
+    assert "Prerelease channel beta permits a non-main source branch" in result.stdout
+
+
+def test_release_refuses_existing_tag_before_changing_version_files(tmp_path):
+    repo = create_minimal_release_repo(tmp_path)
+    push_main(repo)
+    run_git(repo, "tag", "-a", "v0.2.0", "-m", "existing release")
+    run_git(repo, "push", "origin", "v0.2.0")
+
+    result = invoke_repo_release(repo, "stable", "0.2.0")
+
+    assert result.returncode != 0
+    assert "Tag already exists" in result.stderr
+    assert 'version = "0.1.0"' in (repo / "pyproject.toml").read_text()
+    assert run_git(repo, "log", "-1", "--pretty=%s").stdout.strip() == "initial"
+
+
+def test_release_script_contains_remote_candidate_verification():
+    script = SCRIPT.read_text()
+
+    assert "git ls-remote --exit-code --heads origin" in script
+    assert "Verified candidate commit on origin/" in script
+    assert "git merge-base --is-ancestor HEAD" in script

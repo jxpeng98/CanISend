@@ -820,7 +820,7 @@ release tags also need a source-branch guard before the new public protocol is p
 - Modify: `CHANGELOG.md`
 - Modify: `RELEASE.md`
 
-- [ ] **Step 1: Write failing CI and release-policy tests**
+- [x] **Step 1: Write failing CI and release-policy tests**
 
 Add assertions that:
 
@@ -834,7 +834,7 @@ Add assertions that:
 - `CHANGELOG.md` contains an accurate 0.2.0 section before a 0.3.0 prerelease is prepared;
 - a release version cannot reuse the existing `v0.2.0` tag.
 
-- [ ] **Step 2: Verify the tests fail**
+- [x] **Step 2: Verify the tests fail**
 
 Run:
 
@@ -844,7 +844,7 @@ uv run python -m pytest tests/test_release_script.py tests/test_release_producti
 
 Expected: fail because CI is single-version and stable tag provenance is not enforced.
 
-- [ ] **Step 3: Add the supported-Python matrix**
+- [x] **Step 3: Add the supported-Python matrix**
 
 Run tests on Python 3.11, 3.12, and 3.13. Keep build, wheel inspection, and smoke installation in one dependent job so
 release artifacts remain deterministic.
@@ -852,7 +852,7 @@ release artifacts remain deterministic.
 Add a small Python 3.12 cross-OS CLI smoke matrix if runner time permits. At minimum exercise `--help`, workspace
 initialization, `doctor --format json`, and `agent capabilities --format json` without private inputs.
 
-- [ ] **Step 4: Add stable-release source guards**
+- [x] **Step 4: Add stable-release source guards**
 
 For stable releases, fetch `origin/main` and require the release commit to be an ancestor of it. Require the candidate
 commit to exist on the configured remote before tagging. Document the separate prerelease branch policy rather than
@@ -861,12 +861,12 @@ silently treating every `v*` tag as equivalent.
 Do not make tests depend on a live GitHub repository; use fake git command fixtures as the existing release-script
 tests do.
 
-- [ ] **Step 5: Repair release history documentation**
+- [x] **Step 5: Repair release history documentation**
 
 Add the missing 0.2.0 changelog section without rewriting published history. Keep current Phase 1 work under
 `Unreleased` until `0.3.0a1` is intentionally prepared.
 
-- [ ] **Step 6: Verify targeted tests pass**
+- [x] **Step 6: Verify targeted tests pass**
 
 Run:
 
