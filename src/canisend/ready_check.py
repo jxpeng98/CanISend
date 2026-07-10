@@ -10,6 +10,7 @@ import re
 import yaml
 
 from canisend.evidence import load_generated_evidence
+from canisend.jobs import job_advert_is_stub
 from canisend.materials import MaterialValidationError, validate_markdown_citations
 from canisend.parse import ParsedJobValidationError, validate_parsed_job
 
@@ -288,7 +289,7 @@ def _check_parsed_job(path: Path, issues: list[PackageCheckIssue]) -> dict[str, 
 
 def _check_job_advert(path: Path, issues: list[PackageCheckIssue]) -> None:
     text = path.read_text(encoding="utf-8")
-    if _job_advert_is_stub(text):
+    if job_advert_is_stub(text):
         issues.append(
             PackageCheckIssue(
                 "job_advert.md",
@@ -296,29 +297,6 @@ def _check_job_advert(path: Path, issues: list[PackageCheckIssue]) -> None:
                 APP_Q1,
             )
         )
-
-
-def _job_advert_is_stub(text: str) -> bool:
-    stripped = text.strip()
-    if not stripped:
-        return True
-    lowered = stripped.lower()
-    if "# job advert pending import" in lowered:
-        return True
-    if "the full advert still needs manual paste" in lowered:
-        return True
-    if "rss lead only" not in lowered and "feed lead only" not in lowered:
-        return False
-
-    full_advert_match = re.search(
-        r"^##\s+Full Advert\s*$\n(?P<body>.*?)(?=^##\s+|\Z)",
-        text,
-        flags=re.IGNORECASE | re.MULTILINE | re.DOTALL,
-    )
-    if full_advert_match is None:
-        return True
-    full_advert = full_advert_match.group("body").strip().lower()
-    return not full_advert or "paste the full advert manually here" in full_advert
 
 
 def _check_material_review_blockers(

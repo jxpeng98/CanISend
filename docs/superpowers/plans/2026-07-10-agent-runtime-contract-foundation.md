@@ -370,7 +370,7 @@ Expected: pass in both text and JSON modes.
 - Modify: `src/canisend/jobs.py`
 - Modify: `tests/test_jobs.py`
 
-- [ ] **Step 1: Write a lifecycle decision table as failing tests**
+- [x] **Step 1: Write a lifecycle decision table as failing tests**
 
 Cover at least:
 
@@ -396,7 +396,7 @@ def test_snapshot_marks_external_configured_path_without_leaking_name(tmp_path):
 def test_snapshot_never_includes_job_advert_body(tmp_path): ...
 ```
 
-- [ ] **Step 2: Verify the tests fail**
+- [x] **Step 2: Verify the tests fail**
 
 Run:
 
@@ -406,7 +406,7 @@ uv run python -m pytest tests/test_workflow_state.py tests/test_jobs.py -q
 
 Expected: fail because no structured workflow snapshot exists.
 
-- [ ] **Step 3: Implement conservative derivation**
+- [x] **Step 3: Implement conservative derivation**
 
 Create a read-only `derive_workflow_snapshot()` service that uses existing metadata, file presence, advert-stub rules,
 evidence freshness, package artifacts, Typst candidates, and gate reports.
@@ -414,7 +414,7 @@ evidence freshness, package artifacts, Typst candidates, and gate reports.
 Reuse existing helpers where possible, including `next_job_action()`. Do not write a new `workflow` section into
 `job.yaml` in Phase 1. Persisted stage state begins in Phase 2.
 
-- [ ] **Step 4: Classify artifacts and consents**
+- [x] **Step 4: Classify artifacts and consents**
 
 At minimum:
 
@@ -426,7 +426,7 @@ At minimum:
 Artifact references expose safe metadata only. A future action that asks a host agent to read a Tier 2 artifact returns
 a consent requirement; it does not read or return the artifact body.
 
-- [ ] **Step 5: Verify targeted tests pass**
+- [x] **Step 5: Verify targeted tests pass**
 
 Run:
 

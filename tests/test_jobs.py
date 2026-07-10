@@ -2,9 +2,11 @@ import json
 import re
 
 import yaml
+import pytest
 from typer.testing import CliRunner
 
 from canisend.cli import app
+from canisend.jobs import JobMetadataError, job_advert_is_stub, load_job_metadata
 
 
 ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*m")
@@ -406,6 +408,40 @@ def test_list_jobs_shows_next_action_for_each_lifecycle_state(tmp_path):
     assert "paste full advert" in result.output
     assert "Packaged Role" in result.output
     assert "run check-package" in result.output
+
+
+def test_load_job_metadata_returns_normalized_legacy_preferences(tmp_path):
+    job_dir = tmp_path / "jobs" / "legacy-role"
+    _write_job(job_dir, status="advert_imported", title="Legacy Role")
+
+    metadata = load_job_metadata(job_dir)
+
+    assert metadata["id"] == "legacy-role"
+    assert metadata["english_variant"] == "needs_confirmation"
+    assert metadata["writing_style"] == "needs_confirmation"
+
+
+def test_load_job_metadata_rejects_missing_and_invalid_yaml(tmp_path):
+    missing = tmp_path / "missing"
+    missing.mkdir()
+    invalid = tmp_path / "invalid"
+    invalid.mkdir()
+    (invalid / "job.yaml").write_text("- invalid\n- metadata\n", encoding="utf-8")
+
+    with pytest.raises(JobMetadataError, match="job.yaml is missing"):
+        load_job_metadata(missing)
+    with pytest.raises(JobMetadataError, match="must contain a mapping"):
+        load_job_metadata(invalid)
+
+
+def test_job_advert_stub_detection_is_source_neutral():
+    assert job_advert_is_stub("") is True
+    assert job_advert_is_stub("# Job Advert Pending Import\n") is True
+    assert job_advert_is_stub(
+        "# Role\n\n> Feed lead only (RSS/Atom).\n\n"
+        "## Full Advert\n\nPaste the full advert manually here.\n"
+    ) is True
+    assert job_advert_is_stub("# Full role\n\nEssential: PhD.\n") is False
 
 
 def _write_job(job_dir, *, status: str, title: str) -> None:

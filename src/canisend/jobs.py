@@ -9,6 +9,10 @@ import yaml
 from canisend.job_import import JobImportError, fetch_advert_from_url, import_advert_file
 
 
+class JobMetadataError(ValueError):
+    """Raised when a job workspace has no usable metadata document."""
+
+
 def slugify(value: str) -> str:
     normalized = value.strip().lower()
     normalized = re.sub(r"[^a-z0-9]+", "-", normalized)
@@ -170,6 +174,55 @@ def normalize_english_variant(value: str) -> str:
 
 def normalize_writing_style(value: str) -> str:
     return value.strip() or "needs_confirmation"
+
+
+def load_job_metadata(job_dir: Path) -> dict[str, Any]:
+    metadata_path = job_dir / "job.yaml"
+    if not metadata_path.is_file():
+        raise JobMetadataError("job.yaml is missing")
+    try:
+        loaded = yaml.safe_load(metadata_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, yaml.YAMLError) as exc:
+        raise JobMetadataError("job.yaml is not valid YAML") from exc
+    if not isinstance(loaded, dict):
+        raise JobMetadataError("job.yaml must contain a mapping")
+
+    metadata = dict(loaded)
+    metadata.setdefault("id", job_dir.name)
+    metadata.setdefault("source_url", "")
+    metadata.setdefault("english_variant", "needs_confirmation")
+    metadata.setdefault("writing_style", "needs_confirmation")
+    for field in ("id", "title", "institution", "deadline", "status"):
+        value = metadata.get(field)
+        if value is None or isinstance(value, (dict, list)) or not str(value).strip():
+            raise JobMetadataError(f"job.yaml field is missing or invalid: {field}")
+        metadata[field] = str(value).strip()
+    metadata["english_variant"] = str(metadata.get("english_variant") or "needs_confirmation").strip()
+    metadata["writing_style"] = str(metadata.get("writing_style") or "needs_confirmation").strip()
+    return metadata
+
+
+def job_advert_is_stub(text: str) -> bool:
+    stripped = text.strip()
+    if not stripped:
+        return True
+    lowered = stripped.lower()
+    if "# job advert pending import" in lowered:
+        return True
+    if "the full advert still needs manual paste" in lowered:
+        return True
+    if "rss lead only" not in lowered and "feed lead only" not in lowered:
+        return False
+
+    full_advert_match = re.search(
+        r"^##\s+Full Advert\s*$\n(?P<body>.*?)(?=^##\s+|\Z)",
+        text,
+        flags=re.IGNORECASE | re.MULTILINE | re.DOTALL,
+    )
+    if full_advert_match is None:
+        return True
+    full_advert = full_advert_match.group("body").strip().lower()
+    return not full_advert or "paste the full advert manually here" in full_advert
 
 
 def _source_url_stub(source_url: str) -> str:
