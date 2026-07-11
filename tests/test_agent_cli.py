@@ -37,7 +37,9 @@ def test_agent_capabilities_reports_versioned_phase_one_contract() -> None:
         "package.check",
         "workflow.stage_status",
         "workflow.stage_prepare",
+        "workflow.stage_submit",
         "workflow.stage_apply",
+        "workflow.stage_cancel",
         "workflow.stage_run",
     } <= set(capabilities["operations"])
     assert set(capabilities["intake_types"]) == {

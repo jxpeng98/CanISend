@@ -9,6 +9,7 @@ from typer.testing import CliRunner
 
 from canisend.cli import app
 from canisend.git_tracking import APPLICATION_MATERIAL_RELATIVE_PATHS
+from canisend.stage_runtime import inspect_stage_status, run_deterministic_stage
 
 
 def _write_basic_job(tmp_path: Path) -> Path:
@@ -171,6 +172,41 @@ Desirable criteria:
     assert updated_metadata["status"] == "packaged"
     assert updated_metadata["updated_at"] != "2026-05-03T23:00:00Z"
     assert updated_metadata["updated_at"].endswith("Z")
+
+
+def test_legacy_run_preserves_equivalent_stage_parse_and_confirm_outputs(tmp_path):
+    workspace = tmp_path
+    (workspace / "canisend.yaml").write_text(
+        "profile_dir: profile\njobs_dir: jobs\nschema_dir: schemas\n",
+        encoding="utf-8",
+    )
+    job_dir = _write_basic_job(workspace)
+    run_deterministic_stage(workspace, job_dir, stage="parse")
+    run_deterministic_stage(workspace, job_dir, stage="confirm")
+    parsed_path = job_dir / "parsed_job.json"
+    criteria_path = job_dir / "criteria.json"
+    parsed_hash = _file_hash(parsed_path)
+    parsed_mtime = parsed_path.stat().st_mtime_ns
+    criteria_hash = _file_hash(criteria_path)
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "run",
+            "--workspace",
+            str(workspace),
+            "--job",
+            str(job_dir.relative_to(workspace)),
+            "--no-git-add-materials",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert _file_hash(parsed_path) == parsed_hash
+    assert parsed_path.stat().st_mtime_ns == parsed_mtime
+    assert _file_hash(criteria_path) == criteria_hash
+    assert inspect_stage_status(workspace, job_dir, stage="parse").stage.status == "succeeded"
+    assert inspect_stage_status(workspace, job_dir, stage="confirm").stage.status == "succeeded"
 
 
 def test_run_pipeline_updates_unedited_generated_typst_sources(tmp_path):

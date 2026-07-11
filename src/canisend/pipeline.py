@@ -80,7 +80,7 @@ def run_pipeline(
     material_review = build_material_review_checklist(parsed_job, materials)
     _invalidate_application_gate_report(job_dir)
     written = [
-        _write_json(job_dir / "parsed_job.json", parsed_job),
+        _write_json_preserving_equivalent(job_dir / "parsed_job.json", parsed_job),
         _write_text(job_dir / "00_preparation_questions.md", _preparation_questions(parsed_job, metadata)),
         _write_text(job_dir / "01_job_summary.md", _job_summary(parsed_job)),
         _write_text(job_dir / "02_fit_report.md", materials.fit_report),
@@ -174,6 +174,17 @@ def _write_json(path: Path, data: dict[str, Any]) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     return path
+
+
+def _write_json_preserving_equivalent(path: Path, data: dict[str, Any]) -> Path:
+    if path.is_file() and not path.is_symlink():
+        try:
+            existing = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            existing = None
+        if existing == data:
+            return path
+    return _write_json(path, data)
 
 
 def _write_text(path: Path, text: str) -> Path:

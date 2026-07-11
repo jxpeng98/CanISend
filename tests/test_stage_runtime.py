@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
 import json
 import os
 from pathlib import Path
@@ -8,14 +7,22 @@ from pathlib import Path
 import pytest
 import yaml
 
-from canisend.stage_models import ArtifactFingerprint, StageRecord, TaskResultV1, WorkflowStateV1
-from canisend.stage_store import StageStoreError, atomic_write_json, sha256_bytes
+from canisend.stage_agent import stage_status_agent_response
+from canisend.stage_models import ArtifactFingerprint, StageRecord, WorkflowStateV1
+from canisend.stage_store import (
+    StageStoreError,
+    atomic_write_json,
+    sha256_bytes,
+    sha256_file,
+)
 from canisend.stage_runtime import (
     StageRuntimeError,
     apply_stage_result,
+    cancel_stage_task,
     inspect_stage_status,
     prepare_stage,
     run_deterministic_stage,
+    submit_stage_candidate,
 )
 from canisend.stages.parse_stage import build_deterministic_parse_candidate
 
@@ -69,30 +76,15 @@ Desirable criteria:
 
 def _write_success_result(prepared: object, candidate: dict[str, object]) -> Path:
     candidate_bytes = (json.dumps(candidate, indent=2, sort_keys=True) + "\n").encode("utf-8")
-    prepared.candidate_path.write_bytes(candidate_bytes)
-    started = prepared.task_spec.created_at
-    result = TaskResultV1(
-        task_id=prepared.task_spec.task_id,
-        run_id=prepared.task_spec.run_id,
-        job_id=prepared.task_spec.job_id,
-        stage="parse",
-        status="succeeded",
-        input_fingerprint=prepared.task_spec.input_fingerprint,
-        started_at=started,
-        completed_at=max(datetime.now(UTC), started + timedelta(microseconds=1)),
-        outputs=(
-            ArtifactFingerprint(
-                path=prepared.task_spec.candidate_output,
-                sha256=sha256_bytes(candidate_bytes),
-                size_bytes=len(candidate_bytes),
-            ),
-        ),
+    job_dir = prepared.task_spec_path.parents[3]
+    workspace = job_dir.parents[1]
+    submitted = submit_stage_candidate(
+        workspace,
+        job_dir,
+        task_spec_path=prepared.task_spec_path,
+        candidate_bytes=candidate_bytes,
     )
-    prepared.result_path.write_text(
-        json.dumps(result.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
-    return prepared.result_path
+    return submitted.result_path
 
 
 def test_prepare_is_fresh_session_reusable_and_provider_free(
@@ -113,6 +105,7 @@ def test_prepare_is_fresh_session_reusable_and_provider_free(
     assert second.task_spec == first.task_spec
     assert second.task_spec_path == first.task_spec_path
     assert first.task_spec_path.is_file()
+    assert first.task_spec.privacy_tier == 2
     assert first.candidate_path.parent.is_dir()
     state = inspect_stage_status(workspace, job_dir)
     assert state.stage.status == "running"
@@ -222,19 +215,18 @@ def test_invalid_candidate_and_wrong_hash_never_promote(tmp_path: Path) -> None:
     prepared = prepare_stage(workspace, job_dir, stage="parse", execution_mode="host_agent")
     candidate = build_deterministic_parse_candidate(job_dir)
     candidate.pop("deadline")
-    result_path = _write_success_result(prepared, candidate)
-
     with pytest.raises(StageRuntimeError) as invalid:
-        apply_stage_result(
+        submit_stage_candidate(
             workspace,
             job_dir,
             task_spec_path=prepared.task_spec_path,
-            task_result_path=result_path,
+            candidate_bytes=(json.dumps(candidate) + "\n").encode("utf-8"),
         )
 
     assert invalid.value.code == "stage.invalid_candidate"
     assert not (job_dir / "parsed_job.json").exists()
 
+    cancel_stage_task(workspace, job_dir, stage="parse")
     prepared = prepare_stage(workspace, job_dir, stage="parse", execution_mode="host_agent")
     result_path = _write_success_result(prepared, build_deterministic_parse_candidate(job_dir))
     payload = json.loads(result_path.read_text(encoding="utf-8"))
@@ -249,7 +241,7 @@ def test_invalid_candidate_and_wrong_hash_never_promote(tmp_path: Path) -> None:
             task_result_path=result_path,
         )
 
-    assert wrong_hash.value.code == "stage.candidate_hash_mismatch"
+    assert wrong_hash.value.code == "stage.submission_conflict"
     assert not (job_dir / "parsed_job.json").exists()
 
 
@@ -262,35 +254,15 @@ def test_candidate_symlink_escape_is_rejected(tmp_path: Path) -> None:
     outside = tmp_path / "outside"
     outside.mkdir()
     candidate_parent.symlink_to(outside, target_is_directory=True)
-    prepared.candidate_path.write_text("{}", encoding="utf-8")
-    result = TaskResultV1(
-        task_id=prepared.task_spec.task_id,
-        run_id=prepared.task_spec.run_id,
-        job_id=prepared.task_spec.job_id,
-        stage="parse",
-        status="succeeded",
-        input_fingerprint=prepared.task_spec.input_fingerprint,
-        started_at=prepared.task_spec.created_at,
-        completed_at=datetime.now(UTC) + timedelta(microseconds=1),
-        outputs=(
-            ArtifactFingerprint(
-                path=prepared.task_spec.candidate_output,
-                sha256=sha256_bytes(b"{}"),
-                size_bytes=2,
-            ),
-        ),
-    )
-    prepared.result_path.write_text(
-        json.dumps(result.model_dump(mode="json")),
-        encoding="utf-8",
-    )
 
     with pytest.raises(StageRuntimeError) as captured:
-        apply_stage_result(
+        submit_stage_candidate(
             workspace,
             job_dir,
             task_spec_path=prepared.task_spec_path,
-            task_result_path=prepared.result_path,
+            candidate_bytes=(
+                json.dumps(build_deterministic_parse_candidate(job_dir)) + "\n"
+            ).encode("utf-8"),
         )
 
     assert captured.value.code == "stage.unsafe_path"
@@ -314,37 +286,472 @@ def test_manual_output_drift_is_preserved_and_reported(tmp_path: Path) -> None:
     assert authoritative.read_text(encoding="utf-8") == '{"manual":"edit"}\n'
 
 
-def test_two_prepared_attempts_use_optimistic_output_compare_and_swap(tmp_path: Path) -> None:
+def test_second_execution_mode_cannot_create_a_parallel_task(tmp_path: Path) -> None:
     workspace, job_dir = _write_workspace(tmp_path)
     host_task = prepare_stage(workspace, job_dir, stage="parse", execution_mode="host_agent")
-    deterministic_task = prepare_stage(
-        workspace,
-        job_dir,
-        stage="parse",
-        execution_mode="deterministic",
-    )
-    candidate = build_deterministic_parse_candidate(job_dir)
-    host_result = _write_success_result(host_task, candidate)
-    deterministic_result = _write_success_result(deterministic_task, candidate)
-
-    first = apply_stage_result(
-        workspace,
-        job_dir,
-        task_spec_path=host_task.task_spec_path,
-        task_result_path=host_result,
-    )
-    first_hash = sha256_bytes(first.authoritative_path.read_bytes())
-
     with pytest.raises(StageRuntimeError) as second:
+        prepare_stage(
+            workspace,
+            job_dir,
+            stage="parse",
+            execution_mode="deterministic",
+        )
+
+    assert second.value.code == "stage.concurrent_run"
+    pending = list((job_dir / "workflow" / "runs").glob("*/task-spec.json"))
+    assert pending == [host_task.task_spec_path]
+
+
+def test_running_output_drift_blocks_rerun_and_is_cancellable(tmp_path: Path) -> None:
+    workspace, job_dir = _write_workspace(tmp_path)
+    run_deterministic_stage(workspace, job_dir, stage="parse")
+    advert = job_dir / "job_advert.md"
+    advert.write_text(advert.read_text(encoding="utf-8") + "\nChanged input.\n", encoding="utf-8")
+    prepared = prepare_stage(workspace, job_dir, stage="parse", execution_mode="host_agent")
+    authoritative = job_dir / "parsed_job.json"
+    authoritative.write_text('{"manual":"preserve"}\n', encoding="utf-8")
+
+    status = inspect_stage_status(workspace, job_dir, stage="parse")
+
+    assert status.stage.status == "running"
+    assert status.output_drift is True
+    assert status.pending_task_path == prepared.task_spec_path
+    with pytest.raises(StageRuntimeError) as captured:
+        run_deterministic_stage(workspace, job_dir, stage="parse")
+    assert captured.value.code == "stage.output_conflict"
+    assert authoritative.read_text(encoding="utf-8") == '{"manual":"preserve"}\n'
+
+    cancelled = cancel_stage_task(workspace, job_dir, stage="parse")
+    assert cancelled.manifest.status == "cancelled"
+    assert inspect_stage_status(workspace, job_dir, stage="parse").stage.status == "cancelled"
+
+
+def test_modified_task_spec_cannot_forge_output_compare_and_swap(tmp_path: Path) -> None:
+    workspace, job_dir = _write_workspace(tmp_path)
+    prepared = prepare_stage(workspace, job_dir, stage="parse", execution_mode="host_agent")
+    result_path = _write_success_result(
+        prepared,
+        build_deterministic_parse_candidate(job_dir),
+    )
+    authoritative = job_dir / "parsed_job.json"
+    authoritative.write_text('{"manual":"preserve"}\n', encoding="utf-8")
+    forged = json.loads(prepared.task_spec_path.read_text(encoding="utf-8"))
+    forged["expected_output_sha256"] = sha256_file(authoritative)
+    prepared.task_spec_path.write_text(
+        json.dumps(forged, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(StageRuntimeError) as captured:
         apply_stage_result(
             workspace,
             job_dir,
-            task_spec_path=deterministic_task.task_spec_path,
-            task_result_path=deterministic_result,
+            task_spec_path=prepared.task_spec_path,
+            task_result_path=result_path,
         )
 
-    assert second.value.code == "stage.output_conflict"
-    assert sha256_bytes(first.authoritative_path.read_bytes()) == first_hash
+    assert captured.value.code == "stage.task_integrity_mismatch"
+    assert authoritative.read_text(encoding="utf-8") == '{"manual":"preserve"}\n'
+    assert inspect_stage_status(workspace, job_dir, stage="parse").stage.status == "ready"
+    replacement = prepare_stage(
+        workspace,
+        job_dir,
+        stage="parse",
+        execution_mode="host_agent",
+    )
+    assert replacement.task_spec.run_id != prepared.task_spec.run_id
+
+
+def test_task_and_preparation_dual_edit_cannot_forge_output_baseline(tmp_path: Path) -> None:
+    workspace, job_dir = _write_workspace(tmp_path)
+    run_deterministic_stage(workspace, job_dir, stage="parse")
+    advert = job_dir / "job_advert.md"
+    advert.write_text(advert.read_text(encoding="utf-8") + "\nChanged input.\n", encoding="utf-8")
+    prepared = prepare_stage(workspace, job_dir, stage="parse", execution_mode="host_agent")
+    result_path = _write_success_result(
+        prepared,
+        build_deterministic_parse_candidate(job_dir),
+    )
+    authoritative = job_dir / "parsed_job.json"
+    authoritative.write_text('{"manual":"preserve"}\n', encoding="utf-8")
+    forged = json.loads(prepared.task_spec_path.read_text(encoding="utf-8"))
+    forged["expected_output_sha256"] = sha256_file(authoritative)
+    prepared.task_spec_path.write_text(
+        json.dumps(forged, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    preparation_path = prepared.task_spec_path.parent / "preparation.json"
+    preparation = json.loads(preparation_path.read_text(encoding="utf-8"))
+    preparation["task_spec_sha256"] = sha256_file(prepared.task_spec_path)
+    preparation_path.write_text(
+        json.dumps(preparation, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(StageRuntimeError) as captured:
+        apply_stage_result(
+            workspace,
+            job_dir,
+            task_spec_path=prepared.task_spec_path,
+            task_result_path=result_path,
+        )
+
+    assert captured.value.code == "stage.task_integrity_mismatch"
+    assert authoritative.read_text(encoding="utf-8") == '{"manual":"preserve"}\n'
+
+
+def test_cancelled_task_result_cannot_promote_late(tmp_path: Path) -> None:
+    workspace, job_dir = _write_workspace(tmp_path)
+    prepared = prepare_stage(workspace, job_dir, stage="parse", execution_mode="host_agent")
+    result_path = _write_success_result(
+        prepared,
+        build_deterministic_parse_candidate(job_dir),
+    )
+    cancelled = cancel_stage_task(workspace, job_dir, stage="parse")
+
+    with pytest.raises(StageRuntimeError) as captured:
+        apply_stage_result(
+            workspace,
+            job_dir,
+            task_spec_path=prepared.task_spec_path,
+            task_result_path=result_path,
+        )
+
+    assert captured.value.code == "stage.task_not_active"
+    assert not (job_dir / "parsed_job.json").exists()
+    assert not (prepared.task_spec_path.parent / "promotion.json").exists()
+    assert cancelled.manifest_path.is_file()
+
+
+def test_cancel_and_apply_compete_for_one_terminal_claim(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace, job_dir = _write_workspace(tmp_path)
+    prepared = prepare_stage(workspace, job_dir, stage="parse", execution_mode="host_agent")
+    result_path = _write_success_result(
+        prepared,
+        build_deterministic_parse_candidate(job_dir),
+    )
+    from canisend import stage_runtime
+
+    original_validate = stage_runtime._validate_active_task
+    calls = 0
+
+    def cancel_after_second_check(*args: object, **kwargs: object) -> None:
+        nonlocal calls
+        calls += 1
+        original_validate(*args, **kwargs)
+        if calls == 2:
+            cancel_stage_task(workspace, job_dir, stage="parse")
+
+    monkeypatch.setattr(stage_runtime, "_validate_active_task", cancel_after_second_check)
+
+    with pytest.raises(StageRuntimeError) as captured:
+        apply_stage_result(
+            workspace,
+            job_dir,
+            task_spec_path=prepared.task_spec_path,
+            task_result_path=result_path,
+        )
+
+    assert captured.value.code == "stage.transition_conflict"
+    assert not (job_dir / "parsed_job.json").exists()
+    assert not (prepared.task_spec_path.parent / "promotion.json").exists()
+    claim = json.loads(
+        (prepared.task_spec_path.parent / "terminal-claim.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert claim["action"] == "cancel"
+
+
+def test_promotion_claim_retries_after_authoritative_write_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace, job_dir = _write_workspace(tmp_path)
+    prepared = prepare_stage(workspace, job_dir, stage="parse", execution_mode="host_agent")
+    result_path = _write_success_result(
+        prepared,
+        build_deterministic_parse_candidate(job_dir),
+    )
+    from canisend import stage_runtime
+
+    original_atomic_write = stage_runtime.atomic_write_bytes
+    target = job_dir / "parsed_job.json"
+    failed_once = False
+
+    def fail_target_once(path: Path, payload: bytes) -> Path:
+        nonlocal failed_once
+        if path == target and not failed_once:
+            failed_once = True
+            raise StageStoreError("simulated authoritative write failure")
+        return original_atomic_write(path, payload)
+
+    monkeypatch.setattr(stage_runtime, "atomic_write_bytes", fail_target_once)
+    with pytest.raises(StageRuntimeError) as first:
+        apply_stage_result(
+            workspace,
+            job_dir,
+            task_spec_path=prepared.task_spec_path,
+            task_result_path=result_path,
+        )
+    assert first.value.code == "stage.invalid_result"
+    assert not target.exists()
+    assert not (prepared.task_spec_path.parent / "manifest.json").exists()
+    with pytest.raises(StageRuntimeError) as cancellation:
+        cancel_stage_task(workspace, job_dir, stage="parse")
+    assert cancellation.value.code == "stage.transition_conflict"
+
+    recovered = apply_stage_result(
+        workspace,
+        job_dir,
+        task_spec_path=prepared.task_spec_path,
+        task_result_path=result_path,
+    )
+
+    assert recovered.manifest.status == "succeeded"
+    assert target.is_file()
+
+
+def test_fresh_status_resumes_claimed_promotion_after_target_write(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace, job_dir = _write_workspace(tmp_path)
+    prepared = prepare_stage(workspace, job_dir, stage="parse", execution_mode="host_agent")
+    result_path = _write_success_result(
+        prepared,
+        build_deterministic_parse_candidate(job_dir),
+    )
+    from canisend import stage_runtime
+
+    original_immutable_write = stage_runtime.write_immutable_json
+    failed_once = False
+
+    def fail_promotion_once(path: Path, value: object) -> Path:
+        nonlocal failed_once
+        if path.name == "promotion.json" and not failed_once:
+            failed_once = True
+            raise StageStoreError("simulated promotion receipt failure")
+        return original_immutable_write(path, value)
+
+    monkeypatch.setattr(stage_runtime, "write_immutable_json", fail_promotion_once)
+    with pytest.raises(StageRuntimeError) as first:
+        apply_stage_result(
+            workspace,
+            job_dir,
+            task_spec_path=prepared.task_spec_path,
+            task_result_path=result_path,
+        )
+    assert first.value.code == "stage.invalid_result"
+    status = inspect_stage_status(workspace, job_dir, stage="parse")
+    response = stage_status_agent_response(workspace, job_dir, status)
+    assert status.output_drift is False
+    assert "promotion_recovery" in status.reasons
+    assert [item.id for item in response.next_actions] == [
+        "stage.apply_parse_candidate"
+    ]
+    with pytest.raises(StageRuntimeError) as cancellation:
+        cancel_stage_task(workspace, job_dir, stage="parse")
+    assert cancellation.value.code == "stage.transition_conflict"
+
+    recovered = apply_stage_result(
+        workspace,
+        job_dir,
+        task_spec_path=prepared.task_spec_path,
+        task_result_path=result_path,
+    )
+    assert recovered.manifest.status == "succeeded"
+
+
+def test_fresh_status_retries_claimed_cancellation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace, job_dir = _write_workspace(tmp_path)
+    prepared = prepare_stage(workspace, job_dir, stage="parse", execution_mode="host_agent")
+    from canisend import stage_runtime
+
+    original_immutable_write = stage_runtime.write_immutable_json
+    failed_once = False
+
+    def fail_cancel_manifest_once(path: Path, value: object) -> Path:
+        nonlocal failed_once
+        if path.name == "manifest.json" and not failed_once:
+            failed_once = True
+            raise StageStoreError("simulated cancellation manifest failure")
+        return original_immutable_write(path, value)
+
+    monkeypatch.setattr(stage_runtime, "write_immutable_json", fail_cancel_manifest_once)
+    with pytest.raises(StageRuntimeError) as first:
+        cancel_stage_task(workspace, job_dir, stage="parse")
+    assert first.value.code == "stage.store_failed"
+    status = inspect_stage_status(workspace, job_dir, stage="parse")
+    response = stage_status_agent_response(workspace, job_dir, status)
+    assert "terminal_claim:cancel" in status.reasons
+    assert [item.id for item in response.next_actions] == [
+        "stage.cancel_active_task"
+    ]
+
+    cancelled = cancel_stage_task(workspace, job_dir, stage="parse")
+    assert cancelled.manifest.status == "cancelled"
+    assert prepared.task_spec_path.is_file()
+
+
+def test_resubmitting_different_candidate_is_zero_mutation_conflict(tmp_path: Path) -> None:
+    workspace, job_dir = _write_workspace(tmp_path)
+    prepared = prepare_stage(workspace, job_dir, stage="parse", execution_mode="host_agent")
+    first = build_deterministic_parse_candidate(job_dir)
+    submitted = submit_stage_candidate(
+        workspace,
+        job_dir,
+        task_spec_path=prepared.task_spec_path,
+        candidate_bytes=(json.dumps(first) + "\n").encode("utf-8"),
+    )
+    before = {
+        path: path.read_bytes()
+        for path in (
+            submitted.candidate_path,
+            submitted.result_path,
+            submitted.submission_path,
+        )
+    }
+    second = dict(first)
+    second["salary"] = "A different but valid salary display"
+
+    with pytest.raises(StageRuntimeError) as captured:
+        submit_stage_candidate(
+            workspace,
+            job_dir,
+            task_spec_path=prepared.task_spec_path,
+            candidate_bytes=(json.dumps(second) + "\n").encode("utf-8"),
+        )
+
+    assert captured.value.code == "stage.submission_conflict"
+    assert {path: path.read_bytes() for path in before} == before
+
+
+def test_preparation_without_state_write_is_reconstructed_as_single_active_task(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace, job_dir = _write_workspace(tmp_path)
+    run_deterministic_stage(workspace, job_dir, stage="parse")
+    advert = job_dir / "job_advert.md"
+    advert.write_text(advert.read_text(encoding="utf-8") + "\nChanged input.\n", encoding="utf-8")
+    from canisend import stage_runtime
+
+    original_write_state = stage_runtime._write_state
+
+    def fail_state_write(*args: object, **kwargs: object) -> None:
+        raise StageRuntimeError("stage.state_write_failed", "simulated state failure")
+
+    monkeypatch.setattr(stage_runtime, "_write_state", fail_state_write)
+    with pytest.raises(StageRuntimeError):
+        prepare_stage(workspace, job_dir, stage="parse", execution_mode="host_agent")
+    monkeypatch.setattr(stage_runtime, "_write_state", original_write_state)
+
+    reconstructed = inspect_stage_status(workspace, job_dir, stage="parse")
+    assert reconstructed.reconstructed is True
+    assert reconstructed.stage.status == "running"
+    assert reconstructed.pending_task_path is not None
+    with pytest.raises(StageRuntimeError) as captured:
+        prepare_stage(workspace, job_dir, stage="parse", execution_mode="deterministic")
+    assert captured.value.code == "stage.concurrent_run"
+    pending = [
+        path
+        for path in (job_dir / "workflow" / "runs").glob("*/task-spec.json")
+        if not (path.parent / "manifest.json").exists()
+    ]
+    assert len(pending) == 1
+
+
+def test_missing_preparation_receipt_discards_untrusted_running_view(tmp_path: Path) -> None:
+    workspace, job_dir = _write_workspace(tmp_path)
+    prepared = prepare_stage(workspace, job_dir, stage="parse", execution_mode="host_agent")
+    (prepared.task_spec_path.parent / "preparation.json").unlink()
+
+    status = inspect_stage_status(workspace, job_dir, stage="parse")
+
+    assert status.reconstructed is True
+    assert status.stage.status == "ready"
+    assert status.pending_task_path is None
+    replacement = prepare_stage(
+        workspace,
+        job_dir,
+        stage="parse",
+        execution_mode="host_agent",
+    )
+    assert replacement.task_spec.run_id != prepared.task_spec.run_id
+
+
+@pytest.mark.skipif(os.name == "nt", reason="symlink creation may require elevated privileges")
+def test_candidate_symlink_to_user_owned_job_file_is_rejected(tmp_path: Path) -> None:
+    workspace, job_dir = _write_workspace(tmp_path)
+    prepared = prepare_stage(workspace, job_dir, stage="parse", execution_mode="host_agent")
+    protected = job_dir / "application_decision.yaml"
+    protected.write_text("decision: hold\n", encoding="utf-8")
+    prepared.candidate_path.symlink_to(protected)
+
+    with pytest.raises(StageRuntimeError) as captured:
+        submit_stage_candidate(
+            workspace,
+            job_dir,
+            task_spec_path=prepared.task_spec_path,
+            candidate_bytes=(
+                json.dumps(build_deterministic_parse_candidate(job_dir)) + "\n"
+            ).encode("utf-8"),
+        )
+
+    assert captured.value.code == "stage.unsafe_path"
+    assert protected.read_text(encoding="utf-8") == "decision: hold\n"
+
+
+@pytest.mark.skipif(os.name == "nt", reason="hard links vary across filesystems")
+def test_candidate_hard_link_to_user_owned_job_file_is_rejected(tmp_path: Path) -> None:
+    workspace, job_dir = _write_workspace(tmp_path)
+    prepared = prepare_stage(workspace, job_dir, stage="parse", execution_mode="host_agent")
+    protected = job_dir / "application_decision.yaml"
+    protected.write_text("decision: hold\n", encoding="utf-8")
+    os.link(protected, prepared.candidate_path)
+
+    with pytest.raises(StageRuntimeError) as captured:
+        submit_stage_candidate(
+            workspace,
+            job_dir,
+            task_spec_path=prepared.task_spec_path,
+            candidate_bytes=(
+                json.dumps(build_deterministic_parse_candidate(job_dir)) + "\n"
+            ).encode("utf-8"),
+        )
+
+    assert captured.value.code == "stage.unsafe_path"
+    assert protected.read_text(encoding="utf-8") == "decision: hold\n"
+
+
+def test_core_submission_timestamp_preserves_reconstructed_dependency_order(tmp_path: Path) -> None:
+    workspace, job_dir = _write_workspace(tmp_path)
+    prepared = prepare_stage(workspace, job_dir, stage="parse", execution_mode="host_agent")
+    result_path = _write_success_result(
+        prepared,
+        build_deterministic_parse_candidate(job_dir),
+    )
+    applied = apply_stage_result(
+        workspace,
+        job_dir,
+        task_spec_path=prepared.task_spec_path,
+        task_result_path=result_path,
+    )
+    assert applied.manifest.completed_at.year < 2099
+    run_deterministic_stage(workspace, job_dir, stage="confirm")
+    (job_dir / "workflow" / "state.json").unlink()
+
+    reconstructed = inspect_stage_status(workspace, job_dir, stage="confirm")
+
+    assert reconstructed.reconstructed is True
+    assert reconstructed.stage.status == "succeeded"
 
 
 def test_state_is_reconstructed_from_immutable_manifest(tmp_path: Path) -> None:
@@ -420,6 +827,9 @@ def test_runtime_control_records_exclude_private_bodies_queries_and_absolute_pat
     control_paths = [
         job_dir / "workflow" / "state.json",
         run_dir / "task-spec.json",
+        run_dir / "preparation.json",
+        run_dir / "submission.json",
+        run_dir / "terminal-claim.json",
         run_dir / "tasks" / result.manifest.task_id / "result.json",
         run_dir / "validation" / "report.json",
         run_dir / "promotion.json",

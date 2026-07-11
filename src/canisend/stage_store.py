@@ -22,7 +22,7 @@ class ImmutableRecordError(StageStoreError):
 
 
 def resolve_job_relative_path(job_dir: Path, relative_path: str | Path) -> Path:
-    """Resolve a normalized job-relative path while rejecting path escapes."""
+    """Resolve a normalized job-relative path while rejecting escapes and aliases."""
     raw_path = str(relative_path)
     if not raw_path or raw_path == "." or "\x00" in raw_path:
         raise UnsafeStagePathError("stage path must be a non-empty job-relative path")
@@ -42,11 +42,21 @@ def resolve_job_relative_path(job_dir: Path, relative_path: str | Path) -> Path:
 
     try:
         job_root = job_dir.expanduser().resolve()
-        resolved = (job_root / Path(*posix_path.parts)).resolve()
+        lexical = job_root.joinpath(*posix_path.parts)
+        current = job_root
+        for part in posix_path.parts:
+            current = current / part
+            if current.is_symlink():
+                raise UnsafeStagePathError(
+                    "stage path must not contain symlink aliases"
+                )
+        resolved = lexical.resolve()
         resolved.relative_to(job_root)
     except (OSError, RuntimeError, ValueError) as exc:
         raise UnsafeStagePathError("stage path escapes the selected job directory") from exc
-    return resolved
+    if resolved != lexical:
+        raise UnsafeStagePathError("stage path must not alias another job path")
+    return lexical
 
 
 def sha256_bytes(data: bytes) -> str:

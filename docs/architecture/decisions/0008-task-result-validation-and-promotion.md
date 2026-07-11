@@ -21,27 +21,30 @@ Every executable stage uses a versioned TaskSpec and TaskResult. The TaskSpec de
 - executor mode;
 - canonical input fingerprint and safe input artifact references;
 - allowed reads;
-- one candidate output and one authoritative target for the Stage 1 Parse slice;
+- one candidate output and one authoritative target for each currently executable single-output stage;
 - output validator/schema and acceptance criteria;
 - expected prior authoritative-output hash;
 - privacy tier and required consent identifiers.
 
-The executor writes only into the declared run candidate directory and returns a TaskResult that echoes task identity,
-stage, input fingerprint, candidate path, and candidate hash. Deterministic execution goes through the same candidate
-and apply services as current-host work.
+The executor may read the immutable TaskSpec and receipts referenced by AgentResponse, but it never writes declared
+run paths directly. It supplies candidate JSON to the guarded submission service,
+which authenticates the TaskSpec against its preparation receipt and active state, rejects symlink and hard-link
+aliases, validates the candidate, and writes both the candidate and TaskResult. Deterministic execution goes through
+the same submit and apply services as current-host work.
 
 Apply performs optimistic compare-and-swap validation:
 
-1. reload the immutable TaskSpec;
-2. verify TaskResult identity and terminal status;
-3. recompute current inputs and reject stale work;
-4. verify the authoritative target still matches its expected prior hash;
-5. reject absolute paths, traversal, backslashes, and symlink escapes;
-6. require the candidate to be inside the declared run candidate directory;
-7. verify the candidate content hash;
-8. validate JSON shape, Parsed Job semantics, and source-text receipts;
-9. atomically replace the single authoritative target with validated bytes;
-10. write safe promotion and finalized run receipts, then refresh the rebuildable state view.
+1. reload the TaskSpec and bind it to the registered adapter contract;
+2. verify its immutable preparation receipt, active run, output baseline, and exact physical input receipts;
+3. verify the core-written submission receipt, TaskResult identity, and terminal status;
+4. recompute semantic inputs and reject stale work or non-current dependencies;
+5. verify the authoritative target still matches its expected prior hash;
+6. reject absolute paths, traversal, backslashes, symlink aliases, hard-link aliases, and undeclared paths;
+7. require the candidate to be inside the declared run candidate directory and verify its content hash;
+8. validate JSON shape, stage semantics, and source-text receipts;
+9. recheck that the run is still active, then atomically claim the run's terminal action against cancellation;
+10. only the promotion-claim owner may atomically replace the single authoritative target with validated bytes;
+11. write safe promotion and finalized run receipts, then refresh the rebuildable state view.
 
 Rejected candidates never modify the authoritative target. If recovery observes the target already matching the
 validated candidate hash, it may finalize missing receipts; if it matches neither the expected prior nor candidate
@@ -52,9 +55,10 @@ hash, the run becomes a conflict requiring review.
 - Host agents never need direct authority to write `parsed_job.json`.
 - Deterministic and host-agent Parse share validation and promotion behavior.
 - Stale results and concurrent attempts fail safely.
+- A cancelled task cannot apply a late result, and an invalid preparation record cannot hold the active slot forever.
 - Manual authoritative edits are preserved as output drift rather than overwritten.
-- A single Parse output can use real atomic replacement; later multi-file stages require a separate transaction or
-  journal decision.
+- Parse and Confirm each use real single-file atomic replacement; later multi-file stages require a separate
+  transaction or journal decision.
 - The legacy orchestrator cannot become the stage promotion boundary until it submits TaskResults to this service.
 
 ## Rejected Alternatives

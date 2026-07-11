@@ -20,7 +20,9 @@
       "package.check",
       "workflow.stage_status",
       "workflow.stage_prepare",
+      "workflow.stage_submit",
       "workflow.stage_apply",
+      "workflow.stage_cancel",
       "workflow.stage_run"
     ],
     "intake_types": [

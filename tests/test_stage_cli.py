@@ -1,14 +1,12 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
 import json
 from pathlib import Path
 
 from typer.testing import CliRunner
 
 from canisend.cli import app
-from canisend.stage_models import ArtifactFingerprint, TaskResultV1, TaskSpecV1
-from canisend.stage_store import sha256_bytes
+from canisend.stage_models import TaskSpecV1
 from canisend.stages.parse_stage import build_deterministic_parse_candidate
 
 
@@ -132,10 +130,95 @@ def test_stage_prepare_and_fresh_cli_status_share_task_state(tmp_path: Path) -> 
 
     assert prepared["extensions"]["canisend.reused"] is False
     assert status["extensions"]["canisend.stage_status"] == "running"
+    assert [item["id"] for item in status["required_consents"]] == [
+        "read-full-job-advert"
+    ]
+    assert status["next_actions"][0]["id"] == "stage.submit_parse_candidate"
+    assert status["next_actions"][0]["requires_consent"] is True
     assert any(
         item["kind"] == "stage_task_spec" and item["path"] == task_artifact["path"]
         for item in status["artifacts"]
     )
+
+
+def test_stage_cancel_clears_active_task_through_agent_contract(tmp_path: Path) -> None:
+    workspace, job_path = _workspace(tmp_path)
+    _invoke_json(
+        CliRunner(),
+        [
+            "stage",
+            "prepare",
+            "--workspace",
+            str(workspace),
+            "--job",
+            job_path,
+            "--stage",
+            "parse",
+            "--mode",
+            "host-agent",
+            "--format",
+            "json",
+        ],
+    )
+
+    cancelled = _invoke_json(
+        CliRunner(),
+        [
+            "stage",
+            "cancel",
+            "--workspace",
+            str(workspace),
+            "--job",
+            job_path,
+            "--stage",
+            "parse",
+            "--format",
+            "json",
+        ],
+    )
+    status = _invoke_json(
+        CliRunner(),
+        [
+            "stage",
+            "status",
+            "--workspace",
+            str(workspace),
+            "--job",
+            job_path,
+            "--stage",
+            "parse",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert cancelled["operation"] == "workflow.stage_cancel"
+    assert cancelled["extensions"]["canisend.stage_status"] == "cancelled"
+    assert cancelled["workflow"]["readiness"] == "action_required"
+    assert cancelled["error"] is None
+    assert any(item["kind"] == "stage_run_manifest" for item in cancelled["artifacts"])
+    assert status["extensions"]["canisend.stage_status"] == "cancelled"
+    assert status["workflow"]["readiness"] == "action_required"
+    assert [item["id"] for item in status["next_actions"]] == ["stage.prepare_parse"]
+
+    missing = _invoke_json(
+        CliRunner(),
+        [
+            "stage",
+            "cancel",
+            "--workspace",
+            str(workspace),
+            "--job",
+            job_path,
+            "--stage",
+            "parse",
+            "--format",
+            "json",
+        ],
+        exit_code=1,
+    )
+    assert missing["error"]["code"] == "stage.no_active_run"
+    assert str(workspace) not in json.dumps(missing)
 
 
 def test_stage_run_reports_cache_hit_without_rewriting_output(tmp_path: Path) -> None:
@@ -162,6 +245,8 @@ def test_stage_run_reports_cache_hit_without_rewriting_output(tmp_path: Path) ->
 
     assert first["extensions"]["canisend.cache_hit"] is False
     assert second["extensions"]["canisend.cache_hit"] is True
+    assert [item["id"] for item in first["next_actions"]] == ["stage.run_confirm"]
+    assert [item["id"] for item in second["next_actions"]] == ["stage.run_confirm"]
     assert parsed_path.stat().st_mtime_ns == first_mtime
     assert any(item["kind"] == "parsed_job" for item in second["artifacts"])
 
@@ -195,30 +280,49 @@ def test_stage_apply_promotes_host_candidate_through_cli(tmp_path: Path) -> None
     )
     candidate = build_deterministic_parse_candidate(job_dir)
     candidate_bytes = (json.dumps(candidate, indent=2, sort_keys=True) + "\n").encode()
-    candidate_path = job_dir / spec.candidate_output
-    candidate_path.write_bytes(candidate_bytes)
-    result = TaskResultV1(
-        task_id=spec.task_id,
-        run_id=spec.run_id,
-        job_id=spec.job_id,
-        stage="parse",
-        status="succeeded",
-        input_fingerprint=spec.input_fingerprint,
-        started_at=spec.created_at,
-        completed_at=max(datetime.now(UTC), spec.created_at + timedelta(microseconds=1)),
-        outputs=(
-            ArtifactFingerprint(
-                path=spec.candidate_output,
-                sha256=sha256_bytes(candidate_bytes),
-                size_bytes=len(candidate_bytes),
-            ),
-        ),
+    source_candidate = tmp_path / "candidate.json"
+    source_candidate.write_bytes(candidate_bytes)
+    submitted = _invoke_json(
+        CliRunner(),
+        [
+            "stage",
+            "submit",
+            "--workspace",
+            str(workspace),
+            "--job",
+            job_path,
+            "--task",
+            task_job_path,
+            "--candidate-file",
+            str(source_candidate),
+            "--format",
+            "json",
+        ],
     )
-    result_path = job_dir / spec.result_output
-    result_path.write_text(
-        json.dumps(result.model_dump(mode="json"), sort_keys=True),
-        encoding="utf-8",
+    assert submitted["operation"] == "workflow.stage_submit"
+    resumed = _invoke_json(
+        CliRunner(),
+        [
+            "stage",
+            "status",
+            "--workspace",
+            str(workspace),
+            "--job",
+            job_path,
+            "--stage",
+            "parse",
+            "--format",
+            "json",
+        ],
     )
+    resumed_kinds = {item["kind"] for item in resumed["artifacts"]}
+    assert "parsed_job_candidate" in resumed_kinds
+    assert "stage_task_result" in resumed_kinds
+    assert [item["id"] for item in resumed["required_consents"]] == [
+        "read-full-job-advert"
+    ]
+    assert resumed["next_actions"][0]["id"] == "stage.apply_parse_candidate"
+    assert resumed["next_actions"][0]["requires_consent"] is True
 
     applied = _invoke_json(
         CliRunner(),
@@ -240,6 +344,7 @@ def test_stage_apply_promotes_host_candidate_through_cli(tmp_path: Path) -> None
 
     assert applied["operation"] == "workflow.stage_apply"
     assert applied["extensions"]["canisend.stage_status"] == "succeeded"
+    assert [item["id"] for item in applied["next_actions"]] == ["stage.run_confirm"]
     assert (job_dir / "parsed_job.json").is_file()
 
 
@@ -267,3 +372,157 @@ def test_stage_cli_returns_stable_safe_error_for_unsupported_stage(tmp_path: Pat
     assert payload["error"]["code"] == "stage.unsupported"
     assert str(workspace) not in json.dumps(payload)
     assert "private=token" not in json.dumps(payload)
+
+
+def test_confirm_stage_cli_exposes_reviewable_catalog_without_agent_v1_change(
+    tmp_path: Path,
+) -> None:
+    workspace, job_path = _workspace(tmp_path)
+    common = [
+        "--workspace",
+        str(workspace),
+        "--job",
+        job_path,
+        "--mode",
+        "deterministic",
+        "--format",
+        "json",
+    ]
+    _invoke_json(CliRunner(), ["stage", "run", "--stage", "parse", *common])
+    confirmed = _invoke_json(
+        CliRunner(),
+        ["stage", "run", "--stage", "confirm", *common],
+    )
+
+    assert confirmed["protocol"] == "canisend.agent/v1"
+    assert confirmed["schema_version"] == "1.0.0"
+    assert confirmed["workflow"]["phase"] == "unknown"
+    assert confirmed["workflow"]["readiness"] == "review_required"
+    assert confirmed["extensions"]["canisend.stage_id"] == "confirm"
+    assert confirmed["extensions"]["canisend.unresolved_count"] == 1
+    assert any(item["kind"] == "criteria_catalog" for item in confirmed["artifacts"])
+    assert str(workspace) not in json.dumps(confirmed)
+
+
+def test_confirm_ready_status_advertises_deterministic_run_action(tmp_path: Path) -> None:
+    workspace, job_path = _workspace(tmp_path)
+    _invoke_json(
+        CliRunner(),
+        [
+            "stage",
+            "run",
+            "--workspace",
+            str(workspace),
+            "--job",
+            job_path,
+            "--stage",
+            "parse",
+            "--format",
+            "json",
+        ],
+    )
+
+    status = _invoke_json(
+        CliRunner(),
+        [
+            "stage",
+            "status",
+            "--workspace",
+            str(workspace),
+            "--job",
+            job_path,
+            "--stage",
+            "confirm",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert status["extensions"]["canisend.stage_status"] == "ready"
+    assert [item["id"] for item in status["next_actions"]] == ["stage.run_confirm"]
+    parse_status = _invoke_json(
+        CliRunner(),
+        [
+            "stage",
+            "status",
+            "--workspace",
+            str(workspace),
+            "--job",
+            job_path,
+            "--stage",
+            "parse",
+            "--format",
+            "json",
+        ],
+    )
+    assert [item["id"] for item in parse_status["next_actions"]] == [
+        "stage.run_confirm"
+    ]
+
+
+def test_stage_status_marks_drifted_output_for_review_and_lowers_trust(tmp_path: Path) -> None:
+    workspace, job_path = _workspace(tmp_path)
+    _invoke_json(
+        CliRunner(),
+        [
+            "stage",
+            "run",
+            "--workspace",
+            str(workspace),
+            "--job",
+            job_path,
+            "--stage",
+            "parse",
+            "--format",
+            "json",
+        ],
+    )
+    parsed_path = workspace / job_path / "parsed_job.json"
+    parsed_path.write_text('{"manual":"drift"}\n', encoding="utf-8")
+
+    status = _invoke_json(
+        CliRunner(),
+        [
+            "stage",
+            "status",
+            "--workspace",
+            str(workspace),
+            "--job",
+            job_path,
+            "--stage",
+            "parse",
+            "--format",
+            "json",
+        ],
+    )
+
+    parsed_artifact = next(item for item in status["artifacts"] if item["kind"] == "parsed_job")
+    assert status["workflow"]["readiness"] == "review_required"
+    assert status["blockers"]
+    assert parsed_artifact["trust_level"] == "trusted_local"
+
+
+def test_confirm_cli_treats_empty_extraction_as_unresolved(tmp_path: Path) -> None:
+    workspace, job_path = _workspace(tmp_path)
+    (workspace / job_path / "job_advert.md").write_text(
+        "# Lecturer in Economics\n\nNo criteria were extracted from this advert.\n",
+        encoding="utf-8",
+    )
+    common = [
+        "--workspace",
+        str(workspace),
+        "--job",
+        job_path,
+        "--mode",
+        "deterministic",
+        "--format",
+        "json",
+    ]
+    _invoke_json(CliRunner(), ["stage", "run", "--stage", "parse", *common])
+    confirmed = _invoke_json(
+        CliRunner(),
+        ["stage", "run", "--stage", "confirm", *common],
+    )
+
+    assert confirmed["workflow"]["readiness"] == "review_required"
+    assert confirmed["extensions"]["canisend.unresolved_count"] == 1

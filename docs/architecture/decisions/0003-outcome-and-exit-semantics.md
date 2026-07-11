@@ -21,6 +21,11 @@ quality gate, and workflow readiness without ambiguity.
   gate exit status.
 - An operational failure returns `ok: false`, a stable error code, and exit status 1.
 - Typer usage errors remain exit status 2 and outside the Phase 1 JSON contract.
+- Cancelling an active prepared stage task is a successful state transition: it returns `ok: true`,
+  `error: null`, `action_required`, and exit status 0. The terminal cancellation manifest preserves the audit trail,
+  candidate, and prior authoritative output; cancellation neither applies the candidate nor clears output drift.
+- Requesting cancellation when no matching active task exists is an operational failure with
+  `stage.no_active_run` and exit status 1.
 
 No internal state may imply that CanISend submitted an application. The strongest future readiness value is
 `ready_for_manual_submission`.
@@ -39,4 +44,4 @@ No internal state may imply that CanISend submitted an application. The stronges
 
 ## Revisit When
 
-Revisit when the full stage runner introduces cancellation, partial success, or retry exhaustion statuses.
+Revisit when the stage runner introduces partial success, retry exhaustion, or multi-output rollback statuses.

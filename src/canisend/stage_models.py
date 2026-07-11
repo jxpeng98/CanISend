@@ -12,6 +12,7 @@ WORKFLOW_STATE_SCHEMA_VERSION = "1.0.0"
 TASK_SPEC_SCHEMA_VERSION = "1.0.0"
 TASK_RESULT_SCHEMA_VERSION = "1.0.0"
 RUN_MANIFEST_SCHEMA_VERSION = "1.0.0"
+CANDIDATE_SUBMISSION_SCHEMA_VERSION = "1.0.0"
 
 JSON_SCHEMA_DIALECT = "https://json-schema.org/draft/2020-12/schema"
 SCHEMA_BASE_ID = "https://github.com/jxpeng98/CanISend/schemas"
@@ -240,7 +241,13 @@ class TaskSpecV1(StageContractModel):
     input_fingerprint: str
     inputs: tuple[ArtifactFingerprint, ...]
     allowed_reads: tuple[str, ...]
-    allowed_writes: tuple[str, ...]
+    allowed_writes: tuple[str, ...] = Field(
+        description=(
+            "Core-service output scope. External executors submit scratch JSON "
+            "through stage submit and must not write these paths directly."
+        )
+    )
+    write_authority: Literal["core_service"] = "core_service"
     candidate_output: str
     result_output: str
     authoritative_target: str
@@ -414,6 +421,44 @@ class TaskResultV1(StageContractModel):
         elif not has_error:
             raise ValueError("a failed or cancelled task result requires an error")
         return self
+
+
+class CandidateSubmissionV1(StageContractModel):
+    schema_version: Literal["1.0.0"] = CANDIDATE_SUBMISSION_SCHEMA_VERSION
+    task_id: str
+    run_id: str
+    job_id: str
+    stage: StageName
+    submitted_at: AwareDatetime
+    task_spec_sha256: str
+    candidate: ArtifactFingerprint
+    result_path: str
+    task_result_sha256: str
+
+    @field_validator("task_id")
+    @classmethod
+    def _valid_task_id(cls, value: str) -> str:
+        return _prefixed_id(value, pattern=_TASK_ID_RE, label="task_id")
+
+    @field_validator("run_id")
+    @classmethod
+    def _valid_run_id(cls, value: str) -> str:
+        return _prefixed_id(value, pattern=_RUN_ID_RE, label="run_id")
+
+    @field_validator("job_id")
+    @classmethod
+    def _valid_job_id(cls, value: str) -> str:
+        return _job_id(value)
+
+    @field_validator("task_spec_sha256", "task_result_sha256")
+    @classmethod
+    def _valid_hashes(cls, value: str, info: object) -> str:
+        return _sha256(value, label=getattr(info, "field_name", "sha256"))
+
+    @field_validator("result_path")
+    @classmethod
+    def _valid_result_path(cls, value: str) -> str:
+        return _job_relative_path(value)
 
 
 class ValidationReportV1(StageContractModel):

@@ -9,8 +9,10 @@ from uuid import uuid4
 
 from pydantic import ValidationError
 
+from canisend.stage_adapters import StageAdapter, get_stage_adapter
 from canisend.stage_models import (
     ArtifactFingerprint,
+    CandidateSubmissionV1,
     RunManifestV1,
     StageRecord,
     TaskResultV1,
@@ -18,8 +20,9 @@ from canisend.stage_models import (
     ValidationReportV1,
     WorkflowStateV1,
 )
-from canisend.stage_registry import DEFAULT_STAGE_REGISTRY
+from canisend.stage_registry import DEFAULT_STAGE_REGISTRY, StageDefinition
 from canisend.stage_store import (
+    ImmutableRecordError,
     StageStoreError,
     UnsafeStagePathError,
     atomic_write_bytes,
@@ -30,17 +33,11 @@ from canisend.stage_store import (
     sha256_file,
     write_immutable_json,
 )
-from canisend.stages.parse_stage import (
-    ParseStageError,
-    ParseStageValidationError,
-    build_deterministic_parse_candidate,
-    parse_input_fingerprint,
-    validate_parse_candidate,
-)
-from canisend.workspace import load_workspace_config
+from canisend.stages.confirm_stage import ConfirmStageError
+from canisend.stages.parse_stage import ParseStageError
 
 
-SupportedStage = Literal["parse"]
+SupportedStage = Literal["parse", "confirm"]
 SupportedExecutionMode = Literal["deterministic", "host_agent"]
 
 
@@ -66,7 +63,7 @@ class PreparedStage:
 class StageStatusInspection:
     state: WorkflowStateV1
     stage: StageRecord
-    input_fingerprint: str
+    input_fingerprint: str | None
     output_drift: bool = False
     reasons: tuple[str, ...] = ()
     pending_task_path: Path | None = None
@@ -82,7 +79,24 @@ class AppliedStage:
 
 
 @dataclass(frozen=True)
+class CancelledStage:
+    manifest: RunManifestV1
+    manifest_path: Path
+    state: WorkflowStateV1
+
+
+@dataclass(frozen=True)
+class SubmittedStage:
+    task_spec: TaskSpecV1
+    candidate_path: Path
+    result: TaskResultV1
+    result_path: Path
+    submission_path: Path
+
+
+@dataclass(frozen=True)
 class StageRunOutcome:
+    stage: SupportedStage
     cache_hit: bool
     state: WorkflowStateV1
     authoritative_path: Path
@@ -97,49 +111,140 @@ def inspect_stage_status(
     stage: SupportedStage = "parse",
 ) -> StageStatusInspection:
     root, job = _runtime_paths(workspace, job_dir)
-    _implemented_stage(stage)
-    schema_path = _schema_path(root)
-    try:
-        current_fingerprint = parse_input_fingerprint(job, schema_path=schema_path)
-    except (ParseStageError, OSError, ValueError) as exc:
-        raise StageRuntimeError("stage.invalid_input", "Parse inputs are missing or invalid.") from exc
-
+    definition = _implemented_stage(stage)
+    adapter = _adapter(stage)
     state, reconstructed = _load_or_reconstruct_state(job)
-    record = _stage_record(state, stage)
-    reasons: list[str] = []
-    output_drift = False
+    dependency_reasons: list[str] = []
+    for dependency in definition.depends_on:
+        dependency_definition = DEFAULT_STAGE_REGISTRY.get(dependency)
+        if not dependency_definition.implemented:
+            continue
+        dependency_status = inspect_stage_status(
+            root,
+            job,
+            stage=dependency,  # type: ignore[arg-type]
+        )
+        state = dependency_status.state
+        reconstructed = reconstructed or dependency_status.reconstructed
+        dependency_is_current = (
+            dependency_status.stage.status == "succeeded"
+            and not dependency_status.reasons
+            and not dependency_status.output_drift
+        )
+        if not dependency_is_current:
+            dependency_reasons.append(f"dependency_not_current:{dependency}")
 
-    if record.status in {"succeeded", "stale"}:
+    record = _stage_record(state, stage)
+    if dependency_reasons:
+        if record.status in {"succeeded", "stale"}:
+            record = record.model_copy(update={"status": "stale"})
+        elif record.status != "running":
+            record = StageRecord(stage=stage, status="blocked")
+        output_drift, output_reasons = _inspect_output_receipt(job, record, adapter)
+        pending_task = (
+            _pending_task_for_run(job, record.run_id)
+            if record.status == "running"
+            else None
+        )
+        if pending_task is not None:
+            pending_drift, pending_reasons = _inspect_pending_output_expectation(
+                job,
+                pending_task[0],
+                adapter,
+            )
+            output_drift = output_drift or pending_drift
+            output_reasons = tuple((*output_reasons, *pending_reasons))
+            claim_action = _terminal_claim_action(job, pending_task[0])
+            if claim_action is not None:
+                output_reasons = tuple(
+                    (*output_reasons, f"terminal_claim:{claim_action}")
+                )
+                if (
+                    claim_action == "promote"
+                    and _claimed_candidate_is_authoritative(
+                        job,
+                        pending_task[0],
+                        adapter,
+                    )
+                ):
+                    output_drift = False
+                    output_reasons = tuple(
+                        reason
+                        for reason in output_reasons
+                        if reason not in {"output_drift", "output_missing"}
+                    ) + ("promotion_recovery",)
+        visible_state = _state_with_stage(
+            state,
+            record,
+            active_run_id=state.active_run_id,
+        )
+        return StageStatusInspection(
+            state=visible_state,
+            stage=record,
+            input_fingerprint=None,
+            output_drift=output_drift,
+            reasons=tuple((*dependency_reasons, *output_reasons)),
+            pending_task_path=pending_task[1] if pending_task is not None else None,
+            reconstructed=reconstructed,
+        )
+
+    try:
+        current_fingerprint = adapter.input_fingerprint(root, job)
+    except (ConfirmStageError, ParseStageError, StageStoreError, OSError, ValueError) as exc:
+        raise StageRuntimeError(
+            "stage.invalid_input",
+            "The requested stage inputs are missing or invalid.",
+        ) from exc
+
+    reasons: list[str] = []
+
+    if record.status in {"succeeded", "stale", "running"}:
         if record.input_fingerprint != current_fingerprint:
             reasons.append("input_changed")
-            if record.status != "stale":
+            if record.status not in {"stale", "running"}:
                 record = record.model_copy(update={"status": "stale"})
 
-        receipt = next((item for item in record.outputs if item.path == "parsed_job.json"), None)
-        target = job / "parsed_job.json"
-        if receipt is not None:
-            if not target.is_file():
-                reasons.append("output_missing")
-                if record.status != "stale":
-                    record = record.model_copy(update={"status": "stale"})
-            else:
-                try:
-                    actual_hash = sha256_file(target)
-                except StageStoreError as exc:
-                    raise StageRuntimeError(
-                        "stage.output_unreadable",
-                        "The authoritative Parse output cannot be inspected safely.",
-                    ) from exc
-                if actual_hash != receipt.sha256:
-                    output_drift = True
-                    reasons.append("output_drift")
+    output_drift, output_reasons = _inspect_output_receipt(job, record, adapter)
+    reasons.extend(output_reasons)
+    if "output_missing" in output_reasons and record.status != "stale":
+        record = record.model_copy(update={"status": "stale"})
 
-    pending_task = _pending_task_for_fingerprint(
-        job,
-        stage=stage,
-        input_fingerprint=current_fingerprint,
-        execution_mode=None,
-    )
+    pending_task = _pending_task_for_run(job, record.run_id) if record.status == "running" else None
+    if pending_task is None:
+        pending_task = _pending_task_for_fingerprint(
+            job,
+            stage=stage,
+            input_fingerprint=current_fingerprint,
+            execution_mode=None,
+        )
+    if pending_task is not None:
+        pending_drift, pending_reasons = _inspect_pending_output_expectation(
+            job,
+            pending_task[0],
+            adapter,
+        )
+        output_drift = output_drift or pending_drift
+        reasons.extend(reason for reason in pending_reasons if reason not in reasons)
+        claim_action = _terminal_claim_action(job, pending_task[0])
+        if claim_action is not None:
+            claim_reason = f"terminal_claim:{claim_action}"
+            if claim_reason not in reasons:
+                reasons.append(claim_reason)
+            if (
+                claim_action == "promote"
+                and _claimed_candidate_is_authoritative(
+                    job,
+                    pending_task[0],
+                    adapter,
+                )
+            ):
+                output_drift = False
+                reasons = [
+                    reason
+                    for reason in reasons
+                    if reason not in {"output_drift", "output_missing"}
+                ]
+                reasons.append("promotion_recovery")
     pending_path = pending_task[1] if pending_task is not None else None
     visible_state = _state_with_stage(state, record, active_run_id=state.active_run_id)
     if "input_changed" in reasons:
@@ -164,6 +269,7 @@ def prepare_stage(
 ) -> PreparedStage:
     root, job = _runtime_paths(workspace, job_dir)
     definition = _implemented_stage(stage)
+    adapter = _adapter(stage)
     if execution_mode not in definition.execution_modes:
         raise StageRuntimeError(
             "stage.unsupported_mode",
@@ -173,13 +279,18 @@ def prepare_stage(
     _finalize_recoverable_promotions(job)
 
     status = inspect_stage_status(root, job, stage=stage)
+    if status.input_fingerprint is None:
+        raise StageRuntimeError(
+            "stage.dependency_not_current",
+            "The requested stage requires current upstream stages.",
+        )
     if status.output_drift:
         raise StageRuntimeError(
             "stage.output_conflict",
-            "The authoritative Parse output has changed since its last successful run.",
+            "The authoritative stage output has changed since its last successful run.",
         )
     if status.stage.status == "succeeded" and not status.reasons:
-        raise StageRuntimeError("stage.already_current", "The Parse stage is already current.")
+        raise StageRuntimeError("stage.already_current", "The requested stage is already current.")
 
     existing = _pending_task_for_fingerprint(
         job,
@@ -198,14 +309,35 @@ def prepare_stage(
             reused=True,
         )
 
+    active_record = next(
+        (record for record in status.state.stages if record.status == "running"),
+        None,
+    )
+    if active_record is not None:
+        raise StageRuntimeError(
+            "stage.concurrent_run",
+            "Another workflow task is active; cancel or complete it before preparing a new task.",
+        )
+
     now = _utc_now()
     run_id = f"run_{uuid4().hex}"
     task_id = f"task_{uuid4().hex}"
     run_root = f"workflow/runs/{run_id}"
-    candidate_output = f"{run_root}/candidates/parsed_job.json"
+    candidate_output = f"{run_root}/candidates/{adapter.candidate_name}"
     result_output = f"{run_root}/tasks/{task_id}/result.json"
-    inputs = _parse_input_artifacts(job)
-    expected_output = _file_hash_or_none(job / "parsed_job.json")
+    try:
+        inputs = adapter.input_artifacts(root, job)
+    except (ConfirmStageError, ParseStageError, StageStoreError, OSError, ValueError) as exc:
+        raise StageRuntimeError(
+            "stage.invalid_input",
+            "The requested stage inputs are missing or invalid.",
+        ) from exc
+    expected_output = _file_hash_or_none(job / adapter.authoritative_target)
+    baseline_outputs = (
+        (_artifact(job, adapter.authoritative_target),)
+        if expected_output is not None
+        else ()
+    )
     task = TaskSpecV1(
         task_id=task_id,
         run_id=run_id,
@@ -220,11 +352,11 @@ def prepare_stage(
         allowed_writes=(candidate_output, result_output),
         candidate_output=candidate_output,
         result_output=result_output,
-        authoritative_target="parsed_job.json",
+        authoritative_target=adapter.authoritative_target,
         expected_output_sha256=expected_output,
-        output_schema="canisend.parsed-job/v1",
-        privacy_tier=2,
-        required_consents=("read-full-job-advert",) if execution_mode == "host_agent" else (),
+        output_schema=adapter.output_schema,
+        privacy_tier=adapter.task_privacy_tier,
+        required_consents=adapter.required_consents(execution_mode),
     )
     task_path = resolve_job_relative_path(job, f"{run_root}/task-spec.json")
     candidate_path = resolve_job_relative_path(job, candidate_output)
@@ -233,6 +365,23 @@ def prepare_stage(
     result_path.parent.mkdir(parents=True, exist_ok=True)
     try:
         write_immutable_json(task_path, task.model_dump(mode="json"))
+        preparation = RunManifestV1(
+            run_id=run_id,
+            task_id=task_id,
+            job_id=job.name,
+            stage=stage,
+            attempt=status.stage.attempt_count + 1,
+            execution_mode=execution_mode,
+            status="prepared",
+            created_at=now,
+            inputs=inputs,
+            input_fingerprint=status.input_fingerprint,
+            task_spec_sha256=sha256_file(task_path),
+        )
+        write_immutable_json(
+            resolve_job_relative_path(job, f"{run_root}/preparation.json"),
+            preparation.model_dump(mode="json"),
+        )
     except StageStoreError as exc:
         raise StageRuntimeError(
             "stage.store_failed",
@@ -247,6 +396,7 @@ def prepare_stage(
         run_id=run_id,
         input_fingerprint=status.input_fingerprint,
         inputs=inputs,
+        outputs=baseline_outputs,
         started_at=now,
     )
     state = _state_with_stage(
@@ -276,13 +426,20 @@ def apply_stage_result(
     root, job = _runtime_paths(workspace, job_dir)
     task: TaskSpecV1 | None = None
     result: TaskResultV1 | None = None
+    trusted_task = False
+    promotion_claimed = False
     try:
         task_relative, task_path = _validated_supplied_path(job, task_spec_path)
         task = TaskSpecV1.model_validate(read_json_object(task_path))
         expected_task_relative = f"workflow/runs/{task.run_id}/task-spec.json"
         if task_relative != expected_task_relative:
             raise StageRuntimeError("stage.task_identity_mismatch", "TaskSpec path does not match its run.")
-        _implemented_stage(task.stage)
+        definition = _implemented_stage(task.stage)
+        adapter = _adapter(task.stage)
+        _validate_task_contract(job, task, definition, adapter)
+        _validate_task_preparation(job, task_path, task)
+        _validate_active_task(job, task, adapter)
+        trusted_task = True
 
         result_relative, result_path = _validated_supplied_path(job, task_result_path)
         if result_relative != task.result_output:
@@ -292,30 +449,26 @@ def apply_stage_result(
             )
         result = TaskResultV1.model_validate(read_json_object(result_path))
         _validate_task_result_identity(task, result)
-
-        schema_path = _schema_path(root)
-        current_fingerprint = parse_input_fingerprint(
+        _validate_candidate_submission(
             job,
-            executor_mode=task.execution_mode,
-            schema_path=schema_path,
+            task_path=task_path,
+            task=task,
+            result_path=result_path,
+            result=result,
         )
-        if current_fingerprint != task.input_fingerprint:
-            raise StageRuntimeError(
-                "stage.stale_input",
-                "The Parse inputs changed after this task was prepared.",
-            )
 
-        target = resolve_job_relative_path(job, task.authoritative_target)
-        if _file_hash_or_none(target) != task.expected_output_sha256:
-            raise StageRuntimeError(
-                "stage.output_conflict",
-                "The authoritative Parse output changed after this task was prepared.",
-            )
+        target = _validate_task_freshness(
+            root,
+            job,
+            task,
+            adapter,
+            accepted_output_sha256=result.outputs[0].sha256,
+        )
 
         if len(result.outputs) != 1 or result.outputs[0].path != task.candidate_output:
             raise StageRuntimeError(
                 "stage.result_scope_mismatch",
-                "TaskResult does not contain exactly the declared Parse candidate.",
+                "TaskResult does not contain exactly the declared stage candidate.",
             )
         candidate = result.outputs[0]
         try:
@@ -323,7 +476,7 @@ def apply_stage_result(
         except UnsafeStagePathError as exc:
             raise StageRuntimeError(
                 "stage.unsafe_path",
-                "The Parse candidate path is outside its declared staging scope.",
+                "The stage candidate path is outside its declared staging scope.",
             ) from exc
         declared_candidate = resolve_job_relative_path(job, task.candidate_output)
         if candidate_path != declared_candidate:
@@ -331,57 +484,59 @@ def apply_stage_result(
                 "stage.result_scope_mismatch",
                 "TaskResult candidate does not match the declared staging path.",
             )
+        _require_unaliased_regular_file(candidate_path, label="stage candidate")
         try:
             candidate_bytes = candidate_path.read_bytes()
         except OSError as exc:
             raise StageRuntimeError(
                 "stage.candidate_missing",
-                "The declared Parse candidate cannot be read.",
+                "The declared stage candidate cannot be read.",
             ) from exc
         if sha256_bytes(candidate_bytes) != candidate.sha256 or (
             candidate.size_bytes is not None and len(candidate_bytes) != candidate.size_bytes
         ):
             raise StageRuntimeError(
                 "stage.candidate_hash_mismatch",
-                "The Parse candidate does not match its declared fingerprint.",
+                "The stage candidate does not match its declared fingerprint.",
             )
         try:
             candidate_object = json.loads(candidate_bytes)
         except (UnicodeError, json.JSONDecodeError) as exc:
             raise StageRuntimeError(
                 "stage.invalid_candidate",
-                "The Parse candidate is not valid UTF-8 JSON.",
+                "The stage candidate is not valid UTF-8 JSON.",
             ) from exc
         try:
-            advert_text = (job / "job_advert.md").read_text(encoding="utf-8")
-            validate_parse_candidate(
+            adapter.validate_candidate(
+                root,
+                job,
                 candidate_object,
-                advert_text=advert_text,
-                schema_path=schema_path,
+                input_fingerprint=task.input_fingerprint,
             )
-        except (OSError, UnicodeError, ParseStageValidationError) as exc:
+        except (ConfirmStageError, ParseStageError, OSError, UnicodeError, ValueError) as exc:
             raise StageRuntimeError(
                 "stage.invalid_candidate",
-                "The Parse candidate failed schema, semantic, or source-receipt validation.",
+                "The stage candidate failed schema, semantic, or source-receipt validation.",
             ) from exc
 
-        checked_at = _utc_now()
-        validation = ValidationReportV1(
-            task_id=task.task_id,
-            run_id=task.run_id,
-            job_id=task.job_id,
-            stage=task.stage,
-            status="passed",
-            checked_at=checked_at,
-            input_hashes_match=True,
-            schema_valid=True,
-            scope_valid=True,
-            citations_valid=True,
-        )
         validation_relative = f"workflow/runs/{task.run_id}/validation/report.json"
         validation_path = resolve_job_relative_path(job, validation_relative)
-        write_immutable_json(validation_path, validation.model_dump(mode="json"))
+        validation = _load_or_write_passed_validation(
+            validation_path,
+            task=task,
+            citations_valid=adapter.citations_validated,
+        )
+        checked_at = validation.checked_at
 
+        _validate_active_task(job, task, adapter)
+        _claim_terminal_action(
+            job,
+            task=task,
+            task_path=task_path,
+            action="promote",
+            candidate_sha256=candidate.sha256,
+        )
+        promotion_claimed = True
         atomic_write_bytes(target, candidate_bytes)
         promoted = _artifact(job, task.authoritative_target)
         promotion_relative = f"workflow/runs/{task.run_id}/promotion.json"
@@ -393,7 +548,7 @@ def apply_stage_result(
                 "run_id": task.run_id,
                 "task_id": task.task_id,
                 "stage": task.stage,
-                "attempt": _attempt_for_run(job, task.run_id),
+                "attempt": _attempt_for_run(job, task.run_id, task.stage),
                 "input_fingerprint": task.input_fingerprint,
                 "candidate_sha256": candidate.sha256,
                 "authoritative_target": task.authoritative_target,
@@ -407,12 +562,12 @@ def apply_stage_result(
             task_id=task.task_id,
             job_id=task.job_id,
             stage=task.stage,
-            attempt=_attempt_for_run(job, task.run_id),
+            attempt=_attempt_for_run(job, task.run_id, task.stage),
             execution_mode=task.execution_mode,
             status="succeeded",
             created_at=task.created_at,
-            started_at=result.started_at,
-            completed_at=result.completed_at,
+            started_at=task.created_at,
+            completed_at=checked_at,
             inputs=task.inputs,
             input_fingerprint=task.input_fingerprint,
             task_spec_sha256=sha256_file(task_path),
@@ -434,16 +589,17 @@ def apply_stage_result(
             input_fingerprint=task.input_fingerprint,
             inputs=task.inputs,
             outputs=(promoted,),
-            started_at=result.started_at,
-            completed_at=result.completed_at,
+            started_at=task.created_at,
+            completed_at=checked_at,
         )
         updated_state = _state_with_stage(
             state,
             succeeded,
             active_run_id=None,
             increment_revision=True,
-            updated_at=result.completed_at,
+            updated_at=checked_at,
         )
+        updated_state = _with_stale_descendants(updated_state, task.stage)
         _write_state(job, updated_state)
         return AppliedStage(
             manifest=manifest,
@@ -452,17 +608,259 @@ def apply_stage_result(
             authoritative_path=target,
         )
     except StageRuntimeError as exc:
-        if task is not None:
+        if (
+            task is not None
+            and trusted_task
+            and not promotion_claimed
+            and exc.code != "stage.task_not_active"
+        ):
             _record_rejected_run(job, task, result, error=exc)
         raise
-    except (StageStoreError, ValidationError, ParseStageError, OSError, ValueError) as exc:
+    except (
+        ConfirmStageError,
+        StageStoreError,
+        ValidationError,
+        ParseStageError,
+        OSError,
+        ValueError,
+    ) as exc:
         wrapped = StageRuntimeError(
             "stage.invalid_result",
             "The stage result could not be loaded or validated safely.",
         )
-        if task is not None:
+        if task is not None and trusted_task and not promotion_claimed:
             _record_rejected_run(job, task, result, error=wrapped)
         raise wrapped from exc
+
+
+def submit_stage_candidate(
+    workspace: Path,
+    job_dir: Path,
+    *,
+    task_spec_path: Path,
+    candidate_bytes: bytes,
+) -> SubmittedStage:
+    root, job = _runtime_paths(workspace, job_dir)
+    try:
+        task_relative, task_path = _validated_supplied_path(job, task_spec_path)
+        task = TaskSpecV1.model_validate(read_json_object(task_path))
+        if task_relative != f"workflow/runs/{task.run_id}/task-spec.json":
+            raise StageRuntimeError(
+                "stage.task_identity_mismatch",
+                "TaskSpec path does not match its run.",
+            )
+        definition = _implemented_stage(task.stage)
+        adapter = _adapter(task.stage)
+        _validate_task_contract(job, task, definition, adapter)
+        _validate_task_preparation(job, task_path, task)
+        _validate_active_task(job, task, adapter)
+        _validate_task_freshness(root, job, task, adapter)
+        try:
+            candidate_object = json.loads(candidate_bytes)
+        except (UnicodeError, json.JSONDecodeError) as exc:
+            raise StageRuntimeError(
+                "stage.invalid_candidate",
+                "The submitted stage candidate is not valid UTF-8 JSON.",
+            ) from exc
+        try:
+            validated = adapter.validate_candidate(
+                root,
+                job,
+                candidate_object,
+                input_fingerprint=task.input_fingerprint,
+            )
+        except (ConfirmStageError, ParseStageError, OSError, UnicodeError, ValueError) as exc:
+            raise StageRuntimeError(
+                "stage.invalid_candidate",
+                "The submitted stage candidate failed schema or semantic validation.",
+            ) from exc
+        canonical_bytes = (
+            json.dumps(validated, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+        ).encode("utf-8")
+        candidate_path = resolve_job_relative_path(job, task.candidate_output)
+        _write_candidate_payload(candidate_path, canonical_bytes)
+        candidate = ArtifactFingerprint(
+            path=task.candidate_output,
+            sha256=sha256_bytes(canonical_bytes),
+            size_bytes=len(canonical_bytes),
+        )
+        result_path = resolve_job_relative_path(job, task.result_output)
+        now = max(_utc_now(), task.created_at)
+        if result_path.exists() or result_path.is_symlink():
+            _require_unaliased_regular_file(result_path, label="task result")
+            result = TaskResultV1.model_validate(read_json_object(result_path))
+            _validate_task_result_identity(task, result)
+            if result.outputs != (candidate,):
+                raise StageRuntimeError(
+                    "stage.result_scope_mismatch",
+                    "Existing TaskResult does not match the submitted candidate.",
+                )
+        else:
+            result = TaskResultV1(
+                task_id=task.task_id,
+                run_id=task.run_id,
+                job_id=task.job_id,
+                stage=task.stage,
+                status="succeeded",
+                input_fingerprint=task.input_fingerprint,
+                started_at=task.created_at,
+                completed_at=now,
+                outputs=(candidate,),
+            )
+            write_immutable_json(result_path, result.model_dump(mode="json"))
+        submission_path = resolve_job_relative_path(
+            job,
+            f"workflow/runs/{task.run_id}/submission.json",
+        )
+        submission = CandidateSubmissionV1(
+            task_id=task.task_id,
+            run_id=task.run_id,
+            job_id=task.job_id,
+            stage=task.stage,
+            submitted_at=now,
+            task_spec_sha256=sha256_file(task_path),
+            candidate=candidate,
+            result_path=task.result_output,
+            task_result_sha256=sha256_file(result_path),
+        )
+        if submission_path.exists() or submission_path.is_symlink():
+            existing = CandidateSubmissionV1.model_validate(
+                read_json_object(submission_path)
+            )
+            if existing.model_copy(update={"submitted_at": submission.submitted_at}) != submission:
+                raise StageRuntimeError(
+                    "stage.submission_conflict",
+                    "Existing candidate submission does not match this task result.",
+                )
+        else:
+            write_immutable_json(submission_path, submission.model_dump(mode="json"))
+        return SubmittedStage(
+            task_spec=task,
+            candidate_path=candidate_path,
+            result=result,
+            result_path=result_path,
+            submission_path=submission_path,
+        )
+    except StageRuntimeError:
+        raise
+    except UnsafeStagePathError as exc:
+        raise StageRuntimeError(
+            "stage.unsafe_path",
+            "The submitted candidate path is not an isolated run path.",
+        ) from exc
+    except (
+        ConfirmStageError,
+        StageStoreError,
+        ValidationError,
+        ParseStageError,
+        OSError,
+        ValueError,
+    ) as exc:
+        raise StageRuntimeError(
+            "stage.invalid_result",
+            "The submitted candidate could not be stored safely.",
+        ) from exc
+
+
+def cancel_stage_task(
+    workspace: Path,
+    job_dir: Path,
+    *,
+    stage: SupportedStage,
+) -> CancelledStage:
+    _, job = _runtime_paths(workspace, job_dir)
+    _implemented_stage(stage)
+    state, _ = _load_or_reconstruct_state(job)
+    running = next(
+        (record for record in state.stages if record.status == "running"),
+        None,
+    )
+    if running is None or running.stage != stage:
+        raise StageRuntimeError(
+            "stage.no_active_run",
+            "The requested stage has no active task to cancel.",
+        )
+    preparation = _load_preparation_for_run(job, running.run_id)
+    if (
+        preparation.status != "prepared"
+        or preparation.job_id != job.name
+        or preparation.stage != stage
+        or preparation.input_fingerprint != running.input_fingerprint
+        or preparation.task_id is None
+    ):
+        raise StageRuntimeError(
+            "stage.task_integrity_mismatch",
+            "The active task does not match its immutable preparation receipt.",
+        )
+    now = _utc_now()
+    task_path = resolve_job_relative_path(
+        job,
+        f"workflow/runs/{preparation.run_id}/task-spec.json",
+    )
+    task = TaskSpecV1.model_validate(read_json_object(task_path))
+    definition = _implemented_stage(task.stage)
+    adapter = _adapter(task.stage)
+    _validate_task_contract(job, task, definition, adapter)
+    _validate_task_preparation(job, task_path, task)
+    _validate_active_task(job, task, adapter)
+    _claim_terminal_action(
+        job,
+        task=task,
+        task_path=task_path,
+        action="cancel",
+    )
+    manifest = RunManifestV1(
+        run_id=preparation.run_id,
+        task_id=preparation.task_id,
+        job_id=preparation.job_id,
+        stage=preparation.stage,
+        attempt=preparation.attempt,
+        execution_mode=preparation.execution_mode,
+        status="cancelled",
+        created_at=preparation.created_at,
+        started_at=preparation.created_at,
+        completed_at=now,
+        inputs=preparation.inputs,
+        input_fingerprint=preparation.input_fingerprint,
+        task_spec_sha256=preparation.task_spec_sha256,
+        error_code="stage.cancelled",
+        error_message="The prepared task was explicitly cancelled before promotion.",
+    )
+    manifest_path = resolve_job_relative_path(
+        job,
+        f"workflow/runs/{preparation.run_id}/manifest.json",
+    )
+    try:
+        write_immutable_json(manifest_path, manifest.model_dump(mode="json"))
+    except StageStoreError as exc:
+        raise StageRuntimeError(
+            "stage.store_failed",
+            "The cancellation manifest could not be stored safely.",
+        ) from exc
+    cancelled = StageRecord(
+        stage=stage,
+        status="cancelled",
+        attempt_count=manifest.attempt,
+        run_id=preparation.run_id,
+        input_fingerprint=preparation.input_fingerprint,
+        inputs=preparation.inputs,
+        outputs=running.outputs,
+        started_at=preparation.created_at,
+        completed_at=now,
+    )
+    updated = _state_with_stage(
+        state,
+        cancelled,
+        active_run_id=None,
+        increment_revision=True,
+        updated_at=now,
+    )
+    _write_state(job, updated)
+    return CancelledStage(
+        manifest=manifest,
+        manifest_path=manifest_path,
+        state=updated,
+    )
 
 
 def run_deterministic_stage(
@@ -472,16 +870,23 @@ def run_deterministic_stage(
     stage: SupportedStage,
 ) -> StageRunOutcome:
     root, job = _runtime_paths(workspace, job_dir)
+    adapter = _adapter(stage)
     _finalize_recoverable_promotions(job)
     status = inspect_stage_status(root, job, stage=stage)
-    target = job / "parsed_job.json"
+    target = job / adapter.authoritative_target
+    if status.input_fingerprint is None:
+        raise StageRuntimeError(
+            "stage.dependency_not_current",
+            "The requested stage requires current upstream stages.",
+        )
     if status.output_drift:
         raise StageRuntimeError(
             "stage.output_conflict",
-            "The authoritative Parse output has changed since its last successful run.",
+            "The authoritative stage output has changed since its last successful run.",
         )
     if status.stage.status == "succeeded" and not status.reasons:
         return StageRunOutcome(
+            stage=stage,
             cache_hit=True,
             state=status.state,
             authoritative_path=target,
@@ -493,39 +898,28 @@ def run_deterministic_stage(
         stage=stage,
         execution_mode="deterministic",
     )
-    candidate = build_deterministic_parse_candidate(job)
+    candidate = adapter.build_deterministic_candidate(
+        root,
+        job,
+        input_fingerprint=prepared.task_spec.input_fingerprint,
+    )
     candidate_bytes = (
         json.dumps(candidate, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
     ).encode("utf-8")
-    atomic_write_bytes(prepared.candidate_path, candidate_bytes)
-    completed = _utc_now()
-    if completed <= prepared.task_spec.created_at:
-        completed = prepared.task_spec.created_at
-    result = TaskResultV1(
-        task_id=prepared.task_spec.task_id,
-        run_id=prepared.task_spec.run_id,
-        job_id=prepared.task_spec.job_id,
-        stage=stage,
-        status="succeeded",
-        input_fingerprint=prepared.task_spec.input_fingerprint,
-        started_at=prepared.task_spec.created_at,
-        completed_at=completed,
-        outputs=(
-            ArtifactFingerprint(
-                path=prepared.task_spec.candidate_output,
-                sha256=sha256_bytes(candidate_bytes),
-                size_bytes=len(candidate_bytes),
-            ),
-        ),
+    submitted = submit_stage_candidate(
+        root,
+        job,
+        task_spec_path=prepared.task_spec_path,
+        candidate_bytes=candidate_bytes,
     )
-    write_immutable_json(prepared.result_path, result.model_dump(mode="json"))
     applied = apply_stage_result(
         root,
         job,
         task_spec_path=prepared.task_spec_path,
-        task_result_path=prepared.result_path,
+        task_result_path=submitted.result_path,
     )
     return StageRunOutcome(
+        stage=stage,
         cache_hit=False,
         state=applied.state,
         authoritative_path=applied.authoritative_path,
@@ -566,15 +960,14 @@ def _implemented_stage(stage: str):
     return definition
 
 
-def _schema_path(workspace: Path) -> Path:
-    return load_workspace_config(workspace).path("schema_dir") / "parsed_job.schema.json"
-
-
-def _parse_input_artifacts(job: Path) -> tuple[ArtifactFingerprint, ...]:
-    return (
-        _artifact(job, "job.yaml"),
-        _artifact(job, "job_advert.md"),
-    )
+def _adapter(stage: str) -> StageAdapter:
+    try:
+        return get_stage_adapter(stage)
+    except KeyError as exc:
+        raise StageRuntimeError(
+            "stage.unsupported",
+            "The requested workflow stage has no executable adapter.",
+        ) from exc
 
 
 def _artifact(job: Path, relative_path: str) -> ArtifactFingerprint:
@@ -602,6 +995,94 @@ def _file_hash_or_none(path: Path) -> str | None:
         ) from exc
 
 
+def _require_unaliased_regular_file(path: Path, *, label: str) -> None:
+    try:
+        metadata = path.lstat()
+    except OSError as exc:
+        raise StageRuntimeError(
+            "stage.candidate_missing",
+            f"The declared {label} cannot be inspected safely.",
+        ) from exc
+    if path.is_symlink() or not path.is_file() or metadata.st_nlink != 1:
+        raise StageRuntimeError(
+            "stage.unsafe_path",
+            f"The declared {label} must be one unaliased regular file.",
+        )
+
+
+def _write_candidate_payload(path: Path, payload: bytes) -> None:
+    if path.exists() or path.is_symlink():
+        _require_unaliased_regular_file(path, label="stage candidate")
+        try:
+            existing = path.read_bytes()
+        except OSError as exc:
+            raise StageRuntimeError(
+                "stage.candidate_missing",
+                "The existing stage candidate cannot be inspected safely.",
+            ) from exc
+        if existing != payload:
+            raise StageRuntimeError(
+                "stage.submission_conflict",
+                "A different candidate has already been submitted for this task.",
+            )
+        return
+    try:
+        atomic_write_bytes(path, payload)
+    except (StageStoreError, UnsafeStagePathError) as exc:
+        raise StageRuntimeError(
+            "stage.unsafe_path",
+            "The stage candidate could not be written inside its isolated run path.",
+        ) from exc
+
+
+def _inspect_output_receipt(
+    job: Path,
+    record: StageRecord,
+    adapter: StageAdapter,
+) -> tuple[bool, tuple[str, ...]]:
+    if not record.outputs:
+        return False, ()
+    receipt = next(
+        (item for item in record.outputs if item.path == adapter.authoritative_target),
+        None,
+    )
+    if receipt is None:
+        return False, ("output_missing",)
+    try:
+        target = resolve_job_relative_path(job, adapter.authoritative_target)
+    except UnsafeStagePathError as exc:
+        raise StageRuntimeError(
+            "stage.output_unreadable",
+            "The authoritative stage output cannot be inspected safely.",
+        ) from exc
+    if not target.is_file():
+        return False, ("output_missing",)
+    try:
+        actual_hash = sha256_file(target)
+    except StageStoreError as exc:
+        raise StageRuntimeError(
+            "stage.output_unreadable",
+            "The authoritative stage output cannot be inspected safely.",
+        ) from exc
+    if actual_hash != receipt.sha256:
+        return True, ("output_drift",)
+    return False, ()
+
+
+def _inspect_pending_output_expectation(
+    job: Path,
+    task: TaskSpecV1,
+    adapter: StageAdapter,
+) -> tuple[bool, tuple[str, ...]]:
+    if task.authoritative_target != adapter.authoritative_target:
+        return True, ("task_contract_mismatch",)
+    target = resolve_job_relative_path(job, adapter.authoritative_target)
+    actual = _file_hash_or_none(target)
+    if actual == task.expected_output_sha256:
+        return False, ()
+    return True, ("output_drift",)
+
+
 def _state_path(job: Path) -> Path:
     return resolve_job_relative_path(job, "workflow/state.json")
 
@@ -612,14 +1093,30 @@ def _load_or_reconstruct_state(job: Path) -> tuple[WorkflowStateV1, bool]:
         try:
             loaded = WorkflowStateV1.model_validate(read_json_object(path))
             rebuilt = _reconstruct_state(job)
-            loaded_stage = _stage_record(loaded, "parse")
-            rebuilt_stage = _stage_record(rebuilt, "parse")
-            terminal_evidence_supersedes_view = (
+            rebuilt_terminal_runs = {
+                record.run_id
+                for record in rebuilt.stages
+                if record.run_id is not None
+                and record.status in {"succeeded", "failed", "cancelled"}
+            }
+            loaded_runs = {
+                record.run_id for record in loaded.stages if record.run_id is not None
+            }
+            terminal_evidence_supersedes_view = bool(
                 loaded.active_run_id is not None
-                and rebuilt_stage.run_id == loaded.active_run_id
-                and rebuilt_stage.status in {"succeeded", "failed", "cancelled"}
+                and loaded.active_run_id in rebuilt_terminal_runs
+            ) or bool(
+                rebuilt.updated_at > loaded.updated_at
+                and rebuilt_terminal_runs - loaded_runs
             )
-            if terminal_evidence_supersedes_view:
+            active_evidence_supersedes_view = (
+                rebuilt.active_run_id != loaded.active_run_id
+                and (
+                    rebuilt.active_run_id is not None
+                    or loaded.active_run_id is not None
+                )
+            )
+            if terminal_evidence_supersedes_view or active_evidence_supersedes_view:
                 return rebuilt, True
             return loaded, False
         except (StageStoreError, ValidationError):
@@ -629,6 +1126,9 @@ def _load_or_reconstruct_state(job: Path) -> tuple[WorkflowStateV1, bool]:
 
 def _reconstruct_state(job: Path) -> WorkflowStateV1:
     manifests: list[RunManifestV1] = []
+    implemented = {
+        definition.id for definition in DEFAULT_STAGE_REGISTRY.implemented_stages()
+    }
     runs_dir = job / "workflow" / "runs"
     if runs_dir.is_dir():
         for run_dir in sorted(path for path in runs_dir.iterdir() if path.is_dir()):
@@ -643,66 +1143,80 @@ def _reconstruct_state(job: Path) -> WorkflowStateV1:
                 manifest = _recoverable_manifest(job, run_dir)
             if manifest is None:
                 continue
-            if manifest.job_id == job.name and manifest.stage == "parse":
+            if manifest.job_id == job.name and manifest.stage in implemented:
                 manifests.append(manifest)
-    if manifests:
-        manifest = max(
-            manifests,
-            key=lambda item: item.completed_at or item.started_at or item.created_at,
-        )
-        if manifest.status == "succeeded":
-            record = StageRecord(
-                stage="parse",
-                status="succeeded",
-                attempt_count=manifest.attempt,
-                run_id=manifest.run_id,
-                input_fingerprint=manifest.input_fingerprint,
-                inputs=manifest.inputs,
-                outputs=manifest.promoted_outputs,
-                started_at=manifest.started_at,
-                completed_at=manifest.completed_at,
-            )
-        else:
-            record = StageRecord(
-                stage="parse",
-                status="failed" if manifest.status == "failed" else "cancelled",
-                attempt_count=manifest.attempt,
-                run_id=manifest.run_id,
-                input_fingerprint=manifest.input_fingerprint,
-                inputs=manifest.inputs,
-                started_at=manifest.started_at,
-                completed_at=manifest.completed_at,
-                error_code=manifest.error_code if manifest.status == "failed" else None,
-            )
-        created = min(item.created_at for item in manifests)
-        updated = manifest.completed_at or manifest.created_at
-        return WorkflowStateV1(
-            job_id=job.name,
-            revision=len(manifests),
-            created_at=created,
-            updated_at=updated,
-            stages=(record,),
-        )
+    latest_by_stage: dict[str, RunManifestV1] = {}
+    latest_success_by_stage: dict[str, RunManifestV1] = {}
+    for manifest in manifests:
+        current = latest_by_stage.get(manifest.stage)
+        if current is None or _manifest_order_key(manifest) > _manifest_order_key(current):
+            latest_by_stage[manifest.stage] = manifest
+        successful = latest_success_by_stage.get(manifest.stage)
+        if manifest.status == "succeeded" and (
+            successful is None
+            or _manifest_order_key(manifest) > _manifest_order_key(successful)
+        ):
+            latest_success_by_stage[manifest.stage] = manifest
 
-    pending = _all_pending_tasks(job)
-    if pending:
-        task, _ = max(pending, key=lambda item: item[0].created_at)
-        record = StageRecord(
-            stage=task.stage,
-            status="running",
-            attempt_count=1,
-            run_id=task.run_id,
-            input_fingerprint=task.input_fingerprint,
-            inputs=task.inputs,
-            started_at=task.created_at,
-        )
+    eligible_pending: list[tuple[TaskSpecV1, Path]] = []
+    for task, path in _all_pending_tasks(job):
+        if task.stage not in implemented:
+            continue
+        latest = latest_by_stage.get(task.stage)
+        if latest is not None and task.created_at <= latest.created_at:
+            continue
+        eligible_pending.append((task, path))
+    active_task = (
+        max(eligible_pending, key=lambda item: item[0].created_at)[0]
+        if eligible_pending
+        else None
+    )
+
+    if manifests or active_task is not None:
+        records = {
+            stage: _record_from_manifest(
+                manifest,
+                fallback_outputs=(
+                    latest_success_by_stage[stage].promoted_outputs
+                    if stage in latest_success_by_stage
+                    else ()
+                ),
+            )
+            for stage, manifest in latest_by_stage.items()
+        }
+        if active_task is not None:
+            previous = records.get(active_task.stage)
+            records[active_task.stage] = StageRecord(
+                stage=active_task.stage,
+                status="running",
+                attempt_count=(previous.attempt_count if previous is not None else 0) + 1,
+                run_id=active_task.run_id,
+                input_fingerprint=active_task.input_fingerprint,
+                inputs=active_task.inputs,
+                outputs=previous.outputs if previous is not None else (),
+                started_at=active_task.created_at,
+            )
+        _apply_reconstructed_dependency_staleness(records)
+        order = {
+            definition.id: index
+            for index, definition in enumerate(DEFAULT_STAGE_REGISTRY.topological_order())
+        }
+        ordered_records = tuple(sorted(records.values(), key=lambda item: order[item.stage]))
+        created_values = [item.created_at for item in manifests]
+        updated_values = [
+            item.completed_at or item.started_at or item.created_at
+            for item in manifests
+        ]
+        if active_task is not None:
+            created_values.append(active_task.created_at)
+            updated_values.append(active_task.created_at)
         return WorkflowStateV1(
             job_id=job.name,
-            revision=1,
-            created_at=task.created_at,
-            updated_at=task.created_at,
-            active_run_id=task.run_id,
-            stages=(record,),
+            revision=len(manifests) + len(eligible_pending),
+            created_at=min(created_values),
+            updated_at=max(updated_values),
+            active_run_id=active_task.run_id if active_task is not None else None,
+            stages=ordered_records,
         )
 
     now = _utc_now()
@@ -713,6 +1227,83 @@ def _reconstruct_state(job: Path) -> WorkflowStateV1:
         updated_at=now,
         stages=(StageRecord(stage="parse", status="ready"),),
     )
+
+
+def _manifest_order_key(manifest: RunManifestV1) -> tuple[datetime, str]:
+    return manifest.created_at, manifest.run_id
+
+
+def _record_from_manifest(
+    manifest: RunManifestV1,
+    *,
+    fallback_outputs: tuple[ArtifactFingerprint, ...] = (),
+) -> StageRecord:
+    if manifest.status == "succeeded":
+        return StageRecord(
+            stage=manifest.stage,
+            status="succeeded",
+            attempt_count=manifest.attempt,
+            run_id=manifest.run_id,
+            input_fingerprint=manifest.input_fingerprint,
+            inputs=manifest.inputs,
+            outputs=manifest.promoted_outputs,
+            started_at=manifest.started_at,
+            completed_at=manifest.completed_at,
+        )
+    return StageRecord(
+        stage=manifest.stage,
+        status="failed" if manifest.status == "failed" else "cancelled",
+        attempt_count=manifest.attempt,
+        run_id=manifest.run_id,
+        input_fingerprint=manifest.input_fingerprint,
+        inputs=manifest.inputs,
+        outputs=fallback_outputs,
+        started_at=manifest.started_at,
+        completed_at=manifest.completed_at,
+        error_code=manifest.error_code if manifest.status == "failed" else None,
+    )
+
+
+def _apply_reconstructed_dependency_staleness(
+    records: dict[str, StageRecord],
+) -> None:
+    for definition in DEFAULT_STAGE_REGISTRY.topological_order():
+        record = records.get(definition.id)
+        if record is None or record.status != "succeeded":
+            continue
+        for dependency in definition.depends_on:
+            dependency_definition = DEFAULT_STAGE_REGISTRY.get(dependency)
+            if not dependency_definition.implemented:
+                continue
+            dependency_record = records.get(dependency)
+            dependency_output_path = _adapter(dependency).authoritative_target
+            upstream_receipt = (
+                next(
+                    (
+                        item
+                        for item in dependency_record.outputs
+                        if item.path == dependency_output_path
+                    ),
+                    None,
+                )
+                if dependency_record is not None
+                else None
+            )
+            downstream_receipt = next(
+                (item for item in record.inputs if item.path == dependency_output_path),
+                None,
+            )
+            dependency_is_current = (
+                dependency_record is not None
+                and dependency_record.status == "succeeded"
+                and upstream_receipt is not None
+                and downstream_receipt is not None
+                and upstream_receipt.sha256 == downstream_receipt.sha256
+                and upstream_receipt.size_bytes == downstream_receipt.size_bytes
+            )
+            if not dependency_is_current:
+                records[definition.id] = record.model_copy(update={"status": "stale"})
+                break
 
 
 def _stage_record(state: WorkflowStateV1, stage: str) -> StageRecord:
@@ -775,7 +1366,17 @@ def _all_pending_tasks(job: Path) -> list[tuple[TaskSpecV1, Path]]:
             continue
         try:
             task = TaskSpecV1.model_validate(read_json_object(path))
-        except (StageStoreError, ValidationError):
+            expected_path = resolve_job_relative_path(
+                job,
+                f"workflow/runs/{task.run_id}/task-spec.json",
+            )
+            if path.resolve() != expected_path:
+                continue
+            definition = _implemented_stage(task.stage)
+            adapter = _adapter(task.stage)
+            _validate_task_contract(job, task, definition, adapter)
+            _validate_task_preparation(job, path, task)
+        except (StageRuntimeError, StageStoreError, ValidationError):
             continue
         if task.job_id == job.name:
             pending.append((task, path))
@@ -795,12 +1396,22 @@ def _pending_task_for_fingerprint(
         if item[0].stage == stage
         and item[0].input_fingerprint == input_fingerprint
         and (execution_mode is None or item[0].execution_mode == execution_mode)
-        and _file_hash_or_none(job / item[0].authoritative_target)
-        == item[0].expected_output_sha256
     ]
     if not candidates:
         return None
     return max(candidates, key=lambda item: item[0].created_at)
+
+
+def _pending_task_for_run(
+    job: Path,
+    run_id: str | None,
+) -> tuple[TaskSpecV1, Path] | None:
+    if run_id is None:
+        return None
+    return next(
+        (item for item in _all_pending_tasks(job) if item[0].run_id == run_id),
+        None,
+    )
 
 
 def _validated_supplied_path(job: Path, supplied: Path) -> tuple[str, Path]:
@@ -817,6 +1428,435 @@ def _validated_supplied_path(job: Path, supplied: Path) -> tuple[str, Path]:
             "A supplied stage path is outside the selected job.",
         ) from exc
     return relative, path
+
+
+def _validate_task_contract(
+    job: Path,
+    task: TaskSpecV1,
+    definition: StageDefinition,
+    adapter: StageAdapter,
+) -> None:
+    expected_candidate = (
+        f"workflow/runs/{task.run_id}/candidates/{adapter.candidate_name}"
+    )
+    expected_result = (
+        f"workflow/runs/{task.run_id}/tasks/{task.task_id}/result.json"
+    )
+    expected_reads = tuple(item.path for item in task.inputs)
+    expected_writes = (expected_candidate, expected_result)
+    if (
+        task.job_id != job.name
+        or task.stage != adapter.stage_id
+        or task.execution_mode not in definition.execution_modes
+        or task.candidate_output != expected_candidate
+        or task.result_output != expected_result
+        or task.allowed_reads != expected_reads
+        or task.allowed_writes != expected_writes
+        or task.authoritative_target != adapter.authoritative_target
+        or task.output_schema != adapter.output_schema
+        or task.privacy_tier != adapter.task_privacy_tier
+        or task.required_consents != adapter.required_consents(task.execution_mode)
+    ):
+        raise StageRuntimeError(
+            "stage.task_contract_mismatch",
+            "TaskSpec does not match the registered stage contract.",
+        )
+
+
+def _validate_task_preparation(
+    job: Path,
+    task_path: Path,
+    task: TaskSpecV1,
+) -> RunManifestV1:
+    try:
+        preparation = _load_preparation_for_run(job, task.run_id)
+        task_spec_sha256 = sha256_file(task_path)
+    except (StageRuntimeError, StageStoreError) as exc:
+        raise StageRuntimeError(
+            "stage.task_integrity_mismatch",
+            "TaskSpec is not anchored by its immutable preparation receipt.",
+        ) from exc
+    if (
+        preparation.status != "prepared"
+        or preparation.run_id != task.run_id
+        or preparation.task_id != task.task_id
+        or preparation.job_id != task.job_id
+        or preparation.stage != task.stage
+        or preparation.attempt < 1
+        or preparation.execution_mode != task.execution_mode
+        or preparation.created_at != task.created_at
+        or preparation.inputs != task.inputs
+        or preparation.input_fingerprint != task.input_fingerprint
+        or preparation.task_spec_sha256 != task_spec_sha256
+    ):
+        raise StageRuntimeError(
+            "stage.task_integrity_mismatch",
+            "TaskSpec does not match its immutable preparation receipt.",
+        )
+    return preparation
+
+
+def _validate_task_freshness(
+    workspace: Path,
+    job: Path,
+    task: TaskSpecV1,
+    adapter: StageAdapter,
+    accepted_output_sha256: str | None = None,
+) -> Path:
+    target = resolve_job_relative_path(job, task.authoritative_target)
+    if (
+        accepted_output_sha256 is not None
+        and _terminal_claim_matches(
+            job,
+            task=task,
+            action="promote",
+            candidate_sha256=accepted_output_sha256,
+        )
+    ):
+        actual = _file_hash_or_none(target)
+        if actual in {task.expected_output_sha256, accepted_output_sha256}:
+            return target
+        raise StageRuntimeError(
+            "stage.output_conflict",
+            "The claimed promotion target no longer matches its transaction baseline.",
+        )
+    status = inspect_stage_status(
+        workspace,
+        job,
+        stage=task.stage,  # type: ignore[arg-type]
+    )
+    if status.input_fingerprint is None:
+        raise StageRuntimeError(
+            "stage.dependency_not_current",
+            "The stage dependencies changed after this task was prepared.",
+        )
+    current_fingerprint = adapter.input_fingerprint(workspace, job)
+    if current_fingerprint != task.input_fingerprint:
+        raise StageRuntimeError(
+            "stage.stale_input",
+            "The stage inputs changed after this task was prepared.",
+        )
+    try:
+        current_inputs = adapter.input_artifacts(workspace, job)
+    except (ConfirmStageError, ParseStageError, StageStoreError, OSError, ValueError) as exc:
+        raise StageRuntimeError(
+            "stage.stale_input",
+            "The declared stage input receipts changed after this task was prepared.",
+        ) from exc
+    if current_inputs != task.inputs:
+        raise StageRuntimeError(
+            "stage.stale_input",
+            "The declared stage input receipts changed after this task was prepared.",
+        )
+    actual_output_sha256 = _file_hash_or_none(target)
+    accepted_claimed_output = (
+        accepted_output_sha256 is not None
+        and actual_output_sha256 == accepted_output_sha256
+        and _terminal_claim_matches(
+            job,
+            task=task,
+            action="promote",
+            candidate_sha256=accepted_output_sha256,
+        )
+    )
+    if (
+        actual_output_sha256 != task.expected_output_sha256
+        and not accepted_claimed_output
+    ):
+        raise StageRuntimeError(
+            "stage.output_conflict",
+            "The authoritative stage output changed after this task was prepared.",
+        )
+    return target
+
+
+def _load_or_write_passed_validation(
+    path: Path,
+    *,
+    task: TaskSpecV1,
+    citations_valid: bool,
+) -> ValidationReportV1:
+    desired = ValidationReportV1(
+        task_id=task.task_id,
+        run_id=task.run_id,
+        job_id=task.job_id,
+        stage=task.stage,
+        status="passed",
+        checked_at=max(_utc_now(), task.created_at),
+        input_hashes_match=True,
+        schema_valid=True,
+        scope_valid=True,
+        citations_valid=citations_valid,
+    )
+    if path.exists() or path.is_symlink():
+        try:
+            existing = ValidationReportV1.model_validate(read_json_object(path))
+        except (StageStoreError, ValidationError) as exc:
+            raise StageRuntimeError(
+                "stage.invalid_result",
+                "Existing validation evidence is invalid.",
+            ) from exc
+        if existing.model_copy(update={"checked_at": desired.checked_at}) != desired:
+            raise StageRuntimeError(
+                "stage.invalid_result",
+                "Existing validation evidence does not match this task.",
+            )
+        return existing
+    write_immutable_json(path, desired.model_dump(mode="json"))
+    return desired
+
+
+def _validate_candidate_submission(
+    job: Path,
+    *,
+    task_path: Path,
+    task: TaskSpecV1,
+    result_path: Path,
+    result: TaskResultV1,
+) -> CandidateSubmissionV1:
+    submission_path = resolve_job_relative_path(
+        job,
+        f"workflow/runs/{task.run_id}/submission.json",
+    )
+    try:
+        submission = CandidateSubmissionV1.model_validate(
+            read_json_object(submission_path)
+        )
+        result_sha256 = sha256_file(result_path)
+        task_sha256 = sha256_file(task_path)
+    except (StageStoreError, ValidationError) as exc:
+        raise StageRuntimeError(
+            "stage.submission_missing",
+            "TaskResult is not anchored by a core-written candidate submission.",
+        ) from exc
+    if (
+        submission.task_id != task.task_id
+        or submission.run_id != task.run_id
+        or submission.job_id != task.job_id
+        or submission.stage != task.stage
+        or submission.task_spec_sha256 != task_sha256
+        or submission.result_path != task.result_output
+        or submission.task_result_sha256 != result_sha256
+        or result.outputs != (submission.candidate,)
+    ):
+        raise StageRuntimeError(
+            "stage.submission_conflict",
+            "Candidate submission does not match the TaskSpec and TaskResult.",
+        )
+    return submission
+
+
+def _validate_active_task(
+    job: Path,
+    task: TaskSpecV1,
+    adapter: StageAdapter,
+) -> None:
+    manifest_path = resolve_job_relative_path(
+        job,
+        f"workflow/runs/{task.run_id}/manifest.json",
+    )
+    if manifest_path.exists():
+        raise StageRuntimeError(
+            "stage.task_not_active",
+            "The stage task already has a terminal manifest.",
+        )
+    state, _ = _load_or_reconstruct_state(job)
+    record = _stage_record(state, task.stage)
+    if (
+        state.active_run_id != task.run_id
+        or record.status != "running"
+        or record.run_id != task.run_id
+        or record.input_fingerprint != task.input_fingerprint
+    ):
+        raise StageRuntimeError(
+            "stage.task_not_active",
+            "The stage task is no longer the active workflow task.",
+        )
+    baseline = next(
+        (
+            item
+            for item in record.outputs
+            if item.path == adapter.authoritative_target
+        ),
+        None,
+    )
+    baseline_sha256 = baseline.sha256 if baseline is not None else None
+    if baseline_sha256 != task.expected_output_sha256:
+        raise StageRuntimeError(
+            "stage.task_integrity_mismatch",
+            "The task output baseline does not match the active workflow receipt.",
+        )
+
+
+def _claim_terminal_action(
+    job: Path,
+    *,
+    task: TaskSpecV1,
+    task_path: Path,
+    action: Literal["promote", "cancel"],
+    candidate_sha256: str | None = None,
+) -> Path:
+    if action == "promote" and candidate_sha256 is None:
+        raise StageRuntimeError(
+            "stage.transition_conflict",
+            "Promotion requires a validated candidate receipt.",
+        )
+    claim_path = resolve_job_relative_path(
+        job,
+        f"workflow/runs/{task.run_id}/terminal-claim.json",
+    )
+    claim = {
+        "schema_version": "1.0.0",
+        "run_id": task.run_id,
+        "task_id": task.task_id,
+        "job_id": task.job_id,
+        "stage": task.stage,
+        "action": action,
+        "task_spec_sha256": sha256_file(task_path),
+        "candidate_sha256": candidate_sha256,
+    }
+    try:
+        write_immutable_json(claim_path, claim)
+    except ImmutableRecordError as exc:
+        raise StageRuntimeError(
+            "stage.transition_conflict",
+            "Another terminal action already owns this stage run.",
+        ) from exc
+    except StageStoreError as exc:
+        raise StageRuntimeError(
+            "stage.store_failed",
+            "The terminal stage action could not be claimed safely.",
+        ) from exc
+    return claim_path
+
+
+def _terminal_claim_matches(
+    job: Path,
+    *,
+    task: TaskSpecV1,
+    action: Literal["promote", "cancel"],
+    candidate_sha256: str | None,
+) -> bool:
+    claim_path = resolve_job_relative_path(
+        job,
+        f"workflow/runs/{task.run_id}/terminal-claim.json",
+    )
+    if not claim_path.is_file() or claim_path.is_symlink():
+        return False
+    try:
+        claim = read_json_object(claim_path)
+        task_spec_sha256 = sha256_file(
+            resolve_job_relative_path(
+                job,
+                f"workflow/runs/{task.run_id}/task-spec.json",
+            )
+        )
+    except StageStoreError:
+        return False
+    return claim == {
+        "schema_version": "1.0.0",
+        "run_id": task.run_id,
+        "task_id": task.task_id,
+        "job_id": task.job_id,
+        "stage": task.stage,
+        "action": action,
+        "task_spec_sha256": task_spec_sha256,
+        "candidate_sha256": candidate_sha256,
+    }
+
+
+def _terminal_claim_action(
+    job: Path,
+    task: TaskSpecV1,
+) -> Literal["promote", "cancel"] | None:
+    claim_path = resolve_job_relative_path(
+        job,
+        f"workflow/runs/{task.run_id}/terminal-claim.json",
+    )
+    if not claim_path.is_file() or claim_path.is_symlink():
+        return None
+    try:
+        claim = read_json_object(claim_path)
+    except StageStoreError:
+        return None
+    action = claim.get("action")
+    candidate_sha256 = claim.get("candidate_sha256")
+    if action == "cancel" and candidate_sha256 is None:
+        return (
+            "cancel"
+            if _terminal_claim_matches(
+                job,
+                task=task,
+                action="cancel",
+                candidate_sha256=None,
+            )
+            else None
+        )
+    if (
+        action == "promote"
+        and isinstance(candidate_sha256, str)
+        and len(candidate_sha256) == 64
+    ):
+        return (
+            "promote"
+            if _terminal_claim_matches(
+                job,
+                task=task,
+                action="promote",
+                candidate_sha256=candidate_sha256,
+            )
+            else None
+        )
+    return None
+
+
+def _claimed_candidate_is_authoritative(
+    job: Path,
+    task: TaskSpecV1,
+    adapter: StageAdapter,
+) -> bool:
+    claim_path = resolve_job_relative_path(
+        job,
+        f"workflow/runs/{task.run_id}/terminal-claim.json",
+    )
+    try:
+        claim = read_json_object(claim_path)
+        candidate_sha256 = claim.get("candidate_sha256")
+        target = resolve_job_relative_path(job, adapter.authoritative_target)
+        return (
+            isinstance(candidate_sha256, str)
+            and _terminal_claim_matches(
+                job,
+                task=task,
+                action="promote",
+                candidate_sha256=candidate_sha256,
+            )
+            and _file_hash_or_none(target) == candidate_sha256
+        )
+    except (StageRuntimeError, StageStoreError):
+        return False
+
+
+def _load_preparation_for_run(
+    job: Path,
+    run_id: str | None,
+) -> RunManifestV1:
+    if run_id is None:
+        raise StageRuntimeError(
+            "stage.task_integrity_mismatch",
+            "The active task has no run identifier.",
+        )
+    preparation_path = resolve_job_relative_path(
+        job,
+        f"workflow/runs/{run_id}/preparation.json",
+    )
+    try:
+        return RunManifestV1.model_validate(read_json_object(preparation_path))
+    except (StageStoreError, ValidationError) as exc:
+        raise StageRuntimeError(
+            "stage.task_integrity_mismatch",
+            "The immutable preparation receipt is missing or invalid.",
+        ) from exc
 
 
 def _validate_task_result_identity(task: TaskSpecV1, result: TaskResultV1) -> None:
@@ -842,9 +1882,9 @@ def _validate_task_result_identity(task: TaskSpecV1, result: TaskResultV1) -> No
         )
 
 
-def _attempt_for_run(job: Path, run_id: str) -> int:
+def _attempt_for_run(job: Path, run_id: str, stage: str) -> int:
     state, _ = _load_or_reconstruct_state(job)
-    record = _stage_record(state, "parse")
+    record = _stage_record(state, stage)
     if record.run_id == run_id and record.attempt_count > 0:
         return record.attempt_count
     return max(1, record.attempt_count + 1)
@@ -858,10 +1898,8 @@ def _record_rejected_run(
     error: StageRuntimeError,
 ) -> None:
     now = _utc_now()
-    started = result.started_at if result is not None else task.created_at
-    completed = result.completed_at if result is not None else now
-    if completed < started:
-        completed = started
+    started = task.created_at
+    completed = max(now, started)
     validation_relative = f"workflow/runs/{task.run_id}/validation/report.json"
     validation_path = resolve_job_relative_path(job, validation_relative)
     validation = ValidationReportV1(
@@ -871,7 +1909,10 @@ def _record_rejected_run(
         stage=task.stage,
         status="failed",
         checked_at=now,
-        input_hashes_match=error.code != "stage.stale_input",
+        input_hashes_match=error.code not in {
+            "stage.stale_input",
+            "stage.dependency_not_current",
+        },
         schema_valid=error.code != "stage.invalid_candidate",
         scope_valid=error.code not in {"stage.unsafe_path", "stage.result_scope_mismatch"},
         citations_valid=False if error.code == "stage.invalid_candidate" else None,
@@ -888,7 +1929,7 @@ def _record_rejected_run(
             task_id=task.task_id,
             job_id=task.job_id,
             stage=task.stage,
-            attempt=_attempt_for_run(job, task.run_id),
+            attempt=_attempt_for_run(job, task.run_id, task.stage),
             execution_mode=task.execution_mode,
             status="failed",
             created_at=task.created_at,
@@ -908,6 +1949,7 @@ def _record_rejected_run(
         )
         write_immutable_json(manifest_path, manifest.model_dump(mode="json"))
         state, _ = _load_or_reconstruct_state(job)
+        previous_outputs = _stage_record(state, task.stage).outputs
         failed = StageRecord(
             stage=task.stage,
             status="failed",
@@ -915,6 +1957,7 @@ def _record_rejected_run(
             run_id=task.run_id,
             input_fingerprint=task.input_fingerprint,
             inputs=task.inputs,
+            outputs=previous_outputs,
             started_at=started,
             completed_at=completed,
             error_code=error.code,
@@ -948,7 +1991,7 @@ def _finalize_recoverable_promotions(job: Path) -> bool:
         except StageStoreError as exc:
             raise StageRuntimeError(
                 "stage.recovery_failed",
-                "A promoted Parse run could not be finalized safely.",
+                "A promoted stage run could not be finalized safely.",
             ) from exc
         recovered = True
     if recovered:
@@ -964,14 +2007,29 @@ def _recoverable_manifest(job: Path, run_dir: Path) -> RunManifestV1 | None:
     try:
         promotion = read_json_object(promotion_path)
         task = TaskSpecV1.model_validate(read_json_object(task_path))
+        definition = _implemented_stage(task.stage)
+        adapter = _adapter(task.stage)
+        _validate_task_contract(job, task, definition, adapter)
+        _validate_task_preparation(job, task_path, task)
         result_path = resolve_job_relative_path(job, task.result_output)
         result = TaskResultV1.model_validate(read_json_object(result_path))
         _validate_task_result_identity(task, result)
+        _validate_candidate_submission(
+            job,
+            task_path=task_path,
+            task=task,
+            result_path=result_path,
+            result=result,
+        )
+        if len(result.outputs) != 1 or result.outputs[0].path != task.candidate_output:
+            return None
         if promotion.get("run_id") != task.run_id or promotion.get("task_id") != task.task_id:
             return None
         if promotion.get("input_fingerprint") != task.input_fingerprint:
             return None
         if promotion.get("candidate_sha256") != result.outputs[0].sha256:
+            return None
+        if promotion.get("authoritative_target") != adapter.authoritative_target:
             return None
         target = resolve_job_relative_path(job, task.authoritative_target)
         promoted = _artifact(job, task.authoritative_target)
@@ -982,7 +2040,9 @@ def _recoverable_manifest(job: Path, run_dir: Path) -> RunManifestV1 | None:
             return None
         validation_relative = f"workflow/runs/{task.run_id}/validation/report.json"
         validation_path = resolve_job_relative_path(job, validation_relative)
-        ValidationReportV1.model_validate(read_json_object(validation_path))
+        validation = ValidationReportV1.model_validate(read_json_object(validation_path))
+        if validation.status != "passed":
+            return None
         return RunManifestV1(
             run_id=task.run_id,
             task_id=task.task_id,
@@ -992,8 +2052,8 @@ def _recoverable_manifest(job: Path, run_dir: Path) -> RunManifestV1 | None:
             execution_mode=task.execution_mode,
             status="succeeded",
             created_at=task.created_at,
-            started_at=result.started_at,
-            completed_at=result.completed_at,
+            started_at=task.created_at,
+            completed_at=max(validation.checked_at, task.created_at),
             inputs=task.inputs,
             input_fingerprint=task.input_fingerprint,
             task_spec_sha256=sha256_file(task_path),

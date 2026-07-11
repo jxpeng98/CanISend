@@ -35,17 +35,21 @@ from canisend.rss import (
 from canisend.skill_distribution import export_skill_distribution
 from canisend.stage_agent import (
     stage_apply_agent_response,
+    stage_cancel_agent_response,
     stage_error_response,
     stage_prepare_agent_response,
     stage_run_agent_response,
     stage_status_agent_response,
+    stage_submit_agent_response,
 )
 from canisend.stage_runtime import (
     StageRuntimeError,
     apply_stage_result,
+    cancel_stage_task,
     inspect_stage_status,
     prepare_stage,
     run_deterministic_stage,
+    submit_stage_candidate,
 )
 from canisend.typst import render_typst_files
 from canisend.versioning import fetch_remote_versions, format_version_report
@@ -328,6 +332,51 @@ def stage_prepare_command(
     _emit_agent_response(response, output_format=output_format)
 
 
+@stage_app.command("submit")
+def stage_submit_command(
+    job: Path = typer.Option(..., "--job", help="Job folder path or workspace-relative job identifier."),
+    task: Path = typer.Option(..., "--task", help="Job-relative immutable TaskSpec path."),
+    candidate_file: Path = typer.Option(
+        ...,
+        "--candidate-file",
+        help="JSON candidate file to copy through the guarded stage boundary.",
+    ),
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="Initialized workspace containing the job.",
+    ),
+    output_format: str = typer.Option(
+        "text",
+        "--format",
+        help="Output format: text or json.",
+    ),
+) -> None:
+    """Validate and safely stage candidate JSON without direct run-path writes."""
+    _validate_output_format(output_format)
+    operation = "workflow.stage_submit"
+    try:
+        try:
+            candidate_bytes = candidate_file.expanduser().read_bytes()
+        except OSError as exc:
+            raise StageRuntimeError(
+                "stage.candidate_missing",
+                "The candidate JSON file cannot be read.",
+            ) from exc
+        config = load_workspace_config(workspace)
+        job_dir = config.job_dir(job)
+        submitted = submit_stage_candidate(
+            config.root,
+            job_dir,
+            task_spec_path=task,
+            candidate_bytes=candidate_bytes,
+        )
+        response = stage_submit_agent_response(config.root, submitted)
+    except StageRuntimeError as exc:
+        response = stage_error_response(operation, exc)
+    _emit_agent_response(response, output_format=output_format)
+
+
 @stage_app.command("apply")
 def stage_apply_command(
     job: Path = typer.Option(..., "--job", help="Job folder path or workspace-relative job identifier."),
@@ -362,6 +411,38 @@ def stage_apply_command(
     _emit_agent_response(response, output_format=output_format)
 
 
+@stage_app.command("cancel")
+def stage_cancel_command(
+    job: Path = typer.Option(..., "--job", help="Job folder path or workspace-relative job identifier."),
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="Initialized workspace containing the job.",
+    ),
+    stage: str = typer.Option("parse", "--stage", help="Active workflow stage to cancel."),
+    output_format: str = typer.Option(
+        "text",
+        "--format",
+        help="Output format: text or json.",
+    ),
+) -> None:
+    """Cancel one prepared task without deleting its audit records or candidate."""
+    _validate_output_format(output_format)
+    operation = "workflow.stage_cancel"
+    try:
+        config = load_workspace_config(workspace)
+        job_dir = config.job_dir(job)
+        cancelled = cancel_stage_task(
+            config.root,
+            job_dir,
+            stage=stage,  # type: ignore[arg-type]
+        )
+        response = stage_cancel_agent_response(config.root, cancelled)
+    except StageRuntimeError as exc:
+        response = stage_error_response(operation, exc)
+    _emit_agent_response(response, output_format=output_format)
+
+
 @stage_app.command("run")
 def stage_run_command(
     job: Path = typer.Option(..., "--job", help="Job folder path or workspace-relative job identifier."),
@@ -374,7 +455,7 @@ def stage_run_command(
     mode: str = typer.Option(
         "deterministic",
         "--mode",
-        help="Executor mode; Stage 1 supports deterministic execution here.",
+        help="Executor mode; executable local stages support deterministic execution here.",
     ),
     output_format: str = typer.Option(
         "text",

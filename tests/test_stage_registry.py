@@ -32,7 +32,7 @@ def test_default_registry_exposes_complete_application_dag() -> None:
     assert DEFAULT_STAGE_REGISTRY.get("evidence").depends_on == ("intake",)
     assert DEFAULT_STAGE_REGISTRY.get("parse").depends_on == ("intake",)
     assert DEFAULT_STAGE_REGISTRY.get("confirm").depends_on == ("parse",)
-    assert DEFAULT_STAGE_REGISTRY.get("match").depends_on == ("parse", "evidence")
+    assert DEFAULT_STAGE_REGISTRY.get("match").depends_on == ("confirm", "evidence")
     assert DEFAULT_STAGE_REGISTRY.get("decide").depends_on == ("match", "confirm")
     assert DEFAULT_STAGE_REGISTRY.get("brief").depends_on == ("decide", "match", "confirm")
     assert DEFAULT_STAGE_REGISTRY.get("draft").depends_on == ("brief", "match", "evidence")
@@ -42,12 +42,15 @@ def test_default_registry_exposes_complete_application_dag() -> None:
     assert DEFAULT_STAGE_REGISTRY.get("render").depends_on == ("verify",)
 
 
-def test_only_parse_is_implemented_in_the_foundation_registry() -> None:
-    assert _ids(DEFAULT_STAGE_REGISTRY.implemented_stages()) == ("parse",)
+def test_parse_and_confirm_are_implemented_in_the_decision_spine_registry() -> None:
+    assert _ids(DEFAULT_STAGE_REGISTRY.implemented_stages()) == ("parse", "confirm")
 
     parse = DEFAULT_STAGE_REGISTRY.get("parse")
     assert parse.execution_modes == ("deterministic", "host_agent")
     assert parse.authoritative_outputs == ("parsed_job.json",)
+    confirm = DEFAULT_STAGE_REGISTRY.get("confirm")
+    assert confirm.execution_modes == ("deterministic",)
+    assert confirm.authoritative_outputs == ("criteria.json",)
 
 
 def test_descendants_are_transitive_and_topologically_ordered() -> None:

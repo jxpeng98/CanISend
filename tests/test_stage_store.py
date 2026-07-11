@@ -65,6 +65,19 @@ def test_resolve_job_relative_path_rejects_symlink_escape(tmp_path: Path) -> Non
         resolve_job_relative_path(job_dir, "linked/manifest.json")
 
 
+@pytest.mark.skipif(os.name == "nt", reason="symlink creation may require elevated privileges")
+def test_resolve_job_relative_path_rejects_in_job_symlink_alias(tmp_path: Path) -> None:
+    job_dir = tmp_path / "job"
+    job_dir.mkdir()
+    protected = job_dir / "application_decision.yaml"
+    protected.write_text("decision: hold\n", encoding="utf-8")
+    candidate = job_dir / "candidate.json"
+    candidate.symlink_to(protected)
+
+    with pytest.raises(UnsafeStagePathError):
+        resolve_job_relative_path(job_dir, "candidate.json")
+
+
 def test_sha256_helpers_hash_bytes_and_file_consistently(tmp_path: Path) -> None:
     payload = b"stage payload\n"
     path = tmp_path / "payload.bin"

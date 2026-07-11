@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from pydantic import ValidationError
+
 from canisend.agent_protocol import (
     AgentResponse,
     ConsentRequirement,
@@ -11,13 +13,20 @@ from canisend.agent_protocol import (
     error_response,
     success_response,
 )
+from canisend.decision_models import CriteriaCatalogV1
+from canisend.stage_adapters import get_stage_adapter
+from canisend.stage_models import CandidateSubmissionV1, TaskSpecV1
 from canisend.stage_runtime import (
     AppliedStage,
+    CancelledStage,
     PreparedStage,
+    SubmittedStage,
     StageRunOutcome,
     StageRuntimeError,
     StageStatusInspection,
+    inspect_stage_status,
 )
+from canisend.stage_store import StageStoreError, read_json_object
 
 
 def stage_status_agent_response(
@@ -25,7 +34,26 @@ def stage_status_agent_response(
     job_dir: Path,
     inspection: StageStatusInspection,
 ) -> AgentResponse:
+    stage_id = inspection.stage.stage
+    adapter = get_stage_adapter(stage_id)
     artifacts = []
+    pending_task = _pending_task_spec(inspection.pending_task_path)
+    status_consents: list[ConsentRequirement] = (
+        [
+            ConsentRequirement(
+                id=consent_id,
+                purpose=(
+                    f"Allow this host to read the declared private inputs and produce "
+                    f"the {stage_id.title()} candidate."
+                ),
+                privacy_tier=pending_task.privacy_tier,
+                artifact_kinds=["job_advert", "stage_input"],
+            )
+            for consent_id in pending_task.required_consents
+        ]
+        if pending_task is not None
+        else []
+    )
     state_path = job_dir / "workflow" / "state.json"
     if state_path.is_file():
         artifacts.append(
@@ -34,7 +62,7 @@ def stage_status_agent_response(
                 path=state_path,
                 kind="workflow_state",
                 privacy_tier=1,
-                trust_level="validated",
+                trust_level="trusted_local" if inspection.reconstructed else "validated",
                 media_type="application/json",
                 include_hash=True,
             )
@@ -51,55 +79,231 @@ def stage_status_agent_response(
                 include_hash=True,
             )
         )
-    authoritative = job_dir / "parsed_job.json"
+        preparation_path = inspection.pending_task_path.parent / "preparation.json"
+        if preparation_path.is_file():
+            artifacts.append(
+                artifact_reference_from_path(
+                    workspace=workspace,
+                    path=preparation_path,
+                    kind="stage_preparation_receipt",
+                    privacy_tier=1,
+                    trust_level="validated",
+                    media_type="application/json",
+                    include_hash=True,
+                )
+            )
+        submission_path = inspection.pending_task_path.parent / "submission.json"
+        if submission_path.is_file():
+            artifacts.append(
+                artifact_reference_from_path(
+                    workspace=workspace,
+                    path=submission_path,
+                    kind="stage_candidate_submission",
+                    privacy_tier=1,
+                    trust_level="validated",
+                    media_type="application/json",
+                    include_hash=True,
+                )
+            )
+            submission = _pending_submission(submission_path)
+            if (
+                pending_task is not None
+                and submission is not None
+                and submission.task_id == pending_task.task_id
+                and submission.run_id == pending_task.run_id
+                and submission.job_id == pending_task.job_id
+                and submission.stage == pending_task.stage
+                and submission.candidate.path == pending_task.candidate_output
+                and submission.result_path == pending_task.result_output
+            ):
+                candidate_path = job_dir / pending_task.candidate_output
+                result_path = job_dir / pending_task.result_output
+                if candidate_path.is_file() and not candidate_path.is_symlink():
+                    artifacts.append(
+                        artifact_reference_from_path(
+                            workspace=workspace,
+                            path=candidate_path,
+                            kind=f"{adapter.artifact_kind}_candidate",
+                            privacy_tier=adapter.privacy_tier,
+                            trust_level="generated_candidate",
+                            media_type=adapter.media_type,
+                            include_hash=True,
+                        )
+                    )
+                if result_path.is_file() and not result_path.is_symlink():
+                    artifacts.append(
+                        artifact_reference_from_path(
+                            workspace=workspace,
+                            path=result_path,
+                            kind="stage_task_result",
+                            privacy_tier=1,
+                            trust_level="validated",
+                            media_type="application/json",
+                            include_hash=True,
+                        )
+                    )
+                status_consents = [
+                    ConsentRequirement(
+                        id=consent_id,
+                        purpose=(
+                            f"Allow this host to review the submitted {stage_id.title()} candidate "
+                            "and its declared private inputs."
+                        ),
+                        privacy_tier=pending_task.privacy_tier,
+                        artifact_kinds=[adapter.artifact_kind, "stage_input"],
+                    )
+                    for consent_id in pending_task.required_consents
+                ]
+    authoritative = job_dir / adapter.authoritative_target
     if authoritative.is_file():
         artifacts.append(
             artifact_reference_from_path(
                 workspace=workspace,
                 path=authoritative,
-                kind="parsed_job",
-                privacy_tier=1,
-                trust_level="validated",
-                media_type="application/json",
+                kind=adapter.artifact_kind,
+                privacy_tier=adapter.privacy_tier,
+                trust_level=(
+                    "generated_candidate"
+                    if "promotion_recovery" in inspection.reasons
+                    else "trusted_local"
+                    if inspection.output_drift
+                    else "validated"
+                ),
+                media_type=adapter.media_type,
                 include_hash=True,
             )
         )
+
     readiness = {
         "ready": "ready_for_next_stage",
         "running": "action_required",
         "succeeded": "ready_for_next_stage",
         "stale": "action_required",
         "failed": "blocked",
+        "cancelled": "action_required",
         "blocked": "blocked",
     }.get(inspection.stage.status, "unknown")
+    semantic_readiness = "ready_for_next_stage"
+    semantic_extensions: dict[str, int] = {}
+    semantic_actions: list[NextAction] = []
+    if inspection.stage.status == "succeeded" and not inspection.output_drift:
+        semantic_readiness, semantic_extensions, semantic_actions = _semantic_status(
+            stage_id,
+            authoritative,
+        )
+        semantic_actions.extend(_downstream_actions(workspace, job_dir, stage_id))
+        readiness = semantic_readiness
+    elif inspection.output_drift:
+        readiness = "review_required"
+
     actions: list[NextAction] = []
-    if inspection.stage.status in {"ready", "stale", "failed"}:
-        actions.append(NextAction(id="stage.prepare_parse", label="Prepare the Parse stage"))
-    elif inspection.stage.status == "running":
+    terminal_promote = "terminal_claim:promote" in inspection.reasons
+    terminal_cancel = "terminal_claim:cancel" in inspection.reasons
+    if inspection.stage.status in {"ready", "stale", "failed", "cancelled"}:
+        actions.append(_stage_start_action(stage_id))
+    elif inspection.stage.status == "blocked":
         actions.append(
             NextAction(
-                id="stage.complete_parse_task",
-                label="Complete and apply the prepared Parse task",
-                requires_consent=True,
-                consent_ids=["read-full-job-advert"],
+                id="stage.resolve_dependencies",
+                label="Run the required upstream stages",
             )
         )
+    elif inspection.stage.status == "running" and terminal_cancel:
+        actions.append(
+            NextAction(
+                id="stage.cancel_active_task",
+                label="Resume the claimed task cancellation",
+            )
+        )
+    elif inspection.stage.status == "running" and terminal_promote:
+        consent_ids = [item.id for item in status_consents]
+        actions.append(
+            NextAction(
+                id=f"stage.apply_{stage_id}_candidate",
+                label=f"Resume the claimed {stage_id.title()} promotion",
+                requires_consent=bool(consent_ids),
+                consent_ids=consent_ids,
+            )
+        )
+    elif inspection.stage.status == "running" and (
+        inspection.output_drift
+        or "input_changed" in inspection.reasons
+        or any(
+            reason.startswith("dependency_not_current:")
+            for reason in inspection.reasons
+        )
+    ):
+        actions.append(
+            NextAction(
+                id="stage.cancel_active_task",
+                label="Cancel the stale active task before rerunning the workflow",
+            )
+        )
+    elif inspection.stage.status == "running":
+        submission_exists = bool(
+            inspection.pending_task_path is not None
+            and (inspection.pending_task_path.parent / "submission.json").is_file()
+        )
+        if submission_exists:
+            consent_ids = [item.id for item in status_consents]
+            actions.append(
+                NextAction(
+                    id=f"stage.apply_{stage_id}_candidate",
+                    label=f"Review and apply the submitted {stage_id.title()} candidate",
+                    requires_consent=bool(consent_ids),
+                    consent_ids=consent_ids,
+                )
+            )
+        else:
+            consent_ids = _pending_consent_ids(inspection.pending_task_path)
+            actions.append(
+                NextAction(
+                    id=f"stage.submit_{stage_id}_candidate",
+                    label=f"Submit the prepared {stage_id.title()} candidate through the guarded CLI",
+                    requires_consent=bool(consent_ids),
+                    consent_ids=list(consent_ids),
+                )
+            )
+    elif inspection.stage.status == "succeeded":
+        actions.extend(semantic_actions)
+
+    blockers = []
+    if inspection.output_drift:
+        blockers.append("Review the changed authoritative stage output before rerunning.")
+    if inspection.stage.status == "blocked":
+        blockers.append("One or more required upstream stages are not current.")
+    elif not (terminal_promote or terminal_cancel) and any(
+        reason.startswith("dependency_not_current:") for reason in inspection.reasons
+    ):
+        blockers.append("The active task has an upstream dependency that is no longer current.")
+    elif (
+        not (terminal_promote or terminal_cancel)
+        and inspection.stage.status == "running"
+        and "input_changed" in inspection.reasons
+    ):
+        blockers.append("The active task inputs are no longer current.")
+    extensions = {
+        "canisend.stage_id": stage_id,
+        "canisend.stage_status": inspection.stage.status,
+        "canisend.input_fingerprint": inspection.input_fingerprint,
+        "canisend.output_drift": inspection.output_drift,
+        "canisend.state_reconstructed": inspection.reconstructed,
+        **semantic_extensions,
+    }
     return success_response(
         operation="workflow.stage_status",
-        workflow=WorkflowSnapshotReference(phase="parse", readiness=readiness),  # type: ignore[arg-type]
+        workflow=WorkflowSnapshotReference(
+            phase=_agent_phase(stage_id),  # type: ignore[arg-type]
+            readiness=readiness,  # type: ignore[arg-type]
+        ),
         artifacts=artifacts,
-        warnings=["The authoritative Parse output has local drift."] if inspection.output_drift else [],
-        blockers=["Review the changed authoritative Parse output before rerunning."]
+        warnings=["The authoritative stage output has local drift."]
         if inspection.output_drift
         else [],
+        blockers=blockers,
+        required_consents=status_consents,
         next_actions=actions,
-        extensions={
-            "canisend.stage_id": inspection.stage.stage,
-            "canisend.stage_status": inspection.stage.status,
-            "canisend.input_fingerprint": inspection.input_fingerprint,
-            "canisend.output_drift": inspection.output_drift,
-            "canisend.state_reconstructed": inspection.reconstructed,
-        },
+        extensions=extensions,
     )
 
 
@@ -108,11 +312,21 @@ def stage_prepare_agent_response(
     job_dir: Path,
     prepared: PreparedStage,
 ) -> AgentResponse:
+    stage_id = prepared.task_spec.stage
     artifacts = [
         artifact_reference_from_path(
             workspace=workspace,
             path=prepared.task_spec_path,
             kind="stage_task_spec",
+            privacy_tier=1,
+            trust_level="validated",
+            media_type="application/json",
+            include_hash=True,
+        ),
+        artifact_reference_from_path(
+            workspace=workspace,
+            path=prepared.task_spec_path.parent / "preparation.json",
+            kind="stage_preparation_receipt",
             privacy_tier=1,
             trust_level="validated",
             media_type="application/json",
@@ -128,31 +342,33 @@ def stage_prepare_agent_response(
             include_hash=True,
         ),
     ]
-    consents = []
-    if prepared.task_spec.execution_mode == "host_agent":
-        consents.append(
-            ConsentRequirement(
-                id="read-full-job-advert",
-                purpose="Allow the current host agent to read the reviewed job advert for Parse.",
-                privacy_tier=2,
-                artifact_kinds=["job_advert"],
-            )
+    consents = [
+        ConsentRequirement(
+            id=consent_id,
+            purpose=f"Allow the current host agent to read the declared private inputs for {stage_id.title()}.",
+            privacy_tier=prepared.task_spec.privacy_tier,
+            artifact_kinds=["job_advert"] if consent_id == "read-full-job-advert" else ["stage_input"],
         )
+        for consent_id in prepared.task_spec.required_consents
+    ]
     return success_response(
         operation="workflow.stage_prepare",
-        workflow=WorkflowSnapshotReference(phase="parse", readiness="action_required"),
+        workflow=WorkflowSnapshotReference(
+            phase=_agent_phase(stage_id),  # type: ignore[arg-type]
+            readiness="action_required",
+        ),
         artifacts=artifacts,
         required_consents=consents,
         next_actions=[
             NextAction(
-                id="stage.complete_parse_task",
-                label="Write the declared candidate and TaskResult, then apply them",
+                id=f"stage.submit_{stage_id}_candidate",
+                label="Submit candidate JSON through the guarded stage submit command",
                 requires_consent=bool(consents),
-                consent_ids=["read-full-job-advert"] if consents else [],
+                consent_ids=[item.id for item in consents],
             )
         ],
         extensions={
-            "canisend.stage_id": prepared.task_spec.stage,
+            "canisend.stage_id": stage_id,
             "canisend.stage_status": "running",
             "canisend.run_id": prepared.task_spec.run_id,
             "canisend.task_id": prepared.task_spec.task_id,
@@ -162,18 +378,90 @@ def stage_prepare_agent_response(
     )
 
 
+def stage_submit_agent_response(
+    workspace: Path,
+    submitted: SubmittedStage,
+) -> AgentResponse:
+    stage_id = submitted.task_spec.stage
+    adapter = get_stage_adapter(stage_id)
+    return success_response(
+        operation="workflow.stage_submit",
+        workflow=WorkflowSnapshotReference(
+            phase=_agent_phase(stage_id),  # type: ignore[arg-type]
+            readiness="review_required",
+        ),
+        artifacts=[
+            artifact_reference_from_path(
+                workspace=workspace,
+                path=submitted.candidate_path,
+                kind=f"{adapter.artifact_kind}_candidate",
+                privacy_tier=adapter.privacy_tier,
+                trust_level="generated_candidate",
+                media_type=adapter.media_type,
+                include_hash=True,
+            ),
+            artifact_reference_from_path(
+                workspace=workspace,
+                path=submitted.result_path,
+                kind="stage_task_result",
+                privacy_tier=1,
+                trust_level="validated",
+                media_type="application/json",
+                include_hash=True,
+            ),
+            artifact_reference_from_path(
+                workspace=workspace,
+                path=submitted.submission_path,
+                kind="stage_candidate_submission",
+                privacy_tier=1,
+                trust_level="validated",
+                media_type="application/json",
+                include_hash=True,
+            ),
+        ],
+        next_actions=[
+            NextAction(
+                id=f"stage.apply_{stage_id}_candidate",
+                label=f"Review and apply the submitted {stage_id.title()} candidate",
+            )
+        ],
+        extensions={
+            "canisend.stage_id": stage_id,
+            "canisend.stage_status": "running",
+            "canisend.run_id": submitted.task_spec.run_id,
+            "canisend.task_id": submitted.task_spec.task_id,
+        },
+    )
+
+
 def stage_apply_agent_response(workspace: Path, applied: AppliedStage) -> AgentResponse:
+    stage_id = applied.manifest.stage
+    adapter = get_stage_adapter(stage_id)
+    readiness, semantic_extensions, semantic_actions = _semantic_status(
+        stage_id,
+        applied.authoritative_path,
+    )
+    semantic_actions.extend(
+        _downstream_actions(
+            workspace,
+            applied.authoritative_path.parent,
+            stage_id,
+        )
+    )
     return success_response(
         operation="workflow.stage_apply",
-        workflow=WorkflowSnapshotReference(phase="parse", readiness="ready_for_next_stage"),
+        workflow=WorkflowSnapshotReference(
+            phase=_agent_phase(stage_id),  # type: ignore[arg-type]
+            readiness=readiness,  # type: ignore[arg-type]
+        ),
         artifacts=[
             artifact_reference_from_path(
                 workspace=workspace,
                 path=applied.authoritative_path,
-                kind="parsed_job",
-                privacy_tier=1,
+                kind=adapter.artifact_kind,
+                privacy_tier=adapter.privacy_tier,
                 trust_level="validated",
-                media_type="application/json",
+                media_type=adapter.media_type,
                 include_hash=True,
             ),
             artifact_reference_from_path(
@@ -186,24 +474,72 @@ def stage_apply_agent_response(workspace: Path, applied: AppliedStage) -> AgentR
                 include_hash=True,
             ),
         ],
+        next_actions=semantic_actions,
         extensions={
-            "canisend.stage_id": applied.manifest.stage,
+            "canisend.stage_id": stage_id,
             "canisend.stage_status": "succeeded",
             "canisend.run_id": applied.manifest.run_id,
             "canisend.cache_hit": False,
+            **semantic_extensions,
+        },
+    )
+
+
+def stage_cancel_agent_response(
+    workspace: Path,
+    cancelled: CancelledStage,
+) -> AgentResponse:
+    stage_id = cancelled.manifest.stage
+    return success_response(
+        operation="workflow.stage_cancel",
+        workflow=WorkflowSnapshotReference(
+            phase=_agent_phase(stage_id),  # type: ignore[arg-type]
+            readiness="action_required",
+        ),
+        artifacts=[
+            artifact_reference_from_path(
+                workspace=workspace,
+                path=cancelled.manifest_path,
+                kind="stage_run_manifest",
+                privacy_tier=1,
+                trust_level="validated",
+                media_type="application/json",
+                include_hash=True,
+            )
+        ],
+        next_actions=[
+            _stage_start_action(stage_id)
+        ],
+        extensions={
+            "canisend.stage_id": stage_id,
+            "canisend.stage_status": "cancelled",
+            "canisend.run_id": cancelled.manifest.run_id,
         },
     )
 
 
 def stage_run_agent_response(workspace: Path, outcome: StageRunOutcome) -> AgentResponse:
+    stage_id = outcome.stage
+    adapter = get_stage_adapter(stage_id)
+    readiness, semantic_extensions, semantic_actions = _semantic_status(
+        stage_id,
+        outcome.authoritative_path,
+    )
+    semantic_actions.extend(
+        _downstream_actions(
+            workspace,
+            outcome.authoritative_path.parent,
+            stage_id,
+        )
+    )
     artifacts = [
         artifact_reference_from_path(
             workspace=workspace,
             path=outcome.authoritative_path,
-            kind="parsed_job",
-            privacy_tier=1,
+            kind=adapter.artifact_kind,
+            privacy_tier=adapter.privacy_tier,
             trust_level="validated",
-            media_type="application/json",
+            media_type=adapter.media_type,
             include_hash=True,
         )
     ]
@@ -221,13 +557,18 @@ def stage_run_agent_response(workspace: Path, outcome: StageRunOutcome) -> Agent
         )
     return success_response(
         operation="workflow.stage_run",
-        workflow=WorkflowSnapshotReference(phase="parse", readiness="ready_for_next_stage"),
+        workflow=WorkflowSnapshotReference(
+            phase=_agent_phase(stage_id),  # type: ignore[arg-type]
+            readiness=readiness,  # type: ignore[arg-type]
+        ),
         artifacts=artifacts,
+        next_actions=semantic_actions,
         extensions={
-            "canisend.stage_id": "parse",
+            "canisend.stage_id": stage_id,
             "canisend.stage_status": "succeeded",
             "canisend.cache_hit": outcome.cache_hit,
             "canisend.run_id": outcome.manifest.run_id if outcome.manifest is not None else None,
+            **semantic_extensions,
         },
     )
 
@@ -239,3 +580,88 @@ def stage_error_response(operation: str, error: StageRuntimeError) -> AgentRespo
         message=str(error),
         retryable=error.code in {"stage.stale_input", "stage.store_failed"},
     )
+
+
+def _agent_phase(stage_id: str) -> str:
+    return "parse" if stage_id == "parse" else "unknown"
+
+
+def _stage_start_action(stage_id: str) -> NextAction:
+    if stage_id == "confirm":
+        return NextAction(
+            id="stage.run_confirm",
+            label="Run the Confirm stage deterministically",
+        )
+    return NextAction(
+        id=f"stage.prepare_{stage_id}",
+        label=f"Prepare the {stage_id.title()} stage",
+    )
+
+
+def _downstream_actions(
+    workspace: Path,
+    job_dir: Path,
+    stage_id: str,
+) -> list[NextAction]:
+    if stage_id != "parse":
+        return []
+    try:
+        confirm = inspect_stage_status(workspace, job_dir, stage="confirm")
+    except StageRuntimeError:
+        return []
+    if confirm.stage.status in {"ready", "stale", "failed", "cancelled"}:
+        return [_stage_start_action("confirm")]
+    return []
+
+
+def _semantic_status(
+    stage_id: str,
+    authoritative_path: Path,
+) -> tuple[str, dict[str, int], list[NextAction]]:
+    if stage_id != "confirm" or not authoritative_path.is_file():
+        return "ready_for_next_stage", {}, []
+    try:
+        catalog = CriteriaCatalogV1.model_validate(read_json_object(authoritative_path))
+    except (StageStoreError, ValidationError):
+        return "review_required", {}, [
+            NextAction(
+                id="criteria.review_catalog",
+                label="Review the invalid criteria catalog",
+            )
+        ]
+    unresolved_count = len(catalog.unresolved_criterion_ids) + len(
+        catalog.orphaned_correction_ids
+    ) + (1 if catalog.extraction_state == "unknown" else 0)
+    if unresolved_count == 0:
+        return "ready_for_next_stage", {"canisend.unresolved_count": 0}, []
+    return "review_required", {"canisend.unresolved_count": unresolved_count}, [
+        NextAction(
+            id="criteria.review_confirmations",
+            label="Review unresolved criteria and correction records",
+        )
+    ]
+
+
+def _pending_consent_ids(task_path: Path | None) -> tuple[str, ...]:
+    if task_path is None:
+        return ()
+    try:
+        return TaskSpecV1.model_validate(read_json_object(task_path)).required_consents
+    except (StageStoreError, ValidationError):
+        return ()
+
+
+def _pending_task_spec(task_path: Path | None) -> TaskSpecV1 | None:
+    if task_path is None:
+        return None
+    try:
+        return TaskSpecV1.model_validate(read_json_object(task_path))
+    except (StageStoreError, ValidationError):
+        return None
+
+
+def _pending_submission(path: Path) -> CandidateSubmissionV1 | None:
+    try:
+        return CandidateSubmissionV1.model_validate(read_json_object(path))
+    except (StageStoreError, ValidationError):
+        return None

@@ -23,9 +23,12 @@ workflow/
   state.json
   runs/<run-id>/
     task-spec.json
-    candidate/
-    task-result.json
-    validation.json
+    preparation.json
+    submission.json
+    candidates/<artifact-name>.json
+    tasks/<task-id>/result.json
+    validation/report.json
+    terminal-claim.json
     promotion.json
     manifest.json
 ```
@@ -34,10 +37,12 @@ workflow/
 successful input fingerprint and output receipts, and safe stale/conflict reasons. It is not authoritative history
 and must be reconstructable from finalized run manifests and current artifact hashes.
 
-A TaskSpec is written once before work begins. A finalized run manifest is written once when an attempt reaches a
-terminal disposition. Retrying an identical immutable write is idempotent; attempting to replace it with different
-content is an error. Candidate, validation, and promotion receipts are scoped to the run directory and never contain
-private bodies, absolute paths, URL query values, secrets, or raw provider output.
+A TaskSpec and its independent preparation receipt are written once before work begins. Candidate JSON enters the run
+directory only through the guarded submission service, which writes the candidate, TaskResult, and submission receipt
+without following symlink or hard-link aliases. A finalized run manifest is written once when an attempt succeeds,
+fails, or is explicitly cancelled. Retrying an identical immutable write is idempotent; attempting to replace it
+with different content is an error. Preparation, submission, validation, promotion, and terminal receipts never
+contain private bodies, absolute paths, URL query values, secrets, or raw provider output.
 
 Persistent runtime paths are normalized job-relative POSIX paths. Stage-runtime mutation is allowed only for a job
 inside an initialized workspace. Existing legacy CLI behavior for external absolute job paths remains unchanged until
@@ -53,6 +58,9 @@ matches the last successful output receipt.
 - Missing or invalid `state.json` can be repaired without discarding immutable run history.
 - A successful promotion followed by a state-write failure can be reconciled from output and run receipts.
 - Manual output drift is distinguishable from input staleness and is never silently overwritten.
+- A missing or corrupted preparation receipt makes its pending task ineligible; a stale mutable running view is
+  discarded so a fresh task can be prepared instead of deadlocking the workflow.
+- Explicit cancellation releases the single-active-task slot while preserving run evidence and any candidate.
 - State writes require atomic replace semantics; immutable records require exclusive creation and content comparison.
 - Old jobs without a `workflow/` directory remain readable and receive no files during read-only inspection.
 
@@ -67,5 +75,5 @@ matches the last successful output receipt.
 
 ## Revisit When
 
-Revisit before multi-file authoritative promotion, remote workspaces, or cross-process locking. One-file Parse
-promotion is the only atomic authoritative update claimed by Stage 1.
+Revisit before multi-file authoritative promotion or remote workspaces. Parse and Confirm each promote one JSON
+artifact atomically; later multi-output stages require a separate journal or transaction design.

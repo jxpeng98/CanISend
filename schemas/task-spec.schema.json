@@ -31,12 +31,14 @@
       "uniqueItems": true
     },
     "allowed_writes": {
+      "description": "Core-service output scope. External executors submit scratch JSON through stage submit and must not write these paths directly.",
       "type": "array",
       "items": { "$ref": "#/$defs/jobPath" },
       "minItems": 2,
       "maxItems": 2,
       "uniqueItems": true
     },
+    "write_authority": { "const": "core_service", "default": "core_service" },
     "candidate_output": { "$ref": "#/$defs/jobPath" },
     "result_output": { "$ref": "#/$defs/jobPath" },
     "authoritative_target": { "$ref": "#/$defs/jobPath" },
