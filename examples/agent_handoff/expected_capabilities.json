@@ -17,7 +17,11 @@
       "job.intake",
       "job.intake_from_lead",
       "job.list",
-      "package.check"
+      "package.check",
+      "workflow.stage_status",
+      "workflow.stage_prepare",
+      "workflow.stage_apply",
+      "workflow.stage_run"
     ],
     "intake_types": [
       "manual_metadata",

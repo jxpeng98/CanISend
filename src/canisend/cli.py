@@ -33,6 +33,20 @@ from canisend.rss import (
     write_job_leads,
 )
 from canisend.skill_distribution import export_skill_distribution
+from canisend.stage_agent import (
+    stage_apply_agent_response,
+    stage_error_response,
+    stage_prepare_agent_response,
+    stage_run_agent_response,
+    stage_status_agent_response,
+)
+from canisend.stage_runtime import (
+    StageRuntimeError,
+    apply_stage_result,
+    inspect_stage_status,
+    prepare_stage,
+    run_deterministic_stage,
+)
 from canisend.typst import render_typst_files
 from canisend.versioning import fetch_remote_versions, format_version_report
 from canisend.workflow_state import (
@@ -77,6 +91,11 @@ agent_app = typer.Typer(
     no_args_is_help=True,
 )
 app.add_typer(agent_app, name="agent")
+stage_app = typer.Typer(
+    help="Inspect and execute resumable workflow stages through versioned local contracts.",
+    no_args_is_help=True,
+)
+app.add_typer(stage_app, name="stage")
 
 
 def _version_callback(value: bool) -> None:
@@ -240,6 +259,159 @@ def agent_context(
             message="CanISend could not derive the requested agent context.",
         )
     _emit_agent_response(response, output_format=output_format)
+
+
+@stage_app.command("status")
+def stage_status_command(
+    job: Path = typer.Option(..., "--job", help="Job folder path or workspace-relative job identifier."),
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="Initialized workspace containing the job.",
+    ),
+    stage: str = typer.Option("parse", "--stage", help="Workflow stage to inspect."),
+    output_format: str = typer.Option(
+        "text",
+        "--format",
+        help="Output format: text or json.",
+    ),
+) -> None:
+    """Inspect one resumable stage without creating workflow state."""
+    _validate_output_format(output_format)
+    operation = "workflow.stage_status"
+    try:
+        config = load_workspace_config(workspace)
+        job_dir = config.job_dir(job)
+        inspection = inspect_stage_status(config.root, job_dir, stage=stage)  # type: ignore[arg-type]
+        response = stage_status_agent_response(config.root, job_dir, inspection)
+    except StageRuntimeError as exc:
+        response = stage_error_response(operation, exc)
+    _emit_agent_response(response, output_format=output_format)
+
+
+@stage_app.command("prepare")
+def stage_prepare_command(
+    job: Path = typer.Option(..., "--job", help="Job folder path or workspace-relative job identifier."),
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="Initialized workspace containing the job.",
+    ),
+    stage: str = typer.Option("parse", "--stage", help="Workflow stage to prepare."),
+    mode: str = typer.Option(
+        "host-agent",
+        "--mode",
+        help="Executor mode: host-agent or deterministic.",
+    ),
+    output_format: str = typer.Option(
+        "text",
+        "--format",
+        help="Output format: text or json.",
+    ),
+) -> None:
+    """Create or reuse an immutable task for the current host agent."""
+    _validate_output_format(output_format)
+    operation = "workflow.stage_prepare"
+    try:
+        normalized_mode = _stage_mode(mode)
+        config = load_workspace_config(workspace)
+        job_dir = config.job_dir(job)
+        prepared = prepare_stage(
+            config.root,
+            job_dir,
+            stage=stage,  # type: ignore[arg-type]
+            execution_mode=normalized_mode,
+        )
+        response = stage_prepare_agent_response(config.root, job_dir, prepared)
+    except StageRuntimeError as exc:
+        response = stage_error_response(operation, exc)
+    _emit_agent_response(response, output_format=output_format)
+
+
+@stage_app.command("apply")
+def stage_apply_command(
+    job: Path = typer.Option(..., "--job", help="Job folder path or workspace-relative job identifier."),
+    task: Path = typer.Option(..., "--task", help="Job-relative immutable TaskSpec path."),
+    result: Path = typer.Option(..., "--result", help="Job-relative TaskResult path."),
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="Initialized workspace containing the job.",
+    ),
+    output_format: str = typer.Option(
+        "text",
+        "--format",
+        help="Output format: text or json.",
+    ),
+) -> None:
+    """Validate and atomically promote one staged result."""
+    _validate_output_format(output_format)
+    operation = "workflow.stage_apply"
+    try:
+        config = load_workspace_config(workspace)
+        job_dir = config.job_dir(job)
+        applied = apply_stage_result(
+            config.root,
+            job_dir,
+            task_spec_path=task,
+            task_result_path=result,
+        )
+        response = stage_apply_agent_response(config.root, applied)
+    except StageRuntimeError as exc:
+        response = stage_error_response(operation, exc)
+    _emit_agent_response(response, output_format=output_format)
+
+
+@stage_app.command("run")
+def stage_run_command(
+    job: Path = typer.Option(..., "--job", help="Job folder path or workspace-relative job identifier."),
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="Initialized workspace containing the job.",
+    ),
+    stage: str = typer.Option("parse", "--stage", help="Workflow stage to execute."),
+    mode: str = typer.Option(
+        "deterministic",
+        "--mode",
+        help="Executor mode; Stage 1 supports deterministic execution here.",
+    ),
+    output_format: str = typer.Option(
+        "text",
+        "--format",
+        help="Output format: text or json.",
+    ),
+) -> None:
+    """Run one deterministic stage through candidate validation and promotion."""
+    _validate_output_format(output_format)
+    operation = "workflow.stage_run"
+    try:
+        if _stage_mode(mode) != "deterministic":
+            raise StageRuntimeError(
+                "stage.unsupported_mode",
+                "Stage run currently supports deterministic execution only.",
+            )
+        config = load_workspace_config(workspace)
+        job_dir = config.job_dir(job)
+        outcome = run_deterministic_stage(
+            config.root,
+            job_dir,
+            stage=stage,  # type: ignore[arg-type]
+        )
+        response = stage_run_agent_response(config.root, outcome)
+    except StageRuntimeError as exc:
+        response = stage_error_response(operation, exc)
+    _emit_agent_response(response, output_format=output_format)
+
+
+def _stage_mode(value: str) -> str:
+    normalized = value.strip().lower().replace("-", "_")
+    if normalized not in {"deterministic", "host_agent"}:
+        raise StageRuntimeError(
+            "stage.unsupported_mode",
+            "Stage mode must be deterministic or host-agent.",
+        )
+    return normalized
 
 
 def _emit_agent_response(response: AgentResponse, *, output_format: str) -> None:
@@ -1050,14 +1222,13 @@ def run_pipeline(
     job_dir = config.job_dir(job)
     if dry_run:
         from canisend.evidence import load_generated_evidence
-        from canisend.parse import parse_job_advert
+        from canisend.stages.parse_stage import build_deterministic_parse_candidate
 
         import yaml as _yaml
 
         metadata = _yaml.safe_load((job_dir / "job.yaml").read_text(encoding="utf-8"))
-        advert_text = (job_dir / "job_advert.md").read_text(encoding="utf-8")
         evidence = load_generated_evidence(config.path("profile_dir", profile_dir))
-        parsed_job = parse_job_advert(advert_text, metadata)
+        parsed_job = build_deterministic_parse_candidate(job_dir)
         if llm_parser:
             typer.echo("Parser: LLM-backed (planned; not executed in dry run)")
         else:

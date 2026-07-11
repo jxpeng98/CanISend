@@ -25,6 +25,7 @@ from canisend.materials import (
 from canisend.material_review import build_material_review_checklist
 from canisend.parse import parse_job_advert, parse_job_advert_with_provider
 from canisend.resource_files import read_resource_text
+from canisend.stages.parse_stage import build_deterministic_parse_candidate
 from canisend.typst_mapping import (
     build_application_package_content,
     build_cover_letter_content,
@@ -50,7 +51,11 @@ def run_pipeline(
     metadata = yaml.safe_load(metadata_path.read_text(encoding="utf-8"))
     advert_text = advert_path.read_text(encoding="utf-8")
 
-    parsed_job = _parse_job(advert_text, metadata, use_llm_parser=use_llm_parser, prompt_dir=prompt_dir)
+    parsed_job = (
+        _parse_job(advert_text, metadata, use_llm_parser=True, prompt_dir=prompt_dir)
+        if use_llm_parser
+        else build_deterministic_parse_candidate(job_dir)
+    )
     evidence = load_generated_evidence(profile_dir)
     style_context = _style_context(metadata)
     materials = _materials(

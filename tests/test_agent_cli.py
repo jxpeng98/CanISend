@@ -35,6 +35,10 @@ def test_agent_capabilities_reports_versioned_phase_one_contract() -> None:
         "job.intake_from_lead",
         "job.list",
         "package.check",
+        "workflow.stage_status",
+        "workflow.stage_prepare",
+        "workflow.stage_apply",
+        "workflow.stage_run",
     } <= set(capabilities["operations"])
     assert set(capabilities["intake_types"]) == {
         "manual_metadata",

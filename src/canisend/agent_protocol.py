@@ -55,6 +55,10 @@ SUPPORTED_AGENT_OPERATIONS = (
     "job.intake_from_lead",
     "job.list",
     "package.check",
+    "workflow.stage_status",
+    "workflow.stage_prepare",
+    "workflow.stage_apply",
+    "workflow.stage_run",
 )
 KNOWN_AGENT_ERROR_CODES = frozenset(
     {
@@ -65,6 +69,28 @@ KNOWN_AGENT_ERROR_CODES = frozenset(
         "input.invalid",
         "source.import_failed",
         "operation.failed",
+        "stage.unknown",
+        "stage.unsupported",
+        "stage.unsupported_mode",
+        "stage.job_outside_workspace",
+        "stage.invalid_input",
+        "stage.stale_input",
+        "stage.output_conflict",
+        "stage.already_current",
+        "stage.task_identity_mismatch",
+        "stage.result_identity_mismatch",
+        "stage.result_scope_mismatch",
+        "stage.invalid_candidate",
+        "stage.candidate_hash_mismatch",
+        "stage.candidate_missing",
+        "stage.unsafe_path",
+        "stage.execution_failed",
+        "stage.invalid_result",
+        "stage.store_failed",
+        "stage.state_write_failed",
+        "stage.output_unreadable",
+        "stage.artifact_unreadable",
+        "stage.recovery_failed",
     }
 )
 
