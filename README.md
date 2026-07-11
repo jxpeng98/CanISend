@@ -26,6 +26,8 @@ It prepares materials only. It does not submit applications, create accounts, fi
 - Materializes a private, run-scoped Evidence snapshot and durable `evidence_catalog.json` without exposing evidence
   bodies in workflow control records.
 - Produces deterministic, reviewable `criterion_matches.json` proposals from current Criteria and Evidence catalogs.
+- Preserves user-owned criteria confirmations/corrections and apply/hold/skip decisions through explicit-consent,
+  revision/hash compare-and-swap operations with privacy-safe receipts.
 - Generates `parsed_job.json`, preparation questions, fit reports, cover letter drafts, CV tailoring notes, criteria checklists, material review checklists, and structured Typst content.
 - Runs deterministic local generation by default, with explicit opt-in for LLM-backed evidence augmentation, parsing, or drafting.
 - Ships bridge files plus a self-contained workspace skill pack for Codex, Claude Code, and IDE agents.
@@ -116,7 +118,7 @@ full advert -> Parsed Job -> stable Criteria ----------------+            v
                                                         proposed criterion matches
                                                                   |
                                                                   v
-                                                         review + later decisions
+                                                   user-owned application Decision
 ```
 
 ### 1. Initialize a private workspace
@@ -444,8 +446,8 @@ successful invocation writes one `canisend.agent/v1` response to stdout. Respons
 artifact references and hashes rather than private document bodies. A failed package gate remains a successful
 operation result (`ok: true`) but exits non-zero; operational failures return `ok: false` with a stable error code.
 
-The resumable workflow exposes the accepted Parse, Confirm, Evidence, and Match slices through the same shell-capable
-hosts. A normal deterministic fresh-session loop is:
+The resumable workflow exposes the accepted Parse, Confirm, Evidence, Match, and Task 5 user-owned mutation slices
+through the same shell-capable hosts. Start a deterministic fresh session with:
 
 ```bash
 canisend agent context --workspace . --job jobs/<job-slug> --format json
@@ -454,9 +456,80 @@ canisend extract-profile-evidence --workspace .
 canisend stage run --workspace . --job jobs/<job-slug> --stage evidence --mode deterministic --format json
 canisend stage run --workspace . --job jobs/<job-slug> --stage parse --mode deterministic --format json
 canisend stage run --workspace . --job jobs/<job-slug> --stage confirm --mode deterministic --format json
-canisend stage run --workspace . --job jobs/<job-slug> --stage match --mode deterministic --format json
-canisend stage status --workspace . --job jobs/<job-slug> --stage match --format json
+canisend corrections status --workspace . --job jobs/<job-slug> --format json
+canisend corrections init --workspace . --job jobs/<job-slug> --confirm-user-owned-write --format json
+canisend corrections status --workspace . --job jobs/<job-slug> --format json
 ```
+
+`status` is read-only. Record the current Tier 2 artifact `sha256` and the
+`canisend.user_artifact_revision` extension. Put exactly one supported operation in a bounded strict YAML or JSON
+patch file—do not ask an agent to replace `confirmed_corrections.yaml` directly:
+
+```yaml
+operation: confirm_criterion
+criterion_id: criterion_<32-lowercase-hex>
+```
+
+Accept that one scoped update and immediately refresh Confirm:
+
+```bash
+canisend corrections update \
+  --workspace . \
+  --job jobs/<job-slug> \
+  --patch-file /safe/scratch/correction-patch.yaml \
+  --expected-revision <revision-from-status> \
+  --expected-sha256 <sha256-from-status> \
+  --confirm-user-owned-write \
+  --format json
+canisend stage run --workspace . --job jobs/<job-slug> --stage confirm --mode deterministic --format json
+```
+
+Every semantic corrections patch requires current Parse and Confirm. Empty initialization has no active correction
+and is fingerprint-neutral; each accepted semantic update makes Confirm stale, so rerun Confirm before
+`corrections status` and the next patch. Do not batch corrections against one catalog baseline.
+Supported operations are `confirm_criterion`, `correct_criterion`, `withdraw_criterion`, and `confirm_empty`. An
+extraction with no criteria remains unknown until the user explicitly chooses `confirm_empty`; initializing an empty
+corrections record does not mean `confirmed_empty`.
+
+When Criteria and Evidence are current, propose matches and record the user's separate Decision:
+
+```bash
+canisend stage run --workspace . --job jobs/<job-slug> --stage match --mode deterministic --format json
+canisend decision status --workspace . --job jobs/<job-slug> --format json
+canisend decision init --workspace . --job jobs/<job-slug> --confirm-user-owned-write --format json
+canisend decision status --workspace . --job jobs/<job-slug> --format json
+```
+
+Create one strict patch, for example:
+
+```yaml
+operation: set_decision
+decision: apply
+rationale_mode: keep
+```
+
+Apply it with `decision update`, passing `--patch-file`, the revision/hash returned by the latest `decision status`,
+and `--confirm-user-owned-write`. `undecided` is not an implicit apply, hold, or skip. Match remains advisory and
+cannot write this Decision.
+
+If a later Parse, Confirm, Evidence, or Match refresh changes the Decision basis, the accepted value and raw
+`application_decision.yaml` bytes remain present. `decision status` derives
+`canisend.decision_basis_status=review_required`; inspect the new basis, then use a new `set_decision` patch (including
+the same value when reconfirming it) with the latest revision/hash. Staleness is never written into the user YAML.
+If an accepted mutation reports recovery required or a receipt-pending state, recover only its opaque ID:
+
+```bash
+canisend user-mutation recover \
+  --workspace . \
+  --job jobs/<job-slug> \
+  --mutation-id mutation_<32-lowercase-hex> \
+  --confirm-user-owned-write \
+  --format json
+```
+
+Fresh status also detects a process interruption between publishing a complete private target link and removing
+CanISend's temporary link. It remains read-only and routes the same opaque mutation ID to explicit recovery; ordinary
+hard links are still rejected.
 
 Evidence and Parse are independent after intake, so their deterministic runs may be ordered either way; Match waits
 for current Confirm and Evidence outputs. Host-agent execution currently applies to Parse only; Evidence, Confirm,
@@ -476,11 +549,11 @@ source/confirmation states. A resolved source has one span; a missing source sta
 exposes candidate spans without choosing one. It reports `review_required` for unconfirmed or source-unknown
 criteria, orphaned corrections, and an empty extraction that has not been explicitly confirmed. An optional
 `confirmed_corrections.yaml` is user-owned: Confirm reads it, while neither Parse nor Confirm creates, rewrites, or
-deletes it. Until a scoped update command is added, edit it manually against
-`schemas/confirmed-corrections.schema.json`; copy `criterion_id`, `parsed_text_sha256`, and the source receipt hash
-from `criteria.json` (`parsed_text_sha256` becomes `target_criterion_sha256`, while
-`source_span.text_sha256` becomes `target_source_sha256`), preserve the expected current file, and rerun Confirm. A
-changed source receipt or parsed
+deletes it. Prefer `corrections status|init|update` for agent-assisted writes; these accept one discriminated patch,
+explicit consent, and the current revision/hash baseline. Direct manual YAML edits are still valid and must follow
+`schemas/confirmed-corrections.schema.json`; status and stage reruns validate without normalizing or rewriting the
+file. An explicitly consented scoped update creates the canonical next revision and may not preserve YAML comments.
+A changed source receipt or parsed
 interpretation receives a new criterion ID and leaves the old correction visible for reconciliation instead of
 attaching it to a different requirement.
 
@@ -498,22 +571,24 @@ Match reads only the current job-local `criteria.json` and `evidence_catalog.jso
 `criterion_matches.json` with one deterministic `strong`, `partial`, `weak`, `missing`, or `unknown` proposal per
 criterion, explicit privacy-safe gaps, matcher provenance, and opaque catalog references. It does not copy evidence
 text, generated-evidence headings, or legacy locators. Every record has `review_state=proposed`: Match is not an
-application decision, does not confirm applicant claims, and does not make a package ready. Decide, application
-brief, and advert-driven document planning remain later Stage 2 work.
+application decision, does not confirm applicant claims, and does not make a package ready. The user-owned Decision
+is managed separately through `decision status|init|update`; application Brief and advert-driven document planning
+remain later Stage 2 work.
 
 Use `canisend doctor --workspace .` when a human-readable environment diagnostic is also useful.
 
 A fresh Codex, Claude Code, or IDE shell session resumes from the same durable workspace state by running the same
 `agent context` command; it does not need the previous chat transcript. The fake-data conformance fixture under
-`examples/agent_handoff/` demonstrates this host-neutral handoff. The Parse slice now adds durable task/result
-exchange through the existing CLI; Confirm, Evidence, and Match now reuse that boundary without a platform-specific
-API. Later roadmap slices add user-owned decisions, briefs, and advert-driven document planning. MCP is not on the
-current critical path.
+`examples/agent_handoff/` demonstrates this host-neutral handoff. Parse adds durable task/result exchange through the
+existing CLI; Confirm, Evidence, and Match reuse that boundary, while corrections and Decision use separate
+user-owned mutation operations. None requires a platform-specific API. Later roadmap slices add briefs and
+advert-driven document planning. MCP is not on the current critical path.
 
 They may run local deterministic CLI commands, inspect generated evidence, and review current job artifacts. They must
 ask first before reading full private CVs, statements, full job adverts, references, PDFs, source URLs, Evidence
-snapshots/candidates/catalogs, generated packages, or enabling LLM-backed CLI flags/providers. They must not scrape
-pages, submit applications, upload packages, fabricate evidence, or commit private profile/job data.
+snapshots/candidates/catalogs, `criteria.json`, `criterion_matches.json`, generated packages, or enabling LLM-backed
+CLI flags/providers. Criteria may contain corrected wording; Match is body-minimized but remains Tier 2. They must not
+scrape pages, submit applications, upload packages, fabricate evidence, or commit private profile/job data.
 
 Original profile inputs under `profile/` are protected. Agents should normally produce profile-improvement suggestions inside the job folder, not rewrite the source CV or statements. A write back to `profile/typst/*.typ`, `profile/*.md`, or other non-generated profile input is allowed only through an orchestrator task that declares `edits_profile_input: true`, depends on a prior review task, uses privacy tier 2 or higher, and is launched with `--allow-profile-input-edits --confirm-profile-input-edit --confirm-profile-input-edit-again`.
 
@@ -613,6 +688,19 @@ This repository is intended to be open source. Personal application data should 
 - Evidence snapshots, Evidence candidates, `evidence_catalog.json`, and `criterion_matches.json` stay inside ignored
   private job folders. The first three may contain duplicated normalized profile text; removing a run or job remains
   an explicit user retention decision.
+- `criteria.json`, `criterion_matches.json`, `confirmed_corrections.yaml`, `application_decision.yaml`, and private
+  mutation candidates are Tier 2. Criteria may contain corrected wording; Match is body-minimized but job-specific.
+  Mutation receipts are Tier 1 and contain no correction text or rationale; neither do workflow control records,
+  errors, ordinary command output, or AgentResponse.
+- User YAML may be edited manually. Status and stage reruns do not normalize it; an explicitly consented scoped
+  update creates a canonical next revision and may not preserve comments. Revision/hash CAS coordinates cooperative
+  CanISend writers in a stable job directory; it does not linearize a normal editor save in the final replace window
+  or a hostile same-user rename. Run status immediately before changing a file and avoid concurrent manual saves.
+- Resetting/clearing the current Decision or withdrawing a correction is a semantic update, not disk erasure.
+  Historical corrections and private-mode Tier 2 mutation candidates (0600 on POSIX) deliberately retain old bodies for audit
+  and recovery. Keep job folders private and git-ignored, include them in backups only intentionally, and delete the
+  relevant private mutation events or whole job when retention is no longer wanted. CanISend does not currently
+  promise automatic secure erasure, including from backups or filesystem snapshots.
 - Sensitive declarations such as right-to-work, visa, disability, equality monitoring, health, criminal record, and conflicts remain user-only.
 
 这也能投只是材料准备工具，不是提交凭证。
@@ -681,6 +769,7 @@ RELEASE.md                maintainer release playbook
 
 See `canisend_v1_proposal.md` for the original V1 engineering proposal,
 `docs/superpowers/specs/2026-07-09-discovery-and-workflow-v2-design.md` for detailed multi-source and stage-hardening
-constraints, and `docs/superpowers/specs/2026-07-10-agent-native-workflow-roadmap.md` for the current agent-native
-delivery roadmap. Phase 1 is specified in
-`docs/superpowers/plans/2026-07-10-agent-runtime-contract-foundation.md`.
+constraints, and `docs/superpowers/specs/2026-07-11-cli-first-workflow-optimization-roadmap.md` for the current
+delivery roadmap. The current Stage 2 execution plan is
+`docs/superpowers/plans/2026-07-11-decision-spine-foundation.md`; the 2026-07-10 Agent Runtime plan remains the
+accepted Stage 1 record.

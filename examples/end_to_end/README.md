@@ -38,10 +38,10 @@ canisend stage run --workspace /tmp/canisend-example --job "$JOB" --stage confir
 canisend stage run --workspace /tmp/canisend-example --job "$JOB" --stage match --mode deterministic --format json
 ```
 
-This adds strict `criteria.json`, private `evidence_catalog.json`, and privacy-safe `criterion_matches.json` plus
-immutable run evidence under the job's `workflow/` directory. Match classifications are proposed review results, not
-application decisions. The fake profile stays inside the workspace and its generated Typst evidence carries a
-source-hash receipt.
+This adds strict Tier 2 `criteria.json`, private `evidence_catalog.json`, and body-minimized Tier 2
+`criterion_matches.json` plus immutable run evidence under the job's `workflow/` directory. Match classifications
+are proposed review results, not application decisions. The fake profile stays inside the workspace and its
+generated Typst evidence carries a source-hash receipt.
 
 The manual sequence below is useful when developing the project or debugging individual steps.
 

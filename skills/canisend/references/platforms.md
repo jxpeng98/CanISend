@@ -63,6 +63,8 @@ For VS Code, Cursor, Zed, JetBrains, Copilot-style chat, and other IDE agents:
 - `canisend agent context --workspace <private-workspace> --format json` reports safe workspace state.
 - `canisend stage status --workspace <private-workspace> --job jobs/<job-slug> --format json` reconstructs current
   Parse, Confirm, Evidence, and Match state from durable job files.
+- `canisend corrections status` and `canisend decision status` reconstruct user-owned state without returning private
+  bodies; agents use their init/update/recover operations rather than writing YAML directly.
 - `canisend doctor --workspace <private-workspace>` remains available for human-readable diagnostics.
 - Root bridge file exists for the target platform.
 - The bridge points to `agent-skills/canisend/SKILL.md`.
@@ -83,5 +85,13 @@ truthful on every host. Its safe-read implementation uses descriptor-relative pr
 portable pre/post identity fallback where it is not.
 
 No platform adapter, SDK, MCP transport, hosted service, or second provider is required for these slices. A fresh
-host can run `extract-profile-evidence`, then deterministic Evidence, Parse, Confirm, and Match through the same CLI.
-Match output is proposed review data, not a cross-platform application Decision or readiness claim.
+host can run `extract-profile-evidence`, deterministic Evidence/Parse/Confirm/Match, and the same status/scoped-patch
+corrections and Decision operations through the CLI. Match output is proposed review data; only an explicit
+user-owned Decision update records apply, hold, or skip.
+
+Codex, Claude Code, and IDE agents must create one bounded strict patch in safe scratch space and pass it to the
+Agent operation with the current revision/hash and explicit consent. They must not overwrite or normalize
+`confirmed_corrections.yaml` or `application_decision.yaml`. One correction requires one subsequent Confirm rerun
+before the next correction. Private patch/YAML/candidate bodies are Tier 2; receipts and AgentResponse remain
+body-free. CAS assumes a stable local job directory and cooperative CanISend writers, so avoid concurrent manual
+editor saves.

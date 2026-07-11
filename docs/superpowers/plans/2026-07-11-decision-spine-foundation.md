@@ -1,6 +1,6 @@
 # Decision Spine Foundation Implementation Plan
 
-**Status:** In progress — Criteria/Confirm and Evidence/Match vertical slices locally accepted
+**Status:** In progress — Criteria/Confirm, Evidence/Match, and Task 5 user-owned mutation slices locally accepted
 
 **Date:** 2026-07-11
 
@@ -12,8 +12,8 @@
 
 Implement Stage 2 of the CLI-first roadmap as a sequence of reviewable vertical slices. The first slice establishes
 stable criteria and a resumable Confirm stage; the second establishes stable private Evidence catalogs and durable
-proposed matching. Later slices add user-owned application decisions and briefs, and advert-driven document planning
-without entering Draft.
+proposed matching; the third adds user-owned corrections and application decisions. Later slices add briefs and
+advert-driven document planning without entering Draft.
 
 ## Fixed Decisions
 
@@ -188,16 +188,69 @@ older versions must be re-extracted when it lacks the source-hash receipt; chang
 the Evidence catalog unavailable until re-extraction.
 
 Every Match classification remains `review_state=proposed`. No proposed result is an application decision, a claim
-confirmation, or a package-readiness signal. Tasks 5-7—user-owned Decision, Application Brief, required-document
-planning, view migration, and the full Stage 2 exit review—remain open.
+confirmation, or a package-readiness signal. Task 5 now records the separate user-owned Decision; Tasks 6-7—
+Application Brief, required-document planning, view migration, and the full Stage 2 exit review—remain open.
 
 ## Task 5: User-Owned Corrections And Decision
 
-- [ ] Add create-if-absent templates and strict safe-YAML validation.
-- [ ] Add scoped compare-and-swap updates with revision/hash conflicts and immutable receipts.
-- [ ] Keep `undecided` distinct from confirmed apply, hold, or skip.
-- [ ] Preserve old values when their basis changes and return explicit review actions.
-- [ ] Never copy rationale or correction bodies into workflow control records.
+**Status:** Locally accepted on 2026-07-11. This accepts the Task 5 slice only. Tasks 6-7 and the complete Stage 2 exit
+review remain open; no remote CI run or package publication is claimed here.
+
+- [x] Add explicit-consent, create-if-absent templates and bounded strict safe-YAML validation.
+- [x] Add scoped compare-and-swap updates with revision/hash conflicts, single-winner claims, immutable private
+  candidates, and immutable privacy-safe receipts.
+- [x] Keep an absent or `undecided` Decision distinct from confirmed apply, hold, or skip, and keep an unknown empty
+  extraction distinct from an explicit `confirmed_empty` correction.
+- [x] Preserve accepted values byte for byte when their basis changes and return explicit review/reconfirmation
+  actions derived from current Criteria and Match receipts.
+- [x] Never copy rationale or correction bodies into mutation claims, receipts, workflow control records, errors,
+  ordinary output, or AgentResponse.
+- [x] Expose status, initialization, scoped update, and recovery as host-neutral Agent operations without adding a
+  platform API or allowing an agent to replace a whole user YAML file.
+- [x] Require current Parse and Confirm before every semantic correction patch; rerun Confirm after each accepted
+  patch before applying another correction.
+
+### Task 5 Slice Acceptance Matrix
+
+Local acceptance is recorded by contract and by the settled branch-wide regression suite. The final Task 5
+acceptance run passed all 754 tests on Python 3.11, 3.12, 3.13, and 3.14.
+
+| Requirement | Accepted automated evidence |
+|---|---|
+| User ownership is preserved | Status is read-only; initialization is create-if-absent; Parse, Confirm, Match, and legacy runs preserve existing YAML bytes |
+| Strict bounded inputs | Alias, merge, tag, duplicate-key, depth, event-count, byte-limit, non-regular, symlink, hard-link, and path-race rejection tests |
+| Scoped writes only | Discriminated correction and decision patch tests reject unknown fields and whole-file replacement inputs |
+| Explicit consent | Init, update, and recovery fail closed without `--confirm-user-owned-write` |
+| Honest correction state | Unknown empty extraction, active `confirmed_empty`, stale empty basis, later non-empty extraction, orphan, withdraw, and one-patch-per-current-Confirm tests |
+| Honest Decision state | Missing, undecided, current apply/hold/skip, reset, preserved stale basis, and explicit reconfirmation tests |
+| Cooperative CAS | Revision/hash conflict, single-winner claim, idempotent retry, candidate integrity, final reread, and parent/path swap tests |
+| Recovery is durable | Accepted-write/receipt-failure, after-link/before-unlink crash markers, fresh-session audit, ordinary hard-link rejection, and idempotent `user-mutation recover` tests |
+| Privacy tiers hold | User YAML and private candidate are Tier 2; immutable receipt is Tier 1; private sentinels are absent from control and Agent output |
+| Fresh sessions agree | CLI and Agent context tests reconstruct the same correction and Decision actions from job-local durable state |
+| Installed artifacts are complete | Packaged receipt schema plus CI/release clean-install smoke for status and explicit create-if-absent operations |
+
+### Task 5 Slice Exit Review
+
+The local acceptance run also rebuilt the sdist and wheel, passed packaged-resource and Twine metadata checks, and
+installed the wheel into a clean Python 3.14 environment. The installed CLI then completed the sequential
+`run-example -> Evidence -> Parse -> Confirm -> corrections status/init -> Match -> decision status/init` smoke and
+produced two private user-owned YAML records, two body-free mutation receipts, and successful manifests for all four
+executable stages. Remote CI and publication remain separate release gates.
+
+The update service coordinates cooperative CanISend writers for one stable job directory. It does not claim to
+linearize a normal editor saving during the final replace window, a same-user process maliciously renaming paths, a
+relocated job directory, remote filesystems, or multi-user collaboration. Users and agents should run `status`
+immediately before a mutation and avoid concurrent manual saves. Direct manual YAML edits remain supported: CanISend
+status and stage reruns validate and report their current raw-byte hash without normalizing or rewriting them. An
+explicitly consented scoped update creates the canonical next revision and may not preserve comments.
+
+Private correction text and rationale stay in the Tier 2 user YAML/private candidate (and corrected Criteria
+projection where applicable). Claims, receipts, errors, ordinary CLI output, and AgentResponse remain body-free; a
+receipt is a Tier 1 integrity record, not a copy of the accepted private value. A Decision remains present when its
+Criteria/Match basis changes, while `status` derives `review_required`; stale state is never written back into the
+user-owned file. Reset, clear, withdraw, and supersession do not erase private-mode candidates (0600 on POSIX) or correction
+history. Job folders remain private/git-ignored, and removing events or a whole job is a separate retention decision;
+automatic secure erasure and deletion from backups/snapshots are not claimed.
 
 ## Task 6: Application Brief And Required-Document Plan
 
@@ -243,6 +296,6 @@ Locally accepted on 2026-07-11. The acceptance run includes:
   manifest evidence present;
 - automated built-wheel and TestPyPI Parse-to-Confirm smoke commands in CI/release workflows.
 
-This checkpoint accepts only Tasks 0-3 and the first-slice compatibility boundary. Task 4 Evidence/Match was accepted
-separately in the second slice above. Decision, Brief, required-document planning, view migration, and the final
-Stage 2 exit review remain open in Tasks 5-7; Stage 2 as a whole is not complete.
+This checkpoint accepts only Tasks 0-3 and the first-slice compatibility boundary. Task 4 Evidence/Match and Task 5
+user-owned corrections/Decision were accepted separately above. Brief, required-document planning, view migration,
+and the final Stage 2 exit review remain open in Tasks 6-7; Stage 2 as a whole is not complete.

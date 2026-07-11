@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- Accepted the Stage 2 Task 5 slice with strict user-owned `confirmed_corrections.yaml` and
+  `application_decision.yaml`, explicit create-if-absent initialization, scoped correction/Decision patches,
+  revision/hash compare-and-swap, single-winner claims, immutable private candidates, and immutable receipts.
+- Added host-neutral Agent/CLI status, init, update, and recovery operations. Semantic corrections require current
+  Parse and Confirm and a Confirm rerun between patches; unknown remains distinct from `confirmed_empty`, and
+  undecided remains distinct from apply, hold, or skip.
+- Preserved user YAML bytes and accepted Decision values when their derived basis changes, reporting review-required
+  status without normalizing or rewriting manual edits. Private correction/rationale bodies stay in Tier 2
+  YAML/candidates/corrected Criteria and never enter Tier 1 receipts or Agent/control output.
+- Added fresh-session recovery for a process interruption between publishing a complete immutable/exclusive target
+  link and removing CanISend's private temporary link. Status remains read-only, explicit recovery cleans only the
+  verified same-directory two-link marker, and ordinary hard links remain rejected.
+- Documented that reset/clear/withdraw is not erasure: private-mode candidates (0600 on POSIX) and correction history remain for
+  audit/recovery until the user separately removes retained events or the private job; automatic secure deletion from
+  backups or filesystem snapshots is not claimed.
 - Accepted the Stage 2 Evidence/Match slice with content-derived Evidence IDs, strict `evidence_catalog.json`,
   run-scoped immutable job-local snapshots, bounded race-resistant profile reads, and distinct available, empty,
   unavailable, missing-receipt, stale-receipt, and malformed-input handling.

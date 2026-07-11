@@ -51,7 +51,11 @@ canisend stage run --workspace <private-workspace> --job jobs/<job-slug> --stage
 ```
 
 Evidence and Parse are independent; Match requires both current Evidence and Confirm. Every Match result remains a
-proposal for review, not an application Decision.
+proposal for review, not an application Decision. Between Confirm and Match, use `corrections status` and the
+explicit-consent init/update operations when confirmation is needed; empty initialization is fingerprint-neutral,
+while every semantic correction requires a Confirm rerun before another patch. After Match, use `decision status` and
+the explicit-consent init/update operations to record the
+user's apply/hold/skip choice.
 
 Use `extract-profile-evidence --llm-augment`, `--llm-parser`, or `--llm-drafts` only when provider config is ready and the user explicitly wants model-backed steps.
 
@@ -80,6 +84,15 @@ Review quality gates before rendering:
 - Missing `criterion_matches.json`: make Confirm and Evidence current, then run deterministic Match.
 - `criterion_matches.json` exists: review every `review_state=proposed` classification and explicit gap before using
   it for strategy. Match does not create Decision, Brief, or readiness.
+- Missing `confirmed_corrections.yaml`: status is read-only; initialize only with explicit consent. An empty file is
+  not a confirmed-empty extraction.
+- Active corrections changed: rerun Confirm before another semantic correction or Match; empty initialization alone
+  is fingerprint-neutral.
+- Missing `application_decision.yaml`: initialize an undecided record only with explicit consent after current Match.
+- Decision basis is review-required: preserve the stored value, review current Criteria/Match, then reconfirm through
+  a new scoped patch and current revision/hash. Do not edit a stale flag into the YAML.
+- Mutation recovery requested: use `user-mutation recover` with the opaque accepted mutation ID and explicit
+  consent; do not replay the private patch as a new write.
 - Existing generated outputs after advert/profile changes: rerun the pipeline and review diffs.
 - A `typst/*.generated.typ` file after rerun: the editable `.typ` had user changes and was preserved; review and merge
   the candidate intentionally.

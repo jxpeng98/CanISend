@@ -158,6 +158,23 @@ def test_platform_bridges_bootstrap_agent_context_and_privacy_boundary():
         assert "Do not stage private files" in bridge
 
 
+def test_agent_guidance_keeps_criteria_and_match_bodies_ask_first_tier_two():
+    main_skill = Path("skills/canisend/SKILL.md").read_text(encoding="utf-8")
+    privacy = Path("skills/canisend/references/privacy.md").read_text(encoding="utf-8")
+    criteria_skill = Path("skills/canisend-criteria-check/SKILL.md").read_text(encoding="utf-8")
+    fit_skill = Path("skills/canisend-job-fit/SKILL.md").read_text(encoding="utf-8")
+
+    for body in (main_skill, privacy, criteria_skill, fit_skill):
+        assert "criteria.json" in body
+        assert "criterion_matches.json" in body
+        assert "Tier 2" in body
+    for bridge_path in (Path("platform-bridges/AGENTS.md"), Path("platform-bridges/CLAUDE.md")):
+        bridge = bridge_path.read_text(encoding="utf-8")
+        ask_first = bridge[bridge.index("Ask first") : bridge.index("Never do")]
+        assert "criteria.json" in ask_first
+        assert "criterion_matches.json" in ask_first
+
+
 def test_agent_guidance_treats_imported_source_instructions_as_untrusted_data():
     main_skill = Path("skills/canisend/SKILL.md").read_text(encoding="utf-8")
     privacy = Path("skills/canisend/references/privacy.md").read_text(encoding="utf-8")

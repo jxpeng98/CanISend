@@ -1,6 +1,6 @@
 # CLI-First Workflow Optimization Execution Roadmap
 
-**Status:** Active — Stage 1 locally accepted; Stage 2 Decision Spine in progress
+**Status:** Active — Stage 1 locally accepted; Stage 2 through the Task 5 slice locally accepted, Tasks 6-7 open
 
 **Date:** 2026-07-11
 
@@ -166,10 +166,11 @@ CV or package status does not invalidate Parse.
 ## Stage 2: Decision Spine
 
 **Stage status:** In progress on `feat/decision-spine-foundation`. ADR-009 and ADR-010 freeze semantic identity and
-user-owned input boundaries. ADR-011 freezes the Evidence read and privacy boundary. The stable Criteria/Confirm and
-Evidence/Match vertical slices are locally accepted with guarded candidate submission, explicit cancellation,
-recovery, and distribution smoke coverage. User-owned Decide, Brief, required-document planning, view migration, and
-the full Stage 2 exit review remain open.
+user-owned input boundaries. ADR-011 freezes the Evidence read and privacy boundary. The stable Criteria/Confirm,
+Evidence/Match, and Task 5 user-owned corrections/Decision slices are locally accepted with guarded candidate
+submission, explicit consent, cooperative compare-and-swap, recovery, and distribution smoke coverage. Application
+Brief, required-document planning, view migration, and the full Stage 2 exit review remain open in Tasks 6-7. This
+status does not claim a remote CI result or published package.
 
 ### Deliverables
 
@@ -216,6 +217,32 @@ and recovery runtime.
 `criterion_matches.json` supplies one deterministic classification per criterion with explicit gaps and
 `review_state=proposed`. It is review input, not a user-owned Decision, a confirmation of applicant claims, or a
 package-readiness verdict.
+
+### Accepted User-Owned Corrections/Decision Slice
+
+Task 5 adds host-neutral Agent operations and CLI commands for read-only status, explicit create-if-absent
+initialization, one scoped patch, and recovery. Programmatic writes require explicit consent and the current raw-byte
+SHA-256/revision baseline. CanISend stores a private immutable candidate, uses one cooperative single-winner claim,
+performs a final safe reread, atomically replaces one user file, and stores an immutable Tier 1 receipt. It never
+normalizes existing user YAML during status or stage reruns; an explicitly consented scoped update creates a
+canonical next revision and may not preserve comments. No correction/rationale body is copied into claims, receipts,
+errors, ordinary output, or AgentResponse.
+
+`confirmed_corrections.yaml` and `application_decision.yaml` remain directly editable user inputs. Unknown is not
+confirmed empty, and undecided is not apply, hold, or skip. Each semantic correction patch requires current Parse
+and Confirm; after one accepted patch, Confirm must rerun before another patch. A confirmed Decision keeps its value
+when Criteria or Match changes, while status derives a stale/review-required basis without rewriting the YAML.
+
+The CAS contract coordinates cooperative CanISend writers while the selected job-directory topology remains stable.
+It does not linearize an ordinary editor save in the final replace window, a malicious same-user rename, remote
+filesystems, multi-user collaboration, or multi-file transactions. Run status immediately before mutation and avoid
+concurrent manual saves. These limitations are an explicit local-first boundary, not hidden distributed-locking
+semantics.
+
+Semantic reset/clear/withdraw does not erase immutable history. Private-mode Tier 2 candidates (0600 on POSIX) and older correction
+bodies remain for audit/recovery inside the private git-ignored job. Removing private events or the whole job is a
+separate retention decision that may disable recovery; automatic secure erasure and backup/snapshot deletion are not
+part of this slice.
 
 ### Exit Criteria
 

@@ -30,10 +30,39 @@ canisend extract-profile-evidence --workspace <workspace>
 canisend stage run --workspace <workspace> --job jobs/<job-id> --stage evidence --mode deterministic --format json
 canisend stage run --workspace <workspace> --job jobs/<job-id> --stage parse --mode deterministic --format json
 canisend stage run --workspace <workspace> --job jobs/<job-id> --stage confirm --mode deterministic --format json
+canisend corrections status --workspace <workspace> --job jobs/<job-id> --format json
+canisend corrections init --workspace <workspace> --job jobs/<job-id> --confirm-user-owned-write --format json
+canisend corrections status --workspace <workspace> --job jobs/<job-id> --format json
+canisend corrections update --workspace <workspace> --job jobs/<job-id> --patch-file <strict-patch> \
+  --expected-revision <status-revision> --expected-sha256 <status-sha256> \
+  --confirm-user-owned-write --format json
+canisend stage run --workspace <workspace> --job jobs/<job-id> --stage confirm --mode deterministic --format json
 canisend stage run --workspace <workspace> --job jobs/<job-id> --stage match --mode deterministic --format json
+canisend decision status --workspace <workspace> --job jobs/<job-id> --format json
+canisend decision init --workspace <workspace> --job jobs/<job-id> --confirm-user-owned-write --format json
+canisend decision update --workspace <workspace> --job jobs/<job-id> --patch-file <strict-patch> \
+  --expected-revision <status-revision> --expected-sha256 <status-sha256> \
+  --confirm-user-owned-write --format json
 ```
 
+The example placeholders are deliberately not shell-parsed dynamic hashes. A fresh host takes the artifact SHA-256
+and `canisend.user_artifact_revision` from the immediately preceding status response, writes one bounded strict patch
+in safe scratch space, and sends it to the operation. It never writes a user YAML file directly. Parse and Confirm
+must be current for each corrections patch; empty initialization is fingerprint-neutral, while every semantic
+correction requires a Confirm rerun. Initialization alone does not mean `confirmed_empty`, and undecided is not
+apply/hold/skip.
+
+If a Decision basis later changes, the YAML/value remains present and status derives review-required. Reconfirm with
+a new patch and fresh baseline. If an accepted mutation reports receipt pending, a new host may run
+`user-mutation recover` with its opaque mutation ID and explicit consent; it must not replay the private patch.
+
 The Evidence run snapshot, candidate, and catalog may duplicate private profile bodies and are retained until the user
-removes the run or job. Agent context, workflow control records, and Match output expose only privacy-safe artifact
-references, hashes, IDs, reason codes, and counts. Match classifications remain `review_state=proposed`; this example
-does not claim that Decision, Brief, or required-document planning is implemented.
+removes the run or job. Agent context and workflow control records expose only privacy-safe artifact references,
+hashes, IDs, reason codes, and counts. Match output is body-minimized but remains Tier 2, so an agent asks before
+reading it. Match classifications remain `review_state=proposed`; this example records Decision only through the
+separate user-owned operation. Brief and required-document planning remain open.
+Private user YAML/candidates/corrected Criteria are Tier 2, while immutable body-free mutation receipts are Tier 1.
+CAS coordinates cooperative CanISend writers in a stable local job directory, so hosts serialize mutations and avoid
+concurrent manual editor saves. Reset/clear/withdraw does not erase historical corrections or private-mode candidates (0600 on POSIX);
+the ignored job stays private until the user separately removes retained events or the whole job. Automatic secure
+erasure, including from backups/snapshots, is not claimed.

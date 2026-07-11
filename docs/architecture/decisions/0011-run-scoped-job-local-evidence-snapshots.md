@@ -67,7 +67,8 @@ evidence bodies because they are application data artifacts.
 
 The control plane consists of AgentResponse JSON or text output, workflow state, TaskSpec, preparation and submission
 receipts, TaskResult, validation reports, terminal claims, promotion receipts, run manifests, error messages, and
-AgentResponse extensions. `criterion_matches.json` is also a privacy-safe semantic projection. Its references are
+AgentResponse extensions. `criterion_matches.json` is a body-minimized semantic projection, but remains a Tier 2
+job-strategy artifact for agent-reading consent. Its references are
 opaque `evidence_catalog.json#items/<evidence-id>` catalog locators rather than profile paths, headings, item labels,
 or evidence kinds. These records contain only safe paths, hashes, semantic IDs, classifications, privacy-safe reason
 codes, and counts; they never copy or quote evidence bodies.

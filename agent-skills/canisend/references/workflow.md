@@ -195,31 +195,48 @@ correction needs reconciliation, or an empty extraction remains unconfirmed. A t
 evidence of user confirmation.
 
 `confirmed_corrections.yaml` is an optional user-owned typed overlay. Confirm reads it; neither Parse nor Confirm
-creates, rewrites, or deletes it. Until a scoped compare-and-swap update command is available, validate manual edits
-against `schemas/confirmed-corrections.schema.json`, preserve the expected current file, and rerun Confirm. An agent
-must not change the overlay without explicit instruction. If the advert source receipt changes, the old correction
-remains present and Confirm reports a privacy-safe reconciliation reason instead of silently reassigning it.
+creates, rewrites, or deletes it. Users may edit it directly against
+`schemas/confirmed-corrections.schema.json`; status and stage reruns validate the bytes present without normalizing
+them. An explicitly consented scoped update writes a canonical next revision and may not preserve YAML comments. An
+agent must use the mutation service instead of writing the YAML itself:
 
-A minimal unambiguous confirmation copies hashes from the current `criteria.json` record:
-
-```yaml
-schema_version: 1.0.0
-job_id: <job-folder-name>
-revision: 1
-updated_at: 2026-07-11T12:00:00Z
-criteria:
-  - correction_id: correction_<32-lowercase-hex>
-    criterion_id: criterion_<32-lowercase-hex>
-    target_source_sha256: <source-span-text-sha256>
-    target_criterion_sha256: <parsed-text-sha256>
-    confirmation: confirmed
-    record_state: active
-    confirmed_at: 2026-07-11T12:00:00Z
+```bash
+canisend corrections status --workspace <private-workspace> --job jobs/<job-slug> --format json
+canisend corrections init --workspace <private-workspace> --job jobs/<job-slug> \
+  --confirm-user-owned-write --format json
+canisend corrections status --workspace <private-workspace> --job jobs/<job-slug> --format json
 ```
 
-Use `confirmation: corrected` plus `corrected_text` to replace the projected wording. For an ambiguous source, also
-copy one candidate's paired `source_occurrence` and `source_anchor_sha256`; Confirm accepts it only when that context
-anchor is unique in the current candidate set.
+Copy the current artifact hash and `canisend.user_artifact_revision` from the last status response. Create one bounded
+strict YAML or JSON patch in safe scratch space:
+
+```yaml
+operation: correct_criterion
+criterion_id: criterion_<32-lowercase-hex>
+corrected_text: <user-approved-private-text>
+```
+
+Then update through compare-and-swap:
+
+```bash
+canisend corrections update \
+  --workspace <private-workspace> \
+  --job jobs/<job-slug> \
+  --patch-file <safe-scratch-patch.yaml> \
+  --expected-revision <current-revision> \
+  --expected-sha256 <current-sha256> \
+  --confirm-user-owned-write \
+  --format json
+canisend stage run --workspace <private-workspace> --job jobs/<job-slug> \
+  --stage confirm --mode deterministic --format json
+```
+
+The other correction operations are `confirm_criterion`, `withdraw_criterion`, and `confirm_empty`; an ambiguous
+criterion confirmation may include its current `source_occurrence`. Unknown is not confirmed empty: initialization
+with no corrections does not confirm an empty extraction and is fingerprint-neutral. Each semantic patch requires
+current Parse and Confirm. Rerun Confirm after every update before status and the next patch; never apply several
+patches against one stale Criteria catalog. If an advert source or parser interpretation changes, history remains
+present and Confirm returns a privacy-safe reconciliation action instead of silently reassigning it.
 
 ## 7. Propose Durable Criterion Matches
 
@@ -244,7 +261,59 @@ relevant support produces `missing`. Unknown Criteria extraction blocks Match an
 Every classification has `review_state=proposed`. Review the proposals; they are neither a user-owned application
 Decision nor evidence that a package is ready. Editing either catalog directly is forbidden—rerun its owning stage.
 
-## 8. Generate Draft Package
+## 8. Record Or Reconfirm The User-Owned Decision
+
+Decision status is read-only. Initialization creates an explicitly `undecided` record only when absent:
+
+```bash
+canisend decision status --workspace <private-workspace> --job jobs/<job-slug> --format json
+canisend decision init --workspace <private-workspace> --job jobs/<job-slug> \
+  --confirm-user-owned-write --format json
+canisend decision status --workspace <private-workspace> --job jobs/<job-slug> --format json
+```
+
+Put one `set_decision` or `reset_decision` operation in a strict patch file. Rationale, if intentionally included,
+belongs only in that private patch and user YAML:
+
+```yaml
+operation: set_decision
+decision: apply
+rationale_mode: keep
+```
+
+Run `decision update` with `--patch-file`, the latest `--expected-revision` and `--expected-sha256`, explicit
+`--confirm-user-owned-write`, and `--format json`. Apply, hold, and skip are effective only through this user-owned
+operation; undecided and Match proposals are not implicit decisions.
+
+If current Criteria or Match receipts change, `application_decision.yaml` keeps its accepted bytes and value while
+`decision status` derives `canisend.decision_basis_status=review_required`. Review the new basis, request a fresh
+status baseline, and send a new `set_decision` patch—even with the same value—to reconfirm it. Never write a stale
+flag into the YAML. If a response reports recovery required or receipt pending, complete only the already accepted
+claim:
+
+```bash
+canisend user-mutation recover \
+  --workspace <private-workspace> \
+  --job jobs/<job-slug> \
+  --mutation-id mutation_<32-lowercase-hex> \
+  --confirm-user-owned-write \
+  --format json
+```
+
+The CAS protocol coordinates cooperative CanISend writers while the job directory remains in place. It does not
+linearize a normal editor save during the final replace window or a hostile same-user rename. Run status immediately
+before mutation and avoid concurrent manual saves. Fresh status can report recovery pending if a process stopped
+between publishing a complete target link and removing CanISend's verified private temporary link; only explicit
+recovery cleans that exact two-link marker, while ordinary hard links remain unsafe. The private YAML/candidate and
+corrected Criteria are Tier 2; the immutable body-free receipt is Tier 1 and AgentResponse never carries correction
+text or rationale.
+
+Reset/clear/withdraw operations do not erase prior private text from immutable history. Corrections history retains
+old bodies, and accepted private-mode Tier 2 mutation candidates (0600 on POSIX) remain for audit/recovery. Keep the ignored job folder
+private and back it up only intentionally. Removing selected private mutation events (or the whole job) is a separate
+retention action that can disable recovery; CanISend does not currently provide automatic secure erasure.
+
+## 9. Generate Draft Package
 
 Deterministic baseline:
 
@@ -266,7 +335,7 @@ Use only `--llm-parser` when the user wants structured parsing but not drafted p
 
 Always ask before enabling LLM-backed flags or a command provider for a real workspace, because those modes can send selected private advert, profile, evidence, and draft context to the configured provider. If the user has not opted in, run the deterministic baseline and report any gaps for manual review.
 
-## 9. Review Before Rendering
+## 10. Review Before Rendering
 
 Review, in order:
 
@@ -295,7 +364,7 @@ that flag, the check remains read-only.
 
 In agent-assisted mode, also report which private sources were read directly, which LLM-backed CLI flags were used, and which remaining claims need manual confirmation.
 
-## 10. Optional Typst Rendering
+## 11. Optional Typst Rendering
 
 Render only when the user asks for PDFs or needs local PDF review:
 
@@ -305,6 +374,6 @@ canisend render-typst --workspace <private-workspace> --job jobs/<job-slug>
 
 Rendering requires a local `typst` binary. Source generation does not.
 
-## 11. Manual Submission
+## 12. Manual Submission
 
 The tool stops at preparation. The user manually handles portal upload, eligibility declarations, equality monitoring, right-to-work, disability, visa, conflict, criminal record, and other sensitive form answers.

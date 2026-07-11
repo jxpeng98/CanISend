@@ -49,6 +49,12 @@ python -m venv /tmp/canisend-smoke
 /tmp/canisend-smoke/bin/canisend agent capabilities --format json
 ```
 
+The automated clean-wheel smoke additionally runs the fake-data Decision Spine through Evidence, Parse, Confirm,
+corrections status/init with explicit consent, Match, and Decision status/init with explicit consent. This proves
+empty corrections initialization is fingerprint-neutral. It asserts both user-owned files and two immutable receipts
+without parsing a dynamic revision/hash in shell; scoped update/recovery behavior remains covered by the Python test
+suite.
+
 ## Trusted Publishing Setup
 
 Configure Trusted Publishing before the first remote publish.

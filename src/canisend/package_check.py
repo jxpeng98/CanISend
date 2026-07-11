@@ -29,6 +29,7 @@ REQUIRED_WHEEL_RESOURCES = [
     "canisend/resources/schemas/application-decision.schema.json",
     "canisend/resources/schemas/application-brief.schema.json",
     "canisend/resources/schemas/required-document-plan.schema.json",
+    "canisend/resources/schemas/user-mutation-receipt.schema.json",
     "canisend/resources/.codex-plugin/plugin.json",
     "canisend/resources/skills/canisend/SKILL.md",
     "canisend/resources/skills/canisend/agents/openai.yaml",

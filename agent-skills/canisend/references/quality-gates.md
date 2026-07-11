@@ -50,6 +50,18 @@ Do not use ready, final, complete, or submission-ready for generated materials u
 - Every classification is `review_state=proposed`. Do not treat Match as a user-owned application Decision, claim
   confirmation, or package-readiness signal.
 
+## User-Owned Corrections And Decision Gate
+
+- Unknown criteria extraction is not treated as `confirmed_empty`; an empty corrections template proves nothing.
+- Each semantic correction was based on current Parse and Confirm, and Confirm reran before any next correction.
+- Agent-assisted mutations used status, one strict scoped patch, current revision/hash CAS, and explicit consent;
+  agents did not replace a user YAML file directly.
+- A missing or `undecided` Decision is not treated as apply, hold, or skip. Match did not infer the value.
+- For a confirmed Decision, `decision status` reports a current Criteria/Match basis. A preserved stale value remains
+  review-required until the user explicitly reconfirms it.
+- User YAML/private candidates/corrected Criteria remain Tier 2. Tier 1 receipts and all control/Agent output contain
+  no correction text or rationale.
+
 ## Draft Gate
 
 - `02_fit_report.md` separates strong fit, partial fit, and gaps.
@@ -109,14 +121,16 @@ Review files in this order:
 4. `criteria.json`
 5. Evidence state and receipts in `evidence_catalog.json` (read bodies only when needed and approved)
 6. `criterion_matches.json` proposed classifications and gaps
-7. `00_preparation_questions.md`
-8. `05_criteria_checklist.md`
-9. `02_fit_report.md`
-10. `03_cover_letter_draft.md`
-11. `04_cv_tailoring_notes.md`
-12. `07_material_review_checklist.md`
-13. `typst/cover_letter.typ`
-14. `typst/application_package.typ`
-15. `06_final_application_package.md`
+7. Corrections status and `confirmed_corrections.yaml` only when its Tier 2 body is needed
+8. Decision status and `application_decision.yaml` only when its Tier 2 rationale is needed
+9. `00_preparation_questions.md`
+10. `05_criteria_checklist.md`
+11. `02_fit_report.md`
+12. `03_cover_letter_draft.md`
+13. `04_cv_tailoring_notes.md`
+14. `07_material_review_checklist.md`
+15. `typst/cover_letter.typ`
+16. `typst/application_package.typ`
+17. `06_final_application_package.md`
 
 Before editing prose, confirm `00_preparation_questions.md` has resolved US English vs UK English, the target writing style, specific motivation, emphasis, risk areas, and details to exclude.

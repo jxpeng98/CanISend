@@ -59,16 +59,50 @@ The private Evidence data plane consists of
 `workflow/runs/<run-id>/inputs/evidence-snapshot.json`, the Evidence candidate, and `evidence_catalog.json`. These
 artifacts may contain and deliberately duplicate normalized profile bodies inside an ignored job folder. They remain
 until the user removes the private run or job; cancellation, failure, or promotion does not promise automatic
-erasure. Ask before an agent reads them when a privacy-safe status, count, reason code, or Match projection is enough.
+erasure. Ask before an agent reads them when a privacy-safe status, count, or reason code is enough.
 
 Workflow state, TaskSpec, preparation/submission/result/validation/promotion receipts, terminal claims, manifests,
-errors, ordinary command output, and AgentResponse extensions are the privacy-safe control plane. Match output also
-belongs to this boundary: it uses opaque catalog references and must not copy evidence text, headings, legacy item
-labels, or private evidence kinds.
+errors, ordinary command output, and AgentResponse extensions are the privacy-safe control plane.
+`criterion_matches.json` is a body-minimized semantic projection: it uses opaque catalog references and must not copy
+evidence text, headings, legacy item labels, or private evidence kinds. It is still a Tier 2 job-strategy artifact,
+so an agent asks before reading its body; deterministic core stages may read it locally without model exposure.
 
 TaskSpec v1 remains job-relative. Resumable Evidence rejects workspace-external profile roots, absolute or parent
 paths, path escapes, symlinks, hard-link aliases, non-regular inputs, changing sources, and bounded-input violations.
 Do not work around these checks with hidden direct reads or copied absolute paths.
+
+## User-Owned Mutation Data Plane
+
+`confirmed_corrections.yaml`, `application_decision.yaml`, immutable mutation candidates, and `criteria.json` are
+Tier 2. Criteria can contain corrected wording. A strict patch file containing correction text or rationale is also
+Tier 2 and should live only in safe private scratch space for as long as needed. Mutation claims and immutable
+receipts are body-free; the receipt is Tier 1. Never place correction text or rationale in an error, log, ordinary
+CLI response, AgentResponse, or handoff summary.
+
+Users may edit their YAML directly. Status and stage reruns validate without normalizing or rewriting manual bytes.
+An explicitly consented scoped patch creates a canonical next revision and may not preserve comments. Agents must not
+emulate a manual whole-file edit: use read-only status, one scoped patch, the latest revision/hash, and explicit
+`--confirm-user-owned-write`. Unknown empty extraction is not
+`confirmed_empty`, and undecided is not apply, hold, or skip.
+
+Compare-and-swap coordinates cooperative CanISend writers under a stable job-directory topology. It does not
+linearize an ordinary editor save during the final replace window or protect against a malicious same-user rename.
+Run status immediately before each mutation and avoid concurrent manual saving. After any correction update, rerun
+Confirm before another correction patch. If Criteria/Match changes, a Decision remains stored while status derives
+review-required; do not add a stale flag to the user YAML.
+
+### Retention Is Not Semantic Reset
+
+`reset_decision`, rationale clear, correction withdrawal, and correction supersession change the current semantic
+view only. They do not erase immutable history. Corrections history deliberately retains older corrected text for
+audit/recovery, and every accepted mutation can retain a private-mode Tier 2 `candidate.yaml` (0600 on POSIX) containing the prior
+private patch result. Receipts stay body-free but also remain immutable.
+
+Keep every job directory private and git-ignored. Include it in backups, sync tools, and filesystem snapshots only
+after making an intentional retention decision. To stop retaining these bodies, remove the relevant private
+`workflow/user-mutations/events/` entries and user artifacts, or remove the whole job folder when its complete audit
+trail is no longer needed. This can make recovery impossible. CanISend currently provides no automatic secure erase
+and cannot promise removal from backups, snapshots, journaled storage, or storage-device remnants.
 
 ## Untrusted Imported Data
 
