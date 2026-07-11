@@ -1,6 +1,6 @@
 # Decision Spine Foundation Implementation Plan
 
-**Status:** In progress
+**Status:** In progress — first Criteria/Confirm vertical slice locally accepted
 
 **Date:** 2026-07-11
 
@@ -18,7 +18,8 @@ user-owned application decisions and briefs, and advert-driven document planning
 
 - Python, the file workspace, the existing CLI, and `canisend.agent/v1` remain the platform contract.
 - Parsed Job v1 remains unchanged; Stage 2 semantic fields live in separate versioned artifacts.
-- Stable IDs are derived from normalized source receipts, never list positions, line numbers, or corrected prose.
+- Stable IDs are derived from normalized source receipts plus normalized parser interpretation, never list positions,
+  line numbers, sibling counts, or user-corrected prose.
 - `confirmed_corrections.yaml`, `application_decision.yaml`, and `application_brief.yaml` are user-owned.
 - Core-owned projections may become stale; user-owned values are preserved and marked for review.
 - AgentResponse 1.0 carries artifact references and scalar extensions only.
@@ -75,11 +76,14 @@ user-owned application decisions and briefs, and advert-driven document planning
 - `src/canisend/cli.py`
 - existing stage tests plus Confirm runtime/CLI tests
 
-- [ ] Extract stage-specific Parse behavior behind an internal adapter with no Parse behavior change.
-- [ ] Reconstruct state from the latest valid manifest for every implemented stage.
-- [ ] Enforce current direct dependencies before preparing a downstream stage.
-- [ ] Run Confirm through candidate validation, atomic promotion, immutable evidence, cache, and drift protection.
-- [ ] Keep Stage 2 phases represented as `phase=unknown` in AgentResponse 1.0 and expose the real stage as a scalar
+- [x] Extract stage-specific Parse behavior behind an internal adapter with no Parse behavior change.
+- [x] Reconstruct state from the latest valid manifest for every implemented stage.
+- [x] Enforce current direct dependencies before preparing a downstream stage.
+- [x] Run Confirm through candidate validation, atomic promotion, immutable evidence, cache, and drift protection.
+- [x] Bind TaskSpecs to preparation receipts and active output baselines; allow only one active task.
+- [x] Route candidate bytes through a guarded submit service that rejects symlink and hard-link aliases.
+- [x] Add explicit cancellation so stale or abandoned tasks cannot deadlock upstream recovery.
+- [x] Keep Stage 2 phases represented as `phase=unknown` in AgentResponse 1.0 and expose the real stage as a scalar
   extension.
 
 ## Task 4: Stable Evidence Catalog And Durable Match
@@ -130,3 +134,18 @@ user-owned application decisions and briefs, and advert-driven document planning
 | Multi-stage state is recoverable | Parse plus Confirm manifest reconstruction test |
 | Agent v1 remains compatible | JSON schema, scalar extension, and privacy tests |
 | Legacy pipeline is unchanged | Existing pipeline and CLI suites |
+
+## First Slice Exit Review
+
+Locally accepted on 2026-07-11. The acceptance run includes:
+
+- 561 tests passing on Python 3.11, 3.12, and 3.13, plus the Python 3.14 workspace development interpreter;
+- stable-ID, source-section, ambiguity, correction-orphan, privacy, CAS, drift, cancellation, terminal-claim,
+  failure-injection, and fresh-host recovery coverage;
+- sdist/wheel build and packaged-resource validation;
+- clean-wheel `run-example -> Parse -> Confirm` execution with preparation, submission, terminal-claim, promotion, and
+  manifest evidence present;
+- automated built-wheel and TestPyPI Parse-to-Confirm smoke commands in CI/release workflows.
+
+This accepts only Tasks 0-3 and the first-slice compatibility boundary. Durable Evidence/Match, Decision, Brief, and
+required-document planning remain open in Tasks 4-7; Stage 2 as a whole is not complete.

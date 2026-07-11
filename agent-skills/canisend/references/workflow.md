@@ -124,14 +124,78 @@ canisend stage run \
 ```
 
 For current-host parsing, first obtain explicit approval to read the full advert, then run `stage prepare --mode
-host-agent`. Read its immutable TaskSpec, write only the declared candidate and TaskResult paths, and pass those paths
-to `stage apply`. Never write `parsed_job.json` directly. Apply rejects stale inputs, output drift, undeclared paths,
-wrong hashes, invalid schemas, and source receipts that do not resolve to the advert.
+host-agent`. Read its immutable TaskSpec, create candidate JSON in a fresh scratch file, and pass that file through
+`stage submit --candidate-file`. The guarded submit service writes the declared candidate and TaskResult; after
+review, pass the returned paths to `stage apply`. TaskSpec and receipts are read-only through their AgentResponse
+references; never write or modify a declared run path or `parsed_job.json` directly.
+Submit and Apply reject stale inputs, output drift, undeclared paths, path aliases, wrong hashes, invalid schemas, and
+source receipts that do not resolve to the advert.
 
 An unchanged deterministic rerun is a cache hit. Advert or relevant job metadata changes make Parse stale; profile
 evidence, writing preferences, package status, and downstream artifacts do not.
 
-## 6. Generate Draft Package
+Host-agent execution currently applies only to Parse. Each prepared task has a separate immutable preparation
+receipt. If its inputs, upstream dependencies, or protected output change before promotion, do not prepare a parallel
+task: cancel the active one first, preserving its audit trail and candidate:
+
+```bash
+canisend stage cancel \
+  --workspace <private-workspace> \
+  --job jobs/<job-slug> \
+  --stage <stage> \
+  --format json
+```
+
+Cancellation releases the active-task slot but does not authorize overwriting a drifted authoritative output.
+
+## 6. Project And Confirm Stable Criteria
+
+After Parse is current, project its criteria into the Stage 2 semantic contract:
+
+```bash
+canisend stage run \
+  --workspace <private-workspace> \
+  --job jobs/<job-slug> \
+  --stage confirm \
+  --mode deterministic \
+  --format json
+```
+
+Confirm writes `criteria.json` through the same candidate-validation and atomic-promotion boundary as Parse. Each
+criterion has a stable ID, essential/desirable importance, categorical confidence, source-known state, and separate
+user-confirmation state. Missing receipts remain unknown; ambiguous receipts expose candidate spans without silently
+selecting one. The operation returns `review_required` while criteria remain unconfirmed or source-unknown, a
+correction needs reconciliation, or an empty extraction remains unconfirmed. A technically successful run is not
+evidence of user confirmation.
+
+`confirmed_corrections.yaml` is an optional user-owned typed overlay. Confirm reads it; neither Parse nor Confirm
+creates, rewrites, or deletes it. Until a scoped compare-and-swap update command is available, validate manual edits
+against `schemas/confirmed-corrections.schema.json`, preserve the expected current file, and rerun Confirm. An agent
+must not change the overlay without explicit instruction. If the advert source receipt changes, the old correction
+remains present and Confirm reports a privacy-safe reconciliation reason instead of silently reassigning it.
+
+A minimal unambiguous confirmation copies hashes from the current `criteria.json` record:
+
+```yaml
+schema_version: 1.0.0
+job_id: <job-folder-name>
+revision: 1
+updated_at: 2026-07-11T12:00:00Z
+criteria:
+  - correction_id: correction_<32-lowercase-hex>
+    criterion_id: criterion_<32-lowercase-hex>
+    target_source_sha256: <source-span-text-sha256>
+    target_criterion_sha256: <parsed-text-sha256>
+    confirmation: confirmed
+    record_state: active
+    confirmed_at: 2026-07-11T12:00:00Z
+```
+
+Use `confirmation: corrected` plus `corrected_text` to replace the projected wording. For an ambiguous source, also
+copy one candidate's paired `source_occurrence` and `source_anchor_sha256`; Confirm accepts it only when that context
+anchor is unique in the current candidate set.
+
+## 7. Generate Draft Package
 
 Deterministic baseline:
 
@@ -153,7 +217,7 @@ Use only `--llm-parser` when the user wants structured parsing but not drafted p
 
 Always ask before enabling LLM-backed flags or a command provider for a real workspace, because those modes can send selected private advert, profile, evidence, and draft context to the configured provider. If the user has not opted in, run the deterministic baseline and report any gaps for manual review.
 
-## 7. Review Before Rendering
+## 8. Review Before Rendering
 
 Review, in order:
 
@@ -179,7 +243,7 @@ that flag, the check remains read-only.
 
 In agent-assisted mode, also report which private sources were read directly, which LLM-backed CLI flags were used, and which remaining claims need manual confirmation.
 
-## 8. Optional Typst Rendering
+## 9. Optional Typst Rendering
 
 Render only when the user asks for PDFs or needs local PDF review:
 
@@ -189,6 +253,6 @@ canisend render-typst --workspace <private-workspace> --job jobs/<job-slug>
 
 Rendering requires a local `typst` binary. Source generation does not.
 
-## 9. Manual Submission
+## 10. Manual Submission
 
 The tool stops at preparation. The user manually handles portal upload, eligibility declarations, equality monitoring, right-to-work, disability, visa, conflict, criminal record, and other sensitive form answers.

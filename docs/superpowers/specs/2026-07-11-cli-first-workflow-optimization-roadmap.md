@@ -109,18 +109,20 @@ job.yaml + job_advert.md
 
 ### Stage Graph
 
-The registry declares the complete logical graph but marks only Parse executable in Stage 1:
+The registry declares the complete logical graph. Parse became executable in Stage 1; the first Stage 2 slice adds
+Confirm while later stages remain unsupported:
 
 ```text
-intake -> parse -> confirm ----+
-   |                           |
-   +-----> evidence -> match --+-> decide -> brief
-                                \                 \
-                                 +----------------> draft -> review -> package -> verify -> render
+intake -> parse -> confirm ------+
+   |                   \         |
+   +-----> evidence ----> match --+-> decide -> brief
+                                  \                 \
+                                   +----------------> draft -> review -> package -> verify -> render
 ```
 
-Parse depends only on Intake. Evidence may proceed independently after Intake. Unimplemented stages must be reported
-as unsupported; their presence in the registry is not a capability claim.
+Parse depends only on Intake. Evidence may proceed independently after Intake. Match requires current Confirm and
+Evidence outputs. Unimplemented stages must be reported as unsupported; their presence in the registry is not a
+capability claim.
 
 ### Parse Fingerprint
 
@@ -164,7 +166,9 @@ CV or package status does not invalidate Parse.
 ## Stage 2: Decision Spine
 
 **Stage status:** In progress on `feat/decision-spine-foundation`. ADR-009 and ADR-010 freeze semantic identity and
-user-owned input boundaries; the first implementation slice targets stable criteria and resumable Confirm.
+user-owned input boundaries. The stable Criteria projection and resumable Confirm vertical slice are locally accepted
+with guarded candidate submission, explicit cancellation, and clean-wheel verification. Durable Evidence/Match,
+Decide, Brief, and document planning remain open.
 
 ### Deliverables
 

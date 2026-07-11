@@ -150,6 +150,9 @@ def test_ci_workflow_runs_tests_build_and_package_resource_check():
     assert "uvx twine check dist/*" in rendered
     assert "python -m venv /tmp/canisend-smoke" in rendered
     assert "/tmp/canisend-smoke/bin/canisend doctor --workspace /tmp/canisend-workspace" in rendered
+    assert "canisend run-example --workspace /tmp/canisend-stage2-example" in rendered
+    assert "--stage confirm --format json" in rendered
+    assert "workflow/runs/*/submission.json" in rendered
 
 
 def test_ci_covers_supported_python_versions_and_cross_os_cli_smoke():
@@ -198,6 +201,20 @@ def test_release_workflow_publishes_with_trusted_publishing():
     assert "dist/*.whl" in rendered
     assert "uvx twine check dist/*" in rendered
     assert "python -m venv /tmp/canisend-smoke" in rendered
+    assert "run-example --workspace /tmp/canisend-stage2-example" in rendered
+    assert "run-example --workspace /tmp/canisend-testpypi-stage2-example" in rendered
+    assert rendered.count("--stage confirm --format json") >= 2
+
+
+def test_local_release_checks_smoke_installed_wheel_through_confirm():
+    rendered = Path("scripts/release.sh").read_text()
+
+    assert "uv pip install --python" in rendered
+    assert "run-example --workspace" in rendered
+    assert "--stage parse --format json" in rendered
+    assert "--stage confirm --format json" in rendered
+    assert "workflow/runs/*/preparation.json" in rendered
+    assert "workflow/runs/*/submission.json" in rendered
 
 
 def test_release_workflow_guards_stable_tag_source_provenance():

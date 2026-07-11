@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Started the Stage 2 Decision Spine with stable criterion IDs and source spans, strict schemas for criteria,
+  evidence matches, corrections, decisions, briefs, and document plans, plus a resumable Confirm stage that preserves
+  user-owned corrections and reports unresolved review work.
+- Added single-active-task enforcement, immutable preparation and candidate-submission receipts, guarded candidate
+  writes, receipt-based dependency recovery, and `stage cancel` for safely abandoning stale work.
 - Added a CLI-first resumable Parse stage with versioned workflow state, TaskSpec/TaskResult contracts, immutable run
   evidence, precise input fingerprints, candidate validation, output-drift protection, and atomic promotion.
 - Added the versioned `canisend.agent/v1` agent protocol, JSON Schema, capabilities, workspace/job context, and structured

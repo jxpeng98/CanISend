@@ -93,3 +93,7 @@ jobs:
           /tmp/canisend-smoke/bin/canisend init-workspace --workspace /tmp/canisend-workspace
           /tmp/canisend-smoke/bin/canisend doctor --workspace /tmp/canisend-workspace --format json
           /tmp/canisend-smoke/bin/canisend agent capabilities --format json
+          /tmp/canisend-smoke/bin/canisend run-example --workspace /tmp/canisend-stage2-example
+          /tmp/canisend-smoke/bin/canisend stage run --workspace /tmp/canisend-stage2-example --job jobs/2026-06-15_example-university_lecturer-in-applied-economics --stage parse --format json
+          /tmp/canisend-smoke/bin/canisend stage run --workspace /tmp/canisend-stage2-example --job jobs/2026-06-15_example-university_lecturer-in-applied-economics --stage confirm --format json
+          /tmp/canisend-smoke/bin/python -c "from pathlib import Path; job=Path('/tmp/canisend-stage2-example/jobs/2026-06-15_example-university_lecturer-in-applied-economics'); assert (job/'criteria.json').is_file(); assert list(job.glob('workflow/runs/*/preparation.json')); assert list(job.glob('workflow/runs/*/submission.json')); assert list(job.glob('workflow/runs/*/manifest.json'))"

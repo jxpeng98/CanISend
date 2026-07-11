@@ -432,25 +432,47 @@ successful invocation writes one `canisend.agent/v1` response to stdout. Respons
 artifact references and hashes rather than private document bodies. A failed package gate remains a successful
 operation result (`ok: true`) but exits non-zero; operational failures return `ok: false` with a stable error code.
 
-The first resumable vertical slice exposes Parse through the same shell-capable hosts:
+The resumable workflow currently exposes Parse and the first Stage 2 Confirm slice through the same shell-capable
+hosts:
 
 ```bash
 canisend stage status --workspace . --job jobs/<job-slug> --format json
 canisend stage run --workspace . --job jobs/<job-slug> --stage parse --mode deterministic --format json
+canisend stage run --workspace . --job jobs/<job-slug> --stage confirm --mode deterministic --format json
+canisend stage status --workspace . --job jobs/<job-slug> --stage confirm --format json
 ```
 
-For current-host reasoning, `stage prepare --mode host-agent` writes an immutable TaskSpec under the job's
-`workflow/runs/` directory. After explicit approval to read the full advert, the host writes only the declared
-candidate and TaskResult paths; `stage apply` rechecks task identity, input freshness, scope, hashes, schema, source
-receipts, and output drift before atomically promoting `parsed_job.json`. Agents never write the authoritative file
-directly.
+Host-agent execution currently applies to Parse only; Confirm is deterministic-only. For current-host Parse
+reasoning, `stage prepare --mode host-agent` writes a TaskSpec plus an immutable preparation receipt under the job's
+`workflow/runs/` directory. After explicit approval to read the full advert, the host creates candidate JSON only in
+a fresh scratch file and passes it to `stage submit --candidate-file`; the guarded service writes the declared
+candidate, TaskResult, and submission receipt without following symlink or hard-link aliases. `stage apply` then
+rechecks task integrity, active status, input freshness, scope, hashes, schema, source receipts, and output drift
+before atomically promoting `parsed_job.json`. Agents never write a run path or authoritative stage artifact directly.
+If inputs or dependencies change while a task is active, run
+`canisend stage cancel --workspace . --job jobs/<job-slug> --stage <stage>` before preparing a replacement; audit
+records and any candidate remain available.
+
+Confirm projects Parsed Job v1 into `criteria.json` with stable criterion IDs, confidence, and separate
+source/confirmation states. A resolved source has one span; a missing source stays unknown, while an ambiguous source
+exposes candidate spans without choosing one. It reports `review_required` for unconfirmed or source-unknown
+criteria, orphaned corrections, and an empty extraction that has not been explicitly confirmed. An optional
+`confirmed_corrections.yaml` is user-owned: Confirm reads it, while neither Parse nor Confirm creates, rewrites, or
+deletes it. Until a scoped update command is added, edit it manually against
+`schemas/confirmed-corrections.schema.json`; copy `criterion_id`, `parsed_text_sha256`, and the source receipt hash
+from `criteria.json` (`parsed_text_sha256` becomes `target_criterion_sha256`, while
+`source_span.text_sha256` becomes `target_source_sha256`), preserve the expected current file, and rerun Confirm. A
+changed source receipt or parsed
+interpretation receives a new criterion ID and leaves the old correction visible for reconciliation instead of
+attaching it to a different requirement.
 
 Use `canisend doctor --workspace .` when a human-readable environment diagnostic is also useful.
 
 A fresh Codex, Claude Code, or IDE shell session resumes from the same durable workspace state by running the same
 `agent context` command; it does not need the previous chat transcript. The fake-data conformance fixture under
 `examples/agent_handoff/` demonstrates this host-neutral handoff. The Parse slice now adds durable task/result
-exchange through the existing CLI; later roadmap stages extend the same boundary to decisions and drafting. MCP is
+exchange through the existing CLI; Confirm now proves the same boundary for a second stage. Later roadmap slices add
+durable matching, decisions, briefs, and advert-driven document planning. MCP is
 not on the current critical path.
 
 They may run local deterministic CLI commands, inspect generated evidence, and review current job artifacts. They must ask first before reading full private CVs, statements, full job adverts, references, PDFs, source URLs, generated packages, or enabling LLM-backed CLI flags/providers. They must not scrape pages, submit applications, upload packages, fabricate evidence, or commit private profile/job data.

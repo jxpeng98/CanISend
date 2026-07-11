@@ -76,6 +76,20 @@ Each application task lives in ignored `jobs/<job-slug>/` and contains:
 job.yaml
 job_advert.md
 parsed_job.json
+criteria.json
+confirmed_corrections.yaml  # optional, user-owned
+workflow/
+  state.json                 # rebuildable view
+  runs/<run-id>/
+    task-spec.json           # immutable task contract
+    preparation.json         # immutable TaskSpec integrity anchor
+    submission.json          # guarded candidate/TaskResult receipt
+    candidates/<artifact>.json
+    tasks/<task-id>/result.json
+    validation/report.json
+    terminal-claim.json
+    promotion.json
+    manifest.json            # terminal run evidence
 00_preparation_questions.md
 01_job_summary.md
 02_fit_report.md
@@ -97,6 +111,15 @@ RSS and Atom lead outputs live in ignored `job_leads/`.
 - `job_advert.md`: full advert text. Feed-created jobs start with lead metadata and require manual full advert paste or
   an explicit one-URL import.
 - `parsed_job.json`: structured advert data. Missing fields should remain empty or unknown; do not invent.
+- `criteria.json`: core-owned, regenerable Stage 2 projection with stable criterion IDs, source spans, extraction
+  confidence, confirmation state, unresolved IDs, and orphaned corrections with privacy-safe reason codes. Do not
+  edit it directly.
+- `confirmed_corrections.yaml`: optional strict user-owned overlay keyed by stable criterion ID. Confirm may read it;
+  Parse and Confirm must never silently create, normalize, overwrite, or delete it. Until a scoped update command is
+  available, manual edits must follow `schemas/confirmed-corrections.schema.json`.
+- `workflow/runs/*/task-spec.json`: immutable task contract. `allowed_writes` is explicitly marked
+  `write_authority: core_service`; a host supplies scratch candidate JSON through `stage submit` rather than writing
+  candidate or result paths itself.
 - `00_preparation_questions.md`: grill-me checklist for confirming US English vs UK English, writing style, specific motivation, emphasis, risks, and excluded details before treating materials as final.
 - `02_fit_report.md`, `03_cover_letter_draft.md`, `04_cv_tailoring_notes.md`, `05_criteria_checklist.md`: evidence-grounded Markdown review artifacts.
 - `07_material_review_checklist.md`: management artifact for cover letter draft, CV tailoring notes, placeholders, item-level citations, and manual follow-up actions.

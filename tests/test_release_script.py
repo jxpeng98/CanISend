@@ -260,6 +260,14 @@ def test_release_checks_only_current_version_distributions(tmp_path):
         "  printf '%s\\n' \"$*\" > package-check-args.txt\n"
         "  exit 0\n"
         "fi\n"
+        "if [[ \"${1:-}\" == \"venv\" ]]; then\n"
+        "  mkdir -p \"$3/bin\"\n"
+        "  printf '#!/usr/bin/env bash\\nexit 0\\n' > \"$3/bin/canisend\"\n"
+        "  printf '#!/usr/bin/env bash\\nexit 0\\n' > \"$3/bin/python\"\n"
+        "  chmod +x \"$3/bin/canisend\" \"$3/bin/python\"\n"
+        "  exit 0\n"
+        "fi\n"
+        "if [[ \"${1:-}\" == \"pip\" && \"${2:-}\" == \"install\" ]]; then exit 0; fi\n"
         "exit 2\n"
     )
     fake_uv.chmod(0o755)
