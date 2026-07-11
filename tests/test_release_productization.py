@@ -79,6 +79,10 @@ def test_package_check_requires_all_run_example_resources():
 
     expected = {
         "canisend/resources/schemas/agent-response.schema.json",
+        "canisend/resources/schemas/workflow-state.schema.json",
+        "canisend/resources/schemas/task-spec.schema.json",
+        "canisend/resources/schemas/task-result.schema.json",
+        "canisend/resources/schemas/run-manifest.schema.json",
         "canisend/resources/prompts/cv_tailor.md",
         "canisend/resources/prompts/criteria_checker.md",
         "canisend/resources/prompts/package_builder.md",

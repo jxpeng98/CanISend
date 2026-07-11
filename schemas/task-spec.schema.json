@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jxpeng98/CanISend/schemas/task-spec.schema.json",
+  "title": "CanISendTaskSpecV1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "task_id": { "$ref": "#/$defs/taskId" },
+    "run_id": { "$ref": "#/$defs/runId" },
+    "job_id": { "$ref": "#/$defs/jobId" },
+    "stage": { "$ref": "#/$defs/stageName" },
+    "operation": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]*(\\.[a-z][a-z0-9_-]*)+$"
+    },
+    "execution_mode": {
+      "enum": ["deterministic", "host_agent", "configured_provider"]
+    },
+    "created_at": { "type": "string", "format": "date-time" },
+    "input_fingerprint": { "$ref": "#/$defs/sha256" },
+    "inputs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/artifactFingerprint" },
+      "uniqueItems": true
+    },
+    "allowed_reads": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/jobPath" },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "allowed_writes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/jobPath" },
+      "minItems": 2,
+      "maxItems": 2,
+      "uniqueItems": true
+    },
+    "candidate_output": { "$ref": "#/$defs/jobPath" },
+    "result_output": { "$ref": "#/$defs/jobPath" },
+    "authoritative_target": { "$ref": "#/$defs/jobPath" },
+    "expected_output_sha256": {
+      "oneOf": [
+        { "$ref": "#/$defs/sha256" },
+        { "type": "null" }
+      ]
+    },
+    "output_schema": {
+      "type": "string",
+      "pattern": "^canisend\\.[a-z0-9][a-z0-9_.-]*/v[1-9][0-9]*$"
+    },
+    "privacy_tier": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 3
+    },
+    "required_consents": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9_.-]*$"
+      },
+      "uniqueItems": true
+    }
+  },
+  "required": [
+    "schema_version",
+    "task_id",
+    "run_id",
+    "job_id",
+    "stage",
+    "operation",
+    "execution_mode",
+    "created_at",
+    "input_fingerprint",
+    "inputs",
+    "allowed_reads",
+    "allowed_writes",
+    "candidate_output",
+    "result_output",
+    "authoritative_target",
+    "expected_output_sha256",
+    "output_schema",
+    "privacy_tier",
+    "required_consents"
+  ],
+  "$defs": {
+    "jobId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_.-]*$"
+    },
+    "runId": {
+      "type": "string",
+      "pattern": "^run_[0-9a-f]{32}$"
+    },
+    "taskId": {
+      "type": "string",
+      "pattern": "^task_[0-9a-f]{32}$"
+    },
+    "stageName": {
+      "enum": [
+        "intake",
+        "evidence",
+        "parse",
+        "confirm",
+        "match",
+        "decide",
+        "brief",
+        "draft",
+        "review",
+        "package",
+        "verify",
+        "render"
+      ]
+    },
+    "jobPath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*\\\\)(?!.*//)(?!.*\/$)[^/]+(?:/[^/]+)*$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "artifactFingerprint": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "path": { "$ref": "#/$defs/jobPath" },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "size_bytes": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        }
+      },
+      "required": ["path", "sha256", "size_bytes"]
+    }
+  }
+}

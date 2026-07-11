@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jxpeng98/CanISend/schemas/task-result.schema.json",
+  "title": "CanISendTaskResultV1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "task_id": {
+      "type": "string",
+      "pattern": "^task_[0-9a-f]{32}$"
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^run_[0-9a-f]{32}$"
+    },
+    "job_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_.-]*$"
+    },
+    "stage": { "$ref": "#/$defs/stageName" },
+    "status": { "enum": ["succeeded", "failed", "cancelled"] },
+    "input_fingerprint": { "$ref": "#/$defs/sha256" },
+    "started_at": { "type": "string", "format": "date-time" },
+    "completed_at": { "type": "string", "format": "date-time" },
+    "outputs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/artifactFingerprint" },
+      "uniqueItems": true
+    },
+    "error_code": {
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]*(\\.[a-z][a-z0-9_-]*)+$"
+        },
+        { "type": "null" }
+      ]
+    },
+    "error_message": {
+      "type": ["string", "null"],
+      "minLength": 1
+    }
+  },
+  "required": [
+    "schema_version",
+    "task_id",
+    "run_id",
+    "job_id",
+    "stage",
+    "status",
+    "input_fingerprint",
+    "started_at",
+    "completed_at",
+    "outputs",
+    "error_code",
+    "error_message"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": { "status": { "const": "succeeded" } },
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "outputs": { "minItems": 1 },
+          "error_code": { "type": "null" },
+          "error_message": { "type": "null" }
+        }
+      },
+      "else": {
+        "properties": {
+          "error_code": { "type": "string" },
+          "error_message": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "stageName": {
+      "enum": [
+        "intake",
+        "evidence",
+        "parse",
+        "confirm",
+        "match",
+        "decide",
+        "brief",
+        "draft",
+        "review",
+        "package",
+        "verify",
+        "render"
+      ]
+    },
+    "jobPath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*\\\\)(?!.*//)(?!.*\/$)[^/]+(?:/[^/]+)*$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "artifactFingerprint": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "path": { "$ref": "#/$defs/jobPath" },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "size_bytes": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        }
+      },
+      "required": ["path", "sha256", "size_bytes"]
+    }
+  }
+}
