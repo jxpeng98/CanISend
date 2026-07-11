@@ -176,6 +176,16 @@ def _comma_list(value: str) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
+def criteria_section_marker(line: str) -> str | None:
+    """Return the criteria section recognized by the deterministic parser."""
+    lowered = _plain_line(line).lower()
+    if lowered.startswith("essential criteria"):
+        return "essential"
+    if lowered.startswith("desirable criteria"):
+        return "desirable"
+    return None
+
+
 def _criteria(text: str, section: str) -> list[dict[str, str]]:
     active = False
     criteria: list[dict[str, str]] = []
@@ -184,11 +194,9 @@ def _criteria(text: str, section: str) -> list[dict[str, str]]:
     for line in text.splitlines():
         stripped = _plain_line(line)
         lowered = stripped.lower()
-        if lowered.startswith("essential criteria"):
-            active = section == "essential"
-            continue
-        if lowered.startswith("desirable criteria"):
-            active = section == "desirable"
+        marker = criteria_section_marker(line)
+        if marker is not None:
+            active = section == marker
             continue
         if lowered.endswith(":") and not lowered.startswith(section_prefix):
             active = False

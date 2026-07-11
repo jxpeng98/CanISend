@@ -15,6 +15,10 @@
           "title": "Target Source Sha256",
           "type": "string"
         },
+        "target_criterion_sha256": {
+          "title": "Target Criterion Sha256",
+          "type": "string"
+        },
         "confirmation": {
           "enum": [
             "confirmed",
@@ -48,6 +52,18 @@
           "default": null,
           "title": "Source Occurrence"
         },
+        "source_anchor_sha256": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Anchor Sha256"
+        },
         "record_state": {
           "default": "active",
           "enum": [
@@ -80,6 +96,7 @@
         "correction_id",
         "criterion_id",
         "target_source_sha256",
+        "target_criterion_sha256",
         "confirmation",
         "confirmed_at"
       ],

@@ -1,35 +1,27 @@
 {
   "$defs": {
-    "ArtifactFingerprint": {
+    "CorrectionReconciliationV1": {
       "additionalProperties": false,
       "properties": {
-        "path": {
-          "title": "Path",
+        "correction_id": {
+          "title": "Correction Id",
           "type": "string"
         },
-        "sha256": {
-          "title": "Sha256",
+        "criterion_id": {
+          "title": "Criterion Id",
           "type": "string"
         },
-        "size_bytes": {
-          "anyOf": [
-            {
-              "minimum": 0,
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Size Bytes"
+        "reason": {
+          "title": "Reason",
+          "type": "string"
         }
       },
       "required": [
-        "path",
-        "sha256"
+        "correction_id",
+        "criterion_id",
+        "reason"
       ],
-      "title": "ArtifactFingerprint",
+      "title": "CorrectionReconciliationV1",
       "type": "object"
     },
     "CriterionV1": {
@@ -50,6 +42,10 @@
         "text": {
           "minLength": 1,
           "title": "Text",
+          "type": "string"
+        },
+        "parsed_text_sha256": {
+          "title": "Parsed Text Sha256",
           "type": "string"
         },
         "source_text": {
@@ -75,6 +71,14 @@
             }
           ],
           "default": null
+        },
+        "source_candidates": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/SourceSpanV1"
+          },
+          "title": "Source Candidates",
+          "type": "array"
         },
         "confidence": {
           "enum": [
@@ -125,11 +129,31 @@
         "criterion_id",
         "importance",
         "text",
+        "parsed_text_sha256",
         "source_text",
         "source_state",
         "confidence"
       ],
       "title": "CriterionV1",
+      "type": "object"
+    },
+    "SemanticInputReceiptV1": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "projection_sha256": {
+          "title": "Projection Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "projection_sha256"
+      ],
+      "title": "SemanticInputReceiptV1",
       "type": "object"
     },
     "SourceSpanV1": {
@@ -153,6 +177,10 @@
           "title": "Text Sha256",
           "type": "string"
         },
+        "anchor_sha256": {
+          "title": "Anchor Sha256",
+          "type": "string"
+        },
         "occurrence": {
           "minimum": 1,
           "title": "Occurrence",
@@ -169,6 +197,7 @@
         "start_line",
         "end_line",
         "text_sha256",
+        "anchor_sha256",
         "occurrence",
         "occurrence_count"
       ],
@@ -194,12 +223,45 @@
       "title": "Input Fingerprint",
       "type": "string"
     },
-    "inputs": {
+    "semantic_inputs": {
       "items": {
-        "$ref": "#/$defs/ArtifactFingerprint"
+        "$ref": "#/$defs/SemanticInputReceiptV1"
       },
-      "title": "Inputs",
+      "title": "Semantic Inputs",
       "type": "array"
+    },
+    "extraction_state": {
+      "enum": [
+        "extracted",
+        "unknown",
+        "confirmed_empty"
+      ],
+      "title": "Extraction State",
+      "type": "string"
+    },
+    "extraction_unknown_reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Extraction Unknown Reason"
+    },
+    "empty_confirmation_record_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Empty Confirmation Record Id"
     },
     "criteria": {
       "items": {
@@ -216,19 +278,20 @@
       "title": "Unresolved Criterion Ids",
       "type": "array"
     },
-    "orphaned_correction_ids": {
+    "orphaned_corrections": {
       "default": [],
       "items": {
-        "type": "string"
+        "$ref": "#/$defs/CorrectionReconciliationV1"
       },
-      "title": "Orphaned Correction Ids",
+      "title": "Orphaned Corrections",
       "type": "array"
     }
   },
   "required": [
     "job_id",
     "input_fingerprint",
-    "inputs",
+    "semantic_inputs",
+    "extraction_state",
     "criteria"
   ],
   "title": "CanISendCriteriaCatalogV1",

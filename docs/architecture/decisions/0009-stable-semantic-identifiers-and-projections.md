@@ -23,21 +23,25 @@ Stage 2 introduces separate, versioned semantic projections rather than changing
 has:
 
 - a stable `criterion_<digest>` identifier derived from the job identity, importance, normalized source receipt, and
-  duplicate occurrence among identical criteria;
+  normalized parser interpretation, but never user-corrected text;
 - essential or desirable importance;
 - display text and the original source-text receipt;
-- a job-relative source span with one-based line numbers and a receipt hash;
+- either a job-relative source span with one-based line numbers and receipt/context hashes, or explicit unknown
+  source state with candidate spans when the receipt is missing or ambiguous;
 - categorical extraction confidence;
 - an explicit `unknown`, `unconfirmed`, `confirmed`, or `corrected` review state.
 
-Identifiers do not include list position, line number, or corrected display text. Reordering criteria or inserting
-unrelated advert lines therefore preserves identity. A changed source receipt creates a new identity. Any old
-confirmation is retained in its user-owned file and reported as orphaned for reconciliation.
+Identifiers do not include list position, line number, sibling count, or corrected display text. Exact duplicate
+criterion projections are deduplicated. Reordering criteria, adding or removing a sibling that shares a receipt, or
+inserting unrelated advert lines therefore preserves identity. A changed source receipt or parser interpretation
+creates a new identity. Any old confirmation is retained in its user-owned file and reported as orphaned for
+reconciliation.
 
-Ambiguous or unresolved source receipts are never silently assigned to the first match. They remain reviewable with
-an explicit unknown reason. Stable evidence references and durable criterion matches will use the same rule:
-identity comes from normalized source content plus a duplicate occurrence, while paths and human-readable citations
-are locators rather than identity.
+Ambiguous or unresolved source receipts are never silently assigned to the first match. Candidate spans carry a
+context anchor, and an explicit occurrence selection is accepted only when that anchor is unique in the current
+candidate set. Otherwise the source remains unknown and the correction becomes reconciliation work. Stable evidence
+references and durable criterion matches will use content-derived semantic identity, while paths and human-readable
+citations remain locators rather than identity.
 
 Generated semantic artifacts may contain reviewed source text because they are application artifacts. Workflow
 control records, manifests, and AgentResponse extensions contain only paths, hashes, identifiers, counts, and other
@@ -49,7 +53,7 @@ privacy-safe scalars.
 - User corrections can change criterion text without changing criterion identity.
 - Advert source changes create explicit reconciliation work instead of attaching an old decision to a different
   requirement.
-- Duplicate source text requires an occurrence discriminator and an ambiguity state.
+- Duplicate source text requires an explicit occurrence plus unique context anchor, otherwise it remains ambiguous.
 - Markdown fit reports become views of structured artifacts in later slices; they are not machine state.
 - Public semantic schemas must be packaged and versioned independently from the agent envelope and Parse schema.
 
@@ -58,7 +62,8 @@ privacy-safe scalars.
 - Add IDs directly to Parsed Job v1: rejected because it changes the accepted strict Parse contract without a
   migration.
 - Use array indexes or source line numbers: rejected because harmless reordering would invalidate identity.
-- Hash corrected or summarized text: rejected because confirmation itself would detach the record it confirms.
+- Hash only the source receipt: rejected because one receipt can encode more than one parsed criterion.
+- Hash user-corrected text: rejected because confirmation itself would detach the record it confirms.
 - Treat existing evidence item labels as permanent identity: rejected because positional extraction renumbers later
   items after an insertion.
 

@@ -6,9 +6,6 @@ from typing import Literal
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from canisend.stage_models import ArtifactFingerprint
-
-
 CRITERIA_SCHEMA_VERSION = "1.0.0"
 CRITERION_MATCHES_SCHEMA_VERSION = "1.0.0"
 CONFIRMED_CORRECTIONS_SCHEMA_VERSION = "1.0.0"
@@ -23,6 +20,7 @@ CriterionImportance = Literal["essential", "desirable"]
 SourceState = Literal["known", "unknown"]
 ExtractionConfidence = Literal["high", "medium", "low", "unknown"]
 CriterionConfirmationState = Literal["unconfirmed", "confirmed", "corrected"]
+CriteriaExtractionState = Literal["extracted", "unknown", "confirmed_empty"]
 RecordState = Literal["active", "superseded", "withdrawn"]
 MatchClassification = Literal["strong", "partial", "weak", "missing", "unknown"]
 MatchReviewState = Literal["proposed", "confirmed", "corrected"]
@@ -58,6 +56,7 @@ class SourceSpanV1(DecisionContractModel):
     start_line: int = Field(ge=1)
     end_line: int = Field(ge=1)
     text_sha256: str
+    anchor_sha256: str
     occurrence: int = Field(ge=1)
     occurrence_count: int = Field(ge=1)
 
@@ -66,10 +65,10 @@ class SourceSpanV1(DecisionContractModel):
     def _valid_path(cls, value: str) -> str:
         return _relative_path(value)
 
-    @field_validator("text_sha256")
+    @field_validator("text_sha256", "anchor_sha256")
     @classmethod
-    def _valid_text_hash(cls, value: str) -> str:
-        return _sha256(value, label="text_sha256")
+    def _valid_span_hashes(cls, value: str, info: object) -> str:
+        return _sha256(value, label=getattr(info, "field_name", "sha256"))
 
     @model_validator(mode="after")
     def _consistent_span(self) -> SourceSpanV1:
@@ -80,13 +79,30 @@ class SourceSpanV1(DecisionContractModel):
         return self
 
 
+class SemanticInputReceiptV1(DecisionContractModel):
+    path: str
+    projection_sha256: str
+
+    @field_validator("path")
+    @classmethod
+    def _valid_path(cls, value: str) -> str:
+        return _relative_path(value)
+
+    @field_validator("projection_sha256")
+    @classmethod
+    def _valid_projection_hash(cls, value: str) -> str:
+        return _sha256(value, label="projection_sha256")
+
+
 class CriterionV1(DecisionContractModel):
     criterion_id: str
     importance: CriterionImportance
     text: str = Field(min_length=1)
+    parsed_text_sha256: str
     source_text: str = Field(min_length=1)
     source_state: SourceState
     source_span: SourceSpanV1 | None = None
+    source_candidates: tuple[SourceSpanV1, ...] = ()
     confidence: ExtractionConfidence
     confirmation_state: CriterionConfirmationState = "unconfirmed"
     confirmation_record_id: str | None = None
@@ -96,6 +112,11 @@ class CriterionV1(DecisionContractModel):
     @classmethod
     def _valid_criterion_id(cls, value: str) -> str:
         return _semantic_id(value, pattern=_CRITERION_ID_RE, label="criterion_id")
+
+    @field_validator("parsed_text_sha256")
+    @classmethod
+    def _valid_parsed_text_hash(cls, value: str) -> str:
+        return _sha256(value, label="parsed_text_sha256")
 
     @field_validator("unknown_reason")
     @classmethod
@@ -122,16 +143,45 @@ class CriterionV1(DecisionContractModel):
                 raise ValueError("a known criterion source requires a span and non-unknown confidence")
             if self.unknown_reason is not None:
                 raise ValueError("a known criterion source must not include unknown_reason")
+            if self.source_candidates:
+                raise ValueError("a known criterion source must not retain candidate spans")
         else:
             if self.source_span is not None or self.confidence != "unknown":
                 raise ValueError("an unknown criterion source must omit span and use unknown confidence")
             if self.unknown_reason is None:
                 raise ValueError("an unknown criterion source requires unknown_reason")
+            if self.unknown_reason == "source_receipt.ambiguous" and len(self.source_candidates) < 2:
+                raise ValueError("an ambiguous source requires at least two candidate spans")
+            if self.unknown_reason != "source_receipt.ambiguous" and self.source_candidates:
+                raise ValueError("only an ambiguous source may include candidate spans")
         if self.confirmation_state == "unconfirmed" and self.confirmation_record_id is not None:
             raise ValueError("an unconfirmed criterion must not link a confirmation record")
         if self.confirmation_state != "unconfirmed" and self.confirmation_record_id is None:
             raise ValueError("a confirmed or corrected criterion must link its confirmation record")
         return self
+
+
+class CorrectionReconciliationV1(DecisionContractModel):
+    correction_id: str
+    criterion_id: str
+    reason: str
+
+    @field_validator("correction_id")
+    @classmethod
+    def _valid_correction_id(cls, value: str) -> str:
+        return _semantic_id(value, pattern=_CORRECTION_ID_RE, label="correction_id")
+
+    @field_validator("criterion_id")
+    @classmethod
+    def _valid_criterion_id(cls, value: str) -> str:
+        return _semantic_id(value, pattern=_CRITERION_ID_RE, label="criterion_id")
+
+    @field_validator("reason")
+    @classmethod
+    def _valid_reason(cls, value: str) -> str:
+        if _REASON_ID_RE.fullmatch(value) is None:
+            raise ValueError("reconciliation reason must be a lowercase reason identifier")
+        return value
 
 
 class CriteriaCatalogV1(DecisionContractModel):
@@ -150,10 +200,13 @@ class CriteriaCatalogV1(DecisionContractModel):
     schema_version: Literal["1.0.0"] = CRITERIA_SCHEMA_VERSION
     job_id: str
     input_fingerprint: str
-    inputs: tuple[ArtifactFingerprint, ...]
+    semantic_inputs: tuple[SemanticInputReceiptV1, ...]
+    extraction_state: CriteriaExtractionState
+    extraction_unknown_reason: str | None = None
+    empty_confirmation_record_id: str | None = None
     criteria: tuple[CriterionV1, ...]
     unresolved_criterion_ids: tuple[str, ...] = ()
-    orphaned_correction_ids: tuple[str, ...] = ()
+    orphaned_corrections: tuple[CorrectionReconciliationV1, ...] = ()
 
     @field_validator("job_id")
     @classmethod
@@ -173,19 +226,29 @@ class CriteriaCatalogV1(DecisionContractModel):
             _semantic_id(value, pattern=_CRITERION_ID_RE, label="criterion_id")
         return values
 
-    @field_validator("orphaned_correction_ids")
+    @field_validator("extraction_unknown_reason")
     @classmethod
-    def _valid_orphaned_ids(cls, values: tuple[str, ...]) -> tuple[str, ...]:
-        _require_unique(values, label="orphaned correction IDs")
-        for value in values:
-            _semantic_id(value, pattern=_CORRECTION_ID_RE, label="correction_id")
-        return values
+    def _valid_extraction_reason(cls, value: str | None) -> str | None:
+        if value is not None and _REASON_ID_RE.fullmatch(value) is None:
+            raise ValueError("extraction_unknown_reason must be a lowercase reason identifier")
+        return value
+
+    @field_validator("empty_confirmation_record_id")
+    @classmethod
+    def _valid_empty_confirmation_id(cls, value: str | None) -> str | None:
+        if value is not None:
+            return _semantic_id(
+                value,
+                pattern=_CORRECTION_ID_RE,
+                label="empty_confirmation_record_id",
+            )
+        return None
 
     @model_validator(mode="after")
     def _consistent_catalog(self) -> CriteriaCatalogV1:
         criterion_ids = tuple(item.criterion_id for item in self.criteria)
         _require_unique(criterion_ids, label="criterion IDs")
-        input_paths = tuple(item.path for item in self.inputs)
+        input_paths = tuple(item.path for item in self.semantic_inputs)
         _require_unique(input_paths, label="criteria input paths")
         expected_unresolved = {
             item.criterion_id
@@ -194,16 +257,47 @@ class CriteriaCatalogV1(DecisionContractModel):
         }
         if set(self.unresolved_criterion_ids) != expected_unresolved:
             raise ValueError("unresolved_criterion_ids must name every unresolved criterion exactly once")
+        confirmation_ids = tuple(
+            item.confirmation_record_id
+            for item in self.criteria
+            if item.confirmation_record_id is not None
+        )
+        _require_unique(confirmation_ids, label="criterion confirmation record IDs")
+        orphaned_ids = tuple(item.correction_id for item in self.orphaned_corrections)
+        _require_unique(orphaned_ids, label="orphaned correction IDs")
+        if set(confirmation_ids) & set(orphaned_ids):
+            raise ValueError("an applied confirmation record cannot also be orphaned")
+        if self.extraction_state == "extracted":
+            if not self.criteria or self.extraction_unknown_reason is not None:
+                raise ValueError("extracted criteria require at least one record and no unknown reason")
+            if self.empty_confirmation_record_id is not None:
+                raise ValueError("extracted criteria must not include an empty confirmation")
+        elif self.extraction_state == "unknown":
+            if self.criteria or self.extraction_unknown_reason is None:
+                raise ValueError("unknown extraction requires no criteria and an explicit reason")
+            if self.empty_confirmation_record_id is not None:
+                raise ValueError("unknown extraction must not include an empty confirmation")
+        else:
+            if self.criteria or self.extraction_unknown_reason is not None:
+                raise ValueError("confirmed-empty extraction requires no criteria and no unknown reason")
+            if self.empty_confirmation_record_id is None:
+                raise ValueError("confirmed-empty extraction requires a confirmation record")
         return self
+
+    @property
+    def orphaned_correction_ids(self) -> tuple[str, ...]:
+        return tuple(item.correction_id for item in self.orphaned_corrections)
 
 
 class CriterionCorrectionV1(DecisionContractModel):
     correction_id: str
     criterion_id: str
     target_source_sha256: str
+    target_criterion_sha256: str
     confirmation: Literal["confirmed", "corrected"]
     corrected_text: str | None = None
     source_occurrence: int | None = Field(default=None, ge=1)
+    source_anchor_sha256: str | None = None
     record_state: RecordState = "active"
     superseded_by: str | None = None
     confirmed_at: AwareDatetime
@@ -218,10 +312,15 @@ class CriterionCorrectionV1(DecisionContractModel):
     def _valid_criterion_id(cls, value: str) -> str:
         return _semantic_id(value, pattern=_CRITERION_ID_RE, label="criterion_id")
 
-    @field_validator("target_source_sha256")
+    @field_validator("target_source_sha256", "target_criterion_sha256")
     @classmethod
-    def _valid_source_hash(cls, value: str) -> str:
-        return _sha256(value, label="target_source_sha256")
+    def _valid_target_hashes(cls, value: str, info: object) -> str:
+        return _sha256(value, label=getattr(info, "field_name", "sha256"))
+
+    @field_validator("source_anchor_sha256")
+    @classmethod
+    def _valid_source_anchor(cls, value: str | None) -> str | None:
+        return _sha256(value, label="source_anchor_sha256") if value is not None else None
 
     @field_validator("superseded_by")
     @classmethod
@@ -236,6 +335,8 @@ class CriterionCorrectionV1(DecisionContractModel):
             raise ValueError("a corrected criterion requires corrected_text")
         if self.confirmation == "confirmed" and self.corrected_text is not None:
             raise ValueError("a confirmed criterion must not include corrected_text")
+        if (self.source_occurrence is None) != (self.source_anchor_sha256 is None):
+            raise ValueError("source occurrence and anchor hash must appear together")
         if self.record_state == "superseded":
             if self.superseded_by is None or self.superseded_by == self.correction_id:
                 raise ValueError("a superseded correction requires a different superseded_by ID")
@@ -277,9 +378,23 @@ class ConfirmedCorrectionsV1(DecisionContractModel):
         )
         _require_unique(active_targets, label="active correction targets")
         known_ids = set(correction_ids)
+        by_id = {item.correction_id: item for item in self.criteria}
         for item in self.criteria:
             if item.superseded_by is not None and item.superseded_by not in known_ids:
                 raise ValueError("superseded_by must resolve within the correction overlay")
+            if item.superseded_by is not None:
+                replacement = by_id[item.superseded_by]
+                if replacement.criterion_id != item.criterion_id:
+                    raise ValueError("a superseding correction must target the same criterion")
+                seen = {item.correction_id}
+                current = replacement
+                while current.superseded_by is not None:
+                    if current.correction_id in seen:
+                        raise ValueError("correction supersession must not contain a cycle")
+                    seen.add(current.correction_id)
+                    current = by_id[current.superseded_by]
+                if current.correction_id in seen or current.record_state != "active":
+                    raise ValueError("a supersession chain must terminate at an active correction")
         return self
 
 

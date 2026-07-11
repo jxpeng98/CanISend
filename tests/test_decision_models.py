@@ -34,9 +34,9 @@ from canisend.decision_models import (
     EvidenceRefV1,
     LanguagePreferenceV1,
     RequiredDocumentPlanV1,
+    SemanticInputReceiptV1,
     SourceSpanV1,
 )
-from canisend.stage_models import ArtifactFingerprint
 
 
 NOW = datetime(2026, 7, 11, 12, 0, tzinfo=UTC)
@@ -56,6 +56,7 @@ def source_span() -> SourceSpanV1:
         start_line=8,
         end_line=8,
         text_sha256=SHA_A,
+        anchor_sha256=SHA_B,
         occurrence=1,
         occurrence_count=1,
     )
@@ -66,6 +67,7 @@ def criterion() -> CriterionV1:
         criterion_id=CRITERION_ID,
         importance="essential",
         text="PhD in Economics",
+        parsed_text_sha256=SHA_C,
         source_text="PhD in Economics",
         source_state="known",
         source_span=source_span(),
@@ -78,10 +80,11 @@ def criteria_catalog() -> CriteriaCatalogV1:
     return CriteriaCatalogV1(
         job_id=JOB_ID,
         input_fingerprint=SHA_B,
-        inputs=(
-            ArtifactFingerprint(path="parsed_job.json", sha256=SHA_A, size_bytes=256),
-            ArtifactFingerprint(path="job_advert.md", sha256=SHA_B, size_bytes=512),
+        semantic_inputs=(
+            SemanticInputReceiptV1(path="parsed_job.json", projection_sha256=SHA_A),
+            SemanticInputReceiptV1(path="job_advert.md", projection_sha256=SHA_B),
         ),
+        extraction_state="extracted",
         criteria=(criterion(),),
         unresolved_criterion_ids=(CRITERION_ID,),
     )
@@ -180,6 +183,7 @@ def document_plan() -> RequiredDocumentPlanV1:
             start_line=5,
             end_line=5,
             text_sha256=SHA_C,
+            anchor_sha256=SHA_B,
             occurrence=1,
             occurrence_count=1,
         ),
@@ -211,6 +215,7 @@ def test_source_span_rejects_unsafe_paths(unsafe_path: str) -> None:
             start_line=1,
             end_line=1,
             text_sha256=SHA_A,
+            anchor_sha256=SHA_B,
             occurrence=1,
             occurrence_count=1,
         )
@@ -237,12 +242,26 @@ def test_criterion_separates_source_unknown_from_user_confirmation() -> None:
         criterion_id=CRITERION_ID,
         importance="essential",
         text="Requirement needs review",
+        parsed_text_sha256=SHA_C,
         source_text="Requirement needs review",
         source_state="unknown",
         source_span=None,
+        source_candidates=(
+            source_span().model_copy(update={"occurrence_count": 2}),
+            source_span().model_copy(
+                update={
+                    "start_line": 12,
+                    "end_line": 12,
+                    "occurrence": 2,
+                    "occurrence_count": 2,
+                    "anchor_sha256": SHA_C,
+                }
+            ),
+        ),
         confidence="unknown",
         confirmation_state="confirmed",
-        unknown_reason="ambiguous_source_receipt",
+        confirmation_record_id=CORRECTION_ID,
+        unknown_reason="source_receipt.ambiguous",
     )
 
     assert unresolved.source_state == "unknown"
@@ -292,9 +311,11 @@ def test_confirmed_corrections_require_consistent_active_records() -> None:
         correction_id=CORRECTION_ID,
         criterion_id=CRITERION_ID,
         target_source_sha256=SHA_A,
+        target_criterion_sha256=SHA_B,
         confirmation="corrected",
         corrected_text="Doctorate in Economics or a related discipline",
         source_occurrence=1,
+        source_anchor_sha256=SHA_C,
         record_state="active",
         confirmed_at=NOW,
     )

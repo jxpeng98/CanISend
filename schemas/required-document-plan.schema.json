@@ -145,6 +145,10 @@
           "title": "Text Sha256",
           "type": "string"
         },
+        "anchor_sha256": {
+          "title": "Anchor Sha256",
+          "type": "string"
+        },
         "occurrence": {
           "minimum": 1,
           "title": "Occurrence",
@@ -161,6 +165,7 @@
         "start_line",
         "end_line",
         "text_sha256",
+        "anchor_sha256",
         "occurrence",
         "occurrence_count"
       ],
