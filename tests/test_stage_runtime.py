@@ -408,3 +408,27 @@ def test_stage_runtime_refuses_job_outside_workspace(tmp_path: Path) -> None:
         prepare_stage(workspace, external, stage="parse", execution_mode="host_agent")
 
     assert captured.value.code == "stage.job_outside_workspace"
+
+
+def test_runtime_control_records_exclude_private_bodies_queries_and_absolute_paths(
+    tmp_path: Path,
+) -> None:
+    workspace, job_dir = _write_workspace(tmp_path)
+    result = run_deterministic_stage(workspace, job_dir, stage="parse")
+    assert result.manifest_path is not None
+    run_dir = result.manifest_path.parent
+    control_paths = [
+        job_dir / "workflow" / "state.json",
+        run_dir / "task-spec.json",
+        run_dir / "tasks" / result.manifest.task_id / "result.json",
+        run_dir / "validation" / "report.json",
+        run_dir / "promotion.json",
+        run_dir / "manifest.json",
+    ]
+    rendered = "\n".join(path.read_text(encoding="utf-8") for path in control_paths)
+
+    assert "PhD in Economics" not in rendered
+    assert "private=token" not in rendered
+    assert str(workspace) not in rendered
+    assert "job_advert.md" in rendered
+    assert "parsed_job.json" in rendered
