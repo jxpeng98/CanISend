@@ -400,7 +400,8 @@ def test_confirm_stage_cli_exposes_reviewable_catalog_without_agent_v1_change(
     assert confirmed["workflow"]["readiness"] == "review_required"
     assert confirmed["extensions"]["canisend.stage_id"] == "confirm"
     assert confirmed["extensions"]["canisend.unresolved_count"] == 1
-    assert any(item["kind"] == "criteria_catalog" for item in confirmed["artifacts"])
+    criteria = next(item for item in confirmed["artifacts"] if item["kind"] == "criteria_catalog")
+    assert criteria["privacy_tier"] == 2
     assert str(workspace) not in json.dumps(confirmed)
 
 
@@ -455,7 +456,8 @@ def test_evidence_and_match_cli_keep_agent_v1_and_private_bodies_out_of_stdout(
     assert matched["extensions"]["canisend.stage_id"] == "match"
     assert matched["extensions"]["canisend.match_count"] >= 1
     assert matched["extensions"]["canisend.proposed_count"] >= 1
-    assert any(item["kind"] == "criterion_matches" for item in matched["artifacts"])
+    matches = next(item for item in matched["artifacts"] if item["kind"] == "criterion_matches")
+    assert matches["privacy_tier"] == 2
     assert private_marker not in json.dumps(evidence)
     assert private_marker not in json.dumps(matched)
     assert private_marker not in (workspace / job_path / "criterion_matches.json").read_text(

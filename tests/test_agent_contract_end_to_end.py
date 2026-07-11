@@ -31,6 +31,9 @@ def test_agent_contract_survives_fresh_host_session_without_private_body_leaks(t
 
     capabilities = _invoke_json(host_a, ["agent", "capabilities", "--format", "json"])
     _assert_subset(expected_capabilities, capabilities)
+    assert capabilities["protocol"] == expected_capabilities["protocol"]
+    assert capabilities["schema_version"] == expected_capabilities["schema_version"]
+    assert set(capabilities) == set(expected_context_shape["required_top_level"])
 
     intake = _invoke_json(
         host_a,
@@ -76,7 +79,7 @@ def test_agent_contract_survives_fresh_host_session_without_private_body_leaks(t
     host_b_context = _invoke_json(host_b, context_args)
 
     assert _without_request_id(host_a_context) == _without_request_id(host_b_context)
-    assert set(expected_context_shape["required_top_level"]) <= set(host_b_context)
+    assert set(host_b_context) == set(expected_context_shape["required_top_level"])
     assert set(expected_context_shape["required_job_fields"]) <= set(host_b_context["job"])
     assert set(expected_context_shape["required_workflow_fields"]) <= set(host_b_context["workflow"])
     assert listed["jobs"][0]["path"] == job_path
@@ -124,12 +127,22 @@ def _invoke_json(
     return json.loads(result.stdout)
 
 
-def _assert_subset(expected: object, actual: object) -> None:
+def _assert_subset(
+    expected: object,
+    actual: object,
+    *,
+    path: tuple[str, ...] = (),
+) -> None:
     if isinstance(expected, dict):
         assert isinstance(actual, dict)
         for key, value in expected.items():
             assert key in actual
-            _assert_subset(value, actual[key])
+            _assert_subset(value, actual[key], path=(*path, key))
+        return
+    if path == ("capabilities", "operations"):
+        assert isinstance(expected, list)
+        assert isinstance(actual, list)
+        assert set(expected) <= set(actual)
         return
     assert expected == actual
 

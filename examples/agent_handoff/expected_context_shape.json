@@ -43,6 +43,9 @@
     "evidence_snapshot_body",
     "evidence_catalog_body",
     "package_body",
-    "source_url_query"
+    "source_url_query",
+    "corrected_text",
+    "rationale",
+    "user_mutation_candidate_body"
   ]
 }

@@ -11,6 +11,8 @@ import pytest
 from canisend.agent_protocol import (
     AGENT_PROTOCOL,
     AGENT_SCHEMA_VERSION,
+    KNOWN_AGENT_ERROR_CODES,
+    SUPPORTED_AGENT_OPERATIONS,
     AgentError,
     AgentResponse,
     ArtifactReference,
@@ -25,6 +27,28 @@ from canisend.agent_protocol import (
     error_response,
     success_response,
 )
+
+
+TASK5_AGENT_OPERATIONS = {
+    "criteria.corrections_status",
+    "criteria.corrections_initialize",
+    "criteria.corrections_update",
+    "decision.status",
+    "decision.initialize",
+    "decision.update",
+    "user_mutation.recover",
+}
+
+TASK5_USER_INPUT_ERROR_CODES = {
+    "user_input.not_initialized",
+    "user_input.invalid",
+    "user_input.unsafe_path",
+    "user_input.consent_required",
+    "user_input.conflict",
+    "user_input.dependency_not_current",
+    "user_input.store_failed",
+    "user_input.recovery_required",
+}
 
 
 def test_agent_response_serializes_protocol_and_operation() -> None:
@@ -45,6 +69,21 @@ def test_agent_response_serializes_protocol_and_operation() -> None:
     assert payload["request_id"].startswith("req_")
     assert payload["warnings"] == ["profile evidence is missing"]
     assert payload["error"] is None
+
+
+def test_task5_agent_capabilities_are_additive_v1_operations() -> None:
+    capabilities = default_agent_capabilities("0.2.0")
+
+    assert TASK5_AGENT_OPERATIONS <= set(SUPPORTED_AGENT_OPERATIONS)
+    assert TASK5_AGENT_OPERATIONS <= set(capabilities.operations)
+    assert len(capabilities.operations) == len(set(capabilities.operations))
+    assert capabilities.protocol_versions == [AGENT_PROTOCOL]
+    assert capabilities.schema_versions == [AGENT_SCHEMA_VERSION]
+
+
+def test_task5_user_input_failures_have_stable_dotted_codes() -> None:
+    assert TASK5_USER_INPUT_ERROR_CODES <= KNOWN_AGENT_ERROR_CODES
+    assert all(code.startswith("user_input.") for code in TASK5_USER_INPUT_ERROR_CODES)
 
 
 def test_agent_response_rejects_unknown_fields() -> None:

@@ -9,6 +9,7 @@ import typer
 from canisend import __version__
 from canisend.agent_protocol import (
     AgentResponse,
+    WorkflowSnapshotReference,
     agent_response_lines,
     artifact_reference_from_path,
     default_agent_capabilities,
@@ -17,6 +18,7 @@ from canisend.agent_protocol import (
     success_response,
 )
 from canisend.evidence import EvidenceAugmentationError, extract_profile_evidence
+from canisend.decision_models import MAX_USER_REVISION
 from canisend.examples import run_packaged_example
 from canisend.git_tracking import GitTrackingError, git_add_application_materials
 from canisend.jobs import create_job, create_job_from_lead, list_jobs as list_job_folders, slugify
@@ -52,6 +54,23 @@ from canisend.stage_runtime import (
     submit_stage_candidate,
 )
 from canisend.typst import render_typst_files
+from canisend.user_mutation_agent import (
+    application_decision_status_agent_response,
+    corrections_status_agent_response,
+    load_corrections_patch_file,
+    load_decision_patch_file,
+    mutation_outcome_agent_response,
+    user_mutation_error_response,
+)
+from canisend.user_mutations import (
+    UserMutationError,
+    apply_user_patch,
+    initialize_application_decision,
+    initialize_confirmed_corrections,
+    inspect_application_decision,
+    inspect_user_artifact,
+    recover_user_mutation,
+)
 from canisend.versioning import fetch_remote_versions, format_version_report
 from canisend.workflow_state import (
     derive_workflow_snapshot,
@@ -100,6 +119,21 @@ stage_app = typer.Typer(
     no_args_is_help=True,
 )
 app.add_typer(stage_app, name="stage")
+corrections_app = typer.Typer(
+    help="Inspect and update the user-owned confirmed corrections record.",
+    no_args_is_help=True,
+)
+app.add_typer(corrections_app, name="corrections")
+decision_app = typer.Typer(
+    help="Inspect and update the user-owned apply, hold, or skip decision.",
+    no_args_is_help=True,
+)
+app.add_typer(decision_app, name="decision")
+user_mutation_app = typer.Typer(
+    help="Recover a previously accepted user-owned mutation.",
+    no_args_is_help=True,
+)
+app.add_typer(user_mutation_app, name="user-mutation")
 
 
 def _version_callback(value: bool) -> None:
@@ -499,6 +533,362 @@ def stage_run_command(
     except StageRuntimeError as exc:
         response = stage_error_response(operation, exc)
     _emit_agent_response(response, output_format=output_format)
+
+
+@corrections_app.command("status")
+def corrections_status_command(
+    job: Path = typer.Option(..., "--job", help="Job folder path or workspace-relative job identifier."),
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="Initialized workspace containing the job.",
+    ),
+    output_format: str = typer.Option(
+        "text",
+        "--format",
+        help="Output format: text or json.",
+    ),
+) -> None:
+    """Inspect the user-owned corrections record without reading its body into the response."""
+    _validate_output_format(output_format)
+    operation = "criteria.corrections_status"
+    try:
+        config = load_workspace_config(workspace)
+        job_dir = config.job_dir(job)
+        response = corrections_status_agent_response(
+            config.root,
+            job_dir,
+            inspect_user_artifact(config.root, job_dir, "corrections"),
+        )
+    except UserMutationError as exc:
+        response = user_mutation_error_response(operation, exc)
+    except Exception:
+        response = _unexpected_user_mutation_error_response(operation)
+    _emit_agent_response(response, output_format=output_format)
+
+
+@corrections_app.command("init")
+def corrections_init_command(
+    job: Path = typer.Option(..., "--job", help="Job folder path or workspace-relative job identifier."),
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="Initialized workspace containing the job.",
+    ),
+    confirm_user_owned_write: bool = typer.Option(
+        False,
+        "--confirm-user-owned-write",
+        help="Explicitly authorize creation of the user-owned corrections record.",
+    ),
+    output_format: str = typer.Option(
+        "text",
+        "--format",
+        help="Output format: text or json.",
+    ),
+) -> None:
+    """Create the unresolved corrections template only when it is absent."""
+    _validate_output_format(output_format)
+    operation = "criteria.corrections_initialize"
+    try:
+        config = load_workspace_config(workspace)
+        job_dir = config.job_dir(job)
+        outcome = initialize_confirmed_corrections(
+            config.root,
+            job_dir,
+            consent_confirmed=confirm_user_owned_write,
+        )
+        response = mutation_outcome_agent_response(
+            config.root,
+            job_dir,
+            outcome,
+            operation=operation,
+        )
+    except UserMutationError as exc:
+        response = user_mutation_error_response(operation, exc)
+    except Exception:
+        response = _unexpected_user_mutation_error_response(operation)
+    _emit_agent_response(response, output_format=output_format)
+
+
+@corrections_app.command("update")
+def corrections_update_command(
+    job: Path = typer.Option(..., "--job", help="Job folder path or workspace-relative job identifier."),
+    patch_file: Path = typer.Option(
+        ...,
+        "--patch-file",
+        help="Strict bounded YAML or JSON containing one supported corrections patch.",
+    ),
+    expected_revision: str = typer.Option(
+        ...,
+        "--expected-revision",
+        help="Current corrections revision used as the compare-and-swap baseline.",
+    ),
+    expected_sha256: str = typer.Option(
+        ...,
+        "--expected-sha256",
+        help="Current corrections SHA-256 used as the compare-and-swap baseline.",
+    ),
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="Initialized workspace containing the job.",
+    ),
+    confirm_user_owned_write: bool = typer.Option(
+        False,
+        "--confirm-user-owned-write",
+        help="Explicitly authorize this one scoped corrections update.",
+    ),
+    output_format: str = typer.Option(
+        "text",
+        "--format",
+        help="Output format: text or json.",
+    ),
+) -> None:
+    """Apply one scoped corrections patch through revision/hash compare-and-swap."""
+    _validate_output_format(output_format)
+    operation = "criteria.corrections_update"
+    try:
+        config = load_workspace_config(workspace)
+        job_dir = config.job_dir(job)
+        patch = load_corrections_patch_file(patch_file)
+        outcome = apply_user_patch(
+            config.root,
+            job_dir,
+            patch,
+            expected_sha256=expected_sha256,
+            expected_revision=_user_owned_expected_revision(expected_revision),
+            consent_confirmed=confirm_user_owned_write,
+        )
+        response = mutation_outcome_agent_response(
+            config.root,
+            job_dir,
+            outcome,
+            operation=operation,
+        )
+    except UserMutationError as exc:
+        response = user_mutation_error_response(operation, exc)
+    except Exception:
+        response = _unexpected_user_mutation_error_response(operation)
+    _emit_agent_response(response, output_format=output_format)
+
+
+@decision_app.command("status")
+def decision_status_command(
+    job: Path = typer.Option(..., "--job", help="Job folder path or workspace-relative job identifier."),
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="Initialized workspace containing the job.",
+    ),
+    output_format: str = typer.Option(
+        "text",
+        "--format",
+        help="Output format: text or json.",
+    ),
+) -> None:
+    """Inspect the user-owned decision and its current basis without returning rationale."""
+    _validate_output_format(output_format)
+    operation = "decision.status"
+    try:
+        config = load_workspace_config(workspace)
+        job_dir = config.job_dir(job)
+        response = application_decision_status_agent_response(
+            config.root,
+            job_dir,
+            inspect_application_decision(config.root, job_dir),
+        )
+    except UserMutationError as exc:
+        response = user_mutation_error_response(operation, exc)
+    except Exception:
+        response = _unexpected_user_mutation_error_response(operation)
+    _emit_agent_response(response, output_format=output_format)
+
+
+@decision_app.command("init")
+def decision_init_command(
+    job: Path = typer.Option(..., "--job", help="Job folder path or workspace-relative job identifier."),
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="Initialized workspace containing the job.",
+    ),
+    confirm_user_owned_write: bool = typer.Option(
+        False,
+        "--confirm-user-owned-write",
+        help="Explicitly authorize creation of the user-owned application decision.",
+    ),
+    output_format: str = typer.Option(
+        "text",
+        "--format",
+        help="Output format: text or json.",
+    ),
+) -> None:
+    """Create the explicitly undecided application decision only when absent."""
+    _validate_output_format(output_format)
+    operation = "decision.initialize"
+    try:
+        config = load_workspace_config(workspace)
+        job_dir = config.job_dir(job)
+        outcome = initialize_application_decision(
+            config.root,
+            job_dir,
+            consent_confirmed=confirm_user_owned_write,
+        )
+        response = mutation_outcome_agent_response(
+            config.root,
+            job_dir,
+            outcome,
+            operation=operation,
+        )
+    except UserMutationError as exc:
+        response = user_mutation_error_response(operation, exc)
+    except Exception:
+        response = _unexpected_user_mutation_error_response(operation)
+    _emit_agent_response(response, output_format=output_format)
+
+
+@decision_app.command("update")
+def decision_update_command(
+    job: Path = typer.Option(..., "--job", help="Job folder path or workspace-relative job identifier."),
+    patch_file: Path = typer.Option(
+        ...,
+        "--patch-file",
+        help="Strict bounded YAML or JSON containing one supported decision patch.",
+    ),
+    expected_revision: str = typer.Option(
+        ...,
+        "--expected-revision",
+        help="Current decision revision used as the compare-and-swap baseline.",
+    ),
+    expected_sha256: str = typer.Option(
+        ...,
+        "--expected-sha256",
+        help="Current decision SHA-256 used as the compare-and-swap baseline.",
+    ),
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="Initialized workspace containing the job.",
+    ),
+    confirm_user_owned_write: bool = typer.Option(
+        False,
+        "--confirm-user-owned-write",
+        help="Explicitly authorize this one scoped decision update.",
+    ),
+    output_format: str = typer.Option(
+        "text",
+        "--format",
+        help="Output format: text or json.",
+    ),
+) -> None:
+    """Apply one scoped decision patch through revision/hash compare-and-swap."""
+    _validate_output_format(output_format)
+    operation = "decision.update"
+    try:
+        config = load_workspace_config(workspace)
+        job_dir = config.job_dir(job)
+        patch = load_decision_patch_file(patch_file)
+        outcome = apply_user_patch(
+            config.root,
+            job_dir,
+            patch,
+            expected_sha256=expected_sha256,
+            expected_revision=_user_owned_expected_revision(expected_revision),
+            consent_confirmed=confirm_user_owned_write,
+        )
+        response = mutation_outcome_agent_response(
+            config.root,
+            job_dir,
+            outcome,
+            operation=operation,
+        )
+    except UserMutationError as exc:
+        response = user_mutation_error_response(operation, exc)
+    except Exception:
+        response = _unexpected_user_mutation_error_response(operation)
+    _emit_agent_response(response, output_format=output_format)
+
+
+@user_mutation_app.command("recover")
+def user_mutation_recover_command(
+    job: Path = typer.Option(..., "--job", help="Job folder path or workspace-relative job identifier."),
+    mutation_id: str = typer.Option(
+        ...,
+        "--mutation-id",
+        help="Opaque mutation identifier from a prior accepted write response.",
+    ),
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="Initialized workspace containing the job.",
+    ),
+    confirm_user_owned_write: bool = typer.Option(
+        False,
+        "--confirm-user-owned-write",
+        help="Explicitly authorize completion of the accepted mutation claim.",
+    ),
+    output_format: str = typer.Option(
+        "text",
+        "--format",
+        help="Output format: text or json.",
+    ),
+) -> None:
+    """Complete a durable accepted mutation without accepting a new patch."""
+    _validate_output_format(output_format)
+    operation = "user_mutation.recover"
+    try:
+        config = load_workspace_config(workspace)
+        job_dir = config.job_dir(job)
+        outcome = recover_user_mutation(
+            config.root,
+            job_dir,
+            mutation_id,
+            consent_confirmed=confirm_user_owned_write,
+        )
+        response = mutation_outcome_agent_response(
+            config.root,
+            job_dir,
+            outcome,
+            operation=operation,
+        )
+    except UserMutationError as exc:
+        response = user_mutation_error_response(
+            operation,
+            exc,
+            mutation_id=mutation_id,
+        )
+    except Exception:
+        response = _unexpected_user_mutation_error_response(operation)
+    _emit_agent_response(response, output_format=output_format)
+
+
+def _unexpected_user_mutation_error_response(operation: str) -> AgentResponse:
+    return error_response(
+        operation=operation,
+        code="operation.failed",
+        message="CanISend could not complete the requested user-owned operation.",
+        workflow=WorkflowSnapshotReference(phase="unknown", readiness="blocked"),
+    )
+
+
+def _user_owned_expected_revision(value: str) -> int:
+    if (
+        not value
+        or len(value) > 20
+        or not value.isascii()
+        or not value.isdigit()
+    ):
+        raise UserMutationError(
+            "user_input.invalid",
+            "The expected user-owned revision is invalid.",
+        )
+    revision = int(value)
+    if revision > MAX_USER_REVISION:
+        raise UserMutationError(
+            "user_input.invalid",
+            "The expected user-owned revision is invalid.",
+        )
+    return revision
 
 
 def _stage_mode(value: str) -> str:

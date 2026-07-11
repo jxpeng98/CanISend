@@ -55,6 +55,13 @@ SUPPORTED_AGENT_OPERATIONS = (
     "job.intake_from_lead",
     "job.list",
     "package.check",
+    "criteria.corrections_status",
+    "criteria.corrections_initialize",
+    "criteria.corrections_update",
+    "decision.status",
+    "decision.initialize",
+    "decision.update",
+    "user_mutation.recover",
     "workflow.stage_status",
     "workflow.stage_prepare",
     "workflow.stage_submit",
@@ -71,6 +78,14 @@ KNOWN_AGENT_ERROR_CODES = frozenset(
         "input.invalid",
         "source.import_failed",
         "operation.failed",
+        "user_input.not_initialized",
+        "user_input.invalid",
+        "user_input.unsafe_path",
+        "user_input.consent_required",
+        "user_input.conflict",
+        "user_input.dependency_not_current",
+        "user_input.store_failed",
+        "user_input.recovery_required",
         "stage.unknown",
         "stage.unsupported",
         "stage.unsupported_mode",
@@ -463,6 +478,8 @@ def agent_response_lines(response: AgentResponse) -> list[str]:
         lines.append(f"Gate: {response.gate.status} ({response.gate.issue_count} issue(s))")
     if response.error is not None:
         lines.append(f"Error: {response.error.code} — {response.error.message}")
+        if response.error.hint:
+            lines.append(f"Hint: {response.error.hint}")
     return lines
 
 

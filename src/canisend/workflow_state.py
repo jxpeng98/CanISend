@@ -14,6 +14,7 @@ from canisend.agent_protocol import (
     ConsentRequirement,
     GateOutcome,
     JobReference,
+    JsonScalar,
     NextAction,
     WorkflowSnapshotReference,
     artifact_reference_from_path,
@@ -38,6 +39,7 @@ class DerivedWorkflowSnapshot:
     blockers: tuple[str, ...] = ()
     next_actions: tuple[NextAction, ...] = ()
     gate: GateOutcome | None = None
+    extensions: tuple[tuple[str, JsonScalar], ...] = ()
     error_code: str | None = None
     error_message: str | None = None
 
@@ -66,6 +68,7 @@ def workflow_snapshot_agent_response(
             blockers=list(snapshot.blockers),
             next_actions=list(snapshot.next_actions),
             gate=snapshot.gate,
+            extensions=dict(snapshot.extensions),
             error=AgentError(
                 code=snapshot.error_code,
                 message=snapshot.error_message or "The requested context could not be derived.",
@@ -82,6 +85,7 @@ def workflow_snapshot_agent_response(
         blockers=list(snapshot.blockers),
         next_actions=list(snapshot.next_actions),
         gate=snapshot.gate,
+        extensions=dict(snapshot.extensions),
     )
 
 
@@ -455,6 +459,62 @@ def _decision_spine_snapshot(
     # Local imports avoid coupling the legacy snapshot module into runtime startup.
     from canisend.stage_agent import stage_status_agent_response
     from canisend.stage_runtime import StageRuntimeError, inspect_stage_status
+    from canisend.user_mutation_agent import (
+        corrections_agent_projection,
+        decision_agent_projection,
+    )
+    from canisend.user_mutations import (
+        UserMutationError,
+        inspect_application_decision,
+        inspect_current_artifact_mutation,
+        inspect_user_artifact,
+    )
+
+    # Durable user-mutation controls outrank ordinary stage routing.  A fresh
+    # agent session must recover a lost mutation response before it can rerun a
+    # dependent stage or accept another user-owned update.
+    for artifact in ("corrections", "decision"):
+        audit = inspect_current_artifact_mutation(
+            workspace,
+            job_dir,
+            artifact,  # type: ignore[arg-type]
+        )
+        if audit.status not in {"promotion_pending", "receipt_pending", "conflict"}:
+            continue
+        if artifact == "corrections":
+            try:
+                current_user_artifact = inspect_user_artifact(
+                    workspace,
+                    job_dir,
+                    "corrections",
+                )
+            except UserMutationError:
+                current_user_artifact = None
+            projection = corrections_agent_projection(
+                workspace,
+                job_dir,
+                current_user_artifact,
+            )
+        else:
+            projection = decision_agent_projection(
+                workspace,
+                job_dir,
+                inspect_application_decision(workspace, job_dir),
+            )
+        return DerivedWorkflowSnapshot(
+            workflow=WorkflowSnapshotReference(
+                phase="unknown",
+                readiness=projection.readiness,
+            ),
+            job=job_reference,
+            artifacts=_combined_artifacts(base_artifacts, projection.artifacts),
+            missing_fields=projection.missing_fields,
+            required_consents=projection.required_consents,
+            warnings=projection.warnings,
+            blockers=projection.blockers,
+            next_actions=projection.next_actions,
+            extensions=projection.extensions,
+        )
 
     for stage_id in ("parse", "confirm", "evidence", "match"):
         try:
@@ -480,30 +540,117 @@ def _decision_spine_snapshot(
                 ),
             )
         response = stage_status_agent_response(workspace, job_dir, inspection)
-        ready = (
+        technically_current = (
             inspection.stage.status == "succeeded"
             and not inspection.reasons
             and not inspection.output_drift
+        )
+        ready = (
+            technically_current
             and response.workflow is not None
             and response.workflow.readiness == "ready_for_next_stage"
         )
+        if stage_id == "confirm" and technically_current and not ready:
+            try:
+                corrections = inspect_user_artifact(
+                    workspace,
+                    job_dir,
+                    "corrections",
+                )
+                projection = corrections_agent_projection(
+                    workspace,
+                    job_dir,
+                    corrections,
+                )
+            except UserMutationError:
+                return DerivedWorkflowSnapshot(
+                    workflow=WorkflowSnapshotReference(
+                        phase="unknown",
+                        readiness="blocked",
+                    ),
+                    job=job_reference,
+                    artifacts=_combined_artifacts(base_artifacts, tuple(response.artifacts)),
+                    blockers=("The user-owned corrections record cannot be inspected safely.",),
+                    next_actions=(
+                        NextAction(
+                            id="criteria.corrections_review_file",
+                            label="Review the existing corrections file before continuing",
+                        ),
+                    ),
+                    extensions=tuple(response.extensions.items()),
+                )
+            return DerivedWorkflowSnapshot(
+                workflow=WorkflowSnapshotReference(
+                    phase="unknown",
+                    readiness="review_required",
+                ),
+                job=job_reference,
+                artifacts=_combined_artifacts(
+                    base_artifacts,
+                    tuple(response.artifacts),
+                    projection.artifacts,
+                ),
+                missing_fields=projection.missing_fields,
+                required_consents=projection.required_consents,
+                warnings=tuple(response.warnings) + projection.warnings,
+                blockers=tuple(response.blockers)
+                + ("Current criteria require explicit user confirmation or correction.",),
+                next_actions=projection.next_actions,
+                extensions=tuple(
+                    {
+                        **response.extensions,
+                        **projection.extension_dict(),
+                    }.items()
+                ),
+            )
+        if stage_id == "match" and technically_current:
+            decision = decision_agent_projection(
+                workspace,
+                job_dir,
+                inspect_application_decision(workspace, job_dir),
+            )
+            proposed_warning = (
+                (
+                    "Criterion match classifications remain proposed; the user-owned "
+                    "application decision does not rewrite them."
+                ),
+            ) if int(response.extensions.get("canisend.proposed_count") or 0) > 0 else ()
+            return DerivedWorkflowSnapshot(
+                workflow=WorkflowSnapshotReference(
+                    phase="unknown",
+                    readiness=decision.readiness,
+                ),
+                job=job_reference,
+                artifacts=_combined_artifacts(
+                    base_artifacts,
+                    tuple(response.artifacts),
+                    decision.artifacts,
+                ),
+                missing_fields=decision.missing_fields,
+                required_consents=decision.required_consents,
+                warnings=proposed_warning + decision.warnings,
+                blockers=decision.blockers,
+                next_actions=decision.next_actions,
+                extensions=tuple(
+                    {
+                        **response.extensions,
+                        **decision.extension_dict(),
+                    }.items()
+                ),
+            )
         if ready and stage_id != "match":
             continue
-        combined_artifacts: dict[tuple[str | None, str], ArtifactReference] = {
-            (artifact.path, artifact.kind): artifact for artifact in base_artifacts
-        }
-        for artifact in response.artifacts:
-            combined_artifacts[(artifact.path, artifact.kind)] = artifact
         return DerivedWorkflowSnapshot(
             workflow=response.workflow
             or WorkflowSnapshotReference(phase="unknown", readiness="unknown"),
             job=job_reference,
-            artifacts=tuple(combined_artifacts.values()),
+            artifacts=_combined_artifacts(base_artifacts, tuple(response.artifacts)),
             required_consents=tuple(response.required_consents),
             warnings=tuple(response.warnings),
             blockers=tuple(response.blockers),
             next_actions=tuple(response.next_actions),
             gate=response.gate,
+            extensions=tuple(response.extensions.items()),
         )
     return None
 
@@ -679,6 +826,7 @@ def _result(
     actions: list[NextAction],
     consents: list[ConsentRequirement] | None = None,
     gate: GateOutcome | None = None,
+    extensions: dict[str, JsonScalar] | None = None,
 ) -> DerivedWorkflowSnapshot:
     return DerivedWorkflowSnapshot(
         workflow=WorkflowSnapshotReference(phase=phase, readiness=readiness),
@@ -690,7 +838,18 @@ def _result(
         blockers=tuple(dict.fromkeys(blockers)),
         next_actions=tuple(actions),
         gate=gate,
+        extensions=tuple((extensions or {}).items()),
     )
+
+
+def _combined_artifacts(
+    *groups: tuple[ArtifactReference, ...],
+) -> tuple[ArtifactReference, ...]:
+    combined: dict[tuple[str | None, str], ArtifactReference] = {}
+    for group in groups:
+        for artifact in group:
+            combined[(artifact.path, artifact.kind)] = artifact
+    return tuple(combined.values())
 
 
 def _error_snapshot(
