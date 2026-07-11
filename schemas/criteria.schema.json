@@ -96,6 +96,18 @@
           "title": "Confirmation State",
           "type": "string"
         },
+        "confirmation_record_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confirmation Record Id"
+        },
         "unknown_reason": {
           "anyOf": [
             {

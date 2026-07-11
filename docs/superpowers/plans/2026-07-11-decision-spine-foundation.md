@@ -58,12 +58,12 @@ user-owned application decisions and briefs, and advert-driven document planning
 - `src/canisend/stages/confirm_stage.py`
 - `tests/test_confirm_stage.py`
 
-- [ ] Project Parsed Job v1 criteria into stable `criteria.json` records.
-- [ ] Resolve one-based source spans and record ambiguity instead of silently choosing a source occurrence.
-- [ ] Apply valid user confirmations/corrections without changing stable criterion IDs.
-- [ ] Preserve unmatched corrections as orphaned reconciliation actions.
-- [ ] Fingerprint only the criteria projection, Confirm contract/schema, and validated correction overlay.
-- [ ] Prove reordering criteria or inserting unrelated advert lines preserves IDs.
+- [x] Project Parsed Job v1 criteria into stable `criteria.json` records.
+- [x] Resolve one-based source spans and record ambiguity instead of silently choosing a source occurrence.
+- [x] Apply valid user confirmations/corrections without changing stable criterion IDs.
+- [x] Preserve unmatched corrections as orphaned reconciliation actions.
+- [x] Fingerprint only the criteria projection, Confirm contract/schema, and validated correction overlay.
+- [x] Prove reordering criteria or inserting unrelated advert lines preserves IDs.
 
 ## Task 3: Multi-Stage Runtime Adapter And Confirm Slice
 

@@ -89,6 +89,7 @@ class CriterionV1(DecisionContractModel):
     source_span: SourceSpanV1 | None = None
     confidence: ExtractionConfidence
     confirmation_state: CriterionConfirmationState = "unconfirmed"
+    confirmation_record_id: str | None = None
     unknown_reason: str | None = None
 
     @field_validator("criterion_id")
@@ -103,6 +104,17 @@ class CriterionV1(DecisionContractModel):
             raise ValueError("unknown_reason must be a lowercase reason identifier")
         return value
 
+    @field_validator("confirmation_record_id")
+    @classmethod
+    def _valid_confirmation_record_id(cls, value: str | None) -> str | None:
+        if value is not None:
+            return _semantic_id(
+                value,
+                pattern=_CORRECTION_ID_RE,
+                label="confirmation_record_id",
+            )
+        return None
+
     @model_validator(mode="after")
     def _consistent_source_state(self) -> CriterionV1:
         if self.source_state == "known":
@@ -115,6 +127,10 @@ class CriterionV1(DecisionContractModel):
                 raise ValueError("an unknown criterion source must omit span and use unknown confidence")
             if self.unknown_reason is None:
                 raise ValueError("an unknown criterion source requires unknown_reason")
+        if self.confirmation_state == "unconfirmed" and self.confirmation_record_id is not None:
+            raise ValueError("an unconfirmed criterion must not link a confirmation record")
+        if self.confirmation_state != "unconfirmed" and self.confirmation_record_id is None:
+            raise ValueError("a confirmed or corrected criterion must link its confirmation record")
         return self
 
 
