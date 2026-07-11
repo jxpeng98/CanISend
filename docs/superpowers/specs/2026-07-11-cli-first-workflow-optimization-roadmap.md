@@ -1,6 +1,6 @@
 # CLI-First Workflow Optimization Execution Roadmap
 
-**Status:** Active — Stage 1 implemented and locally accepted; remote candidate CI pending
+**Status:** Active — Stage 1 locally accepted; Stage 2 Decision Spine in progress
 
 **Date:** 2026-07-11
 
@@ -162,6 +162,9 @@ CV or package status does not invalidate Parse.
 - automatic portal work, uploads, or submission.
 
 ## Stage 2: Decision Spine
+
+**Stage status:** In progress on `feat/decision-spine-foundation`. ADR-009 and ADR-010 freeze semantic identity and
+user-owned input boundaries; the first implementation slice targets stable criteria and resumable Confirm.
 
 ### Deliverables
 
