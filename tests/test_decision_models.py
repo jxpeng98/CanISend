@@ -14,6 +14,7 @@ from canisend.decision_models import (
     CONFIRMED_CORRECTIONS_SCHEMA_VERSION,
     CRITERIA_SCHEMA_VERSION,
     CRITERION_MATCHES_SCHEMA_VERSION,
+    EVIDENCE_CATALOG_SCHEMA_VERSION,
     REQUIRED_DOCUMENT_PLAN_SCHEMA_VERSION,
     ApplicationBriefV1,
     ApplicationDecisionV1,
@@ -31,7 +32,10 @@ from canisend.decision_models import (
     DocumentRequirementV1,
     DocumentTaskV1,
     EvidenceGapV1,
+    EvidenceCatalogItemV1,
+    EvidenceCatalogV1,
     EvidenceRefV1,
+    EvidenceSourceReceiptV1,
     LanguagePreferenceV1,
     RequiredDocumentPlanV1,
     SemanticInputReceiptV1,
@@ -98,6 +102,41 @@ def evidence_ref() -> EvidenceRefV1:
         item_locator="cv-001",
         kind="education",
         content_sha256=SHA_C,
+    )
+
+
+def evidence_catalog() -> EvidenceCatalogV1:
+    return EvidenceCatalogV1(
+        job_id=JOB_ID,
+        input_fingerprint=SHA_A,
+        state="available",
+        source_receipts=(
+            EvidenceSourceReceiptV1(
+                path="profile/profile.yaml",
+                source_type="manifest",
+                content_sha256=SHA_A,
+                size_bytes=100,
+                item_count=0,
+            ),
+            EvidenceSourceReceiptV1(
+                path="profile/generated/cv.evidence.md",
+                source_type="generated_evidence",
+                content_sha256=SHA_B,
+                size_bytes=200,
+                item_count=1,
+            ),
+        ),
+        items=(
+            EvidenceCatalogItemV1(
+                evidence_id=EVIDENCE_ID,
+                path="profile/generated/cv.evidence.md",
+                section="Education",
+                item_locator="cv-001",
+                kind="education",
+                text="PhD in Economics",
+                content_sha256=SHA_C,
+            ),
+        ),
     )
 
 
@@ -353,6 +392,58 @@ def test_evidence_reference_is_locator_only_and_rejects_unsafe_paths() -> None:
         EvidenceRefV1.model_validate({**reference.model_dump(), "text": "private evidence body"})
 
 
+def test_evidence_catalog_keeps_bodies_separate_from_locator_only_references() -> None:
+    catalog = evidence_catalog()
+    item = catalog.items[0]
+
+    assert item.text == "PhD in Economics"
+    assert item.reference == evidence_ref()
+    assert "text" not in item.reference.model_dump()
+
+
+def test_evidence_catalog_requires_state_and_receipt_consistency() -> None:
+    available = evidence_catalog()
+    manifest = available.source_receipts[0]
+    generated = available.source_receipts[1]
+
+    empty = EvidenceCatalogV1(
+        job_id=JOB_ID,
+        input_fingerprint=SHA_A,
+        state="empty",
+        source_receipts=(generated.model_copy(update={"item_count": 0}),),
+        items=(),
+    )
+    unavailable = EvidenceCatalogV1(
+        job_id=JOB_ID,
+        input_fingerprint=SHA_A,
+        state="unavailable",
+        unavailable_reason="evidence.generated_missing",
+        source_receipts=(manifest,),
+        items=(),
+    )
+
+    assert empty.state == "empty"
+    assert unavailable.state == "unavailable"
+    with pytest.raises(ValidationError):
+        EvidenceCatalogV1.model_validate(
+            {**available.model_dump(), "state": "unavailable", "unavailable_reason": None}
+        )
+    with pytest.raises(ValidationError):
+        EvidenceCatalogV1.model_validate(
+            {
+                **available.model_dump(),
+                "source_receipts": list(reversed(available.source_receipts)),
+            }
+        )
+    with pytest.raises(ValidationError):
+        EvidenceCatalogV1.model_validate(
+            {
+                **available.model_dump(),
+                "items": [available.items[0], available.items[0]],
+            }
+        )
+
+
 def test_criterion_match_requires_explicit_gaps_and_resolvable_evidence_ids() -> None:
     missing = CriterionMatchV1(
         criterion_id=CRITERION_ID,
@@ -442,6 +533,7 @@ def test_document_plan_requires_one_task_per_requirement_and_valid_unresolved_id
     ("schema_name", "model"),
     [
         ("criteria.schema.json", criteria_catalog),
+        ("evidence-catalog.schema.json", evidence_catalog),
         ("criterion-matches.schema.json", criterion_matches),
         (
             "confirmed-corrections.schema.json",
@@ -470,6 +562,7 @@ def test_static_decision_schema_is_strict_and_accepts_model_dump(
 
 
 def test_schema_version_constants_are_frozen_at_v1() -> None:
+    assert EVIDENCE_CATALOG_SCHEMA_VERSION == "1.0.0"
     assert CRITERION_MATCHES_SCHEMA_VERSION == "1.0.0"
 
 
@@ -477,6 +570,7 @@ def test_schema_version_constants_are_frozen_at_v1() -> None:
     ("schema_name", "model_class"),
     [
         ("criteria.schema.json", CriteriaCatalogV1),
+        ("evidence-catalog.schema.json", EvidenceCatalogV1),
         ("criterion-matches.schema.json", CriterionMatchesV1),
         ("confirmed-corrections.schema.json", ConfirmedCorrectionsV1),
         ("application-decision.schema.json", ApplicationDecisionV1),

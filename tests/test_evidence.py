@@ -150,6 +150,7 @@ def test_extract_profile_evidence_writes_generated_markdown_from_manifest(tmp_pa
     assert written == [output]
     content = output.read_text()
     assert "# Evidence: cv" in content
+    assert "<!-- canisend-source-sha256:" in content
     assert "## Education" in content
     assert "- [cv-001] `education`: institution: University X" in content
 

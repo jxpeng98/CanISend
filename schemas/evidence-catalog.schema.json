@@ -1,0 +1,162 @@
+{
+  "$defs": {
+    "EvidenceCatalogItemV1": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_id": {
+          "title": "Evidence Id",
+          "type": "string"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "section": {
+          "minLength": 1,
+          "title": "Section",
+          "type": "string"
+        },
+        "item_locator": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Item Locator"
+        },
+        "kind": {
+          "minLength": 1,
+          "title": "Kind",
+          "type": "string"
+        },
+        "text": {
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "content_sha256": {
+          "title": "Content Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "evidence_id",
+        "path",
+        "section",
+        "kind",
+        "text",
+        "content_sha256"
+      ],
+      "title": "EvidenceCatalogItemV1",
+      "type": "object"
+    },
+    "EvidenceSourceReceiptV1": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "source_type": {
+          "enum": [
+            "manifest",
+            "profile_source",
+            "generated_evidence"
+          ],
+          "title": "Source Type",
+          "type": "string"
+        },
+        "content_sha256": {
+          "title": "Content Sha256",
+          "type": "string"
+        },
+        "size_bytes": {
+          "minimum": 0,
+          "title": "Size Bytes",
+          "type": "integer"
+        },
+        "item_count": {
+          "minimum": 0,
+          "title": "Item Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "path",
+        "source_type",
+        "content_sha256",
+        "size_bytes",
+        "item_count"
+      ],
+      "title": "EvidenceSourceReceiptV1",
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/jxpeng98/CanISend/schemas/evidence-catalog.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "job_id": {
+      "title": "Job Id",
+      "type": "string"
+    },
+    "input_fingerprint": {
+      "title": "Input Fingerprint",
+      "type": "string"
+    },
+    "state": {
+      "enum": [
+        "available",
+        "empty",
+        "unavailable"
+      ],
+      "title": "State",
+      "type": "string"
+    },
+    "unavailable_reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Unavailable Reason"
+    },
+    "source_receipts": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/EvidenceSourceReceiptV1"
+      },
+      "title": "Source Receipts",
+      "type": "array"
+    },
+    "items": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/EvidenceCatalogItemV1"
+      },
+      "title": "Items",
+      "type": "array"
+    }
+  },
+  "required": [
+    "job_id",
+    "input_fingerprint",
+    "state"
+  ],
+  "title": "CanISendEvidenceCatalogV1",
+  "type": "object"
+}

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from hashlib import sha256
 import json
 from pathlib import Path
 import re
@@ -208,12 +209,22 @@ def extract_profile_evidence(
             continue
         source_path = profile_dir / source_value
         output_path = _output_path_for_source(profile_dir, source_key, generated)
-        evidence = extract_typst_evidence(source_path)
+        source_bytes = source_path.read_bytes()
+        try:
+            source_text = source_bytes.decode("utf-8")
+        except UnicodeError as exc:
+            raise EvidenceAugmentationError("Profile sources must be valid UTF-8 text") from exc
+        evidence = _extract_typst_evidence_from_lines(
+            path=source_path,
+            lines=source_text.splitlines(),
+            initial_section="Unsectioned",
+            infer_section_titles=False,
+        )
         if llm_provider is not None:
             evidence = augment_typst_evidence_with_provider(
                 source_key=str(source_key),
                 source_path=source_path,
-                source_text=source_path.read_text(encoding="utf-8"),
+                source_text=source_text,
                 local_evidence=evidence,
                 provider=llm_provider,
                 prompt_text=read_resource_text(
@@ -222,7 +233,14 @@ def extract_profile_evidence(
                 ),
             )
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(_evidence_markdown(source_key, evidence), encoding="utf-8")
+        output_path.write_text(
+            _evidence_markdown(
+                source_key,
+                evidence,
+                source_sha256=sha256(source_bytes).hexdigest(),
+            ),
+            encoding="utf-8",
+        )
         written.append(output_path)
 
     return written
@@ -513,8 +531,17 @@ def _output_path_for_source(profile_dir: Path, source_key: str, generated: dict[
     return profile_dir / output
 
 
-def _evidence_markdown(source_key: str, evidence: list[EvidenceItem]) -> str:
-    lines = [f"# Evidence: {source_key}", ""]
+def _evidence_markdown(
+    source_key: str,
+    evidence: list[EvidenceItem],
+    *,
+    source_sha256: str,
+) -> str:
+    lines = [
+        f"# Evidence: {source_key}",
+        f"<!-- canisend-source-sha256: {source_sha256} -->",
+        "",
+    ]
     current_section = ""
 
     item_prefix = _evidence_item_prefix(source_key)

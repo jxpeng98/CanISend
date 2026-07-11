@@ -9,12 +9,14 @@ from canisend.decision_models import (
     ConfirmedCorrectionsV1,
     CriteriaCatalogV1,
     CriterionMatchesV1,
+    EvidenceCatalogV1,
     RequiredDocumentPlanV1,
 )
 
 
 SCHEMAS = {
     "criteria.schema.json": CriteriaCatalogV1,
+    "evidence-catalog.schema.json": EvidenceCatalogV1,
     "criterion-matches.schema.json": CriterionMatchesV1,
     "confirmed-corrections.schema.json": ConfirmedCorrectionsV1,
     "application-decision.schema.json": ApplicationDecisionV1,

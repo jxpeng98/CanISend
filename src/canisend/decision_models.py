@@ -7,6 +7,7 @@ from typing import Literal
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 CRITERIA_SCHEMA_VERSION = "1.0.0"
+EVIDENCE_CATALOG_SCHEMA_VERSION = "1.0.0"
 CRITERION_MATCHES_SCHEMA_VERSION = "1.0.0"
 CONFIRMED_CORRECTIONS_SCHEMA_VERSION = "1.0.0"
 APPLICATION_DECISION_SCHEMA_VERSION = "1.0.0"
@@ -21,6 +22,8 @@ SourceState = Literal["known", "unknown"]
 ExtractionConfidence = Literal["high", "medium", "low", "unknown"]
 CriterionConfirmationState = Literal["unconfirmed", "confirmed", "corrected"]
 CriteriaExtractionState = Literal["extracted", "unknown", "confirmed_empty"]
+EvidenceCatalogState = Literal["available", "empty", "unavailable"]
+EvidenceSourceType = Literal["manifest", "profile_source", "generated_evidence"]
 RecordState = Literal["active", "superseded", "withdrawn"]
 MatchClassification = Literal["strong", "partial", "weak", "missing", "unknown"]
 MatchReviewState = Literal["proposed", "confirmed", "corrected"]
@@ -439,6 +442,182 @@ class EvidenceRefV1(DecisionContractModel):
     def citation(self) -> str:
         base = f"{self.path}#{self.section}"
         return f"{base}/{self.item_locator}" if self.item_locator else base
+
+
+class EvidenceSourceReceiptV1(DecisionContractModel):
+    path: str
+    source_type: EvidenceSourceType
+    content_sha256: str
+    size_bytes: int = Field(ge=0)
+    item_count: int = Field(ge=0)
+
+    @field_validator("path")
+    @classmethod
+    def _valid_path(cls, value: str) -> str:
+        return _relative_path(value)
+
+    @field_validator("content_sha256")
+    @classmethod
+    def _valid_content_hash(cls, value: str) -> str:
+        return _sha256(value, label="content_sha256")
+
+    @model_validator(mode="after")
+    def _consistent_source_receipt(self) -> EvidenceSourceReceiptV1:
+        if self.source_type in {"manifest", "profile_source"} and self.item_count != 0:
+            raise ValueError("an evidence manifest or profile source receipt must have item_count 0")
+        return self
+
+
+class EvidenceCatalogItemV1(DecisionContractModel):
+    evidence_id: str
+    path: str
+    section: str = Field(min_length=1)
+    item_locator: str | None = None
+    kind: str = Field(min_length=1)
+    text: str = Field(min_length=1)
+    content_sha256: str
+
+    @field_validator("evidence_id")
+    @classmethod
+    def _valid_evidence_id(cls, value: str) -> str:
+        return _semantic_id(value, pattern=_EVIDENCE_ID_RE, label="evidence_id")
+
+    @field_validator("path")
+    @classmethod
+    def _valid_path(cls, value: str) -> str:
+        return _relative_path(value)
+
+    @field_validator("item_locator")
+    @classmethod
+    def _valid_item_locator(cls, value: str | None) -> str | None:
+        if value is not None and any(character in value for character in "#/\\"):
+            raise ValueError("item_locator must not contain path or fragment separators")
+        return value
+
+    @field_validator("kind")
+    @classmethod
+    def _valid_kind(cls, value: str) -> str:
+        if _SLUG_RE.fullmatch(value) is None:
+            raise ValueError("evidence kind must be a lowercase identifier")
+        return value
+
+    @field_validator("content_sha256")
+    @classmethod
+    def _valid_content_hash(cls, value: str) -> str:
+        return _sha256(value, label="content_sha256")
+
+    @property
+    def citation(self) -> str:
+        base = f"{self.path}#{self.section}"
+        return f"{base}/{self.item_locator}" if self.item_locator else base
+
+    @property
+    def reference(self) -> EvidenceRefV1:
+        return EvidenceRefV1(
+            evidence_id=self.evidence_id,
+            path=self.path,
+            section=self.section,
+            item_locator=self.item_locator,
+            kind=self.kind,
+            content_sha256=self.content_sha256,
+        )
+
+
+class EvidenceCatalogV1(DecisionContractModel):
+    model_config = ConfigDict(
+        title="CanISendEvidenceCatalogV1",
+        extra="forbid",
+        frozen=True,
+        str_strip_whitespace=True,
+        validate_default=True,
+        json_schema_extra={
+            "$schema": JSON_SCHEMA_DIALECT,
+            "$id": f"{SCHEMA_BASE_ID}/evidence-catalog.schema.json",
+        },
+    )
+
+    schema_version: Literal["1.0.0"] = EVIDENCE_CATALOG_SCHEMA_VERSION
+    job_id: str
+    input_fingerprint: str
+    state: EvidenceCatalogState
+    unavailable_reason: str | None = None
+    source_receipts: tuple[EvidenceSourceReceiptV1, ...] = ()
+    items: tuple[EvidenceCatalogItemV1, ...] = ()
+
+    @field_validator("job_id")
+    @classmethod
+    def _valid_job_id(cls, value: str) -> str:
+        return _job_id(value)
+
+    @field_validator("input_fingerprint")
+    @classmethod
+    def _valid_input_fingerprint(cls, value: str) -> str:
+        return _sha256(value, label="input_fingerprint")
+
+    @field_validator("unavailable_reason")
+    @classmethod
+    def _valid_unavailable_reason(cls, value: str | None) -> str | None:
+        if value is not None and _REASON_ID_RE.fullmatch(value) is None:
+            raise ValueError("unavailable_reason must be a lowercase reason identifier")
+        return value
+
+    @model_validator(mode="after")
+    def _consistent_catalog(self) -> EvidenceCatalogV1:
+        receipt_paths = tuple(receipt.path for receipt in self.source_receipts)
+        _require_unique(receipt_paths, label="evidence source receipt paths")
+        receipt_order = tuple(
+            sorted(
+                self.source_receipts,
+                key=lambda receipt: (
+                    {
+                        "manifest": 0,
+                        "profile_source": 1,
+                        "generated_evidence": 2,
+                    }[receipt.source_type],
+                    receipt.path,
+                ),
+            )
+        )
+        if self.source_receipts != receipt_order:
+            raise ValueError("evidence source receipts must use deterministic ordering")
+
+        manifest_count = sum(
+            receipt.source_type == "manifest" for receipt in self.source_receipts
+        )
+        if manifest_count > 1:
+            raise ValueError("an evidence catalog may contain at most one manifest receipt")
+        generated_receipts = tuple(
+            receipt
+            for receipt in self.source_receipts
+            if receipt.source_type == "generated_evidence"
+        )
+        generated_paths = {receipt.path for receipt in generated_receipts}
+
+        evidence_ids = tuple(item.evidence_id for item in self.items)
+        _require_unique(evidence_ids, label="evidence catalog item IDs")
+        if evidence_ids != tuple(sorted(evidence_ids)):
+            raise ValueError("evidence catalog items must use deterministic evidence ID ordering")
+        if any(item.path not in generated_paths for item in self.items):
+            raise ValueError("evidence catalog item paths must resolve in generated source receipts")
+
+        if self.state == "available":
+            if not self.items or not generated_receipts:
+                raise ValueError("an available evidence catalog requires generated items")
+            if self.unavailable_reason is not None:
+                raise ValueError("an available evidence catalog must not include unavailable_reason")
+        elif self.state == "empty":
+            if self.items or not generated_receipts:
+                raise ValueError("an empty evidence catalog requires generated sources and no items")
+            if any(receipt.item_count != 0 for receipt in generated_receipts):
+                raise ValueError("an empty evidence catalog requires zero source items")
+            if self.unavailable_reason is not None:
+                raise ValueError("an empty evidence catalog must not include unavailable_reason")
+        else:
+            if self.items:
+                raise ValueError("an unavailable evidence catalog must not include evidence items")
+            if self.unavailable_reason is None:
+                raise ValueError("an unavailable evidence catalog requires unavailable_reason")
+        return self
 
 
 class EvidenceGapV1(DecisionContractModel):
