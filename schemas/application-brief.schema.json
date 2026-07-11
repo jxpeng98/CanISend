@@ -1,0 +1,220 @@
+{
+  "$defs": {
+    "ConfirmedIdSelectionV1": {
+      "additionalProperties": false,
+      "properties": {
+        "criterion_ids": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Criterion Ids",
+          "type": "array"
+        },
+        "evidence_ref_ids": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence Ref Ids",
+          "type": "array"
+        },
+        "confirmation_state": {
+          "default": "unconfirmed",
+          "enum": [
+            "unconfirmed",
+            "confirmed"
+          ],
+          "title": "Confirmation State",
+          "type": "string"
+        }
+      },
+      "title": "ConfirmedIdSelectionV1",
+      "type": "object"
+    },
+    "ConfirmedStringListV1": {
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Items",
+          "type": "array"
+        },
+        "confirmation_state": {
+          "default": "unconfirmed",
+          "enum": [
+            "unconfirmed",
+            "confirmed"
+          ],
+          "title": "Confirmation State",
+          "type": "string"
+        }
+      },
+      "title": "ConfirmedStringListV1",
+      "type": "object"
+    },
+    "ConfirmedTextV1": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "confirmation_state": {
+          "default": "unconfirmed",
+          "enum": [
+            "unconfirmed",
+            "confirmed"
+          ],
+          "title": "Confirmation State",
+          "type": "string"
+        }
+      },
+      "title": "ConfirmedTextV1",
+      "type": "object"
+    },
+    "DocumentChoiceV1": {
+      "additionalProperties": false,
+      "properties": {
+        "document_id": {
+          "title": "Document Id",
+          "type": "string"
+        },
+        "action": {
+          "default": "needs_confirmation",
+          "enum": [
+            "prepare",
+            "omit",
+            "needs_confirmation"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "confirmation_state": {
+          "default": "unconfirmed",
+          "enum": [
+            "unconfirmed",
+            "confirmed"
+          ],
+          "title": "Confirmation State",
+          "type": "string"
+        }
+      },
+      "required": [
+        "document_id"
+      ],
+      "title": "DocumentChoiceV1",
+      "type": "object"
+    },
+    "LanguagePreferenceV1": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "enum": [
+                "uk",
+                "us"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "confirmation_state": {
+          "default": "unconfirmed",
+          "enum": [
+            "unconfirmed",
+            "confirmed"
+          ],
+          "title": "Confirmation State",
+          "type": "string"
+        }
+      },
+      "title": "LanguagePreferenceV1",
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/jxpeng98/CanISend/schemas/application-brief.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "job_id": {
+      "title": "Job Id",
+      "type": "string"
+    },
+    "revision": {
+      "minimum": 0,
+      "title": "Revision",
+      "type": "integer"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    },
+    "decision_sha256": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Decision Sha256"
+    },
+    "language": {
+      "$ref": "#/$defs/LanguagePreferenceV1"
+    },
+    "writing_style": {
+      "$ref": "#/$defs/ConfirmedTextV1"
+    },
+    "motivation": {
+      "$ref": "#/$defs/ConfirmedTextV1"
+    },
+    "emphasis": {
+      "$ref": "#/$defs/ConfirmedIdSelectionV1"
+    },
+    "exclusions": {
+      "$ref": "#/$defs/ConfirmedStringListV1"
+    },
+    "document_choices": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/DocumentChoiceV1"
+      },
+      "title": "Document Choices",
+      "type": "array"
+    }
+  },
+  "required": [
+    "job_id",
+    "revision",
+    "updated_at"
+  ],
+  "title": "CanISendApplicationBriefV1",
+  "type": "object"
+}

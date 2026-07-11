@@ -1,0 +1,220 @@
+{
+  "$defs": {
+    "DocumentRequirementV1": {
+      "additionalProperties": false,
+      "properties": {
+        "document_id": {
+          "title": "Document Id",
+          "type": "string"
+        },
+        "label": {
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "normalized_kind": {
+          "title": "Normalized Kind",
+          "type": "string"
+        },
+        "requirement": {
+          "enum": [
+            "required",
+            "optional",
+            "unknown"
+          ],
+          "title": "Requirement",
+          "type": "string"
+        },
+        "source_text": {
+          "minLength": 1,
+          "title": "Source Text",
+          "type": "string"
+        },
+        "source_state": {
+          "enum": [
+            "known",
+            "unknown"
+          ],
+          "title": "Source State",
+          "type": "string"
+        },
+        "source_span": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceSpanV1"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "confirmation_state": {
+          "default": "unconfirmed",
+          "enum": [
+            "unconfirmed",
+            "confirmed",
+            "corrected"
+          ],
+          "title": "Confirmation State",
+          "type": "string"
+        },
+        "unknown_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unknown Reason"
+        }
+      },
+      "required": [
+        "document_id",
+        "label",
+        "normalized_kind",
+        "requirement",
+        "source_text",
+        "source_state"
+      ],
+      "title": "DocumentRequirementV1",
+      "type": "object"
+    },
+    "DocumentTaskV1": {
+      "additionalProperties": false,
+      "properties": {
+        "document_id": {
+          "title": "Document Id",
+          "type": "string"
+        },
+        "action": {
+          "enum": [
+            "prepare",
+            "omit",
+            "needs_confirmation"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "confirmation_state": {
+          "enum": [
+            "unconfirmed",
+            "confirmed"
+          ],
+          "title": "Confirmation State",
+          "type": "string"
+        },
+        "blockers": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Blockers",
+          "type": "array"
+        }
+      },
+      "required": [
+        "document_id",
+        "action",
+        "confirmation_state"
+      ],
+      "title": "DocumentTaskV1",
+      "type": "object"
+    },
+    "SourceSpanV1": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "start_line": {
+          "minimum": 1,
+          "title": "Start Line",
+          "type": "integer"
+        },
+        "end_line": {
+          "minimum": 1,
+          "title": "End Line",
+          "type": "integer"
+        },
+        "text_sha256": {
+          "title": "Text Sha256",
+          "type": "string"
+        },
+        "occurrence": {
+          "minimum": 1,
+          "title": "Occurrence",
+          "type": "integer"
+        },
+        "occurrence_count": {
+          "minimum": 1,
+          "title": "Occurrence Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "path",
+        "start_line",
+        "end_line",
+        "text_sha256",
+        "occurrence",
+        "occurrence_count"
+      ],
+      "title": "SourceSpanV1",
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/jxpeng98/CanISend/schemas/required-document-plan.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "job_id": {
+      "title": "Job Id",
+      "type": "string"
+    },
+    "input_fingerprint": {
+      "title": "Input Fingerprint",
+      "type": "string"
+    },
+    "requirements": {
+      "items": {
+        "$ref": "#/$defs/DocumentRequirementV1"
+      },
+      "title": "Requirements",
+      "type": "array"
+    },
+    "tasks": {
+      "items": {
+        "$ref": "#/$defs/DocumentTaskV1"
+      },
+      "title": "Tasks",
+      "type": "array"
+    },
+    "unresolved_document_ids": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Unresolved Document Ids",
+      "type": "array"
+    }
+  },
+  "required": [
+    "job_id",
+    "input_fingerprint",
+    "requirements",
+    "tasks"
+  ],
+  "title": "CanISendRequiredDocumentPlanV1",
+  "type": "object"
+}

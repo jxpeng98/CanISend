@@ -45,11 +45,11 @@ user-owned application decisions and briefs, and advert-driven document planning
 - `schemas/required-document-plan.schema.json`
 - `tests/test_decision_models.py`
 
-- [ ] Define strict Criterion, SourceSpan, EvidenceRef, EvidenceGap, CriterionMatch, correction, decision, brief, and
+- [x] Define strict Criterion, SourceSpan, EvidenceRef, EvidenceGap, CriterionMatch, correction, decision, brief, and
   document-plan models.
-- [ ] Distinguish unknown, unconfirmed, confirmed, corrected, and confirmed-empty states.
-- [ ] Reject unsafe paths, malformed IDs and hashes, duplicate semantic IDs, inconsistent states, and unknown fields.
-- [ ] Package each public schema and validate model dumps against it.
+- [x] Distinguish unknown, unconfirmed, confirmed, corrected, and confirmed-empty states.
+- [x] Reject unsafe paths, malformed IDs and hashes, duplicate semantic IDs, inconsistent states, and unknown fields.
+- [x] Package each public schema and validate model dumps against it.
 
 ## Task 2: Criteria Projection And Confirm Overlay
 

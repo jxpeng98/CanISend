@@ -1,0 +1,224 @@
+{
+  "$defs": {
+    "ArtifactFingerprint": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "sha256": {
+          "title": "Sha256",
+          "type": "string"
+        },
+        "size_bytes": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Size Bytes"
+        }
+      },
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "title": "ArtifactFingerprint",
+      "type": "object"
+    },
+    "CriterionV1": {
+      "additionalProperties": false,
+      "properties": {
+        "criterion_id": {
+          "title": "Criterion Id",
+          "type": "string"
+        },
+        "importance": {
+          "enum": [
+            "essential",
+            "desirable"
+          ],
+          "title": "Importance",
+          "type": "string"
+        },
+        "text": {
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "source_text": {
+          "minLength": 1,
+          "title": "Source Text",
+          "type": "string"
+        },
+        "source_state": {
+          "enum": [
+            "known",
+            "unknown"
+          ],
+          "title": "Source State",
+          "type": "string"
+        },
+        "source_span": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceSpanV1"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "confidence": {
+          "enum": [
+            "high",
+            "medium",
+            "low",
+            "unknown"
+          ],
+          "title": "Confidence",
+          "type": "string"
+        },
+        "confirmation_state": {
+          "default": "unconfirmed",
+          "enum": [
+            "unconfirmed",
+            "confirmed",
+            "corrected"
+          ],
+          "title": "Confirmation State",
+          "type": "string"
+        },
+        "unknown_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unknown Reason"
+        }
+      },
+      "required": [
+        "criterion_id",
+        "importance",
+        "text",
+        "source_text",
+        "source_state",
+        "confidence"
+      ],
+      "title": "CriterionV1",
+      "type": "object"
+    },
+    "SourceSpanV1": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "start_line": {
+          "minimum": 1,
+          "title": "Start Line",
+          "type": "integer"
+        },
+        "end_line": {
+          "minimum": 1,
+          "title": "End Line",
+          "type": "integer"
+        },
+        "text_sha256": {
+          "title": "Text Sha256",
+          "type": "string"
+        },
+        "occurrence": {
+          "minimum": 1,
+          "title": "Occurrence",
+          "type": "integer"
+        },
+        "occurrence_count": {
+          "minimum": 1,
+          "title": "Occurrence Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "path",
+        "start_line",
+        "end_line",
+        "text_sha256",
+        "occurrence",
+        "occurrence_count"
+      ],
+      "title": "SourceSpanV1",
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/jxpeng98/CanISend/schemas/criteria.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "job_id": {
+      "title": "Job Id",
+      "type": "string"
+    },
+    "input_fingerprint": {
+      "title": "Input Fingerprint",
+      "type": "string"
+    },
+    "inputs": {
+      "items": {
+        "$ref": "#/$defs/ArtifactFingerprint"
+      },
+      "title": "Inputs",
+      "type": "array"
+    },
+    "criteria": {
+      "items": {
+        "$ref": "#/$defs/CriterionV1"
+      },
+      "title": "Criteria",
+      "type": "array"
+    },
+    "unresolved_criterion_ids": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Unresolved Criterion Ids",
+      "type": "array"
+    },
+    "orphaned_correction_ids": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Orphaned Correction Ids",
+      "type": "array"
+    }
+  },
+  "required": [
+    "job_id",
+    "input_fingerprint",
+    "inputs",
+    "criteria"
+  ],
+  "title": "CanISendCriteriaCatalogV1",
+  "type": "object"
+}

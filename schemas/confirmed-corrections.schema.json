@@ -1,0 +1,130 @@
+{
+  "$defs": {
+    "CriterionCorrectionV1": {
+      "additionalProperties": false,
+      "properties": {
+        "correction_id": {
+          "title": "Correction Id",
+          "type": "string"
+        },
+        "criterion_id": {
+          "title": "Criterion Id",
+          "type": "string"
+        },
+        "target_source_sha256": {
+          "title": "Target Source Sha256",
+          "type": "string"
+        },
+        "confirmation": {
+          "enum": [
+            "confirmed",
+            "corrected"
+          ],
+          "title": "Confirmation",
+          "type": "string"
+        },
+        "corrected_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Corrected Text"
+        },
+        "source_occurrence": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Occurrence"
+        },
+        "record_state": {
+          "default": "active",
+          "enum": [
+            "active",
+            "superseded",
+            "withdrawn"
+          ],
+          "title": "Record State",
+          "type": "string"
+        },
+        "superseded_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Superseded By"
+        },
+        "confirmed_at": {
+          "format": "date-time",
+          "title": "Confirmed At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "correction_id",
+        "criterion_id",
+        "target_source_sha256",
+        "confirmation",
+        "confirmed_at"
+      ],
+      "title": "CriterionCorrectionV1",
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/jxpeng98/CanISend/schemas/confirmed-corrections.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "job_id": {
+      "title": "Job Id",
+      "type": "string"
+    },
+    "revision": {
+      "minimum": 0,
+      "title": "Revision",
+      "type": "integer"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    },
+    "criteria": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/CriterionCorrectionV1"
+      },
+      "title": "Criteria",
+      "type": "array"
+    }
+  },
+  "required": [
+    "job_id",
+    "revision",
+    "updated_at"
+  ],
+  "title": "CanISendConfirmedCorrectionsV1",
+  "type": "object"
+}

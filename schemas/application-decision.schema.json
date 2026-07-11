@@ -1,0 +1,120 @@
+{
+  "$defs": {
+    "DecisionBasisV1": {
+      "additionalProperties": false,
+      "properties": {
+        "criteria_sha256": {
+          "title": "Criteria Sha256",
+          "type": "string"
+        },
+        "matches_sha256": {
+          "title": "Matches Sha256",
+          "type": "string"
+        },
+        "status": {
+          "default": "current",
+          "enum": [
+            "current",
+            "review_required"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "criteria_sha256",
+        "matches_sha256"
+      ],
+      "title": "DecisionBasisV1",
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/jxpeng98/CanISend/schemas/application-decision.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "job_id": {
+      "title": "Job Id",
+      "type": "string"
+    },
+    "revision": {
+      "minimum": 0,
+      "title": "Revision",
+      "type": "integer"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    },
+    "decision": {
+      "default": "undecided",
+      "enum": [
+        "undecided",
+        "apply",
+        "hold",
+        "skip"
+      ],
+      "title": "Decision",
+      "type": "string"
+    },
+    "confirmation_state": {
+      "default": "unconfirmed",
+      "enum": [
+        "unconfirmed",
+        "confirmed"
+      ],
+      "title": "Confirmation State",
+      "type": "string"
+    },
+    "confirmed_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Confirmed At"
+    },
+    "rationale": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Rationale"
+    },
+    "basis": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DecisionBasisV1"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "job_id",
+    "revision",
+    "updated_at"
+  ],
+  "title": "CanISendApplicationDecisionV1",
+  "type": "object"
+}
