@@ -7,16 +7,19 @@ from pathlib import Path
 import pytest
 
 from canisend.stage_store import (
+    ExclusiveRecordError,
     ImmutableRecordError,
     StageStoreError,
     UnsafeStagePathError,
     atomic_write_bytes,
     atomic_write_json,
+    create_exclusive_bytes,
     read_json_object,
     resolve_job_relative_path,
     sha256_bytes,
     sha256_file,
     write_immutable_json,
+    write_immutable_bytes,
 )
 
 
@@ -188,6 +191,30 @@ def test_write_immutable_json_rejects_different_or_invalid_existing_record(
     with pytest.raises(ImmutableRecordError, match="not a valid JSON object"):
         write_immutable_json(target, {"stage": "parse"})
     assert target.read_text(encoding="utf-8") == "not json\n"
+
+
+def test_write_immutable_bytes_is_exact_and_idempotent(tmp_path: Path) -> None:
+    target = tmp_path / "candidate.yaml"
+    first = write_immutable_bytes(target, b"revision: 1\n")
+    before = target.stat().st_mtime_ns
+
+    second = write_immutable_bytes(target, b"revision: 1\n")
+
+    assert first == second == target
+    assert target.stat().st_mtime_ns == before
+    with pytest.raises(ImmutableRecordError):
+        write_immutable_bytes(target, b"revision: 2\n")
+    assert target.read_bytes() == b"revision: 1\n"
+
+
+def test_create_exclusive_bytes_never_replaces_existing_entry(tmp_path: Path) -> None:
+    target = tmp_path / "user-owned.yaml"
+    create_exclusive_bytes(target, b"revision: 0\n")
+
+    with pytest.raises(ExclusiveRecordError):
+        create_exclusive_bytes(target, b"revision: 1\n")
+
+    assert target.read_bytes() == b"revision: 0\n"
 
 
 def test_read_json_object_accepts_only_json_objects(tmp_path: Path) -> None:

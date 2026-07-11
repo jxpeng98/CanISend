@@ -22,6 +22,7 @@ from canisend.decision_models import (
     ConfirmedIdSelectionV1,
     ConfirmedStringListV1,
     ConfirmedTextV1,
+    CriteriaExtractionConfirmationV1,
     CriteriaCatalogV1,
     CriterionCorrectionV1,
     CriterionMatchV1,
@@ -376,7 +377,103 @@ def test_confirmed_corrections_require_consistent_active_records() -> None:
             job_id=JOB_ID,
             revision=2,
             updated_at=NOW,
-            criteria=(corrected, corrected.model_copy(update={"correction_id": "correction_" + "4" * 32})),
+            criteria=(
+                corrected,
+                corrected.model_copy(update={"correction_id": "correction_" + "4" * 32}),
+            ),
+        )
+
+
+def test_confirmed_correction_history_may_terminate_in_withdrawn_record() -> None:
+    withdrawn_id = "correction_" + "4" * 32
+    history = CriterionCorrectionV1(
+        correction_id=CORRECTION_ID,
+        criterion_id=CRITERION_ID,
+        target_source_sha256=SHA_A,
+        target_criterion_sha256=SHA_B,
+        confirmation="confirmed",
+        record_state="superseded",
+        superseded_by=withdrawn_id,
+        confirmed_at=NOW,
+    )
+    withdrawn = CriterionCorrectionV1(
+        correction_id=withdrawn_id,
+        criterion_id=CRITERION_ID,
+        target_source_sha256=SHA_A,
+        target_criterion_sha256=SHA_B,
+        confirmation="corrected",
+        corrected_text="Reviewed wording",
+        record_state="withdrawn",
+        confirmed_at=NOW,
+    )
+
+    overlay = ConfirmedCorrectionsV1(
+        job_id=JOB_ID,
+        revision=3,
+        updated_at=NOW,
+        criteria=(history, withdrawn),
+    )
+
+    assert tuple(item.record_state for item in overlay.criteria) == (
+        "superseded",
+        "withdrawn",
+    )
+
+
+def test_confirmed_corrections_preserve_one_active_empty_extraction_history() -> None:
+    active = CriteriaExtractionConfirmationV1(
+        correction_id=CORRECTION_ID,
+        target_extraction_sha256=SHA_A,
+        confirmation="confirmed_empty",
+        confirmed_at=NOW,
+    )
+    superseded_id = "correction_" + "5" * 32
+    history = active.model_copy(
+        update={
+            "correction_id": superseded_id,
+            "record_state": "superseded",
+            "superseded_by": CORRECTION_ID,
+        }
+    )
+
+    overlay = ConfirmedCorrectionsV1(
+        job_id=JOB_ID,
+        revision=2,
+        updated_at=NOW,
+        criteria_extraction_confirmations=(history, active),
+    )
+
+    assert overlay.criteria_extraction_confirmations[-1].confirmation == "confirmed_empty"
+    schema = json.loads(
+        (Path("schemas") / "confirmed-corrections.schema.json").read_text(encoding="utf-8")
+    )
+    Draft202012Validator(schema).validate(overlay.model_dump(mode="json"))
+    with pytest.raises(ValidationError, match="only one.*active"):
+        ConfirmedCorrectionsV1(
+            job_id=JOB_ID,
+            revision=3,
+            updated_at=NOW,
+            criteria_extraction_confirmations=(
+                active,
+                active.model_copy(update={"correction_id": "correction_" + "6" * 32}),
+            ),
+        )
+    with pytest.raises(ValidationError, match="correction IDs"):
+        ConfirmedCorrectionsV1(
+            job_id=JOB_ID,
+            revision=3,
+            updated_at=NOW,
+            criteria=(
+                CriterionCorrectionV1(
+                    correction_id=CORRECTION_ID,
+                    criterion_id=CRITERION_ID,
+                    target_source_sha256=SHA_A,
+                    target_criterion_sha256=SHA_B,
+                    confirmation="confirmed",
+                    confirmed_at=NOW,
+                ),
+            ),
+            criteria_extraction_confirmations=(active,),
         )
 
 
@@ -499,6 +596,165 @@ def test_decision_requires_explicit_confirmation_and_basis() -> None:
         confirmation_state="unconfirmed",
     )
     assert undecided.basis is None
+    with pytest.raises(ValidationError):
+        ApplicationDecisionV1.model_validate(
+            {
+                **undecided.model_dump(mode="json"),
+                "rationale": "Do not persist an unresolved rationale",
+            }
+        )
+
+
+@pytest.mark.parametrize(
+    ("schema_name", "payload"),
+    [
+        (
+            "criteria.schema.json",
+            {
+                **criteria_catalog().model_dump(mode="json"),
+                "input_fingerprint": "not-a-hash",
+            },
+        ),
+        (
+            "criteria.schema.json",
+            {
+                **criteria_catalog().model_dump(mode="json"),
+                "criteria": [
+                    {
+                        **criterion().model_dump(mode="json"),
+                        "criterion_id": "criterion_invalid",
+                    }
+                ],
+                "unresolved_criterion_ids": ["criterion_invalid"],
+            },
+        ),
+        (
+            "criteria.schema.json",
+            {
+                **criteria_catalog().model_dump(mode="json"),
+                "extraction_state": "confirmed_empty",
+                "criteria": [],
+                "unresolved_criterion_ids": [],
+                "empty_confirmation_record_id": None,
+            },
+        ),
+        (
+            "confirmed-corrections.schema.json",
+            {
+                "schema_version": "1.0.0",
+                "job_id": JOB_ID,
+                "revision": 1,
+                "updated_at": NOW.isoformat(),
+                "criteria": [
+                    {
+                        "correction_id": "bad",
+                        "criterion_id": "bad",
+                        "target_source_sha256": "bad",
+                        "target_criterion_sha256": "bad",
+                        "confirmation": "confirmed",
+                        "confirmed_at": NOW.isoformat(),
+                    }
+                ],
+            },
+        ),
+        (
+            "confirmed-corrections.schema.json",
+            {
+                "schema_version": "1.0.0",
+                "job_id": JOB_ID,
+                "revision": 1,
+                "updated_at": NOW.isoformat(),
+                "criteria": [],
+                "criteria_extraction_confirmations": [
+                    {
+                        "correction_id": CORRECTION_ID,
+                        "target_extraction_sha256": SHA_A,
+                        "confirmation": "confirmed_empty",
+                        "record_state": "active",
+                        "superseded_by": "correction_" + "8" * 32,
+                        "confirmed_at": NOW.isoformat(),
+                    }
+                ],
+            },
+        ),
+        (
+            "confirmed-corrections.schema.json",
+            {
+                "schema_version": "1.0.0",
+                "job_id": JOB_ID,
+                "revision": 1,
+                "updated_at": NOW.isoformat(),
+                "criteria": [
+                    {
+                        "correction_id": CORRECTION_ID,
+                        "criterion_id": CRITERION_ID,
+                        "target_source_sha256": SHA_A,
+                        "target_criterion_sha256": SHA_B,
+                        "confirmation": "corrected",
+                        "confirmed_at": NOW.isoformat(),
+                    }
+                ],
+            },
+        ),
+        (
+            "application-decision.schema.json",
+            {
+                "schema_version": "1.0.0",
+                "job_id": JOB_ID,
+                "revision": 1,
+                "updated_at": NOW.isoformat(),
+                "decision": "apply",
+                "confirmation_state": "unconfirmed",
+            },
+        ),
+        (
+            "application-decision.schema.json",
+            {
+                "schema_version": "1.0.0",
+                "job_id": JOB_ID,
+                "revision": 0,
+                "updated_at": NOW.isoformat(),
+                "decision": "undecided",
+                "rationale": "An unresolved decision must not carry a rationale.",
+            },
+        ),
+        (
+            "application-decision.schema.json",
+            {
+                **application_decision().model_dump(mode="json"),
+                "basis": {
+                    "criteria_sha256": "bad",
+                    "matches_sha256": SHA_A,
+                    "status": "current",
+                },
+            },
+        ),
+    ],
+)
+def test_standalone_decision_schemas_reject_invalid_semantics(
+    schema_name: str,
+    payload: dict[str, object],
+) -> None:
+    schema = json.loads((Path("schemas") / schema_name).read_text(encoding="utf-8"))
+
+    assert list(Draft202012Validator(schema).iter_errors(payload))
+
+
+def test_standalone_confirmed_corrections_schema_accepts_historical_v1_shape() -> None:
+    schema = json.loads(
+        (Path("schemas") / "confirmed-corrections.schema.json").read_text(encoding="utf-8")
+    )
+    historical = {
+        "schema_version": "1.0.0",
+        "job_id": JOB_ID,
+        "revision": 0,
+        "updated_at": NOW.isoformat(),
+        "criteria": [],
+    }
+
+    Draft202012Validator(schema).validate(historical)
+    loaded = ConfirmedCorrectionsV1.model_validate(historical)
+    assert loaded.criteria_extraction_confirmations == ()
 
 
 def test_brief_distinguishes_unanswered_from_confirmed_empty() -> None:

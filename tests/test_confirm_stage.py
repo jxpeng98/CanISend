@@ -7,15 +7,21 @@ from pathlib import Path
 import pytest
 import yaml
 
-from canisend.decision_models import ConfirmedCorrectionsV1, CriterionCorrectionV1
+from canisend.decision_models import (
+    ConfirmedCorrectionsV1,
+    CriteriaExtractionConfirmationV1,
+    CriterionCorrectionV1,
+)
 from canisend.parse import parse_job_advert
 from canisend.stages.confirm_stage import (
     ConfirmStageError,
     ConfirmStageValidationError,
     build_deterministic_confirm_candidate,
     confirm_input_fingerprint,
+    criteria_extraction_basis_sha256,
     criterion_text_sha256,
     criterion_source_sha256,
+    load_confirmed_corrections,
     project_criteria,
     stable_criterion_id,
     validate_confirm_candidate,
@@ -342,6 +348,29 @@ def test_invalid_or_wrong_job_correction_overlay_fails_without_rewrite(tmp_path:
         build_deterministic_confirm_candidate(job_dir)
 
 
+def test_historical_v1_overlay_without_extraction_history_loads_without_rewrite(
+    tmp_path: Path,
+) -> None:
+    job_dir = _write_job(tmp_path)
+    overlay_path = job_dir / "confirmed_corrections.yaml"
+    overlay_path.write_text(
+        """schema_version: 1.0.0
+job_id: example-role
+revision: 0
+updated_at: 2026-07-11T12:00:00Z
+criteria: []
+""",
+        encoding="utf-8",
+    )
+    original = overlay_path.read_bytes()
+
+    loaded = load_confirmed_corrections(job_dir)
+
+    assert loaded is not None
+    assert loaded.criteria_extraction_confirmations == ()
+    assert overlay_path.read_bytes() == original
+
+
 def test_correction_overlay_rejects_duplicate_keys(tmp_path: Path) -> None:
     job_dir = _write_job(tmp_path)
     overlay_path = job_dir / "confirmed_corrections.yaml"
@@ -358,6 +387,47 @@ criteria: []
 
     with pytest.raises(ConfirmStageError):
         build_deterministic_confirm_candidate(job_dir)
+
+
+@pytest.mark.parametrize(
+    "unsafe_yaml",
+    [
+        "value: &shared []\nalias: *shared\n",
+        "value: !!str text\n",
+        "base: &base {value: 1}\nmerged: {<<: *base}\n",
+    ],
+)
+def test_correction_overlay_rejects_yaml_indirection(
+    tmp_path: Path,
+    unsafe_yaml: str,
+) -> None:
+    job_dir = _write_job(tmp_path)
+    (job_dir / "confirmed_corrections.yaml").write_text(
+        unsafe_yaml,
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ConfirmStageError):
+        load_confirmed_corrections(job_dir)
+
+
+@pytest.mark.skipif(os.name == "nt", reason="hard-link behavior differs on Windows")
+def test_correction_overlay_rejects_hard_link(tmp_path: Path) -> None:
+    job_dir = _write_job(tmp_path)
+    overlay_path = job_dir / "confirmed_corrections.yaml"
+    overlay_path.write_text(
+        """schema_version: 1.0.0
+job_id: example-role
+revision: 0
+updated_at: 2026-07-11T12:00:00Z
+criteria: []
+""",
+        encoding="utf-8",
+    )
+    os.link(overlay_path, job_dir / "overlay-alias.yaml")
+
+    with pytest.raises(ConfirmStageError):
+        load_confirmed_corrections(job_dir)
 
 
 @pytest.mark.skipif(os.name == "nt", reason="symlink creation may require elevated privileges")
@@ -794,3 +864,201 @@ def test_empty_extraction_is_unknown_not_ready() -> None:
     assert projected.extraction_state == "unknown"
     assert projected.extraction_unknown_reason == "criteria.none_extracted"
     assert projected.criteria == ()
+
+
+def test_revision_zero_empty_overlay_does_not_confirm_empty_extraction() -> None:
+    parsed = {"essential_criteria": [], "desirable_criteria": []}
+    advert = "# Lecturer\nNo selection criteria were extracted.\n"
+    overlay = ConfirmedCorrectionsV1(
+        job_id="example-role",
+        revision=0,
+        updated_at="2026-07-11T12:00:00Z",
+    )
+
+    projected = project_criteria(
+        parsed_job=parsed,
+        advert_text=advert,
+        job_id="example-role",
+        corrections=overlay,
+        input_fingerprint="a" * 64,
+        semantic_inputs=(),
+    )
+
+    assert projected.extraction_state == "unknown"
+    assert projected.empty_confirmation_record_id is None
+    assert projected.orphaned_extraction_confirmations == ()
+
+
+def test_current_empty_confirmation_projects_confirmed_empty() -> None:
+    parsed = {"essential_criteria": [], "desirable_criteria": []}
+    advert = "# Lecturer\nNo selection criteria were extracted.\n"
+    basis = criteria_extraction_basis_sha256(parsed, advert)
+    overlay = ConfirmedCorrectionsV1(
+        job_id="example-role",
+        revision=1,
+        updated_at="2026-07-11T12:00:00Z",
+        criteria_extraction_confirmations=(
+            CriteriaExtractionConfirmationV1(
+                correction_id=CORRECTION_ID,
+                target_extraction_sha256=basis,
+                confirmation="confirmed_empty",
+                confirmed_at="2026-07-11T12:00:00Z",
+            ),
+        ),
+    )
+
+    projected = project_criteria(
+        parsed_job=parsed,
+        advert_text=advert,
+        job_id="example-role",
+        corrections=overlay,
+        input_fingerprint="a" * 64,
+        semantic_inputs=(),
+    )
+
+    assert projected.extraction_state == "confirmed_empty"
+    assert projected.extraction_unknown_reason is None
+    assert projected.empty_confirmation_record_id == CORRECTION_ID
+    assert projected.orphaned_extraction_confirmations == ()
+
+
+def test_confirm_candidate_applies_current_empty_confirmation_overlay(
+    tmp_path: Path,
+) -> None:
+    job_dir = _write_job(tmp_path)
+    parsed_path = job_dir / "parsed_job.json"
+    parsed = json.loads(parsed_path.read_text(encoding="utf-8"))
+    parsed["essential_criteria"] = []
+    parsed["desirable_criteria"] = []
+    parsed_path.write_text(json.dumps(parsed, indent=2) + "\n", encoding="utf-8")
+    advert = (job_dir / "job_advert.md").read_text(encoding="utf-8")
+    overlay = ConfirmedCorrectionsV1(
+        job_id=job_dir.name,
+        revision=1,
+        updated_at="2026-07-11T12:00:00Z",
+        criteria_extraction_confirmations=(
+            CriteriaExtractionConfirmationV1(
+                correction_id=CORRECTION_ID,
+                target_extraction_sha256=criteria_extraction_basis_sha256(parsed, advert),
+                confirmation="confirmed_empty",
+                confirmed_at="2026-07-11T12:00:00Z",
+            ),
+        ),
+    )
+    (job_dir / "confirmed_corrections.yaml").write_text(
+        yaml.safe_dump(overlay.model_dump(mode="json"), sort_keys=False),
+        encoding="utf-8",
+    )
+
+    candidate = build_deterministic_confirm_candidate(job_dir)
+    validated = validate_confirm_candidate(
+        candidate.model_dump(mode="json"),
+        job_dir=job_dir,
+        input_fingerprint=candidate.input_fingerprint,
+    )
+
+    assert validated.extraction_state == "confirmed_empty"
+    assert validated.empty_confirmation_record_id == CORRECTION_ID
+    assert validated.semantic_inputs[-1].path == "confirmed_corrections.yaml"
+
+
+def test_stale_empty_confirmation_returns_unknown_reconciliation() -> None:
+    parsed = {"essential_criteria": [], "desirable_criteria": []}
+    original_advert = "# Lecturer\nNo selection criteria were extracted.\n"
+    changed_advert = original_advert + "The advert was revised.\n"
+    overlay = ConfirmedCorrectionsV1(
+        job_id="example-role",
+        revision=1,
+        updated_at="2026-07-11T12:00:00Z",
+        criteria_extraction_confirmations=(
+            CriteriaExtractionConfirmationV1(
+                correction_id=CORRECTION_ID,
+                target_extraction_sha256=criteria_extraction_basis_sha256(
+                    parsed,
+                    original_advert,
+                ),
+                confirmation="confirmed_empty",
+                confirmed_at="2026-07-11T12:00:00Z",
+            ),
+        ),
+    )
+
+    projected = project_criteria(
+        parsed_job=parsed,
+        advert_text=changed_advert,
+        job_id="example-role",
+        corrections=overlay,
+        input_fingerprint="a" * 64,
+        semantic_inputs=(),
+    )
+
+    assert projected.extraction_state == "unknown"
+    assert projected.extraction_unknown_reason == "criteria.empty_confirmation_stale"
+    assert projected.empty_confirmation_record_id is None
+    assert projected.orphaned_extraction_confirmations[0].correction_id == CORRECTION_ID
+    assert (
+        projected.orphaned_extraction_confirmations[0].reason
+        == "criteria.extraction_basis_changed"
+    )
+
+
+def test_nonempty_extraction_reconciles_old_empty_confirmation() -> None:
+    empty_parsed = {"essential_criteria": [], "desirable_criteria": []}
+    parsed = {
+        "essential_criteria": [
+            {"criterion": "Teaching excellence", "source_text": "Teaching excellence"}
+        ],
+        "desirable_criteria": [],
+    }
+    advert = "# Lecturer\nEssential criteria:\n- Teaching excellence\n"
+    overlay = ConfirmedCorrectionsV1(
+        job_id="example-role",
+        revision=1,
+        updated_at="2026-07-11T12:00:00Z",
+        criteria_extraction_confirmations=(
+            CriteriaExtractionConfirmationV1(
+                correction_id=CORRECTION_ID,
+                target_extraction_sha256=criteria_extraction_basis_sha256(
+                    empty_parsed,
+                    advert,
+                ),
+                confirmation="confirmed_empty",
+                confirmed_at="2026-07-11T12:00:00Z",
+            ),
+        ),
+    )
+
+    projected = project_criteria(
+        parsed_job=parsed,
+        advert_text=advert,
+        job_id="example-role",
+        corrections=overlay,
+        input_fingerprint="a" * 64,
+        semantic_inputs=(),
+    )
+
+    assert projected.extraction_state == "extracted"
+    assert projected.empty_confirmation_record_id is None
+    assert projected.orphaned_extraction_confirmations[0].reason == "criteria.extraction_changed"
+    assert overlay.criteria_extraction_confirmations[0].record_state == "active"
+
+
+def test_corrected_confirmation_with_wrong_target_text_hash_is_orphaned(
+    tmp_path: Path,
+) -> None:
+    job_dir = _write_job(tmp_path)
+    initial = build_deterministic_confirm_candidate(job_dir)
+    target = next(item for item in initial.criteria if item.source_text == "PhD in Economics")
+    _write_correction(
+        job_dir,
+        criterion_id=target.criterion_id,
+        source_text=target.source_text,
+        criterion_text="A different parser interpretation",
+        confirmation="corrected",
+    )
+
+    projected = build_deterministic_confirm_candidate(job_dir)
+    criterion = next(item for item in projected.criteria if item.criterion_id == target.criterion_id)
+
+    assert criterion.confirmation_state == "unconfirmed"
+    assert projected.orphaned_corrections[0].reason == "criterion_text.changed"

@@ -12,6 +12,7 @@ from canisend.decision_models import (
     EvidenceCatalogV1,
     RequiredDocumentPlanV1,
 )
+from canisend.user_mutations import UserMutationReceiptV1
 
 
 SCHEMAS = {
@@ -22,6 +23,7 @@ SCHEMAS = {
     "application-decision.schema.json": ApplicationDecisionV1,
     "application-brief.schema.json": ApplicationBriefV1,
     "required-document-plan.schema.json": RequiredDocumentPlanV1,
+    "user-mutation-receipt.schema.json": UserMutationReceiptV1,
 }
 
 

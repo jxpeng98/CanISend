@@ -28,6 +28,12 @@ from canisend.stage_runtime import (
     submit_stage_candidate,
 )
 from canisend.stage_store import StageStoreError, sha256_file
+from canisend.user_mutations import (
+    SetDecisionPatch,
+    apply_user_patch,
+    initialize_application_decision,
+    initialize_confirmed_corrections,
+)
 
 
 PRIVATE_EVIDENCE = "PRIVATE-EVIDENCE-SENTINEL-9427"
@@ -1027,11 +1033,35 @@ def test_evidence_and_match_never_invoke_provider_network_or_platform_api(
 def test_legacy_pipeline_preserves_current_structured_decision_spine(tmp_path: Path) -> None:
     workspace, job_dir, _ = _write_workspace(tmp_path)
     _run_to_match(workspace, job_dir)
+    initialize_confirmed_corrections(
+        workspace,
+        job_dir,
+        consent_confirmed=True,
+    )
+    decision = initialize_application_decision(
+        workspace,
+        job_dir,
+        consent_confirmed=True,
+    )
+    apply_user_patch(
+        workspace,
+        job_dir,
+        SetDecisionPatch(
+            decision="apply",
+            rationale_mode="set",
+            rationale="PRIVATE LEGACY DECISION MUST REMAIN BYTE-IDENTICAL",
+        ),
+        expected_revision=decision.snapshot.revision,
+        expected_sha256=decision.snapshot.sha256,
+        consent_confirmed=True,
+    )
     structured = (
         "parsed_job.json",
         "criteria.json",
         "evidence_catalog.json",
         "criterion_matches.json",
+        "confirmed_corrections.yaml",
+        "application_decision.yaml",
     )
     before = {name: sha256_file(job_dir / name) for name in structured}
 

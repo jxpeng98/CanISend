@@ -4,14 +4,17 @@
       "additionalProperties": false,
       "properties": {
         "correction_id": {
+          "pattern": "^correction_[0-9a-f]{32}$",
           "title": "Correction Id",
           "type": "string"
         },
         "criterion_id": {
+          "pattern": "^criterion_[0-9a-f]{32}$",
           "title": "Criterion Id",
           "type": "string"
         },
         "reason": {
+          "pattern": "^[a-z][a-z0-9_-]*(?:\\.[a-z][a-z0-9_-]*)*$",
           "title": "Reason",
           "type": "string"
         }
@@ -26,8 +29,116 @@
     },
     "CriterionV1": {
       "additionalProperties": false,
+      "allOf": [
+        {
+          "else": {
+            "properties": {
+              "source_span": {
+                "type": "null"
+              },
+              "confidence": {
+                "const": "unknown"
+              },
+              "unknown_reason": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "unknown_reason"
+            ]
+          },
+          "if": {
+            "properties": {
+              "source_state": {
+                "const": "known"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "source_span": {
+                "not": {
+                  "type": "null"
+                }
+              },
+              "source_candidates": {
+                "maxItems": 0
+              },
+              "confidence": {
+                "enum": [
+                  "high",
+                  "medium",
+                  "low"
+                ]
+              },
+              "unknown_reason": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "source_span"
+            ]
+          }
+        },
+        {
+          "else": {
+            "properties": {
+              "source_candidates": {
+                "maxItems": 0
+              }
+            }
+          },
+          "if": {
+            "properties": {
+              "unknown_reason": {
+                "const": "source_receipt.ambiguous"
+              }
+            },
+            "required": [
+              "unknown_reason"
+            ]
+          },
+          "then": {
+            "properties": {
+              "source_candidates": {
+                "minItems": 2
+              }
+            }
+          }
+        },
+        {
+          "else": {
+            "properties": {
+              "confirmation_record_id": {
+                "not": {
+                  "type": "null"
+                }
+              }
+            },
+            "required": [
+              "confirmation_record_id"
+            ]
+          },
+          "if": {
+            "properties": {
+              "confirmation_state": {
+                "const": "unconfirmed"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "confirmation_record_id": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ],
       "properties": {
         "criterion_id": {
+          "pattern": "^criterion_[0-9a-f]{32}$",
           "title": "Criterion Id",
           "type": "string"
         },
@@ -45,6 +156,7 @@
           "type": "string"
         },
         "parsed_text_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
           "title": "Parsed Text Sha256",
           "type": "string"
         },
@@ -103,6 +215,7 @@
         "confirmation_record_id": {
           "anyOf": [
             {
+              "pattern": "^correction_[0-9a-f]{32}$",
               "type": "string"
             },
             {
@@ -115,6 +228,7 @@
         "unknown_reason": {
           "anyOf": [
             {
+              "pattern": "^[a-z][a-z0-9_-]*(?:\\.[a-z][a-z0-9_-]*)*$",
               "type": "string"
             },
             {
@@ -137,6 +251,27 @@
       "title": "CriterionV1",
       "type": "object"
     },
+    "ExtractionConfirmationReconciliationV1": {
+      "additionalProperties": false,
+      "properties": {
+        "correction_id": {
+          "pattern": "^correction_[0-9a-f]{32}$",
+          "title": "Correction Id",
+          "type": "string"
+        },
+        "reason": {
+          "pattern": "^[a-z][a-z0-9_-]*(?:\\.[a-z][a-z0-9_-]*)*$",
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "correction_id",
+        "reason"
+      ],
+      "title": "ExtractionConfirmationReconciliationV1",
+      "type": "object"
+    },
     "SemanticInputReceiptV1": {
       "additionalProperties": false,
       "properties": {
@@ -145,6 +280,7 @@
           "type": "string"
         },
         "projection_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
           "title": "Projection Sha256",
           "type": "string"
         }
@@ -208,6 +344,83 @@
   "$id": "https://github.com/jxpeng98/CanISend/schemas/criteria.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "extraction_state": {
+            "const": "extracted"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "criteria": {
+            "minItems": 1
+          },
+          "extraction_unknown_reason": {
+            "type": "null"
+          },
+          "empty_confirmation_record_id": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "extraction_state": {
+            "const": "unknown"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "criteria": {
+            "maxItems": 0
+          },
+          "extraction_unknown_reason": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "empty_confirmation_record_id": {
+            "type": "null"
+          }
+        },
+        "required": [
+          "extraction_unknown_reason"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "extraction_state": {
+            "const": "confirmed_empty"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "criteria": {
+            "maxItems": 0
+          },
+          "extraction_unknown_reason": {
+            "type": "null"
+          },
+          "empty_confirmation_record_id": {
+            "not": {
+              "type": "null"
+            }
+          }
+        },
+        "required": [
+          "empty_confirmation_record_id"
+        ]
+      }
+    }
+  ],
   "properties": {
     "schema_version": {
       "const": "1.0.0",
@@ -216,10 +429,12 @@
       "type": "string"
     },
     "job_id": {
+      "pattern": "^[a-z0-9][a-z0-9_.-]*$",
       "title": "Job Id",
       "type": "string"
     },
     "input_fingerprint": {
+      "pattern": "^[0-9a-f]{64}$",
       "title": "Input Fingerprint",
       "type": "string"
     },
@@ -242,6 +457,7 @@
     "extraction_unknown_reason": {
       "anyOf": [
         {
+          "pattern": "^[a-z][a-z0-9_-]*(?:\\.[a-z][a-z0-9_-]*)*$",
           "type": "string"
         },
         {
@@ -254,6 +470,7 @@
     "empty_confirmation_record_id": {
       "anyOf": [
         {
+          "pattern": "^correction_[0-9a-f]{32}$",
           "type": "string"
         },
         {
@@ -273,6 +490,7 @@
     "unresolved_criterion_ids": {
       "default": [],
       "items": {
+        "pattern": "^criterion_[0-9a-f]{32}$",
         "type": "string"
       },
       "title": "Unresolved Criterion Ids",
@@ -284,6 +502,14 @@
         "$ref": "#/$defs/CorrectionReconciliationV1"
       },
       "title": "Orphaned Corrections",
+      "type": "array"
+    },
+    "orphaned_extraction_confirmations": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/ExtractionConfirmationReconciliationV1"
+      },
+      "title": "Orphaned Extraction Confirmations",
       "type": "array"
     }
   },

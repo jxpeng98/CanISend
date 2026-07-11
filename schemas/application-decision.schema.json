@@ -4,10 +4,12 @@
       "additionalProperties": false,
       "properties": {
         "criteria_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
           "title": "Criteria Sha256",
           "type": "string"
         },
         "matches_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
           "title": "Matches Sha256",
           "type": "string"
         },
@@ -32,6 +34,55 @@
   "$id": "https://github.com/jxpeng98/CanISend/schemas/application-decision.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "allOf": [
+    {
+      "else": {
+        "properties": {
+          "confirmation_state": {
+            "const": "confirmed"
+          },
+          "confirmed_at": {
+            "not": {
+              "type": "null"
+            }
+          },
+          "basis": {
+            "not": {
+              "type": "null"
+            }
+          }
+        },
+        "required": [
+          "confirmation_state",
+          "confirmed_at",
+          "basis"
+        ]
+      },
+      "if": {
+        "properties": {
+          "decision": {
+            "const": "undecided"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "confirmation_state": {
+            "const": "unconfirmed"
+          },
+          "confirmed_at": {
+            "type": "null"
+          },
+          "rationale": {
+            "type": "null"
+          },
+          "basis": {
+            "type": "null"
+          }
+        }
+      }
+    }
+  ],
   "properties": {
     "schema_version": {
       "const": "1.0.0",
@@ -40,10 +91,12 @@
       "type": "string"
     },
     "job_id": {
+      "pattern": "^[a-z0-9][a-z0-9_.-]*$",
       "title": "Job Id",
       "type": "string"
     },
     "revision": {
+      "maximum": 9223372036854775807,
       "minimum": 0,
       "title": "Revision",
       "type": "integer"

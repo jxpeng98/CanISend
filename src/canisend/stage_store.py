@@ -21,6 +21,10 @@ class ImmutableRecordError(StageStoreError):
     """Raised when an immutable record would be replaced with different content."""
 
 
+class ExclusiveRecordError(StageStoreError):
+    """Raised when an exclusive-create target already exists."""
+
+
 def resolve_job_relative_path(job_dir: Path, relative_path: str | Path) -> Path:
     """Resolve a normalized job-relative path while rejecting escapes and aliases."""
     raw_path = str(relative_path)
@@ -185,6 +189,31 @@ def write_immutable_json(path: Path, value: Mapping[str, Any]) -> Path:
     return target
 
 
+def write_immutable_bytes(path: Path, data: bytes) -> Path:
+    """Create immutable bytes, allowing only exact same-content retries."""
+    if not isinstance(data, bytes):
+        raise TypeError("write_immutable_bytes requires bytes")
+    target = Path(path)
+    if target.is_symlink():
+        raise UnsafeStagePathError("immutable stage record must not be a symlink")
+    if target.exists():
+        _require_same_immutable_bytes(target, data)
+        return target
+    return _link_complete_bytes(target, data, exclusive=False)
+
+
+def create_exclusive_bytes(path: Path, data: bytes) -> Path:
+    """Atomically create complete bytes without replacing any existing entry."""
+    if not isinstance(data, bytes):
+        raise TypeError("create_exclusive_bytes requires bytes")
+    target = Path(path)
+    if target.is_symlink() or target.exists():
+        raise ExclusiveRecordError(
+            f"exclusive stage record already exists: {target.name}"
+        )
+    return _link_complete_bytes(target, data, exclusive=True)
+
+
 def read_json_object(path: Path) -> dict[str, Any]:
     """Read a JSON record and require an object at the document root."""
     target = Path(path)
@@ -231,6 +260,82 @@ def _require_same_immutable_content(target: Path, requested: bytes) -> None:
         raise ImmutableRecordError(
             f"immutable stage record already exists with different content: {target.name}"
         )
+
+
+def _require_same_immutable_bytes(target: Path, requested: bytes) -> None:
+    try:
+        metadata = target.lstat()
+        if target.is_symlink() or not target.is_file() or metadata.st_nlink != 1:
+            raise ImmutableRecordError(
+                f"existing immutable stage record is not one unaliased regular file: {target.name}"
+            )
+        current = target.read_bytes()
+    except ImmutableRecordError:
+        raise
+    except OSError as exc:
+        raise ImmutableRecordError(
+            f"existing immutable stage record could not be inspected: {target.name}"
+        ) from exc
+    if current != requested:
+        raise ImmutableRecordError(
+            f"immutable stage record already exists with different content: {target.name}"
+        )
+
+
+def _link_complete_bytes(target: Path, data: bytes, *, exclusive: bool) -> Path:
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise StageStoreError(
+            f"stage record could not be created: {target.name}"
+        ) from exc
+
+    file_descriptor: int | None = None
+    temporary: Path | None = None
+    try:
+        file_descriptor, temporary_name = tempfile.mkstemp(
+            dir=target.parent,
+            prefix=f".{target.name}.",
+            suffix=".tmp",
+        )
+        temporary = Path(temporary_name)
+        with os.fdopen(file_descriptor, "wb") as destination:
+            file_descriptor = None
+            destination.write(data)
+            destination.flush()
+            os.fsync(destination.fileno())
+        linked = False
+        try:
+            os.link(temporary, target)
+            linked = True
+        except FileExistsError as exc:
+            if exclusive:
+                raise ExclusiveRecordError(
+                    f"exclusive stage record already exists: {target.name}"
+                ) from exc
+            _require_same_immutable_bytes(target, data)
+        if linked:
+            temporary.unlink()
+            temporary = None
+        _fsync_directory(target.parent)
+    except (ExclusiveRecordError, ImmutableRecordError):
+        raise
+    except (OSError, ValueError) as exc:
+        raise StageStoreError(
+            f"stage record could not be created: {target.name}"
+        ) from exc
+    finally:
+        if file_descriptor is not None:
+            try:
+                os.close(file_descriptor)
+            except OSError:
+                pass
+        if temporary is not None:
+            try:
+                temporary.unlink(missing_ok=True)
+            except OSError:
+                pass
+    return target
 
 
 def _reject_json_constant(value: str) -> None:

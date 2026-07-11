@@ -9,7 +9,6 @@ from typing import Any
 
 from jsonschema import Draft202012Validator
 from pydantic import ValidationError
-import yaml
 
 from canisend.parse import criteria_section_marker
 from canisend.decision_models import (
@@ -19,15 +18,23 @@ from canisend.decision_models import (
     CriterionCorrectionV1,
     CriterionImportance,
     CriterionV1,
+    ExtractionConfirmationReconciliationV1,
     SemanticInputReceiptV1,
     SourceSpanV1,
 )
 from canisend.resource_files import read_resource_text
 from canisend.stage_store import StageStoreError, read_json_object
 from canisend.stages.parse_stage import ParseStageValidationError, validate_parse_candidate
+from canisend.user_file_store import (
+    InvalidUserFileError,
+    UnsafeUserFileError,
+    load_strict_yaml,
+    read_optional_safe_bytes,
+)
 
 
 CONFIRM_CONTRACT_VERSION = "1.0.0"
+CRITERIA_EXTRACTION_BASIS_VERSION = "1.0.0"
 CONFIRMED_CORRECTIONS_PATH = "confirmed_corrections.yaml"
 CRITERIA_OUTPUT_PATH = "criteria.json"
 
@@ -87,6 +94,23 @@ def criterion_text_sha256(criterion_text: str) -> str:
     return sha256(normalized.encode("utf-8")).hexdigest()
 
 
+def criteria_extraction_basis_sha256(
+    parsed_job: dict[str, Any],
+    advert_text: str,
+) -> str:
+    """Bind an explicit empty confirmation to the current pre-overlay extraction."""
+
+    projection = {
+        "basis_version": CRITERIA_EXTRACTION_BASIS_VERSION,
+        "advert_sha256": sha256(advert_text.encode("utf-8")).hexdigest(),
+        "criteria": {
+            "essential": _canonical_parsed_criteria(parsed_job.get("essential_criteria", [])),
+            "desirable": _canonical_parsed_criteria(parsed_job.get("desirable_criteria", [])),
+        },
+    }
+    return _projection_hash(projection)
+
+
 def confirm_input_projection(
     job_dir: Path,
     *,
@@ -99,6 +123,10 @@ def confirm_input_projection(
     )
     corrections = load_confirmed_corrections(job_dir)
     criteria_schema = _criteria_schema_text(criteria_schema_path)
+    parsed_criteria = {
+        "essential": _canonical_parsed_criteria(parsed_job["essential_criteria"]),
+        "desirable": _canonical_parsed_criteria(parsed_job["desirable_criteria"]),
+    }
     active_corrections = () if corrections is None else tuple(
         {
             "correction_id": item.correction_id,
@@ -113,15 +141,26 @@ def confirm_input_projection(
         for item in corrections.criteria
         if item.record_state == "active"
     )
+    active_extraction_confirmations = () if corrections is None else tuple(
+        {
+            "correction_id": item.correction_id,
+            "target_extraction_sha256": item.target_extraction_sha256,
+            "confirmation": item.confirmation,
+        }
+        for item in corrections.criteria_extraction_confirmations
+        if item.record_state == "active"
+    )
     return {
         "stage": "confirm",
         "contract_version": CONFIRM_CONTRACT_VERSION,
-        "criteria": {
-            "essential": _canonical_parsed_criteria(parsed_job["essential_criteria"]),
-            "desirable": _canonical_parsed_criteria(parsed_job["desirable_criteria"]),
-        },
+        "criteria": parsed_criteria,
         "advert_sha256": sha256(advert_text.encode("utf-8")).hexdigest(),
+        "criteria_extraction_basis_sha256": criteria_extraction_basis_sha256(
+            parsed_job,
+            advert_text,
+        ),
         "active_corrections": active_corrections,
+        "active_extraction_confirmations": active_extraction_confirmations,
         "schema_sha256": sha256(criteria_schema.encode("utf-8")).hexdigest(),
     }
 
@@ -174,11 +213,18 @@ def build_deterministic_confirm_candidate(
             projection_sha256=str(projection["advert_sha256"]),
         ),
     ]
-    if projection["active_corrections"]:
+    if projection["active_corrections"] or projection["active_extraction_confirmations"]:
         semantic_inputs.append(
             SemanticInputReceiptV1(
                 path=CONFIRMED_CORRECTIONS_PATH,
-                projection_sha256=_projection_hash(projection["active_corrections"]),
+                projection_sha256=_projection_hash(
+                    {
+                        "criteria": projection["active_corrections"],
+                        "criteria_extraction_confirmations": projection[
+                            "active_extraction_confirmations"
+                        ],
+                    }
+                ),
             )
         )
     return project_criteria(
@@ -188,6 +234,7 @@ def build_deterministic_confirm_candidate(
         corrections=corrections,
         input_fingerprint=fingerprint,
         semantic_inputs=tuple(semantic_inputs),
+        extraction_basis_sha256=str(projection["criteria_extraction_basis_sha256"]),
     )
 
 
@@ -199,6 +246,7 @@ def project_criteria(
     corrections: ConfirmedCorrectionsV1 | None,
     input_fingerprint: str,
     semantic_inputs: tuple[SemanticInputReceiptV1, ...],
+    extraction_basis_sha256: str | None = None,
 ) -> CriteriaCatalogV1:
     raw_criteria: list[tuple[CriterionImportance, dict[str, Any]]] = []
     for importance, field in (
@@ -235,6 +283,19 @@ def project_criteria(
         for item in (corrections.criteria if corrections is not None else ())
         if item.record_state == "active"
     }
+    active_extraction_confirmations = tuple(
+        item
+        for item in (
+            corrections.criteria_extraction_confirmations
+            if corrections is not None
+            else ()
+        )
+        if item.record_state == "active"
+    )
+    current_extraction_basis = extraction_basis_sha256 or criteria_extraction_basis_sha256(
+        parsed_job,
+        advert_text,
+    )
     applied_correction_ids: set[str] = set()
     orphan_reasons: dict[str, str] = {}
     criteria: list[CriterionV1] = []
@@ -257,11 +318,7 @@ def project_criteria(
         if correction is not None and correction.target_source_sha256 != source_hash:
             correction_is_valid = False
             correction_reason = "source_hash.changed"
-        if (
-            correction is not None
-            and correction.confirmation == "confirmed"
-            and correction.target_criterion_sha256 != parsed_text_hash
-        ):
+        if correction is not None and correction.target_criterion_sha256 != parsed_text_hash:
             correction_is_valid = False
             correction_reason = "criterion_text.changed"
         selected_occurrence, source_selection_reason = _selected_source_occurrence(
@@ -373,15 +430,46 @@ def project_criteria(
         for item in criteria
         if item.source_state == "unknown" or item.confirmation_state == "unconfirmed"
     )
+    active_empty_confirmation = (
+        active_extraction_confirmations[0] if active_extraction_confirmations else None
+    )
+    orphaned_extraction_confirmations: tuple[
+        ExtractionConfirmationReconciliationV1, ...
+    ] = ()
+    extraction_state = "extracted" if criteria else "unknown"
+    extraction_unknown_reason = None if criteria else "criteria.none_extracted"
+    empty_confirmation_record_id = None
+    if active_empty_confirmation is not None:
+        if criteria:
+            orphaned_extraction_confirmations = (
+                ExtractionConfirmationReconciliationV1(
+                    correction_id=active_empty_confirmation.correction_id,
+                    reason="criteria.extraction_changed",
+                ),
+            )
+        elif active_empty_confirmation.target_extraction_sha256 == current_extraction_basis:
+            extraction_state = "confirmed_empty"
+            extraction_unknown_reason = None
+            empty_confirmation_record_id = active_empty_confirmation.correction_id
+        else:
+            extraction_unknown_reason = "criteria.empty_confirmation_stale"
+            orphaned_extraction_confirmations = (
+                ExtractionConfirmationReconciliationV1(
+                    correction_id=active_empty_confirmation.correction_id,
+                    reason="criteria.extraction_basis_changed",
+                ),
+            )
     return CriteriaCatalogV1(
         job_id=job_id,
         input_fingerprint=input_fingerprint,
         semantic_inputs=semantic_inputs,
-        extraction_state="extracted" if criteria else "unknown",
-        extraction_unknown_reason=None if criteria else "criteria.none_extracted",
+        extraction_state=extraction_state,
+        extraction_unknown_reason=extraction_unknown_reason,
+        empty_confirmation_record_id=empty_confirmation_record_id,
         criteria=tuple(criteria),
         unresolved_criterion_ids=unresolved,
         orphaned_corrections=orphaned,
+        orphaned_extraction_confirmations=orphaned_extraction_confirmations,
     )
 
 
@@ -425,63 +513,23 @@ def validate_confirm_candidate(
 
 
 def load_confirmed_corrections(job_dir: Path) -> ConfirmedCorrectionsV1 | None:
-    path = job_dir / CONFIRMED_CORRECTIONS_PATH
-    if path.is_symlink():
-        raise ConfirmStageError("The confirmed correction overlay is not a safe regular file.")
-    if not path.exists():
-        return None
-    if not path.is_file():
-        raise ConfirmStageError("The confirmed correction overlay is not a safe regular file.")
     try:
-        loaded = yaml.load(
-            path.read_text(encoding="utf-8"),
-            Loader=_UniqueKeySafeLoader,
+        snapshot = read_optional_safe_bytes(job_dir, CONFIRMED_CORRECTIONS_PATH)
+    except UnsafeUserFileError as exc:
+        raise ConfirmStageError(
+            "The confirmed correction overlay is not a safe regular file."
+        ) from exc
+    if snapshot is None:
+        return None
+    try:
+        overlay = ConfirmedCorrectionsV1.model_validate(
+            load_strict_yaml(snapshot.data)
         )
-        overlay = ConfirmedCorrectionsV1.model_validate(loaded)
-    except (OSError, UnicodeError, yaml.YAMLError, ValidationError) as exc:
+    except (InvalidUserFileError, ValidationError) as exc:
         raise ConfirmStageError("The confirmed correction overlay is not valid safe YAML.") from exc
     if overlay.job_id != job_dir.name:
         raise ConfirmStageError("The confirmed correction overlay belongs to a different job.")
     return overlay
-
-
-class _UniqueKeySafeLoader(yaml.SafeLoader):
-    pass
-
-
-def _construct_unique_mapping(
-    loader: _UniqueKeySafeLoader,
-    node: yaml.MappingNode,
-    deep: bool = False,
-) -> dict[object, object]:
-    loader.flatten_mapping(node)
-    mapping: dict[object, object] = {}
-    for key_node, value_node in node.value:
-        key = loader.construct_object(key_node, deep=deep)
-        try:
-            duplicate = key in mapping
-        except TypeError as exc:
-            raise yaml.constructor.ConstructorError(
-                "while constructing a mapping",
-                node.start_mark,
-                "found an unhashable mapping key",
-                key_node.start_mark,
-            ) from exc
-        if duplicate:
-            raise yaml.constructor.ConstructorError(
-                "while constructing a mapping",
-                node.start_mark,
-                f"found duplicate key: {key}",
-                key_node.start_mark,
-            )
-        mapping[key] = loader.construct_object(value_node, deep=deep)
-    return mapping
-
-
-_UniqueKeySafeLoader.add_constructor(
-    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
-    _construct_unique_mapping,
-)
 
 
 def _load_validated_parse_inputs(
