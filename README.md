@@ -23,6 +23,9 @@ It prepares materials only. It does not submit applications, create accounts, fi
 - Imports and filters jobs.ac.uk RSS plus generic RSS/Atom leads without crawling full job pages.
 - Creates one local folder per application, with the full advert kept as a manual input.
 - Extracts normalized evidence from Typst-first profile sources into `profile/generated/`.
+- Materializes a private, run-scoped Evidence snapshot and durable `evidence_catalog.json` without exposing evidence
+  bodies in workflow control records.
+- Produces deterministic, reviewable `criterion_matches.json` proposals from current Criteria and Evidence catalogs.
 - Generates `parsed_job.json`, preparation questions, fit reports, cover letter drafts, CV tailoring notes, criteria checklists, material review checklists, and structured Typst content.
 - Runs deterministic local generation by default, with explicit opt-in for LLM-backed evidence augmentation, parsing, or drafting.
 - Ships bridge files plus a self-contained workspace skill pack for Codex, Claude Code, and IDE agents.
@@ -107,12 +110,13 @@ uv run canisend run-example --workspace /tmp/canisend-example --overwrite
 ## Core Workflow
 
 ```text
-private profile -> generated evidence -> job folder -> parsed criteria
-      |                                      |
-      v                                      v
-item-level receipts                 draft materials + review checklist
-      |                                      |
-      +------------ manual review -----------+
+private profile -> generated evidence -> private run snapshot -> Evidence catalog
+                                                            |            |
+full advert -> Parsed Job -> stable Criteria ----------------+            v
+                                                        proposed criterion matches
+                                                                  |
+                                                                  v
+                                                         review + later decisions
 ```
 
 ### 1. Initialize a private workspace
@@ -194,6 +198,11 @@ profile/generated/cv.evidence.md#Teaching/cv-001
 ```
 
 Review item-level evidence citations before trusting any generated claim.
+
+Current Typst extraction also writes a source-hash receipt into each generated evidence file. If a file was produced
+by an older CanISend version and the resumable Evidence stage reports `evidence.source_receipt_missing`, rerun
+`extract-profile-evidence`; if the underlying Typst source has changed, re-extraction also resolves
+`evidence.source_receipt_stale`. Do not hand-edit the receipt to make stale evidence appear current.
 
 ### 3. Import leads and create one job folder
 
@@ -360,15 +369,18 @@ The LLM-backed evidence augmenter only accepts items tied to a supporting `sourc
 Review files in this order:
 
 1. `parsed_job.json`
-2. `00_preparation_questions.md`
-3. `05_criteria_checklist.md`
-4. `02_fit_report.md`
-5. `03_cover_letter_draft.md`
-6. `04_cv_tailoring_notes.md`
-7. `07_material_review_checklist.md`
-8. `typst/cover_letter.typ`
-9. `typst/application_package.typ`
-10. `06_final_application_package.md`
+2. `criteria.json`
+3. Evidence state and receipts in `evidence_catalog.json` (its body is private profile data)
+4. Proposed classifications and gaps in `criterion_matches.json`
+5. `00_preparation_questions.md`
+6. `05_criteria_checklist.md`
+7. `02_fit_report.md`
+8. `03_cover_letter_draft.md`
+9. `04_cv_tailoring_notes.md`
+10. `07_material_review_checklist.md`
+11. `typst/cover_letter.typ`
+12. `typst/application_package.typ`
+13. `06_final_application_package.md`
 
 Use `00_preparation_questions.md` to confirm US English vs UK English, writing style, and the grill-me details that make the application specific. Use `07_material_review_checklist.md` to track the cover letter draft, CV tailoring notes, placeholders, item-level evidence citation checks, and next manual actions.
 
@@ -432,17 +444,23 @@ successful invocation writes one `canisend.agent/v1` response to stdout. Respons
 artifact references and hashes rather than private document bodies. A failed package gate remains a successful
 operation result (`ok: true`) but exits non-zero; operational failures return `ok: false` with a stable error code.
 
-The resumable workflow currently exposes Parse and the first Stage 2 Confirm slice through the same shell-capable
-hosts:
+The resumable workflow exposes the accepted Parse, Confirm, Evidence, and Match slices through the same shell-capable
+hosts. A normal deterministic fresh-session loop is:
 
 ```bash
+canisend agent context --workspace . --job jobs/<job-slug> --format json
 canisend stage status --workspace . --job jobs/<job-slug> --format json
+canisend extract-profile-evidence --workspace .
+canisend stage run --workspace . --job jobs/<job-slug> --stage evidence --mode deterministic --format json
 canisend stage run --workspace . --job jobs/<job-slug> --stage parse --mode deterministic --format json
 canisend stage run --workspace . --job jobs/<job-slug> --stage confirm --mode deterministic --format json
-canisend stage status --workspace . --job jobs/<job-slug> --stage confirm --format json
+canisend stage run --workspace . --job jobs/<job-slug> --stage match --mode deterministic --format json
+canisend stage status --workspace . --job jobs/<job-slug> --stage match --format json
 ```
 
-Host-agent execution currently applies to Parse only; Confirm is deterministic-only. For current-host Parse
+Evidence and Parse are independent after intake, so their deterministic runs may be ordered either way; Match waits
+for current Confirm and Evidence outputs. Host-agent execution currently applies to Parse only; Evidence, Confirm,
+and Match are deterministic-only. For current-host Parse
 reasoning, `stage prepare --mode host-agent` writes a TaskSpec plus an immutable preparation receipt under the job's
 `workflow/runs/` directory. After explicit approval to read the full advert, the host creates candidate JSON only in
 a fresh scratch file and passes it to `stage submit --candidate-file`; the guarded service writes the declared
@@ -466,16 +484,36 @@ changed source receipt or parsed
 interpretation receives a new criterion ID and leaves the old correction visible for reconciliation instead of
 attaching it to a different requirement.
 
+Evidence prepares one immutable private input at
+`workflow/runs/<run-id>/inputs/evidence-snapshot.json`, then promotes `evidence_catalog.json`. The snapshot, Evidence
+candidate, and promoted catalog may contain normalized profile text and deliberately duplicate it inside the ignored
+private job data plane. They remain until the user removes the private run or job folder; CanISend does not claim to
+erase them automatically. TaskSpec, state, receipts, manifests, errors, ordinary command output, and AgentResponse
+extensions contain only privacy-safe paths, hashes, IDs, reason codes, and counts. Resumable Evidence rejects
+workspace-external profile roots, path escapes, symlinks, hard-link aliases, non-regular files, and bounded-input
+violations. Legacy commands may retain their existing external-profile behavior, but that does not expand the
+Evidence TaskSpec v1 boundary.
+
+Match reads only the current job-local `criteria.json` and `evidence_catalog.json`. It writes
+`criterion_matches.json` with one deterministic `strong`, `partial`, `weak`, `missing`, or `unknown` proposal per
+criterion, explicit privacy-safe gaps, matcher provenance, and opaque catalog references. It does not copy evidence
+text, generated-evidence headings, or legacy locators. Every record has `review_state=proposed`: Match is not an
+application decision, does not confirm applicant claims, and does not make a package ready. Decide, application
+brief, and advert-driven document planning remain later Stage 2 work.
+
 Use `canisend doctor --workspace .` when a human-readable environment diagnostic is also useful.
 
 A fresh Codex, Claude Code, or IDE shell session resumes from the same durable workspace state by running the same
 `agent context` command; it does not need the previous chat transcript. The fake-data conformance fixture under
 `examples/agent_handoff/` demonstrates this host-neutral handoff. The Parse slice now adds durable task/result
-exchange through the existing CLI; Confirm now proves the same boundary for a second stage. Later roadmap slices add
-durable matching, decisions, briefs, and advert-driven document planning. MCP is
-not on the current critical path.
+exchange through the existing CLI; Confirm, Evidence, and Match now reuse that boundary without a platform-specific
+API. Later roadmap slices add user-owned decisions, briefs, and advert-driven document planning. MCP is not on the
+current critical path.
 
-They may run local deterministic CLI commands, inspect generated evidence, and review current job artifacts. They must ask first before reading full private CVs, statements, full job adverts, references, PDFs, source URLs, generated packages, or enabling LLM-backed CLI flags/providers. They must not scrape pages, submit applications, upload packages, fabricate evidence, or commit private profile/job data.
+They may run local deterministic CLI commands, inspect generated evidence, and review current job artifacts. They must
+ask first before reading full private CVs, statements, full job adverts, references, PDFs, source URLs, Evidence
+snapshots/candidates/catalogs, generated packages, or enabling LLM-backed CLI flags/providers. They must not scrape
+pages, submit applications, upload packages, fabricate evidence, or commit private profile/job data.
 
 Original profile inputs under `profile/` are protected. Agents should normally produce profile-improvement suggestions inside the job folder, not rewrite the source CV or statements. A write back to `profile/typst/*.typ`, `profile/*.md`, or other non-generated profile input is allowed only through an orchestrator task that declares `edits_profile_input: true`, depends on a prior review task, uses privacy tier 2 or higher, and is launched with `--allow-profile-input-edits --confirm-profile-input-edit --confirm-profile-input-edit-again`.
 
@@ -572,6 +610,9 @@ This repository is intended to be open source. Personal application data should 
 - `jobs/` generated job folders are ignored by git unless selected generated materials are explicitly staged with `canisend run --git-add-materials`.
 - `job_leads/` feed outputs are ignored by git.
 - `.env`, API keys, rendered PDFs, raw job adverts, real source URLs, parsed job JSON, and profile files should not be committed.
+- Evidence snapshots, Evidence candidates, `evidence_catalog.json`, and `criterion_matches.json` stay inside ignored
+  private job folders. The first three may contain duplicated normalized profile text; removing a run or job remains
+  an explicit user retention decision.
 - Sensitive declarations such as right-to-work, visa, disability, equality monitoring, health, criminal record, and conflicts remain user-only.
 
 这也能投只是材料准备工具，不是提交凭证。

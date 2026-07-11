@@ -39,6 +39,9 @@
   "forbidden_body_fields": [
     "job_advert_body",
     "profile_body",
+    "evidence_body",
+    "evidence_snapshot_body",
+    "evidence_catalog_body",
     "package_body",
     "source_url_query"
   ]

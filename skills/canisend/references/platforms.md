@@ -61,6 +61,8 @@ For VS Code, Cursor, Zed, JetBrains, Copilot-style chat, and other IDE agents:
 
 - `canisend agent capabilities --format json` reports the supported protocol and operations.
 - `canisend agent context --workspace <private-workspace> --format json` reports safe workspace state.
+- `canisend stage status --workspace <private-workspace> --job jobs/<job-slug> --format json` reconstructs current
+  Parse, Confirm, Evidence, and Match state from durable job files.
 - `canisend doctor --workspace <private-workspace>` remains available for human-readable diagnostics.
 - Root bridge file exists for the target platform.
 - The bridge points to `agent-skills/canisend/SKILL.md`.
@@ -74,5 +76,12 @@ A new shell-capable host resumes from workspace files, not a previous chat trans
 the same `agent context` command with the workspace and optional job path. Apart from dynamic `request_id` values, an
 unchanged workspace yields the same semantic context, artifact hashes, blockers, consents, and next actions.
 
-This Phase 1 claim covers Codex CLI/App sessions with command access, Claude Code, and IDE shell agents. Native local
-MCP transport, TaskSpec/TaskResult execution, and candidate promotion begin in Phase 2.
+The accepted shell contract covers Codex CLI/App sessions with command access, Claude Code, and IDE shell agents.
+Parse supports deterministic and approved host-agent execution; Confirm, Evidence, and Match are deterministic-only.
+Evidence materializes its cross-directory profile inputs into a job-local immutable snapshot, so TaskSpec v1 remains
+truthful on every host. Its safe-read implementation uses descriptor-relative protection where available and a
+portable pre/post identity fallback where it is not.
+
+No platform adapter, SDK, MCP transport, hosted service, or second provider is required for these slices. A fresh
+host can run `extract-profile-evidence`, then deterministic Evidence, Parse, Confirm, and Match through the same CLI.
+Match output is proposed review data, not a cross-platform application Decision or readiness claim.

@@ -34,6 +34,10 @@ Regenerate normalized evidence whenever profile sources change:
 canisend extract-profile-evidence --workspace <private-workspace>
 ```
 
+Typst-backed generated evidence now includes a source-hash receipt. If Evidence reports
+`evidence.source_receipt_missing` for older generated output, or `evidence.source_receipt_stale` after its raw source
+changes, rerun this command. Do not repair the receipt manually.
+
 Agents should read generated evidence from `profile/generated/`, not directly rely on prose claims in the private CV. New claims should cite item-level citations such as `profile/generated/cv.evidence.md#Teaching/cv-001`.
 
 If generated evidence is incomplete, first report the gap. Read raw profile sources only with user approval, because in agent-assisted mode the content read by the agent may be processed by the agent model provider. `extract-profile-evidence --llm-augment` must also be explicit opt-in; it rejects augmented items that do not cite a local source chunk.
@@ -101,7 +105,29 @@ canisend agent context \
 
 The workspace is authoritative; no previous prompt or chat transcript is required.
 
-## 5. Run Or Resume The Parse Stage
+## 5. Run Or Resume Evidence And Parse
+
+Evidence and Parse are independent after intake and can run in either order. Run Evidence deterministically:
+
+```bash
+canisend stage run \
+  --workspace <private-workspace> \
+  --job jobs/<job-slug> \
+  --stage evidence \
+  --mode deterministic \
+  --format json
+```
+
+Evidence prepares one immutable private
+`workflow/runs/<run-id>/inputs/evidence-snapshot.json`; its TaskSpec names only that job-local input. It promotes a
+strict `evidence_catalog.json` with stable content-derived IDs and `available`, `empty`, or `unavailable` state. The
+snapshot, candidate, and catalog may contain normalized profile bodies and duplicate them until the user removes the
+private run or job directory. Workflow state, receipts, manifests, errors, ordinary command output, and AgentResponse
+extensions do not contain those bodies.
+
+This resumable slice accepts only profiles inside the workspace. It rejects a workspace-external profile root,
+unsafe manifest paths, symlinks, hard-link aliases, non-regular files, changing inputs, and versioned size-limit
+violations. These restrictions do not redefine compatibility behavior of unrelated legacy commands.
 
 Inspect Parse without writing state:
 
@@ -195,7 +221,30 @@ Use `confirmation: corrected` plus `corrected_text` to replace the projected wor
 copy one candidate's paired `source_occurrence` and `source_anchor_sha256`; Confirm accepts it only when that context
 anchor is unique in the current candidate set.
 
-## 7. Generate Draft Package
+## 7. Propose Durable Criterion Matches
+
+After Confirm and Evidence are current, run Match deterministically:
+
+```bash
+canisend stage run \
+  --workspace <private-workspace> \
+  --job jobs/<job-slug> \
+  --stage match \
+  --mode deterministic \
+  --format json
+```
+
+Match reads only `criteria.json` and `evidence_catalog.json`. It writes one canonical `strong`, `partial`, `weak`,
+`missing`, or `unknown` classification per criterion, with matcher provenance, explicit gaps, and opaque
+`evidence_catalog.json#items/<evidence-id>` references. It never copies evidence text, private headings, legacy item
+labels, or evidence kinds into `criterion_matches.json`.
+
+An empty Evidence catalog and unavailable Evidence produce different `unknown` gaps; an available catalog with no
+relevant support produces `missing`. Unknown Criteria extraction blocks Match and routes back to Criteria review.
+Every classification has `review_state=proposed`. Review the proposals; they are neither a user-owned application
+Decision nor evidence that a package is ready. Editing either catalog directly is forbidden—rerun its owning stage.
+
+## 8. Generate Draft Package
 
 Deterministic baseline:
 
@@ -217,20 +266,23 @@ Use only `--llm-parser` when the user wants structured parsing but not drafted p
 
 Always ask before enabling LLM-backed flags or a command provider for a real workspace, because those modes can send selected private advert, profile, evidence, and draft context to the configured provider. If the user has not opted in, run the deterministic baseline and report any gaps for manual review.
 
-## 8. Review Before Rendering
+## 9. Review Before Rendering
 
 Review, in order:
 
 1. `parsed_job.json`
-2. `00_preparation_questions.md`
-3. `05_criteria_checklist.md`
-4. `02_fit_report.md`
-5. `03_cover_letter_draft.md`
-6. `04_cv_tailoring_notes.md`
-7. `07_material_review_checklist.md`
-8. `typst/cover_letter.typ`
-9. `typst/application_package.typ`
-10. `06_final_application_package.md`
+2. `criteria.json`
+3. Evidence state and receipts in `evidence_catalog.json` (read its private bodies only when needed and approved)
+4. Proposed classifications and gaps in `criterion_matches.json`
+5. `00_preparation_questions.md`
+6. `05_criteria_checklist.md`
+7. `02_fit_report.md`
+8. `03_cover_letter_draft.md`
+9. `04_cv_tailoring_notes.md`
+10. `07_material_review_checklist.md`
+11. `typst/cover_letter.typ`
+12. `typst/application_package.typ`
+13. `06_final_application_package.md`
 
 Apply `quality-gates.md` before treating any output as usable.
 In particular, check language/style confirmation, item-level citations, unsupported claims, required-document coverage, and private-file safety before presenting a package as ready.
@@ -243,7 +295,7 @@ that flag, the check remains read-only.
 
 In agent-assisted mode, also report which private sources were read directly, which LLM-backed CLI flags were used, and which remaining claims need manual confirmation.
 
-## 9. Optional Typst Rendering
+## 10. Optional Typst Rendering
 
 Render only when the user asks for PDFs or needs local PDF review:
 
@@ -253,6 +305,6 @@ canisend render-typst --workspace <private-workspace> --job jobs/<job-slug>
 
 Rendering requires a local `typst` binary. Source generation does not.
 
-## 10. Manual Submission
+## 11. Manual Submission
 
 The tool stops at preparation. The user manually handles portal upload, eligibility declarations, equality monitoring, right-to-work, disability, visa, conflict, criminal record, and other sensitive form answers.

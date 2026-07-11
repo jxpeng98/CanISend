@@ -10,6 +10,10 @@ CanISend has three distinct privacy modes:
 - Agent-assisted mode: when Codex, Claude Code, or another AI agent reads or summarizes files, PDFs, webpages, generated evidence, job adverts, or package drafts, that content may be processed by the agent model provider. Do not call this local-only.
 - LLM-backed CLI mode: `extract-profile-evidence --llm-augment`, `--llm-parser`, `--llm-drafts`, or `ACADEMIC_PREP_LLM_PROVIDER=command` may transmit selected private advert, profile, evidence, and draft context to the configured provider.
 
+Deterministic Evidence and Match do not invoke a configured provider, network, MCP transport, or platform API. That
+does not make an agent-assisted review of their files local-only: a model may still process any artifact the agent
+chooses to read.
+
 The privacy boundary controls consent, scope, git safety, and forbidden actions. It is not a promise that agent-assisted or LLM-backed workflows keep all content away from models.
 
 ## Private By Default
@@ -48,6 +52,23 @@ When asking to read private materials in agent-assisted mode, state that the con
 - Read only the current job folder unless the user explicitly asks for cross-job comparison.
 - Summarize narrow facts instead of quoting private text.
 - If full source review is necessary, read the smallest relevant file or section and explain why.
+
+## Evidence Data Plane And Retention
+
+The private Evidence data plane consists of
+`workflow/runs/<run-id>/inputs/evidence-snapshot.json`, the Evidence candidate, and `evidence_catalog.json`. These
+artifacts may contain and deliberately duplicate normalized profile bodies inside an ignored job folder. They remain
+until the user removes the private run or job; cancellation, failure, or promotion does not promise automatic
+erasure. Ask before an agent reads them when a privacy-safe status, count, reason code, or Match projection is enough.
+
+Workflow state, TaskSpec, preparation/submission/result/validation/promotion receipts, terminal claims, manifests,
+errors, ordinary command output, and AgentResponse extensions are the privacy-safe control plane. Match output also
+belongs to this boundary: it uses opaque catalog references and must not copy evidence text, headings, legacy item
+labels, or private evidence kinds.
+
+TaskSpec v1 remains job-relative. Resumable Evidence rejects workspace-external profile roots, absolute or parent
+paths, path escapes, symlinks, hard-link aliases, non-regular inputs, changing sources, and bounded-input violations.
+Do not work around these checks with hidden direct reads or copied absolute paths.
 
 ## Untrusted Imported Data
 
@@ -111,4 +132,6 @@ Only stage source code, tests, docs, prompts, templates, schemas, examples, and 
 
 ## Do Not Stage Or Commit
 
-Do not stage or commit real CVs, statements, references, full job adverts, generated packages, rendered PDFs, `.env`, API keys, private source URLs, or files that reveal application strategy. If these appear in `git status --short`, leave them untouched and report the risk.
+Do not stage or commit real CVs, statements, references, full job adverts, Evidence snapshots/candidates/catalogs,
+criterion matches, generated packages, rendered PDFs, `.env`, API keys, private source URLs, or files that reveal
+application strategy. If these appear in `git status --short`, leave them untouched and report the risk.

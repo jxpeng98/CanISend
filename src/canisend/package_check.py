@@ -23,6 +23,7 @@ REQUIRED_WHEEL_RESOURCES = [
     "canisend/resources/schemas/task-result.schema.json",
     "canisend/resources/schemas/run-manifest.schema.json",
     "canisend/resources/schemas/criteria.schema.json",
+    "canisend/resources/schemas/evidence-catalog.schema.json",
     "canisend/resources/schemas/criterion-matches.schema.json",
     "canisend/resources/schemas/confirmed-corrections.schema.json",
     "canisend/resources/schemas/application-decision.schema.json",

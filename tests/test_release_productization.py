@@ -13,6 +13,20 @@ from canisend.cli import app
 from canisend.package_check import missing_wheel_resources, required_wheel_resources
 
 
+def _assert_complete_decision_spine_smoke(command: str) -> None:
+    positions = [
+        command.index(f"--stage {stage} --format json")
+        for stage in ("evidence", "parse", "confirm", "match")
+    ]
+
+    assert positions == sorted(positions)
+    assert "evidence_catalog.json" in command
+    assert "criterion_matches.json" in command
+    assert "preparation.json" in command
+    assert "submission.json" in command
+    assert "['status'] == 'succeeded'" in command
+
+
 def test_doctor_reports_installed_package_version(tmp_path):
     workspace = tmp_path / "workspace"
     runner = CliRunner()
@@ -84,6 +98,7 @@ def test_package_check_requires_all_run_example_resources():
         "canisend/resources/schemas/task-result.schema.json",
         "canisend/resources/schemas/run-manifest.schema.json",
         "canisend/resources/schemas/criteria.schema.json",
+        "canisend/resources/schemas/evidence-catalog.schema.json",
         "canisend/resources/schemas/criterion-matches.schema.json",
         "canisend/resources/schemas/confirmed-corrections.schema.json",
         "canisend/resources/schemas/application-decision.schema.json",
@@ -131,6 +146,7 @@ def test_package_check_reports_missing_wheel_resources(tmp_path):
     missing = missing_wheel_resources(wheel_path)
 
     assert "canisend/resources/templates/typst/cover_letter.typ" in missing
+    assert "canisend/resources/schemas/evidence-catalog.schema.json" in missing
     assert "canisend/resources/agent-skills/canisend/SKILL.md" in missing
     assert "canisend/resources/agent-skills/canisend/agents/openai.yaml" in missing
     assert "canisend/resources/agent-skills/canisend/references/platforms.md" in missing
@@ -151,8 +167,19 @@ def test_ci_workflow_runs_tests_build_and_package_resource_check():
     assert "python -m venv /tmp/canisend-smoke" in rendered
     assert "/tmp/canisend-smoke/bin/canisend doctor --workspace /tmp/canisend-workspace" in rendered
     assert "canisend run-example --workspace /tmp/canisend-stage2-example" in rendered
+    assert "--stage evidence --format json" in rendered
     assert "--stage confirm --format json" in rendered
-    assert "workflow/runs/*/submission.json" in rendered
+    assert "--stage match --format json" in rendered
+    assert "evidence_catalog.json" in rendered
+    assert "criterion_matches.json" in rendered
+    assert "preparation.json" in rendered
+    assert "submission.json" in rendered
+    built_wheel_smoke = next(
+        step["run"]
+        for step in workflow["jobs"]["build-package"]["steps"]
+        if step.get("name") == "Smoke test built wheel"
+    )
+    _assert_complete_decision_spine_smoke(built_wheel_smoke)
 
 
 def test_ci_covers_supported_python_versions_and_cross_os_cli_smoke():
@@ -167,16 +194,31 @@ def test_ci_covers_supported_python_versions_and_cross_os_cli_smoke():
         "macos-latest",
         "windows-latest",
     ]
-    smoke = json.dumps(jobs["smoke"])
+    smoke_job = jobs["smoke"]
+    smoke = json.dumps(smoke_job)
     assert 'python-version: "3.12"' in Path(".github/workflows/ci.yml").read_text()
     assert "canisend --help" in smoke
     assert "init-workspace" in smoke
     assert "doctor --workspace .ci-smoke-workspace --format json" in smoke
     assert "agent capabilities --format json" in smoke
+    assert "run-example --workspace .ci-smoke-stage2 --overwrite" in smoke
+    for stage in ("evidence", "parse", "confirm", "match"):
+        assert f"--stage {stage} --format json" in smoke
+    assert "evidence_catalog.json" in smoke
+    assert "criterion_matches.json" in smoke
+    assert "preparation.json" in smoke
+    assert "submission.json" in smoke
+    cross_os_smoke = next(
+        step["run"]
+        for step in smoke_job["steps"]
+        if step.get("name") == "Smoke test CLI contract"
+    )
+    _assert_complete_decision_spine_smoke(cross_os_smoke)
 
 
 def test_release_workflow_publishes_with_trusted_publishing():
     workflow_path = Path(".github/workflows/release.yml")
+    workflow = yaml.safe_load(workflow_path.read_text())
     rendered = workflow_path.read_text()
 
     assert "push:" in rendered
@@ -203,18 +245,38 @@ def test_release_workflow_publishes_with_trusted_publishing():
     assert "python -m venv /tmp/canisend-smoke" in rendered
     assert "run-example --workspace /tmp/canisend-stage2-example" in rendered
     assert "run-example --workspace /tmp/canisend-testpypi-stage2-example" in rendered
+    assert rendered.count("--stage evidence --format json") >= 2
     assert rendered.count("--stage confirm --format json") >= 2
+    assert rendered.count("--stage match --format json") >= 2
+    assert rendered.count("evidence_catalog.json") >= 2
+    assert rendered.count("criterion_matches.json") >= 2
+    assert rendered.count("preparation.json") >= 2
+    assert rendered.count("submission.json") >= 2
+    for job_name, step_name in (
+        ("build", "Smoke test built wheel"),
+        ("smoke-test-testpypi", "Smoke test TestPyPI package"),
+    ):
+        smoke_command = next(
+            step["run"]
+            for step in workflow["jobs"][job_name]["steps"]
+            if step.get("name") == step_name
+        )
+        _assert_complete_decision_spine_smoke(smoke_command)
 
 
-def test_local_release_checks_smoke_installed_wheel_through_confirm():
+def test_local_release_checks_smoke_installed_wheel_through_match():
     rendered = Path("scripts/release.sh").read_text()
 
     assert "uv pip install --python" in rendered
     assert "run-example --workspace" in rendered
+    assert "--stage evidence --format json" in rendered
     assert "--stage parse --format json" in rendered
     assert "--stage confirm --format json" in rendered
-    assert "workflow/runs/*/preparation.json" in rendered
-    assert "workflow/runs/*/submission.json" in rendered
+    assert "--stage match --format json" in rendered
+    assert "evidence_catalog.json" in rendered
+    assert "criterion_matches.json" in rendered
+    assert "preparation.json" in rendered
+    assert "submission.json" in rendered
 
 
 def test_release_workflow_guards_stable_tag_source_provenance():

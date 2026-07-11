@@ -28,6 +28,21 @@ Installed users can run the whole packaged example with:
 canisend run-example --workspace /tmp/canisend-example --overwrite
 ```
 
+The same fake workspace can exercise the accepted resumable Decision Spine without a provider or platform API:
+
+```bash
+JOB=jobs/2026-06-15_example-university_lecturer-in-applied-economics
+canisend stage run --workspace /tmp/canisend-example --job "$JOB" --stage evidence --mode deterministic --format json
+canisend stage run --workspace /tmp/canisend-example --job "$JOB" --stage parse --mode deterministic --format json
+canisend stage run --workspace /tmp/canisend-example --job "$JOB" --stage confirm --mode deterministic --format json
+canisend stage run --workspace /tmp/canisend-example --job "$JOB" --stage match --mode deterministic --format json
+```
+
+This adds strict `criteria.json`, private `evidence_catalog.json`, and privacy-safe `criterion_matches.json` plus
+immutable run evidence under the job's `workflow/` directory. Match classifications are proposed review results, not
+application decisions. The fake profile stays inside the workspace and its generated Typst evidence carries a
+source-hash receipt.
+
 The manual sequence below is useful when developing the project or debugging individual steps.
 
 From the repository root:

@@ -1,6 +1,6 @@
 # Decision Spine Foundation Implementation Plan
 
-**Status:** In progress — first Criteria/Confirm vertical slice locally accepted
+**Status:** In progress — Criteria/Confirm and Evidence/Match vertical slices locally accepted
 
 **Date:** 2026-07-11
 
@@ -11,8 +11,9 @@
 ## Goal
 
 Implement Stage 2 of the CLI-first roadmap as a sequence of reviewable vertical slices. The first slice establishes
-stable criteria and a resumable Confirm stage. Later slices add job-local evidence references, durable matching,
-user-owned application decisions and briefs, and advert-driven document planning without entering Draft.
+stable criteria and a resumable Confirm stage; the second establishes stable private Evidence catalogs and durable
+proposed matching. Later slices add user-owned application decisions and briefs, and advert-driven document planning
+without entering Draft.
 
 ## Fixed Decisions
 
@@ -88,12 +89,107 @@ user-owned application decisions and briefs, and advert-driven document planning
 
 ## Task 4: Stable Evidence Catalog And Durable Match
 
-- [ ] Derive content-based EvidenceRef IDs without changing legacy display citations.
-- [ ] Materialize a job-local evidence catalog so TaskSpec read scope remains truthful.
-- [ ] Generate `criterion_matches.json` with deterministic ordering, explicit gaps, matcher provenance, and proposed
-  review state.
-- [ ] Require every essential criterion to have exactly one classification.
-- [ ] Mark Match implemented only after its full prepare/apply/recovery slice passes.
+**Status:** Locally accepted on 2026-07-11. This accepts only the Evidence/Match slice, not Stage 2 as a whole.
+
+### Task 4.0: Freeze The Evidence Read And Privacy Boundary
+
+- [x] Accept ADR-011: keep TaskSpec v1 job-relative and use a run-scoped, immutable, job-local Evidence snapshot.
+- [x] Distinguish the private data plane from privacy-safe workflow control records.
+- [x] Reject a TaskSpec v1 workspace `read_scope`, parent traversal, hidden direct profile reads, and platform-specific
+  API dependencies for this slice.
+- [x] Add implementation tests proving the accepted boundary; accepting the ADR is not implementation acceptance.
+
+### Task 4.1: Stable Evidence Contract
+
+- [x] Add a strict, separately versioned Evidence catalog model and `schemas/evidence-catalog.schema.json` without
+  changing the frozen Parsed Job v1 or AgentResponse v1 contracts.
+- [x] Freeze canonical Evidence ID normalization from semantic content and kind, excluding list position, legacy item
+  locator, path, section, input order, and job identity.
+- [x] Keep legacy citations such as `profile/generated/cv.evidence.md#Teaching/cv-001` as display locators and leave
+  existing pipeline rendering unchanged.
+- [x] Define deterministic duplicate handling and canonical kind mapping for legacy values such as `dated-entry` and
+  `llm-augmented`.
+- [x] Distinguish valid empty, unavailable, malformed-input failure, and stale-source unavailability so missing input
+  is never interpreted as missing applicant evidence.
+
+### Task 4.2: Safe Run-Scoped Evidence Materialization
+
+- [x] Compute Evidence status fingerprints read-only, then have the core service write one immutable
+  `workflow/runs/<run-id>/inputs/evidence-snapshot.json` during prepare.
+- [x] Point the Evidence TaskSpec `inputs` and `allowed_reads` only at the real job-local snapshot.
+- [x] Reject absolute generated-file paths, parent traversal, path escapes, symlinks, dangling symlinks, hard-link
+  aliases, non-regular files, unsafe external profile roots, and bounded-input violations before reading bodies.
+- [x] Recompute the live profile-evidence fingerprint at submit/apply so a post-prepare change makes the task stale.
+- [x] Keep evidence bodies only in the private snapshot, Evidence candidate, and promoted catalog; exclude them from
+  state, TaskSpec, receipts, manifests, errors, stdout, AgentResponse, and Match output.
+
+### Task 4.3: Resumable Evidence Stage
+
+- [x] Register Evidence as deterministic-only with `evidence_catalog.json` as its single authoritative output.
+- [x] Validate the snapshot, catalog schema, semantic IDs, locators, content receipts, deterministic ordering, job
+  identity, and input fingerprint before promotion.
+- [x] Prove prepare, guarded submit, apply, cancel, cache, output drift, terminal-action competition, failure recovery,
+  and fresh-session reconstruction through the shared runtime.
+- [x] Mark Evidence implemented only after its full runtime and privacy acceptance suite passes.
+
+### Task 4.4: Durable Deterministic Match
+
+- [x] Make Match read only current job-local `criteria.json` and `evidence_catalog.json`; keep both direct dependencies
+  required and current.
+- [x] Generate locator-only `criterion_matches.json` with deterministic ordering, stable tie-breaks, fixed privacy-safe
+  gaps, exact matcher strategy/version provenance, and `review_state=proposed`.
+- [x] Require every current catalog criterion to have exactly one classification and reject unknown, duplicate,
+  omitted, or extra criterion IDs against the current Criteria catalog.
+- [x] Require every supported classification to resolve current Evidence IDs and receipts; require explicit gaps for
+  `missing` and `unknown` without copying evidence text.
+- [x] Keep unavailable Evidence distinct from a valid catalog with no supporting item.
+- [x] Mark Match implemented only after its full prepare, guarded submit, apply, cancel, cache, drift, stale-input,
+  terminal-action, recovery, and fresh-session slice passes.
+
+### Task 4.5: Compatibility And Productization
+
+- [x] Keep legacy `canisend run`, display citations, Markdown views, LLM flags, Typst protection, git behavior, Parsed
+  Job v1, TaskSpec v1, and AgentResponse v1 compatible.
+- [x] Represent Evidence with the existing AgentResponse evidence phase and Match as `phase=unknown` plus scalar
+  `canisend.stage_id=match`; expose only privacy-safe counts and artifact references.
+- [x] Prove Evidence and Match do not call a configured provider, network, MCP transport, or platform API.
+- [x] Package the Evidence schema and extend installed-wheel, CI, release, and TestPyPI fake-data smoke through
+  `Parse -> Confirm -> Evidence -> Match` before accepting the slice.
+- [x] Update README, Skills, focused job-fit guidance, examples, changelog, and workspace references only after the
+  implementation contract and tests pass.
+
+## Evidence/Match Slice Acceptance Matrix
+
+Locally accepted on 2026-07-11. Remote CI and TestPyPI still run their normal release gates; local acceptance does not
+claim that a new distribution has already been published.
+
+| Requirement | Accepted automated evidence |
+|---|---|
+| Stable Evidence identity | Normalization, locator-renumber, order, content-change, canonical-locator, and semantic-dedup tests in `test_evidence_stage.py` |
+| Truthful TaskSpec scope | Runtime test proves Evidence reads only its run snapshot and Match only the two job-local catalogs |
+| Safe materialization | Traversal, absolute path, external root, symlink, dangling symlink, hard-link, non-regular, race, fallback, and size tests |
+| Evidence state is honest | Separate available, valid-empty, unavailable, malformed, missing-receipt, and stale-receipt tests |
+| Private body stays in the data plane | Sentinels absent from every control record, Match output, AgentResponse, and ordinary CLI output |
+| Evidence is resumable | Shared-runtime prepare, submit, apply, cancel, cache, drift, terminal race, recovery, and reconstruction suites |
+| Every criterion is classified | Canonical rebuild enforces exact cross-catalog set equality and rejects omission, extra IDs, and tampering |
+| Match references resolve | Opaque current catalog refs, input hashes, weak-ref, missing-gap, and distinct empty/unavailable gap tests |
+| Match is deterministic | Input reorder, stable tie-break, semantic-ID ordering, schema receipt, and matcher-version tests |
+| Dependency invalidation is precise | Profile changes stale Evidence, Match, and descendants while Parse and Confirm remain current |
+| No provider or platform dependency | Provider/network/platform sentinels, deterministic-only registry checks, and portable safe-open fallback test |
+| Existing users remain compatible | Legacy pipeline preserves structured outputs; Agent v1, TaskSpec v1, Markdown, Typst, and git suites remain green |
+| Installed artifacts are complete | Packaged schema/resource checks and clean-wheel/CI/release Parse-to-Match fake-data smoke commands |
+
+## Evidence/Match Slice Exit Review
+
+The accepted slice adds only the deterministic Evidence and Match backbone. Private profile text may appear in the
+immutable run snapshot, Evidence candidate, and promoted catalog, and is retained until the user removes the private
+run or job. It does not appear in workflow control records or Match output. Typst-backed generated evidence from
+older versions must be re-extracted when it lacks the source-hash receipt; changing a bound raw source likewise makes
+the Evidence catalog unavailable until re-extraction.
+
+Every Match classification remains `review_state=proposed`. No proposed result is an application decision, a claim
+confirmation, or a package-readiness signal. Tasks 5-7—user-owned Decision, Application Brief, required-document
+planning, view migration, and the full Stage 2 exit review—remain open.
 
 ## Task 5: User-Owned Corrections And Decision
 
@@ -147,5 +243,6 @@ Locally accepted on 2026-07-11. The acceptance run includes:
   manifest evidence present;
 - automated built-wheel and TestPyPI Parse-to-Confirm smoke commands in CI/release workflows.
 
-This accepts only Tasks 0-3 and the first-slice compatibility boundary. Durable Evidence/Match, Decision, Brief, and
-required-document planning remain open in Tasks 4-7; Stage 2 as a whole is not complete.
+This checkpoint accepts only Tasks 0-3 and the first-slice compatibility boundary. Task 4 Evidence/Match was accepted
+separately in the second slice above. Decision, Brief, required-document planning, view migration, and the final
+Stage 2 exit review remain open in Tasks 5-7; Stage 2 as a whole is not complete.

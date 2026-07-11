@@ -15,6 +15,20 @@ Do not use ready, final, complete, or submission-ready for generated materials u
 - New agent output should use item-level citations such as `profile/generated/file.evidence.md#Section/item-id`.
 - Item-level citations are preferred; section-level citations are compatibility only for older outputs or manually reviewed fallbacks.
 - Missing evidence is reported as a gap.
+- Typst-backed generated evidence has a current source-hash receipt. Re-extract older receiptless output or output
+  made stale by a changed raw profile source.
+
+## Evidence Catalog Gate
+
+- Deterministic Evidence succeeded against the current manifest, raw-source receipts, generated evidence, schema,
+  and versioned input limits.
+- `evidence_catalog.json` is `available`, a deliberately reviewed valid `empty`, or an explicitly explained
+  `unavailable`; these states are not interchangeable.
+- A valid empty catalog does not mean the applicant lacks all evidence. An unavailable catalog must be refreshed
+  before relying on Match.
+- Stable Evidence IDs are content-and-kind-derived; legacy path/section/item labels remain display locators only.
+- Evidence snapshots, candidates, and the catalog remain private body-bearing data-plane artifacts and are not quoted
+  or staged merely to prove workflow status.
 
 ## Job Advert Gate
 
@@ -22,6 +36,19 @@ Do not use ready, final, complete, or submission-ready for generated materials u
 - `job_advert.md` contains the full advert or the user has explicitly accepted partial processing.
 - `parsed_job.json` title, institution, deadline, required documents, essential criteria, and source URL match the advert.
 - Missing advert fields are left empty or unknown; do not invent.
+
+## Criterion Match Gate
+
+- Confirm and Evidence are current, and Match records the current `criteria.json` and `evidence_catalog.json` hashes.
+- Every criterion has exactly one deterministic `strong`, `partial`, `weak`, `missing`, or `unknown` classification.
+- Every supported match resolves an opaque current Evidence ID; `missing` and `unknown` records carry an explicit
+  privacy-safe gap.
+- An empty catalog and an unavailable catalog produce distinct `unknown` gaps; an available catalog with no relevant
+  support produces `missing`.
+- `criterion_matches.json` contains no evidence bodies, private headings, legacy item labels, or private evidence
+  kinds.
+- Every classification is `review_state=proposed`. Do not treat Match as a user-owned application Decision, claim
+  confirmation, or package-readiness signal.
 
 ## Draft Gate
 
@@ -79,14 +106,17 @@ Review files in this order:
 1. `job.yaml`
 2. `job_advert.md`
 3. `parsed_job.json`
-4. `00_preparation_questions.md`
-5. `05_criteria_checklist.md`
-6. `02_fit_report.md`
-7. `03_cover_letter_draft.md`
-8. `04_cv_tailoring_notes.md`
-9. `07_material_review_checklist.md`
-10. `typst/cover_letter.typ`
-11. `typst/application_package.typ`
-12. `06_final_application_package.md`
+4. `criteria.json`
+5. Evidence state and receipts in `evidence_catalog.json` (read bodies only when needed and approved)
+6. `criterion_matches.json` proposed classifications and gaps
+7. `00_preparation_questions.md`
+8. `05_criteria_checklist.md`
+9. `02_fit_report.md`
+10. `03_cover_letter_draft.md`
+11. `04_cv_tailoring_notes.md`
+12. `07_material_review_checklist.md`
+13. `typst/cover_letter.typ`
+14. `typst/application_package.typ`
+15. `06_final_application_package.md`
 
 Before editing prose, confirm `00_preparation_questions.md` has resolved US English vs UK English, the target writing style, specific motivation, emphasis, risk areas, and details to exclude.

@@ -36,6 +36,7 @@ def test_init_workspace_creates_user_layout_and_default_resources(tmp_path):
     assert (workspace / "schemas" / "task-result.schema.json").exists()
     assert (workspace / "schemas" / "run-manifest.schema.json").exists()
     assert (workspace / "schemas" / "criteria.schema.json").exists()
+    assert (workspace / "schemas" / "evidence-catalog.schema.json").exists()
     assert (workspace / "schemas" / "criterion-matches.schema.json").exists()
     assert (workspace / "schemas" / "confirmed-corrections.schema.json").exists()
     assert (workspace / "schemas" / "application-decision.schema.json").exists()

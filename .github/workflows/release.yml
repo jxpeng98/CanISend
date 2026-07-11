@@ -107,10 +107,12 @@ jobs:
           /tmp/canisend-smoke/bin/canisend init-workspace --workspace /tmp/canisend-workspace
           /tmp/canisend-smoke/bin/canisend doctor --workspace /tmp/canisend-workspace
           /tmp/canisend-smoke/bin/canisend agent capabilities --format json
-          /tmp/canisend-smoke/bin/canisend run-example --workspace /tmp/canisend-stage2-example
+          /tmp/canisend-smoke/bin/canisend run-example --workspace /tmp/canisend-stage2-example --overwrite
+          /tmp/canisend-smoke/bin/canisend stage run --workspace /tmp/canisend-stage2-example --job jobs/2026-06-15_example-university_lecturer-in-applied-economics --stage evidence --format json
           /tmp/canisend-smoke/bin/canisend stage run --workspace /tmp/canisend-stage2-example --job jobs/2026-06-15_example-university_lecturer-in-applied-economics --stage parse --format json
           /tmp/canisend-smoke/bin/canisend stage run --workspace /tmp/canisend-stage2-example --job jobs/2026-06-15_example-university_lecturer-in-applied-economics --stage confirm --format json
-          /tmp/canisend-smoke/bin/python -c "from pathlib import Path; job=Path('/tmp/canisend-stage2-example/jobs/2026-06-15_example-university_lecturer-in-applied-economics'); assert (job/'criteria.json').is_file(); assert list(job.glob('workflow/runs/*/preparation.json')); assert list(job.glob('workflow/runs/*/submission.json')); assert list(job.glob('workflow/runs/*/manifest.json'))"
+          /tmp/canisend-smoke/bin/canisend stage run --workspace /tmp/canisend-stage2-example --job jobs/2026-06-15_example-university_lecturer-in-applied-economics --stage match --format json
+          /tmp/canisend-smoke/bin/python -c "from pathlib import Path; import json; job=Path('/tmp/canisend-stage2-example/jobs/2026-06-15_example-university_lecturer-in-applied-economics'); assert (job/'evidence_catalog.json').is_file(); assert (job/'criteria.json').is_file(); assert (job/'criterion_matches.json').is_file(); manifests={json.loads(path.read_text(encoding='utf-8'))['stage']: path for path in (job/'workflow/runs').glob('*/manifest.json')}; assert set(manifests) == {'evidence', 'parse', 'confirm', 'match'}; assert all(json.loads(path.read_text(encoding='utf-8'))['status'] == 'succeeded' for path in manifests.values()); assert all((path.parent/'preparation.json').is_file() and (path.parent/'submission.json').is_file() for path in manifests.values())"
 
       - name: Upload distributions
         uses: actions/upload-artifact@v4
@@ -170,10 +172,12 @@ jobs:
           /tmp/canisend-testpypi/bin/canisend init-workspace --workspace /tmp/canisend-testpypi-workspace
           /tmp/canisend-testpypi/bin/canisend doctor --workspace /tmp/canisend-testpypi-workspace
           /tmp/canisend-testpypi/bin/canisend agent capabilities --format json
-          /tmp/canisend-testpypi/bin/canisend run-example --workspace /tmp/canisend-testpypi-stage2-example
+          /tmp/canisend-testpypi/bin/canisend run-example --workspace /tmp/canisend-testpypi-stage2-example --overwrite
+          /tmp/canisend-testpypi/bin/canisend stage run --workspace /tmp/canisend-testpypi-stage2-example --job jobs/2026-06-15_example-university_lecturer-in-applied-economics --stage evidence --format json
           /tmp/canisend-testpypi/bin/canisend stage run --workspace /tmp/canisend-testpypi-stage2-example --job jobs/2026-06-15_example-university_lecturer-in-applied-economics --stage parse --format json
           /tmp/canisend-testpypi/bin/canisend stage run --workspace /tmp/canisend-testpypi-stage2-example --job jobs/2026-06-15_example-university_lecturer-in-applied-economics --stage confirm --format json
-          /tmp/canisend-testpypi/bin/python -c "from pathlib import Path; job=Path('/tmp/canisend-testpypi-stage2-example/jobs/2026-06-15_example-university_lecturer-in-applied-economics'); assert (job/'criteria.json').is_file(); assert list(job.glob('workflow/runs/*/preparation.json')); assert list(job.glob('workflow/runs/*/submission.json')); assert list(job.glob('workflow/runs/*/manifest.json'))"
+          /tmp/canisend-testpypi/bin/canisend stage run --workspace /tmp/canisend-testpypi-stage2-example --job jobs/2026-06-15_example-university_lecturer-in-applied-economics --stage match --format json
+          /tmp/canisend-testpypi/bin/python -c "from pathlib import Path; import json; job=Path('/tmp/canisend-testpypi-stage2-example/jobs/2026-06-15_example-university_lecturer-in-applied-economics'); assert (job/'evidence_catalog.json').is_file(); assert (job/'criteria.json').is_file(); assert (job/'criterion_matches.json').is_file(); manifests={json.loads(path.read_text(encoding='utf-8'))['stage']: path for path in (job/'workflow/runs').glob('*/manifest.json')}; assert set(manifests) == {'evidence', 'parse', 'confirm', 'match'}; assert all(json.loads(path.read_text(encoding='utf-8'))['status'] == 'succeeded' for path in manifests.values()); assert all((path.parent/'preparation.json').is_file() and (path.parent/'submission.json').is_file() for path in manifests.values())"
 
   publish-pypi:
     if: needs.build.outputs.publish_pypi == 'true'

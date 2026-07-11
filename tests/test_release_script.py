@@ -102,6 +102,23 @@ def test_release_shell_script_has_valid_syntax():
     assert result.returncode == 0, result.stderr
 
 
+def test_local_release_smoke_runs_complete_decision_spine_from_installed_wheel():
+    script = SCRIPT.read_text()
+
+    evidence = script.index("--stage evidence --format json")
+    parse = script.index("--stage parse --format json")
+    confirm = script.index("--stage confirm --format json")
+    match = script.index("--stage match --format json")
+
+    assert evidence < parse < confirm < match
+    assert 'canisend-release-smoke-$version-$$' in script
+    assert "evidence_catalog.json" in script
+    assert "criterion_matches.json" in script
+    assert "preparation.json" in script
+    assert "submission.json" in script
+    assert "['status'] == 'succeeded'" in script
+
+
 def test_beta_versions_must_be_pep440_prereleases():
     valid = run_release("beta", "--version", "0.2.0b1", "--skip-local-checks")
     invalid = run_release("beta", "--version", "0.2.0", "--skip-local-checks")

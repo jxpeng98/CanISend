@@ -56,6 +56,9 @@ profile/typst/teaching_statement.typ
 profile/generated/*.evidence.md
 ```
 
+Typst-backed generated evidence contains a `canisend-source-sha256` receipt for the corresponding raw source.
+Files created by older versions must be regenerated before resumable Evidence can treat them as current.
+
 Generated evidence citations use `profile/generated/file.evidence.md#Section`.
 
 Generated evidence items should have stable local IDs:
@@ -77,10 +80,13 @@ job.yaml
 job_advert.md
 parsed_job.json
 criteria.json
+evidence_catalog.json         # core-owned private data plane
+criterion_matches.json        # core-owned privacy-safe proposed projection
 confirmed_corrections.yaml  # optional, user-owned
 workflow/
   state.json                 # rebuildable view
   runs/<run-id>/
+    inputs/evidence-snapshot.json  # Evidence runs only; immutable private data plane
     task-spec.json           # immutable task contract
     preparation.json         # immutable TaskSpec integrity anchor
     submission.json          # guarded candidate/TaskResult receipt
@@ -114,12 +120,23 @@ RSS and Atom lead outputs live in ignored `job_leads/`.
 - `criteria.json`: core-owned, regenerable Stage 2 projection with stable criterion IDs, source spans, extraction
   confidence, confirmation state, unresolved IDs, and orphaned corrections with privacy-safe reason codes. Do not
   edit it directly.
+- `evidence_catalog.json`: strict, core-owned Evidence v1 projection with `available`, valid `empty`, or `unavailable`
+  state; manifest/raw-source/generated-evidence receipts; stable content-and-kind-derived Evidence IDs; display
+  locators; and normalized evidence bodies. This is a private data-plane artifact. Do not edit it directly.
+- `criterion_matches.json`: strict, core-owned deterministic Match v1 projection. It records current Criteria and
+  Evidence catalog hashes, matcher strategy/version, one proposed classification and explicit gaps per criterion,
+  and opaque `evidence_catalog.json#items/<evidence-id>` references. It never contains evidence bodies, private
+  headings, legacy item locators, or private evidence kinds. `review_state=proposed` is not Decision or readiness.
 - `confirmed_corrections.yaml`: optional strict user-owned overlay keyed by stable criterion ID. Confirm may read it;
   Parse and Confirm must never silently create, normalize, overwrite, or delete it. Until a scoped update command is
   available, manual edits must follow `schemas/confirmed-corrections.schema.json`.
 - `workflow/runs/*/task-spec.json`: immutable task contract. `allowed_writes` is explicitly marked
   `write_authority: core_service`; a host supplies scratch candidate JSON through `stage submit` rather than writing
-  candidate or result paths itself.
+  candidate or result paths itself. Evidence TaskSpecs name only their own job-local immutable snapshot; Match
+  TaskSpecs name only current `criteria.json` and `evidence_catalog.json`.
+- `workflow/runs/*/inputs/evidence-snapshot.json`: immutable Evidence input written by the core during prepare. It may
+  duplicate normalized profile evidence and remains until the user removes the private run or job. Resumable
+  Evidence does not accept a workspace-external profile root.
 - `00_preparation_questions.md`: grill-me checklist for confirming US English vs UK English, writing style, specific motivation, emphasis, risks, and excluded details before treating materials as final.
 - `02_fit_report.md`, `03_cover_letter_draft.md`, `04_cv_tailoring_notes.md`, `05_criteria_checklist.md`: evidence-grounded Markdown review artifacts.
 - `07_material_review_checklist.md`: management artifact for cover letter draft, CV tailoring notes, placeholders, item-level citations, and manual follow-up actions.
@@ -132,3 +149,8 @@ RSS and Atom lead outputs live in ignored `job_leads/`.
   `check-package --write-report` request.
 
 The pipeline may emit content JSON compatibility/debug artifacts under `typst/`, but agents should treat the `.typ` files as the editing contract.
+
+Evidence snapshots, Evidence candidates, and promoted Evidence catalogs are the private data plane and may contain
+profile text. Workflow state, task/result receipts, validation and promotion records, manifests, errors, ordinary
+CLI/AgentResponse output, and Match output are the control plane and must contain only privacy-safe paths, hashes,
+semantic IDs, classifications, reason codes, and counts.

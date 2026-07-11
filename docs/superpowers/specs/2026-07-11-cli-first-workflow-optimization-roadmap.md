@@ -166,13 +166,16 @@ CV or package status does not invalidate Parse.
 ## Stage 2: Decision Spine
 
 **Stage status:** In progress on `feat/decision-spine-foundation`. ADR-009 and ADR-010 freeze semantic identity and
-user-owned input boundaries. The stable Criteria projection and resumable Confirm vertical slice are locally accepted
-with guarded candidate submission, explicit cancellation, and clean-wheel verification. Durable Evidence/Match,
-Decide, Brief, and document planning remain open.
+user-owned input boundaries. ADR-011 freezes the Evidence read and privacy boundary. The stable Criteria/Confirm and
+Evidence/Match vertical slices are locally accepted with guarded candidate submission, explicit cancellation,
+recovery, and distribution smoke coverage. User-owned Decide, Brief, required-document planning, view migration, and
+the full Stage 2 exit review remain open.
 
 ### Deliverables
 
 - stable Criterion and EvidenceRef identifiers;
+- a run-scoped, immutable, job-local Evidence input snapshot that preserves TaskSpec v1 job-relative reads;
+- a private `evidence_catalog.json` data artifact and locator-only `criterion_matches.json` projection;
 - source spans, confidence, unknown, and confirmed states for parsed requirements;
 - durable CriterionMatch classifications with explicit evidence gaps;
 - confirmed corrections separate from regenerable prose;
@@ -180,9 +183,49 @@ Decide, Brief, and document planning remain open.
 - `application_brief.yaml` for language, motivation, emphasis, exclusions, and document-specific choices;
 - required-document planning from the advert rather than a fixed bundle.
 
+### Accepted Evidence/Match Slice
+
+The second Stage 2 slice is:
+
+```text
+workspace profile/generated evidence
+  -> core-owned run input snapshot under the selected job
+  -> evidence_catalog.json
+  -> criteria.json + evidence_catalog.json
+  -> criterion_matches.json
+```
+
+TaskSpec v1 remains job-relative. Evidence preparation materializes a validated, immutable snapshot under
+`workflow/runs/<run-id>/inputs/`; Match then reads only current job-local Criteria and Evidence catalogs. A
+workspace-level TaskSpec read scope, parent traversal, undeclared direct profile reads, and platform-specific APIs are
+outside this slice.
+
+The snapshot, Evidence candidate, and promoted Evidence catalog form a private data plane and may contain normalized
+evidence bodies. Workflow state, task and run receipts, error messages, command responses, AgentResponse extensions,
+and `criterion_matches.json` form the control plane and must contain only safe paths, hashes, IDs, classifications,
+reason codes, and counts. They never copy evidence bodies. Match references use opaque catalog-item locators rather
+than private profile paths, headings, item labels, or evidence kinds.
+
+The private data plane deliberately duplicates normalized profile text and remains until the user removes the run or
+job directory. Resumable Evidence rejects workspace-external profile roots. Typst-backed generated evidence is bound
+to its current raw source through a source-hash receipt; older generated evidence without that receipt, or evidence
+whose source changed, is unavailable until `extract-profile-evidence` runs again. Evidence and Match are
+deterministic-only and share the existing prepare, guarded-submit, apply, cancel, stale-input, drift, terminal-claim,
+and recovery runtime.
+
+`criterion_matches.json` supplies one deterministic classification per criterion with explicit gaps and
+`review_state=proposed`. It is review input, not a user-owned Decision, a confirmation of applicant claims, or a
+package-readiness verdict.
+
 ### Exit Criteria
 
-- every essential criterion has one stable ID and a reviewable classification;
+- every current catalog criterion has one stable ID and a reviewable classification;
+- Evidence TaskSpecs name only real job-local snapshot inputs and Match TaskSpecs name only current job-local
+  Criteria and Evidence catalogs;
+- private evidence bodies never appear in workflow control records, Match output, or ordinary CLI/AgentResponse
+  output;
+- unavailable, malformed-input failure, stale-source unavailability, and valid-empty Evidence remain distinguishable;
+- Evidence and Match work deterministically through the existing CLI without a platform API or configured provider;
 - all missing user decisions are explicit actions rather than inferred defaults;
 - regenerating Parse or Match cannot erase an accepted user decision;
 - required documents determine downstream tasks;

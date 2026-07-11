@@ -52,7 +52,20 @@ Current extraction is conservative. It recognizes:
 - statement paragraphs and bullet lines under Typst headings
 - publication list lines such as `+ @paper2025`
 
-Generated evidence receives stable item IDs such as `cv-001`. New generated materials should cite `profile/generated/file.evidence.md#Section/item-id` instead of citing private Typst source directly.
+Generated evidence receives positional display locators such as `cv-001`. New generated materials should cite
+`profile/generated/file.evidence.md#Section/item-id` instead of citing private Typst source directly. These legacy
+labels remain useful citations but are not the stable semantic Evidence ID: resumable Evidence derives
+`evidence_<hash>` from normalized evidence kind and body, independent of file, section, list position, job, and input
+order.
+
+Typst extraction writes a `canisend-source-sha256` receipt into each generated evidence file. Older generated files
+without that receipt, or files whose bound raw Typst source has changed, are unavailable to resumable Evidence until
+`extract-profile-evidence` runs again. Do not hand-edit the receipt.
+
+Resumable Evidence accepts only profile sources inside the current workspace. It validates the raw-source and
+generated-evidence receipts, then creates an immutable private job-local snapshot. The snapshot and promoted catalog
+may duplicate normalized profile text until the user removes the run or job; their workflow control records and Match
+output do not contain those bodies.
 
 If an important claim is not extracted into `profile/generated/`, report it as a profile evidence gap and ask the user whether to add structured evidence. Do not cite unextracted private Typst prose as if it were normalized evidence.
 

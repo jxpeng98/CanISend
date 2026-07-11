@@ -36,12 +36,22 @@ Open `jobs/<job-slug>/job_advert.md`. If the `Full Advert` section still contain
 
 ### `status: new` or `status: advert_imported`
 
-Regenerate evidence, then run the pipeline:
+Regenerate evidence, then either run the compatible package pipeline or advance the resumable Decision Spine:
 
 ```bash
 canisend extract-profile-evidence --workspace <private-workspace>
 canisend run --workspace <private-workspace> --job jobs/<job-slug>
 ```
+
+```bash
+canisend stage run --workspace <private-workspace> --job jobs/<job-slug> --stage evidence --mode deterministic --format json
+canisend stage run --workspace <private-workspace> --job jobs/<job-slug> --stage parse --mode deterministic --format json
+canisend stage run --workspace <private-workspace> --job jobs/<job-slug> --stage confirm --mode deterministic --format json
+canisend stage run --workspace <private-workspace> --job jobs/<job-slug> --stage match --mode deterministic --format json
+```
+
+Evidence and Parse are independent; Match requires both current Evidence and Confirm. Every Match result remains a
+proposal for review, not an application Decision.
 
 Use `extract-profile-evidence --llm-augment`, `--llm-parser`, or `--llm-drafts` only when provider config is ready and the user explicitly wants model-backed steps.
 
@@ -60,7 +70,16 @@ Review quality gates before rendering:
 - Missing `job.yaml`: recreate the job folder from a lead or manual job metadata.
 - Missing `job_advert.md`: create it before parsing.
 - Missing `profile/generated/*.evidence.md`: run `extract-profile-evidence`.
+- Evidence reason `evidence.source_receipt_missing` or `evidence.source_receipt_stale`: rerun
+  `extract-profile-evidence`; do not patch source-hash receipts manually.
+- Workspace-external `profile_dir`: use a profile inside this workspace for resumable Evidence. Do not bypass the
+  TaskSpec v1 boundary with parent or absolute paths.
 - Missing `parsed_job.json`: run `canisend run`.
+- Missing `criteria.json`: run resumable Parse, then Confirm.
+- Missing `evidence_catalog.json`: run deterministic Evidence; do not create or edit the catalog directly.
+- Missing `criterion_matches.json`: make Confirm and Evidence current, then run deterministic Match.
+- `criterion_matches.json` exists: review every `review_state=proposed` classification and explicit gap before using
+  it for strategy. Match does not create Decision, Brief, or readiness.
 - Existing generated outputs after advert/profile changes: rerun the pipeline and review diffs.
 - A `typst/*.generated.typ` file after rerun: the editable `.typ` had user changes and was preserved; review and merge
   the candidate intentionally.

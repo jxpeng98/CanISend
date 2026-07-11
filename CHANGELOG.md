@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Accepted the Stage 2 Evidence/Match slice with content-derived Evidence IDs, strict `evidence_catalog.json`,
+  run-scoped immutable job-local snapshots, bounded race-resistant profile reads, and distinct available, empty,
+  unavailable, missing-receipt, stale-receipt, and malformed-input handling.
+- Bound Typst-generated evidence to current raw profile sources with source-hash receipts; older receiptless output
+  now requires re-extraction, and resumable Evidence rejects workspace-external profile roots and unsafe aliases.
+- Added deterministic `criterion_matches.json` with one canonical proposed classification per criterion, explicit
+  privacy-safe gaps, matcher provenance, and opaque catalog references. Match remains review input, not a user-owned
+  application Decision or package-readiness signal.
+- Extended the shared resumable runtime and agent handoff through deterministic Evidence and Match without a
+  configured provider or platform API, while keeping evidence bodies only in the private snapshot/candidate/catalog
+  data plane and preserving the legacy pipeline.
 - Started the Stage 2 Decision Spine with stable criterion IDs and source spans, strict schemas for criteria,
   evidence matches, corrections, decisions, briefs, and document plans, plus a resumable Confirm stage that preserves
   user-owned corrections and reports unresolved review work.
