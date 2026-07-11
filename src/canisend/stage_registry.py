@@ -167,7 +167,13 @@ def _normalize_authoritative_output(value: str, *, stage_id: str) -> str:
 DEFAULT_STAGE_REGISTRY = StageRegistry(
     (
         StageDefinition(id="intake"),
-        StageDefinition(id="evidence", depends_on=("intake",)),
+        StageDefinition(
+            id="evidence",
+            depends_on=("intake",),
+            implemented=True,
+            execution_modes=("deterministic",),
+            authoritative_outputs=("evidence_catalog.json",),
+        ),
         StageDefinition(
             id="parse",
             depends_on=("intake",),
@@ -182,7 +188,13 @@ DEFAULT_STAGE_REGISTRY = StageRegistry(
             execution_modes=("deterministic",),
             authoritative_outputs=("criteria.json",),
         ),
-        StageDefinition(id="match", depends_on=("confirm", "evidence")),
+        StageDefinition(
+            id="match",
+            depends_on=("confirm", "evidence"),
+            implemented=True,
+            execution_modes=("deterministic",),
+            authoritative_outputs=("criterion_matches.json",),
+        ),
         StageDefinition(id="decide", depends_on=("match", "confirm")),
         StageDefinition(id="brief", depends_on=("decide", "match", "confirm")),
         StageDefinition(id="draft", depends_on=("brief", "match", "evidence")),

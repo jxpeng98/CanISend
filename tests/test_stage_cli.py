@@ -404,6 +404,65 @@ def test_confirm_stage_cli_exposes_reviewable_catalog_without_agent_v1_change(
     assert str(workspace) not in json.dumps(confirmed)
 
 
+def test_evidence_and_match_cli_keep_agent_v1_and_private_bodies_out_of_stdout(
+    tmp_path: Path,
+) -> None:
+    workspace, job_path = _workspace(tmp_path)
+    private_marker = "PRIVATE-CLI-EVIDENCE-1842"
+    cv_path = workspace / "profile" / "typst" / "cv.typ"
+    cv_path.write_text(
+        cv_path.read_text(encoding="utf-8")
+        + f'\n#education(institution: [Example University], major: [PhD Economics {private_marker}])\n',
+        encoding="utf-8",
+    )
+    extracted = CliRunner().invoke(
+        app,
+        [
+            "extract-profile-evidence",
+            "--profile-dir",
+            str(workspace / "profile"),
+        ],
+    )
+    assert extracted.exit_code == 0, extracted.output
+
+    common = [
+        "--workspace",
+        str(workspace),
+        "--job",
+        job_path,
+        "--format",
+        "json",
+    ]
+    _invoke_json(CliRunner(), ["stage", "run", "--stage", "parse", *common])
+    _invoke_json(CliRunner(), ["stage", "run", "--stage", "confirm", *common])
+    evidence = _invoke_json(
+        CliRunner(),
+        ["stage", "run", "--stage", "evidence", *common],
+    )
+    matched = _invoke_json(
+        CliRunner(),
+        ["stage", "run", "--stage", "match", *common],
+    )
+
+    assert evidence["protocol"] == "canisend.agent/v1"
+    assert evidence["workflow"]["phase"] == "evidence"
+    assert evidence["extensions"]["canisend.stage_id"] == "evidence"
+    assert evidence["extensions"]["canisend.evidence_count"] >= 1
+    assert any(item["kind"] == "evidence_catalog" for item in evidence["artifacts"])
+    assert matched["protocol"] == "canisend.agent/v1"
+    assert matched["workflow"]["phase"] == "unknown"
+    assert matched["workflow"]["readiness"] == "review_required"
+    assert matched["extensions"]["canisend.stage_id"] == "match"
+    assert matched["extensions"]["canisend.match_count"] >= 1
+    assert matched["extensions"]["canisend.proposed_count"] >= 1
+    assert any(item["kind"] == "criterion_matches" for item in matched["artifacts"])
+    assert private_marker not in json.dumps(evidence)
+    assert private_marker not in json.dumps(matched)
+    assert private_marker not in (workspace / job_path / "criterion_matches.json").read_text(
+        encoding="utf-8"
+    )
+
+
 def test_confirm_ready_status_advertises_deterministic_run_action(tmp_path: Path) -> None:
     workspace, job_path = _workspace(tmp_path)
     _invoke_json(

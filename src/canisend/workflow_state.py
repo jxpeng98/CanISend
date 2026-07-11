@@ -225,6 +225,15 @@ def derive_workflow_snapshot(workspace: Path, job: Path) -> DerivedWorkflowSnaps
     if not parsed_is_valid:
         consents.append(_read_advert_consent())
 
+    decision_spine = _decision_spine_snapshot(
+        root,
+        job_dir,
+        job_reference,
+        tuple(artifacts),
+    )
+    if decision_spine is not None:
+        return decision_spine
+
     profile = _inspect_profile_evidence(root, config.path("profile_dir"))
     artifacts.extend(profile.artifacts)
     warnings.extend(profile.warnings)
@@ -408,6 +417,9 @@ def _job_artifacts(workspace: Path, job_dir: Path) -> list[ArtifactReference]:
         ("job_metadata", "job.yaml", 1, "validated", "application/yaml"),
         ("job_advert", "job_advert.md", 2, "untrusted_import", "text/markdown"),
         ("parsed_job", "parsed_job.json", 1, "validated", "application/json"),
+        ("criteria_catalog", "criteria.json", 2, "validated", "application/json"),
+        ("evidence_catalog", "evidence_catalog.json", 2, "validated", "application/json"),
+        ("criterion_matches", "criterion_matches.json", 2, "validated", "application/json"),
         ("material_review", "07_material_review_checklist.md", 2, "generated_candidate", "text/markdown"),
         ("application_gate_report", APPLICATION_GATE_REPORT, 1, "validated", "application/json"),
     ]
@@ -423,6 +435,77 @@ def _job_artifacts(workspace: Path, job_dir: Path) -> list[ArtifactReference]:
         )
         for kind, relative_path, privacy_tier, trust_level, media_type in definitions
     ]
+
+
+def _decision_spine_snapshot(
+    workspace: Path,
+    job_dir: Path,
+    job_reference: JobReference,
+    base_artifacts: tuple[ArtifactReference, ...],
+) -> DerivedWorkflowSnapshot | None:
+    workflow_root = job_dir / "workflow"
+    structured_paths = (
+        job_dir / "criteria.json",
+        job_dir / "evidence_catalog.json",
+        job_dir / "criterion_matches.json",
+    )
+    if not workflow_root.exists() and not any(path.exists() for path in structured_paths):
+        return None
+
+    # Local imports avoid coupling the legacy snapshot module into runtime startup.
+    from canisend.stage_agent import stage_status_agent_response
+    from canisend.stage_runtime import StageRuntimeError, inspect_stage_status
+
+    for stage_id in ("parse", "confirm", "evidence", "match"):
+        try:
+            inspection = inspect_stage_status(
+                workspace,
+                job_dir,
+                stage=stage_id,  # type: ignore[arg-type]
+            )
+        except StageRuntimeError:
+            return DerivedWorkflowSnapshot(
+                workflow=WorkflowSnapshotReference(
+                    phase="unknown",
+                    readiness="blocked",
+                ),
+                job=job_reference,
+                artifacts=base_artifacts,
+                blockers=("The resumable Decision Spine has invalid or unavailable inputs.",),
+                next_actions=(
+                    NextAction(
+                        id="stage.resolve_inputs",
+                        label="Inspect the affected stage and resolve its inputs",
+                    ),
+                ),
+            )
+        response = stage_status_agent_response(workspace, job_dir, inspection)
+        ready = (
+            inspection.stage.status == "succeeded"
+            and not inspection.reasons
+            and not inspection.output_drift
+            and response.workflow is not None
+            and response.workflow.readiness == "ready_for_next_stage"
+        )
+        if ready and stage_id != "match":
+            continue
+        combined_artifacts: dict[tuple[str | None, str], ArtifactReference] = {
+            (artifact.path, artifact.kind): artifact for artifact in base_artifacts
+        }
+        for artifact in response.artifacts:
+            combined_artifacts[(artifact.path, artifact.kind)] = artifact
+        return DerivedWorkflowSnapshot(
+            workflow=response.workflow
+            or WorkflowSnapshotReference(phase="unknown", readiness="unknown"),
+            job=job_reference,
+            artifacts=tuple(combined_artifacts.values()),
+            required_consents=tuple(response.required_consents),
+            warnings=tuple(response.warnings),
+            blockers=tuple(response.blockers),
+            next_actions=tuple(response.next_actions),
+            gate=response.gate,
+        )
+    return None
 
 
 def _inspect_profile_evidence(workspace: Path, profile_dir: Path) -> ProfileEvidenceInspection:

@@ -273,7 +273,11 @@ def stage_status_command(
         "--workspace",
         help="Initialized workspace containing the job.",
     ),
-    stage: str = typer.Option("parse", "--stage", help="Workflow stage to inspect."),
+    stage: str = typer.Option(
+        "parse",
+        "--stage",
+        help="Workflow stage to inspect: evidence, parse, confirm, or match.",
+    ),
     output_format: str = typer.Option(
         "text",
         "--format",
@@ -301,7 +305,11 @@ def stage_prepare_command(
         "--workspace",
         help="Initialized workspace containing the job.",
     ),
-    stage: str = typer.Option("parse", "--stage", help="Workflow stage to prepare."),
+    stage: str = typer.Option(
+        "parse",
+        "--stage",
+        help="Workflow stage to prepare: evidence, parse, confirm, or match.",
+    ),
     mode: str = typer.Option(
         "host-agent",
         "--mode",
@@ -419,7 +427,11 @@ def stage_cancel_command(
         "--workspace",
         help="Initialized workspace containing the job.",
     ),
-    stage: str = typer.Option("parse", "--stage", help="Active workflow stage to cancel."),
+    stage: str = typer.Option(
+        "parse",
+        "--stage",
+        help="Active workflow stage to cancel: evidence, parse, confirm, or match.",
+    ),
     output_format: str = typer.Option(
         "text",
         "--format",
@@ -451,7 +463,11 @@ def stage_run_command(
         "--workspace",
         help="Initialized workspace containing the job.",
     ),
-    stage: str = typer.Option("parse", "--stage", help="Workflow stage to execute."),
+    stage: str = typer.Option(
+        "parse",
+        "--stage",
+        help="Workflow stage to execute: evidence, parse, confirm, or match.",
+    ),
     mode: str = typer.Option(
         "deterministic",
         "--mode",

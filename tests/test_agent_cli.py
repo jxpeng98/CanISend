@@ -235,6 +235,57 @@ def test_agent_text_presenter_uses_the_same_typed_context(tmp_path: Path) -> Non
     assert "PRIVATE ADVERT BODY" not in result.stdout
 
 
+def test_agent_context_and_job_list_prioritize_active_decision_spine(tmp_path: Path) -> None:
+    workspace = _context_workspace(tmp_path)
+    job = "jobs/example-role"
+    parsed = CliRunner().invoke(
+        app,
+        [
+            "stage",
+            "run",
+            "--workspace",
+            str(workspace),
+            "--job",
+            job,
+            "--stage",
+            "parse",
+            "--format",
+            "json",
+        ],
+    )
+    assert parsed.exit_code == 0, parsed.output
+
+    context = CliRunner().invoke(
+        app,
+        [
+            "agent",
+            "context",
+            "--workspace",
+            str(workspace),
+            "--job",
+            job,
+            "--format",
+            "json",
+        ],
+    )
+    listed = CliRunner().invoke(
+        app,
+        ["list-jobs", "--workspace", str(workspace), "--format", "json"],
+    )
+    context_payload = json.loads(context.stdout)
+    listed_payload = json.loads(listed.stdout)
+
+    assert context.exit_code == 0
+    assert [item["id"] for item in context_payload["next_actions"]] == [
+        "stage.run_confirm"
+    ]
+    assert context_payload["workflow"]["phase"] == "unknown"
+    assert listed.exit_code == 0
+    assert listed_payload["jobs"][0]["next_action"]["id"] == "stage.run_confirm"
+    assert "package.generate" not in context.stdout
+    assert "package.generate" not in listed.stdout
+
+
 def _context_workspace(tmp_path: Path) -> Path:
     workspace = tmp_path / "workspace"
     job_dir = workspace / "jobs" / "example-role"

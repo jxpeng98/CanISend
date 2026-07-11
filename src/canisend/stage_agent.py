@@ -13,9 +13,14 @@ from canisend.agent_protocol import (
     error_response,
     success_response,
 )
-from canisend.decision_models import CriteriaCatalogV1
+from canisend.decision_models import (
+    CriteriaCatalogV1,
+    CriterionMatchesV1,
+    EvidenceCatalogV1,
+)
 from canisend.stage_adapters import get_stage_adapter
 from canisend.stage_models import CandidateSubmissionV1, TaskSpecV1
+from canisend.stage_registry import DEFAULT_STAGE_REGISTRY
 from canisend.stage_runtime import (
     AppliedStage,
     CancelledStage,
@@ -184,14 +189,15 @@ def stage_status_agent_response(
         "blocked": "blocked",
     }.get(inspection.stage.status, "unknown")
     semantic_readiness = "ready_for_next_stage"
-    semantic_extensions: dict[str, int] = {}
+    semantic_extensions: dict[str, int | str | None] = {}
     semantic_actions: list[NextAction] = []
     if inspection.stage.status == "succeeded" and not inspection.output_drift:
         semantic_readiness, semantic_extensions, semantic_actions = _semantic_status(
             stage_id,
             authoritative,
         )
-        semantic_actions.extend(_downstream_actions(workspace, job_dir, stage_id))
+        if semantic_readiness == "ready_for_next_stage":
+            semantic_actions.extend(_downstream_actions(workspace, job_dir, stage_id))
         readiness = semantic_readiness
     elif inspection.output_drift:
         readiness = "review_required"
@@ -202,12 +208,20 @@ def stage_status_agent_response(
     if inspection.stage.status in {"ready", "stale", "failed", "cancelled"}:
         actions.append(_stage_start_action(stage_id))
     elif inspection.stage.status == "blocked":
-        actions.append(
-            NextAction(
-                id="stage.resolve_dependencies",
-                label="Run the required upstream stages",
+        if "input_not_ready:criteria_review" in inspection.reasons:
+            actions.append(
+                NextAction(
+                    id="criteria.review_confirmations",
+                    label="Resolve the unknown criteria extraction before matching",
+                )
             )
-        )
+        else:
+            actions.append(
+                NextAction(
+                    id="stage.resolve_dependencies",
+                    label="Run the required upstream stages",
+                )
+            )
     elif inspection.stage.status == "running" and terminal_cancel:
         actions.append(
             NextAction(
@@ -228,6 +242,7 @@ def stage_status_agent_response(
     elif inspection.stage.status == "running" and (
         inspection.output_drift
         or "input_changed" in inspection.reasons
+        or "prepared_input_changed" in inspection.reasons
         or any(
             reason.startswith("dependency_not_current:")
             for reason in inspection.reasons
@@ -255,15 +270,18 @@ def stage_status_agent_response(
                 )
             )
         else:
-            consent_ids = _pending_consent_ids(inspection.pending_task_path)
-            actions.append(
-                NextAction(
-                    id=f"stage.submit_{stage_id}_candidate",
-                    label=f"Submit the prepared {stage_id.title()} candidate through the guarded CLI",
-                    requires_consent=bool(consent_ids),
-                    consent_ids=list(consent_ids),
+            if pending_task is not None and pending_task.execution_mode == "deterministic":
+                actions.append(_stage_run_action(stage_id))
+            else:
+                consent_ids = _pending_consent_ids(inspection.pending_task_path)
+                actions.append(
+                    NextAction(
+                        id=f"stage.submit_{stage_id}_candidate",
+                        label=f"Submit the prepared {stage_id.title()} candidate through the guarded CLI",
+                        requires_consent=bool(consent_ids),
+                        consent_ids=list(consent_ids),
+                    )
                 )
-            )
     elif inspection.stage.status == "succeeded":
         actions.extend(semantic_actions)
 
@@ -271,7 +289,11 @@ def stage_status_agent_response(
     if inspection.output_drift:
         blockers.append("Review the changed authoritative stage output before rerunning.")
     if inspection.stage.status == "blocked":
-        blockers.append("One or more required upstream stages are not current.")
+        blockers.append(
+            "Criteria extraction requires review before Match can run."
+            if "input_not_ready:criteria_review" in inspection.reasons
+            else "One or more required upstream stages are not current."
+        )
     elif not (terminal_promote or terminal_cancel) and any(
         reason.startswith("dependency_not_current:") for reason in inspection.reasons
     ):
@@ -279,7 +301,10 @@ def stage_status_agent_response(
     elif (
         not (terminal_promote or terminal_cancel)
         and inspection.stage.status == "running"
-        and "input_changed" in inspection.reasons
+        and (
+            "input_changed" in inspection.reasons
+            or "prepared_input_changed" in inspection.reasons
+        )
     ):
         blockers.append("The active task inputs are no longer current.")
     extensions = {
@@ -359,14 +384,18 @@ def stage_prepare_agent_response(
         ),
         artifacts=artifacts,
         required_consents=consents,
-        next_actions=[
-            NextAction(
-                id=f"stage.submit_{stage_id}_candidate",
-                label="Submit candidate JSON through the guarded stage submit command",
-                requires_consent=bool(consents),
-                consent_ids=[item.id for item in consents],
-            )
-        ],
+        next_actions=(
+            [_stage_run_action(stage_id)]
+            if prepared.task_spec.execution_mode == "deterministic"
+            else [
+                NextAction(
+                    id=f"stage.submit_{stage_id}_candidate",
+                    label="Submit candidate JSON through the guarded stage submit command",
+                    requires_consent=bool(consents),
+                    consent_ids=[item.id for item in consents],
+                )
+            ]
+        ),
         extensions={
             "canisend.stage_id": stage_id,
             "canisend.stage_status": "running",
@@ -441,13 +470,14 @@ def stage_apply_agent_response(workspace: Path, applied: AppliedStage) -> AgentR
         stage_id,
         applied.authoritative_path,
     )
-    semantic_actions.extend(
-        _downstream_actions(
-            workspace,
-            applied.authoritative_path.parent,
-            stage_id,
+    if readiness == "ready_for_next_stage":
+        semantic_actions.extend(
+            _downstream_actions(
+                workspace,
+                applied.authoritative_path.parent,
+                stage_id,
+            )
         )
-    )
     return success_response(
         operation="workflow.stage_apply",
         workflow=WorkflowSnapshotReference(
@@ -525,13 +555,14 @@ def stage_run_agent_response(workspace: Path, outcome: StageRunOutcome) -> Agent
         stage_id,
         outcome.authoritative_path,
     )
-    semantic_actions.extend(
-        _downstream_actions(
-            workspace,
-            outcome.authoritative_path.parent,
-            stage_id,
+    if readiness == "ready_for_next_stage":
+        semantic_actions.extend(
+            _downstream_actions(
+                workspace,
+                outcome.authoritative_path.parent,
+                stage_id,
+            )
         )
-    )
     artifacts = [
         artifact_reference_from_path(
             workspace=workspace,
@@ -583,18 +614,25 @@ def stage_error_response(operation: str, error: StageRuntimeError) -> AgentRespo
 
 
 def _agent_phase(stage_id: str) -> str:
-    return "parse" if stage_id == "parse" else "unknown"
+    if stage_id in {"evidence", "parse"}:
+        return stage_id
+    return "unknown"
 
 
 def _stage_start_action(stage_id: str) -> NextAction:
-    if stage_id == "confirm":
-        return NextAction(
-            id="stage.run_confirm",
-            label="Run the Confirm stage deterministically",
-        )
+    definition = DEFAULT_STAGE_REGISTRY.get(stage_id)
+    if definition.execution_modes == ("deterministic",):
+        return _stage_run_action(stage_id)
     return NextAction(
         id=f"stage.prepare_{stage_id}",
         label=f"Prepare the {stage_id.title()} stage",
+    )
+
+
+def _stage_run_action(stage_id: str) -> NextAction:
+    return NextAction(
+        id=f"stage.run_{stage_id}",
+        label=f"Run the {stage_id.title()} stage deterministically",
     )
 
 
@@ -603,22 +641,158 @@ def _downstream_actions(
     job_dir: Path,
     stage_id: str,
 ) -> list[NextAction]:
-    if stage_id != "parse":
-        return []
+    if stage_id == "parse":
+        return _next_action_for_stage(workspace, job_dir, "confirm")
+    if stage_id == "confirm":
+        evidence_actions = _next_action_for_stage(workspace, job_dir, "evidence")
+        if evidence_actions:
+            return evidence_actions
+        evidence_readiness, evidence_semantic_actions = _current_semantic_status(
+            workspace,
+            job_dir,
+            "evidence",
+        )
+        if evidence_readiness != "ready_for_next_stage":
+            return evidence_semantic_actions
+        return _next_action_for_stage(workspace, job_dir, "match")
+    if stage_id == "evidence":
+        try:
+            confirm = inspect_stage_status(workspace, job_dir, stage="confirm")
+        except StageRuntimeError:
+            return []
+        if confirm.stage.status == "succeeded" and not confirm.reasons:
+            confirm_readiness, confirm_semantic_actions = _current_semantic_status(
+                workspace,
+                job_dir,
+                "confirm",
+            )
+            if confirm_readiness != "ready_for_next_stage":
+                return confirm_semantic_actions
+            return _next_action_for_stage(workspace, job_dir, "match")
+        confirm_actions = _next_action_for_stage(workspace, job_dir, "confirm")
+        if confirm_actions:
+            return confirm_actions
+        return _next_action_for_stage(workspace, job_dir, "parse")
+    return []
+
+
+def _next_action_for_stage(
+    workspace: Path,
+    job_dir: Path,
+    stage_id: str,
+) -> list[NextAction]:
     try:
-        confirm = inspect_stage_status(workspace, job_dir, stage="confirm")
+        inspection = inspect_stage_status(
+            workspace,
+            job_dir,
+            stage=stage_id,  # type: ignore[arg-type]
+        )
     except StageRuntimeError:
         return []
-    if confirm.stage.status in {"ready", "stale", "failed", "cancelled"}:
-        return [_stage_start_action("confirm")]
+    if inspection.stage.status in {"ready", "stale", "failed", "cancelled"}:
+        return [_stage_start_action(stage_id)]
     return []
+
+
+def _current_semantic_status(
+    workspace: Path,
+    job_dir: Path,
+    stage_id: str,
+) -> tuple[str, list[NextAction]]:
+    try:
+        inspection = inspect_stage_status(
+            workspace,
+            job_dir,
+            stage=stage_id,  # type: ignore[arg-type]
+        )
+        adapter = get_stage_adapter(stage_id)
+    except (KeyError, StageRuntimeError):
+        return "blocked", []
+    if (
+        inspection.stage.status != "succeeded"
+        or inspection.reasons
+        or inspection.output_drift
+    ):
+        return "blocked", []
+    readiness, _extensions, actions = _semantic_status(
+        stage_id,
+        job_dir / adapter.authoritative_target,
+    )
+    return readiness, actions
 
 
 def _semantic_status(
     stage_id: str,
     authoritative_path: Path,
-) -> tuple[str, dict[str, int], list[NextAction]]:
-    if stage_id != "confirm" or not authoritative_path.is_file():
+) -> tuple[str, dict[str, int | str | None], list[NextAction]]:
+    if not authoritative_path.is_file():
+        return "ready_for_next_stage", {}, []
+    if stage_id == "evidence":
+        try:
+            catalog = EvidenceCatalogV1.model_validate(read_json_object(authoritative_path))
+        except (StageStoreError, ValidationError):
+            return "review_required", {}, [
+                NextAction(
+                    id="evidence.review_catalog",
+                    label="Review the invalid evidence catalog",
+                )
+            ]
+        extensions = {
+            "canisend.evidence_count": len(catalog.items),
+            "canisend.evidence_gap_count": 0 if catalog.state == "available" else 1,
+            "canisend.evidence_state": catalog.state,
+            "canisend.evidence_reason": catalog.unavailable_reason,
+        }
+        if catalog.state == "available":
+            return "ready_for_next_stage", extensions, []
+        if catalog.state == "empty":
+            return "review_required", extensions, [
+                NextAction(
+                    id="profile.add_evidence",
+                    label="Add profile evidence or review the valid empty catalog",
+                )
+            ]
+        if catalog.unavailable_reason == "evidence.profile_missing":
+            return "review_required", extensions, [
+                NextAction(
+                    id="profile.initialize",
+                    label="Initialize the applicant profile",
+                )
+            ]
+        return "review_required", extensions, [
+            NextAction(
+                id="profile.extract_evidence",
+                label="Extract or add profile evidence, then rerun Evidence",
+            )
+        ]
+    if stage_id == "match":
+        try:
+            matches = CriterionMatchesV1.model_validate(read_json_object(authoritative_path))
+        except (StageStoreError, ValidationError):
+            return "review_required", {}, [
+                NextAction(
+                    id="matches.review_catalog",
+                    label="Review the invalid criterion match catalog",
+                )
+            ]
+        proposed_count = sum(item.review_state == "proposed" for item in matches.matches)
+        missing_count = sum(item.classification == "missing" for item in matches.matches)
+        unknown_count = sum(item.classification == "unknown" for item in matches.matches)
+        extensions = {
+            "canisend.match_count": len(matches.matches),
+            "canisend.proposed_count": proposed_count,
+            "canisend.missing_count": missing_count,
+            "canisend.unknown_count": unknown_count,
+        }
+        if proposed_count == 0 and missing_count == 0 and unknown_count == 0:
+            return "ready_for_next_stage", extensions, []
+        return "review_required", extensions, [
+            NextAction(
+                id="matches.review_proposals",
+                label="Review proposed criterion classifications and evidence gaps",
+            )
+        ]
+    if stage_id != "confirm":
         return "ready_for_next_stage", {}, []
     try:
         catalog = CriteriaCatalogV1.model_validate(read_json_object(authoritative_path))

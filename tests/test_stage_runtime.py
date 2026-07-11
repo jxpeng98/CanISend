@@ -768,6 +768,24 @@ def test_state_is_reconstructed_from_immutable_manifest(tmp_path: Path) -> None:
     assert state_path.read_text(encoding="utf-8") == "not json\n"
 
 
+@pytest.mark.skipif(os.name == "nt", reason="symlink creation may require elevated privileges")
+def test_state_reconstruction_ignores_symlinked_run_directory(tmp_path: Path) -> None:
+    workspace, job_dir = _write_workspace(tmp_path)
+    result = run_deterministic_stage(workspace, job_dir, stage="parse")
+    assert result.manifest_path is not None
+    run_dir = result.manifest_path.parent
+    external_run = tmp_path / "external-run"
+    run_dir.rename(external_run)
+    run_dir.symlink_to(external_run, target_is_directory=True)
+    (job_dir / "workflow" / "state.json").unlink()
+
+    status = inspect_stage_status(workspace, job_dir, stage="parse")
+
+    assert status.reconstructed is True
+    assert status.stage.status == "ready"
+    assert status.pending_task_path is None
+
+
 def test_promotion_without_manifest_is_reconciled_on_next_mutating_session(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
