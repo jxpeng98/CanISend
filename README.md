@@ -426,17 +426,32 @@ Inspect the versioned runtime contract before choosing an operation:
 canisend agent capabilities --format json
 ```
 
-Phase 1 provides JSON output for `doctor`, `new-job`, `new-job-from-lead`, `list-jobs`, and `check-package`. Each
+The contract foundation provides JSON output for `doctor`, `new-job`, `new-job-from-lead`, `list-jobs`, and
+`check-package`. Each
 successful invocation writes one `canisend.agent/v1` response to stdout. Responses use workspace-relative or opaque
 artifact references and hashes rather than private document bodies. A failed package gate remains a successful
 operation result (`ok: true`) but exits non-zero; operational failures return `ok: false` with a stable error code.
+
+The first resumable vertical slice exposes Parse through the same shell-capable hosts:
+
+```bash
+canisend stage status --workspace . --job jobs/<job-slug> --format json
+canisend stage run --workspace . --job jobs/<job-slug> --stage parse --mode deterministic --format json
+```
+
+For current-host reasoning, `stage prepare --mode host-agent` writes an immutable TaskSpec under the job's
+`workflow/runs/` directory. After explicit approval to read the full advert, the host writes only the declared
+candidate and TaskResult paths; `stage apply` rechecks task identity, input freshness, scope, hashes, schema, source
+receipts, and output drift before atomically promoting `parsed_job.json`. Agents never write the authoritative file
+directly.
 
 Use `canisend doctor --workspace .` when a human-readable environment diagnostic is also useful.
 
 A fresh Codex, Claude Code, or IDE shell session resumes from the same durable workspace state by running the same
 `agent context` command; it does not need the previous chat transcript. The fake-data conformance fixture under
-`examples/agent_handoff/` demonstrates this host-neutral handoff. Phase 2 adds semantic task/result exchange and local
-MCP transport.
+`examples/agent_handoff/` demonstrates this host-neutral handoff. The Parse slice now adds durable task/result
+exchange through the existing CLI; later roadmap stages extend the same boundary to decisions and drafting. MCP is
+not on the current critical path.
 
 They may run local deterministic CLI commands, inspect generated evidence, and review current job artifacts. They must ask first before reading full private CVs, statements, full job adverts, references, PDFs, source URLs, generated packages, or enabling LLM-backed CLI flags/providers. They must not scrape pages, submit applications, upload packages, fabricate evidence, or commit private profile/job data.
 

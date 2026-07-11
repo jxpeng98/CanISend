@@ -1,6 +1,6 @@
 # Resumable Kernel And Parse Slice Implementation Plan
 
-**Status:** In progress
+**Status:** Complete — local acceptance; remote candidate CI remains a release gate
 
 **Date:** 2026-07-11
 
@@ -44,12 +44,12 @@ validation, atomic promotion, immutable run evidence, and fresh-session continua
 - `schemas/run-manifest.schema.json`
 - `tests/test_stage_models.py`
 
-- [ ] Write failing tests for strict fields, identifiers, paths, hashes, status consistency, and JSON Schema validity.
-- [ ] Define `ArtifactFingerprint`, `StageRecord`, `WorkflowStateV1`, `TaskSpecV1`, `TaskResultV1`,
+- [x] Write failing tests for strict fields, identifiers, paths, hashes, status consistency, and JSON Schema validity.
+- [x] Define `ArtifactFingerprint`, `StageRecord`, `WorkflowStateV1`, `TaskSpecV1`, `TaskResultV1`,
   `ValidationReportV1`, and `RunManifestV1`.
-- [ ] Reject absolute paths, parent traversal, unknown fields, malformed hashes, and inconsistent completion fields.
-- [ ] Package every public schema and add wheel-resource assertions.
-- [ ] Verify model and schema tests pass.
+- [x] Reject absolute paths, parent traversal, unknown fields, malformed hashes, and inconsistent completion fields.
+- [x] Package every public schema and add wheel-resource assertions.
+- [x] Verify model and schema tests pass.
 
 ## Task 2: Validated Stage Registry
 
@@ -58,12 +58,12 @@ validation, atomic promotion, immutable run evidence, and fresh-session continua
 - `src/canisend/stage_registry.py`
 - `tests/test_stage_registry.py`
 
-- [ ] Write failing registry topology and unsupported-stage tests.
-- [ ] Declare Intake, Evidence, Parse, Confirm, Match, Decide, Brief, Draft, Review, Package, Verify, and Render.
-- [ ] Validate unique IDs, known dependencies, acyclicity, and output ownership.
-- [ ] Mark only Parse implemented with deterministic and host-agent modes.
-- [ ] Expose descendant calculation for precise invalidation.
-- [ ] Verify registry tests pass.
+- [x] Write failing registry topology and unsupported-stage tests.
+- [x] Declare Intake, Evidence, Parse, Confirm, Match, Decide, Brief, Draft, Review, Package, Verify, and Render.
+- [x] Validate unique IDs, known dependencies, acyclicity, and output ownership.
+- [x] Mark only Parse implemented with deterministic and host-agent modes.
+- [x] Expose descendant calculation for precise invalidation.
+- [x] Verify registry tests pass.
 
 ## Task 3: Atomic Store, State Reconstruction, And Run Evidence
 
@@ -72,14 +72,14 @@ validation, atomic promotion, immutable run evidence, and fresh-session continua
 - `src/canisend/stage_store.py`
 - `tests/test_stage_store.py`
 
-- [ ] Write failing tests for atomic JSON replacement, immutable file creation, state loading, and corrupt-state
+- [x] Write failing tests for atomic JSON replacement, immutable file creation, state loading, and corrupt-state
   recovery.
-- [ ] Use same-directory temporary files, flush/fsync, and `os.replace` for replaceable views and authoritative
+- [x] Use same-directory temporary files, flush/fsync, and `os.replace` for replaceable views and authoritative
   single-file promotion.
-- [ ] Create immutable files with exclusive creation and reject content changes on retry.
-- [ ] Keep all runtime paths within `jobs/<job-id>/workflow/` and reject symlink escapes.
-- [ ] Rebuild state from finalized manifests when `state.json` is missing or invalid.
-- [ ] Verify interrupted or rejected operations leave authoritative files unchanged.
+- [x] Create immutable files with exclusive creation and reject content changes on retry.
+- [x] Keep all runtime paths within `jobs/<job-id>/workflow/` and reject symlink escapes.
+- [x] Rebuild state from finalized manifests when `state.json` is missing or invalid.
+- [x] Verify interrupted or rejected operations leave authoritative files unchanged.
 
 ## Task 4: Parse Projection, Fingerprint, And Staleness
 
@@ -89,12 +89,12 @@ validation, atomic promotion, immutable run evidence, and fresh-session continua
 - `src/canisend/stages/parse_stage.py`
 - `tests/test_parse_stage.py`
 
-- [ ] Write decision-table tests for relevant and irrelevant input changes.
-- [ ] Reuse `parse_job_advert` and `validate_parsed_job`.
-- [ ] Hash the advert and canonical metadata projection rather than raw `job.yaml`.
-- [ ] Exclude status, timestamps, notes, writing preferences, profile evidence, and downstream artifacts.
-- [ ] Detect output drift independently from input staleness.
-- [ ] Propagate Parse staleness only through registry descendants.
+- [x] Write decision-table tests for relevant and irrelevant input changes.
+- [x] Reuse `parse_job_advert` and `validate_parsed_job`.
+- [x] Hash the advert and canonical metadata projection rather than raw `job.yaml`.
+- [x] Exclude status, timestamps, notes, writing preferences, profile evidence, and downstream artifacts.
+- [x] Detect output drift independently from input staleness.
+- [x] Propagate Parse staleness only through registry descendants.
 
 ## Task 5: Prepare, Apply, And Deterministic Run Services
 
@@ -103,16 +103,16 @@ validation, atomic promotion, immutable run evidence, and fresh-session continua
 - `src/canisend/stage_runtime.py`
 - `tests/test_stage_runtime.py`
 
-- [ ] Write failing fresh-session, cache, stale-result, bad-identity, unsafe-path, bad-hash, invalid-schema, and
+- [x] Write failing fresh-session, cache, stale-result, bad-identity, unsafe-path, bad-hash, invalid-schema, and
   output-drift tests.
-- [ ] `prepare(parse)` writes one immutable TaskSpec and creates a candidate directory.
-- [ ] deterministic execution writes a candidate and TaskResult through the same apply boundary.
-- [ ] host-agent preparation performs no provider construction or invocation.
-- [ ] apply recomputes current inputs and validates identity, scope, candidate hash, JSON shape, parsed-job semantics,
+- [x] `prepare(parse)` writes one immutable TaskSpec and creates a candidate directory.
+- [x] deterministic execution writes a candidate and TaskResult through the same apply boundary.
+- [x] host-agent preparation performs no provider construction or invocation.
+- [x] apply recomputes current inputs and validates identity, scope, candidate hash, JSON shape, parsed-job semantics,
   and expected prior output hash.
-- [ ] successful apply atomically promotes `parsed_job.json`, finalizes a run manifest, and updates state.
-- [ ] rejected apply records a safe finalized failure without modifying the authoritative output.
-- [ ] unchanged deterministic reruns return a cache hit without changing authoritative mtime/hash.
+- [x] successful apply atomically promotes `parsed_job.json`, finalizes a run manifest, and updates state.
+- [x] rejected apply records a safe finalized failure without modifying the authoritative output.
+- [x] unchanged deterministic reruns return a cache hit without changing authoritative mtime/hash.
 
 ## Task 6: CLI-First Surface
 
@@ -123,12 +123,12 @@ validation, atomic promotion, immutable run evidence, and fresh-session continua
 - `tests/test_stage_cli.py`
 - `tests/test_agent_cli.py` only if capabilities change
 
-- [ ] Add `stage status`, `stage prepare`, `stage apply`, and deterministic `stage run`.
-- [ ] Keep text as the default and emit exactly one JSON document in JSON mode.
-- [ ] Return stable operational errors without private paths, source queries, or candidate bodies.
-- [ ] Let a fresh CLI runner continue the same prepared task.
-- [ ] Do not add structured fields silently to `canisend.agent/v1` schema `1.0.0`.
-- [ ] Verify CLI tests pass.
+- [x] Add `stage status`, `stage prepare`, `stage apply`, and deterministic `stage run`.
+- [x] Keep text as the default and emit exactly one JSON document in JSON mode.
+- [x] Return stable operational errors without private paths, source queries, or candidate bodies.
+- [x] Let a fresh CLI runner continue the same prepared task.
+- [x] Do not add structured fields silently to `canisend.agent/v1` schema `1.0.0`.
+- [x] Verify CLI tests pass.
 
 ## Task 7: Legacy Pipeline Compatibility
 
@@ -137,20 +137,35 @@ validation, atomic promotion, immutable run evidence, and fresh-session continua
 - `src/canisend/pipeline.py`
 - `tests/test_pipeline.py`
 
-- [ ] Extract or reuse one deterministic Parse service without changing output semantics.
-- [ ] Keep `canisend run`, dry-run, LLM flags, text output, job status, Typst candidate protection, and git behavior.
-- [ ] Do not route Match, Draft, Review, Package, Verify, or Render through the new runtime yet.
-- [ ] Verify the complete existing pipeline suite passes unchanged.
+- [x] Extract or reuse one deterministic Parse service without changing output semantics.
+- [x] Keep `canisend run`, dry-run, LLM flags, text output, job status, Typst candidate protection, and git behavior.
+- [x] Do not route Match, Draft, Review, Package, Verify, or Render through the new runtime yet.
+- [x] Verify the complete existing pipeline suite passes unchanged.
 
 ## Task 8: Documentation, Packaging, And Exit Review
 
-- [ ] Document the Stage 1 CLI loop with fake paths and no private bodies.
-- [ ] Update `CHANGELOG.md` under Unreleased.
-- [ ] Run focused stage, protocol, pipeline, workspace, and package suites.
-- [ ] Run the complete suite on Python 3.11, 3.12, and 3.13.
-- [ ] Build sdist/wheel, run Twine and resource checks, and perform a clean-wheel Parse smoke test.
-- [ ] Review for private paths, secrets, Phase 2 scope leakage, and untracked application artifacts.
-- [ ] Mark Stage 1 complete only after every exit criterion passes; otherwise record the exact open gate.
+- [x] Document the Stage 1 CLI loop with fake paths and no private bodies.
+- [x] Update `CHANGELOG.md` under Unreleased.
+- [x] Run focused stage, protocol, pipeline, workspace, and package suites: 167 passed.
+- [x] Run the complete suite on Python 3.11, 3.12, and 3.13: 477 passed on each interpreter.
+- [x] Build sdist/wheel, run Twine and resource checks, and perform a clean-wheel Parse smoke test.
+- [x] Review for private paths, secrets, scope leakage, and untracked application artifacts.
+- [x] Mark Stage 1 locally complete after every exit criterion passes; retain remote candidate CI as the release gate.
+
+## Exit Review Record — 2026-07-11
+
+- Focused Stage 1, protocol, pipeline, workspace, and packaging suite: 167 passed before final matrix validation.
+- Complete suite: 477 passed independently on CPython 3.11.15, 3.12.12, and 3.13.14.
+- Persistence and recovery evidence covers immutable records, same-directory atomic replacement, stale-result
+  rejection, compare-and-swap concurrency, output drift, corrupt-state reconstruction, and promotion-receipt recovery.
+- Distribution evidence: sdist and wheel built; Twine metadata and packaged-resource checks passed.
+- Clean-wheel evidence: CPython 3.12.12 installed the wheel, created the packaged fake workspace, ran Stage status,
+  promoted deterministic Parse, observed a true second-run cache hit, installed all four runtime schemas, and resolved
+  all 14 workspace skills.
+- Boundary evidence: 128 repository, skill, protocol, stage-model, storage, registry, and runtime checks passed; no
+  local absolute path, secret value, MCP/platform implementation, non-Parse executable stage, or real application
+  artifact was found in the change set.
+- The branch is not pushed. Remote CI remains required before preparing or publishing the candidate milestone.
 
 ## Required Acceptance Matrix
 

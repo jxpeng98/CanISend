@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added a CLI-first resumable Parse stage with versioned workflow state, TaskSpec/TaskResult contracts, immutable run
+  evidence, precise input fingerprints, candidate validation, output-drift protection, and atomic promotion.
 - Added the versioned `canisend.agent/v1` agent protocol, JSON Schema, capabilities, workspace/job context, and structured
   output for initial intake, listing, diagnostics, and package-gate commands.
 - Added packaged fake-data capability/context fixtures proving fresh-session handoff from durable workspace state.

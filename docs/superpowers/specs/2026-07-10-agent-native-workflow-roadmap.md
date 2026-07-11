@@ -307,6 +307,10 @@ The detailed implementation plan is
 
 ## Phase 2: Stage Runtime And Host-Agent Mode
 
+**Execution refinement:** Under the current keep-Python/keep-platform constraint, implementation follows
+`2026-07-11-cli-first-workflow-optimization-roadmap.md`. The first slice proves the resumable Parse loop through the
+existing CLI. MCP and platform-native transport remain deferred until the kernel behavior is validated.
+
 **Candidate milestone:** 0.4.0a1
 
 **Objective:** Replace monolithic execution with resumable, selectively rerunnable stages and validated host-agent

@@ -1,6 +1,6 @@
 # CLI-First Workflow Optimization Execution Roadmap
 
-**Status:** Active — Stage 1 in progress
+**Status:** Active — Stage 1 implemented and locally accepted; remote candidate CI pending
 
 **Date:** 2026-07-11
 
@@ -46,7 +46,7 @@ but it remains required before publishing the corresponding prerelease.
 | Stage | Priority | Objective | Main deliverables | Exit decision |
 |---|---:|---|---|---|
 | 0. Contract Foundation | P0, locally complete | Give agents a safe, stable inspection contract | Agent envelope, context, capabilities, privacy and error semantics | Remote candidate CI passes before release |
-| 1. Resumable Kernel + Parse | P0, active | Prove a resumable, validated stage with one authoritative output | Registry, state, immutable runs, fingerprints, TaskSpec/TaskResult, candidate promotion, Parse CLI | Fresh sessions resume; stale/invalid candidates cannot change `parsed_job.json` |
+| 1. Resumable Kernel + Parse | P0, locally complete | Prove a resumable, validated stage with one authoritative output | Registry, state, immutable runs, fingerprints, TaskSpec/TaskResult, candidate promotion, Parse CLI | Fresh sessions resume; stale/invalid candidates cannot change `parsed_job.json` |
 | 2. Decision Spine | P0 | Make requirements, evidence matching, and user decisions durable | Criterion, EvidenceRef, CriterionMatch, confirmations, apply/hold/skip decision, `application_brief.yaml` | Every essential criterion and required decision is structured and reviewable |
 | 3. Evidence-Backed Draft + Review | P0/P1 | Generate only evidence-supported, reviewable application material | Claim, ReviewFinding, required-document plan, Cover Letter slice, consistency review | Strong claims resolve to evidence; unsupported claims block readiness |
 | 4. Discovery Ecosystem | P1 | Expand sources on stable identity and provenance | Lead v2, merge/dedupe/ranking, CSV/JSON/email import, read-only adapters, agent-result import | Multi-source refresh is traceable, partial-failure safe, and duplicate resistant |
@@ -72,6 +72,9 @@ their own workflow state, task execution, or promotion semantics.
 ## Stage 1: Resumable Kernel + Parse
 
 **Candidate milestone:** 0.4.0a1
+
+**Stage status:** Implemented and locally accepted on 2026-07-11. Publishing remains gated on a pushed candidate and
+successful remote CI.
 
 ### Objective
 

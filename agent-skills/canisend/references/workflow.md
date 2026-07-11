@@ -101,7 +101,37 @@ canisend agent context \
 
 The workspace is authoritative; no previous prompt or chat transcript is required.
 
-## 5. Generate Draft Package
+## 5. Run Or Resume The Parse Stage
+
+Inspect Parse without writing state:
+
+```bash
+canisend stage status \
+  --workspace <private-workspace> \
+  --job jobs/<job-slug> \
+  --format json
+```
+
+Use the deterministic executor when local parsing is appropriate:
+
+```bash
+canisend stage run \
+  --workspace <private-workspace> \
+  --job jobs/<job-slug> \
+  --stage parse \
+  --mode deterministic \
+  --format json
+```
+
+For current-host parsing, first obtain explicit approval to read the full advert, then run `stage prepare --mode
+host-agent`. Read its immutable TaskSpec, write only the declared candidate and TaskResult paths, and pass those paths
+to `stage apply`. Never write `parsed_job.json` directly. Apply rejects stale inputs, output drift, undeclared paths,
+wrong hashes, invalid schemas, and source receipts that do not resolve to the advert.
+
+An unchanged deterministic rerun is a cache hit. Advert or relevant job metadata changes make Parse stale; profile
+evidence, writing preferences, package status, and downstream artifacts do not.
+
+## 6. Generate Draft Package
 
 Deterministic baseline:
 
@@ -123,7 +153,7 @@ Use only `--llm-parser` when the user wants structured parsing but not drafted p
 
 Always ask before enabling LLM-backed flags or a command provider for a real workspace, because those modes can send selected private advert, profile, evidence, and draft context to the configured provider. If the user has not opted in, run the deterministic baseline and report any gaps for manual review.
 
-## 6. Review Before Rendering
+## 7. Review Before Rendering
 
 Review, in order:
 
@@ -149,7 +179,7 @@ that flag, the check remains read-only.
 
 In agent-assisted mode, also report which private sources were read directly, which LLM-backed CLI flags were used, and which remaining claims need manual confirmation.
 
-## 7. Optional Typst Rendering
+## 8. Optional Typst Rendering
 
 Render only when the user asks for PDFs or needs local PDF review:
 
@@ -159,6 +189,6 @@ canisend render-typst --workspace <private-workspace> --job jobs/<job-slug>
 
 Rendering requires a local `typst` binary. Source generation does not.
 
-## 8. Manual Submission
+## 9. Manual Submission
 
 The tool stops at preparation. The user manually handles portal upload, eligibility declarations, equality monitoring, right-to-work, disability, visa, conflict, criminal record, and other sensitive form answers.
