@@ -42,12 +42,13 @@ def test_default_registry_exposes_complete_application_dag() -> None:
     assert DEFAULT_STAGE_REGISTRY.get("render").depends_on == ("verify",)
 
 
-def test_evidence_parse_confirm_and_match_are_implemented_in_the_registry() -> None:
+def test_decision_spine_stages_are_implemented_in_the_registry() -> None:
     assert _ids(DEFAULT_STAGE_REGISTRY.implemented_stages()) == (
         "evidence",
         "parse",
         "confirm",
         "match",
+        "brief",
     )
 
     evidence = DEFAULT_STAGE_REGISTRY.get("evidence")
@@ -62,6 +63,9 @@ def test_evidence_parse_confirm_and_match_are_implemented_in_the_registry() -> N
     match = DEFAULT_STAGE_REGISTRY.get("match")
     assert match.execution_modes == ("deterministic",)
     assert match.authoritative_outputs == ("criterion_matches.json",)
+    brief = DEFAULT_STAGE_REGISTRY.get("brief")
+    assert brief.execution_modes == ("deterministic",)
+    assert brief.authoritative_outputs == ("required_document_plan.json",)
 
 
 def test_descendants_are_transitive_and_topologically_ordered() -> None:

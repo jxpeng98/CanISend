@@ -17,6 +17,7 @@ from canisend.decision_models import (
     CriteriaCatalogV1,
     CriterionMatchesV1,
     EvidenceCatalogV1,
+    RequiredDocumentPlanV1,
 )
 from canisend.stage_adapters import get_stage_adapter
 from canisend.stage_models import CandidateSubmissionV1, TaskSpecV1
@@ -215,6 +216,26 @@ def stage_status_agent_response(
                     label="Resolve the unknown criteria extraction before matching",
                 )
             )
+        elif any(
+            reason.startswith("input_not_ready:decision_")
+            for reason in inspection.reasons
+        ):
+            actions.append(
+                NextAction(
+                    id="decision.status",
+                    label="Review the user-owned application decision before Brief",
+                )
+            )
+        elif any(
+            reason.startswith("input_not_ready:brief_")
+            for reason in inspection.reasons
+        ):
+            actions.append(
+                NextAction(
+                    id="brief.status",
+                    label="Review the user-owned application brief",
+                )
+            )
         else:
             actions.append(
                 NextAction(
@@ -289,11 +310,20 @@ def stage_status_agent_response(
     if inspection.output_drift:
         blockers.append("Review the changed authoritative stage output before rerunning.")
     if inspection.stage.status == "blocked":
-        blockers.append(
-            "Criteria extraction requires review before Match can run."
-            if "input_not_ready:criteria_review" in inspection.reasons
-            else "One or more required upstream stages are not current."
-        )
+        if "input_not_ready:criteria_review" in inspection.reasons:
+            blockers.append("Criteria extraction requires review before Match can run.")
+        elif any(
+            reason.startswith("input_not_ready:decision_")
+            for reason in inspection.reasons
+        ):
+            blockers.append("A current confirmed apply decision is required before Brief can run.")
+        elif any(
+            reason.startswith("input_not_ready:brief_")
+            for reason in inspection.reasons
+        ):
+            blockers.append("The user-owned application brief requires review before planning.")
+        else:
+            blockers.append("One or more required upstream stages are not current.")
     elif not (terminal_promote or terminal_cancel) and any(
         reason.startswith("dependency_not_current:") for reason in inspection.reasons
     ):
@@ -790,6 +820,45 @@ def _semantic_status(
             NextAction(
                 id="matches.review_proposals",
                 label="Review proposed criterion classifications and evidence gaps",
+            )
+        ]
+    if stage_id == "brief":
+        try:
+            plan = RequiredDocumentPlanV1.model_validate(
+                read_json_object(authoritative_path)
+            )
+        except (StageStoreError, ValidationError):
+            return "review_required", {}, [
+                NextAction(
+                    id="brief.review_plan",
+                    label="Review the invalid required-document plan",
+                )
+            ]
+        extensions = {
+            "canisend.required_document_count": len(plan.requirements),
+            "canisend.unresolved_document_count": len(plan.unresolved_document_ids),
+            "canisend.blocking_document_count": len(plan.blocking_document_ids),
+            "canisend.orphaned_document_choice_count": len(
+                plan.orphaned_document_choice_ids
+            ),
+            "canisend.unresolved_brief_field_count": len(
+                plan.unresolved_brief_fields
+            ),
+            "canisend.document_plan_blocker_count": len(plan.blockers),
+            "canisend.document_plan_primary_blocker": (
+                plan.blockers[0] if plan.blockers else None
+            ),
+            "canisend.document_requirements_state": plan.requirements_state,
+            "canisend.document_requirements_basis_sha256": (
+                plan.requirements_basis_sha256
+            ),
+        }
+        if not plan.blockers:
+            return "ready_for_next_stage", extensions, []
+        return "blocked", extensions, [
+            NextAction(
+                id="brief.status",
+                label="Review the application brief and required-document blockers",
             )
         ]
     if stage_id != "confirm":

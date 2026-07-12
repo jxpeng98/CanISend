@@ -39,6 +39,12 @@ TASK5_AGENT_OPERATIONS = {
     "user_mutation.recover",
 }
 
+TASK6_AGENT_OPERATIONS = {
+    "brief.status",
+    "brief.initialize",
+    "brief.update",
+}
+
 TASK5_USER_INPUT_ERROR_CODES = {
     "user_input.not_initialized",
     "user_input.invalid",
@@ -77,6 +83,15 @@ def test_task5_agent_capabilities_are_additive_v1_operations() -> None:
     assert TASK5_AGENT_OPERATIONS <= set(SUPPORTED_AGENT_OPERATIONS)
     assert TASK5_AGENT_OPERATIONS <= set(capabilities.operations)
     assert len(capabilities.operations) == len(set(capabilities.operations))
+    assert capabilities.protocol_versions == [AGENT_PROTOCOL]
+    assert capabilities.schema_versions == [AGENT_SCHEMA_VERSION]
+
+
+def test_task6_agent_capabilities_add_brief_operations_without_a_protocol_bump() -> None:
+    capabilities = default_agent_capabilities("0.2.0")
+
+    assert TASK6_AGENT_OPERATIONS <= set(SUPPORTED_AGENT_OPERATIONS)
+    assert TASK6_AGENT_OPERATIONS <= set(capabilities.operations)
     assert capabilities.protocol_versions == [AGENT_PROTOCOL]
     assert capabilities.schema_versions == [AGENT_SCHEMA_VERSION]
 

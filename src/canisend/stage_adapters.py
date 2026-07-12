@@ -15,6 +15,19 @@ from canisend.stage_store import (
     sha256_file,
     write_immutable_json,
 )
+from canisend.stages.brief_stage import (
+    APPLICATION_BRIEF_INPUT_PATH,
+    APPLICATION_DECISION_INPUT_PATH,
+    CRITERION_MATCHES_INPUT_PATH as BRIEF_MATCHES_INPUT_PATH,
+    JOB_ADVERT_INPUT_PATH as BRIEF_ADVERT_INPUT_PATH,
+    PARSED_JOB_INPUT_PATH as BRIEF_PARSED_JOB_INPUT_PATH,
+    REQUIRED_DOCUMENT_PLAN_OUTPUT_PATH,
+    BriefStageError,
+    brief_input_fingerprint,
+    brief_precondition_reasons,
+    build_deterministic_brief_candidate,
+    validate_brief_candidate,
+)
 from canisend.stages.confirm_stage import (
     CONFIRMED_CORRECTIONS_PATH,
     CRITERIA_OUTPUT_PATH,
@@ -43,6 +56,7 @@ from canisend.stages.parse_stage import (
     parse_input_fingerprint,
     validate_parse_candidate,
 )
+from canisend.user_file_store import UnsafeUserFileError, read_optional_safe_bytes
 from canisend.workspace import load_workspace_config
 
 
@@ -447,6 +461,85 @@ class MatchStageAdapter(StageAdapter):
         return validated.model_dump(mode="json")
 
 
+class BriefStageAdapter(StageAdapter):
+    def precondition_reasons(
+        self,
+        workspace: Path,
+        job_dir: Path,
+    ) -> tuple[str, ...]:
+        return brief_precondition_reasons(workspace, job_dir)
+
+    def input_fingerprint(self, workspace: Path, job_dir: Path) -> str:
+        return brief_input_fingerprint(
+            workspace,
+            job_dir,
+            parsed_job_schema_path=_schema_path(workspace, "parsed_job.schema.json"),
+            required_document_plan_schema_path=_schema_path(
+                workspace,
+                "required-document-plan.schema.json",
+            ),
+        )
+
+    def input_artifacts(
+        self,
+        workspace: Path,
+        job_dir: Path,
+    ) -> tuple[ArtifactFingerprint, ...]:
+        del workspace
+        return (
+            _artifact(job_dir, BRIEF_PARSED_JOB_INPUT_PATH),
+            _artifact(job_dir, BRIEF_ADVERT_INPUT_PATH),
+            _artifact(job_dir, CRITERIA_INPUT_PATH),
+            _artifact(job_dir, BRIEF_MATCHES_INPUT_PATH),
+            _safe_user_artifact(job_dir, APPLICATION_DECISION_INPUT_PATH),
+            _safe_user_artifact(job_dir, APPLICATION_BRIEF_INPUT_PATH),
+        )
+
+    def build_deterministic_candidate(
+        self,
+        workspace: Path,
+        job_dir: Path,
+        *,
+        input_fingerprint: str,
+        inputs: tuple[ArtifactFingerprint, ...],
+    ) -> dict[str, Any]:
+        del inputs
+        candidate = build_deterministic_brief_candidate(
+            workspace,
+            job_dir,
+            input_fingerprint=input_fingerprint,
+            parsed_job_schema_path=_schema_path(workspace, "parsed_job.schema.json"),
+            required_document_plan_schema_path=_schema_path(
+                workspace,
+                "required-document-plan.schema.json",
+            ),
+        )
+        return candidate.model_dump(mode="json")
+
+    def validate_candidate(
+        self,
+        workspace: Path,
+        job_dir: Path,
+        candidate: object,
+        *,
+        input_fingerprint: str,
+        inputs: tuple[ArtifactFingerprint, ...],
+    ) -> dict[str, Any]:
+        del inputs
+        validated = validate_brief_candidate(
+            candidate,
+            workspace=workspace,
+            job_dir=job_dir,
+            input_fingerprint=input_fingerprint,
+            parsed_job_schema_path=_schema_path(workspace, "parsed_job.schema.json"),
+            required_document_plan_schema_path=_schema_path(
+                workspace,
+                "required-document-plan.schema.json",
+            ),
+        )
+        return validated.model_dump(mode="json")
+
+
 _ADAPTERS = {
     "evidence": EvidenceStageAdapter(
         stage_id="evidence",
@@ -492,6 +585,17 @@ _ADAPTERS = {
         task_privacy_tier=2,
         citations_validated=True,
     ),
+    "brief": BriefStageAdapter(
+        stage_id="brief",
+        authoritative_target=REQUIRED_DOCUMENT_PLAN_OUTPUT_PATH,
+        candidate_name=REQUIRED_DOCUMENT_PLAN_OUTPUT_PATH,
+        output_schema="canisend.required-document-plan/v1",
+        artifact_kind="required_document_plan",
+        media_type="application/json",
+        privacy_tier=2,
+        task_privacy_tier=2,
+        citations_validated=True,
+    ),
 }
 
 
@@ -521,3 +625,17 @@ def _unaliased_artifact(job_dir: Path, relative_path: str) -> ArtifactFingerprin
     if path.is_symlink() or not path.is_file() or metadata.st_nlink != 1:
         raise StageStoreError("Stage input must be one unaliased regular file.")
     return _artifact(job_dir, relative_path)
+
+
+def _safe_user_artifact(job_dir: Path, relative_path: str) -> ArtifactFingerprint:
+    try:
+        snapshot = read_optional_safe_bytes(job_dir, relative_path)
+    except UnsafeUserFileError as exc:
+        raise BriefStageError("A user-owned Brief input is unsafe.") from exc
+    if snapshot is None:
+        raise BriefStageError("A required user-owned Brief input is missing.")
+    return ArtifactFingerprint(
+        path=relative_path,
+        sha256=snapshot.sha256,
+        size_bytes=len(snapshot.data),
+    )

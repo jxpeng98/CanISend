@@ -452,6 +452,8 @@ def _decision_spine_snapshot(
         job_dir / "criteria.json",
         job_dir / "evidence_catalog.json",
         job_dir / "criterion_matches.json",
+        job_dir / "application_brief.yaml",
+        job_dir / "required_document_plan.json",
     )
     if not workflow_root.exists() and not any(path.exists() for path in structured_paths):
         return None
@@ -460,11 +462,13 @@ def _decision_spine_snapshot(
     from canisend.stage_agent import stage_status_agent_response
     from canisend.stage_runtime import StageRuntimeError, inspect_stage_status
     from canisend.user_mutation_agent import (
+        brief_agent_projection,
         corrections_agent_projection,
         decision_agent_projection,
     )
     from canisend.user_mutations import (
         UserMutationError,
+        inspect_application_brief,
         inspect_application_decision,
         inspect_current_artifact_mutation,
         inspect_user_artifact,
@@ -473,7 +477,7 @@ def _decision_spine_snapshot(
     # Durable user-mutation controls outrank ordinary stage routing.  A fresh
     # agent session must recover a lost mutation response before it can rerun a
     # dependent stage or accept another user-owned update.
-    for artifact in ("corrections", "decision"):
+    for artifact in ("corrections", "decision", "brief"):
         audit = inspect_current_artifact_mutation(
             workspace,
             job_dir,
@@ -495,11 +499,17 @@ def _decision_spine_snapshot(
                 job_dir,
                 current_user_artifact,
             )
-        else:
+        elif artifact == "decision":
             projection = decision_agent_projection(
                 workspace,
                 job_dir,
                 inspect_application_decision(workspace, job_dir),
+            )
+        else:
+            projection = brief_agent_projection(
+                workspace,
+                job_dir,
+                inspect_application_brief(workspace, job_dir),
             )
         return DerivedWorkflowSnapshot(
             workflow=WorkflowSnapshotReference(
@@ -516,7 +526,11 @@ def _decision_spine_snapshot(
             extensions=projection.extensions,
         )
 
-    for stage_id in ("parse", "confirm", "evidence", "match"):
+    current_brief_projection = None
+    inherited_artifacts: tuple[ArtifactReference, ...] = ()
+    inherited_warnings: tuple[str, ...] = ()
+    inherited_extensions: dict[str, JsonScalar] = {}
+    for stage_id in ("parse", "confirm", "evidence", "match", "brief"):
         try:
             inspection = inspect_stage_status(
                 workspace,
@@ -615,30 +629,142 @@ def _decision_spine_snapshot(
                     "application decision does not rewrite them."
                 ),
             ) if int(response.extensions.get("canisend.proposed_count") or 0) > 0 else ()
+            if decision.readiness != "ready_for_next_stage":
+                return DerivedWorkflowSnapshot(
+                    workflow=WorkflowSnapshotReference(
+                        phase="unknown",
+                        readiness=decision.readiness,
+                    ),
+                    job=job_reference,
+                    artifacts=_combined_artifacts(
+                        base_artifacts,
+                        tuple(response.artifacts),
+                        decision.artifacts,
+                    ),
+                    missing_fields=decision.missing_fields,
+                    required_consents=decision.required_consents,
+                    warnings=proposed_warning + decision.warnings,
+                    blockers=decision.blockers,
+                    next_actions=decision.next_actions,
+                    extensions=tuple(
+                        {
+                            **response.extensions,
+                            **decision.extension_dict(),
+                        }.items()
+                    ),
+                )
+            brief = brief_agent_projection(
+                workspace,
+                job_dir,
+                inspect_application_brief(workspace, job_dir),
+            )
+            if (
+                brief.readiness == "blocked"
+                or brief.extension_dict().get("canisend.brief_basis_status") != "current"
+                or brief.extension_dict().get("canisend.user_artifact_state") == "missing"
+            ):
+                return DerivedWorkflowSnapshot(
+                    workflow=WorkflowSnapshotReference(
+                        phase="unknown",
+                        readiness=brief.readiness,
+                    ),
+                    job=job_reference,
+                    artifacts=_combined_artifacts(
+                        base_artifacts,
+                        tuple(response.artifacts),
+                        decision.artifacts,
+                        brief.artifacts,
+                    ),
+                    missing_fields=brief.missing_fields,
+                    required_consents=brief.required_consents,
+                    warnings=proposed_warning + brief.warnings,
+                    blockers=brief.blockers,
+                    next_actions=brief.next_actions,
+                    extensions=tuple(
+                        {
+                            **response.extensions,
+                            **decision.extension_dict(),
+                            **brief.extension_dict(),
+                        }.items()
+                    ),
+                )
+            current_brief_projection = brief
+            inherited_artifacts = _combined_artifacts(
+                tuple(response.artifacts),
+                decision.artifacts,
+                brief.artifacts,
+            )
+            inherited_warnings = proposed_warning + brief.warnings
+            inherited_extensions = {
+                **response.extensions,
+                **decision.extension_dict(),
+                **brief.extension_dict(),
+            }
+            continue
+        if stage_id == "brief" and current_brief_projection is not None:
+            if ready:
+                return DerivedWorkflowSnapshot(
+                    workflow=response.workflow
+                    or WorkflowSnapshotReference(
+                        phase="unknown",
+                        readiness="ready_for_next_stage",
+                    ),
+                    job=job_reference,
+                    artifacts=_combined_artifacts(
+                        base_artifacts,
+                        inherited_artifacts,
+                        tuple(response.artifacts),
+                    ),
+                    warnings=inherited_warnings + tuple(response.warnings),
+                    blockers=tuple(response.blockers),
+                    next_actions=tuple(response.next_actions),
+                    extensions=tuple(
+                        {
+                            **inherited_extensions,
+                            **response.extensions,
+                        }.items()
+                    ),
+                )
+            plan_needs_refresh = not technically_current
+            review_actions = (
+                tuple(response.next_actions)
+                if plan_needs_refresh
+                else current_brief_projection.next_actions
+                or tuple(response.next_actions)
+            )
+            review_consents = (
+                ()
+                if plan_needs_refresh
+                else current_brief_projection.required_consents
+            )
+            review_missing_fields = (
+                ()
+                if plan_needs_refresh
+                else current_brief_projection.missing_fields
+            )
             return DerivedWorkflowSnapshot(
-                workflow=WorkflowSnapshotReference(
-                    phase="unknown",
-                    readiness=decision.readiness,
-                ),
+                workflow=response.workflow
+                or WorkflowSnapshotReference(phase="unknown", readiness="review_required"),
                 job=job_reference,
                 artifacts=_combined_artifacts(
                     base_artifacts,
+                    inherited_artifacts,
                     tuple(response.artifacts),
-                    decision.artifacts,
                 ),
-                missing_fields=decision.missing_fields,
-                required_consents=decision.required_consents,
-                warnings=proposed_warning + decision.warnings,
-                blockers=decision.blockers,
-                next_actions=decision.next_actions,
+                missing_fields=review_missing_fields,
+                required_consents=review_consents,
+                warnings=inherited_warnings + tuple(response.warnings),
+                blockers=tuple(response.blockers) + current_brief_projection.blockers,
+                next_actions=review_actions,
+                gate=response.gate,
                 extensions=tuple(
                     {
+                        **inherited_extensions,
                         **response.extensions,
-                        **decision.extension_dict(),
                     }.items()
                 ),
             )
-        if ready and stage_id != "match":
+        if ready and stage_id not in {"match", "brief"}:
             continue
         return DerivedWorkflowSnapshot(
             workflow=response.workflow

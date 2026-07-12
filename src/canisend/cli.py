@@ -55,8 +55,10 @@ from canisend.stage_runtime import (
 )
 from canisend.typst import render_typst_files
 from canisend.user_mutation_agent import (
+    application_brief_status_agent_response,
     application_decision_status_agent_response,
     corrections_status_agent_response,
+    load_brief_patch_file,
     load_corrections_patch_file,
     load_decision_patch_file,
     mutation_outcome_agent_response,
@@ -65,8 +67,10 @@ from canisend.user_mutation_agent import (
 from canisend.user_mutations import (
     UserMutationError,
     apply_user_patch,
+    initialize_application_brief,
     initialize_application_decision,
     initialize_confirmed_corrections,
+    inspect_application_brief,
     inspect_application_decision,
     inspect_user_artifact,
     recover_user_mutation,
@@ -129,6 +133,11 @@ decision_app = typer.Typer(
     no_args_is_help=True,
 )
 app.add_typer(decision_app, name="decision")
+brief_app = typer.Typer(
+    help="Inspect and update the user-owned application brief.",
+    no_args_is_help=True,
+)
+app.add_typer(brief_app, name="brief")
 user_mutation_app = typer.Typer(
     help="Recover a previously accepted user-owned mutation.",
     no_args_is_help=True,
@@ -310,7 +319,7 @@ def stage_status_command(
     stage: str = typer.Option(
         "parse",
         "--stage",
-        help="Workflow stage to inspect: evidence, parse, confirm, or match.",
+        help="Workflow stage to inspect: evidence, parse, confirm, match, or brief.",
     ),
     output_format: str = typer.Option(
         "text",
@@ -342,7 +351,7 @@ def stage_prepare_command(
     stage: str = typer.Option(
         "parse",
         "--stage",
-        help="Workflow stage to prepare: evidence, parse, confirm, or match.",
+        help="Workflow stage to prepare: evidence, parse, confirm, match, or brief.",
     ),
     mode: str = typer.Option(
         "host-agent",
@@ -464,7 +473,7 @@ def stage_cancel_command(
     stage: str = typer.Option(
         "parse",
         "--stage",
-        help="Active workflow stage to cancel: evidence, parse, confirm, or match.",
+        help="Active workflow stage to cancel: evidence, parse, confirm, match, or brief.",
     ),
     output_format: str = typer.Option(
         "text",
@@ -500,7 +509,7 @@ def stage_run_command(
     stage: str = typer.Option(
         "parse",
         "--stage",
-        help="Workflow stage to execute: evidence, parse, confirm, or match.",
+        help="Workflow stage to execute: evidence, parse, confirm, match, or brief.",
     ),
     mode: str = typer.Option(
         "deterministic",
@@ -788,6 +797,143 @@ def decision_update_command(
         config = load_workspace_config(workspace)
         job_dir = config.job_dir(job)
         patch = load_decision_patch_file(patch_file)
+        outcome = apply_user_patch(
+            config.root,
+            job_dir,
+            patch,
+            expected_sha256=expected_sha256,
+            expected_revision=_user_owned_expected_revision(expected_revision),
+            consent_confirmed=confirm_user_owned_write,
+        )
+        response = mutation_outcome_agent_response(
+            config.root,
+            job_dir,
+            outcome,
+            operation=operation,
+        )
+    except UserMutationError as exc:
+        response = user_mutation_error_response(operation, exc)
+    except Exception:
+        response = _unexpected_user_mutation_error_response(operation)
+    _emit_agent_response(response, output_format=output_format)
+
+
+@brief_app.command("status")
+def brief_status_command(
+    job: Path = typer.Option(..., "--job", help="Job folder path or workspace-relative job identifier."),
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="Initialized workspace containing the job.",
+    ),
+    output_format: str = typer.Option(
+        "text",
+        "--format",
+        help="Output format: text or json.",
+    ),
+) -> None:
+    """Inspect Brief confirmation state without returning any private field body."""
+    _validate_output_format(output_format)
+    operation = "brief.status"
+    try:
+        config = load_workspace_config(workspace)
+        job_dir = config.job_dir(job)
+        response = application_brief_status_agent_response(
+            config.root,
+            job_dir,
+            inspect_application_brief(config.root, job_dir),
+        )
+    except UserMutationError as exc:
+        response = user_mutation_error_response(operation, exc)
+    except Exception:
+        response = _unexpected_user_mutation_error_response(operation)
+    _emit_agent_response(response, output_format=output_format)
+
+
+@brief_app.command("init")
+def brief_init_command(
+    job: Path = typer.Option(..., "--job", help="Job folder path or workspace-relative job identifier."),
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="Initialized workspace containing the job.",
+    ),
+    confirm_user_owned_write: bool = typer.Option(
+        False,
+        "--confirm-user-owned-write",
+        help="Explicitly authorize create-if-absent initialization of the user-owned Brief.",
+    ),
+    output_format: str = typer.Option(
+        "text",
+        "--format",
+        help="Output format: text or json.",
+    ),
+) -> None:
+    """Create a Brief once and bootstrap concrete legacy language/style preferences."""
+    _validate_output_format(output_format)
+    operation = "brief.initialize"
+    try:
+        config = load_workspace_config(workspace)
+        job_dir = config.job_dir(job)
+        outcome = initialize_application_brief(
+            config.root,
+            job_dir,
+            consent_confirmed=confirm_user_owned_write,
+        )
+        response = mutation_outcome_agent_response(
+            config.root,
+            job_dir,
+            outcome,
+            operation=operation,
+        )
+    except UserMutationError as exc:
+        response = user_mutation_error_response(operation, exc)
+    except Exception:
+        response = _unexpected_user_mutation_error_response(operation)
+    _emit_agent_response(response, output_format=output_format)
+
+
+@brief_app.command("update")
+def brief_update_command(
+    job: Path = typer.Option(..., "--job", help="Job folder path or workspace-relative job identifier."),
+    patch_file: Path = typer.Option(
+        ...,
+        "--patch-file",
+        help="Strict bounded YAML or JSON containing one supported Brief patch.",
+    ),
+    expected_revision: str = typer.Option(
+        ...,
+        "--expected-revision",
+        help="Current Brief revision used as the compare-and-swap baseline.",
+    ),
+    expected_sha256: str = typer.Option(
+        ...,
+        "--expected-sha256",
+        help="Current Brief SHA-256 used as the compare-and-swap baseline.",
+    ),
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="Initialized workspace containing the job.",
+    ),
+    confirm_user_owned_write: bool = typer.Option(
+        False,
+        "--confirm-user-owned-write",
+        help="Explicitly authorize this one scoped Brief update.",
+    ),
+    output_format: str = typer.Option(
+        "text",
+        "--format",
+        help="Output format: text or json.",
+    ),
+) -> None:
+    """Apply one scoped Brief patch through revision/hash compare-and-swap."""
+    _validate_output_format(output_format)
+    operation = "brief.update"
+    try:
+        config = load_workspace_config(workspace)
+        job_dir = config.job_dir(job)
+        patch = load_brief_patch_file(patch_file)
         outcome = apply_user_patch(
             config.root,
             job_dir,

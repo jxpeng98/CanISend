@@ -8,6 +8,20 @@ from typer.testing import CliRunner
 from canisend.cli import app
 
 
+def test_handoff_shape_forbids_brief_and_plan_bodies() -> None:
+    expected = json.loads(
+        Path("examples/agent_handoff/expected_context_shape.json").read_text(encoding="utf-8")
+    )
+
+    forbidden = set(expected["forbidden_body_fields"])
+    assert {
+        "application_brief_body",
+        "required_document_plan_body",
+        "brief_private_text",
+        "document_source_text",
+    } <= forbidden
+
+
 def test_agent_contract_survives_fresh_host_session_without_private_body_leaks(tmp_path: Path) -> None:
     expected_capabilities = json.loads(
         Path("examples/agent_handoff/expected_capabilities.json").read_text(encoding="utf-8")

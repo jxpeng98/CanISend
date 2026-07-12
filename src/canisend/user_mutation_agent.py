@@ -18,7 +18,8 @@ from canisend.agent_protocol import (
     error_response,
     success_response,
 )
-from canisend.decision_models import ApplicationDecisionV1
+from canisend.decision_models import ApplicationBriefV1, ApplicationDecisionV1
+from canisend.stage_agent import stage_status_agent_response
 from canisend.stage_runtime import StageRuntimeError, inspect_stage_status
 from canisend.user_file_store import (
     InvalidUserFileError,
@@ -28,9 +29,12 @@ from canisend.user_file_store import (
     read_safe_bytes,
 )
 from canisend.user_mutations import (
+    APPLICATION_BRIEF_PATH,
     APPLICATION_DECISION_PATH,
     CONFIRMED_CORRECTIONS_PATH,
+    ApplicationBriefInspection,
     ApplicationDecisionInspection,
+    BriefPatch,
     CorrectionsPatch,
     CurrentArtifactMutationAudit,
     DecisionPatch,
@@ -40,8 +44,10 @@ from canisend.user_mutations import (
     UserMutationError,
     UserMutationReceiptV1,
     inspect_application_decision,
+    inspect_application_brief,
     inspect_current_artifact_mutation,
     inspect_user_mutation,
+    parse_brief_patch,
     parse_corrections_patch,
     parse_decision_patch,
 )
@@ -74,6 +80,10 @@ def load_decision_patch_file(path: Path) -> DecisionPatch:
     return parse_decision_patch(_load_bounded_patch_mapping(path))
 
 
+def load_brief_patch_file(path: Path) -> BriefPatch:
+    return parse_brief_patch(_load_bounded_patch_mapping(path))
+
+
 def corrections_status_agent_response(
     workspace: Path,
     job_dir: Path,
@@ -104,6 +114,38 @@ def application_decision_status_agent_response(
     )
 
 
+def application_brief_status_agent_response(
+    workspace: Path,
+    job_dir: Path,
+    inspection: ApplicationBriefInspection,
+) -> AgentResponse:
+    projection = brief_agent_projection(workspace, job_dir, inspection)
+    if (
+        inspection.snapshot is not None
+        and inspection.basis_status == "current"
+        and projection.extension_dict().get("canisend.mutation_audit_status")
+        in {"untracked", "committed"}
+    ):
+        if _brief_plan_requires_refresh(workspace, job_dir):
+            projection = _replace_actions(
+                projection,
+                (
+                    NextAction(
+                        id="stage.run_brief",
+                        label="Generate or refresh the required-document plan",
+                    ),
+                ),
+                readiness="action_required",
+            )
+        else:
+            projection = _merge_current_brief_plan_status(
+                workspace,
+                job_dir,
+                projection,
+            )
+    return _projection_response("brief.status", projection)
+
+
 def mutation_outcome_agent_response(
     workspace: Path,
     job_dir: Path,
@@ -117,7 +159,16 @@ def mutation_outcome_agent_response(
             job_dir,
             inspect_application_decision(workspace, job_dir),
         )
-    else:
+        if projection.readiness == "ready_for_next_stage":
+            projection = _chain_projection(
+                projection,
+                brief_agent_projection(
+                    workspace,
+                    job_dir,
+                    inspect_application_brief(workspace, job_dir),
+                ),
+            )
+    elif outcome.snapshot.artifact == "corrections":
         projection = corrections_agent_projection(
             workspace,
             job_dir,
@@ -138,6 +189,24 @@ def mutation_outcome_agent_response(
                 ),
                 readiness="action_required",
             )
+    elif outcome.snapshot.artifact == "brief":
+        projection = brief_agent_projection(
+            workspace,
+            job_dir,
+            inspect_application_brief(workspace, job_dir),
+        )
+        projection = _replace_actions(
+            projection,
+            (
+                NextAction(
+                    id="stage.run_brief",
+                    label="Refresh the required-document plan from the accepted Brief",
+                ),
+            ),
+            readiness="action_required",
+        )
+    else:  # pragma: no cover - guarded by UserArtifactKind
+        raise ValueError("unsupported user-owned artifact kind")
 
     try:
         receipt = _receipt_reference(workspace, job_dir, outcome)
@@ -407,6 +476,185 @@ def _decision_agent_projection_without_audit(
     )
 
 
+def brief_agent_projection(
+    workspace: Path,
+    job_dir: Path,
+    inspection: ApplicationBriefInspection,
+    *,
+    expose_update_action: bool = True,
+) -> UserMutationAgentProjection:
+    audit = inspect_current_artifact_mutation(workspace, job_dir, "brief")
+    base = _brief_agent_projection_without_audit(
+        workspace,
+        job_dir,
+        inspection,
+        expose_update_action=expose_update_action,
+    )
+    blocked = _mutation_audit_projection(
+        workspace,
+        job_dir,
+        "brief",
+        inspection.snapshot,
+        audit,
+        base,
+    )
+    if blocked is not None:
+        return blocked
+    return _with_mutation_audit(base, audit)
+
+
+def _brief_agent_projection_without_audit(
+    workspace: Path,
+    job_dir: Path,
+    inspection: ApplicationBriefInspection,
+    *,
+    expose_update_action: bool,
+) -> UserMutationAgentProjection:
+    snapshot = inspection.snapshot
+    artifact = _user_artifact_reference(workspace, job_dir, "brief", snapshot)
+    if snapshot is None:
+        if inspection.reason != "user_input.not_initialized":
+            if inspection.reason is not None and (
+                inspection.reason.startswith("decision.")
+                or inspection.reason == "user_input.dependency_not_current"
+            ):
+                return UserMutationAgentProjection(
+                    readiness="review_required",
+                    artifacts=(artifact,),
+                    blockers=(
+                        "A current confirmed apply decision is required before initializing the application brief.",
+                    ),
+                    next_actions=(
+                        NextAction(
+                            id="decision.status",
+                            label="Review the current user-owned application decision",
+                        ),
+                    ),
+                    extensions=(
+                        ("canisend.user_artifact", "brief"),
+                        ("canisend.user_artifact_state", "missing"),
+                        ("canisend.user_artifact_revision", None),
+                        ("canisend.brief_basis_status", inspection.basis_status),
+                        ("canisend.brief_reason", _public_reason(inspection.reason)),
+                        ("canisend.brief_unresolved_field_count", 0),
+                    ),
+                )
+            return UserMutationAgentProjection(
+                readiness="blocked",
+                artifacts=(artifact,),
+                blockers=("The user-owned application brief cannot be inspected safely.",),
+                next_actions=(
+                    NextAction(
+                        id="brief.review_file",
+                        label="Review the existing application brief file",
+                    ),
+                ),
+                extensions=(
+                    ("canisend.user_artifact", "brief"),
+                    ("canisend.user_artifact_state", "unavailable"),
+                    ("canisend.brief_basis_status", inspection.basis_status),
+                    ("canisend.brief_reason", _public_reason(inspection.reason)),
+                    ("canisend.brief_unresolved_field_count", 0),
+                ),
+            )
+        consent = _write_consent("brief")
+        return UserMutationAgentProjection(
+            readiness="action_required",
+            artifacts=(artifact,),
+            missing_fields=(APPLICATION_BRIEF_PATH,),
+            required_consents=(consent,),
+            blockers=("A user-owned application brief is required before document planning.",),
+            next_actions=(
+                NextAction(
+                    id="brief.initialize",
+                    label="Initialize the user-owned application brief",
+                    requires_consent=True,
+                    consent_ids=[consent.id],
+                ),
+            ),
+            extensions=(
+                ("canisend.user_artifact", "brief"),
+                ("canisend.user_artifact_state", "missing"),
+                ("canisend.user_artifact_revision", None),
+                ("canisend.brief_basis_status", inspection.basis_status),
+                ("canisend.brief_reason", _public_reason(inspection.reason)),
+                ("canisend.brief_unresolved_field_count", 0),
+            ),
+        )
+
+    assert isinstance(snapshot.model, ApplicationBriefV1)
+    extensions: tuple[tuple[str, JsonScalar], ...] = (
+        ("canisend.user_artifact", "brief"),
+        ("canisend.user_artifact_revision", snapshot.revision),
+        ("canisend.brief_basis_status", inspection.basis_status),
+        ("canisend.brief_reason", _public_reason(inspection.reason)),
+        ("canisend.brief_unresolved_field_count", len(inspection.unresolved_fields)),
+    )
+    if inspection.basis_status != "current":
+        if inspection.reason == "brief.decision_changed" and expose_update_action:
+            return _brief_review_projection(
+                artifact,
+                extensions=(*extensions, ("canisend.user_artifact_state", "review_required")),
+                missing_fields=(),
+                blocker="The preserved application brief must be reconfirmed against the current apply decision.",
+                label="Reconfirm the preserved application brief",
+            )
+        return UserMutationAgentProjection(
+            readiness="review_required",
+            artifacts=(artifact,),
+            warnings=("The application brief was preserved while its apply-decision basis became unavailable.",),
+            blockers=("A current confirmed apply decision is required before changing the application brief.",),
+            next_actions=(
+                NextAction(
+                    id="decision.status",
+                    label="Review the current user-owned application decision",
+                ),
+            ),
+            extensions=(*extensions, ("canisend.user_artifact_state", "review_required")),
+        )
+    if inspection.unresolved_fields:
+        if not expose_update_action:
+            return UserMutationAgentProjection(
+                readiness="review_required",
+                artifacts=(artifact,),
+                missing_fields=tuple(
+                    f"application_brief.{field}" for field in inspection.unresolved_fields
+                ),
+                blockers=("The application brief still contains unconfirmed fields.",),
+                extensions=(*extensions, ("canisend.user_artifact_state", "unresolved")),
+            )
+        return _brief_review_projection(
+            artifact,
+            extensions=(*extensions, ("canisend.user_artifact_state", "unresolved")),
+            missing_fields=tuple(
+                f"application_brief.{field}" for field in inspection.unresolved_fields
+            ),
+            blocker="The application brief still contains unconfirmed fields.",
+            label="Confirm one scoped application brief field",
+        )
+    if not expose_update_action:
+        return UserMutationAgentProjection(
+            readiness="ready_for_next_stage",
+            artifacts=(artifact,),
+            extensions=(*extensions, ("canisend.user_artifact_state", "current")),
+        )
+    consent = _write_consent("brief")
+    return UserMutationAgentProjection(
+        readiness="ready_for_next_stage",
+        artifacts=(artifact,),
+        required_consents=(consent,),
+        next_actions=(
+            NextAction(
+                id="brief.update",
+                label="Apply one scoped application brief or document-choice update",
+                requires_consent=True,
+                consent_ids=[consent.id],
+            ),
+        ),
+        extensions=(*extensions, ("canisend.user_artifact_state", "current")),
+    )
+
+
 def _mutation_audit_projection(
     workspace: Path,
     job_dir: Path,
@@ -525,16 +773,31 @@ def user_mutation_error_response(
     consent = _operation_consent(operation) if code == "user_input.consent_required" else None
     actions: list[NextAction] = []
     if code == "user_input.conflict":
-        actions.append(
-            NextAction(
-                id=(
-                    "criteria.corrections_status"
-                    if operation.startswith("criteria.corrections")
-                    else "decision.status"
-                ),
-                label="Read the current user-owned revision and hash before retrying",
+        if operation == "user_mutation.recover":
+            actions.append(
+                NextAction(
+                    id="user_mutation.review_controls",
+                    label="Review and coordinate the conflicting private mutation controls manually",
+                )
             )
-        )
+        else:
+            status_operation = {
+                "corrections": "criteria.corrections_status",
+                "decision": "decision.status",
+                "brief": "brief.status",
+            }[
+                "corrections"
+                if operation.startswith("criteria.corrections")
+                else "brief"
+                if operation.startswith("brief.")
+                else "decision"
+            ]
+            actions.append(
+                NextAction(
+                    id=status_operation,
+                    label="Read the current user-owned revision and hash before retrying",
+                )
+            )
     elif code == "user_input.recovery_required" and mutation_id is not None:
         recovery = _recovery_consent()
         consent = recovery
@@ -629,6 +892,33 @@ def _decision_review_projection(
     )
 
 
+def _brief_review_projection(
+    artifact: ArtifactReference,
+    *,
+    extensions: tuple[tuple[str, JsonScalar], ...],
+    missing_fields: tuple[str, ...],
+    blocker: str,
+    label: str,
+) -> UserMutationAgentProjection:
+    consent = _write_consent("brief")
+    return UserMutationAgentProjection(
+        readiness="review_required",
+        artifacts=(artifact,),
+        missing_fields=missing_fields,
+        required_consents=(consent,),
+        blockers=(blocker,),
+        next_actions=(
+            NextAction(
+                id="brief.update",
+                label=label,
+                requires_consent=True,
+                consent_ids=[consent.id],
+            ),
+        ),
+        extensions=extensions,
+    )
+
+
 def _replace_actions(
     projection: UserMutationAgentProjection,
     actions: tuple[NextAction, ...],
@@ -646,6 +936,36 @@ def _replace_actions(
     )
 
 
+def _chain_projection(
+    current: UserMutationAgentProjection,
+    downstream: UserMutationAgentProjection,
+) -> UserMutationAgentProjection:
+    artifacts = list(current.artifacts)
+    for candidate in downstream.artifacts:
+        if not any(
+            item.kind == candidate.kind
+            and item.path == candidate.path
+            and item.opaque_id == candidate.opaque_id
+            for item in artifacts
+        ):
+            artifacts.append(candidate)
+    return UserMutationAgentProjection(
+        readiness=downstream.readiness,
+        artifacts=tuple(artifacts),
+        missing_fields=downstream.missing_fields,
+        required_consents=downstream.required_consents,
+        warnings=current.warnings + downstream.warnings,
+        blockers=downstream.blockers,
+        next_actions=downstream.next_actions,
+        extensions=tuple(
+            {
+                **current.extension_dict(),
+                **downstream.extension_dict(),
+            }.items()
+        ),
+    )
+
+
 def _user_artifact_reference(
     workspace: Path,
     job_dir: Path,
@@ -657,8 +977,13 @@ def _user_artifact_reference(
         job_dir,
         snapshot.relative_path if snapshot is not None else _artifact_path(artifact),
     )
+    kind = {
+        "corrections": "confirmed_corrections",
+        "decision": "application_decision",
+        "brief": "application_brief",
+    }[artifact]
     return ArtifactReference(
-        kind="confirmed_corrections" if artifact == "corrections" else "application_decision",
+        kind=kind,
         path=relative,
         exists=snapshot is not None,
         sha256=snapshot.sha256 if snapshot is not None else None,
@@ -750,7 +1075,11 @@ def _load_bounded_patch_mapping(path: Path) -> dict[str, object]:
 
 
 def _write_consent(artifact: UserArtifactKind) -> ConsentRequirement:
-    kind = "confirmed_corrections" if artifact == "corrections" else "application_decision"
+    kind = {
+        "corrections": "confirmed_corrections",
+        "decision": "application_decision",
+        "brief": "application_brief",
+    }[artifact]
     return ConsentRequirement(
         id=f"write-user-owned-{artifact}",
         purpose=f"Allow one explicit guarded update to the user-owned {artifact} file.",
@@ -764,7 +1093,11 @@ def _recovery_consent() -> ConsentRequirement:
         id="recover-user-owned-mutation",
         purpose="Allow completion of one previously accepted user-owned mutation claim.",
         privacy_tier=2,
-        artifact_kinds=["confirmed_corrections", "application_decision"],
+        artifact_kinds=[
+            "confirmed_corrections",
+            "application_decision",
+            "application_brief",
+        ],
     )
 
 
@@ -773,6 +1106,8 @@ def _operation_consent(operation: str) -> ConsentRequirement | None:
         return _write_consent("corrections")
     if operation.startswith("decision."):
         return _write_consent("decision")
+    if operation.startswith("brief."):
+        return _write_consent("brief")
     if operation == "user_mutation.recover":
         return _recovery_consent()
     return None
@@ -790,8 +1125,73 @@ def _confirm_requires_rerun(workspace: Path, job_dir: Path) -> bool:
     )
 
 
+def _brief_plan_requires_refresh(workspace: Path, job_dir: Path) -> bool:
+    try:
+        inspection = inspect_stage_status(workspace, job_dir, stage="brief")
+    except StageRuntimeError:
+        return True
+    return (
+        inspection.stage.status != "succeeded"
+        or bool(inspection.reasons)
+        or inspection.output_drift
+    )
+
+
+def _merge_current_brief_plan_status(
+    workspace: Path,
+    job_dir: Path,
+    projection: UserMutationAgentProjection,
+) -> UserMutationAgentProjection:
+    try:
+        inspection = inspect_stage_status(workspace, job_dir, stage="brief")
+        response = stage_status_agent_response(workspace, job_dir, inspection)
+    except StageRuntimeError:
+        return projection
+    if response.workflow is None or response.workflow.readiness != "blocked":
+        return projection
+    safe_plan_extensions = {
+        key: value
+        for key, value in response.extensions.items()
+        if key
+        in {
+            "canisend.required_document_count",
+            "canisend.unresolved_document_count",
+            "canisend.blocking_document_count",
+            "canisend.orphaned_document_choice_count",
+            "canisend.unresolved_brief_field_count",
+            "canisend.document_plan_blocker_count",
+            "canisend.document_plan_primary_blocker",
+            "canisend.document_requirements_state",
+            "canisend.document_requirements_basis_sha256",
+        }
+    }
+    return UserMutationAgentProjection(
+        readiness="blocked",
+        artifacts=projection.artifacts,
+        missing_fields=projection.missing_fields,
+        required_consents=projection.required_consents,
+        warnings=projection.warnings,
+        blockers=(
+            *projection.blockers,
+            "The current required-document plan contains unresolved blockers.",
+        ),
+        next_actions=projection.next_actions,
+        extensions=tuple(
+            {
+                **projection.extension_dict(),
+                **safe_plan_extensions,
+                "canisend.document_plan_readiness": "blocked",
+            }.items()
+        ),
+    )
+
+
 def _artifact_path(artifact: UserArtifactKind) -> str:
-    return CONFIRMED_CORRECTIONS_PATH if artifact == "corrections" else APPLICATION_DECISION_PATH
+    return {
+        "corrections": CONFIRMED_CORRECTIONS_PATH,
+        "decision": APPLICATION_DECISION_PATH,
+        "brief": APPLICATION_BRIEF_PATH,
+    }[artifact]
 
 
 def _workspace_artifact_path(workspace: Path, job_dir: Path, relative: str) -> str:

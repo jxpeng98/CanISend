@@ -33,11 +33,12 @@ from canisend.stage_store import (
     sha256_file,
     write_immutable_json,
 )
+from canisend.stages.brief_stage import BriefStageError
 from canisend.stages.confirm_stage import ConfirmStageError
 from canisend.stages.parse_stage import ParseStageError
 
 
-SupportedStage = Literal["evidence", "parse", "confirm", "match"]
+SupportedStage = Literal["evidence", "parse", "confirm", "match", "brief"]
 SupportedExecutionMode = Literal["deterministic", "host_agent"]
 
 
@@ -206,7 +207,14 @@ def inspect_stage_status(
 
     try:
         current_fingerprint = adapter.input_fingerprint(root, job)
-    except (ConfirmStageError, ParseStageError, StageStoreError, OSError, ValueError) as exc:
+    except (
+        BriefStageError,
+        ConfirmStageError,
+        ParseStageError,
+        StageStoreError,
+        OSError,
+        ValueError,
+    ) as exc:
         raise StageRuntimeError(
             "stage.invalid_input",
             "The requested stage inputs are missing or invalid.",
@@ -355,7 +363,14 @@ def prepare_stage(
             run_root=run_root,
             input_fingerprint=status.input_fingerprint,
         )
-    except (ConfirmStageError, ParseStageError, StageStoreError, OSError, ValueError) as exc:
+    except (
+        BriefStageError,
+        ConfirmStageError,
+        ParseStageError,
+        StageStoreError,
+        OSError,
+        ValueError,
+    ) as exc:
         raise StageRuntimeError(
             "stage.invalid_input",
             "The requested stage inputs are missing or invalid.",
@@ -542,7 +557,14 @@ def apply_stage_result(
                 input_fingerprint=task.input_fingerprint,
                 inputs=task.inputs,
             )
-        except (ConfirmStageError, ParseStageError, OSError, UnicodeError, ValueError) as exc:
+        except (
+            BriefStageError,
+            ConfirmStageError,
+            ParseStageError,
+            OSError,
+            UnicodeError,
+            ValueError,
+        ) as exc:
             raise StageRuntimeError(
                 "stage.invalid_candidate",
                 "The stage candidate failed schema, semantic, or source-receipt validation.",
@@ -653,6 +675,7 @@ def apply_stage_result(
             _record_rejected_run(job, task, result, error=exc)
         raise
     except (
+        BriefStageError,
         ConfirmStageError,
         StageStoreError,
         ValidationError,
@@ -706,7 +729,14 @@ def submit_stage_candidate(
                 input_fingerprint=task.input_fingerprint,
                 inputs=task.inputs,
             )
-        except (ConfirmStageError, ParseStageError, OSError, UnicodeError, ValueError) as exc:
+        except (
+            BriefStageError,
+            ConfirmStageError,
+            ParseStageError,
+            OSError,
+            UnicodeError,
+            ValueError,
+        ) as exc:
             raise StageRuntimeError(
                 "stage.invalid_candidate",
                 "The submitted stage candidate failed schema or semantic validation.",
@@ -786,6 +816,7 @@ def submit_stage_candidate(
             "The submitted candidate path is not an isolated run path.",
         ) from exc
     except (
+        BriefStageError,
         ConfirmStageError,
         StageStoreError,
         ValidationError,
@@ -1705,7 +1736,14 @@ def _validate_task_freshness(
             inputs=task.inputs,
             input_fingerprint=task.input_fingerprint,
         )
-    except (ConfirmStageError, ParseStageError, StageStoreError, OSError, ValueError) as exc:
+    except (
+        BriefStageError,
+        ConfirmStageError,
+        ParseStageError,
+        StageStoreError,
+        OSError,
+        ValueError,
+    ) as exc:
         raise StageRuntimeError(
             "stage.stale_input",
             "The declared stage input receipts changed after this task was prepared.",

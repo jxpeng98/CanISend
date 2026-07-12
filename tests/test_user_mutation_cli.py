@@ -32,6 +32,29 @@ PRIVATE_CORRECTION = "PRIVATE CORRECTION BODY MUST NOT APPEAR"
 PRIVATE_RATIONALE = "PRIVATE DECISION RATIONALE MUST NOT APPEAR"
 
 
+def test_recovery_conflict_routes_to_generic_control_review() -> None:
+    response = mutation_agent.user_mutation_error_response(
+        "user_mutation.recover",
+        UserMutationError(
+            "user_input.conflict",
+            "private recovery conflict detail",
+        ),
+    ).model_dump(mode="json")
+
+    assert response["workflow"]["readiness"] == "blocked"
+    assert response["required_consents"] == []
+    assert response["next_actions"] == [
+        {
+            "id": "user_mutation.review_controls",
+            "label": "Review and coordinate the conflicting private mutation controls manually",
+            "requires_consent": False,
+            "consent_ids": [],
+        }
+    ]
+    assert "decision.status" not in json.dumps(response)
+    assert "private recovery conflict detail" not in json.dumps(response)
+
+
 def test_user_owned_status_and_init_are_typed_consent_guarded_and_idempotent(
     tmp_path: Path,
 ) -> None:
@@ -393,17 +416,20 @@ def test_decision_cli_and_context_cover_missing_undecided_current_stale_hold_and
         revision=0,
         sha256=baseline["sha256"],
     )
-    assert applied["workflow"]["readiness"] == "ready_for_next_stage"
+    assert applied["workflow"]["readiness"] == "action_required"
     assert applied["extensions"]["canisend.decision_value"] == "apply"
+    assert applied["next_actions"][0]["id"] == "brief.initialize"
     assert PRIVATE_RATIONALE not in json.dumps(applied)
 
     current = _context(runner, workspace, job_dir)
     assert current["workflow"] == {
         "phase": "unknown",
-        "readiness": "ready_for_next_stage",
+        "readiness": "action_required",
         "derived": True,
     }
-    assert current["next_actions"] == []
+    assert current["missing_fields"] == ["application_brief.yaml"]
+    assert current["next_actions"][0]["id"] == "brief.initialize"
+    assert current["next_actions"][0]["requires_consent"] is True
     assert current["extensions"]["canisend.decision_basis_status"] == "current"
     assert PRIVATE_RATIONALE not in json.dumps(current)
     decision_bytes = (job_dir / "application_decision.yaml").read_bytes()
