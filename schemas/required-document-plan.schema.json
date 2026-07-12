@@ -2,17 +2,84 @@
   "$defs": {
     "DocumentRequirementV1": {
       "additionalProperties": false,
+      "allOf": [
+        {
+          "else": {
+            "properties": {
+              "source_text": {
+                "type": "null"
+              },
+              "source_span": {
+                "type": "null"
+              },
+              "unknown_reason": {
+                "not": {
+                  "type": "null"
+                }
+              }
+            },
+            "required": [
+              "unknown_reason"
+            ]
+          },
+          "if": {
+            "properties": {
+              "source_state": {
+                "const": "known"
+              }
+            },
+            "required": [
+              "source_state"
+            ]
+          },
+          "then": {
+            "properties": {
+              "source_text": {
+                "minLength": 1,
+                "pattern": "[\\s\\S]*\\S[\\s\\S]*",
+                "type": "string"
+              },
+              "source_span": {
+                "not": {
+                  "type": "null"
+                },
+                "properties": {
+                  "text_sha256": {
+                    "pattern": "^[0-9a-f]{64}$",
+                    "type": "string"
+                  },
+                  "anchor_sha256": {
+                    "pattern": "^[0-9a-f]{64}$",
+                    "type": "string"
+                  }
+                }
+              },
+              "unknown_reason": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "source_text",
+              "source_span"
+            ]
+          }
+        }
+      ],
       "properties": {
         "document_id": {
+          "pattern": "^document_[0-9a-f]{32}$",
           "title": "Document Id",
           "type": "string"
         },
         "label": {
+          "maxLength": 10000,
           "minLength": 1,
+          "pattern": "[\\s\\S]*\\S[\\s\\S]*",
           "title": "Label",
           "type": "string"
         },
         "normalized_kind": {
+          "pattern": "^[a-z][a-z0-9_]*$",
           "title": "Normalized Kind",
           "type": "string"
         },
@@ -26,9 +93,17 @@
           "type": "string"
         },
         "source_text": {
-          "minLength": 1,
-          "title": "Source Text",
-          "type": "string"
+          "anyOf": [
+            {
+              "maxLength": 200000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Text"
         },
         "source_state": {
           "enum": [
@@ -53,8 +128,7 @@
           "default": "unconfirmed",
           "enum": [
             "unconfirmed",
-            "confirmed",
-            "corrected"
+            "confirmed"
           ],
           "title": "Confirmation State",
           "type": "string"
@@ -62,6 +136,7 @@
         "unknown_reason": {
           "anyOf": [
             {
+              "pattern": "^[a-z][a-z0-9_-]*(?:\\.[a-z][a-z0-9_-]*)*$",
               "type": "string"
             },
             {
@@ -77,7 +152,6 @@
         "label",
         "normalized_kind",
         "requirement",
-        "source_text",
         "source_state"
       ],
       "title": "DocumentRequirementV1",
@@ -85,8 +159,63 @@
     },
     "DocumentTaskV1": {
       "additionalProperties": false,
+      "allOf": [
+        {
+          "else": {
+            "properties": {
+              "confirmation_state": {
+                "const": "confirmed"
+              }
+            }
+          },
+          "if": {
+            "properties": {
+              "action": {
+                "const": "needs_confirmation"
+              }
+            },
+            "required": [
+              "action"
+            ]
+          },
+          "then": {
+            "properties": {
+              "confirmation_state": {
+                "const": "unconfirmed"
+              },
+              "blockers": {
+                "minItems": 1
+              }
+            },
+            "required": [
+              "confirmation_state",
+              "blockers"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "const": "prepare"
+              }
+            },
+            "required": [
+              "action"
+            ]
+          },
+          "then": {
+            "properties": {
+              "blockers": {
+                "maxItems": 0
+              }
+            }
+          }
+        }
+      ],
       "properties": {
         "document_id": {
+          "pattern": "^document_[0-9a-f]{32}$",
           "title": "Document Id",
           "type": "string"
         },
@@ -110,10 +239,12 @@
         "blockers": {
           "default": [],
           "items": {
+            "pattern": "^[a-z][a-z0-9_-]*(?:\\.[a-z][a-z0-9_-]*)+$",
             "type": "string"
           },
           "title": "Blockers",
-          "type": "array"
+          "type": "array",
+          "uniqueItems": true
         }
       },
       "required": [
@@ -176,6 +307,136 @@
   "$id": "https://github.com/jxpeng98/CanISend/schemas/required-document-plan.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "requirements_state": {
+            "const": "confirmed_empty"
+          }
+        },
+        "required": [
+          "requirements_state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "requirements": {
+            "maxItems": 0
+          },
+          "tasks": {
+            "maxItems": 0
+          },
+          "unresolved_document_ids": {
+            "maxItems": 0
+          },
+          "blocking_document_ids": {
+            "maxItems": 0
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "requirements_state": {
+            "const": "confirmed"
+          }
+        },
+        "required": [
+          "requirements_state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "requirements": {
+            "items": {
+              "properties": {
+                "confirmation_state": {
+                  "const": "confirmed"
+                },
+                "source_state": {
+                  "const": "known"
+                }
+              },
+              "required": [
+                "confirmation_state",
+                "source_state"
+              ]
+            },
+            "minItems": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "not": {
+          "properties": {
+            "requirements_state": {
+              "enum": [
+                "confirmed",
+                "confirmed_empty"
+              ]
+            }
+          },
+          "required": [
+            "requirements_state"
+          ]
+        }
+      },
+      "then": {
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "requirements": {
+                  "minItems": 1
+                }
+              },
+              "required": [
+                "requirements"
+              ]
+            },
+            "then": {
+              "required": [
+                "unresolved_document_ids",
+                "blocking_document_ids"
+              ]
+            }
+          }
+        ],
+        "properties": {
+          "requirements": {
+            "items": {
+              "properties": {
+                "confirmation_state": {
+                  "const": "unconfirmed"
+                }
+              }
+            }
+          },
+          "tasks": {
+            "items": {
+              "properties": {
+                "action": {
+                  "const": "needs_confirmation"
+                }
+              }
+            }
+          },
+          "blockers": {
+            "contains": {
+              "const": "documents.requirements_unconfirmed"
+            }
+          }
+        },
+        "required": [
+          "blockers"
+        ]
+      }
+    }
+  ],
   "properties": {
     "schema_version": {
       "const": "1.0.0",
@@ -184,11 +445,28 @@
       "type": "string"
     },
     "job_id": {
+      "pattern": "^[a-z0-9][a-z0-9_.-]*$",
       "title": "Job Id",
       "type": "string"
     },
     "input_fingerprint": {
+      "pattern": "^[0-9a-f]{64}$",
       "title": "Input Fingerprint",
+      "type": "string"
+    },
+    "requirements_state": {
+      "default": "unconfirmed",
+      "enum": [
+        "unconfirmed",
+        "confirmed",
+        "confirmed_empty"
+      ],
+      "title": "Requirements State",
+      "type": "string"
+    },
+    "requirements_basis_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Requirements Basis Sha256",
       "type": "string"
     },
     "requirements": {
@@ -196,27 +474,79 @@
         "$ref": "#/$defs/DocumentRequirementV1"
       },
       "title": "Requirements",
-      "type": "array"
+      "type": "array",
+      "uniqueItems": true
     },
     "tasks": {
       "items": {
         "$ref": "#/$defs/DocumentTaskV1"
       },
       "title": "Tasks",
-      "type": "array"
+      "type": "array",
+      "uniqueItems": true
+    },
+    "unresolved_brief_fields": {
+      "default": [],
+      "items": {
+        "enum": [
+          "language",
+          "writing_style",
+          "motivation",
+          "emphasis",
+          "exclusions",
+          "document_requirements"
+        ],
+        "type": "string"
+      },
+      "title": "Unresolved Brief Fields",
+      "type": "array",
+      "uniqueItems": true
     },
     "unresolved_document_ids": {
       "default": [],
       "items": {
+        "pattern": "^document_[0-9a-f]{32}$",
         "type": "string"
       },
       "title": "Unresolved Document Ids",
-      "type": "array"
+      "type": "array",
+      "uniqueItems": true
+    },
+    "blocking_document_ids": {
+      "default": [],
+      "items": {
+        "pattern": "^document_[0-9a-f]{32}$",
+        "type": "string"
+      },
+      "title": "Blocking Document Ids",
+      "type": "array",
+      "uniqueItems": true
+    },
+    "orphaned_document_choice_ids": {
+      "default": [],
+      "items": {
+        "pattern": "^document_[0-9a-f]{32}$",
+        "type": "string"
+      },
+      "title": "Orphaned Document Choice Ids",
+      "type": "array",
+      "uniqueItems": true
+    },
+    "blockers": {
+      "default": [],
+      "items": {
+        "pattern": "^[a-z][a-z0-9_-]*(?:\\.[a-z][a-z0-9_-]*)+$",
+        "type": "string"
+      },
+      "title": "Blockers",
+      "type": "array",
+      "uniqueItems": true
     }
   },
   "required": [
     "job_id",
     "input_fingerprint",
+    "requirements_basis_sha256",
     "requirements",
     "tasks"
   ],

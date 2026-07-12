@@ -41,6 +41,15 @@ DecisionValue = Literal["undecided", "apply", "hold", "skip"]
 BasisStatus = Literal["current", "review_required"]
 DocumentRequirement = Literal["required", "optional", "unknown"]
 DocumentAction = Literal["prepare", "omit", "needs_confirmation"]
+DocumentRequirementsState = Literal["unconfirmed", "confirmed", "confirmed_empty"]
+BriefFieldName = Literal[
+    "language",
+    "writing_style",
+    "motivation",
+    "emphasis",
+    "exclusions",
+    "document_requirements",
+]
 
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _JOB_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_.-]*$")
@@ -81,6 +90,18 @@ JobIdentifier = Annotated[str, Field(pattern=_JOB_ID_RE.pattern)]
 CriterionIdentifier = Annotated[str, Field(pattern=_CRITERION_ID_RE.pattern)]
 CorrectionIdentifier = Annotated[str, Field(pattern=_CORRECTION_ID_RE.pattern)]
 ReasonIdentifier = Annotated[str, Field(pattern=_REASON_ID_RE.pattern)]
+EvidenceIdentifier = Annotated[str, Field(pattern=_EVIDENCE_ID_RE.pattern)]
+DocumentIdentifier = Annotated[str, Field(pattern=_DOCUMENT_ID_RE.pattern)]
+DottedIdentifier = Annotated[str, Field(pattern=_DOTTED_ID_RE.pattern)]
+SlugIdentifier = Annotated[str, Field(pattern=_SLUG_RE.pattern)]
+BoundedListItem = Annotated[
+    str,
+    Field(
+        min_length=1,
+        max_length=10_000,
+        pattern=r"[\s\S]*\S[\s\S]*",
+    ),
+]
 UserRevision = Annotated[StrictInt, Field(ge=0, le=MAX_USER_REVISION)]
 UserControlTimestamp = Annotated[
     AwareDatetime,
@@ -1109,6 +1130,23 @@ class ApplicationDecisionV1(DecisionContractModel):
 
 
 class LanguagePreferenceV1(DecisionContractModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "allOf": [
+                {
+                    "if": {
+                        "properties": {"confirmation_state": {"const": "confirmed"}},
+                        "required": ["confirmation_state"],
+                    },
+                    "then": {
+                        "required": ["value"],
+                        "properties": {"value": {"not": {"type": "null"}}},
+                    },
+                }
+            ]
+        }
+    )
+
     value: Literal["uk", "us"] | None = None
     confirmation_state: ConfirmationState = "unconfirmed"
 
@@ -1120,7 +1158,24 @@ class LanguagePreferenceV1(DecisionContractModel):
 
 
 class ConfirmedTextV1(DecisionContractModel):
-    value: str | None = None
+    model_config = ConfigDict(
+        json_schema_extra={
+            "allOf": [
+                {
+                    "if": {
+                        "properties": {"confirmation_state": {"const": "confirmed"}},
+                        "required": ["confirmation_state"],
+                    },
+                    "then": {
+                        "required": ["value"],
+                        "properties": {"value": {"not": {"type": "null"}}},
+                    },
+                }
+            ]
+        }
+    )
+
+    value: str | None = Field(default=None, max_length=200_000)
     confirmation_state: ConfirmationState = "unconfirmed"
 
     @model_validator(mode="after")
@@ -1131,8 +1186,12 @@ class ConfirmedTextV1(DecisionContractModel):
 
 
 class ConfirmedIdSelectionV1(DecisionContractModel):
-    criterion_ids: tuple[str, ...] = ()
-    evidence_ref_ids: tuple[str, ...] = ()
+    criterion_ids: tuple[CriterionIdentifier, ...] = Field(
+        default=(), max_length=4_096, json_schema_extra={"uniqueItems": True}
+    )
+    evidence_ref_ids: tuple[EvidenceIdentifier, ...] = Field(
+        default=(), max_length=4_096, json_schema_extra={"uniqueItems": True}
+    )
     confirmation_state: ConfirmationState = "unconfirmed"
 
     @field_validator("criterion_ids")
@@ -1153,18 +1212,68 @@ class ConfirmedIdSelectionV1(DecisionContractModel):
 
 
 class ConfirmedStringListV1(DecisionContractModel):
-    items: tuple[str, ...] = ()
+    items: tuple[BoundedListItem, ...] = Field(
+        default=(), max_length=4_096, json_schema_extra={"uniqueItems": True}
+    )
     confirmation_state: ConfirmationState = "unconfirmed"
 
     @field_validator("items")
     @classmethod
     def _unique_items(cls, values: tuple[str, ...]) -> tuple[str, ...]:
         _require_unique(values, label="confirmed string-list items")
+        if any(not value or len(value) > 10_000 for value in values):
+            raise ValueError("confirmed string-list items must be non-empty and bounded")
         return values
 
 
 class DocumentChoiceV1(DecisionContractModel):
-    document_id: str
+    model_config = ConfigDict(
+        json_schema_extra={
+            "allOf": [
+                {
+                    "if": {
+                        "properties": {
+                            "action": {"enum": ["prepare", "omit"]}
+                        },
+                        "required": ["action"],
+                    },
+                    "then": {
+                        "required": ["confirmation_state"],
+                        "properties": {
+                            "confirmation_state": {"const": "confirmed"}
+                        },
+                    },
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "confirmation_state": {"const": "confirmed"}
+                        },
+                        "required": ["confirmation_state"],
+                    },
+                    "then": {
+                        "required": ["action"],
+                        "properties": {
+                            "action": {"enum": ["prepare", "omit"]}
+                        },
+                    },
+                },
+                {
+                    "if": {
+                        "properties": {"action": {"const": "needs_confirmation"}},
+                        "required": ["action"],
+                    },
+                    "then": {
+                        "properties": {
+                            "confirmation_state": {"const": "unconfirmed"}
+                        }
+                    },
+                },
+            ]
+        }
+    )
+
+    document_id: DocumentIdentifier
     action: DocumentAction = "needs_confirmation"
     confirmation_state: ConfirmationState = "unconfirmed"
 
@@ -1182,6 +1291,55 @@ class DocumentChoiceV1(DecisionContractModel):
         return self
 
 
+class DocumentRequirementsConfirmationV1(DecisionContractModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        str_strip_whitespace=True,
+        validate_default=True,
+        json_schema_extra={
+            "allOf": [
+                {
+                    "if": {"properties": {"state": {"const": "unconfirmed"}}},
+                    "then": {
+                        "properties": {
+                            "basis_sha256": {"type": "null"},
+                            "confirmed_at": {"type": "null"},
+                        }
+                    },
+                    "else": {
+                        "required": ["basis_sha256", "confirmed_at"],
+                        "properties": {
+                            "basis_sha256": {"not": {"type": "null"}},
+                            "confirmed_at": {"not": {"type": "null"}},
+                        },
+                    },
+                }
+            ]
+        },
+    )
+
+    state: Literal["unconfirmed", "confirmed", "confirmed_empty"] = "unconfirmed"
+    basis_sha256: Sha256Value | None = None
+    confirmed_at: UserControlTimestamp | None = Field(
+        default=None,
+        json_schema_extra={"pattern": _RFC3339_DATETIME_RE.pattern},
+    )
+
+    @model_validator(mode="after")
+    def _consistent_confirmation(self) -> DocumentRequirementsConfirmationV1:
+        if self.state == "unconfirmed":
+            if self.basis_sha256 is not None or self.confirmed_at is not None:
+                raise ValueError(
+                    "unconfirmed document requirements must omit a basis and timestamp"
+                )
+        elif self.basis_sha256 is None or self.confirmed_at is None:
+            raise ValueError(
+                "confirmed document requirements require a basis and timestamp"
+            )
+        return self
+
+
 class ApplicationBriefV1(DecisionContractModel):
     model_config = ConfigDict(
         title="CanISendApplicationBriefV1",
@@ -1196,16 +1354,23 @@ class ApplicationBriefV1(DecisionContractModel):
     )
 
     schema_version: Literal["1.0.0"] = APPLICATION_BRIEF_SCHEMA_VERSION
-    job_id: str
-    revision: int = Field(ge=0)
-    updated_at: AwareDatetime
-    decision_sha256: str | None = None
+    job_id: JobIdentifier
+    revision: UserRevision
+    updated_at: UserControlTimestamp = Field(
+        json_schema_extra={"pattern": _RFC3339_DATETIME_RE.pattern}
+    )
+    decision_sha256: Sha256Value | None = None
     language: LanguagePreferenceV1 = Field(default_factory=LanguagePreferenceV1)
     writing_style: ConfirmedTextV1 = Field(default_factory=ConfirmedTextV1)
     motivation: ConfirmedTextV1 = Field(default_factory=ConfirmedTextV1)
     emphasis: ConfirmedIdSelectionV1 = Field(default_factory=ConfirmedIdSelectionV1)
     exclusions: ConfirmedStringListV1 = Field(default_factory=ConfirmedStringListV1)
-    document_choices: tuple[DocumentChoiceV1, ...] = ()
+    document_requirements_confirmation: DocumentRequirementsConfirmationV1 = Field(
+        default_factory=DocumentRequirementsConfirmationV1
+    )
+    document_choices: tuple[DocumentChoiceV1, ...] = Field(
+        default=(), max_length=4_096, json_schema_extra={"uniqueItems": True}
+    )
 
     @field_validator("job_id")
     @classmethod
@@ -1227,15 +1392,64 @@ class ApplicationBriefV1(DecisionContractModel):
 
 
 class DocumentRequirementV1(DecisionContractModel):
-    document_id: str
-    label: str = Field(min_length=1)
-    normalized_kind: str
+    model_config = ConfigDict(
+        json_schema_extra={
+            "allOf": [
+                {
+                    "if": {
+                        "properties": {"source_state": {"const": "known"}},
+                        "required": ["source_state"],
+                    },
+                    "then": {
+                        "required": ["source_text", "source_span"],
+                        "properties": {
+                            "source_text": {
+                                "type": "string",
+                                "minLength": 1,
+                                "pattern": "[\\s\\S]*\\S[\\s\\S]*",
+                            },
+                            "source_span": {
+                                "not": {"type": "null"},
+                                "properties": {
+                                    "text_sha256": {
+                                        "type": "string",
+                                        "pattern": "^[0-9a-f]{64}$",
+                                    },
+                                    "anchor_sha256": {
+                                        "type": "string",
+                                        "pattern": "^[0-9a-f]{64}$",
+                                    },
+                                },
+                            },
+                            "unknown_reason": {"type": "null"},
+                        },
+                    },
+                    "else": {
+                        "required": ["unknown_reason"],
+                        "properties": {
+                            "source_text": {"type": "null"},
+                            "source_span": {"type": "null"},
+                            "unknown_reason": {"not": {"type": "null"}},
+                        },
+                    },
+                }
+            ]
+        }
+    )
+
+    document_id: DocumentIdentifier
+    label: str = Field(
+        min_length=1,
+        max_length=10_000,
+        pattern=r"[\s\S]*\S[\s\S]*",
+    )
+    normalized_kind: SlugIdentifier
     requirement: DocumentRequirement
-    source_text: str = Field(min_length=1)
+    source_text: str | None = Field(default=None, max_length=200_000)
     source_state: SourceState
     source_span: SourceSpanV1 | None = None
-    confirmation_state: CriterionConfirmationState = "unconfirmed"
-    unknown_reason: str | None = None
+    confirmation_state: ConfirmationState = "unconfirmed"
+    unknown_reason: ReasonIdentifier | None = None
 
     @field_validator("document_id")
     @classmethod
@@ -1259,18 +1473,64 @@ class DocumentRequirementV1(DecisionContractModel):
     @model_validator(mode="after")
     def _consistent_source(self) -> DocumentRequirementV1:
         if self.source_state == "known":
-            if self.source_span is None or self.unknown_reason is not None:
-                raise ValueError("a known document requirement needs a span and no unknown_reason")
-        elif self.source_span is not None or self.unknown_reason is None:
-            raise ValueError("an unknown document requirement must omit span and name unknown_reason")
+            if (
+                self.source_span is None
+                or self.unknown_reason is not None
+                or not self.source_text
+            ):
+                raise ValueError(
+                    "a known document requirement needs source text, a span, and no unknown_reason"
+                )
+        elif (
+            self.source_span is not None
+            or self.unknown_reason is None
+            or self.source_text is not None
+        ):
+            raise ValueError(
+                "an unknown document requirement must omit source text/span and name unknown_reason"
+            )
         return self
 
 
 class DocumentTaskV1(DecisionContractModel):
-    document_id: str
+    model_config = ConfigDict(
+        json_schema_extra={
+            "allOf": [
+                {
+                    "if": {
+                        "properties": {"action": {"const": "needs_confirmation"}},
+                        "required": ["action"],
+                    },
+                    "then": {
+                        "required": ["confirmation_state", "blockers"],
+                        "properties": {
+                            "confirmation_state": {"const": "unconfirmed"},
+                            "blockers": {"minItems": 1},
+                        }
+                    },
+                    "else": {
+                        "properties": {
+                            "confirmation_state": {"const": "confirmed"}
+                        }
+                    },
+                },
+                {
+                    "if": {
+                        "properties": {"action": {"const": "prepare"}},
+                        "required": ["action"],
+                    },
+                    "then": {"properties": {"blockers": {"maxItems": 0}}},
+                },
+            ]
+        }
+    )
+
+    document_id: DocumentIdentifier
     action: DocumentAction
     confirmation_state: ConfirmationState
-    blockers: tuple[str, ...] = ()
+    blockers: tuple[DottedIdentifier, ...] = Field(
+        default=(), json_schema_extra={"uniqueItems": True}
+    )
 
     @field_validator("document_id")
     @classmethod
@@ -1306,15 +1566,125 @@ class RequiredDocumentPlanV1(DecisionContractModel):
         json_schema_extra={
             "$schema": JSON_SCHEMA_DIALECT,
             "$id": f"{SCHEMA_BASE_ID}/required-document-plan.schema.json",
+            "allOf": [
+                {
+                    "if": {
+                        "properties": {
+                            "requirements_state": {"const": "confirmed_empty"}
+                        },
+                        "required": ["requirements_state"],
+                    },
+                    "then": {
+                        "properties": {
+                            "requirements": {"maxItems": 0},
+                            "tasks": {"maxItems": 0},
+                            "unresolved_document_ids": {"maxItems": 0},
+                            "blocking_document_ids": {"maxItems": 0},
+                        }
+                    },
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "requirements_state": {"const": "confirmed"}
+                        },
+                        "required": ["requirements_state"],
+                    },
+                    "then": {
+                        "properties": {
+                            "requirements": {
+                                "minItems": 1,
+                                "items": {
+                                    "required": ["confirmation_state", "source_state"],
+                                    "properties": {
+                                        "confirmation_state": {"const": "confirmed"},
+                                        "source_state": {"const": "known"},
+                                    },
+                                },
+                            }
+                        }
+                    },
+                },
+                {
+                    "if": {
+                        "not": {
+                            "properties": {
+                                "requirements_state": {
+                                    "enum": ["confirmed", "confirmed_empty"]
+                                }
+                            },
+                            "required": ["requirements_state"],
+                        }
+                    },
+                    "then": {
+                        "required": ["blockers"],
+                        "allOf": [
+                            {
+                                "if": {
+                                    "properties": {
+                                        "requirements": {"minItems": 1}
+                                    },
+                                    "required": ["requirements"],
+                                },
+                                "then": {
+                                    "required": [
+                                        "unresolved_document_ids",
+                                        "blocking_document_ids",
+                                    ]
+                                },
+                            }
+                        ],
+                        "properties": {
+                            "requirements": {
+                                "items": {
+                                    "properties": {
+                                        "confirmation_state": {"const": "unconfirmed"}
+                                    }
+                                }
+                            },
+                            "tasks": {
+                                "items": {
+                                    "properties": {
+                                        "action": {"const": "needs_confirmation"}
+                                    }
+                                }
+                            },
+                            "blockers": {
+                                "contains": {"const": "documents.requirements_unconfirmed"}
+                            },
+                        }
+                    },
+                },
+            ],
         },
     )
 
     schema_version: Literal["1.0.0"] = REQUIRED_DOCUMENT_PLAN_SCHEMA_VERSION
-    job_id: str
-    input_fingerprint: str
-    requirements: tuple[DocumentRequirementV1, ...]
-    tasks: tuple[DocumentTaskV1, ...]
-    unresolved_document_ids: tuple[str, ...] = ()
+    job_id: JobIdentifier
+    input_fingerprint: Sha256Value
+    requirements_state: DocumentRequirementsState = "unconfirmed"
+    requirements_basis_sha256: Sha256Value
+    requirements: tuple[DocumentRequirementV1, ...] = Field(
+        json_schema_extra={"uniqueItems": True}
+    )
+    tasks: tuple[DocumentTaskV1, ...] = Field(
+        json_schema_extra={"uniqueItems": True}
+    )
+    unresolved_brief_fields: tuple[BriefFieldName, ...] = Field(
+        default=(), json_schema_extra={"uniqueItems": True}
+    )
+    unresolved_document_ids: tuple[DocumentIdentifier, ...] = Field(
+        default=(), json_schema_extra={"uniqueItems": True}
+    )
+    blocking_document_ids: tuple[DocumentIdentifier, ...] = Field(
+        default=(), json_schema_extra={"uniqueItems": True}
+    )
+    orphaned_document_choice_ids: tuple[DocumentIdentifier, ...] = Field(
+        default=(), json_schema_extra={"uniqueItems": True}
+    )
+    blockers: tuple[DottedIdentifier, ...] = Field(
+        default=(), json_schema_extra={"uniqueItems": True}
+    )
 
     @field_validator("job_id")
     @classmethod
@@ -1326,12 +1696,33 @@ class RequiredDocumentPlanV1(DecisionContractModel):
     def _valid_input_fingerprint(cls, value: str) -> str:
         return _sha256(value, label="input_fingerprint")
 
-    @field_validator("unresolved_document_ids")
+    @field_validator(
+        "unresolved_document_ids",
+        "blocking_document_ids",
+        "orphaned_document_choice_ids",
+    )
     @classmethod
     def _valid_unresolved_ids(cls, values: tuple[str, ...]) -> tuple[str, ...]:
-        _require_unique(values, label="unresolved document IDs")
+        _require_unique(values, label="document plan ID collection")
         for value in values:
             _semantic_id(value, pattern=_DOCUMENT_ID_RE, label="document_id")
+        return values
+
+    @field_validator("unresolved_brief_fields")
+    @classmethod
+    def _unique_unresolved_fields(
+        cls, values: tuple[BriefFieldName, ...]
+    ) -> tuple[BriefFieldName, ...]:
+        _require_unique(values, label="unresolved brief fields")
+        return values
+
+    @field_validator("blockers")
+    @classmethod
+    def _valid_plan_blockers(cls, values: tuple[str, ...]) -> tuple[str, ...]:
+        _require_unique(values, label="document plan blockers")
+        for value in values:
+            if _DOTTED_ID_RE.fullmatch(value) is None:
+                raise ValueError("document plan blocker must be a lowercase dotted identifier")
         return values
 
     @model_validator(mode="after")
@@ -1340,6 +1731,10 @@ class RequiredDocumentPlanV1(DecisionContractModel):
         task_ids = tuple(item.document_id for item in self.tasks)
         _require_unique(requirement_ids, label="document requirement IDs")
         _require_unique(task_ids, label="document task IDs")
+        if requirement_ids != tuple(sorted(requirement_ids)):
+            raise ValueError("document requirements must use deterministic ID ordering")
+        if task_ids != tuple(sorted(task_ids)):
+            raise ValueError("document tasks must use deterministic ID ordering")
         if set(requirement_ids) != set(task_ids):
             raise ValueError("document plan requires exactly one task per requirement")
         if not set(self.unresolved_document_ids).issubset(set(requirement_ids)):
@@ -1352,6 +1747,55 @@ class RequiredDocumentPlanV1(DecisionContractModel):
         }
         if set(self.unresolved_document_ids) != expected_unresolved:
             raise ValueError("unresolved document IDs must match needs-confirmation tasks")
+        expected_blocking = {
+            document_id
+            for document_id, task in task_by_id.items()
+            if task.blockers
+        }
+        if set(self.blocking_document_ids) != expected_blocking:
+            raise ValueError("blocking document IDs must match tasks with blockers")
+        if not set(self.unresolved_document_ids).issubset(expected_blocking):
+            raise ValueError("every unresolved document task must be blocking")
+        if set(self.orphaned_document_choice_ids) & set(requirement_ids):
+            raise ValueError("orphaned document choices must not resolve to current requirements")
+
+        requirement_by_id = {item.document_id: item for item in self.requirements}
+        for document_id, task in task_by_id.items():
+            requirement = requirement_by_id[document_id]
+            if requirement.requirement == "required" and task.action == "omit":
+                if "documents.required_omitted" not in task.blockers:
+                    raise ValueError("omitting a required document must remain an explicit blocker")
+            elif task.action != "needs_confirmation" and task.blockers:
+                raise ValueError("resolved non-required document tasks must not retain blockers")
+            if requirement.requirement == "unknown" and task.action != "needs_confirmation":
+                raise ValueError("an unknown document requirement must remain unresolved")
+
+        task_blockers = {blocker for task in self.tasks for blocker in task.blockers}
+        if not task_blockers.issubset(set(self.blockers)):
+            raise ValueError("top-level blockers must include every document-task blocker")
+
+        if self.requirements_state == "confirmed_empty":
+            if (
+                self.requirements
+                or self.tasks
+                or self.unresolved_document_ids
+                or self.blocking_document_ids
+            ):
+                raise ValueError("confirmed-empty requirements require an empty, non-blocking plan")
+        elif self.requirements_state == "confirmed":
+            if not self.requirements:
+                raise ValueError("confirmed document requirements require a non-empty basis")
+            if any(item.confirmation_state != "confirmed" for item in self.requirements):
+                raise ValueError("confirmed requirements must mark every requirement confirmed")
+            if any(item.source_state != "known" for item in self.requirements):
+                raise ValueError("confirmed requirements must have known source receipts")
+        else:
+            if any(item.confirmation_state != "unconfirmed" for item in self.requirements):
+                raise ValueError("unconfirmed requirements must remain unconfirmed")
+            if any(task.action != "needs_confirmation" for task in self.tasks):
+                raise ValueError("unconfirmed requirements must keep every document task unresolved")
+            if "documents.requirements_unconfirmed" not in self.blockers:
+                raise ValueError("unconfirmed requirements require an executable blocker")
         return self
 
 

@@ -21,15 +21,23 @@ from pydantic import (
 )
 
 from canisend.decision_models import (
+    ApplicationBriefV1,
     ApplicationDecisionV1,
+    ConfirmedIdSelectionV1,
     ConfirmedCorrectionsV1,
+    ConfirmedStringListV1,
+    ConfirmedTextV1,
     CriteriaCatalogV1,
     CriteriaExtractionConfirmationV1,
     CriterionCorrectionV1,
     CriterionMatchesV1,
     DecisionBasisV1,
+    DocumentChoiceV1,
+    DocumentRequirementsConfirmationV1,
     JSON_SCHEMA_DIALECT,
+    LanguagePreferenceV1,
     MAX_USER_REVISION,
+    RequiredDocumentPlanV1,
     SCHEMA_BASE_ID,
     UserControlTimestamp,
     UserRevision,
@@ -66,8 +74,10 @@ from canisend.user_file_store import (
 USER_MUTATION_SCHEMA_VERSION = "1.0.0"
 CONFIRMED_CORRECTIONS_PATH = "confirmed_corrections.yaml"
 APPLICATION_DECISION_PATH = "application_decision.yaml"
+APPLICATION_BRIEF_PATH = "application_brief.yaml"
+REQUIRED_DOCUMENT_PLAN_PATH = "required_document_plan.json"
 
-UserArtifactKind = Literal["corrections", "decision"]
+UserArtifactKind = Literal["corrections", "decision", "brief"]
 DecisionBasisStatus = Literal["current", "review_required", "unavailable"]
 MutationStatus = Literal["committed", "committed_receipt_pending", "reused"]
 RecoveryStatus = Literal[
@@ -87,6 +97,18 @@ CurrentMutationAuditStatus = Literal[
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _MUTATION_ID_RE = re.compile(r"^mutation_[0-9a-f]{32}$")
 _CRITERION_ID_RE = re.compile(r"^criterion_[0-9a-f]{32}$")
+_DOCUMENT_ID_RE = re.compile(r"^document_[0-9a-f]{32}$")
+
+_USER_ARTIFACT_PATHS: dict[UserArtifactKind, str] = {
+    "corrections": CONFIRMED_CORRECTIONS_PATH,
+    "decision": APPLICATION_DECISION_PATH,
+    "brief": APPLICATION_BRIEF_PATH,
+}
+_USER_ARTIFACT_KINDS: tuple[UserArtifactKind, ...] = (
+    "corrections",
+    "decision",
+    "brief",
+)
 
 USER_MUTATION_ERROR_CODES = frozenset(
     {
@@ -172,6 +194,81 @@ class ResetDecisionPatch(_MutationModel):
     operation: Literal["reset_decision"] = "reset_decision"
 
 
+class SetBriefLanguagePatch(_MutationModel):
+    operation: Literal["set_brief_language"] = "set_brief_language"
+    value: Literal["uk", "us"]
+
+
+class SetBriefTextPatch(_MutationModel):
+    operation: Literal["set_brief_text"] = "set_brief_text"
+    field: Literal["writing_style", "motivation"]
+    value: str = Field(max_length=200_000)
+
+
+class ResetBriefFieldPatch(_MutationModel):
+    operation: Literal["reset_brief_field"] = "reset_brief_field"
+    field: Literal["language", "writing_style", "motivation", "emphasis", "exclusions"]
+
+
+class SetBriefEmphasisPatch(_MutationModel):
+    operation: Literal["set_brief_emphasis"] = "set_brief_emphasis"
+    criterion_ids: tuple[str, ...] = Field(default=(), max_length=4_096)
+    evidence_ref_ids: tuple[str, ...] = Field(default=(), max_length=4_096)
+
+    @model_validator(mode="after")
+    def _valid_ids(self) -> SetBriefEmphasisPatch:
+        if len(set(self.criterion_ids)) != len(self.criterion_ids):
+            raise ValueError("brief emphasis criterion IDs must be unique")
+        if len(set(self.evidence_ref_ids)) != len(self.evidence_ref_ids):
+            raise ValueError("brief emphasis evidence IDs must be unique")
+        if any(_CRITERION_ID_RE.fullmatch(value) is None for value in self.criterion_ids):
+            raise ValueError("brief emphasis criterion ID is invalid")
+        if any(
+            re.fullmatch(r"evidence_[0-9a-f]{32}", value) is None
+            for value in self.evidence_ref_ids
+        ):
+            raise ValueError("brief emphasis evidence ID is invalid")
+        return self
+
+
+class SetBriefExclusionsPatch(_MutationModel):
+    operation: Literal["set_brief_exclusions"] = "set_brief_exclusions"
+    items: tuple[str, ...] = Field(default=(), max_length=4_096)
+
+    @model_validator(mode="after")
+    def _valid_items(self) -> SetBriefExclusionsPatch:
+        if len(set(self.items)) != len(self.items):
+            raise ValueError("brief exclusions must be unique")
+        if any(not item or len(item) > 10_000 for item in self.items):
+            raise ValueError("brief exclusions must be non-empty and bounded")
+        return self
+
+
+class ConfirmDocumentRequirementsPatch(_MutationModel):
+    operation: Literal["confirm_document_requirements"] = "confirm_document_requirements"
+    state: Literal["confirmed", "confirmed_empty"]
+    requirements_basis_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class ResetDocumentRequirementsPatch(_MutationModel):
+    operation: Literal["reset_document_requirements"] = "reset_document_requirements"
+
+
+class SetDocumentChoicePatch(_MutationModel):
+    operation: Literal["set_document_choice"] = "set_document_choice"
+    document_id: str = Field(pattern=r"^document_[0-9a-f]{32}$")
+    action: Literal["prepare", "omit"]
+
+
+class RemoveDocumentChoicePatch(_MutationModel):
+    operation: Literal["remove_document_choice"] = "remove_document_choice"
+    document_id: str = Field(pattern=r"^document_[0-9a-f]{32}$")
+
+
+class ReconfirmApplicationBriefPatch(_MutationModel):
+    operation: Literal["reconfirm_brief"] = "reconfirm_brief"
+
+
 CorrectionsPatch: TypeAlias = Annotated[
     ConfirmCriterionPatch
     | CorrectCriterionPatch
@@ -183,10 +280,24 @@ DecisionPatch: TypeAlias = Annotated[
     SetDecisionPatch | ResetDecisionPatch,
     Field(discriminator="operation"),
 ]
-UserPatch: TypeAlias = CorrectionsPatch | DecisionPatch
+BriefPatch: TypeAlias = Annotated[
+    SetBriefLanguagePatch
+    | SetBriefTextPatch
+    | ResetBriefFieldPatch
+    | SetBriefEmphasisPatch
+    | SetBriefExclusionsPatch
+    | ConfirmDocumentRequirementsPatch
+    | ResetDocumentRequirementsPatch
+    | SetDocumentChoicePatch
+    | RemoveDocumentChoicePatch
+    | ReconfirmApplicationBriefPatch,
+    Field(discriminator="operation"),
+]
+UserPatch: TypeAlias = CorrectionsPatch | DecisionPatch | BriefPatch
 
 _CORRECTIONS_PATCH_ADAPTER = TypeAdapter(CorrectionsPatch)
 _DECISION_PATCH_ADAPTER = TypeAdapter(DecisionPatch)
+_BRIEF_PATCH_ADAPTER = TypeAdapter(BriefPatch)
 
 
 class UserMutationClaimV1(_MutationModel):
@@ -194,7 +305,11 @@ class UserMutationClaimV1(_MutationModel):
     mutation_id: str = Field(pattern=r"^mutation_[0-9a-f]{32}$")
     job_id: str = Field(pattern=r"^[a-z0-9][a-z0-9_.-]*$")
     artifact: UserArtifactKind
-    target_path: Literal[CONFIRMED_CORRECTIONS_PATH, APPLICATION_DECISION_PATH]
+    target_path: Literal[
+        CONFIRMED_CORRECTIONS_PATH,
+        APPLICATION_DECISION_PATH,
+        APPLICATION_BRIEF_PATH,
+    ]
     expected_revision: UserRevision | None = None
     expected_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     result_revision: UserRevision
@@ -237,20 +352,29 @@ class UserMutationReceiptV1(_MutationModel):
             "$id": f"{SCHEMA_BASE_ID}/user-mutation-receipt.schema.json",
             "allOf": [
                 {
-                    "if": {
-                        "properties": {"artifact": {"const": "corrections"}},
-                        "required": ["artifact"],
-                    },
-                    "then": {
-                        "properties": {
-                            "target_path": {"const": CONFIRMED_CORRECTIONS_PATH}
-                        }
-                    },
-                    "else": {
-                        "properties": {
-                            "target_path": {"const": APPLICATION_DECISION_PATH}
-                        }
-                    },
+                    "oneOf": [
+                        {
+                            "properties": {
+                                "artifact": {"const": "corrections"},
+                                "target_path": {"const": CONFIRMED_CORRECTIONS_PATH},
+                            },
+                            "required": ["artifact", "target_path"],
+                        },
+                        {
+                            "properties": {
+                                "artifact": {"const": "decision"},
+                                "target_path": {"const": APPLICATION_DECISION_PATH},
+                            },
+                            "required": ["artifact", "target_path"],
+                        },
+                        {
+                            "properties": {
+                                "artifact": {"const": "brief"},
+                                "target_path": {"const": APPLICATION_BRIEF_PATH},
+                            },
+                            "required": ["artifact", "target_path"],
+                        },
+                    ]
                 },
                 {
                     "if": {
@@ -297,7 +421,11 @@ class UserMutationReceiptV1(_MutationModel):
     mutation_id: str = Field(pattern=r"^mutation_[0-9a-f]{32}$")
     job_id: str = Field(pattern=r"^[a-z0-9][a-z0-9_.-]*$")
     artifact: UserArtifactKind
-    target_path: Literal[CONFIRMED_CORRECTIONS_PATH, APPLICATION_DECISION_PATH]
+    target_path: Literal[
+        CONFIRMED_CORRECTIONS_PATH,
+        APPLICATION_DECISION_PATH,
+        APPLICATION_BRIEF_PATH,
+    ]
     expected_revision: UserRevision | None = None
     expected_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     result_revision: UserRevision
@@ -320,7 +448,9 @@ class UserMutationReceiptV1(_MutationModel):
         return self
 
 
-UserArtifactModel: TypeAlias = ConfirmedCorrectionsV1 | ApplicationDecisionV1
+UserArtifactModel: TypeAlias = (
+    ConfirmedCorrectionsV1 | ApplicationDecisionV1 | ApplicationBriefV1
+)
 
 
 @dataclass(frozen=True)
@@ -362,6 +492,14 @@ class ApplicationDecisionInspection:
 
 
 @dataclass(frozen=True)
+class ApplicationBriefInspection:
+    snapshot: UserArtifactSnapshot | None
+    basis_status: DecisionBasisStatus
+    unresolved_fields: tuple[str, ...] = ()
+    reason: str | None = None
+
+
+@dataclass(frozen=True)
 class CurrentArtifactMutationAudit:
     """Privacy-safe state of durable mutation controls for one current artifact."""
 
@@ -389,12 +527,22 @@ def parse_decision_patch(value: object) -> DecisionPatch:
         ) from exc
 
 
+def parse_brief_patch(value: object) -> BriefPatch:
+    try:
+        return _BRIEF_PATCH_ADAPTER.validate_python(value)
+    except ValidationError as exc:
+        raise UserMutationError(
+            "user_input.invalid",
+            "The application brief patch is not a supported scoped operation.",
+        ) from exc
+
+
 def inspect_user_artifact(
     workspace: Path,
     job_dir: Path,
     artifact: UserArtifactKind,
 ) -> UserArtifactSnapshot | None:
-    _, job = _mutation_paths(workspace, job_dir)
+    root, job = _mutation_paths(workspace, job_dir)
     return _load_artifact_snapshot(job, artifact, allow_missing=True)
 
 
@@ -542,7 +690,7 @@ def initialize_user_artifact(
     mutation_id: str | None = None,
 ) -> MutationOutcome:
     _require_consent(consent_confirmed)
-    _, job = _mutation_paths(workspace, job_dir)
+    root, job = _mutation_paths(workspace, job_dir)
     existing = _load_artifact_snapshot(job, artifact, allow_missing=True)
     if existing is not None:
         accepted = _load_baseline_claim(
@@ -584,12 +732,25 @@ def initialize_user_artifact(
             revision=0,
             updated_at=now,
         )
-    else:
+    elif artifact == "decision":
         model = ApplicationDecisionV1(
             job_id=job.name,
             revision=0,
             updated_at=now,
         )
+    elif artifact == "brief":
+        decision = _current_apply_decision_snapshot(root, job)
+        language, writing_style = _bootstrap_brief_preferences(job)
+        model = ApplicationBriefV1(
+            job_id=job.name,
+            revision=0,
+            updated_at=now,
+            decision_sha256=decision.sha256,
+            language=language,
+            writing_style=writing_style,
+        )
+    else:  # pragma: no cover - protected by the public Literal and path map
+        raise UserMutationError("user_input.invalid", "Unsupported user-owned artifact.")
     return _commit_candidate(
         job,
         artifact=artifact,
@@ -637,6 +798,7 @@ def apply_user_patch(
     if accepted is not None:
         raise _accepted_claim_requires_recovery(accepted[0].mutation_id)
     normalized_id = _normalized_mutation_id(mutation_id)
+    brief_plan_snapshot: SafeFileSnapshot | None = None
     existing_candidate = _load_existing_candidate(job, artifact, normalized_id)
     if existing_candidate is not None:
         result_model, _candidate = existing_candidate
@@ -653,12 +815,31 @@ def apply_user_patch(
             current.model,
             normalized_patch,
         )
-    else:
+    elif artifact == "decision":
         normalized_patch = (
             patch if isinstance(patch, (SetDecisionPatch, ResetDecisionPatch)) else parse_decision_patch(patch)
         )
         assert isinstance(current.model, ApplicationDecisionV1)
         result_model = _apply_decision_patch(root, job, current.model, normalized_patch)
+    elif artifact == "brief":
+        normalized_patch = (
+            patch if isinstance(patch, _brief_patch_classes()) else parse_brief_patch(patch)
+        )
+        assert isinstance(current.model, ApplicationBriefV1)
+        result_model, brief_plan_snapshot = _apply_brief_patch(
+            root,
+            job,
+            current.model,
+            normalized_patch,
+        )
+    else:  # pragma: no cover - protected by _patch_artifact
+        raise UserMutationError("user_input.invalid", "Unsupported user-owned artifact.")
+    if brief_plan_snapshot is not None:
+        _require_current_required_document_plan_snapshot(
+            root,
+            job,
+            expected_sha256=brief_plan_snapshot.sha256,
+        )
     return _commit_candidate(
         job,
         artifact=artifact,
@@ -714,6 +895,108 @@ def inspect_application_decision(
         snapshot=snapshot,
         basis_status=effective,
         reason=None if effective == "current" else "decision.basis_changed",
+    )
+
+
+def inspect_application_brief(
+    workspace: Path,
+    job_dir: Path,
+) -> ApplicationBriefInspection:
+    try:
+        root, job = _mutation_paths(workspace, job_dir)
+        snapshot = _load_artifact_snapshot(job, "brief", allow_missing=True)
+    except UserMutationError as exc:
+        return ApplicationBriefInspection(
+            snapshot=None,
+            basis_status="unavailable",
+            reason=exc.code,
+        )
+    decision_inspection = inspect_application_decision(root, job)
+    if snapshot is None:
+        if decision_inspection.snapshot is None:
+            return ApplicationBriefInspection(
+                snapshot=None,
+                basis_status="unavailable",
+                reason=(
+                    "decision.not_initialized"
+                    if decision_inspection.reason == "user_input.not_initialized"
+                    else decision_inspection.reason
+                ),
+            )
+        assert isinstance(decision_inspection.snapshot.model, ApplicationDecisionV1)
+        if decision_inspection.snapshot.model.decision == "undecided":
+            return ApplicationBriefInspection(
+                snapshot=None,
+                basis_status="unavailable",
+                reason=decision_inspection.reason or "decision.undecided",
+            )
+        if decision_inspection.basis_status != "current":
+            return ApplicationBriefInspection(
+                snapshot=None,
+                basis_status="review_required",
+                reason=decision_inspection.reason,
+            )
+        if decision_inspection.snapshot.model.decision != "apply":
+            return ApplicationBriefInspection(
+                snapshot=None,
+                basis_status="unavailable",
+                reason="decision.not_apply",
+            )
+        return ApplicationBriefInspection(
+            snapshot=None,
+            basis_status="unavailable",
+            reason="user_input.not_initialized",
+        )
+    assert isinstance(snapshot.model, ApplicationBriefV1)
+    brief = snapshot.model
+    unresolved = _unresolved_brief_fields(brief)
+    if decision_inspection.snapshot is None:
+        return ApplicationBriefInspection(
+            snapshot=snapshot,
+            basis_status="unavailable",
+            unresolved_fields=unresolved,
+            reason=(
+                "decision.not_initialized"
+                if decision_inspection.reason == "user_input.not_initialized"
+                else decision_inspection.reason
+            ),
+        )
+    assert isinstance(decision_inspection.snapshot.model, ApplicationDecisionV1)
+    if decision_inspection.snapshot.model.decision != "apply":
+        return ApplicationBriefInspection(
+            snapshot=snapshot,
+            basis_status="unavailable",
+            unresolved_fields=unresolved,
+            reason="decision.not_apply",
+        )
+    if decision_inspection.basis_status != "current":
+        return ApplicationBriefInspection(
+            snapshot=snapshot,
+            basis_status="review_required",
+            unresolved_fields=unresolved,
+            reason=decision_inspection.reason,
+        )
+    if brief.decision_sha256 != decision_inspection.snapshot.sha256:
+        return ApplicationBriefInspection(
+            snapshot=snapshot,
+            basis_status="review_required",
+            unresolved_fields=unresolved,
+            reason="brief.decision_changed",
+        )
+    try:
+        references_current = _brief_emphasis_references_are_current(job, brief)
+    except UserMutationError as exc:
+        return ApplicationBriefInspection(
+            snapshot=snapshot,
+            basis_status="review_required",
+            unresolved_fields=unresolved,
+            reason=exc.code,
+        )
+    return ApplicationBriefInspection(
+        snapshot=snapshot,
+        basis_status="current" if references_current else "review_required",
+        unresolved_fields=unresolved,
+        reason=None if references_current else "brief.reference_orphaned",
     )
 
 
@@ -847,6 +1130,22 @@ def initialize_application_decision(
         workspace,
         job_dir,
         "decision",
+        consent_confirmed=consent_confirmed,
+        mutation_id=mutation_id,
+    )
+
+
+def initialize_application_brief(
+    workspace: Path,
+    job_dir: Path,
+    *,
+    consent_confirmed: bool,
+    mutation_id: str | None = None,
+) -> MutationOutcome:
+    return initialize_user_artifact(
+        workspace,
+        job_dir,
+        "brief",
         consent_confirmed=consent_confirmed,
         mutation_id=mutation_id,
     )
@@ -1008,6 +1307,133 @@ def _apply_decision_patch(
             "basis": basis,
         }
     )
+
+
+def _apply_brief_patch(
+    workspace: Path,
+    job: Path,
+    current: ApplicationBriefV1,
+    patch: BriefPatch,
+) -> tuple[ApplicationBriefV1, SafeFileSnapshot | None]:
+    decision = _current_apply_decision_snapshot(workspace, job)
+    plan_snapshot: SafeFileSnapshot | None = None
+    now = _next_timestamp(current.updated_at)
+    updates: dict[str, Any] = {
+        "revision": current.revision + 1,
+        "updated_at": now,
+    }
+
+    if isinstance(patch, SetBriefLanguagePatch):
+        updates["language"] = LanguagePreferenceV1(
+            value=patch.value,
+            confirmation_state="confirmed",
+        )
+    elif isinstance(patch, SetBriefTextPatch):
+        updates[patch.field] = ConfirmedTextV1(
+            value=patch.value,
+            confirmation_state="confirmed",
+        )
+    elif isinstance(patch, ResetBriefFieldPatch):
+        if patch.field == "language":
+            updates[patch.field] = LanguagePreferenceV1()
+        elif patch.field in {"writing_style", "motivation"}:
+            updates[patch.field] = ConfirmedTextV1()
+        elif patch.field == "emphasis":
+            updates[patch.field] = ConfirmedIdSelectionV1()
+        else:
+            updates[patch.field] = ConfirmedStringListV1()
+    elif isinstance(patch, SetBriefEmphasisPatch):
+        candidate = ConfirmedIdSelectionV1(
+            criterion_ids=patch.criterion_ids,
+            evidence_ref_ids=patch.evidence_ref_ids,
+            confirmation_state="confirmed",
+        )
+        _require_current_brief_emphasis_references(job, candidate)
+        updates["emphasis"] = candidate
+    elif isinstance(patch, SetBriefExclusionsPatch):
+        updates["exclusions"] = ConfirmedStringListV1(
+            items=patch.items,
+            confirmation_state="confirmed",
+        )
+    elif isinstance(patch, ConfirmDocumentRequirementsPatch):
+        plan, plan_snapshot = _current_required_document_plan(workspace, job)
+        if plan.requirements_basis_sha256 != patch.requirements_basis_sha256:
+            raise UserMutationError(
+                "user_input.conflict",
+                "The required-document basis no longer matches the scoped patch.",
+            )
+        if patch.state == "confirmed_empty" and plan.requirements:
+            raise UserMutationError(
+                "user_input.invalid",
+                "Confirmed-empty is valid only for a current empty requirement set.",
+            )
+        if patch.state == "confirmed" and not plan.requirements:
+            raise UserMutationError(
+                "user_input.invalid",
+                "A non-empty confirmation requires current document requirements.",
+            )
+        if patch.state == "confirmed" and any(
+            item.source_state == "unknown" for item in plan.requirements
+        ):
+            raise UserMutationError(
+                "user_input.invalid",
+                "Document requirements with missing or ambiguous sources must remain unconfirmed.",
+            )
+        updates["document_requirements_confirmation"] = (
+            DocumentRequirementsConfirmationV1(
+                state=patch.state,
+                basis_sha256=patch.requirements_basis_sha256,
+                confirmed_at=now,
+            )
+        )
+    elif isinstance(patch, ResetDocumentRequirementsPatch):
+        updates["document_requirements_confirmation"] = (
+            DocumentRequirementsConfirmationV1()
+        )
+    elif isinstance(patch, SetDocumentChoicePatch):
+        plan, plan_snapshot = _current_required_document_plan(workspace, job)
+        if patch.document_id not in {item.document_id for item in plan.requirements}:
+            raise UserMutationError(
+                "user_input.invalid",
+                "The document choice does not target a current requirement.",
+            )
+        choices = tuple(
+            item
+            for item in current.document_choices
+            if item.document_id != patch.document_id
+        )
+        selected = DocumentChoiceV1(
+            document_id=patch.document_id,
+            action=patch.action,
+            confirmation_state="confirmed",
+        )
+        updates["document_choices"] = tuple(
+            sorted((*choices, selected), key=lambda item: item.document_id)
+        )
+    elif isinstance(patch, RemoveDocumentChoicePatch):
+        choices = tuple(
+            item
+            for item in current.document_choices
+            if item.document_id != patch.document_id
+        )
+        if len(choices) == len(current.document_choices):
+            raise UserMutationError(
+                "user_input.invalid",
+                "The application brief has no matching document choice to remove.",
+            )
+        updates["document_choices"] = choices
+    elif isinstance(patch, ReconfirmApplicationBriefPatch):
+        updates["decision_sha256"] = decision.sha256
+    else:  # pragma: no cover
+        raise UserMutationError("user_input.invalid", "Unsupported application brief patch.")
+
+    latest_decision = _current_apply_decision_snapshot(workspace, job)
+    if latest_decision.sha256 != decision.sha256:
+        raise UserMutationError(
+            "user_input.dependency_not_current",
+            "The application decision changed while the brief patch was inspected.",
+        )
+    return current.model_copy(update=updates), plan_snapshot
 
 
 def _commit_candidate(
@@ -1241,11 +1667,7 @@ def _load_artifact_snapshot(
         )
     try:
         payload = load_strict_yaml(file_snapshot.data)
-        model: UserArtifactModel = (
-            ConfirmedCorrectionsV1.model_validate(payload)
-            if artifact == "corrections"
-            else ApplicationDecisionV1.model_validate(payload)
-        )
+        model = _artifact_model_type(artifact).model_validate(payload)
     except (InvalidUserFileError, ValidationError) as exc:
         raise UserMutationError(
             "user_input.invalid",
@@ -1290,11 +1712,7 @@ def _load_existing_candidate(
         return None
     try:
         payload = load_strict_yaml(snapshot.data)
-        model: UserArtifactModel = (
-            ConfirmedCorrectionsV1.model_validate(payload)
-            if artifact == "corrections"
-            else ApplicationDecisionV1.model_validate(payload)
-        )
+        model = _artifact_model_type(artifact).model_validate(payload)
     except (InvalidUserFileError, ValidationError) as exc:
         raise UserMutationError(
             "user_input.recovery_required",
@@ -1322,6 +1740,156 @@ def _serialize_artifact(model: UserArtifactModel) -> bytes:
             "The user-owned mutation result is not round-trip stable.",
         )
     return data
+
+
+def _current_apply_decision_snapshot(
+    workspace: Path,
+    job: Path,
+) -> UserArtifactSnapshot:
+    inspection = inspect_application_decision(workspace, job)
+    snapshot = inspection.snapshot
+    if snapshot is None or inspection.basis_status != "current":
+        raise UserMutationError(
+            "user_input.dependency_not_current",
+            "A current confirmed apply decision is required for the application brief.",
+        )
+    assert isinstance(snapshot.model, ApplicationDecisionV1)
+    if (
+        snapshot.model.decision != "apply"
+        or snapshot.model.confirmation_state != "confirmed"
+    ):
+        raise UserMutationError(
+            "user_input.dependency_not_current",
+            "A current confirmed apply decision is required for the application brief.",
+        )
+    return snapshot
+
+
+def _bootstrap_brief_preferences(
+    job: Path,
+) -> tuple[LanguagePreferenceV1, ConfirmedTextV1]:
+    snapshot = _read_safe(job, "job.yaml")
+    try:
+        payload = load_strict_yaml(snapshot.data)
+    except InvalidUserFileError as exc:
+        raise UserMutationError(
+            "user_input.dependency_not_current",
+            "Legacy job preferences could not be inspected safely.",
+        ) from exc
+    if not isinstance(payload, dict):
+        raise UserMutationError(
+            "user_input.dependency_not_current",
+            "Legacy job preferences could not be inspected safely.",
+        )
+    raw_language = payload.get("english_variant")
+    normalized_language = (
+        raw_language.strip().lower()
+        if isinstance(raw_language, str)
+        else ""
+    )
+    language = (
+        LanguagePreferenceV1(
+            value=normalized_language,  # type: ignore[arg-type]
+            confirmation_state="confirmed",
+        )
+        if normalized_language in {"uk", "us"}
+        else LanguagePreferenceV1()
+    )
+
+    raw_style = payload.get("writing_style")
+    normalized_style = raw_style.strip() if isinstance(raw_style, str) else ""
+    writing_style = (
+        ConfirmedTextV1(
+            value=normalized_style,
+            confirmation_state="confirmed",
+        )
+        if normalized_style.lower() not in {"", "unknown", "needs_confirmation"}
+        else ConfirmedTextV1()
+    )
+    return language, writing_style
+
+
+def _unresolved_brief_fields(brief: ApplicationBriefV1) -> tuple[str, ...]:
+    states = (
+        ("language", brief.language.confirmation_state),
+        ("writing_style", brief.writing_style.confirmation_state),
+        ("motivation", brief.motivation.confirmation_state),
+        ("emphasis", brief.emphasis.confirmation_state),
+        ("exclusions", brief.exclusions.confirmation_state),
+        ("document_requirements", brief.document_requirements_confirmation.state),
+    )
+    return tuple(name for name, state in states if state == "unconfirmed")
+
+
+def _brief_emphasis_references_are_current(
+    job: Path,
+    brief: ApplicationBriefV1,
+) -> bool:
+    if brief.emphasis.confirmation_state != "confirmed":
+        return True
+    criteria, _criteria_file = _load_structured_artifact(
+        job,
+        "criteria.json",
+        CriteriaCatalogV1,
+    )
+    matches, _matches_file = _load_structured_artifact(
+        job,
+        "criterion_matches.json",
+        CriterionMatchesV1,
+    )
+    assert isinstance(criteria, CriteriaCatalogV1)
+    assert isinstance(matches, CriterionMatchesV1)
+    current_criteria = {item.criterion_id for item in criteria.criteria}
+    current_evidence = {item.evidence_id for item in matches.evidence_refs}
+    return set(brief.emphasis.criterion_ids).issubset(current_criteria) and set(
+        brief.emphasis.evidence_ref_ids
+    ).issubset(current_evidence)
+
+
+def _require_current_brief_emphasis_references(
+    job: Path,
+    emphasis: ConfirmedIdSelectionV1,
+) -> None:
+    probe = ApplicationBriefV1(
+        job_id=job.name,
+        revision=0,
+        updated_at=_utc_now(),
+        emphasis=emphasis,
+    )
+    if not _brief_emphasis_references_are_current(job, probe):
+        raise UserMutationError(
+            "user_input.invalid",
+            "The brief emphasis does not resolve to current Criteria and Match identifiers.",
+        )
+
+
+def _current_required_document_plan(
+    workspace: Path,
+    job: Path,
+) -> tuple[RequiredDocumentPlanV1, SafeFileSnapshot]:
+    _require_stage_current(workspace, job, "brief")
+    plan, snapshot = _load_structured_artifact(
+        job,
+        REQUIRED_DOCUMENT_PLAN_PATH,
+        RequiredDocumentPlanV1,
+    )
+    assert isinstance(plan, RequiredDocumentPlanV1)
+    return plan, snapshot
+
+
+def _require_current_required_document_plan_snapshot(
+    workspace: Path,
+    job: Path,
+    *,
+    expected_sha256: str,
+) -> None:
+    _require_stage_current(workspace, job, "brief")
+    current = _read_safe(job, REQUIRED_DOCUMENT_PLAN_PATH)
+    if current.sha256 != expected_sha256:
+        raise UserMutationError(
+            "user_input.dependency_not_current",
+            "The required-document plan changed while it was inspected.",
+        )
 
 
 def _load_criteria_catalog_with_snapshot(
@@ -1593,7 +2161,7 @@ def _store_receipt(job: Path, receipt: UserMutationReceiptV1) -> Path:
 
 def _find_claim(job: Path, mutation_id: str) -> tuple[UserMutationClaimV1, Path]:
     found: list[tuple[UserMutationClaimV1, Path]] = []
-    for artifact in ("corrections", "decision"):
+    for artifact in _USER_ARTIFACT_KINDS:
         directory = job / "workflow" / "user-mutations" / "claims" / artifact
         try:
             entries = tuple(directory.glob("*.json")) if directory.is_dir() and not directory.is_symlink() else ()
@@ -1767,6 +2335,19 @@ def _patch_artifact(patch: UserPatch | dict[str, Any]) -> UserArtifactKind:
         return "corrections"
     if operation in {"set_decision", "reset_decision"}:
         return "decision"
+    if operation in {
+        "set_brief_language",
+        "set_brief_text",
+        "reset_brief_field",
+        "set_brief_emphasis",
+        "set_brief_exclusions",
+        "confirm_document_requirements",
+        "reset_document_requirements",
+        "set_document_choice",
+        "remove_document_choice",
+        "reconfirm_brief",
+    }:
+        return "brief"
     raise UserMutationError(
         "user_input.invalid",
         "The user-owned patch operation is not supported.",
@@ -1782,8 +2363,38 @@ def _corrections_patch_classes() -> tuple[type[BaseModel], ...]:
     )
 
 
+def _brief_patch_classes() -> tuple[type[BaseModel], ...]:
+    return (
+        SetBriefLanguagePatch,
+        SetBriefTextPatch,
+        ResetBriefFieldPatch,
+        SetBriefEmphasisPatch,
+        SetBriefExclusionsPatch,
+        ConfirmDocumentRequirementsPatch,
+        ResetDocumentRequirementsPatch,
+        SetDocumentChoicePatch,
+        RemoveDocumentChoicePatch,
+        ReconfirmApplicationBriefPatch,
+    )
+
+
 def _target_path(artifact: UserArtifactKind) -> str:
-    return CONFIRMED_CORRECTIONS_PATH if artifact == "corrections" else APPLICATION_DECISION_PATH
+    try:
+        return _USER_ARTIFACT_PATHS[artifact]
+    except KeyError as exc:  # pragma: no cover - callers validate the Literal
+        raise ValueError("unsupported user-owned artifact") from exc
+
+
+def _artifact_model_type(
+    artifact: UserArtifactKind,
+) -> type[ConfirmedCorrectionsV1] | type[ApplicationDecisionV1] | type[ApplicationBriefV1]:
+    if artifact == "corrections":
+        return ConfirmedCorrectionsV1
+    if artifact == "decision":
+        return ApplicationDecisionV1
+    if artifact == "brief":
+        return ApplicationBriefV1
+    raise ValueError("unsupported user-owned artifact")
 
 
 def _candidate_relative(mutation_id: str) -> str:

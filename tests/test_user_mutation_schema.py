@@ -15,6 +15,7 @@ from canisend.user_mutations import (
     UserMutationReceiptV1,
 )
 from canisend.decision_models import (
+    ApplicationBriefV1,
     ApplicationDecisionV1,
     ConfirmedCorrectionsV1,
     MAX_USER_REVISION,
@@ -73,6 +74,15 @@ def test_receipt_schema_rejects_public_transition_and_path_mismatches() -> None:
             {**valid, "artifact": "corrections", "target_path": "application_decision.yaml"}
         )
     )
+    brief = {
+        **valid,
+        "artifact": "brief",
+        "target_path": "application_brief.yaml",
+    }
+    validator.validate(brief)
+    assert list(
+        validator.iter_errors({**brief, "target_path": "application_decision.yaml"})
+    )
     assert list(
         validator.iter_errors(
             {
@@ -123,7 +133,7 @@ def test_mutation_control_revisions_are_strict_integers(value: object) -> None:
             UserMutationReceiptV1.model_validate({**receipt, field: value})
         with pytest.raises(ValidationError):
             UserMutationClaimV1.model_validate({**claim, field: value})
-    for model in (ConfirmedCorrectionsV1, ApplicationDecisionV1):
+    for model in (ConfirmedCorrectionsV1, ApplicationDecisionV1, ApplicationBriefV1):
         with pytest.raises(ValidationError):
             model.model_validate(
                 {
@@ -146,7 +156,7 @@ def test_user_revision_maximum_matches_runtime_and_static_schemas() -> None:
             {**near_limit, "result_revision": MAX_USER_REVISION + 1}
         )
 
-    for model in (ConfirmedCorrectionsV1, ApplicationDecisionV1):
+    for model in (ConfirmedCorrectionsV1, ApplicationDecisionV1, ApplicationBriefV1):
         payload = {
             "job_id": "example-role",
             "revision": MAX_USER_REVISION,
@@ -161,6 +171,7 @@ def test_user_revision_maximum_matches_runtime_and_static_schemas() -> None:
     for path in (
         Path("schemas/confirmed-corrections.schema.json"),
         Path("schemas/application-decision.schema.json"),
+        Path("schemas/application-brief.schema.json"),
     ):
         schema = json.loads(path.read_text(encoding="utf-8"))
         assert schema["properties"]["revision"]["maximum"] == MAX_USER_REVISION
@@ -189,6 +200,14 @@ def test_control_timestamps_reject_numeric_or_non_rfc3339_inputs(value: object) 
         )
     with pytest.raises(ValidationError):
         ConfirmedCorrectionsV1.model_validate(
+            {
+                "job_id": "example-role",
+                "revision": 0,
+                "updated_at": value,
+            }
+        )
+    with pytest.raises(ValidationError):
+        ApplicationBriefV1.model_validate(
             {
                 "job_id": "example-role",
                 "revision": 0,

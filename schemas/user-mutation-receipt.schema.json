@@ -4,30 +4,50 @@
   "additionalProperties": false,
   "allOf": [
     {
-      "else": {
-        "properties": {
-          "target_path": {
-            "const": "application_decision.yaml"
-          }
-        }
-      },
-      "if": {
-        "properties": {
-          "artifact": {
-            "const": "corrections"
-          }
+      "oneOf": [
+        {
+          "properties": {
+            "artifact": {
+              "const": "corrections"
+            },
+            "target_path": {
+              "const": "confirmed_corrections.yaml"
+            }
+          },
+          "required": [
+            "artifact",
+            "target_path"
+          ]
         },
-        "required": [
-          "artifact"
-        ]
-      },
-      "then": {
-        "properties": {
-          "target_path": {
-            "const": "confirmed_corrections.yaml"
-          }
+        {
+          "properties": {
+            "artifact": {
+              "const": "decision"
+            },
+            "target_path": {
+              "const": "application_decision.yaml"
+            }
+          },
+          "required": [
+            "artifact",
+            "target_path"
+          ]
+        },
+        {
+          "properties": {
+            "artifact": {
+              "const": "brief"
+            },
+            "target_path": {
+              "const": "application_brief.yaml"
+            }
+          },
+          "required": [
+            "artifact",
+            "target_path"
+          ]
         }
-      }
+      ]
     },
     {
       "else": {
@@ -119,7 +139,8 @@
     "artifact": {
       "enum": [
         "corrections",
-        "decision"
+        "decision",
+        "brief"
       ],
       "title": "Artifact",
       "type": "string"
@@ -127,7 +148,8 @@
     "target_path": {
       "enum": [
         "confirmed_corrections.yaml",
-        "application_decision.yaml"
+        "application_decision.yaml",
+        "application_brief.yaml"
       ],
       "title": "Target Path",
       "type": "string"

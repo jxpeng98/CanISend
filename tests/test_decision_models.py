@@ -227,7 +227,7 @@ def document_plan() -> RequiredDocumentPlanV1:
             occurrence=1,
             occurrence_count=1,
         ),
-        confirmation_state="unconfirmed",
+        confirmation_state="confirmed",
     )
     task = DocumentTaskV1(
         document_id=DOCUMENT_ID,
@@ -238,6 +238,8 @@ def document_plan() -> RequiredDocumentPlanV1:
     return RequiredDocumentPlanV1(
         job_id=JOB_ID,
         input_fingerprint=SHA_A,
+        requirements_state="confirmed",
+        requirements_basis_sha256=SHA_B,
         requirements=(requirement,),
         tasks=(task,),
         unresolved_document_ids=(),
