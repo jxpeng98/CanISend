@@ -121,7 +121,12 @@ When the focused skills are installed:
 10. After a current confirmed apply Decision, use `brief status|init|update`, then deterministic `stage run --stage
     brief`. Status is body-free; both Brief and plan bodies remain Tier 2 ask-first.
 11. Treat an unconfirmed document set, `required + omit`, missing preparation action, or orphaned choice as a blocker.
-    Task 6 is locally accepted, but Task 7, Stage 2, and application-package readiness remain incomplete.
+    Stage 2 is locally accepted, but Draft/package readiness does not follow from Stage 2 acceptance or a current plan.
 12. Use `canisend run --workspace <private-workspace> --job jobs/<job-slug>` for the compatible full-package pipeline.
+    With the configured workspace profile and no `--llm-drafts`, a current deterministic Match supplies the proposed
+    `02_fit_report.md` and `05_criteria_checklist.md` views, the structured essential-criteria review in
+    `07_material_review_checklist.md`, and `typst/application_package_content.json`/`application_package.typ`
+    projections. Stale, drifted, or tampered structured artifacts, a non-workspace profile override, or
+    `--llm-drafts` use the safe legacy path.
 13. Add LLM-backed flags only after checking `references/provider-config.md` and getting explicit user approval.
 14. Review outputs against `references/quality-gates.md` before rendering or presenting final package materials.

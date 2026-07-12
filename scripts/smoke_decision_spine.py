@@ -14,6 +14,16 @@ from typing import Any, Sequence
 EXAMPLE_JOB = "jobs/2026-06-15_example-university_lecturer-in-applied-economics"
 EXPECTED_STAGES = {"evidence", "parse", "confirm", "match", "brief"}
 EXPECTED_USER_MUTATION_RECEIPTS = 4
+USER_AND_STRUCTURED_ARTIFACTS = (
+    "parsed_job.json",
+    "criteria.json",
+    "evidence_catalog.json",
+    "criterion_matches.json",
+    "confirmed_corrections.yaml",
+    "application_decision.yaml",
+    "application_brief.yaml",
+    "required_document_plan.json",
+)
 
 
 class SmokeFailure(RuntimeError):
@@ -84,13 +94,12 @@ def _artifact(payload: dict[str, Any], kind: str) -> dict[str, Any]:
 def _assert_workspace_contract(workspace: Path) -> None:
     job = workspace / EXAMPLE_JOB
     expected_artifacts = {
-        "evidence_catalog.json",
-        "criteria.json",
-        "criterion_matches.json",
-        "confirmed_corrections.yaml",
-        "application_decision.yaml",
-        "application_brief.yaml",
-        "required_document_plan.json",
+        *USER_AND_STRUCTURED_ARTIFACTS,
+        "02_fit_report.md",
+        "05_criteria_checklist.md",
+        "07_material_review_checklist.md",
+        "typst/application_package_content.json",
+        "typst/application_package.typ",
     }
     missing = sorted(name for name in expected_artifacts if not (job / name).is_file())
     if missing:
@@ -149,6 +158,28 @@ def _assert_workspace_contract(workspace: Path) -> None:
         raise SmokeFailure(
             "The smoke plan inferred requirement confirmation without a user decision."
         )
+
+    fit_report = (job / "02_fit_report.md").read_text(encoding="utf-8")
+    checklist = (job / "05_criteria_checklist.md").read_text(encoding="utf-8")
+    material_review = (job / "07_material_review_checklist.md").read_text(
+        encoding="utf-8"
+    )
+    package_content = json.loads(
+        (job / "typst" / "application_package_content.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    if "Deterministic proposal" not in fit_report or "(PROPOSED)" not in fit_report:
+        raise SmokeFailure("The installed wheel did not render the current structured Match view.")
+    if "Deterministic Match proposals only" not in checklist:
+        raise SmokeFailure("The installed wheel did not render the structured criteria checklist.")
+    if "Criterion is unresolved" not in material_review:
+        raise SmokeFailure("The installed wheel did not fail closed on unresolved HR criteria.")
+    if not isinstance(package_content, dict) or (
+        package_content.get("fit_report") != fit_report
+        or package_content.get("criteria_checklist") != checklist
+    ):
+        raise SmokeFailure("The installed-wheel Markdown and Typst content projections diverged.")
 
 
 def run_smoke(canisend: str, workspace: Path) -> None:
@@ -243,6 +274,28 @@ def run_smoke(canisend: str, workspace: Path) -> None:
         ["stage", "run", *job_args, "--stage", "brief"],
         expect_json=True,
     )
+    job = workspace / EXAMPLE_JOB
+    before_run = {
+        name: (job / name).read_bytes()
+        for name in USER_AND_STRUCTURED_ARTIFACTS
+    }
+    _run(
+        canisend,
+        [
+            "run",
+            "--workspace",
+            str(workspace),
+            "--job",
+            EXAMPLE_JOB,
+            "--no-git-add-materials",
+        ],
+        expect_json=False,
+    )
+    if any(
+        (job / name).read_bytes() != content
+        for name, content in before_run.items()
+    ):
+        raise SmokeFailure("The compatible pipeline rewrote a Decision Spine artifact.")
     _assert_workspace_contract(workspace)
 
 

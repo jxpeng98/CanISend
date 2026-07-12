@@ -67,7 +67,15 @@ canisend stage run --workspace <private-workspace> --job jobs/<job-slug> --stage
 ```
 
 Use `brief update` with one strict patch and the latest revision/hash to resolve fields and document choices. The
-Brief and plan bodies are Tier 2 ask-first; status is body-free. Task 6 is locally accepted while Task 7 remains open.
+Brief and plan bodies are Tier 2 ask-first; status is body-free. Stage 2 is locally accepted, but Draft/package
+readiness remains a separate review result.
+
+After current deterministic Match, `canisend run --workspace ...` with the configured workspace profile and no
+`--llm-drafts` projects the proposed Match view consistently into `02_fit_report.md`, `05_criteria_checklist.md`,
+structured checks in `07_material_review_checklist.md`, `typst/application_package_content.json`, and
+`typst/application_package.typ`. If Match or upstream state is stale, a structured artifact is drifted/tampered, the
+parsed view or profile provenance differs, or the run uses `--llm-drafts`, the pipeline keeps its compatible
+legacy/provider path. A fallback does not turn a proposal into a Decision or establish readiness.
 
 Use `extract-profile-evidence --llm-augment`, `--llm-parser`, or `--llm-drafts` only when provider config is ready and the user explicitly wants model-backed steps.
 

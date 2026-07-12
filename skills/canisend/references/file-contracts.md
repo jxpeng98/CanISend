@@ -178,6 +178,14 @@ RSS and Atom lead outputs live in ignored `job_leads/`.
 
 The pipeline may emit content JSON compatibility/debug artifacts under `typst/`, but agents should treat the `.typ` files as the editing contract.
 
+In deterministic workspace runs, a current validated Match graph supplies the proposal view used by
+`02_fit_report.md` and `05_criteria_checklist.md`, the structured essential-criteria portion of
+`07_material_review_checklist.md`, `typst/application_package_content.json`, and
+`typst/application_package.typ`. The same proposal text may also appear in `06_final_application_package.md`. These
+derived files do not change `review_state=proposed` into user confirmation,
+Decision, or readiness. Stale or drifted/tampered structured artifacts, a mismatching parsed view, a profile override,
+or `--llm-drafts` cause safe legacy/provider fallback rather than mixed-provenance output.
+
 Evidence snapshots, Evidence candidates, promoted Evidence catalogs, user mutation YAML/private candidates,
 corrected Criteria, Brief-stage candidates, and required-document plans are the Tier 2 private data plane. Workflow
 state, task/result and mutation receipts, mutation claims, validation and promotion records, manifests, errors,

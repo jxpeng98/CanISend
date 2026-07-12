@@ -376,7 +376,21 @@ IDs, states, blocker codes, and counts. An unconfirmed requirement set or Brief 
 Brief after every accepted relevant patch; never edit the plan directly.
 
 If the Decision basis changes, Brief bytes remain present and status requires a new `reconfirm_brief` scoped patch.
-Task 6 is locally accepted; a current plan is not complete Task 7, complete Stage 2, or package readiness.
+Stage 2 is locally accepted. A current plan completes the resumable Stage 2 decision spine, but it does not make
+Draft outputs or the application package ready, reviewed, final, or submission-ready.
+
+### Manual Ownership Of The Three User YAML Files
+
+`confirmed_corrections.yaml`, `application_decision.yaml`, and `application_brief.yaml` remain user-owned. The user
+may edit any of them manually against its schema; read-only status and stage reruns validate the bytes without
+normalizing or replacing them. Their bodies are Tier 2 ask-first in agent-assisted work.
+
+An agent never writes a whole YAML file. It runs the matching `corrections`, `decision`, or `brief` status operation,
+creates one bounded strict patch in safe private scratch space, and passes the latest raw-byte revision and SHA-256
+through compare-and-swap with explicit `--confirm-user-owned-write`. Obtain a new status baseline for every patch and
+serialize writers. CAS coordinates cooperative CanISend writes; it does not make a concurrent manual editor save
+safe. Corrections additionally require current Parse and Confirm plus a Confirm rerun after every semantic patch;
+Decision requires current Match; Brief requires a current confirmed `decision=apply`.
 
 ## 10. Generate Draft Package
 
@@ -399,6 +413,25 @@ canisend run \
 Use only `--llm-parser` when the user wants structured parsing but not drafted prose. Use only `--llm-drafts` when deterministic parsing is sufficient.
 
 Always ask before enabling LLM-backed flags or a command provider for a real workspace, because those modes can send selected private advert, profile, evidence, and draft context to the configured provider. If the user has not opted in, run the deterministic baseline and report any gaps for manual review.
+
+### Structured Match Views In The Compatible Pipeline
+
+For `canisend run --workspace ...` without `--llm-drafts`, the pipeline uses the configured workspace profile and
+will consume structured Match only when Match is current, its Criteria/Evidence/Match hashes and graph validate, and
+the authoritative `parsed_job.json` equals the parse result for this run. The classifications remain visibly
+`proposed`; the generated views are not Decision, confirmation, Draft readiness, or package readiness.
+
+When those guards pass, the same deterministic view drives `02_fit_report.md`, `05_criteria_checklist.md`, the
+structured essential-criteria checks in `07_material_review_checklist.md`,
+`typst/application_package_content.json`, and `typst/application_package.typ`. The compatible
+`06_final_application_package.md` also receives the same fit/checklist text.
+
+If Match or an upstream stage is stale, any protected structured output is drifted or tampered, the structured graph
+is invalid, the current run parses a different job view, or `--profile-dir` selects a profile other than the
+workspace-configured profile, the command safely generates the legacy deterministic views instead of mixing
+provenance. `--llm-drafts` always keeps provider-generated draft views and does not replace them with deterministic
+Match views. Legacy fallback is compatibility behavior, not evidence that the structured proposal or package is
+current; report the reason and refresh Stage 2 before relying on Match.
 
 ## 11. Review Before Rendering
 

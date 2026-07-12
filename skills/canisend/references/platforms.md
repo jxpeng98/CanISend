@@ -99,4 +99,12 @@ Agent operation with the current revision/hash and explicit consent. They must n
 Brief requires a current confirmed apply Decision; empty requirements are not `confirmed_empty`, and unresolved,
 required/omit, missing-action, or orphan blockers remain visible. Private patch/YAML/plan/candidate bodies are Tier 2;
 receipts and AgentResponse remain body-free. CAS assumes a stable local job directory and cooperative CanISend
-writers, so avoid concurrent manual editor saves. Task 6 is locally accepted; Task 7 and Stage 2 remain open.
+writers, so avoid concurrent manual editor saves. The three user YAML files remain manual user-owned Tier 2
+ask-first inputs; agents use only status plus one scoped patch with fresh CAS receipts and explicit consent.
+
+Stage 2 is locally accepted across these shell-capable hosts. In a deterministic `canisend run`, a current Match and
+the configured workspace profile drive consistent proposed views in `02_fit_report.md`, `05_criteria_checklist.md`,
+`07_material_review_checklist.md`, `typst/application_package_content.json`, and
+`typst/application_package.typ`. Stale or drifted/tampered state, a mismatching parsed view, or a profile override
+falls back to legacy deterministic generation; `--llm-drafts` retains provider drafts. Neither Stage 2 acceptance
+nor these proposed views establishes Draft or package readiness.

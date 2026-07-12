@@ -78,10 +78,15 @@ Do not use ready, final, complete, or submission-ready for generated materials u
   `required + omit`, required document without preparation, or orphaned choice is a blocker for later Draft/Verify.
 - Brief/plan/candidates remain Tier 2. Claims, receipts, manifests, errors, ordinary output, and AgentResponse contain
   no motivation, exclusions, language/style values, advert source text, or document labels.
-- Task 6 local acceptance is not treated as complete Task 7, Stage 2, or package readiness.
+- Stage 2 local acceptance is not treated as Draft, application-package, or submission readiness.
 
 ## Draft Gate
 
+- When structured Match views were used, Match and its upstream stages are still current and free of output drift;
+  `02_fit_report.md`, `05_criteria_checklist.md`, `07_material_review_checklist.md`,
+  `typst/application_package_content.json`, and `typst/application_package.typ` represent the same proposed graph.
+- A legacy fallback caused by stale/tampered state, parsed-view or profile-provenance mismatch, or `--llm-drafts` is
+  identified as such; it is not presented as current structured Match evidence.
 - `02_fit_report.md` separates strong fit, partial fit, and gaps.
 - `03_cover_letter_draft.md` is application-facing English and does not include unsupported claims.
 - `04_cv_tailoring_notes.md` tells the user what to adjust in the private CV, but does not rewrite the CV unless asked.
@@ -89,6 +94,8 @@ Do not use ready, final, complete, or submission-ready for generated materials u
 - `07_material_review_checklist.md` tracks cover letter draft and CV tailoring notes review actions before Typst rendering.
 - Each non-missing criterion row cites item-level evidence when evidence exists.
 - LLM-backed drafts with unknown citations fail validation; unknown citations fail validation by design.
+- Every deterministic Match classification remains a proposal. Draft review does not convert it into Decision,
+  confirmation, package readiness, or submission readiness.
 
 ## Typst Gate
 

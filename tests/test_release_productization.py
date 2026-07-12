@@ -34,6 +34,7 @@ def test_shared_decision_spine_smoke_owns_the_full_body_free_contract():
         '["brief", "status"',
         '["brief", "init"',
         '"--stage", "brief"',
+        '"run",\n            "--workspace"',
     ]
 
     positions = [rendered.index(step) for step in ordered_steps]
@@ -43,6 +44,9 @@ def test_shared_decision_spine_smoke_owns_the_full_body_free_contract():
     assert '"--expected-sha256"' in rendered
     assert "application_brief.yaml" in rendered
     assert "required_document_plan.json" in rendered
+    assert "Deterministic proposal" in rendered
+    assert "Criterion is unresolved" in rendered
+    assert "application_package_content.json" in rendered
     assert "EXPECTED_USER_MUTATION_RECEIPTS = 4" in rendered
     assert '{"evidence", "parse", "confirm", "match", "brief"}' in rendered
     assert "preparation.json" in rendered

@@ -79,6 +79,7 @@ Use the same durable loop on every shell-capable host:
 
 ```bash
 canisend agent context --workspace <private-workspace> --job jobs/<job-slug> --format json
+canisend stage status --workspace <private-workspace> --job jobs/<job-slug> --format json
 canisend extract-profile-evidence --workspace <private-workspace>
 canisend stage run --workspace <private-workspace> --job jobs/<job-slug> --stage evidence --mode deterministic --format json
 canisend stage run --workspace <private-workspace> --job jobs/<job-slug> --stage parse --mode deterministic --format json
@@ -87,6 +88,7 @@ canisend stage run --workspace <private-workspace> --job jobs/<job-slug> --stage
 canisend decision status --workspace <private-workspace> --job jobs/<job-slug> --format json
 canisend brief status --workspace <private-workspace> --job jobs/<job-slug> --format json
 canisend stage run --workspace <private-workspace> --job jobs/<job-slug> --stage brief --mode deterministic --format json
+canisend run --workspace <private-workspace> --job jobs/<job-slug>
 ```
 
 Evidence and Parse can run in either order; Match requires current Confirm and Evidence. Older Typst-generated
@@ -108,7 +110,21 @@ Brief initialization and update require a current confirmed apply Decision. Stat
 and fresh revision/hash per field, requirement-set confirmation, or document choice. Empty Parsed Job requirements do
 not mean `confirmed_empty`. Deterministic Brief planning produces a Tier 2 plan and body-free counts/blocker codes;
 only complete positive source members may be confirmed. Unconfirmed, `required + omit`, missing-action, and
-orphaned-choice states block later Draft/Verify work. Task 6 is locally accepted but is not complete Stage 2.
+orphaned-choice states block later Draft/Verify work. Stage 2 is locally accepted, but this does not establish Draft
+or application-package readiness.
+
+The three user YAML files—`confirmed_corrections.yaml`, `application_decision.yaml`, and
+`application_brief.yaml`—remain manual user-owned inputs and Tier 2 ask-first bodies. A user may edit them directly;
+an agent may not. Agent writes use the corresponding status/init/update operation, exactly one strict private patch,
+the latest revision/hash CAS baseline, and explicit consent. Serialize these mutations and avoid concurrent manual
+editor saves; CAS protects cooperative CanISend writers, not an editor racing the final replacement.
+
+After a current deterministic Match, `canisend run` with the workspace-configured profile and no `--llm-drafts`
+projects the same proposed graph into `02_fit_report.md`, `05_criteria_checklist.md`, structured checks in
+`07_material_review_checklist.md`, `typst/application_package_content.json`, and
+`typst/application_package.typ`. These classifications remain proposals, not Decision or readiness. Stale inputs,
+output drift/tampering, an invalid graph, a mismatching parsed view, or a profile override cause legacy deterministic
+fallback; `--llm-drafts` retains the provider draft path.
 
 CAS coordinates cooperative CanISend writers in a stable job directory, not concurrent manual editor saves or
 hostile same-user renames. Do not run mutation workers in parallel and tell the user to avoid saving the same YAML

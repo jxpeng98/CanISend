@@ -88,6 +88,11 @@ emulate a manual whole-file edit: use read-only status, one scoped patch, the la
 `confirmed_empty`, undecided is not apply/hold/skip, and an empty Parsed Job document list is not a
 `confirmed_empty` requirement set.
 
+This manual-ownership rule applies separately to all three user YAML files: `confirmed_corrections.yaml`,
+`application_decision.yaml`, and `application_brief.yaml`. Their bodies are Tier 2 ask-first. Agent-assisted changes
+must use the matching status/init/update service, one bounded private patch, the latest revision/hash CAS baseline,
+and explicit consent; agents never replace the whole file.
+
 Compare-and-swap coordinates cooperative CanISend writers under a stable job-directory topology. It does not
 linearize an ordinary editor save during the final replace window or protect against a malicious same-user rename.
 Run status immediately before each mutation and avoid concurrent manual saving. After any correction update, rerun
@@ -107,6 +112,12 @@ against the current basis may record `confirmed_empty`; absence, extraction fail
 list may not. Unconfirmed requirements, unresolved choices, `required + omit`, missing required preparation actions,
 and orphaned old choices block later Draft/Verify work. Deterministic planning may read the local Tier 2 inputs without
 exposing their bodies to an agent model.
+
+Deterministic package generation may also read a current validated Match graph locally to create proposed fit,
+checklist, material-review, `typst/application_package_content.json`, and `typst/application_package.typ` views. If
+currentness, integrity, parse identity, or configured profile provenance cannot be established, it falls back to the
+legacy path instead of combining sources.
+`--llm-drafts` remains a separate provider path. No generated Match view is a Decision or readiness claim.
 
 ### Retention Is Not Semantic Reset
 

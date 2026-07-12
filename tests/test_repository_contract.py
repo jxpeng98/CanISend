@@ -33,6 +33,7 @@ def test_v1_contract_files_exist():
         "platform-bridges/CLAUDE.md",
         "scripts/release.sh",
         "scripts/smoke_decision_spine.py",
+        "scripts/sync_workspace_skill_mirror.py",
         "schemas/parsed_job.schema.json",
         "schemas/fit_report.schema.json",
         "schemas/criteria_check.schema.json",
@@ -48,6 +49,23 @@ def test_v1_contract_files_exist():
 
     for path in expected_files:
         assert (root / path).exists()
+
+
+def test_repository_native_skill_mirror_gate_blocks_ci_and_local_release():
+    root = Path(__file__).resolve().parents[1]
+    script = (root / "scripts/sync_workspace_skill_mirror.py").read_text(encoding="utf-8")
+    ci = (root / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    release = (root / "scripts/release.sh").read_text(encoding="utf-8")
+    readme = (root / "README.md").read_text(encoding="utf-8")
+
+    check_command = "python scripts/sync_workspace_skill_mirror.py --check"
+    assert check_command in ci
+    assert check_command in release
+    assert "missing" in script
+    assert "extra" in script
+    assert "content/type drift" in script
+    assert "sync_hermes_tap" not in script
+    assert "repository-native substitute for an external `sync_hermes_tap` contract" in readme
 
 
 def test_typst_templates_use_modernpro_packages():

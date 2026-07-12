@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from pathlib import Path
 
@@ -12,6 +13,7 @@ from canisend import __version__
 from canisend.cli import app
 from canisend.package_check import required_wheel_resources
 from canisend.skill_distribution import CANONICAL_SKILL_RESOURCE
+from scripts import sync_workspace_skill_mirror
 
 
 EXPECTED_SKILLS = [
@@ -84,6 +86,114 @@ def test_distributed_canisend_skill_mirrors_workspace_skill():
         assert (Path("skills/canisend/references") / reference_name).read_text() == (
             Path("agent-skills/canisend/references") / reference_name
         ).read_text()
+
+
+def _configure_temporary_skill_mirror(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> tuple[Path, Path]:
+    canonical = tmp_path / "skills" / "canisend"
+    mirror = tmp_path / "agent-skills" / "canisend"
+    (canonical / "references").mkdir(parents=True)
+    (canonical / "SKILL.md").write_text("canonical skill\n", encoding="utf-8")
+    (canonical / "references" / "workflow.md").write_text("canonical workflow\n", encoding="utf-8")
+    monkeypatch.setattr(sync_workspace_skill_mirror, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(sync_workspace_skill_mirror, "CANONICAL_MAIN_SKILL", canonical)
+    monkeypatch.setattr(sync_workspace_skill_mirror, "COMPATIBILITY_MIRROR", mirror)
+    return canonical, mirror
+
+
+def _copy_temporary_skill(canonical: Path, mirror: Path) -> None:
+    import shutil
+
+    shutil.copytree(canonical, mirror)
+
+
+def test_skill_mirror_check_succeeds_for_an_exact_tree(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    canonical, mirror = _configure_temporary_skill_mirror(monkeypatch, tmp_path)
+    _copy_temporary_skill(canonical, mirror)
+
+    assert sync_workspace_skill_mirror.main(["--check"]) == 0
+
+
+@pytest.mark.parametrize("mismatch", ["missing", "extra", "drift"])
+def test_skill_mirror_check_rejects_every_tree_mismatch(
+    mismatch: str,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+):
+    canonical, mirror = _configure_temporary_skill_mirror(monkeypatch, tmp_path)
+    _copy_temporary_skill(canonical, mirror)
+
+    if mismatch == "missing":
+        (mirror / "references" / "workflow.md").unlink()
+    elif mismatch == "extra":
+        (mirror / "references" / "obsolete.md").write_text("obsolete\n", encoding="utf-8")
+    else:
+        (mirror / "SKILL.md").write_text("drifted skill\n", encoding="utf-8")
+
+    assert sync_workspace_skill_mirror.main(["--check"]) == 1
+    assert mismatch in capsys.readouterr().err
+
+
+def test_skill_mirror_sync_rebuilds_tree_and_removes_extra_entries(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    canonical, mirror = _configure_temporary_skill_mirror(monkeypatch, tmp_path)
+    _copy_temporary_skill(canonical, mirror)
+    (mirror / "SKILL.md").write_text("stale\n", encoding="utf-8")
+    (mirror / "obsolete" / "extra.md").parent.mkdir()
+    (mirror / "obsolete" / "extra.md").write_text("extra\n", encoding="utf-8")
+
+    assert sync_workspace_skill_mirror.main([]) == 0
+    assert sync_workspace_skill_mirror.main(["--check"]) == 0
+    assert not (mirror / "obsolete").exists()
+
+
+@pytest.mark.skipif(os.name == "nt", reason="creating symlinks is not portable on Windows CI")
+def test_skill_mirror_never_follows_a_canonical_symlink(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+):
+    canonical, mirror = _configure_temporary_skill_mirror(monkeypatch, tmp_path)
+    outside = tmp_path / "outside-private.txt"
+    outside.write_text("private\n", encoding="utf-8")
+    (canonical / "references" / "escape.md").symlink_to(outside)
+
+    assert sync_workspace_skill_mirror.main([]) == 2
+    assert "unsafe symlink" in capsys.readouterr().err
+    assert not mirror.exists()
+    assert outside.read_text(encoding="utf-8") == "private\n"
+
+
+@pytest.mark.skipif(os.name == "nt", reason="creating symlinks is not portable on Windows CI")
+def test_skill_mirror_sync_unlinks_an_extra_symlink_without_touching_its_target(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    canonical, mirror = _configure_temporary_skill_mirror(monkeypatch, tmp_path)
+    _copy_temporary_skill(canonical, mirror)
+    outside = tmp_path / "outside-private.txt"
+    outside.write_text("private\n", encoding="utf-8")
+    (mirror / "obsolete-link").symlink_to(outside)
+
+    assert sync_workspace_skill_mirror.main([]) == 0
+    assert not (mirror / "obsolete-link").exists()
+    assert outside.read_text(encoding="utf-8") == "private\n"
+
+
+def test_skill_mirror_rejects_a_destination_outside_the_repository(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+):
+    _configure_temporary_skill_mirror(monkeypatch, tmp_path)
+    outside = tmp_path.parent / f"{tmp_path.name}-outside-mirror"
+    monkeypatch.setattr(sync_workspace_skill_mirror, "COMPATIBILITY_MIRROR", outside)
+
+    assert sync_workspace_skill_mirror.main([]) == 2
+    assert "outside the repository" in capsys.readouterr().err
+    assert not outside.exists()
 
 
 def test_skills_directory_is_the_canonical_workspace_pack():
@@ -194,7 +304,8 @@ def test_agent_guidance_keeps_brief_and_document_plan_ask_first_tier_two():
     assert "revision/hash CAS" in main_skill
     assert "required + omit" in main_skill
     assert "confirmed_empty" in main_skill
-    assert "Task 6 is locally accepted" in main_skill
+    assert "Stage 2 is locally accepted" in main_skill
+    assert "Draft/package readiness does not follow" in main_skill
     assert "Stage 2" in main_skill
 
     for bridge_path in (Path("platform-bridges/AGENTS.md"), Path("platform-bridges/CLAUDE.md")):
