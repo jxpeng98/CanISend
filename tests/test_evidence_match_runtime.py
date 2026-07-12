@@ -29,8 +29,10 @@ from canisend.stage_runtime import (
 )
 from canisend.stage_store import StageStoreError, sha256_file
 from canisend.user_mutations import (
+    CorrectCriterionPatch,
     SetDecisionPatch,
     apply_user_patch,
+    initialize_application_brief,
     initialize_application_decision,
     initialize_confirmed_corrections,
 )
@@ -1055,6 +1057,12 @@ def test_legacy_pipeline_preserves_current_structured_decision_spine(tmp_path: P
         expected_sha256=decision.snapshot.sha256,
         consent_confirmed=True,
     )
+    initialize_application_brief(
+        workspace,
+        job_dir,
+        consent_confirmed=True,
+    )
+    run_deterministic_stage(workspace, job_dir, stage="brief")
     structured = (
         "parsed_job.json",
         "criteria.json",
@@ -1062,8 +1070,11 @@ def test_legacy_pipeline_preserves_current_structured_decision_spine(tmp_path: P
         "criterion_matches.json",
         "confirmed_corrections.yaml",
         "application_decision.yaml",
+        "application_brief.yaml",
+        "required_document_plan.json",
     )
-    before = {name: sha256_file(job_dir / name) for name in structured}
+    before = {name: (job_dir / name).read_bytes() for name in structured}
+    (job_dir / "workflow" / "state.json").unlink()
 
     result = CliRunner().invoke(
         app,
@@ -1078,8 +1089,21 @@ def test_legacy_pipeline_preserves_current_structured_decision_spine(tmp_path: P
     )
 
     assert result.exit_code == 0, result.output
-    assert {name: sha256_file(job_dir / name) for name in structured} == before
-    for stage in ("evidence", "parse", "confirm", "match"):
+    assert {name: (job_dir / name).read_bytes() for name in structured} == before
+    fit_report = (job_dir / "02_fit_report.md").read_text(encoding="utf-8")
+    checklist = (job_dir / "05_criteria_checklist.md").read_text(encoding="utf-8")
+    package_content = json.loads(
+        (job_dir / "typst" / "application_package_content.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert "Deterministic proposal" in fit_report
+    assert "PROPOSED" in fit_report
+    assert "Deterministic Match proposals only" in checklist
+    assert PRIVATE_EVIDENCE not in fit_report + checklist
+    assert package_content["fit_report"] == fit_report
+    assert package_content["criteria_checklist"] == checklist
+    for stage in ("evidence", "parse", "confirm", "match", "brief"):
         status = inspect_stage_status(
             workspace,
             job_dir,
@@ -1087,3 +1111,239 @@ def test_legacy_pipeline_preserves_current_structured_decision_spine(tmp_path: P
         )
         assert status.stage.status == "succeeded"
         assert status.reasons == ()
+
+    primary = job_dir / "typst" / "application_package.typ"
+    edited_primary = primary.read_text(encoding="utf-8") + "\n// user edit\n"
+    primary.write_text(edited_primary, encoding="utf-8")
+    rerun = CliRunner().invoke(
+        app,
+        [
+            "run",
+            "--workspace",
+            str(workspace),
+            "--job",
+            "jobs/example-role",
+            "--no-git-add-materials",
+        ],
+    )
+    assert rerun.exit_code == 0, rerun.output
+    candidate = job_dir / "typst" / "application_package.generated.typ"
+    assert primary.read_text(encoding="utf-8") == edited_primary
+    assert "Deterministic proposal" in candidate.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    "drift",
+    ["advert", "criteria_output", "evidence_output", "match_output"],
+)
+def test_legacy_pipeline_falls_back_when_structured_match_is_not_current(
+    tmp_path: Path,
+    drift: str,
+) -> None:
+    workspace, job_dir, _ = _write_workspace(tmp_path)
+    _run_to_match(workspace, job_dir)
+    if drift == "advert":
+        advert_path = job_dir / "job_advert.md"
+        advert_path.write_text(
+            advert_path.read_text(encoding="utf-8")
+            + "\nEssential criteria:\n- Experience with research supervision\n",
+            encoding="utf-8",
+        )
+    elif drift == "criteria_output":
+        criteria_path = job_dir / "criteria.json"
+        criteria_path.write_bytes(criteria_path.read_bytes() + b" ")
+    elif drift == "evidence_output":
+        evidence_path = job_dir / "evidence_catalog.json"
+        evidence_path.write_bytes(evidence_path.read_bytes() + b" ")
+    else:
+        matches_path = job_dir / "criterion_matches.json"
+        matches_path.write_bytes(matches_path.read_bytes() + b" ")
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "run",
+            "--workspace",
+            str(workspace),
+            "--job",
+            "jobs/example-role",
+            "--no-git-add-materials",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    fit_report = (job_dir / "02_fit_report.md").read_text(encoding="utf-8")
+    checklist = (job_dir / "05_criteria_checklist.md").read_text(encoding="utf-8")
+    assert "Deterministic proposal" not in fit_report
+    assert "Deterministic Match proposals only" not in checklist
+    status = inspect_stage_status(workspace, job_dir, stage="match")
+    if drift == "advert":
+        assert status.stage.status == "stale"
+        assert status.reasons
+    elif drift == "criteria_output":
+        assert inspect_stage_status(
+            workspace,
+            job_dir,
+            stage="confirm",
+        ).output_drift
+    elif drift == "evidence_output":
+        assert inspect_stage_status(
+            workspace,
+            job_dir,
+            stage="evidence",
+        ).output_drift
+    else:
+        assert status.output_drift
+
+
+def test_legacy_pipeline_does_not_mix_structured_match_with_profile_override(
+    tmp_path: Path,
+) -> None:
+    workspace, job_dir, _ = _write_workspace(tmp_path)
+    _run_to_match(workspace, job_dir)
+    override_profile = workspace / "profile-b"
+    override_generated = override_profile / "generated"
+    override_generated.mkdir(parents=True)
+    (override_profile / "profile.yaml").write_text(
+        "generated:\n  cv_evidence: generated/cv.evidence.md\n",
+        encoding="utf-8",
+    )
+    (override_generated / "cv.evidence.md").write_text(
+        "# Evidence: override\n\n"
+        "## Teaching B\n\n"
+        "- [profile-b-001] `teaching`: Profile B unique teaching evidence\n",
+        encoding="utf-8",
+    )
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "run",
+            "--workspace",
+            str(workspace),
+            "--job",
+            "jobs/example-role",
+            "--profile-dir",
+            "profile-b",
+            "--no-git-add-materials",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    generated = "\n".join(
+        (job_dir / name).read_text(encoding="utf-8")
+        for name in (
+            "02_fit_report.md",
+            "03_cover_letter_draft.md",
+            "04_cv_tailoring_notes.md",
+            "05_criteria_checklist.md",
+            "06_final_application_package.md",
+            "07_material_review_checklist.md",
+        )
+    )
+    assert "Deterministic proposal" not in generated
+    assert "profile-b/generated/cv.evidence.md" in generated
+    assert "profile/generated/cv.evidence.md" not in generated
+    assert PRIVATE_EVIDENCE not in generated
+
+
+def test_scoped_correction_invalidates_only_declared_dependants_and_preserves_brief(
+    tmp_path: Path,
+) -> None:
+    workspace, job_dir, _ = _write_workspace(tmp_path)
+    run_deterministic_stage(workspace, job_dir, stage="evidence")
+    run_deterministic_stage(workspace, job_dir, stage="parse")
+    corrections = initialize_confirmed_corrections(
+        workspace,
+        job_dir,
+        consent_confirmed=True,
+    )
+    run_deterministic_stage(workspace, job_dir, stage="confirm")
+    run_deterministic_stage(workspace, job_dir, stage="match")
+    decision = initialize_application_decision(
+        workspace,
+        job_dir,
+        consent_confirmed=True,
+    )
+    apply_user_patch(
+        workspace,
+        job_dir,
+        SetDecisionPatch(decision="apply"),
+        expected_revision=decision.snapshot.revision,
+        expected_sha256=decision.snapshot.sha256,
+        consent_confirmed=True,
+    )
+    initialize_application_brief(
+        workspace,
+        job_dir,
+        consent_confirmed=True,
+    )
+    run_deterministic_stage(workspace, job_dir, stage="brief")
+    brief_before = (job_dir / "application_brief.yaml").read_bytes()
+    criterion_id = json.loads(
+        (job_dir / "criteria.json").read_text(encoding="utf-8")
+    )["criteria"][0]["criterion_id"]
+
+    apply_user_patch(
+        workspace,
+        job_dir,
+        CorrectCriterionPatch(
+            criterion_id=criterion_id,
+            corrected_text="User-confirmed scoped criterion wording",
+        ),
+        expected_revision=corrections.snapshot.revision,
+        expected_sha256=corrections.snapshot.sha256,
+        consent_confirmed=True,
+    )
+
+    statuses = {
+        stage: inspect_stage_status(
+            workspace,
+            job_dir,
+            stage=stage,  # type: ignore[arg-type]
+        )
+        for stage in ("parse", "evidence", "confirm", "match", "brief")
+    }
+    assert statuses["parse"].stage.status == "succeeded"
+    assert statuses["parse"].reasons == ()
+    assert statuses["evidence"].stage.status == "succeeded"
+    assert statuses["evidence"].reasons == ()
+    assert statuses["confirm"].stage.status == "stale"
+    assert statuses["confirm"].reasons == ("input_changed",)
+    assert statuses["match"].stage.status == "stale"
+    assert statuses["match"].reasons == ("dependency_not_current:confirm",)
+    assert statuses["brief"].stage.status == "stale"
+    assert statuses["brief"].reasons == (
+        "dependency_not_current:match",
+        "dependency_not_current:confirm",
+    )
+    assert (job_dir / "application_brief.yaml").read_bytes() == brief_before
+
+    run_deterministic_stage(workspace, job_dir, stage="confirm")
+    run_deterministic_stage(workspace, job_dir, stage="match")
+    result = CliRunner().invoke(
+        app,
+        [
+            "run",
+            "--workspace",
+            str(workspace),
+            "--job",
+            "jobs/example-role",
+            "--no-git-add-materials",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    fit_report = (job_dir / "02_fit_report.md").read_text(encoding="utf-8")
+    checklist = (job_dir / "05_criteria_checklist.md").read_text(encoding="utf-8")
+    material_review = (job_dir / "07_material_review_checklist.md").read_text(
+        encoding="utf-8"
+    )
+    assert "User-confirmed scoped criterion wording" in fit_report
+    assert "User-confirmed scoped criterion wording" in checklist
+    assert "User-confirmed scoped criterion wording" in material_review
+    strict_hr = material_review.split("## Strict University HR Review", 1)[1]
+    assert "PhD in Economics" not in fit_report + checklist + strict_hr
+    rerun_criteria = json.loads(
+        (job_dir / "criteria.json").read_text(encoding="utf-8")
+    )["criteria"]
+    assert criterion_id in {item["criterion_id"] for item in rerun_criteria}

@@ -683,6 +683,13 @@ def test_run_pipeline_can_use_llm_parser_with_command_provider(tmp_path, monkeyp
 
 
 def test_run_pipeline_can_use_llm_drafts_with_command_provider(tmp_path, monkeypatch):
+    def fail_structured_view_load(*args, **kwargs):
+        raise AssertionError("LLM drafts must not be replaced by deterministic Match views")
+
+    monkeypatch.setattr(
+        "canisend.pipeline.load_current_structured_match_views",
+        fail_structured_view_load,
+    )
     job_dir = tmp_path / "jobs" / "2026-06-15_university-x_lecturer-in-economics"
     job_dir.mkdir(parents=True)
     (job_dir / "job.yaml").write_text(

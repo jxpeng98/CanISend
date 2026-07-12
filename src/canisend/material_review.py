@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import re
-from typing import Any
+from typing import Any, Literal
 
 from canisend.materials import ApplicationMaterials
 
@@ -19,7 +19,35 @@ class CriteriaCoverage:
     evidence_source: str
 
 
-def build_material_review_checklist(parsed_job: dict[str, Any], materials: ApplicationMaterials) -> str:
+@dataclass(frozen=True)
+class StructuredEssentialCriterion:
+    criterion_id: str
+    text: str
+    classification: Literal["strong", "partial", "weak", "missing", "unknown"]
+    evidence_linked: bool
+    unresolved_reasons: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        if self.classification not in {"strong", "partial", "weak", "missing", "unknown"}:
+            raise ValueError("structured criterion classification is invalid")
+
+
+@dataclass(frozen=True)
+class StructuredCriteriaReview:
+    extraction_state: Literal["extracted", "confirmed_empty"]
+    essential_criteria: tuple[StructuredEssentialCriterion, ...]
+
+    def __post_init__(self) -> None:
+        if self.extraction_state not in {"extracted", "confirmed_empty"}:
+            raise ValueError("structured criteria extraction state is invalid")
+
+
+def build_material_review_checklist(
+    parsed_job: dict[str, Any],
+    materials: ApplicationMaterials,
+    *,
+    structured_criteria: StructuredCriteriaReview | None = None,
+) -> str:
     all_citations = sorted(
         _markdown_citations(
             "\n\n".join(
@@ -60,7 +88,11 @@ def build_material_review_checklist(parsed_job: dict[str, Any], materials: Appli
             "",
             _review_section("CV Tailoring Notes", materials.cv_tailoring_notes),
             "",
-            _strict_hr_review_section(parsed_job, materials),
+            _strict_hr_review_section(
+                parsed_job,
+                materials,
+                structured_criteria=structured_criteria,
+            ),
             "",
             "## Management Actions",
             "",
@@ -94,8 +126,12 @@ def _review_section(label: str, markdown: str) -> str:
     return "\n".join(lines)
 
 
-def _strict_hr_review_section(parsed_job: dict[str, Any], materials: ApplicationMaterials) -> str:
-    coverage = _criteria_coverage(materials.criteria_checklist)
+def _strict_hr_review_section(
+    parsed_job: dict[str, Any],
+    materials: ApplicationMaterials,
+    *,
+    structured_criteria: StructuredCriteriaReview | None,
+) -> str:
     lines = [
         "## Strict University HR Review",
         "",
@@ -105,15 +141,22 @@ def _strict_hr_review_section(parsed_job: dict[str, Any], materials: Application
         "| Essential Criterion | HR Status | Reason |",
         "|---|---|---|",
     ]
-    essentials = parsed_job.get("essential_criteria", [])
+    if structured_criteria is not None:
+        lines.extend(_structured_hr_rows(structured_criteria))
+        return "\n".join(lines)
+
+    coverage = _criteria_coverage(materials.criteria_checklist)
+    essentials = tuple(
+        str(item.get("criterion", "")).strip()
+        for item in parsed_job.get("essential_criteria", [])
+    )
     if not essentials:
         lines.append(
             "| No essential criteria extracted | BLOCKER | Review the JD manually before relying on generated materials. |"
         )
         return "\n".join(lines)
 
-    for item in essentials:
-        criterion = str(item.get("criterion", "")).strip()
+    for criterion in essentials:
         escaped_criterion = _markdown_table_cell(criterion)
         item_coverage = coverage.get(_criterion_key(criterion))
         if item_coverage is None:
@@ -125,7 +168,7 @@ def _strict_hr_review_section(parsed_job: dict[str, Any], materials: Application
             lines.append(
                 f"| {escaped_criterion} | BLOCKER | Coverage is strong but evidence source is not linked. |"
             )
-        elif label in {"weak", "missing"}:
+        elif label in {"weak", "missing", "unknown"}:
             lines.append(
                 f"| {escaped_criterion} | BLOCKER | Coverage is {label}; strengthen evidence and JD wording. |"
             )
@@ -140,6 +183,50 @@ def _strict_hr_review_section(parsed_job: dict[str, Any], materials: Application
     return "\n".join(lines)
 
 
+def _structured_hr_rows(review: StructuredCriteriaReview) -> list[str]:
+    if review.extraction_state == "confirmed_empty":
+        return [
+            "| No essential criteria advertised | OK | "
+            "The criteria extraction was explicitly confirmed empty. |"
+        ]
+    if not review.essential_criteria:
+        return [
+            "| No essential criteria in the current catalog | OK | "
+            "Review desirable criteria and the advert before submission. |"
+        ]
+
+    rows: list[str] = []
+    for criterion in review.essential_criteria:
+        escaped = _markdown_table_cell(criterion.text)
+        if criterion.unresolved_reasons:
+            reason = _markdown_table_cell("; ".join(criterion.unresolved_reasons))
+            rows.append(
+                f"| {escaped} | BLOCKER | Criterion is unresolved: {reason}. |"
+            )
+        elif criterion.classification == "strong" and not criterion.evidence_linked:
+            rows.append(
+                f"| {escaped} | BLOCKER | Coverage is strong but evidence source is not linked. |"
+            )
+        elif criterion.classification in {"weak", "missing", "unknown"}:
+            rows.append(
+                f"| {escaped} | BLOCKER | Coverage is {criterion.classification}; "
+                "strengthen evidence and JD wording. |"
+            )
+        elif criterion.classification == "partial":
+            rows.append(
+                f"| {escaped} | REVIEW | Partial coverage; make fit more explicit for HR screening. |"
+            )
+        elif criterion.classification == "strong":
+            rows.append(
+                f"| {escaped} | OK | Strong coverage recorded; confirm claim wording stays proportional. |"
+            )
+        else:
+            rows.append(
+                f"| {escaped} | BLOCKER | Unsupported structured coverage state. |"
+            )
+    return rows
+
+
 def _criteria_coverage(markdown: str) -> dict[str, CriteriaCoverage]:
     coverage: dict[str, CriteriaCoverage] = {}
     for line in markdown.splitlines():
@@ -152,7 +239,7 @@ def _criteria_coverage(markdown: str) -> dict[str, CriteriaCoverage]:
         if _is_table_header(cells) or _is_table_separator(cells):
             continue
         label = cells[1].strip().lower()
-        if label in {"strong", "partial", "weak", "missing"}:
+        if label in {"strong", "partial", "weak", "missing", "unknown"}:
             evidence_source = cells[2].strip() if len(cells) > 2 else ""
             coverage[_criterion_key(cells[0])] = CriteriaCoverage(
                 label=label,

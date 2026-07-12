@@ -1899,6 +1899,7 @@ def run_pipeline(
         use_llm_parser=llm_parser,
         use_llm_drafts=llm_drafts,
         prompt_dir=config.path("prompt_dir", prompt_dir),
+        workspace=config.root,
     )
     typer.echo(f"Generated {len(written)} files for {job_dir}")
     written_candidate_paths = {

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 import hashlib
 import json
 from datetime import UTC, datetime
@@ -23,6 +24,7 @@ from canisend.materials import (
     generate_materials_with_provider,
 )
 from canisend.material_review import build_material_review_checklist
+from canisend.match_views import load_current_structured_match_views
 from canisend.parse import parse_job_advert, parse_job_advert_with_provider
 from canisend.resource_files import read_resource_text
 from canisend.stages.parse_stage import build_deterministic_parse_candidate
@@ -32,6 +34,7 @@ from canisend.typst_mapping import (
     render_modernpro_application_package_source,
     render_modernpro_cover_letter_source,
 )
+from canisend.workspace import load_workspace_config
 
 
 TYPST_GENERATION_MANIFEST = ".canisend-generated.json"
@@ -45,6 +48,7 @@ def run_pipeline(
     use_llm_parser: bool = False,
     use_llm_drafts: bool = False,
     prompt_dir: Path = Path("prompts"),
+    workspace: Path | None = None,
 ) -> list[Path]:
     metadata_path = job_dir / "job.yaml"
     advert_path = job_dir / "job_advert.md"
@@ -65,6 +69,24 @@ def run_pipeline(
         prompt_dir=prompt_dir,
         style_context=style_context,
     )
+    structured_criteria = None
+    if (
+        workspace is not None
+        and not use_llm_drafts
+        and _uses_workspace_profile(workspace, profile_dir)
+    ):
+        structured_views = load_current_structured_match_views(
+            workspace,
+            job_dir,
+            parsed_job=parsed_job,
+        )
+        if structured_views is not None:
+            materials = replace(
+                materials,
+                fit_report=structured_views.fit_report,
+                criteria_checklist=structured_views.criteria_checklist,
+            )
+            structured_criteria = structured_views.criteria_review
     if use_llm_drafts:
         provider = provider_from_config(load_llm_config())
         final_package = generate_final_package_with_provider(
@@ -77,7 +99,11 @@ def run_pipeline(
         )
     else:
         final_package = _final_package(parsed_job, materials)
-    material_review = build_material_review_checklist(parsed_job, materials)
+    material_review = build_material_review_checklist(
+        parsed_job,
+        materials,
+        structured_criteria=structured_criteria,
+    )
     _invalidate_application_gate_report(job_dir)
     written = [
         _write_json_preserving_equivalent(job_dir / "parsed_job.json", parsed_job),
@@ -112,6 +138,16 @@ def run_pipeline(
     metadata["updated_at"] = _utc_now()
     metadata_path.write_text(yaml.safe_dump(metadata, sort_keys=False), encoding="utf-8")
     return written
+
+
+def _uses_workspace_profile(workspace: Path, profile_dir: Path) -> bool:
+    """Require one profile provenance before mixing Match views into a package."""
+
+    try:
+        configured = load_workspace_config(workspace).path("profile_dir")
+        return profile_dir.expanduser().resolve() == configured.expanduser().resolve()
+    except (OSError, ValueError, yaml.YAMLError):
+        return False
 
 
 def _parse_job(
