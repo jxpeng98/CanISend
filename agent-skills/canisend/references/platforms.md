@@ -62,9 +62,11 @@ For VS Code, Cursor, Zed, JetBrains, Copilot-style chat, and other IDE agents:
 - `canisend agent capabilities --format json` reports the supported protocol and operations.
 - `canisend agent context --workspace <private-workspace> --format json` reports safe workspace state.
 - `canisend stage status --workspace <private-workspace> --job jobs/<job-slug> --format json` reconstructs current
-  Parse, Confirm, Evidence, and Match state from durable job files.
-- `canisend corrections status` and `canisend decision status` reconstruct user-owned state without returning private
-  bodies; agents use their init/update/recover operations rather than writing YAML directly.
+  Parse, Confirm, Evidence, Match, and Brief-plan state from durable job files.
+- `canisend corrections status`, `canisend decision status`, and `canisend brief status` reconstruct user-owned state
+  without returning private bodies; agents use their init/update/recover operations rather than writing YAML directly.
+- Agents ask before reading Tier 2 `application_brief.yaml` or `required_document_plan.json`; body-free status is the
+  default cross-platform handoff.
 - `canisend doctor --workspace <private-workspace>` remains available for human-readable diagnostics.
 - Root bridge file exists for the target platform.
 - The bridge points to `agent-skills/canisend/SKILL.md`.
@@ -79,19 +81,22 @@ the same `agent context` command with the workspace and optional job path. Apart
 unchanged workspace yields the same semantic context, artifact hashes, blockers, consents, and next actions.
 
 The accepted shell contract covers Codex CLI/App sessions with command access, Claude Code, and IDE shell agents.
-Parse supports deterministic and approved host-agent execution; Confirm, Evidence, and Match are deterministic-only.
+Parse supports deterministic and approved host-agent execution; Confirm, Evidence, Match, and Brief planning are
+deterministic-only.
 Evidence materializes its cross-directory profile inputs into a job-local immutable snapshot, so TaskSpec v1 remains
 truthful on every host. Its safe-read implementation uses descriptor-relative protection where available and a
 portable pre/post identity fallback where it is not.
 
 No platform adapter, SDK, MCP transport, hosted service, or second provider is required for these slices. A fresh
-host can run `extract-profile-evidence`, deterministic Evidence/Parse/Confirm/Match, and the same status/scoped-patch
-corrections and Decision operations through the CLI. Match output is proposed review data; only an explicit
-user-owned Decision update records apply, hold, or skip.
+host can run `extract-profile-evidence`, deterministic Evidence/Parse/Confirm/Match/Brief, and the same
+status/scoped-patch corrections, Decision, and Brief operations through the CLI. Match output is proposed review
+data; only explicit user-owned updates record apply/hold/skip and Brief choices.
 
 Codex, Claude Code, and IDE agents must create one bounded strict patch in safe scratch space and pass it to the
 Agent operation with the current revision/hash and explicit consent. They must not overwrite or normalize
-`confirmed_corrections.yaml` or `application_decision.yaml`. One correction requires one subsequent Confirm rerun
-before the next correction. Private patch/YAML/candidate bodies are Tier 2; receipts and AgentResponse remain
-body-free. CAS assumes a stable local job directory and cooperative CanISend writers, so avoid concurrent manual
-editor saves.
+`confirmed_corrections.yaml`, `application_decision.yaml`, or `application_brief.yaml`, and must never edit
+`required_document_plan.json`. One correction requires one subsequent Confirm rerun before the next correction.
+Brief requires a current confirmed apply Decision; empty requirements are not `confirmed_empty`, and unresolved,
+required/omit, missing-action, or orphan blockers remain visible. Private patch/YAML/plan/candidate bodies are Tier 2;
+receipts and AgentResponse remain body-free. CAS assumes a stable local job directory and cooperative CanISend
+writers, so avoid concurrent manual editor saves. Task 6 is locally accepted; Task 7 and Stage 2 remain open.

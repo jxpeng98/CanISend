@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Locally accepted the Stage 2 Task 6 slice with ADR-012, a strict user-owned Tier 2
+  `application_brief.yaml`, deterministic core-owned Tier 2 `required_document_plan.json`, field-level Brief
+  confirmations, source-bound document-requirement states, and body-free Agent status. This does not mark Task 7 or
+  Stage 2 complete.
+- Extended guarded scoped-patch/CAS/recovery semantics to Brief preparation and defined executable plan blockers for
+  unconfirmed requirement sets, unresolved choices, `required + omit`, missing preparation actions, and orphaned
+  choices. Empty Parsed Job document output is not `confirmed_empty` without explicit current-basis confirmation;
+  non-empty confirmation requires complete positive source members bound to current advert anchors.
 - Accepted the Stage 2 Task 5 slice with strict user-owned `confirmed_corrections.yaml` and
   `application_decision.yaml`, explicit create-if-absent initialization, scoped correction/Decision patches,
   revision/hash compare-and-swap, single-winner claims, immutable private candidates, and immutable receipts.

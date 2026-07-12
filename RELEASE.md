@@ -50,10 +50,15 @@ python -m venv /tmp/canisend-smoke
 ```
 
 The automated clean-wheel smoke additionally runs the fake-data Decision Spine through Evidence, Parse, Confirm,
-corrections status/init with explicit consent, Match, and Decision status/init with explicit consent. This proves
-empty corrections initialization is fingerprint-neutral. It asserts both user-owned files and two immutable receipts
-without parsing a dynamic revision/hash in shell; scoped update/recovery behavior remains covered by the Python test
-suite.
+corrections status/init, Match, a scoped current-basis `decision=apply` update, Brief status/init, and deterministic
+Brief planning. The shared smoke helper parses only body-free revision/hash metadata, writes a synthetic private patch
+to temporary workspace scratch, and removes it after use. It asserts three user-owned YAML files, the core-owned
+`required_document_plan.json`, four immutable body-free mutation receipts, and successful manifests for Evidence,
+Parse, Confirm, Match, and Brief.
+
+Task 6 was locally accepted only after this smoke was combined with focused privacy/CAS/recovery and adversarial
+source-receipt tests, the Python 3.11-3.14 matrix, package/resource validation, Twine checks, and a clean installed-wheel
+run. Local acceptance does not complete Task 7 or Stage 2 and is not a remote CI or publication result.
 
 ## Trusted Publishing Setup
 

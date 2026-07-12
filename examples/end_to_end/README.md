@@ -36,12 +36,27 @@ canisend stage run --workspace /tmp/canisend-example --job "$JOB" --stage eviden
 canisend stage run --workspace /tmp/canisend-example --job "$JOB" --stage parse --mode deterministic --format json
 canisend stage run --workspace /tmp/canisend-example --job "$JOB" --stage confirm --mode deterministic --format json
 canisend stage run --workspace /tmp/canisend-example --job "$JOB" --stage match --mode deterministic --format json
+canisend decision status --workspace /tmp/canisend-example --job "$JOB" --format json
 ```
 
 This adds strict Tier 2 `criteria.json`, private `evidence_catalog.json`, and body-minimized Tier 2
 `criterion_matches.json` plus immutable run evidence under the job's `workflow/` directory. Match classifications
 are proposed review results, not application decisions. The fake profile stays inside the workspace and its
 generated Typst evidence carries a source-hash receipt.
+
+After recording a current confirmed `decision=apply` through `decision init|update`, the same fake job can exercise
+the Task 6 implementation without a provider or platform API:
+
+```bash
+canisend brief status --workspace /tmp/canisend-example --job "$JOB" --format json
+canisend brief init --workspace /tmp/canisend-example --job "$JOB" --confirm-user-owned-write --format json
+canisend stage run --workspace /tmp/canisend-example --job "$JOB" --stage brief --mode deterministic --format json
+```
+
+Use `brief update` with one strict patch and the latest revision/hash to confirm fields, the current document
+requirements basis, and document choices. `application_brief.yaml` and `required_document_plan.json` are Tier 2;
+Agent status remains body-free. An empty parsed list is not `confirmed_empty`, and unresolved, `required + omit`, or
+orphaned choices remain blockers. Task 6 is locally accepted; this example does not claim Task 7 or Stage 2 complete.
 
 The manual sequence below is useful when developing the project or debugging individual steps.
 

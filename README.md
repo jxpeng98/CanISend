@@ -28,6 +28,8 @@ It prepares materials only. It does not submit applications, create accounts, fi
 - Produces deterministic, reviewable `criterion_matches.json` proposals from current Criteria and Evidence catalogs.
 - Preserves user-owned criteria confirmations/corrections and apply/hold/skip decisions through explicit-consent,
   revision/hash compare-and-swap operations with privacy-safe receipts.
+- Adds the locally accepted Stage 2 Brief slice: user-owned Tier 2 `application_brief.yaml` plus deterministic,
+  core-owned Tier 2 `required_document_plan.json` with executable unresolved/omit/orphan blockers.
 - Generates `parsed_job.json`, preparation questions, fit reports, cover letter drafts, CV tailoring notes, criteria checklists, material review checklists, and structured Typst content.
 - Runs deterministic local generation by default, with explicit opt-in for LLM-backed evidence augmentation, parsing, or drafting.
 - Ships bridge files plus a self-contained workspace skill pack for Codex, Claude Code, and IDE agents.
@@ -119,6 +121,9 @@ full advert -> Parsed Job -> stable Criteria ----------------+            v
                                                                   |
                                                                   v
                                                    user-owned application Decision
+                                                                  |
+                                                                  v
+                                              user-owned Brief -> required-document plan
 ```
 
 ### 1. Initialize a private workspace
@@ -446,8 +451,9 @@ successful invocation writes one `canisend.agent/v1` response to stdout. Respons
 artifact references and hashes rather than private document bodies. A failed package gate remains a successful
 operation result (`ok: true`) but exits non-zero; operational failures return `ok: false` with a stable error code.
 
-The resumable workflow exposes the accepted Parse, Confirm, Evidence, Match, and Task 5 user-owned mutation slices
-through the same shell-capable hosts. Start a deterministic fresh session with:
+The resumable workflow exposes the locally accepted Parse, Confirm, Evidence, Match, user-owned mutation, and Task 6
+Brief/document-plan slices through the same shell-capable hosts. Start
+a deterministic fresh session with:
 
 ```bash
 canisend agent context --workspace . --job jobs/<job-slug> --format json
@@ -531,6 +537,36 @@ Fresh status also detects a process interruption between publishing a complete p
 CanISend's temporary link. It remains read-only and routes the same opaque mutation ID to explicit recovery; ordinary
 hard links are still rejected.
 
+Brief work starts only from a current confirmed `decision=apply`. Brief status is body-free; initialization and every
+scoped change use the same explicit-consent revision/hash CAS boundary as corrections and Decision:
+
+```bash
+canisend brief status --workspace . --job jobs/<job-slug> --format json
+canisend brief init --workspace . --job jobs/<job-slug> --confirm-user-owned-write --format json
+canisend brief status --workspace . --job jobs/<job-slug> --format json
+```
+
+Use `brief update` with one bounded strict patch file, the latest revision/hash, and
+`--confirm-user-owned-write`; never replace `application_brief.yaml` directly. Language, writing style, motivation,
+emphasis, exclusions, the advert-document requirement-set confirmation, and document choices remain field-level user
+decisions. An empty Parsed Job document list is `unconfirmed`, not `confirmed_empty`; only an explicit
+`confirm_document_requirements` patch may record `confirmed_empty` against the current requirements-basis hash.
+For a non-empty set, every extracted item must resolve to one complete, positive advert document member. Missing,
+ambiguous, conditional, alternative, qualified, truncated, or unreconciled source context remains `unconfirmed`; its
+section/item anchor is part of the basis, so a source move or change requires a new confirmation.
+
+Generate the current core-owned plan deterministically after the Brief exists:
+
+```bash
+canisend stage run --workspace . --job jobs/<job-slug> --stage brief --mode deterministic --format json
+```
+
+The plan records body-free status counts and blocker codes in AgentResponse. Its Tier 2 body remains ask-first for an
+agent because it can contain advert source text and application strategy. An unconfirmed requirement set, unresolved
+choice, `required + omit`, required document without a preparation action, or orphaned old choice blocks later
+Draft/Verify work. Task 6 is locally accepted, but these artifacts do not complete Task 7, Stage 2, or an application
+package.
+
 Evidence and Parse are independent after intake, so their deterministic runs may be ordered either way; Match waits
 for current Confirm and Evidence outputs. Host-agent execution currently applies to Parse only; Evidence, Confirm,
 and Match are deterministic-only. For current-host Parse
@@ -572,22 +608,24 @@ Match reads only the current job-local `criteria.json` and `evidence_catalog.jso
 criterion, explicit privacy-safe gaps, matcher provenance, and opaque catalog references. It does not copy evidence
 text, generated-evidence headings, or legacy locators. Every record has `review_state=proposed`: Match is not an
 application decision, does not confirm applicant claims, and does not make a package ready. The user-owned Decision
-is managed separately through `decision status|init|update`; application Brief and advert-driven document planning
-remain later Stage 2 work.
+is managed separately through `decision status|init|update`; Brief uses `brief status|init|update`, and deterministic
+Brief-stage planning writes `required_document_plan.json`. This Task 6 slice is locally accepted; view migration and
+the full Stage 2 exit review remain open in Task 7.
 
 Use `canisend doctor --workspace .` when a human-readable environment diagnostic is also useful.
 
 A fresh Codex, Claude Code, or IDE shell session resumes from the same durable workspace state by running the same
 `agent context` command; it does not need the previous chat transcript. The fake-data conformance fixture under
 `examples/agent_handoff/` demonstrates this host-neutral handoff. Parse adds durable task/result exchange through the
-existing CLI; Confirm, Evidence, and Match reuse that boundary, while corrections and Decision use separate
-user-owned mutation operations. None requires a platform-specific API. Later roadmap slices add briefs and
-advert-driven document planning. MCP is not on the current critical path.
+existing CLI; Confirm, Evidence, Match, and required-document planning reuse that boundary, while corrections,
+Decision, and Brief use separate user-owned mutation operations. None requires a platform-specific API, network, MCP
+transport, or configured provider in deterministic mode.
 
 They may run local deterministic CLI commands, inspect generated evidence, and review current job artifacts. They must
 ask first before reading full private CVs, statements, full job adverts, references, PDFs, source URLs, Evidence
-snapshots/candidates/catalogs, `criteria.json`, `criterion_matches.json`, generated packages, or enabling LLM-backed
-CLI flags/providers. Criteria may contain corrected wording; Match is body-minimized but remains Tier 2. They must not
+snapshots/candidates/catalogs, `criteria.json`, `criterion_matches.json`, `application_brief.yaml`,
+`required_document_plan.json`, generated packages, or enabling LLM-backed CLI flags/providers. Criteria may contain
+corrected wording; Match, Brief, and the document plan remain Tier 2. They must not
 scrape pages, submit applications, upload packages, fabricate evidence, or commit private profile/job data.
 
 Original profile inputs under `profile/` are protected. Agents should normally produce profile-improvement suggestions inside the job folder, not rewrite the source CV or statements. A write back to `profile/typst/*.typ`, `profile/*.md`, or other non-generated profile input is allowed only through an orchestrator task that declares `edits_profile_input: true`, depends on a prior review task, uses privacy tier 2 or higher, and is launched with `--allow-profile-input-edits --confirm-profile-input-edit --confirm-profile-input-edit-again`.
@@ -688,15 +726,17 @@ This repository is intended to be open source. Personal application data should 
 - Evidence snapshots, Evidence candidates, `evidence_catalog.json`, and `criterion_matches.json` stay inside ignored
   private job folders. The first three may contain duplicated normalized profile text; removing a run or job remains
   an explicit user retention decision.
-- `criteria.json`, `criterion_matches.json`, `confirmed_corrections.yaml`, `application_decision.yaml`, and private
-  mutation candidates are Tier 2. Criteria may contain corrected wording; Match is body-minimized but job-specific.
-  Mutation receipts are Tier 1 and contain no correction text or rationale; neither do workflow control records,
-  errors, ordinary command output, or AgentResponse.
+- `criteria.json`, `criterion_matches.json`, `confirmed_corrections.yaml`, `application_decision.yaml`,
+  `application_brief.yaml`, `required_document_plan.json`, and private mutation/stage candidates are Tier 2. Criteria
+  may contain corrected wording; Match is body-minimized, while Brief and plan may reveal private motivation,
+  exclusions, source text, and application strategy. Mutation receipts are Tier 1 and contain none of those bodies;
+  neither do workflow control records, errors, ordinary command output, or AgentResponse.
 - User YAML may be edited manually. Status and stage reruns do not normalize it; an explicitly consented scoped
   update creates a canonical next revision and may not preserve comments. Revision/hash CAS coordinates cooperative
   CanISend writers in a stable job directory; it does not linearize a normal editor save in the final replace window
   or a hostile same-user rename. Run status immediately before changing a file and avoid concurrent manual saves.
-- Resetting/clearing the current Decision or withdrawing a correction is a semantic update, not disk erasure.
+- Resetting/clearing the current Decision or Brief field, removing a document choice, or withdrawing a correction is
+  a semantic update, not disk erasure.
   Historical corrections and private-mode Tier 2 mutation candidates (0600 on POSIX) deliberately retain old bodies for audit
   and recovery. Keep job folders private and git-ignored, include them in backups only intentionally, and delete the
   relevant private mutation events or whole job when retention is no longer wanted. CanISend does not currently

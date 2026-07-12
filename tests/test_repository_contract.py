@@ -32,6 +32,7 @@ def test_v1_contract_files_exist():
         "platform-bridges/AGENTS.md",
         "platform-bridges/CLAUDE.md",
         "scripts/release.sh",
+        "scripts/smoke_decision_spine.py",
         "schemas/parsed_job.schema.json",
         "schemas/fit_report.schema.json",
         "schemas/criteria_check.schema.json",
@@ -95,7 +96,7 @@ def test_agent_skill_has_standard_frontmatter_and_references():
     assert "references/platforms.md" in skill
     assert "$canisend" in metadata
     assert "display_name: \"CanISend\"" in metadata
-    assert len(skill.splitlines()) < 120
+    assert len(skill.splitlines()) < 140
 
 
 def test_agent_skill_references_capture_operational_gates():

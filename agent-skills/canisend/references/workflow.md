@@ -313,7 +313,72 @@ old bodies, and accepted private-mode Tier 2 mutation candidates (0600 on POSIX)
 private and back it up only intentionally. Removing selected private mutation events (or the whole job) is a separate
 retention action that can disable recovery; CanISend does not currently provide automatic secure erasure.
 
-## 9. Generate Draft Package
+## 9. Confirm The User-Owned Brief And Build The Document Plan
+
+Brief work requires a current confirmed `decision=apply`. Status is read-only and body-free. Initialization creates
+the Tier 2 user-owned file only when absent and bootstraps concrete legacy language/style values once:
+
+```bash
+canisend brief status --workspace <private-workspace> --job jobs/<job-slug> --format json
+canisend brief init --workspace <private-workspace> --job jobs/<job-slug> \
+  --confirm-user-owned-write --format json
+canisend brief status --workspace <private-workspace> --job jobs/<job-slug> --format json
+```
+
+For each change, create one bounded strict patch in safe private scratch space. For example:
+
+```yaml
+operation: set_brief_text
+field: motivation
+value: <user-approved-private-motivation>
+```
+
+Apply it with the latest Brief revision/hash and explicit consent:
+
+```bash
+canisend brief update \
+  --workspace <private-workspace> \
+  --job jobs/<job-slug> \
+  --patch-file <safe-scratch-patch.yaml> \
+  --expected-revision <current-revision> \
+  --expected-sha256 <current-sha256> \
+  --confirm-user-owned-write \
+  --format json
+```
+
+Other scoped operations set/reset language, writing style, motivation, emphasis, exclusions, the document requirement
+set, and individual document choices. Never replace or normalize `application_brief.yaml` directly. Status reports
+only field/count state and safe receipts; reading its private body in agent-assisted mode remains ask-first Tier 2.
+
+Run deterministic Brief planning to create or refresh the core-owned Tier 2 plan:
+
+```bash
+canisend stage run \
+  --workspace <private-workspace> \
+  --job jobs/<job-slug> \
+  --stage brief \
+  --mode deterministic \
+  --format json
+```
+
+The first run may deliberately produce review blockers. Take
+`canisend.document_requirements_basis_sha256` from Brief-stage status before sending a
+`confirm_document_requirements` patch. A non-empty set may be `confirmed`; an empty Parsed Job list stays
+`unconfirmed` unless the user explicitly selects `confirmed_empty` against that exact basis. Do not infer confirmed
+none from absence, ambiguity, or extraction failure. A non-empty confirmation also requires every parsed document to
+reconcile to a complete positive advert member. Conditional, alternative, qualified, truncated, multiline, or
+otherwise unreconciled source context remains unknown and must not be confirmed.
+
+`required_document_plan.json` records one task per normalized requirement. Its body may contain advert source text
+and prepare/omit strategy, so an agent asks before reading it. AgentResponse contains only safe paths, hashes, opaque
+IDs, states, blocker codes, and counts. An unconfirmed requirement set or Brief field, unresolved document choice,
+`required + omit`, required item without preparation, or orphaned old choice blocks later Draft/Verify work. Rerun
+Brief after every accepted relevant patch; never edit the plan directly.
+
+If the Decision basis changes, Brief bytes remain present and status requires a new `reconfirm_brief` scoped patch.
+Task 6 is locally accepted; a current plan is not complete Task 7, complete Stage 2, or package readiness.
+
+## 10. Generate Draft Package
 
 Deterministic baseline:
 
@@ -335,7 +400,7 @@ Use only `--llm-parser` when the user wants structured parsing but not drafted p
 
 Always ask before enabling LLM-backed flags or a command provider for a real workspace, because those modes can send selected private advert, profile, evidence, and draft context to the configured provider. If the user has not opted in, run the deterministic baseline and report any gaps for manual review.
 
-## 10. Review Before Rendering
+## 11. Review Before Rendering
 
 Review, in order:
 
@@ -343,15 +408,17 @@ Review, in order:
 2. `criteria.json`
 3. Evidence state and receipts in `evidence_catalog.json` (read its private bodies only when needed and approved)
 4. Proposed classifications and gaps in `criterion_matches.json`
-5. `00_preparation_questions.md`
-6. `05_criteria_checklist.md`
-7. `02_fit_report.md`
-8. `03_cover_letter_draft.md`
-9. `04_cv_tailoring_notes.md`
-10. `07_material_review_checklist.md`
-11. `typst/cover_letter.typ`
-12. `typst/application_package.typ`
-13. `06_final_application_package.md`
+5. Brief status and `application_brief.yaml` only when its Tier 2 body is needed and approved
+6. Brief-stage status and `required_document_plan.json` only when its Tier 2 body is needed and approved
+7. `00_preparation_questions.md`
+8. `05_criteria_checklist.md`
+9. `02_fit_report.md`
+10. `03_cover_letter_draft.md`
+11. `04_cv_tailoring_notes.md`
+12. `07_material_review_checklist.md`
+13. `typst/cover_letter.typ`
+14. `typst/application_package.typ`
+15. `06_final_application_package.md`
 
 Apply `quality-gates.md` before treating any output as usable.
 In particular, check language/style confirmation, item-level citations, unsupported claims, required-document coverage, and private-file safety before presenting a package as ready.
@@ -364,7 +431,7 @@ that flag, the check remains read-only.
 
 In agent-assisted mode, also report which private sources were read directly, which LLM-backed CLI flags were used, and which remaining claims need manual confirmation.
 
-## 11. Optional Typst Rendering
+## 12. Optional Typst Rendering
 
 Render only when the user asks for PDFs or needs local PDF review:
 
@@ -374,6 +441,6 @@ canisend render-typst --workspace <private-workspace> --job jobs/<job-slug>
 
 Rendering requires a local `typst` binary. Source generation does not.
 
-## 12. Manual Submission
+## 13. Manual Submission
 
 The tool stops at preparation. The user manually handles portal upload, eligibility declarations, equality monitoring, right-to-work, disability, visa, conflict, criminal record, and other sensitive form answers.

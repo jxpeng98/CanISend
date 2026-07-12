@@ -10,9 +10,9 @@ CanISend has three distinct privacy modes:
 - Agent-assisted mode: when Codex, Claude Code, or another AI agent reads or summarizes files, PDFs, webpages, generated evidence, job adverts, or package drafts, that content may be processed by the agent model provider. Do not call this local-only.
 - LLM-backed CLI mode: `extract-profile-evidence --llm-augment`, `--llm-parser`, `--llm-drafts`, or `ACADEMIC_PREP_LLM_PROVIDER=command` may transmit selected private advert, profile, evidence, and draft context to the configured provider.
 
-Deterministic Evidence and Match do not invoke a configured provider, network, MCP transport, or platform API. That
-does not make an agent-assisted review of their files local-only: a model may still process any artifact the agent
-chooses to read.
+Deterministic Evidence, Match, and Brief/document planning do not invoke a configured provider, network, MCP
+transport, or platform API. That does not make an agent-assisted review of their files local-only: a model may still
+process any artifact the agent chooses to read.
 
 The privacy boundary controls consent, scope, git safety, and forbidden actions. It is not a promise that agent-assisted or LLM-backed workflows keep all content away from models.
 
@@ -48,7 +48,8 @@ When asking to read private materials in agent-assisted mode, state that the con
 ## Data Minimization
 
 - Prefer `profile/generated/*.evidence.md` over raw `profile/typst/*.typ`.
-- Prefer `job.yaml`, `parsed_job.json`, and review checklists over full job adverts when sufficient.
+- Prefer `job.yaml`, `parsed_job.json`, body-free Brief/plan status, and review checklists over Tier 2 bodies when
+  sufficient.
 - Read only the current job folder unless the user explicitly asks for cross-job comparison.
 - Summarize narrow facts instead of quoting private text.
 - If full source review is necessary, read the smallest relevant file or section and explain why.
@@ -73,28 +74,45 @@ Do not work around these checks with hidden direct reads or copied absolute path
 
 ## User-Owned Mutation Data Plane
 
-`confirmed_corrections.yaml`, `application_decision.yaml`, immutable mutation candidates, and `criteria.json` are
-Tier 2. Criteria can contain corrected wording. A strict patch file containing correction text or rationale is also
-Tier 2 and should live only in safe private scratch space for as long as needed. Mutation claims and immutable
-receipts are body-free; the receipt is Tier 1. Never place correction text or rationale in an error, log, ordinary
+`confirmed_corrections.yaml`, `application_decision.yaml`, `application_brief.yaml`, immutable mutation candidates,
+and `criteria.json` are Tier 2. Criteria can contain corrected wording; Brief can contain motivation, exclusions, and
+application strategy. A strict patch file containing any of those private values is also Tier 2 and should live only
+in safe private scratch space for as long as needed. Mutation claims and immutable receipts are body-free; the receipt
+is Tier 1. Never place correction text, rationale, Brief values, or document source text in an error, log, ordinary
 CLI response, AgentResponse, or handoff summary.
 
 Users may edit their YAML directly. Status and stage reruns validate without normalizing or rewriting manual bytes.
 An explicitly consented scoped patch creates a canonical next revision and may not preserve comments. Agents must not
 emulate a manual whole-file edit: use read-only status, one scoped patch, the latest revision/hash, and explicit
 `--confirm-user-owned-write`. Unknown empty extraction is not
-`confirmed_empty`, and undecided is not apply, hold, or skip.
+`confirmed_empty`, undecided is not apply/hold/skip, and an empty Parsed Job document list is not a
+`confirmed_empty` requirement set.
 
 Compare-and-swap coordinates cooperative CanISend writers under a stable job-directory topology. It does not
 linearize an ordinary editor save during the final replace window or protect against a malicious same-user rename.
 Run status immediately before each mutation and avoid concurrent manual saving. After any correction update, rerun
 Confirm before another correction patch. If Criteria/Match changes, a Decision remains stored while status derives
-review-required; do not add a stale flag to the user YAML.
+review-required; do not add a stale flag to the user YAML. Brief initialization and mutation require a current
+confirmed apply Decision. A changed basis preserves the Brief until the user explicitly reconfirms it.
+
+## Application Brief And Document Plan Data Plane
+
+`application_brief.yaml`, its strict patch/candidate/history, the Brief-stage candidate, and
+`required_document_plan.json` are Tier 2. The core-owned plan remains ask-first because it may contain advert source
+text and prepare/omit strategy. An agent should use body-free status paths, hashes, opaque IDs, states, blocker codes,
+and counts unless body review is necessary and approved.
+
+The requirement-set basis is `unconfirmed`, `confirmed`, or `confirmed_empty`. Only an explicit scoped Brief patch
+against the current basis may record `confirmed_empty`; absence, extraction failure, ambiguity, or an empty parser
+list may not. Unconfirmed requirements, unresolved choices, `required + omit`, missing required preparation actions,
+and orphaned old choices block later Draft/Verify work. Deterministic planning may read the local Tier 2 inputs without
+exposing their bodies to an agent model.
 
 ### Retention Is Not Semantic Reset
 
-`reset_decision`, rationale clear, correction withdrawal, and correction supersession change the current semantic
-view only. They do not erase immutable history. Corrections history deliberately retains older corrected text for
+`reset_decision`, Brief field reset/document-choice removal, rationale clear, correction withdrawal, and correction
+supersession change the current semantic view only. They do not erase immutable history. Corrections history
+deliberately retains older corrected text for
 audit/recovery, and every accepted mutation can retain a private-mode Tier 2 `candidate.yaml` (0600 on POSIX) containing the prior
 private patch result. Receipts stay body-free but also remain immutable.
 
@@ -167,5 +185,6 @@ Only stage source code, tests, docs, prompts, templates, schemas, examples, and 
 ## Do Not Stage Or Commit
 
 Do not stage or commit real CVs, statements, references, full job adverts, Evidence snapshots/candidates/catalogs,
-criterion matches, generated packages, rendered PDFs, `.env`, API keys, private source URLs, or files that reveal
-application strategy. If these appear in `git status --short`, leave them untouched and report the risk.
+criterion matches, application Briefs, required-document plans, generated packages, rendered PDFs, `.env`, API keys,
+private source URLs, or files that reveal application strategy. If these appear in `git status --short`, leave them
+untouched and report the risk.

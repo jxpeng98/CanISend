@@ -62,6 +62,24 @@ Do not use ready, final, complete, or submission-ready for generated materials u
 - User YAML/private candidates/corrected Criteria remain Tier 2. Tier 1 receipts and all control/Agent output contain
   no correction text or rationale.
 
+## Application Brief And Required-Document Plan Gate
+
+- Brief work began from a current confirmed `decision=apply`; a changed Decision basis preserved the Brief and was
+  explicitly reconfirmed rather than silently rewritten.
+- `brief status` returned only body-free paths, hashes, field/count state, reasons, and actions. Any agent read of
+  `application_brief.yaml` or `required_document_plan.json` received separate Tier 2 approval.
+- Agent-assisted Brief writes used one bounded strict patch, the latest raw-byte revision/hash, and explicit consent;
+  no agent replaced `application_brief.yaml` directly.
+- The requirement-set basis is current and explicitly `confirmed` or `confirmed_empty`. Empty parser output,
+  ambiguity, absence, or failure was not interpreted as `confirmed_empty`. Every non-empty requirement resolves to a
+  complete positive source member; conditional, alternative, qualified, truncated, or continuation context is unknown.
+- Deterministic Brief produced current `required_document_plan.json`; no one edited the core-owned plan directly.
+- Every current normalized requirement has one task. An unconfirmed set or field, unresolved choice,
+  `required + omit`, required document without preparation, or orphaned choice is a blocker for later Draft/Verify.
+- Brief/plan/candidates remain Tier 2. Claims, receipts, manifests, errors, ordinary output, and AgentResponse contain
+  no motivation, exclusions, language/style values, advert source text, or document labels.
+- Task 6 local acceptance is not treated as complete Task 7, Stage 2, or package readiness.
+
 ## Draft Gate
 
 - `02_fit_report.md` separates strong fit, partial fit, and gaps.
@@ -123,14 +141,16 @@ Review files in this order:
 6. `criterion_matches.json` proposed classifications and gaps
 7. Corrections status and `confirmed_corrections.yaml` only when its Tier 2 body is needed
 8. Decision status and `application_decision.yaml` only when its Tier 2 rationale is needed
-9. `00_preparation_questions.md`
-10. `05_criteria_checklist.md`
-11. `02_fit_report.md`
-12. `03_cover_letter_draft.md`
-13. `04_cv_tailoring_notes.md`
-14. `07_material_review_checklist.md`
-15. `typst/cover_letter.typ`
-16. `typst/application_package.typ`
-17. `06_final_application_package.md`
+9. Brief status and `application_brief.yaml` only when its Tier 2 body is needed
+10. Brief-stage status and `required_document_plan.json` only when its Tier 2 body is needed
+11. `00_preparation_questions.md`
+12. `05_criteria_checklist.md`
+13. `02_fit_report.md`
+14. `03_cover_letter_draft.md`
+15. `04_cv_tailoring_notes.md`
+16. `07_material_review_checklist.md`
+17. `typst/cover_letter.typ`
+18. `typst/application_package.typ`
+19. `06_final_application_package.md`
 
 Before editing prose, confirm `00_preparation_questions.md` has resolved US English vs UK English, the target writing style, specific motivation, emphasis, risk areas, and details to exclude.

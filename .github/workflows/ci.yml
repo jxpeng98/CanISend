@@ -53,21 +53,7 @@ jobs:
         run: uv sync --all-extras --dev
 
       - name: Smoke test CLI contract
-        run: |
-          uv run canisend --help
-          uv run canisend init-workspace --workspace .ci-smoke-workspace
-          uv run canisend doctor --workspace .ci-smoke-workspace --format json
-          uv run canisend agent capabilities --format json
-          uv run canisend run-example --workspace .ci-smoke-stage2 --overwrite
-          uv run canisend stage run --workspace .ci-smoke-stage2 --job jobs/2026-06-15_example-university_lecturer-in-applied-economics --stage evidence --format json
-          uv run canisend stage run --workspace .ci-smoke-stage2 --job jobs/2026-06-15_example-university_lecturer-in-applied-economics --stage parse --format json
-          uv run canisend stage run --workspace .ci-smoke-stage2 --job jobs/2026-06-15_example-university_lecturer-in-applied-economics --stage confirm --format json
-          uv run canisend corrections status --workspace .ci-smoke-stage2 --job jobs/2026-06-15_example-university_lecturer-in-applied-economics --format json
-          uv run canisend corrections init --workspace .ci-smoke-stage2 --job jobs/2026-06-15_example-university_lecturer-in-applied-economics --confirm-user-owned-write --format json
-          uv run canisend stage run --workspace .ci-smoke-stage2 --job jobs/2026-06-15_example-university_lecturer-in-applied-economics --stage match --format json
-          uv run canisend decision status --workspace .ci-smoke-stage2 --job jobs/2026-06-15_example-university_lecturer-in-applied-economics --format json
-          uv run canisend decision init --workspace .ci-smoke-stage2 --job jobs/2026-06-15_example-university_lecturer-in-applied-economics --confirm-user-owned-write --format json
-          uv run python -c "from pathlib import Path; import json; job=Path('.ci-smoke-stage2/jobs/2026-06-15_example-university_lecturer-in-applied-economics'); assert (job/'evidence_catalog.json').is_file(); assert (job/'criteria.json').is_file(); assert (job/'criterion_matches.json').is_file(); assert (job/'confirmed_corrections.yaml').is_file(); assert (job/'application_decision.yaml').is_file(); assert len(list((job/'workflow/user-mutations/events').glob('*/receipt.json'))) == 2; manifests={json.loads(path.read_text(encoding='utf-8'))['stage']: path for path in (job/'workflow/runs').glob('*/manifest.json')}; assert set(manifests) == {'evidence', 'parse', 'confirm', 'match'}; assert all(json.loads(path.read_text(encoding='utf-8'))['status'] == 'succeeded' for path in manifests.values()); assert all((path.parent/'preparation.json').is_file() and (path.parent/'submission.json').is_file() for path in manifests.values())"
+        run: uv run python scripts/smoke_decision_spine.py --canisend canisend --workspace .ci-smoke-stage2
 
   build-package:
     needs: test
@@ -99,17 +85,6 @@ jobs:
         run: |
           python -m venv /tmp/canisend-smoke
           /tmp/canisend-smoke/bin/pip install dist/*.whl
-          /tmp/canisend-smoke/bin/canisend --help
-          /tmp/canisend-smoke/bin/canisend init-workspace --workspace /tmp/canisend-workspace
-          /tmp/canisend-smoke/bin/canisend doctor --workspace /tmp/canisend-workspace --format json
-          /tmp/canisend-smoke/bin/canisend agent capabilities --format json
-          /tmp/canisend-smoke/bin/canisend run-example --workspace /tmp/canisend-stage2-example --overwrite
-          /tmp/canisend-smoke/bin/canisend stage run --workspace /tmp/canisend-stage2-example --job jobs/2026-06-15_example-university_lecturer-in-applied-economics --stage evidence --format json
-          /tmp/canisend-smoke/bin/canisend stage run --workspace /tmp/canisend-stage2-example --job jobs/2026-06-15_example-university_lecturer-in-applied-economics --stage parse --format json
-          /tmp/canisend-smoke/bin/canisend stage run --workspace /tmp/canisend-stage2-example --job jobs/2026-06-15_example-university_lecturer-in-applied-economics --stage confirm --format json
-          /tmp/canisend-smoke/bin/canisend corrections status --workspace /tmp/canisend-stage2-example --job jobs/2026-06-15_example-university_lecturer-in-applied-economics --format json
-          /tmp/canisend-smoke/bin/canisend corrections init --workspace /tmp/canisend-stage2-example --job jobs/2026-06-15_example-university_lecturer-in-applied-economics --confirm-user-owned-write --format json
-          /tmp/canisend-smoke/bin/canisend stage run --workspace /tmp/canisend-stage2-example --job jobs/2026-06-15_example-university_lecturer-in-applied-economics --stage match --format json
-          /tmp/canisend-smoke/bin/canisend decision status --workspace /tmp/canisend-stage2-example --job jobs/2026-06-15_example-university_lecturer-in-applied-economics --format json
-          /tmp/canisend-smoke/bin/canisend decision init --workspace /tmp/canisend-stage2-example --job jobs/2026-06-15_example-university_lecturer-in-applied-economics --confirm-user-owned-write --format json
-          /tmp/canisend-smoke/bin/python -c "from pathlib import Path; import json; job=Path('/tmp/canisend-stage2-example/jobs/2026-06-15_example-university_lecturer-in-applied-economics'); assert (job/'evidence_catalog.json').is_file(); assert (job/'criteria.json').is_file(); assert (job/'criterion_matches.json').is_file(); assert (job/'confirmed_corrections.yaml').is_file(); assert (job/'application_decision.yaml').is_file(); assert len(list((job/'workflow/user-mutations/events').glob('*/receipt.json'))) == 2; manifests={json.loads(path.read_text(encoding='utf-8'))['stage']: path for path in (job/'workflow/runs').glob('*/manifest.json')}; assert set(manifests) == {'evidence', 'parse', 'confirm', 'match'}; assert all(json.loads(path.read_text(encoding='utf-8'))['status'] == 'succeeded' for path in manifests.values()); assert all((path.parent/'preparation.json').is_file() and (path.parent/'submission.json').is_file() for path in manifests.values())"
+          /tmp/canisend-smoke/bin/python scripts/smoke_decision_spine.py \
+            --canisend /tmp/canisend-smoke/bin/canisend \
+            --workspace /tmp/canisend-stage2-example

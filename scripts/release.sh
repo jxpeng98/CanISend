@@ -190,19 +190,11 @@ local_release_checks() {
   run uv run python -m canisend.package_check "${wheels[@]}"
 
   local smoke_root="${TMPDIR:-/tmp}/canisend-release-smoke-$version-$$"
-  local smoke_job="jobs/2026-06-15_example-university_lecturer-in-applied-economics"
   run uv venv --clear "$smoke_root/venv"
   run uv pip install --python "$smoke_root/venv/bin/python" "${wheels[0]}"
-  run "$smoke_root/venv/bin/canisend" run-example --workspace "$smoke_root/workspace" --overwrite
-  run "$smoke_root/venv/bin/canisend" stage run --workspace "$smoke_root/workspace" --job "$smoke_job" --stage evidence --format json
-  run "$smoke_root/venv/bin/canisend" stage run --workspace "$smoke_root/workspace" --job "$smoke_job" --stage parse --format json
-  run "$smoke_root/venv/bin/canisend" stage run --workspace "$smoke_root/workspace" --job "$smoke_job" --stage confirm --format json
-  run "$smoke_root/venv/bin/canisend" corrections status --workspace "$smoke_root/workspace" --job "$smoke_job" --format json
-  run "$smoke_root/venv/bin/canisend" corrections init --workspace "$smoke_root/workspace" --job "$smoke_job" --confirm-user-owned-write --format json
-  run "$smoke_root/venv/bin/canisend" stage run --workspace "$smoke_root/workspace" --job "$smoke_job" --stage match --format json
-  run "$smoke_root/venv/bin/canisend" decision status --workspace "$smoke_root/workspace" --job "$smoke_job" --format json
-  run "$smoke_root/venv/bin/canisend" decision init --workspace "$smoke_root/workspace" --job "$smoke_job" --confirm-user-owned-write --format json
-  run "$smoke_root/venv/bin/python" -c "from pathlib import Path; import json; job=Path('$smoke_root/workspace/$smoke_job'); assert (job/'evidence_catalog.json').is_file(); assert (job/'criteria.json').is_file(); assert (job/'criterion_matches.json').is_file(); assert (job/'confirmed_corrections.yaml').is_file(); assert (job/'application_decision.yaml').is_file(); assert len(list((job/'workflow/user-mutations/events').glob('*/receipt.json'))) == 2; manifests={json.loads(path.read_text(encoding='utf-8'))['stage']: path for path in (job/'workflow/runs').glob('*/manifest.json')}; assert set(manifests) == {'evidence', 'parse', 'confirm', 'match'}; assert all(json.loads(path.read_text(encoding='utf-8'))['status'] == 'succeeded' for path in manifests.values()); assert all((path.parent/'preparation.json').is_file() and (path.parent/'submission.json').is_file() for path in manifests.values())"
+  run "$smoke_root/venv/bin/python" scripts/smoke_decision_spine.py \
+    --canisend "$smoke_root/venv/bin/canisend" \
+    --workspace "$smoke_root/workspace"
 }
 
 tag_name_for_channel() {

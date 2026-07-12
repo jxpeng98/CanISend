@@ -12,7 +12,10 @@ Focus on constructing the whole evidence-backed package for one job. Use materia
 - Do not submit applications, fill portals, create accounts, upload materials, or answer sensitive declarations.
 - Do not fabricate applicant evidence, citations, qualifications, motivation, fit, required documents, or review results.
 - Ask before reading full private CVs, statements, references, adverts, source URLs, PDFs, or generated packages.
+- Ask before reading `application_brief.yaml` or `required_document_plan.json`; both are Tier 2 strategy artifacts.
 - Prefer `profile/generated/` evidence and current structured job artifacts over raw private sources.
+- Prefer body-free Brief/plan status first. Never edit either authoritative artifact directly; Brief uses one strict
+  scoped patch with fresh revision/hash and explicit consent, while the plan is rebuilt deterministically.
 - Do not edit original profile inputs during ordinary package work; record profile-improvement suggestions in the job folder.
 
 ## Required References
@@ -31,7 +34,12 @@ Read only what the current package requires:
 3. Refresh normalized evidence with `extract-profile-evidence` when profile sources are newer.
 4. Generate the deterministic baseline with `canisend run`. Enable LLM-backed parsing or drafting only after explicit user approval.
 5. Verify `parsed_job.json` against the advert and map every essential criterion to evidence or a clear gap.
-6. Resolve language, writing style, motivation, emphasis, risk, and exclusion questions before final prose edits.
-7. Integrate the fit report, cover letter, CV tailoring notes, criteria checklist, required statements, remaining actions, and editable Typst sources. Keep every strong claim proportionate and traceable.
-8. Review `07_material_review_checklist.md` and the relevant quality gates. Render only when the user asks.
-9. Report generated or changed artifacts, unresolved evidence gaps, missing documents, and unchecked gates. Hand the package to `$canisend-submission-readiness` for a strict final review.
+6. Require a current confirmed apply Decision, then inspect body-free Brief and Brief-stage status. Use
+   `brief status|init|update` only with one strict patch, fresh revision/hash, and explicit consent.
+7. Resolve language, writing style, motivation, emphasis, exclusions, and the document-requirement set. Empty parser
+   output is not `confirmed_empty` without explicit current-basis confirmation.
+8. Run deterministic `stage run --stage brief`; do not draft through an unconfirmed requirement set, unresolved
+   choice, `required + omit`, missing required preparation action, or orphaned choice.
+9. Integrate the fit report, cover letter, CV tailoring notes, criteria checklist, required statements, remaining actions, and editable Typst sources. Keep every strong claim proportionate and traceable.
+10. Review `07_material_review_checklist.md` and the relevant quality gates. Render only when the user asks.
+11. Report generated or changed artifacts, unresolved evidence/Brief/document gaps, and unchecked gates. Hand the package to `$canisend-submission-readiness` for a strict final review. Task 6 implementation alone is not package readiness.

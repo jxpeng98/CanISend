@@ -57,6 +57,18 @@ while every semantic correction requires a Confirm rerun before another patch. A
 the explicit-consent init/update operations to record the
 user's apply/hold/skip choice.
 
+After a current confirmed apply Decision, continue through body-free Brief status and explicit-consent initialization,
+then build the core-owned plan:
+
+```bash
+canisend brief status --workspace <private-workspace> --job jobs/<job-slug> --format json
+canisend brief init --workspace <private-workspace> --job jobs/<job-slug> --confirm-user-owned-write --format json
+canisend stage run --workspace <private-workspace> --job jobs/<job-slug> --stage brief --mode deterministic --format json
+```
+
+Use `brief update` with one strict patch and the latest revision/hash to resolve fields and document choices. The
+Brief and plan bodies are Tier 2 ask-first; status is body-free. Task 6 is locally accepted while Task 7 remains open.
+
 Use `extract-profile-evidence --llm-augment`, `--llm-parser`, or `--llm-drafts` only when provider config is ready and the user explicitly wants model-backed steps.
 
 ### `status: packaged`
@@ -91,6 +103,15 @@ Review quality gates before rendering:
 - Missing `application_decision.yaml`: initialize an undecided record only with explicit consent after current Match.
 - Decision basis is review-required: preserve the stored value, review current Criteria/Match, then reconfirm through
   a new scoped patch and current revision/hash. Do not edit a stale flag into the YAML.
+- Missing `application_brief.yaml`: first require a current confirmed apply Decision, then initialize once with
+  explicit consent. Concrete legacy language/style values bootstrap only at creation.
+- Brief basis is review-required: preserve its bytes, review/reconfirm the current apply Decision, then use one
+  `reconfirm_brief` patch against the latest Brief revision/hash.
+- Missing or stale `required_document_plan.json`: rerun deterministic Brief; never edit the plan directly.
+- Empty Parsed Job document requirements: keep the set `unconfirmed` unless the user explicitly confirms
+  `confirmed_empty` against the current requirements-basis hash.
+- Plan blockers: resolve an unconfirmed requirement set, unconfirmed Brief field/choice, `required + omit`, required
+  document without a preparation action, or orphaned old choice before later Draft/Verify work.
 - Mutation recovery requested: use `user-mutation recover` with the opaque accepted mutation ID and explicit
   consent; do not replay the private patch as a new write.
 - Existing generated outputs after advert/profile changes: rerun the pipeline and review diffs.

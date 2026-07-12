@@ -53,6 +53,21 @@ def test_init_workspace_creates_user_layout_and_default_resources(tmp_path):
     assert "agent-skills/canisend/SKILL.md" in (workspace / "AGENTS.md").read_text()
     assert "Agent-assisted mode is not local-only" in (workspace / "AGENTS.md").read_text()
     assert "agent model provider" in (workspace / "CLAUDE.md").read_text()
+    for bridge_name in ("AGENTS.md", "CLAUDE.md"):
+        bridge = (workspace / bridge_name).read_text(encoding="utf-8")
+        assert "application_brief.yaml" in bridge
+        assert "required_document_plan.json" in bridge
+        assert "Tier 2" in bridge
+    installed_main = (workspace / "agent-skills" / "canisend" / "SKILL.md").read_text(
+        encoding="utf-8"
+    )
+    installed_privacy = (
+        workspace / "agent-skills" / "canisend" / "references" / "privacy.md"
+    ).read_text(encoding="utf-8")
+    for body in (installed_main, installed_privacy):
+        assert "application_brief.yaml" in body
+        assert "required_document_plan.json" in body
+        assert "Tier 2" in body
     config = yaml.safe_load((workspace / "canisend.yaml").read_text())
     profile_manifest = yaml.safe_load((workspace / "profile" / "profile.yaml").read_text())
     assert config["profile_dir"] == "profile"

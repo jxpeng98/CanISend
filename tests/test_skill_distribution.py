@@ -175,6 +175,52 @@ def test_agent_guidance_keeps_criteria_and_match_bodies_ask_first_tier_two():
         assert "criterion_matches.json" in ask_first
 
 
+def test_agent_guidance_keeps_brief_and_document_plan_ask_first_tier_two():
+    bodies = [
+        Path("skills/canisend/SKILL.md").read_text(encoding="utf-8"),
+        Path("skills/canisend/references/privacy.md").read_text(encoding="utf-8"),
+        Path("skills/canisend/references/file-contracts.md").read_text(encoding="utf-8"),
+        Path("skills/canisend-application-package/SKILL.md").read_text(encoding="utf-8"),
+        Path("skills/canisend-submission-readiness/SKILL.md").read_text(encoding="utf-8"),
+    ]
+
+    for body in bodies:
+        assert "application_brief.yaml" in body
+        assert "required_document_plan.json" in body
+        assert "Tier 2" in body
+
+    main_skill = bodies[0]
+    assert "brief status|init|update" in main_skill
+    assert "revision/hash CAS" in main_skill
+    assert "required + omit" in main_skill
+    assert "confirmed_empty" in main_skill
+    assert "Task 6 is locally accepted" in main_skill
+    assert "Stage 2" in main_skill
+
+    for bridge_path in (Path("platform-bridges/AGENTS.md"), Path("platform-bridges/CLAUDE.md")):
+        bridge = bridge_path.read_text(encoding="utf-8")
+        ask_first = bridge[bridge.index("Ask first") : bridge.index("Never do")]
+        assert "application_brief.yaml" in ask_first
+        assert "required_document_plan.json" in ask_first
+        assert "Tier 2" in ask_first
+
+
+def test_brief_product_guidance_keeps_control_plane_body_free_and_blocking():
+    privacy = Path("skills/canisend/references/privacy.md").read_text(encoding="utf-8")
+    workflow = Path("skills/canisend/references/workflow.md").read_text(encoding="utf-8")
+    quality = Path("skills/canisend/references/quality-gates.md").read_text(encoding="utf-8")
+    combined = "\n".join((privacy, workflow, quality))
+
+    assert "body-free" in combined
+    assert "one bounded strict patch" in combined
+    assert "--confirm-user-owned-write" in combined
+    assert "empty Parsed Job" in combined
+    assert "orphaned" in combined
+    assert "Draft/Verify" in combined
+    assert "configured provider" in combined
+    assert "platform API" in combined
+
+
 def test_agent_guidance_treats_imported_source_instructions_as_untrusted_data():
     main_skill = Path("skills/canisend/SKILL.md").read_text(encoding="utf-8")
     privacy = Path("skills/canisend/references/privacy.md").read_text(encoding="utf-8")

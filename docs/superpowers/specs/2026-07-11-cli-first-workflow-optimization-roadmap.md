@@ -48,7 +48,7 @@ but it remains required before publishing the corresponding prerelease.
 | 0. Contract Foundation | P0, locally complete | Give agents a safe, stable inspection contract | Agent envelope, context, capabilities, privacy and error semantics | Remote candidate CI passes before release |
 | 1. Resumable Kernel + Parse | P0, locally complete | Prove a resumable, validated stage with one authoritative output | Registry, state, immutable runs, fingerprints, TaskSpec/TaskResult, candidate promotion, Parse CLI | Fresh sessions resume; stale/invalid candidates cannot change `parsed_job.json` |
 | 2. Decision Spine | P0 | Make requirements, evidence matching, and user decisions durable | Criterion, EvidenceRef, CriterionMatch, confirmations, apply/hold/skip decision, `application_brief.yaml` | Every essential criterion and required decision is structured and reviewable |
-| 3. Evidence-Backed Draft + Review | P0/P1 | Generate only evidence-supported, reviewable application material | Claim, ReviewFinding, required-document plan, Cover Letter slice, consistency review | Strong claims resolve to evidence; unsupported claims block readiness |
+| 3. Evidence-Backed Draft + Review | P0/P1 | Generate only evidence-supported, reviewable application material | Claim, ReviewFinding, required-document-plan enforcement, Cover Letter slice, consistency review | Strong claims resolve to evidence; unsupported claims block readiness |
 | 4. Discovery Ecosystem | P1 | Expand sources on stable identity and provenance | Lead v2, merge/dedupe/ranking, CSV/JSON/email import, read-only adapters, agent-result import | Multi-source refresh is traceable, partial-failure safe, and duplicate resistant |
 | 5. Resilience + Legacy Convergence | P1 | Move the remaining monolith behind the stage runtime | All stages, `run` compatibility wrapper, locking, migrations, failure injection | Any stage can resume and only true descendants become stale |
 | 6. 1.0 Quality + Release | P2 | Demonstrate safe, portable, recoverable usefulness | Fixture corpus, budgets, security audit, dependency checks, recovery and privacy docs | Supported versions pass clean installs and all readiness invariants hold |
@@ -167,10 +167,11 @@ CV or package status does not invalidate Parse.
 
 **Stage status:** In progress on `feat/decision-spine-foundation`. ADR-009 and ADR-010 freeze semantic identity and
 user-owned input boundaries. ADR-011 freezes the Evidence read and privacy boundary. The stable Criteria/Confirm,
-Evidence/Match, and Task 5 user-owned corrections/Decision slices are locally accepted with guarded candidate
-submission, explicit consent, cooperative compare-and-swap, recovery, and distribution smoke coverage. Application
-Brief, required-document planning, view migration, and the full Stage 2 exit review remain open in Tasks 6-7. This
-status does not claim a remote CI result or published package.
+Evidence/Match, Task 5 user-owned corrections/Decision, and Task 6 Brief/document-plan slices are locally accepted with guarded candidate
+submission, explicit consent, cooperative compare-and-swap, recovery, and distribution smoke coverage. ADR-012 now
+freezes the Brief/document-plan ownership, privacy, precondition, source-receipt, and blocker boundary. View migration
+and the full Stage 2 exit review remain open in Task 7. This status does not claim a remote CI result or published
+package.
 
 ### Deliverables
 
@@ -243,6 +244,26 @@ Semantic reset/clear/withdraw does not erase immutable history. Private-mode Tie
 bodies remain for audit/recovery inside the private git-ignored job. Removing private events or the whole job is a
 separate retention decision that may disable recovery; automatic secure erasure and backup/snapshot deletion are not
 part of this slice.
+
+### Task 6 Brief/Document-Plan Locally Accepted
+
+ADR-012 keeps `application_brief.yaml` user-owned Tier 2 and `required_document_plan.json` core-owned Tier 2. Brief
+status is body-free; initialization, one scoped patch, and recovery reuse the explicit-consent raw-byte revision/hash
+CAS boundary. A current confirmed `decision=apply` is required before Brief creation, mutation, or planning, while a
+later basis change preserves the Brief and routes it to review.
+
+The requirement-set basis is explicitly `unconfirmed`, `confirmed`, or `confirmed_empty`. An empty Parsed Job list is
+never enough to infer `confirmed_empty`. Each non-empty requirement must reconcile to one complete positive advert
+document member and a current source anchor; ambiguity, qualification, alternatives, truncation, or continuation
+remain unconfirmed. Deterministic Brief-stage planning records current requirements and document choices, and emits
+blockers for an unconfirmed set, unresolved task, `required + omit`, missing required preparation action, or orphaned
+choice. Status and workflow control records carry only paths, hashes, opaque IDs, states, reason codes, and counts;
+agents ask before reading either Tier 2 body. The deterministic implementation requires no configured provider,
+network, MCP transport, or platform API.
+
+Task 6 was locally accepted on 2026-07-12 after focused privacy/CAS/recovery and adversarial source tests, 919 tests on
+each supported Python 3.11-3.14 interpreter, schema/resource/build/Twine checks, red-team review, and clean installed-
+wheel Decision Spine smoke. Task 7 and the full Stage 2 exit review remain open.
 
 ### Exit Criteria
 

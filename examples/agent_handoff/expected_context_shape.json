@@ -46,6 +46,10 @@
     "source_url_query",
     "corrected_text",
     "rationale",
-    "user_mutation_candidate_body"
+    "user_mutation_candidate_body",
+    "application_brief_body",
+    "required_document_plan_body",
+    "brief_private_text",
+    "document_source_text"
   ]
 }

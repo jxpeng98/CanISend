@@ -84,6 +84,8 @@ evidence_catalog.json         # core-owned private data plane
 criterion_matches.json        # core-owned body-minimized Tier 2 proposed projection
 confirmed_corrections.yaml    # optional Tier 2 user-owned input
 application_decision.yaml     # optional Tier 2 user-owned input
+application_brief.yaml        # optional Tier 2 user-owned input
+required_document_plan.json   # core-owned Tier 2 deterministic projection
 workflow/
   state.json                 # rebuildable view
   user-mutations/
@@ -140,16 +142,26 @@ RSS and Atom lead outputs live in ignored `job_leads/`.
 - `application_decision.yaml`: strict user-owned Decision. `undecided` is distinct from apply, hold, or skip. Its
   accepted value survives a changed Criteria/Match basis byte for byte; `decision status` derives review-required
   state without writing staleness into the file. Agent writes use `decision status|init|update`.
+- `application_brief.yaml`: strict Tier 2 user-owned Brief for confirmed language, writing style, motivation,
+  emphasis, exclusions, advert-document requirement-set state, and document choices. It requires a current confirmed
+  apply Decision. `brief status` is body-free; Agent writes use `brief status|init|update`, one strict patch, the
+  current revision/hash, and explicit consent. A changed Decision basis preserves the Brief for reconfirmation.
+- `required_document_plan.json`: deterministic core-owned Tier 2 Brief-stage projection. It binds current Decision,
+  advert/Parsed Job requirements, Criteria/Match receipts, and the raw Brief hash; exposes one task per normalized
+  requirement; and records unresolved, blocking, and orphaned IDs. Do not edit it directly. An empty Parsed Job list
+  remains `unconfirmed` unless the current Brief explicitly records `confirmed_empty` against its basis.
 - `workflow/user-mutations/`: private immutable candidates plus cooperative single-winner claims and immutable
   receipts. Candidate/YAML bodies and corrected Criteria are Tier 2. Claims and receipts never include correction
-  text or rationale; the receipt is Tier 1 and validates against `schemas/user-mutation-receipt.schema.json`.
+  text, rationale, Brief values, or document source text; the receipt is Tier 1 and validates against
+  `schemas/user-mutation-receipt.schema.json`.
   Candidates use private-file mode (0600 on POSIX) and persist after semantic reset/clear/withdraw for audit/recovery. Corrections history
   likewise retains old corrected bodies. Deleting selected events or the whole private job is a separate retention
   action; there is no automatic secure-erase guarantee.
 - `workflow/runs/*/task-spec.json`: immutable task contract. `allowed_writes` is explicitly marked
   `write_authority: core_service`; a host supplies scratch candidate JSON through `stage submit` rather than writing
   candidate or result paths itself. Evidence TaskSpecs name only their own job-local immutable snapshot; Match
-  TaskSpecs name only current `criteria.json` and `evidence_catalog.json`.
+  TaskSpecs name only current `criteria.json` and `evidence_catalog.json`; Brief TaskSpecs name current job-local
+  advert/Parsed Job, Criteria, Match, Decision, and Brief inputs.
 - `workflow/runs/*/inputs/evidence-snapshot.json`: immutable Evidence input written by the core during prepare. It may
   duplicate normalized profile evidence and remains until the user removes the private run or job. Resumable
   Evidence does not accept a workspace-external profile root.
@@ -166,8 +178,8 @@ RSS and Atom lead outputs live in ignored `job_leads/`.
 
 The pipeline may emit content JSON compatibility/debug artifacts under `typst/`, but agents should treat the `.typ` files as the editing contract.
 
-Evidence snapshots, Evidence candidates, and promoted Evidence catalogs are the private data plane and may contain
-profile text. User mutation YAML, private candidates, and corrected Criteria may contain private correction/rationale
-bodies. Workflow state, task/result and mutation receipts, mutation claims, validation and promotion records,
-manifests, errors, ordinary CLI/AgentResponse output, and Match output are the control plane and must contain only
-privacy-safe paths, hashes, semantic IDs, classifications, reason codes, and counts.
+Evidence snapshots, Evidence candidates, promoted Evidence catalogs, user mutation YAML/private candidates,
+corrected Criteria, Brief-stage candidates, and required-document plans are the Tier 2 private data plane. Workflow
+state, task/result and mutation receipts, mutation claims, validation and promotion records, manifests, errors,
+ordinary CLI/AgentResponse output, and Match output are the control plane and must contain only privacy-safe paths,
+hashes, semantic IDs, classifications, reason/blocker codes, and counts.

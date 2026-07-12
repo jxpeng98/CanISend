@@ -254,11 +254,104 @@ automatic secure erasure and deletion from backups/snapshots are not claimed.
 
 ## Task 6: Application Brief And Required-Document Plan
 
-- [ ] Model language, motivation, emphasis, exclusions, and document choices with field-level confirmation state.
-- [ ] Bootstrap legacy language/style metadata only when a new brief is first created.
-- [ ] Normalize advert document requirements without treating an empty list as confirmed none.
-- [ ] Resolve required document tasks from confirmed requirements plus explicit brief overrides.
-- [ ] Make unresolved or omitted required documents executable blockers for later Draft/Verify stages.
+**Status:** Locally accepted on 2026-07-12; Task 7 and the full Stage 2 exit review remain open.
+
+### Task 6.0: Freeze Ownership, Privacy, And Execution Boundaries
+
+- [x] Accept ADR-012: keep `application_brief.yaml` user-owned Tier 2 and
+  `required_document_plan.json` core-owned Tier 2.
+- [x] Lock body-free Tier 1 mutation and workflow control records with private-sentinel tests.
+- [x] Prove Brief mutation and document planning use no configured provider, network, MCP transport, platform API, or
+  host-specific session state.
+- [x] Keep Stage 2 out of application-facing Draft and readiness claims.
+
+### Task 6.1: Complete Strict Brief And Requirement-Set Contracts
+
+- [x] Use the strict user-owned revision and RFC 3339 control timestamp types for Application Brief.
+- [x] Model language, writing style, motivation, emphasis, exclusions, requirement-set confirmation, and document
+  choices with explicit field-level confirmation state.
+- [x] Represent the requirement-set basis as `unconfirmed`, `confirmed`, or `confirmed_empty`; never derive
+  `confirmed_empty` from an empty Parsed Job list, missing field, ambiguity, or extraction failure.
+- [x] Define stable semantic document IDs, source receipts, deterministic normalization/deduplication, explicit
+  unknown reasons, and orphan-choice representation.
+- [x] Reject unknown fields, duplicate IDs, inconsistent confirmation/action combinations, unsafe paths, malformed
+  hashes, and invalid empty-state combinations.
+- [x] Regenerate the Brief, required-document-plan, and mutation-receipt schemas and prove static/runtime parity.
+
+### Task 6.2: Extend Guarded User-Owned Mutation To Brief
+
+- [x] Replace every two-artifact `corrections else decision` branch with an explicit, fail-closed artifact mapping
+  before adding Brief to claims, receipts, candidates, recovery, Agent references, and consents.
+- [x] Add create-if-absent Brief initialization. Bootstrap concrete legacy `job.yaml` language/style values exactly
+  once; keep unknown/placeholders unconfirmed and never synchronize an existing Brief from metadata.
+- [x] Add bounded discriminated scoped patches for each supported Brief decision; reject whole-file replacement.
+- [x] Require explicit `--confirm-user-owned-write`, the latest raw-byte SHA-256, and the latest revision for each
+  initialization, update, and recovery action.
+- [x] Preserve direct manual YAML bytes during status and stage reruns; preserve a stale Brief rather than clearing or
+  rewriting accepted values.
+- [x] Cover single-winner claims, final rereads, atomic replacement, idempotent retry, private immutable candidates,
+  body-free receipts, interrupted publication, and fresh-session recovery.
+- [x] Require a current confirmed `decision=apply` for Brief creation or semantic update; keep read-only status
+  available for undecided, hold, skip, stale, unavailable, or missing Decision states.
+
+### Task 6.3: Build The Deterministic Required-Document Projection
+
+- [x] Normalize advert-derived document requirements and source receipts without using a fixed application bundle.
+- [x] Store the explicit human confirmation of the requirement-set basis in the user-owned Brief and project it into
+  the core-owned plan.
+- [x] Require the current confirmed apply Decision, current declared upstream artifacts, and the exact raw Brief hash
+  before preparing or promoting a plan.
+- [x] Fingerprint the validated Decision raw hash and basis, requirement-set/source basis, raw Brief hash, and
+  relevant contract versions without requiring a mutation receipt for a valid manual edit.
+- [x] Resolve exactly one task per current normalized requirement and reconcile Brief choices by stable document ID.
+- [x] Preserve confirmed optional omissions, but emit executable blockers for unconfirmed requirement sets,
+  unresolved choices, `required + omit`, required documents without a preparation action, orphaned choices, and stale
+  or unavailable bases.
+- [x] Allow an empty plan only from a current explicit `confirmed_empty` basis.
+- [x] Run plan generation through deterministic-only candidate validation, guarded submit, atomic promotion, cache,
+  drift detection, cancellation, recovery, and fresh-session reconstruction.
+
+### Task 6.4: Expose A Body-Free Host-Neutral Workflow
+
+- [x] Add Brief status, create-if-absent initialization, scoped update, and recovery operations to the CLI and Agent
+  capabilities without changing the AgentResponse v1 body contract.
+- [x] Expose `application_brief` and `required_document_plan` only as Tier 2 artifact references with safe relative
+  paths and hashes; expose counts, opaque IDs, states, and blocker codes only as scalar control metadata.
+- [x] Require separate Tier 2 agent-reading consent before a host reads either body; do not require body access for
+  status, context, or deterministic execution.
+- [x] Preserve `phase=unknown` plus scalar stage extensions where required by the frozen AgentResponse 1.0 phase
+  vocabulary.
+- [x] Derive the same readiness, blockers, and next actions in fresh Codex, Claude Code, and generic shell sessions.
+
+### Task 6.5: Prove Privacy, Compatibility, And Distribution
+
+- [x] Add model/schema, initialization/bootstrap, field patch, CAS, conflict, recovery, stale-basis, orphan, and
+  document-resolution tests.
+- [x] Prove unique motivation, exclusion, style, and source-text sentinels remain only in their allowed Tier 2 data
+  artifacts and never enter AgentResponse, claims, receipts, manifests, errors, or ordinary output.
+- [x] Keep legacy `run`, dry-run, LLM flags, Markdown, Typst protection, git behavior, Parsed Job v1, TaskSpec v1, and
+  AgentResponse v1 compatible.
+- [x] Update canonical Skills, workspace mirrors, platform bridges, handoff examples, file contracts, privacy and
+  quality-gate guidance only after the implementation contract passes focused tests.
+- [x] Extend cross-OS CI, built-wheel, release, TestPyPI, and local-release fake-data smoke through Brief and
+  required-document planning.
+- [x] Run the full Python 3.11-3.14 suite, schema/resource checks, sdist/wheel build, Twine validation, and a clean-wheel
+  fresh-session smoke before recording local Task 6 acceptance.
+
+### Task 6 Exit Review
+
+Locally accepted on 2026-07-12. The acceptance run includes:
+
+- 919 tests passing on each Python 3.11, 3.12, 3.13, and 3.14 interpreter;
+- strict runtime/standalone-schema parity, guarded Brief mutation, source-bound basis, privacy sentinel, recovery,
+  drift, cache, cancellation, and fresh-session coverage;
+- adversarial review of missing, ambiguous, negated, conditional, alternative, qualified, truncated, multiline, and
+  unreconciled document source context, with no remaining blocker/high finding;
+- regenerated schemas, packaged-resource checks, sdist/wheel build, Twine validation, and clean installed-wheel
+  Decision Spine smoke through deterministic Brief.
+
+This accepts Task 6 only. Task 7 view migration, compatibility convergence, documentation/exit review, and Stage 2 as
+a whole remain open. No remote CI or published-package result is claimed.
 
 ## Task 7: Views, Compatibility, Documentation, And Exit Review
 
