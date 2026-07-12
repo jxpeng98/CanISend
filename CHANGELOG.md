@@ -2,10 +2,18 @@
 
 ## Unreleased
 
+- Locally accepted the complete Stage 2 Decision Spine after migrating deterministic fit/checklist/HR-review and
+  Typst package views onto current validated Match projections. Stale, drifted/tampered, graph-invalid,
+  mixed-profile, differently parsed, and `--llm-drafts` runs preserve compatible fallback behavior; every Match
+  classification remains a proposal rather than a Decision or readiness result.
+- Added fail-closed structured HR semantics for unresolved and unknown essential criteria, stable-ID joins,
+  confirmed-empty handling, Markdown table escaping, profile-provenance guards, final currentness rechecks, and
+  byte-preserving compatibility tests across the full user-owned Decision Spine.
+- Added a repository-native canonical skill mirror check to CI and release preparation, and extended the clean-wheel
+  smoke through `canisend run` with structured Markdown/Typst parity and Decision Spine byte-preservation checks.
 - Locally accepted the Stage 2 Task 6 slice with ADR-012, a strict user-owned Tier 2
   `application_brief.yaml`, deterministic core-owned Tier 2 `required_document_plan.json`, field-level Brief
-  confirmations, source-bound document-requirement states, and body-free Agent status. This does not mark Task 7 or
-  Stage 2 complete.
+  confirmations, source-bound document-requirement states, and body-free Agent status.
 - Extended guarded scoped-patch/CAS/recovery semantics to Brief preparation and defined executable plan blockers for
   unconfirmed requirement sets, unresolved choices, `required + omit`, missing preparation actions, and orphaned
   choices. Empty Parsed Job document output is not `confirmed_empty` without explicit current-basis confirmation;

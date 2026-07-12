@@ -28,8 +28,10 @@ It prepares materials only. It does not submit applications, create accounts, fi
 - Produces deterministic, reviewable `criterion_matches.json` proposals from current Criteria and Evidence catalogs.
 - Preserves user-owned criteria confirmations/corrections and apply/hold/skip decisions through explicit-consent,
   revision/hash compare-and-swap operations with privacy-safe receipts.
-- Adds the locally accepted Stage 2 Brief slice: user-owned Tier 2 `application_brief.yaml` plus deterministic,
-  core-owned Tier 2 `required_document_plan.json` with executable unresolved/omit/orphan blockers.
+- Provides the locally accepted Stage 2 Decision Spine: guarded user-owned corrections, Decision and Brief YAML,
+  deterministic Criteria/Evidence/Match/required-document projections, and executable unresolved/omit/orphan blockers.
+- Renders current deterministic Match proposals into fit/checklist/HR-review and Typst package views while safely
+  falling back for stale, drifted, mixed-profile, or explicit LLM-draft runs.
 - Generates `parsed_job.json`, preparation questions, fit reports, cover letter drafts, CV tailoring notes, criteria checklists, material review checklists, and structured Typst content.
 - Runs deterministic local generation by default, with explicit opt-in for LLM-backed evidence augmentation, parsing, or drafting.
 - Ships bridge files plus a self-contained workspace skill pack for Codex, Claude Code, and IDE agents.
@@ -451,8 +453,8 @@ successful invocation writes one `canisend.agent/v1` response to stdout. Respons
 artifact references and hashes rather than private document bodies. A failed package gate remains a successful
 operation result (`ok: true`) but exits non-zero; operational failures return `ok: false` with a stable error code.
 
-The resumable workflow exposes the locally accepted Parse, Confirm, Evidence, Match, user-owned mutation, and Task 6
-Brief/document-plan slices through the same shell-capable hosts. Start
+The locally accepted Stage 2 resumable workflow exposes Parse, Confirm, Evidence, Match, guarded user-owned mutation,
+Brief, document planning, and compatible structured views through the same shell-capable hosts. Start
 a deterministic fresh session with:
 
 ```bash
@@ -564,8 +566,8 @@ canisend stage run --workspace . --job jobs/<job-slug> --stage brief --mode dete
 The plan records body-free status counts and blocker codes in AgentResponse. Its Tier 2 body remains ask-first for an
 agent because it can contain advert source text and application strategy. An unconfirmed requirement set, unresolved
 choice, `required + omit`, required document without a preparation action, or orphaned old choice blocks later
-Draft/Verify work. Task 6 is locally accepted, but these artifacts do not complete Task 7, Stage 2, or an application
-package.
+Draft/Verify work. Stage 2 is locally accepted, but these artifacts do not establish Draft, application-package, or
+submission readiness.
 
 Evidence and Parse are independent after intake, so their deterministic runs may be ordered either way; Match waits
 for current Confirm and Evidence outputs. Host-agent execution currently applies to Parse only; Evidence, Confirm,
@@ -609,8 +611,11 @@ criterion, explicit privacy-safe gaps, matcher provenance, and opaque catalog re
 text, generated-evidence headings, or legacy locators. Every record has `review_state=proposed`: Match is not an
 application decision, does not confirm applicant claims, and does not make a package ready. The user-owned Decision
 is managed separately through `decision status|init|update`; Brief uses `brief status|init|update`, and deterministic
-Brief-stage planning writes `required_document_plan.json`. This Task 6 slice is locally accepted; view migration and
-the full Stage 2 exit review remain open in Task 7.
+Brief-stage planning writes `required_document_plan.json`. For a current deterministic Match using the configured
+workspace profile, `canisend run` now projects the same proposal graph into `02_fit_report.md`,
+`05_criteria_checklist.md`, structured HR checks, and Typst package content. Stale/drifted state, a different parsed
+view, a profile override, or `--llm-drafts` keeps the compatible fallback path. Stage 2 is locally accepted; Match
+remains proposed review input and never becomes a Decision or readiness result.
 
 Use `canisend doctor --workspace .` when a human-readable environment diagnostic is also useful.
 
@@ -688,6 +693,10 @@ The project also ships a reusable skill pack for cases where you want a narrower
 CanISend workspace as the active project. `skills/` is the canonical pack used by exports and workspace updates. The
 root Codex plugin manifest at `.codex-plugin/plugin.json` exposes that pack, while `agent-skills/canisend/` remains a
 one-release compatibility mirror of the canonical main skill.
+
+The repository-native substitute for an external `sync_hermes_tap` contract is
+`python scripts/sync_workspace_skill_mirror.py --check`. CI and local release checks fail on missing, extra, or
+content-drifted mirror entries; run the script without `--check` to safely rebuild the compatibility mirror.
 
 Use the main `canisend` skill for full workspace workflows. Use `canisend-job-intake` for source-to-advert intake,
 `canisend-application-package` for coordinated package construction, and `canisend-submission-readiness` for the final

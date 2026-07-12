@@ -10,6 +10,7 @@ canisend agent context \
   --workspace <workspace> \
   --job jobs/<job-id> \
   --format json
+canisend stage status --workspace <workspace> --job jobs/<job-id> --format json
 ```
 
 The response contains versioned protocol metadata, a safe job summary, a derived workflow snapshot, relative or
@@ -21,8 +22,8 @@ required response shape and private body fields that must never appear. Dynamic 
 version, job ID, hashes, and derived readiness are intentionally not frozen in the fixtures.
 
 The accepted shell contract covers durable preparation, guarded candidate submission, application, cancellation,
-promotion, recovery, and status for Parse, Confirm, Evidence, and Match. Task 6 now extends the same host-neutral
-contract with Brief and required-document-plan operations while implementation validation remains in progress.
+promotion, recovery, and status for Parse, Confirm, Evidence, Match, and Brief/document planning. Stage 2 is locally
+accepted across the same host-neutral shell contract.
 Evidence, Match, and Brief planning are deterministic-only; they do not need a platform API, MCP transport, hosted
 service, network, or configured provider. A fresh host resumes with the same `agent context` and `stage status`
 commands, then may run:
@@ -51,6 +52,7 @@ canisend brief update --workspace <workspace> --job jobs/<job-id> --patch-file <
   --expected-revision <status-revision> --expected-sha256 <status-sha256> \
   --confirm-user-owned-write --format json
 canisend stage run --workspace <workspace> --job jobs/<job-id> --stage brief --mode deterministic --format json
+canisend run --workspace <workspace> --job jobs/<job-id>
 ```
 
 The example placeholders are deliberately not shell-parsed dynamic hashes. A fresh host takes the artifact SHA-256
@@ -80,4 +82,15 @@ concurrent manual editor saves. Reset/clear/withdraw does not erase historical c
 the ignored job stays private until the user separately removes retained events or the whole job. Automatic secure
 erasure, including from backups/snapshots, is not claimed.
 
-Task 6 is locally accepted. This handoff shape does not claim complete Task 7, complete Stage 2, or package readiness.
+The three YAML files remain manual user-owned Tier 2 ask-first inputs: `confirmed_corrections.yaml`,
+`application_decision.yaml`, and `application_brief.yaml`. Users may edit them directly. Agents use body-free status,
+one bounded private patch, the latest revision/hash CAS baseline, and explicit consent; they do not replace a whole
+YAML file. CAS does not make concurrent manual editor saves safe.
+
+With current deterministic Match and the workspace-configured profile, the final `canisend run` above projects the
+same proposed graph into `02_fit_report.md`, `05_criteria_checklist.md`, structured checks in
+`07_material_review_checklist.md`, `typst/application_package_content.json`, and
+`typst/application_package.typ`. Stale or drifted/tampered structured state, a mismatching parsed view, or a profile
+override safely falls back to legacy deterministic generation; `--llm-drafts` keeps provider output. Every
+classification remains a proposal, not a Decision or readiness result.
+Stage 2 local acceptance does not claim Draft or application-package readiness.

@@ -1,6 +1,6 @@
 # CLI-First Workflow Optimization Execution Roadmap
 
-**Status:** Active — Stage 1 locally accepted; Stage 2 through the Task 5 slice locally accepted, Tasks 6-7 open
+**Status:** Active — Stages 1 and 2 locally accepted; Stage 3 is next
 
 **Date:** 2026-07-11
 
@@ -165,13 +165,13 @@ CV or package status does not invalidate Parse.
 
 ## Stage 2: Decision Spine
 
-**Stage status:** In progress on `feat/decision-spine-foundation`. ADR-009 and ADR-010 freeze semantic identity and
+**Stage status:** Locally accepted on `feat/decision-spine-foundation`. ADR-009 and ADR-010 freeze semantic identity and
 user-owned input boundaries. ADR-011 freezes the Evidence read and privacy boundary. The stable Criteria/Confirm,
-Evidence/Match, Task 5 user-owned corrections/Decision, and Task 6 Brief/document-plan slices are locally accepted with guarded candidate
-submission, explicit consent, cooperative compare-and-swap, recovery, and distribution smoke coverage. ADR-012 now
-freezes the Brief/document-plan ownership, privacy, precondition, source-receipt, and blocker boundary. View migration
-and the full Stage 2 exit review remain open in Task 7. This status does not claim a remote CI result or published
-package.
+Evidence/Match, user-owned corrections/Decision, Brief/document-plan, and guarded structured-view slices are locally
+accepted with guarded candidate submission, explicit consent, cooperative compare-and-swap, recovery, compatibility,
+and distribution smoke coverage. ADR-012 freezes the Brief/document-plan ownership, privacy, precondition,
+source-receipt, and blocker boundary. This status does not claim a remote CI result, published package, Draft
+readiness, or submission readiness.
 
 ### Deliverables
 
@@ -263,7 +263,24 @@ network, MCP transport, or platform API.
 
 Task 6 was locally accepted on 2026-07-12 after focused privacy/CAS/recovery and adversarial source tests, 919 tests on
 each supported Python 3.11-3.14 interpreter, schema/resource/build/Twine checks, red-team review, and clean installed-
-wheel Decision Spine smoke. Task 7 and the full Stage 2 exit review remain open.
+wheel Decision Spine smoke. Task 7 subsequently completed the guarded view migration and Stage 2 exit review.
+
+### Task 7 Views/Compatibility Locally Accepted
+
+Current deterministic Match now supplies the proposed fit report, criteria checklist, stable-ID essential-criteria HR
+review, and matching Markdown/Typst package projections only when Match and its upstream artifacts are current,
+validated, and bound to the same parsed job and workspace-configured profile. Unresolved criteria fail closed;
+`confirmed_empty` remains explicit. Stale or drifted/tampered artifacts, invalid graphs, a different parse, or a
+profile override use the legacy deterministic view without mixing provenance. `--llm-drafts` retains provider output.
+
+The migration preserves all Decision Spine artifact bytes, dry-run and git behavior, protected Typst sources, direct
+library calls without a workspace, and current stage status. The canonical workspace skill and compatibility mirror
+are guarded by an exact-tree CI/release check.
+
+Task 7 and Stage 2 were locally accepted on 2026-07-12 after 942 tests passed on Python 3.11, 3.12, 3.13, and the
+additional Python 3.14 development interpreter, followed by schema/resource, build, Twine, mirror, privacy/recovery,
+and clean installed-wheel Decision Spine/view smoke checks. No remote CI, publication, Draft readiness, or submission
+result is claimed.
 
 ### Exit Criteria
 

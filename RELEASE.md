@@ -32,6 +32,7 @@ next Phase 1 candidate begins at `0.3.0a1`.
 Run these before triggering any remote publish workflow:
 
 ```bash
+uv run python scripts/sync_workspace_skill_mirror.py --check
 uv run python -m pytest
 uv build
 uvx twine check dist/*
@@ -51,14 +52,17 @@ python -m venv /tmp/canisend-smoke
 
 The automated clean-wheel smoke additionally runs the fake-data Decision Spine through Evidence, Parse, Confirm,
 corrections status/init, Match, a scoped current-basis `decision=apply` update, Brief status/init, and deterministic
-Brief planning. The shared smoke helper parses only body-free revision/hash metadata, writes a synthetic private patch
-to temporary workspace scratch, and removes it after use. It asserts three user-owned YAML files, the core-owned
-`required_document_plan.json`, four immutable body-free mutation receipts, and successful manifests for Evidence,
-Parse, Confirm, Match, and Brief.
+Brief planning, then runs the compatible deterministic package pipeline. The shared smoke helper parses only
+body-free revision/hash metadata, writes a synthetic private patch to temporary workspace scratch, and removes it
+after use. It asserts three user-owned YAML files, the core-owned `required_document_plan.json`, four immutable
+body-free mutation receipts, successful manifests for Evidence, Parse, Confirm, Match, and Brief, byte preservation
+across `run`, and structured Match parity across Markdown and Typst content.
 
-Task 6 was locally accepted only after this smoke was combined with focused privacy/CAS/recovery and adversarial
-source-receipt tests, the Python 3.11-3.14 matrix, package/resource validation, Twine checks, and a clean installed-wheel
-run. Local acceptance does not complete Task 7 or Stage 2 and is not a remote CI or publication result.
+Stage 2 was locally accepted after this smoke was combined with focused privacy/CAS/recovery, provenance, view-
+fallback, adversarial source-receipt and Markdown tests, 942 passing tests on supported Python 3.11-3.13 plus the
+additional Python 3.14 development interpreter, package/resource validation, Twine checks, and a clean
+installed-wheel run. This is not a remote CI or publication result and does not claim Draft, package, or submission
+readiness.
 
 ## Trusted Publishing Setup
 

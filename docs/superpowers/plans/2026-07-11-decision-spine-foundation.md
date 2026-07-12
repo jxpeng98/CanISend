@@ -1,6 +1,6 @@
 # Decision Spine Foundation Implementation Plan
 
-**Status:** In progress — Criteria/Confirm, Evidence/Match, and Task 5 user-owned mutation slices locally accepted
+**Status:** Complete — Stage 2 locally accepted on 2026-07-12; no remote CI or publication claimed
 
 **Date:** 2026-07-11
 
@@ -12,8 +12,8 @@
 
 Implement Stage 2 of the CLI-first roadmap as a sequence of reviewable vertical slices. The first slice establishes
 stable criteria and a resumable Confirm stage; the second establishes stable private Evidence catalogs and durable
-proposed matching; the third adds user-owned corrections and application decisions. Later slices add briefs and
-advert-driven document planning without entering Draft.
+proposed matching; the third adds user-owned corrections and application decisions; the final slices add Brief,
+advert-driven document planning, and guarded structured views without entering Draft.
 
 ## Fixed Decisions
 
@@ -24,7 +24,7 @@ advert-driven document planning without entering Draft.
 - `confirmed_corrections.yaml`, `application_decision.yaml`, and `application_brief.yaml` are user-owned.
 - Core-owned projections may become stale; user-owned values are preserved and marked for review.
 - AgentResponse 1.0 carries artifact references and scalar extensions only.
-- The legacy `canisend run` remains compatible until structured outputs can replace its Markdown machine state.
+- `canisend run` remains compatible while current deterministic Match may safely supply selected Markdown/Typst views.
 - Stage 2 does not generate application-facing prose or claim submission readiness.
 
 ## Task 0: Freeze Ownership And Semantic Identity
@@ -188,8 +188,8 @@ older versions must be re-extracted when it lacks the source-hash receipt; chang
 the Evidence catalog unavailable until re-extraction.
 
 Every Match classification remains `review_state=proposed`. No proposed result is an application decision, a claim
-confirmation, or a package-readiness signal. Task 5 now records the separate user-owned Decision; Tasks 6-7—
-Application Brief, required-document planning, view migration, and the full Stage 2 exit review—remain open.
+confirmation, or a package-readiness signal. Task 5 records the separate user-owned Decision; Tasks 6-7 subsequently
+delivered Application Brief, required-document planning, guarded view migration, and the full Stage 2 exit review.
 
 ## Task 5: User-Owned Corrections And Decision
 
@@ -254,7 +254,7 @@ automatic secure erasure and deletion from backups/snapshots are not claimed.
 
 ## Task 6: Application Brief And Required-Document Plan
 
-**Status:** Locally accepted on 2026-07-12; Task 7 and the full Stage 2 exit review remain open.
+**Status:** Locally accepted on 2026-07-12; Task 7 subsequently completed the full Stage 2 exit review.
 
 ### Task 6.0: Freeze Ownership, Privacy, And Execution Boundaries
 
@@ -355,12 +355,30 @@ a whole remain open. No remote CI or published-package result is claimed.
 
 ## Task 7: Views, Compatibility, Documentation, And Exit Review
 
-- [ ] Keep legacy `run`, dry-run, LLM flags, Markdown, Typst protection, and git behavior compatible.
-- [ ] Begin rendering fit/checklist Markdown from structured matches only after parity tests pass.
-- [ ] Document the fresh-session Stage 2 CLI loop and manual YAML ownership boundaries.
-- [ ] Update the changelog and packaged skill references.
-- [ ] Run focused, full Python 3.11-3.13, distribution, resource, clean-wheel, privacy, and recovery checks.
-- [ ] Complete the Stage 2 exit review only when every roadmap exit criterion has automated evidence.
+- [x] Keep legacy `run`, dry-run, LLM flags, Markdown, Typst protection, and git behavior compatible.
+- [x] Begin rendering fit/checklist Markdown from structured matches only after parity tests pass.
+- [x] Document the fresh-session Stage 2 CLI loop and manual YAML ownership boundaries.
+- [x] Update the changelog and packaged skill references.
+- [x] Run focused, full Python 3.11-3.13, distribution, resource, clean-wheel, privacy, and recovery checks.
+- [x] Complete the Stage 2 exit review only when every roadmap exit criterion has automated evidence.
+
+### Task 7 And Stage 2 Exit Review
+
+Locally accepted on 2026-07-12. Automated evidence includes:
+
+- exact currentness/hash/graph/parsed-job/profile-provenance gates with legacy fallback for stale, drifted/tampered,
+  invalid, differently parsed, and profile-override runs;
+- provider-path preservation for `--llm-drafts`, direct-library compatibility, dry-run/git behavior, protected Typst
+  candidates, state reconstruction, and byte preservation across every Decision Spine artifact;
+- stable-ID structured HR joins, fail-closed unresolved/unknown states, explicit confirmed-empty semantics,
+  adversarial Markdown/citation escaping, correction propagation, and evidence-body exclusion;
+- 942 passing tests on Python 3.11, 3.12, 3.13, and the additional Python 3.14 development interpreter;
+- exact canonical skill-mirror checks, schema/resource validation, sdist/wheel build, Twine validation, package
+  inspection, and a clean installed-wheel smoke through Brief plus guarded structured Markdown/Typst views.
+
+Every Stage 2 roadmap exit criterion has automated evidence. No blocker/high/medium finding remains after red-team
+review. This local acceptance is not a remote CI or published-package result and does not claim Draft, package, or
+submission readiness.
 
 ## First Slice Acceptance Matrix
 

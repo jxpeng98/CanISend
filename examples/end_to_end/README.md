@@ -32,11 +32,14 @@ The same fake workspace can exercise the accepted resumable Decision Spine witho
 
 ```bash
 JOB=jobs/2026-06-15_example-university_lecturer-in-applied-economics
+canisend agent context --workspace /tmp/canisend-example --job "$JOB" --format json
+canisend stage status --workspace /tmp/canisend-example --job "$JOB" --format json
 canisend stage run --workspace /tmp/canisend-example --job "$JOB" --stage evidence --mode deterministic --format json
 canisend stage run --workspace /tmp/canisend-example --job "$JOB" --stage parse --mode deterministic --format json
 canisend stage run --workspace /tmp/canisend-example --job "$JOB" --stage confirm --mode deterministic --format json
 canisend stage run --workspace /tmp/canisend-example --job "$JOB" --stage match --mode deterministic --format json
 canisend decision status --workspace /tmp/canisend-example --job "$JOB" --format json
+canisend run --workspace /tmp/canisend-example --job "$JOB" --no-git-add-materials
 ```
 
 This adds strict Tier 2 `criteria.json`, private `evidence_catalog.json`, and body-minimized Tier 2
@@ -45,7 +48,7 @@ are proposed review results, not application decisions. The fake profile stays i
 generated Typst evidence carries a source-hash receipt.
 
 After recording a current confirmed `decision=apply` through `decision init|update`, the same fake job can exercise
-the Task 6 implementation without a provider or platform API:
+Brief/document planning without a provider or platform API:
 
 ```bash
 canisend brief status --workspace /tmp/canisend-example --job "$JOB" --format json
@@ -56,7 +59,20 @@ canisend stage run --workspace /tmp/canisend-example --job "$JOB" --stage brief 
 Use `brief update` with one strict patch and the latest revision/hash to confirm fields, the current document
 requirements basis, and document choices. `application_brief.yaml` and `required_document_plan.json` are Tier 2;
 Agent status remains body-free. An empty parsed list is not `confirmed_empty`, and unresolved, `required + omit`, or
-orphaned choices remain blockers. Task 6 is locally accepted; this example does not claim Task 7 or Stage 2 complete.
+orphaned choices remain blockers. Stage 2 is locally accepted, but this example does not claim Draft or package
+readiness.
+
+The three YAML files remain manual user-owned Tier 2 ask-first inputs: `confirmed_corrections.yaml`,
+`application_decision.yaml`, and `application_brief.yaml`. Users may edit them directly against their schemas.
+Agents instead use body-free status, one bounded private patch, the latest revision/hash CAS baseline, and explicit
+consent; they never replace a whole user YAML file or race a manual editor save.
+
+The deterministic `run` after current Match uses the workspace-configured profile to project the same proposed graph
+into `02_fit_report.md`, `05_criteria_checklist.md`, structured checks in `07_material_review_checklist.md`, and the
+`typst/application_package_content.json` and `typst/application_package.typ` projections. If structured state is
+stale, drifted/tampered, graph-invalid, or parsed against a different advert view—or if `--profile-dir` overrides the
+configured profile—the command safely uses legacy deterministic generation. `--llm-drafts` keeps provider-generated
+drafts. In every path, Match classifications remain proposals, not application decisions or readiness results.
 
 The manual sequence below is useful when developing the project or debugging individual steps.
 
