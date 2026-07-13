@@ -236,7 +236,8 @@ def test_main_skill_preserves_guarded_draft_and_review_contract():
     assert "stage prepare --stage draft --mode host-agent" in contents
     assert "read-private-draft-inputs" in workflow
     assert "Never write" in workflow
-    assert "does not yet overwrite compatibility" in workflow
+    assert "projection establishes package readiness" in workflow
+    assert "Each Claim is emitted once" in workflow
 
 
 def test_package_check_requires_distributed_skill_pack_resources():

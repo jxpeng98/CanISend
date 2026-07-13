@@ -30,10 +30,11 @@ It prepares materials only. It does not submit applications, create accounts, fi
   revision/hash compare-and-swap operations with privacy-safe receipts.
 - Provides the locally accepted Stage 2 Decision Spine: guarded user-owned corrections, Decision and Brief YAML,
   deterministic Criteria/Evidence/Match/required-document projections, and executable unresolved/omit/orphan blockers.
-- Provides the Stage 3 structured foundation: guarded host-agent `cover_letter_draft.json` promotion and independent
-  deterministic `review_findings.json`, without claiming final wording or package/submission readiness.
-- Renders current deterministic Match proposals into fit/checklist/HR-review and Typst package views while safely
-  falling back for stale, drifted, mixed-profile, or explicit LLM-draft runs.
+- Provides the first Stage 3 structured slice: guarded host-agent `cover_letter_draft.json` promotion, independent
+  deterministic `review_findings.json`, and parity-checked Markdown/Typst compatibility views.
+- Renders current deterministic Match proposals and a current blocker-free structured Cover Letter into compatible
+  views while safely falling back for stale, drifted, blocked, mixed-profile, direct-library, or explicit
+  LLM-draft runs. Projection never means package/submission readiness.
 - Generates `parsed_job.json`, preparation questions, fit reports, cover letter drafts, CV tailoring notes, criteria checklists, material review checklists, and structured Typst content.
 - Runs deterministic local generation by default, with explicit opt-in for LLM-backed evidence augmentation, parsing, or drafting.
 - Ships bridge files plus a self-contained workspace skill pack for Codex, Claude Code, and IDE agents.
@@ -606,8 +607,10 @@ canisend stage run \
 ```
 
 Unsupported factual claims, missing required sections, and detectable Brief-exclusion conflicts remain blockers.
-Partial support, semantic support, and non-factual Claim-kind classification remain review work. The structured Draft
-stays `proposed`; this slice does not overwrite compatibility Markdown/Typst files or establish package readiness.
+Partial support, semantic support, and non-factual Claim-kind classification remain review work. When Draft and
+Review are current, Match is current for the same parsed job and configured profile, and Review has no blockers,
+`canisend run` projects the Claim graph into compatibility Markdown and Typst. The Draft stays `proposed`; projection
+does not close open findings or establish package readiness.
 
 Evidence and Parse are independent after intake, so their deterministic runs may be ordered either way; Match waits
 for current Confirm and Evidence outputs. Host-agent execution currently applies to Parse and Draft; Evidence,
@@ -653,9 +656,12 @@ application decision, does not confirm applicant claims, and does not make a pac
 is managed separately through `decision status|init|update`; Brief uses `brief status|init|update`, and deterministic
 Brief-stage planning writes `required_document_plan.json`. For a current deterministic Match using the configured
 workspace profile, `canisend run` now projects the same proposal graph into `02_fit_report.md`,
-`05_criteria_checklist.md`, structured HR checks, and Typst package content. Stale/drifted state, a different parsed
-view, a profile override, or `--llm-drafts` keeps the compatible fallback path. Stage 2 is locally accepted; Match
-remains proposed review input and never becomes a Decision or readiness result.
+`05_criteria_checklist.md`, structured HR checks, and Typst package content. If the current structured Draft and
+deterministic Review also validate and Review has no blocker findings, the same run projects each Cover Letter Claim
+once into `03_cover_letter_draft.md`, Cover Letter/package content JSON, and Typst. Stale/drifted state, a different
+parsed view, a profile override, blocked/missing Draft or Review, a direct library call without workspace provenance,
+or `--llm-drafts` keeps the compatible fallback path. Match, Draft, and Review remain proposed review input and never
+become a Decision or readiness result.
 
 Use `canisend doctor --workspace .` when a human-readable environment diagnostic is also useful.
 
@@ -861,6 +867,6 @@ RELEASE.md                maintainer release playbook
 See `canisend_v1_proposal.md` for the original V1 engineering proposal,
 `docs/superpowers/specs/2026-07-09-discovery-and-workflow-v2-design.md` for detailed multi-source and stage-hardening
 constraints, and `docs/superpowers/specs/2026-07-11-cli-first-workflow-optimization-roadmap.md` for the current
-delivery roadmap. The current Stage 2 execution plan is
-`docs/superpowers/plans/2026-07-11-decision-spine-foundation.md`; the 2026-07-10 Agent Runtime plan remains the
-accepted Stage 1 record.
+delivery roadmap. The current Stage 3 execution plan is
+`docs/superpowers/plans/2026-07-13-evidence-backed-draft-foundation.md`; the 2026-07-11 Decision Spine and 2026-07-10
+Agent Runtime plans remain the accepted Stage 2 and Stage 1 records.

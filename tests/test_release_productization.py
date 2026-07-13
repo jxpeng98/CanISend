@@ -34,7 +34,13 @@ def test_shared_decision_spine_smoke_owns_the_full_body_free_contract():
         '["brief", "status"',
         '["brief", "init"',
         '"--stage", "brief"',
+        '"operation": "confirm_document_requirements"',
+        '"--stage",\n            "draft"',
+        '"stage",\n                "submit"',
+        '"stage",\n            "apply"',
+        '"--stage", "review"',
         '"run",\n            "--workspace"',
+        '"check-package"',
     ]
 
     positions = [rendered.index(step) for step in ordered_steps]
@@ -44,11 +50,16 @@ def test_shared_decision_spine_smoke_owns_the_full_body_free_contract():
     assert '"--expected-sha256"' in rendered
     assert "application_brief.yaml" in rendered
     assert "required_document_plan.json" in rendered
+    assert "cover_letter_draft.json" in rendered
+    assert "review_findings.json" in rendered
     assert "Deterministic proposal" in rendered
     assert "Criterion is unresolved" in rendered
+    assert "compatibility projection is not package readiness" in rendered
+    assert "structured-draft projection" in rendered
     assert "application_package_content.json" in rendered
-    assert "EXPECTED_USER_MUTATION_RECEIPTS = 4" in rendered
-    assert '{"evidence", "parse", "confirm", "match", "brief"}' in rendered
+    assert "EXPECTED_USER_MUTATION_RECEIPTS = 10" in rendered
+    for stage in ("evidence", "parse", "confirm", "match", "brief", "draft", "review"):
+        assert f'"{stage}":' in rendered
     assert "preparation.json" in rendered
     assert "submission.json" in rendered
     assert "completed.stdout" not in rendered[rendered.index("def main(") :]

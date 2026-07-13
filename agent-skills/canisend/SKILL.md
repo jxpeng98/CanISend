@@ -130,8 +130,10 @@ When the focused skills are installed:
 14. Use `canisend run --workspace <private-workspace> --job jobs/<job-slug>` for the compatible full-package pipeline.
     With the configured workspace profile and no `--llm-drafts`, a current deterministic Match supplies the proposed
     `02_fit_report.md` and `05_criteria_checklist.md` views, the structured essential-criteria review in
-    `07_material_review_checklist.md`, and `typst/application_package_content.json`/`application_package.typ`
-    projections. Stale, drifted, or tampered structured artifacts, a non-workspace profile override, or
-    `--llm-drafts` use the safe legacy path.
+    `07_material_review_checklist.md`, and Typst package projections. A current validated Draft plus current
+    blocker-free deterministic Review also supplies the compatible Cover Letter Markdown/content/Typst views, while
+    keeping open findings and `requires_human_review`. Missing, blocked, stale, drifted, or tampered structured
+    artifacts, a non-workspace profile override, direct library use, or `--llm-drafts` use the safe legacy/provider
+    path. Projection is not package readiness.
 15. Add LLM-backed flags only after checking `references/provider-config.md` and getting explicit user approval.
 16. Review outputs against `references/quality-gates.md` before rendering or presenting final package materials.

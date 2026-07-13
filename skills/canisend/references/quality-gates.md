@@ -97,8 +97,13 @@ Do not use ready, final, complete, or submission-ready for generated materials u
 - A legacy fallback caused by stale/tampered state, parsed-view or profile-provenance mismatch, or `--llm-drafts` is
   identified as such; it is not presented as current structured Match evidence.
 - `02_fit_report.md` separates strong fit, partial fit, and gaps.
-- `03_cover_letter_draft.md` is a compatibility output and is not assumed to mirror structured Draft until the
-  explicit structured projection reports parity. Its application-facing English must not include unsupported claims.
+- If `typst/cover_letter_content.json` declares `projection.source=cover_letter_draft.json`, its Draft and Review
+  hashes still match the current authoritative files, Review has no blocker findings, and each structured Claim
+  appears exactly once in `03_cover_letter_draft.md` and both Typst views.
+- Open review/warning findings, `review_state=proposed`, and `requires_human_review` remain explicit. Compatibility
+  projection is not reviewed/final/package-ready. A missing, blocked, stale, drifted, or invalid Draft/Review uses the
+  legacy/provider view rather than mixed provenance.
+- `03_cover_letter_draft.md` application-facing English must not include unsupported claims.
 - `04_cv_tailoring_notes.md` tells the user what to adjust in the private CV, but does not rewrite the CV unless asked.
 - `05_criteria_checklist.md` covers all extracted essential criteria.
 - `07_material_review_checklist.md` tracks cover letter draft and CV tailoring notes review actions before Typst rendering.
@@ -112,6 +117,8 @@ Do not use ready, final, complete, or submission-ready for generated materials u
 - `typst/cover_letter.typ` directly contains the cover letter text and stable section markers.
 - `typst/application_package.typ` directly contains the package text, criteria checklist, and remaining actions.
 - Generated `.typ` files use `modernpro-coverletter` or `modernpro-cv` templates rather than Markdown-to-Typst conversion.
+- A structured Draft projection uses stable section and Claim markers, escapes Claim text as text, and does not allow
+  agent-controlled headings or Typst code to become structure.
 - If a rerun writes `*.generated.typ`, the preserved editable source and candidate have been compared and reconciled.
 - No `typst/*.generated.typ` candidate remains; pending candidates block package readiness and rendering.
 - PDF rendering is optional and requires local Typst.
@@ -123,6 +130,8 @@ Do not use ready, final, complete, or submission-ready for generated materials u
 - `check-package --write-report` writes `application_gate_report.json`; without the flag the check is read-only.
 - The report includes SHA-256 hashes under safe relative labels. Any later input or material edit changes those hashes
   and requires a fresh check.
+- A structured Cover Letter projection binds `cover_letter_draft.json` and `review_findings.json` hashes. The first
+  slice remains `proposed` with open semantic review, so `check-package` must fail APP-Q4 rather than infer readiness.
 - A later `canisend run` marks an existing report `STALE`; rerun `check-package --write-report` after reconciliation.
 
 ## Privacy Gate

@@ -155,9 +155,10 @@ RSS and Atom lead outputs live in ignored `job_leads/`.
   codes. It binds exact Parsed Job, Criteria, Evidence, Match, Decision, Brief, and document-plan hashes. It is
   promoted only from guarded host-agent candidate JSON and always remains `review_state=proposed`.
 - `review_findings.json`: deterministic core-owned Tier 2 Review projection for the current structured Draft. It
-  records stable blocker/review/warning findings without changing the Draft, user YAML, Markdown, Typst, or profile.
-  Unsupported claims, missing required sections, and confirmed Brief exclusion conflicts are blockers; structurally
-  supported factual claims and every non-factual Claim-kind classification retain explicit semantic-review findings.
+  records stable blocker/review/warning findings without changing the Draft, user YAML, compatibility views, or
+  profile. Unsupported claims, missing required sections, and confirmed Brief exclusion conflicts are blockers;
+  structurally supported factual claims and every non-factual Claim-kind classification retain explicit
+  semantic-review findings. A later compatible `run` may read this current Review to project a blocker-free Draft.
 - `workflow/user-mutations/`: private immutable candidates plus cooperative single-winner claims and immutable
   receipts. Candidate/YAML bodies and corrected Criteria are Tier 2. Claims and receipts never include correction
   text, rationale, Brief values, or document source text; the receipt is Tier 1 and validates against
@@ -177,8 +178,10 @@ RSS and Atom lead outputs live in ignored `job_leads/`.
   Evidence does not accept a workspace-external profile root.
 - `00_preparation_questions.md`: grill-me checklist for confirming US English vs UK English, writing style, specific motivation, emphasis, risks, and excluded details before treating materials as final.
 - `02_fit_report.md`, `03_cover_letter_draft.md`, `04_cv_tailoring_notes.md`, `05_criteria_checklist.md`:
-  compatibility Markdown review artifacts. The structured Draft slice does not overwrite them; until an explicit
-  projection is implemented and parity-tested, they remain on the compatible legacy/provider pipeline.
+  compatibility Markdown review artifacts. A workspace `run` projects a current, validated, blocker-free structured
+  Cover Letter into `03_cover_letter_draft.md` only when the same run can use current structured Match, the parsed
+  view and configured profile provenance agree, and `--llm-drafts` is absent. Otherwise the compatible legacy or
+  provider path remains in effect.
 - `07_material_review_checklist.md`: management artifact for cover letter draft, CV tailoring notes, placeholders, item-level citations, and manual follow-up actions.
 - `typst/cover_letter.typ`: editable Typst source for the final cover letter, with stable `// CANISEND: section ...` markers.
 - `typst/application_package.typ`: editable Typst source for the final package, including remaining actions and review sections.
@@ -197,6 +200,13 @@ In deterministic workspace runs, a current validated Match graph supplies the pr
 derived files do not change `review_state=proposed` into user confirmation,
 Decision, or readiness. Stale or drifted/tampered structured artifacts, a mismatching parsed view, a profile override,
 or `--llm-drafts` cause safe legacy/provider fallback rather than mixed-provenance output.
+
+When that Match guard passes, a current validated Draft plus current deterministic Review with zero blocker findings
+may also supply `03_cover_letter_draft.md`, `typst/cover_letter_content.json`, the Cover Letter portion of
+`typst/application_package_content.json`, and both Typst sources. Each structured Claim is rendered once and the
+content JSON records exact Draft/Review hashes and `requires_human_review`. Open review/warning findings remain open;
+the projection is not a reviewed/final package. Missing, blocked, stale, drifted, or invalid Draft/Review artifacts,
+direct library use without workspace provenance, profile override, or `--llm-drafts` use safe fallback instead.
 
 Evidence snapshots, Evidence candidates, promoted Evidence catalogs, user mutation YAML/private candidates,
 corrected Criteria, Brief-stage candidates/plans, structured Draft candidates/artifacts, and Review findings are the

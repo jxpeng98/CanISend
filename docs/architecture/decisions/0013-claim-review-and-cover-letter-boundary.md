@@ -43,6 +43,14 @@ collection and derives blockers from the current promoted Draft plus current ups
 - Markdown and Typst projection from a promoted structured Draft is a later compatibility task, not an alternate
   promotion path.
 
+### Compatibility implementation note (2026-07-13)
+
+The later compatibility task now projects a promoted Draft only after the structured Match, Draft, and deterministic
+Review views are independently current and validated for the same parsed job and configured profile, with zero Review
+blocker findings. The projection renders each Claim once, records exact Draft/Review hashes, protects edited Typst by
+writing a generated candidate, and fails closed to the legacy/provider path when provenance cannot be established.
+It does not promote Markdown or Typst, close open findings, change `review_state=proposed`, or establish readiness.
+
 The first executable Draft mode is `host_agent`. A configured-provider mode may be added only after it reuses the
 same TaskSpec, candidate, validator, privacy, and promotion contracts. Deterministic Draft is not claimed merely by
 templating generic prose.
@@ -102,7 +110,7 @@ provider prompts/responses.
 - Rejected or stale candidates cannot alter promoted Drafts, user-owned YAML, Markdown, Typst, or profile inputs.
 - Strong factual claims have a machine-enforceable current-evidence invariant; semantic proportionality remains a
   Review responsibility.
-- The first slice adds structure without replacing the legacy `canisend run` outputs.
+- The first slice can supply guarded compatibility views without making those views authoritative workflow state.
 - Claim and Review bodies remain private even though their status and blocker counts can be exposed safely.
 
 ## Rejected Alternatives

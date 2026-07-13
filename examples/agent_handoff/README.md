@@ -22,11 +22,10 @@ required response shape and private body fields that must never appear. Dynamic 
 version, job ID, hashes, and derived readiness are intentionally not frozen in the fixtures.
 
 The accepted shell contract covers durable preparation, guarded candidate submission, application, cancellation,
-promotion, recovery, and status for Parse, Confirm, Evidence, Match, and Brief/document planning. Stage 2 is locally
-accepted across the same host-neutral shell contract.
-Evidence, Match, and Brief planning are deterministic-only; they do not need a platform API, MCP transport, hosted
-service, network, or configured provider. A fresh host resumes with the same `agent context` and `stage status`
-commands, then may run:
+promotion, recovery, and status through the first structured Cover Letter Draft and independent Review slice.
+Evidence, Match, Brief planning, and Review are deterministic-only; Draft uses the current host agent through the
+same files and CLI rather than a platform API, MCP transport, hosted service, network, or configured provider. A
+fresh host resumes with the same `agent context` and `stage status` commands, then may run:
 
 ```bash
 canisend extract-profile-evidence --workspace <workspace>
@@ -52,6 +51,12 @@ canisend brief update --workspace <workspace> --job jobs/<job-id> --patch-file <
   --expected-revision <status-revision> --expected-sha256 <status-sha256> \
   --confirm-user-owned-write --format json
 canisend stage run --workspace <workspace> --job jobs/<job-id> --stage brief --mode deterministic --format json
+canisend stage prepare --workspace <workspace> --job jobs/<job-id> --stage draft --mode host-agent --format json
+canisend stage submit --workspace <workspace> --job jobs/<job-id> --task <task-path> \
+  --candidate-file <private-scratch-candidate.json> --format json
+canisend stage apply --workspace <workspace> --job jobs/<job-id> --task <task-path> \
+  --result <result-path> --format json
+canisend stage run --workspace <workspace> --job jobs/<job-id> --stage review --mode deterministic --format json
 canisend run --workspace <workspace> --job jobs/<job-id>
 ```
 
@@ -67,6 +72,11 @@ a new patch and fresh baseline. If an accepted mutation reports receipt pending,
 `user-mutation recover` with its opaque mutation ID and explicit consent; it must not replay the private patch.
 Brief initialization and changes also require a current confirmed apply Decision. A changed Decision basis preserves
 the Brief but requires explicit reconfirmation.
+
+Draft preparation returns `read-private-draft-inputs`; the user approves that consent before the host reads the seven
+declared Tier 2 inputs. The host writes only schema-valid scratch JSON, then uses the returned job-relative task and
+result paths with `stage submit` and `stage apply`. It never writes run paths or `cover_letter_draft.json` directly.
+Review is then regenerated independently and exposes body-free counts/codes before any Claim or finding body is read.
 
 The Evidence run snapshot, candidate, and catalog may duplicate private profile bodies and are retained until the user
 removes the run or job. Agent context and workflow control records expose only privacy-safe artifact references,
@@ -88,9 +98,9 @@ one bounded private patch, the latest revision/hash CAS baseline, and explicit c
 YAML file. CAS does not make concurrent manual editor saves safe.
 
 With current deterministic Match and the workspace-configured profile, the final `canisend run` above projects the
-same proposed graph into `02_fit_report.md`, `05_criteria_checklist.md`, structured checks in
-`07_material_review_checklist.md`, `typst/application_package_content.json`, and
-`typst/application_package.typ`. Stale or drifted/tampered structured state, a mismatching parsed view, or a profile
-override safely falls back to legacy deterministic generation; `--llm-drafts` keeps provider output. Every
-classification remains a proposal, not a Decision or readiness result.
-Stage 2 local acceptance does not claim Draft or application-package readiness.
+same proposed graph into fit/checklist/HR-review package views. A current validated Draft plus current Review with no
+blocker findings also projects every Cover Letter Claim once into `03_cover_letter_draft.md`, content JSON, and both
+Typst views. Stale or drifted/tampered structured state, a blocked/missing Review, a mismatching parsed view, a profile
+override, or direct library use safely falls back to legacy deterministic generation; `--llm-drafts` keeps provider
+output. Edited Typst is preserved and receives a `*.generated.typ` candidate. Every classification, Draft, finding,
+and compatibility projection remains proposed review work, not a Decision or package-readiness result.

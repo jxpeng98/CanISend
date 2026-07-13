@@ -132,6 +132,11 @@ TaskSpec, state, receipts, manifests, errors, ordinary output, and AgentResponse
 semantic IDs, states, counts, and blocker/reason codes only. Rejected or stale Draft candidates must not modify user
 YAML, Markdown, Typst, profile files, or authoritative Draft bytes.
 
+A compatible local `run` may project a current blocker-free Draft/Review pair into Tier 2 Markdown, content JSON,
+and Typst files. This is a deterministic local data-plane transformation; bodies still do not enter workflow control
+records or ordinary Agent output. Projection metadata contains hashes, states, and counts rather than Review bodies,
+and `check-package` keeps the first-slice projection review-required.
+
 ### Retention Is Not Semantic Reset
 
 `reset_decision`, Brief field reset/document-choice removal, rationale clear, correction withdrawal, and correction

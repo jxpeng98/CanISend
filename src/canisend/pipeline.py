@@ -9,6 +9,11 @@ from typing import Any
 
 import yaml
 
+from canisend.draft_views import (
+    StructuredDraftViews,
+    build_structured_cover_letter_content,
+    load_current_structured_draft_views,
+)
 from canisend.evidence import EvidenceReference, load_generated_evidence
 from canisend.llm import load_llm_config, provider_from_config
 from canisend.match import (
@@ -70,6 +75,7 @@ def run_pipeline(
         style_context=style_context,
     )
     structured_criteria = None
+    structured_draft_views: StructuredDraftViews | None = None
     if (
         workspace is not None
         and not use_llm_drafts
@@ -87,6 +93,16 @@ def run_pipeline(
                 criteria_checklist=structured_views.criteria_checklist,
             )
             structured_criteria = structured_views.criteria_review
+            structured_draft_views = load_current_structured_draft_views(
+                workspace,
+                job_dir,
+                parsed_job=parsed_job,
+            )
+            if structured_draft_views is not None:
+                materials = replace(
+                    materials,
+                    cover_letter_draft=structured_draft_views.markdown,
+                )
     if use_llm_drafts:
         provider = provider_from_config(load_llm_config())
         final_package = generate_final_package_with_provider(
@@ -118,8 +134,19 @@ def run_pipeline(
     ]
 
     typst_dir = job_dir / "typst"
-    cover_letter_content = build_cover_letter_content(parsed_job, materials)
-    application_package_content = build_application_package_content(parsed_job, materials, final_package)
+    cover_letter_content = (
+        build_structured_cover_letter_content(parsed_job, structured_draft_views)
+        if structured_draft_views is not None
+        else build_cover_letter_content(parsed_job, materials)
+    )
+    application_package_content = build_application_package_content(
+        parsed_job,
+        materials,
+        final_package,
+        structured_cover_letter_content=(
+            cover_letter_content if structured_draft_views is not None else None
+        ),
+    )
     written.append(_write_json(typst_dir / "cover_letter_content.json", cover_letter_content))
     written.append(_write_json(typst_dir / "application_package_content.json", application_package_content))
     written.extend(
@@ -146,7 +173,7 @@ def _uses_workspace_profile(workspace: Path, profile_dir: Path) -> bool:
     try:
         configured = load_workspace_config(workspace).path("profile_dir")
         return profile_dir.expanduser().resolve() == configured.expanduser().resolve()
-    except (OSError, ValueError, yaml.YAMLError):
+    except (AttributeError, OSError, TypeError, ValueError, yaml.YAMLError):
         return False
 
 

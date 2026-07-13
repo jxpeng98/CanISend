@@ -1,6 +1,6 @@
 # Evidence-Backed Draft Foundation Implementation Plan
 
-**Status:** In progress — Tasks 0–4 locally accepted; Task 5 compatibility views and cross-version acceptance remain
+**Status:** Locally accepted — Tasks 0–5 complete for the first Cover Letter Draft/Review vertical slice
 
 **Date:** 2026-07-13
 
@@ -78,24 +78,41 @@ without changing the frozen AgentResponse/TaskSpec contracts, and without claimi
 
 ## Task 5: Compatibility Views And First-Slice Exit
 
-- [ ] Render compatibility Cover Letter Markdown/Typst from the promoted structured Draft only after parity tests.
-- [ ] Preserve edited Typst candidates, direct-library behavior, LLM flags, and git controls.
-- [ ] Update canonical skills, compatibility mirror, examples, changelog, roadmap, and release smoke.
-- [ ] Run focused/full Python 3.11-3.13 plus additional 3.14, distribution, privacy, recovery, and clean-wheel checks.
-- [ ] Record local acceptance only after every first-slice exit criterion has automated evidence.
+- [x] Render compatibility Cover Letter Markdown/Typst from the promoted structured Draft only after parity tests.
+- [x] Preserve edited Typst candidates, direct-library behavior, LLM flags, and git controls.
+- [x] Update canonical skills, compatibility mirror, examples, changelog, roadmap, and release smoke.
+- [x] Run focused/full Python 3.11-3.13 plus additional 3.14, distribution, privacy, recovery, and clean-wheel checks.
+- [x] Record local acceptance only after every first-slice exit criterion has automated evidence.
 
 ## Validation Snapshot
 
-Tasks 0–4 were locally accepted on 2026-07-13 with Python 3.14.2:
+Tasks 0–5 and the first Cover Letter vertical slice were locally accepted on 2026-07-13:
 
-- `python -m pytest -q`: 995 passed;
-- schema regeneration plus runtime/standalone parity tests: passed;
+- `python -m pytest -q`: 1009 passed independently on Python 3.11.15, 3.12.12, 3.13.14, and 3.14.2;
+- structured Markdown/Typst injection, parity, stale/tamper, profile, direct-library, LLM, edited-source, package-gate,
+  privacy, recovery, and release-contract tests: passed;
+- a generated hostile-text Typst fixture compiled successfully with Typst 0.15.0;
 - canonical/workspace skill mirror check and repository-boundary audit: passed with no findings;
 - `uv build`, Twine metadata check, and packaged-resource check: passed;
-- clean-wheel install, packaged Draft/Review schema lookup, and Decision Spine smoke: passed.
+- clean-wheel Python 3.12 install and installed-package smoke passed through 8 stage runs, 10 immutable user-mutation
+  receipts, host-agent Draft submit/apply, deterministic Review, structured projection, Decision Spine byte
+  preservation, and fail-closed `check-package`.
 
-This snapshot accepts the structured foundation only. Python 3.11–3.13 CI, compatibility Markdown/Typst projection,
-cross-document review, and complete Stage 3/package readiness remain Task 5 or later work.
+This snapshot accepts the first Cover Letter Draft/Review/projection slice only. Remote CI, provider-backed Draft,
+all-document orchestration, finding disposition, broader cross-document review, complete Stage 3, and package
+readiness remain later work.
+
+## First-Slice Exit Review
+
+The compatible pipeline consumes the structured Draft only when current deterministic Match is usable for the same
+parsed job and configured profile, Draft and Review pass their current deterministic validators, and Review has zero
+blocker findings. It renders every Claim once, carries exact Draft/Review hashes, neutralizes Markdown structure, and
+places Typst Claim text inside a text string. Any missing, blocked, stale, drifted, tampered, differently parsed,
+mixed-profile, direct-library, or explicit `--llm-drafts` path uses the compatible legacy/provider behavior.
+
+Open Review findings remain open and `review_state=proposed`; `check-package` binds the structured inputs and fails
+APP-Q4 rather than infer readiness. This is a derived compatibility view, not a second promotion path. No remote CI,
+publication, package readiness, rendering approval, or submission result is claimed by local acceptance.
 
 ## First-Slice Exit Criteria
 

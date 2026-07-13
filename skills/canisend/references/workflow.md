@@ -424,7 +424,9 @@ canisend stage run \
 ```
 
 Use body-free counts/codes first; ask before reading Claim or finding bodies. Blockers require a new validated Draft.
-Open semantic-support and non-factual Claim-kind findings require human inspection. The structured slice does not yet overwrite compatibility Markdown or Typst, and neither Draft nor Review establishes package readiness.
+Open semantic-support and non-factual Claim-kind findings require human inspection. A current blocker-free Review may
+allow `canisend run` to project the current structured Draft into compatibility Markdown and Typst, but neither Draft,
+Review, nor that projection establishes package readiness.
 
 ## 11. Generate The Compatible Draft Package
 
@@ -448,7 +450,7 @@ Use only `--llm-parser` when the user wants structured parsing but not drafted p
 
 Always ask before enabling LLM-backed flags or a command provider for a real workspace, because those modes can send selected private advert, profile, evidence, and draft context to the configured provider. If the user has not opted in, run the deterministic baseline and report any gaps for manual review.
 
-### Structured Match Views In The Compatible Pipeline
+### Structured Match And Draft Views In The Compatible Pipeline
 
 For `canisend run --workspace ...` without `--llm-drafts`, the pipeline uses the configured workspace profile and
 will consume structured Match only when Match is current, its Criteria/Evidence/Match hashes and graph validate, and
@@ -460,12 +462,23 @@ structured essential-criteria checks in `07_material_review_checklist.md`,
 `typst/application_package_content.json`, and `typst/application_package.typ`. The compatible
 `06_final_application_package.md` also receives the same fit/checklist text.
 
+Under the same guards, a current validated `cover_letter_draft.json` is projected only when deterministic Review is
+current and has zero blocker findings. Each Claim is emitted once, in structured order, to
+`03_cover_letter_draft.md`, `typst/cover_letter_content.json`, the Cover Letter portion of
+`typst/application_package_content.json`, and the two Typst sources. Projection metadata binds the exact Draft and
+Review hashes and keeps `requires_human_review=true` while findings remain open. `check-package` therefore treats
+this first-slice projection as review work, not package readiness.
+
 If Match or an upstream stage is stale, any protected structured output is drifted or tampered, the structured graph
 is invalid, the current run parses a different job view, or `--profile-dir` selects a profile other than the
 workspace-configured profile, the command safely generates the legacy deterministic views instead of mixing
 provenance. `--llm-drafts` always keeps provider-generated draft views and does not replace them with deterministic
 Match views. Legacy fallback is compatibility behavior, not evidence that the structured proposal or package is
 current; report the reason and refresh Stage 2 before relying on Match.
+
+A missing/blocked Review, Draft or Review drift, invalid structured content, a direct library call without workspace
+provenance, or any guard above also keeps the legacy/provider Cover Letter path. If an editable Typst source has
+changed, the structured regeneration is written to `*.generated.typ` for reconciliation rather than overwriting it.
 
 ## 12. Review Before Rendering
 

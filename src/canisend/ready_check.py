@@ -17,6 +17,10 @@ from canisend.agent_protocol import (
     artifact_reference_from_path,
     success_response,
 )
+from canisend.draft_views import (
+    STRUCTURED_DRAFT_PROJECTION_SOURCE,
+    STRUCTURED_DRAFT_TYPST_MARKER,
+)
 from canisend.evidence import load_generated_evidence
 from canisend.jobs import job_advert_is_stub
 from canisend.materials import MaterialValidationError, validate_markdown_citations
@@ -61,6 +65,12 @@ REQUIRED_TYPST_MARKERS = {
         "// CANISEND: section remaining_actions",
     ),
 }
+STRUCTURED_COVER_LETTER_TYPST_MARKERS = (
+    STRUCTURED_DRAFT_TYPST_MARKER,
+    "// CANISEND: section opening",
+    "// CANISEND: section body",
+    "// CANISEND: section closing",
+)
 APPLICATION_GATE_REPORT = "application_gate_report.json"
 APPLICATION_GATE_REPORT_SCHEMA_VERSION = "1.0.0"
 APP_Q1 = "APP-Q1"
@@ -238,10 +248,24 @@ def check_application_package(job_dir: Path, profile_dir: Path) -> PackageCheckR
     if metadata is not None and parsed_job is not None:
         _check_job_metadata_matches_parsed_job(metadata, parsed_job, issues)
 
+    cover_letter_content: dict[str, object] | None = None
+    application_package_content: dict[str, object] | None = None
     for relative_path in REQUIRED_CONTENT_JSON_FILES:
         path = _require_file(job_dir, relative_path, issues, gate=APP_Q3)
         if path is not None:
-            _check_json(path, relative_path, issues, gate=APP_Q3)
+            value = _check_json(path, relative_path, issues, gate=APP_Q3)
+            if relative_path == "typst/cover_letter_content.json":
+                cover_letter_content = value
+            elif relative_path == "typst/application_package_content.json":
+                application_package_content = value
+
+    if cover_letter_content is not None:
+        _check_structured_draft_projection(
+            job_dir,
+            cover_letter_content,
+            application_package_content,
+            issues,
+        )
 
     for relative_path, markers in REQUIRED_TYPST_MARKERS.items():
         path = _require_file(job_dir, relative_path, issues, gate=APP_Q4)
@@ -408,6 +432,12 @@ def _check_typst_markers(
     issues: list[PackageCheckIssue],
 ) -> None:
     text = path.read_text(encoding="utf-8")
+    source_lines = {line.strip() for line in text.splitlines()}
+    if (
+        relative_path == "typst/cover_letter.typ"
+        and STRUCTURED_DRAFT_TYPST_MARKER in source_lines
+    ):
+        markers = STRUCTURED_COVER_LETTER_TYPST_MARKERS
     if MODERNPRO_IMPORT_RE.search(text) is None:
         issues.append(
             PackageCheckIssue(
@@ -428,7 +458,7 @@ def _check_typst_markers(
             )
         )
     for marker in markers:
-        if marker not in text:
+        if marker not in source_lines:
             issues.append(
                 PackageCheckIssue(
                     relative_path,
@@ -436,6 +466,75 @@ def _check_typst_markers(
                     APP_Q4,
                 )
             )
+
+
+def _check_structured_draft_projection(
+    job_dir: Path,
+    content: dict[str, object],
+    application_content: dict[str, object] | None,
+    issues: list[PackageCheckIssue],
+) -> None:
+    projection = content.get("projection")
+    if not isinstance(projection, dict):
+        return
+    if projection.get("source") != STRUCTURED_DRAFT_PROJECTION_SOURCE:
+        return
+
+    for relative_path, hash_key in (
+        ("cover_letter_draft.json", "draft_sha256"),
+        ("review_findings.json", "review_sha256"),
+        ("03_cover_letter_draft.md", "markdown_sha256"),
+    ):
+        expected_hash = projection.get(hash_key)
+        source_path = job_dir / relative_path
+        if (
+            not isinstance(expected_hash, str)
+            or len(expected_hash) != 64
+            or not source_path.is_file()
+            or hashlib.sha256(source_path.read_bytes()).hexdigest() != expected_hash
+        ):
+            issues.append(
+                PackageCheckIssue(
+                    relative_path,
+                    "structured Draft projection source or view is missing or has changed",
+                    APP_Q4,
+                )
+            )
+
+    markdown_path = job_dir / "03_cover_letter_draft.md"
+    try:
+        markdown = markdown_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        markdown = None
+    if application_content is not None and (
+        application_content.get("cover_letter") != markdown
+        or application_content.get("cover_letter_projection") != projection
+        or application_content.get("structured_cover_letter_sections")
+        != content.get("structured_sections")
+    ):
+        issues.append(
+            PackageCheckIssue(
+                "typst/application_package_content.json",
+                "structured Draft compatibility views have diverged",
+                APP_Q4,
+            )
+        )
+
+    if (
+        projection.get("draft_review_state") != "reviewed"
+        or projection.get("review_state") != "reviewed"
+        or projection.get("requires_human_review") is not False
+    ):
+        issues.append(
+            PackageCheckIssue(
+                "typst/cover_letter_content.json",
+                (
+                    "structured Draft remains proposed or has open Review findings; "
+                    "compatibility projection is not package readiness"
+                ),
+                APP_Q4,
+            )
+        )
 
 
 def _check_generated_typst_candidates(job_dir: Path, issues: list[PackageCheckIssue]) -> None:
@@ -633,6 +732,9 @@ def _collect_job_input_hashes(job_dir: Path) -> dict[str, str]:
     generation_manifest = job_dir / "typst" / ".canisend-generated.json"
     if generation_manifest.is_file():
         relative_paths.add("typst/.canisend-generated.json")
+    for structured_path in ("cover_letter_draft.json", "review_findings.json"):
+        if (job_dir / structured_path).is_file():
+            relative_paths.add(structured_path)
     typst_dir = job_dir / "typst"
     if typst_dir.is_dir():
         relative_paths.update(

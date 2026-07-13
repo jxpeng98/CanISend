@@ -4,16 +4,34 @@
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import json
 from pathlib import Path
 import subprocess
 import sys
 from typing import Any, Sequence
 
+from canisend.draft_models import ClaimKind, stable_claim_id
+from canisend.stages.draft_stage import (
+    DRAFT_GENERATOR_STRATEGY,
+    DRAFT_GENERATOR_VERSION,
+    draft_input_fingerprint,
+    draft_input_projection,
+)
+
 
 EXAMPLE_JOB = "jobs/2026-06-15_example-university_lecturer-in-applied-economics"
-EXPECTED_STAGES = {"evidence", "parse", "confirm", "match", "brief"}
-EXPECTED_USER_MUTATION_RECEIPTS = 4
+EXPECTED_STAGE_RUN_COUNTS = {
+    "evidence": 1,
+    "parse": 1,
+    "confirm": 1,
+    "match": 1,
+    "brief": 2,
+    "draft": 1,
+    "review": 1,
+}
+EXPECTED_USER_MUTATION_RECEIPTS = 10
+STRUCTURED_DRAFT_SENTINEL = "I hold a PhD in Economics."
 USER_AND_STRUCTURED_ARTIFACTS = (
     "parsed_job.json",
     "criteria.json",
@@ -23,6 +41,8 @@ USER_AND_STRUCTURED_ARTIFACTS = (
     "application_decision.yaml",
     "application_brief.yaml",
     "required_document_plan.json",
+    "cover_letter_draft.json",
+    "review_findings.json",
 )
 
 
@@ -35,6 +55,7 @@ def _run(
     arguments: Sequence[str],
     *,
     expect_json: bool,
+    expected_returncodes: tuple[int, ...] = (0,),
 ) -> dict[str, Any] | None:
     completed = subprocess.run(
         [canisend, *arguments],
@@ -46,7 +67,7 @@ def _run(
         errors="strict",
     )
     operation = " ".join(arguments[:2])
-    if completed.returncode != 0:
+    if completed.returncode not in expected_returncodes:
         raise SmokeFailure(
             f"CanISend smoke operation {operation!r} failed "
             f"with exit code {completed.returncode}."
@@ -91,15 +112,186 @@ def _artifact(payload: dict[str, Any], kind: str) -> dict[str, Any]:
     return matching[0]
 
 
+def _job_relative_artifact(payload: dict[str, Any], kind: str) -> str:
+    path = _artifact(payload, kind).get("path")
+    if not isinstance(path, str):
+        raise SmokeFailure(f"The {kind!r} artifact omitted its path.")
+    try:
+        return (Path(path).relative_to(EXAMPLE_JOB)).as_posix()
+    except ValueError as exc:
+        raise SmokeFailure(f"The {kind!r} artifact escaped the selected job.") from exc
+
+
+def _brief_patch(
+    canisend: str,
+    workspace: Path,
+    current: dict[str, Any],
+    patch: dict[str, Any],
+) -> dict[str, Any]:
+    extensions = current.get("extensions")
+    if not isinstance(extensions, dict):
+        raise SmokeFailure("A Brief response omitted its control metadata.")
+    revision = extensions.get("canisend.user_artifact_revision")
+    sha256 = _artifact(current, "application_brief").get("sha256")
+    if not isinstance(revision, int) or not isinstance(sha256, str):
+        raise SmokeFailure("A Brief response omitted its compare-and-swap baseline.")
+
+    patch_path = workspace / ".canisend-smoke-brief-patch.json"
+    patch_path.write_text(json.dumps(patch) + "\n", encoding="utf-8")
+    try:
+        updated = _run(
+            canisend,
+            [
+                "brief",
+                "update",
+                *_job_arguments(workspace),
+                "--patch-file",
+                str(patch_path),
+                "--expected-revision",
+                str(revision),
+                "--expected-sha256",
+                sha256,
+                "--confirm-user-owned-write",
+            ],
+            expect_json=True,
+        )
+    finally:
+        patch_path.unlink(missing_ok=True)
+    if updated is None:  # pragma: no cover - guarded by expect_json
+        raise SmokeFailure("Brief update returned no response.")
+    return updated
+
+
+def _structured_draft_candidate(workspace: Path) -> dict[str, Any]:
+    job = workspace / EXAMPLE_JOB
+    projection = draft_input_projection(workspace, job)
+    fingerprint = draft_input_fingerprint(workspace, job)
+    document_id = projection.get("cover_letter_document_id")
+    if not isinstance(document_id, str):
+        raise SmokeFailure("The Draft projection omitted its Cover Letter document ID.")
+    try:
+        criteria = json.loads((job / "criteria.json").read_text(encoding="utf-8"))
+        evidence = json.loads(
+            (job / "evidence_catalog.json").read_text(encoding="utf-8")
+        )
+        criterion_id = next(
+            item["criterion_id"]
+            for item in criteria["criteria"]
+            if "phd" in item["text"].casefold()
+        )
+        evidence_id = next(
+            item["evidence_id"]
+            for item in evidence["items"]
+            if item.get("kind") == "education" and "phd" in item["text"].casefold()
+        )
+    except (
+        OSError,
+        UnicodeError,
+        json.JSONDecodeError,
+        KeyError,
+        StopIteration,
+        TypeError,
+    ) as exc:
+        raise SmokeFailure("The smoke fixture cannot supply one supported Draft claim.") from exc
+    if not isinstance(criterion_id, str) or not isinstance(evidence_id, str):
+        raise SmokeFailure("The smoke fixture produced invalid Draft references.")
+
+    def claim(
+        text: str,
+        kind: ClaimKind,
+        *,
+        criterion_ids: list[str] | None = None,
+        evidence_ref_ids: list[str] | None = None,
+        job_field_refs: list[str] | None = None,
+    ) -> dict[str, Any]:
+        return {
+            "claim_id": stable_claim_id(
+                job_id=job.name,
+                document_id=document_id,
+                kind=kind,
+                text=text,
+            ),
+            "text": text,
+            "kind": kind,
+            "support_strength": "strong" if kind == "factual" else "not_applicable",
+            "criterion_ids": criterion_ids or [],
+            "evidence_ref_ids": evidence_ref_ids or [],
+            "brief_field_refs": [],
+            "job_field_refs": job_field_refs or [],
+            "blockers": [],
+            "review_state": "proposed",
+        }
+
+    return {
+        "schema_version": "1.0.0",
+        "job_id": job.name,
+        "document_id": document_id,
+        "input_fingerprint": fingerprint,
+        "basis": {
+            key: projection[key]
+            for key in (
+                "parsed_job_sha256",
+                "criteria_sha256",
+                "evidence_catalog_sha256",
+                "criterion_matches_sha256",
+                "application_decision_sha256",
+                "application_brief_sha256",
+                "required_document_plan_sha256",
+            )
+        },
+        "generation_mode": "host_agent",
+        "generator_strategy": DRAFT_GENERATOR_STRATEGY,
+        "generator_version": DRAFT_GENERATOR_VERSION,
+        "review_state": "proposed",
+        "sections": [
+            {
+                "section_id": "opening",
+                "heading": None,
+                "claims": [
+                    claim(
+                        "I am applying for the advertised role.",
+                        "role_context",
+                        job_field_refs=["title"],
+                    )
+                ],
+            },
+            {
+                "section_id": "body",
+                "heading": None,
+                "claims": [
+                    claim(
+                        STRUCTURED_DRAFT_SENTINEL,
+                        "factual",
+                        criterion_ids=[criterion_id],
+                        evidence_ref_ids=[evidence_id],
+                    )
+                ],
+            },
+            {
+                "section_id": "closing",
+                "heading": None,
+                "claims": [
+                    claim("Thank you for considering my application.", "administrative")
+                ],
+            },
+        ],
+        "blockers": [],
+    }
+
+
 def _assert_workspace_contract(workspace: Path) -> None:
     job = workspace / EXAMPLE_JOB
     expected_artifacts = {
         *USER_AND_STRUCTURED_ARTIFACTS,
         "02_fit_report.md",
+        "03_cover_letter_draft.md",
         "05_criteria_checklist.md",
         "07_material_review_checklist.md",
+        "typst/cover_letter_content.json",
+        "typst/cover_letter.typ",
         "typst/application_package_content.json",
         "typst/application_package.typ",
+        "application_gate_report.json",
     }
     missing = sorted(name for name in expected_artifacts if not (job / name).is_file())
     if missing:
@@ -114,9 +306,9 @@ def _assert_workspace_contract(workspace: Path) -> None:
         )
 
     manifest_paths = sorted((job / "workflow" / "runs").glob("*/manifest.json"))
-    if len(manifest_paths) != len(EXPECTED_STAGES):
+    if len(manifest_paths) != sum(EXPECTED_STAGE_RUN_COUNTS.values()):
         raise SmokeFailure("The decision-spine smoke test created an unexpected run count.")
-    stages: set[str] = set()
+    stage_counts: Counter[str] = Counter()
     for manifest_path in manifest_paths:
         try:
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -125,13 +317,13 @@ def _assert_workspace_contract(workspace: Path) -> None:
         stage = manifest.get("stage") if isinstance(manifest, dict) else None
         if not isinstance(stage, str) or manifest.get("status") != "succeeded":
             raise SmokeFailure("A decision-spine stage did not finish successfully.")
-        stages.add(stage)
+        stage_counts[stage] += 1
         if not (manifest_path.parent / "preparation.json").is_file() or not (
             manifest_path.parent / "submission.json"
         ).is_file():
             raise SmokeFailure("A decision-spine run omitted its preparation or submission record.")
-    if stages != EXPECTED_STAGES:
-        raise SmokeFailure("The decision-spine smoke test ran an unexpected stage set.")
+    if dict(stage_counts) != EXPECTED_STAGE_RUN_COUNTS:
+        raise SmokeFailure("The decision-spine smoke test ran unexpected stage counts.")
 
     try:
         plan = json.loads((job / "required_document_plan.json").read_text(encoding="utf-8"))
@@ -151,12 +343,9 @@ def _assert_workspace_contract(workspace: Path) -> None:
         raise SmokeFailure(
             "The required-document plan did not retain resolvable advert source receipts."
         )
-    if (
-        plan.get("requirements_state") != "unconfirmed"
-        or "documents.requirements_unconfirmed" not in plan.get("blockers", [])
-    ):
+    if plan.get("requirements_state") != "confirmed" or plan.get("blockers") != []:
         raise SmokeFailure(
-            "The smoke plan inferred requirement confirmation without a user decision."
+            "The smoke plan did not retain the confirmed blocker-free document set."
         )
 
     fit_report = (job / "02_fit_report.md").read_text(encoding="utf-8")
@@ -169,6 +358,14 @@ def _assert_workspace_contract(workspace: Path) -> None:
             encoding="utf-8"
         )
     )
+    cover_content = json.loads(
+        (job / "typst" / "cover_letter_content.json").read_text(encoding="utf-8")
+    )
+    draft_markdown = (job / "03_cover_letter_draft.md").read_text(encoding="utf-8")
+    cover_source = (job / "typst" / "cover_letter.typ").read_text(encoding="utf-8")
+    package_source = (job / "typst" / "application_package.typ").read_text(
+        encoding="utf-8"
+    )
     if "Deterministic proposal" not in fit_report or "(PROPOSED)" not in fit_report:
         raise SmokeFailure("The installed wheel did not render the current structured Match view.")
     if "Deterministic Match proposals only" not in checklist:
@@ -180,6 +377,45 @@ def _assert_workspace_contract(workspace: Path) -> None:
         or package_content.get("criteria_checklist") != checklist
     ):
         raise SmokeFailure("The installed-wheel Markdown and Typst content projections diverged.")
+    if draft_markdown.count(STRUCTURED_DRAFT_SENTINEL) != 1:
+        raise SmokeFailure("The installed wheel did not project the structured Draft to Markdown.")
+    projection = cover_content.get("projection") if isinstance(cover_content, dict) else None
+    if (
+        not isinstance(projection, dict)
+        or projection.get("source") != "cover_letter_draft.json"
+        or projection.get("blocker_count") != 0
+        or projection.get("requires_human_review") is not True
+    ):
+        raise SmokeFailure("The installed wheel lost structured Draft review provenance.")
+    if package_content.get("cover_letter_projection") != projection:
+        raise SmokeFailure("The installed-wheel package projection lost Draft provenance.")
+    for source in (cover_source, package_source):
+        if source.count(STRUCTURED_DRAFT_SENTINEL) != 1:
+            raise SmokeFailure("The installed-wheel Typst projection duplicated or lost a Claim.")
+    if "// CANISEND: structured-draft projection" not in cover_source:
+        raise SmokeFailure("The installed-wheel Cover Letter omitted its structured marker.")
+
+    gate_report = json.loads(
+        (job / "application_gate_report.json").read_text(encoding="utf-8")
+    )
+    gate_issues = gate_report.get("issues") if isinstance(gate_report, dict) else None
+    if (
+        gate_report.get("status") != "FAIL"
+        or not isinstance(gate_issues, list)
+        or not any(
+            isinstance(issue, dict)
+            and "compatibility projection is not package readiness"
+            in str(issue.get("message", ""))
+            for issue in gate_issues
+        )
+    ):
+        raise SmokeFailure("The installed wheel incorrectly treated the Draft projection as ready.")
+    input_hashes = gate_report.get("input_hashes")
+    if not isinstance(input_hashes, dict) or not {
+        "job/cover_letter_draft.json",
+        "job/review_findings.json",
+    }.issubset(input_hashes):
+        raise SmokeFailure("The package gate did not bind the structured Draft and Review inputs.")
 
 
 def run_smoke(canisend: str, workspace: Path) -> None:
@@ -264,17 +500,130 @@ def run_smoke(canisend: str, workspace: Path) -> None:
         patch_path.unlink(missing_ok=True)
 
     _run(canisend, ["brief", "status", *job_args], expect_json=True)
-    _run(
+    brief_initialized = _run(
         canisend,
         ["brief", "init", *job_args, "--confirm-user-owned-write"],
         expect_json=True,
     )
+    if brief_initialized is None:  # pragma: no cover - guarded by expect_json
+        raise SmokeFailure("Brief initialization returned no response.")
     _run(
         canisend,
         ["stage", "run", *job_args, "--stage", "brief"],
         expect_json=True,
     )
     job = workspace / EXAMPLE_JOB
+    try:
+        initial_plan = json.loads(
+            (job / "required_document_plan.json").read_text(encoding="utf-8")
+        )
+        requirements_basis = initial_plan["requirements_basis_sha256"]
+    except (OSError, UnicodeError, json.JSONDecodeError, KeyError, TypeError) as exc:
+        raise SmokeFailure("The initial document plan omitted its requirements basis.") from exc
+    if not isinstance(requirements_basis, str):
+        raise SmokeFailure("The initial document requirements basis is invalid.")
+
+    current_brief = brief_initialized
+    for patch in (
+        {
+            "operation": "confirm_document_requirements",
+            "state": "confirmed",
+            "requirements_basis_sha256": requirements_basis,
+        },
+        {"operation": "set_brief_language", "value": "uk"},
+        {
+            "operation": "set_brief_text",
+            "field": "writing_style",
+            "value": "direct and evidence-led",
+        },
+        {
+            "operation": "set_brief_text",
+            "field": "motivation",
+            "value": "Contribute to the advertised teaching and research priorities.",
+        },
+        {
+            "operation": "set_brief_emphasis",
+            "criterion_ids": [],
+            "evidence_ref_ids": [],
+        },
+        {"operation": "set_brief_exclusions", "items": []},
+    ):
+        current_brief = _brief_patch(canisend, workspace, current_brief, patch)
+
+    _run(
+        canisend,
+        ["stage", "run", *job_args, "--stage", "brief"],
+        expect_json=True,
+    )
+
+    prepared = _run(
+        canisend,
+        [
+            "stage",
+            "prepare",
+            *job_args,
+            "--stage",
+            "draft",
+            "--mode",
+            "host-agent",
+        ],
+        expect_json=True,
+    )
+    if prepared is None:  # pragma: no cover - guarded by expect_json
+        raise SmokeFailure("Draft preparation returned no response.")
+    consents = prepared.get("required_consents")
+    if (
+        not isinstance(consents, list)
+        or [item.get("id") for item in consents if isinstance(item, dict)]
+        != ["read-private-draft-inputs"]
+    ):
+        raise SmokeFailure("Draft preparation omitted its Tier 2 consent boundary.")
+    task_path = _job_relative_artifact(prepared, "stage_task_spec")
+    candidate_path = workspace / ".canisend-smoke-draft-candidate.json"
+    candidate_path.write_text(
+        json.dumps(_structured_draft_candidate(workspace), indent=2) + "\n",
+        encoding="utf-8",
+    )
+    try:
+        submitted = _run(
+            canisend,
+            [
+                "stage",
+                "submit",
+                *job_args,
+                "--task",
+                task_path,
+                "--candidate-file",
+                str(candidate_path),
+            ],
+            expect_json=True,
+        )
+    finally:
+        candidate_path.unlink(missing_ok=True)
+    if submitted is None:  # pragma: no cover - guarded by expect_json
+        raise SmokeFailure("Draft submission returned no response.")
+    result_path = _job_relative_artifact(submitted, "stage_task_result")
+    _run(
+        canisend,
+        [
+            "stage",
+            "apply",
+            *job_args,
+            "--task",
+            task_path,
+            "--result",
+            result_path,
+        ],
+        expect_json=True,
+    )
+    reviewed = _run(
+        canisend,
+        ["stage", "run", *job_args, "--stage", "review"],
+        expect_json=True,
+    )
+    if reviewed is None or reviewed.get("blockers") != []:
+        raise SmokeFailure("The deterministic Review did not produce a blocker-free projection.")
+
     before_run = {
         name: (job / name).read_bytes()
         for name in USER_AND_STRUCTURED_ARTIFACTS
@@ -296,6 +645,21 @@ def run_smoke(canisend: str, workspace: Path) -> None:
         for name, content in before_run.items()
     ):
         raise SmokeFailure("The compatible pipeline rewrote a Decision Spine artifact.")
+    _run(
+        canisend,
+        [
+            "check-package",
+            "--workspace",
+            str(workspace),
+            "--job",
+            EXAMPLE_JOB,
+            "--write-report",
+            "--format",
+            "json",
+        ],
+        expect_json=True,
+        expected_returncodes=(1,),
+    )
     _assert_workspace_contract(workspace)
 
 
@@ -326,7 +690,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
         json.dumps(
             {
                 "status": "ok",
-                "successful_stage_count": len(EXPECTED_STAGES),
+                "successful_stage_count": sum(EXPECTED_STAGE_RUN_COUNTS.values()),
                 "mutation_receipt_count": EXPECTED_USER_MUTATION_RECEIPTS,
             },
             sort_keys=True,

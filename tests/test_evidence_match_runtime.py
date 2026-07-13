@@ -1198,7 +1198,19 @@ def test_legacy_pipeline_falls_back_when_structured_match_is_not_current(
 
 def test_legacy_pipeline_does_not_mix_structured_match_with_profile_override(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    def fail_structured_view_load(*args: object, **kwargs: object) -> None:
+        raise AssertionError("profile override must not load workspace structured views")
+
+    monkeypatch.setattr(
+        "canisend.pipeline.load_current_structured_match_views",
+        fail_structured_view_load,
+    )
+    monkeypatch.setattr(
+        "canisend.pipeline.load_current_structured_draft_views",
+        fail_structured_view_load,
+    )
     workspace, job_dir, _ = _write_workspace(tmp_path)
     _run_to_match(workspace, job_dir)
     override_profile = workspace / "profile-b"

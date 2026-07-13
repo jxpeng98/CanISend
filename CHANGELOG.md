@@ -2,13 +2,20 @@
 
 ## Unreleased
 
+- Locally accepted the first Stage 3 Cover Letter vertical slice across Python 3.11–3.14 with full regression,
+  distribution, clean-wheel, guarded Draft/Review, compatibility projection, and fail-closed package-gate evidence.
 - Added the Stage 3 structured Draft foundation with strict claim-level support contracts, content-derived IDs,
   current-basis hashes, packaged JSON Schemas, and a guarded host-agent Cover Letter candidate/promotion path.
 - Added independent deterministic Review findings for unsupported facts, partial/semantic support, non-factual Claim
   classification, missing required sections, duplicate/long wording, and confirmed Brief-exclusion conflicts, with
   body-free Agent status and blocker counts.
+- Added guarded compatibility projection from a current validated structured Draft and blocker-free deterministic
+  Review into Cover Letter Markdown, content JSON, and Typst. Every Claim is rendered once with exact Draft/Review
+  hash provenance; stale, tampered, blocked, mixed-profile, direct-library, and `--llm-drafts` paths fail closed to
+  compatible legacy/provider behavior while edited Typst remains protected.
 - Kept Draft and Review artifacts private and proposed: agents write only fresh scratch candidates through guarded
-  submit/apply, while compatibility Markdown/Typst projection and package readiness remain future Stage 3 work.
+  submit/apply, open findings remain human review, and `check-package` explicitly rejects compatibility projection as
+  package readiness while binding the structured Draft/Review hashes.
 - Locally accepted the complete Stage 2 Decision Spine after migrating deterministic fit/checklist/HR-review and
   Typst package views onto current validated Match projections. Stale, drifted/tampered, graph-invalid,
   mixed-profile, differently parsed, and `--llm-drafts` runs preserve compatible fallback behavior; every Match
@@ -17,7 +24,8 @@
   confirmed-empty handling, Markdown table escaping, profile-provenance guards, final currentness rechecks, and
   byte-preserving compatibility tests across the full user-owned Decision Spine.
 - Added a repository-native canonical skill mirror check to CI and release preparation, and extended the clean-wheel
-  smoke through `canisend run` with structured Markdown/Typst parity and Decision Spine byte-preservation checks.
+  smoke through confirmed Brief, guarded host-agent Draft, deterministic Review, structured Markdown/Typst parity,
+  Decision Spine byte preservation, and fail-closed package-gate checks.
 - Locally accepted the Stage 2 Task 6 slice with ADR-012, a strict user-owned Tier 2
   `application_brief.yaml`, deterministic core-owned Tier 2 `required_document_plan.json`, field-level Brief
   confirmations, source-bound document-requirement states, and body-free Agent status.

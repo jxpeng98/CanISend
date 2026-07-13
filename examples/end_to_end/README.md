@@ -59,8 +59,20 @@ canisend stage run --workspace /tmp/canisend-example --job "$JOB" --stage brief 
 Use `brief update` with one strict patch and the latest revision/hash to confirm fields, the current document
 requirements basis, and document choices. `application_brief.yaml` and `required_document_plan.json` are Tier 2;
 Agent status remains body-free. An empty parsed list is not `confirmed_empty`, and unresolved, `required + omit`, or
-orphaned choices remain blockers. Stage 2 is locally accepted, but this example does not claim Draft or package
-readiness.
+orphaned choices remain blockers. Brief/document planning alone does not claim Draft or package readiness.
+
+The release smoke automates the complete fake-data slice through confirmed Brief, guarded host-agent Draft,
+deterministic Review, compatibility projection, and fail-closed package checking:
+
+```bash
+python scripts/smoke_decision_spine.py \
+  --canisend canisend \
+  --workspace /tmp/canisend-stage3-smoke
+```
+
+It constructs one schema-valid fake Claim candidate in private scratch only. For normal work, the active host agent
+creates that candidate after the user approves `read-private-draft-inputs`; the agent then uses `stage submit` and
+`stage apply`, never a direct authoritative write.
 
 The three YAML files remain manual user-owned Tier 2 ask-first inputs: `confirmed_corrections.yaml`,
 `application_decision.yaml`, and `application_brief.yaml`. Users may edit them directly against their schemas.
@@ -72,7 +84,10 @@ into `02_fit_report.md`, `05_criteria_checklist.md`, structured checks in `07_ma
 `typst/application_package_content.json` and `typst/application_package.typ` projections. If structured state is
 stale, drifted/tampered, graph-invalid, or parsed against a different advert view—or if `--profile-dir` overrides the
 configured profile—the command safely uses legacy deterministic generation. `--llm-drafts` keeps provider-generated
-drafts. In every path, Match classifications remain proposals, not application decisions or readiness results.
+drafts. A current validated structured Draft plus blocker-free deterministic Review also supplies
+`03_cover_letter_draft.md`, Cover Letter/package content JSON, and both Typst views, with every Claim rendered once.
+Missing/blocked/stale/tampered Draft or Review uses the same safe fallback. In every path, Match classifications,
+Draft, Review, and compatibility projections remain proposals, not application decisions or readiness results.
 
 The manual sequence below is useful when developing the project or debugging individual steps.
 
