@@ -19,6 +19,7 @@ from canisend.decision_models import (
     EvidenceCatalogV1,
     RequiredDocumentPlanV1,
 )
+from canisend.draft_models import CoverLetterDraftV1, ReviewFindingsV1
 from canisend.stage_adapters import get_stage_adapter
 from canisend.stage_models import CandidateSubmissionV1, TaskSpecV1
 from canisend.stage_registry import DEFAULT_STAGE_REGISTRY
@@ -703,6 +704,8 @@ def _downstream_actions(
         if confirm_actions:
             return confirm_actions
         return _next_action_for_stage(workspace, job_dir, "parse")
+    if stage_id == "brief":
+        return _next_action_for_stage(workspace, job_dir, "draft")
     return []
 
 
@@ -861,6 +864,95 @@ def _semantic_status(
                 label="Review the application brief and required-document blockers",
             )
         ]
+    if stage_id == "draft":
+        try:
+            draft = CoverLetterDraftV1.model_validate(
+                read_json_object(authoritative_path)
+            )
+        except (StageStoreError, ValidationError):
+            return "review_required", {}, [
+                NextAction(
+                    id="draft.review_claims",
+                    label="Review the invalid structured Cover Letter Draft",
+                )
+            ]
+        claims = tuple(
+            claim for section in draft.sections for claim in section.claims
+        )
+        unsupported_count = sum(
+            claim.support_strength == "unsupported" for claim in claims
+        )
+        partial_count = sum(
+            claim.support_strength == "partial" for claim in claims
+        )
+        extensions = {
+            "canisend.draft_claim_count": len(claims),
+            "canisend.draft_factual_claim_count": sum(
+                claim.kind == "factual" for claim in claims
+            ),
+            "canisend.draft_unsupported_claim_count": unsupported_count,
+            "canisend.draft_partial_claim_count": partial_count,
+            "canisend.draft_blocker_count": len(draft.blockers),
+            "canisend.draft_primary_blocker": (
+                draft.blockers[0] if draft.blockers else None
+            ),
+            "canisend.draft_review_state": draft.review_state,
+        }
+        return "review_required", extensions, [
+            NextAction(
+                id="stage.run_review",
+                label="Run deterministic Review on the proposed claims",
+            )
+        ]
+    if stage_id == "review":
+        try:
+            review = ReviewFindingsV1.model_validate(
+                read_json_object(authoritative_path)
+            )
+        except (StageStoreError, ValidationError):
+            return "review_required", {}, [
+                NextAction(
+                    id="review.inspect_findings",
+                    label="Review the invalid structured findings",
+                )
+            ]
+        blocker_count = len(review.blocker_finding_ids)
+        review_count = sum(
+            finding.severity == "review" for finding in review.findings
+        )
+        warning_count = sum(
+            finding.severity == "warning" for finding in review.findings
+        )
+        blocker_codes = tuple(
+            finding.code
+            for finding in review.findings
+            if finding.finding_id in review.blocker_finding_ids
+        )
+        extensions = {
+            "canisend.review_finding_count": len(review.findings),
+            "canisend.review_blocker_count": blocker_count,
+            "canisend.review_required_count": review_count,
+            "canisend.review_warning_count": warning_count,
+            "canisend.review_primary_blocker": (
+                blocker_codes[0] if blocker_codes else None
+            ),
+            "canisend.review_state": review.review_state,
+        }
+        if blocker_count:
+            return "blocked", extensions, [
+                NextAction(
+                    id="review.resolve_blockers",
+                    label="Resolve blocker findings and regenerate the Draft",
+                )
+            ]
+        if review_count or warning_count:
+            return "review_required", extensions, [
+                NextAction(
+                    id="review.inspect_findings",
+                    label="Inspect the open Review findings",
+                )
+            ]
+        return "ready_for_next_stage", extensions, []
     if stage_id != "confirm":
         return "ready_for_next_stage", {}, []
     try:

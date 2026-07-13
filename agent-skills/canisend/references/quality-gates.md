@@ -82,13 +82,23 @@ Do not use ready, final, complete, or submission-ready for generated materials u
 
 ## Draft Gate
 
+- The current `cover_letter_draft.json` binds exact current Parsed Job, Criteria, Evidence, Match, Decision, Brief,
+  and document-plan hashes, targets the single confirmed `prepare` Cover Letter, and remains `review_state=proposed`.
+- Every applicant-facing block is one Claim with a recomputed stable ID. Strong/partial factual claims resolve to
+  current Evidence; unsupported facts carry `claim.unsupported`; partial facts carry `claim.partial_support`.
+- Current deterministic `review_findings.json` exists for the Draft. Unsupported claims, confirmed Brief exclusion
+  conflicts, and missing opening/body/closing sections are blockers. Supported factual wording retains an explicit
+  semantic-support review item until inspected; every non-factual Claim kind also remains open for semantic review.
+- Rejected/stale Draft candidates left authoritative Draft, user YAML, compatibility Markdown, Typst, and profile
+  bytes unchanged. The host wrote no declared run path directly.
 - When structured Match views were used, Match and its upstream stages are still current and free of output drift;
   `02_fit_report.md`, `05_criteria_checklist.md`, `07_material_review_checklist.md`,
   `typst/application_package_content.json`, and `typst/application_package.typ` represent the same proposed graph.
 - A legacy fallback caused by stale/tampered state, parsed-view or profile-provenance mismatch, or `--llm-drafts` is
   identified as such; it is not presented as current structured Match evidence.
 - `02_fit_report.md` separates strong fit, partial fit, and gaps.
-- `03_cover_letter_draft.md` is application-facing English and does not include unsupported claims.
+- `03_cover_letter_draft.md` is a compatibility output and is not assumed to mirror structured Draft until the
+  explicit structured projection reports parity. Its application-facing English must not include unsupported claims.
 - `04_cv_tailoring_notes.md` tells the user what to adjust in the private CV, but does not rewrite the CV unless asked.
 - `05_criteria_checklist.md` covers all extracted essential criteria.
 - `07_material_review_checklist.md` tracks cover letter draft and CV tailoring notes review actions before Typst rendering.

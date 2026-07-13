@@ -10,7 +10,7 @@ CanISend has three distinct privacy modes:
 - Agent-assisted mode: when Codex, Claude Code, or another AI agent reads or summarizes files, PDFs, webpages, generated evidence, job adverts, or package drafts, that content may be processed by the agent model provider. Do not call this local-only.
 - LLM-backed CLI mode: `extract-profile-evidence --llm-augment`, `--llm-parser`, `--llm-drafts`, or `ACADEMIC_PREP_LLM_PROVIDER=command` may transmit selected private advert, profile, evidence, and draft context to the configured provider.
 
-Deterministic Evidence, Match, and Brief/document planning do not invoke a configured provider, network, MCP
+Deterministic Evidence, Match, Brief/document planning, and Review do not invoke a configured provider, network, MCP
 transport, or platform API. That does not make an agent-assisted review of their files local-only: a model may still
 process any artifact the agent chooses to read.
 
@@ -48,8 +48,8 @@ When asking to read private materials in agent-assisted mode, state that the con
 ## Data Minimization
 
 - Prefer `profile/generated/*.evidence.md` over raw `profile/typst/*.typ`.
-- Prefer `job.yaml`, `parsed_job.json`, body-free Brief/plan status, and review checklists over Tier 2 bodies when
-  sufficient.
+- Prefer `job.yaml`, `parsed_job.json`, body-free Brief/plan/Draft/Review status, and review checklists over Tier 2
+  bodies when sufficient.
 - Read only the current job folder unless the user explicitly asks for cross-job comparison.
 - Summarize narrow facts instead of quoting private text.
 - If full source review is necessary, read the smallest relevant file or section and explain why.
@@ -118,6 +118,19 @@ checklist, material-review, `typst/application_package_content.json`, and `typst
 currentness, integrity, parse identity, or configured profile provenance cannot be established, it falls back to the
 legacy path instead of combining sources.
 `--llm-drafts` remains a separate provider path. No generated Match view is a Decision or readiness claim.
+
+## Structured Draft And Review Data Plane
+
+Draft candidates, `cover_letter_draft.json`, claim text, `review_findings.json`, and finding messages/actions are
+Tier 2. A host agent may read the seven declared Draft inputs only after approval that their contents may enter the
+agent model context. It writes candidate JSON to fresh private scratch and uses `stage submit`; only the core may
+write run candidates/results or promote the authoritative Draft. Configured-provider Draft is not enabled by the
+first slice.
+
+Review is deterministic and may read the current Tier 2 Draft and its declared upstream receipts locally. Its
+TaskSpec, state, receipts, manifests, errors, ordinary output, and AgentResponse remain body-free: paths, hashes,
+semantic IDs, states, counts, and blocker/reason codes only. Rejected or stale Draft candidates must not modify user
+YAML, Markdown, Typst, profile files, or authoritative Draft bytes.
 
 ### Retention Is Not Semantic Reset
 
@@ -197,5 +210,5 @@ Only stage source code, tests, docs, prompts, templates, schemas, examples, and 
 
 Do not stage or commit real CVs, statements, references, full job adverts, Evidence snapshots/candidates/catalogs,
 criterion matches, application Briefs, required-document plans, generated packages, rendered PDFs, `.env`, API keys,
-private source URLs, or files that reveal application strategy. If these appear in `git status --short`, leave them
-untouched and report the risk.
+structured Drafts, Review findings, private source URLs, or files that reveal application strategy. If these appear
+in `git status --short`, leave them untouched and report the risk.

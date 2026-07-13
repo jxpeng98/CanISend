@@ -227,6 +227,18 @@ def test_main_skill_routes_focused_intake_package_and_readiness_workflows():
     assert "$canisend-submission-readiness" in contents
 
 
+def test_main_skill_preserves_guarded_draft_and_review_contract():
+    contents = Path("skills/canisend/SKILL.md").read_text(encoding="utf-8")
+    workflow = Path("skills/canisend/references/workflow.md").read_text(encoding="utf-8")
+
+    assert "cover_letter_draft.json" in contents
+    assert "review_findings.json" in contents
+    assert "stage prepare --stage draft --mode host-agent" in contents
+    assert "read-private-draft-inputs" in workflow
+    assert "Never write" in workflow
+    assert "does not yet overwrite compatibility" in workflow
+
+
 def test_package_check_requires_distributed_skill_pack_resources():
     resources = set(required_wheel_resources())
 

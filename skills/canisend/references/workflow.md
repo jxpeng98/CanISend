@@ -392,7 +392,41 @@ serialize writers. CAS coordinates cooperative CanISend writes; it does not make
 safe. Corrections additionally require current Parse and Confirm plus a Confirm rerun after every semantic patch;
 Decision requires current Match; Brief requires a current confirmed `decision=apply`.
 
-## 10. Generate Draft Package
+## 10. Generate And Review A Structured Cover Letter Draft
+
+After Brief succeeds with one blocker-free confirmed `prepare` Cover Letter, ask before reading its Tier 2 inputs:
+
+```bash
+canisend stage prepare \
+  --workspace <private-workspace> \
+  --job jobs/<job-slug> \
+  --stage draft \
+  --mode host-agent \
+  --format json
+```
+
+The prepared task returns the `read-private-draft-inputs` consent ID. Read only the returned TaskSpec paths after
+that separate Tier 2 consent. Produce JSON matching
+`schemas/cover-letter-draft.schema.json` in fresh private scratch. Every applicant-facing block must be an explicit
+Claim; strong/partial facts use current Evidence IDs, while unsupported facts remain explicit blockers. Pass the
+scratch file to `stage submit`, then pass the returned immutable TaskResult to `stage apply`. Never write the
+declared candidate/result paths or `cover_letter_draft.json` directly.
+
+Run independent deterministic Review:
+
+```bash
+canisend stage run \
+  --workspace <private-workspace> \
+  --job jobs/<job-slug> \
+  --stage review \
+  --mode deterministic \
+  --format json
+```
+
+Use body-free counts/codes first; ask before reading Claim or finding bodies. Blockers require a new validated Draft.
+Open semantic-support and non-factual Claim-kind findings require human inspection. The structured slice does not yet overwrite compatibility Markdown or Typst, and neither Draft nor Review establishes package readiness.
+
+## 11. Generate The Compatible Draft Package
 
 Deterministic baseline:
 
@@ -433,7 +467,7 @@ provenance. `--llm-drafts` always keeps provider-generated draft views and does 
 Match views. Legacy fallback is compatibility behavior, not evidence that the structured proposal or package is
 current; report the reason and refresh Stage 2 before relying on Match.
 
-## 11. Review Before Rendering
+## 12. Review Before Rendering
 
 Review, in order:
 
@@ -443,15 +477,17 @@ Review, in order:
 4. Proposed classifications and gaps in `criterion_matches.json`
 5. Brief status and `application_brief.yaml` only when its Tier 2 body is needed and approved
 6. Brief-stage status and `required_document_plan.json` only when its Tier 2 body is needed and approved
-7. `00_preparation_questions.md`
-8. `05_criteria_checklist.md`
-9. `02_fit_report.md`
-10. `03_cover_letter_draft.md`
-11. `04_cv_tailoring_notes.md`
-12. `07_material_review_checklist.md`
-13. `typst/cover_letter.typ`
-14. `typst/application_package.typ`
-15. `06_final_application_package.md`
+7. Draft-stage status and `cover_letter_draft.json` only when its Tier 2 Claim body is needed and approved
+8. Review-stage status and `review_findings.json` only when its Tier 2 body is needed and approved
+9. `00_preparation_questions.md`
+10. `05_criteria_checklist.md`
+11. `02_fit_report.md`
+12. `03_cover_letter_draft.md`
+13. `04_cv_tailoring_notes.md`
+14. `07_material_review_checklist.md`
+15. `typst/cover_letter.typ`
+16. `typst/application_package.typ`
+17. `06_final_application_package.md`
 
 Apply `quality-gates.md` before treating any output as usable.
 In particular, check language/style confirmation, item-level citations, unsupported claims, required-document coverage, and private-file safety before presenting a package as ready.
@@ -464,7 +500,7 @@ that flag, the check remains read-only.
 
 In agent-assisted mode, also report which private sources were read directly, which LLM-backed CLI flags were used, and which remaining claims need manual confirmation.
 
-## 12. Optional Typst Rendering
+## 13. Optional Typst Rendering
 
 Render only when the user asks for PDFs or needs local PDF review:
 

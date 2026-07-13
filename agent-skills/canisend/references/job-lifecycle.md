@@ -67,8 +67,10 @@ canisend stage run --workspace <private-workspace> --job jobs/<job-slug> --stage
 ```
 
 Use `brief update` with one strict patch and the latest revision/hash to resolve fields and document choices. The
-Brief and plan bodies are Tier 2 ask-first; status is body-free. Stage 2 is locally accepted, but Draft/package
-readiness remains a separate review result.
+Brief and plan bodies are Tier 2 ask-first; status is body-free. When the plan has one confirmed `prepare` Cover
+Letter and no blockers, prepare a host-agent Draft task after Tier 2 approval. Submit strict candidate JSON through
+the returned TaskSpec and apply it through the guarded CLI; then run deterministic `stage run --stage review`.
+Draft and Review bodies remain Tier 2, and neither result alone is package readiness.
 
 After current deterministic Match, `canisend run --workspace ...` with the configured workspace profile and no
 `--llm-drafts` projects the proposed Match view consistently into `02_fit_report.md`, `05_criteria_checklist.md`,
@@ -120,6 +122,10 @@ Review quality gates before rendering:
   `confirmed_empty` against the current requirements-basis hash.
 - Plan blockers: resolve an unconfirmed requirement set, unconfirmed Brief field/choice, `required + omit`, required
   document without a preparation action, or orphaned old choice before later Draft/Verify work.
+- Missing or stale `cover_letter_draft.json`: make Brief/Match/Evidence current, prepare Draft in host-agent mode,
+  submit strict Claim JSON from private scratch, and apply it through the guarded stage boundary.
+- Missing or stale `review_findings.json`: make Draft current and run deterministic Review. Resolve blocker findings;
+  do not treat open support-review findings as readiness.
 - Mutation recovery requested: use `user-mutation recover` with the opaque accepted mutation ID and explicit
   consent; do not replay the private patch as a new write.
 - Existing generated outputs after advert/profile changes: rerun the pipeline and review diffs.

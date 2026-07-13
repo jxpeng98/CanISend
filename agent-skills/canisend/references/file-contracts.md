@@ -150,6 +150,14 @@ RSS and Atom lead outputs live in ignored `job_leads/`.
   advert/Parsed Job requirements, Criteria/Match receipts, and the raw Brief hash; exposes one task per normalized
   requirement; and records unresolved, blocking, and orphaned IDs. Do not edit it directly. An empty Parsed Job list
   remains `unconfirmed` unless the current Brief explicitly records `confirmed_empty` against its basis.
+- `cover_letter_draft.json`: strict core-owned Tier 2 Cover Letter Draft. Every applicant-facing prose block is one
+  explicit Claim with a stable content-derived ID, kind, support state, current semantic references, and blocker
+  codes. It binds exact Parsed Job, Criteria, Evidence, Match, Decision, Brief, and document-plan hashes. It is
+  promoted only from guarded host-agent candidate JSON and always remains `review_state=proposed`.
+- `review_findings.json`: deterministic core-owned Tier 2 Review projection for the current structured Draft. It
+  records stable blocker/review/warning findings without changing the Draft, user YAML, Markdown, Typst, or profile.
+  Unsupported claims, missing required sections, and confirmed Brief exclusion conflicts are blockers; structurally
+  supported factual claims and every non-factual Claim-kind classification retain explicit semantic-review findings.
 - `workflow/user-mutations/`: private immutable candidates plus cooperative single-winner claims and immutable
   receipts. Candidate/YAML bodies and corrected Criteria are Tier 2. Claims and receipts never include correction
   text, rationale, Brief values, or document source text; the receipt is Tier 1 and validates against
@@ -161,12 +169,16 @@ RSS and Atom lead outputs live in ignored `job_leads/`.
   `write_authority: core_service`; a host supplies scratch candidate JSON through `stage submit` rather than writing
   candidate or result paths itself. Evidence TaskSpecs name only their own job-local immutable snapshot; Match
   TaskSpecs name only current `criteria.json` and `evidence_catalog.json`; Brief TaskSpecs name current job-local
-  advert/Parsed Job, Criteria, Match, Decision, and Brief inputs.
+  advert/Parsed Job, Criteria, Match, Decision, and Brief inputs. Draft TaskSpecs name the seven current Tier 2
+  structured/user inputs and allow only core-owned candidate/result writes. Review TaskSpecs add the promoted Draft
+  and remain deterministic.
 - `workflow/runs/*/inputs/evidence-snapshot.json`: immutable Evidence input written by the core during prepare. It may
   duplicate normalized profile evidence and remains until the user removes the private run or job. Resumable
   Evidence does not accept a workspace-external profile root.
 - `00_preparation_questions.md`: grill-me checklist for confirming US English vs UK English, writing style, specific motivation, emphasis, risks, and excluded details before treating materials as final.
-- `02_fit_report.md`, `03_cover_letter_draft.md`, `04_cv_tailoring_notes.md`, `05_criteria_checklist.md`: evidence-grounded Markdown review artifacts.
+- `02_fit_report.md`, `03_cover_letter_draft.md`, `04_cv_tailoring_notes.md`, `05_criteria_checklist.md`:
+  compatibility Markdown review artifacts. The structured Draft slice does not overwrite them; until an explicit
+  projection is implemented and parity-tested, they remain on the compatible legacy/provider pipeline.
 - `07_material_review_checklist.md`: management artifact for cover letter draft, CV tailoring notes, placeholders, item-level citations, and manual follow-up actions.
 - `typst/cover_letter.typ`: editable Typst source for the final cover letter, with stable `// CANISEND: section ...` markers.
 - `typst/application_package.typ`: editable Typst source for the final package, including remaining actions and review sections.
@@ -187,7 +199,8 @@ Decision, or readiness. Stale or drifted/tampered structured artifacts, a mismat
 or `--llm-drafts` cause safe legacy/provider fallback rather than mixed-provenance output.
 
 Evidence snapshots, Evidence candidates, promoted Evidence catalogs, user mutation YAML/private candidates,
-corrected Criteria, Brief-stage candidates, and required-document plans are the Tier 2 private data plane. Workflow
+corrected Criteria, Brief-stage candidates/plans, structured Draft candidates/artifacts, and Review findings are the
+Tier 2 private data plane. Workflow
 state, task/result and mutation receipts, mutation claims, validation and promotion records, manifests, errors,
 ordinary CLI/AgentResponse output, and Match output are the control plane and must contain only privacy-safe paths,
 hashes, semantic IDs, classifications, reason/blocker codes, and counts.

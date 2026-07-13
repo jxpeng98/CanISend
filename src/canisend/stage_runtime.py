@@ -38,7 +38,15 @@ from canisend.stages.confirm_stage import ConfirmStageError
 from canisend.stages.parse_stage import ParseStageError
 
 
-SupportedStage = Literal["evidence", "parse", "confirm", "match", "brief"]
+SupportedStage = Literal[
+    "evidence",
+    "parse",
+    "confirm",
+    "match",
+    "brief",
+    "draft",
+    "review",
+]
 SupportedExecutionMode = Literal["deterministic", "host_agent"]
 
 

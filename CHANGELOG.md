@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Added the Stage 3 structured Draft foundation with strict claim-level support contracts, content-derived IDs,
+  current-basis hashes, packaged JSON Schemas, and a guarded host-agent Cover Letter candidate/promotion path.
+- Added independent deterministic Review findings for unsupported facts, partial/semantic support, non-factual Claim
+  classification, missing required sections, duplicate/long wording, and confirmed Brief-exclusion conflicts, with
+  body-free Agent status and blocker counts.
+- Kept Draft and Review artifacts private and proposed: agents write only fresh scratch candidates through guarded
+  submit/apply, while compatibility Markdown/Typst projection and package readiness remain future Stage 3 work.
 - Locally accepted the complete Stage 2 Decision Spine after migrating deterministic fit/checklist/HR-review and
   Typst package views onto current validated Match projections. Stale, drifted/tampered, graph-invalid,
   mixed-profile, differently parsed, and `--llm-drafts` runs preserve compatible fallback behavior; every Match

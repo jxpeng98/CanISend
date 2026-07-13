@@ -361,7 +361,7 @@ def test_stage_cli_returns_stable_safe_error_for_unsupported_stage(tmp_path: Pat
             "--job",
             job_path,
             "--stage",
-            "draft",
+            "package",
             "--format",
             "json",
         ],

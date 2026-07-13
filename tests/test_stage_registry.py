@@ -49,6 +49,8 @@ def test_decision_spine_stages_are_implemented_in_the_registry() -> None:
         "confirm",
         "match",
         "brief",
+        "draft",
+        "review",
     )
 
     evidence = DEFAULT_STAGE_REGISTRY.get("evidence")
@@ -66,6 +68,12 @@ def test_decision_spine_stages_are_implemented_in_the_registry() -> None:
     brief = DEFAULT_STAGE_REGISTRY.get("brief")
     assert brief.execution_modes == ("deterministic",)
     assert brief.authoritative_outputs == ("required_document_plan.json",)
+    draft = DEFAULT_STAGE_REGISTRY.get("draft")
+    assert draft.execution_modes == ("host_agent",)
+    assert draft.authoritative_outputs == ("cover_letter_draft.json",)
+    review = DEFAULT_STAGE_REGISTRY.get("review")
+    assert review.execution_modes == ("deterministic",)
+    assert review.authoritative_outputs == ("review_findings.json",)
 
 
 def test_descendants_are_transitive_and_topologically_ordered() -> None:

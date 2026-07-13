@@ -12,7 +12,8 @@ Focus on constructing the whole evidence-backed package for one job. Use materia
 - Do not submit applications, fill portals, create accounts, upload materials, or answer sensitive declarations.
 - Do not fabricate applicant evidence, citations, qualifications, motivation, fit, required documents, or review results.
 - Ask before reading full private CVs, statements, references, adverts, source URLs, PDFs, or generated packages.
-- Ask before reading `application_brief.yaml` or `required_document_plan.json`; both are Tier 2 strategy artifacts.
+- Ask before reading `application_brief.yaml`, `required_document_plan.json`, `cover_letter_draft.json`, or
+  `review_findings.json`; all are Tier 2 strategy/application artifacts.
 - Prefer `profile/generated/` evidence and current structured job artifacts over raw private sources.
 - Prefer body-free Brief/plan status first. Never edit either authoritative artifact directly; Brief uses one strict
   scoped patch with fresh revision/hash and explicit consent, while the plan is rebuilt deterministically.
@@ -40,6 +41,9 @@ Read only what the current package requires:
    output is not `confirmed_empty` without explicit current-basis confirmation.
 8. Run deterministic `stage run --stage brief`; do not draft through an unconfirmed requirement set, unresolved
    choice, `required + omit`, missing required preparation action, or orphaned choice.
-9. Integrate the fit report, cover letter, CV tailoring notes, criteria checklist, required statements, remaining actions, and editable Typst sources. Keep every strong claim proportionate and traceable.
-10. Review `07_material_review_checklist.md` and the relevant quality gates. Render only when the user asks.
-11. Report generated or changed artifacts, unresolved evidence/Brief/document gaps, and unchecked gates. Hand the package to `$canisend-submission-readiness` for a strict final review. Task 6 implementation alone is not package readiness.
+9. For the Cover Letter, use guarded host-agent Draft candidate submission/promotion, then deterministic Review.
+   Resolve blockers and inspect every semantic-support and Claim-kind finding; do not edit either authoritative JSON
+   directly.
+10. Integrate the fit report, cover letter, CV tailoring notes, criteria checklist, required statements, remaining actions, and editable Typst sources. Keep every strong claim proportionate and traceable.
+11. Review `07_material_review_checklist.md` and the relevant quality gates. Render only when the user asks.
+12. Report generated or changed artifacts, unresolved evidence/Brief/document/Draft/Review gaps, and unchecked gates. Hand the package to `$canisend-submission-readiness` for a strict final review. This workflow alone is not package readiness.

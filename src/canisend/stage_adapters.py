@@ -35,6 +35,13 @@ from canisend.stages.confirm_stage import (
     confirm_input_fingerprint,
     validate_confirm_candidate,
 )
+from canisend.stages.draft_stage import (
+    COVER_LETTER_DRAFT_OUTPUT_PATH,
+    DraftStageError,
+    draft_input_fingerprint,
+    draft_precondition_reasons,
+    validate_draft_candidate,
+)
 from canisend.stages.evidence_stage import (
     EVIDENCE_OUTPUT_PATH,
     EVIDENCE_SNAPSHOT_NAME,
@@ -55,6 +62,13 @@ from canisend.stages.parse_stage import (
     build_deterministic_parse_candidate,
     parse_input_fingerprint,
     validate_parse_candidate,
+)
+from canisend.stages.review_stage import (
+    REVIEW_FINDINGS_OUTPUT_PATH,
+    build_deterministic_review_candidate,
+    review_input_fingerprint,
+    review_precondition_reasons,
+    validate_review_candidate,
 )
 from canisend.user_file_store import UnsafeUserFileError, read_optional_safe_bytes
 from canisend.workspace import load_workspace_config
@@ -540,6 +554,203 @@ class BriefStageAdapter(StageAdapter):
         return validated.model_dump(mode="json")
 
 
+class DraftStageAdapter(StageAdapter):
+    def precondition_reasons(
+        self,
+        workspace: Path,
+        job_dir: Path,
+    ) -> tuple[str, ...]:
+        return draft_precondition_reasons(
+            workspace,
+            job_dir,
+            parsed_job_schema_path=_schema_path(workspace, "parsed_job.schema.json"),
+            required_document_plan_schema_path=_schema_path(
+                workspace,
+                "required-document-plan.schema.json",
+            ),
+        )
+
+    def input_fingerprint(self, workspace: Path, job_dir: Path) -> str:
+        return draft_input_fingerprint(
+            workspace,
+            job_dir,
+            cover_letter_schema_path=_schema_path(
+                workspace,
+                "cover-letter-draft.schema.json",
+            ),
+            parsed_job_schema_path=_schema_path(workspace, "parsed_job.schema.json"),
+            required_document_plan_schema_path=_schema_path(
+                workspace,
+                "required-document-plan.schema.json",
+            ),
+        )
+
+    def input_artifacts(
+        self,
+        workspace: Path,
+        job_dir: Path,
+    ) -> tuple[ArtifactFingerprint, ...]:
+        del workspace
+        return (
+            _artifact(job_dir, BRIEF_PARSED_JOB_INPUT_PATH),
+            _artifact(job_dir, CRITERIA_INPUT_PATH),
+            _artifact(job_dir, EVIDENCE_CATALOG_INPUT_PATH),
+            _artifact(job_dir, BRIEF_MATCHES_INPUT_PATH),
+            _safe_draft_user_artifact(job_dir, APPLICATION_DECISION_INPUT_PATH),
+            _safe_draft_user_artifact(job_dir, APPLICATION_BRIEF_INPUT_PATH),
+            _artifact(job_dir, REQUIRED_DOCUMENT_PLAN_OUTPUT_PATH),
+        )
+
+    def build_deterministic_candidate(
+        self,
+        workspace: Path,
+        job_dir: Path,
+        *,
+        input_fingerprint: str,
+        inputs: tuple[ArtifactFingerprint, ...],
+    ) -> dict[str, Any]:
+        del workspace, job_dir, input_fingerprint, inputs
+        raise DraftStageError("Draft does not support deterministic generation.")
+
+    def validate_candidate(
+        self,
+        workspace: Path,
+        job_dir: Path,
+        candidate: object,
+        *,
+        input_fingerprint: str,
+        inputs: tuple[ArtifactFingerprint, ...],
+    ) -> dict[str, Any]:
+        del inputs
+        validated = validate_draft_candidate(
+            candidate,
+            workspace=workspace,
+            job_dir=job_dir,
+            input_fingerprint=input_fingerprint,
+            cover_letter_schema_path=_schema_path(
+                workspace,
+                "cover-letter-draft.schema.json",
+            ),
+            parsed_job_schema_path=_schema_path(workspace, "parsed_job.schema.json"),
+            required_document_plan_schema_path=_schema_path(
+                workspace,
+                "required-document-plan.schema.json",
+            ),
+        )
+        return validated.model_dump(mode="json")
+
+    def required_consents(self, execution_mode: AdapterExecutionMode) -> tuple[str, ...]:
+        return ("read-private-draft-inputs",) if execution_mode == "host_agent" else ()
+
+
+class ReviewStageAdapter(StageAdapter):
+    def precondition_reasons(
+        self,
+        workspace: Path,
+        job_dir: Path,
+    ) -> tuple[str, ...]:
+        return review_precondition_reasons(
+            workspace,
+            job_dir,
+            cover_letter_schema_path=_schema_path(
+                workspace,
+                "cover-letter-draft.schema.json",
+            ),
+            parsed_job_schema_path=_schema_path(workspace, "parsed_job.schema.json"),
+            required_document_plan_schema_path=_schema_path(
+                workspace,
+                "required-document-plan.schema.json",
+            ),
+        )
+
+    def input_fingerprint(self, workspace: Path, job_dir: Path) -> str:
+        return review_input_fingerprint(
+            workspace,
+            job_dir,
+            review_findings_schema_path=_schema_path(
+                workspace,
+                "review-findings.schema.json",
+            ),
+            cover_letter_schema_path=_schema_path(
+                workspace,
+                "cover-letter-draft.schema.json",
+            ),
+            parsed_job_schema_path=_schema_path(workspace, "parsed_job.schema.json"),
+            required_document_plan_schema_path=_schema_path(
+                workspace,
+                "required-document-plan.schema.json",
+            ),
+        )
+
+    def input_artifacts(
+        self,
+        workspace: Path,
+        job_dir: Path,
+    ) -> tuple[ArtifactFingerprint, ...]:
+        draft_inputs = get_stage_adapter("draft").input_artifacts(workspace, job_dir)
+        return (*draft_inputs, _artifact(job_dir, COVER_LETTER_DRAFT_OUTPUT_PATH))
+
+    def build_deterministic_candidate(
+        self,
+        workspace: Path,
+        job_dir: Path,
+        *,
+        input_fingerprint: str,
+        inputs: tuple[ArtifactFingerprint, ...],
+    ) -> dict[str, Any]:
+        del inputs
+        candidate = build_deterministic_review_candidate(
+            workspace,
+            job_dir,
+            input_fingerprint=input_fingerprint,
+            review_findings_schema_path=_schema_path(
+                workspace,
+                "review-findings.schema.json",
+            ),
+            cover_letter_schema_path=_schema_path(
+                workspace,
+                "cover-letter-draft.schema.json",
+            ),
+            parsed_job_schema_path=_schema_path(workspace, "parsed_job.schema.json"),
+            required_document_plan_schema_path=_schema_path(
+                workspace,
+                "required-document-plan.schema.json",
+            ),
+        )
+        return candidate.model_dump(mode="json")
+
+    def validate_candidate(
+        self,
+        workspace: Path,
+        job_dir: Path,
+        candidate: object,
+        *,
+        input_fingerprint: str,
+        inputs: tuple[ArtifactFingerprint, ...],
+    ) -> dict[str, Any]:
+        del inputs
+        validated = validate_review_candidate(
+            candidate,
+            workspace=workspace,
+            job_dir=job_dir,
+            input_fingerprint=input_fingerprint,
+            review_findings_schema_path=_schema_path(
+                workspace,
+                "review-findings.schema.json",
+            ),
+            cover_letter_schema_path=_schema_path(
+                workspace,
+                "cover-letter-draft.schema.json",
+            ),
+            parsed_job_schema_path=_schema_path(workspace, "parsed_job.schema.json"),
+            required_document_plan_schema_path=_schema_path(
+                workspace,
+                "required-document-plan.schema.json",
+            ),
+        )
+        return validated.model_dump(mode="json")
+
+
 _ADAPTERS = {
     "evidence": EvidenceStageAdapter(
         stage_id="evidence",
@@ -596,6 +807,28 @@ _ADAPTERS = {
         task_privacy_tier=2,
         citations_validated=True,
     ),
+    "draft": DraftStageAdapter(
+        stage_id="draft",
+        authoritative_target=COVER_LETTER_DRAFT_OUTPUT_PATH,
+        candidate_name=COVER_LETTER_DRAFT_OUTPUT_PATH,
+        output_schema="canisend.cover-letter-draft/v1",
+        artifact_kind="cover_letter_draft",
+        media_type="application/json",
+        privacy_tier=2,
+        task_privacy_tier=2,
+        citations_validated=True,
+    ),
+    "review": ReviewStageAdapter(
+        stage_id="review",
+        authoritative_target=REVIEW_FINDINGS_OUTPUT_PATH,
+        candidate_name=REVIEW_FINDINGS_OUTPUT_PATH,
+        output_schema="canisend.review-findings/v1",
+        artifact_kind="review_findings",
+        media_type="application/json",
+        privacy_tier=2,
+        task_privacy_tier=2,
+        citations_validated=True,
+    ),
 }
 
 
@@ -634,6 +867,23 @@ def _safe_user_artifact(job_dir: Path, relative_path: str) -> ArtifactFingerprin
         raise BriefStageError("A user-owned Brief input is unsafe.") from exc
     if snapshot is None:
         raise BriefStageError("A required user-owned Brief input is missing.")
+    return ArtifactFingerprint(
+        path=relative_path,
+        sha256=snapshot.sha256,
+        size_bytes=len(snapshot.data),
+    )
+
+
+def _safe_draft_user_artifact(
+    job_dir: Path,
+    relative_path: str,
+) -> ArtifactFingerprint:
+    try:
+        snapshot = read_optional_safe_bytes(job_dir, relative_path)
+    except UnsafeUserFileError as exc:
+        raise DraftStageError("A user-owned Draft input is unsafe.") from exc
+    if snapshot is None:
+        raise DraftStageError("A required user-owned Draft input is missing.")
     return ArtifactFingerprint(
         path=relative_path,
         sha256=snapshot.sha256,

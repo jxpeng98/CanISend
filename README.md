@@ -30,6 +30,8 @@ It prepares materials only. It does not submit applications, create accounts, fi
   revision/hash compare-and-swap operations with privacy-safe receipts.
 - Provides the locally accepted Stage 2 Decision Spine: guarded user-owned corrections, Decision and Brief YAML,
   deterministic Criteria/Evidence/Match/required-document projections, and executable unresolved/omit/orphan blockers.
+- Provides the Stage 3 structured foundation: guarded host-agent `cover_letter_draft.json` promotion and independent
+  deterministic `review_findings.json`, without claiming final wording or package/submission readiness.
 - Renders current deterministic Match proposals into fit/checklist/HR-review and Typst package views while safely
   falling back for stale, drifted, mixed-profile, or explicit LLM-draft runs.
 - Generates `parsed_job.json`, preparation questions, fit reports, cover letter drafts, CV tailoring notes, criteria checklists, material review checklists, and structured Typst content.
@@ -126,6 +128,12 @@ full advert -> Parsed Job -> stable Criteria ----------------+            v
                                                                   |
                                                                   v
                                               user-owned Brief -> required-document plan
+                                                                  |
+                                                                  v
+                                               guarded structured Cover Letter Draft
+                                                                  |
+                                                                  v
+                                                    deterministic independent Review
 ```
 
 ### 1. Initialize a private workspace
@@ -566,13 +574,45 @@ canisend stage run --workspace . --job jobs/<job-slug> --stage brief --mode dete
 The plan records body-free status counts and blocker codes in AgentResponse. Its Tier 2 body remains ask-first for an
 agent because it can contain advert source text and application strategy. An unconfirmed requirement set, unresolved
 choice, `required + omit`, required document without a preparation action, or orphaned old choice blocks later
-Draft/Verify work. Stage 2 is locally accepted, but these artifacts do not establish Draft, application-package, or
-submission readiness.
+Draft/Verify work. Stage 2 is locally accepted, but these artifacts alone do not establish Draft,
+application-package, or submission readiness.
+
+When the plan contains one blocker-free confirmed `prepare` Cover Letter, the host agent can enter the guarded
+structured Draft path:
+
+```bash
+canisend stage prepare \
+  --workspace . \
+  --job jobs/<job-slug> \
+  --stage draft \
+  --mode host-agent \
+  --format json
+```
+
+After the user approves the returned `read-private-draft-inputs` consent, the agent reads only the TaskSpec-declared
+Tier 2 inputs and writes schema-valid candidate JSON to fresh private scratch. It passes that file to `stage submit`
+with the returned `--task` path, then passes the immutable TaskResult from the response to `stage apply`; neither the
+agent nor a provider writes the run directory or `cover_letter_draft.json` directly.
+
+Review the promoted Draft independently and deterministically:
+
+```bash
+canisend stage run \
+  --workspace . \
+  --job jobs/<job-slug> \
+  --stage review \
+  --mode deterministic \
+  --format json
+```
+
+Unsupported factual claims, missing required sections, and detectable Brief-exclusion conflicts remain blockers.
+Partial support, semantic support, and non-factual Claim-kind classification remain review work. The structured Draft
+stays `proposed`; this slice does not overwrite compatibility Markdown/Typst files or establish package readiness.
 
 Evidence and Parse are independent after intake, so their deterministic runs may be ordered either way; Match waits
-for current Confirm and Evidence outputs. Host-agent execution currently applies to Parse only; Evidence, Confirm,
-and Match are deterministic-only. For current-host Parse
-reasoning, `stage prepare --mode host-agent` writes a TaskSpec plus an immutable preparation receipt under the job's
+for current Confirm and Evidence outputs. Host-agent execution currently applies to Parse and Draft; Evidence,
+Confirm, Match, Brief, and Review are deterministic-only. For current-host Parse or Draft reasoning,
+`stage prepare --mode host-agent` writes a TaskSpec plus an immutable preparation receipt under the job's
 `workflow/runs/` directory. After explicit approval to read the full advert, the host creates candidate JSON only in
 a fresh scratch file and passes it to `stage submit --candidate-file`; the guarded service writes the declared
 candidate, TaskResult, and submission receipt without following symlink or hard-link aliases. `stage apply` then
@@ -621,16 +661,17 @@ Use `canisend doctor --workspace .` when a human-readable environment diagnostic
 
 A fresh Codex, Claude Code, or IDE shell session resumes from the same durable workspace state by running the same
 `agent context` command; it does not need the previous chat transcript. The fake-data conformance fixture under
-`examples/agent_handoff/` demonstrates this host-neutral handoff. Parse adds durable task/result exchange through the
-existing CLI; Confirm, Evidence, Match, and required-document planning reuse that boundary, while corrections,
-Decision, and Brief use separate user-owned mutation operations. None requires a platform-specific API, network, MCP
-transport, or configured provider in deterministic mode.
+`examples/agent_handoff/` demonstrates this host-neutral handoff. Parse and Draft use durable task/result exchange
+through the existing CLI; Confirm, Evidence, Match, required-document planning, and Review reuse deterministic
+runtime paths, while corrections, Decision, and Brief use separate user-owned mutation operations. None requires a
+platform-specific API, network, or MCP transport; deterministic stages need no configured provider.
 
 They may run local deterministic CLI commands, inspect generated evidence, and review current job artifacts. They must
 ask first before reading full private CVs, statements, full job adverts, references, PDFs, source URLs, Evidence
 snapshots/candidates/catalogs, `criteria.json`, `criterion_matches.json`, `application_brief.yaml`,
-`required_document_plan.json`, generated packages, or enabling LLM-backed CLI flags/providers. Criteria may contain
-corrected wording; Match, Brief, and the document plan remain Tier 2. They must not
+`required_document_plan.json`, `cover_letter_draft.json`, `review_findings.json`, generated packages, or enabling
+LLM-backed CLI flags/providers. Criteria may contain corrected wording; Match, Brief, the document plan, Draft, and
+Review remain Tier 2. They must not
 scrape pages, submit applications, upload packages, fabricate evidence, or commit private profile/job data.
 
 Original profile inputs under `profile/` are protected. Agents should normally produce profile-improvement suggestions inside the job folder, not rewrite the source CV or statements. A write back to `profile/typst/*.typ`, `profile/*.md`, or other non-generated profile input is allowed only through an orchestrator task that declares `edits_profile_input: true`, depends on a prior review task, uses privacy tier 2 or higher, and is launched with `--allow-profile-input-edits --confirm-profile-input-edit --confirm-profile-input-edit-again`.
@@ -736,10 +777,11 @@ This repository is intended to be open source. Personal application data should 
   private job folders. The first three may contain duplicated normalized profile text; removing a run or job remains
   an explicit user retention decision.
 - `criteria.json`, `criterion_matches.json`, `confirmed_corrections.yaml`, `application_decision.yaml`,
-  `application_brief.yaml`, `required_document_plan.json`, and private mutation/stage candidates are Tier 2. Criteria
-  may contain corrected wording; Match is body-minimized, while Brief and plan may reveal private motivation,
-  exclusions, source text, and application strategy. Mutation receipts are Tier 1 and contain none of those bodies;
-  neither do workflow control records, errors, ordinary command output, or AgentResponse.
+  `application_brief.yaml`, `required_document_plan.json`, `cover_letter_draft.json`, `review_findings.json`, and
+  private mutation/stage candidates are Tier 2. Criteria may contain corrected wording; Match is body-minimized,
+  while Brief, plan, Draft, and Review may reveal private motivation, exclusions, source text, application strategy,
+  or prose. Mutation receipts are Tier 1 and contain none of those bodies; neither do workflow control records,
+  errors, ordinary command output, or AgentResponse.
 - User YAML may be edited manually. Status and stage reruns do not normalize it; an explicitly consented scoped
   update creates a canonical next revision and may not preserve comments. Revision/hash CAS coordinates cooperative
   CanISend writers in a stable job directory; it does not linearize a normal editor save in the final replace window

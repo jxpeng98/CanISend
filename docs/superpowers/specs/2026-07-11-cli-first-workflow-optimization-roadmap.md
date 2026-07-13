@@ -1,6 +1,6 @@
 # CLI-First Workflow Optimization Execution Roadmap
 
-**Status:** Active — Stages 1 and 2 locally accepted; Stage 3 is next
+**Status:** Active — Stages 1 and 2 plus the Stage 3 executable foundation are locally accepted
 
 **Date:** 2026-07-11
 
@@ -297,6 +297,11 @@ result is claimed.
 - corrections invalidate only declared dependent stages.
 
 ## Stage 3: Evidence-Backed Draft + Review
+
+**Stage status:** In progress on `feat/evidence-backed-draft-foundation`. ADR-013 freezes the Claim, ReviewFinding,
+Cover Letter Draft, privacy, and guarded promotion boundary. Strict schemas, guarded host-agent Draft promotion, and
+deterministic independent Review are locally accepted. Compatibility projections, broader cross-document review,
+cross-version CI, and package readiness remain outside this slice.
 
 ### Deliverables
 
