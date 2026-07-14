@@ -42,6 +42,13 @@ from canisend.decision_models import (
     UserControlTimestamp,
     UserRevision,
 )
+from canisend.draft_models import CoverLetterDraftV1, ReviewFindingsV1
+from canisend.review_readiness import (
+    DocumentReadinessV1,
+    FindingDispositionV1,
+    ReviewDispositionsV1,
+    derive_document_readiness,
+)
 from canisend.stage_runtime import StageRuntimeError, inspect_stage_status
 from canisend.stage_store import (
     StageStoreError,
@@ -52,6 +59,8 @@ from canisend.stages.confirm_stage import (
     criteria_extraction_basis_sha256,
     criterion_source_sha256,
 )
+from canisend.stages.draft_stage import COVER_LETTER_DRAFT_OUTPUT_PATH
+from canisend.stages.review_stage import REVIEW_FINDINGS_OUTPUT_PATH
 from canisend.user_file_store import (
     InvalidUserFileError,
     SafeFileSnapshot,
@@ -75,9 +84,15 @@ USER_MUTATION_SCHEMA_VERSION = "1.0.0"
 CONFIRMED_CORRECTIONS_PATH = "confirmed_corrections.yaml"
 APPLICATION_DECISION_PATH = "application_decision.yaml"
 APPLICATION_BRIEF_PATH = "application_brief.yaml"
+REVIEW_DISPOSITIONS_PATH = "review_dispositions.yaml"
 REQUIRED_DOCUMENT_PLAN_PATH = "required_document_plan.json"
 
-UserArtifactKind = Literal["corrections", "decision", "brief"]
+UserArtifactKind = Literal[
+    "corrections",
+    "decision",
+    "brief",
+    "review_dispositions",
+]
 DecisionBasisStatus = Literal["current", "review_required", "unavailable"]
 MutationStatus = Literal["committed", "committed_receipt_pending", "reused"]
 RecoveryStatus = Literal[
@@ -103,11 +118,13 @@ _USER_ARTIFACT_PATHS: dict[UserArtifactKind, str] = {
     "corrections": CONFIRMED_CORRECTIONS_PATH,
     "decision": APPLICATION_DECISION_PATH,
     "brief": APPLICATION_BRIEF_PATH,
+    "review_dispositions": REVIEW_DISPOSITIONS_PATH,
 }
 _USER_ARTIFACT_KINDS: tuple[UserArtifactKind, ...] = (
     "corrections",
     "decision",
     "brief",
+    "review_dispositions",
 )
 
 USER_MUTATION_ERROR_CODES = frozenset(
@@ -269,6 +286,21 @@ class ReconfirmApplicationBriefPatch(_MutationModel):
     operation: Literal["reconfirm_brief"] = "reconfirm_brief"
 
 
+class SetFindingDispositionPatch(_MutationModel):
+    operation: Literal["set_finding_disposition"] = "set_finding_disposition"
+    finding_id: str = Field(pattern=r"^finding_[0-9a-f]{32}$")
+    disposition: Literal["accepted", "revision_required"]
+
+
+class ClearFindingDispositionPatch(_MutationModel):
+    operation: Literal["clear_finding_disposition"] = "clear_finding_disposition"
+    finding_id: str = Field(pattern=r"^finding_[0-9a-f]{32}$")
+
+
+class ResetForCurrentReviewPatch(_MutationModel):
+    operation: Literal["reset_for_current_review"] = "reset_for_current_review"
+
+
 CorrectionsPatch: TypeAlias = Annotated[
     ConfirmCriterionPatch
     | CorrectCriterionPatch
@@ -293,11 +325,20 @@ BriefPatch: TypeAlias = Annotated[
     | ReconfirmApplicationBriefPatch,
     Field(discriminator="operation"),
 ]
-UserPatch: TypeAlias = CorrectionsPatch | DecisionPatch | BriefPatch
+ReviewDispositionPatch: TypeAlias = Annotated[
+    SetFindingDispositionPatch
+    | ClearFindingDispositionPatch
+    | ResetForCurrentReviewPatch,
+    Field(discriminator="operation"),
+]
+UserPatch: TypeAlias = (
+    CorrectionsPatch | DecisionPatch | BriefPatch | ReviewDispositionPatch
+)
 
 _CORRECTIONS_PATCH_ADAPTER = TypeAdapter(CorrectionsPatch)
 _DECISION_PATCH_ADAPTER = TypeAdapter(DecisionPatch)
 _BRIEF_PATCH_ADAPTER = TypeAdapter(BriefPatch)
+_REVIEW_DISPOSITION_PATCH_ADAPTER = TypeAdapter(ReviewDispositionPatch)
 
 
 class UserMutationClaimV1(_MutationModel):
@@ -309,6 +350,7 @@ class UserMutationClaimV1(_MutationModel):
         CONFIRMED_CORRECTIONS_PATH,
         APPLICATION_DECISION_PATH,
         APPLICATION_BRIEF_PATH,
+        REVIEW_DISPOSITIONS_PATH,
     ]
     expected_revision: UserRevision | None = None
     expected_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
@@ -374,6 +416,13 @@ class UserMutationReceiptV1(_MutationModel):
                             },
                             "required": ["artifact", "target_path"],
                         },
+                        {
+                            "properties": {
+                                "artifact": {"const": "review_dispositions"},
+                                "target_path": {"const": REVIEW_DISPOSITIONS_PATH},
+                            },
+                            "required": ["artifact", "target_path"],
+                        },
                     ]
                 },
                 {
@@ -425,6 +474,7 @@ class UserMutationReceiptV1(_MutationModel):
         CONFIRMED_CORRECTIONS_PATH,
         APPLICATION_DECISION_PATH,
         APPLICATION_BRIEF_PATH,
+        REVIEW_DISPOSITIONS_PATH,
     ]
     expected_revision: UserRevision | None = None
     expected_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
@@ -449,7 +499,10 @@ class UserMutationReceiptV1(_MutationModel):
 
 
 UserArtifactModel: TypeAlias = (
-    ConfirmedCorrectionsV1 | ApplicationDecisionV1 | ApplicationBriefV1
+    ConfirmedCorrectionsV1
+    | ApplicationDecisionV1
+    | ApplicationBriefV1
+    | ReviewDispositionsV1
 )
 
 
@@ -500,6 +553,14 @@ class ApplicationBriefInspection:
 
 
 @dataclass(frozen=True)
+class ReviewDispositionsInspection:
+    snapshot: UserArtifactSnapshot | None
+    basis_status: DecisionBasisStatus
+    readiness: DocumentReadinessV1 | None
+    reason: str | None = None
+
+
+@dataclass(frozen=True)
 class CurrentArtifactMutationAudit:
     """Privacy-safe state of durable mutation controls for one current artifact."""
 
@@ -534,6 +595,16 @@ def parse_brief_patch(value: object) -> BriefPatch:
         raise UserMutationError(
             "user_input.invalid",
             "The application brief patch is not a supported scoped operation.",
+        ) from exc
+
+
+def parse_review_disposition_patch(value: object) -> ReviewDispositionPatch:
+    try:
+        return _REVIEW_DISPOSITION_PATCH_ADAPTER.validate_python(value)
+    except ValidationError as exc:
+        raise UserMutationError(
+            "user_input.invalid",
+            "The Review disposition patch is not a supported scoped operation.",
         ) from exc
 
 
@@ -749,6 +820,16 @@ def initialize_user_artifact(
             language=language,
             writing_style=writing_style,
         )
+    elif artifact == "review_dispositions":
+        review, draft_snapshot, review_snapshot = _current_review_basis(root, job)
+        model = ReviewDispositionsV1(
+            job_id=job.name,
+            document_id=review.document_id,
+            revision=0,
+            updated_at=now,
+            draft_sha256=draft_snapshot.sha256,
+            review_findings_sha256=review_snapshot.sha256,
+        )
     else:  # pragma: no cover - protected by the public Literal and path map
         raise UserMutationError("user_input.invalid", "Unsupported user-owned artifact.")
     return _commit_candidate(
@@ -827,6 +908,19 @@ def apply_user_patch(
         )
         assert isinstance(current.model, ApplicationBriefV1)
         result_model, brief_plan_snapshot = _apply_brief_patch(
+            root,
+            job,
+            current.model,
+            normalized_patch,
+        )
+    elif artifact == "review_dispositions":
+        normalized_patch = (
+            patch
+            if isinstance(patch, _review_disposition_patch_classes())
+            else parse_review_disposition_patch(patch)
+        )
+        assert isinstance(current.model, ReviewDispositionsV1)
+        result_model = _apply_review_disposition_patch(
             root,
             job,
             current.model,
@@ -1000,6 +1094,70 @@ def inspect_application_brief(
     )
 
 
+def inspect_review_dispositions(
+    workspace: Path,
+    job_dir: Path,
+) -> ReviewDispositionsInspection:
+    snapshot: UserArtifactSnapshot | None = None
+    try:
+        root, job = _mutation_paths(workspace, job_dir)
+        snapshot = _load_artifact_snapshot(
+            job,
+            "review_dispositions",
+            allow_missing=True,
+        )
+        review, draft_snapshot, review_snapshot = _current_review_basis(root, job)
+    except UserMutationError as exc:
+        return ReviewDispositionsInspection(
+            snapshot=snapshot,
+            basis_status=(
+                "review_required" if snapshot is not None else "unavailable"
+            ),
+            readiness=None,
+            reason=exc.code,
+        )
+
+    dispositions = None
+    dispositions_sha256 = None
+    basis_status: DecisionBasisStatus = "current"
+    reason: str | None = None
+    if snapshot is not None:
+        assert isinstance(snapshot.model, ReviewDispositionsV1)
+        dispositions = snapshot.model
+        dispositions_sha256 = snapshot.sha256
+        if (
+            dispositions.job_id != review.job_id
+            or dispositions.document_id != review.document_id
+            or dispositions.draft_sha256 != draft_snapshot.sha256
+            or dispositions.review_findings_sha256 != review_snapshot.sha256
+        ):
+            basis_status = "review_required"
+            reason = "review.dispositions_stale"
+
+    readiness = derive_document_readiness(
+        review,
+        draft_sha256=draft_snapshot.sha256,
+        review_findings_sha256=review_snapshot.sha256,
+        dispositions=dispositions,
+        review_dispositions_sha256=dispositions_sha256,
+    )
+    if readiness.state == "blocked":
+        reason = "review.blocker_open"
+    elif readiness.state == "revision_required":
+        reason = "review.revision_required"
+    elif readiness.state == "review_required" and reason is None:
+        reason = readiness.reason_codes[0] if readiness.reason_codes else None
+    if "review.disposition_orphaned" in readiness.reason_codes:
+        basis_status = "review_required"
+        reason = "review.disposition_orphaned"
+    return ReviewDispositionsInspection(
+        snapshot=snapshot,
+        basis_status=basis_status,
+        readiness=readiness,
+        reason=reason,
+    )
+
+
 def inspect_user_mutation(
     workspace: Path,
     job_dir: Path,
@@ -1146,6 +1304,22 @@ def initialize_application_brief(
         workspace,
         job_dir,
         "brief",
+        consent_confirmed=consent_confirmed,
+        mutation_id=mutation_id,
+    )
+
+
+def initialize_review_dispositions(
+    workspace: Path,
+    job_dir: Path,
+    *,
+    consent_confirmed: bool,
+    mutation_id: str | None = None,
+) -> MutationOutcome:
+    return initialize_user_artifact(
+        workspace,
+        job_dir,
+        "review_dispositions",
         consent_confirmed=consent_confirmed,
         mutation_id=mutation_id,
     )
@@ -1434,6 +1608,103 @@ def _apply_brief_patch(
             "The application decision changed while the brief patch was inspected.",
         )
     return current.model_copy(update=updates), plan_snapshot
+
+
+def _apply_review_disposition_patch(
+    workspace: Path,
+    job: Path,
+    current: ReviewDispositionsV1,
+    patch: ReviewDispositionPatch,
+) -> ReviewDispositionsV1:
+    review, draft_snapshot, review_snapshot = _current_review_basis(workspace, job)
+    now = _next_timestamp(current.updated_at)
+    updates: dict[str, Any] = {
+        "revision": current.revision + 1,
+        "updated_at": now,
+    }
+
+    if isinstance(patch, ResetForCurrentReviewPatch):
+        updates.update(
+            {
+                "document_id": review.document_id,
+                "draft_sha256": draft_snapshot.sha256,
+                "review_findings_sha256": review_snapshot.sha256,
+                "dispositions": (),
+            }
+        )
+    else:
+        if (
+            current.document_id != review.document_id
+            or current.draft_sha256 != draft_snapshot.sha256
+            or current.review_findings_sha256 != review_snapshot.sha256
+        ):
+            raise UserMutationError(
+                "user_input.dependency_not_current",
+                "Review dispositions must be reset against the current Review before editing.",
+            )
+        finding = next(
+            (item for item in review.findings if item.finding_id == patch.finding_id),
+            None,
+        )
+        if finding is None:
+            raise UserMutationError(
+                "user_input.invalid",
+                "The Review disposition patch does not target a current finding.",
+            )
+        existing = tuple(
+            item for item in current.dispositions if item.finding_id != patch.finding_id
+        )
+        if isinstance(patch, ClearFindingDispositionPatch):
+            if len(existing) == len(current.dispositions):
+                raise UserMutationError(
+                    "user_input.invalid",
+                    "The current Review has no matching disposition to clear.",
+                )
+            dispositions = existing
+        else:
+            assert isinstance(patch, SetFindingDispositionPatch)
+            if finding.severity == "blocker" and patch.disposition == "accepted":
+                raise UserMutationError(
+                    "user_input.invalid",
+                    "Executable blocker findings cannot be accepted or waived.",
+                )
+            dispositions = (
+                *existing,
+                FindingDispositionV1(
+                    finding_id=finding.finding_id,
+                    disposition=patch.disposition,
+                    decided_at=now,
+                ),
+            )
+        updates["dispositions"] = tuple(
+            sorted(dispositions, key=lambda item: item.finding_id)
+        )
+
+    latest_review, latest_draft, latest_review_snapshot = _current_review_basis(
+        workspace,
+        job,
+    )
+    if (
+        latest_review != review
+        or latest_draft.sha256 != draft_snapshot.sha256
+        or latest_review_snapshot.sha256 != review_snapshot.sha256
+    ):
+        raise UserMutationError(
+            "user_input.dependency_not_current",
+            "The Review basis changed while the disposition patch was inspected.",
+        )
+    try:
+        return ReviewDispositionsV1.model_validate(
+            {
+                **current.model_dump(mode="json"),
+                **updates,
+            }
+        )
+    except ValidationError as exc:
+        raise UserMutationError(
+            "user_input.invalid",
+            "The Review disposition update cannot form a valid next revision.",
+        ) from exc
 
 
 def _commit_candidate(
@@ -1975,6 +2246,47 @@ def _current_decision_basis(workspace: Path, job: Path) -> DecisionBasisV1:
     )
 
 
+def _current_review_basis(
+    workspace: Path,
+    job: Path,
+) -> tuple[ReviewFindingsV1, SafeFileSnapshot, SafeFileSnapshot]:
+    _require_stage_current(workspace, job, "review")
+    review, review_snapshot = _load_structured_artifact(
+        job,
+        REVIEW_FINDINGS_OUTPUT_PATH,
+        ReviewFindingsV1,
+    )
+    draft, draft_snapshot = _load_structured_artifact(
+        job,
+        COVER_LETTER_DRAFT_OUTPUT_PATH,
+        CoverLetterDraftV1,
+    )
+    assert isinstance(review, ReviewFindingsV1)
+    assert isinstance(draft, CoverLetterDraftV1)
+    if (
+        review.job_id != draft.job_id
+        or review.document_id != draft.document_id
+        or review.draft_sha256 != draft_snapshot.sha256
+    ):
+        raise UserMutationError(
+            "user_input.dependency_not_current",
+            "The current Draft and Review do not share exact receipts.",
+        )
+
+    _require_stage_current(workspace, job, "review")
+    final_review = _read_safe(job, REVIEW_FINDINGS_OUTPUT_PATH)
+    final_draft = _read_safe(job, COVER_LETTER_DRAFT_OUTPUT_PATH)
+    if (
+        final_review.sha256 != review_snapshot.sha256
+        or final_draft.sha256 != draft_snapshot.sha256
+    ):
+        raise UserMutationError(
+            "user_input.dependency_not_current",
+            "The Draft or Review changed while its basis was inspected.",
+        )
+    return review, draft_snapshot, review_snapshot
+
+
 def _load_structured_artifact(
     job: Path,
     relative_path: str,
@@ -2348,6 +2660,12 @@ def _patch_artifact(patch: UserPatch | dict[str, Any]) -> UserArtifactKind:
         "reconfirm_brief",
     }:
         return "brief"
+    if operation in {
+        "set_finding_disposition",
+        "clear_finding_disposition",
+        "reset_for_current_review",
+    }:
+        return "review_dispositions"
     raise UserMutationError(
         "user_input.invalid",
         "The user-owned patch operation is not supported.",
@@ -2378,6 +2696,14 @@ def _brief_patch_classes() -> tuple[type[BaseModel], ...]:
     )
 
 
+def _review_disposition_patch_classes() -> tuple[type[BaseModel], ...]:
+    return (
+        SetFindingDispositionPatch,
+        ClearFindingDispositionPatch,
+        ResetForCurrentReviewPatch,
+    )
+
+
 def _target_path(artifact: UserArtifactKind) -> str:
     try:
         return _USER_ARTIFACT_PATHS[artifact]
@@ -2387,13 +2713,20 @@ def _target_path(artifact: UserArtifactKind) -> str:
 
 def _artifact_model_type(
     artifact: UserArtifactKind,
-) -> type[ConfirmedCorrectionsV1] | type[ApplicationDecisionV1] | type[ApplicationBriefV1]:
+) -> (
+    type[ConfirmedCorrectionsV1]
+    | type[ApplicationDecisionV1]
+    | type[ApplicationBriefV1]
+    | type[ReviewDispositionsV1]
+):
     if artifact == "corrections":
         return ConfirmedCorrectionsV1
     if artifact == "decision":
         return ApplicationDecisionV1
     if artifact == "brief":
         return ApplicationBriefV1
+    if artifact == "review_dispositions":
+        return ReviewDispositionsV1
     raise ValueError("unsupported user-owned artifact")
 
 

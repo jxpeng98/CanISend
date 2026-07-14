@@ -89,6 +89,9 @@ Do not use ready, final, complete, or submission-ready for generated materials u
 - Current deterministic `review_findings.json` exists for the Draft. Unsupported claims, confirmed Brief exclusion
   conflicts, and missing opening/body/closing sections are blockers. Supported factual wording retains an explicit
   semantic-support review item until inspected; every non-factual Claim kind also remains open for semantic review.
+- Current `review_dispositions.yaml` binds the exact Draft/Review hashes. Every current non-blocker finding is
+  `accepted`; none is unresolved or `revision_required`. Blockers cannot be accepted or waived, and a changed Review
+  requires an explicit reset to the new basis rather than carrying decisions forward by position or message.
 - Rejected/stale Draft candidates left authoritative Draft, user YAML, compatibility Markdown, Typst, and profile
   bytes unchanged. The host wrote no declared run path directly.
 - When structured Match views were used, Match and its upstream stages are still current and free of output drift;
@@ -100,9 +103,9 @@ Do not use ready, final, complete, or submission-ready for generated materials u
 - If `typst/cover_letter_content.json` declares `projection.source=cover_letter_draft.json`, its Draft and Review
   hashes still match the current authoritative files, Review has no blocker findings, and each structured Claim
   appears exactly once in `03_cover_letter_draft.md` and both Typst views.
-- Open review/warning findings, `review_state=proposed`, and `requires_human_review` remain explicit. Compatibility
-  projection is not reviewed/final/package-ready. A missing, blocked, stale, drifted, or invalid Draft/Review uses the
-  legacy/provider view rather than mixed provenance.
+- Draft and Review remain `review_state=proposed`; reviewed status is a derived document-readiness projection. Missing,
+  stale, incomplete, or revision-required dispositions keep `requires_human_review=true`. A missing, blocked, stale,
+  drifted, or invalid Draft/Review uses the legacy/provider view rather than mixed provenance.
 - `03_cover_letter_draft.md` application-facing English must not include unsupported claims.
 - `04_cv_tailoring_notes.md` tells the user what to adjust in the private CV, but does not rewrite the CV unless asked.
 - `05_criteria_checklist.md` covers all extracted essential criteria.
@@ -130,8 +133,9 @@ Do not use ready, final, complete, or submission-ready for generated materials u
 - `check-package --write-report` writes `application_gate_report.json`; without the flag the check is read-only.
 - The report includes SHA-256 hashes under safe relative labels. Any later input or material edit changes those hashes
   and requires a fresh check.
-- A structured Cover Letter projection binds `cover_letter_draft.json` and `review_findings.json` hashes. The first
-  slice remains `proposed` with open semantic review, so `check-package` must fail APP-Q4 rather than infer readiness.
+- A reviewed structured Cover Letter projection binds `cover_letter_draft.json`, `review_findings.json`, and
+  `review_dispositions.yaml` hashes and embeds the strict derived document-readiness contract. `check-package`
+  independently re-derives that gate. Other missing documents or review blockers still fail package readiness.
 - A later `canisend run` marks an existing report `STALE`; rerun `check-package --write-report` after reconciliation.
 
 ## Privacy Gate

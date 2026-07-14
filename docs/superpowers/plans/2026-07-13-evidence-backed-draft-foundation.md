@@ -1,6 +1,6 @@
 # Evidence-Backed Draft Foundation Implementation Plan
 
-**Status:** Locally accepted — Tasks 0–5 complete for the first Cover Letter Draft/Review vertical slice
+**Status:** Locally accepted — Tasks 0–6 complete for the Cover Letter Draft, Review, disposition, and document-readiness slices
 
 **Date:** 2026-07-13
 
@@ -84,7 +84,17 @@ without changing the frozen AgentResponse/TaskSpec contracts, and without claimi
 - [x] Run focused/full Python 3.11-3.13 plus additional 3.14, distribution, privacy, recovery, and clean-wheel checks.
 - [x] Record local acceptance only after every first-slice exit criterion has automated evidence.
 
-## Validation Snapshot
+## Task 6: User Review Dispositions And Cover Letter Readiness
+
+- [x] Accept ADR-014 for non-waivable blockers, user-owned dispositions, and derived document readiness.
+- [x] Add strict `review_dispositions.yaml` and scoped patch contracts bound to exact Draft/Review hashes.
+- [x] Reuse explicit-consent revision/hash CAS, immutable receipts, and recovery for one finding at a time.
+- [x] Expose body-free status and next actions across the CLI and AgentResponse boundary.
+- [x] Derive `blocked`, `review_required`, `revision_required`, or `reviewed` without rewriting Draft or Review.
+- [x] Bind reviewed disposition receipts into compatibility projections and the Cover Letter package gate.
+- [x] Complete schema, privacy, recovery, projection, cross-version, distribution, and clean-wheel validation.
+
+## Task 0–5 Validation Snapshot
 
 Tasks 0–5 and the first Cover Letter vertical slice were locally accepted on 2026-07-13:
 
@@ -98,9 +108,24 @@ Tasks 0–5 and the first Cover Letter vertical slice were locally accepted on 2
   receipts, host-agent Draft submit/apply, deterministic Review, structured projection, Decision Spine byte
   preservation, and fail-closed `check-package`.
 
-This snapshot accepts the first Cover Letter Draft/Review/projection slice only. Remote CI, provider-backed Draft,
-all-document orchestration, finding disposition, broader cross-document review, complete Stage 3, and package
-readiness remain later work.
+This historical snapshot accepts the first Cover Letter Draft/Review/projection slice only. Task 6 adds the separate
+user disposition and document-readiness contract below; remote CI, provider-backed Draft, all-document orchestration,
+broader cross-document review, complete Stage 3, and package readiness remain later work.
+
+## Task 6 Validation Snapshot
+
+Task 6 was locally accepted on 2026-07-14:
+
+- `python -m pytest -q`: 1026 passed independently on Python 3.11.15, 3.12.12, 3.13.14, and 3.14.2;
+- strict model/schema parity, non-waivable blocker, stale/orphan/tamper, explicit reset, CAS conflict, private-body,
+  receipt-recovery, projection-race, and package-gate tests: passed;
+- canonical/workspace skill mirror, generated-schema, packaged-resource, and repository-difference checks: passed;
+- `uv build`, Twine metadata check, and packaged-resource check for the 0.2.0 wheel: passed;
+- a clean Python 3.12 wheel installation passed the installed-package smoke through 8 stage runs and 14 immutable
+  user-mutation receipts, reaching Cover Letter `reviewed` while the independent package gate remained fail-closed.
+
+This acceptance establishes readiness for the current Cover Letter document only. It does not establish application
+package readiness, rendering approval, manual-submission readiness, a remote CI result, or a published release.
 
 ## First-Slice Exit Review
 
@@ -130,6 +155,6 @@ publication, package readiness, rendering approval, or submission result is clai
 - all-document Draft orchestration in the first slice;
 - provider-backed Draft before host-agent validation is accepted;
 - final wording quality or automatic semantic truth certification;
-- user-owned finding waivers or multi-user collaboration;
+- blocker/finding waivers (guarded dispositions are not waivers) or multi-user collaboration;
 - multi-file transactions or direct Markdown/Typst promotion;
 - portal work, upload, submission, account creation, or sensitive declarations.

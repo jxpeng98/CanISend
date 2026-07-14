@@ -30,11 +30,11 @@ It prepares materials only. It does not submit applications, create accounts, fi
   revision/hash compare-and-swap operations with privacy-safe receipts.
 - Provides the locally accepted Stage 2 Decision Spine: guarded user-owned corrections, Decision and Brief YAML,
   deterministic Criteria/Evidence/Match/required-document projections, and executable unresolved/omit/orphan blockers.
-- Provides the first Stage 3 structured slice: guarded host-agent `cover_letter_draft.json` promotion, independent
-  deterministic `review_findings.json`, and parity-checked Markdown/Typst compatibility views.
+- Provides the next Stage 3 Cover Letter slice: guarded host-agent `cover_letter_draft.json`, independent
+  deterministic `review_findings.json`, user-owned `review_dispositions.yaml`, and derived document readiness.
 - Renders current deterministic Match proposals and a current blocker-free structured Cover Letter into compatible
   views while safely falling back for stale, drifted, blocked, mixed-profile, direct-library, or explicit
-  LLM-draft runs. Projection never means package/submission readiness.
+  LLM-draft runs. A reviewed Cover Letter never implies package/submission readiness.
 - Generates `parsed_job.json`, preparation questions, fit reports, cover letter drafts, CV tailoring notes, criteria checklists, material review checklists, and structured Typst content.
 - Runs deterministic local generation by default, with explicit opt-in for LLM-backed evidence augmentation, parsing, or drafting.
 - Ships bridge files plus a self-contained workspace skill pack for Codex, Claude Code, and IDE agents.
@@ -607,10 +607,19 @@ canisend stage run \
 ```
 
 Unsupported factual claims, missing required sections, and detectable Brief-exclusion conflicts remain blockers.
-Partial support, semantic support, and non-factual Claim-kind classification remain review work. When Draft and
-Review are current, Match is current for the same parsed job and configured profile, and Review has no blockers,
-`canisend run` projects the Claim graph into compatibility Markdown and Typst. The Draft stays `proposed`; projection
-does not close open findings or establish package readiness.
+Partial support, semantic support, and non-factual Claim-kind classification remain review work. Use body-free status,
+then initialize and disposition one finding at a time with the current revision/hash:
+
+```bash
+canisend review-dispositions status --workspace . --job jobs/<job-slug> --format json
+canisend review-dispositions init --workspace . --job jobs/<job-slug> --confirm-user-owned-write --format json
+canisend review-dispositions update --workspace . --job jobs/<job-slug> --patch-file <patch.yaml> \
+  --expected-revision <revision> --expected-sha256 <sha256> --confirm-user-owned-write --format json
+```
+
+`accepted` is valid only for non-blockers; `revision_required` keeps the document in review. A changed Draft/Review
+requires `reset_for_current_review`. When all current findings are accepted, `canisend run` embeds a verifiable
+Cover Letter `reviewed` projection while Draft and Review stay `proposed`; other package gates remain independent.
 
 Evidence and Parse are independent after intake, so their deterministic runs may be ordered either way; Match waits
 for current Confirm and Evidence outputs. Host-agent execution currently applies to Parse and Draft; Evidence,
@@ -653,15 +662,17 @@ Match reads only the current job-local `criteria.json` and `evidence_catalog.jso
 criterion, explicit privacy-safe gaps, matcher provenance, and opaque catalog references. It does not copy evidence
 text, generated-evidence headings, or legacy locators. Every record has `review_state=proposed`: Match is not an
 application decision, does not confirm applicant claims, and does not make a package ready. The user-owned Decision
-is managed separately through `decision status|init|update`; Brief uses `brief status|init|update`, and deterministic
+is managed separately through `decision status|init|update`; Brief uses `brief status|init|update`, Review decisions
+use `review-dispositions status|init|update`, and deterministic
 Brief-stage planning writes `required_document_plan.json`. For a current deterministic Match using the configured
 workspace profile, `canisend run` now projects the same proposal graph into `02_fit_report.md`,
 `05_criteria_checklist.md`, structured HR checks, and Typst package content. If the current structured Draft and
 deterministic Review also validate and Review has no blocker findings, the same run projects each Cover Letter Claim
-once into `03_cover_letter_draft.md`, Cover Letter/package content JSON, and Typst. Stale/drifted state, a different
+once into `03_cover_letter_draft.md`, Cover Letter/package content JSON, and Typst. Complete exact dispositions make
+that document reviewed; stale/drifted state, a different
 parsed view, a profile override, blocked/missing Draft or Review, a direct library call without workspace provenance,
-or `--llm-drafts` keeps the compatible fallback path. Match, Draft, and Review remain proposed review input and never
-become a Decision or readiness result.
+or `--llm-drafts` keeps the compatible fallback path. Match, Draft, and Review remain proposed; document readiness is
+derived and never becomes a Decision or whole-package result.
 
 Use `canisend doctor --workspace .` when a human-readable environment diagnostic is also useful.
 
@@ -675,7 +686,7 @@ platform-specific API, network, or MCP transport; deterministic stages need no c
 They may run local deterministic CLI commands, inspect generated evidence, and review current job artifacts. They must
 ask first before reading full private CVs, statements, full job adverts, references, PDFs, source URLs, Evidence
 snapshots/candidates/catalogs, `criteria.json`, `criterion_matches.json`, `application_brief.yaml`,
-`required_document_plan.json`, `cover_letter_draft.json`, `review_findings.json`, generated packages, or enabling
+`required_document_plan.json`, `cover_letter_draft.json`, `review_findings.json`, `review_dispositions.yaml`, generated packages, or enabling
 LLM-backed CLI flags/providers. Criteria may contain corrected wording; Match, Brief, the document plan, Draft, and
 Review remain Tier 2. They must not
 scrape pages, submit applications, upload packages, fabricate evidence, or commit private profile/job data.
@@ -783,9 +794,10 @@ This repository is intended to be open source. Personal application data should 
   private job folders. The first three may contain duplicated normalized profile text; removing a run or job remains
   an explicit user retention decision.
 - `criteria.json`, `criterion_matches.json`, `confirmed_corrections.yaml`, `application_decision.yaml`,
-  `application_brief.yaml`, `required_document_plan.json`, `cover_letter_draft.json`, `review_findings.json`, and
+  `application_brief.yaml`, `required_document_plan.json`, `cover_letter_draft.json`, `review_findings.json`,
+  `review_dispositions.yaml`, and
   private mutation/stage candidates are Tier 2. Criteria may contain corrected wording; Match is body-minimized,
-  while Brief, plan, Draft, and Review may reveal private motivation, exclusions, source text, application strategy,
+  while Brief, plan, Draft, Review, and dispositions may reveal private motivation, exclusions, source text, application strategy,
   or prose. Mutation receipts are Tier 1 and contain none of those bodies; neither do workflow control records,
   errors, ordinary command output, or AgentResponse.
 - User YAML may be edited manually. Status and stage reruns do not normalize it; an explicitly consented scoped

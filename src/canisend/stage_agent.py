@@ -945,14 +945,12 @@ def _semantic_status(
                     label="Resolve blocker findings and regenerate the Draft",
                 )
             ]
-        if review_count or warning_count:
-            return "review_required", extensions, [
-                NextAction(
-                    id="review.inspect_findings",
-                    label="Inspect the open Review findings",
-                )
-            ]
-        return "ready_for_next_stage", extensions, []
+        return "review_required", extensions, [
+            NextAction(
+                id="review.dispositions_status",
+                label="Inspect explicit user-owned Review dispositions",
+            )
+        ]
     if stage_id != "confirm":
         return "ready_for_next_stage", {}, []
     try:

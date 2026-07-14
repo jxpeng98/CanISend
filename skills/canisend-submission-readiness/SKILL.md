@@ -14,6 +14,7 @@ Review the complete package as a strict final gate. Report blockers and unchecke
 - Ask before reading full private CVs, statements, references, adverts, source URLs, PDFs, or generated packages.
 - Ask before reading Tier 2 `application_brief.yaml` or `required_document_plan.json`; prefer their body-free status
   first.
+- Ask before reading Draft, Review, or Review disposition bodies; use body-free disposition/readiness status first.
 - Prefer existing checklists, structured metadata, and narrow evidence receipts before raw private sources.
 - Never describe an application as submitted. Claim readiness only for gates actually checked.
 
@@ -37,12 +38,14 @@ Read these as needed for the current review:
 5. Verify every essential criterion is evidence-backed and every required document has a prepared/reviewed artifact.
    An unconfirmed set/field, unresolved choice, `required + omit`, missing preparation action, or orphaned choice is a
    blocker even when the omission itself was explicitly recorded.
-6. Check language/style decisions, item-level citations, source consistency, rendering status when relevant, and private-file staging risk.
-7. Classify every finding as `blocker`, `warning`, or `pass`. Any missing essential criterion, incomplete advert,
+6. For a structured Cover Letter, require current exact Draft/Review/disposition receipts and derived `reviewed`;
+   blocker findings are non-waivable. Do not infer other document or package readiness from this one gate.
+7. Check language/style decisions, item-level citations, source consistency, rendering status when relevant, and private-file staging risk.
+8. Classify every finding as `blocker`, `warning`, or `pass`. Any missing essential criterion, incomplete advert,
    unknown citation, unresolved placeholder/document-plan blocker, missing required document, or unchecked privacy
    gate is a blocker.
-8. If blockers exist, route corrections to `$canisend-application-package` or a material-specific skill and require another readiness pass.
-9. If all relevant gates were checked and passed, say the package was reviewed for manual submission. The user still handles every portal action and sensitive declaration. Do not treat in-progress Task 6 implementation as readiness by itself.
+9. If blockers exist, route corrections to `$canisend-application-package` or a material-specific skill and require another readiness pass.
+10. If all relevant gates were checked and passed, say the package was reviewed for manual submission. The user still handles every portal action and sensitive declaration.
 
 ## Output
 

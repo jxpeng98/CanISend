@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Added user-owned `review_dispositions.yaml` with strict schemas, explicit-consent one-finding revision/hash CAS,
+  immutable receipts, recovery, body-free Agent/CLI status, and exact Draft/Review basis binding. Blocker findings
+  are non-waivable; stale dispositions are preserved for explicit reset rather than silently carried forward.
+- Added deterministic Cover Letter document readiness (`blocked`, `review_required`, `revision_required`, or
+  `reviewed`) without rewriting the core-owned Draft or Review. Structured projections bind the disposition receipt,
+  and `check-package` independently re-derives the gate while keeping whole-package readiness separate.
 - Locally accepted the first Stage 3 Cover Letter vertical slice across Python 3.11–3.14 with full regression,
   distribution, clean-wheel, guarded Draft/Review, compatibility projection, and fail-closed package-gate evidence.
 - Added the Stage 3 structured Draft foundation with strict claim-level support contracts, content-derived IDs,
@@ -14,8 +20,7 @@
   hash provenance; stale, tampered, blocked, mixed-profile, direct-library, and `--llm-drafts` paths fail closed to
   compatible legacy/provider behavior while edited Typst remains protected.
 - Kept Draft and Review artifacts private and proposed: agents write only fresh scratch candidates through guarded
-  submit/apply, open findings remain human review, and `check-package` explicitly rejects compatibility projection as
-  package readiness while binding the structured Draft/Review hashes.
+  submit/apply, and only current complete user dispositions can derive reviewed Cover Letter status.
 - Locally accepted the complete Stage 2 Decision Spine after migrating deterministic fit/checklist/HR-review and
   Typst package views onto current validated Match projections. Stale, drifted/tampered, graph-invalid,
   mixed-profile, differently parsed, and `--llm-drafts` runs preserve compatible fallback behavior; every Match

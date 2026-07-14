@@ -1,6 +1,6 @@
 # CLI-First Workflow Optimization Execution Roadmap
 
-**Status:** Active — Stages 1 and 2 plus the first Stage 3 Cover Letter vertical slice are locally accepted
+**Status:** Active — Stages 1 and 2 plus the Stage 3 Cover Letter Draft/Review/readiness slices are locally accepted
 
 **Date:** 2026-07-11
 
@@ -299,10 +299,11 @@ result is claimed.
 ## Stage 3: Evidence-Backed Draft + Review
 
 **Stage status:** In progress on `feat/evidence-backed-draft-foundation`. ADR-013 freezes the Claim, ReviewFinding,
-Cover Letter Draft, privacy, and guarded promotion boundary. The first Cover Letter vertical slice is locally
-accepted: strict schemas, guarded host-agent Draft promotion, deterministic independent Review, fail-closed
-Markdown/Typst compatibility projection, cross-version local tests, and clean-wheel smoke are complete. Provider-
-backed Draft, all-document orchestration, broader cross-document review, remote CI, and package readiness remain.
+Cover Letter Draft, privacy, and guarded promotion boundary; ADR-014 freezes user-owned finding dispositions,
+non-waivable blockers, and derived document readiness. The Cover Letter Draft, independent Review, disposition, and
+readiness slices are locally accepted with strict schemas, guarded mutation/promotion, fail-closed Markdown/Typst
+projection, cross-version local tests, and clean-wheel smoke. Provider-backed Draft, all-document orchestration,
+broader cross-document review, remote CI, and package readiness remain.
 
 ### Deliverables
 

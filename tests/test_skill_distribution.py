@@ -236,7 +236,9 @@ def test_main_skill_preserves_guarded_draft_and_review_contract():
     assert "stage prepare --stage draft --mode host-agent" in contents
     assert "read-private-draft-inputs" in workflow
     assert "Never write" in workflow
-    assert "projection establishes package readiness" in workflow
+    assert "review_dispositions.yaml" in workflow
+    assert "a blocker cannot be accepted" in workflow
+    assert "does not infer whole-package" in workflow
     assert "Each Claim is emitted once" in workflow
 
 

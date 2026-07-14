@@ -10,6 +10,10 @@ from typing import Any
 from pydantic import ValidationError
 
 from canisend.draft_models import CoverLetterDraftV1, ReviewFindingsV1
+from canisend.review_readiness import (
+    DocumentReadinessV1,
+    derive_document_readiness,
+)
 from canisend.stage_runtime import (
     StageRuntimeError,
     StageStatusInspection,
@@ -20,6 +24,12 @@ from canisend.stages.draft_stage import COVER_LETTER_DRAFT_OUTPUT_PATH
 from canisend.stages.review_stage import (
     REVIEW_FINDINGS_OUTPUT_PATH,
     validate_review_candidate,
+)
+from canisend.user_mutations import (
+    REVIEW_DISPOSITIONS_PATH,
+    UserMutationError,
+    inspect_current_artifact_mutation,
+    inspect_review_dispositions,
 )
 from canisend.workspace import load_workspace_config
 
@@ -36,6 +46,7 @@ class StructuredDraftViews:
     markdown: str
     draft_sha256: str
     review_sha256: str
+    document_readiness: DocumentReadinessV1
 
 
 def load_current_structured_draft_views(
@@ -75,6 +86,25 @@ def load_current_structured_draft_views(
         )
         if review.blocker_finding_ids:
             return None
+        disposition_inspection = inspect_review_dispositions(workspace, job_dir)
+        mutation_audit = inspect_current_artifact_mutation(
+            workspace,
+            job_dir,
+            "review_dispositions",
+        )
+        if (
+            disposition_inspection.readiness is not None
+            and mutation_audit.status in {"untracked", "committed"}
+        ):
+            document_readiness = disposition_inspection.readiness
+        else:
+            document_readiness = derive_document_readiness(
+                review,
+                draft_sha256=draft_hash,
+                review_findings_sha256=review_hash,
+                dispositions=None,
+                review_dispositions_sha256=None,
+            )
         markdown = render_structured_draft_markdown(draft)
 
         final_inspection = inspect_stage_status(workspace, job_dir, stage="review")
@@ -83,6 +113,11 @@ def load_current_structured_draft_views(
             or sha256_file(draft_path) != draft_hash
             or sha256_file(review_path) != review_hash
             or read_json_object(job_dir / PARSED_JOB_PATH) != parsed_job
+            or (
+                document_readiness.review_dispositions_sha256 is not None
+                and sha256_file(job_dir / REVIEW_DISPOSITIONS_PATH)
+                != document_readiness.review_dispositions_sha256
+            )
         ):
             return None
         return StructuredDraftViews(
@@ -91,6 +126,7 @@ def load_current_structured_draft_views(
             markdown=markdown,
             draft_sha256=draft_hash,
             review_sha256=review_hash,
+            document_readiness=document_readiness,
         )
     except (
         AttributeError,
@@ -100,6 +136,7 @@ def load_current_structured_draft_views(
         TypeError,
         UnicodeError,
         ValidationError,
+        UserMutationError,
         ValueError,
     ):
         return None
@@ -124,6 +161,7 @@ def build_structured_cover_letter_content(
 
     draft = views.draft
     review = views.review
+    readiness = views.document_readiness
     return {
         "job": {
             "title": parsed_job["title"],
@@ -155,6 +193,9 @@ def build_structured_cover_letter_content(
             "review_state": review.review_state,
             "review_input_fingerprint": review.input_fingerprint,
             "review_sha256": views.review_sha256,
+            "review_dispositions_source": REVIEW_DISPOSITIONS_PATH,
+            "document_readiness": readiness.model_dump(mode="json"),
+            "document_readiness_state": readiness.state,
             "markdown_sha256": hashlib.sha256(
                 views.markdown.encode("utf-8")
             ).hexdigest(),
@@ -162,7 +203,7 @@ def build_structured_cover_letter_content(
             "blocker_count": len(review.blocker_finding_ids),
             "draft_blocker_count": len(draft.blockers),
             "review_blocker_count": len(review.blocker_finding_ids),
-            "requires_human_review": bool(review.findings),
+            "requires_human_review": readiness.state != "reviewed",
         },
         "structured_sections": [
             {

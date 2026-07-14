@@ -121,8 +121,8 @@ legacy path instead of combining sources.
 
 ## Structured Draft And Review Data Plane
 
-Draft candidates, `cover_letter_draft.json`, claim text, `review_findings.json`, and finding messages/actions are
-Tier 2. A host agent may read the seven declared Draft inputs only after approval that their contents may enter the
+Draft candidates, `cover_letter_draft.json`, claim text, `review_findings.json`, finding messages/actions, and
+`review_dispositions.yaml` are Tier 2. A host agent may read the seven declared Draft inputs only after approval that their contents may enter the
 agent model context. It writes candidate JSON to fresh private scratch and uses `stage submit`; only the core may
 write run candidates/results or promote the authoritative Draft. Configured-provider Draft is not enabled by the
 first slice.
@@ -131,6 +131,9 @@ Review is deterministic and may read the current Tier 2 Draft and its declared u
 TaskSpec, state, receipts, manifests, errors, ordinary output, and AgentResponse remain body-free: paths, hashes,
 semantic IDs, states, counts, and blocker/reason codes only. Rejected or stale Draft candidates must not modify user
 YAML, Markdown, Typst, profile files, or authoritative Draft bytes.
+
+Review disposition status is body-free. Agent writes require explicit consent and one revision/hash CAS patch;
+blockers are non-waivable. Mutation claims and receipts never copy finding messages or private Claim text.
 
 A compatible local `run` may project a current blocker-free Draft/Review pair into Tier 2 Markdown, content JSON,
 and Typst files. This is a deterministic local data-plane transformation; bodies still do not enter workflow control

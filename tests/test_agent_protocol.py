@@ -45,6 +45,12 @@ TASK6_AGENT_OPERATIONS = {
     "brief.update",
 }
 
+STAGE3_REVIEW_DISPOSITION_OPERATIONS = {
+    "review.dispositions_status",
+    "review.dispositions_initialize",
+    "review.dispositions_update",
+}
+
 TASK5_USER_INPUT_ERROR_CODES = {
     "user_input.not_initialized",
     "user_input.invalid",
@@ -94,6 +100,14 @@ def test_task6_agent_capabilities_add_brief_operations_without_a_protocol_bump()
     assert TASK6_AGENT_OPERATIONS <= set(capabilities.operations)
     assert capabilities.protocol_versions == [AGENT_PROTOCOL]
     assert capabilities.schema_versions == [AGENT_SCHEMA_VERSION]
+
+
+def test_stage3_capabilities_add_review_dispositions_without_protocol_bump() -> None:
+    capabilities = default_agent_capabilities("0.2.0")
+
+    assert STAGE3_REVIEW_DISPOSITION_OPERATIONS <= set(SUPPORTED_AGENT_OPERATIONS)
+    assert STAGE3_REVIEW_DISPOSITION_OPERATIONS <= set(capabilities.operations)
+    assert capabilities.protocol_versions == [AGENT_PROTOCOL]
 
 
 def test_task5_user_input_failures_have_stable_dotted_codes() -> None:

@@ -61,7 +61,9 @@ from canisend.user_mutation_agent import (
     load_brief_patch_file,
     load_corrections_patch_file,
     load_decision_patch_file,
+    load_review_disposition_patch_file,
     mutation_outcome_agent_response,
+    review_dispositions_status_agent_response,
     user_mutation_error_response,
 )
 from canisend.user_mutations import (
@@ -70,8 +72,10 @@ from canisend.user_mutations import (
     initialize_application_brief,
     initialize_application_decision,
     initialize_confirmed_corrections,
+    initialize_review_dispositions,
     inspect_application_brief,
     inspect_application_decision,
+    inspect_review_dispositions,
     inspect_user_artifact,
     recover_user_mutation,
 )
@@ -138,6 +142,11 @@ brief_app = typer.Typer(
     no_args_is_help=True,
 )
 app.add_typer(brief_app, name="brief")
+review_dispositions_app = typer.Typer(
+    help="Inspect and update user-owned dispositions for structured Review findings.",
+    no_args_is_help=True,
+)
+app.add_typer(review_dispositions_app, name="review-dispositions")
 user_mutation_app = typer.Typer(
     help="Recover a previously accepted user-owned mutation.",
     no_args_is_help=True,
@@ -934,6 +943,143 @@ def brief_update_command(
         config = load_workspace_config(workspace)
         job_dir = config.job_dir(job)
         patch = load_brief_patch_file(patch_file)
+        outcome = apply_user_patch(
+            config.root,
+            job_dir,
+            patch,
+            expected_sha256=expected_sha256,
+            expected_revision=_user_owned_expected_revision(expected_revision),
+            consent_confirmed=confirm_user_owned_write,
+        )
+        response = mutation_outcome_agent_response(
+            config.root,
+            job_dir,
+            outcome,
+            operation=operation,
+        )
+    except UserMutationError as exc:
+        response = user_mutation_error_response(operation, exc)
+    except Exception:
+        response = _unexpected_user_mutation_error_response(operation)
+    _emit_agent_response(response, output_format=output_format)
+
+
+@review_dispositions_app.command("status")
+def review_dispositions_status_command(
+    job: Path = typer.Option(..., "--job", help="Job folder path or workspace-relative job identifier."),
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="Initialized workspace containing the job.",
+    ),
+    output_format: str = typer.Option(
+        "text",
+        "--format",
+        help="Output format: text or json.",
+    ),
+) -> None:
+    """Inspect body-free Review disposition and document-readiness state."""
+    _validate_output_format(output_format)
+    operation = "review.dispositions_status"
+    try:
+        config = load_workspace_config(workspace)
+        job_dir = config.job_dir(job)
+        response = review_dispositions_status_agent_response(
+            config.root,
+            job_dir,
+            inspect_review_dispositions(config.root, job_dir),
+        )
+    except UserMutationError as exc:
+        response = user_mutation_error_response(operation, exc)
+    except Exception:
+        response = _unexpected_user_mutation_error_response(operation)
+    _emit_agent_response(response, output_format=output_format)
+
+
+@review_dispositions_app.command("init")
+def review_dispositions_init_command(
+    job: Path = typer.Option(..., "--job", help="Job folder path or workspace-relative job identifier."),
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="Initialized workspace containing the job.",
+    ),
+    confirm_user_owned_write: bool = typer.Option(
+        False,
+        "--confirm-user-owned-write",
+        help="Explicitly authorize create-if-absent Review disposition initialization.",
+    ),
+    output_format: str = typer.Option(
+        "text",
+        "--format",
+        help="Output format: text or json.",
+    ),
+) -> None:
+    """Create dispositions bound to the current Draft and deterministic Review."""
+    _validate_output_format(output_format)
+    operation = "review.dispositions_initialize"
+    try:
+        config = load_workspace_config(workspace)
+        job_dir = config.job_dir(job)
+        outcome = initialize_review_dispositions(
+            config.root,
+            job_dir,
+            consent_confirmed=confirm_user_owned_write,
+        )
+        response = mutation_outcome_agent_response(
+            config.root,
+            job_dir,
+            outcome,
+            operation=operation,
+        )
+    except UserMutationError as exc:
+        response = user_mutation_error_response(operation, exc)
+    except Exception:
+        response = _unexpected_user_mutation_error_response(operation)
+    _emit_agent_response(response, output_format=output_format)
+
+
+@review_dispositions_app.command("update")
+def review_dispositions_update_command(
+    job: Path = typer.Option(..., "--job", help="Job folder path or workspace-relative job identifier."),
+    patch_file: Path = typer.Option(
+        ...,
+        "--patch-file",
+        help="Strict bounded YAML or JSON containing one Review disposition patch.",
+    ),
+    expected_revision: str = typer.Option(
+        ...,
+        "--expected-revision",
+        help="Current disposition revision used as the compare-and-swap baseline.",
+    ),
+    expected_sha256: str = typer.Option(
+        ...,
+        "--expected-sha256",
+        help="Current disposition SHA-256 used as the compare-and-swap baseline.",
+    ),
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="Initialized workspace containing the job.",
+    ),
+    confirm_user_owned_write: bool = typer.Option(
+        False,
+        "--confirm-user-owned-write",
+        help="Explicitly authorize this one scoped Review disposition update.",
+    ),
+    output_format: str = typer.Option(
+        "text",
+        "--format",
+        help="Output format: text or json.",
+    ),
+) -> None:
+    """Apply one finding disposition through revision/hash compare-and-swap."""
+    _validate_output_format(output_format)
+    operation = "review.dispositions_update"
+    try:
+        config = load_workspace_config(workspace)
+        job_dir = config.job_dir(job)
+        patch = load_review_disposition_patch_file(patch_file)
         outcome = apply_user_patch(
             config.root,
             job_dir,

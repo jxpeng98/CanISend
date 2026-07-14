@@ -30,7 +30,7 @@ EXPECTED_STAGE_RUN_COUNTS = {
     "draft": 1,
     "review": 1,
 }
-EXPECTED_USER_MUTATION_RECEIPTS = 10
+EXPECTED_USER_MUTATION_RECEIPTS = 14
 STRUCTURED_DRAFT_SENTINEL = "I hold a PhD in Economics."
 USER_AND_STRUCTURED_ARTIFACTS = (
     "parsed_job.json",
@@ -43,6 +43,7 @@ USER_AND_STRUCTURED_ARTIFACTS = (
     "required_document_plan.json",
     "cover_letter_draft.json",
     "review_findings.json",
+    "review_dispositions.yaml",
 )
 
 
@@ -159,6 +160,48 @@ def _brief_patch(
         patch_path.unlink(missing_ok=True)
     if updated is None:  # pragma: no cover - guarded by expect_json
         raise SmokeFailure("Brief update returned no response.")
+    return updated
+
+
+def _review_disposition_patch(
+    canisend: str,
+    workspace: Path,
+    current: dict[str, Any],
+    patch: dict[str, Any],
+) -> dict[str, Any]:
+    extensions = current.get("extensions")
+    if not isinstance(extensions, dict):
+        raise SmokeFailure("A Review disposition response omitted its control metadata.")
+    revision = extensions.get("canisend.user_artifact_revision")
+    sha256 = _artifact(current, "review_dispositions").get("sha256")
+    if not isinstance(revision, int) or not isinstance(sha256, str):
+        raise SmokeFailure(
+            "A Review disposition response omitted its compare-and-swap baseline."
+        )
+
+    patch_path = workspace / ".canisend-smoke-review-disposition-patch.json"
+    patch_path.write_text(json.dumps(patch) + "\n", encoding="utf-8")
+    try:
+        updated = _run(
+            canisend,
+            [
+                "review-dispositions",
+                "update",
+                *_job_arguments(workspace),
+                "--patch-file",
+                str(patch_path),
+                "--expected-revision",
+                str(revision),
+                "--expected-sha256",
+                sha256,
+                "--confirm-user-owned-write",
+            ],
+            expect_json=True,
+        )
+    finally:
+        patch_path.unlink(missing_ok=True)
+    if updated is None:  # pragma: no cover - guarded by expect_json
+        raise SmokeFailure("Review disposition update returned no response.")
     return updated
 
 
@@ -302,7 +345,7 @@ def _assert_workspace_contract(workspace: Path) -> None:
     )
     if len(receipt_paths) != EXPECTED_USER_MUTATION_RECEIPTS:
         raise SmokeFailure(
-            "The decision-spine smoke test did not create exactly four mutation receipts."
+            "The decision-spine smoke test created an unexpected mutation receipt count."
         )
 
     manifest_paths = sorted((job / "workflow" / "runs").glob("*/manifest.json"))
@@ -384,7 +427,8 @@ def _assert_workspace_contract(workspace: Path) -> None:
         not isinstance(projection, dict)
         or projection.get("source") != "cover_letter_draft.json"
         or projection.get("blocker_count") != 0
-        or projection.get("requires_human_review") is not True
+        or projection.get("document_readiness_state") != "reviewed"
+        or projection.get("requires_human_review") is not False
     ):
         raise SmokeFailure("The installed wheel lost structured Draft review provenance.")
     if package_content.get("cover_letter_projection") != projection:
@@ -402,18 +446,27 @@ def _assert_workspace_contract(workspace: Path) -> None:
     if (
         gate_report.get("status") != "FAIL"
         or not isinstance(gate_issues, list)
+        or any(
+            isinstance(issue, dict)
+            and "not document readiness"
+            in str(issue.get("message", ""))
+            for issue in gate_issues
+        )
         or not any(
             isinstance(issue, dict)
-            and "compatibility projection is not package readiness"
+            and "material review contains an explicit BLOCKER"
             in str(issue.get("message", ""))
             for issue in gate_issues
         )
     ):
-        raise SmokeFailure("The installed wheel incorrectly treated the Draft projection as ready.")
+        raise SmokeFailure(
+            "The installed wheel did not separate document readiness from package readiness."
+        )
     input_hashes = gate_report.get("input_hashes")
     if not isinstance(input_hashes, dict) or not {
         "job/cover_letter_draft.json",
         "job/review_findings.json",
+        "job/review_dispositions.yaml",
     }.issubset(input_hashes):
         raise SmokeFailure("The package gate did not bind the structured Draft and Review inputs.")
 
@@ -623,6 +676,49 @@ def run_smoke(canisend: str, workspace: Path) -> None:
     )
     if reviewed is None or reviewed.get("blockers") != []:
         raise SmokeFailure("The deterministic Review did not produce a blocker-free projection.")
+
+    _run(
+        canisend,
+        ["review-dispositions", "status", *job_args],
+        expect_json=True,
+    )
+    current_dispositions = _run(
+        canisend,
+        [
+            "review-dispositions",
+            "init",
+            *job_args,
+            "--confirm-user-owned-write",
+        ],
+        expect_json=True,
+    )
+    if current_dispositions is None:  # pragma: no cover - guarded by expect_json
+        raise SmokeFailure("Review disposition initialization returned no response.")
+    try:
+        review_payload = json.loads(
+            (job / "review_findings.json").read_text(encoding="utf-8")
+        )
+        finding_ids = [item["finding_id"] for item in review_payload["findings"]]
+    except (OSError, UnicodeError, json.JSONDecodeError, KeyError, TypeError) as exc:
+        raise SmokeFailure("The deterministic Review omitted stable finding IDs.") from exc
+    for finding_id in finding_ids:
+        if not isinstance(finding_id, str):
+            raise SmokeFailure("The deterministic Review emitted an invalid finding ID.")
+        current_dispositions = _review_disposition_patch(
+            canisend,
+            workspace,
+            current_dispositions,
+            {
+                "operation": "set_finding_disposition",
+                "finding_id": finding_id,
+                "disposition": "accepted",
+            },
+        )
+    extensions = current_dispositions.get("extensions")
+    if not isinstance(extensions, dict) or extensions.get(
+        "canisend.document_readiness"
+    ) != "reviewed":
+        raise SmokeFailure("Complete user dispositions did not review the Cover Letter.")
 
     before_run = {
         name: (job / name).read_bytes()

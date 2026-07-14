@@ -13,6 +13,7 @@ from canisend.decision_models import (
     RequiredDocumentPlanV1,
 )
 from canisend.draft_models import CoverLetterDraftV1, ReviewFindingsV1
+from canisend.review_readiness import DocumentReadinessV1, ReviewDispositionsV1
 from canisend.user_mutations import UserMutationReceiptV1
 
 
@@ -26,6 +27,8 @@ SCHEMAS = {
     "required-document-plan.schema.json": RequiredDocumentPlanV1,
     "cover-letter-draft.schema.json": CoverLetterDraftV1,
     "review-findings.schema.json": ReviewFindingsV1,
+    "review-dispositions.schema.json": ReviewDispositionsV1,
+    "document-readiness.schema.json": DocumentReadinessV1,
     "user-mutation-receipt.schema.json": UserMutationReceiptV1,
 }
 

@@ -20,6 +20,11 @@ from canisend.pipeline import run_pipeline
 from canisend.ready_check import check_application_package
 from canisend.stage_runtime import run_deterministic_stage
 from canisend.stage_store import read_json_object
+from canisend.user_mutations import (
+    SetFindingDispositionPatch,
+    apply_user_patch,
+    initialize_review_dispositions,
+)
 from tests.test_draft_stage import _candidate, _workspace
 from tests.test_review_stage import _complete_sections, _promote_draft
 
@@ -81,6 +86,9 @@ def test_current_structured_draft_renders_claims_once_and_builds_traceable_conte
     assert projection["blocker_count"] == 0
     assert projection["draft_blocker_count"] == 0
     assert projection["review_blocker_count"] == 0
+    assert projection["document_readiness_state"] == "review_required"
+    assert projection["draft_review_state"] == "proposed"
+    assert projection["review_state"] == "proposed"
     assert projection["requires_human_review"] is True
     assert projection["markdown_sha256"] == hashlib.sha256(
         views.markdown.encode("utf-8")
@@ -251,8 +259,67 @@ def test_pipeline_projects_structured_draft_into_markdown_and_typst(
     )
     assert any(
         issue.path == "typst/cover_letter_content.json"
-        and "not package readiness" in issue.message
+        and "not document readiness" in issue.message
         for issue in package_check.issues
+    )
+
+
+def test_complete_user_dispositions_make_only_the_cover_letter_reviewed(
+    tmp_path: Path,
+) -> None:
+    workspace, job, _payload = _reviewed_draft(tmp_path)
+    outcome = initialize_review_dispositions(
+        workspace,
+        job,
+        consent_confirmed=True,
+    )
+    review = read_json_object(job / "review_findings.json")
+    for finding in review["findings"]:
+        outcome = apply_user_patch(
+            workspace,
+            job,
+            SetFindingDispositionPatch(
+                finding_id=finding["finding_id"],
+                disposition="accepted",
+            ),
+            expected_sha256=outcome.snapshot.sha256,
+            expected_revision=outcome.snapshot.revision,
+            consent_confirmed=True,
+        )
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "run",
+            "--workspace",
+            str(workspace),
+            "--job",
+            "jobs/example-role",
+            "--no-git-add-materials",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    cover_content = json.loads(
+        (job / "typst" / "cover_letter_content.json").read_text(encoding="utf-8")
+    )
+    projection = cover_content["projection"]
+    assert projection["draft_review_state"] == "proposed"
+    assert projection["review_state"] == "proposed"
+    assert projection["document_readiness_state"] == "reviewed"
+    assert projection["document_readiness"]["state"] == "reviewed"
+    assert projection["requires_human_review"] is False
+
+    package_check = check_application_package(job, workspace / "profile")
+    assert not any("not document readiness" in issue.message for issue in package_check.issues)
+
+    with (job / "review_dispositions.yaml").open("ab") as stream:
+        stream.write(b" ")
+    changed = check_application_package(job, workspace / "profile")
+    assert any(
+        issue.path == "review_dispositions.yaml"
+        and "does not match" in issue.message
+        for issue in changed.issues
     )
 
 

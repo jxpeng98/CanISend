@@ -8,6 +8,7 @@ from pathlib import Path
 import re
 
 import yaml
+from pydantic import ValidationError
 
 from canisend.agent_protocol import (
     AgentResponse,
@@ -21,10 +22,21 @@ from canisend.draft_views import (
     STRUCTURED_DRAFT_PROJECTION_SOURCE,
     STRUCTURED_DRAFT_TYPST_MARKER,
 )
+from canisend.draft_models import ReviewFindingsV1
 from canisend.evidence import load_generated_evidence
 from canisend.jobs import job_advert_is_stub
 from canisend.materials import MaterialValidationError, validate_markdown_citations
 from canisend.parse import ParsedJobValidationError, validate_parsed_job
+from canisend.review_readiness import (
+    DocumentReadinessV1,
+    ReviewDispositionsV1,
+    derive_document_readiness,
+)
+from canisend.user_file_store import (
+    InvalidUserFileError,
+    load_strict_json,
+    load_strict_yaml,
+)
 
 
 REQUIRED_MARKDOWN_FILES = [
@@ -520,21 +532,111 @@ def _check_structured_draft_projection(
             )
         )
 
+    readiness = _validate_projected_document_readiness(job_dir, projection, issues)
     if (
-        projection.get("draft_review_state") != "reviewed"
-        or projection.get("review_state") != "reviewed"
+        readiness is None
+        or readiness.state != "reviewed"
+        or projection.get("document_readiness_state") != "reviewed"
         or projection.get("requires_human_review") is not False
     ):
         issues.append(
             PackageCheckIssue(
                 "typst/cover_letter_content.json",
                 (
-                    "structured Draft remains proposed or has open Review findings; "
-                    "compatibility projection is not package readiness"
+                    "structured Cover Letter lacks current complete user Review "
+                    "dispositions; compatibility projection is not document readiness"
                 ),
                 APP_Q4,
             )
         )
+
+
+def _validate_projected_document_readiness(
+    job_dir: Path,
+    projection: dict[str, object],
+    issues: list[PackageCheckIssue],
+) -> DocumentReadinessV1 | None:
+    if projection.get("review_dispositions_source") != "review_dispositions.yaml":
+        issues.append(
+            PackageCheckIssue(
+                "typst/cover_letter_content.json",
+                "structured Review disposition source is invalid",
+                APP_Q4,
+            )
+        )
+        return None
+    try:
+        readiness = DocumentReadinessV1.model_validate(
+            projection.get("document_readiness")
+        )
+    except ValidationError:
+        issues.append(
+            PackageCheckIssue(
+                "typst/cover_letter_content.json",
+                "structured document-readiness projection is invalid",
+                APP_Q4,
+            )
+        )
+        return None
+
+    if projection.get("document_readiness_state") != readiness.state:
+        issues.append(
+            PackageCheckIssue(
+                "typst/cover_letter_content.json",
+                "structured document-readiness state has diverged",
+                APP_Q4,
+            )
+        )
+        return None
+    if readiness.state != "reviewed":
+        return readiness
+
+    try:
+        draft_path = job_dir / "cover_letter_draft.json"
+        review_path = job_dir / "review_findings.json"
+        dispositions_path = job_dir / "review_dispositions.yaml"
+        draft_hash = hashlib.sha256(draft_path.read_bytes()).hexdigest()
+        review_bytes = review_path.read_bytes()
+        review_hash = hashlib.sha256(review_bytes).hexdigest()
+        dispositions_bytes = dispositions_path.read_bytes()
+        dispositions_hash = hashlib.sha256(dispositions_bytes).hexdigest()
+        review = ReviewFindingsV1.model_validate(load_strict_json(review_bytes))
+        dispositions = ReviewDispositionsV1.model_validate(
+            load_strict_yaml(dispositions_bytes)
+        )
+        derived = derive_document_readiness(
+            review,
+            draft_sha256=draft_hash,
+            review_findings_sha256=review_hash,
+            dispositions=dispositions,
+            review_dispositions_sha256=dispositions_hash,
+        )
+    except (
+        InvalidUserFileError,
+        OSError,
+        UnicodeError,
+        ValidationError,
+        ValueError,
+    ):
+        issues.append(
+            PackageCheckIssue(
+                "review_dispositions.yaml",
+                "current Review disposition receipts are missing or invalid",
+                APP_Q4,
+            )
+        )
+        return None
+
+    if derived != readiness:
+        issues.append(
+            PackageCheckIssue(
+                "review_dispositions.yaml",
+                "document readiness does not match current Draft, Review, and dispositions",
+                APP_Q4,
+            )
+        )
+        return None
+    return readiness
 
 
 def _check_generated_typst_candidates(job_dir: Path, issues: list[PackageCheckIssue]) -> None:
@@ -732,7 +834,11 @@ def _collect_job_input_hashes(job_dir: Path) -> dict[str, str]:
     generation_manifest = job_dir / "typst" / ".canisend-generated.json"
     if generation_manifest.is_file():
         relative_paths.add("typst/.canisend-generated.json")
-    for structured_path in ("cover_letter_draft.json", "review_findings.json"):
+    for structured_path in (
+        "cover_letter_draft.json",
+        "review_findings.json",
+        "review_dispositions.yaml",
+    ):
         if (job_dir / structured_path).is_file():
             relative_paths.add(structured_path)
     typst_dir = job_dir / "typst"

@@ -11,7 +11,7 @@ Focus only on cover letters. Do not prepare a full application package unless th
 
 - Do not submit applications, fill portals, create accounts, upload materials, or answer sensitive declarations.
 - Do not fabricate applicant evidence, achievements, relationships, teaching experience, research claims, or fit.
-- Ask before reading full private CVs, statements, references, full job adverts, source URLs, Draft/Review bodies, or
+- Ask before reading full private CVs, statements, references, full job adverts, source URLs, Draft/Review/disposition bodies, or
   enabling LLM-backed commands.
 - Prefer generated evidence under `profile/generated/` and cite gaps instead of inventing support.
 
@@ -32,7 +32,9 @@ Read only what the current task requires:
 4. After Tier 2 approval, prepare Draft in host-agent mode. Write strict Claim JSON only to private scratch, submit it
    through the TaskSpec, and use `stage apply`; never write run paths or `cover_letter_draft.json` directly.
 5. Run deterministic Review. Resolve unsupported, exclusion-conflicting, and missing-section blockers; inspect every
-   semantic-support finding against current Evidence and every non-factual Claim-kind classification.
+   semantic-support finding against current Evidence and every non-factual Claim-kind classification. Use
+   `review-dispositions status|init|update`; blockers cannot be accepted, and complete current acceptances derive
+   Cover Letter readiness without changing Draft/Review `proposed` state.
 6. Keep claims specific, verifiable, and proportionate. Mark unsupported claims explicitly rather than inventing.
-7. Treat legacy Markdown/Typst as compatibility surfaces until structured projection parity is implemented.
+7. Treat Markdown/Typst as compatibility projections; document readiness is not whole-package readiness.
 8. Before saying the cover letter is ready, check `../canisend/references/quality-gates.md`.

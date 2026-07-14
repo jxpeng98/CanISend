@@ -424,9 +424,12 @@ canisend stage run \
 ```
 
 Use body-free counts/codes first; ask before reading Claim or finding bodies. Blockers require a new validated Draft.
-Open semantic-support and non-factual Claim-kind findings require human inspection. A current blocker-free Review may
-allow `canisend run` to project the current structured Draft into compatibility Markdown and Typst, but neither Draft,
-Review, nor that projection establishes package readiness.
+Open semantic-support and non-factual Claim-kind findings require human inspection. Start with
+`canisend review-dispositions status ... --format json`, initialize with explicit write consent, then submit one
+strict patch per finding through `review-dispositions update` with the latest revision/hash. Use
+`set_finding_disposition` with `accepted` or `revision_required`; a blocker cannot be accepted. If Draft/Review
+changed, use one explicit `reset_for_current_review` patch before inspecting the new finding set. Complete current
+acceptances derive Cover Letter readiness while Draft and Review remain `proposed`; this is not package readiness.
 
 ## 11. Generate The Compatible Draft Package
 
@@ -466,8 +469,11 @@ Under the same guards, a current validated `cover_letter_draft.json` is projecte
 current and has zero blocker findings. Each Claim is emitted once, in structured order, to
 `03_cover_letter_draft.md`, `typst/cover_letter_content.json`, the Cover Letter portion of
 `typst/application_package_content.json`, and the two Typst sources. Projection metadata binds the exact Draft and
-Review hashes and keeps `requires_human_review=true` while findings remain open. `check-package` therefore treats
-this first-slice projection as review work, not package readiness.
+Review hashes. `review_dispositions.yaml` binds the same receipts: every non-blocker finding must be explicitly
+`accepted`, no finding may be `revision_required`, and blockers remain non-waivable before derived Cover Letter
+readiness becomes `reviewed` and `requires_human_review=false`. Missing, stale, incomplete, or revision-required
+dispositions remain review work. `check-package` re-derives this document gate; it does not infer whole-package
+readiness from one Cover Letter.
 
 If Match or an upstream stage is stale, any protected structured output is drifted or tampered, the structured graph
 is invalid, the current run parses a different job view, or `--profile-dir` selects a profile other than the
@@ -492,15 +498,16 @@ Review, in order:
 6. Brief-stage status and `required_document_plan.json` only when its Tier 2 body is needed and approved
 7. Draft-stage status and `cover_letter_draft.json` only when its Tier 2 Claim body is needed and approved
 8. Review-stage status and `review_findings.json` only when its Tier 2 body is needed and approved
-9. `00_preparation_questions.md`
-10. `05_criteria_checklist.md`
-11. `02_fit_report.md`
-12. `03_cover_letter_draft.md`
-13. `04_cv_tailoring_notes.md`
-14. `07_material_review_checklist.md`
-15. `typst/cover_letter.typ`
-16. `typst/application_package.typ`
-17. `06_final_application_package.md`
+9. Body-free `review-dispositions status`, then `review_dispositions.yaml` only when its Tier 2 body is needed
+10. `00_preparation_questions.md`
+11. `05_criteria_checklist.md`
+12. `02_fit_report.md`
+13. `03_cover_letter_draft.md`
+14. `04_cv_tailoring_notes.md`
+15. `07_material_review_checklist.md`
+16. `typst/cover_letter.typ`
+17. `typst/application_package.typ`
+18. `06_final_application_package.md`
 
 Apply `quality-gates.md` before treating any output as usable.
 In particular, check language/style confirmation, item-level citations, unsupported claims, required-document coverage, and private-file safety before presenting a package as ready.

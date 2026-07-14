@@ -159,9 +159,16 @@ RSS and Atom lead outputs live in ignored `job_leads/`.
   profile. Unsupported claims, missing required sections, and confirmed Brief exclusion conflicts are blockers;
   structurally supported factual claims and every non-factual Claim-kind classification retain explicit
   semantic-review findings. A later compatible `run` may read this current Review to project a blocker-free Draft.
+- `review_dispositions.yaml`: strict user-owned Tier 2 finding decisions bound to the exact Draft and Review hashes.
+  Agent writes use `review-dispositions status|init|update` with one finding, the current revision/hash, and explicit
+  consent. `accepted` is valid only for non-blockers; `revision_required` keeps the document out of readiness. A
+  changed Draft/Review preserves the file but requires `reset_for_current_review` before new findings are edited.
+- `schemas/document-readiness.schema.json`: derived Cover Letter readiness contract embedded in structured
+  compatibility content. It is recomputed from current Draft, Review, and dispositions; it is not a mutable approval
+  file and does not establish whole-package readiness.
 - `workflow/user-mutations/`: private immutable candidates plus cooperative single-winner claims and immutable
   receipts. Candidate/YAML bodies and corrected Criteria are Tier 2. Claims and receipts never include correction
-  text, rationale, Brief values, or document source text; the receipt is Tier 1 and validates against
+  text, rationale, Brief values, finding messages, or document source text; the receipt is Tier 1 and validates against
   `schemas/user-mutation-receipt.schema.json`.
   Candidates use private-file mode (0600 on POSIX) and persist after semantic reset/clear/withdraw for audit/recovery. Corrections history
   likewise retains old corrected bodies. Deleting selected events or the whole private job is a separate retention

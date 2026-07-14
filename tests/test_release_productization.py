@@ -39,6 +39,9 @@ def test_shared_decision_spine_smoke_owns_the_full_body_free_contract():
         '"stage",\n                "submit"',
         '"stage",\n            "apply"',
         '"--stage", "review"',
+        '["review-dispositions", "status"',
+        '"review-dispositions",\n            "init"',
+        '"operation": "set_finding_disposition"',
         '"run",\n            "--workspace"',
         '"check-package"',
     ]
@@ -54,10 +57,10 @@ def test_shared_decision_spine_smoke_owns_the_full_body_free_contract():
     assert "review_findings.json" in rendered
     assert "Deterministic proposal" in rendered
     assert "Criterion is unresolved" in rendered
-    assert "compatibility projection is not package readiness" in rendered
+    assert "not document readiness" in rendered
     assert "structured-draft projection" in rendered
     assert "application_package_content.json" in rendered
-    assert "EXPECTED_USER_MUTATION_RECEIPTS = 10" in rendered
+    assert "EXPECTED_USER_MUTATION_RECEIPTS = 14" in rendered
     for stage in ("evidence", "parse", "confirm", "match", "brief", "draft", "review"):
         assert f'"{stage}":' in rendered
     assert "preparation.json" in rendered
@@ -164,6 +167,8 @@ def test_package_check_requires_all_run_example_resources():
         "canisend/resources/schemas/required-document-plan.schema.json",
         "canisend/resources/schemas/cover-letter-draft.schema.json",
         "canisend/resources/schemas/review-findings.schema.json",
+        "canisend/resources/schemas/review-dispositions.schema.json",
+        "canisend/resources/schemas/document-readiness.schema.json",
         "canisend/resources/schemas/user-mutation-receipt.schema.json",
         "canisend/resources/prompts/cv_tailor.md",
         "canisend/resources/prompts/criteria_checker.md",

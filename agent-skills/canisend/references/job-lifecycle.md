@@ -124,8 +124,10 @@ Review quality gates before rendering:
   document without a preparation action, or orphaned old choice before later Draft/Verify work.
 - Missing or stale `cover_letter_draft.json`: make Brief/Match/Evidence current, prepare Draft in host-agent mode,
   submit strict Claim JSON from private scratch, and apply it through the guarded stage boundary.
-- Missing or stale `review_findings.json`: make Draft current and run deterministic Review. Resolve blocker findings;
-  do not treat open support-review findings as readiness.
+- Missing or stale `review_findings.json`: make Draft current and run deterministic Review. Resolve non-waivable
+  blockers, then use `review-dispositions status|init|update` for each current finding.
+- Missing/stale/incomplete `review_dispositions.yaml`: use the exact current revision/hash; reset only when the
+  Draft/Review basis changed. Cover Letter `reviewed` is derived and remains distinct from package readiness.
 - Mutation recovery requested: use `user-mutation recover` with the opaque accepted mutation ID and explicit
   consent; do not replay the private patch as a new write.
 - Existing generated outputs after advert/profile changes: rerun the pipeline and review diffs.

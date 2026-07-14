@@ -46,6 +46,20 @@
             "artifact",
             "target_path"
           ]
+        },
+        {
+          "properties": {
+            "artifact": {
+              "const": "review_dispositions"
+            },
+            "target_path": {
+              "const": "review_dispositions.yaml"
+            }
+          },
+          "required": [
+            "artifact",
+            "target_path"
+          ]
         }
       ]
     },
@@ -140,7 +154,8 @@
       "enum": [
         "corrections",
         "decision",
-        "brief"
+        "brief",
+        "review_dispositions"
       ],
       "title": "Artifact",
       "type": "string"
@@ -149,7 +164,8 @@
       "enum": [
         "confirmed_corrections.yaml",
         "application_decision.yaml",
-        "application_brief.yaml"
+        "application_brief.yaml",
+        "review_dispositions.yaml"
       ],
       "title": "Target Path",
       "type": "string"
