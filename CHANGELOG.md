@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Added strict user-owned `package_review_dispositions.yaml` with explicit-consent revision/hash CAS, immutable
+  mutation claims/receipts, interrupted-publication recovery, stale-basis preservation/reset, and non-waivable
+  aggregate blockers. `package-review status|init|update` exposes only body-free states, counts, consents, and actions.
+- Added strict derived `ApplicationPackageReadinessV1` states over every required-document receipt plus the exact
+  package Review and decisions. Optional standalone documents remain outside requiredness; package `reviewed` is not
+  rendering approval, submission readiness, or proof of submission.
+- Extended `check-package` with fail-closed APP-Q5 revalidation and a final receipt-change check. Legacy packages
+  remain readable but cannot pass from Cover Letter readiness alone or from missing, invalid, stale, incomplete, or
+  concurrently changed aggregate receipts.
 - Added an independent deterministic `package_review` stage and strict packaged
   `package-review-findings.schema.json`. The aggregate output binds the exact Parsed Job, Brief, Required Document
   Plan, derived execution plan, and every observed Draft/Review/disposition/readiness receipt.

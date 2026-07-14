@@ -49,6 +49,8 @@ def test_init_workspace_creates_user_layout_and_default_resources(tmp_path):
     assert (workspace / "schemas" / "document-readiness.schema.json").exists()
     assert (workspace / "schemas" / "document-execution-plan.schema.json").exists()
     assert (workspace / "schemas" / "package-review-findings.schema.json").exists()
+    assert (workspace / "schemas" / "package-review-dispositions.schema.json").exists()
+    assert (workspace / "schemas" / "application-package-readiness.schema.json").exists()
     assert (workspace / "agent-skills" / "canisend" / "SKILL.md").exists()
     assert (workspace / "agent-skills" / "canisend-job-intake" / "SKILL.md").exists()
     assert (workspace / "agent-skills" / "canisend-application-package" / "SKILL.md").exists()

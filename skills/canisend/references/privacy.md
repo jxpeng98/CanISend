@@ -126,8 +126,8 @@ legacy path instead of combining sources.
 
 Draft candidates, `cover_letter_draft.json`, `research_statement_draft.json`, claim text, `review_findings.json`,
 `research_statement_review_findings.json`, finding messages/actions, `review_dispositions.yaml`, and
-`research_statement_review_dispositions.yaml` are Tier 2. `package_review_findings.json` and its correction
-instructions are also Tier 2. A
+`research_statement_review_dispositions.yaml` are Tier 2. `package_review_findings.json`, its correction
+instructions, and `package_review_dispositions.yaml` are also Tier 2. A
 host agent may read the seven declared Draft inputs only after approval that
 their contents may enter the agent model context. It writes candidate JSON to fresh private scratch and uses
 `stage submit`; only the core may write run candidates/results or promote the authoritative Draft.
@@ -151,6 +151,10 @@ Aggregate Package Review runs deterministically and locally. Its TaskSpec, state
 contain only paths, hashes, IDs, states, counts, and reason codes; they never copy Claim text, finding messages,
 Evidence bodies, Brief values, disposition rationale, or correction instructions. The aggregate reviewer cannot
 write a Draft or any user-owned file.
+
+Package disposition status and derived application-package readiness are body-free. Agent writes require explicit
+consent and one revision/hash CAS patch. Aggregate blockers are non-waivable, and the independent mutation claim,
+candidate, and receipt namespace never copies finding messages, Claim text, correction instructions, or rationale.
 
 A compatible local `run` may project a current blocker-free Cover Letter Draft/Review pair, or an exact `reviewed`
 Research Statement, into Tier 2 Markdown, content JSON, and Typst files. This is a deterministic local data-plane

@@ -27,15 +27,29 @@ from canisend.evidence import load_generated_evidence
 from canisend.jobs import job_advert_is_stub
 from canisend.materials import MaterialValidationError, validate_markdown_citations
 from canisend.parse import ParsedJobValidationError, validate_parsed_job
+from canisend.package_readiness import (
+    ApplicationPackageReadinessV1,
+    PackageReviewDispositionsV1,
+    derive_application_package_readiness,
+)
+from canisend.package_review_models import PackageReviewFindingsV1
 from canisend.review_readiness import (
     DocumentReadinessV1,
     ReviewDispositionsV1,
     derive_document_readiness,
 )
+from canisend.stages.package_review_stage import (
+    PackageReviewStageError,
+    validate_package_review_candidate,
+)
 from canisend.user_file_store import (
     InvalidUserFileError,
     load_strict_json,
     load_strict_yaml,
+    read_optional_safe_bytes,
+    read_safe_bytes,
+    UnsafeUserFileError,
+    UserFileStoreError,
 )
 
 
@@ -89,6 +103,7 @@ APP_Q1 = "APP-Q1"
 APP_Q2 = "APP-Q2"
 APP_Q3 = "APP-Q3"
 APP_Q4 = "APP-Q4"
+APP_Q5 = "APP-Q5"
 PLACEHOLDER_RE = re.compile(r"\[[A-Za-z][^\]\n]{2,}\]")
 BLOCKER_RE = re.compile(r"\bBLOCKER\b", flags=re.IGNORECASE)
 MODERNPRO_IMPORT_RE = re.compile(
@@ -234,9 +249,19 @@ def _safe_gate_issue_path(value: str) -> str:
     return "/".join(re.sub(r"[^A-Za-z0-9_.-]", "_", part) for part in path.parts)
 
 
-def check_application_package(job_dir: Path, profile_dir: Path) -> PackageCheckResult:
+def check_application_package(
+    job_dir: Path,
+    profile_dir: Path,
+    *,
+    workspace: Path | None = None,
+) -> PackageCheckResult:
     job_dir = job_dir.expanduser().resolve()
     profile_dir = profile_dir.expanduser().resolve()
+    workspace_root = (
+        workspace.expanduser().resolve()
+        if workspace is not None
+        else profile_dir.parent.resolve()
+    )
     issues: list[PackageCheckIssue] = []
 
     if not job_dir.exists():
@@ -287,6 +312,7 @@ def check_application_package(job_dir: Path, profile_dir: Path) -> PackageCheckR
         if path is not None:
             _check_typst_markers(path, relative_path, markers, issues)
     _check_generated_typst_candidates(job_dir, issues)
+    _check_aggregate_package_readiness(workspace_root, job_dir, issues)
 
     profile_input_hashes = _check_profile_evidence_freshness(profile_dir, issues)
     evidence = load_generated_evidence(profile_dir)
@@ -642,6 +668,125 @@ def _validate_projected_document_readiness(
     return readiness
 
 
+def _check_aggregate_package_readiness(
+    workspace: Path,
+    job_dir: Path,
+    issues: list[PackageCheckIssue],
+) -> ApplicationPackageReadinessV1 | None:
+    review_path = "package_review_findings.json"
+    dispositions_path = "package_review_dispositions.yaml"
+    try:
+        review_snapshot = read_safe_bytes(job_dir, review_path)
+    except (UnsafeUserFileError, UserFileStoreError):
+        issues.append(
+            PackageCheckIssue(
+                review_path,
+                "current aggregate package Review is missing or unsafe",
+                APP_Q5,
+            )
+        )
+        return None
+    try:
+        review_payload = load_strict_json(review_snapshot.data)
+        review_model = PackageReviewFindingsV1.model_validate(review_payload)
+        review = validate_package_review_candidate(
+            review_payload,
+            workspace=workspace,
+            job_dir=job_dir,
+            input_fingerprint=review_model.input_fingerprint,
+        )
+    except (
+        InvalidUserFileError,
+        PackageReviewStageError,
+        ValidationError,
+        ValueError,
+    ):
+        issues.append(
+            PackageCheckIssue(
+                review_path,
+                "aggregate package Review is invalid, stale, or does not match current receipts",
+                APP_Q5,
+            )
+        )
+        return None
+
+    try:
+        disposition_snapshot = read_optional_safe_bytes(job_dir, dispositions_path)
+    except (UnsafeUserFileError, UserFileStoreError):
+        issues.append(
+            PackageCheckIssue(
+                dispositions_path,
+                "package Review dispositions are unsafe",
+                APP_Q5,
+            )
+        )
+        return None
+
+    dispositions = None
+    dispositions_sha256 = None
+    if disposition_snapshot is not None:
+        try:
+            dispositions = PackageReviewDispositionsV1.model_validate(
+                load_strict_yaml(disposition_snapshot.data)
+            )
+            dispositions_sha256 = disposition_snapshot.sha256
+        except (InvalidUserFileError, ValidationError):
+            issues.append(
+                PackageCheckIssue(
+                    dispositions_path,
+                    "package Review dispositions are invalid",
+                    APP_Q5,
+                )
+            )
+            return None
+
+    readiness = derive_application_package_readiness(
+        review,
+        package_review_findings_sha256=review_snapshot.sha256,
+        dispositions=dispositions,
+        package_review_dispositions_sha256=dispositions_sha256,
+    )
+    if readiness.state != "reviewed":
+        message = {
+            "blocked": (
+                "application package has unresolved required-document or aggregate blockers"
+            ),
+            "revision_required": (
+                "application package has findings that require guarded document revision"
+            ),
+            "review_required": (
+                "application package requires current complete package finding decisions"
+            ),
+        }[readiness.state]
+        issues.append(PackageCheckIssue(dispositions_path, message, APP_Q5))
+
+    try:
+        final_review = read_safe_bytes(job_dir, review_path)
+        final_dispositions = read_optional_safe_bytes(job_dir, dispositions_path)
+    except (UnsafeUserFileError, UserFileStoreError):
+        issues.append(
+            PackageCheckIssue(
+                dispositions_path,
+                "aggregate package receipts changed or became unsafe during validation",
+                APP_Q5,
+            )
+        )
+        return None
+    if final_review.sha256 != review_snapshot.sha256 or (
+        (final_dispositions.sha256 if final_dispositions is not None else None)
+        != (disposition_snapshot.sha256 if disposition_snapshot is not None else None)
+    ):
+        issues.append(
+            PackageCheckIssue(
+                dispositions_path,
+                "aggregate package receipts changed during validation",
+                APP_Q5,
+            )
+        )
+        return None
+    return readiness
+
+
 def _check_generated_typst_candidates(job_dir: Path, issues: list[PackageCheckIssue]) -> None:
     typst_dir = job_dir / "typst"
     if not typst_dir.is_dir():
@@ -843,6 +988,9 @@ def _collect_job_input_hashes(job_dir: Path) -> dict[str, str]:
         "cover_letter_draft.json",
         "review_findings.json",
         "review_dispositions.yaml",
+        "required_document_plan.json",
+        "package_review_findings.json",
+        "package_review_dispositions.yaml",
     ):
         if (job_dir / structured_path).is_file():
             relative_paths.add(structured_path)

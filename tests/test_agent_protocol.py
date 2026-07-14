@@ -51,6 +51,12 @@ STAGE3_REVIEW_DISPOSITION_OPERATIONS = {
     "review.dispositions_update",
 }
 
+STAGE3_PACKAGE_REVIEW_OPERATIONS = {
+    "package_review.dispositions_status",
+    "package_review.dispositions_initialize",
+    "package_review.dispositions_update",
+}
+
 TASK5_USER_INPUT_ERROR_CODES = {
     "user_input.not_initialized",
     "user_input.invalid",
@@ -115,6 +121,14 @@ def test_stage3_capabilities_add_review_dispositions_without_protocol_bump() -> 
 
     assert STAGE3_REVIEW_DISPOSITION_OPERATIONS <= set(SUPPORTED_AGENT_OPERATIONS)
     assert STAGE3_REVIEW_DISPOSITION_OPERATIONS <= set(capabilities.operations)
+    assert capabilities.protocol_versions == [AGENT_PROTOCOL]
+
+
+def test_stage3_capabilities_add_package_dispositions_without_protocol_bump() -> None:
+    capabilities = default_agent_capabilities("0.2.0")
+
+    assert STAGE3_PACKAGE_REVIEW_OPERATIONS <= set(SUPPORTED_AGENT_OPERATIONS)
+    assert STAGE3_PACKAGE_REVIEW_OPERATIONS <= set(capabilities.operations)
     assert capabilities.protocol_versions == [AGENT_PROTOCOL]
 
 

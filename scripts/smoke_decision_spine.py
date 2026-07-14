@@ -36,7 +36,7 @@ EXPECTED_STAGE_RUN_COUNTS = {
     "review": 2,
     "package_review": 1,
 }
-EXPECTED_USER_MUTATION_RECEIPTS = 18
+EXPECTED_USER_MUTATION_RECEIPTS = 19
 STRUCTURED_DRAFT_SENTINEL = "I hold a PhD in Economics."
 RESEARCH_DRAFT_SENTINEL = "My research applies policy-evaluation methods."
 USER_AND_STRUCTURED_ARTIFACTS = (
@@ -55,6 +55,7 @@ USER_AND_STRUCTURED_ARTIFACTS = (
     "review_dispositions.yaml",
     "research_statement_review_dispositions.yaml",
     "package_review_findings.json",
+    "package_review_dispositions.yaml",
 )
 
 
@@ -219,6 +220,51 @@ def _review_disposition_patch(
         patch_path.unlink(missing_ok=True)
     if updated is None:  # pragma: no cover - guarded by expect_json
         raise SmokeFailure("Review disposition update returned no response.")
+    return updated
+
+
+def _package_review_disposition_patch(
+    canisend: str,
+    workspace: Path,
+    current: dict[str, Any],
+    patch: dict[str, Any],
+    *,
+    expected_returncodes: tuple[int, ...] = (0,),
+) -> dict[str, Any]:
+    extensions = current.get("extensions")
+    if not isinstance(extensions, dict):
+        raise SmokeFailure("A package disposition response omitted its control metadata.")
+    revision = extensions.get("canisend.user_artifact_revision")
+    sha256 = _artifact(current, "package_review_dispositions").get("sha256")
+    if not isinstance(revision, int) or not isinstance(sha256, str):
+        raise SmokeFailure(
+            "A package disposition response omitted its compare-and-swap baseline."
+        )
+
+    patch_path = workspace / ".canisend-smoke-package-disposition-patch.json"
+    patch_path.write_text(json.dumps(patch) + "\n", encoding="utf-8")
+    try:
+        updated = _run(
+            canisend,
+            [
+                "package-review",
+                "update",
+                *_job_arguments(workspace),
+                "--patch-file",
+                str(patch_path),
+                "--expected-revision",
+                str(revision),
+                "--expected-sha256",
+                sha256,
+                "--confirm-user-owned-write",
+            ],
+            expect_json=True,
+            expected_returncodes=expected_returncodes,
+        )
+    finally:
+        patch_path.unlink(missing_ok=True)
+    if updated is None:  # pragma: no cover - guarded by expect_json
+        raise SmokeFailure("Package disposition update returned no response.")
     return updated
 
 
@@ -736,6 +782,13 @@ def _assert_workspace_contract(workspace: Path) -> None:
             in str(issue.get("message", ""))
             for issue in gate_issues
         )
+        or not any(
+            isinstance(issue, dict)
+            and issue.get("gate") == "APP-Q5"
+            and "unresolved required-document or aggregate blockers"
+            in str(issue.get("message", ""))
+            for issue in gate_issues
+        )
     ):
         raise SmokeFailure(
             "The installed wheel did not separate document readiness from package readiness."
@@ -745,6 +798,8 @@ def _assert_workspace_contract(workspace: Path) -> None:
         "job/cover_letter_draft.json",
         "job/review_findings.json",
         "job/review_dispositions.yaml",
+        "job/package_review_findings.json",
+        "job/package_review_dispositions.yaml",
     }.issubset(input_hashes):
         raise SmokeFailure("The package gate did not bind the structured Draft and Review inputs.")
     if any(
@@ -1144,6 +1199,70 @@ def run_smoke(canisend: str, workspace: Path) -> None:
         raise SmokeFailure(
             "Aggregate Package Review did not preserve the unsupported required-document blocker."
         )
+
+    _run(
+        canisend,
+        ["package-review", "status", *job_args],
+        expect_json=True,
+    )
+    package_dispositions = _run(
+        canisend,
+        [
+            "package-review",
+            "init",
+            *job_args,
+            "--confirm-user-owned-write",
+        ],
+        expect_json=True,
+    )
+    if package_dispositions is None:  # pragma: no cover - guarded by expect_json
+        raise SmokeFailure("Package disposition initialization returned no response.")
+    try:
+        package_review_payload = json.loads(
+            (job / "package_review_findings.json").read_text(encoding="utf-8")
+        )
+        package_blocker_id = package_review_payload["blocker_finding_ids"][0]
+    except (
+        OSError,
+        UnicodeError,
+        json.JSONDecodeError,
+        IndexError,
+        KeyError,
+        TypeError,
+    ) as exc:
+        raise SmokeFailure("Package Review omitted its non-waivable blocker ID.") from exc
+    rejected = _package_review_disposition_patch(
+        canisend,
+        workspace,
+        package_dispositions,
+        {
+            "operation": "set_package_finding_disposition",
+            "finding_id": package_blocker_id,
+            "disposition": "accepted",
+        },
+        expected_returncodes=(1,),
+    )
+    if (
+        not isinstance(rejected.get("error"), dict)
+        or rejected["error"].get("code") != "user_input.invalid"
+    ):
+        raise SmokeFailure("Package disposition incorrectly waived an aggregate blocker.")
+    package_status = _run(
+        canisend,
+        ["package-review", "status", *job_args],
+        expect_json=True,
+    )
+    package_status_extensions = (
+        package_status.get("extensions")
+        if isinstance(package_status, dict)
+        else None
+    )
+    if (
+        not isinstance(package_status_extensions, dict)
+        or package_status_extensions.get("canisend.application_package_readiness")
+        != "blocked"
+    ):
+        raise SmokeFailure("Package readiness did not remain blocked after rejection.")
 
     before_run = {
         name: (job / name).read_bytes()

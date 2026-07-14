@@ -39,6 +39,15 @@ APPLICATION_PACKAGE_TYPST = "\n".join(
 )
 
 
+def _allow_legacy_package_gate(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep legacy gate-unit tests focused on their pre-APP-Q5 concern."""
+
+    monkeypatch.setattr(
+        "canisend.ready_check._check_aggregate_package_readiness",
+        lambda _workspace, _job_dir, _issues: None,
+    )
+
+
 def test_required_source_files_compatibility_constant_is_preserved():
     assert REQUIRED_SOURCE_FILES == ["job.yaml", "job_advert.md"]
 
@@ -99,14 +108,17 @@ def test_check_package_reports_unknown_citations_and_placeholders(tmp_path):
     assert "placeholder [Applicant name]" in result.output
 
 
-def test_check_package_passes_complete_minimal_package(tmp_path):
+def test_check_package_legacy_minimal_package_fails_closed_without_aggregate_review(
+    tmp_path,
+):
     workspace, job_dir = _complete_workspace(tmp_path)
     runner = CliRunner()
 
     result = runner.invoke(app, ["check-package", "--workspace", str(workspace), "--job", "example-role"])
 
-    assert result.exit_code == 0
-    assert "Package check passed" in result.output
+    assert result.exit_code == 1
+    assert "Package check failed" in result.output
+    assert "current aggregate package Review is missing or unsafe" in result.output
     assert not (job_dir / "application_gate_report.json").exists()
 
 
@@ -180,8 +192,12 @@ def test_check_package_rejects_pending_or_lead_advert_stub(tmp_path, advert_text
     assert "job advert is still a lead or pending-import stub" in result.output
 
 
-def test_check_package_accepts_lead_record_after_full_advert_is_added(tmp_path):
+def test_check_package_accepts_lead_record_after_full_advert_is_added(
+    tmp_path,
+    monkeypatch,
+):
     workspace, job_dir = _complete_workspace(tmp_path)
+    _allow_legacy_package_gate(monkeypatch)
     (job_dir / "job_advert.md").write_text(
         "# Lecturer\n\n"
         "> RSS lead only. Paste the full advert manually below before final generation.\n\n"
@@ -358,8 +374,12 @@ def test_check_package_assigns_metadata_evidence_artifact_and_typst_gates(tmp_pa
     )
 
 
-def test_check_package_writes_machine_readable_gate_report_only_when_requested(tmp_path):
+def test_check_package_writes_machine_readable_gate_report_only_when_requested(
+    tmp_path,
+    monkeypatch,
+):
     workspace, job_dir = _complete_workspace(tmp_path)
+    _allow_legacy_package_gate(monkeypatch)
     runner = CliRunner()
 
     passed = runner.invoke(
@@ -424,8 +444,9 @@ def test_check_package_writes_machine_readable_gate_report_only_when_requested(t
     } in report["issues"]
 
 
-def test_check_package_json_pass_is_read_only_by_default(tmp_path):
+def test_check_package_json_pass_is_read_only_by_default(tmp_path, monkeypatch):
     workspace, job_dir = _complete_workspace(tmp_path)
+    _allow_legacy_package_gate(monkeypatch)
 
     result = CliRunner().invoke(
         app,
@@ -483,8 +504,9 @@ def test_check_package_json_fail_is_completed_gate_with_safe_blockers(tmp_path):
     assert not (job_dir / "application_gate_report.json").exists()
 
 
-def test_check_package_json_writes_report_only_when_explicit(tmp_path):
+def test_check_package_json_writes_report_only_when_explicit(tmp_path, monkeypatch):
     workspace, job_dir = _complete_workspace(tmp_path)
+    _allow_legacy_package_gate(monkeypatch)
 
     result = CliRunner().invoke(
         app,

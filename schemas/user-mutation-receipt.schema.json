@@ -74,6 +74,20 @@
             "artifact",
             "target_path"
           ]
+        },
+        {
+          "properties": {
+            "artifact": {
+              "const": "package_review_dispositions"
+            },
+            "target_path": {
+              "const": "package_review_dispositions.yaml"
+            }
+          },
+          "required": [
+            "artifact",
+            "target_path"
+          ]
         }
       ]
     },
@@ -170,7 +184,8 @@
         "decision",
         "brief",
         "review_dispositions",
-        "research_statement_review_dispositions"
+        "research_statement_review_dispositions",
+        "package_review_dispositions"
       ],
       "title": "Artifact",
       "type": "string"
@@ -181,7 +196,8 @@
         "application_decision.yaml",
         "application_brief.yaml",
         "review_dispositions.yaml",
-        "research_statement_review_dispositions.yaml"
+        "research_statement_review_dispositions.yaml",
+        "package_review_dispositions.yaml"
       ],
       "title": "Target Path",
       "type": "string"

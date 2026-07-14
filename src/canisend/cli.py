@@ -66,8 +66,10 @@ from canisend.user_mutation_agent import (
     load_brief_patch_file,
     load_corrections_patch_file,
     load_decision_patch_file,
+    load_package_review_disposition_patch_file,
     load_review_disposition_patch_file,
     mutation_outcome_agent_response,
+    package_review_dispositions_status_agent_response,
     review_dispositions_status_agent_response,
     user_mutation_error_response,
 )
@@ -77,9 +79,11 @@ from canisend.user_mutations import (
     initialize_application_brief,
     initialize_application_decision,
     initialize_confirmed_corrections,
+    initialize_package_review_dispositions,
     initialize_review_dispositions,
     inspect_application_brief,
     inspect_application_decision,
+    inspect_package_review_dispositions,
     inspect_review_dispositions,
     inspect_user_artifact,
     recover_user_mutation,
@@ -158,6 +162,11 @@ review_dispositions_app = typer.Typer(
     no_args_is_help=True,
 )
 app.add_typer(review_dispositions_app, name="review-dispositions")
+package_review_app = typer.Typer(
+    help="Inspect and update user-owned decisions for aggregate package Review findings.",
+    no_args_is_help=True,
+)
+app.add_typer(package_review_app, name="package-review")
 user_mutation_app = typer.Typer(
     help="Recover a previously accepted user-owned mutation.",
     no_args_is_help=True,
@@ -1244,6 +1253,155 @@ def review_dispositions_update_command(
     _emit_agent_response(response, output_format=output_format)
 
 
+@package_review_app.command("status")
+def package_review_status_command(
+    job: Path = typer.Option(
+        ...,
+        "--job",
+        help="Job folder path or workspace-relative job identifier.",
+    ),
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="Initialized workspace containing the job.",
+    ),
+    output_format: str = typer.Option(
+        "text",
+        "--format",
+        help="Output format: text or json.",
+    ),
+) -> None:
+    """Inspect body-free aggregate dispositions and application-package readiness."""
+    _validate_output_format(output_format)
+    operation = "package_review.dispositions_status"
+    try:
+        config = load_workspace_config(workspace)
+        job_dir = config.job_dir(job)
+        response = package_review_dispositions_status_agent_response(
+            config.root,
+            job_dir,
+            inspect_package_review_dispositions(config.root, job_dir),
+        )
+    except UserMutationError as exc:
+        response = user_mutation_error_response(operation, exc)
+    except Exception:
+        response = _unexpected_user_mutation_error_response(operation)
+    _emit_agent_response(response, output_format=output_format)
+
+
+@package_review_app.command("init")
+def package_review_init_command(
+    job: Path = typer.Option(
+        ...,
+        "--job",
+        help="Job folder path or workspace-relative job identifier.",
+    ),
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="Initialized workspace containing the job.",
+    ),
+    confirm_user_owned_write: bool = typer.Option(
+        False,
+        "--confirm-user-owned-write",
+        help="Explicitly authorize create-if-absent package disposition initialization.",
+    ),
+    output_format: str = typer.Option(
+        "text",
+        "--format",
+        help="Output format: text or json.",
+    ),
+) -> None:
+    """Create package decisions bound to the current aggregate Review."""
+    _validate_output_format(output_format)
+    operation = "package_review.dispositions_initialize"
+    try:
+        config = load_workspace_config(workspace)
+        job_dir = config.job_dir(job)
+        outcome = initialize_package_review_dispositions(
+            config.root,
+            job_dir,
+            consent_confirmed=confirm_user_owned_write,
+        )
+        response = mutation_outcome_agent_response(
+            config.root,
+            job_dir,
+            outcome,
+            operation=operation,
+        )
+    except UserMutationError as exc:
+        response = user_mutation_error_response(operation, exc)
+    except Exception:
+        response = _unexpected_user_mutation_error_response(operation)
+    _emit_agent_response(response, output_format=output_format)
+
+
+@package_review_app.command("update")
+def package_review_update_command(
+    job: Path = typer.Option(
+        ...,
+        "--job",
+        help="Job folder path or workspace-relative job identifier.",
+    ),
+    patch_file: Path = typer.Option(
+        ...,
+        "--patch-file",
+        help="Strict bounded YAML or JSON containing one package finding patch.",
+    ),
+    expected_revision: str = typer.Option(
+        ...,
+        "--expected-revision",
+        help="Current package disposition revision used as the compare-and-swap baseline.",
+    ),
+    expected_sha256: str = typer.Option(
+        ...,
+        "--expected-sha256",
+        help="Current package disposition SHA-256 used as the compare-and-swap baseline.",
+    ),
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="Initialized workspace containing the job.",
+    ),
+    confirm_user_owned_write: bool = typer.Option(
+        False,
+        "--confirm-user-owned-write",
+        help="Explicitly authorize this one scoped package disposition update.",
+    ),
+    output_format: str = typer.Option(
+        "text",
+        "--format",
+        help="Output format: text or json.",
+    ),
+) -> None:
+    """Apply one package finding decision through revision/hash compare-and-swap."""
+    _validate_output_format(output_format)
+    operation = "package_review.dispositions_update"
+    try:
+        config = load_workspace_config(workspace)
+        job_dir = config.job_dir(job)
+        patch = load_package_review_disposition_patch_file(patch_file)
+        outcome = apply_user_patch(
+            config.root,
+            job_dir,
+            patch,
+            expected_sha256=expected_sha256,
+            expected_revision=_user_owned_expected_revision(expected_revision),
+            consent_confirmed=confirm_user_owned_write,
+        )
+        response = mutation_outcome_agent_response(
+            config.root,
+            job_dir,
+            outcome,
+            operation=operation,
+        )
+    except UserMutationError as exc:
+        response = user_mutation_error_response(operation, exc)
+    except Exception:
+        response = _unexpected_user_mutation_error_response(operation)
+    _emit_agent_response(response, output_format=output_format)
+
+
 @user_mutation_app.command("recover")
 def user_mutation_recover_command(
     job: Path = typer.Option(..., "--job", help="Job folder path or workspace-relative job identifier."),
@@ -1620,6 +1778,7 @@ def check_package(
         result = check_application_package(
             job_dir=job_dir,
             profile_dir=config.path("profile_dir", profile_dir),
+            workspace=config.root,
         )
     except typer.Exit:
         raise

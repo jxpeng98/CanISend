@@ -140,6 +140,13 @@ Do not use ready, final, complete, or submission-ready for generated materials u
   and narrative alignment remain explicit human-review findings; prose is not parsed into invented factual truth.
 - Aggregate Review remains `proposed`. It is necessary input for later package decisions, but is not rendering,
   package readiness, submission readiness, or proof of submission.
+- `package_review_dispositions.yaml` is current for the exact aggregate Review and records one explicit decision for
+  every non-blocker finding. Aggregate blockers cannot be accepted or waived; `revision_required` keeps the package
+  out of reviewed state.
+- Derived application-package readiness is `reviewed` only when every required document receipt is individually
+  reviewed and every current aggregate finding is resolved on the exact basis. Optional documents are reported but
+  do not silently become required. This state is not rendering approval, submission readiness, or proof of
+  submission.
 
 ## Typst Gate
 
@@ -157,13 +164,18 @@ Do not use ready, final, complete, or submission-ready for generated materials u
 ## Executable Gate Report
 
 - `canisend check-package` checks `APP-Q1` advert integrity, `APP-Q2` evidence traceability, `APP-Q3` artifact
-  completeness, and `APP-Q4` unresolved human-review blockers.
+  completeness, `APP-Q4` unresolved document/Typst review blockers, and `APP-Q5` exact aggregate package Review and
+  decision receipts.
 - `check-package --write-report` writes `application_gate_report.json`; without the flag the check is read-only.
 - The report includes SHA-256 hashes under safe relative labels. Any later input or material edit changes those hashes
   and requires a fresh check.
 - A reviewed structured Cover Letter projection binds `cover_letter_draft.json`, `review_findings.json`, and
   `review_dispositions.yaml` hashes and embeds the strict derived document-readiness contract. `check-package`
   independently re-derives that gate. Other missing documents or review blockers still fail package readiness.
+- APP-Q5 validates the current deterministic `package_review_findings.json`, rederives
+  `ApplicationPackageReadinessV1` from `package_review_dispositions.yaml`, and rechecks both hashes after validation.
+  Missing, unsafe, invalid, stale, incomplete, or concurrently changed receipts fail closed. A readable legacy
+  package without aggregate prerequisites does not pass.
 - A later `canisend run` marks an existing report `STALE`; rerun `check-package --write-report` after reconciliation.
 
 ## Privacy Gate

@@ -1,6 +1,6 @@
 # Evidence-Backed Draft Foundation Implementation Plan
 
-**Status:** In progress — Tasks 0–13 and the `0.3.0.dev2` TestPyPI checkpoint accepted; Task 14 underway
+**Status:** In progress — Tasks 0–14 and the `0.3.0.dev2` TestPyPI checkpoint accepted; Task 15 underway
 
 **Date:** 2026-07-13
 
@@ -180,12 +180,12 @@ AgentResponse/TaskSpec contracts, and without claiming package readiness.
 
 ## Task 14: Aggregate Package Review Decisions And Readiness
 
-- [ ] Accept ADR-022 for user-owned package finding decisions and aggregate readiness.
-- [ ] Add guarded package disposition CAS, immutable receipts, recovery, and explicit reset.
-- [ ] Derive package readiness from every required document plus current package Review and dispositions.
-- [ ] Extend APP-Q without turning package readiness into rendering or submission readiness.
-- [ ] Expose body-free aggregate status, counts, consents, reason codes, and next actions.
-- [ ] Prove non-waivable blockers, missing-document closure, legacy compatibility, privacy, and clean-wheel behavior.
+- [x] Accept ADR-022 for user-owned package finding decisions and aggregate readiness.
+- [x] Add guarded package disposition CAS, immutable receipts, recovery, and explicit reset.
+- [x] Derive package readiness from every required document plus current package Review and dispositions.
+- [x] Extend APP-Q without turning package readiness into rendering or submission readiness.
+- [x] Expose body-free aggregate status, counts, consents, reason codes, and next actions.
+- [x] Prove non-waivable blockers, missing-document closure, legacy compatibility, privacy, and clean-wheel behavior.
 
 ## Task 15: Stage 3 Exit And `0.3.0b1` Prerelease
 

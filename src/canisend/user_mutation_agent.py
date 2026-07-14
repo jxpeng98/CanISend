@@ -19,6 +19,7 @@ from canisend.agent_protocol import (
     success_response,
 )
 from canisend.decision_models import ApplicationBriefV1, ApplicationDecisionV1
+from canisend.package_readiness import PackageReviewDispositionsV1
 from canisend.review_readiness import ReviewDispositionsV1
 from canisend.stage_agent import stage_status_agent_response
 from canisend.stage_runtime import StageRuntimeError, inspect_stage_status
@@ -33,6 +34,7 @@ from canisend.user_mutations import (
     APPLICATION_BRIEF_PATH,
     APPLICATION_DECISION_PATH,
     CONFIRMED_CORRECTIONS_PATH,
+    PACKAGE_REVIEW_DISPOSITIONS_PATH,
     REVIEW_DISPOSITIONS_PATH,
     RESEARCH_STATEMENT_REVIEW_DISPOSITIONS_PATH,
     ApplicationBriefInspection,
@@ -42,8 +44,9 @@ from canisend.user_mutations import (
     CurrentArtifactMutationAudit,
     DecisionPatch,
     MutationOutcome,
+    PackageReviewDispositionPatch,
+    PackageReviewDispositionsInspection,
     ReviewDispositionPatch,
-    ReviewDispositionArtifactKind,
     ReviewDispositionsInspection,
     UserArtifactKind,
     UserArtifactSnapshot,
@@ -52,11 +55,13 @@ from canisend.user_mutations import (
     inspect_application_decision,
     inspect_application_brief,
     inspect_current_artifact_mutation,
+    inspect_package_review_dispositions,
     inspect_review_dispositions,
     inspect_user_mutation,
     parse_brief_patch,
     parse_corrections_patch,
     parse_decision_patch,
+    parse_package_review_disposition_patch,
     parse_review_disposition_patch,
 )
 
@@ -94,6 +99,12 @@ def load_brief_patch_file(path: Path) -> BriefPatch:
 
 def load_review_disposition_patch_file(path: Path) -> ReviewDispositionPatch:
     return parse_review_disposition_patch(_load_bounded_patch_mapping(path))
+
+
+def load_package_review_disposition_patch_file(
+    path: Path,
+) -> PackageReviewDispositionPatch:
+    return parse_package_review_disposition_patch(_load_bounded_patch_mapping(path))
 
 
 def corrections_status_agent_response(
@@ -169,6 +180,21 @@ def review_dispositions_status_agent_response(
     )
 
 
+def package_review_dispositions_status_agent_response(
+    workspace: Path,
+    job_dir: Path,
+    inspection: PackageReviewDispositionsInspection,
+) -> AgentResponse:
+    return _projection_response(
+        "package_review.dispositions_status",
+        package_review_dispositions_agent_projection(
+            workspace,
+            job_dir,
+            inspection,
+        ),
+    )
+
+
 def mutation_outcome_agent_response(
     workspace: Path,
     job_dir: Path,
@@ -241,6 +267,13 @@ def mutation_outcome_agent_response(
                 job_dir,
                 document_id=outcome.snapshot.model.document_id,
             ),
+        )
+    elif outcome.snapshot.artifact == "package_review_dispositions":
+        assert isinstance(outcome.snapshot.model, PackageReviewDispositionsV1)
+        projection = package_review_dispositions_agent_projection(
+            workspace,
+            job_dir,
+            inspect_package_review_dispositions(workspace, job_dir),
         )
     else:  # pragma: no cover - guarded by UserArtifactKind
         raise ValueError("unsupported user-owned artifact kind")
@@ -878,6 +911,224 @@ def _review_dispositions_agent_projection_without_audit(
     )
 
 
+def package_review_dispositions_agent_projection(
+    workspace: Path,
+    job_dir: Path,
+    inspection: PackageReviewDispositionsInspection,
+) -> UserMutationAgentProjection:
+    artifact_id: UserArtifactKind = "package_review_dispositions"
+    audit = inspect_current_artifact_mutation(workspace, job_dir, artifact_id)
+    base = _package_review_dispositions_projection_without_audit(
+        workspace,
+        job_dir,
+        inspection,
+    )
+    blocked = _mutation_audit_projection(
+        workspace,
+        job_dir,
+        artifact_id,
+        inspection.snapshot,
+        audit,
+        base,
+    )
+    if blocked is not None:
+        return blocked
+    return _with_mutation_audit(base, audit)
+
+
+def _package_review_dispositions_projection_without_audit(
+    workspace: Path,
+    job_dir: Path,
+    inspection: PackageReviewDispositionsInspection,
+) -> UserMutationAgentProjection:
+    artifact_id: UserArtifactKind = "package_review_dispositions"
+    snapshot = inspection.snapshot
+    artifact = _user_artifact_reference(
+        workspace,
+        job_dir,
+        artifact_id,
+        snapshot,
+    )
+    readiness = inspection.readiness
+    extensions: tuple[tuple[str, JsonScalar], ...] = (
+        ("canisend.user_artifact", artifact_id),
+        ("canisend.user_artifact_revision", snapshot.revision if snapshot else None),
+        ("canisend.package_review_disposition_basis_status", inspection.basis_status),
+        ("canisend.package_review_disposition_reason", _public_reason(inspection.reason)),
+        (
+            "canisend.application_package_readiness",
+            readiness.state if readiness is not None else "unavailable",
+        ),
+        (
+            "canisend.package_required_document_count",
+            len(readiness.required_document_ids) if readiness is not None else 0,
+        ),
+        (
+            "canisend.package_reviewed_required_document_count",
+            len(readiness.reviewed_required_document_ids)
+            if readiness is not None
+            else 0,
+        ),
+        (
+            "canisend.package_optional_document_count",
+            len(readiness.optional_document_ids) if readiness is not None else 0,
+        ),
+        (
+            "canisend.package_accepted_finding_count",
+            len(readiness.accepted_finding_ids) if readiness is not None else 0,
+        ),
+        (
+            "canisend.package_revision_required_count",
+            len(readiness.revision_required_finding_ids)
+            if readiness is not None
+            else 0,
+        ),
+        (
+            "canisend.package_unresolved_finding_count",
+            len(readiness.unresolved_finding_ids) if readiness is not None else 0,
+        ),
+        (
+            "canisend.package_blocker_count",
+            len(readiness.blocker_finding_ids) if readiness is not None else 0,
+        ),
+    )
+
+    if readiness is None:
+        return UserMutationAgentProjection(
+            readiness="review_required",
+            artifacts=(artifact,),
+            blockers=(
+                "A current deterministic aggregate Review is required before package disposition.",
+            ),
+            next_actions=(
+                NextAction(
+                    id="workflow.stage_status",
+                    label="Inspect and run the aggregate package Review stage",
+                ),
+            ),
+            extensions=(*extensions, ("canisend.user_artifact_state", "unavailable")),
+        )
+
+    if readiness.state == "blocked":
+        return UserMutationAgentProjection(
+            readiness="blocked",
+            artifacts=(artifact,),
+            blockers=(
+                "Required-document or aggregate Review blockers must be resolved and cannot be waived.",
+            ),
+            next_actions=(
+                NextAction(
+                    id="package_review.resolve_blockers",
+                    label="Resolve package blockers and rerun affected guarded stages",
+                ),
+            ),
+            extensions=(
+                *extensions,
+                (
+                    "canisend.user_artifact_state",
+                    "current" if snapshot is not None else "missing",
+                ),
+            ),
+        )
+
+    if snapshot is None:
+        consent = _write_consent(artifact_id)
+        return UserMutationAgentProjection(
+            readiness="action_required",
+            artifacts=(artifact,),
+            missing_fields=(PACKAGE_REVIEW_DISPOSITIONS_PATH,),
+            required_consents=(consent,),
+            blockers=("Explicit user-owned package finding decisions are required.",),
+            next_actions=(
+                NextAction(
+                    id="package_review.dispositions_initialize",
+                    label="Initialize decisions for the current aggregate Review",
+                    requires_consent=True,
+                    consent_ids=[consent.id],
+                ),
+            ),
+            extensions=(*extensions, ("canisend.user_artifact_state", "missing")),
+        )
+
+    if inspection.basis_status != "current":
+        consent = _write_consent(artifact_id)
+        return UserMutationAgentProjection(
+            readiness="review_required",
+            artifacts=(artifact,),
+            required_consents=(consent,),
+            warnings=(
+                "The preserved package decisions belong to an older aggregate Review.",
+            ),
+            blockers=(
+                "Package dispositions must be reset against the current aggregate Review.",
+            ),
+            next_actions=(
+                NextAction(
+                    id="package_review.dispositions_update",
+                    label="Reset decisions for the current aggregate Review",
+                    requires_consent=True,
+                    consent_ids=[consent.id],
+                ),
+            ),
+            extensions=(
+                *extensions,
+                ("canisend.user_artifact_state", "review_required"),
+            ),
+        )
+
+    if readiness.state == "revision_required":
+        return UserMutationAgentProjection(
+            readiness="review_required",
+            artifacts=(artifact,),
+            blockers=(
+                "At least one package finding explicitly requires guarded document revision.",
+            ),
+            next_actions=(
+                NextAction(
+                    id="package_review.resolve_findings",
+                    label="Revise targeted documents through guarded Draft candidates",
+                ),
+            ),
+            extensions=(*extensions, ("canisend.user_artifact_state", "current")),
+        )
+
+    if readiness.state == "review_required":
+        read_consent = _read_package_review_findings_consent()
+        write_consent = _write_consent(artifact_id)
+        return UserMutationAgentProjection(
+            readiness="review_required",
+            artifacts=(artifact,),
+            required_consents=(read_consent, write_consent),
+            blockers=(
+                "Every current non-blocker package finding requires an explicit decision.",
+            ),
+            next_actions=(
+                NextAction(
+                    id="package_review.dispositions_update",
+                    label="Inspect and disposition one current package finding",
+                    requires_consent=True,
+                    consent_ids=[read_consent.id, write_consent.id],
+                ),
+            ),
+            extensions=(*extensions, ("canisend.user_artifact_state", "current")),
+        )
+
+    return UserMutationAgentProjection(
+        readiness="ready_for_next_stage",
+        artifacts=(artifact,),
+        warnings=(
+            "Application-package review is not rendering approval or proof of submission.",
+        ),
+        next_actions=(
+            NextAction(
+                id="package.check",
+                label="Run the independent application-package quality gate",
+            ),
+        ),
+        extensions=(*extensions, ("canisend.user_artifact_state", "current")),
+    )
+
+
 def _mutation_audit_projection(
     workspace: Path,
     job_dir: Path,
@@ -984,7 +1235,7 @@ def user_mutation_error_response(
     operation: str,
     error: UserMutationError,
     *,
-    artifact: ReviewDispositionArtifactKind | None = None,
+    artifact: UserArtifactKind | None = None,
     mutation_id: str | None = None,
 ) -> AgentResponse:
     candidate_id = mutation_id or error.mutation_id
@@ -1014,9 +1265,14 @@ def user_mutation_error_response(
                 "decision": "decision.status",
                 "brief": "brief.status",
                 "review_dispositions": "review.dispositions_status",
+                "package_review_dispositions": (
+                    "package_review.dispositions_status"
+                ),
             }[
                 "corrections"
                 if operation.startswith("criteria.corrections")
+                else "package_review_dispositions"
+                if operation.startswith("package_review.dispositions")
                 else "review_dispositions"
                 if operation.startswith("review.dispositions")
                 else "brief"
@@ -1226,6 +1482,7 @@ def _user_artifact_reference(
         "research_statement_review_dispositions": (
             "research_statement_review_dispositions"
         ),
+        "package_review_dispositions": "package_review_dispositions",
     }[artifact]
     return ArtifactReference(
         kind=kind,
@@ -1328,6 +1585,7 @@ def _write_consent(artifact: UserArtifactKind) -> ConsentRequirement:
         "research_statement_review_dispositions": (
             "research_statement_review_dispositions"
         ),
+        "package_review_dispositions": "package_review_dispositions",
     }[artifact]
     return ConsentRequirement(
         id=f"write-user-owned-{artifact}",
@@ -1351,6 +1609,15 @@ def _read_review_findings_consent(document_kind: str) -> ConsentRequirement:
     )
 
 
+def _read_package_review_findings_consent() -> ConsentRequirement:
+    return ConsentRequirement(
+        id="read-private-package-review-findings",
+        purpose="Allow inspection of private aggregate Review finding bodies before disposition.",
+        privacy_tier=2,
+        artifact_kinds=["package_review_findings"],
+    )
+
+
 def _recovery_consent() -> ConsentRequirement:
     return ConsentRequirement(
         id="recover-user-owned-mutation",
@@ -1362,6 +1629,7 @@ def _recovery_consent() -> ConsentRequirement:
             "application_brief",
             "review_dispositions",
             "research_statement_review_dispositions",
+            "package_review_dispositions",
         ],
     )
 
@@ -1369,7 +1637,7 @@ def _recovery_consent() -> ConsentRequirement:
 def _operation_consent(
     operation: str,
     *,
-    artifact: ReviewDispositionArtifactKind | None = None,
+    artifact: UserArtifactKind | None = None,
 ) -> ConsentRequirement | None:
     if operation.startswith("criteria.corrections"):
         return _write_consent("corrections")
@@ -1379,6 +1647,8 @@ def _operation_consent(
         return _write_consent("brief")
     if operation.startswith("review.dispositions"):
         return _write_consent(artifact or "review_dispositions")
+    if operation.startswith("package_review.dispositions"):
+        return _write_consent("package_review_dispositions")
     if operation == "user_mutation.recover":
         return _recovery_consent()
     return None
@@ -1466,6 +1736,7 @@ def _artifact_path(artifact: UserArtifactKind) -> str:
         "research_statement_review_dispositions": (
             RESEARCH_STATEMENT_REVIEW_DISPOSITIONS_PATH
         ),
+        "package_review_dispositions": PACKAGE_REVIEW_DISPOSITIONS_PATH,
     }[artifact]
 
 

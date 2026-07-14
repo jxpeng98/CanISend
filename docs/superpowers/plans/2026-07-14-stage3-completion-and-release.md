@@ -1,6 +1,6 @@
 # Stage 3 Completion And 0.3.0 Release Implementation Plan
 
-**Status:** In progress — Release A (`0.3.0.dev2`) and Task 13 accepted; Task 14 underway
+**Status:** In progress — Release A (`0.3.0.dev2`) and Tasks 13–14 accepted; Task 15 underway
 
 **Date:** 2026-07-14
 
@@ -205,6 +205,29 @@ current required-document and consistency-review receipts.
 - `check-package` cannot pass from Cover Letter readiness alone or from a stale aggregate receipt.
 - Existing single-document package behavior remains readable and fails closed until aggregate prerequisites exist.
 - Supported Python versions, installed-wheel smoke, Typst protection, and Git tracking remain compatible.
+
+### Task 14 Validation Snapshot
+
+Task 14 was locally accepted on 2026-07-14:
+
+- ADR-022, strict `PackageReviewDispositionsV1` and `ApplicationPackageReadinessV1` schemas, explicit-consent
+  revision/hash CAS, immutable claims/receipts, recovery, stale reset, and body-free `package-review
+  status|init|update` are implemented.
+- APP-Q5 independently validates the deterministic aggregate Review, rederives readiness from the exact package
+  disposition receipt, fails legacy/missing/stale/incomplete inputs closed, and keeps optional standalone Research
+  Statement outputs outside package requiredness and input hashes.
+- The focused aggregate mutation/readiness/CLI/schema suite passed 59 tests. It covers partial decisions, clear,
+  revision requests, non-waivable blockers, stale basis, explicit reset, interrupted-receipt recovery, privacy, and
+  Cover-Letter-only gate closure.
+- The final development-interpreter suite passed 1,093 tests in 801.06 seconds. Canonical and compatibility skills
+  remain identical and below the productization size limit.
+- Source and fresh Python 3.12.12 clean-wheel smokes both passed with 11 successful stages and 19 immutable
+  user-mutation receipts. The packaged fixture rejected an attempted aggregate blocker waiver and kept readiness
+  `blocked` while APP-Q5 bound both aggregate receipts.
+- `uv build`, Twine metadata validation, and packaged-resource validation passed for both the wheel and source
+  distribution.
+- Full supported-version reruns, real Typst release evidence, the Stage 3 reviewed-package fixture, remote CI, and
+  prerelease publication remain Task 15 work.
 
 ## Task 15: Stage 3 Exit And `0.3.0b1` Candidate
 

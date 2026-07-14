@@ -42,9 +42,8 @@ Requires explicit user approval:
 - Reading the body of `criteria.json` or `criterion_matches.json`. Both are Tier 2 job artifacts even though Match is
   body-minimized; Criteria can also contain the user's corrected wording. Prefer AgentResponse counts, IDs, states,
   and reason codes when those are sufficient.
-- Reading Tier 2 Brief/plan bodies, `cover_letter_draft.json`, `research_statement_draft.json`,
-  `review_findings.json`, `research_statement_review_findings.json`, `package_review_findings.json`, or either
-  document's dispositions. Prefer body-free metadata.
+- Reading Tier 2 `application_brief.yaml`, `required_document_plan.json`, `cover_letter_draft.json`,
+  `review_findings.json`, package Review, or document/package disposition bodies. Prefer body-free metadata.
 - Completing a `stage prepare --mode host-agent` Parse task, because it requires the current host to read the full reviewed advert. Read the TaskSpec and receipts only through their AgentResponse references, write candidate JSON to a fresh scratch file, then use `stage submit --candidate-file`; never write or modify declared run paths directly.
 - Completing `stage prepare --stage draft --mode host-agent`. After Tier 2 approval, read only declared inputs, write schema-valid Cover Letter or
   Research Statement scratch JSON, and use guarded submit/apply; never write run paths or authoritative Drafts.
@@ -65,10 +64,9 @@ Always forbidden:
 - Do not write `parsed_job.json` directly during resumable stage work; only `stage apply` may promote a validated candidate.
 - Do not edit `criteria.json` directly; rerun Confirm after an explicitly authorized update to the user-owned
   `confirmed_corrections.yaml` overlay.
-- Do not have an agent directly create, normalize, or overwrite `confirmed_corrections.yaml`,
-  `application_decision.yaml`, `application_brief.yaml`, `review_dispositions.yaml`, or `research_statement_review_dispositions.yaml`. Users may edit their YAML manually; agent writes go
-  through status, one scoped patch, revision/hash CAS, and explicit consent. Empty corrections initialization is
-  fingerprint-neutral; rerun Confirm after every semantic correction before applying another.
+- Do not have an agent directly create, normalize, or overwrite user-owned Decision/Brief/corrections or
+  document/package disposition YAML. Users may edit it manually; agent writes use body-free status, one scoped
+  revision/hash CAS patch, and explicit consent. Rerun Confirm after every semantic correction before another.
 - Do not describe reset, clear, withdraw, or supersede as erasure: private mutation candidates and correction history
   remain in the ignored job for audit/recovery until the user makes a separate retention decision.
 - Do not edit `evidence_catalog.json` or `criterion_matches.json` directly; rerun their deterministic stages. Treat
@@ -127,13 +125,15 @@ When the focused skills are installed:
 12. Stage 2 is locally accepted, but Draft/package readiness does not follow from its artifacts. Treat an unconfirmed document set, `required + omit`, missing preparation action, orphaned choice, or unavailable required executor as a blocker.
 13. Use host-agent Draft prepare/submit/apply after Tier 2 approval. Cover Letter alone may use configured-provider
     after Tier 3 approval. Every block is a Claim; multiple targets require the exact plan ID with `--document-id`.
-14. Run deterministic Review with the same ID and resolve blockers. Use body-free `review-dispositions status`, then
-    guarded init/update with that ID for either Cover Letter or Research Statement. Every Draft and Review remains
-    `proposed`; complete decisions derive per-document readiness, not package readiness.
-15. Run deterministic `stage run --stage package_review` without a document ID; resolve exact blockers, treat semantic consistency as human review, and do not call the result package readiness.
-16. Use `canisend run --workspace <private-workspace> --job jobs/<job-slug>` for the compatible full-package pipeline.
-    Current Match supplies proposed package views; current blocker-free Cover Draft/Review supplies Cover views, with
-    exact dispositions controlling `requires_human_review`. An exact reviewed Research Statement supplies standalone
-    Markdown/Typst only, absent from package content/gates. Ineligible output safely falls back or becomes body-free unavailable; edited Typst receives a candidate. Per-document readiness is not whole-package readiness.
-17. Add configured-provider execution or LLM-backed flags only after checking `references/provider-config.md` and getting explicit user approval.
-18. Review outputs against `references/quality-gates.md` before rendering or presenting final package materials.
+14. Run Review with the same ID, then body-free `review-dispositions status` and guarded init/update. Draft/Review
+    remain `proposed`; complete decisions derive per-document readiness, not package readiness.
+15. Run deterministic `stage run --stage package_review` without a document ID; resolve exact blockers and treat
+    semantic consistency as human review. Use body-free `package-review status` and guarded `init`/`update`; blockers
+    cannot be waived and stale decisions require reset. Only exact complete decisions derive application-package
+    `reviewed`, which is not rendering approval or submission evidence.
+16. Run `check-package`; APP-Q5 rederives aggregate readiness and makes legacy packages without receipts fail closed.
+17. Use `canisend run --workspace <private-workspace> --job jobs/<job-slug>` for the compatible full-package pipeline.
+    Current Match/Cover receipts supply package views; an exact reviewed Research Statement remains standalone.
+    Ineligible output falls back safely; edited Typst gets a candidate. Document readiness is not package readiness.
+18. Add configured-provider execution or LLM-backed flags only after checking `references/provider-config.md` and getting explicit user approval.
+19. Review outputs against `references/quality-gates.md` before rendering or presenting final package materials.

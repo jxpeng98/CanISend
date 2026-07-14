@@ -14,6 +14,7 @@ from canisend.user_mutations import (
     UserMutationClaimV1,
     UserMutationReceiptV1,
 )
+from canisend.package_readiness import PackageReviewDispositionsV1
 from canisend.review_readiness import ReviewDispositionsV1
 from canisend.decision_models import (
     ApplicationBriefV1,
@@ -96,6 +97,17 @@ def test_receipt_schema_rejects_public_transition_and_path_mismatches() -> None:
     assert list(
         validator.iter_errors(
             {**research_dispositions, "target_path": "review_dispositions.yaml"}
+        )
+    )
+    package_dispositions = {
+        **valid,
+        "artifact": "package_review_dispositions",
+        "target_path": "package_review_dispositions.yaml",
+    }
+    validator.validate(package_dispositions)
+    assert list(
+        validator.iter_errors(
+            {**package_dispositions, "target_path": "review_dispositions.yaml"}
         )
     )
     assert list(
@@ -207,6 +219,21 @@ def test_user_revision_maximum_matches_runtime_and_static_schemas() -> None:
         ReviewDispositionsV1.model_validate(
             {
                 **review_dispositions.model_dump(mode="json"),
+                "revision": MAX_USER_REVISION + 1,
+            }
+        )
+
+    package_dispositions = PackageReviewDispositionsV1(
+        job_id="example-role",
+        revision=MAX_USER_REVISION,
+        updated_at=COMMITTED_AT,
+        package_review_findings_sha256=SHA_A,
+    )
+    assert package_dispositions.revision == MAX_USER_REVISION
+    with pytest.raises(ValidationError):
+        PackageReviewDispositionsV1.model_validate(
+            {
+                **package_dispositions.model_dump(mode="json"),
                 "revision": MAX_USER_REVISION + 1,
             }
         )

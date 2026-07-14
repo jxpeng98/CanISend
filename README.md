@@ -36,6 +36,9 @@ It prepares materials only. It does not submit applications, create accounts, fi
 - Adds deterministic aggregate `package_review` over the exact current document plan and document receipts. Missing
   required documents and provable Evidence-receipt conflicts are blockers; tone and narrative alignment remain
   explicit human-review work, and the stage never rewrites a Draft.
+- Preserves package finding decisions in an independent user-owned CAS file and derives body-free application-package
+  readiness from exact required-document, aggregate Review, and decision receipts. `check-package` rederives APP-Q5;
+  this review boundary is not rendering approval or submission evidence.
 - Derives a body-free required-document execution fan-out, so guarded Cover Letter/Research Statement work,
   confirmed omissions, unresolved tasks, and document kinds without implemented executors remain distinguishable
   across agent hosts.
@@ -436,9 +439,10 @@ canisend check-package \
   --job jobs/<job-slug>
 ```
 
-The check reports incomplete advert or parsed-job inputs, missing or structurally incomplete Typst sources, explicit review blockers,
-unresolved bracketed placeholders, and unknown profile evidence citations. It does not modify files unless an explicit
-machine-readable gate report is requested:
+The check reports incomplete advert or parsed-job inputs, missing or structurally incomplete Typst sources, explicit
+review blockers, unresolved bracketed placeholders, unknown profile evidence citations, and APP-Q5 aggregate receipt
+failures. A legacy package remains readable but cannot pass without current aggregate Review and package decisions.
+The command does not modify files unless an explicit machine-readable gate report is requested:
 
 ```bash
 canisend check-package \
@@ -716,6 +720,23 @@ support, proportionality, tone, and narrative alignment are never guessed. Corre
 and Claim set and may be applied only through a new guarded Draft candidate. This Review is not package readiness or
 submission approval.
 
+Inspect aggregate readiness without exposing finding bodies, then initialize or change the independent user-owned
+package decisions with explicit consent and the latest revision/hash:
+
+```bash
+canisend package-review status --workspace . --job jobs/<job-slug> --format json
+canisend package-review init --workspace . --job jobs/<job-slug> \
+  --confirm-user-owned-write --format json
+canisend package-review update --workspace . --job jobs/<job-slug> --patch-file <patch.yaml> \
+  --expected-revision <revision> --expected-sha256 <sha256> \
+  --confirm-user-owned-write --format json
+```
+
+Use `set_package_finding_disposition` or `clear_package_finding_disposition` for one current finding; use
+`reset_for_current_package_review` after the aggregate Review changes. Blockers cannot be accepted. Only complete
+current decisions over individually reviewed required documents derive application-package `reviewed`; that state
+still does not mean rendered, submitted, or received.
+
 Evidence and Parse are independent after intake, so their deterministic runs may be ordered either way; Match waits
 for current Confirm and Evidence outputs. Host-agent execution applies to Parse and Draft, while configured-provider
 execution currently applies only to Draft; Evidence, Confirm, Match, Brief, Review, and Package Review are
@@ -906,7 +927,8 @@ This repository is intended to be open source. Personal application data should 
   an explicit user retention decision.
 - `criteria.json`, `criterion_matches.json`, `confirmed_corrections.yaml`, `application_decision.yaml`,
   `application_brief.yaml`, `required_document_plan.json`, both structured Draft/Review pairs,
-  `review_dispositions.yaml`, `research_statement_review_dispositions.yaml`, and
+  `review_dispositions.yaml`, `research_statement_review_dispositions.yaml`, `package_review_findings.json`,
+  `package_review_dispositions.yaml`, and
   private mutation/stage candidates are Tier 2. Criteria may contain corrected wording; Match is body-minimized,
   while Brief, plan, Draft, Review, and dispositions may reveal private motivation, exclusions, source text, application strategy,
   or prose. Mutation receipts are Tier 1 and contain none of those bodies; neither do workflow control records,

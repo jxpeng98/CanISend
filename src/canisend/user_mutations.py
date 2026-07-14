@@ -47,6 +47,12 @@ from canisend.draft_models import (
     ResearchStatementDraftV1,
     ReviewFindingsV1,
 )
+from canisend.package_readiness import (
+    ApplicationPackageReadinessV1,
+    PackageReviewDispositionsV1,
+    derive_application_package_readiness,
+)
+from canisend.package_review_models import PackageReviewFindingsV1
 from canisend.review_readiness import (
     DocumentReadinessV1,
     FindingDispositionV1,
@@ -99,6 +105,8 @@ REVIEW_DISPOSITIONS_PATH = "review_dispositions.yaml"
 RESEARCH_STATEMENT_REVIEW_DISPOSITIONS_PATH = (
     "research_statement_review_dispositions.yaml"
 )
+PACKAGE_REVIEW_DISPOSITIONS_PATH = "package_review_dispositions.yaml"
+PACKAGE_REVIEW_FINDINGS_PATH = "package_review_findings.json"
 REQUIRED_DOCUMENT_PLAN_PATH = "required_document_plan.json"
 
 UserArtifactKind = Literal[
@@ -107,6 +115,7 @@ UserArtifactKind = Literal[
     "brief",
     "review_dispositions",
     "research_statement_review_dispositions",
+    "package_review_dispositions",
 ]
 ReviewDispositionArtifactKind = Literal[
     "review_dispositions",
@@ -141,6 +150,7 @@ _USER_ARTIFACT_PATHS: dict[UserArtifactKind, str] = {
     "research_statement_review_dispositions": (
         RESEARCH_STATEMENT_REVIEW_DISPOSITIONS_PATH
     ),
+    "package_review_dispositions": PACKAGE_REVIEW_DISPOSITIONS_PATH,
 }
 _USER_ARTIFACT_KINDS: tuple[UserArtifactKind, ...] = (
     "corrections",
@@ -148,6 +158,7 @@ _USER_ARTIFACT_KINDS: tuple[UserArtifactKind, ...] = (
     "brief",
     "review_dispositions",
     "research_statement_review_dispositions",
+    "package_review_dispositions",
 )
 
 USER_MUTATION_ERROR_CODES = frozenset(
@@ -326,6 +337,27 @@ class ResetForCurrentReviewPatch(_MutationModel):
     operation: Literal["reset_for_current_review"] = "reset_for_current_review"
 
 
+class SetPackageFindingDispositionPatch(_MutationModel):
+    operation: Literal[
+        "set_package_finding_disposition"
+    ] = "set_package_finding_disposition"
+    finding_id: str = Field(pattern=r"^finding_[0-9a-f]{32}$")
+    disposition: Literal["accepted", "revision_required"]
+
+
+class ClearPackageFindingDispositionPatch(_MutationModel):
+    operation: Literal[
+        "clear_package_finding_disposition"
+    ] = "clear_package_finding_disposition"
+    finding_id: str = Field(pattern=r"^finding_[0-9a-f]{32}$")
+
+
+class ResetForCurrentPackageReviewPatch(_MutationModel):
+    operation: Literal[
+        "reset_for_current_package_review"
+    ] = "reset_for_current_package_review"
+
+
 CorrectionsPatch: TypeAlias = Annotated[
     ConfirmCriterionPatch
     | CorrectCriterionPatch
@@ -356,14 +388,27 @@ ReviewDispositionPatch: TypeAlias = Annotated[
     | ResetForCurrentReviewPatch,
     Field(discriminator="operation"),
 ]
+PackageReviewDispositionPatch: TypeAlias = Annotated[
+    SetPackageFindingDispositionPatch
+    | ClearPackageFindingDispositionPatch
+    | ResetForCurrentPackageReviewPatch,
+    Field(discriminator="operation"),
+]
 UserPatch: TypeAlias = (
-    CorrectionsPatch | DecisionPatch | BriefPatch | ReviewDispositionPatch
+    CorrectionsPatch
+    | DecisionPatch
+    | BriefPatch
+    | ReviewDispositionPatch
+    | PackageReviewDispositionPatch
 )
 
 _CORRECTIONS_PATCH_ADAPTER = TypeAdapter(CorrectionsPatch)
 _DECISION_PATCH_ADAPTER = TypeAdapter(DecisionPatch)
 _BRIEF_PATCH_ADAPTER = TypeAdapter(BriefPatch)
 _REVIEW_DISPOSITION_PATCH_ADAPTER = TypeAdapter(ReviewDispositionPatch)
+_PACKAGE_REVIEW_DISPOSITION_PATCH_ADAPTER = TypeAdapter(
+    PackageReviewDispositionPatch
+)
 
 
 class UserMutationClaimV1(_MutationModel):
@@ -377,6 +422,7 @@ class UserMutationClaimV1(_MutationModel):
         APPLICATION_BRIEF_PATH,
         REVIEW_DISPOSITIONS_PATH,
         RESEARCH_STATEMENT_REVIEW_DISPOSITIONS_PATH,
+        PACKAGE_REVIEW_DISPOSITIONS_PATH,
     ]
     expected_revision: UserRevision | None = None
     expected_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
@@ -460,6 +506,17 @@ class UserMutationReceiptV1(_MutationModel):
                             },
                             "required": ["artifact", "target_path"],
                         },
+                        {
+                            "properties": {
+                                "artifact": {
+                                    "const": "package_review_dispositions"
+                                },
+                                "target_path": {
+                                    "const": PACKAGE_REVIEW_DISPOSITIONS_PATH
+                                },
+                            },
+                            "required": ["artifact", "target_path"],
+                        },
                     ]
                 },
                 {
@@ -513,6 +570,7 @@ class UserMutationReceiptV1(_MutationModel):
         APPLICATION_BRIEF_PATH,
         REVIEW_DISPOSITIONS_PATH,
         RESEARCH_STATEMENT_REVIEW_DISPOSITIONS_PATH,
+        PACKAGE_REVIEW_DISPOSITIONS_PATH,
     ]
     expected_revision: UserRevision | None = None
     expected_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
@@ -541,6 +599,7 @@ UserArtifactModel: TypeAlias = (
     | ApplicationDecisionV1
     | ApplicationBriefV1
     | ReviewDispositionsV1
+    | PackageReviewDispositionsV1
 )
 
 
@@ -612,6 +671,14 @@ class ReviewDispositionsInspection:
 
 
 @dataclass(frozen=True)
+class PackageReviewDispositionsInspection:
+    snapshot: UserArtifactSnapshot | None
+    basis_status: DecisionBasisStatus
+    readiness: ApplicationPackageReadinessV1 | None
+    reason: str | None = None
+
+
+@dataclass(frozen=True)
 class CurrentArtifactMutationAudit:
     """Privacy-safe state of durable mutation controls for one current artifact."""
 
@@ -656,6 +723,18 @@ def parse_review_disposition_patch(value: object) -> ReviewDispositionPatch:
         raise UserMutationError(
             "user_input.invalid",
             "The Review disposition patch is not a supported scoped operation.",
+        ) from exc
+
+
+def parse_package_review_disposition_patch(
+    value: object,
+) -> PackageReviewDispositionPatch:
+    try:
+        return _PACKAGE_REVIEW_DISPOSITION_PATCH_ADAPTER.validate_python(value)
+    except ValidationError as exc:
+        raise UserMutationError(
+            "user_input.invalid",
+            "The package Review disposition patch is not a supported scoped operation.",
         ) from exc
 
 
@@ -890,6 +969,14 @@ def initialize_user_artifact(
             draft_sha256=draft_snapshot.sha256,
             review_findings_sha256=review_snapshot.sha256,
         )
+    elif artifact == "package_review_dispositions":
+        _review, review_snapshot = _current_package_review_basis(root, job)
+        model = PackageReviewDispositionsV1(
+            job_id=job.name,
+            revision=0,
+            updated_at=now,
+            package_review_findings_sha256=review_snapshot.sha256,
+        )
     else:  # pragma: no cover - protected by the public Literal and path map
         raise UserMutationError("user_input.invalid", "Unsupported user-owned artifact.")
     return _commit_candidate(
@@ -1007,6 +1094,19 @@ def apply_user_patch(
             current.model,
             normalized_patch,
             context=review_context,
+        )
+    elif artifact == "package_review_dispositions":
+        normalized_patch = (
+            patch
+            if isinstance(patch, _package_review_disposition_patch_classes())
+            else parse_package_review_disposition_patch(patch)
+        )
+        assert isinstance(current.model, PackageReviewDispositionsV1)
+        result_model = _apply_package_review_disposition_patch(
+            root,
+            job,
+            current.model,
+            normalized_patch,
         )
     else:  # pragma: no cover - protected by _patch_artifact
         raise UserMutationError("user_input.invalid", "Unsupported user-owned artifact.")
@@ -1267,6 +1367,68 @@ def inspect_review_dispositions(
     )
 
 
+def inspect_package_review_dispositions(
+    workspace: Path,
+    job_dir: Path,
+) -> PackageReviewDispositionsInspection:
+    root, job = _mutation_paths(workspace, job_dir)
+    snapshot: UserArtifactSnapshot | None = None
+    try:
+        snapshot = _load_artifact_snapshot(
+            job,
+            "package_review_dispositions",
+            allow_missing=True,
+        )
+        review, review_snapshot = _current_package_review_basis(root, job)
+    except UserMutationError as exc:
+        return PackageReviewDispositionsInspection(
+            snapshot=snapshot,
+            basis_status=(
+                "review_required" if snapshot is not None else "unavailable"
+            ),
+            readiness=None,
+            reason=exc.code,
+        )
+
+    dispositions = None
+    dispositions_sha256 = None
+    basis_status: DecisionBasisStatus = "current"
+    reason: str | None = None
+    if snapshot is not None:
+        assert isinstance(snapshot.model, PackageReviewDispositionsV1)
+        dispositions = snapshot.model
+        dispositions_sha256 = snapshot.sha256
+        if (
+            dispositions.job_id != review.job_id
+            or dispositions.package_review_findings_sha256
+            != review_snapshot.sha256
+        ):
+            basis_status = "review_required"
+            reason = "package.dispositions_stale"
+
+    readiness = derive_application_package_readiness(
+        review,
+        package_review_findings_sha256=review_snapshot.sha256,
+        dispositions=dispositions,
+        package_review_dispositions_sha256=dispositions_sha256,
+    )
+    if readiness.state == "blocked":
+        reason = "package.blocker_open"
+    elif readiness.state == "revision_required":
+        reason = "package.revision_required"
+    elif readiness.state == "review_required" and reason is None:
+        reason = readiness.reason_codes[0] if readiness.reason_codes else None
+    if "package.disposition_orphaned" in readiness.reason_codes:
+        basis_status = "review_required"
+        reason = "package.disposition_orphaned"
+    return PackageReviewDispositionsInspection(
+        snapshot=snapshot,
+        basis_status=basis_status,
+        readiness=readiness,
+        reason=reason,
+    )
+
+
 def inspect_user_mutation(
     workspace: Path,
     job_dir: Path,
@@ -1432,6 +1594,22 @@ def initialize_review_dispositions(
         workspace,
         job_dir,
         context.artifact,
+        consent_confirmed=consent_confirmed,
+        mutation_id=mutation_id,
+    )
+
+
+def initialize_package_review_dispositions(
+    workspace: Path,
+    job_dir: Path,
+    *,
+    consent_confirmed: bool,
+    mutation_id: str | None = None,
+) -> MutationOutcome:
+    return initialize_user_artifact(
+        workspace,
+        job_dir,
+        "package_review_dispositions",
         consent_confirmed=consent_confirmed,
         mutation_id=mutation_id,
     )
@@ -1825,6 +2003,92 @@ def _apply_review_disposition_patch(
         raise UserMutationError(
             "user_input.invalid",
             "The Review disposition update cannot form a valid next revision.",
+        ) from exc
+
+
+def _apply_package_review_disposition_patch(
+    workspace: Path,
+    job: Path,
+    current: PackageReviewDispositionsV1,
+    patch: PackageReviewDispositionPatch,
+) -> PackageReviewDispositionsV1:
+    review, review_snapshot = _current_package_review_basis(workspace, job)
+    now = _next_timestamp(current.updated_at)
+    updates: dict[str, Any] = {
+        "revision": current.revision + 1,
+        "updated_at": now,
+    }
+
+    if isinstance(patch, ResetForCurrentPackageReviewPatch):
+        updates.update(
+            {
+                "package_review_findings_sha256": review_snapshot.sha256,
+                "dispositions": (),
+            }
+        )
+    else:
+        if current.package_review_findings_sha256 != review_snapshot.sha256:
+            raise UserMutationError(
+                "user_input.dependency_not_current",
+                "Package dispositions must be reset against the current aggregate Review before editing.",
+            )
+        finding = next(
+            (item for item in review.findings if item.finding_id == patch.finding_id),
+            None,
+        )
+        if finding is None:
+            raise UserMutationError(
+                "user_input.invalid",
+                "The package disposition patch does not target a current finding.",
+            )
+        existing = tuple(
+            item
+            for item in current.dispositions
+            if item.finding_id != patch.finding_id
+        )
+        if isinstance(patch, ClearPackageFindingDispositionPatch):
+            if len(existing) == len(current.dispositions):
+                raise UserMutationError(
+                    "user_input.invalid",
+                    "The current package Review has no matching disposition to clear.",
+                )
+            dispositions = existing
+        else:
+            assert isinstance(patch, SetPackageFindingDispositionPatch)
+            if finding.severity == "blocker" and patch.disposition == "accepted":
+                raise UserMutationError(
+                    "user_input.invalid",
+                    "Executable package blockers cannot be accepted or waived.",
+                )
+            dispositions = (
+                *existing,
+                FindingDispositionV1(
+                    finding_id=finding.finding_id,
+                    disposition=patch.disposition,
+                    decided_at=now,
+                ),
+            )
+        updates["dispositions"] = tuple(
+            sorted(dispositions, key=lambda item: item.finding_id)
+        )
+
+    latest_review, latest_snapshot = _current_package_review_basis(workspace, job)
+    if latest_review != review or latest_snapshot.sha256 != review_snapshot.sha256:
+        raise UserMutationError(
+            "user_input.dependency_not_current",
+            "The aggregate Review changed while the package disposition patch was inspected.",
+        )
+    try:
+        return PackageReviewDispositionsV1.model_validate(
+            {
+                **current.model_dump(mode="json"),
+                **updates,
+            }
+        )
+    except ValidationError as exc:
+        raise UserMutationError(
+            "user_input.invalid",
+            "The package disposition update cannot form a valid next revision.",
         ) from exc
 
 
@@ -2565,6 +2829,27 @@ def _current_review_basis(
     return review, draft_snapshot, review_snapshot
 
 
+def _current_package_review_basis(
+    workspace: Path,
+    job: Path,
+) -> tuple[PackageReviewFindingsV1, SafeFileSnapshot]:
+    _require_stage_current(workspace, job, "package_review")
+    review, review_snapshot = _load_structured_artifact(
+        job,
+        PACKAGE_REVIEW_FINDINGS_PATH,
+        PackageReviewFindingsV1,
+    )
+    assert isinstance(review, PackageReviewFindingsV1)
+    _require_stage_current(workspace, job, "package_review")
+    final_review = _read_safe(job, PACKAGE_REVIEW_FINDINGS_PATH)
+    if final_review.sha256 != review_snapshot.sha256:
+        raise UserMutationError(
+            "user_input.dependency_not_current",
+            "The aggregate Review changed while its basis was inspected.",
+        )
+    return review, review_snapshot
+
+
 def _load_structured_artifact(
     job: Path,
     relative_path: str,
@@ -2951,6 +3236,12 @@ def _patch_artifact(patch: UserPatch | dict[str, Any]) -> UserArtifactKind:
         "reset_for_current_review",
     }:
         return "review_dispositions"
+    if operation in {
+        "set_package_finding_disposition",
+        "clear_package_finding_disposition",
+        "reset_for_current_package_review",
+    }:
+        return "package_review_dispositions"
     raise UserMutationError(
         "user_input.invalid",
         "The user-owned patch operation is not supported.",
@@ -2989,6 +3280,14 @@ def _review_disposition_patch_classes() -> tuple[type[BaseModel], ...]:
     )
 
 
+def _package_review_disposition_patch_classes() -> tuple[type[BaseModel], ...]:
+    return (
+        SetPackageFindingDispositionPatch,
+        ClearPackageFindingDispositionPatch,
+        ResetForCurrentPackageReviewPatch,
+    )
+
+
 def _target_path(artifact: UserArtifactKind) -> str:
     try:
         return _USER_ARTIFACT_PATHS[artifact]
@@ -3003,6 +3302,7 @@ def _artifact_model_type(
     | type[ApplicationDecisionV1]
     | type[ApplicationBriefV1]
     | type[ReviewDispositionsV1]
+    | type[PackageReviewDispositionsV1]
 ):
     if artifact == "corrections":
         return ConfirmedCorrectionsV1
@@ -3015,6 +3315,8 @@ def _artifact_model_type(
         "research_statement_review_dispositions",
     }:
         return ReviewDispositionsV1
+    if artifact == "package_review_dispositions":
+        return PackageReviewDispositionsV1
     raise ValueError("unsupported user-owned artifact")
 
 

@@ -19,6 +19,10 @@ from canisend.draft_models import (
 )
 from canisend.document_execution import DocumentExecutionPlanV1
 from canisend.package_review_models import PackageReviewFindingsV1
+from canisend.package_readiness import (
+    ApplicationPackageReadinessV1,
+    PackageReviewDispositionsV1,
+)
 from canisend.review_readiness import DocumentReadinessV1, ReviewDispositionsV1
 from canisend.user_mutations import UserMutationReceiptV1
 
@@ -38,6 +42,8 @@ SCHEMAS = {
     "document-readiness.schema.json": DocumentReadinessV1,
     "document-execution-plan.schema.json": DocumentExecutionPlanV1,
     "package-review-findings.schema.json": PackageReviewFindingsV1,
+    "package-review-dispositions.schema.json": PackageReviewDispositionsV1,
+    "application-package-readiness.schema.json": ApplicationPackageReadinessV1,
     "user-mutation-receipt.schema.json": UserMutationReceiptV1,
 }
 

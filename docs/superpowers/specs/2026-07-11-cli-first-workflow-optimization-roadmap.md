@@ -1,7 +1,7 @@
 # CLI-First Workflow Optimization Execution Roadmap
 
-**Status:** Active — Stages 1 and 2 plus Stage 3 Tasks 0–13 are locally accepted; the `0.3.0.dev2` TestPyPI
-development checkpoint is accepted and Stage 3 aggregate readiness completion is in progress
+**Status:** Active — Stages 1 and 2 plus Stage 3 Tasks 0–14 are locally accepted; the `0.3.0.dev2` TestPyPI
+development checkpoint is accepted and Stage 3 exit/`0.3.0b1` preparation is in progress
 
 **Date:** 2026-07-11
 

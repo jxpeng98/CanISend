@@ -93,6 +93,7 @@ research_statement_review_findings.json # deterministic Research Statement Revie
 package_review_findings.json  # deterministic aggregate Package Review
 review_dispositions.yaml      # user-owned Cover Letter finding decisions
 research_statement_review_dispositions.yaml # user-owned Research Statement finding decisions
+package_review_dispositions.yaml # user-owned aggregate finding decisions
 workflow/
   state.json                 # rebuildable view
   user-mutations/
@@ -191,6 +192,10 @@ RSS and Atom lead outputs live in ignored `job_leads/`.
   current revision/hash, and explicit consent. `accepted` is valid only for non-blockers; `revision_required` keeps
   that document out of readiness. A changed Draft/Review preserves the file but requires
   `reset_for_current_review` before new findings are edited.
+- `package_review_dispositions.yaml`: independent strict user-owned Tier 2 aggregate finding decisions bound to the
+  exact package Review hash. Agent writes use `package-review status|init|update`, one package finding, the current
+  revision/hash, and explicit consent. Aggregate blockers cannot be accepted; a changed package Review preserves
+  the old file until `reset_for_current_package_review` explicitly rebinds it.
 - `schemas/document-readiness.schema.json`: derived Cover Letter or Research Statement readiness contract. It is
   recomputed from the selected document's current Draft, Review, and dispositions; it is not a mutable approval file
   and does not establish whole-package readiness. Only Cover Letter readiness is embedded in current compatibility
@@ -198,6 +203,10 @@ RSS and Atom lead outputs live in ignored `job_leads/`.
 - `schemas/document-execution-plan.schema.json`: body-free, read-only fan-out projection derived from the exact
   Required Document Plan hash. It distinguishes blocked, omitted, dispatchable, planned-unavailable, and
   unregistered document work without persisting a second workflow state or claiming package readiness.
+- `schemas/application-package-readiness.schema.json`: body-free derived aggregate readiness contract. It binds the
+  exact required-document receipts, package Review, and current package dispositions, and distinguishes `blocked`,
+  `review_required`, `revision_required`, and `reviewed`. It is not a mutable approval file, rendering approval,
+  submission readiness, or submission evidence.
 - `workflow/user-mutations/`: private immutable candidates plus cooperative single-winner claims and immutable
   receipts. Candidate/YAML bodies and corrected Criteria are Tier 2. Claims and receipts never include correction
   text, rationale, Brief values, finding messages, or document source text; the receipt is Tier 1 and validates against
@@ -240,7 +249,8 @@ RSS and Atom lead outputs live in ignored `job_leads/`.
 - `typst/*.generated.typ`: candidate regeneration written only when the corresponding editable `.typ` has diverged
   from its generated baseline.
 - `application_gate_report.json`: optional machine-readable `APP-Q*` report written only by an explicit
-  `check-package --write-report` request.
+  `check-package --write-report` request. APP-Q5 independently rederives aggregate package readiness and fails
+  closed when its exact Review/decision receipts are absent, invalid, stale, incomplete, or changed.
 
 The pipeline may emit content JSON compatibility/debug artifacts under `typst/`, but agents should treat the `.typ` files as the editing contract.
 

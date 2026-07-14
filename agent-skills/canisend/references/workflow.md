@@ -509,8 +509,27 @@ proportionality, emphasis, and narrative alignment require human review. Do not 
 from prose. A correction proposal never edits a Draft: target the named document/Claim set with a new guarded Draft
 candidate, then rerun document Review, dispositions, and aggregate Review.
 
-Aggregate Review remains `proposed`; it is not package readiness, rendering approval, manual submission, or proof of
-submission.
+Aggregate Review remains `proposed`. Inspect derived aggregate status without reading finding bodies, then create
+or update the independent user-owned decision file only with explicit consent:
+
+```bash
+canisend package-review status --workspace <private-workspace> --job jobs/<job-slug> --format json
+canisend package-review init --workspace <private-workspace> --job jobs/<job-slug> \
+  --confirm-user-owned-write --format json
+canisend package-review update --workspace <private-workspace> --job jobs/<job-slug> \
+  --patch-file <patch.yaml> --expected-revision <revision> --expected-sha256 <sha256> \
+  --confirm-user-owned-write --format json
+```
+
+One update uses `set_package_finding_disposition` or `clear_package_finding_disposition` for one current finding.
+Use `accepted` or `revision_required`; blockers cannot be accepted. When aggregate Review changes, the old YAML is
+preserved and must be explicitly rebound with `reset_for_current_package_review` before new decisions are made.
+Every required document must already be individually reviewed, and every current non-blocker aggregate finding
+must have a decision, before the derived application-package state becomes `reviewed`.
+
+`canisend check-package` independently rederives this boundary as APP-Q5. Missing, invalid, stale, incomplete, or
+changed aggregate receipts fail closed, including for backward-readable legacy packages. Application-package
+`reviewed` is not rendering approval, manual submission, or proof of submission.
 
 ## 11. Generate The Compatible Draft Package
 

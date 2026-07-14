@@ -70,8 +70,13 @@ def _reviewed_dual_documents(
     tmp_path: Path,
     *,
     conflicting_receipts: bool = False,
+    include_cv: bool = True,
 ) -> tuple[Path, Path, dict[str, object], dict[str, object]]:
-    workspace, job = _workspace(tmp_path, include_research_statement=True)
+    workspace, job = _workspace(
+        tmp_path,
+        include_cv=include_cv,
+        include_research_statement=True,
+    )
     cover = _complete_sections(_candidate(workspace, job, factual=True))
     research = _research_candidate(workspace, job)
     if conflicting_receipts:

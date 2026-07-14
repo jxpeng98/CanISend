@@ -76,6 +76,7 @@ class RecordingProvider(LLMProvider):
 def _workspace(
     tmp_path: Path,
     *,
+    include_cv: bool = True,
     include_cover_letter: bool = True,
     include_research_statement: bool = False,
     omit_cover_letter: bool = False,
@@ -124,7 +125,7 @@ def _workspace(
         ),
         encoding="utf-8",
     )
-    document_labels = ["CV"]
+    document_labels = ["CV"] if include_cv else []
     if include_cover_letter:
         document_labels.append("Cover letter")
     if include_research_statement:
