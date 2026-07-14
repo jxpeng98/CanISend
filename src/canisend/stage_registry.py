@@ -207,7 +207,7 @@ DEFAULT_STAGE_REGISTRY = StageRegistry(
             id="draft",
             depends_on=("brief", "match", "evidence"),
             implemented=True,
-            execution_modes=("host_agent",),
+            execution_modes=("host_agent", "configured_provider"),
             authoritative_outputs=("cover_letter_draft.json",),
         ),
         StageDefinition(

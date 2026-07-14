@@ -47,14 +47,10 @@ def stage_status_agent_response(
     pending_task = _pending_task_spec(inspection.pending_task_path)
     status_consents: list[ConsentRequirement] = (
         [
-            ConsentRequirement(
-                id=consent_id,
-                purpose=(
-                    f"Allow this host to read the declared private inputs and produce "
-                    f"the {stage_id.title()} candidate."
-                ),
-                privacy_tier=pending_task.privacy_tier,
-                artifact_kinds=["job_advert", "stage_input"],
+            _stage_consent_requirement(
+                pending_task,
+                consent_id,
+                submitted=False,
             )
             for consent_id in pending_task.required_consents
         ]
@@ -149,18 +145,18 @@ def stage_status_agent_response(
                             include_hash=True,
                         )
                     )
-                status_consents = [
-                    ConsentRequirement(
-                        id=consent_id,
-                        purpose=(
-                            f"Allow this host to review the submitted {stage_id.title()} candidate "
-                            "and its declared private inputs."
-                        ),
-                        privacy_tier=pending_task.privacy_tier,
-                        artifact_kinds=[adapter.artifact_kind, "stage_input"],
-                    )
-                    for consent_id in pending_task.required_consents
-                ]
+                status_consents = (
+                    []
+                    if pending_task.execution_mode == "configured_provider"
+                    else [
+                        _stage_consent_requirement(
+                            pending_task,
+                            consent_id,
+                            submitted=True,
+                        )
+                        for consent_id in pending_task.required_consents
+                    ]
+                )
     authoritative = job_dir / adapter.authoritative_target
     if authoritative.is_file():
         artifacts.append(
@@ -292,7 +288,20 @@ def stage_status_agent_response(
                 )
             )
         else:
-            if pending_task is not None and pending_task.execution_mode == "deterministic":
+            if (
+                pending_task is not None
+                and pending_task.execution_mode == "configured_provider"
+            ):
+                consent_ids = _pending_consent_ids(inspection.pending_task_path)
+                actions.append(
+                    NextAction(
+                        id=f"stage.run_{stage_id}_provider",
+                        label=f"Run the configured provider for the prepared {stage_id.title()} task",
+                        requires_consent=bool(consent_ids),
+                        consent_ids=list(consent_ids),
+                    )
+                )
+            elif pending_task is not None and pending_task.execution_mode == "deterministic":
                 actions.append(_stage_run_action(stage_id))
             else:
                 consent_ids = _pending_consent_ids(inspection.pending_task_path)
@@ -399,11 +408,10 @@ def stage_prepare_agent_response(
         ),
     ]
     consents = [
-        ConsentRequirement(
-            id=consent_id,
-            purpose=f"Allow the current host agent to read the declared private inputs for {stage_id.title()}.",
-            privacy_tier=prepared.task_spec.privacy_tier,
-            artifact_kinds=["job_advert"] if consent_id == "read-full-job-advert" else ["stage_input"],
+        _stage_consent_requirement(
+            prepared.task_spec,
+            consent_id,
+            submitted=False,
         )
         for consent_id in prepared.task_spec.required_consents
     ]
@@ -418,6 +426,15 @@ def stage_prepare_agent_response(
         next_actions=(
             [_stage_run_action(stage_id)]
             if prepared.task_spec.execution_mode == "deterministic"
+            else [
+                NextAction(
+                    id=f"stage.run_{stage_id}_provider",
+                    label=f"Run the configured provider for the prepared {stage_id.title()} task",
+                    requires_consent=bool(consents),
+                    consent_ids=[item.id for item in consents],
+                )
+            ]
+            if prepared.task_spec.execution_mode == "configured_provider"
             else [
                 NextAction(
                     id=f"stage.submit_{stage_id}_candidate",
@@ -630,6 +647,9 @@ def stage_run_agent_response(workspace: Path, outcome: StageRunOutcome) -> Agent
             "canisend.stage_status": "succeeded",
             "canisend.cache_hit": outcome.cache_hit,
             "canisend.run_id": outcome.manifest.run_id if outcome.manifest is not None else None,
+            "canisend.execution_mode": (
+                outcome.manifest.execution_mode if outcome.manifest is not None else None
+            ),
             **semantic_extensions,
         },
     )
@@ -640,7 +660,14 @@ def stage_error_response(operation: str, error: StageRuntimeError) -> AgentRespo
         operation=operation,
         code=error.code,
         message=str(error),
-        retryable=error.code in {"stage.stale_input", "stage.store_failed"},
+        retryable=error.code
+        in {
+            "stage.stale_input",
+            "stage.store_failed",
+            "stage.provider_not_configured",
+            "stage.provider_failed",
+            "stage.provider_invalid_response",
+        },
     )
 
 
@@ -982,6 +1009,45 @@ def _pending_consent_ids(task_path: Path | None) -> tuple[str, ...]:
         return TaskSpecV1.model_validate(read_json_object(task_path)).required_consents
     except (StageStoreError, ValidationError):
         return ()
+
+
+def _stage_consent_requirement(
+    task: TaskSpecV1,
+    consent_id: str,
+    *,
+    submitted: bool,
+) -> ConsentRequirement:
+    if consent_id == "send-private-draft-inputs-to-provider":
+        return ConsentRequirement(
+            id=consent_id,
+            purpose=(
+                "Transmit the exact declared private Draft inputs to the configured provider."
+            ),
+            privacy_tier=3,
+            artifact_kinds=["stage_input"],
+        )
+    if submitted:
+        purpose = (
+            f"Allow this host to review the submitted {task.stage.title()} candidate "
+            "and its declared private inputs."
+        )
+        artifact_kinds = ["stage_candidate", "stage_input"]
+    else:
+        purpose = (
+            f"Allow this host to read the declared private inputs and produce "
+            f"the {task.stage.title()} candidate."
+        )
+        artifact_kinds = (
+            ["job_advert", "stage_input"]
+            if consent_id == "read-full-job-advert"
+            else ["stage_input"]
+        )
+    return ConsentRequirement(
+        id=consent_id,
+        purpose=purpose,
+        privacy_tier=task.privacy_tier,
+        artifact_kinds=artifact_kinds,
+    )
 
 
 def _pending_task_spec(task_path: Path | None) -> TaskSpecV1 | None:

@@ -8,7 +8,10 @@ CanISend has three distinct privacy modes:
 
 - Direct CLI deterministic mode: commands such as `doctor`, `extract-profile-evidence`, `fetch-jobs-ac-uk`, `new-job`, and `run` without LLM flags can operate locally without sending profile or job text to a model provider.
 - Agent-assisted mode: when Codex, Claude Code, or another AI agent reads or summarizes files, PDFs, webpages, generated evidence, job adverts, or package drafts, that content may be processed by the agent model provider. Do not call this local-only.
-- LLM-backed CLI mode: `extract-profile-evidence --llm-augment`, `--llm-parser`, `--llm-drafts`, or `ACADEMIC_PREP_LLM_PROVIDER=command` may transmit selected private advert, profile, evidence, and draft context to the configured provider.
+- LLM-backed CLI mode: structured Draft with `--mode configured-provider --allow-provider-backed`,
+  `extract-profile-evidence --llm-augment`, `--llm-parser`, `--llm-drafts`, or
+  `ACADEMIC_PREP_LLM_PROVIDER=command` may transmit selected private advert, profile, evidence, and draft context to
+  the configured provider.
 
 Deterministic Evidence, Match, Brief/document planning, and Review do not invoke a configured provider, network, MCP
 transport, or platform API. That does not make an agent-assisted review of their files local-only: a model may still
@@ -122,10 +125,15 @@ legacy path instead of combining sources.
 ## Structured Draft And Review Data Plane
 
 Draft candidates, `cover_letter_draft.json`, claim text, `review_findings.json`, finding messages/actions, and
-`review_dispositions.yaml` are Tier 2. A host agent may read the seven declared Draft inputs only after approval that their contents may enter the
-agent model context. It writes candidate JSON to fresh private scratch and uses `stage submit`; only the core may
-write run candidates/results or promote the authoritative Draft. Configured-provider Draft is not enabled by the
-first slice.
+`review_dispositions.yaml` are Tier 2. A host agent may read the seven declared Draft inputs only after approval that
+their contents may enter the agent model context. It writes candidate JSON to fresh private scratch and uses
+`stage submit`; only the core may write run candidates/results or promote the authoritative Draft.
+
+Configured-provider Draft is Tier 3 and requires explicit `--allow-provider-backed` on each non-cached invocation.
+It sends exactly the seven TaskSpec-declared Tier 2 inputs to the configured provider or command. Without consent,
+CanISend does not construct or call the provider and does not write workflow state. A cache hit transmits nothing.
+Provider output is bounded, treated as untrusted, and never retained verbatim; only a core-derived, schema-validated
+candidate can enter the private run data plane. Provider diagnostics and ordinary receipts remain body-free.
 
 Review is deterministic and may read the current Tier 2 Draft and its declared upstream receipts locally. Its
 TaskSpec, state, receipts, manifests, errors, ordinary output, and AgentResponse remain body-free: paths, hashes,

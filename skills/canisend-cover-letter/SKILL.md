@@ -29,8 +29,9 @@ Read only what the current task requires:
 1. Identify the workspace and run or request `canisend doctor --workspace <private-workspace>`.
 2. Prefer `profile/generated/` evidence, `parsed_job.json`, and criteria checklists over raw private files.
 3. Require a current confirmed apply Decision and blocker-free plan with one confirmed `prepare` Cover Letter.
-4. After Tier 2 approval, prepare Draft in host-agent mode. Write strict Claim JSON only to private scratch, submit it
-   through the TaskSpec, and use `stage apply`; never write run paths or `cover_letter_draft.json` directly.
+4. After Tier 2 approval, use host-agent prepare/scratch/submit/apply; alternatively, after separate Tier 3 approval,
+   run configured-provider Draft with `--allow-provider-backed`. Both reuse the TaskSpec and validator; never write
+   run paths or `cover_letter_draft.json` directly.
 5. Run deterministic Review. Resolve unsupported, exclusion-conflicting, and missing-section blockers; inspect every
    semantic-support finding against current Evidence and every non-factual Claim-kind classification. Use
    `review-dispositions status|init|update`; blockers cannot be accepted, and complete current acceptances derive

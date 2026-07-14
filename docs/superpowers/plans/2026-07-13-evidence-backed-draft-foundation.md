@@ -1,6 +1,6 @@
 # Evidence-Backed Draft Foundation Implementation Plan
 
-**Status:** Locally accepted — Tasks 0–6 complete for the Cover Letter Draft, Review, disposition, and document-readiness slices
+**Status:** Locally accepted — Tasks 0–7 complete for the first Cover Letter vertical slice
 
 **Date:** 2026-07-13
 
@@ -21,7 +21,7 @@ without changing the frozen AgentResponse/TaskSpec contracts, and without claimi
 - `cover_letter_draft.json` is core-owned Tier 2; Draft candidates are never written directly to the target.
 - `ReviewFindingV1` is independent from generation; Draft remains proposed until a later Review stage.
 - Strong factual claims require current Evidence references; unsupported facts are executable blockers.
-- The first executable Draft mode is host-agent. Provider-backed Draft must later reuse the same validator.
+- Host-agent and configured-provider Draft reuse the same immutable task, validator, and promotion boundary.
 - Legacy `canisend run`, Markdown, Typst, dry-run, LLM flags, and git behavior remain compatible in this slice.
 - Stage 3 does not submit, upload, answer sensitive declarations, or claim package/submission readiness.
 
@@ -94,6 +94,17 @@ without changing the frozen AgentResponse/TaskSpec contracts, and without claimi
 - [x] Bind reviewed disposition receipts into compatibility projections and the Cover Letter package gate.
 - [x] Complete schema, privacy, recovery, projection, cross-version, distribution, and clean-wheel validation.
 
+## Task 7: Configured-Provider Structured Draft
+
+- [x] Accept ADR-015 for Tier 3 consent and one shared Draft validation/promotion path.
+- [x] Add `configured_provider` to the Draft registry/runtime without changing host-agent behavior.
+- [x] Build a bounded sections-and-claims provider proposal and derive the trusted envelope/Claim IDs in core.
+- [x] Bind candidate generation mode to the immutable TaskSpec and reject cross-mode candidates.
+- [x] Add `stage run --mode configured-provider --allow-provider-backed` with body-free Agent responses.
+- [x] Resume submitted candidates without a second provider call and fail closed on provider, schema, or input drift.
+- [x] Update packaged prompt/resources, canonical skills, compatibility mirror, roadmap, changelog, and smoke coverage.
+- [x] Complete focused/full cross-version, distribution, privacy, recovery, and clean-wheel validation.
+
 ## Task 0–5 Validation Snapshot
 
 Tasks 0–5 and the first Cover Letter vertical slice were locally accepted on 2026-07-13:
@@ -108,9 +119,9 @@ Tasks 0–5 and the first Cover Letter vertical slice were locally accepted on 2
   receipts, host-agent Draft submit/apply, deterministic Review, structured projection, Decision Spine byte
   preservation, and fail-closed `check-package`.
 
-This historical snapshot accepts the first Cover Letter Draft/Review/projection slice only. Task 6 adds the separate
-user disposition and document-readiness contract below; remote CI, provider-backed Draft, all-document orchestration,
-broader cross-document review, complete Stage 3, and package readiness remain later work.
+This historical snapshot accepts the first Cover Letter Draft/Review/projection slice only. At that checkpoint,
+Task 6, configured-provider Draft, all-document orchestration, broader cross-document review, complete Stage 3, and
+package readiness remained later work.
 
 ## Task 6 Validation Snapshot
 
@@ -126,6 +137,28 @@ Task 6 was locally accepted on 2026-07-14:
 
 This acceptance establishes readiness for the current Cover Letter document only. It does not establish application
 package readiness, rendering approval, manual-submission readiness, a remote CI result, or a published release.
+
+## Task 7 Validation Snapshot
+
+Task 7 was locally accepted on 2026-07-14:
+
+- `python -m pytest -q`: 1033 passed independently on Python 3.11.15, 3.12.12, 3.13.14, and 3.14.2; after the
+  final additive Agent error-code registration, 1034 passed on Python 3.14.2 and the 25 affected Agent/CLI contract
+  tests passed on Python 3.11-3.13;
+- Tier 3 consent-before-write/call, exact seven-input transmission, untrusted prompt delimiting, cross-mode candidate
+  rejection, core-derived identity/Claim IDs, bounded strict provider output, private-body non-persistence,
+  configuration/call/validation failure, mid-call drift, no-call cache, and submitted-candidate recovery tests passed;
+- deterministic Review accepted the promoted configured-provider Draft without weakening Draft output-drift or
+  current-basis enforcement;
+- canonical/workspace skill mirror, regenerated schemas, packaged-resource, compile, diff, and repository-contract
+  checks passed;
+- source smoke and a clean Python 3.12 wheel installation each passed the complete Decision Spine with 8 successful
+  stage runs and 14 immutable user-mutation receipts using configured-provider Draft;
+- `uv build`, Twine metadata checks, and the 0.2.0 wheel packaged-resource check passed.
+
+This local acceptance adds one configured-provider Cover Letter execution mode. It does not claim remote CI,
+publication, all-document orchestration, broader cross-document review, application-package readiness, rendering
+approval, or submission readiness.
 
 ## First-Slice Exit Review
 
@@ -153,7 +186,7 @@ publication, package readiness, rendering approval, or submission result is clai
 ## Explicit Non-Goals
 
 - all-document Draft orchestration in the first slice;
-- provider-backed Draft before host-agent validation is accepted;
+- provider-owned trusted envelopes, direct promotion, or silent fallback between execution modes;
 - final wording quality or automatic semantic truth certification;
 - blocker/finding waivers (guarded dispositions are not waivers) or multi-user collaboration;
 - multi-file transactions or direct Markdown/Typst promotion;

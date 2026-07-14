@@ -62,6 +62,14 @@ TASK5_USER_INPUT_ERROR_CODES = {
     "user_input.recovery_required",
 }
 
+CONFIGURED_PROVIDER_STAGE_ERROR_CODES = {
+    "stage.provider_consent_required",
+    "stage.provider_not_configured",
+    "stage.provider_failed",
+    "stage.provider_invalid_response",
+    "stage.provider_input_too_large",
+}
+
 
 def test_agent_response_serializes_protocol_and_operation() -> None:
     response = success_response(
@@ -113,6 +121,14 @@ def test_stage3_capabilities_add_review_dispositions_without_protocol_bump() -> 
 def test_task5_user_input_failures_have_stable_dotted_codes() -> None:
     assert TASK5_USER_INPUT_ERROR_CODES <= KNOWN_AGENT_ERROR_CODES
     assert all(code.startswith("user_input.") for code in TASK5_USER_INPUT_ERROR_CODES)
+
+
+def test_configured_provider_stage_failures_have_stable_dotted_codes() -> None:
+    assert CONFIGURED_PROVIDER_STAGE_ERROR_CODES <= KNOWN_AGENT_ERROR_CODES
+    assert all(
+        code.startswith("stage.provider_")
+        for code in CONFIGURED_PROVIDER_STAGE_ERROR_CODES
+    )
 
 
 def test_agent_response_rejects_unknown_fields() -> None:

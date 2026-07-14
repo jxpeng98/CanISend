@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Added Tier 3 configured-provider execution for the structured Cover Letter Draft through the same immutable
+  TaskSpec, guarded candidate submission, current-basis validator, atomic promotion, cache, and recovery path as
+  host-agent Draft. The provider proposes only sections and Claim semantics; core derives all trusted identity,
+  hashes, stable IDs, generation metadata, and review state.
+- Added `stage run --stage draft --mode configured-provider --allow-provider-backed`, a bounded packaged prompt,
+  body-free failure/status receipts, no-call cache behavior, submitted-candidate resume, input-drift rejection, and
+  source/installed-wheel smoke coverage. Raw provider output is never persisted and legacy `--llm-drafts` remains
+  a separate compatibility path.
 - Added user-owned `review_dispositions.yaml` with strict schemas, explicit-consent one-finding revision/hash CAS,
   immutable receipts, recovery, body-free Agent/CLI status, and exact Draft/Review basis binding. Blocker findings
   are non-waivable; stale dispositions are preserved for explicit reset rather than silently carried forward.

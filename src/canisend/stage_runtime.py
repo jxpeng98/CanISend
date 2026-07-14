@@ -9,6 +9,13 @@ from uuid import uuid4
 
 from pydantic import ValidationError
 
+from canisend import llm
+from canisend.draft_provider import (
+    DraftProviderExecutionError,
+    DraftProviderInputChangedError,
+    DraftProviderResponseError,
+    build_configured_provider_draft_candidate,
+)
 from canisend.stage_adapters import StageAdapter, get_stage_adapter
 from canisend.stage_models import (
     ArtifactFingerprint,
@@ -36,6 +43,13 @@ from canisend.stage_store import (
 from canisend.stages.brief_stage import BriefStageError
 from canisend.stages.confirm_stage import ConfirmStageError
 from canisend.stages.parse_stage import ParseStageError
+from canisend.user_file_store import (
+    InvalidUserFileError,
+    UnsafeUserFileError,
+    load_strict_json,
+    load_strict_yaml,
+    read_safe_bytes,
+)
 
 
 SupportedStage = Literal[
@@ -47,7 +61,13 @@ SupportedStage = Literal[
     "draft",
     "review",
 ]
-SupportedExecutionMode = Literal["deterministic", "host_agent"]
+SupportedExecutionMode = Literal[
+    "deterministic",
+    "host_agent",
+    "configured_provider",
+]
+
+MAX_PROVIDER_DRAFT_INPUT_BYTES = 20_000_000
 
 
 class StageRuntimeError(RuntimeError):
@@ -406,7 +426,7 @@ def prepare_stage(
         authoritative_target=adapter.authoritative_target,
         expected_output_sha256=expected_output,
         output_schema=adapter.output_schema,
-        privacy_tier=adapter.task_privacy_tier,
+        privacy_tier=adapter.task_privacy_tier_for(execution_mode),
         required_consents=adapter.required_consents(execution_mode),
     )
     task_path = resolve_job_relative_path(job, f"{run_root}/task-spec.json")
@@ -564,6 +584,7 @@ def apply_stage_result(
                 candidate_object,
                 input_fingerprint=task.input_fingerprint,
                 inputs=task.inputs,
+                execution_mode=task.execution_mode,
             )
         except (
             BriefStageError,
@@ -736,6 +757,7 @@ def submit_stage_candidate(
                 candidate_object,
                 input_fingerprint=task.input_fingerprint,
                 inputs=task.inputs,
+                execution_mode=task.execution_mode,
             )
         except (
             BriefStageError,
@@ -1010,6 +1032,190 @@ def run_deterministic_stage(
         manifest=applied.manifest,
         manifest_path=applied.manifest_path,
     )
+
+
+def run_configured_provider_stage(
+    workspace: Path,
+    job_dir: Path,
+    *,
+    stage: SupportedStage,
+    allow_provider_backed: bool,
+    provider: llm.LLMProvider | None = None,
+) -> StageRunOutcome:
+    """Run one configured-provider stage through the guarded candidate path."""
+
+    root, job = _runtime_paths(workspace, job_dir)
+    definition = _implemented_stage(stage)
+    adapter = _adapter(stage)
+    if "configured_provider" not in definition.execution_modes:
+        raise StageRuntimeError(
+            "stage.unsupported_mode",
+            "The requested stage does not support configured-provider execution.",
+        )
+
+    _finalize_recoverable_promotions(job)
+    status = inspect_stage_status(root, job, stage=stage)
+    target = job / adapter.authoritative_target
+    if status.input_fingerprint is None:
+        raise StageRuntimeError(
+            "stage.dependency_not_current",
+            "The requested stage requires current upstream stages.",
+        )
+    if status.output_drift:
+        raise StageRuntimeError(
+            "stage.output_conflict",
+            "The authoritative stage output has changed since its last successful run.",
+        )
+    if status.stage.status == "succeeded" and not status.reasons:
+        return StageRunOutcome(
+            stage=stage,
+            cache_hit=True,
+            state=status.state,
+            authoritative_path=target,
+        )
+    if not allow_provider_backed:
+        raise StageRuntimeError(
+            "stage.provider_consent_required",
+            "Configured-provider execution requires explicit --allow-provider-backed consent.",
+        )
+
+    prepared = prepare_stage(
+        root,
+        job,
+        stage=stage,
+        execution_mode="configured_provider",
+    )
+    _validate_task_freshness(root, job, prepared.task_spec, adapter)
+
+    if prepared.candidate_path.exists() or prepared.candidate_path.is_symlink():
+        _require_unaliased_regular_file(
+            prepared.candidate_path,
+            label="configured-provider stage candidate",
+        )
+        try:
+            candidate_bytes = prepared.candidate_path.read_bytes()
+        except OSError as exc:
+            raise StageRuntimeError(
+                "stage.candidate_missing",
+                "The configured-provider candidate cannot be resumed safely.",
+            ) from exc
+    else:
+        selected_provider = provider
+        if selected_provider is None:
+            try:
+                selected_provider = llm.provider_from_config(llm.load_llm_config())
+            except Exception as exc:
+                raise StageRuntimeError(
+                    "stage.provider_not_configured",
+                    "The configured model provider is unavailable or incomplete.",
+                ) from exc
+        input_documents = _load_provider_input_documents(job, prepared.task_spec)
+        try:
+            candidate = build_configured_provider_draft_candidate(
+                workspace=root,
+                job_dir=job,
+                input_fingerprint=prepared.task_spec.input_fingerprint,
+                input_documents=input_documents,
+                provider=selected_provider,
+            )
+        except DraftProviderInputChangedError as exc:
+            raise StageRuntimeError(
+                "stage.stale_input",
+                "The Draft inputs changed during configured-provider execution.",
+            ) from exc
+        except DraftProviderExecutionError as exc:
+            raise StageRuntimeError(
+                "stage.provider_failed",
+                "The configured provider failed before a Draft candidate was accepted.",
+            ) from exc
+        except DraftProviderResponseError as exc:
+            raise StageRuntimeError(
+                "stage.provider_invalid_response",
+                "The configured provider returned no acceptable Draft candidate.",
+            ) from exc
+        candidate_bytes = (
+            json.dumps(candidate, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+        ).encode("utf-8")
+
+    submitted = submit_stage_candidate(
+        root,
+        job,
+        task_spec_path=prepared.task_spec_path,
+        candidate_bytes=candidate_bytes,
+    )
+    applied = apply_stage_result(
+        root,
+        job,
+        task_spec_path=prepared.task_spec_path,
+        task_result_path=submitted.result_path,
+    )
+    return StageRunOutcome(
+        stage=stage,
+        cache_hit=False,
+        state=applied.state,
+        authoritative_path=applied.authoritative_path,
+        manifest=applied.manifest,
+        manifest_path=applied.manifest_path,
+    )
+
+
+def _load_provider_input_documents(
+    job: Path,
+    task: TaskSpecV1,
+) -> dict[str, object]:
+    documents: dict[str, object] = {}
+    total_bytes = 0
+    for artifact in task.inputs:
+        try:
+            snapshot = read_safe_bytes(
+                job,
+                artifact.path,
+                max_bytes=MAX_PROVIDER_DRAFT_INPUT_BYTES,
+            )
+            payload = snapshot.data
+        except (OSError, StageRuntimeError, UnsafeStagePathError, UnsafeUserFileError) as exc:
+            raise StageRuntimeError(
+                "stage.invalid_input",
+                "A declared provider input cannot be read safely.",
+            ) from exc
+        if sha256_bytes(payload) != artifact.sha256 or (
+            artifact.size_bytes is not None and len(payload) != artifact.size_bytes
+        ):
+            raise StageRuntimeError(
+                "stage.stale_input",
+                "A declared provider input changed before transmission.",
+            )
+        total_bytes += len(payload)
+        if total_bytes > MAX_PROVIDER_DRAFT_INPUT_BYTES:
+            raise StageRuntimeError(
+                "stage.provider_input_too_large",
+                "The declared private Draft context exceeds the provider input limit.",
+            )
+        try:
+            if artifact.path.endswith(".json"):
+                document = load_strict_json(
+                    payload,
+                    max_bytes=MAX_PROVIDER_DRAFT_INPUT_BYTES,
+                )
+            elif artifact.path.endswith((".yaml", ".yml")):
+                document = load_strict_yaml(
+                    payload,
+                    max_bytes=MAX_PROVIDER_DRAFT_INPUT_BYTES,
+                )
+            else:
+                raise InvalidUserFileError("Unsupported provider input format.")
+        except (InvalidUserFileError, UnicodeError, ValueError) as exc:
+            raise StageRuntimeError(
+                "stage.invalid_input",
+                "A declared provider input is not valid structured data.",
+            ) from exc
+        if not isinstance(document, dict):
+            raise StageRuntimeError(
+                "stage.invalid_input",
+                "A declared provider input is not a structured object.",
+            )
+        documents[artifact.path] = document
+    return documents
 
 
 def _runtime_paths(workspace: Path, job_dir: Path) -> tuple[Path, Path]:
@@ -1651,7 +1857,7 @@ def _validate_task_contract(
         or task.allowed_writes != expected_writes
         or task.authoritative_target != adapter.authoritative_target
         or task.output_schema != adapter.output_schema
-        or task.privacy_tier != adapter.task_privacy_tier
+        or task.privacy_tier != adapter.task_privacy_tier_for(task.execution_mode)
         or task.required_consents != adapter.required_consents(task.execution_mode)
         or (
             expected_prepared_inputs is not None

@@ -6,7 +6,9 @@ from pathlib import Path
 
 import pytest
 import yaml
+from typer.testing import CliRunner
 
+from canisend.cli import app
 from canisend.decision_models import (
     ApplicationBriefV1,
     ApplicationDecisionV1,
@@ -19,9 +21,11 @@ from canisend.decision_models import (
     LanguagePreferenceV1,
 )
 from canisend.draft_models import stable_claim_id
+from canisend.llm import LLMProvider, LLMResponse
 from canisend.stage_agent import (
     stage_apply_agent_response,
     stage_prepare_agent_response,
+    stage_status_agent_response,
     stage_submit_agent_response,
 )
 from canisend.stage_runtime import (
@@ -29,6 +33,7 @@ from canisend.stage_runtime import (
     apply_stage_result,
     inspect_stage_status,
     prepare_stage,
+    run_configured_provider_stage,
     run_deterministic_stage,
     submit_stage_candidate,
 )
@@ -38,6 +43,7 @@ from canisend.stages.brief_stage import (
     stable_document_id,
 )
 from canisend.stages.draft_stage import (
+    CONFIGURED_PROVIDER_DRAFT_GENERATOR_STRATEGY,
     DRAFT_GENERATOR_STRATEGY,
     DRAFT_GENERATOR_VERSION,
     DraftStageValidationError,
@@ -50,6 +56,18 @@ from canisend.stages.draft_stage import (
 
 NOW = "2026-07-13T10:00:00Z"
 PRIVATE_MOTIVATION = "PRIVATE-DRAFT-MOTIVATION-SENTINEL-8924"
+RAW_PROVIDER_PREAMBLE = "RAW-PROVIDER-PREAMBLE-MUST-NOT-PERSIST-4491"
+RAW_PROVIDER_FAILURE = "RAW-PROVIDER-FAILURE-MUST-NOT-PERSIST-7721"
+
+
+class RecordingProvider(LLMProvider):
+    def __init__(self, content: str) -> None:
+        self.content = content
+        self.prompts: list[str] = []
+
+    def complete(self, prompt: str) -> LLMResponse:
+        self.prompts.append(prompt)
+        return LLMResponse(content=self.content, provider="test-provider")
 
 
 def _workspace(
@@ -258,6 +276,62 @@ def _candidate(workspace: Path, job: Path, *, factual: bool = False) -> dict[str
     }
 
 
+def _provider_proposal(job: Path) -> dict[str, object]:
+    criteria = read_json_object(job / "criteria.json")
+    evidence = read_json_object(job / "evidence_catalog.json")
+    return {
+        "sections": [
+            {
+                "section_id": "body",
+                "claims": [
+                    {
+                        "text": "I completed a PhD in Economics.",
+                        "kind": "factual",
+                        "support_strength": "strong",
+                        "criterion_ids": [criteria["criteria"][0]["criterion_id"]],
+                        "evidence_ref_ids": [evidence["items"][0]["evidence_id"]],
+                        "brief_field_refs": [],
+                        "job_field_refs": [],
+                        "blockers": [],
+                    },
+                    {
+                        "text": "The opportunity to contribute to the department motivates my application.",
+                        "kind": "motivation",
+                        "support_strength": "not_applicable",
+                        "criterion_ids": [],
+                        "evidence_ref_ids": [],
+                        "brief_field_refs": ["motivation"],
+                        "job_field_refs": [],
+                        "blockers": [],
+                    },
+                ],
+            }
+        ]
+    }
+
+
+def _provider_content(job: Path, *, preamble: bool = False) -> str:
+    encoded = json.dumps(_provider_proposal(job), ensure_ascii=False)
+    if not preamble:
+        return encoded
+    return f"{RAW_PROVIDER_PREAMBLE}\n```json\n{encoded}\n```\n"
+
+
+def _workspace_bytes(workspace: Path) -> dict[str, bytes]:
+    return {
+        path.relative_to(workspace).as_posix(): path.read_bytes()
+        for path in sorted(workspace.rglob("*"))
+        if path.is_file() and not path.is_symlink()
+    }
+
+
+def _all_workspace_text(workspace: Path) -> str:
+    return "\n".join(
+        payload.decode("utf-8", errors="ignore")
+        for payload in _workspace_bytes(workspace).values()
+    )
+
+
 def test_draft_projection_binds_all_seven_current_inputs(tmp_path: Path) -> None:
     workspace, job = _workspace(tmp_path)
 
@@ -386,12 +460,13 @@ def test_validator_rejects_unknown_role_context_field(tmp_path: Path) -> None:
         )
 
 
-def test_validator_rejects_provider_mode_before_provider_boundary_exists(
+def test_validator_binds_generation_mode_to_the_task_execution_mode(
     tmp_path: Path,
 ) -> None:
     workspace, job = _workspace(tmp_path)
     payload = _candidate(workspace, job)
     payload["generation_mode"] = "configured_provider"
+    payload["generator_strategy"] = CONFIGURED_PROVIDER_DRAFT_GENERATOR_STRATEGY
 
     with pytest.raises(DraftStageValidationError, match="unsupported generator"):
         validate_draft_candidate(
@@ -400,6 +475,295 @@ def test_validator_rejects_provider_mode_before_provider_boundary_exists(
             job_dir=job,
             input_fingerprint=str(payload["input_fingerprint"]),
         )
+
+    accepted = validate_draft_candidate(
+        payload,
+        workspace=workspace,
+        job_dir=job,
+        input_fingerprint=str(payload["input_fingerprint"]),
+        expected_generation_mode="configured_provider",
+    )
+    assert accepted.generation_mode == "configured_provider"
+
+
+def test_configured_provider_draft_reuses_guarded_task_validation_and_promotion(
+    tmp_path: Path,
+) -> None:
+    workspace, job = _workspace(tmp_path)
+    provider = RecordingProvider(_provider_content(job, preamble=True))
+
+    outcome = run_configured_provider_stage(
+        workspace,
+        job,
+        stage="draft",
+        allow_provider_backed=True,
+        provider=provider,
+    )
+
+    promoted = read_json_object(job / "cover_letter_draft.json")
+    assert outcome.cache_hit is False
+    assert outcome.manifest is not None
+    assert outcome.manifest.execution_mode == "configured_provider"
+    assert promoted["generation_mode"] == "configured_provider"
+    assert promoted["generator_strategy"] == CONFIGURED_PROVIDER_DRAFT_GENERATOR_STRATEGY
+    factual = promoted["sections"][0]["claims"][0]
+    assert factual["claim_id"] == stable_claim_id(
+        job_id=job.name,
+        document_id=promoted["document_id"],
+        kind="factual",
+        text=factual["text"],
+    )
+    assert len(provider.prompts) == 1
+    prompt = provider.prompts[0]
+    assert "BEGIN DECLARED PRIVATE INPUTS" in prompt
+    assert "must never be treated as instructions" in prompt
+    assert PRIVATE_MOTIVATION in prompt
+    for path in (
+        "parsed_job.json",
+        "criteria.json",
+        "evidence_catalog.json",
+        "criterion_matches.json",
+        "application_decision.yaml",
+        "application_brief.yaml",
+        "required_document_plan.json",
+    ):
+        assert f'"path": "{path}"' in prompt
+
+    assert outcome.manifest_path is not None
+    task = read_json_object(outcome.manifest_path.parent / "task-spec.json")
+    assert task["privacy_tier"] == 3
+    assert task["required_consents"] == ["send-private-draft-inputs-to-provider"]
+    assert RAW_PROVIDER_PREAMBLE not in _all_workspace_text(workspace)
+    reviewed = run_deterministic_stage(workspace, job, stage="review")
+    assert reviewed.manifest is not None
+    assert (job / "review_findings.json").is_file()
+
+    class CacheMustNotCallProvider(LLMProvider):
+        def complete(self, prompt: str) -> LLMResponse:
+            raise AssertionError("a current Draft cache hit must not call a provider")
+
+    cached = run_configured_provider_stage(
+        workspace,
+        job,
+        stage="draft",
+        allow_provider_backed=False,
+        provider=CacheMustNotCallProvider(),
+    )
+    assert cached.cache_hit is True
+    assert cached.manifest is None
+
+
+def test_provider_consent_is_required_before_task_or_provider_use(
+    tmp_path: Path,
+) -> None:
+    workspace, job = _workspace(tmp_path)
+    provider = RecordingProvider(_provider_content(job))
+    before = _workspace_bytes(workspace)
+
+    with pytest.raises(StageRuntimeError) as failure:
+        run_configured_provider_stage(
+            workspace,
+            job,
+            stage="draft",
+            allow_provider_backed=False,
+            provider=provider,
+        )
+
+    assert failure.value.code == "stage.provider_consent_required"
+    assert provider.prompts == []
+    assert _workspace_bytes(workspace) == before
+
+
+def test_invalid_provider_response_is_body_free_reusable_and_never_persisted(
+    tmp_path: Path,
+) -> None:
+    workspace, job = _workspace(tmp_path)
+    invalid_provider = RecordingProvider(RAW_PROVIDER_FAILURE)
+
+    with pytest.raises(StageRuntimeError) as failure:
+        run_configured_provider_stage(
+            workspace,
+            job,
+            stage="draft",
+            allow_provider_backed=True,
+            provider=invalid_provider,
+        )
+
+    assert failure.value.code == "stage.provider_invalid_response"
+    assert RAW_PROVIDER_FAILURE not in str(failure.value)
+    assert RAW_PROVIDER_FAILURE not in _all_workspace_text(workspace)
+    assert not (job / "cover_letter_draft.json").exists()
+    inspection = inspect_stage_status(workspace, job, stage="draft")
+    assert inspection.stage.status == "running"
+    assert inspection.pending_task_path is not None
+    task = read_json_object(inspection.pending_task_path)
+    assert task["execution_mode"] == "configured_provider"
+    assert not (job / task["candidate_output"]).exists()
+    response = stage_status_agent_response(workspace, job, inspection)
+    assert [item.id for item in response.required_consents] == [
+        "send-private-draft-inputs-to-provider"
+    ]
+    assert response.required_consents[0].privacy_tier == 3
+    assert response.next_actions[0].id == "stage.run_draft_provider"
+    assert RAW_PROVIDER_FAILURE not in response.model_dump_json()
+
+    retry = run_configured_provider_stage(
+        workspace,
+        job,
+        stage="draft",
+        allow_provider_backed=True,
+        provider=RecordingProvider(_provider_content(job)),
+    )
+    assert retry.manifest is not None
+    assert retry.manifest.attempt == 1
+
+
+def test_provider_failure_and_mid_call_input_drift_fail_closed_without_leaking(
+    tmp_path: Path,
+) -> None:
+    failed_workspace, failed_job = _workspace(tmp_path / "failed")
+
+    class FailingProvider(LLMProvider):
+        def complete(self, prompt: str) -> LLMResponse:
+            raise RuntimeError("PRIVATE-PROVIDER-STDERR-SECRET-5519")
+
+    with pytest.raises(StageRuntimeError) as failed:
+        run_configured_provider_stage(
+            failed_workspace,
+            failed_job,
+            stage="draft",
+            allow_provider_backed=True,
+            provider=FailingProvider(),
+        )
+    assert failed.value.code == "stage.provider_failed"
+    assert "PRIVATE-PROVIDER-STDERR" not in str(failed.value)
+    assert "PRIVATE-PROVIDER-STDERR" not in _all_workspace_text(failed_workspace)
+    assert not (failed_job / "cover_letter_draft.json").exists()
+
+    drift_workspace, drift_job = _workspace(tmp_path / "drift")
+
+    class DriftingProvider(LLMProvider):
+        def complete(self, prompt: str) -> LLMResponse:
+            brief = drift_job / "application_brief.yaml"
+            brief.write_bytes(brief.read_bytes() + b"# changed during provider call\n")
+            return LLMResponse(
+                content=_provider_content(drift_job),
+                provider="test-provider",
+            )
+
+    with pytest.raises(StageRuntimeError) as drifted:
+        run_configured_provider_stage(
+            drift_workspace,
+            drift_job,
+            stage="draft",
+            allow_provider_backed=True,
+            provider=DriftingProvider(),
+        )
+    assert drifted.value.code == "stage.stale_input"
+    assert not (drift_job / "cover_letter_draft.json").exists()
+    inspection = inspect_stage_status(drift_workspace, drift_job, stage="draft")
+    assert inspection.pending_task_path is not None
+    task = read_json_object(inspection.pending_task_path)
+    assert not (drift_job / task["candidate_output"]).exists()
+
+
+def test_provider_retry_resumes_submitted_candidate_without_second_model_call(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace, job = _workspace(tmp_path)
+    provider = RecordingProvider(_provider_content(job))
+
+    def interrupt_after_submission(*args: object, **kwargs: object) -> object:
+        raise StageRuntimeError("stage.interrupted", "Synthetic interruption.")
+
+    monkeypatch.setattr(
+        "canisend.stage_runtime.apply_stage_result",
+        interrupt_after_submission,
+    )
+    with pytest.raises(StageRuntimeError, match="Synthetic interruption"):
+        run_configured_provider_stage(
+            workspace,
+            job,
+            stage="draft",
+            allow_provider_backed=True,
+            provider=provider,
+        )
+    assert len(provider.prompts) == 1
+    inspection = inspect_stage_status(workspace, job, stage="draft")
+    assert inspection.pending_task_path is not None
+    task = read_json_object(inspection.pending_task_path)
+    assert (job / task["candidate_output"]).is_file()
+    assert (job / task["result_output"]).is_file()
+
+    monkeypatch.setattr(
+        "canisend.stage_runtime.apply_stage_result",
+        apply_stage_result,
+    )
+
+    class NoSecondCallProvider(LLMProvider):
+        def complete(self, prompt: str) -> LLMResponse:
+            raise AssertionError("a submitted candidate must resume without another provider call")
+
+    resumed = run_configured_provider_stage(
+        workspace,
+        job,
+        stage="draft",
+        allow_provider_backed=True,
+        provider=NoSecondCallProvider(),
+    )
+    assert resumed.manifest is not None
+    assert resumed.manifest.attempt == 1
+    assert (job / "cover_letter_draft.json").is_file()
+
+
+def test_configured_provider_cli_is_explicit_and_body_free(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace, job = _workspace(tmp_path)
+    provider = RecordingProvider(_provider_content(job))
+    constructed: list[object] = []
+
+    def configured_provider(config: object) -> LLMProvider:
+        constructed.append(config)
+        return provider
+
+    monkeypatch.setattr(
+        "canisend.stage_runtime.llm.provider_from_config",
+        configured_provider,
+    )
+    base = [
+        "stage",
+        "run",
+        "--workspace",
+        str(workspace),
+        "--job",
+        "jobs/example-role",
+        "--stage",
+        "draft",
+        "--mode",
+        "configured-provider",
+        "--format",
+        "json",
+    ]
+
+    denied = CliRunner().invoke(app, base)
+    assert denied.exit_code == 1
+    denied_payload = json.loads(denied.stdout)
+    assert denied_payload["error"]["code"] == "stage.provider_consent_required"
+    assert provider.prompts == []
+    assert constructed == []
+
+    accepted = CliRunner().invoke(app, [*base, "--allow-provider-backed"])
+    assert accepted.exit_code == 0, accepted.output
+    payload = json.loads(accepted.stdout)
+    assert payload["operation"] == "workflow.stage_run"
+    assert payload["extensions"]["canisend.execution_mode"] == "configured_provider"
+    assert payload["extensions"]["canisend.stage_status"] == "succeeded"
+    assert PRIVATE_MOTIVATION not in accepted.stdout
+    assert len(provider.prompts) == 1
+    assert len(constructed) == 1
 
 
 def test_precondition_blocks_omitted_or_unplanned_cover_letter(tmp_path: Path) -> None:

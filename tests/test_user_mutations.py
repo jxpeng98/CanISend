@@ -128,6 +128,23 @@ def test_strict_json_rejects_duplicate_keys() -> None:
         load_strict_json(b'{"revision": 1, "revision": 2}\n')
 
 
+def test_strict_loaders_allow_a_larger_explicit_internal_limit() -> None:
+    json_payload = json.dumps({"value": "x" * 1_100_000}).encode("utf-8")
+    yaml_payload = ("value: " + "x" * 1_100_000 + "\n").encode("utf-8")
+
+    with pytest.raises(InvalidUserFileError):
+        load_strict_json(json_payload)
+    with pytest.raises(InvalidUserFileError):
+        load_strict_yaml(yaml_payload)
+
+    assert load_strict_json(json_payload, max_bytes=len(json_payload))[
+        "value"
+    ].startswith("x")
+    assert load_strict_yaml(yaml_payload, max_bytes=len(yaml_payload))[
+        "value"
+    ].startswith("x")
+
+
 def test_safe_reader_rejects_symlink_hardlink_nonregular_and_oversize(tmp_path: Path) -> None:
     job = tmp_path / "job"
     job.mkdir()

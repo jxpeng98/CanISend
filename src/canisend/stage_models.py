@@ -585,8 +585,8 @@ class RunManifestV1(StageContractModel):
 
     @model_validator(mode="after")
     def _consistent_lifecycle(self) -> RunManifestV1:
-        if self.execution_mode == "host_agent" and self.task_id is None:
-            raise ValueError("a host-agent run requires task_id")
+        if self.execution_mode in {"host_agent", "configured_provider"} and self.task_id is None:
+            raise ValueError("an externally reasoned run requires task_id")
         if self.started_at is not None:
             _require_time_order(self.created_at, self.started_at, "run start timestamp")
         if self.completed_at is not None:

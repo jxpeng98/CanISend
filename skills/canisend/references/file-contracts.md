@@ -153,7 +153,9 @@ RSS and Atom lead outputs live in ignored `job_leads/`.
 - `cover_letter_draft.json`: strict core-owned Tier 2 Cover Letter Draft. Every applicant-facing prose block is one
   explicit Claim with a stable content-derived ID, kind, support state, current semantic references, and blocker
   codes. It binds exact Parsed Job, Criteria, Evidence, Match, Decision, Brief, and document-plan hashes. It is
-  promoted only from guarded host-agent candidate JSON and always remains `review_state=proposed`.
+  promoted only from guarded host-agent or configured-provider candidate JSON and always remains
+  `review_state=proposed`. Configured-provider output contributes only section/Claim semantics; core derives the
+  trusted envelope, basis, IDs, generation metadata, and review state.
 - `review_findings.json`: deterministic core-owned Tier 2 Review projection for the current structured Draft. It
   records stable blocker/review/warning findings without changing the Draft, user YAML, compatibility views, or
   profile. Unsupported claims, missing required sections, and confirmed Brief exclusion conflicts are blockers;
@@ -178,8 +180,9 @@ RSS and Atom lead outputs live in ignored `job_leads/`.
   candidate or result paths itself. Evidence TaskSpecs name only their own job-local immutable snapshot; Match
   TaskSpecs name only current `criteria.json` and `evidence_catalog.json`; Brief TaskSpecs name current job-local
   advert/Parsed Job, Criteria, Match, Decision, and Brief inputs. Draft TaskSpecs name the seven current Tier 2
-  structured/user inputs and allow only core-owned candidate/result writes. Review TaskSpecs add the promoted Draft
-  and remain deterministic.
+  structured/user inputs and allow only core-owned candidate/result writes. Configured-provider Draft uses the same
+  exact TaskSpec paths with privacy tier 3 and consent `send-private-draft-inputs-to-provider`; raw provider output
+  is not an artifact. Review TaskSpecs add the promoted Draft and remain deterministic.
 - `workflow/runs/*/inputs/evidence-snapshot.json`: immutable Evidence input written by the core during prepare. It may
   duplicate normalized profile evidence and remains until the user removes the private run or job. Resumable
   Evidence does not accept a workspace-external profile root.

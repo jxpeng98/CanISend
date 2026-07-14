@@ -160,9 +160,10 @@ source receipts that do not resolve to the advert.
 An unchanged deterministic rerun is a cache hit. Advert or relevant job metadata changes make Parse stale; profile
 evidence, writing preferences, package status, and downstream artifacts do not.
 
-Host-agent execution currently applies only to Parse. Each prepared task has a separate immutable preparation
-receipt. If its inputs, upstream dependencies, or protected output change before promotion, do not prepare a parallel
-task: cancel the active one first, preserving its audit trail and candidate:
+Host-agent execution applies to Parse and structured Draft. Configured-provider execution currently applies only to
+structured Draft. Each prepared task has a separate immutable preparation receipt. If its inputs, upstream
+dependencies, or protected output change before promotion, do not prepare a parallel task: cancel the active one
+first, preserving its audit trail and candidate:
 
 ```bash
 canisend stage cancel \
@@ -412,6 +413,25 @@ Claim; strong/partial facts use current Evidence IDs, while unsupported facts re
 scratch file to `stage submit`, then pass the returned immutable TaskResult to `stage apply`. Never write the
 declared candidate/result paths or `cover_letter_draft.json` directly.
 
+If the user instead explicitly approves Tier 3 transmission to the configured provider or command, run:
+
+```bash
+canisend stage run \
+  --workspace <private-workspace> \
+  --job jobs/<job-slug> \
+  --stage draft \
+  --mode configured-provider \
+  --allow-provider-backed \
+  --format json
+```
+
+This sends exactly the seven Draft TaskSpec inputs to the provider. The provider returns only section and Claim
+semantics; core derives the trusted envelope, hashes, stable IDs, mode, and review state, then uses the same candidate
+validation and atomic promotion path. Raw output is bounded and not retained. No consent means no provider
+construction, call, or workspace write; a cache hit also makes no call. Provider failure, invalid output, or input
+drift promotes nothing. If a valid candidate was already submitted before interruption, rerunning resumes without a
+second provider call. This path is distinct from legacy `canisend run --llm-drafts`.
+
 Run independent deterministic Review:
 
 ```bash
@@ -439,7 +459,7 @@ Deterministic baseline:
 canisend run --workspace <private-workspace> --job jobs/<job-slug>
 ```
 
-LLM-backed parse and draft generation require explicit opt-in and provider configuration:
+Legacy monolithic LLM-backed parse and draft generation require explicit opt-in and provider configuration:
 
 ```bash
 canisend run \

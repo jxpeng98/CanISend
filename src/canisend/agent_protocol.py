@@ -123,6 +123,11 @@ KNOWN_AGENT_ERROR_CODES = frozenset(
         "stage.output_unreadable",
         "stage.artifact_unreadable",
         "stage.recovery_failed",
+        "stage.provider_consent_required",
+        "stage.provider_not_configured",
+        "stage.provider_failed",
+        "stage.provider_invalid_response",
+        "stage.provider_input_too_large",
     }
 )
 

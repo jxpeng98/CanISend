@@ -30,7 +30,8 @@ It prepares materials only. It does not submit applications, create accounts, fi
   revision/hash compare-and-swap operations with privacy-safe receipts.
 - Provides the locally accepted Stage 2 Decision Spine: guarded user-owned corrections, Decision and Brief YAML,
   deterministic Criteria/Evidence/Match/required-document projections, and executable unresolved/omit/orphan blockers.
-- Provides the next Stage 3 Cover Letter slice: guarded host-agent `cover_letter_draft.json`, independent
+- Provides the next Stage 3 Cover Letter slice: guarded host-agent or configured-provider
+  `cover_letter_draft.json`, independent
   deterministic `review_findings.json`, user-owned `review_dispositions.yaml`, and derived document readiness.
 - Renders current deterministic Match proposals and a current blocker-free structured Cover Letter into compatible
   views while safely falling back for stale, drifted, blocked, mixed-profile, direct-library, or explicit
@@ -578,8 +579,8 @@ choice, `required + omit`, required document without a preparation action, or or
 Draft/Verify work. Stage 2 is locally accepted, but these artifacts alone do not establish Draft,
 application-package, or submission readiness.
 
-When the plan contains one blocker-free confirmed `prepare` Cover Letter, the host agent can enter the guarded
-structured Draft path:
+When the plan contains one blocker-free confirmed `prepare` Cover Letter, a host agent can enter the guarded
+structured Draft path without starting a second model call:
 
 ```bash
 canisend stage prepare \
@@ -594,6 +595,27 @@ After the user approves the returned `read-private-draft-inputs` consent, the ag
 Tier 2 inputs and writes schema-valid candidate JSON to fresh private scratch. It passes that file to `stage submit`
 with the returned `--task` path, then passes the immutable TaskResult from the response to `stage apply`; neither the
 agent nor a provider writes the run directory or `cover_letter_draft.json` directly.
+
+Alternatively, after explicit Tier 3 approval to transmit the seven declared Draft inputs, the same structured path
+can call the configured provider and complete prepare, candidate submission, validation, and promotion in one command:
+
+```bash
+canisend stage run \
+  --workspace . \
+  --job jobs/<job-slug> \
+  --stage draft \
+  --mode configured-provider \
+  --allow-provider-backed \
+  --format json
+```
+
+The consent flag is required on each non-cached invocation. The provider receives only `parsed_job.json`,
+`criteria.json`, `evidence_catalog.json`, `criterion_matches.json`, `application_decision.yaml`,
+`application_brief.yaml`, and `required_document_plan.json`. It proposes sections and Claim semantics only; the core
+derives identity, current-basis receipts, stable Claim IDs, generation metadata, and review state. Raw provider output
+is bounded and is not stored. Failure, invalid output, or input drift promotes nothing, while an already submitted
+candidate resumes without another provider call. Legacy `canisend run --llm-drafts` remains a separate compatibility
+path.
 
 Review the promoted Draft independently and deterministically:
 
@@ -622,8 +644,9 @@ requires `reset_for_current_review`. When all current findings are accepted, `ca
 Cover Letter `reviewed` projection while Draft and Review stay `proposed`; other package gates remain independent.
 
 Evidence and Parse are independent after intake, so their deterministic runs may be ordered either way; Match waits
-for current Confirm and Evidence outputs. Host-agent execution currently applies to Parse and Draft; Evidence,
-Confirm, Match, Brief, and Review are deterministic-only. For current-host Parse or Draft reasoning,
+for current Confirm and Evidence outputs. Host-agent execution applies to Parse and Draft, while configured-provider
+execution currently applies only to Draft; Evidence, Confirm, Match, Brief, and Review are deterministic-only. For
+current-host Parse or Draft reasoning,
 `stage prepare --mode host-agent` writes a TaskSpec plus an immutable preparation receipt under the job's
 `workflow/runs/` directory. After explicit approval to read the full advert, the host creates candidate JSON only in
 a fresh scratch file and passes it to `stage submit --candidate-file`; the guarded service writes the declared
@@ -723,7 +746,9 @@ Privacy modes:
 
 - Direct CLI deterministic mode can be local-only when no agent reads private content and no LLM flags/providers are used.
 - Agent-assisted mode means agent-read content may enter the agent model context.
-- LLM-backed CLI mode means selected context may be sent to the configured provider or local command through flags such as `extract-profile-evidence --llm-augment`, `--llm-parser`, or `--llm-drafts`.
+- LLM-backed CLI mode means selected context may be sent to the configured provider or local command through
+  `stage run --stage draft --mode configured-provider --allow-provider-backed` or flags such as
+  `extract-profile-evidence --llm-augment`, `--llm-parser`, or `--llm-drafts`.
 
 Detailed agent guidance lives in:
 

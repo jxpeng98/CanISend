@@ -36,8 +36,8 @@ def test_shared_decision_spine_smoke_owns_the_full_body_free_contract():
         '"--stage", "brief"',
         '"operation": "confirm_document_requirements"',
         '"--stage",\n            "draft"',
-        '"stage",\n                "submit"',
-        '"stage",\n            "apply"',
+        '"--mode",\n            "configured-provider"',
+        '"--allow-provider-backed"',
         '"--stage", "review"',
         '["review-dispositions", "status"',
         '"review-dispositions",\n            "init"',
@@ -54,6 +54,8 @@ def test_shared_decision_spine_smoke_owns_the_full_body_free_contract():
     assert "application_brief.yaml" in rendered
     assert "required_document_plan.json" in rendered
     assert "cover_letter_draft.json" in rendered
+    assert "stage.provider_consent_required" in rendered
+    assert "configured_provider" in rendered
     assert "review_findings.json" in rendered
     assert "Deterministic proposal" in rendered
     assert "Criterion is unresolved" in rendered
@@ -174,6 +176,7 @@ def test_package_check_requires_all_run_example_resources():
         "canisend/resources/prompts/criteria_checker.md",
         "canisend/resources/prompts/package_builder.md",
         "canisend/resources/prompts/profile_evidence_augmenter.md",
+        "canisend/resources/prompts/structured_cover_letter_draft.md",
         "canisend/resources/examples/end_to_end/jobs_ac_uk_sample.xml",
         "canisend/resources/examples/end_to_end/full_job_advert.md",
         "canisend/resources/examples/end_to_end/fake_llm_provider.py",

@@ -430,6 +430,15 @@ def test_run_manifest_enforces_lifecycle_and_host_task_identity() -> None:
 
     with pytest.raises(ValidationError):
         RunManifestV1.model_validate(
+            {
+                **manifest.model_dump(),
+                "execution_mode": "configured_provider",
+                "task_id": None,
+            }
+        )
+
+    with pytest.raises(ValidationError):
+        RunManifestV1.model_validate(
             {**manifest.model_dump(), "status": "running", "completed_at": LATER}
         )
 

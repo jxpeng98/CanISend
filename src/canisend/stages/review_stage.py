@@ -267,6 +267,7 @@ def _load_review_inputs(
             cover_letter_schema_path=cover_letter_schema_path,
             parsed_job_schema_path=parsed_job_schema_path,
             required_document_plan_schema_path=required_document_plan_schema_path,
+            expected_generation_mode=draft.generation_mode,
         )
         brief_snapshot = read_optional_safe_bytes(job_dir, APPLICATION_BRIEF_INPUT_PATH)
         if brief_snapshot is None:

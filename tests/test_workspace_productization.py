@@ -29,6 +29,7 @@ def test_init_workspace_creates_user_layout_and_default_resources(tmp_path):
     assert (workspace / "job_leads" / ".gitkeep").exists()
     assert (workspace / "prompts" / "job_parser.md").exists()
     assert (workspace / "prompts" / "profile_evidence_augmenter.md").exists()
+    assert (workspace / "prompts" / "structured_cover_letter_draft.md").exists()
     assert (workspace / "templates" / "typst" / "cover_letter.typ").exists()
     assert (workspace / "schemas" / "parsed_job.schema.json").exists()
     assert (workspace / "schemas" / "workflow-state.schema.json").exists()

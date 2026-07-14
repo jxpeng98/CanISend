@@ -17,7 +17,11 @@ from canisend.decision_models import (
     EvidenceCatalogV1,
     RequiredDocumentPlanV1,
 )
-from canisend.draft_models import CoverLetterDraftV1, DraftBasisV1
+from canisend.draft_models import (
+    CoverLetterDraftV1,
+    DraftBasisV1,
+    DraftGenerationMode,
+)
 from canisend.resource_files import read_resource_text
 from canisend.stage_store import (
     StageStoreError,
@@ -42,7 +46,10 @@ from canisend.user_file_store import (
 
 
 DRAFT_CONTRACT_VERSION = "1.0.0"
-DRAFT_GENERATOR_STRATEGY = "host_agent.cover_letter"
+HOST_AGENT_DRAFT_GENERATOR_STRATEGY = "host_agent.cover_letter"
+CONFIGURED_PROVIDER_DRAFT_GENERATOR_STRATEGY = "configured_provider.cover_letter"
+# Compatibility alias for host-agent callers that predate configured-provider Draft.
+DRAFT_GENERATOR_STRATEGY = HOST_AGENT_DRAFT_GENERATOR_STRATEGY
 DRAFT_GENERATOR_VERSION = "1.0.0"
 
 PARSED_JOB_INPUT_PATH = "parsed_job.json"
@@ -165,6 +172,7 @@ def validate_draft_candidate(
     cover_letter_schema_path: Path | None = None,
     parsed_job_schema_path: Path | None = None,
     required_document_plan_schema_path: Path | None = None,
+    expected_generation_mode: DraftGenerationMode = "host_agent",
 ) -> CoverLetterDraftV1:
     if not isinstance(candidate, dict):
         raise DraftStageValidationError("Draft candidate must be a JSON object.")
@@ -211,6 +219,7 @@ def validate_draft_candidate(
         inputs=inputs,
         job_dir=job_dir,
         input_fingerprint=input_fingerprint,
+        expected_generation_mode=expected_generation_mode,
     )
     _validate_claim_references(validated, inputs=inputs)
 
@@ -451,6 +460,7 @@ def _validate_candidate_identity(
     inputs: _DraftInputs,
     job_dir: Path,
     input_fingerprint: str,
+    expected_generation_mode: DraftGenerationMode,
 ) -> None:
     if candidate.job_id != job_dir.name:
         raise DraftStageValidationError("Draft candidate belongs to a different job.")
@@ -463,9 +473,13 @@ def _validate_candidate_identity(
         raise DraftStageValidationError("Draft candidate declares a stale input fingerprint.")
     if candidate.basis != inputs.basis:
         raise DraftStageValidationError("Draft candidate basis does not match current inputs.")
+    expected_strategy = {
+        "host_agent": HOST_AGENT_DRAFT_GENERATOR_STRATEGY,
+        "configured_provider": CONFIGURED_PROVIDER_DRAFT_GENERATOR_STRATEGY,
+    }[expected_generation_mode]
     if (
-        candidate.generation_mode != "host_agent"
-        or candidate.generator_strategy != DRAFT_GENERATOR_STRATEGY
+        candidate.generation_mode != expected_generation_mode
+        or candidate.generator_strategy != expected_strategy
         or candidate.generator_version != DRAFT_GENERATOR_VERSION
     ):
         raise DraftStageValidationError("Draft candidate declares an unsupported generator.")

@@ -165,10 +165,16 @@ def read_optional_safe_bytes(
     )
 
 
-def load_strict_yaml(data: bytes) -> dict[str, Any]:
+def load_strict_yaml(
+    data: bytes,
+    *,
+    max_bytes: int = USER_FILE_MAX_BYTES,
+) -> dict[str, Any]:
     """Load a small YAML mapping without aliases, anchors, merges, or explicit tags."""
 
-    if len(data) > USER_FILE_MAX_BYTES:
+    if max_bytes < 1:
+        raise ValueError("max_bytes must be positive")
+    if len(data) > max_bytes:
         raise InvalidUserFileError("The user-owned YAML exceeds the size limit.")
     try:
         text = data.decode("utf-8")
@@ -184,8 +190,14 @@ def load_strict_yaml(data: bytes) -> dict[str, Any]:
     return loaded
 
 
-def load_strict_json(data: bytes) -> dict[str, Any]:
-    if len(data) > USER_FILE_MAX_BYTES:
+def load_strict_json(
+    data: bytes,
+    *,
+    max_bytes: int = USER_FILE_MAX_BYTES,
+) -> dict[str, Any]:
+    if max_bytes < 1:
+        raise ValueError("max_bytes must be positive")
+    if len(data) > max_bytes:
         raise InvalidUserFileError("The structured input exceeds the size limit.")
     try:
         loaded = json.loads(

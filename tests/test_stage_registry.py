@@ -69,7 +69,7 @@ def test_decision_spine_stages_are_implemented_in_the_registry() -> None:
     assert brief.execution_modes == ("deterministic",)
     assert brief.authoritative_outputs == ("required_document_plan.json",)
     draft = DEFAULT_STAGE_REGISTRY.get("draft")
-    assert draft.execution_modes == ("host_agent",)
+    assert draft.execution_modes == ("host_agent", "configured_provider")
     assert draft.authoritative_outputs == ("cover_letter_draft.json",)
     review = DEFAULT_STAGE_REGISTRY.get("review")
     assert review.execution_modes == ("deterministic",)

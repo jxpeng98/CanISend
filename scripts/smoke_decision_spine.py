@@ -6,10 +6,12 @@ from __future__ import annotations
 import argparse
 from collections import Counter
 import json
+import os
 from pathlib import Path
+import shlex
 import subprocess
 import sys
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
 from canisend.draft_models import ClaimKind, stable_claim_id
 from canisend.stages.draft_stage import (
@@ -57,6 +59,7 @@ def _run(
     *,
     expect_json: bool,
     expected_returncodes: tuple[int, ...] = (0,),
+    environment: Mapping[str, str] | None = None,
 ) -> dict[str, Any] | None:
     completed = subprocess.run(
         [canisend, *arguments],
@@ -66,6 +69,7 @@ def _run(
         text=True,
         encoding="utf-8",
         errors="strict",
+        env=(None if environment is None else {**os.environ, **environment}),
     )
     operation = " ".join(arguments[:2])
     if completed.returncode not in expected_returncodes:
@@ -322,6 +326,38 @@ def _structured_draft_candidate(workspace: Path) -> dict[str, Any]:
     }
 
 
+def _structured_draft_provider_proposal(workspace: Path) -> dict[str, Any]:
+    candidate = _structured_draft_candidate(workspace)
+    sections = candidate.get("sections")
+    if not isinstance(sections, list):
+        raise SmokeFailure("The smoke Draft candidate omitted its sections.")
+    proposal_sections: list[dict[str, Any]] = []
+    claim_keys = (
+        "text",
+        "kind",
+        "support_strength",
+        "criterion_ids",
+        "evidence_ref_ids",
+        "brief_field_refs",
+        "job_field_refs",
+        "blockers",
+    )
+    for section in sections:
+        if not isinstance(section, dict) or not isinstance(section.get("claims"), list):
+            raise SmokeFailure("The smoke Draft candidate contains an invalid section.")
+        proposal_sections.append(
+            {
+                "section_id": section.get("section_id"),
+                "claims": [
+                    {key: claim.get(key) for key in claim_keys}
+                    for claim in section["claims"]
+                    if isinstance(claim, dict)
+                ],
+            }
+        )
+    return {"sections": proposal_sections}
+
+
 def _assert_workspace_contract(workspace: Path) -> None:
     job = workspace / EXAMPLE_JOB
     expected_artifacts = {
@@ -361,6 +397,8 @@ def _assert_workspace_contract(workspace: Path) -> None:
         if not isinstance(stage, str) or manifest.get("status") != "succeeded":
             raise SmokeFailure("A decision-spine stage did not finish successfully.")
         stage_counts[stage] += 1
+        if stage == "draft" and manifest.get("execution_mode") != "configured_provider":
+            raise SmokeFailure("The release smoke did not exercise configured-provider Draft.")
         if not (manifest_path.parent / "preparation.json").is_file() or not (
             manifest_path.parent / "submission.json"
         ).is_file():
@@ -609,66 +647,64 @@ def run_smoke(canisend: str, workspace: Path) -> None:
         expect_json=True,
     )
 
-    prepared = _run(
+    denied = _run(
         canisend,
         [
             "stage",
-            "prepare",
+            "run",
             *job_args,
             "--stage",
             "draft",
             "--mode",
-            "host-agent",
+            "configured-provider",
         ],
         expect_json=True,
+        expected_returncodes=(1,),
     )
-    if prepared is None:  # pragma: no cover - guarded by expect_json
-        raise SmokeFailure("Draft preparation returned no response.")
-    consents = prepared.get("required_consents")
     if (
-        not isinstance(consents, list)
-        or [item.get("id") for item in consents if isinstance(item, dict)]
-        != ["read-private-draft-inputs"]
+        denied is None
+        or not isinstance(denied.get("error"), dict)
+        or denied["error"].get("code") != "stage.provider_consent_required"
     ):
-        raise SmokeFailure("Draft preparation omitted its Tier 2 consent boundary.")
-    task_path = _job_relative_artifact(prepared, "stage_task_spec")
-    candidate_path = workspace / ".canisend-smoke-draft-candidate.json"
-    candidate_path.write_text(
-        json.dumps(_structured_draft_candidate(workspace), indent=2) + "\n",
+        raise SmokeFailure("Configured-provider Draft did not enforce Tier 3 consent.")
+
+    provider_path = workspace / ".canisend-smoke-structured-provider.py"
+    provider_path.write_text(
+        "print("
+        + repr(json.dumps(_structured_draft_provider_proposal(workspace)))
+        + ")\n",
         encoding="utf-8",
     )
     try:
-        submitted = _run(
+        drafted = _run(
             canisend,
             [
                 "stage",
-                "submit",
+                "run",
                 *job_args,
-                "--task",
-                task_path,
-                "--candidate-file",
-                str(candidate_path),
+                "--stage",
+                "draft",
+                "--mode",
+                "configured-provider",
+                "--allow-provider-backed",
             ],
             expect_json=True,
+            environment={
+                "ACADEMIC_PREP_LLM_PROVIDER": "command",
+                "ACADEMIC_PREP_LLM_COMMAND": shlex.join(
+                    [sys.executable, str(provider_path)]
+                ),
+            },
         )
     finally:
-        candidate_path.unlink(missing_ok=True)
-    if submitted is None:  # pragma: no cover - guarded by expect_json
-        raise SmokeFailure("Draft submission returned no response.")
-    result_path = _job_relative_artifact(submitted, "stage_task_result")
-    _run(
-        canisend,
-        [
-            "stage",
-            "apply",
-            *job_args,
-            "--task",
-            task_path,
-            "--result",
-            result_path,
-        ],
-        expect_json=True,
-    )
+        provider_path.unlink(missing_ok=True)
+    if (
+        drafted is None
+        or not isinstance(drafted.get("extensions"), dict)
+        or drafted["extensions"].get("canisend.execution_mode")
+        != "configured_provider"
+    ):
+        raise SmokeFailure("Configured-provider Draft omitted its execution receipt.")
     reviewed = _run(
         canisend,
         ["stage", "run", *job_args, "--stage", "review"],

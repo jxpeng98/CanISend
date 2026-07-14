@@ -29,15 +29,17 @@ uv run pytest tests/test_examples.py -v
 1. Read `workflow.md` for the end-to-end sequence.
 2. Read `job-lifecycle.md` to decide the next action from current job state.
 3. Read `privacy.md` before reading full private sources, summarizing private files, staging, or committing.
-4. Read `provider-config.md` before enabling `extract-profile-evidence --llm-augment`, `--llm-parser`, `--llm-drafts`, or command providers.
+4. Read `provider-config.md` before enabling structured configured-provider Draft,
+   `extract-profile-evidence --llm-augment`, `--llm-parser`, `--llm-drafts`, or command providers.
 5. Read `quality-gates.md` before presenting materials as ready for review.
 6. Prefer generated evidence and structured job artifacts before raw private sources.
 7. Run Evidence and Match through the shared stage CLI; never write their snapshots, candidates, authoritative
    catalogs, or TaskResult paths directly.
 8. Run user-owned writes only through `corrections`/`decision`/`brief` Agent operations. Never assign a worker a whole
    YAML output; give it one bounded patch file, serialize updates, and request explicit consent at execution.
-9. Run structured Cover Letter Draft through host-agent `stage prepare`/scratch/`stage submit`/`stage apply`, then run
-   deterministic Review. Never assign either authoritative JSON target as a worker write.
+9. Run structured Cover Letter Draft through host-agent `stage prepare`/scratch/`stage submit`/`stage apply`, or after
+   explicit Tier 3 consent through configured-provider `stage run --allow-provider-backed`; then run deterministic
+   Review. Never assign either authoritative JSON target as a worker write.
 
 Agents should coordinate through CLI commands and local files, not through hidden state.
 
@@ -94,8 +96,10 @@ canisend stage run --workspace <private-workspace> --job jobs/<job-slug> --stage
 canisend decision status --workspace <private-workspace> --job jobs/<job-slug> --format json
 canisend brief status --workspace <private-workspace> --job jobs/<job-slug> --format json
 canisend stage run --workspace <private-workspace> --job jobs/<job-slug> --stage brief --mode deterministic --format json
-# After Tier 2 approval, prepare/submit/apply Draft using its returned TaskSpec paths.
+# After Tier 2 approval, prepare/submit/apply host-agent Draft using its returned TaskSpec paths.
 canisend stage prepare --workspace <private-workspace> --job jobs/<job-slug> --stage draft --mode host-agent --format json
+# Or, after separate Tier 3 approval, use the same guarded path with the configured provider.
+canisend stage run --workspace <private-workspace> --job jobs/<job-slug> --stage draft --mode configured-provider --allow-provider-backed --format json
 canisend stage run --workspace <private-workspace> --job jobs/<job-slug> --stage review --mode deterministic --format json
 canisend run --workspace <private-workspace> --job jobs/<job-slug>
 ```
@@ -120,7 +124,8 @@ and fresh revision/hash per field, requirement-set confirmation, or document cho
 not mean `confirmed_empty`. Deterministic Brief planning produces a Tier 2 plan and body-free counts/blocker codes;
 only complete positive source members may be confirmed. Unconfirmed, `required + omit`, missing-action, and
 orphaned-choice states block Draft. The host writes Draft candidate JSON only to private scratch and submits it via
-the returned TaskSpec; `stage apply` alone promotes it. Deterministic Review keeps unsupported/exclusion-conflicting
+the returned TaskSpec; configured-provider Draft requires separate Tier 3 consent and sends exactly the same seven
+inputs. In both modes only the core promotes a validated candidate. Deterministic Review keeps unsupported/exclusion-conflicting
 claims and missing sections as blockers; supported factual wording and every non-factual Claim-kind classification
 remain review-required. Neither stage establishes application-package readiness.
 

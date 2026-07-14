@@ -18,6 +18,7 @@ def test_v1_contract_files_exist():
         "prompts/criteria_checker.md",
         "prompts/package_builder.md",
         "prompts/profile_evidence_augmenter.md",
+        "prompts/structured_cover_letter_draft.md",
         "agent-skills/canisend/SKILL.md",
         "agent-skills/canisend/agents/openai.yaml",
         "agent-skills/canisend/references/workflow.md",

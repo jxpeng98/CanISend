@@ -93,7 +93,8 @@ Do not use ready, final, complete, or submission-ready for generated materials u
   `accepted`; none is unresolved or `revision_required`. Blockers cannot be accepted or waived, and a changed Review
   requires an explicit reset to the new basis rather than carrying decisions forward by position or message.
 - Rejected/stale Draft candidates left authoritative Draft, user YAML, compatibility Markdown, Typst, and profile
-  bytes unchanged. The host wrote no declared run path directly.
+  bytes unchanged. The host or provider wrote no declared run path directly. A configured-provider run had explicit
+  Tier 3 consent, persisted no raw output, and used the same current-basis validator/promotion boundary.
 - When structured Match views were used, Match and its upstream stages are still current and free of output drift;
   `02_fit_report.md`, `05_criteria_checklist.md`, `07_material_review_checklist.md`,
   `typst/application_package_content.json`, and `typst/application_package.typ` represent the same proposed graph.

@@ -50,6 +50,7 @@ from canisend.stage_runtime import (
     cancel_stage_task,
     inspect_stage_status,
     prepare_stage,
+    run_configured_provider_stage,
     run_deterministic_stage,
     submit_stage_candidate,
 )
@@ -523,7 +524,12 @@ def stage_run_command(
     mode: str = typer.Option(
         "deterministic",
         "--mode",
-        help="Executor mode; executable local stages support deterministic execution here.",
+        help="Executor mode: deterministic or configured-provider.",
+    ),
+    allow_provider_backed: bool = typer.Option(
+        False,
+        "--allow-provider-backed",
+        help="Explicitly allow this Tier 3 provider-backed execution request.",
     ),
     output_format: str = typer.Option(
         "text",
@@ -531,21 +537,31 @@ def stage_run_command(
         help="Output format: text or json.",
     ),
 ) -> None:
-    """Run one deterministic stage through candidate validation and promotion."""
+    """Run one core-controlled stage through candidate validation and promotion."""
     _validate_output_format(output_format)
     operation = "workflow.stage_run"
     try:
-        if _stage_mode(mode) != "deterministic":
+        normalized_mode = _stage_mode(mode)
+        if normalized_mode == "host_agent":
             raise StageRuntimeError(
                 "stage.unsupported_mode",
-                "Stage run currently supports deterministic execution only.",
+                "Host-agent execution uses stage prepare, submit, and apply.",
             )
         config = load_workspace_config(workspace)
         job_dir = config.job_dir(job)
-        outcome = run_deterministic_stage(
-            config.root,
-            job_dir,
-            stage=stage,  # type: ignore[arg-type]
+        outcome = (
+            run_configured_provider_stage(
+                config.root,
+                job_dir,
+                stage=stage,  # type: ignore[arg-type]
+                allow_provider_backed=allow_provider_backed,
+            )
+            if normalized_mode == "configured_provider"
+            else run_deterministic_stage(
+                config.root,
+                job_dir,
+                stage=stage,  # type: ignore[arg-type]
+            )
         )
         response = stage_run_agent_response(config.root, outcome)
     except StageRuntimeError as exc:
@@ -1185,10 +1201,14 @@ def _user_owned_expected_revision(value: str) -> int:
 
 def _stage_mode(value: str) -> str:
     normalized = value.strip().lower().replace("-", "_")
-    if normalized not in {"deterministic", "host_agent"}:
+    if normalized not in {
+        "deterministic",
+        "host_agent",
+        "configured_provider",
+    }:
         raise StageRuntimeError(
             "stage.unsupported_mode",
-            "Stage mode must be deterministic or host-agent.",
+            "Stage mode must be deterministic, host-agent, or configured-provider.",
         )
     return normalized
 

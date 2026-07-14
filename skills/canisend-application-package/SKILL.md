@@ -41,7 +41,7 @@ Read only what the current package requires:
    output is not `confirmed_empty` without explicit current-basis confirmation.
 8. Run deterministic `stage run --stage brief`; do not draft through an unconfirmed requirement set, unresolved
    choice, `required + omit`, missing required preparation action, or orphaned choice.
-9. For the Cover Letter, use guarded host-agent Draft candidate submission/promotion, then deterministic Review.
+9. For the Cover Letter, use guarded host-agent or explicitly approved configured-provider Draft, then deterministic Review.
    Resolve non-waivable blockers, then use guarded Review dispositions for every semantic-support and Claim-kind
    finding; do not edit either authoritative JSON or bypass disposition CAS.
 10. Integrate the fit report, cover letter, CV tailoring notes, criteria checklist, required statements, remaining actions, and editable Typst sources. Keep every strong claim proportionate and traceable.

@@ -74,7 +74,11 @@ from canisend.user_file_store import UnsafeUserFileError, read_optional_safe_byt
 from canisend.workspace import load_workspace_config
 
 
-AdapterExecutionMode = Literal["deterministic", "host_agent"]
+AdapterExecutionMode = Literal[
+    "deterministic",
+    "host_agent",
+    "configured_provider",
+]
 
 
 @dataclass(frozen=True)
@@ -146,11 +150,16 @@ class StageAdapter:
         *,
         input_fingerprint: str,
         inputs: tuple[ArtifactFingerprint, ...],
+        execution_mode: AdapterExecutionMode,
     ) -> dict[str, Any]:
         raise NotImplementedError
 
     def required_consents(self, execution_mode: AdapterExecutionMode) -> tuple[str, ...]:
         return ()
+
+    def task_privacy_tier_for(self, execution_mode: AdapterExecutionMode) -> int:
+        del execution_mode
+        return self.task_privacy_tier
 
     def precondition_reasons(
         self,
@@ -195,7 +204,9 @@ class ParseStageAdapter(StageAdapter):
         *,
         input_fingerprint: str,
         inputs: tuple[ArtifactFingerprint, ...],
+        execution_mode: AdapterExecutionMode,
     ) -> dict[str, Any]:
+        del inputs, execution_mode
         advert_text = (job_dir / "job_advert.md").read_text(encoding="utf-8")
         return validate_parse_candidate(
             candidate,
@@ -249,7 +260,9 @@ class ConfirmStageAdapter(StageAdapter):
         *,
         input_fingerprint: str,
         inputs: tuple[ArtifactFingerprint, ...],
+        execution_mode: AdapterExecutionMode,
     ) -> dict[str, Any]:
+        del inputs, execution_mode
         validated = validate_confirm_candidate(
             candidate,
             job_dir=job_dir,
@@ -356,7 +369,9 @@ class EvidenceStageAdapter(StageAdapter):
         *,
         input_fingerprint: str,
         inputs: tuple[ArtifactFingerprint, ...],
+        execution_mode: AdapterExecutionMode,
     ) -> dict[str, Any]:
+        del execution_mode
         validated = validate_evidence_candidate(
             candidate,
             workspace=workspace,
@@ -462,7 +477,9 @@ class MatchStageAdapter(StageAdapter):
         *,
         input_fingerprint: str,
         inputs: tuple[ArtifactFingerprint, ...],
+        execution_mode: AdapterExecutionMode,
     ) -> dict[str, Any]:
+        del inputs, execution_mode
         validated = validate_match_candidate(
             candidate,
             job_dir=job_dir,
@@ -538,8 +555,9 @@ class BriefStageAdapter(StageAdapter):
         *,
         input_fingerprint: str,
         inputs: tuple[ArtifactFingerprint, ...],
+        execution_mode: AdapterExecutionMode,
     ) -> dict[str, Any]:
-        del inputs
+        del inputs, execution_mode
         validated = validate_brief_candidate(
             candidate,
             workspace=workspace,
@@ -620,8 +638,13 @@ class DraftStageAdapter(StageAdapter):
         *,
         input_fingerprint: str,
         inputs: tuple[ArtifactFingerprint, ...],
+        execution_mode: AdapterExecutionMode,
     ) -> dict[str, Any]:
         del inputs
+        if execution_mode not in {"host_agent", "configured_provider"}:
+            raise DraftStageValidationError(
+                "Draft candidate execution mode is unsupported."
+            )
         validated = validate_draft_candidate(
             candidate,
             workspace=workspace,
@@ -636,11 +659,19 @@ class DraftStageAdapter(StageAdapter):
                 workspace,
                 "required-document-plan.schema.json",
             ),
+            expected_generation_mode=execution_mode,
         )
         return validated.model_dump(mode="json")
 
     def required_consents(self, execution_mode: AdapterExecutionMode) -> tuple[str, ...]:
-        return ("read-private-draft-inputs",) if execution_mode == "host_agent" else ()
+        if execution_mode == "host_agent":
+            return ("read-private-draft-inputs",)
+        if execution_mode == "configured_provider":
+            return ("send-private-draft-inputs-to-provider",)
+        return ()
+
+    def task_privacy_tier_for(self, execution_mode: AdapterExecutionMode) -> int:
+        return 3 if execution_mode == "configured_provider" else self.task_privacy_tier
 
 
 class ReviewStageAdapter(StageAdapter):
@@ -727,8 +758,9 @@ class ReviewStageAdapter(StageAdapter):
         *,
         input_fingerprint: str,
         inputs: tuple[ArtifactFingerprint, ...],
+        execution_mode: AdapterExecutionMode,
     ) -> dict[str, Any]:
-        del inputs
+        del inputs, execution_mode
         validated = validate_review_candidate(
             candidate,
             workspace=workspace,
