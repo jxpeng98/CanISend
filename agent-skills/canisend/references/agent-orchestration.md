@@ -96,6 +96,7 @@ canisend stage run --workspace <private-workspace> --job jobs/<job-slug> --stage
 canisend decision status --workspace <private-workspace> --job jobs/<job-slug> --format json
 canisend brief status --workspace <private-workspace> --job jobs/<job-slug> --format json
 canisend stage run --workspace <private-workspace> --job jobs/<job-slug> --stage brief --mode deterministic --format json
+canisend documents status --workspace <private-workspace> --job jobs/<job-slug> --format json
 # After Tier 2 approval, prepare/submit/apply host-agent Draft using its returned TaskSpec paths.
 canisend stage prepare --workspace <private-workspace> --job jobs/<job-slug> --stage draft --mode host-agent --format json
 # Or, after separate Tier 3 approval, use the same guarded path with the configured provider.

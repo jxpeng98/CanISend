@@ -1,0 +1,655 @@
+{
+  "$defs": {
+    "DocumentWorkItemV1": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "blocked"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "properties": {
+              "reason_codes": {
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "omitted"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "properties": {
+              "action": {
+                "const": "omit"
+              },
+              "confirmation_state": {
+                "const": "confirmed"
+              },
+              "reason_codes": {
+                "maxItems": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "ready_to_prepare"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "properties": {
+              "action": {
+                "const": "prepare"
+              },
+              "confirmation_state": {
+                "const": "confirmed"
+              },
+              "executor_availability": {
+                "const": "available"
+              },
+              "reason_codes": {
+                "maxItems": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "executor_unavailable"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "properties": {
+              "action": {
+                "const": "prepare"
+              },
+              "confirmation_state": {
+                "const": "confirmed"
+              },
+              "executor_availability": {
+                "enum": [
+                  "planned",
+                  "unregistered"
+                ]
+              },
+              "reason_codes": {
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "executor_availability": {
+                "const": "available"
+              }
+            },
+            "required": [
+              "executor_availability"
+            ]
+          },
+          "then": {
+            "properties": {
+              "route_id": {
+                "not": {
+                  "type": "null"
+                }
+              },
+              "executor_id": {
+                "not": {
+                  "type": "null"
+                }
+              },
+              "stage": {
+                "not": {
+                  "type": "null"
+                }
+              },
+              "authoritative_target": {
+                "not": {
+                  "type": "null"
+                }
+              },
+              "output_schema": {
+                "not": {
+                  "type": "null"
+                }
+              },
+              "execution_modes": {
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "executor_availability": {
+                "const": "planned"
+              }
+            },
+            "required": [
+              "executor_availability"
+            ]
+          },
+          "then": {
+            "properties": {
+              "route_id": {
+                "not": {
+                  "type": "null"
+                }
+              },
+              "executor_id": {
+                "type": "null"
+              },
+              "stage": {
+                "type": "null"
+              },
+              "authoritative_target": {
+                "type": "null"
+              },
+              "output_schema": {
+                "type": "null"
+              },
+              "execution_modes": {
+                "maxItems": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "executor_availability": {
+                "const": "unregistered"
+              }
+            },
+            "required": [
+              "executor_availability"
+            ]
+          },
+          "then": {
+            "properties": {
+              "route_id": {
+                "type": "null"
+              },
+              "executor_id": {
+                "type": "null"
+              },
+              "stage": {
+                "type": "null"
+              },
+              "authoritative_target": {
+                "type": "null"
+              },
+              "output_schema": {
+                "type": "null"
+              },
+              "execution_modes": {
+                "maxItems": 0
+              }
+            }
+          }
+        },
+        {
+          "else": {
+            "properties": {
+              "confirmation_state": {
+                "const": "confirmed"
+              }
+            }
+          },
+          "if": {
+            "properties": {
+              "action": {
+                "const": "needs_confirmation"
+              }
+            },
+            "required": [
+              "action"
+            ]
+          },
+          "then": {
+            "properties": {
+              "confirmation_state": {
+                "const": "unconfirmed"
+              },
+              "state": {
+                "const": "blocked"
+              }
+            }
+          }
+        }
+      ],
+      "properties": {
+        "document_id": {
+          "pattern": "^document_[0-9a-f]{32}$",
+          "title": "Document Id",
+          "type": "string"
+        },
+        "normalized_kind": {
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Normalized Kind",
+          "type": "string"
+        },
+        "requirement": {
+          "enum": [
+            "required",
+            "optional",
+            "unknown"
+          ],
+          "title": "Requirement",
+          "type": "string"
+        },
+        "action": {
+          "enum": [
+            "prepare",
+            "omit",
+            "needs_confirmation"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "confirmation_state": {
+          "enum": [
+            "unconfirmed",
+            "confirmed"
+          ],
+          "title": "Confirmation State",
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "blocked",
+            "omitted",
+            "ready_to_prepare",
+            "executor_unavailable"
+          ],
+          "title": "State",
+          "type": "string"
+        },
+        "executor_scope": {
+          "default": "submission_document",
+          "enum": [
+            "submission_document",
+            "workflow_support"
+          ],
+          "title": "Executor Scope",
+          "type": "string"
+        },
+        "executor_availability": {
+          "enum": [
+            "available",
+            "planned",
+            "unregistered"
+          ],
+          "title": "Executor Availability",
+          "type": "string"
+        },
+        "route_id": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_-]*(?:\\.[a-z][a-z0-9_-]*)+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Route Id"
+        },
+        "executor_id": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_-]*(?:\\.[a-z][a-z0-9_-]*)+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Executor Id"
+        },
+        "stage": {
+          "anyOf": [
+            {
+              "const": "draft",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stage"
+        },
+        "authoritative_target": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Authoritative Target"
+        },
+        "output_schema": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output Schema"
+        },
+        "execution_modes": {
+          "default": [],
+          "items": {
+            "enum": [
+              "host_agent",
+              "configured_provider"
+            ],
+            "type": "string"
+          },
+          "title": "Execution Modes",
+          "type": "array",
+          "uniqueItems": true
+        },
+        "reason_codes": {
+          "default": [],
+          "items": {
+            "pattern": "^[a-z][a-z0-9_-]*(?:\\.[a-z][a-z0-9_-]*)+$",
+            "type": "string"
+          },
+          "title": "Reason Codes",
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "document_id",
+        "normalized_kind",
+        "requirement",
+        "action",
+        "confirmation_state",
+        "state",
+        "executor_availability"
+      ],
+      "title": "DocumentWorkItemV1",
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/jxpeng98/CanISend/schemas/document-execution-plan.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "const": "ready"
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "ready_document_ids": {
+            "minItems": 1
+          },
+          "blocked_document_ids": {
+            "maxItems": 0
+          },
+          "executor_unavailable_document_ids": {
+            "maxItems": 0
+          },
+          "source_blockers": {
+            "maxItems": 0
+          },
+          "blockers": {
+            "maxItems": 0
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "const": "partially_dispatchable"
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "ready_document_ids": {
+            "minItems": 1
+          },
+          "blocked_document_ids": {
+            "maxItems": 0
+          },
+          "executor_unavailable_document_ids": {
+            "minItems": 1
+          },
+          "source_blockers": {
+            "maxItems": 0
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "const": "blocked"
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "blockers": {
+            "minItems": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "const": "no_work"
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "ready_document_ids": {
+            "maxItems": 0
+          },
+          "blocked_document_ids": {
+            "maxItems": 0
+          },
+          "executor_unavailable_document_ids": {
+            "maxItems": 0
+          },
+          "blocking_document_ids": {
+            "maxItems": 0
+          },
+          "source_blockers": {
+            "maxItems": 0
+          },
+          "blockers": {
+            "maxItems": 0
+          }
+        }
+      }
+    }
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "job_id": {
+      "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+      "title": "Job Id",
+      "type": "string"
+    },
+    "source_plan_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source Plan Sha256",
+      "type": "string"
+    },
+    "source_input_fingerprint": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source Input Fingerprint",
+      "type": "string"
+    },
+    "state": {
+      "enum": [
+        "blocked",
+        "partially_dispatchable",
+        "ready",
+        "no_work"
+      ],
+      "title": "State",
+      "type": "string"
+    },
+    "items": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/DocumentWorkItemV1"
+      },
+      "title": "Items",
+      "type": "array",
+      "uniqueItems": true
+    },
+    "ready_document_ids": {
+      "default": [],
+      "items": {
+        "pattern": "^document_[0-9a-f]{32}$",
+        "type": "string"
+      },
+      "title": "Ready Document Ids",
+      "type": "array",
+      "uniqueItems": true
+    },
+    "blocked_document_ids": {
+      "default": [],
+      "items": {
+        "pattern": "^document_[0-9a-f]{32}$",
+        "type": "string"
+      },
+      "title": "Blocked Document Ids",
+      "type": "array",
+      "uniqueItems": true
+    },
+    "executor_unavailable_document_ids": {
+      "default": [],
+      "items": {
+        "pattern": "^document_[0-9a-f]{32}$",
+        "type": "string"
+      },
+      "title": "Executor Unavailable Document Ids",
+      "type": "array",
+      "uniqueItems": true
+    },
+    "omitted_document_ids": {
+      "default": [],
+      "items": {
+        "pattern": "^document_[0-9a-f]{32}$",
+        "type": "string"
+      },
+      "title": "Omitted Document Ids",
+      "type": "array",
+      "uniqueItems": true
+    },
+    "blocking_document_ids": {
+      "default": [],
+      "items": {
+        "pattern": "^document_[0-9a-f]{32}$",
+        "type": "string"
+      },
+      "title": "Blocking Document Ids",
+      "type": "array",
+      "uniqueItems": true
+    },
+    "source_blockers": {
+      "default": [],
+      "items": {
+        "pattern": "^[a-z][a-z0-9_-]*(?:\\.[a-z][a-z0-9_-]*)+$",
+        "type": "string"
+      },
+      "title": "Source Blockers",
+      "type": "array",
+      "uniqueItems": true
+    },
+    "blockers": {
+      "default": [],
+      "items": {
+        "pattern": "^[a-z][a-z0-9_-]*(?:\\.[a-z][a-z0-9_-]*)+$",
+        "type": "string"
+      },
+      "title": "Blockers",
+      "type": "array",
+      "uniqueItems": true
+    }
+  },
+  "required": [
+    "job_id",
+    "source_plan_sha256",
+    "source_input_fingerprint",
+    "state"
+  ],
+  "title": "CanISendDocumentExecutionPlanV1",
+  "type": "object"
+}

@@ -105,6 +105,16 @@ without changing the frozen AgentResponse/TaskSpec contracts, and without claimi
 - [x] Update packaged prompt/resources, canonical skills, compatibility mirror, roadmap, changelog, and smoke coverage.
 - [x] Complete focused/full cross-version, distribution, privacy, recovery, and clean-wheel validation.
 
+## Task 8: Required-Document Execution Fan-Out
+
+- [x] Accept ADR-016 for a pure derived execution plan rather than a second mutable workflow state.
+- [x] Add a strict `DocumentExecutionPlanV1` contract bound to the exact Required Document Plan hash.
+- [x] Register available, planned, and unregistered document executor capabilities without claiming implementation.
+- [x] Derive one deterministic work item per requirement with blocked, omitted, ready, or unavailable semantics.
+- [x] Expose body-free aggregate status and next actions through AgentResponse and `documents status`.
+- [x] Prove status inspection makes no writes and private labels/source/Brief bodies never enter the response.
+- [x] Complete schema, repository, workspace, packaged-resource, cross-version, and clean-wheel validation.
+
 ## Task 0–5 Validation Snapshot
 
 Tasks 0–5 and the first Cover Letter vertical slice were locally accepted on 2026-07-13:
@@ -159,6 +169,27 @@ Task 7 was locally accepted on 2026-07-14:
 This local acceptance adds one configured-provider Cover Letter execution mode. It does not claim remote CI,
 publication, all-document orchestration, broader cross-document review, application-package readiness, rendering
 approval, or submission readiness.
+
+## Task 8 Validation Snapshot
+
+Task 8 was locally accepted on 2026-07-14:
+
+- `python -m pytest -q`: 1043 passed on Python 3.14.2;
+- the 37 fan-out, Agent protocol, and real Brief-runtime integration tests passed independently on Python 3.11,
+  3.12, 3.13, and 3.14;
+- schema/model conditional parity, exact source-plan hash binding, one-item-per-requirement projection, confirmed
+  omit, source blocker, duplicate Cover Letter cardinality, planned/unregistered executor, workflow-support scope,
+  private-body absence, and read-only CLI tests passed;
+- canonical/workspace skill mirror, generated-schema, compile, diff, repository, workspace, and packaged-resource
+  checks passed;
+- `uv build`, Twine metadata checks, and the 0.2.0 wheel packaged-resource check passed;
+- a clean Python 3.12 wheel installation created a workspace containing the new schema, advertised
+  `documents status`, returned the body-free missing-plan action, and imported the packaged execution contract and
+  all 15 capability routes.
+
+This acceptance establishes the required-document execution inventory and dispatch boundary only. Cover Letter is
+still the sole available guarded document executor; second-document Draft, all-document completion, cross-document
+Review, package readiness, remote CI, publication, rendering approval, and submission remain later work.
 
 ## First-Slice Exit Review
 

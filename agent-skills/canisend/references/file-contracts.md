@@ -168,6 +168,9 @@ RSS and Atom lead outputs live in ignored `job_leads/`.
 - `schemas/document-readiness.schema.json`: derived Cover Letter readiness contract embedded in structured
   compatibility content. It is recomputed from current Draft, Review, and dispositions; it is not a mutable approval
   file and does not establish whole-package readiness.
+- `schemas/document-execution-plan.schema.json`: body-free, read-only fan-out projection derived from the exact
+  Required Document Plan hash. It distinguishes blocked, omitted, dispatchable, planned-unavailable, and
+  unregistered document work without persisting a second workflow state or claiming package readiness.
 - `workflow/user-mutations/`: private immutable candidates plus cooperative single-winner claims and immutable
   receipts. Candidate/YAML bodies and corrected Criteria are Tier 2. Claims and receipts never include correction
   text, rationale, Brief values, finding messages, or document source text; the receipt is Tier 1 and validates against

@@ -33,6 +33,8 @@ It prepares materials only. It does not submit applications, create accounts, fi
 - Provides the next Stage 3 Cover Letter slice: guarded host-agent or configured-provider
   `cover_letter_draft.json`, independent
   deterministic `review_findings.json`, user-owned `review_dispositions.yaml`, and derived document readiness.
+- Derives a body-free required-document execution fan-out, so guarded Cover Letter work, confirmed omissions,
+  unresolved tasks, and document kinds without implemented executors remain distinguishable across agent hosts.
 - Renders current deterministic Match proposals and a current blocker-free structured Cover Letter into compatible
   views while safely falling back for stale, drifted, blocked, mixed-profile, direct-library, or explicit
   LLM-draft runs. A reviewed Cover Letter never implies package/submission readiness.
@@ -578,6 +580,17 @@ agent because it can contain advert source text and application strategy. An unc
 choice, `required + omit`, required document without a preparation action, or orphaned old choice blocks later
 Draft/Verify work. Stage 2 is locally accepted, but these artifacts alone do not establish Draft,
 application-package, or submission readiness.
+
+Derive the current multi-document fan-out without reading document bodies:
+
+```bash
+canisend documents status --workspace . --job jobs/<job-slug> --format json
+```
+
+The response binds the exact plan hash and reports aggregate `ready`, `partially_dispatchable`, `blocked`, or
+`no_work` state. Cover Letter is the only currently available guarded executor. Confirmed research, teaching,
+supporting, diversity, publication, CV, and other routes remain explicit `executor_unavailable` work until their own
+structured schemas, validators, and promotion paths are implemented; they are never silently treated as complete.
 
 When the plan contains one blocker-free confirmed `prepare` Cover Letter, a host agent can enter the guarded
 structured Draft path without starting a second model call:

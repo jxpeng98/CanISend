@@ -33,7 +33,7 @@ Allowed by default:
 - Inspect workspace structure, run `doctor`, list job state, and read generated evidence needed for the current task.
 - Run deterministic commands such as `extract-profile-evidence`, `fetch-job-feed`, `fetch-jobs-ac-uk`, `new-job`,
   `new-job-from-lead`, `stage status`, `stage submit`, `stage cancel`, deterministic Evidence/Parse/Confirm/Match/Brief
-  and Review stages, read-only `corrections status`/`decision status`/`brief status`/`review-dispositions status`, `run`, `check-package`, and
+  and Review stages, read-only `corrections status`/`decision status`/`brief status`/`documents status`/`review-dispositions status`, `run`, `check-package`, and
   `render-typst` when inputs are local and clear.
 - Edit generated drafts, prompt overrides, templates, examples, docs, tests, and skill files within the user's stated scope.
 
@@ -124,16 +124,16 @@ When the focused skills are installed:
    confirmed empty; undecided is not apply/hold/skip; stale values remain until explicitly reconfirmed.
 10. After a current confirmed apply Decision, use `brief status|init|update`, then deterministic `stage run --stage
     brief`. Status is body-free; both Brief and plan bodies remain Tier 2 ask-first.
-11. Stage 2 is locally accepted, but Draft/package readiness does not follow from its artifacts. Treat an unconfirmed document set, `required + omit`, missing preparation action, or orphaned choice as a blocker.
-12. For a planned Cover Letter, either use `host-agent` prepare/submit/apply after Tier 2 approval or `stage run --mode configured-provider --allow-provider-backed` after separate Tier 3 approval. Both use the same guarded Draft validator; every prose block must be an explicit Claim.
-13. Run deterministic `stage run --stage review`; resolve non-waivable blockers, then use `review-dispositions status|init|update` with exact revision/hash CAS to accept or require revision for every current finding. Draft and Review remain `proposed`; complete current dispositions derive Cover Letter `reviewed`.
-14. Use `canisend run --workspace <private-workspace> --job jobs/<job-slug>` for the compatible full-package pipeline.
+11. Run body-free `documents status` to derive fan-out. Only Cover Letter has a guarded executor; other confirmed
+    routes remain `executor_unavailable` until their schema, validator, and promotion path exist.
+12. Stage 2 is locally accepted, but Draft/package readiness does not follow from its artifacts. Treat an unconfirmed document set, `required + omit`, missing preparation action, orphaned choice, or unavailable required executor as a blocker.
+13. For a planned Cover Letter, either use `host-agent` prepare/submit/apply after Tier 2 approval or `stage run --mode configured-provider --allow-provider-backed` after separate Tier 3 approval. Both use the same guarded Draft validator; every prose block must be an explicit Claim.
+14. Run deterministic `stage run --stage review`; resolve non-waivable blockers, then use `review-dispositions status|init|update` with exact revision/hash CAS to accept or require revision for every current finding. Draft and Review remain `proposed`; complete current dispositions derive Cover Letter `reviewed`.
+15. Use `canisend run --workspace <private-workspace> --job jobs/<job-slug>` for the compatible full-package pipeline.
     With the configured workspace profile and no `--llm-drafts`, a current deterministic Match supplies the proposed
-    `02_fit_report.md` and `05_criteria_checklist.md` views, the structured essential-criteria review in
-    `07_material_review_checklist.md`, and Typst package projections. A current validated Draft plus current
-    blocker-free deterministic Review also supplies the compatible Cover Letter Markdown/content/Typst views. Exact
-    complete dispositions set `requires_human_review=false`; missing/stale/revision dispositions keep it true. Missing, blocked, stale, drifted, or tampered structured
-    artifacts, a non-workspace profile override, direct library use, or `--llm-drafts` use the safe legacy/provider
+    fit/checklist/material-review and Typst package projections. A current validated Draft plus blocker-free Review
+    supplies compatible Cover Letter views. Exact complete dispositions set `requires_human_review=false`; missing,
+    stale, revision, blocked, drifted, or tampered artifacts, a profile override, direct library use, or `--llm-drafts` use the safe legacy/provider
     path. Cover Letter document readiness is not whole-package readiness.
-15. Add configured-provider execution or LLM-backed flags only after checking `references/provider-config.md` and getting explicit user approval.
-16. Review outputs against `references/quality-gates.md` before rendering or presenting final package materials.
+16. Add configured-provider execution or LLM-backed flags only after checking `references/provider-config.md` and getting explicit user approval.
+17. Review outputs against `references/quality-gates.md` before rendering or presenting final package materials.

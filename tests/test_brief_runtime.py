@@ -16,6 +16,10 @@ from canisend.decision_models import (
     DocumentRequirementsConfirmationV1,
     LanguagePreferenceV1,
 )
+from canisend.document_execution import (
+    document_execution_status_agent_response,
+    inspect_document_execution,
+)
 from canisend.stage_agent import stage_run_agent_response, stage_status_agent_response
 from canisend.stage_runtime import (
     inspect_stage_status,
@@ -174,6 +178,22 @@ def test_brief_runs_through_shared_runtime_and_keeps_control_plane_body_free(
     assert response.extensions["canisend.document_plan_blocker_count"] == 0
     assert response.workflow is not None
     assert response.workflow.readiness == "ready_for_next_stage"
+    assert [item.id for item in response.next_actions] == ["documents.status"]
+
+    execution = inspect_document_execution(workspace, job)
+    assert execution.source_state == "current"
+    assert execution.plan is not None
+    assert execution.plan.state == "partially_dispatchable"
+    execution_response = document_execution_status_agent_response(
+        workspace,
+        job,
+        execution,
+    )
+    assert execution_response.workflow is not None
+    assert execution_response.workflow.readiness == "action_required"
+    assert execution_response.extensions["canisend.document_ready_to_prepare_count"] == 1
+    assert execution_response.extensions["canisend.document_executor_unavailable_count"] == 1
+    assert PRIVATE_BRIEF not in execution_response.model_dump_json()
 
     cached = run_deterministic_stage(workspace, job, stage="brief")
     assert cached.cache_hit is True

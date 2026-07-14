@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Added a versioned, deterministic required-document execution fan-out with one body-free work item per Brief task,
+  an explicit available/planned/unregistered capability registry, exact source-plan hash binding, and fail-closed
+  cardinality and executor-unavailable states.
+- Added read-only `canisend documents status` and AgentResponse capability routing. It can dispatch the existing
+  guarded Cover Letter path while keeping unimplemented research, teaching, supporting, diversity, publication, CV,
+  email, interview, and unknown routes explicit without claiming application-package readiness.
 - Added Tier 3 configured-provider execution for the structured Cover Letter Draft through the same immutable
   TaskSpec, guarded candidate submission, current-basis validator, atomic promotion, cache, and recovery path as
   host-agent Draft. The provider proposes only sections and Claim semantics; core derives all trusted identity,

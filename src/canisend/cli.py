@@ -19,6 +19,10 @@ from canisend.agent_protocol import (
 )
 from canisend.evidence import EvidenceAugmentationError, extract_profile_evidence
 from canisend.decision_models import MAX_USER_REVISION
+from canisend.document_execution import (
+    document_execution_status_agent_response,
+    inspect_document_execution,
+)
 from canisend.examples import run_packaged_example
 from canisend.git_tracking import GitTrackingError, git_add_application_materials
 from canisend.jobs import create_job, create_job_from_lead, list_jobs as list_job_folders, slugify
@@ -143,6 +147,11 @@ brief_app = typer.Typer(
     no_args_is_help=True,
 )
 app.add_typer(brief_app, name="brief")
+documents_app = typer.Typer(
+    help="Inspect required-document fan-out and guarded executor availability.",
+    no_args_is_help=True,
+)
+app.add_typer(documents_app, name="documents")
 review_dispositions_app = typer.Typer(
     help="Inspect and update user-owned dispositions for structured Review findings.",
     no_args_is_help=True,
@@ -977,6 +986,41 @@ def brief_update_command(
         response = user_mutation_error_response(operation, exc)
     except Exception:
         response = _unexpected_user_mutation_error_response(operation)
+    _emit_agent_response(response, output_format=output_format)
+
+
+@documents_app.command("status")
+def documents_status_command(
+    job: Path = typer.Option(..., "--job", help="Job folder path or workspace-relative job identifier."),
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="Initialized workspace containing the job.",
+    ),
+    output_format: str = typer.Option(
+        "text",
+        "--format",
+        help="Output format: text or json.",
+    ),
+) -> None:
+    """Inspect body-free fan-out state for every required-document task."""
+    _validate_output_format(output_format)
+    operation = "documents.status"
+    try:
+        config = load_workspace_config(workspace)
+        job_dir = config.job_dir(job)
+        response = document_execution_status_agent_response(
+            config.root,
+            job_dir,
+            inspect_document_execution(config.root, job_dir),
+        )
+    except Exception:
+        response = error_response(
+            operation=operation,
+            code="operation.failed",
+            message="CanISend could not inspect document execution safely.",
+            workflow=WorkflowSnapshotReference(phase="unknown", readiness="blocked"),
+        )
     _emit_agent_response(response, output_format=output_format)
 
 

@@ -301,10 +301,12 @@ result is claimed.
 **Stage status:** In progress on `feat/evidence-backed-draft-foundation`. ADR-013 freezes the Claim, ReviewFinding,
 Cover Letter Draft, privacy, and guarded promotion boundary; ADR-014 freezes user-owned finding dispositions,
 non-waivable blockers, and derived document readiness; ADR-015 freezes configured-provider Tier 3 consent and reuse
-of the same TaskSpec/candidate/validator/promotion boundary. The Cover Letter Draft, independent Review, disposition,
-readiness, and configured-provider slices are locally accepted with strict schemas, guarded mutation/promotion,
-fail-closed Markdown/Typst projection, cross-version local tests, and clean-wheel smoke. All-document orchestration,
-broader cross-document review, remote CI, and package readiness remain.
+of the same TaskSpec/candidate/validator/promotion boundary; ADR-016 freezes a read-only, hash-bound required-document
+execution fan-out and explicit available/planned/unregistered capability registry. The Cover Letter Draft,
+independent Review, disposition, readiness, configured-provider, and body-free fan-out inventory slices are locally
+accepted with strict schemas, guarded mutation/promotion, fail-closed Markdown/Typst projection, cross-version local
+tests, and clean-wheel smoke. Cover Letter remains the only available guarded document executor. Second-document and
+all-document Draft execution, broader cross-document review, remote CI, and package readiness remain.
 
 ### Deliverables
 

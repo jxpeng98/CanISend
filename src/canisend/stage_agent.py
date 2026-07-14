@@ -732,7 +732,12 @@ def _downstream_actions(
             return confirm_actions
         return _next_action_for_stage(workspace, job_dir, "parse")
     if stage_id == "brief":
-        return _next_action_for_stage(workspace, job_dir, "draft")
+        return [
+            NextAction(
+                id="documents.status",
+                label="Inspect required-document fan-out before starting Draft work",
+            )
+        ]
     return []
 
 

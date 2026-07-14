@@ -34,6 +34,7 @@ REQUIRED_WHEEL_RESOURCES = [
     "canisend/resources/schemas/review-findings.schema.json",
     "canisend/resources/schemas/review-dispositions.schema.json",
     "canisend/resources/schemas/document-readiness.schema.json",
+    "canisend/resources/schemas/document-execution-plan.schema.json",
     "canisend/resources/schemas/user-mutation-receipt.schema.json",
     "canisend/resources/.codex-plugin/plugin.json",
     "canisend/resources/skills/canisend/SKILL.md",

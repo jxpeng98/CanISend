@@ -64,6 +64,7 @@ SUPPORTED_AGENT_OPERATIONS = (
     "brief.status",
     "brief.initialize",
     "brief.update",
+    "documents.status",
     "review.dispositions_status",
     "review.dispositions_initialize",
     "review.dispositions_update",

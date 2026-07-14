@@ -376,6 +376,20 @@ IDs, states, blocker codes, and counts. An unconfirmed requirement set or Brief 
 `required + omit`, required item without preparation, or orphaned old choice blocks later Draft/Verify work. Rerun
 Brief after every accepted relevant patch; never edit the plan directly.
 
+Inspect the derived fan-out before preparing any document:
+
+```bash
+canisend documents status \
+  --workspace <private-workspace> \
+  --job jobs/<job-slug> \
+  --format json
+```
+
+This read-only command returns counts and generic actions only. `ready_to_prepare` currently means the guarded Cover
+Letter executor can run. A confirmed research, teaching, supporting, diversity, publication, CV, or other planned
+document remains `executor_unavailable`; it is not silently omitted and prevents complete fan-out. The projection is
+re-derived from the current plan hash and is not a mutable artifact or a package-readiness decision.
+
 If the Decision basis changes, Brief bytes remain present and status requires a new `reconfirm_brief` scoped patch.
 Stage 2 is locally accepted. A current plan completes the resumable Stage 2 decision spine, but it does not make
 Draft outputs or the application package ready, reviewed, final, or submission-ready.

@@ -39,6 +39,8 @@ Agent boundaries:
   becomes review-required and must be explicitly reconfirmed.
 - Brief requires a current confirmed apply Decision. Empty required-document extraction is not `confirmed_empty`;
   unresolved, `required + omit`, missing-action, and orphaned-choice states block later Draft/Verify work.
+- Run body-free `documents status` after Brief. Only the Cover Letter has a guarded executor today; other confirmed
+  prepare tasks remain explicit capability blockers rather than being silently omitted.
 - Evidence snapshots, candidates, and catalogs may duplicate private profile bodies until the user removes the run or
   job; privacy-safe workflow control records and Match output do not contain those bodies.
 - User YAML/private mutation candidates/corrected Criteria are Tier 2; Tier 1 receipts and AgentResponse never contain

@@ -171,6 +171,7 @@ def test_package_check_requires_all_run_example_resources():
         "canisend/resources/schemas/review-findings.schema.json",
         "canisend/resources/schemas/review-dispositions.schema.json",
         "canisend/resources/schemas/document-readiness.schema.json",
+        "canisend/resources/schemas/document-execution-plan.schema.json",
         "canisend/resources/schemas/user-mutation-receipt.schema.json",
         "canisend/resources/prompts/cv_tailor.md",
         "canisend/resources/prompts/criteria_checker.md",
