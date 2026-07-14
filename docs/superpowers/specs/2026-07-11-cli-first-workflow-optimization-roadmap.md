@@ -1,7 +1,7 @@
 # CLI-First Workflow Optimization Execution Roadmap
 
-**Status:** Active — Stages 1 and 2 plus Stage 3 Tasks 0–12 are locally accepted; the `0.3.0.dev2` TestPyPI
-development checkpoint is accepted and Stage 3 aggregate Review completion is in progress
+**Status:** Active — Stages 1 and 2 plus Stage 3 Tasks 0–13 are locally accepted; the `0.3.0.dev2` TestPyPI
+development checkpoint is accepted and Stage 3 aggregate readiness completion is in progress
 
 **Date:** 2026-07-11
 
@@ -308,11 +308,13 @@ execution fan-out and explicit available/planned/unregistered capability registr
 Statement Draft and deterministic Review boundary with separate targets and validators; ADR-019 freezes stable
 document selection plus independent Cover Letter and Research Statement disposition/CAS/readiness namespaces;
 ADR-020 freezes a reviewed, standalone Research Statement compatibility projection without expanding package
-readiness. The Cover Letter and Research Statement Draft/Review/disposition/readiness slices are locally accepted
-with strict schemas, guarded promotion, fail-closed document selection, cross-version local tests, and clean-wheel
-smoke. Both are available guarded executors with per-document readiness. Cover Letter keeps package-integrated
-compatibility views; a reviewed Research Statement has standalone Markdown/Typst views only. Broader cross-document
-Review, remote CI, and aggregate package readiness remain.
+readiness; ADR-021 freezes deterministic aggregate Review, exact dynamic document receipt fan-in, body-free control
+responses, and guarded correction proposals. The Cover Letter and Research Statement
+Draft/Review/disposition/readiness slices and aggregate Review are locally accepted with strict schemas, guarded
+promotion, fail-closed document selection, local tests, and clean-wheel smoke. Both documents are available guarded
+executors with per-document readiness. Cover Letter keeps package-integrated compatibility views; a reviewed
+Research Statement has standalone Markdown/Typst views only. Package-level dispositions, aggregate readiness,
+remote CI, and final distribution acceptance remain.
 
 **Release milestones:** `0.3.0.dev2` was published to TestPyPI from the Task 12 baseline (`0.3.0.dev1` is retained as
 a pre-upload failed CI candidate); publish `0.3.0b1` to TestPyPI and PyPI only after Tasks 13–15 are accepted. See

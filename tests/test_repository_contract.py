@@ -51,6 +51,7 @@ def test_v1_contract_files_exist():
         "schemas/review-dispositions.schema.json",
         "schemas/document-readiness.schema.json",
         "schemas/document-execution-plan.schema.json",
+        "schemas/package-review-findings.schema.json",
         "schemas/user-mutation-receipt.schema.json",
     ]
 

@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Added an independent deterministic `package_review` stage and strict packaged
+  `package-review-findings.schema.json`. The aggregate output binds the exact Parsed Job, Brief, Required Document
+  Plan, derived execution plan, and every observed Draft/Review/disposition/readiness receipt.
+- Added fail-closed required-document findings, deterministic duplicate-assertion Evidence-receipt conflict
+  detection, Claim-scoped guarded-Draft correction proposals, and explicit semantic alignment deferral. Aggregate
+  control responses remain body-free and do not claim package or submission readiness.
+- Published and independently verified the `0.3.0.dev2` TestPyPI development checkpoint after retaining
+  `0.3.0.dev1` as an immutable pre-upload CI failure.
 - Added a standalone compatibility projection for an exact current `reviewed` Research Statement. The pipeline emits
   conditional Markdown and injection-safe Typst views with Draft/Review/disposition/readiness hash provenance,
   replaces stale generated views with a body-free unavailable state, and preserves edited Typst through a reviewable

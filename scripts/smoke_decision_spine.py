@@ -34,6 +34,7 @@ EXPECTED_STAGE_RUN_COUNTS = {
     "brief": 2,
     "draft": 2,
     "review": 2,
+    "package_review": 1,
 }
 EXPECTED_USER_MUTATION_RECEIPTS = 18
 STRUCTURED_DRAFT_SENTINEL = "I hold a PhD in Economics."
@@ -53,6 +54,7 @@ USER_AND_STRUCTURED_ARTIFACTS = (
     "research_statement_review_findings.json",
     "review_dispositions.yaml",
     "research_statement_review_dispositions.yaml",
+    "package_review_findings.json",
 )
 
 
@@ -1121,6 +1123,26 @@ def run_smoke(canisend: str, workspace: Path) -> None:
     ):
         raise SmokeFailure(
             "Complete user dispositions did not review the Research Statement."
+        )
+
+    package_review = _run(
+        canisend,
+        ["stage", "run", *job_args, "--stage", "package_review"],
+        expect_json=True,
+    )
+    package_extensions = (
+        package_review.get("extensions")
+        if isinstance(package_review, dict)
+        else None
+    )
+    package_blockers = (
+        package_extensions.get("canisend.package_review_blocker_count")
+        if isinstance(package_extensions, dict)
+        else None
+    )
+    if not isinstance(package_blockers, int) or package_blockers < 1:
+        raise SmokeFailure(
+            "Aggregate Package Review did not preserve the unsupported required-document blocker."
         )
 
     before_run = {

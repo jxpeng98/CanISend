@@ -126,6 +126,21 @@ Do not use ready, final, complete, or submission-ready for generated materials u
 - Every deterministic Match classification remains a proposal. Draft review does not convert it into Decision,
   confirmation, package readiness, or submission readiness.
 
+## Aggregate Package Review Gate
+
+- Current `package_review_findings.json` binds the exact Parsed Job, Application Brief, Required Document Plan,
+  derived document-execution plan, and every observed selected-document Draft, Review, disposition, and readiness
+  receipt.
+- Every required document is present, current, supported by an available guarded executor, free of document
+  blockers/revision requests, and individually `reviewed`. Optional documents are reported but do not silently
+  become required.
+- A repeated normalized factual assertion cannot carry different support classifications or Evidence receipt sets.
+  Any correction proposal is document/Claim-scoped and is applied only through a new guarded Draft candidate.
+- Shared Evidence with different wording, repeated wording with identical receipts, proportionality, tone, emphasis,
+  and narrative alignment remain explicit human-review findings; prose is not parsed into invented factual truth.
+- Aggregate Review remains `proposed`. It is necessary input for later package decisions, but is not rendering,
+  package readiness, submission readiness, or proof of submission.
+
 ## Typst Gate
 
 - `typst/cover_letter.typ` directly contains the cover letter text and stable section markers.

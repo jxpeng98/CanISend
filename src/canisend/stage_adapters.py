@@ -64,6 +64,14 @@ from canisend.stages.match_stage import (
     match_input_fingerprint,
     validate_match_candidate,
 )
+from canisend.stages.package_review_stage import (
+    PACKAGE_REVIEW_FINDINGS_OUTPUT_PATH,
+    build_deterministic_package_review_candidate,
+    package_review_input_artifact_paths,
+    package_review_input_fingerprint,
+    package_review_precondition_reasons,
+    validate_package_review_candidate,
+)
 from canisend.stages.parse_stage import (
     build_deterministic_parse_candidate,
     parse_input_fingerprint,
@@ -973,6 +981,173 @@ class ReviewStageAdapter(StageAdapter):
         return validated.model_dump(mode="json")
 
 
+class PackageReviewStageAdapter(StageAdapter):
+    def precondition_reasons(
+        self,
+        workspace: Path,
+        job_dir: Path,
+    ) -> tuple[str, ...]:
+        return package_review_precondition_reasons(
+            workspace,
+            job_dir,
+            package_review_schema_path=_schema_path(
+                workspace,
+                "package-review-findings.schema.json",
+            ),
+            parsed_job_schema_path=_schema_path(workspace, "parsed_job.schema.json"),
+            cover_letter_schema_path=_schema_path(
+                workspace,
+                "cover-letter-draft.schema.json",
+            ),
+            research_statement_schema_path=_schema_path(
+                workspace,
+                "research-statement-draft.schema.json",
+            ),
+            review_findings_schema_path=_schema_path(
+                workspace,
+                "review-findings.schema.json",
+            ),
+            required_document_plan_schema_path=_schema_path(
+                workspace,
+                "required-document-plan.schema.json",
+            ),
+        )
+
+    def input_fingerprint(self, workspace: Path, job_dir: Path) -> str:
+        return package_review_input_fingerprint(
+            workspace,
+            job_dir,
+            package_review_schema_path=_schema_path(
+                workspace,
+                "package-review-findings.schema.json",
+            ),
+            parsed_job_schema_path=_schema_path(workspace, "parsed_job.schema.json"),
+            cover_letter_schema_path=_schema_path(
+                workspace,
+                "cover-letter-draft.schema.json",
+            ),
+            research_statement_schema_path=_schema_path(
+                workspace,
+                "research-statement-draft.schema.json",
+            ),
+            review_findings_schema_path=_schema_path(
+                workspace,
+                "review-findings.schema.json",
+            ),
+            required_document_plan_schema_path=_schema_path(
+                workspace,
+                "required-document-plan.schema.json",
+            ),
+        )
+
+    def input_artifacts(
+        self,
+        workspace: Path,
+        job_dir: Path,
+    ) -> tuple[ArtifactFingerprint, ...]:
+        del workspace
+        artifacts = []
+        for relative_path in package_review_input_artifact_paths(job_dir):
+            if relative_path.endswith((".yaml", ".yml")):
+                try:
+                    snapshot = read_optional_safe_bytes(job_dir, relative_path)
+                except UnsafeUserFileError as exc:
+                    raise StageStoreError(
+                        "A declared Package Review user input is unsafe."
+                    ) from exc
+                if snapshot is None:
+                    raise StageStoreError(
+                        "A declared Package Review user input is missing."
+                    )
+                artifacts.append(
+                    ArtifactFingerprint(
+                        path=relative_path,
+                        sha256=snapshot.sha256,
+                        size_bytes=len(snapshot.data),
+                    )
+                )
+            else:
+                artifacts.append(_unaliased_artifact(job_dir, relative_path))
+        return tuple(artifacts)
+
+    def build_deterministic_candidate(
+        self,
+        workspace: Path,
+        job_dir: Path,
+        *,
+        input_fingerprint: str,
+        inputs: tuple[ArtifactFingerprint, ...],
+    ) -> dict[str, Any]:
+        del inputs
+        candidate = build_deterministic_package_review_candidate(
+            workspace,
+            job_dir,
+            input_fingerprint=input_fingerprint,
+            package_review_schema_path=_schema_path(
+                workspace,
+                "package-review-findings.schema.json",
+            ),
+            parsed_job_schema_path=_schema_path(workspace, "parsed_job.schema.json"),
+            cover_letter_schema_path=_schema_path(
+                workspace,
+                "cover-letter-draft.schema.json",
+            ),
+            research_statement_schema_path=_schema_path(
+                workspace,
+                "research-statement-draft.schema.json",
+            ),
+            review_findings_schema_path=_schema_path(
+                workspace,
+                "review-findings.schema.json",
+            ),
+            required_document_plan_schema_path=_schema_path(
+                workspace,
+                "required-document-plan.schema.json",
+            ),
+        )
+        return candidate.model_dump(mode="json")
+
+    def validate_candidate(
+        self,
+        workspace: Path,
+        job_dir: Path,
+        candidate: object,
+        *,
+        input_fingerprint: str,
+        inputs: tuple[ArtifactFingerprint, ...],
+        execution_mode: AdapterExecutionMode,
+    ) -> dict[str, Any]:
+        del inputs, execution_mode
+        validated = validate_package_review_candidate(
+            candidate,
+            workspace=workspace,
+            job_dir=job_dir,
+            input_fingerprint=input_fingerprint,
+            package_review_schema_path=_schema_path(
+                workspace,
+                "package-review-findings.schema.json",
+            ),
+            parsed_job_schema_path=_schema_path(workspace, "parsed_job.schema.json"),
+            cover_letter_schema_path=_schema_path(
+                workspace,
+                "cover-letter-draft.schema.json",
+            ),
+            research_statement_schema_path=_schema_path(
+                workspace,
+                "research-statement-draft.schema.json",
+            ),
+            review_findings_schema_path=_schema_path(
+                workspace,
+                "review-findings.schema.json",
+            ),
+            required_document_plan_schema_path=_schema_path(
+                workspace,
+                "required-document-plan.schema.json",
+            ),
+        )
+        return validated.model_dump(mode="json")
+
+
 _ADAPTERS = {
     "evidence": EvidenceStageAdapter(
         stage_id="evidence",
@@ -1052,6 +1227,17 @@ _ADAPTERS = {
         task_privacy_tier=2,
         citations_validated=True,
         document_kind="cover_letter",
+    ),
+    "package_review": PackageReviewStageAdapter(
+        stage_id="package_review",
+        authoritative_target=PACKAGE_REVIEW_FINDINGS_OUTPUT_PATH,
+        candidate_name=PACKAGE_REVIEW_FINDINGS_OUTPUT_PATH,
+        output_schema="canisend.package-review-findings/v1",
+        artifact_kind="package_review_findings",
+        media_type="application/json",
+        privacy_tier=2,
+        task_privacy_tier=2,
+        citations_validated=True,
     ),
 }
 

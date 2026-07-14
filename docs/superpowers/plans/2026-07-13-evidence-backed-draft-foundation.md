@@ -1,6 +1,6 @@
 # Evidence-Backed Draft Foundation Implementation Plan
 
-**Status:** In progress — Tasks 0–12 and the `0.3.0.dev2` TestPyPI checkpoint accepted; Task 13 underway
+**Status:** In progress — Tasks 0–13 and the `0.3.0.dev2` TestPyPI checkpoint accepted; Task 14 underway
 
 **Date:** 2026-07-13
 
@@ -171,12 +171,12 @@ AgentResponse/TaskSpec contracts, and without claiming package readiness.
 
 ## Task 13: Cross-Document Consistency Review
 
-- [ ] Accept ADR-021 for aggregate Review ownership, privacy, current inputs, corrections, and invalidation.
-- [ ] Add a strict package-consistency contract/schema and deterministic guarded stage.
-- [ ] Bind findings to exact current document IDs, Draft/Review/readiness receipts, Brief, and document plan.
-- [ ] Detect provable conflicts/blockers while deferring semantic consistency to explicit human review.
-- [ ] Keep correction proposals document/Claim-scoped and route revisions through guarded Draft promotion.
-- [ ] Prove cache, recovery, stale/tamper, selective invalidation, privacy, and distribution behavior.
+- [x] Accept ADR-021 for aggregate Review ownership, privacy, current inputs, corrections, and invalidation.
+- [x] Add a strict package-consistency contract/schema and deterministic guarded stage.
+- [x] Bind findings to exact current document IDs, Draft/Review/readiness receipts, Brief, and document plan.
+- [x] Detect provable conflicts/blockers while deferring semantic consistency to explicit human review.
+- [x] Keep correction proposals document/Claim-scoped and route revisions through guarded Draft promotion.
+- [x] Prove cache, recovery, stale/tamper, selective invalidation, privacy, and distribution behavior.
 
 ## Task 14: Aggregate Package Review Decisions And Readiness
 

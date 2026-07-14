@@ -90,6 +90,7 @@ cover_letter_draft.json       # core-owned Tier 2 proposed structured Draft
 research_statement_draft.json # core-owned Tier 2 proposed structured Draft
 review_findings.json          # deterministic Cover Letter Review
 research_statement_review_findings.json # deterministic Research Statement Review
+package_review_findings.json  # deterministic aggregate Package Review
 review_dispositions.yaml      # user-owned Cover Letter finding decisions
 research_statement_review_dispositions.yaml # user-owned Research Statement finding decisions
 workflow/
@@ -177,6 +178,11 @@ RSS and Atom lead outputs live in ignored `job_leads/`.
   Statement Draft. It uses the shared Review Findings schema with strategy
   `deterministic.research_statement_review`; it feeds only Research Statement dispositions/readiness, never Cover
   Letter dispositions, compatibility projection, or package readiness.
+- `package_review_findings.json`: deterministic core-owned Tier 2 aggregate Review. It binds the exact Parsed Job,
+  Brief, Required Document Plan, derived execution plan, and every observed Draft/Review/disposition/readiness hash.
+  Missing required documents and exact repeated-assertion receipt disagreements are blockers; semantic alignment is
+  explicit review work. Correction proposals target a document and Claim set and require a new guarded Draft
+  candidate. This file is not user-owned package readiness or submission state.
 - `review_dispositions.yaml`: strict user-owned Tier 2 finding decisions bound to the exact Draft and Review hashes.
   It is the Cover Letter artifact and defaults missing `document_kind` to `cover_letter` for backward readability.
 - `research_statement_review_dispositions.yaml`: independent strict user-owned Tier 2 Research Statement finding
@@ -206,7 +212,8 @@ RSS and Atom lead outputs live in ignored `job_leads/`.
   advert/Parsed Job, Criteria, Match, Decision, and Brief inputs. Draft TaskSpecs name the seven current Tier 2
   structured/user inputs and allow only core-owned candidate/result writes. Cover Letter configured-provider Draft uses the same
   exact TaskSpec paths with privacy tier 3 and consent `send-private-draft-inputs-to-provider`; raw provider output
-  is not an artifact. Review TaskSpecs add the promoted Draft and remain deterministic. Non-document tasks keep the
+  is not an artifact. Review TaskSpecs add the promoted Draft and remain deterministic. Package Review TaskSpecs
+  name the exact existing aggregate inputs and remain body-free despite reading Tier 2 content locally. Non-document tasks keep the
   frozen 1.0 wire shape. Document-scoped Draft/Review tasks use backward-readable 1.1 records and bind TaskSpec,
   result, submission, validation, manifest, terminal claim, promotion receipt, and WorkflowState to the same stable
   Required Document Plan ID. The current plan's normalized kind selects the document-specific adapter, schema, and

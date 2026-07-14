@@ -24,6 +24,7 @@ from canisend.draft_models import (
     ResearchStatementDraftV1,
     ReviewFindingsV1,
 )
+from canisend.package_review_models import PackageReviewFindingsV1
 from canisend.stage_adapters import get_stage_adapter
 from canisend.stage_models import CandidateSubmissionV1, TaskSpecV1
 from canisend.stage_registry import DEFAULT_STAGE_REGISTRY
@@ -1037,6 +1038,60 @@ def _semantic_status(
             NextAction(
                 id="review.dispositions_status",
                 label="Inspect explicit user-owned Review dispositions",
+            )
+        ]
+    if stage_id == "package_review":
+        try:
+            review = PackageReviewFindingsV1.model_validate(
+                read_json_object(authoritative_path)
+            )
+        except (StageStoreError, ValidationError):
+            return "review_required", {}, [
+                NextAction(
+                    id="package_review.inspect_findings",
+                    label="Review the invalid aggregate package findings",
+                )
+            ]
+        blocker_count = len(review.blocker_finding_ids)
+        review_count = sum(
+            finding.severity == "review" for finding in review.findings
+        )
+        warning_count = sum(
+            finding.severity == "warning" for finding in review.findings
+        )
+        blocker_codes = tuple(
+            finding.code
+            for finding in review.findings
+            if finding.finding_id in review.blocker_finding_ids
+        )
+        extensions = {
+            "canisend.package_review_document_count": len(review.documents),
+            "canisend.package_review_selected_document_count": len(
+                review.selected_document_ids
+            ),
+            "canisend.package_review_reviewed_document_count": len(
+                review.reviewed_document_ids
+            ),
+            "canisend.package_review_finding_count": len(review.findings),
+            "canisend.package_review_blocker_count": blocker_count,
+            "canisend.package_review_required_count": review_count,
+            "canisend.package_review_warning_count": warning_count,
+            "canisend.package_review_primary_blocker": (
+                blocker_codes[0] if blocker_codes else None
+            ),
+            "canisend.package_review_state": review.review_state,
+        }
+        if blocker_count:
+            return "blocked", extensions, [
+                NextAction(
+                    id="package_review.resolve_blockers",
+                    label="Resolve required-document and cross-document blockers",
+                )
+            ]
+        return "review_required", extensions, [
+            NextAction(
+                id="package_review.inspect_findings",
+                label="Inspect aggregate findings before recording package decisions",
             )
         ]
     if stage_id != "confirm":

@@ -339,7 +339,10 @@ def stage_status_command(
     stage: str = typer.Option(
         "parse",
         "--stage",
-        help="Workflow stage to inspect: evidence, parse, confirm, match, brief, draft, or review.",
+        help=(
+            "Workflow stage to inspect: evidence, parse, confirm, match, brief, draft, "
+            "review, or package_review."
+        ),
     ),
     document_id: str | None = typer.Option(
         None,
@@ -381,7 +384,10 @@ def stage_prepare_command(
     stage: str = typer.Option(
         "parse",
         "--stage",
-        help="Workflow stage to prepare: evidence, parse, confirm, match, brief, draft, or review.",
+        help=(
+            "Workflow stage to prepare: evidence, parse, confirm, match, brief, draft, "
+            "review, or package_review."
+        ),
     ),
     mode: str = typer.Option(
         "host-agent",
@@ -509,7 +515,10 @@ def stage_cancel_command(
     stage: str = typer.Option(
         "parse",
         "--stage",
-        help="Active workflow stage to cancel: evidence, parse, confirm, match, brief, draft, or review.",
+        help=(
+            "Active workflow stage to cancel: evidence, parse, confirm, match, brief, draft, "
+            "review, or package_review."
+        ),
     ),
     document_id: str | None = typer.Option(
         None,
@@ -551,7 +560,10 @@ def stage_run_command(
     stage: str = typer.Option(
         "parse",
         "--stage",
-        help="Workflow stage to execute: evidence, parse, confirm, match, brief, draft, or review.",
+        help=(
+            "Workflow stage to execute: evidence, parse, confirm, match, brief, draft, "
+            "review, or package_review."
+        ),
     ),
     mode: str = typer.Option(
         "deterministic",

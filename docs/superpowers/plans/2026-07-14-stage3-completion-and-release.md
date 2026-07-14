@@ -1,6 +1,6 @@
 # Stage 3 Completion And 0.3.0 Release Implementation Plan
 
-**Status:** In progress — Release A (`0.3.0.dev2`) accepted; Task 13 underway
+**Status:** In progress — Release A (`0.3.0.dev2`) and Task 13 accepted; Task 14 underway
 
 **Date:** 2026-07-14
 
@@ -145,6 +145,23 @@ rewriting Cover Letter, Research Statement, Brief, Evidence, or their user-owned
 - Dual-document fixtures prove exact conflict detection and safe semantic-review deferral.
 - A changed Cover Letter invalidates package Review without invalidating a still-current Research Statement Review.
 - Supported Python versions, packaged resources, source smoke, and clean-wheel smoke pass.
+
+### Task 13 Validation Snapshot
+
+Task 13 was locally accepted on 2026-07-14:
+
+- ADR-021, the strict `PackageReviewFindingsV1` contract/schema, deterministic `package_review` stage, dynamic
+  document fan-in, and body-free AgentResponse surface are implemented.
+- The development-interpreter full suite passed 1,079 tests; the final aggregate Review and release-smoke focused
+  suite passed 24 tests after adding output-drift and immutable-receipt reconstruction coverage.
+- Dual-document fixtures proved exact repeated-assertion/Evidence-receipt conflict detection, document/Claim-scoped
+  correction proposals, explicit semantic-review deferral, cache reuse, and selective aggregate invalidation.
+- Source and clean-wheel Decision Spine smokes both passed with 11 successful stages and 18 immutable user-mutation
+  receipts. The aggregate stage preserved unsupported required-document blockers in the packaged fixture.
+- `uv build`, Twine metadata validation, packaged-resource validation, generated-schema parity, Python bytecode
+  compilation, `git diff --check`, and canonical/workspace skill-mirror validation passed.
+- Cross-version reruns and the final release gate remain Task 15 work; Task 13 does not claim application-package,
+  rendering, or submission readiness.
 
 ## Task 14: Aggregate Package Review Decisions And Readiness
 

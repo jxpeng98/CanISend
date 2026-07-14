@@ -223,7 +223,14 @@ DEFAULT_STAGE_REGISTRY = StageRegistry(
                 "research_statement_review_findings.json",
             ),
         ),
-        StageDefinition(id="package", depends_on=("review",)),
+        StageDefinition(
+            id="package_review",
+            depends_on=("brief", "review"),
+            implemented=True,
+            execution_modes=("deterministic",),
+            authoritative_outputs=("package_review_findings.json",),
+        ),
+        StageDefinition(id="package", depends_on=("package_review",)),
         StageDefinition(id="verify", depends_on=("package",)),
         StageDefinition(id="render", depends_on=("verify",)),
     )

@@ -29,7 +29,6 @@ from canisend.decision_models import (
     Sha256Value,
     SlugIdentifier,
 )
-from canisend.stage_runtime import StageRuntimeError, inspect_stage_status
 from canisend.stage_store import StageStoreError, read_json_object, sha256_file
 
 
@@ -495,6 +494,18 @@ class DocumentExecutionInspection:
     reason_codes: tuple[str, ...] = ()
 
 
+def inspect_stage_status(*args: object, **kwargs: object) -> object:
+    """Late-bound runtime seam used by read-only document inspection.
+
+    Keeping this wrapper at module scope preserves the existing test/plugin
+    monkeypatch boundary without recreating the package-review import cycle.
+    """
+
+    from canisend.stage_runtime import inspect_stage_status as runtime_inspect
+
+    return runtime_inspect(*args, **kwargs)
+
+
 def document_executor_capabilities() -> tuple[DocumentExecutorCapabilityV1, ...]:
     """Return the immutable normalized-kind capability registry."""
 
@@ -619,6 +630,12 @@ def derive_document_execution_plan(
 
 def inspect_document_execution(workspace: Path, job_dir: Path) -> DocumentExecutionInspection:
     """Inspect current fan-out without writing a derived status artifact."""
+
+    # Keep the pure execution-plan contract importable by aggregate stage adapters.
+    # The runtime imports this module through CLI/agent surfaces, so importing it
+    # lazily here avoids a stage_adapters -> package_review -> document_execution
+    # -> stage_runtime cycle.
+    from canisend.stage_runtime import StageRuntimeError
 
     source_path = job_dir / REQUIRED_DOCUMENT_PLAN_PATH
     try:

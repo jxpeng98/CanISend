@@ -150,6 +150,7 @@
         "brief",
         "draft",
         "review",
+        "package_review",
         "package",
         "verify",
         "render"

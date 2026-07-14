@@ -42,6 +42,7 @@ def test_shared_decision_spine_smoke_owns_the_full_body_free_contract():
         '["review-dispositions", "status"',
         '"review-dispositions",\n            "init"',
         '"operation": "set_finding_disposition"',
+        '["stage", "run", *job_args, "--stage", "package_review"]',
         '"run",\n            "--workspace"',
         '"check-package"',
     ]
@@ -60,6 +61,7 @@ def test_shared_decision_spine_smoke_owns_the_full_body_free_contract():
     assert "review_findings.json" in rendered
     assert "research_statement_review_findings.json" in rendered
     assert "research_statement_review_dispositions.yaml" in rendered
+    assert "package_review_findings.json" in rendered
     assert "user_input.document_ambiguous" in rendered
     assert "Deterministic proposal" in rendered
     assert "Criterion is unresolved" in rendered
@@ -67,7 +69,16 @@ def test_shared_decision_spine_smoke_owns_the_full_body_free_contract():
     assert "structured-draft projection" in rendered
     assert "application_package_content.json" in rendered
     assert "EXPECTED_USER_MUTATION_RECEIPTS = 18" in rendered
-    for stage in ("evidence", "parse", "confirm", "match", "brief", "draft", "review"):
+    for stage in (
+        "evidence",
+        "parse",
+        "confirm",
+        "match",
+        "brief",
+        "draft",
+        "review",
+        "package_review",
+    ):
         assert f'"{stage}":' in rendered
     assert "preparation.json" in rendered
     assert "submission.json" in rendered
@@ -177,6 +188,7 @@ def test_package_check_requires_all_run_example_resources():
         "canisend/resources/schemas/review-dispositions.schema.json",
         "canisend/resources/schemas/document-readiness.schema.json",
         "canisend/resources/schemas/document-execution-plan.schema.json",
+        "canisend/resources/schemas/package-review-findings.schema.json",
         "canisend/resources/schemas/user-mutation-receipt.schema.json",
         "canisend/resources/prompts/cv_tailor.md",
         "canisend/resources/prompts/criteria_checker.md",

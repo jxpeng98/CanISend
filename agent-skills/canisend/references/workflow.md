@@ -483,6 +483,35 @@ finding set. Complete current acceptances derive per-document readiness while Dr
 this is not package readiness. A reviewed Research Statement may produce a standalone compatibility view, but it
 does not enter application-package content or package gates.
 
+### Aggregate Cross-Document Review
+
+After the selected document Reviews and dispositions are current, run the independent aggregate stage without a
+document ID:
+
+```bash
+canisend stage run \
+  --workspace <private-workspace> \
+  --job jobs/<job-slug> \
+  --stage package_review \
+  --mode deterministic \
+  --format json
+```
+
+The stage may also run while required documents are missing or unavailable; those states become durable findings
+rather than making aggregate Review disappear. `package_review_findings.json` binds exact plan, Draft, Review,
+disposition, and derived-readiness receipts. Use the body-free AgentResponse first and ask before reading Tier 2
+finding or correction bodies.
+
+A required omitted, unavailable, missing, stale, blocked, unreviewed, or revision-required document is a blocker.
+The same normalized factual assertion with different support classifications or Evidence receipt sets is also an
+exact blocker. Repeated wording with the same receipts, shared Evidence with different wording, tone,
+proportionality, emphasis, and narrative alignment require human review. Do not infer typed factual contradictions
+from prose. A correction proposal never edits a Draft: target the named document/Claim set with a new guarded Draft
+candidate, then rerun document Review, dispositions, and aggregate Review.
+
+Aggregate Review remains `proposed`; it is not package readiness, rendering approval, manual submission, or proof of
+submission.
+
 ## 11. Generate The Compatible Draft Package
 
 Deterministic baseline:

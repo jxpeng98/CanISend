@@ -66,6 +66,7 @@ SupportedStage = Literal[
     "brief",
     "draft",
     "review",
+    "package_review",
 ]
 SupportedExecutionMode = Literal[
     "deterministic",
@@ -181,6 +182,11 @@ def inspect_stage_status(
     state, reconstructed = _load_or_reconstruct_state(job)
     dependency_reasons: list[str] = []
     for dependency in definition.depends_on:
+        if stage == "package_review" and dependency == "review":
+            # Aggregate Review intentionally runs with missing/stale document
+            # Reviews so those conditions can become durable findings. Its
+            # adapter binds every observed document receipt dynamically.
+            continue
         dependency_definition = DEFAULT_STAGE_REGISTRY.get(dependency)
         if not dependency_definition.implemented:
             continue
@@ -2040,6 +2046,10 @@ def _apply_reconstructed_dependency_staleness(
         if record is None or record.status != "succeeded":
             continue
         for dependency in definition.depends_on:
+            if record.stage == "package_review" and dependency == "review":
+                # Dynamic fan-in is checked by the aggregate input fingerprint,
+                # not by one ambiguous document-scoped dependency record.
+                continue
             dependency_definition = DEFAULT_STAGE_REGISTRY.get(dependency)
             if not dependency_definition.implemented:
                 continue
@@ -2234,6 +2244,7 @@ def _with_stale_descendants(
             and record.status == "succeeded"
             and (
                 stage not in {"draft", "review"}
+                or record.stage == "package_review"
                 or record.document_id == document_id
             )
         )

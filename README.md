@@ -33,6 +33,9 @@ It prepares materials only. It does not submit applications, create accounts, fi
 - Provides two Stage 3 guarded executors: host-agent or configured-provider Cover Letter plus host-agent Research
   Statement, each with an evidence-bound structured Draft, independent deterministic Review, user-owned dispositions,
   derived per-document readiness, and unique outputs.
+- Adds deterministic aggregate `package_review` over the exact current document plan and document receipts. Missing
+  required documents and provable Evidence-receipt conflicts are blockers; tone and narrative alignment remain
+  explicit human-review work, and the stage never rewrites a Draft.
 - Derives a body-free required-document execution fan-out, so guarded Cover Letter/Research Statement work,
   confirmed omissions, unresolved tasks, and document kinds without implemented executors remain distinguishable
   across agent hosts.
@@ -694,9 +697,29 @@ while its Draft and Review stay `proposed`. Cover Letter readiness feeds its com
 checks. Research Statement readiness may feed only a standalone Markdown/Typst view; it is not embedded in the
 application package and does not affect package readiness.
 
+After dispositioning the selected documents, run aggregate consistency Review without selecting a document ID:
+
+```bash
+canisend stage run \
+  --workspace . \
+  --job jobs/<job-slug> \
+  --stage package_review \
+  --mode deterministic \
+  --format json
+```
+
+`package_review_findings.json` binds the current Parsed Job, Brief, Required Document Plan, derived execution plan,
+and every observed Draft/Review/disposition/readiness receipt. The body-free response reports counts and reason
+codes. Required omitted, unavailable, missing, stale, blocked, unreviewed, or revision-required documents block the
+aggregate result. An exact repeated factual assertion with different Evidence receipts also blocks; semantic
+support, proportionality, tone, and narrative alignment are never guessed. Correction proposals target one document
+and Claim set and may be applied only through a new guarded Draft candidate. This Review is not package readiness or
+submission approval.
+
 Evidence and Parse are independent after intake, so their deterministic runs may be ordered either way; Match waits
 for current Confirm and Evidence outputs. Host-agent execution applies to Parse and Draft, while configured-provider
-execution currently applies only to Draft; Evidence, Confirm, Match, Brief, and Review are deterministic-only. For
+execution currently applies only to Draft; Evidence, Confirm, Match, Brief, Review, and Package Review are
+deterministic-only. For
 current-host Parse or Draft reasoning,
 `stage prepare --mode host-agent` writes a TaskSpec plus an immutable preparation receipt under the job's
 `workflow/runs/` directory. Non-document stages retain the frozen 1.0 wire shape; document-scoped Draft/Review
@@ -771,7 +794,7 @@ platform-specific API, network, or MCP transport; deterministic stages need no c
 They may run local deterministic CLI commands, inspect generated evidence, and review current job artifacts. They must
 ask first before reading full private CVs, statements, full job adverts, references, PDFs, source URLs, Evidence
 snapshots/candidates/catalogs, `criteria.json`, `criterion_matches.json`, `application_brief.yaml`,
-`required_document_plan.json`, either structured Draft/Review, `review_dispositions.yaml`,
+`required_document_plan.json`, either structured Draft/Review, `package_review_findings.json`, `review_dispositions.yaml`,
 `research_statement_review_dispositions.yaml`, generated packages, or enabling
 LLM-backed CLI flags/providers. Criteria may contain corrected wording; Match, Brief, the document plan, Draft, and
 Review remain Tier 2. They must not
@@ -925,7 +948,7 @@ CI runs the same test/build/resource-check sequence on pushes and pull requests.
 Preferred tag-driven release orchestration:
 
 ```bash
-scripts/release.sh test --version 0.3.0.dev1
+scripts/release.sh test --version 0.3.0.dev2
 scripts/release.sh beta --version 0.3.0b1
 scripts/release.sh stable --version 0.3.0
 ```
@@ -933,7 +956,7 @@ scripts/release.sh stable --version 0.3.0
 The script updates `pyproject.toml` and `src/canisend/__init__.py`, runs local checks, commits the version bump, pushes the current branch, then creates and pushes the matching git tag:
 
 ```bash
-git tag -a test/v0.3.0.dev1 HEAD -m "canisend 0.3.0.dev1 TestPyPI"
+git tag -a test/v0.3.0.dev2 HEAD -m "canisend 0.3.0.dev2 TestPyPI"
 git tag -a v0.3.0b1 HEAD -m "canisend 0.3.0b1 prerelease"
 git tag -a v0.3.0 HEAD -m "canisend 0.3.0 stable"
 ```

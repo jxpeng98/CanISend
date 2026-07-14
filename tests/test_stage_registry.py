@@ -25,6 +25,7 @@ def test_default_registry_exposes_complete_application_dag() -> None:
         "brief",
         "draft",
         "review",
+        "package_review",
         "package",
         "verify",
         "render",
@@ -37,7 +38,11 @@ def test_default_registry_exposes_complete_application_dag() -> None:
     assert DEFAULT_STAGE_REGISTRY.get("brief").depends_on == ("decide", "match", "confirm")
     assert DEFAULT_STAGE_REGISTRY.get("draft").depends_on == ("brief", "match", "evidence")
     assert DEFAULT_STAGE_REGISTRY.get("review").depends_on == ("draft",)
-    assert DEFAULT_STAGE_REGISTRY.get("package").depends_on == ("review",)
+    assert DEFAULT_STAGE_REGISTRY.get("package_review").depends_on == (
+        "brief",
+        "review",
+    )
+    assert DEFAULT_STAGE_REGISTRY.get("package").depends_on == ("package_review",)
     assert DEFAULT_STAGE_REGISTRY.get("verify").depends_on == ("package",)
     assert DEFAULT_STAGE_REGISTRY.get("render").depends_on == ("verify",)
 
@@ -51,6 +56,7 @@ def test_decision_spine_stages_are_implemented_in_the_registry() -> None:
         "brief",
         "draft",
         "review",
+        "package_review",
     )
 
     evidence = DEFAULT_STAGE_REGISTRY.get("evidence")
@@ -80,6 +86,9 @@ def test_decision_spine_stages_are_implemented_in_the_registry() -> None:
         "review_findings.json",
         "research_statement_review_findings.json",
     )
+    package_review = DEFAULT_STAGE_REGISTRY.get("package_review")
+    assert package_review.execution_modes == ("deterministic",)
+    assert package_review.authoritative_outputs == ("package_review_findings.json",)
 
 
 def test_descendants_are_transitive_and_topologically_ordered() -> None:
@@ -90,6 +99,7 @@ def test_descendants_are_transitive_and_topologically_ordered() -> None:
         "brief",
         "draft",
         "review",
+        "package_review",
         "package",
         "verify",
         "render",
