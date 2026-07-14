@@ -1,5 +1,6 @@
 import hashlib
 import json
+import re
 
 import pytest
 from typer.testing import CliRunner
@@ -12,6 +13,13 @@ from canisend.rss import (
     parse_job_feed,
     parse_jobs_ac_uk_rss,
 )
+
+
+ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _strip_ansi(value: str) -> str:
+    return ANSI_ESCAPE_RE.sub("", value)
 
 
 @pytest.fixture(autouse=True)
@@ -441,7 +449,7 @@ def test_fetch_job_feed_cli_rejects_invalid_source_name(tmp_path, source_name, m
     )
 
     assert result.exit_code != 0
-    assert message in result.output
+    assert message in _strip_ansi(result.output)
 
 
 @pytest.mark.parametrize(
@@ -462,7 +470,7 @@ def test_feed_cli_rejects_negative_limit(tmp_path, command):
     )
 
     assert result.exit_code != 0
-    assert "--limit must be zero or greater" in result.output
+    assert "--limit must be zero or greater" in _strip_ansi(result.output)
 
 
 @pytest.mark.parametrize(
@@ -489,7 +497,7 @@ def test_feed_cli_rejects_local_and_remote_inputs_together(tmp_path, command):
     )
 
     assert result.exit_code != 0
-    assert "either --feed-url or --rss-file" in result.output
+    assert "either --feed-url or --rss-file" in _strip_ansi(result.output)
 
 
 def test_fetch_job_feed_cli_supports_non_ascii_source_names(tmp_path):

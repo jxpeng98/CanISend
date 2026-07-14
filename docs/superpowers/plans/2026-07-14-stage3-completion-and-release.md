@@ -1,6 +1,6 @@
 # Stage 3 Completion And 0.3.0 Release Implementation Plan
 
-**Status:** In progress — TestPyPI dev checkpoint approved; Tasks 13–15 planned
+**Status:** In progress — `0.3.0.dev1` failed before upload; `0.3.0.dev2` retry and Tasks 13–15 underway
 
 **Date:** 2026-07-14
 
@@ -8,7 +8,7 @@
 
 **Current accepted baseline:** Task 12 at `cb115f1`
 
-**Release sequence:** `0.3.0.dev1` on TestPyPI, then `0.3.0b1` on TestPyPI and PyPI after Stage 3 acceptance
+**Release sequence:** `0.3.0.dev2` on TestPyPI, then `0.3.0b1` on TestPyPI and PyPI after Stage 3 acceptance
 
 ## Goal
 
@@ -20,11 +20,14 @@ the `0.3.0b1` PyPI prerelease. Neither checkpoint may imply submission, portal, 
 
 - Keep Python, the private file workspace, current CLI, stage runtime, and `canisend.agent/v1` as the platform.
 - Use `scripts/release.sh`; do not upload distributions or create GitHub releases manually.
-- Publish `test/v0.3.0.dev1` to TestPyPI only. It may originate from the reviewed feature branch.
+- Retain `test/v0.3.0.dev1` as an immutable failed candidate. It failed remote CI before any TestPyPI upload because
+  ANSI-styled option names exposed terminal-sensitive assertions.
+- Publish its fixed successor, `test/v0.3.0.dev2`, to TestPyPI only. It may originate from the reviewed feature
+  branch.
 - Publish `v0.3.0b1` only after Tasks 13–15 are accepted. The release workflow must publish to TestPyPI and pass its
   installed-package smoke before promotion to PyPI and creation of a GitHub prerelease.
-- A published package version is immutable. If the dev artifact reaches TestPyPI but a later gate fails, fix forward
-  with `0.3.0.dev2`; never overwrite or reuse `0.3.0.dev1`.
+- A pushed tag or published package version is immutable. Never move or reuse `0.3.0.dev1` or `0.3.0.dev2`; any
+  later retry increments `.devN`.
 - Document readiness, cross-document review, application-package readiness, rendering readiness, and submission are
   separate states.
 - Cross-document findings and correction proposals are Tier 2 private data. Control responses remain body-free.
@@ -36,7 +39,7 @@ the `0.3.0b1` PyPI prerelease. Neither checkpoint may imply submission, portal, 
 
 ```text
 Task 12 accepted
-  -> Release A: 0.3.0.dev1 TestPyPI checkpoint
+  -> Release A: 0.3.0.dev2 TestPyPI checkpoint
   -> Task 13: cross-document consistency Review
   -> Task 14: aggregate package review decisions and readiness
   -> Task 15: Stage 3 exit, remote CI, distribution acceptance
@@ -49,22 +52,24 @@ Task 12 accepted
 
 - [x] Task 12 has full local, cross-version, distribution, clean-wheel, and Typst evidence.
 - [x] The working tree is clean and the canonical/workspace skill trees match.
-- [x] `test/v0.3.0.dev1` is absent locally and remotely.
-- [x] The remote feature branch is absent, so the release script can establish it at the reviewed candidate commit.
+- [x] `test/v0.3.0.dev1` is retained at `0aede4f`; run 29364176031 failed before upload.
+- [x] The ANSI-sensitive CLI assertions found by that run are reproducible and fixed without changing CLI behavior.
+- [x] `test/v0.3.0.dev2` is absent locally, remotely, and on TestPyPI.
+- [x] The remote feature branch exists and can advance to the fixed reviewed candidate.
 - [x] GitHub authentication and the tag-triggered release workflow are available.
 - [x] The Stage 3 completion/release plan is committed with the release candidate.
 
 ### Execution
 
-1. Run `scripts/release.sh test --version 0.3.0.dev1` without skipping local checks.
+1. Run `scripts/release.sh test --version 0.3.0.dev2` without skipping local checks.
 2. Let the script update `pyproject.toml`, `src/canisend/__init__.py`, `.codex-plugin/plugin.json`, README version
    examples/badge, and `uv.lock`.
 3. Require the script to pass mirror, full pytest, build, Twine, packaged-resource, and clean-wheel Decision Spine
    smoke checks before it commits the version bump.
 4. Let the script push the exact feature-branch candidate, verify the remote head, and push
-   `test/v0.3.0.dev1`.
+   `test/v0.3.0.dev2`.
 5. Monitor `.github/workflows/release.yml` through TestPyPI publication and TestPyPI installation smoke.
-6. Independently install `canisend==0.3.0.dev1` from TestPyPI with PyPI as dependency fallback and verify version,
+6. Independently install `canisend==0.3.0.dev2` from TestPyPI with PyPI as dependency fallback and verify version,
    CLI help, workspace initialization, resource availability, and the packaged Decision Spine smoke.
 
 ### Failure And Recovery

@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 
 import pytest
 import yaml
@@ -30,6 +31,11 @@ from canisend.user_mutations import (
 
 PRIVATE_CORRECTION = "PRIVATE CORRECTION BODY MUST NOT APPEAR"
 PRIVATE_RATIONALE = "PRIVATE DECISION RATIONALE MUST NOT APPEAR"
+ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _strip_ansi(value: str) -> str:
+    return ANSI_ESCAPE_RE.sub("", value)
 
 
 def test_recovery_conflict_routes_to_generic_control_review() -> None:
@@ -970,6 +976,7 @@ def test_fresh_corrections_status_and_context_discover_post_promotion_claim(
 @pytest.mark.parametrize("group", ["corrections", "decision"])
 def test_update_cli_exposes_only_scoped_patch_and_cas_inputs(group: str) -> None:
     result = CliRunner().invoke(app, [group, "update", "--help"])
+    output = _strip_ansi(result.stdout)
 
     assert result.exit_code == 0, result.output
     for option in (
@@ -978,7 +985,7 @@ def test_update_cli_exposes_only_scoped_patch_and_cas_inputs(group: str) -> None
         "--expected-sha256",
         "--confirm-user-owned-write",
     ):
-        assert option in result.stdout
+        assert option in output
     for forbidden in (
         "--decision",
         "--rationale",
@@ -986,7 +993,7 @@ def test_update_cli_exposes_only_scoped_patch_and_cas_inputs(group: str) -> None
         "--replacement-file",
         "--mutation-id",
     ):
-        assert forbidden not in result.stdout
+        assert forbidden not in output
 
 
 def test_private_correction_and_rationale_stay_on_declared_tier_two_data_paths(
