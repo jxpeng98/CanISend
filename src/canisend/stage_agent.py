@@ -42,7 +42,10 @@ def stage_status_agent_response(
     inspection: StageStatusInspection,
 ) -> AgentResponse:
     stage_id = inspection.stage.stage
-    adapter = get_stage_adapter(stage_id)
+    adapter = get_stage_adapter(
+        stage_id,
+        document_id=inspection.stage.document_id,
+    )
     artifacts = []
     pending_task = _pending_task_spec(inspection.pending_task_path)
     status_consents: list[ConsentRequirement] = (
@@ -116,6 +119,7 @@ def stage_status_agent_response(
                 and submission.run_id == pending_task.run_id
                 and submission.job_id == pending_task.job_id
                 and submission.stage == pending_task.stage
+                and submission.document_id == pending_task.document_id
                 and submission.candidate.path == pending_task.candidate_output
                 and submission.result_path == pending_task.result_output
             ):
@@ -349,6 +353,7 @@ def stage_status_agent_response(
         blockers.append("The active task inputs are no longer current.")
     extensions = {
         "canisend.stage_id": stage_id,
+        **_document_identity_extension(inspection.stage.document_id),
         "canisend.stage_status": inspection.stage.status,
         "canisend.input_fingerprint": inspection.input_fingerprint,
         "canisend.output_drift": inspection.output_drift,
@@ -446,6 +451,7 @@ def stage_prepare_agent_response(
         ),
         extensions={
             "canisend.stage_id": stage_id,
+            **_document_identity_extension(prepared.document_id),
             "canisend.stage_status": "running",
             "canisend.run_id": prepared.task_spec.run_id,
             "canisend.task_id": prepared.task_spec.task_id,
@@ -460,7 +466,10 @@ def stage_submit_agent_response(
     submitted: SubmittedStage,
 ) -> AgentResponse:
     stage_id = submitted.task_spec.stage
-    adapter = get_stage_adapter(stage_id)
+    adapter = get_stage_adapter(
+        stage_id,
+        document_id=submitted.document_id,
+    )
     return success_response(
         operation="workflow.stage_submit",
         workflow=WorkflowSnapshotReference(
@@ -504,6 +513,7 @@ def stage_submit_agent_response(
         ],
         extensions={
             "canisend.stage_id": stage_id,
+            **_document_identity_extension(submitted.document_id),
             "canisend.stage_status": "running",
             "canisend.run_id": submitted.task_spec.run_id,
             "canisend.task_id": submitted.task_spec.task_id,
@@ -513,7 +523,10 @@ def stage_submit_agent_response(
 
 def stage_apply_agent_response(workspace: Path, applied: AppliedStage) -> AgentResponse:
     stage_id = applied.manifest.stage
-    adapter = get_stage_adapter(stage_id)
+    adapter = get_stage_adapter(
+        stage_id,
+        document_id=applied.document_id,
+    )
     readiness, semantic_extensions, semantic_actions = _semantic_status(
         stage_id,
         applied.authoritative_path,
@@ -555,6 +568,7 @@ def stage_apply_agent_response(workspace: Path, applied: AppliedStage) -> AgentR
         next_actions=semantic_actions,
         extensions={
             "canisend.stage_id": stage_id,
+            **_document_identity_extension(applied.document_id),
             "canisend.stage_status": "succeeded",
             "canisend.run_id": applied.manifest.run_id,
             "canisend.cache_hit": False,
@@ -590,6 +604,7 @@ def stage_cancel_agent_response(
         ],
         extensions={
             "canisend.stage_id": stage_id,
+            **_document_identity_extension(cancelled.document_id),
             "canisend.stage_status": "cancelled",
             "canisend.run_id": cancelled.manifest.run_id,
         },
@@ -598,7 +613,7 @@ def stage_cancel_agent_response(
 
 def stage_run_agent_response(workspace: Path, outcome: StageRunOutcome) -> AgentResponse:
     stage_id = outcome.stage
-    adapter = get_stage_adapter(stage_id)
+    adapter = get_stage_adapter(stage_id, document_id=outcome.document_id)
     readiness, semantic_extensions, semantic_actions = _semantic_status(
         stage_id,
         outcome.authoritative_path,
@@ -644,6 +659,7 @@ def stage_run_agent_response(workspace: Path, outcome: StageRunOutcome) -> Agent
         next_actions=semantic_actions,
         extensions={
             "canisend.stage_id": stage_id,
+            **_document_identity_extension(outcome.document_id),
             "canisend.stage_status": "succeeded",
             "canisend.cache_hit": outcome.cache_hit,
             "canisend.run_id": outcome.manifest.run_id if outcome.manifest is not None else None,
@@ -669,6 +685,10 @@ def stage_error_response(operation: str, error: StageRuntimeError) -> AgentRespo
             "stage.provider_invalid_response",
         },
     )
+
+
+def _document_identity_extension(document_id: str | None) -> dict[str, str]:
+    return {"canisend.document_id": document_id} if document_id is not None else {}
 
 
 def _agent_phase(stage_id: str) -> str:

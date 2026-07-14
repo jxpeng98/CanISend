@@ -24,13 +24,16 @@ from canisend.draft_models import stable_claim_id
 from canisend.llm import LLMProvider, LLMResponse
 from canisend.stage_agent import (
     stage_apply_agent_response,
+    stage_cancel_agent_response,
     stage_prepare_agent_response,
     stage_status_agent_response,
     stage_submit_agent_response,
 )
 from canisend.stage_runtime import (
+    PreparedStage,
     StageRuntimeError,
     apply_stage_result,
+    cancel_stage_task,
     inspect_stage_status,
     prepare_stage,
     run_configured_provider_stage,
@@ -323,6 +326,40 @@ def _workspace_bytes(workspace: Path) -> dict[str, bytes]:
         for path in sorted(workspace.rglob("*"))
         if path.is_file() and not path.is_symlink()
     }
+
+
+def _downgrade_prepared_document_run_to_v1(
+    prepared: PreparedStage,
+    job: Path,
+) -> tuple[bytes, bytes]:
+    task = read_json_object(prepared.task_spec_path)
+    task["schema_version"] = "1.0.0"
+    task.pop("document_id")
+    prepared.task_spec_path.write_text(
+        json.dumps(task, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    preparation_path = prepared.task_spec_path.parent / "preparation.json"
+    preparation = read_json_object(preparation_path)
+    preparation["schema_version"] = "1.0.0"
+    preparation.pop("document_id")
+    preparation["task_spec_sha256"] = sha256_file(prepared.task_spec_path)
+    preparation_path.write_text(
+        json.dumps(preparation, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    state_path = job / "workflow" / "state.json"
+    state = read_json_object(state_path)
+    state["schema_version"] = "1.0.0"
+    for record in state["stages"]:
+        record.pop("document_id", None)
+    state_path.write_text(
+        json.dumps(state, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return prepared.task_spec_path.read_bytes(), preparation_path.read_bytes()
 
 
 def _all_workspace_text(workspace: Path) -> str:
@@ -723,6 +760,9 @@ def test_configured_provider_cli_is_explicit_and_body_free(
 ) -> None:
     workspace, job = _workspace(tmp_path)
     provider = RecordingProvider(_provider_content(job))
+    document_id = str(
+        draft_input_projection(workspace, job)["cover_letter_document_id"]
+    )
     constructed: list[object] = []
 
     def configured_provider(config: object) -> LLMProvider:
@@ -742,6 +782,8 @@ def test_configured_provider_cli_is_explicit_and_body_free(
         "jobs/example-role",
         "--stage",
         "draft",
+        "--document-id",
+        document_id,
         "--mode",
         "configured-provider",
         "--format",
@@ -761,6 +803,7 @@ def test_configured_provider_cli_is_explicit_and_body_free(
     assert payload["operation"] == "workflow.stage_run"
     assert payload["extensions"]["canisend.execution_mode"] == "configured_provider"
     assert payload["extensions"]["canisend.stage_status"] == "succeeded"
+    assert payload["extensions"]["canisend.document_id"] == document_id
     assert PRIVATE_MOTIVATION not in accepted.stdout
     assert len(provider.prompts) == 1
     assert len(constructed) == 1
@@ -782,6 +825,159 @@ def test_precondition_blocks_omitted_or_unplanned_cover_letter(tmp_path: Path) -
     assert draft_precondition_reasons(missing_workspace, missing_job) == (
         "input_not_ready:cover_letter_not_planned",
     )
+
+
+def test_document_scoped_runtime_rejects_invalid_mismatched_or_cross_stage_ids(
+    tmp_path: Path,
+) -> None:
+    workspace, job = _workspace(tmp_path)
+    before = _workspace_bytes(workspace)
+    other_document_id = "document_fedcba9876543210fedcba9876543210"
+
+    with pytest.raises(StageRuntimeError) as invalid:
+        inspect_stage_status(
+            workspace,
+            job,
+            stage="draft",
+            document_id="not-a-document-id",
+        )
+    assert invalid.value.code == "stage.document_id_invalid"
+
+    with pytest.raises(StageRuntimeError) as mismatched:
+        prepare_stage(
+            workspace,
+            job,
+            stage="draft",
+            execution_mode="host_agent",
+            document_id=other_document_id,
+        )
+    assert mismatched.value.code == "stage.document_not_found"
+
+    with pytest.raises(StageRuntimeError) as cross_stage:
+        inspect_stage_status(
+            workspace,
+            job,
+            stage="parse",
+            document_id=other_document_id,
+        )
+    assert cross_stage.value.code == "stage.document_scope_invalid"
+    assert _workspace_bytes(workspace) == before
+    assert PRIVATE_MOTIVATION not in " ".join(
+        str(item.value) for item in (invalid, mismatched, cross_stage)
+    )
+
+
+def test_legacy_v1_pending_draft_is_reused_and_promoted_without_rewrite(
+    tmp_path: Path,
+) -> None:
+    workspace, job = _workspace(tmp_path)
+    candidate = _candidate(workspace, job)
+    document_id = str(candidate["document_id"])
+    prepared = prepare_stage(
+        workspace,
+        job,
+        stage="draft",
+        execution_mode="host_agent",
+    )
+    task_bytes, preparation_bytes = _downgrade_prepared_document_run_to_v1(
+        prepared,
+        job,
+    )
+
+    status = inspect_stage_status(workspace, job, stage="draft")
+    reused = prepare_stage(
+        workspace,
+        job,
+        stage="draft",
+        execution_mode="host_agent",
+        document_id=document_id,
+    )
+    assert status.stage.document_id == document_id
+    assert reused.reused is True
+    assert reused.document_id == document_id
+    assert reused.task_spec.schema_version == "1.0.0"
+    assert reused.task_spec.document_id is None
+    assert stage_prepare_agent_response(
+        workspace,
+        job,
+        reused,
+    ).extensions["canisend.document_id"] == document_id
+
+    submitted = submit_stage_candidate(
+        workspace,
+        job,
+        task_spec_path=reused.task_spec_path,
+        candidate_bytes=(json.dumps(candidate) + "\n").encode("utf-8"),
+    )
+    assert submitted.document_id == document_id
+    assert submitted.result.document_id is None
+    assert stage_submit_agent_response(
+        workspace,
+        submitted,
+    ).extensions["canisend.document_id"] == document_id
+
+    applied = apply_stage_result(
+        workspace,
+        job,
+        task_spec_path=reused.task_spec_path,
+        task_result_path=submitted.result_path,
+    )
+    manifest = read_json_object(applied.manifest_path)
+    assert applied.document_id == document_id
+    assert applied.manifest.document_id is None
+    assert manifest["schema_version"] == "1.0.0"
+    assert "document_id" not in manifest
+    assert stage_apply_agent_response(
+        workspace,
+        applied,
+    ).extensions["canisend.document_id"] == document_id
+    assert prepared.task_spec_path.read_bytes() == task_bytes
+    assert (prepared.task_spec_path.parent / "preparation.json").read_bytes() == (
+        preparation_bytes
+    )
+    assert next(
+        item for item in applied.state.stages if item.stage == "draft"
+    ).document_id == document_id
+
+
+def test_legacy_v1_pending_draft_can_be_cancelled_by_current_document_id(
+    tmp_path: Path,
+) -> None:
+    workspace, job = _workspace(tmp_path)
+    document_id = str(_candidate(workspace, job)["document_id"])
+    prepared = prepare_stage(
+        workspace,
+        job,
+        stage="draft",
+        execution_mode="host_agent",
+    )
+    task_bytes, preparation_bytes = _downgrade_prepared_document_run_to_v1(
+        prepared,
+        job,
+    )
+
+    cancelled = cancel_stage_task(
+        workspace,
+        job,
+        stage="draft",
+        document_id=document_id,
+    )
+    manifest = read_json_object(cancelled.manifest_path)
+    assert cancelled.document_id == document_id
+    assert cancelled.manifest.document_id is None
+    assert manifest["schema_version"] == "1.0.0"
+    assert "document_id" not in manifest
+    assert stage_cancel_agent_response(
+        workspace,
+        cancelled,
+    ).extensions["canisend.document_id"] == document_id
+    assert prepared.task_spec_path.read_bytes() == task_bytes
+    assert (prepared.task_spec_path.parent / "preparation.json").read_bytes() == (
+        preparation_bytes
+    )
+    assert next(
+        item for item in cancelled.state.stages if item.stage == "draft"
+    ).document_id == document_id
 
 
 def test_draft_runs_through_guarded_host_agent_promotion(tmp_path: Path) -> None:
@@ -806,6 +1002,7 @@ def test_draft_runs_through_guarded_host_agent_promotion(tmp_path: Path) -> None
         "required_document_plan.json",
     ]
     assert prepared.task_spec.authoritative_target == "cover_letter_draft.json"
+    assert prepared.task_spec.document_id == payload["document_id"]
     assert prepared.task_spec.output_schema == "canisend.cover-letter-draft/v1"
     assert prepared.task_spec.execution_mode == "host_agent"
     assert prepared.task_spec.required_consents == ("read-private-draft-inputs",)
@@ -816,6 +1013,7 @@ def test_draft_runs_through_guarded_host_agent_promotion(tmp_path: Path) -> None
     ]
     assert prepare_response.workflow is not None
     assert prepare_response.workflow.readiness == "action_required"
+    assert prepare_response.extensions["canisend.document_id"] == payload["document_id"]
 
     submitted = submit_stage_candidate(
         workspace,
@@ -827,6 +1025,8 @@ def test_draft_runs_through_guarded_host_agent_promotion(tmp_path: Path) -> None
     assert not (job / "cover_letter_draft.json").exists()
     assert submit_response.workflow is not None
     assert submit_response.workflow.readiness == "review_required"
+    assert submitted.result.document_id == payload["document_id"]
+    assert submit_response.extensions["canisend.document_id"] == payload["document_id"]
 
     applied = apply_stage_result(
         workspace,
@@ -838,6 +1038,11 @@ def test_draft_runs_through_guarded_host_agent_promotion(tmp_path: Path) -> None
     promoted = read_json_object(job / "cover_letter_draft.json")
 
     assert promoted["review_state"] == "proposed"
+    assert applied.manifest.document_id == payload["document_id"]
+    assert apply_response.extensions["canisend.document_id"] == payload["document_id"]
+    assert next(
+        item for item in applied.state.stages if item.stage == "draft"
+    ).document_id == payload["document_id"]
     assert promoted["sections"][0]["claims"][0]["kind"] == "factual"
     assert apply_response.workflow is not None
     assert apply_response.workflow.readiness == "review_required"

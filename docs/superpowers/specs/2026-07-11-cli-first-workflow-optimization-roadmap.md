@@ -302,11 +302,13 @@ result is claimed.
 Cover Letter Draft, privacy, and guarded promotion boundary; ADR-014 freezes user-owned finding dispositions,
 non-waivable blockers, and derived document readiness; ADR-015 freezes configured-provider Tier 3 consent and reuse
 of the same TaskSpec/candidate/validator/promotion boundary; ADR-016 freezes a read-only, hash-bound required-document
-execution fan-out and explicit available/planned/unregistered capability registry. The Cover Letter Draft,
+execution fan-out and explicit available/planned/unregistered capability registry; ADR-017 freezes document-scoped
+`(stage, document_id)` run ownership with backward-readable 1.0 records. The Cover Letter Draft,
 independent Review, disposition, readiness, configured-provider, and body-free fan-out inventory slices are locally
 accepted with strict schemas, guarded mutation/promotion, fail-closed Markdown/Typst projection, cross-version local
-tests, and clean-wheel smoke. Cover Letter remains the only available guarded document executor. Second-document and
-all-document Draft execution, broader cross-document review, remote CI, and package readiness remain.
+tests, and clean-wheel smoke. Cover Letter remains the only available guarded document executor, but a second
+executor can now reuse Draft/Review without overwriting another document's cache, retry, or recovery state. Research
+Statement execution, broader cross-document review, remote CI, and package readiness remain.
 
 ### Deliverables
 

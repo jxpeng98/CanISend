@@ -1,6 +1,6 @@
 # Evidence-Backed Draft Foundation Implementation Plan
 
-**Status:** Locally accepted — Tasks 0–7 complete for the first Cover Letter vertical slice
+**Status:** Locally accepted — Tasks 0–9 complete through document-scoped run ownership
 
 **Date:** 2026-07-13
 
@@ -115,6 +115,20 @@ without changing the frozen AgentResponse/TaskSpec contracts, and without claimi
 - [x] Prove status inspection makes no writes and private labels/source/Brief bodies never enter the response.
 - [x] Complete schema, repository, workspace, packaged-resource, cross-version, and clean-wheel validation.
 
+## Task 9: Document-Scoped Stage Instance Ownership
+
+- [x] Accept ADR-017 for `(stage, document_id)` Draft/Review identity and one active run per job.
+- [x] Version document-scoped control records as 1.1 while preserving non-document 1.0 wire shapes.
+- [x] Propagate the stable Required Document Plan ID through TaskSpec, result, submission, validation, manifest,
+  terminal claim, promotion receipt, state, CLI, and AgentResponse.
+- [x] Key state uniqueness/order, pending-task reuse, attempts, reconstruction, cache, and failure recovery by the
+  composite identity.
+- [x] Scope Draft-to-Review dependency and descendant invalidation to the same document.
+- [x] Read and resume legacy 1.0 Draft/Review records, including pending tasks, without rewriting immutable evidence.
+- [x] Add explicit `--document-id` selection while retaining sole-Cover-Letter auto-resolution.
+- [x] Prove two same-stage document records can coexist and malformed, cross-stage, or mismatched IDs fail closed.
+- [x] Complete schema, privacy, compatibility, cross-version, distribution, and clean-wheel validation.
+
 ## Task 0–5 Validation Snapshot
 
 Tasks 0–5 and the first Cover Letter vertical slice were locally accepted on 2026-07-13:
@@ -190,6 +204,30 @@ Task 8 was locally accepted on 2026-07-14:
 This acceptance establishes the required-document execution inventory and dispatch boundary only. Cover Letter is
 still the sole available guarded document executor; second-document Draft, all-document completion, cross-document
 Review, package readiness, remote CI, publication, rendering approval, and submission remain later work.
+
+## Task 9 Validation Snapshot
+
+Task 9 was locally accepted on 2026-07-14:
+
+- `python -m pytest -q`: 1052 passed on Python 3.14.2;
+- after the final omission of null document metadata from non-document Agent responses, the 15 affected
+  CLI/Draft/Review compatibility tests passed;
+- the 41 document-identity, current/legacy control-contract, Draft/Review runtime, CLI, and frozen Stage 1 fixture
+  tests passed independently on Python 3.11.15, 3.12.12, 3.13.14, and 3.14.2;
+- the 114 focused ownership/runtime tests and 115 repository, workspace, skill-distribution, release, and tracking
+  tests passed;
+- dual same-stage identity, scoped dependency/invalidation, explicit and automatic selection, malformed/mismatched
+  target rejection, private-body absence, and exact non-document 1.0 serialization tests passed;
+- legacy pending 1.0 Cover Letter tasks were associated with the sole current plan ID and could be reused, submitted,
+  promoted, or cancelled without rewriting their immutable TaskSpec or preparation receipt;
+- canonical/workspace skill mirror, schema, compile, diff, packaged-resource, and repository-contract checks passed;
+- `uv build` and Twine metadata checks passed for the 0.2.0 sdist and wheel;
+- a clean Python 3.12 wheel installation exposed the new schema and skill guidance, then passed the complete Decision
+  Spine smoke with 8 successful stage runs and 14 immutable user-mutation receipts.
+
+This acceptance establishes reusable per-document Draft/Review ownership, not a second document executor. Research
+Statement schema, current-basis validation, guarded promotion, review behavior, package readiness, remote CI,
+publication, rendering approval, and submission remain later work.
 
 ## First-Slice Exit Review
 

@@ -592,6 +592,11 @@ The response binds the exact plan hash and reports aggregate `ready`, `partially
 supporting, diversity, publication, CV, and other routes remain explicit `executor_unavailable` work until their own
 structured schemas, validators, and promotion paths are implemented; they are never silently treated as complete.
 
+Draft and Review execution state is owned by the composite `(stage, document_id)` identity from the current Required
+Document Plan. The sole current Cover Letter ID is resolved automatically for compatibility. Hosts may pass the
+returned stable ID explicitly with `--document-id <document_...>` on `stage status`, `prepare`, `run`, or `cancel`;
+a mismatched, malformed, or unsupported target fails before a task is created.
+
 When the plan contains one blocker-free confirmed `prepare` Cover Letter, a host agent can enter the guarded
 structured Draft path without starting a second model call:
 
@@ -641,6 +646,9 @@ canisend stage run \
   --format json
 ```
 
+When `--document-id` was supplied for Draft, pass the same ID to Review. Review resolves only the Draft instance for
+that document; cache, retry, failure, and recovery records for another document cannot satisfy it.
+
 Unsupported factual claims, missing required sections, and detectable Brief-exclusion conflicts remain blockers.
 Partial support, semantic support, and non-factual Claim-kind classification remain review work. Use body-free status,
 then initialize and disposition one finding at a time with the current revision/hash:
@@ -661,13 +669,17 @@ for current Confirm and Evidence outputs. Host-agent execution applies to Parse 
 execution currently applies only to Draft; Evidence, Confirm, Match, Brief, and Review are deterministic-only. For
 current-host Parse or Draft reasoning,
 `stage prepare --mode host-agent` writes a TaskSpec plus an immutable preparation receipt under the job's
-`workflow/runs/` directory. After explicit approval to read the full advert, the host creates candidate JSON only in
-a fresh scratch file and passes it to `stage submit --candidate-file`; the guarded service writes the declared
+`workflow/runs/` directory. Non-document stages retain the frozen 1.0 wire shape; document-scoped Draft/Review
+records use backward-readable control-contract 1.1 and carry the stable `document_id` through result, validation,
+manifest, terminal claim, promotion, state, CLI, and AgentResponse. After explicit approval to read the full advert,
+the host creates candidate JSON only in a fresh scratch file and passes it to `stage submit --candidate-file`; the
+guarded service writes the declared
 candidate, TaskResult, and submission receipt without following symlink or hard-link aliases. `stage apply` then
 rechecks task integrity, active status, input freshness, scope, hashes, schema, source receipts, and output drift
 before atomically promoting `parsed_job.json`. Agents never write a run path or authoritative stage artifact directly.
 If inputs or dependencies change while a task is active, run
-`canisend stage cancel --workspace . --job jobs/<job-slug> --stage <stage>` before preparing a replacement; audit
+`canisend stage cancel --workspace . --job jobs/<job-slug> --stage <stage> [--document-id <document_...>]` before
+preparing a replacement; audit
 records and any candidate remain available.
 
 Confirm projects Parsed Job v1 into `criteria.json` with stable criterion IDs, confidence, and separate

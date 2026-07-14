@@ -390,6 +390,11 @@ Letter executor can run. A confirmed research, teaching, supporting, diversity, 
 document remains `executor_unavailable`; it is not silently omitted and prevents complete fan-out. The projection is
 re-derived from the current plan hash and is not a mutable artifact or a package-readiness decision.
 
+Draft and Review runs are keyed by `(stage, document_id)`. The current sole Cover Letter is resolved automatically,
+but a host may pass its stable Required Document Plan ID as `--document-id <document_...>` to `stage status`,
+`prepare`, `run`, and `cancel`. Reuse that exact ID for Review. Do not infer an ID from a label, list position, output
+filename, or provider text; a mismatched or unsupported ID must fail before task creation.
+
 If the Decision basis changes, Brief bytes remain present and status requires a new `reconfirm_brief` scoped patch.
 Stage 2 is locally accepted. A current plan completes the resumable Stage 2 decision spine, but it does not make
 Draft outputs or the application package ready, reviewed, final, or submission-ready.
@@ -421,7 +426,8 @@ canisend stage prepare \
 ```
 
 The prepared task returns the `read-private-draft-inputs` consent ID. Read only the returned TaskSpec paths after
-that separate Tier 2 consent. Produce JSON matching
+that separate Tier 2 consent. The document-scoped 1.1 TaskSpec, result, submission, validation, manifest, promotion,
+and state records all echo the same stable ID; non-document 1.0 task shapes remain unchanged. Produce JSON matching
 `schemas/cover-letter-draft.schema.json` in fresh private scratch. Every applicant-facing block must be an explicit
 Claim; strong/partial facts use current Evidence IDs, while unsupported facts remain explicit blockers. Pass the
 scratch file to `stage submit`, then pass the returned immutable TaskResult to `stage apply`. Never write the
@@ -456,6 +462,9 @@ canisend stage run \
   --mode deterministic \
   --format json
 ```
+
+If Draft used explicit `--document-id`, pass the same option to Review. Review may consume only the Draft instance
+with that composite identity.
 
 Use body-free counts/codes first; ask before reading Claim or finding bodies. Blockers require a new validated Draft.
 Open semantic-support and non-factual Claim-kind findings require human inspection. Start with

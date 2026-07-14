@@ -16,6 +16,7 @@ from canisend.draft_provider import (
     DraftProviderResponseError,
     build_configured_provider_draft_candidate,
 )
+from canisend.decision_models import RequiredDocumentPlanV1
 from canisend.stage_adapters import StageAdapter, get_stage_adapter
 from canisend.stage_models import (
     ArtifactFingerprint,
@@ -85,6 +86,7 @@ class PreparedStage:
     candidate_path: Path
     result_path: Path
     state: WorkflowStateV1
+    document_id: str | None
     reused: bool = False
 
 
@@ -105,6 +107,7 @@ class AppliedStage:
     manifest_path: Path
     state: WorkflowStateV1
     authoritative_path: Path
+    document_id: str | None
 
 
 @dataclass(frozen=True)
@@ -112,6 +115,7 @@ class CancelledStage:
     manifest: RunManifestV1
     manifest_path: Path
     state: WorkflowStateV1
+    document_id: str | None
 
 
 @dataclass(frozen=True)
@@ -121,11 +125,13 @@ class SubmittedStage:
     result: TaskResultV1
     result_path: Path
     submission_path: Path
+    document_id: str | None
 
 
 @dataclass(frozen=True)
 class StageRunOutcome:
     stage: SupportedStage
+    document_id: str | None
     cache_hit: bool
     state: WorkflowStateV1
     authoritative_path: Path
@@ -138,10 +144,16 @@ def inspect_stage_status(
     job_dir: Path,
     *,
     stage: SupportedStage = "parse",
+    document_id: str | None = None,
 ) -> StageStatusInspection:
     root, job = _runtime_paths(workspace, job_dir)
+    resolved_document_id = _resolve_stage_document_id(
+        job,
+        stage=stage,
+        document_id=document_id,
+    )
     definition = _implemented_stage(stage)
-    adapter = _adapter(stage)
+    adapter = _adapter(stage, document_id=resolved_document_id)
     state, reconstructed = _load_or_reconstruct_state(job)
     dependency_reasons: list[str] = []
     for dependency in definition.depends_on:
@@ -152,6 +164,11 @@ def inspect_stage_status(
             root,
             job,
             stage=dependency,  # type: ignore[arg-type]
+            document_id=(
+                resolved_document_id
+                if dependency in {"draft", "review"}
+                else None
+            ),
         )
         state = _merge_state_views(state, dependency_status.state)
         reconstructed = reconstructed or dependency_status.reconstructed
@@ -172,12 +189,16 @@ def inspect_stage_status(
                 "The requested stage preconditions could not be evaluated safely.",
             ) from exc
 
-    record = _stage_record(state, stage)
+    record = _stage_record(state, stage, document_id=resolved_document_id)
     if dependency_reasons:
         if record.status in {"succeeded", "stale"}:
             record = record.model_copy(update={"status": "stale"})
         elif record.status != "running":
-            record = StageRecord(stage=stage, status="blocked")
+            record = StageRecord(
+                stage=stage,
+                document_id=resolved_document_id,
+                status="blocked",
+            )
         output_drift, output_reasons = _inspect_output_receipt(job, record, adapter)
         pending_task = (
             _pending_task_for_run(job, record.run_id)
@@ -266,6 +287,7 @@ def inspect_stage_status(
         pending_task = _pending_task_for_fingerprint(
             job,
             stage=stage,
+            document_id=resolved_document_id,
             input_fingerprint=current_fingerprint,
             execution_mode=None,
         )
@@ -307,7 +329,11 @@ def inspect_stage_status(
     pending_path = pending_task[1] if pending_task is not None else None
     visible_state = _state_with_stage(state, record, active_run_id=state.active_run_id)
     if "input_changed" in reasons:
-        visible_state = _with_stale_descendants(visible_state, stage)
+        visible_state = _with_stale_descendants(
+            visible_state,
+            stage,
+            document_id=resolved_document_id,
+        )
     return StageStatusInspection(
         state=visible_state,
         stage=record,
@@ -325,10 +351,16 @@ def prepare_stage(
     *,
     stage: SupportedStage,
     execution_mode: SupportedExecutionMode,
+    document_id: str | None = None,
 ) -> PreparedStage:
     root, job = _runtime_paths(workspace, job_dir)
+    resolved_document_id = _resolve_stage_document_id(
+        job,
+        stage=stage,
+        document_id=document_id,
+    )
     definition = _implemented_stage(stage)
-    adapter = _adapter(stage)
+    adapter = _adapter(stage, document_id=resolved_document_id)
     if execution_mode not in definition.execution_modes:
         raise StageRuntimeError(
             "stage.unsupported_mode",
@@ -337,7 +369,12 @@ def prepare_stage(
 
     _finalize_recoverable_promotions(job)
 
-    status = inspect_stage_status(root, job, stage=stage)
+    status = inspect_stage_status(
+        root,
+        job,
+        stage=stage,
+        document_id=resolved_document_id,
+    )
     if status.input_fingerprint is None:
         raise StageRuntimeError(
             "stage.dependency_not_current",
@@ -350,10 +387,16 @@ def prepare_stage(
         )
     if status.stage.status == "succeeded" and not status.reasons:
         raise StageRuntimeError("stage.already_current", "The requested stage is already current.")
+    if stage in {"draft", "review"} and resolved_document_id is None:
+        raise StageRuntimeError(
+            "stage.document_not_resolved",
+            "The document-scoped stage requires one current planned document target.",
+        )
 
     existing = _pending_task_for_fingerprint(
         job,
         stage=stage,
+        document_id=resolved_document_id,
         input_fingerprint=status.input_fingerprint,
         execution_mode=execution_mode,
     )
@@ -365,6 +408,7 @@ def prepare_stage(
             candidate_path=resolve_job_relative_path(job, task.candidate_output),
             result_path=resolve_job_relative_path(job, task.result_output),
             state=status.state,
+            document_id=resolved_document_id,
             reused=True,
         )
 
@@ -381,6 +425,7 @@ def prepare_stage(
     now = _utc_now()
     run_id = f"run_{uuid4().hex}"
     task_id = f"task_{uuid4().hex}"
+    contract_version = "1.1.0" if resolved_document_id is not None else "1.0.0"
     run_root = f"workflow/runs/{run_id}"
     candidate_output = f"{run_root}/candidates/{adapter.candidate_name}"
     result_output = f"{run_root}/tasks/{task_id}/result.json"
@@ -410,10 +455,12 @@ def prepare_stage(
         else ()
     )
     task = TaskSpecV1(
+        schema_version=contract_version,
         task_id=task_id,
         run_id=run_id,
         job_id=job.name,
         stage=stage,
+        document_id=resolved_document_id,
         operation=f"stage.{stage}",
         execution_mode=execution_mode,
         created_at=now,
@@ -435,12 +482,14 @@ def prepare_stage(
     candidate_path.parent.mkdir(parents=True, exist_ok=True)
     result_path.parent.mkdir(parents=True, exist_ok=True)
     try:
-        write_immutable_json(task_path, task.model_dump(mode="json"))
+        write_immutable_json(task_path, _stage_contract_payload(task))
         preparation = RunManifestV1(
+            schema_version=contract_version,
             run_id=run_id,
             task_id=task_id,
             job_id=job.name,
             stage=stage,
+            document_id=resolved_document_id,
             attempt=status.stage.attempt_count + 1,
             execution_mode=execution_mode,
             status="prepared",
@@ -451,7 +500,7 @@ def prepare_stage(
         )
         write_immutable_json(
             resolve_job_relative_path(job, f"{run_root}/preparation.json"),
-            preparation.model_dump(mode="json"),
+            _stage_contract_payload(preparation),
         )
     except StageStoreError as exc:
         raise StageRuntimeError(
@@ -462,6 +511,7 @@ def prepare_stage(
     previous_attempts = status.stage.attempt_count
     running = StageRecord(
         stage=stage,
+        document_id=resolved_document_id,
         status="running",
         attempt_count=previous_attempts + 1,
         run_id=run_id,
@@ -484,6 +534,7 @@ def prepare_stage(
         candidate_path=candidate_path,
         result_path=result_path,
         state=state,
+        document_id=resolved_document_id,
     )
 
 
@@ -497,16 +548,23 @@ def apply_stage_result(
     root, job = _runtime_paths(workspace, job_dir)
     task: TaskSpecV1 | None = None
     result: TaskResultV1 | None = None
+    logical_document_id: str | None = None
     trusted_task = False
     promotion_claimed = False
     try:
         task_relative, task_path = _validated_supplied_path(job, task_spec_path)
         task = TaskSpecV1.model_validate(read_json_object(task_path))
+        logical_document_id = _legacy_run_document_id(
+            job,
+            stage=task.stage,
+            document_id=task.document_id,
+            run_id=task.run_id,
+        )
         expected_task_relative = f"workflow/runs/{task.run_id}/task-spec.json"
         if task_relative != expected_task_relative:
             raise StageRuntimeError("stage.task_identity_mismatch", "TaskSpec path does not match its run.")
         definition = _implemented_stage(task.stage)
-        adapter = _adapter(task.stage)
+        adapter = _adapter(task.stage, document_id=task.document_id)
         _validate_task_contract(job, task, definition, adapter)
         _validate_task_preparation(job, task_path, task)
         _validate_active_task(job, task, adapter)
@@ -630,26 +688,41 @@ def apply_stage_result(
         promotion_path = resolve_job_relative_path(job, promotion_relative)
         write_immutable_json(
             promotion_path,
-            {
-                "schema_version": "1.0.0",
-                "run_id": task.run_id,
-                "task_id": task.task_id,
-                "stage": task.stage,
-                "attempt": _attempt_for_run(job, task.run_id, task.stage),
-                "input_fingerprint": task.input_fingerprint,
-                "candidate_sha256": candidate.sha256,
-                "authoritative_target": task.authoritative_target,
-                "authoritative_sha256": promoted.sha256,
-                "promoted_at": checked_at.isoformat().replace("+00:00", "Z"),
-            },
+            _document_scoped_receipt(
+                {
+                    "schema_version": task.schema_version,
+                    "run_id": task.run_id,
+                    "task_id": task.task_id,
+                    "stage": task.stage,
+                    "attempt": _attempt_for_run(
+                        job,
+                        task.run_id,
+                        task.stage,
+                        task.document_id,
+                    ),
+                    "input_fingerprint": task.input_fingerprint,
+                    "candidate_sha256": candidate.sha256,
+                    "authoritative_target": task.authoritative_target,
+                    "authoritative_sha256": promoted.sha256,
+                    "promoted_at": checked_at.isoformat().replace("+00:00", "Z"),
+                },
+                document_id=task.document_id,
+            ),
         )
 
         manifest = RunManifestV1(
+            schema_version=task.schema_version,
             run_id=task.run_id,
             task_id=task.task_id,
             job_id=task.job_id,
             stage=task.stage,
-            attempt=_attempt_for_run(job, task.run_id, task.stage),
+            document_id=task.document_id,
+            attempt=_attempt_for_run(
+                job,
+                task.run_id,
+                task.stage,
+                task.document_id,
+            ),
             execution_mode=task.execution_mode,
             status="succeeded",
             created_at=task.created_at,
@@ -666,10 +739,11 @@ def apply_stage_result(
             job,
             f"workflow/runs/{task.run_id}/manifest.json",
         )
-        write_immutable_json(manifest_path, manifest.model_dump(mode="json"))
+        write_immutable_json(manifest_path, _stage_contract_payload(manifest))
         state, _ = _load_or_reconstruct_state(job)
         succeeded = StageRecord(
             stage=task.stage,
+            document_id=logical_document_id,
             status="succeeded",
             attempt_count=manifest.attempt,
             run_id=task.run_id,
@@ -686,13 +760,18 @@ def apply_stage_result(
             increment_revision=True,
             updated_at=checked_at,
         )
-        updated_state = _with_stale_descendants(updated_state, task.stage)
+        updated_state = _with_stale_descendants(
+            updated_state,
+            task.stage,
+            document_id=logical_document_id,
+        )
         _write_state(job, updated_state)
         return AppliedStage(
             manifest=manifest,
             manifest_path=manifest_path,
             state=updated_state,
             authoritative_path=target,
+            document_id=logical_document_id,
         )
     except StageRuntimeError as exc:
         if (
@@ -732,13 +811,19 @@ def submit_stage_candidate(
     try:
         task_relative, task_path = _validated_supplied_path(job, task_spec_path)
         task = TaskSpecV1.model_validate(read_json_object(task_path))
+        logical_document_id = _legacy_run_document_id(
+            job,
+            stage=task.stage,
+            document_id=task.document_id,
+            run_id=task.run_id,
+        )
         if task_relative != f"workflow/runs/{task.run_id}/task-spec.json":
             raise StageRuntimeError(
                 "stage.task_identity_mismatch",
                 "TaskSpec path does not match its run.",
             )
         definition = _implemented_stage(task.stage)
-        adapter = _adapter(task.stage)
+        adapter = _adapter(task.stage, document_id=task.document_id)
         _validate_task_contract(job, task, definition, adapter)
         _validate_task_preparation(job, task_path, task)
         _validate_active_task(job, task, adapter)
@@ -794,26 +879,30 @@ def submit_stage_candidate(
                 )
         else:
             result = TaskResultV1(
+                schema_version=task.schema_version,
                 task_id=task.task_id,
                 run_id=task.run_id,
                 job_id=task.job_id,
                 stage=task.stage,
+                document_id=task.document_id,
                 status="succeeded",
                 input_fingerprint=task.input_fingerprint,
                 started_at=task.created_at,
                 completed_at=now,
                 outputs=(candidate,),
             )
-            write_immutable_json(result_path, result.model_dump(mode="json"))
+            write_immutable_json(result_path, _stage_contract_payload(result))
         submission_path = resolve_job_relative_path(
             job,
             f"workflow/runs/{task.run_id}/submission.json",
         )
         submission = CandidateSubmissionV1(
+            schema_version=task.schema_version,
             task_id=task.task_id,
             run_id=task.run_id,
             job_id=task.job_id,
             stage=task.stage,
+            document_id=task.document_id,
             submitted_at=now,
             task_spec_sha256=sha256_file(task_path),
             candidate=candidate,
@@ -830,13 +919,14 @@ def submit_stage_candidate(
                     "Existing candidate submission does not match this task result.",
                 )
         else:
-            write_immutable_json(submission_path, submission.model_dump(mode="json"))
+            write_immutable_json(submission_path, _stage_contract_payload(submission))
         return SubmittedStage(
             task_spec=task,
             candidate_path=candidate_path,
             result=result,
             result_path=result_path,
             submission_path=submission_path,
+            document_id=logical_document_id,
         )
     except StageRuntimeError:
         raise
@@ -865,24 +955,41 @@ def cancel_stage_task(
     job_dir: Path,
     *,
     stage: SupportedStage,
+    document_id: str | None = None,
 ) -> CancelledStage:
     _, job = _runtime_paths(workspace, job_dir)
     _implemented_stage(stage)
+    resolved_document_id = _resolve_stage_document_id(
+        job,
+        stage=stage,
+        document_id=document_id,
+    )
     state, _ = _load_or_reconstruct_state(job)
     running = next(
         (record for record in state.stages if record.status == "running"),
         None,
     )
-    if running is None or running.stage != stage:
+    if (
+        running is None
+        or running.stage != stage
+        or running.document_id != resolved_document_id
+    ):
         raise StageRuntimeError(
             "stage.no_active_run",
             "The requested stage has no active task to cancel.",
         )
     preparation = _load_preparation_for_run(job, running.run_id)
+    preparation_document_id = _legacy_run_document_id(
+        job,
+        stage=preparation.stage,
+        document_id=preparation.document_id,
+        run_id=preparation.run_id,
+    )
     if (
         preparation.status != "prepared"
         or preparation.job_id != job.name
         or preparation.stage != stage
+        or preparation_document_id != resolved_document_id
         or preparation.input_fingerprint != running.input_fingerprint
         or preparation.task_id is None
     ):
@@ -896,8 +1003,21 @@ def cancel_stage_task(
         f"workflow/runs/{preparation.run_id}/task-spec.json",
     )
     task = TaskSpecV1.model_validate(read_json_object(task_path))
+    if (
+        _legacy_run_document_id(
+            job,
+            stage=task.stage,
+            document_id=task.document_id,
+            run_id=task.run_id,
+        )
+        != resolved_document_id
+    ):
+        raise StageRuntimeError(
+            "stage.task_integrity_mismatch",
+            "The active task does not own the requested document target.",
+        )
     definition = _implemented_stage(task.stage)
-    adapter = _adapter(task.stage)
+    adapter = _adapter(task.stage, document_id=task.document_id)
     _validate_task_contract(job, task, definition, adapter)
     _validate_task_preparation(job, task_path, task)
     _validate_active_task(job, task, adapter)
@@ -908,10 +1028,12 @@ def cancel_stage_task(
         action="cancel",
     )
     manifest = RunManifestV1(
+        schema_version=preparation.schema_version,
         run_id=preparation.run_id,
         task_id=preparation.task_id,
         job_id=preparation.job_id,
         stage=preparation.stage,
+        document_id=preparation.document_id,
         attempt=preparation.attempt,
         execution_mode=preparation.execution_mode,
         status="cancelled",
@@ -929,7 +1051,7 @@ def cancel_stage_task(
         f"workflow/runs/{preparation.run_id}/manifest.json",
     )
     try:
-        write_immutable_json(manifest_path, manifest.model_dump(mode="json"))
+        write_immutable_json(manifest_path, _stage_contract_payload(manifest))
     except StageStoreError as exc:
         raise StageRuntimeError(
             "stage.store_failed",
@@ -937,6 +1059,7 @@ def cancel_stage_task(
         ) from exc
     cancelled = StageRecord(
         stage=stage,
+        document_id=resolved_document_id,
         status="cancelled",
         attempt_count=manifest.attempt,
         run_id=preparation.run_id,
@@ -958,6 +1081,7 @@ def cancel_stage_task(
         manifest=manifest,
         manifest_path=manifest_path,
         state=updated,
+        document_id=resolved_document_id,
     )
 
 
@@ -966,11 +1090,22 @@ def run_deterministic_stage(
     job_dir: Path,
     *,
     stage: SupportedStage,
+    document_id: str | None = None,
 ) -> StageRunOutcome:
     root, job = _runtime_paths(workspace, job_dir)
-    adapter = _adapter(stage)
+    resolved_document_id = _resolve_stage_document_id(
+        job,
+        stage=stage,
+        document_id=document_id,
+    )
+    adapter = _adapter(stage, document_id=resolved_document_id)
     _finalize_recoverable_promotions(job)
-    status = inspect_stage_status(root, job, stage=stage)
+    status = inspect_stage_status(
+        root,
+        job,
+        stage=stage,
+        document_id=resolved_document_id,
+    )
     target = job / adapter.authoritative_target
     if status.input_fingerprint is None:
         raise StageRuntimeError(
@@ -985,6 +1120,7 @@ def run_deterministic_stage(
     if status.stage.status == "succeeded" and not status.reasons:
         return StageRunOutcome(
             stage=stage,
+            document_id=resolved_document_id,
             cache_hit=True,
             state=status.state,
             authoritative_path=target,
@@ -995,6 +1131,7 @@ def run_deterministic_stage(
         job,
         stage=stage,
         execution_mode="deterministic",
+        document_id=resolved_document_id,
     )
     _validate_task_freshness(root, job, prepared.task_spec, adapter)
     try:
@@ -1026,6 +1163,7 @@ def run_deterministic_stage(
     )
     return StageRunOutcome(
         stage=stage,
+        document_id=resolved_document_id,
         cache_hit=False,
         state=applied.state,
         authoritative_path=applied.authoritative_path,
@@ -1041,12 +1179,18 @@ def run_configured_provider_stage(
     stage: SupportedStage,
     allow_provider_backed: bool,
     provider: llm.LLMProvider | None = None,
+    document_id: str | None = None,
 ) -> StageRunOutcome:
     """Run one configured-provider stage through the guarded candidate path."""
 
     root, job = _runtime_paths(workspace, job_dir)
+    resolved_document_id = _resolve_stage_document_id(
+        job,
+        stage=stage,
+        document_id=document_id,
+    )
     definition = _implemented_stage(stage)
-    adapter = _adapter(stage)
+    adapter = _adapter(stage, document_id=resolved_document_id)
     if "configured_provider" not in definition.execution_modes:
         raise StageRuntimeError(
             "stage.unsupported_mode",
@@ -1054,7 +1198,12 @@ def run_configured_provider_stage(
         )
 
     _finalize_recoverable_promotions(job)
-    status = inspect_stage_status(root, job, stage=stage)
+    status = inspect_stage_status(
+        root,
+        job,
+        stage=stage,
+        document_id=resolved_document_id,
+    )
     target = job / adapter.authoritative_target
     if status.input_fingerprint is None:
         raise StageRuntimeError(
@@ -1069,6 +1218,7 @@ def run_configured_provider_stage(
     if status.stage.status == "succeeded" and not status.reasons:
         return StageRunOutcome(
             stage=stage,
+            document_id=resolved_document_id,
             cache_hit=True,
             state=status.state,
             authoritative_path=target,
@@ -1084,6 +1234,7 @@ def run_configured_provider_stage(
         job,
         stage=stage,
         execution_mode="configured_provider",
+        document_id=resolved_document_id,
     )
     _validate_task_freshness(root, job, prepared.task_spec, adapter)
 
@@ -1151,6 +1302,7 @@ def run_configured_provider_stage(
     )
     return StageRunOutcome(
         stage=stage,
+        document_id=resolved_document_id,
         cache_hit=False,
         state=applied.state,
         authoritative_path=applied.authoritative_path,
@@ -1250,14 +1402,81 @@ def _implemented_stage(stage: str):
     return definition
 
 
-def _adapter(stage: str) -> StageAdapter:
+def _adapter(stage: str, *, document_id: str | None = None) -> StageAdapter:
     try:
-        return get_stage_adapter(stage)
+        return get_stage_adapter(stage, document_id=document_id)
     except KeyError as exc:
         raise StageRuntimeError(
             "stage.unsupported",
             "The requested workflow stage has no executable adapter.",
         ) from exc
+
+
+def _resolve_stage_document_id(
+    job: Path,
+    *,
+    stage: str,
+    document_id: str | None,
+) -> str | None:
+    document_scoped = stage in {"draft", "review"}
+    if not document_scoped:
+        if document_id is not None:
+            raise StageRuntimeError(
+                "stage.document_scope_invalid",
+                "The requested stage does not accept a document target.",
+            )
+        return None
+    if document_id is not None:
+        try:
+            StageRecord(stage=stage, document_id=document_id, status="ready")
+        except ValidationError as exc:
+            raise StageRuntimeError(
+                "stage.document_id_invalid",
+                "The requested document target is not a stable document identifier.",
+            ) from exc
+
+    try:
+        plan = RequiredDocumentPlanV1.model_validate(
+            read_json_object(job / "required_document_plan.json")
+        )
+    except (StageStoreError, ValidationError):
+        return document_id
+    cover_letter_ids = tuple(
+        requirement.document_id
+        for requirement in plan.requirements
+        if requirement.normalized_kind == "cover_letter"
+    )
+    if document_id is not None:
+        if document_id not in cover_letter_ids:
+            raise StageRuntimeError(
+                "stage.document_not_found",
+                "The requested document target has no available executor for this stage.",
+            )
+        return document_id
+    return cover_letter_ids[0] if len(cover_letter_ids) == 1 else None
+
+
+def _legacy_run_document_id(
+    job: Path,
+    *,
+    stage: str,
+    document_id: str | None,
+    run_id: str,
+) -> str | None:
+    if document_id is not None or stage not in {"draft", "review"}:
+        return document_id
+    task_path = job / "workflow" / "runs" / run_id / "task-spec.json"
+    if task_path.is_file() and not task_path.is_symlink():
+        try:
+            task = TaskSpecV1.model_validate(read_json_object(task_path))
+        except (StageStoreError, ValidationError):
+            task = None
+        if task is not None and task.document_id is not None:
+            return task.document_id
+    try:
+        return _resolve_stage_document_id(job, stage=stage, document_id=None)
+    except StageRuntimeError:
+        return None
 
 
 def _artifact(job: Path, relative_path: str) -> ArtifactFingerprint:
@@ -1399,7 +1618,10 @@ def _load_or_reconstruct_state(job: Path) -> tuple[WorkflowStateV1, bool]:
     path = _state_path(job)
     if path.is_file() and not path.is_symlink():
         try:
-            loaded = WorkflowStateV1.model_validate(read_json_object(path))
+            loaded = _normalize_legacy_state_document_ids(
+                job,
+                WorkflowStateV1.model_validate(read_json_object(path)),
+            )
             rebuilt = _reconstruct_state(job)
             rebuilt_terminal_runs = {
                 record.run_id
@@ -1430,6 +1652,30 @@ def _load_or_reconstruct_state(job: Path) -> tuple[WorkflowStateV1, bool]:
         except (StageStoreError, ValidationError):
             pass
     return _reconstruct_state(job), True
+
+
+def _normalize_legacy_state_document_ids(
+    job: Path,
+    state: WorkflowStateV1,
+) -> WorkflowStateV1:
+    records = tuple(
+        record.model_copy(
+            update={
+                "document_id": _legacy_run_document_id(
+                    job,
+                    stage=record.stage,
+                    document_id=record.document_id,
+                    run_id=record.run_id,
+                )
+            }
+        )
+        if record.run_id is not None
+        else record
+        for record in state.stages
+    )
+    if records == state.stages:
+        return state
+    return state.model_copy(update={"stages": records})
 
 
 def _safe_run_directories(job: Path) -> tuple[Path, ...]:
@@ -1488,24 +1734,48 @@ def _reconstruct_state(job: Path) -> WorkflowStateV1:
                 and manifest.stage in implemented
             ):
                 manifests.append(manifest)
-    latest_by_stage: dict[str, RunManifestV1] = {}
-    latest_success_by_stage: dict[str, RunManifestV1] = {}
-    for manifest in manifests:
-        current = latest_by_stage.get(manifest.stage)
+    normalized_manifests = tuple(
+        manifest.model_copy(
+            update={
+                "document_id": _legacy_run_document_id(
+                    job,
+                    stage=manifest.stage,
+                    document_id=manifest.document_id,
+                    run_id=manifest.run_id,
+                )
+            }
+        )
+        for manifest in manifests
+    )
+    latest_by_stage: dict[tuple[str, str | None], RunManifestV1] = {}
+    latest_success_by_stage: dict[tuple[str, str | None], RunManifestV1] = {}
+    for manifest in normalized_manifests:
+        key = (manifest.stage, manifest.document_id)
+        current = latest_by_stage.get(key)
         if current is None or _manifest_order_key(manifest) > _manifest_order_key(current):
-            latest_by_stage[manifest.stage] = manifest
-        successful = latest_success_by_stage.get(manifest.stage)
+            latest_by_stage[key] = manifest
+        successful = latest_success_by_stage.get(key)
         if manifest.status == "succeeded" and (
             successful is None
             or _manifest_order_key(manifest) > _manifest_order_key(successful)
         ):
-            latest_success_by_stage[manifest.stage] = manifest
+            latest_success_by_stage[key] = manifest
 
     eligible_pending: list[tuple[TaskSpecV1, Path]] = []
-    for task, path in _all_pending_tasks(job):
+    for raw_task, path in _all_pending_tasks(job):
+        task = raw_task.model_copy(
+            update={
+                "document_id": _legacy_run_document_id(
+                    job,
+                    stage=raw_task.stage,
+                    document_id=raw_task.document_id,
+                    run_id=raw_task.run_id,
+                )
+            }
+        )
         if task.stage not in implemented:
             continue
-        latest = latest_by_stage.get(task.stage)
+        latest = latest_by_stage.get((task.stage, task.document_id))
         if latest is not None and task.created_at <= latest.created_at:
             continue
         eligible_pending.append((task, path))
@@ -1517,20 +1787,22 @@ def _reconstruct_state(job: Path) -> WorkflowStateV1:
 
     if manifests or active_task is not None:
         records = {
-            stage: _record_from_manifest(
+            key: _record_from_manifest(
                 manifest,
                 fallback_outputs=(
-                    latest_success_by_stage[stage].promoted_outputs
-                    if stage in latest_success_by_stage
+                    latest_success_by_stage[key].promoted_outputs
+                    if key in latest_success_by_stage
                     else ()
                 ),
             )
-            for stage, manifest in latest_by_stage.items()
+            for key, manifest in latest_by_stage.items()
         }
         if active_task is not None:
-            previous = records.get(active_task.stage)
-            records[active_task.stage] = StageRecord(
+            active_key = (active_task.stage, active_task.document_id)
+            previous = records.get(active_key)
+            records[active_key] = StageRecord(
                 stage=active_task.stage,
+                document_id=active_task.document_id,
                 status="running",
                 attempt_count=(previous.attempt_count if previous is not None else 0) + 1,
                 run_id=active_task.run_id,
@@ -1544,7 +1816,12 @@ def _reconstruct_state(job: Path) -> WorkflowStateV1:
             definition.id: index
             for index, definition in enumerate(DEFAULT_STAGE_REGISTRY.topological_order())
         }
-        ordered_records = tuple(sorted(records.values(), key=lambda item: order[item.stage]))
+        ordered_records = tuple(
+            sorted(
+                records.values(),
+                key=lambda item: (order[item.stage], item.document_id or ""),
+            )
+        )
         created_values = [item.created_at for item in manifests]
         updated_values = [
             item.completed_at or item.started_at or item.created_at
@@ -1554,6 +1831,7 @@ def _reconstruct_state(job: Path) -> WorkflowStateV1:
             created_values.append(active_task.created_at)
             updated_values.append(active_task.created_at)
         return WorkflowStateV1(
+            schema_version=_workflow_contract_version(ordered_records),
             job_id=job.name,
             revision=len(manifests) + len(eligible_pending),
             created_at=min(created_values),
@@ -1564,6 +1842,7 @@ def _reconstruct_state(job: Path) -> WorkflowStateV1:
 
     now = _utc_now()
     return WorkflowStateV1(
+        schema_version="1.0.0",
         job_id=job.name,
         revision=0,
         created_at=now,
@@ -1584,6 +1863,7 @@ def _record_from_manifest(
     if manifest.status == "succeeded":
         return StageRecord(
             stage=manifest.stage,
+            document_id=manifest.document_id,
             status="succeeded",
             attempt_count=manifest.attempt,
             run_id=manifest.run_id,
@@ -1595,6 +1875,7 @@ def _record_from_manifest(
         )
     return StageRecord(
         stage=manifest.stage,
+        document_id=manifest.document_id,
         status="failed" if manifest.status == "failed" else "cancelled",
         attempt_count=manifest.attempt,
         run_id=manifest.run_id,
@@ -1608,18 +1889,29 @@ def _record_from_manifest(
 
 
 def _apply_reconstructed_dependency_staleness(
-    records: dict[str, StageRecord],
+    records: dict[tuple[str, str | None], StageRecord],
 ) -> None:
-    for definition in DEFAULT_STAGE_REGISTRY.topological_order():
-        record = records.get(definition.id)
+    for key, record in tuple(records.items()):
+        definition = DEFAULT_STAGE_REGISTRY.get(record.stage)
         if record is None or record.status != "succeeded":
             continue
         for dependency in definition.depends_on:
             dependency_definition = DEFAULT_STAGE_REGISTRY.get(dependency)
             if not dependency_definition.implemented:
                 continue
-            dependency_record = records.get(dependency)
-            dependency_output_path = _adapter(dependency).authoritative_target
+            dependency_key = (
+                dependency,
+                record.document_id if dependency in {"draft", "review"} else None,
+            )
+            dependency_record = records.get(dependency_key)
+            dependency_output_path = _adapter(
+                dependency,
+                document_id=(
+                    record.document_id
+                    if dependency in {"draft", "review"}
+                    else None
+                ),
+            ).authoritative_target
             upstream_receipt = (
                 next(
                     (
@@ -1645,15 +1937,31 @@ def _apply_reconstructed_dependency_staleness(
                 and upstream_receipt.size_bytes == downstream_receipt.size_bytes
             )
             if not dependency_is_current:
-                records[definition.id] = record.model_copy(update={"status": "stale"})
+                records[key] = record.model_copy(update={"status": "stale"})
                 break
 
 
-def _stage_record(state: WorkflowStateV1, stage: str) -> StageRecord:
+def _stage_record(
+    state: WorkflowStateV1,
+    stage: str,
+    *,
+    document_id: str | None,
+) -> StageRecord:
     for record in state.stages:
-        if record.stage == stage:
+        if record.stage == stage and record.document_id == document_id:
             return record
-    return StageRecord(stage=stage, status="ready")
+    if document_id is not None:
+        legacy = next(
+            (
+                record
+                for record in state.stages
+                if record.stage == stage and record.document_id is None
+            ),
+            None,
+        )
+        if legacy is not None:
+            return legacy.model_copy(update={"document_id": document_id})
+    return StageRecord(stage=stage, document_id=document_id, status="ready")
 
 
 def _merge_state_views(
@@ -1677,9 +1985,10 @@ def _merge_state_views(
         "failed": 5,
         "running": 6,
     }
-    records: dict[str, StageRecord] = {}
+    records: dict[tuple[str, str | None], StageRecord] = {}
     for record in (*first.stages, *second.stages):
-        current = records.get(record.stage)
+        key = (record.stage, record.document_id)
+        current = records.get(key)
         if current is None or (
             record.attempt_count,
             status_priority[record.status],
@@ -1689,7 +1998,7 @@ def _merge_state_views(
             status_priority[current.status],
             current.completed_at or current.started_at or first.created_at,
         ):
-            records[record.stage] = record
+            records[key] = record
     active_ids = {
         value
         for value in (first.active_run_id, second.active_run_id)
@@ -1711,7 +2020,10 @@ def _merge_state_views(
             "updated_at": max(first.updated_at, second.updated_at),
             "active_run_id": next(iter(active_ids), None),
             "stages": tuple(
-                sorted(records.values(), key=lambda record: order[record.stage])
+                sorted(
+                    records.values(),
+                    key=lambda record: (order[record.stage], record.document_id or ""),
+                )
             ),
         }
     )
@@ -1725,11 +2037,25 @@ def _state_with_stage(
     increment_revision: bool = False,
     updated_at: datetime | None = None,
 ) -> WorkflowStateV1:
-    records = [record for record in state.stages if record.stage != stage.stage]
+    records = [
+        record
+        for record in state.stages
+        if (record.stage, record.document_id) != (stage.stage, stage.document_id)
+        and not (
+            stage.document_id is not None
+            and stage.stage in {"draft", "review"}
+            and record.stage == stage.stage
+            and record.document_id is None
+        )
+    ]
     records.append(stage)
-    order = {definition.id: index for index, definition in enumerate(DEFAULT_STAGE_REGISTRY.topological_order())}
-    records.sort(key=lambda item: order[item.stage])
+    order = {
+        definition.id: index
+        for index, definition in enumerate(DEFAULT_STAGE_REGISTRY.topological_order())
+    }
+    records.sort(key=lambda item: (order[item.stage], item.document_id or ""))
     return WorkflowStateV1(
+        schema_version=_workflow_contract_version(tuple(records)),
         job_id=state.job_id,
         revision=state.revision + (1 if increment_revision else 0),
         created_at=state.created_at,
@@ -1739,11 +2065,23 @@ def _state_with_stage(
     )
 
 
-def _with_stale_descendants(state: WorkflowStateV1, stage: str) -> WorkflowStateV1:
+def _with_stale_descendants(
+    state: WorkflowStateV1,
+    stage: str,
+    *,
+    document_id: str | None,
+) -> WorkflowStateV1:
     descendant_ids = {definition.id for definition in DEFAULT_STAGE_REGISTRY.descendants(stage)}
     records = tuple(
         record.model_copy(update={"status": "stale"})
-        if record.stage in descendant_ids and record.status == "succeeded"
+        if (
+            record.stage in descendant_ids
+            and record.status == "succeeded"
+            and (
+                stage not in {"draft", "review"}
+                or record.document_id == document_id
+            )
+        )
         else record
         for record in state.stages
     )
@@ -1752,12 +2090,54 @@ def _with_stale_descendants(state: WorkflowStateV1, stage: str) -> WorkflowState
 
 def _write_state(job: Path, state: WorkflowStateV1) -> None:
     try:
-        atomic_write_json(_state_path(job), state.model_dump(mode="json"))
+        atomic_write_json(_state_path(job), _stage_contract_payload(state))
     except StageStoreError as exc:
         raise StageRuntimeError(
             "stage.state_write_failed",
             "The workflow state view could not be updated safely.",
         ) from exc
+
+
+def _workflow_contract_version(
+    records: tuple[StageRecord, ...],
+) -> Literal["1.0.0", "1.1.0"]:
+    return (
+        "1.1.0"
+        if any(record.document_id is not None for record in records)
+        else "1.0.0"
+    )
+
+
+def _stage_contract_payload(
+    model: (
+        WorkflowStateV1
+        | TaskSpecV1
+        | TaskResultV1
+        | CandidateSubmissionV1
+        | ValidationReportV1
+        | RunManifestV1
+    ),
+) -> dict[str, object]:
+    payload = model.model_dump(mode="json")
+    if payload.get("schema_version") != "1.0.0":
+        return payload
+    payload.pop("document_id", None)
+    stages = payload.get("stages")
+    if isinstance(stages, list):
+        for record in stages:
+            if isinstance(record, dict):
+                record.pop("document_id", None)
+    return payload
+
+
+def _document_scoped_receipt(
+    payload: dict[str, object],
+    *,
+    document_id: str | None,
+) -> dict[str, object]:
+    if document_id is not None:
+        payload["document_id"] = document_id
+    return payload
 
 
 def _all_pending_tasks(job: Path) -> list[tuple[TaskSpecV1, Path]]:
@@ -1775,7 +2155,7 @@ def _all_pending_tasks(job: Path) -> list[tuple[TaskSpecV1, Path]]:
             if path.resolve() != expected_path:
                 continue
             definition = _implemented_stage(task.stage)
-            adapter = _adapter(task.stage)
+            adapter = _adapter(task.stage, document_id=task.document_id)
             _validate_task_contract(job, task, definition, adapter)
             _validate_task_preparation(job, path, task)
         except (StageRuntimeError, StageStoreError, ValidationError):
@@ -1789,6 +2169,7 @@ def _pending_task_for_fingerprint(
     job: Path,
     *,
     stage: str,
+    document_id: str | None,
     input_fingerprint: str,
     execution_mode: str | None,
 ) -> tuple[TaskSpecV1, Path] | None:
@@ -1796,6 +2177,13 @@ def _pending_task_for_fingerprint(
         item
         for item in _all_pending_tasks(job)
         if item[0].stage == stage
+        and _legacy_run_document_id(
+            job,
+            stage=item[0].stage,
+            document_id=item[0].document_id,
+            run_id=item[0].run_id,
+        )
+        == document_id
         and item[0].input_fingerprint == input_fingerprint
         and (execution_mode is None or item[0].execution_mode == execution_mode)
     ]
@@ -1850,6 +2238,7 @@ def _validate_task_contract(
     if (
         task.job_id != job.name
         or task.stage != adapter.stage_id
+        or task.document_id != adapter.document_id
         or task.execution_mode not in definition.execution_modes
         or task.candidate_output != expected_candidate
         or task.result_output != expected_result
@@ -1889,6 +2278,7 @@ def _validate_task_preparation(
         or preparation.task_id != task.task_id
         or preparation.job_id != task.job_id
         or preparation.stage != task.stage
+        or preparation.document_id != task.document_id
         or preparation.attempt < 1
         or preparation.execution_mode != task.execution_mode
         or preparation.created_at != task.created_at
@@ -1931,6 +2321,7 @@ def _validate_task_freshness(
         workspace,
         job,
         stage=task.stage,  # type: ignore[arg-type]
+        document_id=task.document_id,
     )
     if status.input_fingerprint is None:
         raise StageRuntimeError(
@@ -1996,10 +2387,12 @@ def _load_or_write_passed_validation(
     citations_valid: bool,
 ) -> ValidationReportV1:
     desired = ValidationReportV1(
+        schema_version=task.schema_version,
         task_id=task.task_id,
         run_id=task.run_id,
         job_id=task.job_id,
         stage=task.stage,
+        document_id=task.document_id,
         status="passed",
         checked_at=max(_utc_now(), task.created_at),
         input_hashes_match=True,
@@ -2021,7 +2414,7 @@ def _load_or_write_passed_validation(
                 "Existing validation evidence does not match this task.",
             )
         return existing
-    write_immutable_json(path, desired.model_dump(mode="json"))
+    write_immutable_json(path, _stage_contract_payload(desired))
     return desired
 
 
@@ -2053,6 +2446,7 @@ def _validate_candidate_submission(
         or submission.run_id != task.run_id
         or submission.job_id != task.job_id
         or submission.stage != task.stage
+        or submission.document_id != task.document_id
         or submission.task_spec_sha256 != task_sha256
         or submission.result_path != task.result_output
         or submission.task_result_sha256 != result_sha256
@@ -2080,7 +2474,17 @@ def _validate_active_task(
             "The stage task already has a terminal manifest.",
         )
     state, _ = _load_or_reconstruct_state(job)
-    record = _stage_record(state, task.stage)
+    logical_document_id = _legacy_run_document_id(
+        job,
+        stage=task.stage,
+        document_id=task.document_id,
+        run_id=task.run_id,
+    )
+    record = _stage_record(
+        state,
+        task.stage,
+        document_id=logical_document_id,
+    )
     if (
         state.active_run_id != task.run_id
         or record.status != "running"
@@ -2124,16 +2528,19 @@ def _claim_terminal_action(
         job,
         f"workflow/runs/{task.run_id}/terminal-claim.json",
     )
-    claim = {
-        "schema_version": "1.0.0",
-        "run_id": task.run_id,
-        "task_id": task.task_id,
-        "job_id": task.job_id,
-        "stage": task.stage,
-        "action": action,
-        "task_spec_sha256": sha256_file(task_path),
-        "candidate_sha256": candidate_sha256,
-    }
+    claim = _document_scoped_receipt(
+        {
+            "schema_version": task.schema_version,
+            "run_id": task.run_id,
+            "task_id": task.task_id,
+            "job_id": task.job_id,
+            "stage": task.stage,
+            "action": action,
+            "task_spec_sha256": sha256_file(task_path),
+            "candidate_sha256": candidate_sha256,
+        },
+        document_id=task.document_id,
+    )
     try:
         write_immutable_json(claim_path, claim)
     except ImmutableRecordError as exc:
@@ -2172,16 +2579,24 @@ def _terminal_claim_matches(
         )
     except StageStoreError:
         return False
-    return claim == {
-        "schema_version": "1.0.0",
+    expected = {
+        "schema_version": "1.1.0",
         "run_id": task.run_id,
         "task_id": task.task_id,
         "job_id": task.job_id,
         "stage": task.stage,
+        "document_id": task.document_id,
         "action": action,
         "task_spec_sha256": task_spec_sha256,
         "candidate_sha256": candidate_sha256,
     }
+    if claim == expected:
+        return True
+    if task.schema_version == "1.0.0":
+        expected.pop("document_id")
+        expected["schema_version"] = "1.0.0"
+        return claim == expected
+    return False
 
 
 def _terminal_claim_action(
@@ -2284,6 +2699,7 @@ def _validate_task_result_identity(task: TaskSpecV1, result: TaskResultV1) -> No
         or result.run_id != task.run_id
         or result.job_id != task.job_id
         or result.stage != task.stage
+        or result.document_id != task.document_id
     ):
         raise StageRuntimeError(
             "stage.result_identity_mismatch",
@@ -2301,9 +2717,20 @@ def _validate_task_result_identity(task: TaskSpecV1, result: TaskResultV1) -> No
         )
 
 
-def _attempt_for_run(job: Path, run_id: str, stage: str) -> int:
+def _attempt_for_run(
+    job: Path,
+    run_id: str,
+    stage: str,
+    document_id: str | None,
+) -> int:
     state, _ = _load_or_reconstruct_state(job)
-    record = _stage_record(state, stage)
+    logical_document_id = _legacy_run_document_id(
+        job,
+        stage=stage,
+        document_id=document_id,
+        run_id=run_id,
+    )
+    record = _stage_record(state, stage, document_id=logical_document_id)
     if record.run_id == run_id and record.attempt_count > 0:
         return record.attempt_count
     return max(1, record.attempt_count + 1)
@@ -2317,15 +2744,23 @@ def _record_rejected_run(
     error: StageRuntimeError,
 ) -> None:
     now = _utc_now()
+    logical_document_id = _legacy_run_document_id(
+        job,
+        stage=task.stage,
+        document_id=task.document_id,
+        run_id=task.run_id,
+    )
     started = task.created_at
     completed = max(now, started)
     validation_relative = f"workflow/runs/{task.run_id}/validation/report.json"
     validation_path = resolve_job_relative_path(job, validation_relative)
     validation = ValidationReportV1(
+        schema_version=task.schema_version,
         task_id=task.task_id,
         run_id=task.run_id,
         job_id=task.job_id,
         stage=task.stage,
+        document_id=task.document_id,
         status="failed",
         checked_at=now,
         input_hashes_match=error.code not in {
@@ -2338,17 +2773,24 @@ def _record_rejected_run(
         errors=(error.code,),
     )
     try:
-        write_immutable_json(validation_path, validation.model_dump(mode="json"))
+        write_immutable_json(validation_path, _stage_contract_payload(validation))
         task_path = resolve_job_relative_path(
             job,
             f"workflow/runs/{task.run_id}/task-spec.json",
         )
         manifest = RunManifestV1(
+            schema_version=task.schema_version,
             run_id=task.run_id,
             task_id=task.task_id,
             job_id=task.job_id,
             stage=task.stage,
-            attempt=_attempt_for_run(job, task.run_id, task.stage),
+            document_id=task.document_id,
+            attempt=_attempt_for_run(
+                job,
+                task.run_id,
+                task.stage,
+                task.document_id,
+            ),
             execution_mode=task.execution_mode,
             status="failed",
             created_at=task.created_at,
@@ -2366,11 +2808,16 @@ def _record_rejected_run(
             job,
             f"workflow/runs/{task.run_id}/manifest.json",
         )
-        write_immutable_json(manifest_path, manifest.model_dump(mode="json"))
+        write_immutable_json(manifest_path, _stage_contract_payload(manifest))
         state, _ = _load_or_reconstruct_state(job)
-        previous_outputs = _stage_record(state, task.stage).outputs
+        previous_outputs = _stage_record(
+            state,
+            task.stage,
+            document_id=logical_document_id,
+        ).outputs
         failed = StageRecord(
             stage=task.stage,
+            document_id=logical_document_id,
             status="failed",
             attempt_count=manifest.attempt,
             run_id=task.run_id,
@@ -2403,7 +2850,7 @@ def _finalize_recoverable_promotions(job: Path) -> bool:
         if manifest is None or manifest.run_id != run_dir.name:
             continue
         try:
-            write_immutable_json(manifest_path, manifest.model_dump(mode="json"))
+            write_immutable_json(manifest_path, _stage_contract_payload(manifest))
         except StageStoreError as exc:
             raise StageRuntimeError(
                 "stage.recovery_failed",
@@ -2426,7 +2873,7 @@ def _recoverable_manifest(job: Path, run_dir: Path) -> RunManifestV1 | None:
         if task.run_id != run_dir.name:
             return None
         definition = _implemented_stage(task.stage)
-        adapter = _adapter(task.stage)
+        adapter = _adapter(task.stage, document_id=task.document_id)
         _validate_task_contract(job, task, definition, adapter)
         _validate_task_preparation(job, task_path, task)
         result_path = resolve_job_relative_path(job, task.result_output)
@@ -2442,6 +2889,11 @@ def _recoverable_manifest(job: Path, run_dir: Path) -> RunManifestV1 | None:
         if len(result.outputs) != 1 or result.outputs[0].path != task.candidate_output:
             return None
         if promotion.get("run_id") != task.run_id or promotion.get("task_id") != task.task_id:
+            return None
+        if promotion.get("schema_version") == "1.1.0":
+            if promotion.get("document_id") != task.document_id:
+                return None
+        elif promotion.get("schema_version") != "1.0.0" or task.schema_version != "1.0.0":
             return None
         if promotion.get("input_fingerprint") != task.input_fingerprint:
             return None
@@ -2462,10 +2914,12 @@ def _recoverable_manifest(job: Path, run_dir: Path) -> RunManifestV1 | None:
         if validation.status != "passed":
             return None
         return RunManifestV1(
+            schema_version=task.schema_version,
             run_id=task.run_id,
             task_id=task.task_id,
             job_id=task.job_id,
             stage=task.stage,
+            document_id=task.document_id,
             attempt=attempt,
             execution_mode=task.execution_mode,
             status="succeeded",

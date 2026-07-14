@@ -4,7 +4,10 @@ from datetime import UTC, datetime, timedelta
 import json
 from pathlib import Path
 
-from jsonschema import Draft202012Validator
+from jsonschema import (
+    Draft202012Validator,
+    ValidationError as JsonSchemaValidationError,
+)
 from pydantic import ValidationError
 import pytest
 
@@ -30,6 +33,8 @@ SHA_B = "b" * 64
 RUN_ID = "run_0123456789abcdef0123456789abcdef"
 TASK_ID = "task_0123456789abcdef0123456789abcdef"
 JOB_ID = "2026-08-01_example-university_lecturer"
+DOCUMENT_A = "document_0123456789abcdef0123456789abcdef"
+DOCUMENT_B = "document_fedcba9876543210fedcba9876543210"
 
 
 def fingerprint(
@@ -260,6 +265,85 @@ def test_workflow_state_requires_unique_ordered_stages_and_matching_active_run()
         )
 
 
+def test_workflow_state_owns_document_stage_instances_by_composite_identity() -> None:
+    first = successful_stage().model_copy(
+        update={
+            "stage": "draft",
+            "document_id": DOCUMENT_A,
+            "outputs": (fingerprint("documents/first/draft.json", SHA_A),),
+        }
+    )
+    second = successful_stage().model_copy(
+        update={
+            "stage": "draft",
+            "document_id": DOCUMENT_B,
+            "run_id": "run_fedcba9876543210fedcba9876543210",
+            "outputs": (fingerprint("documents/second/draft.json", SHA_B),),
+        }
+    )
+
+    state = WorkflowStateV1(
+        job_id=JOB_ID,
+        revision=2,
+        created_at=NOW,
+        updated_at=LATER,
+        stages=(first, second),
+    )
+
+    assert tuple((item.stage, item.document_id) for item in state.stages) == (
+        ("draft", DOCUMENT_A),
+        ("draft", DOCUMENT_B),
+    )
+    with pytest.raises(ValidationError):
+        WorkflowStateV1(
+            job_id=JOB_ID,
+            revision=2,
+            created_at=NOW,
+            updated_at=LATER,
+            stages=(first, first),
+        )
+    with pytest.raises(ValidationError):
+        WorkflowStateV1(
+            job_id=JOB_ID,
+            revision=2,
+            created_at=NOW,
+            updated_at=LATER,
+            stages=(second, first),
+        )
+
+
+def test_document_identity_is_scoped_and_legacy_stage_contracts_remain_readable() -> None:
+    with pytest.raises(ValidationError):
+        StageRecord(stage="parse", document_id=DOCUMENT_A, status="ready")
+
+    current = task_spec().model_dump()
+    current.update(
+        {
+            "stage": "draft",
+            "operation": "stage.draft",
+            "document_id": None,
+        }
+    )
+    with pytest.raises(ValidationError):
+        TaskSpecV1.model_validate(current)
+
+    legacy = {**current, "schema_version": "1.0.0"}
+    assert TaskSpecV1.model_validate(legacy).document_id is None
+    legacy_state = WorkflowStateV1(
+        schema_version="1.0.0",
+        job_id=JOB_ID,
+        revision=1,
+        created_at=NOW,
+        updated_at=LATER,
+        stages=(
+            successful_stage().model_copy(
+                update={"stage": "draft", "document_id": None}
+            ),
+        ),
+    )
+    assert legacy_state.stages[0].document_id is None
+
+
 def test_workflow_state_accepts_exactly_one_matching_running_stage() -> None:
     running = StageRecord(
         stage="parse",
@@ -484,3 +568,83 @@ def test_static_schema_is_strict_and_accepts_model_dump(
     assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
     assert schema["additionalProperties"] is False
     Draft202012Validator(schema).validate(model().model_dump(mode="json"))
+
+
+@pytest.mark.parametrize(
+    ("schema_name", "payload"),
+    [
+        (
+            "task-spec.schema.json",
+            {
+                **task_spec().model_dump(mode="json"),
+                "stage": "draft",
+                "operation": "stage.draft",
+                "document_id": None,
+            },
+        ),
+        (
+            "task-result.schema.json",
+            {
+                **task_result().model_dump(mode="json"),
+                "stage": "review",
+                "document_id": None,
+            },
+        ),
+        (
+            "run-manifest.schema.json",
+            {
+                **run_manifest().model_dump(mode="json"),
+                "stage": "draft",
+                "document_id": None,
+            },
+        ),
+    ],
+)
+def test_static_schema_requires_document_identity_for_current_document_stages(
+    schema_name: str,
+    payload: dict[str, object],
+) -> None:
+    schema = json.loads((Path("schemas") / schema_name).read_text(encoding="utf-8"))
+
+    with pytest.raises(JsonSchemaValidationError):
+        Draft202012Validator(schema).validate(payload)
+
+    payload["schema_version"] = "1.0.0"
+    payload.pop("document_id")
+    Draft202012Validator(schema).validate(payload)
+
+
+def test_workflow_schema_accepts_legacy_document_record_but_requires_current_identity() -> None:
+    schema = json.loads(
+        (Path("schemas") / "workflow-state.schema.json").read_text(encoding="utf-8")
+    )
+    legacy = WorkflowStateV1(
+        schema_version="1.0.0",
+        job_id=JOB_ID,
+        revision=1,
+        created_at=NOW,
+        updated_at=LATER,
+        stages=(
+            successful_stage().model_copy(
+                update={"stage": "draft", "document_id": None}
+            ),
+        ),
+    ).model_dump(mode="json")
+    legacy["stages"][0].pop("document_id")
+
+    Draft202012Validator(schema).validate(legacy)
+    cross_scoped = {
+        **legacy,
+        "stages": [
+            {
+                **legacy["stages"][0],
+                "stage": "parse",
+                "document_id": DOCUMENT_A,
+            }
+        ],
+    }
+    with pytest.raises(JsonSchemaValidationError):
+        Draft202012Validator(schema).validate(cross_scoped)
+    current = {**legacy, "schema_version": "1.1.0"}
+    with pytest.raises(JsonSchemaValidationError):
+        Draft202012Validator(schema).validate(current)

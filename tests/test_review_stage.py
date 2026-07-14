@@ -295,6 +295,7 @@ def test_review_runs_through_shared_deterministic_runtime(tmp_path: Path) -> Non
         "cover_letter_draft.json",
     ]
     assert prepared.task_spec.authoritative_target == "review_findings.json"
+    assert prepared.task_spec.document_id == payload["document_id"]
     assert prepared.task_spec.output_schema == "canisend.review-findings/v1"
     assert prepared.task_spec.required_consents == ()
     assert private_claim not in prepared.task_spec.model_dump_json()
@@ -304,6 +305,7 @@ def test_review_runs_through_shared_deterministic_runtime(tmp_path: Path) -> Non
     findings = read_json_object(job / "review_findings.json")
 
     assert outcome.stage == "review"
+    assert outcome.document_id == payload["document_id"]
     assert findings["review_state"] == "proposed"
     assert any(
         item["code"] == "claim.semantic_support_review"
@@ -313,11 +315,14 @@ def test_review_runs_through_shared_deterministic_runtime(tmp_path: Path) -> Non
     assert response.workflow.readiness == "review_required"
     assert response.extensions["canisend.review_finding_count"] == 3
     assert response.extensions["canisend.review_blocker_count"] == 0
+    assert response.extensions["canisend.document_id"] == payload["document_id"]
     assert private_claim not in response.model_dump_json()
 
     status = inspect_stage_status(workspace, job, stage="review")
     assert status.stage.status == "succeeded"
+    assert status.stage.document_id == payload["document_id"]
     assert not status.reasons
 
     cached = run_deterministic_stage(workspace, job, stage="review")
     assert cached.cache_hit is True
+    assert cached.document_id == payload["document_id"]

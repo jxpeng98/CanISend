@@ -85,6 +85,7 @@ def test_stage_status_is_read_only_and_machine_safe(tmp_path: Path) -> None:
     assert payload["extensions"]["canisend.stage_id"] == "parse"
     assert payload["extensions"]["canisend.stage_status"] == "ready"
     assert payload["extensions"]["canisend.output_drift"] is False
+    assert "canisend.document_id" not in payload["extensions"]
     assert not (job_dir / "workflow").exists()
     assert str(workspace) not in json.dumps(payload)
 

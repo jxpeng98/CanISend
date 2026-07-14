@@ -185,7 +185,10 @@ RSS and Atom lead outputs live in ignored `job_leads/`.
   advert/Parsed Job, Criteria, Match, Decision, and Brief inputs. Draft TaskSpecs name the seven current Tier 2
   structured/user inputs and allow only core-owned candidate/result writes. Configured-provider Draft uses the same
   exact TaskSpec paths with privacy tier 3 and consent `send-private-draft-inputs-to-provider`; raw provider output
-  is not an artifact. Review TaskSpecs add the promoted Draft and remain deterministic.
+  is not an artifact. Review TaskSpecs add the promoted Draft and remain deterministic. Non-document tasks keep the
+  frozen 1.0 wire shape. Document-scoped Draft/Review tasks use backward-readable 1.1 records and bind TaskSpec,
+  result, submission, validation, manifest, terminal claim, promotion receipt, and WorkflowState to the same stable
+  Required Document Plan ID. Workflow stage instances are unique by `(stage, document_id)`.
 - `workflow/runs/*/inputs/evidence-snapshot.json`: immutable Evidence input written by the core during prepare. It may
   duplicate normalized profile evidence and remains until the user removes the private run or job. Resumable
   Evidence does not accept a workspace-external profile root.

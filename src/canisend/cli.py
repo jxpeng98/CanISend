@@ -340,6 +340,11 @@ def stage_status_command(
         "--stage",
         help="Workflow stage to inspect: evidence, parse, confirm, match, brief, draft, or review.",
     ),
+    document_id: str | None = typer.Option(
+        None,
+        "--document-id",
+        help="Stable Required Document Plan ID for a document-scoped Draft or Review stage.",
+    ),
     output_format: str = typer.Option(
         "text",
         "--format",
@@ -352,7 +357,12 @@ def stage_status_command(
     try:
         config = load_workspace_config(workspace)
         job_dir = config.job_dir(job)
-        inspection = inspect_stage_status(config.root, job_dir, stage=stage)  # type: ignore[arg-type]
+        inspection = inspect_stage_status(
+            config.root,
+            job_dir,
+            stage=stage,  # type: ignore[arg-type]
+            document_id=document_id,
+        )
         response = stage_status_agent_response(config.root, job_dir, inspection)
     except StageRuntimeError as exc:
         response = stage_error_response(operation, exc)
@@ -377,6 +387,11 @@ def stage_prepare_command(
         "--mode",
         help="Executor mode: host-agent or deterministic.",
     ),
+    document_id: str | None = typer.Option(
+        None,
+        "--document-id",
+        help="Stable Required Document Plan ID for a document-scoped Draft or Review stage.",
+    ),
     output_format: str = typer.Option(
         "text",
         "--format",
@@ -395,6 +410,7 @@ def stage_prepare_command(
             job_dir,
             stage=stage,  # type: ignore[arg-type]
             execution_mode=normalized_mode,
+            document_id=document_id,
         )
         response = stage_prepare_agent_response(config.root, job_dir, prepared)
     except StageRuntimeError as exc:
@@ -494,6 +510,11 @@ def stage_cancel_command(
         "--stage",
         help="Active workflow stage to cancel: evidence, parse, confirm, match, brief, draft, or review.",
     ),
+    document_id: str | None = typer.Option(
+        None,
+        "--document-id",
+        help="Stable Required Document Plan ID for the active Draft or Review task.",
+    ),
     output_format: str = typer.Option(
         "text",
         "--format",
@@ -510,6 +531,7 @@ def stage_cancel_command(
             config.root,
             job_dir,
             stage=stage,  # type: ignore[arg-type]
+            document_id=document_id,
         )
         response = stage_cancel_agent_response(config.root, cancelled)
     except StageRuntimeError as exc:
@@ -540,6 +562,11 @@ def stage_run_command(
         "--allow-provider-backed",
         help="Explicitly allow this Tier 3 provider-backed execution request.",
     ),
+    document_id: str | None = typer.Option(
+        None,
+        "--document-id",
+        help="Stable Required Document Plan ID for a document-scoped Draft or Review stage.",
+    ),
     output_format: str = typer.Option(
         "text",
         "--format",
@@ -564,12 +591,14 @@ def stage_run_command(
                 job_dir,
                 stage=stage,  # type: ignore[arg-type]
                 allow_provider_backed=allow_provider_backed,
+                document_id=document_id,
             )
             if normalized_mode == "configured_provider"
             else run_deterministic_stage(
                 config.root,
                 job_dir,
                 stage=stage,  # type: ignore[arg-type]
+                document_id=document_id,
             )
         )
         response = stage_run_agent_response(config.root, outcome)

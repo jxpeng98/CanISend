@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Literal
 
@@ -92,6 +92,7 @@ class StageAdapter:
     privacy_tier: int
     task_privacy_tier: int
     citations_validated: bool
+    document_id: str | None = None
 
     def input_fingerprint(self, workspace: Path, job_dir: Path) -> str:
         raise NotImplementedError
@@ -581,6 +582,7 @@ class DraftStageAdapter(StageAdapter):
         return draft_precondition_reasons(
             workspace,
             job_dir,
+            document_id=self.document_id,
             parsed_job_schema_path=_schema_path(workspace, "parsed_job.schema.json"),
             required_document_plan_schema_path=_schema_path(
                 workspace,
@@ -592,6 +594,7 @@ class DraftStageAdapter(StageAdapter):
         return draft_input_fingerprint(
             workspace,
             job_dir,
+            document_id=self.document_id,
             cover_letter_schema_path=_schema_path(
                 workspace,
                 "cover-letter-draft.schema.json",
@@ -649,6 +652,7 @@ class DraftStageAdapter(StageAdapter):
             candidate,
             workspace=workspace,
             job_dir=job_dir,
+            document_id=self.document_id,
             input_fingerprint=input_fingerprint,
             cover_letter_schema_path=_schema_path(
                 workspace,
@@ -683,6 +687,7 @@ class ReviewStageAdapter(StageAdapter):
         return review_precondition_reasons(
             workspace,
             job_dir,
+            document_id=self.document_id,
             cover_letter_schema_path=_schema_path(
                 workspace,
                 "cover-letter-draft.schema.json",
@@ -698,6 +703,7 @@ class ReviewStageAdapter(StageAdapter):
         return review_input_fingerprint(
             workspace,
             job_dir,
+            document_id=self.document_id,
             review_findings_schema_path=_schema_path(
                 workspace,
                 "review-findings.schema.json",
@@ -718,7 +724,10 @@ class ReviewStageAdapter(StageAdapter):
         workspace: Path,
         job_dir: Path,
     ) -> tuple[ArtifactFingerprint, ...]:
-        draft_inputs = get_stage_adapter("draft").input_artifacts(workspace, job_dir)
+        draft_inputs = get_stage_adapter(
+            "draft",
+            document_id=self.document_id,
+        ).input_artifacts(workspace, job_dir)
         return (*draft_inputs, _artifact(job_dir, COVER_LETTER_DRAFT_OUTPUT_PATH))
 
     def build_deterministic_candidate(
@@ -733,6 +742,7 @@ class ReviewStageAdapter(StageAdapter):
         candidate = build_deterministic_review_candidate(
             workspace,
             job_dir,
+            document_id=self.document_id,
             input_fingerprint=input_fingerprint,
             review_findings_schema_path=_schema_path(
                 workspace,
@@ -765,6 +775,7 @@ class ReviewStageAdapter(StageAdapter):
             candidate,
             workspace=workspace,
             job_dir=job_dir,
+            document_id=self.document_id,
             input_fingerprint=input_fingerprint,
             review_findings_schema_path=_schema_path(
                 workspace,
@@ -864,11 +875,18 @@ _ADAPTERS = {
 }
 
 
-def get_stage_adapter(stage_id: str) -> StageAdapter:
+def get_stage_adapter(
+    stage_id: str,
+    *,
+    document_id: str | None = None,
+) -> StageAdapter:
     try:
-        return _ADAPTERS[stage_id]
+        adapter = _ADAPTERS[stage_id]
     except KeyError as exc:
         raise KeyError(f"stage has no executable adapter: {stage_id}") from exc
+    if document_id is not None and stage_id not in {"draft", "review"}:
+        raise KeyError(f"stage does not accept document identity: {stage_id}")
+    return replace(adapter, document_id=document_id)
 
 
 def _schema_path(workspace: Path, filename: str) -> Path:

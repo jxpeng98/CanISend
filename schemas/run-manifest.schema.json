@@ -5,7 +5,7 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "schema_version": { "const": "1.0.0" },
+    "schema_version": { "enum": ["1.0.0", "1.1.0"], "default": "1.1.0" },
     "run_id": { "$ref": "#/$defs/runId" },
     "task_id": {
       "oneOf": [
@@ -15,6 +15,13 @@
     },
     "job_id": { "$ref": "#/$defs/jobId" },
     "stage": { "$ref": "#/$defs/stageName" },
+    "document_id": {
+      "oneOf": [
+        { "$ref": "#/$defs/documentId" },
+        { "type": "null" }
+      ],
+      "default": null
+    },
     "attempt": { "type": "integer", "minimum": 1 },
     "execution_mode": {
       "enum": ["deterministic", "host_agent", "configured_provider"]
@@ -93,6 +100,28 @@
     "error_code",
     "error_message"
   ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "schema_version": { "const": "1.1.0" },
+          "stage": { "enum": ["draft", "review"] }
+        },
+        "required": ["schema_version", "stage"]
+      },
+      "then": {
+        "required": ["document_id"],
+        "properties": { "document_id": { "$ref": "#/$defs/documentId" } }
+      }
+    },
+    {
+      "if": {
+        "properties": { "stage": { "not": { "enum": ["draft", "review"] } } },
+        "required": ["stage"]
+      },
+      "then": { "properties": { "document_id": { "type": "null" } } }
+    }
+  ],
   "$defs": {
     "jobId": {
       "type": "string",
@@ -105,6 +134,10 @@
     "taskId": {
       "type": "string",
       "pattern": "^task_[0-9a-f]{32}$"
+    },
+    "documentId": {
+      "type": "string",
+      "pattern": "^document_[0-9a-f]{32}$"
     },
     "stageName": {
       "enum": [

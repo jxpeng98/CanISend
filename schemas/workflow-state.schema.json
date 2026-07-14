@@ -5,7 +5,7 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "schema_version": { "const": "1.0.0" },
+    "schema_version": { "enum": ["1.0.0", "1.1.0"], "default": "1.1.0" },
     "job_id": { "$ref": "#/$defs/jobId" },
     "revision": { "type": "integer", "minimum": 0 },
     "created_at": { "type": "string", "format": "date-time" },
@@ -31,6 +31,35 @@
     "active_run_id",
     "stages"
   ],
+  "allOf": [
+    {
+      "if": {
+        "properties": { "schema_version": { "const": "1.1.0" } },
+        "required": ["schema_version"]
+      },
+      "then": {
+        "properties": {
+          "stages": {
+            "items": {
+              "if": {
+                "properties": {
+                  "stage": { "enum": ["draft", "review"] },
+                  "status": {
+                    "enum": ["running", "succeeded", "failed", "stale", "cancelled"]
+                  }
+                },
+                "required": ["stage", "status"]
+              },
+              "then": {
+                "required": ["document_id"],
+                "properties": { "document_id": { "$ref": "#/$defs/documentId" } }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
   "$defs": {
     "jobId": {
       "type": "string",
@@ -39,6 +68,10 @@
     "runId": {
       "type": "string",
       "pattern": "^run_[0-9a-f]{32}$"
+    },
+    "documentId": {
+      "type": "string",
+      "pattern": "^document_[0-9a-f]{32}$"
     },
     "jobPath": {
       "type": "string",
@@ -83,6 +116,13 @@
       "additionalProperties": false,
       "properties": {
         "stage": { "$ref": "#/$defs/stageName" },
+        "document_id": {
+          "oneOf": [
+            { "$ref": "#/$defs/documentId" },
+            { "type": "null" }
+          ],
+          "default": null
+        },
         "status": {
           "enum": [
             "pending",
@@ -151,6 +191,15 @@
         "started_at",
         "completed_at",
         "error_code"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": { "stage": { "not": { "enum": ["draft", "review"] } } },
+            "required": ["stage"]
+          },
+          "then": { "properties": { "document_id": { "type": "null" } } }
+        }
       ]
     }
   }

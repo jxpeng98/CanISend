@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Added backward-readable document-scoped control contracts and `(stage, document_id)` ownership across Draft and
+  Review TaskSpec, result, submission, validation, manifest, terminal claim, promotion, WorkflowState, CLI, and
+  AgentResponse. Cache, retry, reconstruction, failure, and descendant invalidation no longer collapse future
+  same-stage documents, while non-document runs retain the frozen 1.0 wire shape.
+- Added optional `--document-id` selection for stage status, prepare, run, and cancel with current Cover Letter
+  auto-resolution, strict plan/kind matching, legacy 1.0 Cover Letter association, pending-task resume without
+  immutable-record rewrites, and fail-closed ID validation.
 - Added a versioned, deterministic required-document execution fan-out with one body-free work item per Brief task,
   an explicit available/planned/unregistered capability registry, exact source-plan hash binding, and fail-closed
   cardinality and executor-unavailable states.

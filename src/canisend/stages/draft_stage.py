@@ -84,6 +84,7 @@ def draft_precondition_reasons(
     workspace: Path,
     job_dir: Path,
     *,
+    document_id: str | None = None,
     parsed_job_schema_path: Path | None = None,
     required_document_plan_schema_path: Path | None = None,
 ) -> tuple[str, ...]:
@@ -96,19 +97,21 @@ def draft_precondition_reasons(
         inputs = _load_draft_inputs(
             workspace,
             job_dir,
+            document_id=document_id,
             parsed_job_schema_path=parsed_job_schema_path,
             required_document_plan_schema_path=required_document_plan_schema_path,
             validate_plan=True,
         )
     except DraftStageError:
         return ("input_not_ready:draft_inputs",)
-    return _draft_input_reason(inputs)
+    return _draft_input_reason(inputs, document_id=document_id)
 
 
 def draft_input_projection(
     workspace: Path,
     job_dir: Path,
     *,
+    document_id: str | None = None,
     cover_letter_schema_path: Path | None = None,
     parsed_job_schema_path: Path | None = None,
     required_document_plan_schema_path: Path | None = None,
@@ -116,11 +119,12 @@ def draft_input_projection(
     inputs = _load_draft_inputs(
         workspace,
         job_dir,
+        document_id=document_id,
         parsed_job_schema_path=parsed_job_schema_path,
         required_document_plan_schema_path=required_document_plan_schema_path,
         validate_plan=True,
     )
-    if _draft_input_reason(inputs):
+    if _draft_input_reason(inputs, document_id=document_id):
         raise DraftStageError("Draft inputs are not current and ready.")
     return _draft_projection(
         inputs,
@@ -148,6 +152,7 @@ def draft_input_fingerprint(
     workspace: Path,
     job_dir: Path,
     *,
+    document_id: str | None = None,
     cover_letter_schema_path: Path | None = None,
     parsed_job_schema_path: Path | None = None,
     required_document_plan_schema_path: Path | None = None,
@@ -156,6 +161,7 @@ def draft_input_fingerprint(
         draft_input_projection(
             workspace,
             job_dir,
+            document_id=document_id,
             cover_letter_schema_path=cover_letter_schema_path,
             parsed_job_schema_path=parsed_job_schema_path,
             required_document_plan_schema_path=required_document_plan_schema_path,
@@ -169,6 +175,7 @@ def validate_draft_candidate(
     workspace: Path,
     job_dir: Path,
     input_fingerprint: str,
+    document_id: str | None = None,
     cover_letter_schema_path: Path | None = None,
     parsed_job_schema_path: Path | None = None,
     required_document_plan_schema_path: Path | None = None,
@@ -182,13 +189,14 @@ def validate_draft_candidate(
         inputs = _load_draft_inputs(
             workspace,
             job_dir,
+            document_id=document_id,
             parsed_job_schema_path=parsed_job_schema_path,
             required_document_plan_schema_path=required_document_plan_schema_path,
             validate_plan=True,
         )
     except DraftStageError as exc:
         raise DraftStageValidationError("Draft inputs are not current and ready.") from exc
-    if _draft_input_reason(inputs):
+    if _draft_input_reason(inputs, document_id=document_id):
         raise DraftStageValidationError("Draft inputs are not current and ready.")
 
     current_fingerprint = _projection_sha256(
@@ -227,6 +235,7 @@ def validate_draft_candidate(
         final_inputs = _load_draft_inputs(
             workspace,
             job_dir,
+            document_id=document_id,
             parsed_job_schema_path=parsed_job_schema_path,
             required_document_plan_schema_path=required_document_plan_schema_path,
             validate_plan=False,
@@ -250,6 +259,7 @@ def _load_draft_inputs(
     workspace: Path,
     job_dir: Path,
     *,
+    document_id: str | None,
     parsed_job_schema_path: Path | None,
     required_document_plan_schema_path: Path | None,
     validate_plan: bool,
@@ -337,6 +347,8 @@ def _load_draft_inputs(
     except (OSError, StageStoreError, UnicodeError, ValueError) as exc:
         raise DraftStageError("Draft upstream receipts could not be validated.") from exc
     cover_letter_document_id = _optional_cover_letter_document_id(plan)
+    if document_id is not None and document_id != cover_letter_document_id:
+        raise DraftStageError("Draft target is not the planned Cover Letter document.")
     return _DraftInputs(
         parsed_job=parsed_job,
         criteria=criteria,
@@ -417,17 +429,26 @@ def _validate_upstream_links(
             raise DraftStageError("Required Document Plan is not canonical and current.") from exc
 
 
-def _draft_input_reason(inputs: _DraftInputs) -> tuple[str, ...]:
+def _draft_input_reason(
+    inputs: _DraftInputs,
+    *,
+    document_id: str | None,
+) -> tuple[str, ...]:
     plan = inputs.plan
     if plan.requirements_state != "confirmed":
         return ("input_not_ready:document_requirements",)
     if plan.blockers or plan.unresolved_brief_fields or plan.unresolved_document_ids:
         return ("input_not_ready:document_plan_blocked",)
     try:
-        document_id = _cover_letter_document_id(plan)
+        planned_document_id = _cover_letter_document_id(plan)
     except DraftStageError:
         return ("input_not_ready:cover_letter_not_planned",)
-    task = next((item for item in plan.tasks if item.document_id == document_id), None)
+    if document_id is not None and document_id != planned_document_id:
+        return ("input_not_ready:document_not_planned",)
+    task = next(
+        (item for item in plan.tasks if item.document_id == planned_document_id),
+        None,
+    )
     if (
         task is None
         or task.action != "prepare"

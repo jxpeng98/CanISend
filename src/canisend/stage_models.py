@@ -8,11 +8,13 @@ from typing import Annotated, Literal
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
-WORKFLOW_STATE_SCHEMA_VERSION = "1.0.0"
-TASK_SPEC_SCHEMA_VERSION = "1.0.0"
-TASK_RESULT_SCHEMA_VERSION = "1.0.0"
-RUN_MANIFEST_SCHEMA_VERSION = "1.0.0"
-CANDIDATE_SUBMISSION_SCHEMA_VERSION = "1.0.0"
+WORKFLOW_STATE_SCHEMA_VERSION = "1.1.0"
+TASK_SPEC_SCHEMA_VERSION = "1.1.0"
+TASK_RESULT_SCHEMA_VERSION = "1.1.0"
+RUN_MANIFEST_SCHEMA_VERSION = "1.1.0"
+CANDIDATE_SUBMISSION_SCHEMA_VERSION = "1.1.0"
+
+StageContractSchemaVersion = Literal["1.0.0", "1.1.0"]
 
 JSON_SCHEMA_DIALECT = "https://json-schema.org/draft/2020-12/schema"
 SCHEMA_BASE_ID = "https://github.com/jxpeng98/CanISend/schemas"
@@ -66,6 +68,7 @@ _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _JOB_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_.-]*$")
 _RUN_ID_RE = re.compile(r"^run_[0-9a-f]{32}$")
 _TASK_ID_RE = re.compile(r"^task_[0-9a-f]{32}$")
+_DOCUMENT_ID_RE = re.compile(r"^document_[0-9a-f]{32}$")
 _DOTTED_ID_RE = re.compile(r"^[a-z][a-z0-9_-]*(?:\.[a-z][a-z0-9_-]*)+$")
 _SLUG_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_.-]*$")
 _OUTPUT_SCHEMA_RE = re.compile(r"^canisend\.[a-z0-9][a-z0-9_.-]*/v[1-9][0-9]*$")
@@ -100,6 +103,7 @@ class ArtifactFingerprint(StageContractModel):
 
 class StageRecord(StageContractModel):
     stage: StageName
+    document_id: str | None = None
     status: StageStatus = "pending"
     attempt_count: int = Field(default=0, ge=0)
     run_id: str | None = None
@@ -109,6 +113,11 @@ class StageRecord(StageContractModel):
     started_at: AwareDatetime | None = None
     completed_at: AwareDatetime | None = None
     error_code: str | None = None
+
+    @field_validator("document_id")
+    @classmethod
+    def _valid_document_id(cls, value: str | None) -> str | None:
+        return _optional_document_id(value)
 
     @field_validator("run_id")
     @classmethod
@@ -136,6 +145,7 @@ class StageRecord(StageContractModel):
 
     @model_validator(mode="after")
     def _consistent_lifecycle(self) -> StageRecord:
+        _require_document_scope(self.stage, self.document_id)
         inactive = {"pending", "blocked", "ready"}
         terminal = {"succeeded", "failed", "stale", "cancelled"}
 
@@ -183,7 +193,7 @@ class WorkflowStateV1(StageContractModel):
         },
     )
 
-    schema_version: Literal["1.0.0"] = WORKFLOW_STATE_SCHEMA_VERSION
+    schema_version: StageContractSchemaVersion = WORKFLOW_STATE_SCHEMA_VERSION
     job_id: str
     revision: int = Field(ge=0)
     created_at: AwareDatetime
@@ -205,12 +215,19 @@ class WorkflowStateV1(StageContractModel):
     def _consistent_state(self) -> WorkflowStateV1:
         _require_time_order(self.created_at, self.updated_at, "workflow timestamps")
 
-        stage_names = tuple(record.stage for record in self.stages)
-        if len(stage_names) != len(set(stage_names)):
-            raise ValueError("workflow stages must be unique")
-        order = tuple(_STAGE_ORDER_INDEX[stage] for stage in stage_names)
+        stage_keys = tuple((record.stage, record.document_id) for record in self.stages)
+        if len(stage_keys) != len(set(stage_keys)):
+            raise ValueError("workflow stage instances must be unique")
+        order = tuple(
+            (_STAGE_ORDER_INDEX[record.stage], record.document_id or "")
+            for record in self.stages
+        )
         if order != tuple(sorted(order)):
-            raise ValueError("workflow stages must use canonical order")
+            raise ValueError("workflow stage instances must use canonical order")
+        if self.schema_version == WORKFLOW_STATE_SCHEMA_VERSION:
+            for record in self.stages:
+                if record.status not in {"pending", "blocked", "ready"}:
+                    _require_current_document_identity(record.stage, record.document_id)
 
         running = tuple(record for record in self.stages if record.status == "running")
         if len(running) > 1:
@@ -230,11 +247,12 @@ class TaskSpecV1(StageContractModel):
         },
     )
 
-    schema_version: Literal["1.0.0"] = TASK_SPEC_SCHEMA_VERSION
+    schema_version: StageContractSchemaVersion = TASK_SPEC_SCHEMA_VERSION
     task_id: str
     run_id: str
     job_id: str
     stage: StageName
+    document_id: str | None = None
     operation: str
     execution_mode: ExecutionMode
     created_at: AwareDatetime
@@ -255,6 +273,11 @@ class TaskSpecV1(StageContractModel):
     output_schema: str
     privacy_tier: PrivacyTier
     required_consents: tuple[str, ...] = ()
+
+    @field_validator("document_id")
+    @classmethod
+    def _valid_document_id(cls, value: str | None) -> str | None:
+        return _optional_document_id(value)
 
     @field_validator("task_id")
     @classmethod
@@ -329,6 +352,9 @@ class TaskSpecV1(StageContractModel):
 
     @model_validator(mode="after")
     def _consistent_scope(self) -> TaskSpecV1:
+        _require_document_scope(self.stage, self.document_id)
+        if self.schema_version == TASK_SPEC_SCHEMA_VERSION:
+            _require_current_document_identity(self.stage, self.document_id)
         if self.operation != f"stage.{self.stage}":
             raise ValueError("operation must match the task stage")
         if not self.allowed_reads:
@@ -360,11 +386,12 @@ class TaskResultV1(StageContractModel):
         },
     )
 
-    schema_version: Literal["1.0.0"] = TASK_RESULT_SCHEMA_VERSION
+    schema_version: StageContractSchemaVersion = TASK_RESULT_SCHEMA_VERSION
     task_id: str
     run_id: str
     job_id: str
     stage: StageName
+    document_id: str | None = None
     status: TaskResultStatus
     input_fingerprint: str
     started_at: AwareDatetime
@@ -372,6 +399,11 @@ class TaskResultV1(StageContractModel):
     outputs: tuple[ArtifactFingerprint, ...] = ()
     error_code: str | None = None
     error_message: str | None = None
+
+    @field_validator("document_id")
+    @classmethod
+    def _valid_document_id(cls, value: str | None) -> str | None:
+        return _optional_document_id(value)
 
     @field_validator("task_id")
     @classmethod
@@ -409,6 +441,9 @@ class TaskResultV1(StageContractModel):
 
     @model_validator(mode="after")
     def _consistent_result(self) -> TaskResultV1:
+        _require_document_scope(self.stage, self.document_id)
+        if self.schema_version == TASK_RESULT_SCHEMA_VERSION:
+            _require_current_document_identity(self.stage, self.document_id)
         _require_time_order(self.started_at, self.completed_at, "task result timestamps")
         has_error = self.error_code is not None or self.error_message is not None
         if (self.error_code is None) != (self.error_message is None):
@@ -424,16 +459,22 @@ class TaskResultV1(StageContractModel):
 
 
 class CandidateSubmissionV1(StageContractModel):
-    schema_version: Literal["1.0.0"] = CANDIDATE_SUBMISSION_SCHEMA_VERSION
+    schema_version: StageContractSchemaVersion = CANDIDATE_SUBMISSION_SCHEMA_VERSION
     task_id: str
     run_id: str
     job_id: str
     stage: StageName
+    document_id: str | None = None
     submitted_at: AwareDatetime
     task_spec_sha256: str
     candidate: ArtifactFingerprint
     result_path: str
     task_result_sha256: str
+
+    @field_validator("document_id")
+    @classmethod
+    def _valid_document_id(cls, value: str | None) -> str | None:
+        return _optional_document_id(value)
 
     @field_validator("task_id")
     @classmethod
@@ -460,13 +501,21 @@ class CandidateSubmissionV1(StageContractModel):
     def _valid_result_path(cls, value: str) -> str:
         return _job_relative_path(value)
 
+    @model_validator(mode="after")
+    def _consistent_document_scope(self) -> CandidateSubmissionV1:
+        _require_document_scope(self.stage, self.document_id)
+        if self.schema_version == CANDIDATE_SUBMISSION_SCHEMA_VERSION:
+            _require_current_document_identity(self.stage, self.document_id)
+        return self
+
 
 class ValidationReportV1(StageContractModel):
-    schema_version: Literal["1.0.0"] = TASK_RESULT_SCHEMA_VERSION
+    schema_version: StageContractSchemaVersion = TASK_RESULT_SCHEMA_VERSION
     task_id: str
     run_id: str
     job_id: str
     stage: StageName
+    document_id: str | None = None
     status: ValidationStatus
     checked_at: AwareDatetime
     input_hashes_match: bool
@@ -475,6 +524,11 @@ class ValidationReportV1(StageContractModel):
     citations_valid: bool | None = None
     errors: tuple[str, ...] = ()
     warnings: tuple[str, ...] = ()
+
+    @field_validator("document_id")
+    @classmethod
+    def _valid_document_id(cls, value: str | None) -> str | None:
+        return _optional_document_id(value)
 
     @field_validator("task_id")
     @classmethod
@@ -500,6 +554,9 @@ class ValidationReportV1(StageContractModel):
 
     @model_validator(mode="after")
     def _consistent_status(self) -> ValidationReportV1:
+        _require_document_scope(self.stage, self.document_id)
+        if self.schema_version == TASK_RESULT_SCHEMA_VERSION:
+            _require_current_document_identity(self.stage, self.document_id)
         checks_pass = (
             self.input_hashes_match
             and self.schema_valid
@@ -523,11 +580,12 @@ class RunManifestV1(StageContractModel):
         },
     )
 
-    schema_version: Literal["1.0.0"] = RUN_MANIFEST_SCHEMA_VERSION
+    schema_version: StageContractSchemaVersion = RUN_MANIFEST_SCHEMA_VERSION
     run_id: str
     task_id: str | None = None
     job_id: str
     stage: StageName
+    document_id: str | None = None
     attempt: int = Field(ge=1)
     execution_mode: ExecutionMode
     status: RunStatus
@@ -542,6 +600,11 @@ class RunManifestV1(StageContractModel):
     validation_report_path: str | None = None
     error_code: str | None = None
     error_message: str | None = None
+
+    @field_validator("document_id")
+    @classmethod
+    def _valid_document_id(cls, value: str | None) -> str | None:
+        return _optional_document_id(value)
 
     @field_validator("run_id")
     @classmethod
@@ -585,6 +648,9 @@ class RunManifestV1(StageContractModel):
 
     @model_validator(mode="after")
     def _consistent_lifecycle(self) -> RunManifestV1:
+        _require_document_scope(self.stage, self.document_id)
+        if self.schema_version == RUN_MANIFEST_SCHEMA_VERSION:
+            _require_current_document_identity(self.stage, self.document_id)
         if self.execution_mode in {"host_agent", "configured_provider"} and self.task_id is None:
             raise ValueError("an externally reasoned run requires task_id")
         if self.started_at is not None:
@@ -664,6 +730,25 @@ def _optional_prefixed_id(
     if value is None:
         return None
     return _prefixed_id(value, pattern=pattern, label=label)
+
+
+def _optional_document_id(value: str | None) -> str | None:
+    if value is not None and _DOCUMENT_ID_RE.fullmatch(value) is None:
+        raise ValueError("document_id must be a stable document identifier")
+    return value
+
+
+def _require_document_scope(stage: StageName, document_id: str | None) -> None:
+    if document_id is not None and stage not in {"draft", "review"}:
+        raise ValueError("document_id is only valid for a document-scoped stage")
+
+
+def _require_current_document_identity(
+    stage: StageName,
+    document_id: str | None,
+) -> None:
+    if stage in {"draft", "review"} and document_id is None:
+        raise ValueError("a current document-scoped stage requires document_id")
 
 
 def _optional_dotted_id(value: str | None, *, label: str) -> str | None:

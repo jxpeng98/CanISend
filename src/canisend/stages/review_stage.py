@@ -65,6 +65,7 @@ def review_precondition_reasons(
     workspace: Path,
     job_dir: Path,
     *,
+    document_id: str | None = None,
     cover_letter_schema_path: Path | None = None,
     parsed_job_schema_path: Path | None = None,
     required_document_plan_schema_path: Path | None = None,
@@ -73,6 +74,7 @@ def review_precondition_reasons(
         _load_review_inputs(
             workspace,
             job_dir,
+            document_id=document_id,
             cover_letter_schema_path=cover_letter_schema_path,
             parsed_job_schema_path=parsed_job_schema_path,
             required_document_plan_schema_path=required_document_plan_schema_path,
@@ -86,6 +88,7 @@ def review_input_projection(
     workspace: Path,
     job_dir: Path,
     *,
+    document_id: str | None = None,
     review_findings_schema_path: Path | None = None,
     cover_letter_schema_path: Path | None = None,
     parsed_job_schema_path: Path | None = None,
@@ -94,6 +97,7 @@ def review_input_projection(
     inputs = _load_review_inputs(
         workspace,
         job_dir,
+        document_id=document_id,
         cover_letter_schema_path=cover_letter_schema_path,
         parsed_job_schema_path=parsed_job_schema_path,
         required_document_plan_schema_path=required_document_plan_schema_path,
@@ -125,6 +129,7 @@ def review_input_fingerprint(
     workspace: Path,
     job_dir: Path,
     *,
+    document_id: str | None = None,
     review_findings_schema_path: Path | None = None,
     cover_letter_schema_path: Path | None = None,
     parsed_job_schema_path: Path | None = None,
@@ -134,6 +139,7 @@ def review_input_fingerprint(
         review_input_projection(
             workspace,
             job_dir,
+            document_id=document_id,
             review_findings_schema_path=review_findings_schema_path,
             cover_letter_schema_path=cover_letter_schema_path,
             parsed_job_schema_path=parsed_job_schema_path,
@@ -147,6 +153,7 @@ def build_deterministic_review_candidate(
     job_dir: Path,
     *,
     input_fingerprint: str,
+    document_id: str | None = None,
     review_findings_schema_path: Path | None = None,
     cover_letter_schema_path: Path | None = None,
     parsed_job_schema_path: Path | None = None,
@@ -155,6 +162,7 @@ def build_deterministic_review_candidate(
     inputs = _load_review_inputs(
         workspace,
         job_dir,
+        document_id=document_id,
         cover_letter_schema_path=cover_letter_schema_path,
         parsed_job_schema_path=parsed_job_schema_path,
         required_document_plan_schema_path=required_document_plan_schema_path,
@@ -189,6 +197,7 @@ def build_deterministic_review_candidate(
     final_inputs = _load_review_inputs(
         workspace,
         job_dir,
+        document_id=document_id,
         cover_letter_schema_path=cover_letter_schema_path,
         parsed_job_schema_path=parsed_job_schema_path,
         required_document_plan_schema_path=required_document_plan_schema_path,
@@ -210,6 +219,7 @@ def validate_review_candidate(
     workspace: Path,
     job_dir: Path,
     input_fingerprint: str,
+    document_id: str | None = None,
     review_findings_schema_path: Path | None = None,
     cover_letter_schema_path: Path | None = None,
     parsed_job_schema_path: Path | None = None,
@@ -235,6 +245,7 @@ def validate_review_candidate(
         workspace,
         job_dir,
         input_fingerprint=input_fingerprint,
+        document_id=document_id,
         review_findings_schema_path=review_findings_schema_path,
         cover_letter_schema_path=cover_letter_schema_path,
         parsed_job_schema_path=parsed_job_schema_path,
@@ -251,6 +262,7 @@ def _load_review_inputs(
     workspace: Path,
     job_dir: Path,
     *,
+    document_id: str | None,
     cover_letter_schema_path: Path | None,
     parsed_job_schema_path: Path | None,
     required_document_plan_schema_path: Path | None,
@@ -264,11 +276,14 @@ def _load_review_inputs(
             workspace=workspace,
             job_dir=job_dir,
             input_fingerprint=draft.input_fingerprint,
+            document_id=document_id,
             cover_letter_schema_path=cover_letter_schema_path,
             parsed_job_schema_path=parsed_job_schema_path,
             required_document_plan_schema_path=required_document_plan_schema_path,
             expected_generation_mode=draft.generation_mode,
         )
+        if document_id is not None and draft.document_id != document_id:
+            raise ReviewStageError("Review target does not match the Draft document.")
         brief_snapshot = read_optional_safe_bytes(job_dir, APPLICATION_BRIEF_INPUT_PATH)
         if brief_snapshot is None:
             raise ReviewStageError("Review requires the current Application Brief.")
