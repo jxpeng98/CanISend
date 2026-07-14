@@ -1,7 +1,7 @@
 # CLI-First Workflow Optimization Execution Roadmap
 
-**Status:** Active — Stages 1 and 2 plus document-scoped Stage 3 Cover Letter, Research Statement, and standalone
-reviewed Research projection slices are locally accepted
+**Status:** Active — Stages 1 and 2 plus Stage 3 Tasks 0–12 are locally accepted; the TestPyPI development checkpoint
+and Stage 3 aggregate Review completion are in progress
 
 **Date:** 2026-07-11
 
@@ -308,12 +308,15 @@ execution fan-out and explicit available/planned/unregistered capability registr
 Statement Draft and deterministic Review boundary with separate targets and validators; ADR-019 freezes stable
 document selection plus independent Cover Letter and Research Statement disposition/CAS/readiness namespaces;
 ADR-020 freezes a reviewed, standalone Research Statement compatibility projection without expanding package
-readiness. The
-Cover Letter and Research Statement Draft/Review/disposition/readiness slices are locally accepted with strict
-schemas, guarded promotion, fail-closed document selection, cross-version local tests, and clean-wheel smoke. Both
-are available guarded executors with per-document readiness. Cover Letter keeps package-integrated compatibility
-views; a reviewed Research Statement has standalone Markdown/Typst views only. Configured-provider Research Draft,
-broader cross-document Review, remote CI, and aggregate package readiness remain.
+readiness. The Cover Letter and Research Statement Draft/Review/disposition/readiness slices are locally accepted
+with strict schemas, guarded promotion, fail-closed document selection, cross-version local tests, and clean-wheel
+smoke. Both are available guarded executors with per-document readiness. Cover Letter keeps package-integrated
+compatibility views; a reviewed Research Statement has standalone Markdown/Typst views only. Broader cross-document
+Review, remote CI, and aggregate package readiness remain.
+
+**Release milestones:** publish `0.3.0.dev1` to TestPyPI after the Task 12 baseline, then publish `0.3.0b1` to
+TestPyPI and PyPI only after Tasks 13–15 and the Stage 3 exit gates are accepted. See
+`docs/superpowers/plans/2026-07-14-stage3-completion-and-release.md` for the executable plan.
 
 ### Deliverables
 

@@ -1,6 +1,6 @@
 # Evidence-Backed Draft Foundation Implementation Plan
 
-**Status:** In progress — Tasks 0–12 locally accepted; later Stage 3 slices remain
+**Status:** In progress — Tasks 0–12 locally accepted; dev release and Tasks 13–15 planned
 
 **Date:** 2026-07-13
 
@@ -168,6 +168,35 @@ AgentResponse/TaskSpec contracts, and without claiming package readiness.
 - [x] Prove Cover/package isolation, stale/tamper closure, private-text safety, and installed-wheel behavior.
 - [x] Update canonical skills, compatibility mirror, README, changelog, roadmap, and file contracts.
 - [x] Complete focused/full cross-version, distribution, privacy, recovery, and clean-wheel validation.
+
+## Task 13: Cross-Document Consistency Review
+
+- [ ] Accept ADR-021 for aggregate Review ownership, privacy, current inputs, corrections, and invalidation.
+- [ ] Add a strict package-consistency contract/schema and deterministic guarded stage.
+- [ ] Bind findings to exact current document IDs, Draft/Review/readiness receipts, Brief, and document plan.
+- [ ] Detect provable conflicts/blockers while deferring semantic consistency to explicit human review.
+- [ ] Keep correction proposals document/Claim-scoped and route revisions through guarded Draft promotion.
+- [ ] Prove cache, recovery, stale/tamper, selective invalidation, privacy, and distribution behavior.
+
+## Task 14: Aggregate Package Review Decisions And Readiness
+
+- [ ] Accept ADR-022 for user-owned package finding decisions and aggregate readiness.
+- [ ] Add guarded package disposition CAS, immutable receipts, recovery, and explicit reset.
+- [ ] Derive package readiness from every required document plus current package Review and dispositions.
+- [ ] Extend APP-Q without turning package readiness into rendering or submission readiness.
+- [ ] Expose body-free aggregate status, counts, consents, reason codes, and next actions.
+- [ ] Prove non-waivable blockers, missing-document closure, legacy compatibility, privacy, and clean-wheel behavior.
+
+## Task 15: Stage 3 Exit And `0.3.0b1` Prerelease
+
+- [ ] Complete Stage 3 dual-document and aggregate-readiness fixtures, docs, skills, migration, and recovery evidence.
+- [ ] Pass full supported-version, distribution, installed-wheel, Typst, repository, and privacy validation.
+- [ ] Push the reviewed candidate and require successful remote CI.
+- [ ] Run `scripts/release.sh beta --version 0.3.0b1` with every local check enabled.
+- [ ] Verify TestPyPI publish/smoke, PyPI prerelease promotion, GitHub prerelease, and fresh PyPI installation.
+
+**Detailed execution and release gates:**
+`docs/superpowers/plans/2026-07-14-stage3-completion-and-release.md`
 
 ## Task 0–5 Validation Snapshot
 

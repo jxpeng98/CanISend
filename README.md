@@ -926,7 +926,7 @@ Preferred tag-driven release orchestration:
 
 ```bash
 scripts/release.sh test --version 0.3.0.dev1
-scripts/release.sh beta --version 0.3.0a1
+scripts/release.sh beta --version 0.3.0b1
 scripts/release.sh stable --version 0.3.0
 ```
 
@@ -934,7 +934,7 @@ The script updates `pyproject.toml` and `src/canisend/__init__.py`, runs local c
 
 ```bash
 git tag -a test/v0.3.0.dev1 HEAD -m "canisend 0.3.0.dev1 TestPyPI"
-git tag -a v0.3.0a1 HEAD -m "canisend 0.3.0a1 prerelease"
+git tag -a v0.3.0b1 HEAD -m "canisend 0.3.0b1 prerelease"
 git tag -a v0.3.0 HEAD -m "canisend 0.3.0 stable"
 ```
 

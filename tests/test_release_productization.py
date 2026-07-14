@@ -344,10 +344,10 @@ def test_release_playbook_documents_testpypi_dry_run():
 
     assert "## Release Channels" in playbook
     assert "scripts/release.sh test" in playbook
-    assert "scripts/release.sh beta --version 0.3.0a1" in playbook
+    assert "scripts/release.sh beta --version 0.3.0b1" in playbook
     assert "scripts/release.sh stable --version 0.3.0" in playbook
     assert "test/v0.3.0.dev1" in playbook
-    assert "v0.3.0a1" in playbook
+    assert "v0.3.0b1" in playbook
     assert "v0.3.0" in playbook
     assert "Do not reuse `v0.2.0`" in playbook
     assert "stable" in playbook and "origin/main" in playbook

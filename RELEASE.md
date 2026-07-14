@@ -8,14 +8,14 @@ Use `scripts/release.sh` as the main release orchestrator:
 
 ```bash
 scripts/release.sh test --version 0.3.0.dev1
-scripts/release.sh beta --version 0.3.0a1
+scripts/release.sh beta --version 0.3.0b1
 scripts/release.sh stable --version 0.3.0
 ```
 
 Channel behavior:
 
 - `test`: creates and pushes `test/v0.3.0.dev1`; `release.yml` publishes to TestPyPI and smoke-tests installation from TestPyPI. Use a disposable version because TestPyPI versions cannot be overwritten.
-- `beta`: requires a PEP 440 prerelease version such as `0.3.0a1`; creates and pushes `v0.3.0a1`; `release.yml` publishes to TestPyPI first, then PyPI as a prerelease, then creates a GitHub prerelease.
+- `beta`: requires a PEP 440 prerelease version such as `0.3.0b1`; creates and pushes `v0.3.0b1`; `release.yml` publishes to TestPyPI first, then PyPI as a prerelease, then creates a GitHub prerelease.
 - `stable`: requires a final version such as `0.3.0`; creates and pushes `v0.3.0`; `release.yml` publishes to TestPyPI first, then PyPI as a stable release, then creates a GitHub Release.
 
 The script does not call `gh workflow run` or create GitHub releases locally. It updates both version files, commits
@@ -25,7 +25,7 @@ then pushes the release tag. The workflow intentionally publishes to PyPI only a
 Stable releases must start from `main`; the final candidate must be reachable from `origin/main` both locally and in
 the tag-triggered workflow. A reviewed prerelease may originate from a non-main branch, but that branch is pushed and
 the candidate commit is verified before the tag is created. Do not reuse `v0.2.0` or any published tag/version; the
-next Phase 1 candidate begins at `0.3.0a1`.
+accepted Stage 3 candidate is `0.3.0b1`.
 
 ## Local Release Checks
 
@@ -90,7 +90,7 @@ PyPI's Trusted Publishing flow uses GitHub Actions OIDC with `id-token: write`; 
 The TestPyPI Trusted Publisher should accept claims from tag-triggered workflow runs matching:
 
 - `repository`: `jxpeng98/CanISend`
-- `workflow_ref`: `jxpeng98/CanISend/.github/workflows/release.yml@refs/tags/test/v0.3.0.dev1` for TestPyPI-only tags, or `refs/tags/v0.3.0a1` / `refs/tags/v0.3.0` for prerelease and stable tags.
+- `workflow_ref`: `jxpeng98/CanISend/.github/workflows/release.yml@refs/tags/test/v0.3.0.dev1` for TestPyPI-only tags, or `refs/tags/v0.3.0b1` / `refs/tags/v0.3.0` for prerelease and stable tags.
 - `environment`: `testpypi`
 
 ## TestPyPI Dry Run
@@ -129,7 +129,7 @@ Only publish to PyPI from `v*` tags. The workflow itself gates PyPI on TestPyPI 
 
 1. Confirm `CHANGELOG.md` has release notes for the intended version.
 2. Confirm the git working tree is clean.
-3. Run `scripts/release.sh beta --version 0.3.0a1` for prerelease publishing, or `scripts/release.sh stable --version 0.3.0` for stable publishing.
+3. Run `scripts/release.sh beta --version 0.3.0b1` for prerelease publishing, or `scripts/release.sh stable --version 0.3.0` for stable publishing.
 4. The script bumps `pyproject.toml` and `src/canisend/__init__.py`, runs local release checks, commits the version bump, pushes the current branch, and pushes the release tag.
 5. The pushed tag triggers `.github/workflows/release.yml`, publishes to TestPyPI, smoke-tests TestPyPI, publishes to PyPI through the `pypi` environment, and creates the GitHub Release.
 
