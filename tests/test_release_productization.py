@@ -54,15 +54,19 @@ def test_shared_decision_spine_smoke_owns_the_full_body_free_contract():
     assert "application_brief.yaml" in rendered
     assert "required_document_plan.json" in rendered
     assert "cover_letter_draft.json" in rendered
+    assert "research_statement_draft.json" in rendered
     assert "stage.provider_consent_required" in rendered
     assert "configured_provider" in rendered
     assert "review_findings.json" in rendered
+    assert "research_statement_review_findings.json" in rendered
+    assert "research_statement_review_dispositions.yaml" in rendered
+    assert "user_input.document_ambiguous" in rendered
     assert "Deterministic proposal" in rendered
     assert "Criterion is unresolved" in rendered
     assert "not document readiness" in rendered
     assert "structured-draft projection" in rendered
     assert "application_package_content.json" in rendered
-    assert "EXPECTED_USER_MUTATION_RECEIPTS = 14" in rendered
+    assert "EXPECTED_USER_MUTATION_RECEIPTS = 18" in rendered
     for stage in ("evidence", "parse", "confirm", "match", "brief", "draft", "review"):
         assert f'"{stage}":' in rendered
     assert "preparation.json" in rendered

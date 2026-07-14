@@ -87,6 +87,17 @@ def test_receipt_schema_rejects_public_transition_and_path_mismatches() -> None:
         "target_path": "review_dispositions.yaml",
     }
     validator.validate(review_dispositions)
+    research_dispositions = {
+        **valid,
+        "artifact": "research_statement_review_dispositions",
+        "target_path": "research_statement_review_dispositions.yaml",
+    }
+    validator.validate(research_dispositions)
+    assert list(
+        validator.iter_errors(
+            {**research_dispositions, "target_path": "review_dispositions.yaml"}
+        )
+    )
     assert list(
         validator.iter_errors({**brief, "target_path": "application_decision.yaml"})
     )

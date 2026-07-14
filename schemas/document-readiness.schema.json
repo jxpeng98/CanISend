@@ -96,8 +96,11 @@
       "type": "string"
     },
     "document_kind": {
-      "const": "cover_letter",
       "default": "cover_letter",
+      "enum": [
+        "cover_letter",
+        "research_statement"
+      ],
       "title": "Document Kind",
       "type": "string"
     },

@@ -19,6 +19,7 @@ from canisend.agent_protocol import (
     success_response,
 )
 from canisend.decision_models import ApplicationBriefV1, ApplicationDecisionV1
+from canisend.review_readiness import ReviewDispositionsV1
 from canisend.stage_agent import stage_status_agent_response
 from canisend.stage_runtime import StageRuntimeError, inspect_stage_status
 from canisend.user_file_store import (
@@ -33,6 +34,7 @@ from canisend.user_mutations import (
     APPLICATION_DECISION_PATH,
     CONFIRMED_CORRECTIONS_PATH,
     REVIEW_DISPOSITIONS_PATH,
+    RESEARCH_STATEMENT_REVIEW_DISPOSITIONS_PATH,
     ApplicationBriefInspection,
     ApplicationDecisionInspection,
     BriefPatch,
@@ -41,6 +43,7 @@ from canisend.user_mutations import (
     DecisionPatch,
     MutationOutcome,
     ReviewDispositionPatch,
+    ReviewDispositionArtifactKind,
     ReviewDispositionsInspection,
     UserArtifactKind,
     UserArtifactSnapshot,
@@ -225,11 +228,19 @@ def mutation_outcome_agent_response(
             ),
             readiness="action_required",
         )
-    elif outcome.snapshot.artifact == "review_dispositions":
+    elif outcome.snapshot.artifact in {
+        "review_dispositions",
+        "research_statement_review_dispositions",
+    }:
+        assert isinstance(outcome.snapshot.model, ReviewDispositionsV1)
         projection = review_dispositions_agent_projection(
             workspace,
             job_dir,
-            inspect_review_dispositions(workspace, job_dir),
+            inspect_review_dispositions(
+                workspace,
+                job_dir,
+                document_id=outcome.snapshot.model.document_id,
+            ),
         )
     else:  # pragma: no cover - guarded by UserArtifactKind
         raise ValueError("unsupported user-owned artifact kind")
@@ -686,10 +697,11 @@ def review_dispositions_agent_projection(
     job_dir: Path,
     inspection: ReviewDispositionsInspection,
 ) -> UserMutationAgentProjection:
+    artifact = inspection.artifact
     audit = inspect_current_artifact_mutation(
         workspace,
         job_dir,
-        "review_dispositions",
+        artifact,
     )
     base = _review_dispositions_agent_projection_without_audit(
         workspace,
@@ -699,7 +711,7 @@ def review_dispositions_agent_projection(
     blocked = _mutation_audit_projection(
         workspace,
         job_dir,
-        "review_dispositions",
+        artifact,
         inspection.snapshot,
         audit,
         base,
@@ -715,16 +727,19 @@ def _review_dispositions_agent_projection_without_audit(
     inspection: ReviewDispositionsInspection,
 ) -> UserMutationAgentProjection:
     snapshot = inspection.snapshot
+    artifact_id = inspection.artifact
     artifact = _user_artifact_reference(
         workspace,
         job_dir,
-        "review_dispositions",
+        artifact_id,
         snapshot,
     )
     readiness = inspection.readiness
     extensions: tuple[tuple[str, JsonScalar], ...] = (
-        ("canisend.user_artifact", "review_dispositions"),
+        ("canisend.user_artifact", artifact_id),
         ("canisend.user_artifact_revision", snapshot.revision if snapshot else None),
+        ("canisend.document_id", inspection.document_id),
+        ("canisend.document_kind", inspection.document_kind),
         ("canisend.review_disposition_basis_status", inspection.basis_status),
         ("canisend.review_disposition_reason", _public_reason(inspection.reason)),
         (
@@ -786,11 +801,11 @@ def _review_dispositions_agent_projection_without_audit(
         )
 
     if snapshot is None:
-        consent = _write_consent("review_dispositions")
+        consent = _write_consent(artifact_id)
         return UserMutationAgentProjection(
             readiness="action_required",
             artifacts=(artifact,),
-            missing_fields=(REVIEW_DISPOSITIONS_PATH,),
+            missing_fields=(_artifact_path(artifact_id),),
             required_consents=(consent,),
             blockers=("Explicit user-owned Review dispositions are required.",),
             next_actions=(
@@ -805,7 +820,7 @@ def _review_dispositions_agent_projection_without_audit(
         )
 
     if inspection.basis_status != "current":
-        consent = _write_consent("review_dispositions")
+        consent = _write_consent(artifact_id)
         return UserMutationAgentProjection(
             readiness="review_required",
             artifacts=(artifact,),
@@ -838,8 +853,8 @@ def _review_dispositions_agent_projection_without_audit(
         )
 
     if readiness.state == "review_required":
-        read_consent = _read_review_findings_consent()
-        write_consent = _write_consent("review_dispositions")
+        read_consent = _read_review_findings_consent(inspection.document_kind)
+        write_consent = _write_consent(artifact_id)
         return UserMutationAgentProjection(
             readiness="review_required",
             artifacts=(artifact,),
@@ -969,6 +984,7 @@ def user_mutation_error_response(
     operation: str,
     error: UserMutationError,
     *,
+    artifact: ReviewDispositionArtifactKind | None = None,
     mutation_id: str | None = None,
 ) -> AgentResponse:
     candidate_id = mutation_id or error.mutation_id
@@ -978,7 +994,11 @@ def user_mutation_error_response(
         else None
     )
     code = error.code if error.code in KNOWN_AGENT_ERROR_CODES else "operation.failed"
-    consent = _operation_consent(operation) if code == "user_input.consent_required" else None
+    consent = (
+        _operation_consent(operation, artifact=artifact)
+        if code == "user_input.consent_required"
+        else None
+    )
     actions: list[NextAction] = []
     if code == "user_input.conflict":
         if operation == "user_mutation.recover":
@@ -1018,6 +1038,16 @@ def user_mutation_error_response(
                 label="Recover the accepted user-owned mutation",
                 requires_consent=True,
                 consent_ids=[recovery.id],
+            )
+        )
+    elif code in {
+        "user_input.document_ambiguous",
+        "user_input.document_not_found",
+    }:
+        actions.append(
+            NextAction(
+                id="documents.status",
+                label="Inspect document targets and select one stable document ID",
             )
         )
     elif consent is not None:
@@ -1193,6 +1223,9 @@ def _user_artifact_reference(
         "decision": "application_decision",
         "brief": "application_brief",
         "review_dispositions": "review_dispositions",
+        "research_statement_review_dispositions": (
+            "research_statement_review_dispositions"
+        ),
     }[artifact]
     return ArtifactReference(
         kind=kind,
@@ -1292,6 +1325,9 @@ def _write_consent(artifact: UserArtifactKind) -> ConsentRequirement:
         "decision": "application_decision",
         "brief": "application_brief",
         "review_dispositions": "review_dispositions",
+        "research_statement_review_dispositions": (
+            "research_statement_review_dispositions"
+        ),
     }[artifact]
     return ConsentRequirement(
         id=f"write-user-owned-{artifact}",
@@ -1301,12 +1337,17 @@ def _write_consent(artifact: UserArtifactKind) -> ConsentRequirement:
     )
 
 
-def _read_review_findings_consent() -> ConsentRequirement:
+def _read_review_findings_consent(document_kind: str) -> ConsentRequirement:
+    artifact_kind = (
+        "review_findings"
+        if document_kind == "cover_letter"
+        else "research_statement_review_findings"
+    )
     return ConsentRequirement(
         id="read-private-review-findings",
         purpose="Allow inspection of private Review finding bodies before disposition.",
         privacy_tier=2,
-        artifact_kinds=["review_findings"],
+        artifact_kinds=[artifact_kind],
     )
 
 
@@ -1320,11 +1361,16 @@ def _recovery_consent() -> ConsentRequirement:
             "application_decision",
             "application_brief",
             "review_dispositions",
+            "research_statement_review_dispositions",
         ],
     )
 
 
-def _operation_consent(operation: str) -> ConsentRequirement | None:
+def _operation_consent(
+    operation: str,
+    *,
+    artifact: ReviewDispositionArtifactKind | None = None,
+) -> ConsentRequirement | None:
     if operation.startswith("criteria.corrections"):
         return _write_consent("corrections")
     if operation.startswith("decision."):
@@ -1332,7 +1378,7 @@ def _operation_consent(operation: str) -> ConsentRequirement | None:
     if operation.startswith("brief."):
         return _write_consent("brief")
     if operation.startswith("review.dispositions"):
-        return _write_consent("review_dispositions")
+        return _write_consent(artifact or "review_dispositions")
     if operation == "user_mutation.recover":
         return _recovery_consent()
     return None
@@ -1417,6 +1463,9 @@ def _artifact_path(artifact: UserArtifactKind) -> str:
         "decision": APPLICATION_DECISION_PATH,
         "brief": APPLICATION_BRIEF_PATH,
         "review_dispositions": REVIEW_DISPOSITIONS_PATH,
+        "research_statement_review_dispositions": (
+            RESEARCH_STATEMENT_REVIEW_DISPOSITIONS_PATH
+        ),
     }[artifact]
 
 
@@ -1446,6 +1495,8 @@ def _public_error_message(code: str) -> str:
         "user_input.consent_required": "Explicit confirmation of the user-owned write is required.",
         "user_input.conflict": "The user-owned file or recovery evidence conflicts with the expected baseline.",
         "user_input.dependency_not_current": "The required Decision Spine inputs are not current.",
+        "user_input.document_ambiguous": "More than one document target is available; select one stable document ID.",
+        "user_input.document_not_found": "The selected document has no available Review disposition target.",
         "user_input.store_failed": "The user-owned mutation could not be stored safely.",
         "user_input.recovery_required": "The accepted user-owned mutation requires explicit recovery.",
     }.get(code, "The user-owned mutation could not be completed.")

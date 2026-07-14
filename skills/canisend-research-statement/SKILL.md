@@ -43,7 +43,12 @@ Read only what the current task requires:
 7. Run `stage run --stage review --mode deterministic --document-id <same-id>`. Read finding bodies only after Tier 2
    approval. Missing required sections, unsupported facts, and confirmed exclusion conflicts are blockers; semantic
    support and Claim-kind findings require human review.
-8. Do not use Cover Letter `review-dispositions` or claim Research Statement document/package readiness. Guarded
-   Research Statement dispositions, rendering, and readiness are not implemented yet.
-9. Before presenting wording for human review, check `../canisend/references/quality-gates.md` and clearly label the
+8. Use body-free `review-dispositions status --document-id <same-id>` before reading finding bodies. Initialize
+   `research_statement_review_dispositions.yaml` only with explicit user-owned write consent, then submit one
+   `set_finding_disposition` patch at a time with the latest revision/hash and the same ID. Blockers cannot be
+   accepted; a changed Draft/Review requires an explicit `reset_for_current_review` patch.
+9. Complete current acceptances derive Research Statement document readiness while Draft and Review remain
+   `proposed`. Do not claim package readiness or render compatibility Markdown/Typst from that state; those paths are
+   not implemented for Research Statement.
+10. Before presenting wording for human review, check `../canisend/references/quality-gates.md` and clearly label the
    Draft and Review as `proposed`.

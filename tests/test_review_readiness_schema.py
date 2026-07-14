@@ -33,6 +33,10 @@ def test_review_disposition_schema_matches_runtime_contract() -> None:
     Draft202012Validator(stored).validate(
         _dispositions(review).model_dump(mode="json")
     )
+    research = _dispositions(review).model_copy(
+        update={"document_kind": "research_statement"}
+    )
+    Draft202012Validator(stored).validate(research.model_dump(mode="json"))
 
 
 def test_document_readiness_schema_matches_runtime_contract() -> None:
@@ -58,3 +62,6 @@ def test_document_readiness_schema_matches_runtime_contract() -> None:
     forged["review_dispositions_sha256"] = None
     with pytest.raises(SchemaValidationError):
         Draft202012Validator(stored).validate(forged)
+
+    research = readiness.model_copy(update={"document_kind": "research_statement"})
+    Draft202012Validator(stored).validate(research.model_dump(mode="json"))

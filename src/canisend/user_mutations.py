@@ -42,7 +42,11 @@ from canisend.decision_models import (
     UserControlTimestamp,
     UserRevision,
 )
-from canisend.draft_models import CoverLetterDraftV1, ReviewFindingsV1
+from canisend.draft_models import (
+    CoverLetterDraftV1,
+    ResearchStatementDraftV1,
+    ReviewFindingsV1,
+)
 from canisend.review_readiness import (
     DocumentReadinessV1,
     FindingDispositionV1,
@@ -59,8 +63,15 @@ from canisend.stages.confirm_stage import (
     criteria_extraction_basis_sha256,
     criterion_source_sha256,
 )
-from canisend.stages.draft_stage import COVER_LETTER_DRAFT_OUTPUT_PATH
-from canisend.stages.review_stage import REVIEW_FINDINGS_OUTPUT_PATH
+from canisend.stages.draft_stage import (
+    COVER_LETTER_DRAFT_OUTPUT_PATH,
+    RESEARCH_STATEMENT_DRAFT_OUTPUT_PATH,
+    DraftDocumentKind,
+)
+from canisend.stages.review_stage import (
+    REVIEW_FINDINGS_OUTPUT_PATH,
+    RESEARCH_STATEMENT_REVIEW_FINDINGS_OUTPUT_PATH,
+)
 from canisend.user_file_store import (
     InvalidUserFileError,
     SafeFileSnapshot,
@@ -85,6 +96,9 @@ CONFIRMED_CORRECTIONS_PATH = "confirmed_corrections.yaml"
 APPLICATION_DECISION_PATH = "application_decision.yaml"
 APPLICATION_BRIEF_PATH = "application_brief.yaml"
 REVIEW_DISPOSITIONS_PATH = "review_dispositions.yaml"
+RESEARCH_STATEMENT_REVIEW_DISPOSITIONS_PATH = (
+    "research_statement_review_dispositions.yaml"
+)
 REQUIRED_DOCUMENT_PLAN_PATH = "required_document_plan.json"
 
 UserArtifactKind = Literal[
@@ -92,6 +106,11 @@ UserArtifactKind = Literal[
     "decision",
     "brief",
     "review_dispositions",
+    "research_statement_review_dispositions",
+]
+ReviewDispositionArtifactKind = Literal[
+    "review_dispositions",
+    "research_statement_review_dispositions",
 ]
 DecisionBasisStatus = Literal["current", "review_required", "unavailable"]
 MutationStatus = Literal["committed", "committed_receipt_pending", "reused"]
@@ -119,12 +138,16 @@ _USER_ARTIFACT_PATHS: dict[UserArtifactKind, str] = {
     "decision": APPLICATION_DECISION_PATH,
     "brief": APPLICATION_BRIEF_PATH,
     "review_dispositions": REVIEW_DISPOSITIONS_PATH,
+    "research_statement_review_dispositions": (
+        RESEARCH_STATEMENT_REVIEW_DISPOSITIONS_PATH
+    ),
 }
 _USER_ARTIFACT_KINDS: tuple[UserArtifactKind, ...] = (
     "corrections",
     "decision",
     "brief",
     "review_dispositions",
+    "research_statement_review_dispositions",
 )
 
 USER_MUTATION_ERROR_CODES = frozenset(
@@ -138,6 +161,8 @@ USER_MUTATION_ERROR_CODES = frozenset(
         "user_input.dependency_not_current",
         "user_input.store_failed",
         "user_input.recovery_required",
+        "user_input.document_ambiguous",
+        "user_input.document_not_found",
     }
 )
 
@@ -351,6 +376,7 @@ class UserMutationClaimV1(_MutationModel):
         APPLICATION_DECISION_PATH,
         APPLICATION_BRIEF_PATH,
         REVIEW_DISPOSITIONS_PATH,
+        RESEARCH_STATEMENT_REVIEW_DISPOSITIONS_PATH,
     ]
     expected_revision: UserRevision | None = None
     expected_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
@@ -423,6 +449,17 @@ class UserMutationReceiptV1(_MutationModel):
                             },
                             "required": ["artifact", "target_path"],
                         },
+                        {
+                            "properties": {
+                                "artifact": {
+                                    "const": "research_statement_review_dispositions"
+                                },
+                                "target_path": {
+                                    "const": RESEARCH_STATEMENT_REVIEW_DISPOSITIONS_PATH
+                                },
+                            },
+                            "required": ["artifact", "target_path"],
+                        },
                     ]
                 },
                 {
@@ -475,6 +512,7 @@ class UserMutationReceiptV1(_MutationModel):
         APPLICATION_DECISION_PATH,
         APPLICATION_BRIEF_PATH,
         REVIEW_DISPOSITIONS_PATH,
+        RESEARCH_STATEMENT_REVIEW_DISPOSITIONS_PATH,
     ]
     expected_revision: UserRevision | None = None
     expected_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
@@ -553,7 +591,20 @@ class ApplicationBriefInspection:
 
 
 @dataclass(frozen=True)
+class _ReviewDocumentContext:
+    document_id: str
+    document_kind: DraftDocumentKind
+    artifact: ReviewDispositionArtifactKind
+    draft_path: str
+    review_path: str
+    draft_model: type[CoverLetterDraftV1] | type[ResearchStatementDraftV1]
+
+
+@dataclass(frozen=True)
 class ReviewDispositionsInspection:
+    artifact: ReviewDispositionArtifactKind
+    document_id: str
+    document_kind: DraftDocumentKind
     snapshot: UserArtifactSnapshot | None
     basis_status: DecisionBasisStatus
     readiness: DocumentReadinessV1 | None
@@ -820,11 +871,20 @@ def initialize_user_artifact(
             language=language,
             writing_style=writing_style,
         )
-    elif artifact == "review_dispositions":
-        review, draft_snapshot, review_snapshot = _current_review_basis(root, job)
+    elif artifact in {
+        "review_dispositions",
+        "research_statement_review_dispositions",
+    }:
+        context = _review_document_context_for_artifact(job, artifact)
+        review, draft_snapshot, review_snapshot = _current_review_basis(
+            root,
+            job,
+            context=context,
+        )
         model = ReviewDispositionsV1(
             job_id=job.name,
             document_id=review.document_id,
+            document_kind=context.document_kind,
             revision=0,
             updated_at=now,
             draft_sha256=draft_snapshot.sha256,
@@ -848,6 +908,7 @@ def apply_user_patch(
     *,
     expected_sha256: str,
     expected_revision: int,
+    document_id: str | None = None,
     mutation_id: str | None = None,
     consent_confirmed: bool,
 ) -> MutationOutcome:
@@ -855,6 +916,18 @@ def apply_user_patch(
     _require_expected_baseline(expected_sha256, expected_revision)
     root, job = _mutation_paths(workspace, job_dir)
     artifact = _patch_artifact(patch)
+    review_context: _ReviewDocumentContext | None = None
+    if artifact == "review_dispositions":
+        review_context = _resolve_review_document_context(
+            job,
+            document_id=document_id,
+        )
+        artifact = review_context.artifact
+    elif document_id is not None:
+        raise UserMutationError(
+            "user_input.invalid",
+            "Document identity is supported only for Review disposition patches.",
+        )
     audit = inspect_current_artifact_mutation(root, job, artifact)
     if audit.status in {"promotion_pending", "receipt_pending", "conflict"}:
         raise UserMutationError(
@@ -913,18 +986,27 @@ def apply_user_patch(
             current.model,
             normalized_patch,
         )
-    elif artifact == "review_dispositions":
+    elif artifact in {
+        "review_dispositions",
+        "research_statement_review_dispositions",
+    }:
         normalized_patch = (
             patch
             if isinstance(patch, _review_disposition_patch_classes())
             else parse_review_disposition_patch(patch)
         )
         assert isinstance(current.model, ReviewDispositionsV1)
+        if review_context is None:  # pragma: no cover - resolved above
+            raise UserMutationError(
+                "user_input.invalid",
+                "Review disposition target could not be resolved.",
+            )
         result_model = _apply_review_disposition_patch(
             root,
             job,
             current.model,
             normalized_patch,
+            context=review_context,
         )
     else:  # pragma: no cover - protected by _patch_artifact
         raise UserMutationError("user_input.invalid", "Unsupported user-owned artifact.")
@@ -1094,21 +1176,43 @@ def inspect_application_brief(
     )
 
 
+def resolve_review_disposition_artifact(
+    workspace: Path,
+    job_dir: Path,
+    *,
+    document_id: str | None = None,
+) -> ReviewDispositionArtifactKind:
+    """Resolve one review-disposition artifact without reading private bodies."""
+
+    _, job = _mutation_paths(workspace, job_dir)
+    return _resolve_review_document_context(job, document_id=document_id).artifact
+
+
 def inspect_review_dispositions(
     workspace: Path,
     job_dir: Path,
+    *,
+    document_id: str | None = None,
 ) -> ReviewDispositionsInspection:
+    root, job = _mutation_paths(workspace, job_dir)
+    context = _resolve_review_document_context(job, document_id=document_id)
     snapshot: UserArtifactSnapshot | None = None
     try:
-        root, job = _mutation_paths(workspace, job_dir)
         snapshot = _load_artifact_snapshot(
             job,
-            "review_dispositions",
+            context.artifact,
             allow_missing=True,
         )
-        review, draft_snapshot, review_snapshot = _current_review_basis(root, job)
+        review, draft_snapshot, review_snapshot = _current_review_basis(
+            root,
+            job,
+            context=context,
+        )
     except UserMutationError as exc:
         return ReviewDispositionsInspection(
+            artifact=context.artifact,
+            document_id=context.document_id,
+            document_kind=context.document_kind,
             snapshot=snapshot,
             basis_status=(
                 "review_required" if snapshot is not None else "unavailable"
@@ -1128,6 +1232,7 @@ def inspect_review_dispositions(
         if (
             dispositions.job_id != review.job_id
             or dispositions.document_id != review.document_id
+            or dispositions.document_kind != context.document_kind
             or dispositions.draft_sha256 != draft_snapshot.sha256
             or dispositions.review_findings_sha256 != review_snapshot.sha256
         ):
@@ -1136,6 +1241,7 @@ def inspect_review_dispositions(
 
     readiness = derive_document_readiness(
         review,
+        document_kind=context.document_kind,
         draft_sha256=draft_snapshot.sha256,
         review_findings_sha256=review_snapshot.sha256,
         dispositions=dispositions,
@@ -1151,6 +1257,9 @@ def inspect_review_dispositions(
         basis_status = "review_required"
         reason = "review.disposition_orphaned"
     return ReviewDispositionsInspection(
+        artifact=context.artifact,
+        document_id=context.document_id,
+        document_kind=context.document_kind,
         snapshot=snapshot,
         basis_status=basis_status,
         readiness=readiness,
@@ -1313,13 +1422,16 @@ def initialize_review_dispositions(
     workspace: Path,
     job_dir: Path,
     *,
+    document_id: str | None = None,
     consent_confirmed: bool,
     mutation_id: str | None = None,
 ) -> MutationOutcome:
+    _, job = _mutation_paths(workspace, job_dir)
+    context = _resolve_review_document_context(job, document_id=document_id)
     return initialize_user_artifact(
         workspace,
         job_dir,
-        "review_dispositions",
+        context.artifact,
         consent_confirmed=consent_confirmed,
         mutation_id=mutation_id,
     )
@@ -1615,8 +1727,14 @@ def _apply_review_disposition_patch(
     job: Path,
     current: ReviewDispositionsV1,
     patch: ReviewDispositionPatch,
+    *,
+    context: _ReviewDocumentContext,
 ) -> ReviewDispositionsV1:
-    review, draft_snapshot, review_snapshot = _current_review_basis(workspace, job)
+    review, draft_snapshot, review_snapshot = _current_review_basis(
+        workspace,
+        job,
+        context=context,
+    )
     now = _next_timestamp(current.updated_at)
     updates: dict[str, Any] = {
         "revision": current.revision + 1,
@@ -1627,6 +1745,7 @@ def _apply_review_disposition_patch(
         updates.update(
             {
                 "document_id": review.document_id,
+                "document_kind": context.document_kind,
                 "draft_sha256": draft_snapshot.sha256,
                 "review_findings_sha256": review_snapshot.sha256,
                 "dispositions": (),
@@ -1635,6 +1754,7 @@ def _apply_review_disposition_patch(
     else:
         if (
             current.document_id != review.document_id
+            or current.document_kind != context.document_kind
             or current.draft_sha256 != draft_snapshot.sha256
             or current.review_findings_sha256 != review_snapshot.sha256
         ):
@@ -1683,6 +1803,7 @@ def _apply_review_disposition_patch(
     latest_review, latest_draft, latest_review_snapshot = _current_review_basis(
         workspace,
         job,
+        context=context,
     )
     if (
         latest_review != review
@@ -1949,6 +2070,21 @@ def _load_artifact_snapshot(
             "user_input.invalid",
             "The user-owned file belongs to a different job.",
         )
+    if artifact in {
+        "review_dispositions",
+        "research_statement_review_dispositions",
+    }:
+        assert isinstance(model, ReviewDispositionsV1)
+        expected_kind: DraftDocumentKind = (
+            "cover_letter"
+            if artifact == "review_dispositions"
+            else "research_statement"
+        )
+        if model.document_kind != expected_kind:
+            raise UserMutationError(
+                "user_input.invalid",
+                "The Review disposition file has the wrong document kind.",
+            )
     return UserArtifactSnapshot(
         artifact=artifact,
         path=file_snapshot.path,
@@ -1992,6 +2128,14 @@ def _load_existing_candidate(
         ) from exc
     if model.job_id != job.name:
         raise _recovery_conflict(mutation_id)
+    if isinstance(model, ReviewDispositionsV1):
+        expected_kind = (
+            "cover_letter"
+            if artifact == "review_dispositions"
+            else "research_statement"
+        )
+        if model.document_kind != expected_kind:
+            raise _recovery_conflict(mutation_id)
     return model, snapshot
 
 
@@ -2246,25 +2390,149 @@ def _current_decision_basis(workspace: Path, job: Path) -> DecisionBasisV1:
     )
 
 
+def _resolve_review_document_context(
+    job: Path,
+    *,
+    document_id: str | None,
+) -> _ReviewDocumentContext:
+    if document_id is not None and _DOCUMENT_ID_RE.fullmatch(document_id) is None:
+        raise UserMutationError(
+            "user_input.invalid",
+            "The Review disposition document identity is invalid.",
+        )
+    contexts = _prepared_review_document_contexts(job)
+    if document_id is not None:
+        matching = tuple(item for item in contexts if item.document_id == document_id)
+        if len(matching) != 1:
+            raise UserMutationError(
+                "user_input.document_not_found",
+                "The selected document has no prepared Review disposition target.",
+            )
+        return matching[0]
+    if len(contexts) == 1:
+        return contexts[0]
+    if len(contexts) > 1:
+        raise UserMutationError(
+            "user_input.document_ambiguous",
+            "More than one document can be dispositioned; select one by document ID.",
+        )
+    raise UserMutationError(
+        "user_input.document_not_found",
+        "No prepared document supports Review dispositions.",
+    )
+
+
+def _review_document_context_for_artifact(
+    job: Path,
+    artifact: ReviewDispositionArtifactKind,
+) -> _ReviewDocumentContext:
+    matching = tuple(
+        item
+        for item in _prepared_review_document_contexts(job)
+        if item.artifact == artifact
+    )
+    if len(matching) == 1:
+        return matching[0]
+    if len(matching) > 1:
+        raise UserMutationError(
+            "user_input.document_ambiguous",
+            "The disposition artifact maps to more than one prepared document.",
+        )
+    raise UserMutationError(
+        "user_input.document_not_found",
+        "The disposition artifact has no prepared document target.",
+    )
+
+
+def _prepared_review_document_contexts(
+    job: Path,
+) -> tuple[_ReviewDocumentContext, ...]:
+    plan, _plan_snapshot = _load_structured_artifact(
+        job,
+        REQUIRED_DOCUMENT_PLAN_PATH,
+        RequiredDocumentPlanV1,
+    )
+    assert isinstance(plan, RequiredDocumentPlanV1)
+    task_by_id = {item.document_id: item for item in plan.tasks}
+    contexts: list[_ReviewDocumentContext] = []
+    for requirement in plan.requirements:
+        if requirement.normalized_kind not in {
+            "cover_letter",
+            "research_statement",
+        }:
+            continue
+        task = task_by_id.get(requirement.document_id)
+        if (
+            task is None
+            or task.action != "prepare"
+            or task.confirmation_state != "confirmed"
+            or task.blockers
+        ):
+            continue
+        document_kind: DraftDocumentKind = requirement.normalized_kind  # type: ignore[assignment]
+        contexts.append(
+            _review_document_context(
+                document_id=requirement.document_id,
+                document_kind=document_kind,
+            )
+        )
+    return tuple(sorted(contexts, key=lambda item: item.document_id))
+
+
+def _review_document_context(
+    *,
+    document_id: str,
+    document_kind: DraftDocumentKind,
+) -> _ReviewDocumentContext:
+    if document_kind == "cover_letter":
+        return _ReviewDocumentContext(
+            document_id=document_id,
+            document_kind=document_kind,
+            artifact="review_dispositions",
+            draft_path=COVER_LETTER_DRAFT_OUTPUT_PATH,
+            review_path=REVIEW_FINDINGS_OUTPUT_PATH,
+            draft_model=CoverLetterDraftV1,
+        )
+    return _ReviewDocumentContext(
+        document_id=document_id,
+        document_kind=document_kind,
+        artifact="research_statement_review_dispositions",
+        draft_path=RESEARCH_STATEMENT_DRAFT_OUTPUT_PATH,
+        review_path=RESEARCH_STATEMENT_REVIEW_FINDINGS_OUTPUT_PATH,
+        draft_model=ResearchStatementDraftV1,
+    )
+
+
 def _current_review_basis(
     workspace: Path,
     job: Path,
+    *,
+    context: _ReviewDocumentContext,
 ) -> tuple[ReviewFindingsV1, SafeFileSnapshot, SafeFileSnapshot]:
     draft, draft_snapshot = _load_structured_artifact(
         job,
-        COVER_LETTER_DRAFT_OUTPUT_PATH,
-        CoverLetterDraftV1,
+        context.draft_path,
+        context.draft_model,
     )
-    assert isinstance(draft, CoverLetterDraftV1)
+    if not isinstance(draft, (CoverLetterDraftV1, ResearchStatementDraftV1)):
+        raise UserMutationError(
+            "user_input.dependency_not_current",
+            "The selected structured Draft is invalid.",
+        )
+    if draft.document_id != context.document_id:
+        raise UserMutationError(
+            "user_input.dependency_not_current",
+            "The selected Draft does not match the document identity.",
+        )
     _require_stage_current(
         workspace,
         job,
         "review",
-        document_id=draft.document_id,
+        document_id=context.document_id,
     )
     review, review_snapshot = _load_structured_artifact(
         job,
-        REVIEW_FINDINGS_OUTPUT_PATH,
+        context.review_path,
         ReviewFindingsV1,
     )
     assert isinstance(review, ReviewFindingsV1)
@@ -2282,10 +2550,10 @@ def _current_review_basis(
         workspace,
         job,
         "review",
-        document_id=draft.document_id,
+        document_id=context.document_id,
     )
-    final_review = _read_safe(job, REVIEW_FINDINGS_OUTPUT_PATH)
-    final_draft = _read_safe(job, COVER_LETTER_DRAFT_OUTPUT_PATH)
+    final_review = _read_safe(job, context.review_path)
+    final_draft = _read_safe(job, context.draft_path)
     if (
         final_review.sha256 != review_snapshot.sha256
         or final_draft.sha256 != draft_snapshot.sha256
@@ -2742,7 +3010,10 @@ def _artifact_model_type(
         return ApplicationDecisionV1
     if artifact == "brief":
         return ApplicationBriefV1
-    if artifact == "review_dispositions":
+    if artifact in {
+        "review_dispositions",
+        "research_statement_review_dispositions",
+    }:
         return ReviewDispositionsV1
     raise ValueError("unsupported user-owned artifact")
 

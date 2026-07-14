@@ -91,12 +91,14 @@ Do not use ready, final, complete, or submission-ready for generated materials u
   conflicts, and missing opening/body/closing sections are blockers. Supported factual wording retains an explicit
   semantic-support review item until inspected; every non-factual Claim kind also remains open for semantic review.
 - A current Research Statement uses `research_statement_review_findings.json`; missing `research_overview`,
-  `research_contributions`, or `future_agenda` is a blocker. Its findings require human inspection because guarded
-  dispositions, compatibility rendering, document readiness, and package readiness are not implemented for this
-  executor.
-- For Cover Letter only, current `review_dispositions.yaml` binds the exact Draft/Review hashes. Every current non-blocker finding is
-  `accepted`; none is unresolved or `revision_required`. Blockers cannot be accepted or waived, and a changed Review
-  requires an explicit reset to the new basis rather than carrying decisions forward by position or message.
+  `research_contributions`, or `future_agenda` is a blocker. Its findings use the independent
+  `research_statement_review_dispositions.yaml`; compatibility rendering and package readiness are not implemented
+  for this executor.
+- The selected document's current disposition YAML binds its exact Draft/Review hashes. Every current non-blocker
+  finding is `accepted`; none is unresolved or `revision_required`. Blockers cannot be accepted or waived, and a
+  changed Review requires an explicit reset to the new basis rather than carrying decisions forward by position or
+  message. Cover Letter uses `review_dispositions.yaml`; Research Statement uses
+  `research_statement_review_dispositions.yaml`.
 - Rejected/stale Draft candidates left authoritative Draft, user YAML, compatibility Markdown, Typst, and profile
   bytes unchanged. The host or provider wrote no declared run path directly. A configured-provider run had explicit
   Tier 3 consent, persisted no raw output, and used the same current-basis validator/promotion boundary.
@@ -112,6 +114,8 @@ Do not use ready, final, complete, or submission-ready for generated materials u
 - Draft and Review remain `review_state=proposed`; reviewed status is a derived document-readiness projection. Missing,
   stale, incomplete, or revision-required dispositions keep `requires_human_review=true`. A missing, blocked, stale,
   drifted, or invalid Draft/Review uses the legacy/provider view rather than mixed provenance.
+- Research Statement `reviewed` remains a per-document control result only; it does not enter compatibility rendering
+  or the package gate in this slice.
 - `03_cover_letter_draft.md` application-facing English must not include unsupported claims.
 - `04_cv_tailoring_notes.md` tells the user what to adjust in the private CV, but does not rewrite the CV unless asked.
 - `05_criteria_checklist.md` covers all extracted essential criteria.

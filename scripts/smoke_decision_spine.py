@@ -17,8 +17,11 @@ from canisend.draft_models import ClaimKind, stable_claim_id
 from canisend.stages.draft_stage import (
     DRAFT_GENERATOR_STRATEGY,
     DRAFT_GENERATOR_VERSION,
+    HOST_AGENT_RESEARCH_STATEMENT_GENERATOR_STRATEGY,
     draft_input_fingerprint,
     draft_input_projection,
+    research_statement_draft_input_fingerprint,
+    research_statement_draft_input_projection,
 )
 
 
@@ -29,11 +32,12 @@ EXPECTED_STAGE_RUN_COUNTS = {
     "confirm": 1,
     "match": 1,
     "brief": 2,
-    "draft": 1,
-    "review": 1,
+    "draft": 2,
+    "review": 2,
 }
-EXPECTED_USER_MUTATION_RECEIPTS = 14
+EXPECTED_USER_MUTATION_RECEIPTS = 18
 STRUCTURED_DRAFT_SENTINEL = "I hold a PhD in Economics."
+RESEARCH_DRAFT_SENTINEL = "My research applies policy-evaluation methods."
 USER_AND_STRUCTURED_ARTIFACTS = (
     "parsed_job.json",
     "criteria.json",
@@ -44,8 +48,11 @@ USER_AND_STRUCTURED_ARTIFACTS = (
     "application_brief.yaml",
     "required_document_plan.json",
     "cover_letter_draft.json",
+    "research_statement_draft.json",
     "review_findings.json",
+    "research_statement_review_findings.json",
     "review_dispositions.yaml",
+    "research_statement_review_dispositions.yaml",
 )
 
 
@@ -170,6 +177,8 @@ def _brief_patch(
 def _review_disposition_patch(
     canisend: str,
     workspace: Path,
+    document_id: str,
+    artifact_kind: str,
     current: dict[str, Any],
     patch: dict[str, Any],
 ) -> dict[str, Any]:
@@ -177,7 +186,7 @@ def _review_disposition_patch(
     if not isinstance(extensions, dict):
         raise SmokeFailure("A Review disposition response omitted its control metadata.")
     revision = extensions.get("canisend.user_artifact_revision")
-    sha256 = _artifact(current, "review_dispositions").get("sha256")
+    sha256 = _artifact(current, artifact_kind).get("sha256")
     if not isinstance(revision, int) or not isinstance(sha256, str):
         raise SmokeFailure(
             "A Review disposition response omitted its compare-and-swap baseline."
@@ -192,6 +201,8 @@ def _review_disposition_patch(
                 "review-dispositions",
                 "update",
                 *_job_arguments(workspace),
+                "--document-id",
+                document_id,
                 "--patch-file",
                 str(patch_path),
                 "--expected-revision",
@@ -358,6 +369,184 @@ def _structured_draft_provider_proposal(workspace: Path) -> dict[str, Any]:
     return {"sections": proposal_sections}
 
 
+def _research_statement_candidate(workspace: Path) -> dict[str, Any]:
+    job = workspace / EXAMPLE_JOB
+    projection = research_statement_draft_input_projection(workspace, job)
+    fingerprint = research_statement_draft_input_fingerprint(workspace, job)
+    document_id = projection.get("research_statement_document_id")
+    if not isinstance(document_id, str):
+        raise SmokeFailure(
+            "The Draft projection omitted its Research Statement document ID."
+        )
+    try:
+        criteria = json.loads((job / "criteria.json").read_text(encoding="utf-8"))
+        evidence = json.loads(
+            (job / "evidence_catalog.json").read_text(encoding="utf-8")
+        )
+        criterion_id = criteria["criteria"][0]["criterion_id"]
+        evidence_id = evidence["items"][0]["evidence_id"]
+    except (
+        OSError,
+        UnicodeError,
+        json.JSONDecodeError,
+        IndexError,
+        KeyError,
+        TypeError,
+    ) as exc:
+        raise SmokeFailure(
+            "The smoke fixture cannot supply Research Statement references."
+        ) from exc
+    if not isinstance(criterion_id, str) or not isinstance(evidence_id, str):
+        raise SmokeFailure("The smoke fixture produced invalid Research references.")
+
+    def claim(text: str, kind: ClaimKind) -> dict[str, Any]:
+        factual = kind == "factual"
+        return {
+            "claim_id": stable_claim_id(
+                job_id=job.name,
+                document_id=document_id,
+                kind=kind,
+                text=text,
+            ),
+            "text": text,
+            "kind": kind,
+            "support_strength": "strong" if factual else "not_applicable",
+            "criterion_ids": [criterion_id],
+            "evidence_ref_ids": [evidence_id] if factual else [],
+            "brief_field_refs": [],
+            "job_field_refs": [],
+            "blockers": [],
+            "review_state": "proposed",
+        }
+
+    return {
+        "schema_version": "1.0.0",
+        "job_id": job.name,
+        "document_id": document_id,
+        "input_fingerprint": fingerprint,
+        "basis": {
+            key: projection[key]
+            for key in (
+                "parsed_job_sha256",
+                "criteria_sha256",
+                "evidence_catalog_sha256",
+                "criterion_matches_sha256",
+                "application_decision_sha256",
+                "application_brief_sha256",
+                "required_document_plan_sha256",
+            )
+        },
+        "generation_mode": "host_agent",
+        "generator_strategy": HOST_AGENT_RESEARCH_STATEMENT_GENERATOR_STRATEGY,
+        "generator_version": DRAFT_GENERATOR_VERSION,
+        "review_state": "proposed",
+        "sections": [
+            {
+                "section_id": "research_overview",
+                "heading": None,
+                "claims": [claim(RESEARCH_DRAFT_SENTINEL, "factual")],
+            },
+            {
+                "section_id": "research_contributions",
+                "heading": None,
+                "claims": [
+                    claim(
+                        "My current work develops applied empirical contributions.",
+                        "factual",
+                    )
+                ],
+            },
+            {
+                "section_id": "future_agenda",
+                "heading": None,
+                "claims": [
+                    claim(
+                        "I will extend this agenda to new policy settings.",
+                        "future_intent",
+                    )
+                ],
+            },
+        ],
+        "blockers": [],
+    }
+
+
+def _promote_host_candidate(
+    canisend: str,
+    workspace: Path,
+    *,
+    document_id: str,
+    candidate: dict[str, Any],
+) -> None:
+    prepared = _run(
+        canisend,
+        [
+            "stage",
+            "prepare",
+            *_job_arguments(workspace),
+            "--stage", "draft",
+            "--document-id",
+            document_id,
+            "--mode",
+            "host-agent",
+        ],
+        expect_json=True,
+    )
+    if prepared is None:  # pragma: no cover - guarded by expect_json
+        raise SmokeFailure("Research Statement Draft preparation returned no response.")
+    task_workspace_path = _artifact(prepared, "stage_task_spec").get("path")
+    if not isinstance(task_workspace_path, str):
+        raise SmokeFailure("Research Statement Draft omitted its TaskSpec path.")
+    try:
+        task_job_path = Path(task_workspace_path).relative_to(EXAMPLE_JOB).as_posix()
+        task_spec = json.loads(
+            (workspace / task_workspace_path).read_text(encoding="utf-8")
+        )
+        result_path = task_spec["result_output"]
+    except (OSError, UnicodeError, json.JSONDecodeError, KeyError, ValueError) as exc:
+        raise SmokeFailure("Research Statement Draft TaskSpec is invalid.") from exc
+    if not isinstance(result_path, str):
+        raise SmokeFailure("Research Statement Draft TaskSpec omitted its result path.")
+
+    candidate_path = workspace / ".canisend-smoke-research-candidate.json"
+    candidate_path.write_text(json.dumps(candidate) + "\n", encoding="utf-8")
+    try:
+        _run(
+            canisend,
+            [
+                "stage",
+                "submit",
+                *_job_arguments(workspace),
+                "--task",
+                task_job_path,
+                "--candidate-file",
+                str(candidate_path),
+            ],
+            expect_json=True,
+        )
+    finally:
+        candidate_path.unlink(missing_ok=True)
+    applied = _run(
+        canisend,
+        [
+            "stage",
+            "apply",
+            *_job_arguments(workspace),
+            "--task",
+            task_job_path,
+            "--result",
+            result_path,
+        ],
+        expect_json=True,
+    )
+    if (
+        applied is None
+        or not isinstance(applied.get("extensions"), dict)
+        or applied["extensions"].get("canisend.document_id") != document_id
+    ):
+        raise SmokeFailure("Research Statement Draft promotion lost document identity.")
+
+
 def _assert_workspace_contract(workspace: Path) -> None:
     job = workspace / EXAMPLE_JOB
     expected_artifacts = {
@@ -388,6 +577,7 @@ def _assert_workspace_contract(workspace: Path) -> None:
     if len(manifest_paths) != sum(EXPECTED_STAGE_RUN_COUNTS.values()):
         raise SmokeFailure("The decision-spine smoke test created an unexpected run count.")
     stage_counts: Counter[str] = Counter()
+    draft_modes: Counter[str] = Counter()
     for manifest_path in manifest_paths:
         try:
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -397,14 +587,19 @@ def _assert_workspace_contract(workspace: Path) -> None:
         if not isinstance(stage, str) or manifest.get("status") != "succeeded":
             raise SmokeFailure("A decision-spine stage did not finish successfully.")
         stage_counts[stage] += 1
-        if stage == "draft" and manifest.get("execution_mode") != "configured_provider":
-            raise SmokeFailure("The release smoke did not exercise configured-provider Draft.")
+        if stage == "draft":
+            execution_mode = manifest.get("execution_mode")
+            if not isinstance(execution_mode, str):
+                raise SmokeFailure("A Draft manifest omitted its execution mode.")
+            draft_modes[execution_mode] += 1
         if not (manifest_path.parent / "preparation.json").is_file() or not (
             manifest_path.parent / "submission.json"
         ).is_file():
             raise SmokeFailure("A decision-spine run omitted its preparation or submission record.")
     if dict(stage_counts) != EXPECTED_STAGE_RUN_COUNTS:
         raise SmokeFailure("The decision-spine smoke test ran unexpected stage counts.")
+    if draft_modes != Counter({"configured_provider": 1, "host_agent": 1}):
+        raise SmokeFailure("The release smoke did not exercise both Draft modes.")
 
     try:
         plan = json.loads((job / "required_document_plan.json").read_text(encoding="utf-8"))
@@ -614,6 +809,11 @@ def run_smoke(canisend: str, workspace: Path) -> None:
             for item in initial_plan["requirements"]
             if item["normalized_kind"] == "cover_letter"
         )
+        research_document_id = next(
+            item["document_id"]
+            for item in initial_plan["requirements"]
+            if item["normalized_kind"] == "research_statement"
+        )
     except (
         OSError,
         UnicodeError,
@@ -627,6 +827,8 @@ def run_smoke(canisend: str, workspace: Path) -> None:
         raise SmokeFailure("The initial document requirements basis is invalid.")
     if not isinstance(cover_document_id, str):
         raise SmokeFailure("The initial document plan omitted its Cover Letter identity.")
+    if not isinstance(research_document_id, str):
+        raise SmokeFailure("The initial document plan omitted its Research identity.")
 
     current_brief = brief_initialized
     for patch in (
@@ -740,7 +942,7 @@ def run_smoke(canisend: str, workspace: Path) -> None:
 
     _run(
         canisend,
-        ["review-dispositions", "status", *job_args],
+        ["review-dispositions", "status", *job_args, "--document-id", cover_document_id],
         expect_json=True,
     )
     current_dispositions = _run(
@@ -749,6 +951,8 @@ def run_smoke(canisend: str, workspace: Path) -> None:
             "review-dispositions",
             "init",
             *job_args,
+            "--document-id",
+            cover_document_id,
             "--confirm-user-owned-write",
         ],
         expect_json=True,
@@ -768,6 +972,8 @@ def run_smoke(canisend: str, workspace: Path) -> None:
         current_dispositions = _review_disposition_patch(
             canisend,
             workspace,
+            cover_document_id,
+            "review_dispositions",
             current_dispositions,
             {
                 "operation": "set_finding_disposition",
@@ -780,6 +986,92 @@ def run_smoke(canisend: str, workspace: Path) -> None:
         "canisend.document_readiness"
     ) != "reviewed":
         raise SmokeFailure("Complete user dispositions did not review the Cover Letter.")
+
+    _promote_host_candidate(
+        canisend,
+        workspace,
+        document_id=research_document_id,
+        candidate=_research_statement_candidate(workspace),
+    )
+    research_reviewed = _run(
+        canisend,
+        [
+            "stage",
+            "run",
+            *job_args,
+            "--stage",
+            "review",
+            "--document-id",
+            research_document_id,
+        ],
+        expect_json=True,
+    )
+    if research_reviewed is None or research_reviewed.get("blockers") != []:
+        raise SmokeFailure("Research Statement Review was not blocker-free.")
+
+    ambiguous = _run(
+        canisend,
+        ["review-dispositions", "status", *job_args],
+        expect_json=True,
+        expected_returncodes=(1,),
+    )
+    if (
+        ambiguous is None
+        or not isinstance(ambiguous.get("error"), dict)
+        or ambiguous["error"].get("code") != "user_input.document_ambiguous"
+    ):
+        raise SmokeFailure("Review disposition selection did not fail closed.")
+
+    research_dispositions = _run(
+        canisend,
+        [
+            "review-dispositions",
+            "init",
+            *job_args,
+            "--document-id",
+            research_document_id,
+            "--confirm-user-owned-write",
+        ],
+        expect_json=True,
+    )
+    if research_dispositions is None:  # pragma: no cover - guarded by expect_json
+        raise SmokeFailure("Research disposition initialization returned no response.")
+    try:
+        research_review = json.loads(
+            (job / "research_statement_review_findings.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        research_finding_ids = [
+            item["finding_id"] for item in research_review["findings"]
+        ]
+    except (OSError, UnicodeError, json.JSONDecodeError, KeyError, TypeError) as exc:
+        raise SmokeFailure("Research Review omitted stable finding IDs.") from exc
+    for finding_id in research_finding_ids:
+        if not isinstance(finding_id, str):
+            raise SmokeFailure("Research Review emitted an invalid finding ID.")
+        research_dispositions = _review_disposition_patch(
+            canisend,
+            workspace,
+            research_document_id,
+            "research_statement_review_dispositions",
+            research_dispositions,
+            {
+                "operation": "set_finding_disposition",
+                "finding_id": finding_id,
+                "disposition": "accepted",
+            },
+        )
+    research_extensions = research_dispositions.get("extensions")
+    if (
+        not isinstance(research_extensions, dict)
+        or research_extensions.get("canisend.document_readiness") != "reviewed"
+        or research_extensions.get("canisend.document_kind")
+        != "research_statement"
+    ):
+        raise SmokeFailure(
+            "Complete user dispositions did not review the Research Statement."
+        )
 
     before_run = {
         name: (job / name).read_bytes()

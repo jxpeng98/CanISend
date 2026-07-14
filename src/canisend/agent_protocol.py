@@ -91,6 +91,8 @@ KNOWN_AGENT_ERROR_CODES = frozenset(
         "user_input.consent_required",
         "user_input.conflict",
         "user_input.dependency_not_current",
+        "user_input.document_ambiguous",
+        "user_input.document_not_found",
         "user_input.store_failed",
         "user_input.recovery_required",
         "stage.unknown",

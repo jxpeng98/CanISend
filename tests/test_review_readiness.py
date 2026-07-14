@@ -8,6 +8,7 @@ from pydantic import ValidationError
 from canisend.draft_models import ReviewFindingsV1
 from canisend.review_readiness import (
     FindingDispositionV1,
+    ReviewDispositionDocumentKind,
     ReviewDispositionsV1,
     derive_document_readiness,
 )
@@ -39,10 +40,12 @@ def _dispositions(
     *,
     value: str = "accepted",
     review_sha: str = REVIEW_SHA,
+    document_kind: ReviewDispositionDocumentKind = "cover_letter",
 ) -> ReviewDispositionsV1:
     return ReviewDispositionsV1(
         job_id=review.job_id,
         document_id=review.document_id,
+        document_kind=document_kind,
         revision=0,
         updated_at=NOW,
         draft_sha256=DRAFT_SHA,
@@ -72,6 +75,41 @@ def test_current_complete_acceptance_derives_reviewed_without_mutating_review() 
     assert readiness.review_dispositions_sha256 == DISPOSITIONS_SHA
     assert readiness.reason_codes == ()
     assert review.review_state == "proposed"
+
+
+def test_research_statement_readiness_requires_matching_document_kind() -> None:
+    review = _review()
+    research = derive_document_readiness(
+        review,
+        document_kind="research_statement",
+        draft_sha256=DRAFT_SHA,
+        review_findings_sha256=REVIEW_SHA,
+        dispositions=_dispositions(review, document_kind="research_statement"),
+        review_dispositions_sha256=DISPOSITIONS_SHA,
+    )
+    mismatched = derive_document_readiness(
+        review,
+        document_kind="research_statement",
+        draft_sha256=DRAFT_SHA,
+        review_findings_sha256=REVIEW_SHA,
+        dispositions=_dispositions(review),
+        review_dispositions_sha256=DISPOSITIONS_SHA,
+    )
+
+    assert research.document_kind == "research_statement"
+    assert research.state == "reviewed"
+    assert mismatched.state == "review_required"
+    assert mismatched.reason_codes == ("review.dispositions_stale",)
+
+
+def test_legacy_cover_dispositions_default_document_kind() -> None:
+    review = _review()
+    payload = _dispositions(review).model_dump(mode="json")
+    payload.pop("document_kind")
+
+    restored = ReviewDispositionsV1.model_validate(payload)
+
+    assert restored.document_kind == "cover_letter"
 
 
 def test_missing_or_stale_dispositions_fail_closed() -> None:

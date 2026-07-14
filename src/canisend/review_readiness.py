@@ -25,6 +25,7 @@ REVIEW_DISPOSITIONS_SCHEMA_VERSION = "1.0.0"
 DOCUMENT_READINESS_SCHEMA_VERSION = "1.0.0"
 
 FindingDispositionValue = Literal["accepted", "revision_required"]
+ReviewDispositionDocumentKind = Literal["cover_letter", "research_statement"]
 DocumentReadinessState = Literal[
     "blocked",
     "review_required",
@@ -55,6 +56,7 @@ class ReviewDispositionsV1(DecisionContractModel):
     schema_version: Literal["1.0.0"] = REVIEW_DISPOSITIONS_SCHEMA_VERSION
     job_id: JobIdentifier
     document_id: DocumentIdentifier
+    document_kind: ReviewDispositionDocumentKind = "cover_letter"
     revision: UserRevision
     updated_at: UserControlTimestamp
     draft_sha256: Sha256Value
@@ -133,7 +135,7 @@ class DocumentReadinessV1(DecisionContractModel):
     schema_version: Literal["1.0.0"] = DOCUMENT_READINESS_SCHEMA_VERSION
     job_id: JobIdentifier
     document_id: DocumentIdentifier
-    document_kind: Literal["cover_letter"] = "cover_letter"
+    document_kind: ReviewDispositionDocumentKind = "cover_letter"
     state: DocumentReadinessState
     draft_sha256: Sha256Value
     review_findings_sha256: Sha256Value
@@ -205,12 +207,13 @@ class DocumentReadinessV1(DecisionContractModel):
 def derive_document_readiness(
     review: ReviewFindingsV1,
     *,
+    document_kind: ReviewDispositionDocumentKind = "cover_letter",
     draft_sha256: str,
     review_findings_sha256: str,
     dispositions: ReviewDispositionsV1 | None,
     review_dispositions_sha256: str | None,
 ) -> DocumentReadinessV1:
-    """Derive one fail-closed Cover Letter readiness projection."""
+    """Derive one fail-closed document readiness projection."""
 
     finding_ids = tuple(item.finding_id for item in review.findings)
     finding_id_set = set(finding_ids)
@@ -229,6 +232,7 @@ def derive_document_readiness(
         and review_binds_draft
         and dispositions.job_id == review.job_id
         and dispositions.document_id == review.document_id
+        and dispositions.document_kind == document_kind
         and dispositions.draft_sha256 == draft_sha256
         and dispositions.review_findings_sha256 == review_findings_sha256
     )
@@ -284,6 +288,7 @@ def derive_document_readiness(
     return DocumentReadinessV1(
         job_id=review.job_id,
         document_id=review.document_id,
+        document_kind=document_kind,
         state=state,
         draft_sha256=draft_sha256,
         review_findings_sha256=review_findings_sha256,

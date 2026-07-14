@@ -256,7 +256,7 @@ def test_cover_and_research_statement_use_independent_guarded_runs(
     assert len(findings["findings"]) == 3
     assert review_response.artifacts[0].kind == "research_statement_review_findings"
     assert [item.id for item in review_response.next_actions] == [
-        "review.inspect_findings"
+        "review.dispositions_status"
     ]
     assert PRIVATE_RESEARCH_CLAIM not in review_response.model_dump_json()
     assert not (job / "review_findings.json").exists()
@@ -274,9 +274,14 @@ def test_cover_and_research_statement_use_independent_guarded_runs(
     initialized_dispositions = initialize_review_dispositions(
         workspace,
         job,
+        document_id=str(cover["document_id"]),
         consent_confirmed=True,
     )
-    dispositions = inspect_review_dispositions(workspace, job)
+    dispositions = inspect_review_dispositions(
+        workspace,
+        job,
+        document_id=str(cover["document_id"]),
+    )
     assert initialized_dispositions.snapshot.model.document_id == cover["document_id"]
     assert dispositions.basis_status == "current"
     assert dispositions.readiness is not None

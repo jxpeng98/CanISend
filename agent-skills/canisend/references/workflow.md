@@ -474,14 +474,13 @@ with that composite identity.
 
 Use body-free counts/codes first; ask before reading Claim or finding bodies. Blockers require a new validated Draft.
 Open semantic-support and non-factual Claim-kind findings require human inspection. Start with
-`canisend review-dispositions status ... --format json` only for Cover Letter, initialize with explicit write
-consent, then submit one
-strict patch per finding through `review-dispositions update` with the latest revision/hash. Use
-`set_finding_disposition` with `accepted` or `revision_required`; a blocker cannot be accepted. If Draft/Review
-changed, use one explicit `reset_for_current_review` patch before inspecting the new finding set. Complete current
-acceptances derive Cover Letter readiness while Draft and Review remain `proposed`; this is not package readiness.
-Research Statement findings remain proposed for human inspection; guarded dispositions, rendering, document
-readiness, and package readiness are future work.
+`canisend review-dispositions status ... --document-id <same-id> --format json` for either Cover Letter or Research
+Statement, initialize with explicit write consent, then submit one strict patch per finding through
+`review-dispositions update` with the latest revision/hash and same ID. The ID may be omitted only when one supported
+prepared target exists. Use `set_finding_disposition` with `accepted` or `revision_required`; a blocker cannot be accepted.
+If Draft/Review changed, use one explicit `reset_for_current_review` patch before inspecting the new
+finding set. Complete current acceptances derive per-document readiness while Draft and Review remain `proposed`;
+this is not package readiness. Research Statement compatibility rendering and package gates remain future work.
 
 ## 11. Generate The Compatible Draft Package
 
@@ -550,7 +549,8 @@ Review, in order:
 6. Brief-stage status and `required_document_plan.json` only when its Tier 2 body is needed and approved
 7. Draft-stage status and `cover_letter_draft.json` only when its Tier 2 Claim body is needed and approved
 8. Review-stage status and `review_findings.json` only when its Tier 2 body is needed and approved
-9. Body-free `review-dispositions status`, then `review_dispositions.yaml` only when its Tier 2 body is needed
+9. Body-free `review-dispositions status --document-id <same-id>`, then the selected document's disposition YAML only
+   when its Tier 2 body is needed
 10. `00_preparation_questions.md`
 11. `05_criteria_checklist.md`
 12. `02_fit_report.md`

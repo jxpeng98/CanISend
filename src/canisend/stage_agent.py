@@ -1026,10 +1026,10 @@ def _semantic_status(
         if is_research_statement:
             return "review_required", extensions, [
                 NextAction(
-                    id="review.inspect_findings",
+                    id="review.dispositions_status",
                     label=(
-                        "Inspect the Research Statement findings; guarded dispositions "
-                        "and readiness are not available yet"
+                        "Inspect Research Statement dispositions and readiness using "
+                        "the same document ID"
                     ),
                 )
             ]

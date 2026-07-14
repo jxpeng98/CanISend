@@ -656,21 +656,27 @@ When `--document-id` was supplied for Draft, pass the same ID to Review. Review 
 that document; cache, retry, failure, and recovery records for another document cannot satisfy it.
 
 Unsupported factual claims, document-specific missing sections, and detectable Brief-exclusion conflicts remain
-blockers. Partial support, semantic support, and non-factual Claim-kind classification remain review work. For Cover
-Letter, use body-free status, then initialize and disposition one finding at a time with the current revision/hash:
+blockers. Partial support, semantic support, and non-factual Claim-kind classification remain review work. For
+either Cover Letter or Research Statement, use body-free status with the same stable document ID, then initialize
+and disposition one finding at a time with the current revision/hash:
 
 ```bash
-canisend review-dispositions status --workspace . --job jobs/<job-slug> --format json
-canisend review-dispositions init --workspace . --job jobs/<job-slug> --confirm-user-owned-write --format json
+canisend review-dispositions status --workspace . --job jobs/<job-slug> --document-id <document_...> --format json
+canisend review-dispositions init --workspace . --job jobs/<job-slug> --document-id <document_...> \
+  --confirm-user-owned-write --format json
 canisend review-dispositions update --workspace . --job jobs/<job-slug> --patch-file <patch.yaml> \
-  --expected-revision <revision> --expected-sha256 <sha256> --confirm-user-owned-write --format json
+  --document-id <document_...> --expected-revision <revision> --expected-sha256 <sha256> \
+  --confirm-user-owned-write --format json
 ```
 
-`accepted` is valid only for non-blockers; `revision_required` keeps the document in review. A changed Draft/Review
-requires `reset_for_current_review`. When all current findings are accepted, `canisend run` embeds a verifiable
-Cover Letter `reviewed` projection while Draft and Review stay `proposed`; other package gates remain independent.
-Research Statement findings remain proposed for human inspection; guarded dispositions, compatibility rendering,
-document readiness, and package readiness are not implemented for that executor yet.
+The option may be omitted only when the current plan has exactly one supported prepared document. Cover Letter keeps
+`review_dispositions.yaml`; Research Statement uses the independent
+`research_statement_review_dispositions.yaml`. `accepted` is valid only for non-blockers;
+`revision_required` keeps that document in review. A changed Draft/Review preserves the old decisions and requires
+`reset_for_current_review`. When every current non-blocker finding is accepted, that document derives `reviewed`
+while its Draft and Review stay `proposed`. Only Cover Letter readiness currently feeds the compatibility
+Markdown/Typst projection and existing package checks; Research Statement rendering and package readiness remain
+out of scope.
 
 Evidence and Parse are independent after intake, so their deterministic runs may be ordered either way; Match waits
 for current Confirm and Evidence outputs. Host-agent execution applies to Parse and Draft, while configured-provider
@@ -742,7 +748,8 @@ platform-specific API, network, or MCP transport; deterministic stages need no c
 They may run local deterministic CLI commands, inspect generated evidence, and review current job artifacts. They must
 ask first before reading full private CVs, statements, full job adverts, references, PDFs, source URLs, Evidence
 snapshots/candidates/catalogs, `criteria.json`, `criterion_matches.json`, `application_brief.yaml`,
-`required_document_plan.json`, `cover_letter_draft.json`, `review_findings.json`, `review_dispositions.yaml`, generated packages, or enabling
+`required_document_plan.json`, either structured Draft/Review, `review_dispositions.yaml`,
+`research_statement_review_dispositions.yaml`, generated packages, or enabling
 LLM-backed CLI flags/providers. Criteria may contain corrected wording; Match, Brief, the document plan, Draft, and
 Review remain Tier 2. They must not
 scrape pages, submit applications, upload packages, fabricate evidence, or commit private profile/job data.
@@ -852,8 +859,8 @@ This repository is intended to be open source. Personal application data should 
   private job folders. The first three may contain duplicated normalized profile text; removing a run or job remains
   an explicit user retention decision.
 - `criteria.json`, `criterion_matches.json`, `confirmed_corrections.yaml`, `application_decision.yaml`,
-  `application_brief.yaml`, `required_document_plan.json`, `cover_letter_draft.json`, `review_findings.json`,
-  `review_dispositions.yaml`, and
+  `application_brief.yaml`, `required_document_plan.json`, both structured Draft/Review pairs,
+  `review_dispositions.yaml`, `research_statement_review_dispositions.yaml`, and
   private mutation/stage candidates are Tier 2. Criteria may contain corrected wording; Match is body-minimized,
   while Brief, plan, Draft, Review, and dispositions may reveal private motivation, exclusions, source text, application strategy,
   or prose. Mutation receipts are Tier 1 and contain none of those bodies; neither do workflow control records,

@@ -83,6 +83,7 @@ from canisend.user_mutations import (
     inspect_review_dispositions,
     inspect_user_artifact,
     recover_user_mutation,
+    resolve_review_disposition_artifact,
 )
 from canisend.versioning import fetch_remote_versions, format_version_report
 from canisend.workflow_state import (
@@ -1056,6 +1057,11 @@ def documents_status_command(
 @review_dispositions_app.command("status")
 def review_dispositions_status_command(
     job: Path = typer.Option(..., "--job", help="Job folder path or workspace-relative job identifier."),
+    document_id: str | None = typer.Option(
+        None,
+        "--document-id",
+        help="Stable Required Document Plan ID for the Draft and Review being dispositioned.",
+    ),
     workspace: Path = typer.Option(
         Path("."),
         "--workspace",
@@ -1076,7 +1082,11 @@ def review_dispositions_status_command(
         response = review_dispositions_status_agent_response(
             config.root,
             job_dir,
-            inspect_review_dispositions(config.root, job_dir),
+            inspect_review_dispositions(
+                config.root,
+                job_dir,
+                document_id=document_id,
+            ),
         )
     except UserMutationError as exc:
         response = user_mutation_error_response(operation, exc)
@@ -1088,6 +1098,11 @@ def review_dispositions_status_command(
 @review_dispositions_app.command("init")
 def review_dispositions_init_command(
     job: Path = typer.Option(..., "--job", help="Job folder path or workspace-relative job identifier."),
+    document_id: str | None = typer.Option(
+        None,
+        "--document-id",
+        help="Stable Required Document Plan ID for the Draft and Review being dispositioned.",
+    ),
     workspace: Path = typer.Option(
         Path("."),
         "--workspace",
@@ -1107,12 +1122,19 @@ def review_dispositions_init_command(
     """Create dispositions bound to the current Draft and deterministic Review."""
     _validate_output_format(output_format)
     operation = "review.dispositions_initialize"
+    selected_artifact = None
     try:
         config = load_workspace_config(workspace)
         job_dir = config.job_dir(job)
+        selected_artifact = resolve_review_disposition_artifact(
+            config.root,
+            job_dir,
+            document_id=document_id,
+        )
         outcome = initialize_review_dispositions(
             config.root,
             job_dir,
+            document_id=document_id,
             consent_confirmed=confirm_user_owned_write,
         )
         response = mutation_outcome_agent_response(
@@ -1122,7 +1144,11 @@ def review_dispositions_init_command(
             operation=operation,
         )
     except UserMutationError as exc:
-        response = user_mutation_error_response(operation, exc)
+        response = user_mutation_error_response(
+            operation,
+            exc,
+            artifact=selected_artifact,
+        )
     except Exception:
         response = _unexpected_user_mutation_error_response(operation)
     _emit_agent_response(response, output_format=output_format)
@@ -1131,6 +1157,11 @@ def review_dispositions_init_command(
 @review_dispositions_app.command("update")
 def review_dispositions_update_command(
     job: Path = typer.Option(..., "--job", help="Job folder path or workspace-relative job identifier."),
+    document_id: str | None = typer.Option(
+        None,
+        "--document-id",
+        help="Stable Required Document Plan ID for the Draft and Review being dispositioned.",
+    ),
     patch_file: Path = typer.Option(
         ...,
         "--patch-file",
@@ -1165,9 +1196,15 @@ def review_dispositions_update_command(
     """Apply one finding disposition through revision/hash compare-and-swap."""
     _validate_output_format(output_format)
     operation = "review.dispositions_update"
+    selected_artifact = None
     try:
         config = load_workspace_config(workspace)
         job_dir = config.job_dir(job)
+        selected_artifact = resolve_review_disposition_artifact(
+            config.root,
+            job_dir,
+            document_id=document_id,
+        )
         patch = load_review_disposition_patch_file(patch_file)
         outcome = apply_user_patch(
             config.root,
@@ -1175,6 +1212,7 @@ def review_dispositions_update_command(
             patch,
             expected_sha256=expected_sha256,
             expected_revision=_user_owned_expected_revision(expected_revision),
+            document_id=document_id,
             consent_confirmed=confirm_user_owned_write,
         )
         response = mutation_outcome_agent_response(
@@ -1184,7 +1222,11 @@ def review_dispositions_update_command(
             operation=operation,
         )
     except UserMutationError as exc:
-        response = user_mutation_error_response(operation, exc)
+        response = user_mutation_error_response(
+            operation,
+            exc,
+            artifact=selected_artifact,
+        )
     except Exception:
         response = _unexpected_user_mutation_error_response(operation)
     _emit_agent_response(response, output_format=output_format)

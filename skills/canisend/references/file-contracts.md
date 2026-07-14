@@ -90,6 +90,8 @@ cover_letter_draft.json       # core-owned Tier 2 proposed structured Draft
 research_statement_draft.json # core-owned Tier 2 proposed structured Draft
 review_findings.json          # deterministic Cover Letter Review
 research_statement_review_findings.json # deterministic Research Statement Review
+review_dispositions.yaml      # user-owned Cover Letter finding decisions
+research_statement_review_dispositions.yaml # user-owned Research Statement finding decisions
 workflow/
   state.json                 # rebuildable view
   user-mutations/
@@ -171,15 +173,20 @@ RSS and Atom lead outputs live in ignored `job_leads/`.
   semantic-review findings. A later compatible `run` may read this current Review to project a blocker-free Draft.
 - `research_statement_review_findings.json`: deterministic Tier 2 Review projection for the current Research
   Statement Draft. It uses the shared Review Findings schema with strategy
-  `deterministic.research_statement_review`, but does not feed Cover Letter dispositions, compatibility projection,
-  document readiness, or package readiness.
+  `deterministic.research_statement_review`; it feeds only Research Statement dispositions/readiness, never Cover
+  Letter dispositions, compatibility projection, or package readiness.
 - `review_dispositions.yaml`: strict user-owned Tier 2 finding decisions bound to the exact Draft and Review hashes.
-  Agent writes use `review-dispositions status|init|update` with one finding, the current revision/hash, and explicit
-  consent. `accepted` is valid only for non-blockers; `revision_required` keeps the document out of readiness. A
-  changed Draft/Review preserves the file but requires `reset_for_current_review` before new findings are edited.
-- `schemas/document-readiness.schema.json`: derived Cover Letter readiness contract embedded in structured
-  compatibility content. It is recomputed from current Draft, Review, and dispositions; it is not a mutable approval
-  file and does not establish whole-package readiness.
+  It is the Cover Letter artifact and defaults missing `document_kind` to `cover_letter` for backward readability.
+- `research_statement_review_dispositions.yaml`: independent strict user-owned Tier 2 Research Statement finding
+  decisions. It cannot share a CAS baseline, claim directory, or recovery receipt with Cover Letter dispositions.
+  Agent writes for either file use `review-dispositions status|init|update --document-id <id>` with one finding, the
+  current revision/hash, and explicit consent. `accepted` is valid only for non-blockers; `revision_required` keeps
+  that document out of readiness. A changed Draft/Review preserves the file but requires
+  `reset_for_current_review` before new findings are edited.
+- `schemas/document-readiness.schema.json`: derived Cover Letter or Research Statement readiness contract. It is
+  recomputed from the selected document's current Draft, Review, and dispositions; it is not a mutable approval file
+  and does not establish whole-package readiness. Only Cover Letter readiness is embedded in current compatibility
+  content and package checks.
 - `schemas/document-execution-plan.schema.json`: body-free, read-only fan-out projection derived from the exact
   Required Document Plan hash. It distinguishes blocked, omitted, dispatchable, planned-unavailable, and
   unregistered document work without persisting a second workflow state or claiming package readiness.

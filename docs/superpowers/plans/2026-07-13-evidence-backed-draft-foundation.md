@@ -1,6 +1,6 @@
 # Evidence-Backed Draft Foundation Implementation Plan
 
-**Status:** In progress — Tasks 0–10 locally accepted; further Stage 3 scope remains
+**Status:** In progress — Tasks 0–11 locally accepted; later Stage 3 slices remain
 
 **Date:** 2026-07-13
 
@@ -145,6 +145,18 @@ AgentResponse/TaskSpec contracts, and without claiming package readiness.
 - [x] Update canonical skills, compatibility mirror, roadmap, changelog, schemas, packaged resources, and smoke.
 - [x] Complete focused/full cross-version, distribution, privacy, recovery, and clean-wheel validation.
 
+## Task 11: Document-Scoped Review Dispositions And Readiness
+
+- [x] Accept ADR-019 for stable document selection and independent user-owned disposition artifacts.
+- [x] Generalize Review Dispositions and Document Readiness contracts without invalidating legacy Cover YAML.
+- [x] Add guarded Research Statement disposition initialization, scoped patching, immutable receipts, and recovery.
+- [x] Add `--document-id` to status/init/update and fail closed when omitted selection is ambiguous.
+- [x] Expose body-free Research Statement readiness, counts, consents, artifact references, and next actions.
+- [x] Preserve Cover Letter compatibility projection and package gates while both disposition artifacts coexist.
+- [x] Prove cross-target CAS isolation, stale-basis handling, non-waivable blockers, recovery, and private-body absence.
+- [x] Update schemas, canonical skills, compatibility mirror, README, changelog, roadmap, and installed-wheel smoke.
+- [x] Complete focused/full cross-version, distribution, privacy, recovery, and clean-wheel validation.
+
 ## Task 0–5 Validation Snapshot
 
 Tasks 0–5 and the first Cover Letter vertical slice were locally accepted on 2026-07-13:
@@ -266,6 +278,27 @@ This acceptance adds one Research Statement host-agent Draft and deterministic R
 Research Statement configured-provider generation, guarded finding dispositions, document readiness, compatibility
 Markdown/Typst rendering, cross-document Review, application-package readiness, remote CI, publication, rendering
 approval, or submission readiness.
+
+## Task 11 Validation Snapshot
+
+Task 11 was locally accepted on 2026-07-14:
+
+- `python -m pytest -q`: 1067 passed on Python 3.14.2;
+- the 50 affected disposition/readiness, schema, CLI, recovery, and dual-document tests passed independently on
+  Python 3.11.15, 3.12.12, 3.13.14, and 3.14.2;
+- stable explicit selection, omitted-selection ambiguity, independent Cover Letter/Research Statement artifacts and
+  mutation namespaces, cross-target CAS isolation, legacy Cover YAML defaulting, stale-basis reset, non-waivable
+  Research blockers, receipt recovery, and private-body absence passed;
+- the 72 release, repository, canonical-skill, compatibility-mirror, and distribution contract tests passed, as did
+  generated-schema regeneration, compile, mirror, and diff checks;
+- source and clean Python 3.12 wheel smoke each completed both document paths with 10 successful stage runs and 18
+  immutable user-mutation receipts, deriving independent Cover Letter and Research Statement `reviewed` states while
+  preserving the Cover-only compatibility/package boundary;
+- `uv build`, Twine metadata checks, and the 0.2.0 wheel packaged-resource check passed.
+
+This acceptance adds Research Statement finding dispositions and per-document readiness. It does not add Research
+Statement configured-provider generation, compatibility Markdown/Typst rendering, aggregate cross-document Review,
+application-package readiness, remote CI, publication, rendering approval, or submission readiness.
 
 ## First-Slice Exit Review
 

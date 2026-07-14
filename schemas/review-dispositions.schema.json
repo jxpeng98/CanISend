@@ -51,6 +51,15 @@
       "title": "Document Id",
       "type": "string"
     },
+    "document_kind": {
+      "default": "cover_letter",
+      "enum": [
+        "cover_letter",
+        "research_statement"
+      ],
+      "title": "Document Kind",
+      "type": "string"
+    },
     "revision": {
       "maximum": 9223372036854775807,
       "minimum": 0,

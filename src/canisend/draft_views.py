@@ -91,7 +91,11 @@ def load_current_structured_draft_views(
         )
         if review.blocker_finding_ids:
             return None
-        disposition_inspection = inspect_review_dispositions(workspace, job_dir)
+        disposition_inspection = inspect_review_dispositions(
+            workspace,
+            job_dir,
+            document_id=draft.document_id,
+        )
         mutation_audit = inspect_current_artifact_mutation(
             workspace,
             job_dir,

@@ -130,12 +130,12 @@ Review quality gates before rendering:
   Statement document ID from the approved plan, and use guarded host-agent prepare/submit/apply. Configured-provider
   execution is unsupported for this document.
 - Missing or stale `review_findings.json`: make Draft current and run deterministic Review. Resolve non-waivable
-  blockers, then use `review-dispositions status|init|update` for each current finding.
+  blockers, then use `review-dispositions status|init|update --document-id <same-id>` for each current finding.
 - Missing or stale `research_statement_review_findings.json`: run deterministic Review with the same document ID,
-  resolve blockers, and inspect remaining findings manually. Do not route them through Cover Letter dispositions or
-  infer document/package readiness.
-- Missing/stale/incomplete `review_dispositions.yaml`: use the exact current revision/hash; reset only when the
-  Draft/Review basis changed. Cover Letter `reviewed` is derived and remains distinct from package readiness.
+  resolve blockers, then use the same guarded disposition commands and ID for each remaining finding.
+- Missing/stale/incomplete `review_dispositions.yaml` or `research_statement_review_dispositions.yaml`: select the
+  exact stable document ID and use its current revision/hash; reset only when that Draft/Review basis changed.
+  Per-document `reviewed` is derived and remains distinct from package readiness.
 - Mutation recovery requested: use `user-mutation recover` with the opaque accepted mutation ID and explicit
   consent; do not replay the private patch as a new write.
 - Existing generated outputs after advert/profile changes: rerun the pipeline and review diffs.

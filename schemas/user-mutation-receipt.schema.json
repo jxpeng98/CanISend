@@ -60,6 +60,20 @@
             "artifact",
             "target_path"
           ]
+        },
+        {
+          "properties": {
+            "artifact": {
+              "const": "research_statement_review_dispositions"
+            },
+            "target_path": {
+              "const": "research_statement_review_dispositions.yaml"
+            }
+          },
+          "required": [
+            "artifact",
+            "target_path"
+          ]
         }
       ]
     },
@@ -155,7 +169,8 @@
         "corrections",
         "decision",
         "brief",
-        "review_dispositions"
+        "review_dispositions",
+        "research_statement_review_dispositions"
       ],
       "title": "Artifact",
       "type": "string"
@@ -165,7 +180,8 @@
         "confirmed_corrections.yaml",
         "application_decision.yaml",
         "application_brief.yaml",
-        "review_dispositions.yaml"
+        "review_dispositions.yaml",
+        "research_statement_review_dispositions.yaml"
       ],
       "title": "Target Path",
       "type": "string"
