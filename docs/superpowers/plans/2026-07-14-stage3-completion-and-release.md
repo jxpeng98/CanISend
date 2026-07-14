@@ -1,6 +1,6 @@
 # Stage 3 Completion And 0.3.0 Release Implementation Plan
 
-**Status:** In progress — `0.3.0.dev1` failed before upload; `0.3.0.dev2` retry and Tasks 13–15 underway
+**Status:** In progress — Release A (`0.3.0.dev2`) accepted; Task 13 underway
 
 **Date:** 2026-07-14
 
@@ -54,7 +54,7 @@ Task 12 accepted
 - [x] The working tree is clean and the canonical/workspace skill trees match.
 - [x] `test/v0.3.0.dev1` is retained at `0aede4f`; run 29364176031 failed before upload.
 - [x] The ANSI-sensitive CLI assertions found by that run are reproducible and fixed without changing CLI behavior.
-- [x] `test/v0.3.0.dev2` is absent locally, remotely, and on TestPyPI.
+- [x] Before release, `test/v0.3.0.dev2` was absent locally, remotely, and on TestPyPI.
 - [x] The remote feature branch exists and can advance to the fixed reviewed candidate.
 - [x] GitHub authentication and the tag-triggered release workflow are available.
 - [x] The Stage 3 completion/release plan is committed with the release candidate.
@@ -80,6 +80,29 @@ Task 12 accepted
 - After any successful TestPyPI upload, do not reuse the version. Record the failure, fix forward, and use the next
   `.devN` version.
 - Do not create a `v*` tag during Release A; the test channel must never publish to PyPI.
+
+### Release A Validation Snapshot
+
+Release A was accepted on 2026-07-14:
+
+- `test/v0.3.0.dev1` remains an immutable failed candidate at `0aede4f`; GitHub Actions run
+  [29364176031](https://github.com/jxpeng98/CanISend/actions/runs/29364176031) failed during tests before any
+  TestPyPI upload. The failure exposed terminal-colour-sensitive assertions and did not change CLI behavior.
+- The fixed `test/v0.3.0.dev2` candidate is `ec42ca6876f2fd74fc1224e08348b8e58a078c56`.
+- The unskipped local gate passed 1,072 tests on Python 3.14.2, package build, Twine metadata validation, packaged
+  resource validation, and a clean-wheel Decision Spine smoke with 10 successful stages and 18 mutation receipts.
+- GitHub Actions run [29365962138](https://github.com/jxpeng98/CanISend/actions/runs/29365962138) passed the Python
+  3.12 build/test job, TestPyPI Trusted Publishing, and installed-package TestPyPI smoke. PyPI publication and the
+  GitHub Release jobs were correctly skipped for the test channel.
+- An independent fresh Python 3.12.12 environment installed `canisend==0.3.0.dev2` without cache from TestPyPI with
+  PyPI as the dependency fallback. Version metadata, packaged schemas, CLI help, workspace initialization, Doctor,
+  Agent capabilities, and the 10-stage/18-receipt Decision Spine smoke all passed.
+- TestPyPI wheel: `canisend-0.3.0.dev2-py3-none-any.whl`, SHA-256
+  `1dbb3619380d04b794f4d431e9f1fbe2f4707fe331f40fdb573c022f5c140e4a`.
+- TestPyPI source distribution: `canisend-0.3.0.dev2.tar.gz`, SHA-256
+  `fd132bd55376062c4eba9b8c043c19a10ba359e3bf8a330158a0bfd2c980f0ad`.
+- GitHub reported that several JavaScript actions still target Node 20 and are being forced onto Node 24. This is a
+  non-blocking release-infrastructure follow-up for Task 15, not a package or publication failure.
 
 ## Task 13: Cross-Document Consistency Review
 

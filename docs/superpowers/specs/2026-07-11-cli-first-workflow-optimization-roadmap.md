@@ -1,7 +1,7 @@
 # CLI-First Workflow Optimization Execution Roadmap
 
-**Status:** Active — Stages 1 and 2 plus Stage 3 Tasks 0–12 are locally accepted; the TestPyPI development checkpoint
-and Stage 3 aggregate Review completion are in progress
+**Status:** Active — Stages 1 and 2 plus Stage 3 Tasks 0–12 are locally accepted; the `0.3.0.dev2` TestPyPI
+development checkpoint is accepted and Stage 3 aggregate Review completion is in progress
 
 **Date:** 2026-07-11
 
@@ -314,8 +314,8 @@ smoke. Both are available guarded executors with per-document readiness. Cover L
 compatibility views; a reviewed Research Statement has standalone Markdown/Typst views only. Broader cross-document
 Review, remote CI, and aggregate package readiness remain.
 
-**Release milestones:** publish `0.3.0.dev2` to TestPyPI after the Task 12 baseline (`0.3.0.dev1` is retained as a
-pre-upload failed CI candidate), then publish `0.3.0b1` to TestPyPI and PyPI only after Tasks 13–15 are accepted. See
+**Release milestones:** `0.3.0.dev2` was published to TestPyPI from the Task 12 baseline (`0.3.0.dev1` is retained as
+a pre-upload failed CI candidate); publish `0.3.0b1` to TestPyPI and PyPI only after Tasks 13–15 are accepted. See
 `docs/superpowers/plans/2026-07-14-stage3-completion-and-release.md` for the executable plan.
 
 ### Deliverables

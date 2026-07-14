@@ -1,6 +1,6 @@
 # Evidence-Backed Draft Foundation Implementation Plan
 
-**Status:** In progress — Tasks 0–12 locally accepted; dev release and Tasks 13–15 planned
+**Status:** In progress — Tasks 0–12 and the `0.3.0.dev2` TestPyPI checkpoint accepted; Task 13 underway
 
 **Date:** 2026-07-13
 
