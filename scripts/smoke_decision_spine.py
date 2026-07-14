@@ -555,8 +555,11 @@ def _assert_workspace_contract(workspace: Path) -> None:
         "03_cover_letter_draft.md",
         "05_criteria_checklist.md",
         "07_material_review_checklist.md",
+        "08_research_statement.md",
         "typst/cover_letter_content.json",
         "typst/cover_letter.typ",
+        "typst/research_statement_content.json",
+        "typst/research_statement.typ",
         "typst/application_package_content.json",
         "typst/application_package.typ",
         "application_gate_report.json",
@@ -637,8 +640,19 @@ def _assert_workspace_contract(workspace: Path) -> None:
     cover_content = json.loads(
         (job / "typst" / "cover_letter_content.json").read_text(encoding="utf-8")
     )
+    research_content = json.loads(
+        (job / "typst" / "research_statement_content.json").read_text(
+            encoding="utf-8"
+        )
+    )
     draft_markdown = (job / "03_cover_letter_draft.md").read_text(encoding="utf-8")
+    research_markdown = (job / "08_research_statement.md").read_text(
+        encoding="utf-8"
+    )
     cover_source = (job / "typst" / "cover_letter.typ").read_text(encoding="utf-8")
+    research_source = (job / "typst" / "research_statement.typ").read_text(
+        encoding="utf-8"
+    )
     package_source = (job / "typst" / "application_package.typ").read_text(
         encoding="utf-8"
     )
@@ -671,6 +685,35 @@ def _assert_workspace_contract(workspace: Path) -> None:
             raise SmokeFailure("The installed-wheel Typst projection duplicated or lost a Claim.")
     if "// CANISEND: structured-draft projection" not in cover_source:
         raise SmokeFailure("The installed-wheel Cover Letter omitted its structured marker.")
+    research_projection = (
+        research_content.get("projection")
+        if isinstance(research_content, dict)
+        else None
+    )
+    if (
+        research_markdown.count(RESEARCH_DRAFT_SENTINEL) != 1
+        or research_source.count(RESEARCH_DRAFT_SENTINEL) != 1
+        or not isinstance(research_projection, dict)
+        or research_projection.get("source")
+        != "research_statement_draft.json"
+        or research_projection.get("integration_scope")
+        != "standalone_document"
+        or research_projection.get("document_readiness_state") != "reviewed"
+        or research_projection.get("requires_human_review") is not False
+        or "// CANISEND: structured-research-statement projection"
+        not in research_source
+    ):
+        raise SmokeFailure(
+            "The installed wheel lost the reviewed Research Statement projection."
+        )
+    if (
+        "research_statement_projection" in package_content
+        or "structured_research_statement_sections" in package_content
+        or RESEARCH_DRAFT_SENTINEL in package_source
+    ):
+        raise SmokeFailure(
+            "The standalone Research Statement leaked into the application package."
+        )
 
     gate_report = json.loads(
         (job / "application_gate_report.json").read_text(encoding="utf-8")
@@ -702,6 +745,13 @@ def _assert_workspace_contract(workspace: Path) -> None:
         "job/review_dispositions.yaml",
     }.issubset(input_hashes):
         raise SmokeFailure("The package gate did not bind the structured Draft and Review inputs.")
+    if any(
+        key.startswith("job/") and "research_statement" in key
+        for key in input_hashes
+    ):
+        raise SmokeFailure(
+            "The package gate incorrectly absorbed the standalone Research Statement."
+        )
 
 
 def run_smoke(canisend: str, workspace: Path) -> None:

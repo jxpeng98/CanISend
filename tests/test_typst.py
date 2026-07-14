@@ -9,6 +9,7 @@ def test_render_typst_compiles_generated_typst_files_to_pdf(tmp_path):
     typst_dir.mkdir(parents=True)
     (typst_dir / "cover_letter.typ").write_text("#text[Cover letter]")
     (typst_dir / "application_package.typ").write_text("#text[Application package]")
+    (typst_dir / "research_statement.typ").write_text("#text[Research statement]")
     (typst_dir / "notes.typ").write_text("#text[Do not render]")
     fake_typst = tmp_path / "fake_typst.py"
     fake_typst.write_text(
@@ -36,6 +37,7 @@ def test_render_typst_compiles_generated_typst_files_to_pdf(tmp_path):
     assert result.exit_code == 0
     assert (job_dir / "pdf" / "cover_letter.pdf").read_text().startswith("fake pdf")
     assert (job_dir / "pdf" / "application_package.pdf").read_text().startswith("fake pdf")
+    assert (job_dir / "pdf" / "research_statement.pdf").read_text().startswith("fake pdf")
     assert not (job_dir / "pdf" / "notes.pdf").exists()
 
 

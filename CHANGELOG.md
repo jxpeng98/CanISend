@@ -2,14 +2,21 @@
 
 ## Unreleased
 
+- Added a standalone compatibility projection for an exact current `reviewed` Research Statement. The pipeline emits
+  conditional Markdown and injection-safe Typst views with Draft/Review/disposition/readiness hash provenance,
+  replaces stale generated views with a body-free unavailable state, and preserves edited Typst through a reviewable
+  candidate.
+- Kept Research Statement projection outside application-package content, required package files, APP-Q outcomes, and
+  package input hashes. Optional Research Typst can be rendered and explicitly staged, while its pending candidate
+  blocks rendering without changing the existing package gate.
 - Added document-scoped Review dispositions and derived readiness for both Cover Letter and Research Statement.
   `review-dispositions status|init|update` accepts the stable Required Document Plan ID, auto-resolves a sole target,
   and fails closed when omitted selection is ambiguous.
 - Added independent `research_statement_review_dispositions.yaml` CAS, immutable claim/receipt, interrupted-write
   recovery, stale-basis reset, non-waivable blocker, body-free AgentResponse, and schema coverage. Existing Cover
   Letter YAML remains readable through a defaulted `document_kind`.
-- Kept disposition histories and mutation namespaces isolated by document while leaving compatibility Markdown/Typst
-  projection and package gates Cover-Letter-only; per-document `reviewed` is not application-package readiness.
+- Kept disposition histories and mutation namespaces isolated by document; per-document `reviewed` is not
+  application-package readiness.
 - Added the second guarded document executor for Research Statement with a strict evidence-bound schema,
   `research_statement_draft.json`, host-agent candidate validation/promotion, independent deterministic
   `research_statement_review_findings.json`, and document-specific completeness checks.
@@ -17,8 +24,7 @@
   Cover Letter and Research Statement runs coexist without output/cache/recovery collisions; ambiguous omitted
   selection fails closed, and configured-provider generation remains Cover-Letter-only.
 - Promoted `documents.research_statement` / `draft.research_statement` from planned to available while keeping
-  Research Statement compatibility rendering, cross-document Review, package readiness, and submission explicitly
-  out of scope.
+  configured-provider generation, cross-document Review, package readiness, and submission explicitly out of scope.
 
 - Added backward-readable document-scoped control contracts and `(stage, document_id)` ownership across Draft and
   Review TaskSpec, result, submission, validation, manifest, terminal claim, promotion, WorkflowState, CLI, and

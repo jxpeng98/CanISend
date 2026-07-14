@@ -77,6 +77,10 @@ The pipeline writes:
 jobs/<job-slug>/typst/
   cover_letter.typ
   application_package.typ
+  research_statement.typ  # conditional exact reviewed standalone projection
 ```
 
-The `.typ` files are the preferred agent-editable interface. Content JSON artifacts may exist for compatibility/debugging, but they are secondary and should not be the normal editing surface.
+The `.typ` files are the preferred agent-editable interface. Content JSON artifacts may exist for
+compatibility/debugging, but they are secondary and should not be the normal editing surface. Research Statement is
+not embedded in the application package; a pending `research_statement.generated.typ` must be reconciled before
+rendering even though it is outside the package gate.

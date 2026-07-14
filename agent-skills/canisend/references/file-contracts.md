@@ -117,9 +117,11 @@ workflow/
 05_criteria_checklist.md
 06_final_application_package.md
 07_material_review_checklist.md
+08_research_statement.md     # conditional reviewed standalone projection
 typst/
   cover_letter.typ
   application_package.typ
+  research_statement.typ     # conditional reviewed standalone projection
 ```
 
 RSS and Atom lead outputs live in ignored `job_leads/`.
@@ -219,9 +221,15 @@ RSS and Atom lead outputs live in ignored `job_leads/`.
   view and configured profile provenance agree, and `--llm-drafts` is absent. Otherwise the compatible legacy or
   provider path remains in effect.
 - `07_material_review_checklist.md`: management artifact for cover letter draft, CV tailoring notes, placeholders, item-level citations, and manual follow-up actions.
+- `08_research_statement.md`: conditional standalone compatibility view emitted only for an exact current reviewed
+  Research Statement. It is not a required package file.
 - `typst/cover_letter.typ`: editable Typst source for the final cover letter, with stable `// CANISEND: section ...` markers.
 - `typst/application_package.typ`: editable Typst source for the final package, including remaining actions and review sections.
+- `typst/research_statement.typ`: conditional standalone reviewed Research Statement with stable Claim markers. It
+  is not embedded in the application-package source.
 - `typst/.canisend-generated.json`: generated-hash metadata used to avoid overwriting user-edited Typst files.
+- `typst/.canisend-research-generated.json`: separate generated-hash metadata for the optional standalone Research
+  Statement, keeping its edit lifecycle outside package-gate inputs.
 - `typst/*.generated.typ`: candidate regeneration written only when the corresponding editable `.typ` has diverged
   from its generated baseline.
 - `application_gate_report.json`: optional machine-readable `APP-Q*` report written only by an explicit
@@ -243,6 +251,13 @@ may also supply `03_cover_letter_draft.md`, `typst/cover_letter_content.json`, t
 content JSON records exact Draft/Review hashes and `requires_human_review`. Open review/warning findings remain open;
 the projection is not a reviewed/final package. Missing, blocked, stale, drifted, or invalid Draft/Review artifacts,
 direct library use without workspace provenance, profile override, or `--llm-drafts` use safe fallback instead.
+
+When the same Match guard passes, an exact current Research Statement Draft, deterministic blocker-free Review, and
+audited complete dispositions may supply standalone `08_research_statement.md` and
+`typst/research_statement.typ`. The projection records exact Draft, Review, disposition, readiness, and Markdown
+hashes and renders every Claim once. It remains outside application-package content, required package files, APP-Q
+issues, and package input hashes. A prior projection that becomes ineligible is replaced by body-free unavailable
+views; an edited Typst primary is preserved with a reconciliation candidate.
 
 Evidence snapshots, Evidence candidates, promoted Evidence catalogs, user mutation YAML/private candidates,
 corrected Criteria, Brief-stage candidates/plans, structured Draft candidates/artifacts, and Review findings are the

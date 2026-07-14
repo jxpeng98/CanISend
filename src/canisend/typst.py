@@ -3,7 +3,11 @@ import shutil
 import subprocess
 
 
-PRIMARY_TYPST_FILENAMES = ("cover_letter.typ", "application_package.typ")
+PRIMARY_TYPST_FILENAMES = (
+    "cover_letter.typ",
+    "application_package.typ",
+    "research_statement.typ",
+)
 
 
 def render_typst_files(job_dir: Path, typst_bin: str = "typst") -> list[Path]:

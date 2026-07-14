@@ -10,9 +10,17 @@ from typing import Any
 import yaml
 
 from canisend.draft_views import (
+    RESEARCH_STATEMENT_CONTENT_OUTPUT_PATH,
+    RESEARCH_STATEMENT_MARKDOWN_OUTPUT_PATH,
+    RESEARCH_STATEMENT_TYPST_OUTPUT_PATH,
+    ReviewedResearchStatementViews,
     StructuredDraftViews,
     build_structured_cover_letter_content,
+    build_structured_research_statement_content,
+    build_unavailable_research_statement_content,
+    load_current_reviewed_research_statement_views,
     load_current_structured_draft_views,
+    render_unavailable_research_statement_markdown,
 )
 from canisend.evidence import EvidenceReference, load_generated_evidence
 from canisend.llm import load_llm_config, provider_from_config
@@ -38,11 +46,15 @@ from canisend.typst_mapping import (
     build_cover_letter_content,
     render_modernpro_application_package_source,
     render_modernpro_cover_letter_source,
+    render_modernpro_research_statement_source,
 )
 from canisend.workspace import load_workspace_config
 
 
 TYPST_GENERATION_MANIFEST = ".canisend-generated.json"
+RESEARCH_STATEMENT_TYPST_GENERATION_MANIFEST = (
+    ".canisend-research-generated.json"
+)
 TYPST_GENERATION_MANIFEST_VERSION = 1
 APPLICATION_GATE_REPORT = "application_gate_report.json"
 
@@ -76,6 +88,7 @@ def run_pipeline(
     )
     structured_criteria = None
     structured_draft_views: StructuredDraftViews | None = None
+    research_statement_views: ReviewedResearchStatementViews | None = None
     if (
         workspace is not None
         and not use_llm_drafts
@@ -103,6 +116,13 @@ def run_pipeline(
                     materials,
                     cover_letter_draft=structured_draft_views.markdown,
                 )
+            research_statement_views = (
+                load_current_reviewed_research_statement_views(
+                    workspace,
+                    job_dir,
+                    parsed_job=parsed_job,
+                )
+            )
     if use_llm_drafts:
         provider = provider_from_config(load_llm_config())
         final_package = generate_final_package_with_provider(
@@ -149,17 +169,62 @@ def run_pipeline(
     )
     written.append(_write_json(typst_dir / "cover_letter_content.json", cover_letter_content))
     written.append(_write_json(typst_dir / "application_package_content.json", application_package_content))
-    written.extend(
-        _write_protected_typst_sources(
-            typst_dir,
-            {
-                "cover_letter.typ": render_modernpro_cover_letter_source(cover_letter_content),
-                "application_package.typ": render_modernpro_application_package_source(
-                    application_package_content
-                ),
-            },
-        )
+    typst_sources = {
+        "cover_letter.typ": render_modernpro_cover_letter_source(
+            cover_letter_content
+        ),
+        "application_package.typ": render_modernpro_application_package_source(
+            application_package_content
+        ),
+    }
+    research_output_paths = (
+        job_dir / RESEARCH_STATEMENT_MARKDOWN_OUTPUT_PATH,
+        job_dir / RESEARCH_STATEMENT_CONTENT_OUTPUT_PATH,
+        job_dir / RESEARCH_STATEMENT_TYPST_OUTPUT_PATH,
+        typst_dir / "research_statement.generated.typ",
+        typst_dir / RESEARCH_STATEMENT_TYPST_GENERATION_MANIFEST,
     )
+    research_content: dict[str, Any] | None = None
+    if research_statement_views is not None:
+        research_markdown = research_statement_views.markdown
+        research_content = build_structured_research_statement_content(
+            parsed_job,
+            research_statement_views,
+        )
+    elif any(path.exists() for path in research_output_paths):
+        research_markdown = render_unavailable_research_statement_markdown()
+        research_content = build_unavailable_research_statement_content()
+    else:
+        research_markdown = None
+
+    if research_content is not None and research_markdown is not None:
+        written.append(
+            _write_text(
+                job_dir / RESEARCH_STATEMENT_MARKDOWN_OUTPUT_PATH,
+                research_markdown,
+            )
+        )
+        written.append(
+            _write_json(
+                job_dir / RESEARCH_STATEMENT_CONTENT_OUTPUT_PATH,
+                research_content,
+            )
+        )
+        research_source = render_modernpro_research_statement_source(
+            research_content
+        )
+    else:
+        research_source = None
+
+    written.extend(_write_protected_typst_sources(typst_dir, typst_sources))
+    if research_source is not None:
+        written.extend(
+            _write_protected_typst_sources(
+                typst_dir,
+                {"research_statement.typ": research_source},
+                manifest_filename=RESEARCH_STATEMENT_TYPST_GENERATION_MANIFEST,
+            )
+        )
 
     metadata["status"] = "packaged"
     metadata["updated_at"] = _utc_now()
@@ -272,9 +337,14 @@ def _invalidate_application_gate_report(job_dir: Path) -> None:
     _write_json(report_path, report)
 
 
-def _write_protected_typst_sources(typst_dir: Path, sources: dict[str, str]) -> list[Path]:
+def _write_protected_typst_sources(
+    typst_dir: Path,
+    sources: dict[str, str],
+    *,
+    manifest_filename: str = TYPST_GENERATION_MANIFEST,
+) -> list[Path]:
     """Write generated Typst without overwriting a user-edited primary source."""
-    manifest_path = typst_dir / TYPST_GENERATION_MANIFEST
+    manifest_path = typst_dir / manifest_filename
     manifest = _load_typst_generation_manifest(manifest_path)
     file_records = manifest["files"]
     written: list[Path] = []

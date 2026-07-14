@@ -80,7 +80,8 @@ Use separate agents only when the user explicitly asks for multi-agent work.
   scratch, and submits it through the guarded CLI; it never writes authoritative/run/user/Markdown/Typst/profile paths.
 - Draft reviewer: runs deterministic Review, then inspects only the necessary Tier 2 findings/claims to resolve
   blockers, semantic-support review items, and non-factual Claim-kind classifications.
-- Typst reviewer: checks `typst/cover_letter.typ`, `typst/application_package.typ`, section markers, and optional PDF rendering.
+- Typst reviewer: checks `typst/cover_letter.typ`, conditional standalone `typst/research_statement.typ`,
+  `typst/application_package.typ`, section/Claim markers, pending candidates, and optional PDF rendering.
 
 When multiple agents are used, give each agent a bounded task and disjoint write scope. Do not have two agents edit the same job output file at the same time.
 

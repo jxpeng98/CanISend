@@ -146,10 +146,11 @@ Review disposition status is body-free and scoped by stable document ID. Agent w
 one revision/hash CAS patch; blockers are non-waivable. Each document has an independent artifact/claim namespace,
 and mutation claims and receipts never copy finding messages or private Claim text.
 
-A compatible local `run` may project a current blocker-free Draft/Review pair into Tier 2 Markdown, content JSON,
-and Typst files. This is a deterministic local data-plane transformation; bodies still do not enter workflow control
-records or ordinary Agent output. Projection metadata contains hashes, states, and counts rather than Review bodies,
-and `check-package` keeps the first-slice projection review-required.
+A compatible local `run` may project a current blocker-free Cover Letter Draft/Review pair, or an exact `reviewed`
+Research Statement, into Tier 2 Markdown, content JSON, and Typst files. This is a deterministic local data-plane
+transformation; bodies still do not enter workflow control records or ordinary Agent output. Projection metadata
+contains hashes, states, and counts rather than Review bodies. Research Statement output remains standalone and
+outside package-gate inputs; an ineligible prior generated view is replaced with body-free unavailable content.
 
 ### Retention Is Not Semantic Reset
 

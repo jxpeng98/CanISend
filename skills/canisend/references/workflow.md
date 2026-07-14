@@ -480,7 +480,8 @@ Statement, initialize with explicit write consent, then submit one strict patch 
 prepared target exists. Use `set_finding_disposition` with `accepted` or `revision_required`; a blocker cannot be accepted.
 If Draft/Review changed, use one explicit `reset_for_current_review` patch before inspecting the new
 finding set. Complete current acceptances derive per-document readiness while Draft and Review remain `proposed`;
-this is not package readiness. Research Statement compatibility rendering and package gates remain future work.
+this is not package readiness. A reviewed Research Statement may produce a standalone compatibility view, but it
+does not enter application-package content or package gates.
 
 ## 11. Generate The Compatible Draft Package
 
@@ -526,6 +527,13 @@ readiness becomes `reviewed` and `requires_human_review=false`. Missing, stale, 
 dispositions remain review work. `check-package` re-derives this document gate; it does not infer whole-package
 readiness from one Cover Letter.
 
+An exact current Research Statement Draft, deterministic blocker-free Review, current audited dispositions, and
+derived `reviewed` state may additionally produce `08_research_statement.md` and
+`typst/research_statement.typ`. Each Claim is rendered once with exact Draft/Review/disposition/readiness and
+Markdown hash provenance. These standalone files are not embedded in application-package content and do not enter
+`check-package` requirements, issues, or input hashes. If a prior Research projection becomes ineligible, generated
+views become body-free unavailable; an edited Typst primary is preserved and receives a candidate for reconciliation.
+
 If Match or an upstream stage is stale, any protected structured output is drifted or tampered, the structured graph
 is invalid, the current run parses a different job view, or `--profile-dir` selects a profile other than the
 workspace-configured profile, the command safely generates the legacy deterministic views instead of mixing
@@ -547,8 +555,8 @@ Review, in order:
 4. Proposed classifications and gaps in `criterion_matches.json`
 5. Brief status and `application_brief.yaml` only when its Tier 2 body is needed and approved
 6. Brief-stage status and `required_document_plan.json` only when its Tier 2 body is needed and approved
-7. Draft-stage status and `cover_letter_draft.json` only when its Tier 2 Claim body is needed and approved
-8. Review-stage status and `review_findings.json` only when its Tier 2 body is needed and approved
+7. Draft-stage status and the selected document's Draft JSON only when its Tier 2 Claim body is needed and approved
+8. Review-stage status and the selected document's Review JSON only when its Tier 2 body is needed and approved
 9. Body-free `review-dispositions status --document-id <same-id>`, then the selected document's disposition YAML only
    when its Tier 2 body is needed
 10. `00_preparation_questions.md`
@@ -557,15 +565,18 @@ Review, in order:
 13. `03_cover_letter_draft.md`
 14. `04_cv_tailoring_notes.md`
 15. `07_material_review_checklist.md`
-16. `typst/cover_letter.typ`
-17. `typst/application_package.typ`
-18. `06_final_application_package.md`
+16. `08_research_statement.md` when generated
+17. `typst/cover_letter.typ`
+18. `typst/research_statement.typ` when present
+19. `typst/application_package.typ`
+20. `06_final_application_package.md`
 
 Apply `quality-gates.md` before treating any output as usable.
 In particular, check language/style confirmation, item-level citations, unsupported claims, required-document coverage, and private-file safety before presenting a package as ready.
 
 Repeated generation protects edited Typst sources. If `run` reports a `*.generated.typ` candidate, compare it with the
-preserved user-edited `.typ` file and merge intentionally before rendering.
+preserved user-edited `.typ` file and merge intentionally before rendering. The optional Research Statement candidate
+does not affect `check-package`, but it still blocks `render-typst` until reconciled.
 
 Use `canisend check-package --write-report` when a machine-readable `application_gate_report.json` is useful. Without
 that flag, the check remains read-only.

@@ -96,6 +96,9 @@ MODERNPRO_IMPORT_RE = re.compile(
     flags=re.MULTILINE,
 )
 REQUIRED_JOB_METADATA_FIELDS = ("title", "institution", "deadline", "source_url", "status")
+OPTIONAL_STANDALONE_TYPST_CANDIDATES = {
+    "research_statement.generated.typ",
+}
 
 
 @dataclass(frozen=True)
@@ -644,6 +647,8 @@ def _check_generated_typst_candidates(job_dir: Path, issues: list[PackageCheckIs
     if not typst_dir.is_dir():
         return
     for candidate_path in sorted(typst_dir.glob("*.generated.typ")):
+        if candidate_path.name in OPTIONAL_STANDALONE_TYPST_CANDIDATES:
+            continue
         issues.append(
             PackageCheckIssue(
                 f"typst/{candidate_path.name}",
@@ -844,7 +849,9 @@ def _collect_job_input_hashes(job_dir: Path) -> dict[str, str]:
     typst_dir = job_dir / "typst"
     if typst_dir.is_dir():
         relative_paths.update(
-            f"typst/{candidate.name}" for candidate in typst_dir.glob("*.generated.typ")
+            f"typst/{candidate.name}"
+            for candidate in typst_dir.glob("*.generated.typ")
+            if candidate.name not in OPTIONAL_STANDALONE_TYPST_CANDIDATES
         )
 
     input_hashes: dict[str, str] = {}

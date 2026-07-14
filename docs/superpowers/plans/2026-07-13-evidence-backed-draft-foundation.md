@@ -1,6 +1,6 @@
 # Evidence-Backed Draft Foundation Implementation Plan
 
-**Status:** In progress — Tasks 0–11 locally accepted; later Stage 3 slices remain
+**Status:** In progress — Tasks 0–12 locally accepted; later Stage 3 slices remain
 
 **Date:** 2026-07-13
 
@@ -157,6 +157,18 @@ AgentResponse/TaskSpec contracts, and without claiming package readiness.
 - [x] Update schemas, canonical skills, compatibility mirror, README, changelog, roadmap, and installed-wheel smoke.
 - [x] Complete focused/full cross-version, distribution, privacy, recovery, and clean-wheel validation.
 
+## Task 12: Reviewed Research Statement Compatibility Projection
+
+- [x] Accept ADR-020 for a standalone projection that does not broaden application-package readiness.
+- [x] Load only current, deterministic, blocker-free Research Statement Draft/Review inputs and exact dispositions.
+- [x] Require derived Research Statement readiness `reviewed` before projecting any applicant Claim body.
+- [x] Add traceable Markdown, content JSON, and injection-safe Typst views with exact hash provenance.
+- [x] Replace an ineligible prior generated projection with controlled unavailable views while preserving edited Typst.
+- [x] Compile and explicitly stage the optional standalone document without adding it to `check-package` requirements.
+- [x] Prove Cover/package isolation, stale/tamper closure, private-text safety, and installed-wheel behavior.
+- [x] Update canonical skills, compatibility mirror, README, changelog, roadmap, and file contracts.
+- [x] Complete focused/full cross-version, distribution, privacy, recovery, and clean-wheel validation.
+
 ## Task 0–5 Validation Snapshot
 
 Tasks 0–5 and the first Cover Letter vertical slice were locally accepted on 2026-07-13:
@@ -299,6 +311,27 @@ Task 11 was locally accepted on 2026-07-14:
 This acceptance adds Research Statement finding dispositions and per-document readiness. It does not add Research
 Statement configured-provider generation, compatibility Markdown/Typst rendering, aggregate cross-document Review,
 application-package readiness, remote CI, publication, rendering approval, or submission readiness.
+
+## Task 12 Validation Snapshot
+
+Task 12 was locally accepted on 2026-07-14:
+
+- `python -m pytest -q`: 1072 passed on Python 3.14.2;
+- the 66 affected projection, compatibility pipeline, Cover regression, Typst, Git tracking, package-gate, and
+  repository-contract tests passed independently on Python 3.11.15, 3.12.12, and 3.13.14;
+- reviewed-only body projection, exact Draft/Review/disposition/readiness/Markdown receipts, Markdown/Typst
+  structure neutralization, no-pre-review output, stale generated-body removal, edited-source preservation, separate
+  Typst baseline ownership, package-content absence, APP-Q/input-hash isolation, and render reconciliation passed;
+- source and clean Python 3.12 wheel smoke each completed both document paths with 10 successful stage runs and 18
+  immutable user-mutation receipts, projected the reviewed Research Statement once, preserved all Decision Spine
+  bytes, and retained the independent fail-closed package result;
+- the generated standalone Research Statement compiled successfully with Typst 0.15.0;
+- canonical/workspace skill mirror, compile, diff, repository, build, Twine metadata, and packaged-resource checks
+  passed for the 0.2.0 sdist and wheel.
+
+This acceptance adds a standalone reviewed Research Statement compatibility view. It does not add configured-provider
+Research generation, aggregate cross-document Review, Research-driven application-package readiness, remote CI,
+publication, submission, or an automatic semantic-truth claim.
 
 ## First-Slice Exit Review
 

@@ -1,7 +1,7 @@
 # CLI-First Workflow Optimization Execution Roadmap
 
-**Status:** Active — Stages 1 and 2 plus document-scoped Stage 3 Cover Letter and Research Statement slices are
-locally accepted
+**Status:** Active — Stages 1 and 2 plus document-scoped Stage 3 Cover Letter, Research Statement, and standalone
+reviewed Research projection slices are locally accepted
 
 **Date:** 2026-07-11
 
@@ -306,12 +306,14 @@ of the same TaskSpec/candidate/validator/promotion boundary; ADR-016 freezes a r
 execution fan-out and explicit available/planned/unregistered capability registry; ADR-017 freezes document-scoped
 `(stage, document_id)` run ownership with backward-readable 1.0 records; ADR-018 freezes a host-agent Research
 Statement Draft and deterministic Review boundary with separate targets and validators; ADR-019 freezes stable
-document selection plus independent Cover Letter and Research Statement disposition/CAS/readiness namespaces. The
+document selection plus independent Cover Letter and Research Statement disposition/CAS/readiness namespaces;
+ADR-020 freezes a reviewed, standalone Research Statement compatibility projection without expanding package
+readiness. The
 Cover Letter and Research Statement Draft/Review/disposition/readiness slices are locally accepted with strict
 schemas, guarded promotion, fail-closed document selection, cross-version local tests, and clean-wheel smoke. Both
-are available guarded executors with per-document readiness. Configured-provider Draft and legacy Markdown/Typst
-projection remain Cover-Letter-only; Research Statement rendering, broader cross-document Review, remote CI, and
-package readiness remain.
+are available guarded executors with per-document readiness. Cover Letter keeps package-integrated compatibility
+views; a reviewed Research Statement has standalone Markdown/Typst views only. Configured-provider Research Draft,
+broader cross-document Review, remote CI, and aggregate package readiness remain.
 
 ### Deliverables
 
@@ -319,7 +321,7 @@ package readiness remain.
 - claim-level evidence receipts and support strength;
 - Cover Letter as the first application-facing candidate/promotion/readiness slice;
 - Research Statement as a second host-agent Draft, deterministic Review, disposition, and per-document readiness
-  slice with independent output/mutation ownership;
+  slice with independent output/mutation ownership and a reviewed standalone compatibility projection;
 - document-specific plans for research, teaching, supporting, diversity, publication, email, and interview artifacts;
 - cross-document consistency review and structured correction patches;
 - package readiness based on promoted, reviewed artifacts only.

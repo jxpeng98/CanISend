@@ -13,8 +13,10 @@ APPLICATION_MATERIAL_RELATIVE_PATHS = [
     "05_criteria_checklist.md",
     "06_final_application_package.md",
     "07_material_review_checklist.md",
+    "08_research_statement.md",
     "typst/cover_letter.typ",
     "typst/application_package.typ",
+    "typst/research_statement.typ",
 ]
 
 

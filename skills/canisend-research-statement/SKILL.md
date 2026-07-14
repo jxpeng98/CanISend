@@ -48,7 +48,11 @@ Read only what the current task requires:
    `set_finding_disposition` patch at a time with the latest revision/hash and the same ID. Blockers cannot be
    accepted; a changed Draft/Review requires an explicit `reset_for_current_review` patch.
 9. Complete current acceptances derive Research Statement document readiness while Draft and Review remain
-   `proposed`. Do not claim package readiness or render compatibility Markdown/Typst from that state; those paths are
-   not implemented for Research Statement.
-10. Before presenting wording for human review, check `../canisend/references/quality-gates.md` and clearly label the
+   `proposed`. Run the compatible pipeline only after readiness is `reviewed`; it may then project each Claim once to
+   standalone `08_research_statement.md` and `typst/research_statement.typ`. Do not embed that projection in the
+   application package or claim package readiness.
+10. If a later run reports the Research Statement projection unavailable or creates
+    `research_statement.generated.typ`, do not reuse the old generated wording as current. Reconcile an edited Typst
+    primary explicitly before rendering.
+11. Before presenting wording for human review, check `../canisend/references/quality-gates.md` and clearly label the
    Draft and Review as `proposed`.

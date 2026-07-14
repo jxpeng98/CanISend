@@ -31,14 +31,15 @@ It prepares materials only. It does not submit applications, create accounts, fi
 - Provides the locally accepted Stage 2 Decision Spine: guarded user-owned corrections, Decision and Brief YAML,
   deterministic Criteria/Evidence/Match/required-document projections, and executable unresolved/omit/orphan blockers.
 - Provides two Stage 3 guarded executors: host-agent or configured-provider Cover Letter plus host-agent Research
-  Statement, each with an evidence-bound structured Draft, independent deterministic Review, and unique outputs.
-  User-owned dispositions and derived readiness remain Cover-Letter-only in this slice.
+  Statement, each with an evidence-bound structured Draft, independent deterministic Review, user-owned dispositions,
+  derived per-document readiness, and unique outputs.
 - Derives a body-free required-document execution fan-out, so guarded Cover Letter/Research Statement work,
   confirmed omissions, unresolved tasks, and document kinds without implemented executors remain distinguishable
   across agent hosts.
 - Renders current deterministic Match proposals and a current blocker-free structured Cover Letter into compatible
-  views while safely falling back for stale, drifted, blocked, mixed-profile, direct-library, or explicit
-  LLM-draft runs. A reviewed Cover Letter never implies package/submission readiness.
+  views, plus an exact reviewed Research Statement into standalone views, while safely closing stale, drifted,
+  blocked, mixed-profile, direct-library, or explicit LLM-draft paths. Document readiness never implies
+  package/submission readiness.
 - Generates `parsed_job.json`, preparation questions, fit reports, cover letter drafts, CV tailoring notes, criteria checklists, material review checklists, and structured Typst content.
 - Runs deterministic local generation by default, with explicit opt-in for LLM-backed evidence augmentation, parsing, or drafting.
 - Ships bridge files plus a self-contained workspace skill pack for Codex, Claude Code, and IDE agents.
@@ -334,18 +335,25 @@ jobs/<job-slug>/
   05_criteria_checklist.md
   06_final_application_package.md
   07_material_review_checklist.md
+  08_research_statement.md       # conditional: current reviewed Research Statement
   typst/
     cover_letter.typ
     application_package.typ
+    research_statement.typ       # conditional standalone document
 ```
 
 Generated Typst files are the editable source of truth for final formatting. Content JSON files may still be emitted as compatibility/debug artifacts, but normal edits should happen in the `.typ` files.
 
+The Research Statement files appear only after its exact current Draft, deterministic blocker-free Review, and
+user dispositions derive document readiness `reviewed`. They remain standalone: they are not embedded in the
+application-package source and do not change the existing package gate.
+
 CanISend records hashes of its generated Typst baseline. On a later `run`, an unchanged source updates normally. If a
 source has been edited, the user version is preserved and the new generation is written as `*.generated.typ` for
-review instead of silently overwriting the edit. While a candidate is pending, `check-package` and `render-typst`
-refuse to proceed, and `run --git-add-materials` skips staging so Markdown and Typst cannot be recorded as a mismatched
-set.
+review instead of silently overwriting the edit. Pending Cover Letter or application-package candidates block
+`check-package`; every pending candidate blocks `render-typst`, and `run --git-add-materials` skips staging so
+Markdown and Typst cannot be recorded as a mismatched set. A standalone Research Statement candidate stays outside
+the package gate but must still be reconciled before Typst rendering.
 
 To track edits to generated application materials in a private git repository, opt in after generation:
 
@@ -356,7 +364,11 @@ canisend run \
   --git-add-materials
 ```
 
-Without the flag, interactive terminals are asked whether to add generated application materials to git; non-interactive runs skip git staging unless the flag is set. CanISend stages only the generated preparation questions, fit report, cover letter draft, CV tailoring notes, criteria checklist, final package, material review checklist, and editable Typst sources. It does not stage raw adverts, source URLs, parsed job JSON, compatibility JSON, PDFs, or profile files, and it never commits automatically.
+Without the flag, interactive terminals are asked whether to add generated application materials to git;
+non-interactive runs skip git staging unless the flag is set. CanISend stages only the generated preparation
+questions, fit report, cover letter draft, CV tailoring notes, criteria checklist, final package, material review
+checklist, an eligible standalone Research Statement, and editable Typst sources. It does not stage raw adverts,
+source URLs, parsed job JSON, compatibility JSON, PDFs, or profile files, and it never commits automatically.
 
 LLM-backed evidence augmentation, parser, and draft generation are explicit opt-in modes. Configure a provider before using them:
 
@@ -401,13 +413,17 @@ Review files in this order:
 8. `03_cover_letter_draft.md`
 9. `04_cv_tailoring_notes.md`
 10. `07_material_review_checklist.md`
-11. `typst/cover_letter.typ`
-12. `typst/application_package.typ`
-13. `06_final_application_package.md`
+11. `08_research_statement.md` when generated from a reviewed Research Statement
+12. `typst/cover_letter.typ`
+13. `typst/research_statement.typ` when present
+14. `typst/application_package.typ`
+15. `06_final_application_package.md`
 
 Use `00_preparation_questions.md` to confirm US English vs UK English, writing style, and the grill-me details that make the application specific. Use `07_material_review_checklist.md` to track the cover letter draft, CV tailoring notes, placeholders, item-level evidence citation checks, and next manual actions.
 
-After reviewing the Markdown drafts, directly edit `typst/cover_letter.typ` and `typst/application_package.typ` for final wording and layout. The files include stable `// CANISEND: section ...` markers so agents can make bounded edits without rewriting the whole Typst source.
+After reviewing the Markdown drafts, directly edit `typst/cover_letter.typ` and the other applicable `.typ` sources
+for final wording and layout. The files include stable `// CANISEND: section ...` or Claim markers so agents can make
+bounded edits without rewriting the whole Typst source.
 
 Run a read-only package check before treating generated materials as ready for user review:
 
@@ -674,9 +690,9 @@ The option may be omitted only when the current plan has exactly one supported p
 `research_statement_review_dispositions.yaml`. `accepted` is valid only for non-blockers;
 `revision_required` keeps that document in review. A changed Draft/Review preserves the old decisions and requires
 `reset_for_current_review`. When every current non-blocker finding is accepted, that document derives `reviewed`
-while its Draft and Review stay `proposed`. Only Cover Letter readiness currently feeds the compatibility
-Markdown/Typst projection and existing package checks; Research Statement rendering and package readiness remain
-out of scope.
+while its Draft and Review stay `proposed`. Cover Letter readiness feeds its compatibility views and existing package
+checks. Research Statement readiness may feed only a standalone Markdown/Typst view; it is not embedded in the
+application package and does not affect package readiness.
 
 Evidence and Parse are independent after intake, so their deterministic runs may be ordered either way; Match waits
 for current Confirm and Evidence outputs. Host-agent execution applies to Parse and Draft, while configured-provider
@@ -735,6 +751,13 @@ that document reviewed; stale/drifted state, a different
 parsed view, a profile override, blocked/missing Draft or Review, a direct library call without workspace provenance,
 or `--llm-drafts` keeps the compatible fallback path. Match, Draft, and Review remain proposed; document readiness is
 derived and never becomes a Decision or whole-package result.
+
+When the Research Statement Draft and Review pass the same currentness checks and every non-blocker finding is
+accepted, the run also projects each Research Claim once into conditional standalone Markdown and Typst files. The
+projection binds exact Draft, Review, disposition, readiness, and Markdown hashes. It is deliberately absent from
+the application-package source and `check-package` inputs. If a prior Research projection becomes ineligible, a
+rerun replaces generated views with a body-free unavailable state; an edited Typst primary is preserved and receives
+a candidate for explicit reconciliation.
 
 Use `canisend doctor --workspace .` when a human-readable environment diagnostic is also useful.
 

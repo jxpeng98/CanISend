@@ -92,8 +92,8 @@ Do not use ready, final, complete, or submission-ready for generated materials u
   semantic-support review item until inspected; every non-factual Claim kind also remains open for semantic review.
 - A current Research Statement uses `research_statement_review_findings.json`; missing `research_overview`,
   `research_contributions`, or `future_agenda` is a blocker. Its findings use the independent
-  `research_statement_review_dispositions.yaml`; compatibility rendering and package readiness are not implemented
-  for this executor.
+  `research_statement_review_dispositions.yaml`. Only exact complete acceptances permit its standalone compatibility
+  rendering; package readiness is not derived for this executor.
 - The selected document's current disposition YAML binds its exact Draft/Review hashes. Every current non-blocker
   finding is `accepted`; none is unresolved or `revision_required`. Blockers cannot be accepted or waived, and a
   changed Review requires an explicit reset to the new basis rather than carrying decisions forward by position or
@@ -114,8 +114,9 @@ Do not use ready, final, complete, or submission-ready for generated materials u
 - Draft and Review remain `review_state=proposed`; reviewed status is a derived document-readiness projection. Missing,
   stale, incomplete, or revision-required dispositions keep `requires_human_review=true`. A missing, blocked, stale,
   drifted, or invalid Draft/Review uses the legacy/provider view rather than mixed provenance.
-- Research Statement `reviewed` remains a per-document control result only; it does not enter compatibility rendering
-  or the package gate in this slice.
+- A current reviewed Research Statement projection binds exact Draft, Review, disposition, readiness, and Markdown
+  hashes, renders each Claim once, and declares standalone scope. It does not enter application-package content,
+  required package files, APP-Q outcomes, or package input hashes.
 - `03_cover_letter_draft.md` application-facing English must not include unsupported claims.
 - `04_cv_tailoring_notes.md` tells the user what to adjust in the private CV, but does not rewrite the CV unless asked.
 - `05_criteria_checklist.md` covers all extracted essential criteria.
@@ -129,11 +130,13 @@ Do not use ready, final, complete, or submission-ready for generated materials u
 
 - `typst/cover_letter.typ` directly contains the cover letter text and stable section markers.
 - `typst/application_package.typ` directly contains the package text, criteria checklist, and remaining actions.
+- Conditional `typst/research_statement.typ` contains only the exact reviewed standalone Research Statement Claims.
 - Generated `.typ` files use `modernpro-coverletter` or `modernpro-cv` templates rather than Markdown-to-Typst conversion.
 - A structured Draft projection uses stable section and Claim markers, escapes Claim text as text, and does not allow
   agent-controlled headings or Typst code to become structure.
-- If a rerun writes `*.generated.typ`, the preserved editable source and candidate have been compared and reconciled.
-- No `typst/*.generated.typ` candidate remains; pending candidates block package readiness and rendering.
+- If a rerun writes `*.generated.typ`, reconcile the preserved editable source and candidate explicitly.
+- Cover Letter/application-package candidates block package readiness; every candidate, including the optional
+  Research Statement candidate, blocks rendering. The Research candidate alone does not change APP-Q.
 - PDF rendering is optional and requires local Typst.
 
 ## Executable Gate Report
@@ -189,8 +192,10 @@ Review files in this order:
 14. `03_cover_letter_draft.md`
 15. `04_cv_tailoring_notes.md`
 16. `07_material_review_checklist.md`
-17. `typst/cover_letter.typ`
-18. `typst/application_package.typ`
-19. `06_final_application_package.md`
+17. `08_research_statement.md` when an exact reviewed projection exists
+18. `typst/cover_letter.typ`
+19. `typst/research_statement.typ` when present
+20. `typst/application_package.typ`
+21. `06_final_application_package.md`
 
 Before editing prose, confirm `00_preparation_questions.md` has resolved US English vs UK English, the target writing style, specific motivation, emphasis, risk areas, and details to exclude.

@@ -8,7 +8,7 @@ import yaml
 from typer.testing import CliRunner
 
 from canisend.cli import app
-from canisend.git_tracking import APPLICATION_MATERIAL_RELATIVE_PATHS
+from canisend.git_tracking import application_material_paths
 from canisend.stage_runtime import inspect_stage_status, run_deterministic_stage
 
 
@@ -417,7 +417,7 @@ def test_run_git_add_materials_flag_stages_generated_application_materials(tmp_p
     assert command[:4] == ["git", "add", "-f", "--"]
     assert cwd == Path(".").resolve()
     staged = set(command[4:])
-    assert staged == {str(job_dir / relative_path) for relative_path in APPLICATION_MATERIAL_RELATIVE_PATHS}
+    assert staged == {str(path) for path in application_material_paths(job_dir)}
 
 
 def test_run_skips_git_staging_when_typst_candidate_requires_reconciliation(tmp_path, monkeypatch):
