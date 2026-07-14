@@ -1,6 +1,6 @@
 {
   "name": "canisend",
-  "version": "0.2.0",
+  "version": "0.3.0.dev1",
   "description": "Evidence-backed job application preparation skills for Codex.",
   "author": {
     "name": "Peng Jiaxin"
