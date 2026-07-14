@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Added the second guarded document executor for Research Statement with a strict evidence-bound schema,
+  `research_statement_draft.json`, host-agent candidate validation/promotion, independent deterministic
+  `research_statement_review_findings.json`, and document-specific completeness checks.
+- Made Draft/Review adapter selection document-kind-aware through the current stable Required Document Plan ID.
+  Cover Letter and Research Statement runs coexist without output/cache/recovery collisions; ambiguous omitted
+  selection fails closed, and configured-provider generation remains Cover-Letter-only.
+- Promoted `documents.research_statement` / `draft.research_statement` from planned to available while keeping
+  Research Statement dispositions, compatibility rendering, document readiness, cross-document Review, package
+  readiness, and submission explicitly out of scope.
+
 - Added backward-readable document-scoped control contracts and `(stage, document_id)` ownership across Draft and
   Review TaskSpec, result, submission, validation, manifest, terminal claim, promotion, WorkflowState, CLI, and
   AgentResponse. Cache, retry, reconstruction, failure, and descendant invalidation no longer collapse future
@@ -12,8 +22,8 @@
 - Added a versioned, deterministic required-document execution fan-out with one body-free work item per Brief task,
   an explicit available/planned/unregistered capability registry, exact source-plan hash binding, and fail-closed
   cardinality and executor-unavailable states.
-- Added read-only `canisend documents status` and AgentResponse capability routing. It can dispatch the existing
-  guarded Cover Letter path while keeping unimplemented research, teaching, supporting, diversity, publication, CV,
+- Added read-only `canisend documents status` and AgentResponse capability routing. It can dispatch guarded
+  document paths while keeping unimplemented teaching, supporting, diversity, publication, CV,
   email, interview, and unknown routes explicit without claiming application-package readiness.
 - Added Tier 3 configured-provider execution for the structured Cover Letter Draft through the same immutable
   TaskSpec, guarded candidate submission, current-basis validator, atomic promotion, cache, and recovery path as

@@ -37,9 +37,15 @@ from canisend.stages.confirm_stage import (
 )
 from canisend.stages.draft_stage import (
     COVER_LETTER_DRAFT_OUTPUT_PATH,
+    RESEARCH_STATEMENT_DRAFT_OUTPUT_PATH,
+    DraftDocumentKind,
     DraftStageError,
+    DraftStageValidationError,
     draft_input_fingerprint,
     draft_precondition_reasons,
+    research_statement_draft_input_fingerprint,
+    research_statement_draft_precondition_reasons,
+    validate_research_statement_draft_candidate,
     validate_draft_candidate,
 )
 from canisend.stages.evidence_stage import (
@@ -65,9 +71,14 @@ from canisend.stages.parse_stage import (
 )
 from canisend.stages.review_stage import (
     REVIEW_FINDINGS_OUTPUT_PATH,
+    RESEARCH_STATEMENT_REVIEW_FINDINGS_OUTPUT_PATH,
+    build_deterministic_research_statement_review_candidate,
     build_deterministic_review_candidate,
+    research_statement_review_input_fingerprint,
+    research_statement_review_precondition_reasons,
     review_input_fingerprint,
     review_precondition_reasons,
+    validate_research_statement_review_candidate,
     validate_review_candidate,
 )
 from canisend.user_file_store import UnsafeUserFileError, read_optional_safe_bytes
@@ -93,6 +104,7 @@ class StageAdapter:
     task_privacy_tier: int
     citations_validated: bool
     document_id: str | None = None
+    document_kind: DraftDocumentKind | None = None
 
     def input_fingerprint(self, workspace: Path, job_dir: Path) -> str:
         raise NotImplementedError
@@ -157,6 +169,10 @@ class StageAdapter:
 
     def required_consents(self, execution_mode: AdapterExecutionMode) -> tuple[str, ...]:
         return ()
+
+    def supports_execution_mode(self, execution_mode: AdapterExecutionMode) -> bool:
+        del execution_mode
+        return True
 
     def task_privacy_tier_for(self, execution_mode: AdapterExecutionMode) -> int:
         del execution_mode
@@ -579,6 +595,20 @@ class DraftStageAdapter(StageAdapter):
         workspace: Path,
         job_dir: Path,
     ) -> tuple[str, ...]:
+        if self.document_kind == "research_statement":
+            return research_statement_draft_precondition_reasons(
+                workspace,
+                job_dir,
+                document_id=self.document_id,
+                parsed_job_schema_path=_schema_path(
+                    workspace,
+                    "parsed_job.schema.json",
+                ),
+                required_document_plan_schema_path=_schema_path(
+                    workspace,
+                    "required-document-plan.schema.json",
+                ),
+            )
         return draft_precondition_reasons(
             workspace,
             job_dir,
@@ -591,6 +621,24 @@ class DraftStageAdapter(StageAdapter):
         )
 
     def input_fingerprint(self, workspace: Path, job_dir: Path) -> str:
+        if self.document_kind == "research_statement":
+            return research_statement_draft_input_fingerprint(
+                workspace,
+                job_dir,
+                document_id=self.document_id,
+                research_statement_schema_path=_schema_path(
+                    workspace,
+                    "research-statement-draft.schema.json",
+                ),
+                parsed_job_schema_path=_schema_path(
+                    workspace,
+                    "parsed_job.schema.json",
+                ),
+                required_document_plan_schema_path=_schema_path(
+                    workspace,
+                    "required-document-plan.schema.json",
+                ),
+            )
         return draft_input_fingerprint(
             workspace,
             job_dir,
@@ -648,24 +696,54 @@ class DraftStageAdapter(StageAdapter):
             raise DraftStageValidationError(
                 "Draft candidate execution mode is unsupported."
             )
-        validated = validate_draft_candidate(
-            candidate,
-            workspace=workspace,
-            job_dir=job_dir,
-            document_id=self.document_id,
-            input_fingerprint=input_fingerprint,
-            cover_letter_schema_path=_schema_path(
-                workspace,
-                "cover-letter-draft.schema.json",
-            ),
-            parsed_job_schema_path=_schema_path(workspace, "parsed_job.schema.json"),
-            required_document_plan_schema_path=_schema_path(
-                workspace,
-                "required-document-plan.schema.json",
-            ),
-            expected_generation_mode=execution_mode,
-        )
+        if self.document_kind == "research_statement":
+            validated = validate_research_statement_draft_candidate(
+                candidate,
+                workspace=workspace,
+                job_dir=job_dir,
+                document_id=self.document_id,
+                input_fingerprint=input_fingerprint,
+                research_statement_schema_path=_schema_path(
+                    workspace,
+                    "research-statement-draft.schema.json",
+                ),
+                parsed_job_schema_path=_schema_path(
+                    workspace,
+                    "parsed_job.schema.json",
+                ),
+                required_document_plan_schema_path=_schema_path(
+                    workspace,
+                    "required-document-plan.schema.json",
+                ),
+                expected_generation_mode=execution_mode,
+            )
+        else:
+            validated = validate_draft_candidate(
+                candidate,
+                workspace=workspace,
+                job_dir=job_dir,
+                document_id=self.document_id,
+                input_fingerprint=input_fingerprint,
+                cover_letter_schema_path=_schema_path(
+                    workspace,
+                    "cover-letter-draft.schema.json",
+                ),
+                parsed_job_schema_path=_schema_path(
+                    workspace,
+                    "parsed_job.schema.json",
+                ),
+                required_document_plan_schema_path=_schema_path(
+                    workspace,
+                    "required-document-plan.schema.json",
+                ),
+                expected_generation_mode=execution_mode,
+            )
         return validated.model_dump(mode="json")
+
+    def supports_execution_mode(self, execution_mode: AdapterExecutionMode) -> bool:
+        if self.document_kind == "research_statement":
+            return execution_mode == "host_agent"
+        return execution_mode in {"host_agent", "configured_provider"}
 
     def required_consents(self, execution_mode: AdapterExecutionMode) -> tuple[str, ...]:
         if execution_mode == "host_agent":
@@ -684,6 +762,24 @@ class ReviewStageAdapter(StageAdapter):
         workspace: Path,
         job_dir: Path,
     ) -> tuple[str, ...]:
+        if self.document_kind == "research_statement":
+            return research_statement_review_precondition_reasons(
+                workspace,
+                job_dir,
+                document_id=self.document_id,
+                research_statement_schema_path=_schema_path(
+                    workspace,
+                    "research-statement-draft.schema.json",
+                ),
+                parsed_job_schema_path=_schema_path(
+                    workspace,
+                    "parsed_job.schema.json",
+                ),
+                required_document_plan_schema_path=_schema_path(
+                    workspace,
+                    "required-document-plan.schema.json",
+                ),
+            )
         return review_precondition_reasons(
             workspace,
             job_dir,
@@ -700,6 +796,28 @@ class ReviewStageAdapter(StageAdapter):
         )
 
     def input_fingerprint(self, workspace: Path, job_dir: Path) -> str:
+        if self.document_kind == "research_statement":
+            return research_statement_review_input_fingerprint(
+                workspace,
+                job_dir,
+                document_id=self.document_id,
+                review_findings_schema_path=_schema_path(
+                    workspace,
+                    "review-findings.schema.json",
+                ),
+                research_statement_schema_path=_schema_path(
+                    workspace,
+                    "research-statement-draft.schema.json",
+                ),
+                parsed_job_schema_path=_schema_path(
+                    workspace,
+                    "parsed_job.schema.json",
+                ),
+                required_document_plan_schema_path=_schema_path(
+                    workspace,
+                    "required-document-plan.schema.json",
+                ),
+            )
         return review_input_fingerprint(
             workspace,
             job_dir,
@@ -727,8 +845,14 @@ class ReviewStageAdapter(StageAdapter):
         draft_inputs = get_stage_adapter(
             "draft",
             document_id=self.document_id,
+            document_kind=self.document_kind,
         ).input_artifacts(workspace, job_dir)
-        return (*draft_inputs, _artifact(job_dir, COVER_LETTER_DRAFT_OUTPUT_PATH))
+        draft_target = (
+            RESEARCH_STATEMENT_DRAFT_OUTPUT_PATH
+            if self.document_kind == "research_statement"
+            else COVER_LETTER_DRAFT_OUTPUT_PATH
+        )
+        return (*draft_inputs, _artifact(job_dir, draft_target))
 
     def build_deterministic_candidate(
         self,
@@ -739,25 +863,52 @@ class ReviewStageAdapter(StageAdapter):
         inputs: tuple[ArtifactFingerprint, ...],
     ) -> dict[str, Any]:
         del inputs
-        candidate = build_deterministic_review_candidate(
-            workspace,
-            job_dir,
-            document_id=self.document_id,
-            input_fingerprint=input_fingerprint,
-            review_findings_schema_path=_schema_path(
+        if self.document_kind == "research_statement":
+            candidate = build_deterministic_research_statement_review_candidate(
                 workspace,
-                "review-findings.schema.json",
-            ),
-            cover_letter_schema_path=_schema_path(
+                job_dir,
+                document_id=self.document_id,
+                input_fingerprint=input_fingerprint,
+                review_findings_schema_path=_schema_path(
+                    workspace,
+                    "review-findings.schema.json",
+                ),
+                research_statement_schema_path=_schema_path(
+                    workspace,
+                    "research-statement-draft.schema.json",
+                ),
+                parsed_job_schema_path=_schema_path(
+                    workspace,
+                    "parsed_job.schema.json",
+                ),
+                required_document_plan_schema_path=_schema_path(
+                    workspace,
+                    "required-document-plan.schema.json",
+                ),
+            )
+        else:
+            candidate = build_deterministic_review_candidate(
                 workspace,
-                "cover-letter-draft.schema.json",
-            ),
-            parsed_job_schema_path=_schema_path(workspace, "parsed_job.schema.json"),
-            required_document_plan_schema_path=_schema_path(
-                workspace,
-                "required-document-plan.schema.json",
-            ),
-        )
+                job_dir,
+                document_id=self.document_id,
+                input_fingerprint=input_fingerprint,
+                review_findings_schema_path=_schema_path(
+                    workspace,
+                    "review-findings.schema.json",
+                ),
+                cover_letter_schema_path=_schema_path(
+                    workspace,
+                    "cover-letter-draft.schema.json",
+                ),
+                parsed_job_schema_path=_schema_path(
+                    workspace,
+                    "parsed_job.schema.json",
+                ),
+                required_document_plan_schema_path=_schema_path(
+                    workspace,
+                    "required-document-plan.schema.json",
+                ),
+            )
         return candidate.model_dump(mode="json")
 
     def validate_candidate(
@@ -771,26 +922,54 @@ class ReviewStageAdapter(StageAdapter):
         execution_mode: AdapterExecutionMode,
     ) -> dict[str, Any]:
         del inputs, execution_mode
-        validated = validate_review_candidate(
-            candidate,
-            workspace=workspace,
-            job_dir=job_dir,
-            document_id=self.document_id,
-            input_fingerprint=input_fingerprint,
-            review_findings_schema_path=_schema_path(
-                workspace,
-                "review-findings.schema.json",
-            ),
-            cover_letter_schema_path=_schema_path(
-                workspace,
-                "cover-letter-draft.schema.json",
-            ),
-            parsed_job_schema_path=_schema_path(workspace, "parsed_job.schema.json"),
-            required_document_plan_schema_path=_schema_path(
-                workspace,
-                "required-document-plan.schema.json",
-            ),
-        )
+        if self.document_kind == "research_statement":
+            validated = validate_research_statement_review_candidate(
+                candidate,
+                workspace=workspace,
+                job_dir=job_dir,
+                document_id=self.document_id,
+                input_fingerprint=input_fingerprint,
+                review_findings_schema_path=_schema_path(
+                    workspace,
+                    "review-findings.schema.json",
+                ),
+                research_statement_schema_path=_schema_path(
+                    workspace,
+                    "research-statement-draft.schema.json",
+                ),
+                parsed_job_schema_path=_schema_path(
+                    workspace,
+                    "parsed_job.schema.json",
+                ),
+                required_document_plan_schema_path=_schema_path(
+                    workspace,
+                    "required-document-plan.schema.json",
+                ),
+            )
+        else:
+            validated = validate_review_candidate(
+                candidate,
+                workspace=workspace,
+                job_dir=job_dir,
+                document_id=self.document_id,
+                input_fingerprint=input_fingerprint,
+                review_findings_schema_path=_schema_path(
+                    workspace,
+                    "review-findings.schema.json",
+                ),
+                cover_letter_schema_path=_schema_path(
+                    workspace,
+                    "cover-letter-draft.schema.json",
+                ),
+                parsed_job_schema_path=_schema_path(
+                    workspace,
+                    "parsed_job.schema.json",
+                ),
+                required_document_plan_schema_path=_schema_path(
+                    workspace,
+                    "required-document-plan.schema.json",
+                ),
+            )
         return validated.model_dump(mode="json")
 
 
@@ -860,6 +1039,7 @@ _ADAPTERS = {
         privacy_tier=2,
         task_privacy_tier=2,
         citations_validated=True,
+        document_kind="cover_letter",
     ),
     "review": ReviewStageAdapter(
         stage_id="review",
@@ -871,6 +1051,43 @@ _ADAPTERS = {
         privacy_tier=2,
         task_privacy_tier=2,
         citations_validated=True,
+        document_kind="cover_letter",
+    ),
+}
+
+
+_DOCUMENT_ADAPTERS: dict[tuple[str, DraftDocumentKind], StageAdapter] = {
+    ("draft", "cover_letter"): _ADAPTERS["draft"],
+    ("review", "cover_letter"): _ADAPTERS["review"],
+    (
+        "draft",
+        "research_statement",
+    ): DraftStageAdapter(
+        stage_id="draft",
+        authoritative_target=RESEARCH_STATEMENT_DRAFT_OUTPUT_PATH,
+        candidate_name=RESEARCH_STATEMENT_DRAFT_OUTPUT_PATH,
+        output_schema="canisend.research-statement-draft/v1",
+        artifact_kind="research_statement_draft",
+        media_type="application/json",
+        privacy_tier=2,
+        task_privacy_tier=2,
+        citations_validated=True,
+        document_kind="research_statement",
+    ),
+    (
+        "review",
+        "research_statement",
+    ): ReviewStageAdapter(
+        stage_id="review",
+        authoritative_target=RESEARCH_STATEMENT_REVIEW_FINDINGS_OUTPUT_PATH,
+        candidate_name=RESEARCH_STATEMENT_REVIEW_FINDINGS_OUTPUT_PATH,
+        output_schema="canisend.review-findings/v1",
+        artifact_kind="research_statement_review_findings",
+        media_type="application/json",
+        privacy_tier=2,
+        task_privacy_tier=2,
+        citations_validated=True,
+        document_kind="research_statement",
     ),
 }
 
@@ -879,12 +1096,28 @@ def get_stage_adapter(
     stage_id: str,
     *,
     document_id: str | None = None,
+    document_kind: DraftDocumentKind | None = None,
 ) -> StageAdapter:
+    if stage_id in {"draft", "review"}:
+        resolved_kind = document_kind or "cover_letter"
+        try:
+            adapter = _DOCUMENT_ADAPTERS[(stage_id, resolved_kind)]
+        except KeyError as exc:
+            raise KeyError(
+                f"stage has no executable adapter for document kind: {stage_id}"
+            ) from exc
+        return replace(
+            adapter,
+            document_id=document_id,
+            document_kind=resolved_kind,
+        )
+    if document_kind is not None:
+        raise KeyError(f"stage does not accept document kind: {stage_id}")
     try:
         adapter = _ADAPTERS[stage_id]
     except KeyError as exc:
         raise KeyError(f"stage has no executable adapter: {stage_id}") from exc
-    if document_id is not None and stage_id not in {"draft", "review"}:
+    if document_id is not None:
         raise KeyError(f"stage does not accept document identity: {stage_id}")
     return replace(adapter, document_id=document_id)
 

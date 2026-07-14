@@ -126,8 +126,14 @@ Review quality gates before rendering:
 - Missing or stale `cover_letter_draft.json`: make Brief/Match/Evidence current, then use guarded host-agent
   prepare/submit/apply or explicitly consented configured-provider Draft. Do not mix candidate modes or bypass the
   guarded stage boundary.
+- Missing or stale `research_statement_draft.json`: make Brief/Match/Evidence current, obtain the exact Research
+  Statement document ID from the approved plan, and use guarded host-agent prepare/submit/apply. Configured-provider
+  execution is unsupported for this document.
 - Missing or stale `review_findings.json`: make Draft current and run deterministic Review. Resolve non-waivable
   blockers, then use `review-dispositions status|init|update` for each current finding.
+- Missing or stale `research_statement_review_findings.json`: run deterministic Review with the same document ID,
+  resolve blockers, and inspect remaining findings manually. Do not route them through Cover Letter dispositions or
+  infer document/package readiness.
 - Missing/stale/incomplete `review_dispositions.yaml`: use the exact current revision/hash; reset only when the
   Draft/Review basis changed. Cover Letter `reviewed` is derived and remains distinct from package readiness.
 - Mutation recovery requested: use `user-mutation recover` with the opaque accepted mutation ID and explicit

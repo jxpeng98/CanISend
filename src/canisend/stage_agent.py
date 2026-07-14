@@ -19,7 +19,11 @@ from canisend.decision_models import (
     EvidenceCatalogV1,
     RequiredDocumentPlanV1,
 )
-from canisend.draft_models import CoverLetterDraftV1, ReviewFindingsV1
+from canisend.draft_models import (
+    CoverLetterDraftV1,
+    ResearchStatementDraftV1,
+    ReviewFindingsV1,
+)
 from canisend.stage_adapters import get_stage_adapter
 from canisend.stage_models import CandidateSubmissionV1, TaskSpecV1
 from canisend.stage_registry import DEFAULT_STAGE_REGISTRY
@@ -45,6 +49,7 @@ def stage_status_agent_response(
     adapter = get_stage_adapter(
         stage_id,
         document_id=inspection.stage.document_id,
+        document_kind=inspection.document_kind,
     )
     artifacts = []
     pending_task = _pending_task_spec(inspection.pending_task_path)
@@ -469,6 +474,7 @@ def stage_submit_agent_response(
     adapter = get_stage_adapter(
         stage_id,
         document_id=submitted.document_id,
+        document_kind=submitted.document_kind,
     )
     return success_response(
         operation="workflow.stage_submit",
@@ -526,6 +532,7 @@ def stage_apply_agent_response(workspace: Path, applied: AppliedStage) -> AgentR
     adapter = get_stage_adapter(
         stage_id,
         document_id=applied.document_id,
+        document_kind=applied.document_kind,
     )
     readiness, semantic_extensions, semantic_actions = _semantic_status(
         stage_id,
@@ -613,7 +620,11 @@ def stage_cancel_agent_response(
 
 def stage_run_agent_response(workspace: Path, outcome: StageRunOutcome) -> AgentResponse:
     stage_id = outcome.stage
-    adapter = get_stage_adapter(stage_id, document_id=outcome.document_id)
+    adapter = get_stage_adapter(
+        stage_id,
+        document_id=outcome.document_id,
+        document_kind=outcome.document_kind,
+    )
     readiness, semantic_extensions, semantic_actions = _semantic_status(
         stage_id,
         outcome.authoritative_path,
@@ -790,7 +801,11 @@ def _current_semantic_status(
             job_dir,
             stage=stage_id,  # type: ignore[arg-type]
         )
-        adapter = get_stage_adapter(stage_id)
+        adapter = get_stage_adapter(
+            stage_id,
+            document_id=inspection.stage.document_id,
+            document_kind=inspection.document_kind,
+        )
     except (KeyError, StageRuntimeError):
         return "blocked", []
     if (
@@ -918,14 +933,22 @@ def _semantic_status(
         ]
     if stage_id == "draft":
         try:
-            draft = CoverLetterDraftV1.model_validate(
-                read_json_object(authoritative_path)
+            draft_model = (
+                ResearchStatementDraftV1
+                if authoritative_path.name == "research_statement_draft.json"
+                else CoverLetterDraftV1
             )
+            draft = draft_model.model_validate(read_json_object(authoritative_path))
         except (StageStoreError, ValidationError):
+            document_label = (
+                "Research Statement"
+                if authoritative_path.name == "research_statement_draft.json"
+                else "Cover Letter"
+            )
             return "review_required", {}, [
                 NextAction(
                     id="draft.review_claims",
-                    label="Review the invalid structured Cover Letter Draft",
+                    label=f"Review the invalid structured {document_label} Draft",
                 )
             ]
         claims = tuple(
@@ -957,6 +980,9 @@ def _semantic_status(
             )
         ]
     if stage_id == "review":
+        is_research_statement = (
+            authoritative_path.name == "research_statement_review_findings.json"
+        )
         try:
             review = ReviewFindingsV1.model_validate(
                 read_json_object(authoritative_path)
@@ -995,6 +1021,16 @@ def _semantic_status(
                 NextAction(
                     id="review.resolve_blockers",
                     label="Resolve blocker findings and regenerate the Draft",
+                )
+            ]
+        if is_research_statement:
+            return "review_required", extensions, [
+                NextAction(
+                    id="review.inspect_findings",
+                    label=(
+                        "Inspect the Research Statement findings; guarded dispositions "
+                        "and readiness are not available yet"
+                    ),
                 )
             ]
         return "review_required", extensions, [

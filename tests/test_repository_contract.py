@@ -46,6 +46,7 @@ def test_v1_contract_files_exist():
         "schemas/application-brief.schema.json",
         "schemas/required-document-plan.schema.json",
         "schemas/cover-letter-draft.schema.json",
+        "schemas/research-statement-draft.schema.json",
         "schemas/review-findings.schema.json",
         "schemas/review-dispositions.schema.json",
         "schemas/document-readiness.schema.json",

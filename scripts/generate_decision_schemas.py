@@ -12,7 +12,11 @@ from canisend.decision_models import (
     EvidenceCatalogV1,
     RequiredDocumentPlanV1,
 )
-from canisend.draft_models import CoverLetterDraftV1, ReviewFindingsV1
+from canisend.draft_models import (
+    CoverLetterDraftV1,
+    ResearchStatementDraftV1,
+    ReviewFindingsV1,
+)
 from canisend.document_execution import DocumentExecutionPlanV1
 from canisend.review_readiness import DocumentReadinessV1, ReviewDispositionsV1
 from canisend.user_mutations import UserMutationReceiptV1
@@ -27,6 +31,7 @@ SCHEMAS = {
     "application-brief.schema.json": ApplicationBriefV1,
     "required-document-plan.schema.json": RequiredDocumentPlanV1,
     "cover-letter-draft.schema.json": CoverLetterDraftV1,
+    "research-statement-draft.schema.json": ResearchStatementDraftV1,
     "review-findings.schema.json": ReviewFindingsV1,
     "review-dispositions.schema.json": ReviewDispositionsV1,
     "document-readiness.schema.json": DocumentReadinessV1,

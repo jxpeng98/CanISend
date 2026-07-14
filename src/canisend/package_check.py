@@ -31,6 +31,7 @@ REQUIRED_WHEEL_RESOURCES = [
     "canisend/resources/schemas/application-brief.schema.json",
     "canisend/resources/schemas/required-document-plan.schema.json",
     "canisend/resources/schemas/cover-letter-draft.schema.json",
+    "canisend/resources/schemas/research-statement-draft.schema.json",
     "canisend/resources/schemas/review-findings.schema.json",
     "canisend/resources/schemas/review-dispositions.schema.json",
     "canisend/resources/schemas/document-readiness.schema.json",

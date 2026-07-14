@@ -43,7 +43,12 @@ from canisend.stage_store import (
 )
 from canisend.stages.brief_stage import BriefStageError
 from canisend.stages.confirm_stage import ConfirmStageError
+from canisend.stages.draft_stage import (
+    RESEARCH_STATEMENT_DRAFT_OUTPUT_PATH,
+    DraftDocumentKind,
+)
 from canisend.stages.parse_stage import ParseStageError
+from canisend.stages.review_stage import RESEARCH_STATEMENT_REVIEW_FINDINGS_OUTPUT_PATH
 from canisend.user_file_store import (
     InvalidUserFileError,
     UnsafeUserFileError,
@@ -69,6 +74,10 @@ SupportedExecutionMode = Literal[
 ]
 
 MAX_PROVIDER_DRAFT_INPUT_BYTES = 20_000_000
+_EXECUTABLE_DOCUMENT_KINDS: tuple[DraftDocumentKind, ...] = (
+    "cover_letter",
+    "research_statement",
+)
 
 
 class StageRuntimeError(RuntimeError):
@@ -87,6 +96,7 @@ class PreparedStage:
     result_path: Path
     state: WorkflowStateV1
     document_id: str | None
+    document_kind: DraftDocumentKind | None = None
     reused: bool = False
 
 
@@ -99,6 +109,7 @@ class StageStatusInspection:
     reasons: tuple[str, ...] = ()
     pending_task_path: Path | None = None
     reconstructed: bool = False
+    document_kind: DraftDocumentKind | None = None
 
 
 @dataclass(frozen=True)
@@ -108,6 +119,7 @@ class AppliedStage:
     state: WorkflowStateV1
     authoritative_path: Path
     document_id: str | None
+    document_kind: DraftDocumentKind | None = None
 
 
 @dataclass(frozen=True)
@@ -116,6 +128,7 @@ class CancelledStage:
     manifest_path: Path
     state: WorkflowStateV1
     document_id: str | None
+    document_kind: DraftDocumentKind | None = None
 
 
 @dataclass(frozen=True)
@@ -126,6 +139,7 @@ class SubmittedStage:
     result_path: Path
     submission_path: Path
     document_id: str | None
+    document_kind: DraftDocumentKind | None = None
 
 
 @dataclass(frozen=True)
@@ -137,6 +151,7 @@ class StageRunOutcome:
     authoritative_path: Path
     manifest: RunManifestV1 | None = None
     manifest_path: Path | None = None
+    document_kind: DraftDocumentKind | None = None
 
 
 def inspect_stage_status(
@@ -152,8 +167,17 @@ def inspect_stage_status(
         stage=stage,
         document_id=document_id,
     )
+    resolved_document_kind = _resolve_stage_document_kind(
+        job,
+        stage=stage,
+        document_id=resolved_document_id,
+    )
     definition = _implemented_stage(stage)
-    adapter = _adapter(stage, document_id=resolved_document_id)
+    adapter = _adapter(
+        stage,
+        document_id=resolved_document_id,
+        document_kind=resolved_document_kind,
+    )
     state, reconstructed = _load_or_reconstruct_state(job)
     dependency_reasons: list[str] = []
     for dependency in definition.depends_on:
@@ -252,6 +276,7 @@ def inspect_stage_status(
             reasons=tuple((*dependency_reasons, *output_reasons)),
             pending_task_path=pending_task[1] if pending_task is not None else None,
             reconstructed=reconstructed,
+            document_kind=resolved_document_kind,
         )
 
     try:
@@ -342,6 +367,7 @@ def inspect_stage_status(
         reasons=tuple(reasons),
         pending_task_path=pending_path,
         reconstructed=reconstructed,
+        document_kind=resolved_document_kind,
     )
 
 
@@ -359,9 +385,21 @@ def prepare_stage(
         stage=stage,
         document_id=document_id,
     )
+    resolved_document_kind = _resolve_stage_document_kind(
+        job,
+        stage=stage,
+        document_id=resolved_document_id,
+    )
     definition = _implemented_stage(stage)
-    adapter = _adapter(stage, document_id=resolved_document_id)
-    if execution_mode not in definition.execution_modes:
+    adapter = _adapter(
+        stage,
+        document_id=resolved_document_id,
+        document_kind=resolved_document_kind,
+    )
+    if (
+        execution_mode not in definition.execution_modes
+        or not adapter.supports_execution_mode(execution_mode)
+    ):
         raise StageRuntimeError(
             "stage.unsupported_mode",
             "The requested execution mode is not supported for this stage.",
@@ -409,6 +447,7 @@ def prepare_stage(
             result_path=resolve_job_relative_path(job, task.result_output),
             state=status.state,
             document_id=resolved_document_id,
+            document_kind=resolved_document_kind,
             reused=True,
         )
 
@@ -535,6 +574,7 @@ def prepare_stage(
         result_path=result_path,
         state=state,
         document_id=resolved_document_id,
+        document_kind=resolved_document_kind,
     )
 
 
@@ -564,7 +604,7 @@ def apply_stage_result(
         if task_relative != expected_task_relative:
             raise StageRuntimeError("stage.task_identity_mismatch", "TaskSpec path does not match its run.")
         definition = _implemented_stage(task.stage)
-        adapter = _adapter(task.stage, document_id=task.document_id)
+        adapter = _adapter_for_task(job, task)
         _validate_task_contract(job, task, definition, adapter)
         _validate_task_preparation(job, task_path, task)
         _validate_active_task(job, task, adapter)
@@ -772,6 +812,7 @@ def apply_stage_result(
             state=updated_state,
             authoritative_path=target,
             document_id=logical_document_id,
+            document_kind=adapter.document_kind,
         )
     except StageRuntimeError as exc:
         if (
@@ -823,7 +864,7 @@ def submit_stage_candidate(
                 "TaskSpec path does not match its run.",
             )
         definition = _implemented_stage(task.stage)
-        adapter = _adapter(task.stage, document_id=task.document_id)
+        adapter = _adapter_for_task(job, task)
         _validate_task_contract(job, task, definition, adapter)
         _validate_task_preparation(job, task_path, task)
         _validate_active_task(job, task, adapter)
@@ -927,6 +968,7 @@ def submit_stage_candidate(
             result_path=result_path,
             submission_path=submission_path,
             document_id=logical_document_id,
+            document_kind=adapter.document_kind,
         )
     except StageRuntimeError:
         raise
@@ -963,6 +1005,11 @@ def cancel_stage_task(
         job,
         stage=stage,
         document_id=document_id,
+    )
+    resolved_document_kind = _resolve_stage_document_kind(
+        job,
+        stage=stage,
+        document_id=resolved_document_id,
     )
     state, _ = _load_or_reconstruct_state(job)
     running = next(
@@ -1017,7 +1064,7 @@ def cancel_stage_task(
             "The active task does not own the requested document target.",
         )
     definition = _implemented_stage(task.stage)
-    adapter = _adapter(task.stage, document_id=task.document_id)
+    adapter = _adapter_for_task(job, task)
     _validate_task_contract(job, task, definition, adapter)
     _validate_task_preparation(job, task_path, task)
     _validate_active_task(job, task, adapter)
@@ -1082,6 +1129,7 @@ def cancel_stage_task(
         manifest_path=manifest_path,
         state=updated,
         document_id=resolved_document_id,
+        document_kind=resolved_document_kind,
     )
 
 
@@ -1098,7 +1146,16 @@ def run_deterministic_stage(
         stage=stage,
         document_id=document_id,
     )
-    adapter = _adapter(stage, document_id=resolved_document_id)
+    resolved_document_kind = _resolve_stage_document_kind(
+        job,
+        stage=stage,
+        document_id=resolved_document_id,
+    )
+    adapter = _adapter(
+        stage,
+        document_id=resolved_document_id,
+        document_kind=resolved_document_kind,
+    )
     _finalize_recoverable_promotions(job)
     status = inspect_stage_status(
         root,
@@ -1124,6 +1181,7 @@ def run_deterministic_stage(
             cache_hit=True,
             state=status.state,
             authoritative_path=target,
+            document_kind=resolved_document_kind,
         )
 
     prepared = prepare_stage(
@@ -1169,6 +1227,7 @@ def run_deterministic_stage(
         authoritative_path=applied.authoritative_path,
         manifest=applied.manifest,
         manifest_path=applied.manifest_path,
+        document_kind=resolved_document_kind,
     )
 
 
@@ -1189,9 +1248,21 @@ def run_configured_provider_stage(
         stage=stage,
         document_id=document_id,
     )
+    resolved_document_kind = _resolve_stage_document_kind(
+        job,
+        stage=stage,
+        document_id=resolved_document_id,
+    )
     definition = _implemented_stage(stage)
-    adapter = _adapter(stage, document_id=resolved_document_id)
-    if "configured_provider" not in definition.execution_modes:
+    adapter = _adapter(
+        stage,
+        document_id=resolved_document_id,
+        document_kind=resolved_document_kind,
+    )
+    if (
+        "configured_provider" not in definition.execution_modes
+        or not adapter.supports_execution_mode("configured_provider")
+    ):
         raise StageRuntimeError(
             "stage.unsupported_mode",
             "The requested stage does not support configured-provider execution.",
@@ -1222,6 +1293,7 @@ def run_configured_provider_stage(
             cache_hit=True,
             state=status.state,
             authoritative_path=target,
+            document_kind=resolved_document_kind,
         )
     if not allow_provider_backed:
         raise StageRuntimeError(
@@ -1308,6 +1380,7 @@ def run_configured_provider_stage(
         authoritative_path=applied.authoritative_path,
         manifest=applied.manifest,
         manifest_path=applied.manifest_path,
+        document_kind=resolved_document_kind,
     )
 
 
@@ -1402,9 +1475,18 @@ def _implemented_stage(stage: str):
     return definition
 
 
-def _adapter(stage: str, *, document_id: str | None = None) -> StageAdapter:
+def _adapter(
+    stage: str,
+    *,
+    document_id: str | None = None,
+    document_kind: DraftDocumentKind | None = None,
+) -> StageAdapter:
     try:
-        return get_stage_adapter(stage, document_id=document_id)
+        return get_stage_adapter(
+            stage,
+            document_id=document_id,
+            document_kind=document_kind,
+        )
     except KeyError as exc:
         raise StageRuntimeError(
             "stage.unsupported",
@@ -1441,19 +1523,81 @@ def _resolve_stage_document_id(
         )
     except (StageStoreError, ValidationError):
         return document_id
-    cover_letter_ids = tuple(
-        requirement.document_id
+    supported_requirements = tuple(
+        requirement
         for requirement in plan.requirements
-        if requirement.normalized_kind == "cover_letter"
+        if requirement.normalized_kind in _EXECUTABLE_DOCUMENT_KINDS
     )
+    supported_ids = tuple(item.document_id for item in supported_requirements)
     if document_id is not None:
-        if document_id not in cover_letter_ids:
+        if document_id not in supported_ids:
             raise StageRuntimeError(
                 "stage.document_not_found",
                 "The requested document target has no available executor for this stage.",
             )
         return document_id
-    return cover_letter_ids[0] if len(cover_letter_ids) == 1 else None
+    task_by_id = {item.document_id: item for item in plan.tasks}
+    ready_ids = tuple(
+        requirement.document_id
+        for requirement in supported_requirements
+        if (
+            (task := task_by_id.get(requirement.document_id)) is not None
+            and task.action == "prepare"
+            and task.confirmation_state == "confirmed"
+            and not task.blockers
+        )
+    )
+    if len(ready_ids) > 1:
+        raise StageRuntimeError(
+            "stage.document_ambiguous",
+            "More than one document target is ready; select one with --document-id.",
+        )
+    return ready_ids[0] if len(ready_ids) == 1 else None
+
+
+def _resolve_stage_document_kind(
+    job: Path,
+    *,
+    stage: str,
+    document_id: str | None,
+) -> DraftDocumentKind | None:
+    if stage not in {"draft", "review"} or document_id is None:
+        return None
+    try:
+        plan = RequiredDocumentPlanV1.model_validate(
+            read_json_object(job / "required_document_plan.json")
+        )
+    except (StageStoreError, ValidationError):
+        return None
+    matching = tuple(
+        requirement.normalized_kind
+        for requirement in plan.requirements
+        if requirement.document_id == document_id
+        and requirement.normalized_kind in _EXECUTABLE_DOCUMENT_KINDS
+    )
+    if len(matching) != 1:
+        return None
+    return matching[0]  # type: ignore[return-value]
+
+
+def _adapter_for_task(job: Path, task: TaskSpecV1) -> StageAdapter:
+    document_kind = _resolve_stage_document_kind(
+        job,
+        stage=task.stage,
+        document_id=task.document_id,
+    )
+    if document_kind is None and task.output_schema == "canisend.research-statement-draft/v1":
+        document_kind = "research_statement"
+    if (
+        document_kind is None
+        and task.authoritative_target == RESEARCH_STATEMENT_REVIEW_FINDINGS_OUTPUT_PATH
+    ):
+        document_kind = "research_statement"
+    return _adapter(
+        task.stage,
+        document_id=task.document_id,
+        document_kind=document_kind,
+    )
 
 
 def _legacy_run_document_id(
@@ -1904,6 +2048,16 @@ def _apply_reconstructed_dependency_staleness(
                 record.document_id if dependency in {"draft", "review"} else None,
             )
             dependency_record = records.get(dependency_key)
+            dependency_document_kind: DraftDocumentKind | None = None
+            if dependency in {"draft", "review"} and any(
+                item.path
+                in {
+                    RESEARCH_STATEMENT_DRAFT_OUTPUT_PATH,
+                    RESEARCH_STATEMENT_REVIEW_FINDINGS_OUTPUT_PATH,
+                }
+                for item in (*record.inputs, *record.outputs)
+            ):
+                dependency_document_kind = "research_statement"
             dependency_output_path = _adapter(
                 dependency,
                 document_id=(
@@ -1911,6 +2065,7 @@ def _apply_reconstructed_dependency_staleness(
                     if dependency in {"draft", "review"}
                     else None
                 ),
+                document_kind=dependency_document_kind,
             ).authoritative_target
             upstream_receipt = (
                 next(
@@ -2155,7 +2310,7 @@ def _all_pending_tasks(job: Path) -> list[tuple[TaskSpecV1, Path]]:
             if path.resolve() != expected_path:
                 continue
             definition = _implemented_stage(task.stage)
-            adapter = _adapter(task.stage, document_id=task.document_id)
+            adapter = _adapter_for_task(job, task)
             _validate_task_contract(job, task, definition, adapter)
             _validate_task_preparation(job, path, task)
         except (StageRuntimeError, StageStoreError, ValidationError):
@@ -2873,7 +3028,7 @@ def _recoverable_manifest(job: Path, run_dir: Path) -> RunManifestV1 | None:
         if task.run_id != run_dir.name:
             return None
         definition = _implemented_stage(task.stage)
-        adapter = _adapter(task.stage, document_id=task.document_id)
+        adapter = _adapter_for_task(job, task)
         _validate_task_contract(job, task, definition, adapter)
         _validate_task_preparation(job, task_path, task)
         result_path = resolve_job_relative_path(job, task.result_output)

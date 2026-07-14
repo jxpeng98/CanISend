@@ -77,6 +77,7 @@ def _workspace(
     tmp_path: Path,
     *,
     include_cover_letter: bool = True,
+    include_research_statement: bool = False,
     omit_cover_letter: bool = False,
     exclusions: tuple[str, ...] = (),
 ) -> tuple[Path, Path]:
@@ -123,7 +124,12 @@ def _workspace(
         ),
         encoding="utf-8",
     )
-    documents = "CV, Cover letter" if include_cover_letter else "CV"
+    document_labels = ["CV"]
+    if include_cover_letter:
+        document_labels.append("Cover letter")
+    if include_research_statement:
+        document_labels.append("Research statement")
+    documents = ", ".join(document_labels)
     (job / "job_advert.md").write_text(
         f"""# Lecturer in Economics
 

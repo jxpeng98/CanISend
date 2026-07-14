@@ -1,0 +1,575 @@
+{
+  "$defs": {
+    "ClaimV1": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "else": {
+            "properties": {
+              "support_strength": {
+                "const": "not_applicable"
+              },
+              "evidence_ref_ids": {
+                "maxItems": 0
+              }
+            }
+          },
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "factual"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "support_strength": {
+                "enum": [
+                  "strong",
+                  "partial",
+                  "unsupported"
+                ]
+              },
+              "brief_field_refs": {
+                "maxItems": 0
+              },
+              "job_field_refs": {
+                "maxItems": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "factual"
+              },
+              "support_strength": {
+                "const": "strong"
+              }
+            },
+            "required": [
+              "kind",
+              "support_strength"
+            ]
+          },
+          "then": {
+            "properties": {
+              "evidence_ref_ids": {
+                "minItems": 1
+              },
+              "blockers": {
+                "maxItems": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "factual"
+              },
+              "support_strength": {
+                "const": "partial"
+              }
+            },
+            "required": [
+              "kind",
+              "support_strength"
+            ]
+          },
+          "then": {
+            "properties": {
+              "evidence_ref_ids": {
+                "minItems": 1
+              },
+              "blockers": {
+                "items": {
+                  "const": "claim.partial_support"
+                },
+                "maxItems": 1,
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "factual"
+              },
+              "support_strength": {
+                "const": "unsupported"
+              }
+            },
+            "required": [
+              "kind",
+              "support_strength"
+            ]
+          },
+          "then": {
+            "properties": {
+              "evidence_ref_ids": {
+                "maxItems": 0
+              },
+              "blockers": {
+                "items": {
+                  "const": "claim.unsupported"
+                },
+                "maxItems": 1,
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "motivation"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "criterion_ids": {
+                "maxItems": 0
+              },
+              "brief_field_refs": {
+                "items": {
+                  "const": "motivation"
+                },
+                "maxItems": 1,
+                "minItems": 1
+              },
+              "job_field_refs": {
+                "maxItems": 0
+              },
+              "blockers": {
+                "maxItems": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "future_intent"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "anyOf": [
+              {
+                "properties": {
+                  "criterion_ids": {
+                    "minItems": 1
+                  }
+                },
+                "required": [
+                  "criterion_ids"
+                ]
+              },
+              {
+                "properties": {
+                  "brief_field_refs": {
+                    "minItems": 1
+                  }
+                },
+                "required": [
+                  "brief_field_refs"
+                ]
+              }
+            ],
+            "properties": {
+              "brief_field_refs": {
+                "items": {
+                  "const": "emphasis"
+                }
+              },
+              "job_field_refs": {
+                "maxItems": 0
+              },
+              "blockers": {
+                "maxItems": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "role_context"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "anyOf": [
+              {
+                "properties": {
+                  "criterion_ids": {
+                    "minItems": 1
+                  }
+                },
+                "required": [
+                  "criterion_ids"
+                ]
+              },
+              {
+                "properties": {
+                  "job_field_refs": {
+                    "minItems": 1
+                  }
+                },
+                "required": [
+                  "job_field_refs"
+                ]
+              }
+            ],
+            "properties": {
+              "brief_field_refs": {
+                "maxItems": 0
+              },
+              "blockers": {
+                "maxItems": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "administrative"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "criterion_ids": {
+                "maxItems": 0
+              },
+              "evidence_ref_ids": {
+                "maxItems": 0
+              },
+              "brief_field_refs": {
+                "maxItems": 0
+              },
+              "job_field_refs": {
+                "maxItems": 0
+              },
+              "blockers": {
+                "maxItems": 0
+              }
+            }
+          }
+        }
+      ],
+      "properties": {
+        "claim_id": {
+          "pattern": "^claim_[0-9a-f]{32}$",
+          "title": "Claim Id",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 20000,
+          "minLength": 1,
+          "pattern": "[\\s\\S]*\\S[\\s\\S]*",
+          "title": "Text",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "factual",
+            "motivation",
+            "future_intent",
+            "role_context",
+            "administrative"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "support_strength": {
+          "enum": [
+            "strong",
+            "partial",
+            "unsupported",
+            "not_applicable"
+          ],
+          "title": "Support Strength",
+          "type": "string"
+        },
+        "criterion_ids": {
+          "default": [],
+          "items": {
+            "pattern": "^criterion_[0-9a-f]{32}$",
+            "type": "string"
+          },
+          "maxItems": 4096,
+          "title": "Criterion Ids",
+          "type": "array",
+          "uniqueItems": true
+        },
+        "evidence_ref_ids": {
+          "default": [],
+          "items": {
+            "pattern": "^evidence_[0-9a-f]{32}$",
+            "type": "string"
+          },
+          "maxItems": 4096,
+          "title": "Evidence Ref Ids",
+          "type": "array",
+          "uniqueItems": true
+        },
+        "brief_field_refs": {
+          "default": [],
+          "items": {
+            "enum": [
+              "language",
+              "writing_style",
+              "motivation",
+              "emphasis",
+              "exclusions",
+              "document_requirements"
+            ],
+            "type": "string"
+          },
+          "maxItems": 6,
+          "title": "Brief Field Refs",
+          "type": "array",
+          "uniqueItems": true
+        },
+        "job_field_refs": {
+          "default": [],
+          "items": {
+            "enum": [
+              "title",
+              "institution",
+              "department",
+              "location",
+              "deadline",
+              "application_url"
+            ],
+            "type": "string"
+          },
+          "maxItems": 6,
+          "title": "Job Field Refs",
+          "type": "array",
+          "uniqueItems": true
+        },
+        "blockers": {
+          "default": [],
+          "items": {
+            "pattern": "^[a-z][a-z0-9_-]*(?:\\.[a-z][a-z0-9_-]*)+$",
+            "type": "string"
+          },
+          "maxItems": 64,
+          "title": "Blockers",
+          "type": "array",
+          "uniqueItems": true
+        },
+        "review_state": {
+          "const": "proposed",
+          "default": "proposed",
+          "title": "Review State",
+          "type": "string"
+        }
+      },
+      "required": [
+        "claim_id",
+        "text",
+        "kind",
+        "support_strength"
+      ],
+      "title": "ClaimV1",
+      "type": "object"
+    },
+    "DraftBasisV1": {
+      "additionalProperties": false,
+      "properties": {
+        "parsed_job_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Parsed Job Sha256",
+          "type": "string"
+        },
+        "criteria_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Criteria Sha256",
+          "type": "string"
+        },
+        "evidence_catalog_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Evidence Catalog Sha256",
+          "type": "string"
+        },
+        "criterion_matches_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Criterion Matches Sha256",
+          "type": "string"
+        },
+        "application_decision_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Application Decision Sha256",
+          "type": "string"
+        },
+        "application_brief_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Application Brief Sha256",
+          "type": "string"
+        },
+        "required_document_plan_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Required Document Plan Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "parsed_job_sha256",
+        "criteria_sha256",
+        "evidence_catalog_sha256",
+        "criterion_matches_sha256",
+        "application_decision_sha256",
+        "application_brief_sha256",
+        "required_document_plan_sha256"
+      ],
+      "title": "DraftBasisV1",
+      "type": "object"
+    },
+    "DraftSectionV1": {
+      "additionalProperties": false,
+      "properties": {
+        "section_id": {
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Section Id",
+          "type": "string"
+        },
+        "heading": {
+          "default": null,
+          "description": "Reserved for a future controlled projection; applicant-facing text must be a Claim.",
+          "title": "Heading",
+          "type": "null"
+        },
+        "claims": {
+          "items": {
+            "$ref": "#/$defs/ClaimV1"
+          },
+          "maxItems": 4096,
+          "minItems": 1,
+          "title": "Claims",
+          "type": "array"
+        }
+      },
+      "required": [
+        "section_id",
+        "claims"
+      ],
+      "title": "DraftSectionV1",
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/jxpeng98/CanISend/schemas/research-statement-draft.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "job_id": {
+      "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+      "title": "Job Id",
+      "type": "string"
+    },
+    "document_id": {
+      "pattern": "^document_[0-9a-f]{32}$",
+      "title": "Document Id",
+      "type": "string"
+    },
+    "input_fingerprint": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Input Fingerprint",
+      "type": "string"
+    },
+    "basis": {
+      "$ref": "#/$defs/DraftBasisV1"
+    },
+    "generation_mode": {
+      "enum": [
+        "host_agent",
+        "configured_provider"
+      ],
+      "title": "Generation Mode",
+      "type": "string"
+    },
+    "generator_strategy": {
+      "pattern": "^[a-z][a-z0-9_-]*(?:\\.[a-z][a-z0-9_-]*)+$",
+      "title": "Generator Strategy",
+      "type": "string"
+    },
+    "generator_version": {
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$",
+      "title": "Generator Version",
+      "type": "string"
+    },
+    "review_state": {
+      "const": "proposed",
+      "default": "proposed",
+      "title": "Review State",
+      "type": "string"
+    },
+    "sections": {
+      "items": {
+        "$ref": "#/$defs/DraftSectionV1"
+      },
+      "maxItems": 256,
+      "minItems": 1,
+      "title": "Sections",
+      "type": "array"
+    },
+    "blockers": {
+      "default": [],
+      "items": {
+        "pattern": "^[a-z][a-z0-9_-]*(?:\\.[a-z][a-z0-9_-]*)+$",
+        "type": "string"
+      },
+      "maxItems": 4096,
+      "title": "Blockers",
+      "type": "array",
+      "uniqueItems": true
+    }
+  },
+  "required": [
+    "job_id",
+    "document_id",
+    "input_fingerprint",
+    "basis",
+    "generation_mode",
+    "generator_strategy",
+    "generator_version",
+    "sections"
+  ],
+  "title": "CanISendResearchStatementDraftV1",
+  "type": "object"
+}

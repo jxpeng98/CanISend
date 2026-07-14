@@ -1,6 +1,6 @@
 # Evidence-Backed Draft Foundation Implementation Plan
 
-**Status:** Locally accepted — Tasks 0–9 complete through document-scoped run ownership
+**Status:** In progress — Tasks 0–10 locally accepted; further Stage 3 scope remains
 
 **Date:** 2026-07-13
 
@@ -10,9 +10,10 @@
 
 ## Goal
 
-Implement the first Stage 3 vertical slice as one guarded Cover Letter Draft and Review path. The slice must make
-claim support and review blockers durable without letting an agent/provider write authoritative or user-owned files,
-without changing the frozen AgentResponse/TaskSpec contracts, and without claiming package readiness.
+Implement Stage 3 as guarded, document-scoped Draft and Review slices, beginning with Cover Letter and extending the
+same evidence-bound promotion boundary to Research Statement. The work must make claim support and review blockers
+durable without letting an agent/provider write authoritative or user-owned files, without weakening the frozen
+AgentResponse/TaskSpec contracts, and without claiming package readiness.
 
 ## Fixed Decisions
 
@@ -22,6 +23,8 @@ without changing the frozen AgentResponse/TaskSpec contracts, and without claimi
 - `ReviewFindingV1` is independent from generation; Draft remains proposed until a later Review stage.
 - Strong factual claims require current Evidence references; unsupported facts are executable blockers.
 - Host-agent and configured-provider Draft reuse the same immutable task, validator, and promotion boundary.
+- Research Statement reuses the evidence-bound Claim graph but has independent targets, validators, strategies, and
+  host-agent-only execution.
 - Legacy `canisend run`, Markdown, Typst, dry-run, LLM flags, and git behavior remain compatible in this slice.
 - Stage 3 does not submit, upload, answer sensitive declarations, or claim package/submission readiness.
 
@@ -129,6 +132,19 @@ without changing the frozen AgentResponse/TaskSpec contracts, and without claimi
 - [x] Prove two same-stage document records can coexist and malformed, cross-stage, or mismatched IDs fail closed.
 - [x] Complete schema, privacy, compatibility, cross-version, distribution, and clean-wheel validation.
 
+## Task 10: Research Statement Guarded Executor
+
+- [x] Accept ADR-018 for one host-agent Research Statement Draft and deterministic Review slice.
+- [x] Add a strict Research Statement Draft model/schema reusing the evidence-bound Claim graph.
+- [x] Resolve Draft/Review adapters from the current plan's stable document ID and normalized kind.
+- [x] Give Research Statement unique Draft and Review targets, strategies, validators, and output ownership.
+- [x] Reject configured-provider execution for Research Statement without weakening Cover Letter support.
+- [x] Promote `research_statement` from planned to available in the derived execution capability registry.
+- [x] Prove Cover Letter and Research Statement runs coexist, ambiguous omitted selection fails closed, and private
+  bodies remain absent from control responses.
+- [x] Update canonical skills, compatibility mirror, roadmap, changelog, schemas, packaged resources, and smoke.
+- [x] Complete focused/full cross-version, distribution, privacy, recovery, and clean-wheel validation.
+
 ## Task 0–5 Validation Snapshot
 
 Tasks 0–5 and the first Cover Letter vertical slice were locally accepted on 2026-07-13:
@@ -228,6 +244,28 @@ Task 9 was locally accepted on 2026-07-14:
 This acceptance establishes reusable per-document Draft/Review ownership, not a second document executor. Research
 Statement schema, current-basis validation, guarded promotion, review behavior, package readiness, remote CI,
 publication, rendering approval, and submission remain later work.
+
+## Task 10 Validation Snapshot
+
+Task 10 was locally accepted on 2026-07-14:
+
+- `python -m pytest -q`: 1059 passed on Python 3.14.2;
+- the 83 Research Statement model/schema, current-basis, Draft/Review, capability, registry, and Cover compatibility
+  tests passed independently on Python 3.11.15, 3.12.12, and 3.13.14;
+- dual Cover Letter/Research Statement execution, unique output ownership, omitted-selection ambiguity, cross-contract
+  rejection, host-agent-only Research generation, document-specific missing-section blockers, private-body absence,
+  scoped state, and legacy Cover disposition/projection compatibility tests passed;
+- the 87 release, repository, workspace, schema-parity, fan-out, and Research executor tests passed, as did generated
+  schema regeneration, canonical/workspace skill mirror, compile, and diff checks;
+- `uv build`, Twine metadata checks, and the 0.2.0 wheel packaged-resource check passed;
+- a clean Python 3.12 wheel installation imported the packaged Research Statement model/schema, advertised the
+  host-agent-only available capability, and passed the complete Decision Spine smoke with 8 successful stage runs
+  and 14 immutable user-mutation receipts.
+
+This acceptance adds one Research Statement host-agent Draft and deterministic Review executor. It does not add
+Research Statement configured-provider generation, guarded finding dispositions, document readiness, compatibility
+Markdown/Typst rendering, cross-document Review, application-package readiness, remote CI, publication, rendering
+approval, or submission readiness.
 
 ## First-Slice Exit Review
 

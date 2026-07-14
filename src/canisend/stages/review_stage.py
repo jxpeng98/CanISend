@@ -12,6 +12,7 @@ from pydantic import ValidationError
 from canisend.decision_models import ApplicationBriefV1
 from canisend.draft_models import (
     CoverLetterDraftV1,
+    ResearchStatementDraftV1,
     ReviewFindingV1,
     ReviewFindingsV1,
     stable_finding_id,
@@ -26,8 +27,12 @@ from canisend.stage_store import (
 from canisend.stages.brief_stage import APPLICATION_BRIEF_INPUT_PATH
 from canisend.stages.draft_stage import (
     COVER_LETTER_DRAFT_OUTPUT_PATH,
+    RESEARCH_STATEMENT_DRAFT_OUTPUT_PATH,
+    DraftDocumentKind,
     DraftStageError,
+    StructuredDraftV1,
     validate_draft_candidate,
+    validate_research_statement_draft_candidate,
 )
 from canisend.user_file_store import (
     InvalidUserFileError,
@@ -39,10 +44,21 @@ from canisend.user_file_store import (
 
 REVIEW_CONTRACT_VERSION = "1.0.0"
 REVIEWER_STRATEGY = "deterministic.cover_letter_review"
+RESEARCH_STATEMENT_REVIEWER_STRATEGY = "deterministic.research_statement_review"
 REVIEWER_VERSION = "1.0.0"
 REVIEW_FINDINGS_OUTPUT_PATH = "review_findings.json"
+RESEARCH_STATEMENT_REVIEW_FINDINGS_OUTPUT_PATH = (
+    "research_statement_review_findings.json"
+)
 
-_REQUIRED_SECTION_IDS = ("body", "closing", "opening")
+_REQUIRED_SECTION_IDS = {
+    "cover_letter": ("body", "closing", "opening"),
+    "research_statement": (
+        "future_agenda",
+        "research_contributions",
+        "research_overview",
+    ),
+}
 _LONG_CLAIM_CHARACTERS = 1_200
 
 
@@ -56,9 +72,10 @@ class ReviewStageValidationError(ReviewStageError):
 
 @dataclass(frozen=True)
 class _ReviewInputs:
-    draft: CoverLetterDraftV1
+    draft: StructuredDraftV1
     brief: ApplicationBriefV1
     draft_sha256: str
+    document_kind: DraftDocumentKind
 
 
 def review_precondition_reasons(
@@ -70,12 +87,54 @@ def review_precondition_reasons(
     parsed_job_schema_path: Path | None = None,
     required_document_plan_schema_path: Path | None = None,
 ) -> tuple[str, ...]:
+    return _review_precondition_reasons(
+        workspace,
+        job_dir,
+        document_kind="cover_letter",
+        document_id=document_id,
+        draft_schema_path=cover_letter_schema_path,
+        parsed_job_schema_path=parsed_job_schema_path,
+        required_document_plan_schema_path=required_document_plan_schema_path,
+    )
+
+
+def research_statement_review_precondition_reasons(
+    workspace: Path,
+    job_dir: Path,
+    *,
+    document_id: str | None = None,
+    research_statement_schema_path: Path | None = None,
+    parsed_job_schema_path: Path | None = None,
+    required_document_plan_schema_path: Path | None = None,
+) -> tuple[str, ...]:
+    return _review_precondition_reasons(
+        workspace,
+        job_dir,
+        document_kind="research_statement",
+        document_id=document_id,
+        draft_schema_path=research_statement_schema_path,
+        parsed_job_schema_path=parsed_job_schema_path,
+        required_document_plan_schema_path=required_document_plan_schema_path,
+    )
+
+
+def _review_precondition_reasons(
+    workspace: Path,
+    job_dir: Path,
+    *,
+    document_kind: DraftDocumentKind,
+    document_id: str | None,
+    draft_schema_path: Path | None,
+    parsed_job_schema_path: Path | None,
+    required_document_plan_schema_path: Path | None,
+) -> tuple[str, ...]:
     try:
         _load_review_inputs(
             workspace,
             job_dir,
+            document_kind=document_kind,
             document_id=document_id,
-            cover_letter_schema_path=cover_letter_schema_path,
+            draft_schema_path=draft_schema_path,
             parsed_job_schema_path=parsed_job_schema_path,
             required_document_plan_schema_path=required_document_plan_schema_path,
         )
@@ -94,11 +153,57 @@ def review_input_projection(
     parsed_job_schema_path: Path | None = None,
     required_document_plan_schema_path: Path | None = None,
 ) -> dict[str, object]:
+    return _review_input_projection(
+        workspace,
+        job_dir,
+        document_kind="cover_letter",
+        document_id=document_id,
+        review_findings_schema_path=review_findings_schema_path,
+        draft_schema_path=cover_letter_schema_path,
+        parsed_job_schema_path=parsed_job_schema_path,
+        required_document_plan_schema_path=required_document_plan_schema_path,
+    )
+
+
+def research_statement_review_input_projection(
+    workspace: Path,
+    job_dir: Path,
+    *,
+    document_id: str | None = None,
+    review_findings_schema_path: Path | None = None,
+    research_statement_schema_path: Path | None = None,
+    parsed_job_schema_path: Path | None = None,
+    required_document_plan_schema_path: Path | None = None,
+) -> dict[str, object]:
+    return _review_input_projection(
+        workspace,
+        job_dir,
+        document_kind="research_statement",
+        document_id=document_id,
+        review_findings_schema_path=review_findings_schema_path,
+        draft_schema_path=research_statement_schema_path,
+        parsed_job_schema_path=parsed_job_schema_path,
+        required_document_plan_schema_path=required_document_plan_schema_path,
+    )
+
+
+def _review_input_projection(
+    workspace: Path,
+    job_dir: Path,
+    *,
+    document_kind: DraftDocumentKind,
+    document_id: str | None,
+    review_findings_schema_path: Path | None,
+    draft_schema_path: Path | None,
+    parsed_job_schema_path: Path | None,
+    required_document_plan_schema_path: Path | None,
+) -> dict[str, object]:
     inputs = _load_review_inputs(
         workspace,
         job_dir,
+        document_kind=document_kind,
         document_id=document_id,
-        cover_letter_schema_path=cover_letter_schema_path,
+        draft_schema_path=draft_schema_path,
         parsed_job_schema_path=parsed_job_schema_path,
         required_document_plan_schema_path=required_document_plan_schema_path,
     )
@@ -148,6 +253,29 @@ def review_input_fingerprint(
     )
 
 
+def research_statement_review_input_fingerprint(
+    workspace: Path,
+    job_dir: Path,
+    *,
+    document_id: str | None = None,
+    review_findings_schema_path: Path | None = None,
+    research_statement_schema_path: Path | None = None,
+    parsed_job_schema_path: Path | None = None,
+    required_document_plan_schema_path: Path | None = None,
+) -> str:
+    return _projection_sha256(
+        research_statement_review_input_projection(
+            workspace,
+            job_dir,
+            document_id=document_id,
+            review_findings_schema_path=review_findings_schema_path,
+            research_statement_schema_path=research_statement_schema_path,
+            parsed_job_schema_path=parsed_job_schema_path,
+            required_document_plan_schema_path=required_document_plan_schema_path,
+        )
+    )
+
+
 def build_deterministic_review_candidate(
     workspace: Path,
     job_dir: Path,
@@ -159,11 +287,61 @@ def build_deterministic_review_candidate(
     parsed_job_schema_path: Path | None = None,
     required_document_plan_schema_path: Path | None = None,
 ) -> ReviewFindingsV1:
+    return _build_deterministic_review_candidate(
+        workspace,
+        job_dir,
+        document_kind="cover_letter",
+        input_fingerprint=input_fingerprint,
+        document_id=document_id,
+        review_findings_schema_path=review_findings_schema_path,
+        draft_schema_path=cover_letter_schema_path,
+        parsed_job_schema_path=parsed_job_schema_path,
+        required_document_plan_schema_path=required_document_plan_schema_path,
+    )
+
+
+def build_deterministic_research_statement_review_candidate(
+    workspace: Path,
+    job_dir: Path,
+    *,
+    input_fingerprint: str,
+    document_id: str | None = None,
+    review_findings_schema_path: Path | None = None,
+    research_statement_schema_path: Path | None = None,
+    parsed_job_schema_path: Path | None = None,
+    required_document_plan_schema_path: Path | None = None,
+) -> ReviewFindingsV1:
+    return _build_deterministic_review_candidate(
+        workspace,
+        job_dir,
+        document_kind="research_statement",
+        input_fingerprint=input_fingerprint,
+        document_id=document_id,
+        review_findings_schema_path=review_findings_schema_path,
+        draft_schema_path=research_statement_schema_path,
+        parsed_job_schema_path=parsed_job_schema_path,
+        required_document_plan_schema_path=required_document_plan_schema_path,
+    )
+
+
+def _build_deterministic_review_candidate(
+    workspace: Path,
+    job_dir: Path,
+    *,
+    document_kind: DraftDocumentKind,
+    input_fingerprint: str,
+    document_id: str | None,
+    review_findings_schema_path: Path | None,
+    draft_schema_path: Path | None,
+    parsed_job_schema_path: Path | None,
+    required_document_plan_schema_path: Path | None,
+) -> ReviewFindingsV1:
     inputs = _load_review_inputs(
         workspace,
         job_dir,
+        document_kind=document_kind,
         document_id=document_id,
-        cover_letter_schema_path=cover_letter_schema_path,
+        draft_schema_path=draft_schema_path,
         parsed_job_schema_path=parsed_job_schema_path,
         required_document_plan_schema_path=required_document_plan_schema_path,
     )
@@ -177,7 +355,11 @@ def build_deterministic_review_candidate(
         raise ReviewStageError("Review input fingerprint is stale.")
     findings = tuple(
         sorted(
-            _derive_findings(inputs.draft, inputs.brief),
+            _derive_findings(
+                inputs.draft,
+                inputs.brief,
+                document_kind=document_kind,
+            ),
             key=lambda finding: finding.finding_id,
         )
     )
@@ -189,7 +371,11 @@ def build_deterministic_review_candidate(
         document_id=inputs.draft.document_id,
         input_fingerprint=input_fingerprint,
         draft_sha256=inputs.draft_sha256,
-        reviewer_strategy=REVIEWER_STRATEGY,
+        reviewer_strategy=(
+            REVIEWER_STRATEGY
+            if document_kind == "cover_letter"
+            else RESEARCH_STATEMENT_REVIEWER_STRATEGY
+        ),
         reviewer_version=REVIEWER_VERSION,
         findings=findings,
         blocker_finding_ids=blockers,
@@ -197,8 +383,9 @@ def build_deterministic_review_candidate(
     final_inputs = _load_review_inputs(
         workspace,
         job_dir,
+        document_kind=document_kind,
         document_id=document_id,
-        cover_letter_schema_path=cover_letter_schema_path,
+        draft_schema_path=draft_schema_path,
         parsed_job_schema_path=parsed_job_schema_path,
         required_document_plan_schema_path=required_document_plan_schema_path,
     )
@@ -225,6 +412,59 @@ def validate_review_candidate(
     parsed_job_schema_path: Path | None = None,
     required_document_plan_schema_path: Path | None = None,
 ) -> ReviewFindingsV1:
+    return _validate_review_candidate(
+        candidate,
+        workspace=workspace,
+        job_dir=job_dir,
+        input_fingerprint=input_fingerprint,
+        document_kind="cover_letter",
+        document_id=document_id,
+        review_findings_schema_path=review_findings_schema_path,
+        draft_schema_path=cover_letter_schema_path,
+        parsed_job_schema_path=parsed_job_schema_path,
+        required_document_plan_schema_path=required_document_plan_schema_path,
+    )
+
+
+def validate_research_statement_review_candidate(
+    candidate: object,
+    *,
+    workspace: Path,
+    job_dir: Path,
+    input_fingerprint: str,
+    document_id: str | None = None,
+    review_findings_schema_path: Path | None = None,
+    research_statement_schema_path: Path | None = None,
+    parsed_job_schema_path: Path | None = None,
+    required_document_plan_schema_path: Path | None = None,
+) -> ReviewFindingsV1:
+    return _validate_review_candidate(
+        candidate,
+        workspace=workspace,
+        job_dir=job_dir,
+        input_fingerprint=input_fingerprint,
+        document_kind="research_statement",
+        document_id=document_id,
+        review_findings_schema_path=review_findings_schema_path,
+        draft_schema_path=research_statement_schema_path,
+        parsed_job_schema_path=parsed_job_schema_path,
+        required_document_plan_schema_path=required_document_plan_schema_path,
+    )
+
+
+def _validate_review_candidate(
+    candidate: object,
+    *,
+    workspace: Path,
+    job_dir: Path,
+    input_fingerprint: str,
+    document_kind: DraftDocumentKind,
+    document_id: str | None,
+    review_findings_schema_path: Path | None,
+    draft_schema_path: Path | None,
+    parsed_job_schema_path: Path | None,
+    required_document_plan_schema_path: Path | None,
+) -> ReviewFindingsV1:
     if not isinstance(candidate, dict):
         raise ReviewStageValidationError("Review candidate must be a JSON object.")
     try:
@@ -241,13 +481,14 @@ def validate_review_candidate(
     except ValidationError as exc:
         raise ReviewStageValidationError("Review candidate failed semantic validation.") from exc
 
-    expected = build_deterministic_review_candidate(
+    expected = _build_deterministic_review_candidate(
         workspace,
         job_dir,
+        document_kind=document_kind,
         input_fingerprint=input_fingerprint,
         document_id=document_id,
         review_findings_schema_path=review_findings_schema_path,
-        cover_letter_schema_path=cover_letter_schema_path,
+        draft_schema_path=draft_schema_path,
         parsed_job_schema_path=parsed_job_schema_path,
         required_document_plan_schema_path=required_document_plan_schema_path,
     )
@@ -262,26 +503,48 @@ def _load_review_inputs(
     workspace: Path,
     job_dir: Path,
     *,
+    document_kind: DraftDocumentKind,
     document_id: str | None,
-    cover_letter_schema_path: Path | None,
+    draft_schema_path: Path | None,
     parsed_job_schema_path: Path | None,
     required_document_plan_schema_path: Path | None,
 ) -> _ReviewInputs:
     try:
-        draft_path = resolve_job_relative_path(job_dir, COVER_LETTER_DRAFT_OUTPUT_PATH)
-        raw_draft = read_json_object(draft_path)
-        draft = CoverLetterDraftV1.model_validate(raw_draft)
-        draft = validate_draft_candidate(
-            raw_draft,
-            workspace=workspace,
-            job_dir=job_dir,
-            input_fingerprint=draft.input_fingerprint,
-            document_id=document_id,
-            cover_letter_schema_path=cover_letter_schema_path,
-            parsed_job_schema_path=parsed_job_schema_path,
-            required_document_plan_schema_path=required_document_plan_schema_path,
-            expected_generation_mode=draft.generation_mode,
+        draft_path = resolve_job_relative_path(
+            job_dir,
+            (
+                COVER_LETTER_DRAFT_OUTPUT_PATH
+                if document_kind == "cover_letter"
+                else RESEARCH_STATEMENT_DRAFT_OUTPUT_PATH
+            ),
         )
+        raw_draft = read_json_object(draft_path)
+        if document_kind == "cover_letter":
+            cover_draft = CoverLetterDraftV1.model_validate(raw_draft)
+            draft: StructuredDraftV1 = validate_draft_candidate(
+                raw_draft,
+                workspace=workspace,
+                job_dir=job_dir,
+                input_fingerprint=cover_draft.input_fingerprint,
+                document_id=document_id,
+                cover_letter_schema_path=draft_schema_path,
+                parsed_job_schema_path=parsed_job_schema_path,
+                required_document_plan_schema_path=required_document_plan_schema_path,
+                expected_generation_mode=cover_draft.generation_mode,
+            )
+        else:
+            research_draft = ResearchStatementDraftV1.model_validate(raw_draft)
+            draft = validate_research_statement_draft_candidate(
+                raw_draft,
+                workspace=workspace,
+                job_dir=job_dir,
+                input_fingerprint=research_draft.input_fingerprint,
+                document_id=document_id,
+                research_statement_schema_path=draft_schema_path,
+                parsed_job_schema_path=parsed_job_schema_path,
+                required_document_plan_schema_path=required_document_plan_schema_path,
+                expected_generation_mode=research_draft.generation_mode,
+            )
         if document_id is not None and draft.document_id != document_id:
             raise ReviewStageError("Review target does not match the Draft document.")
         brief_snapshot = read_optional_safe_bytes(job_dir, APPLICATION_BRIEF_INPUT_PATH)
@@ -294,6 +557,7 @@ def _load_review_inputs(
             draft=draft,
             brief=brief,
             draft_sha256=sha256_file(draft_path),
+            document_kind=document_kind,
         )
     except ReviewStageError:
         raise
@@ -311,14 +575,21 @@ def _load_review_inputs(
 
 
 def _derive_findings(
-    draft: CoverLetterDraftV1,
+    draft: StructuredDraftV1,
     brief: ApplicationBriefV1,
+    *,
+    document_kind: DraftDocumentKind,
 ) -> tuple[ReviewFindingV1, ...]:
     findings: list[ReviewFindingV1] = []
     claims = tuple(claim for section in draft.sections for claim in section.claims)
+    document_label = (
+        "Cover Letter"
+        if document_kind == "cover_letter"
+        else "Research Statement"
+    )
 
     section_ids = {section.section_id for section in draft.sections}
-    for section_id in _REQUIRED_SECTION_IDS:
+    for section_id in _REQUIRED_SECTION_IDS[document_kind]:
         if section_id not in section_ids:
             findings.append(
                 _finding(
@@ -326,7 +597,7 @@ def _derive_findings(
                     code="document.section_missing",
                     severity="blocker",
                     category="completeness",
-                    message=f"The Cover Letter is missing its {section_id} section.",
+                    message=f"The {document_label} is missing its {section_id} section.",
                     next_action=(
                         f"Add a structured {section_id} section with explicit Claim blocks."
                     ),
@@ -405,7 +676,7 @@ def _derive_findings(
                     code="style.claim_length",
                     severity="warning",
                     category="style",
-                    message="A Claim block is unusually long for a Cover Letter.",
+                    message=f"A Claim block is unusually long for a {document_label}.",
                     next_action="Consider splitting or tightening the Claim block.",
                     claim_ids=(claim.claim_id,),
                 )
@@ -452,7 +723,7 @@ def _derive_findings(
 
 
 def _finding(
-    draft: CoverLetterDraftV1,
+    draft: StructuredDraftV1,
     *,
     code: str,
     severity: str,

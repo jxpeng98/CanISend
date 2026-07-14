@@ -70,10 +70,16 @@ def test_decision_spine_stages_are_implemented_in_the_registry() -> None:
     assert brief.authoritative_outputs == ("required_document_plan.json",)
     draft = DEFAULT_STAGE_REGISTRY.get("draft")
     assert draft.execution_modes == ("host_agent", "configured_provider")
-    assert draft.authoritative_outputs == ("cover_letter_draft.json",)
+    assert draft.authoritative_outputs == (
+        "cover_letter_draft.json",
+        "research_statement_draft.json",
+    )
     review = DEFAULT_STAGE_REGISTRY.get("review")
     assert review.execution_modes == ("deterministic",)
-    assert review.authoritative_outputs == ("review_findings.json",)
+    assert review.authoritative_outputs == (
+        "review_findings.json",
+        "research_statement_review_findings.json",
+    )
 
 
 def test_descendants_are_transitive_and_topologically_ordered() -> None:

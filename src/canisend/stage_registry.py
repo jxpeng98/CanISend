@@ -208,14 +208,20 @@ DEFAULT_STAGE_REGISTRY = StageRegistry(
             depends_on=("brief", "match", "evidence"),
             implemented=True,
             execution_modes=("host_agent", "configured_provider"),
-            authoritative_outputs=("cover_letter_draft.json",),
+            authoritative_outputs=(
+                "cover_letter_draft.json",
+                "research_statement_draft.json",
+            ),
         ),
         StageDefinition(
             id="review",
             depends_on=("draft",),
             implemented=True,
             execution_modes=("deterministic",),
-            authoritative_outputs=("review_findings.json",),
+            authoritative_outputs=(
+                "review_findings.json",
+                "research_statement_review_findings.json",
+            ),
         ),
         StageDefinition(id="package", depends_on=("review",)),
         StageDefinition(id="verify", depends_on=("package",)),

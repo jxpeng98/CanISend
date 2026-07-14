@@ -1,6 +1,6 @@
 # CLI-First Workflow Optimization Execution Roadmap
 
-**Status:** Active — Stages 1 and 2 plus the Stage 3 Cover Letter Draft/Review/readiness slices are locally accepted
+**Status:** Active — Stages 1 and 2 plus the Stage 3 Cover Letter and Research Statement slices are locally accepted
 
 **Date:** 2026-07-11
 
@@ -48,7 +48,7 @@ but it remains required before publishing the corresponding prerelease.
 | 0. Contract Foundation | P0, locally complete | Give agents a safe, stable inspection contract | Agent envelope, context, capabilities, privacy and error semantics | Remote candidate CI passes before release |
 | 1. Resumable Kernel + Parse | P0, locally complete | Prove a resumable, validated stage with one authoritative output | Registry, state, immutable runs, fingerprints, TaskSpec/TaskResult, candidate promotion, Parse CLI | Fresh sessions resume; stale/invalid candidates cannot change `parsed_job.json` |
 | 2. Decision Spine | P0 | Make requirements, evidence matching, and user decisions durable | Criterion, EvidenceRef, CriterionMatch, confirmations, apply/hold/skip decision, `application_brief.yaml` | Every essential criterion and required decision is structured and reviewable |
-| 3. Evidence-Backed Draft + Review | P0/P1 | Generate only evidence-supported, reviewable application material | Claim, ReviewFinding, required-document-plan enforcement, Cover Letter slice, consistency review | Strong claims resolve to evidence; unsupported claims block readiness |
+| 3. Evidence-Backed Draft + Review | P0/P1 | Generate only evidence-supported, reviewable application material | Claim, ReviewFinding, document-scoped Cover Letter and Research Statement slices, consistency review | Strong claims resolve to evidence; unsupported claims block readiness |
 | 4. Discovery Ecosystem | P1 | Expand sources on stable identity and provenance | Lead v2, merge/dedupe/ranking, CSV/JSON/email import, read-only adapters, agent-result import | Multi-source refresh is traceable, partial-failure safe, and duplicate resistant |
 | 5. Resilience + Legacy Convergence | P1 | Move the remaining monolith behind the stage runtime | All stages, `run` compatibility wrapper, locking, migrations, failure injection | Any stage can resume and only true descendants become stale |
 | 6. 1.0 Quality + Release | P2 | Demonstrate safe, portable, recoverable usefulness | Fixture corpus, budgets, security audit, dependency checks, recovery and privacy docs | Supported versions pass clean installs and all readiness invariants hold |
@@ -303,18 +303,21 @@ Cover Letter Draft, privacy, and guarded promotion boundary; ADR-014 freezes use
 non-waivable blockers, and derived document readiness; ADR-015 freezes configured-provider Tier 3 consent and reuse
 of the same TaskSpec/candidate/validator/promotion boundary; ADR-016 freezes a read-only, hash-bound required-document
 execution fan-out and explicit available/planned/unregistered capability registry; ADR-017 freezes document-scoped
-`(stage, document_id)` run ownership with backward-readable 1.0 records. The Cover Letter Draft,
-independent Review, disposition, readiness, configured-provider, and body-free fan-out inventory slices are locally
-accepted with strict schemas, guarded mutation/promotion, fail-closed Markdown/Typst projection, cross-version local
-tests, and clean-wheel smoke. Cover Letter remains the only available guarded document executor, but a second
-executor can now reuse Draft/Review without overwriting another document's cache, retry, or recovery state. Research
-Statement execution, broader cross-document review, remote CI, and package readiness remain.
+`(stage, document_id)` run ownership with backward-readable 1.0 records; ADR-018 freezes a host-agent Research
+Statement Draft and deterministic Review boundary with separate targets and validators. The Cover Letter Draft,
+independent Review, disposition, readiness, configured-provider, body-free fan-out inventory, and Research Statement
+Draft/Review slices are locally accepted with strict schemas, guarded promotion, fail-closed document selection,
+cross-version local tests, and clean-wheel smoke. Cover Letter and Research Statement are now available guarded
+executors; configured-provider Draft, dispositions, readiness, and legacy Markdown/Typst projection remain Cover
+Letter-only. Research Statement dispositions/readiness/rendering, broader cross-document review, remote CI, and
+package readiness remain.
 
 ### Deliverables
 
 - Claim and ReviewFinding schemas;
 - claim-level evidence receipts and support strength;
-- Cover Letter as the first application-facing candidate/promotion slice;
+- Cover Letter as the first application-facing candidate/promotion/readiness slice;
+- Research Statement as a second host-agent Draft and deterministic Review slice with independent output ownership;
 - document-specific plans for research, teaching, supporting, diversity, publication, email, and interview artifacts;
 - cross-document consistency review and structured correction patches;
 - package readiness based on promoted, reviewed artifacts only.

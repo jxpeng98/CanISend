@@ -24,6 +24,7 @@ from canisend.decision_models import (
 
 
 COVER_LETTER_DRAFT_SCHEMA_VERSION = "1.0.0"
+RESEARCH_STATEMENT_DRAFT_SCHEMA_VERSION = "1.0.0"
 REVIEW_FINDINGS_SCHEMA_VERSION = "1.0.0"
 
 ClaimKind = Literal[
@@ -405,6 +406,73 @@ class CoverLetterDraftV1(DecisionContractModel):
         _require_unique(claim_ids, label="draft claim IDs")
         if not any(claim.kind != "administrative" for claim in claims):
             raise ValueError("a Cover Letter Draft requires at least one substantive claim")
+
+        for claim in claims:
+            expected_id = stable_claim_id(
+                job_id=self.job_id,
+                document_id=self.document_id,
+                kind=claim.kind,
+                text=claim.text,
+            )
+            if claim.claim_id != expected_id:
+                raise ValueError("claim_id does not match the normalized claim content")
+
+        expected_blockers = tuple(sorted({code for claim in claims for code in claim.blockers}))
+        if self.blockers != expected_blockers:
+            raise ValueError("draft blockers must equal the sorted union of Claim blockers")
+        return self
+
+
+class ResearchStatementDraftV1(DecisionContractModel):
+    model_config = ConfigDict(
+        title="CanISendResearchStatementDraftV1",
+        extra="forbid",
+        frozen=True,
+        str_strip_whitespace=True,
+        validate_default=True,
+        json_schema_extra={
+            "$schema": JSON_SCHEMA_DIALECT,
+            "$id": f"{SCHEMA_BASE_ID}/research-statement-draft.schema.json",
+        },
+    )
+
+    schema_version: Literal["1.0.0"] = RESEARCH_STATEMENT_DRAFT_SCHEMA_VERSION
+    job_id: JobIdentifier
+    document_id: DocumentIdentifier
+    input_fingerprint: Sha256Value
+    basis: DraftBasisV1
+    generation_mode: DraftGenerationMode
+    generator_strategy: DottedIdentifier
+    generator_version: SemanticVersion
+    review_state: DraftReviewState = "proposed"
+    sections: tuple[DraftSectionV1, ...] = Field(min_length=1, max_length=256)
+    blockers: tuple[DottedIdentifier, ...] = Field(
+        default=(), max_length=4_096, json_schema_extra={"uniqueItems": True}
+    )
+
+    @field_validator("blockers")
+    @classmethod
+    def _ordered_unique_blockers(cls, values: tuple[str, ...]) -> tuple[str, ...]:
+        _require_ordered_unique(values, label="draft blockers")
+        return values
+
+    @field_validator("generator_version")
+    @classmethod
+    def _valid_generator_version(cls, value: str) -> str:
+        if _SEMVER_RE.fullmatch(value) is None:
+            raise ValueError("generator_version must be semantic version text")
+        return value
+
+    @model_validator(mode="after")
+    def _consistent_claim_graph(self) -> ResearchStatementDraftV1:
+        section_ids = tuple(section.section_id for section in self.sections)
+        _require_unique(section_ids, label="draft section IDs")
+
+        claims = tuple(claim for section in self.sections for claim in section.claims)
+        claim_ids = tuple(claim.claim_id for claim in claims)
+        _require_unique(claim_ids, label="draft claim IDs")
+        if not any(claim.kind != "administrative" for claim in claims):
+            raise ValueError("a Research Statement Draft requires at least one substantive claim")
 
         for claim in claims:
             expected_id = stable_claim_id(

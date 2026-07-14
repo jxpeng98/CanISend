@@ -30,11 +30,12 @@ It prepares materials only. It does not submit applications, create accounts, fi
   revision/hash compare-and-swap operations with privacy-safe receipts.
 - Provides the locally accepted Stage 2 Decision Spine: guarded user-owned corrections, Decision and Brief YAML,
   deterministic Criteria/Evidence/Match/required-document projections, and executable unresolved/omit/orphan blockers.
-- Provides the next Stage 3 Cover Letter slice: guarded host-agent or configured-provider
-  `cover_letter_draft.json`, independent
-  deterministic `review_findings.json`, user-owned `review_dispositions.yaml`, and derived document readiness.
-- Derives a body-free required-document execution fan-out, so guarded Cover Letter work, confirmed omissions,
-  unresolved tasks, and document kinds without implemented executors remain distinguishable across agent hosts.
+- Provides two Stage 3 guarded executors: host-agent or configured-provider Cover Letter plus host-agent Research
+  Statement, each with an evidence-bound structured Draft, independent deterministic Review, and unique outputs.
+  User-owned dispositions and derived readiness remain Cover-Letter-only in this slice.
+- Derives a body-free required-document execution fan-out, so guarded Cover Letter/Research Statement work,
+  confirmed omissions, unresolved tasks, and document kinds without implemented executors remain distinguishable
+  across agent hosts.
 - Renders current deterministic Match proposals and a current blocker-free structured Cover Letter into compatible
   views while safely falling back for stale, drifted, blocked, mixed-profile, direct-library, or explicit
   LLM-draft runs. A reviewed Cover Letter never implies package/submission readiness.
@@ -134,7 +135,8 @@ full advert -> Parsed Job -> stable Criteria ----------------+            v
                                               user-owned Brief -> required-document plan
                                                                   |
                                                                   v
-                                               guarded structured Cover Letter Draft
+                                      guarded document-scoped structured Draft
+                                            (Cover Letter or Research Statement)
                                                                   |
                                                                   v
                                                     deterministic independent Review
@@ -588,17 +590,18 @@ canisend documents status --workspace . --job jobs/<job-slug> --format json
 ```
 
 The response binds the exact plan hash and reports aggregate `ready`, `partially_dispatchable`, `blocked`, or
-`no_work` state. Cover Letter is the only currently available guarded executor. Confirmed research, teaching,
+`no_work` state. Cover Letter and Research Statement are currently available guarded executors. Confirmed teaching,
 supporting, diversity, publication, CV, and other routes remain explicit `executor_unavailable` work until their own
 structured schemas, validators, and promotion paths are implemented; they are never silently treated as complete.
 
 Draft and Review execution state is owned by the composite `(stage, document_id)` identity from the current Required
-Document Plan. The sole current Cover Letter ID is resolved automatically for compatibility. Hosts may pass the
-returned stable ID explicitly with `--document-id <document_...>` on `stage status`, `prepare`, `run`, or `cancel`;
-a mismatched, malformed, or unsupported target fails before a task is created.
+Document Plan. One current dispatchable target is resolved automatically for compatibility. When both Cover Letter
+and Research Statement are ready, the host must obtain their stable IDs from the Tier 2 plan after approval and pass
+the selected `--document-id <document_...>` on `stage status`, `prepare`, `run`, or `cancel`; an omitted ambiguous,
+mismatched, malformed, or unsupported target fails before a task is created.
 
-When the plan contains one blocker-free confirmed `prepare` Cover Letter, a host agent can enter the guarded
-structured Draft path without starting a second model call:
+When the plan contains a blocker-free confirmed `prepare` Cover Letter or Research Statement, a host agent can enter
+the guarded structured Draft path without starting a second model call (include `--document-id` when required):
 
 ```bash
 canisend stage prepare \
@@ -612,10 +615,13 @@ canisend stage prepare \
 After the user approves the returned `read-private-draft-inputs` consent, the agent reads only the TaskSpec-declared
 Tier 2 inputs and writes schema-valid candidate JSON to fresh private scratch. It passes that file to `stage submit`
 with the returned `--task` path, then passes the immutable TaskResult from the response to `stage apply`; neither the
-agent nor a provider writes the run directory or `cover_letter_draft.json` directly.
+agent nor a provider writes the run directory, `cover_letter_draft.json`, or `research_statement_draft.json`
+directly. Research Statement candidates validate against `research-statement-draft.schema.json` and require
+`research_overview`, `research_contributions`, and `future_agenda` sections before Review is blocker-free.
 
-Alternatively, after explicit Tier 3 approval to transmit the seven declared Draft inputs, the same structured path
-can call the configured provider and complete prepare, candidate submission, validation, and promotion in one command:
+For Cover Letter only, after explicit Tier 3 approval to transmit the seven declared Draft inputs, the same
+structured path can call the configured provider and complete prepare, candidate submission, validation, and
+promotion in one command. Research Statement configured-provider execution fails closed as unsupported:
 
 ```bash
 canisend stage run \
@@ -649,9 +655,9 @@ canisend stage run \
 When `--document-id` was supplied for Draft, pass the same ID to Review. Review resolves only the Draft instance for
 that document; cache, retry, failure, and recovery records for another document cannot satisfy it.
 
-Unsupported factual claims, missing required sections, and detectable Brief-exclusion conflicts remain blockers.
-Partial support, semantic support, and non-factual Claim-kind classification remain review work. Use body-free status,
-then initialize and disposition one finding at a time with the current revision/hash:
+Unsupported factual claims, document-specific missing sections, and detectable Brief-exclusion conflicts remain
+blockers. Partial support, semantic support, and non-factual Claim-kind classification remain review work. For Cover
+Letter, use body-free status, then initialize and disposition one finding at a time with the current revision/hash:
 
 ```bash
 canisend review-dispositions status --workspace . --job jobs/<job-slug> --format json
@@ -663,6 +669,8 @@ canisend review-dispositions update --workspace . --job jobs/<job-slug> --patch-
 `accepted` is valid only for non-blockers; `revision_required` keeps the document in review. A changed Draft/Review
 requires `reset_for_current_review`. When all current findings are accepted, `canisend run` embeds a verifiable
 Cover Letter `reviewed` projection while Draft and Review stay `proposed`; other package gates remain independent.
+Research Statement findings remain proposed for human inspection; guarded dispositions, compatibility rendering,
+document readiness, and package readiness are not implemented for that executor yet.
 
 Evidence and Parse are independent after intake, so their deterministic runs may be ordered either way; Match waits
 for current Confirm and Evidence outputs. Host-agent execution applies to Parse and Draft, while configured-provider

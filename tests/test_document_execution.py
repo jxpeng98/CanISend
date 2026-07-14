@@ -112,21 +112,28 @@ def _mixed_source_plan() -> RequiredDocumentPlanV1:
     )
 
 
-def test_capability_registry_is_explicit_and_only_cover_letter_is_available() -> None:
+def test_capability_registry_exposes_two_guarded_document_executors() -> None:
     capabilities = document_executor_capabilities()
     by_kind = {item.normalized_kind: item for item in capabilities}
 
     assert tuple(by_kind) == tuple(sorted(by_kind))
     assert {item.normalized_kind for item in capabilities if item.availability == "available"} == {
-        "cover_letter"
+        "cover_letter",
+        "research_statement",
     }
     assert by_kind["cover_letter"].authoritative_target == "cover_letter_draft.json"
     assert by_kind["cover_letter"].execution_modes == (
         "configured_provider",
         "host_agent",
     )
+    assert by_kind["research_statement"].authoritative_target == (
+        "research_statement_draft.json"
+    )
+    assert by_kind["research_statement"].output_schema == (
+        "canisend.research-statement-draft/v1"
+    )
+    assert by_kind["research_statement"].execution_modes == ("host_agent",)
     for kind in (
-        "research_statement",
         "teaching_statement",
         "supporting_statement",
         "diversity_statement",
@@ -146,27 +153,21 @@ def test_required_documents_derive_one_honest_fan_out_item_each() -> None:
 
     assert plan.state == "partially_dispatchable"
     assert len(plan.items) == 4
-    assert plan.ready_document_ids == (_document_id(1),)
-    assert plan.executor_unavailable_document_ids == (
-        _document_id(2),
-        _document_id(4),
-    )
+    assert plan.ready_document_ids == (_document_id(1), _document_id(2))
+    assert plan.executor_unavailable_document_ids == (_document_id(4),)
     assert plan.omitted_document_ids == (_document_id(3),)
     assert plan.blocked_document_ids == ()
-    assert plan.blocking_document_ids == (_document_id(2), _document_id(4))
-    assert plan.blockers == (
-        "documents.executor_planned",
-        "documents.executor_unregistered",
-    )
+    assert plan.blocking_document_ids == (_document_id(4),)
+    assert plan.blockers == ("documents.executor_unregistered",)
     assert [item.state for item in plan.items] == [
         "ready_to_prepare",
-        "executor_unavailable",
+        "ready_to_prepare",
         "omitted",
         "executor_unavailable",
     ]
     assert plan.items[0].executor_id == "draft.cover_letter"
     assert plan.items[1].route_id == "documents.research_statement"
-    assert plan.items[1].executor_id is None
+    assert plan.items[1].executor_id == "draft.research_statement"
     assert plan.items[3].route_id is None
     serialized = plan.model_dump_json()
     assert PRIVATE_LABEL not in serialized
@@ -259,7 +260,7 @@ def test_execution_plan_schema_matches_model_and_rejects_false_ready_state() -> 
     assert list(Draft202012Validator(stored).iter_errors(false_ready))
 
     false_planned_executor = deepcopy(payload)
-    false_planned_executor["items"][1]["executor_id"] = "draft.research_statement"
+    false_planned_executor["items"][3]["executor_id"] = "draft.research_statement"
     with pytest.raises(ValidationError):
         DocumentExecutionPlanV1.model_validate(false_planned_executor)
     assert list(Draft202012Validator(stored).iter_errors(false_planned_executor))
@@ -295,8 +296,8 @@ def test_body_free_status_exposes_counts_and_dispatchable_next_actions(tmp_path:
         "documents.review_capabilities",
     ]
     assert response.extensions["canisend.document_execution_item_count"] == 4
-    assert response.extensions["canisend.document_ready_to_prepare_count"] == 1
-    assert response.extensions["canisend.document_executor_unavailable_count"] == 2
+    assert response.extensions["canisend.document_ready_to_prepare_count"] == 2
+    assert response.extensions["canisend.document_executor_unavailable_count"] == 1
     serialized = response.model_dump_json()
     assert PRIVATE_LABEL not in serialized
     assert PRIVATE_SOURCE not in serialized
@@ -351,8 +352,8 @@ def test_documents_status_cli_is_read_only_and_uses_agent_response_v1(
     assert payload["extensions"]["canisend.document_execution_state"] == (
         "partially_dispatchable"
     )
-    assert payload["extensions"]["canisend.document_ready_to_prepare_count"] == 1
-    assert payload["extensions"]["canisend.document_executor_unavailable_count"] == 2
+    assert payload["extensions"]["canisend.document_ready_to_prepare_count"] == 2
+    assert payload["extensions"]["canisend.document_executor_unavailable_count"] == 1
     assert PRIVATE_LABEL not in result.stdout
     assert PRIVATE_SOURCE not in result.stdout
     assert _tree_hashes(workspace) == before

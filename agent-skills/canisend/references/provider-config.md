@@ -22,10 +22,11 @@ Profile evidence augmentation is explicit opt-in through `extract-profile-eviden
 
 Before enabling provider-backed parsing, drafting, profile augmentation, or a command provider, tell the user it
 transmits private advert and evidence context, plus selected profile, Decision, Brief, or draft context, to the
-configured provider or local command. Structured configured-provider Draft sends
+configured provider or local command. Structured configured-provider Cover Letter Draft sends
 exactly `parsed_job.json`, `criteria.json`, `evidence_catalog.json`, `criterion_matches.json`,
 `application_decision.yaml`, `application_brief.yaml`, and `required_document_plan.json`. Require
-`--allow-provider-backed` on each non-cached structured Draft invocation. Do not add that flag, `--llm-augment`,
+`--allow-provider-backed` on each non-cached Cover Letter Draft invocation. Research Statement configured-provider
+execution is not implemented. Do not add that flag, `--llm-augment`,
 `--llm-parser`, `--llm-drafts`, or `ACADEMIC_PREP_LLM_PROVIDER=command` unless the user explicitly approves that
 mode for the current workspace or job.
 

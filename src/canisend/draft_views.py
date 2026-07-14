@@ -60,15 +60,20 @@ def load_current_structured_draft_views(
     draft_path = job_dir / COVER_LETTER_DRAFT_OUTPUT_PATH
     review_path = job_dir / REVIEW_FINDINGS_OUTPUT_PATH
     try:
-        inspection = inspect_stage_status(workspace, job_dir, stage="review")
+        draft_hash = sha256_file(draft_path)
+        draft = CoverLetterDraftV1.model_validate(read_json_object(draft_path))
+        inspection = inspect_stage_status(
+            workspace,
+            job_dir,
+            stage="review",
+            document_id=draft.document_id,
+        )
         if not _inspection_is_current(inspection):
             return None
         if read_json_object(job_dir / PARSED_JOB_PATH) != parsed_job:
             return None
 
-        draft_hash = sha256_file(draft_path)
         review_hash = sha256_file(review_path)
-        draft = CoverLetterDraftV1.model_validate(read_json_object(draft_path))
         review_payload = read_json_object(review_path)
         review = ReviewFindingsV1.model_validate(review_payload)
         schema_dir = load_workspace_config(workspace).path("schema_dir")
@@ -107,7 +112,12 @@ def load_current_structured_draft_views(
             )
         markdown = render_structured_draft_markdown(draft)
 
-        final_inspection = inspect_stage_status(workspace, job_dir, stage="review")
+        final_inspection = inspect_stage_status(
+            workspace,
+            job_dir,
+            stage="review",
+            document_id=draft.document_id,
+        )
         if (
             not _inspection_is_current(final_inspection)
             or sha256_file(draft_path) != draft_hash

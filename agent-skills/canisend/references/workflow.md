@@ -160,8 +160,8 @@ source receipts that do not resolve to the advert.
 An unchanged deterministic rerun is a cache hit. Advert or relevant job metadata changes make Parse stale; profile
 evidence, writing preferences, package status, and downstream artifacts do not.
 
-Host-agent execution applies to Parse and structured Draft. Configured-provider execution currently applies only to
-structured Draft. Each prepared task has a separate immutable preparation receipt. If its inputs, upstream
+Host-agent execution applies to Parse and structured Cover Letter/Research Statement Draft. Configured-provider
+execution currently applies only to Cover Letter Draft. Each prepared task has a separate immutable preparation receipt. If its inputs, upstream
 dependencies, or protected output change before promotion, do not prepare a parallel task: cancel the active one
 first, preserving its audit trail and candidate:
 
@@ -385,15 +385,16 @@ canisend documents status \
   --format json
 ```
 
-This read-only command returns counts and generic actions only. `ready_to_prepare` currently means the guarded Cover
-Letter executor can run. A confirmed research, teaching, supporting, diversity, publication, CV, or other planned
-document remains `executor_unavailable`; it is not silently omitted and prevents complete fan-out. The projection is
-re-derived from the current plan hash and is not a mutable artifact or a package-readiness decision.
+This read-only command returns counts and generic actions only. `ready_to_prepare` can mean the guarded Cover Letter
+or Research Statement executor can run. A confirmed teaching, supporting, diversity, publication, CV, or other
+planned document remains `executor_unavailable`; it is not silently omitted and prevents complete fan-out. The
+projection is re-derived from the current plan hash and is not a mutable artifact or a package-readiness decision.
 
-Draft and Review runs are keyed by `(stage, document_id)`. The current sole Cover Letter is resolved automatically,
-but a host may pass its stable Required Document Plan ID as `--document-id <document_...>` to `stage status`,
+Draft and Review runs are keyed by `(stage, document_id)`. One current dispatchable guarded target is resolved
+automatically. If Cover Letter and Research Statement are both ready, ask before reading the Tier 2 plan, select the
+exact stable ID mapped to the intended normalized kind, and pass `--document-id <document_...>` to `stage status`,
 `prepare`, `run`, and `cancel`. Reuse that exact ID for Review. Do not infer an ID from a label, list position, output
-filename, or provider text; a mismatched or unsupported ID must fail before task creation.
+filename, or provider text; ambiguous omitted, mismatched, or unsupported selection must fail before task creation.
 
 If the Decision basis changes, Brief bytes remain present and status requires a new `reconfirm_brief` scoped patch.
 Stage 2 is locally accepted. A current plan completes the resumable Stage 2 decision spine, but it does not make
@@ -412,9 +413,10 @@ serialize writers. CAS coordinates cooperative CanISend writes; it does not make
 safe. Corrections additionally require current Parse and Confirm plus a Confirm rerun after every semantic patch;
 Decision requires current Match; Brief requires a current confirmed `decision=apply`.
 
-## 10. Generate And Review A Structured Cover Letter Draft
+## 10. Generate And Review Structured Document Drafts
 
-After Brief succeeds with one blocker-free confirmed `prepare` Cover Letter, ask before reading its Tier 2 inputs:
+After Brief succeeds with one blocker-free confirmed `prepare` Cover Letter or Research Statement, ask before
+reading its Tier 2 plan/inputs. Include the selected ID when more than one target is ready:
 
 ```bash
 canisend stage prepare \
@@ -422,18 +424,22 @@ canisend stage prepare \
   --job jobs/<job-slug> \
   --stage draft \
   --mode host-agent \
+  --document-id <document_...> \
   --format json
 ```
 
 The prepared task returns the `read-private-draft-inputs` consent ID. Read only the returned TaskSpec paths after
 that separate Tier 2 consent. The document-scoped 1.1 TaskSpec, result, submission, validation, manifest, promotion,
 and state records all echo the same stable ID; non-document 1.0 task shapes remain unchanged. Produce JSON matching
-`schemas/cover-letter-draft.schema.json` in fresh private scratch. Every applicant-facing block must be an explicit
+the adapter-selected schema in fresh private scratch: `schemas/cover-letter-draft.schema.json` for Cover Letter or
+`schemas/research-statement-draft.schema.json` for Research Statement. Every applicant-facing block must be an explicit
 Claim; strong/partial facts use current Evidence IDs, while unsupported facts remain explicit blockers. Pass the
 scratch file to `stage submit`, then pass the returned immutable TaskResult to `stage apply`. Never write the
-declared candidate/result paths or `cover_letter_draft.json` directly.
+declared candidate/result paths or either authoritative Draft directly. Research Statement requires
+`research_overview`, `research_contributions`, and `future_agenda` sections for blocker-free completeness Review.
 
-If the user instead explicitly approves Tier 3 transmission to the configured provider or command, run:
+For Cover Letter only, if the user instead explicitly approves Tier 3 transmission to the configured provider or
+command, run:
 
 ```bash
 canisend stage run \
@@ -468,11 +474,14 @@ with that composite identity.
 
 Use body-free counts/codes first; ask before reading Claim or finding bodies. Blockers require a new validated Draft.
 Open semantic-support and non-factual Claim-kind findings require human inspection. Start with
-`canisend review-dispositions status ... --format json`, initialize with explicit write consent, then submit one
+`canisend review-dispositions status ... --format json` only for Cover Letter, initialize with explicit write
+consent, then submit one
 strict patch per finding through `review-dispositions update` with the latest revision/hash. Use
 `set_finding_disposition` with `accepted` or `revision_required`; a blocker cannot be accepted. If Draft/Review
 changed, use one explicit `reset_for_current_review` patch before inspecting the new finding set. Complete current
 acceptances derive Cover Letter readiness while Draft and Review remain `proposed`; this is not package readiness.
+Research Statement findings remain proposed for human inspection; guarded dispositions, rendering, document
+readiness, and package readiness are future work.
 
 ## 11. Generate The Compatible Draft Package
 

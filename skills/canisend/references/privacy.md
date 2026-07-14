@@ -124,12 +124,13 @@ legacy path instead of combining sources.
 
 ## Structured Draft And Review Data Plane
 
-Draft candidates, `cover_letter_draft.json`, claim text, `review_findings.json`, finding messages/actions, and
-`review_dispositions.yaml` are Tier 2. A host agent may read the seven declared Draft inputs only after approval that
+Draft candidates, `cover_letter_draft.json`, `research_statement_draft.json`, claim text, `review_findings.json`,
+`research_statement_review_findings.json`, finding messages/actions, and `review_dispositions.yaml` are Tier 2. A
+host agent may read the seven declared Draft inputs only after approval that
 their contents may enter the agent model context. It writes candidate JSON to fresh private scratch and uses
 `stage submit`; only the core may write run candidates/results or promote the authoritative Draft.
 
-Configured-provider Draft is Tier 3 and requires explicit `--allow-provider-backed` on each non-cached invocation.
+Configured-provider Cover Letter Draft is Tier 3 and requires explicit `--allow-provider-backed` on each non-cached invocation.
 It sends exactly the seven TaskSpec-declared Tier 2 inputs to the configured provider or command. Without consent,
 CanISend does not construct or call the provider and does not write workflow state. A cache hit transmits nothing.
 Provider output is bounded, treated as untrusted, and never retained verbatim; only a core-derived, schema-validated

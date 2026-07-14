@@ -609,10 +609,24 @@ def run_smoke(canisend: str, workspace: Path) -> None:
             (job / "required_document_plan.json").read_text(encoding="utf-8")
         )
         requirements_basis = initial_plan["requirements_basis_sha256"]
-    except (OSError, UnicodeError, json.JSONDecodeError, KeyError, TypeError) as exc:
+        cover_document_id = next(
+            item["document_id"]
+            for item in initial_plan["requirements"]
+            if item["normalized_kind"] == "cover_letter"
+        )
+    except (
+        OSError,
+        UnicodeError,
+        json.JSONDecodeError,
+        KeyError,
+        StopIteration,
+        TypeError,
+    ) as exc:
         raise SmokeFailure("The initial document plan omitted its requirements basis.") from exc
     if not isinstance(requirements_basis, str):
         raise SmokeFailure("The initial document requirements basis is invalid.")
+    if not isinstance(cover_document_id, str):
+        raise SmokeFailure("The initial document plan omitted its Cover Letter identity.")
 
     current_brief = brief_initialized
     for patch in (
@@ -655,6 +669,8 @@ def run_smoke(canisend: str, workspace: Path) -> None:
             *job_args,
             "--stage",
             "draft",
+            "--document-id",
+            cover_document_id,
             "--mode",
             "configured-provider",
         ],
@@ -684,6 +700,8 @@ def run_smoke(canisend: str, workspace: Path) -> None:
                 *job_args,
                 "--stage",
                 "draft",
+                "--document-id",
+                cover_document_id,
                 "--mode",
                 "configured-provider",
                 "--allow-provider-backed",
@@ -707,7 +725,14 @@ def run_smoke(canisend: str, workspace: Path) -> None:
         raise SmokeFailure("Configured-provider Draft omitted its execution receipt.")
     reviewed = _run(
         canisend,
-        ["stage", "run", *job_args, "--stage", "review"],
+        [
+            "stage",
+            "run",
+            *job_args,
+            "--stage", "review",
+            "--document-id",
+            cover_document_id,
+        ],
         expect_json=True,
     )
     if reviewed is None or reviewed.get("blockers") != []:

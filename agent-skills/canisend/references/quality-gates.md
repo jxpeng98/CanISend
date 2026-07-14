@@ -82,14 +82,19 @@ Do not use ready, final, complete, or submission-ready for generated materials u
 
 ## Draft Gate
 
-- The current `cover_letter_draft.json` binds exact current Parsed Job, Criteria, Evidence, Match, Decision, Brief,
-  and document-plan hashes, targets the single confirmed `prepare` Cover Letter, and remains `review_state=proposed`.
+- Each current `cover_letter_draft.json` or `research_statement_draft.json` binds exact current Parsed Job, Criteria,
+  Evidence, Match, Decision, Brief, and document-plan hashes, targets its exact stable confirmed `prepare` document
+  ID/kind, and remains `review_state=proposed`.
 - Every applicant-facing block is one Claim with a recomputed stable ID. Strong/partial factual claims resolve to
   current Evidence; unsupported facts carry `claim.unsupported`; partial facts carry `claim.partial_support`.
 - Current deterministic `review_findings.json` exists for the Draft. Unsupported claims, confirmed Brief exclusion
   conflicts, and missing opening/body/closing sections are blockers. Supported factual wording retains an explicit
   semantic-support review item until inspected; every non-factual Claim kind also remains open for semantic review.
-- Current `review_dispositions.yaml` binds the exact Draft/Review hashes. Every current non-blocker finding is
+- A current Research Statement uses `research_statement_review_findings.json`; missing `research_overview`,
+  `research_contributions`, or `future_agenda` is a blocker. Its findings require human inspection because guarded
+  dispositions, compatibility rendering, document readiness, and package readiness are not implemented for this
+  executor.
+- For Cover Letter only, current `review_dispositions.yaml` binds the exact Draft/Review hashes. Every current non-blocker finding is
   `accepted`; none is unresolved or `revision_required`. Blockers cannot be accepted or waived, and a changed Review
   requires an explicit reset to the new basis rather than carrying decisions forward by position or message.
 - Rejected/stale Draft candidates left authoritative Draft, user YAML, compatibility Markdown, Typst, and profile

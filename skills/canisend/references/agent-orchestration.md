@@ -37,9 +37,10 @@ uv run pytest tests/test_examples.py -v
    catalogs, or TaskResult paths directly.
 8. Run user-owned writes only through `corrections`/`decision`/`brief` Agent operations. Never assign a worker a whole
    YAML output; give it one bounded patch file, serialize updates, and request explicit consent at execution.
-9. Run structured Cover Letter Draft through host-agent `stage prepare`/scratch/`stage submit`/`stage apply`, or after
-   explicit Tier 3 consent through configured-provider `stage run --allow-provider-backed`; then run deterministic
-   Review. Never assign either authoritative JSON target as a worker write.
+9. Run structured Cover Letter or Research Statement Draft through host-agent
+   `stage prepare`/scratch/`stage submit`/`stage apply` with the exact stable document ID when selection is ambiguous.
+   Cover Letter alone may use configured-provider `stage run --allow-provider-backed` after explicit Tier 3 consent.
+   Then run deterministic Review with the same ID. Never assign an authoritative JSON target as a worker write.
 
 Agents should coordinate through CLI commands and local files, not through hidden state.
 

@@ -6,7 +6,12 @@ from pathlib import Path
 import pytest
 from jsonschema import Draft202012Validator, ValidationError as JsonSchemaValidationError
 
-from canisend.draft_models import CoverLetterDraftV1, ReviewFindingsV1
+from canisend.draft_models import (
+    CoverLetterDraftV1,
+    DraftSectionV1,
+    ResearchStatementDraftV1,
+    ReviewFindingsV1,
+)
 from tests.test_draft_models import draft, finding
 
 
@@ -21,6 +26,25 @@ def schema(name: str) -> dict[str, object]:
             "cover-letter-draft.schema.json",
             CoverLetterDraftV1,
             lambda: draft().model_dump(mode="json"),
+        ),
+        (
+            "research-statement-draft.schema.json",
+            ResearchStatementDraftV1,
+            lambda: ResearchStatementDraftV1(
+                job_id="lecturer-economics",
+                document_id="document_" + "d" * 32,
+                input_fingerprint="1" * 64,
+                basis=draft().basis,
+                generation_mode="host_agent",
+                generator_strategy="host_agent.research_statement",
+                generator_version="1.0.0",
+                sections=(
+                    DraftSectionV1(
+                        section_id="research_overview",
+                        claims=draft().sections[0].claims,
+                    ),
+                ),
+            ).model_dump(mode="json"),
         ),
         (
             "review-findings.schema.json",

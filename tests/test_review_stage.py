@@ -79,6 +79,7 @@ def _promote_draft(
         job,
         stage="draft",
         execution_mode="host_agent",
+        document_id=str(payload["document_id"]),
     )
     submitted = submit_stage_candidate(
         workspace,

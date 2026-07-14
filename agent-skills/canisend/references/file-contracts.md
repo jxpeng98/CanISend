@@ -86,6 +86,10 @@ confirmed_corrections.yaml    # optional Tier 2 user-owned input
 application_decision.yaml     # optional Tier 2 user-owned input
 application_brief.yaml        # optional Tier 2 user-owned input
 required_document_plan.json   # core-owned Tier 2 deterministic projection
+cover_letter_draft.json       # core-owned Tier 2 proposed structured Draft
+research_statement_draft.json # core-owned Tier 2 proposed structured Draft
+review_findings.json          # deterministic Cover Letter Review
+research_statement_review_findings.json # deterministic Research Statement Review
 workflow/
   state.json                 # rebuildable view
   user-mutations/
@@ -156,11 +160,19 @@ RSS and Atom lead outputs live in ignored `job_leads/`.
   promoted only from guarded host-agent or configured-provider candidate JSON and always remains
   `review_state=proposed`. Configured-provider output contributes only section/Claim semantics; core derives the
   trusted envelope, basis, IDs, generation metadata, and review state.
+- `research_statement_draft.json`: strict core-owned Tier 2 Research Statement Draft using the same current-basis,
+  Claim-ID, evidence-support, candidate-validation, and guarded-promotion rules. It is host-agent-only in this slice,
+  uses `schemas/research-statement-draft.schema.json`, and remains `review_state=proposed`. A blocker-free completeness
+  Review requires `research_overview`, `research_contributions`, and `future_agenda` sections.
 - `review_findings.json`: deterministic core-owned Tier 2 Review projection for the current structured Draft. It
   records stable blocker/review/warning findings without changing the Draft, user YAML, compatibility views, or
   profile. Unsupported claims, missing required sections, and confirmed Brief exclusion conflicts are blockers;
   structurally supported factual claims and every non-factual Claim-kind classification retain explicit
   semantic-review findings. A later compatible `run` may read this current Review to project a blocker-free Draft.
+- `research_statement_review_findings.json`: deterministic Tier 2 Review projection for the current Research
+  Statement Draft. It uses the shared Review Findings schema with strategy
+  `deterministic.research_statement_review`, but does not feed Cover Letter dispositions, compatibility projection,
+  document readiness, or package readiness.
 - `review_dispositions.yaml`: strict user-owned Tier 2 finding decisions bound to the exact Draft and Review hashes.
   Agent writes use `review-dispositions status|init|update` with one finding, the current revision/hash, and explicit
   consent. `accepted` is valid only for non-blockers; `revision_required` keeps the document out of readiness. A
@@ -183,12 +195,13 @@ RSS and Atom lead outputs live in ignored `job_leads/`.
   candidate or result paths itself. Evidence TaskSpecs name only their own job-local immutable snapshot; Match
   TaskSpecs name only current `criteria.json` and `evidence_catalog.json`; Brief TaskSpecs name current job-local
   advert/Parsed Job, Criteria, Match, Decision, and Brief inputs. Draft TaskSpecs name the seven current Tier 2
-  structured/user inputs and allow only core-owned candidate/result writes. Configured-provider Draft uses the same
+  structured/user inputs and allow only core-owned candidate/result writes. Cover Letter configured-provider Draft uses the same
   exact TaskSpec paths with privacy tier 3 and consent `send-private-draft-inputs-to-provider`; raw provider output
   is not an artifact. Review TaskSpecs add the promoted Draft and remain deterministic. Non-document tasks keep the
   frozen 1.0 wire shape. Document-scoped Draft/Review tasks use backward-readable 1.1 records and bind TaskSpec,
   result, submission, validation, manifest, terminal claim, promotion receipt, and WorkflowState to the same stable
-  Required Document Plan ID. Workflow stage instances are unique by `(stage, document_id)`.
+  Required Document Plan ID. The current plan's normalized kind selects the document-specific adapter, schema, and
+  authoritative target. Workflow stage instances are unique by `(stage, document_id)`.
 - `workflow/runs/*/inputs/evidence-snapshot.json`: immutable Evidence input written by the core during prepare. It may
   duplicate normalized profile evidence and remains until the user removes the private run or job. Resumable
   Evidence does not accept a workspace-external profile root.

@@ -43,6 +43,7 @@ def test_init_workspace_creates_user_layout_and_default_resources(tmp_path):
     assert (workspace / "schemas" / "application-decision.schema.json").exists()
     assert (workspace / "schemas" / "application-brief.schema.json").exists()
     assert (workspace / "schemas" / "required-document-plan.schema.json").exists()
+    assert (workspace / "schemas" / "research-statement-draft.schema.json").exists()
     assert (workspace / "schemas" / "user-mutation-receipt.schema.json").exists()
     assert (workspace / "schemas" / "review-dispositions.schema.json").exists()
     assert (workspace / "schemas" / "document-readiness.schema.json").exists()

@@ -25,9 +25,25 @@ Read only what the current task requires:
 
 ## Workflow
 
-1. Identify the workspace and run or request `canisend doctor --workspace <private-workspace>`.
-2. Prefer `profile/generated/` evidence and relevant job artifacts over raw private files.
-3. Map requested research themes to evidence citations and job criteria.
-4. Revise for a coherent research agenda, contribution, methods, future pipeline, and institutional fit.
-5. Mark unsupported claims as gaps and suggest evidence the user can add.
-6. Before saying the statement is ready, check `../canisend/references/quality-gates.md`.
+1. Identify the workspace, run `canisend agent context`, and inspect body-free `canisend documents status`.
+2. If Research Statement is confirmed for `prepare`, obtain approval before reading the Tier 2
+   `required_document_plan.json`, then copy the exact stable ID mapped to `normalized_kind=research_statement`. Never
+   infer the ID from a label, position, output path, or prose.
+3. Prepare the host-agent task with `canisend stage prepare --stage draft --mode host-agent --document-id <id>
+   --format json`. Configured-provider execution is not supported for Research Statement.
+4. After the returned `read-private-draft-inputs` consent is approved, read only TaskSpec-declared inputs. Prefer
+   current Evidence IDs and relevant Criteria over raw private files.
+5. Create fresh private scratch JSON matching `schemas/research-statement-draft.schema.json`. Use the exact TaskSpec
+   job/document identity and fingerprint plus the seven declared input hashes as Draft basis. Every applicant-facing
+   block is one Claim with a core-recomputable stable ID. Include `research_overview`, `research_contributions`, and
+   `future_agenda`; map factual claims to current Evidence, and map future intent to Criteria or confirmed Brief
+   emphasis. Unsupported or partial facts retain their declared blocker.
+6. Pass scratch through `stage submit`, then pass its immutable TaskResult to `stage apply`. Never write the run
+   directory or `research_statement_draft.json` directly.
+7. Run `stage run --stage review --mode deterministic --document-id <same-id>`. Read finding bodies only after Tier 2
+   approval. Missing required sections, unsupported facts, and confirmed exclusion conflicts are blockers; semantic
+   support and Claim-kind findings require human review.
+8. Do not use Cover Letter `review-dispositions` or claim Research Statement document/package readiness. Guarded
+   Research Statement dispositions, rendering, and readiness are not implemented yet.
+9. Before presenting wording for human review, check `../canisend/references/quality-gates.md` and clearly label the
+   Draft and Review as `proposed`.

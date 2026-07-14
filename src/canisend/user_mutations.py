@@ -2250,19 +2250,24 @@ def _current_review_basis(
     workspace: Path,
     job: Path,
 ) -> tuple[ReviewFindingsV1, SafeFileSnapshot, SafeFileSnapshot]:
-    _require_stage_current(workspace, job, "review")
-    review, review_snapshot = _load_structured_artifact(
-        job,
-        REVIEW_FINDINGS_OUTPUT_PATH,
-        ReviewFindingsV1,
-    )
     draft, draft_snapshot = _load_structured_artifact(
         job,
         COVER_LETTER_DRAFT_OUTPUT_PATH,
         CoverLetterDraftV1,
     )
-    assert isinstance(review, ReviewFindingsV1)
     assert isinstance(draft, CoverLetterDraftV1)
+    _require_stage_current(
+        workspace,
+        job,
+        "review",
+        document_id=draft.document_id,
+    )
+    review, review_snapshot = _load_structured_artifact(
+        job,
+        REVIEW_FINDINGS_OUTPUT_PATH,
+        ReviewFindingsV1,
+    )
+    assert isinstance(review, ReviewFindingsV1)
     if (
         review.job_id != draft.job_id
         or review.document_id != draft.document_id
@@ -2273,7 +2278,12 @@ def _current_review_basis(
             "The current Draft and Review do not share exact receipts.",
         )
 
-    _require_stage_current(workspace, job, "review")
+    _require_stage_current(
+        workspace,
+        job,
+        "review",
+        document_id=draft.document_id,
+    )
     final_review = _read_safe(job, REVIEW_FINDINGS_OUTPUT_PATH)
     final_draft = _read_safe(job, COVER_LETTER_DRAFT_OUTPUT_PATH)
     if (
@@ -2309,12 +2319,19 @@ def _load_structured_artifact(
     return model, snapshot
 
 
-def _require_stage_current(workspace: Path, job: Path, stage: str) -> None:
+def _require_stage_current(
+    workspace: Path,
+    job: Path,
+    stage: str,
+    *,
+    document_id: str | None = None,
+) -> None:
     try:
         inspection = inspect_stage_status(
             workspace,
             job,
             stage=stage,  # type: ignore[arg-type]
+            document_id=document_id,
         )
     except StageRuntimeError as exc:
         raise UserMutationError(

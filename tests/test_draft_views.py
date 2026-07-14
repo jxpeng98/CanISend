@@ -37,8 +37,12 @@ def _reviewed_draft(
     *,
     text: str = STRUCTURED_SENTINEL,
     unsupported: bool = False,
+    include_research_statement: bool = False,
 ) -> tuple[Path, Path, dict[str, object]]:
-    workspace, job = _workspace(tmp_path)
+    workspace, job = _workspace(
+        tmp_path,
+        include_research_statement=include_research_statement,
+    )
     payload = _complete_sections(_candidate(workspace, job, factual=True))
     claim = payload["sections"][1]["claims"][0]
     claim["text"] = text
@@ -54,7 +58,12 @@ def _reviewed_draft(
         claim["blockers"] = ["claim.unsupported"]
         payload["blockers"] = ["claim.unsupported"]
     _promote_draft(workspace, job, payload)
-    run_deterministic_stage(workspace, job, stage="review")
+    run_deterministic_stage(
+        workspace,
+        job,
+        stage="review",
+        document_id=str(payload["document_id"]),
+    )
     return workspace, job, payload
 
 
@@ -103,6 +112,24 @@ def test_current_structured_draft_renders_claims_once_and_builds_traceable_conte
         for section in payload["sections"]
         for claim in section["claims"]
     ]
+
+
+def test_cover_projection_uses_stable_identity_when_research_is_also_ready(
+    tmp_path: Path,
+) -> None:
+    workspace, job, payload = _reviewed_draft(
+        tmp_path,
+        include_research_statement=True,
+    )
+
+    views = load_current_structured_draft_views(
+        workspace,
+        job,
+        parsed_job=read_json_object(job / "parsed_job.json"),
+    )
+
+    assert views is not None
+    assert views.draft.document_id == payload["document_id"]
 
 
 def test_markdown_projection_neutralizes_agent_controlled_structure(

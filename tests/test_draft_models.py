@@ -12,6 +12,8 @@ from canisend.draft_models import (
     CoverLetterDraftV1,
     DraftBasisV1,
     DraftSectionV1,
+    RESEARCH_STATEMENT_DRAFT_SCHEMA_VERSION,
+    ResearchStatementDraftV1,
     ReviewFindingV1,
     ReviewFindingsV1,
     stable_claim_id,
@@ -120,6 +122,33 @@ def test_cover_letter_draft_is_frozen_structured_and_proposed() -> None:
     with pytest.raises(ValidationError):
         CoverLetterDraftV1.model_validate(
             {**candidate.model_dump(), "final": True}
+        )
+
+
+def test_research_statement_draft_reuses_the_guarded_claim_graph() -> None:
+    cover = draft()
+    candidate = ResearchStatementDraftV1(
+        job_id=cover.job_id,
+        document_id=cover.document_id,
+        input_fingerprint=cover.input_fingerprint,
+        basis=cover.basis,
+        generation_mode="host_agent",
+        generator_strategy="host_agent.research_statement",
+        generator_version="1.0.0",
+        sections=(
+            DraftSectionV1(
+                section_id="research_overview",
+                claims=cover.sections[0].claims,
+            ),
+        ),
+    )
+
+    assert candidate.schema_version == RESEARCH_STATEMENT_DRAFT_SCHEMA_VERSION
+    assert candidate.review_state == "proposed"
+    assert candidate.blockers == ()
+    with pytest.raises(ValidationError):
+        ResearchStatementDraftV1.model_validate(
+            {**candidate.model_dump(), "submission_ready": True}
         )
 
 

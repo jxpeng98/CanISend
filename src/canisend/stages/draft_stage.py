@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from hashlib import sha256
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from jsonschema import Draft202012Validator
 from pydantic import ValidationError
@@ -21,6 +21,7 @@ from canisend.draft_models import (
     CoverLetterDraftV1,
     DraftBasisV1,
     DraftGenerationMode,
+    ResearchStatementDraftV1,
 )
 from canisend.resource_files import read_resource_text
 from canisend.stage_store import (
@@ -48,6 +49,7 @@ from canisend.user_file_store import (
 DRAFT_CONTRACT_VERSION = "1.0.0"
 HOST_AGENT_DRAFT_GENERATOR_STRATEGY = "host_agent.cover_letter"
 CONFIGURED_PROVIDER_DRAFT_GENERATOR_STRATEGY = "configured_provider.cover_letter"
+HOST_AGENT_RESEARCH_STATEMENT_GENERATOR_STRATEGY = "host_agent.research_statement"
 # Compatibility alias for host-agent callers that predate configured-provider Draft.
 DRAFT_GENERATOR_STRATEGY = HOST_AGENT_DRAFT_GENERATOR_STRATEGY
 DRAFT_GENERATOR_VERSION = "1.0.0"
@@ -57,6 +59,10 @@ CRITERIA_INPUT_PATH = "criteria.json"
 EVIDENCE_CATALOG_INPUT_PATH = "evidence_catalog.json"
 CRITERION_MATCHES_INPUT_PATH = "criterion_matches.json"
 COVER_LETTER_DRAFT_OUTPUT_PATH = "cover_letter_draft.json"
+RESEARCH_STATEMENT_DRAFT_OUTPUT_PATH = "research_statement_draft.json"
+
+DraftDocumentKind = Literal["cover_letter", "research_statement"]
+StructuredDraftV1 = CoverLetterDraftV1 | ResearchStatementDraftV1
 
 
 class DraftStageError(ValueError):
@@ -77,7 +83,8 @@ class _DraftInputs:
     brief: ApplicationBriefV1
     plan: RequiredDocumentPlanV1
     basis: DraftBasisV1
-    cover_letter_document_id: str | None
+    document_kind: DraftDocumentKind
+    document_id: str | None
 
 
 def draft_precondition_reasons(
@@ -90,6 +97,45 @@ def draft_precondition_reasons(
 ) -> tuple[str, ...]:
     """Return one body-free reason when Draft inputs are not ready."""
 
+    return _draft_precondition_reasons(
+        workspace,
+        job_dir,
+        document_kind="cover_letter",
+        document_id=document_id,
+        parsed_job_schema_path=parsed_job_schema_path,
+        required_document_plan_schema_path=required_document_plan_schema_path,
+    )
+
+
+def research_statement_draft_precondition_reasons(
+    workspace: Path,
+    job_dir: Path,
+    *,
+    document_id: str | None = None,
+    parsed_job_schema_path: Path | None = None,
+    required_document_plan_schema_path: Path | None = None,
+) -> tuple[str, ...]:
+    """Return one body-free reason when Research Statement inputs are not ready."""
+
+    return _draft_precondition_reasons(
+        workspace,
+        job_dir,
+        document_kind="research_statement",
+        document_id=document_id,
+        parsed_job_schema_path=parsed_job_schema_path,
+        required_document_plan_schema_path=required_document_plan_schema_path,
+    )
+
+
+def _draft_precondition_reasons(
+    workspace: Path,
+    job_dir: Path,
+    *,
+    document_kind: DraftDocumentKind,
+    document_id: str | None,
+    parsed_job_schema_path: Path | None,
+    required_document_plan_schema_path: Path | None,
+) -> tuple[str, ...]:
     upstream = brief_precondition_reasons(workspace, job_dir)
     if upstream:
         return upstream
@@ -97,6 +143,7 @@ def draft_precondition_reasons(
         inputs = _load_draft_inputs(
             workspace,
             job_dir,
+            document_kind=document_kind,
             document_id=document_id,
             parsed_job_schema_path=parsed_job_schema_path,
             required_document_plan_schema_path=required_document_plan_schema_path,
@@ -116,9 +163,51 @@ def draft_input_projection(
     parsed_job_schema_path: Path | None = None,
     required_document_plan_schema_path: Path | None = None,
 ) -> dict[str, object]:
+    return _draft_input_projection(
+        workspace,
+        job_dir,
+        document_kind="cover_letter",
+        document_id=document_id,
+        draft_schema_path=cover_letter_schema_path,
+        parsed_job_schema_path=parsed_job_schema_path,
+        required_document_plan_schema_path=required_document_plan_schema_path,
+    )
+
+
+def research_statement_draft_input_projection(
+    workspace: Path,
+    job_dir: Path,
+    *,
+    document_id: str | None = None,
+    research_statement_schema_path: Path | None = None,
+    parsed_job_schema_path: Path | None = None,
+    required_document_plan_schema_path: Path | None = None,
+) -> dict[str, object]:
+    return _draft_input_projection(
+        workspace,
+        job_dir,
+        document_kind="research_statement",
+        document_id=document_id,
+        draft_schema_path=research_statement_schema_path,
+        parsed_job_schema_path=parsed_job_schema_path,
+        required_document_plan_schema_path=required_document_plan_schema_path,
+    )
+
+
+def _draft_input_projection(
+    workspace: Path,
+    job_dir: Path,
+    *,
+    document_kind: DraftDocumentKind,
+    document_id: str | None,
+    draft_schema_path: Path | None,
+    parsed_job_schema_path: Path | None,
+    required_document_plan_schema_path: Path | None,
+) -> dict[str, object]:
     inputs = _load_draft_inputs(
         workspace,
         job_dir,
+        document_kind=document_kind,
         document_id=document_id,
         parsed_job_schema_path=parsed_job_schema_path,
         required_document_plan_schema_path=required_document_plan_schema_path,
@@ -128,22 +217,25 @@ def draft_input_projection(
         raise DraftStageError("Draft inputs are not current and ready.")
     return _draft_projection(
         inputs,
-        cover_letter_schema_path=cover_letter_schema_path,
+        draft_schema_path=draft_schema_path,
     )
 
 
 def _draft_projection(
     inputs: _DraftInputs,
     *,
-    cover_letter_schema_path: Path | None,
+    draft_schema_path: Path | None,
 ) -> dict[str, object]:
     return {
         "stage": "draft",
         "contract_version": DRAFT_CONTRACT_VERSION,
         **inputs.basis.model_dump(mode="json"),
-        "cover_letter_document_id": inputs.cover_letter_document_id,
+        f"{inputs.document_kind}_document_id": inputs.document_id,
         "schema_sha256": sha256(
-            _cover_letter_schema_text(cover_letter_schema_path).encode("utf-8")
+            _draft_schema_text(
+                inputs.document_kind,
+                draft_schema_path,
+            ).encode("utf-8")
         ).hexdigest(),
     }
 
@@ -169,6 +261,27 @@ def draft_input_fingerprint(
     )
 
 
+def research_statement_draft_input_fingerprint(
+    workspace: Path,
+    job_dir: Path,
+    *,
+    document_id: str | None = None,
+    research_statement_schema_path: Path | None = None,
+    parsed_job_schema_path: Path | None = None,
+    required_document_plan_schema_path: Path | None = None,
+) -> str:
+    return _projection_sha256(
+        research_statement_draft_input_projection(
+            workspace,
+            job_dir,
+            document_id=document_id,
+            research_statement_schema_path=research_statement_schema_path,
+            parsed_job_schema_path=parsed_job_schema_path,
+            required_document_plan_schema_path=required_document_plan_schema_path,
+        )
+    )
+
+
 def validate_draft_candidate(
     candidate: object,
     *,
@@ -181,14 +294,78 @@ def validate_draft_candidate(
     required_document_plan_schema_path: Path | None = None,
     expected_generation_mode: DraftGenerationMode = "host_agent",
 ) -> CoverLetterDraftV1:
+    validated = _validate_draft_candidate(
+        candidate,
+        workspace=workspace,
+        job_dir=job_dir,
+        input_fingerprint=input_fingerprint,
+        document_kind="cover_letter",
+        document_id=document_id,
+        draft_schema_path=cover_letter_schema_path,
+        parsed_job_schema_path=parsed_job_schema_path,
+        required_document_plan_schema_path=required_document_plan_schema_path,
+        expected_generation_mode=expected_generation_mode,
+    )
+    if not isinstance(validated, CoverLetterDraftV1):
+        raise DraftStageValidationError("Draft candidate uses the wrong document contract.")
+    return validated
+
+
+def validate_research_statement_draft_candidate(
+    candidate: object,
+    *,
+    workspace: Path,
+    job_dir: Path,
+    input_fingerprint: str,
+    document_id: str | None = None,
+    research_statement_schema_path: Path | None = None,
+    parsed_job_schema_path: Path | None = None,
+    required_document_plan_schema_path: Path | None = None,
+    expected_generation_mode: DraftGenerationMode = "host_agent",
+) -> ResearchStatementDraftV1:
+    validated = _validate_draft_candidate(
+        candidate,
+        workspace=workspace,
+        job_dir=job_dir,
+        input_fingerprint=input_fingerprint,
+        document_kind="research_statement",
+        document_id=document_id,
+        draft_schema_path=research_statement_schema_path,
+        parsed_job_schema_path=parsed_job_schema_path,
+        required_document_plan_schema_path=required_document_plan_schema_path,
+        expected_generation_mode=expected_generation_mode,
+    )
+    if not isinstance(validated, ResearchStatementDraftV1):
+        raise DraftStageValidationError("Draft candidate uses the wrong document contract.")
+    return validated
+
+
+def _validate_draft_candidate(
+    candidate: object,
+    *,
+    workspace: Path,
+    job_dir: Path,
+    input_fingerprint: str,
+    document_kind: DraftDocumentKind,
+    document_id: str | None,
+    draft_schema_path: Path | None,
+    parsed_job_schema_path: Path | None,
+    required_document_plan_schema_path: Path | None,
+    expected_generation_mode: DraftGenerationMode,
+) -> StructuredDraftV1:
     if not isinstance(candidate, dict):
         raise DraftStageValidationError("Draft candidate must be a JSON object.")
+    if document_kind == "research_statement" and expected_generation_mode != "host_agent":
+        raise DraftStageValidationError(
+            "Research Statement Draft supports host-agent generation only."
+        )
     if brief_precondition_reasons(workspace, job_dir):
         raise DraftStageValidationError("Draft inputs are not current and ready.")
     try:
         inputs = _load_draft_inputs(
             workspace,
             job_dir,
+            document_kind=document_kind,
             document_id=document_id,
             parsed_job_schema_path=parsed_job_schema_path,
             required_document_plan_schema_path=required_document_plan_schema_path,
@@ -202,23 +379,28 @@ def validate_draft_candidate(
     current_fingerprint = _projection_sha256(
         _draft_projection(
             inputs,
-            cover_letter_schema_path=cover_letter_schema_path,
+            draft_schema_path=draft_schema_path,
         )
     )
     if input_fingerprint != current_fingerprint:
         raise DraftStageValidationError("Draft input fingerprint is stale.")
 
     try:
-        schema = json.loads(_cover_letter_schema_text(cover_letter_schema_path))
+        schema = json.loads(_draft_schema_text(document_kind, draft_schema_path))
         Draft202012Validator.check_schema(schema)
     except (json.JSONDecodeError, ValueError) as exc:
         raise DraftStageValidationError(
-            "The configured Cover Letter Draft schema is invalid."
+            "The configured structured Draft schema is invalid."
         ) from exc
     if list(Draft202012Validator(schema).iter_errors(candidate)):
         raise DraftStageValidationError("Draft candidate failed schema validation.")
     try:
-        validated = CoverLetterDraftV1.model_validate(candidate)
+        model_type = (
+            CoverLetterDraftV1
+            if document_kind == "cover_letter"
+            else ResearchStatementDraftV1
+        )
+        validated = model_type.model_validate(candidate)
     except ValidationError as exc:
         raise DraftStageValidationError("Draft candidate failed semantic validation.") from exc
 
@@ -235,6 +417,7 @@ def validate_draft_candidate(
         final_inputs = _load_draft_inputs(
             workspace,
             job_dir,
+            document_kind=document_kind,
             document_id=document_id,
             parsed_job_schema_path=parsed_job_schema_path,
             required_document_plan_schema_path=required_document_plan_schema_path,
@@ -247,7 +430,7 @@ def validate_draft_candidate(
     final_fingerprint = _projection_sha256(
         _draft_projection(
             final_inputs,
-            cover_letter_schema_path=cover_letter_schema_path,
+            draft_schema_path=draft_schema_path,
         )
     )
     if final_fingerprint != input_fingerprint:
@@ -259,6 +442,7 @@ def _load_draft_inputs(
     workspace: Path,
     job_dir: Path,
     *,
+    document_kind: DraftDocumentKind,
     document_id: str | None,
     parsed_job_schema_path: Path | None,
     required_document_plan_schema_path: Path | None,
@@ -346,9 +530,9 @@ def _load_draft_inputs(
         raise
     except (OSError, StageStoreError, UnicodeError, ValueError) as exc:
         raise DraftStageError("Draft upstream receipts could not be validated.") from exc
-    cover_letter_document_id = _optional_cover_letter_document_id(plan)
-    if document_id is not None and document_id != cover_letter_document_id:
-        raise DraftStageError("Draft target is not the planned Cover Letter document.")
+    planned_document_id = _optional_document_id(plan, document_kind=document_kind)
+    if document_id is not None and document_id != planned_document_id:
+        raise DraftStageError("Draft target is not the planned document kind.")
     return _DraftInputs(
         parsed_job=parsed_job,
         criteria=criteria,
@@ -358,7 +542,8 @@ def _load_draft_inputs(
         brief=brief,
         plan=plan,
         basis=basis,
-        cover_letter_document_id=cover_letter_document_id,
+        document_kind=document_kind,
+        document_id=planned_document_id,
     )
 
 
@@ -440,9 +625,12 @@ def _draft_input_reason(
     if plan.blockers or plan.unresolved_brief_fields or plan.unresolved_document_ids:
         return ("input_not_ready:document_plan_blocked",)
     try:
-        planned_document_id = _cover_letter_document_id(plan)
+        planned_document_id = _document_id(
+            plan,
+            document_kind=inputs.document_kind,
+        )
     except DraftStageError:
-        return ("input_not_ready:cover_letter_not_planned",)
+        return (f"input_not_ready:{inputs.document_kind}_not_planned",)
     if document_id is not None and document_id != planned_document_id:
         return ("input_not_ready:document_not_planned",)
     task = next(
@@ -455,28 +643,46 @@ def _draft_input_reason(
         or task.confirmation_state != "confirmed"
         or task.blockers
     ):
-        return ("input_not_ready:cover_letter_not_prepared",)
+        return (f"input_not_ready:{inputs.document_kind}_not_prepared",)
     return ()
 
 
 def _cover_letter_document_id(plan: RequiredDocumentPlanV1) -> str:
-    document_id = _optional_cover_letter_document_id(plan)
+    return _document_id(plan, document_kind="cover_letter")
+
+
+def _document_id(
+    plan: RequiredDocumentPlanV1,
+    *,
+    document_kind: DraftDocumentKind,
+) -> str:
+    document_id = _optional_document_id(plan, document_kind=document_kind)
     if document_id is None:
-        raise DraftStageError("Draft requires exactly one planned Cover Letter document.")
+        raise DraftStageError(
+            f"Draft requires exactly one planned {document_kind} document."
+        )
     return document_id
 
 
 def _optional_cover_letter_document_id(plan: RequiredDocumentPlanV1) -> str | None:
+    return _optional_document_id(plan, document_kind="cover_letter")
+
+
+def _optional_document_id(
+    plan: RequiredDocumentPlanV1,
+    *,
+    document_kind: DraftDocumentKind,
+) -> str | None:
     matching = tuple(
         requirement.document_id
         for requirement in plan.requirements
-        if requirement.normalized_kind == "cover_letter"
+        if requirement.normalized_kind == document_kind
     )
     return matching[0] if len(matching) == 1 else None
 
 
 def _validate_candidate_identity(
-    candidate: CoverLetterDraftV1,
+    candidate: StructuredDraftV1,
     *,
     inputs: _DraftInputs,
     job_dir: Path,
@@ -485,19 +691,20 @@ def _validate_candidate_identity(
 ) -> None:
     if candidate.job_id != job_dir.name:
         raise DraftStageValidationError("Draft candidate belongs to a different job.")
-    if (
-        inputs.cover_letter_document_id is None
-        or candidate.document_id != inputs.cover_letter_document_id
-    ):
+    if inputs.document_id is None or candidate.document_id != inputs.document_id:
         raise DraftStageValidationError("Draft candidate targets a different document.")
     if candidate.input_fingerprint != input_fingerprint:
         raise DraftStageValidationError("Draft candidate declares a stale input fingerprint.")
     if candidate.basis != inputs.basis:
         raise DraftStageValidationError("Draft candidate basis does not match current inputs.")
-    expected_strategy = {
-        "host_agent": HOST_AGENT_DRAFT_GENERATOR_STRATEGY,
-        "configured_provider": CONFIGURED_PROVIDER_DRAFT_GENERATOR_STRATEGY,
-    }[expected_generation_mode]
+    expected_strategy = (
+        HOST_AGENT_RESEARCH_STATEMENT_GENERATOR_STRATEGY
+        if inputs.document_kind == "research_statement"
+        else {
+            "host_agent": HOST_AGENT_DRAFT_GENERATOR_STRATEGY,
+            "configured_provider": CONFIGURED_PROVIDER_DRAFT_GENERATOR_STRATEGY,
+        }[expected_generation_mode]
+    )
     if (
         candidate.generation_mode != expected_generation_mode
         or candidate.generator_strategy != expected_strategy
@@ -507,7 +714,7 @@ def _validate_candidate_identity(
 
 
 def _validate_claim_references(
-    candidate: CoverLetterDraftV1,
+    candidate: StructuredDraftV1,
     *,
     inputs: _DraftInputs,
 ) -> None:
@@ -578,13 +785,24 @@ def _projection_sha256(value: object) -> str:
 
 
 def _cover_letter_schema_text(path: Path | None) -> str:
+    return _draft_schema_text("cover_letter", path)
+
+
+def _draft_schema_text(
+    document_kind: DraftDocumentKind,
+    path: Path | None,
+) -> str:
+    filename = {
+        "cover_letter": "cover-letter-draft.schema.json",
+        "research_statement": "research-statement-draft.schema.json",
+    }[document_kind]
     try:
         return read_resource_text(
-            "schemas/cover-letter-draft.schema.json",
+            f"schemas/{filename}",
             local_path=path,
         )
     except (OSError, UnicodeError) as exc:
-        raise DraftStageError("The Cover Letter Draft schema is not readable.") from exc
+        raise DraftStageError("The structured Draft schema is not readable.") from exc
 
 
 def _parsed_job_schema_text(path: Path | None) -> str:
