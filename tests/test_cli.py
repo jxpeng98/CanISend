@@ -2,6 +2,7 @@ import re
 import sys
 import json
 
+from packaging.version import Version
 from typer.testing import CliRunner
 
 from canisend import __version__
@@ -229,10 +230,13 @@ def test_orchestrate_help_shows_profile_input_edit_safety_flags():
 
 def test_cli_version_option_shows_local_and_remote_versions(monkeypatch):
     runner = CliRunner()
+    local = Version(__version__)
+    remote_stable = f"{local.major + 1}.0.0"
+    remote_prerelease = f"{local.major + 2}.0.0rc1"
 
     monkeypatch.setattr(
         "canisend.cli.fetch_remote_versions",
-        lambda: PyPIVersionInfo(stable="0.2.1", prerelease="0.3.0rc1"),
+        lambda: PyPIVersionInfo(stable=remote_stable, prerelease=remote_prerelease),
     )
 
     result = runner.invoke(app, ["--version"])
@@ -241,10 +245,10 @@ def test_cli_version_option_shows_local_and_remote_versions(monkeypatch):
     assert result.exit_code == 0
     assert "CanISend version" in output
     assert f"Local package      {__version__}" in output
-    assert "Remote stable      0.2.1" in output
-    assert "Remote prerelease  0.3.0rc1" in output
-    assert "Stable update available: 0.2.1" in output
-    assert "Prerelease available: 0.3.0rc1" in output
+    assert f"Remote stable      {remote_stable}" in output
+    assert f"Remote prerelease  {remote_prerelease}" in output
+    assert f"Stable update available: {remote_stable}" in output
+    assert f"Prerelease available: {remote_prerelease}" in output
     assert "Upgrade" in output
 
 
