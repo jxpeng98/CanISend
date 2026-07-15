@@ -1,6 +1,6 @@
 # Evidence-Backed Draft Foundation Implementation Plan
 
-**Status:** In progress — Tasks 0–15 and the `0.3.0.dev2` TestPyPI checkpoint accepted; `0.3.0b1` release underway
+**Status:** In progress — Tasks 0–15 accepted locally and remotely; `0.3.0b1` release underway
 
 **Date:** 2026-07-13
 
@@ -191,7 +191,7 @@ AgentResponse/TaskSpec contracts, and without claiming package readiness.
 
 - [x] Complete Stage 3 dual-document and aggregate-readiness fixtures, docs, skills, migration, and recovery evidence.
 - [x] Pass full supported-version, distribution, installed-wheel, Typst, repository, and privacy validation.
-- [ ] Push the reviewed candidate and require successful remote CI.
+- [x] Push the reviewed candidate and require successful remote CI.
 - [ ] Run `scripts/release.sh beta --version 0.3.0b1` with every local check enabled.
 - [ ] Verify TestPyPI publish/smoke, PyPI prerelease promotion, GitHub prerelease, and fresh PyPI installation.
 
@@ -213,8 +213,11 @@ Task 15 was locally accepted on 2026-07-14:
   migration/recovery guidance, restart/cache/invalidation/tamper/recovery/edited-Typst/legacy behavior all passed or
   were exercised by the full suite.
 
-This is local Stage 3 acceptance only. Remote CI, the immutable `v0.3.0b1` candidate, TestPyPI/PyPI promotion, GitHub
-prerelease creation, and independent PyPI installation remain open release work.
+The reviewed implementation candidate `ab8c99042894b0f69a1f28f035976c1cfccc6a73` also passed the complete remote
+CI matrix on 2026-07-15: 1,101 tests on Python 3.11, 3.12, and 3.13; Ubuntu, macOS, and Windows CLI smoke; and a
+fresh built-wheel Stage 3 smoke with 11 successful stages and 20 immutable user-mutation receipts. The immutable
+`v0.3.0b1` candidate, TestPyPI/PyPI promotion, GitHub prerelease creation, and independent PyPI installation remain
+open release work.
 
 ## Task 0–5 Validation Snapshot
 

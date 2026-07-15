@@ -1,7 +1,7 @@
 # CLI-First Workflow Optimization Execution Roadmap
 
-**Status:** Active — Stages 1 and 2 plus Stage 3 Tasks 0–15 are locally accepted; the `0.3.0.dev2` TestPyPI
-development checkpoint is accepted and remote CI/`0.3.0b1` release is in progress
+**Status:** Active — Stages 1 and 2 plus Stage 3 Tasks 0–15 are accepted locally and remotely; the `0.3.0.dev2`
+TestPyPI development checkpoint is accepted and the `0.3.0b1` release is in progress
 
 **Date:** 2026-07-11
 
@@ -299,8 +299,9 @@ result is claimed.
 
 ## Stage 3: Evidence-Backed Draft + Review
 
-**Stage status:** In progress on `feat/evidence-backed-draft-foundation`. ADR-013 freezes the Claim, ReviewFinding,
-Cover Letter Draft, privacy, and guarded promotion boundary; ADR-014 freezes user-owned finding dispositions,
+**Stage status:** Accepted on `feat/evidence-backed-draft-foundation`; prerelease publication remains. ADR-013
+freezes the Claim, ReviewFinding, Cover Letter Draft, privacy, and guarded promotion boundary; ADR-014 freezes
+user-owned finding dispositions,
 non-waivable blockers, and derived document readiness; ADR-015 freezes configured-provider Tier 3 consent and reuse
 of the same TaskSpec/candidate/validator/promotion boundary; ADR-016 freezes a read-only, hash-bound required-document
 execution fan-out and explicit available/planned/unregistered capability registry; ADR-017 freezes document-scoped
@@ -312,10 +313,11 @@ readiness; ADR-021 freezes deterministic aggregate Review, exact dynamic documen
 responses, and guarded correction proposals; ADR-022 freezes guarded aggregate decisions, non-waivable blockers,
 derived package readiness, and fail-closed APP-Q5 integration. The Cover Letter and Research Statement
 Draft/Review/disposition/readiness slices, aggregate Review/decisions/readiness, migration guidance, full supported
-version matrix, real Typst compilation, and source/clean-wheel Stage 3 exit smoke are locally accepted. Both
-documents are available guarded executors with per-document readiness. Cover Letter keeps package-integrated
-compatibility views; a reviewed Research Statement has standalone Markdown/Typst views only. Remote CI,
-`0.3.0b1` publication, and final installed-PyPI acceptance remain.
+version matrix, real Typst compilation, and source/clean-wheel Stage 3 exit smoke are locally accepted. The reviewed
+implementation candidate also passed Python 3.11–3.13, Ubuntu/macOS/Windows smoke, and built-wheel smoke in remote
+CI. Both documents are available guarded executors with per-document readiness. Cover Letter keeps
+package-integrated compatibility views; a reviewed Research Statement has standalone Markdown/Typst views only.
+`0.3.0b1` publication and final installed-PyPI acceptance remain.
 
 **Release milestones:** `0.3.0.dev2` was published to TestPyPI from the Task 12 baseline (`0.3.0.dev1` is retained as
 a pre-upload failed CI candidate); publish `0.3.0b1` to TestPyPI and PyPI only after Tasks 13–15 are accepted. See

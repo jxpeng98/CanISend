@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Made command-provider transport, evidence citations, Typst source hashes, and public smoke diagnostics portable
+  across Windows while preserving body-free failure reporting.
 - Locally accepted the complete Stage 3 dual-document and aggregate-readiness path across Python 3.11–3.14. Source
   and clean-wheel fixtures reach package `reviewed` through 11 guarded stages and 20 immutable user-mutation receipts
   without claiming rendering or submission, and Cover Letter, Research Statement, and package Typst compile with

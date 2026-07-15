@@ -1,12 +1,12 @@
 # Stage 3 Completion And 0.3.0 Release Implementation Plan
 
-**Status:** In progress — Release A (`0.3.0.dev2`) and Tasks 13–15 locally accepted; remote CI and Release B remain
+**Status:** In progress — Release A (`0.3.0.dev2`) and Tasks 13–15 accepted locally and remotely; Release B remains
 
 **Date:** 2026-07-14
 
 **Branch:** `feat/evidence-backed-draft-foundation`
 
-**Current accepted baseline:** Task 12 at `cb115f1`
+**Current reviewed Stage 3 implementation candidate:** `ab8c99042894b0f69a1f28f035976c1cfccc6a73`
 
 **Release sequence:** `0.3.0.dev2` on TestPyPI, then `0.3.0b1` on TestPyPI and PyPI after Stage 3 acceptance
 
@@ -281,17 +281,36 @@ Task 15 was locally accepted on 2026-07-14:
   privacy contracts, `git diff --check`, `uv build`, Twine metadata, and packaged-resource validation passed. The
   current local build remains the development checkpoint; final immutable hashes will be recorded from the published
   `0.3.0b1` artifacts.
-- Remote CI, prerelease publication, and independent installation from PyPI remain Release B work and are not claimed
-  by this local acceptance.
+- Prerelease publication and independent installation from PyPI remain Release B work and are not claimed by this
+  acceptance.
+
+### Task 15 Remote CI Acceptance Snapshot
+
+The clean, pushed Stage 3 implementation candidate
+`ab8c99042894b0f69a1f28f035976c1cfccc6a73` passed
+[GitHub Actions run 29380704590](https://github.com/jxpeng98/CanISend/actions/runs/29380704590) on 2026-07-15:
+
+- The full suite passed with 1,101 tests on Python 3.11 in 1,547.67 seconds, Python 3.12 in 1,891.30 seconds, and
+  Python 3.13 in 1,469.35 seconds.
+- CLI contract smoke passed on Ubuntu in 4 minutes 13 seconds, macOS in 2 minutes 26 seconds, and Windows in
+  7 minutes 12 seconds.
+- The distribution job built the sdist and wheel, passed Twine metadata and packaged-resource checks, installed the
+  built wheel into a fresh Python 3.12 environment, and completed the Stage 3 smoke with 11 successful stages and
+  20 immutable user-mutation receipts in 3 minutes 54 seconds.
+- Intermediate CI runs exposed Windows-specific citation separators and CRLF-sensitive Typst source hashes. The
+  fixes in `b96d950` and `ab8c990`, together with explicit UTF-8 command transport and code-only smoke diagnostics,
+  are covered by the final cross-platform run.
+- GitHub's Node 20 action-runtime deprecation notice remains a non-blocking release-infrastructure follow-up; no test,
+  build, package, or smoke gate was skipped.
 
 ## Release B: `0.3.0b1` PyPI Prerelease
 
 ### Preconditions
 
 - [x] Tasks 13, 14, and 15 are locally accepted and recorded in the Stage 3 implementation plan.
-- [ ] The candidate branch is reviewed, clean, pushed, and passes remote CI.
-- [ ] `v0.3.0b1` is absent locally, on GitHub, TestPyPI, and PyPI.
-- [ ] TestPyPI and PyPI Trusted Publishing environments remain configured.
+- [x] The candidate branch is reviewed, clean, pushed, and passes remote CI.
+- [x] `v0.3.0b1` is absent locally, on GitHub, TestPyPI, and PyPI.
+- [x] TestPyPI and PyPI Trusted Publishing environments remain configured.
 
 ### Execution
 
