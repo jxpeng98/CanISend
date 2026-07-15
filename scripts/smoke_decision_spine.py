@@ -74,6 +74,13 @@ def _body_free_failure_code(stderr: str) -> str | None:
     return None if match is None else match.group(1)
 
 
+def _packaged_fake_failure_detail(stderr: str) -> str | None:
+    lines = [line.strip() for line in stderr.splitlines() if line.strip()]
+    if not lines:
+        return None
+    return lines[-1][:500]
+
+
 def _run(
     canisend: str,
     arguments: Sequence[str],
@@ -81,6 +88,7 @@ def _run(
     expect_json: bool,
     expected_returncodes: tuple[int, ...] = (0,),
     environment: Mapping[str, str] | None = None,
+    packaged_fake_diagnostics: bool = False,
 ) -> dict[str, Any] | None:
     completed = subprocess.run(
         [canisend, *arguments],
@@ -95,7 +103,13 @@ def _run(
     operation = " ".join(arguments[:2])
     if completed.returncode not in expected_returncodes:
         failure_code = _body_free_failure_code(completed.stderr)
-        detail = "" if failure_code is None else f" ({failure_code})"
+        if failure_code is not None:
+            detail = f" ({failure_code})"
+        elif packaged_fake_diagnostics:
+            fake_detail = _packaged_fake_failure_detail(completed.stderr)
+            detail = "" if fake_detail is None else f" ({fake_detail})"
+        else:
+            detail = ""
         raise SmokeFailure(
             f"CanISend smoke operation {operation!r} failed "
             f"with exit code {completed.returncode}{detail}."
@@ -855,6 +869,7 @@ def run_smoke(canisend: str, workspace: Path) -> None:
         canisend,
         ["run-example", "--workspace", str(workspace), "--overwrite"],
         expect_json=False,
+        packaged_fake_diagnostics=True,
     )
     _configure_reviewable_dual_document_fixture(workspace)
     _run(

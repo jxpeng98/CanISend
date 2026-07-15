@@ -137,6 +137,33 @@ def test_shared_decision_spine_smoke_extracts_only_example_failure_code(monkeypa
     assert private_body not in str(failure.value)
 
 
+def test_shared_decision_spine_smoke_limits_opt_in_packaged_fake_diagnostics(
+    monkeypatch,
+):
+    fake_detail = "packaged fake fixture failed"
+    monkeypatch.setattr(
+        smoke_decision_spine.subprocess,
+        "run",
+        lambda *args, **kwargs: smoke_decision_spine.subprocess.CompletedProcess(
+            args=args,
+            returncode=9,
+            stdout="ignored fake stdout",
+            stderr=f"first line\n{fake_detail}\n",
+        ),
+    )
+
+    with pytest.raises(smoke_decision_spine.SmokeFailure) as failure:
+        smoke_decision_spine._run(
+            "canisend",
+            ["run-example", "--workspace"],
+            expect_json=False,
+            packaged_fake_diagnostics=True,
+        )
+
+    assert fake_detail in str(failure.value)
+    assert "ignored fake stdout" not in str(failure.value)
+
+
 def test_doctor_reports_installed_package_version(tmp_path):
     workspace = tmp_path / "workspace"
     runner = CliRunner()
