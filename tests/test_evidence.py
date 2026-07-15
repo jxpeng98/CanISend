@@ -5,6 +5,7 @@ from typer.testing import CliRunner
 from canisend.cli import app
 from canisend.evidence import (
     EvidenceAugmentationError,
+    EvidenceReference,
     extract_profile_evidence,
     extract_typst_evidence,
     load_generated_evidence,
@@ -20,6 +21,18 @@ class FakeProvider:
     def complete(self, prompt: str) -> LLMResponse:
         self.prompts.append(prompt)
         return LLMResponse(content=self.content, provider="fake")
+
+
+def test_evidence_reference_citations_use_portable_path_separators():
+    reference = EvidenceReference(
+        source_file=r"profile\generated\cv.evidence.md",
+        section="Teaching",
+        item_id="cv-001",
+        text="Teaching evidence",
+    )
+
+    assert reference.section_citation == "profile/generated/cv.evidence.md#Teaching"
+    assert reference.citation == "profile/generated/cv.evidence.md#Teaching/cv-001"
 
 
 def test_extract_typst_evidence_from_modernpro_cv_blocks(tmp_path):

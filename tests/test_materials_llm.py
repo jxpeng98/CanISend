@@ -175,6 +175,26 @@ def test_validate_material_citations_accepts_item_level_profile_reference():
     validate_material_citations(materials, evidence())
 
 
+def test_validate_material_citations_accepts_posix_reference_for_windows_source():
+    windows_evidence = [
+        EvidenceReference(
+            source_file=r"profile\generated\cv.evidence.md",
+            section="Teaching",
+            item_id="cv-001",
+            text="`job`: Teaching Assistant for Econometrics",
+        )
+    ]
+    citation = "`profile/generated/cv.evidence.md#Teaching/cv-001`"
+    materials = ApplicationMaterials(
+        fit_report=f"# Fit Report\n\nClaim ({citation}).",
+        cover_letter_draft=f"# Cover Letter Draft\n\nClaim ({citation}).",
+        cv_tailoring_notes=f"# CV Tailoring Notes\n\nClaim ({citation}).",
+        criteria_checklist=f"# Criteria Coverage Checklist\n\nClaim ({citation}).",
+    )
+
+    validate_material_citations(materials, windows_evidence)
+
+
 def test_validate_material_citations_requires_citations_when_evidence_exists():
     materials = ApplicationMaterials(
         fit_report="# Fit Report\n\nStrong teaching fit.",

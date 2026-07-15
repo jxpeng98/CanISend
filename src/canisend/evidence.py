@@ -30,14 +30,15 @@ class EvidenceReference:
 
     @property
     def citation(self) -> str:
-        section_citation = f"{self.source_file}#{self.section}"
+        section_citation = self.section_citation
         if not self.item_id:
             return section_citation
         return f"{section_citation}/{self.item_id}"
 
     @property
     def section_citation(self) -> str:
-        return f"{self.source_file}#{self.section}"
+        source_file = self.source_file.replace("\\", "/")
+        return f"{source_file}#{self.section}"
 
 
 class EvidenceAugmentationError(ValueError):
@@ -317,7 +318,7 @@ def load_generated_evidence(profile_dir: Path) -> list[EvidenceReference]:
                 item_id, text = _parse_evidence_markdown_item(line)
                 references.append(
                     EvidenceReference(
-                        source_file=str(relative),
+                        source_file=relative.as_posix(),
                         section=section,
                         item_id=item_id,
                         text=text,
