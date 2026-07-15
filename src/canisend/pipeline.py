@@ -317,7 +317,7 @@ def _write_json_preserving_equivalent(path: Path, data: dict[str, Any]) -> Path:
 
 def _write_text(path: Path, text: str) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
+    path.write_text(text, encoding="utf-8", newline="\n")
     return path
 
 

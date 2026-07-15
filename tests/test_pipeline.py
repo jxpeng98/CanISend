@@ -7,9 +7,30 @@ import sys
 import yaml
 from typer.testing import CliRunner
 
+import canisend.pipeline as pipeline_module
 from canisend.cli import app
 from canisend.git_tracking import application_material_paths
 from canisend.stage_runtime import inspect_stage_status, run_deterministic_stage
+
+
+def test_pipeline_text_writer_disables_platform_newline_translation(
+    tmp_path, monkeypatch
+):
+    captured = {}
+    original_write_text = Path.write_text
+
+    def recording_write_text(path, text, **kwargs):
+        captured.update(kwargs)
+        return original_write_text(path, text, **kwargs)
+
+    monkeypatch.setattr(Path, "write_text", recording_write_text)
+    target = tmp_path / "typst" / "cover_letter.typ"
+
+    pipeline_module._write_text(target, "first\nsecond\n")
+
+    assert captured["encoding"] == "utf-8"
+    assert captured["newline"] == "\n"
+    assert target.read_bytes() == b"first\nsecond\n"
 
 
 def _write_basic_job(tmp_path: Path) -> Path:
