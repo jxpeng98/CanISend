@@ -9,6 +9,7 @@ from pydantic import (
     BeforeValidator,
     ConfigDict,
     Field,
+    StrictInt,
     field_validator,
     model_validator,
 )
@@ -77,7 +78,7 @@ class LeadMatchReasonV1(DiscoveryContractModel):
     code: DottedIdentifier
     field: LeadMatchField
     term: str = Field(default="", max_length=256)
-    score_delta: int = Field(default=0, ge=-100_000, le=100_000)
+    score_delta: StrictInt = Field(default=0, ge=-100_000, le=100_000)
 
     @field_validator("code")
     @classmethod
@@ -161,7 +162,8 @@ class JobLeadV2(DiscoveryContractModel):
         default=(), max_length=4_096, json_schema_extra={"uniqueItems": True}
     )
     match_reasons: tuple[LeadMatchReasonV1, ...] = Field(default=(), max_length=4_096)
-    score: int = Field(default=0, ge=-1_000_000, le=1_000_000)
+    score: StrictInt = Field(default=0, ge=-1_000_000, le=1_000_000)
+    rank: StrictInt = Field(default=0, ge=0, le=1_000_000)
 
     @field_validator("lead_id")
     @classmethod
@@ -196,6 +198,20 @@ class JobLeadV2(DiscoveryContractModel):
             raise ValueError("alternate lead IDs must be sorted")
         return values
 
+    @field_validator("match_reasons")
+    @classmethod
+    def _ordered_unique_match_reasons(
+        cls, values: tuple[LeadMatchReasonV1, ...]
+    ) -> tuple[LeadMatchReasonV1, ...]:
+        keys = tuple(
+            (item.code, item.field, item.term, item.score_delta) for item in values
+        )
+        if len(keys) != len(set(keys)):
+            raise ValueError("lead match reasons must be unique")
+        if keys != tuple(sorted(keys)):
+            raise ValueError("lead match reasons must be sorted")
+        return values
+
     @field_validator("provenance")
     @classmethod
     def _unique_provenance(
@@ -227,6 +243,8 @@ class JobLeadV2(DiscoveryContractModel):
             raise ValueError("canonical-URL identity requires canonical_url")
         if self.lead_id in self.alternate_lead_ids:
             raise ValueError("lead_id must not also appear in alternate_lead_ids")
+        if self.score != sum(reason.score_delta for reason in self.match_reasons):
+            raise ValueError("lead score must equal the sum of match-reason deltas")
         if self.first_seen_at > self.last_seen_at:
             raise ValueError("first_seen_at must not be after last_seen_at")
         if self.fetched_at > self.last_seen_at:
@@ -239,10 +257,13 @@ class JobLeadV2(DiscoveryContractModel):
         if not any(
             item.source == self.source
             and item.source_record_id == self.source_record_id
-            and item.source_url == self.canonical_url
             for item in self.provenance
         ):
-            raise ValueError("lead source fields must resolve to one provenance record")
+            raise ValueError("lead source identity must resolve to one provenance record")
+        if self.canonical_url and not any(
+            item.source_url == self.canonical_url for item in self.provenance
+        ):
+            raise ValueError("lead canonical URL must resolve to one provenance record")
         return self
 
 

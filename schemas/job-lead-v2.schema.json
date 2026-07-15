@@ -248,6 +248,13 @@
       "minimum": -1000000,
       "title": "Score",
       "type": "integer"
+    },
+    "rank": {
+      "default": 0,
+      "maximum": 1000000,
+      "minimum": 0,
+      "title": "Rank",
+      "type": "integer"
     }
   },
   "required": [

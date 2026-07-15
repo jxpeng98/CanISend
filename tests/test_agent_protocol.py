@@ -57,6 +57,10 @@ STAGE3_PACKAGE_REVIEW_OPERATIONS = {
     "package_review.dispositions_update",
 }
 
+STAGE4_DISCOVERY_OPERATIONS = {
+    "discovery.merge",
+}
+
 TASK5_USER_INPUT_ERROR_CODES = {
     "user_input.not_initialized",
     "user_input.invalid",
@@ -129,6 +133,14 @@ def test_stage3_capabilities_add_package_dispositions_without_protocol_bump() ->
 
     assert STAGE3_PACKAGE_REVIEW_OPERATIONS <= set(SUPPORTED_AGENT_OPERATIONS)
     assert STAGE3_PACKAGE_REVIEW_OPERATIONS <= set(capabilities.operations)
+    assert capabilities.protocol_versions == [AGENT_PROTOCOL]
+
+
+def test_stage4_capabilities_add_discovery_merge_without_protocol_bump() -> None:
+    capabilities = default_agent_capabilities("0.3.0b1")
+
+    assert STAGE4_DISCOVERY_OPERATIONS <= set(SUPPORTED_AGENT_OPERATIONS)
+    assert STAGE4_DISCOVERY_OPERATIONS <= set(capabilities.operations)
     assert capabilities.protocol_versions == [AGENT_PROTOCOL]
 
 

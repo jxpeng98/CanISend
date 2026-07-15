@@ -347,11 +347,11 @@ TestPyPI and PyPI and independently verified. See
 ## Stage 4: Discovery Ecosystem
 
 **Stage status:** In progress on `feat/discovery-ecosystem`. ADR-023, the complete Stage 4 implementation plan, and
-Task 1's strict Lead v2/stable-selection compatibility slice are locally accepted. RSS/Atom output now adds stable
-identity, canonical/redacted provenance, timestamps, and a packaged schema while retaining the six original fields,
-list shape, jobs.ac.uk/generic commands, and `--lead-index`. `--lead-id` resolves v2 IDs, merge aliases, catalog
-objects, and derived legacy IDs. Deterministic merge/ranking, multi-source refresh, imports, adapters, remote CI, and
-the Stage 4 release candidate remain open.
+Tasks 1–2 are locally accepted. Lead v2 preserves the existing RSS/Atom list workflow while adding stable identity,
+canonical/redacted provenance, aliases, timestamps, and `--lead-id`. The strict discovery catalog now performs
+order-independent union dedupe, stable-ID refresh, explainable include/exclude ranking, inspectable exclusions, and
+atomic `discovery merge` output through private-safe text and AgentResponse surfaces. Multi-source refresh/transport,
+local and host-agent imports, adapters, remote CI, and the Stage 4 release candidate remain open.
 
 ### Deliverables
 

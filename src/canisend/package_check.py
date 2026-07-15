@@ -20,6 +20,7 @@ REQUIRED_WHEEL_RESOURCES = [
     "canisend/resources/schemas/parsed_job.schema.json",
     "canisend/resources/schemas/agent-response.schema.json",
     "canisend/resources/schemas/job-lead-v2.schema.json",
+    "canisend/resources/schemas/lead-catalog-v1.schema.json",
     "canisend/resources/schemas/workflow-state.schema.json",
     "canisend/resources/schemas/task-spec.schema.json",
     "canisend/resources/schemas/task-result.schema.json",

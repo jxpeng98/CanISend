@@ -1,6 +1,6 @@
 # Stage 4 Discovery Ecosystem Implementation Plan
 
-**Status:** In progress — Tasks 0–1 locally accepted; Task 2 is next
+**Status:** In progress — Tasks 0–2 locally accepted; Task 3 is next
 
 **Date:** 2026-07-15
 
@@ -74,11 +74,11 @@ records, and a body-free partial-failure report. `new-job-from-lead` accepts eit
 
 ### Task 2: Deterministic Catalog, Dedupe, And Ranking
 
-- [ ] Add union-based deduplication across namespaced source IDs, canonical URLs, and fallback fingerprints.
-- [ ] Merge provenance and aliases deterministically without losing the six compatibility fields.
-- [ ] Add deterministic include/exclude evaluation, source preference, stable tie-breaking, and structured reasons.
-- [ ] Add inspectable exclusion records and repeat-refresh/no-duplicate fixtures.
-- [ ] Add `discovery merge` text and `canisend.agent/v1` JSON surfaces.
+- [x] Add union-based deduplication across namespaced source IDs, canonical URLs, and fallback fingerprints.
+- [x] Merge provenance and aliases deterministically without losing the six compatibility fields.
+- [x] Add deterministic include/exclude evaluation, source preference, stable tie-breaking, and structured reasons.
+- [x] Add inspectable exclusion records and repeat-refresh/no-duplicate fixtures.
+- [x] Add `discovery merge` text and `canisend.agent/v1` JSON surfaces.
 
 ### Task 3: Atomic Multi-Source Refresh And Shared Transport
 
@@ -144,7 +144,7 @@ records, and a body-free partial-failure report. `new-job-from-lead` accepts eit
 
 ## Validation Record
 
-Tasks 0–1 were locally accepted on 2026-07-15:
+Tasks 0–2 were locally accepted on 2026-07-15:
 
 - ADR-023 and this complete Stage 4 task graph freeze identity precedence, URL/provenance redaction, untrusted data,
   read-only source authority, partial-failure semantics, and continued direct URL/PDF intake.
@@ -162,6 +162,24 @@ Tasks 0–1 were locally accepted on 2026-07-15:
   `git diff --check` passed.
 - An isolated source distribution and wheel build succeeded. The packaged-resource checker confirmed the new Lead
   v2 schema is present, and Twine accepted both artifacts. Nothing was uploaded or published.
+- Task 2 adds the strict `canisend.discovery-catalog/v1` contract and packaged schema. Retained Lead v2 records use
+  contiguous one-based ranks; exclusions preserve the normalized lead plus structured filter reasons; catalog IDs
+  are derived from deterministic content rather than input order or local paths.
+- Union-based merge groups resolve explicit aliases, namespaced native IDs, canonical URLs, and safe fallback
+  fingerprints. Conflicting strong identities are not silently merged. Primary IDs survive repeated refreshes while
+  provenance, alternate IDs, and compatible fields are merged deterministically.
+- Include/exclude keywords, source preference, metadata completeness, multi-source evidence, score deltas, stable
+  tie-breaking, and exclusion reasons are inspectable. Exclusions win, and every retained score equals the sum of
+  its structured reasons.
+- `canisend discovery merge` accepts legacy lists, Lead v2 lists, or strict catalogs and writes atomically. Its text
+  and `canisend.agent/v1` JSON surfaces report only a relative artifact, hash, catalog ID, safe counts, and next
+  action; lead titles, descriptions, absolute workspace paths, and source bodies do not enter the response.
+- After final catalog re-filter recovery hardening, the discovery/job/agent/schema/resource suite passed 233 tests.
+  The complete development-interpreter suite had passed 1,140 tests in 878.81 seconds before that isolated change;
+  all affected suites were rerun afterward. Bytecode compilation and `git diff --check` passed.
+- A new isolated wheel and source distribution built successfully. The packaged-resource checker and Twine accepted
+  both artifacts. A Python 3.12 clean install from that wheel exposed `discovery merge`, loaded the packaged catalog
+  schema, and completed an offline merge smoke test. Nothing was uploaded or published.
 
-Remote CI, cross-version/cross-OS acceptance, catalog merge/ranking, multi-source refresh, local/agent imports, public
-API adapters, and a Stage 4 release candidate remain later tasks; they are not claimed here.
+Remote CI, cross-version/cross-OS acceptance, multi-source refresh/transport, local and agent imports, public API
+adapters, and a Stage 4 release candidate remain later tasks; they are not claimed here.

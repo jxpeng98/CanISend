@@ -33,6 +33,7 @@ def test_init_workspace_creates_user_layout_and_default_resources(tmp_path):
     assert (workspace / "templates" / "typst" / "cover_letter.typ").exists()
     assert (workspace / "schemas" / "parsed_job.schema.json").exists()
     assert (workspace / "schemas" / "job-lead-v2.schema.json").exists()
+    assert (workspace / "schemas" / "lead-catalog-v1.schema.json").exists()
     assert (workspace / "schemas" / "workflow-state.schema.json").exists()
     assert (workspace / "schemas" / "task-spec.schema.json").exists()
     assert (workspace / "schemas" / "task-result.schema.json").exists()

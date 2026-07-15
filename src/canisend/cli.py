@@ -23,6 +23,14 @@ from canisend.document_execution import (
     document_execution_status_agent_response,
     inspect_document_execution,
 )
+from canisend.discovery.agent import discovery_catalog_agent_response
+from canisend.discovery.catalog import (
+    DiscoveryInputError,
+    DiscoveryWriteError,
+    build_catalog_from_files,
+    write_lead_catalog,
+)
+from canisend.discovery.catalog_models import normalized_ranking_policy
 from canisend.examples import run_packaged_example
 from canisend.git_tracking import GitTrackingError, git_add_application_materials
 from canisend.jobs import create_job, create_job_from_lead, list_jobs as list_job_folders, slugify
@@ -172,6 +180,11 @@ user_mutation_app = typer.Typer(
     no_args_is_help=True,
 )
 app.add_typer(user_mutation_app, name="user-mutation")
+discovery_app = typer.Typer(
+    help="Merge, filter, and rank source-neutral local job leads.",
+    no_args_is_help=True,
+)
+app.add_typer(discovery_app, name="discovery")
 
 
 def _version_callback(value: bool) -> None:
@@ -2189,6 +2202,107 @@ def list_jobs_command(
             f"{job['next_action']}"
         )
     typer.echo(f"\n{len(jobs)} job(s) found.")
+
+
+@discovery_app.command("merge")
+def merge_discovery_catalog(
+    inputs: list[Path] = typer.Option(
+        [],
+        "--input",
+        help="Lead JSON list or CanISend catalog. Repeat for multiple sources.",
+    ),
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="User workspace directory containing canisend.yaml.",
+    ),
+    output: Path | None = typer.Option(
+        None,
+        "--output",
+        help="Catalog output path. Defaults to job_leads/catalog.json.",
+    ),
+    include: list[str] = typer.Option(
+        [],
+        "--include",
+        help="Retain leads matching this keyword and explain each match.",
+    ),
+    exclude: list[str] = typer.Option(
+        [],
+        "--exclude",
+        help="Exclude leads matching this keyword and record the reason.",
+    ),
+    prefer_source: list[str] = typer.Option(
+        [],
+        "--prefer-source",
+        help="Source preference in descending priority. Repeat in priority order.",
+    ),
+    output_format: str = typer.Option(
+        "text",
+        "--format",
+        help="Output format: text or json.",
+    ),
+) -> None:
+    """Deterministically merge, deduplicate, filter, and rank local lead files."""
+    _validate_output_format(output_format)
+    try:
+        config = load_workspace_config(workspace)
+        input_paths = [
+            path.expanduser() if path.expanduser().is_absolute() else config.root / path.expanduser()
+            for path in inputs
+        ]
+        output_path = (
+            config.lead_file(output)
+            if output is not None
+            else config.path("job_leads_dir") / "catalog.json"
+        )
+        policy = normalized_ranking_policy(
+            include_keywords=include,
+            exclude_keywords=exclude,
+            source_preference=prefer_source,
+        )
+        catalog = build_catalog_from_files(input_paths, policy=policy)
+        write_lead_catalog(output_path, catalog)
+        response = discovery_catalog_agent_response(
+            config.root,
+            output_path,
+            catalog,
+        )
+    except DiscoveryWriteError as exc:
+        if output_format == "json":
+            _emit_operation_error(
+                operation="discovery.merge",
+                code="operation.failed",
+                message="CanISend could not write the discovery catalog.",
+            )
+        raise typer.BadParameter(str(exc)) from exc
+    except (DiscoveryInputError, ValueError) as exc:
+        if output_format == "json":
+            _emit_operation_error(
+                operation="discovery.merge",
+                code="input.invalid",
+                message="The discovery inputs or ranking policy are invalid.",
+            )
+        raise typer.BadParameter(str(exc)) from exc
+    except Exception:
+        if output_format != "json":
+            raise
+        _emit_operation_error(
+            operation="discovery.merge",
+            code="operation.failed",
+            message="The discovery merge operation failed unexpectedly.",
+        )
+
+    if output_format == "json":
+        _emit_agent_response(response, output_format="json")
+        return
+    _emit_agent_response(response, output_format="text")
+    typer.echo(
+        "Catalog: "
+        f"{catalog.stats.input_records} input, "
+        f"{catalog.stats.merged_records} merged, "
+        f"{catalog.stats.retained_records} retained, "
+        f"{catalog.stats.excluded_records} excluded"
+    )
 
 
 @app.command("fetch-jobs-ac-uk")
