@@ -1,6 +1,6 @@
 # Stage 4 Discovery Ecosystem Implementation Plan
 
-**Status:** In progress — Tasks 0–5 locally accepted; Task 6 is next
+**Status:** In progress — Tasks 0–6 locally accepted; Task 7 is next
 
 **Date:** 2026-07-15
 
@@ -109,12 +109,12 @@ records, and a body-free partial-failure report. `new-job-from-lead` accepts eit
 
 ### Task 6: Adapter Conformance, Greenhouse, And Lever
 
-- [ ] Freeze adapter protocol and a shared offline conformance corpus before registering network adapters.
-- [ ] Implement Greenhouse published-job GET mapping from an explicit board token.
-- [ ] Implement Lever published-posting GET mapping from an explicit site identifier.
-- [ ] Reject malformed identifiers, undocumented response roots, auth/credential options, non-GET behavior, and
+- [x] Freeze adapter protocol and a shared offline conformance corpus before registering network adapters.
+- [x] Implement Greenhouse published-job GET mapping from an explicit board token.
+- [x] Implement Lever published-posting GET mapping from an explicit site identifier.
+- [x] Reject malformed identifiers, undocumented response roots, auth/credential options, non-GET behavior, and
   application/submission endpoints.
-- [ ] Document the exact official read-only endpoints and date of verification.
+- [x] Document the exact official read-only endpoints and date of verification.
 
 ### Task 7: Compatibility, Skills, And Migration
 
@@ -146,7 +146,7 @@ records, and a body-free partial-failure report. `new-job-from-lead` accepts eit
 
 ## Validation Record
 
-Tasks 0–5 were locally accepted on 2026-07-15:
+Tasks 0–6 were locally accepted on 2026-07-15:
 
 - ADR-023 and this complete Stage 4 task graph freeze identity precedence, URL/provenance redaction, untrusted data,
   read-only source authority, partial-failure semantics, and continued direct URL/PDF intake.
@@ -247,6 +247,26 @@ Tasks 0–5 were locally accepted on 2026-07-15:
   both artifacts. A Python 3.12.12 clean install exposed `discovery.search_import`, imported a normalized host-search
   fixture, loaded the packaged search schema, produced two catalog leads, and passed a persisted-artifact scan for
   host names, tracking values, credentials, cursors, and private sentinels. Nothing was uploaded or published.
+- Task 6 freezes one adapter protocol across RSS/Atom, Greenhouse, and Lever: each adapter owns one ID, one derived
+  public GET URL, one redacted locator, one media contract, endpoint validation, and one Lead v2 mapper. Public API
+  configuration accepts identifiers rather than arbitrary URLs or request options.
+- The Greenhouse adapter uses the documented unauthenticated Job Board list endpoint with an explicit lowercase
+  `board_token` and `content=true`. The Lever adapter uses the documented public Postings list endpoint with an
+  explicit lowercase `site_id`, global/EU host selection, JSON mode, and one bounded result limit. Both endpoint
+  contracts were verified against official documentation on 2026-07-15 and recorded in `docs/discovery-adapters.md`.
+- Both adapters issue exactly one GET through the shared bounded public transport. They never expose or call an
+  application POST, follow a response pagination/apply URL, accept credentials, or permit an arbitrary API host.
+  Unknown record fields end inside the adapter; only documented published-job fields map into untrusted Lead v2.
+- A shared offline conformance corpus covers valid vendor shapes, plain-text/HTML descriptions, IDs, locations,
+  tracking removal, application-field exclusion, exact endpoints, EU Lever routing, GET/no-auth behavior, malformed
+  identifiers, undocumented roots, redirects, record limits, one-request behavior, and stale complete-batch reuse.
+- The final adapter/discovery/intake/agent/schema/resource acceptance group passed 253 tests. The complete
+  development-interpreter suite passed 1,240 tests in 788.42 seconds; bytecode compilation and `git diff --check`
+  passed.
+- An isolated source distribution and wheel built successfully. The packaged-resource checker and Twine accepted
+  both artifacts. A Python 3.12.12 clean install exposed `discovery refresh`, loaded the packaged source schema with
+  all three adapter kinds, derived the exact Greenhouse/Lever GET URLs, and mapped both offline fixtures into four
+  Lead v2 records. Nothing was uploaded or published.
 
-Remote CI, cross-version/cross-OS acceptance, public API adapters, compatibility/docs, and a Stage 4 release
-candidate remain later tasks; they are not claimed here.
+Remote CI, cross-version/cross-OS acceptance, compatibility/skills/migration work, and a Stage 4 release candidate
+remain later tasks; they are not claimed here.

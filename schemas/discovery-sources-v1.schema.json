@@ -15,15 +15,54 @@
           "type": "string"
         },
         "kind": {
-          "const": "rss_atom",
           "default": "rss_atom",
+          "enum": [
+            "rss_atom",
+            "greenhouse",
+            "lever"
+          ],
           "title": "Kind",
           "type": "string"
         },
         "url": {
+          "default": "",
           "maxLength": 8192,
-          "minLength": 1,
           "title": "Url",
+          "type": "string"
+        },
+        "board_token": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z0-9](?:[a-z0-9_-]{0,126}[a-z0-9])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Board Token"
+        },
+        "site_id": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z0-9](?:[a-z0-9_-]{0,126}[a-z0-9])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Site Id"
+        },
+        "region": {
+          "default": "global",
+          "enum": [
+            "global",
+            "eu"
+          ],
+          "title": "Region",
           "type": "string"
         },
         "enabled": {
@@ -83,8 +122,7 @@
       },
       "required": [
         "source_id",
-        "name",
-        "url"
+        "name"
       ],
       "title": "DiscoverySourceV1",
       "type": "object"

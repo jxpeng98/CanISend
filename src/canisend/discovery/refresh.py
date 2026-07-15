@@ -11,13 +11,16 @@ from typing import Any
 from pydantic import ValidationError
 import yaml
 
+from canisend.discovery.adapters import (
+    DiscoveryAdapterError,
+    discovery_adapter,
+)
 from canisend.discovery.catalog import (
     DiscoveryWriteError,
     merge_lead_catalog,
     write_lead_catalog,
 )
 from canisend.discovery.catalog_models import LeadCatalogV1
-from canisend.discovery.identity import LeadNormalizationError, normalize_job_lead
 from canisend.discovery.refresh_models import (
     DiscoveryCacheV1,
     DiscoveryRefreshReportV1,
@@ -36,13 +39,6 @@ from canisend.discovery.transport import (
     PublicTransportError,
     TransportPolicy,
     TransportResponse,
-    redact_public_url,
-)
-from canisend.rss import (
-    ALLOWED_FEED_CONTENT_TYPES,
-    JobFeedError,
-    decode_job_feed_bytes,
-    parse_job_feed,
 )
 
 
@@ -190,6 +186,8 @@ def refresh_discovery_sources(
 
     states: list[_SourceState] = []
     for source in active_sources:
+        adapter = discovery_adapter(source)
+        request_url = adapter.request_url(source)
         artifact_stem = _source_artifact_stem(source)
         batch_path = batches_dir / f"{artifact_stem}.json"
         cache_path = cache_dir / f"{artifact_stem}.json"
@@ -201,7 +199,7 @@ def refresh_discovery_sources(
         )
         try:
             response = shared_transport.fetch(
-                source.url,
+                request_url,
                 policy=_transport_policy(source),
                 etag=previous_cache.etag if previous_cache else "",
                 last_modified=(
@@ -350,6 +348,16 @@ def _state_from_response(
     previous_batch: LeadBatchV1 | None,
     previous_cache: DiscoveryCacheV1 | None,
 ) -> _SourceState:
+    adapter = discovery_adapter(source)
+    try:
+        adapter.validate_final_url(source, response.final_url)
+    except DiscoveryAdapterError as exc:
+        raise _SourceFailure(
+            code="source.endpoint_invalid",
+            attempts=response.attempts,
+            http_status=response.status_code,
+        ) from exc
+    source_locator = adapter.source_locator(source)
     if response.not_modified:
         if previous_batch is None or previous_cache is None:
             raise _SourceFailure(
@@ -359,7 +367,7 @@ def _state_from_response(
             )
         cache = DiscoveryCacheV1(
             source_id=source.source_id,
-            source_url=redact_public_url(source.url),
+            source_url=source_locator,
             etag=response.etag or previous_cache.etag,
             last_modified=response.last_modified or previous_cache.last_modified,
             validated_at=observed_at,
@@ -380,38 +388,26 @@ def _state_from_response(
         )
 
     try:
-        xml_text = decode_job_feed_bytes(response.body, response.content_type)
-        raw_leads = parse_job_feed(
-            xml_text,
-            feed_url=source.url,
-            source_name=source.name,
+        parsed_leads = adapter.parse(
+            source,
+            response.body,
+            content_type=response.content_type,
+            observed_at=observed_at,
         )
-    except JobFeedError as exc:
+    except DiscoveryAdapterError as exc:
         raise _SourceFailure(
             code="source.parse_invalid",
             attempts=response.attempts,
             http_status=response.status_code,
         ) from exc
-    if len(raw_leads) > source.max_leads:
+    if len(parsed_leads) > source.max_leads:
         raise _SourceFailure(
             code="source.record_limit",
             attempts=response.attempts,
             http_status=response.status_code,
         )
     try:
-        leads = tuple(
-            sorted(
-                (
-                    normalize_job_lead(
-                        lead,
-                        fetched_at=observed_at,
-                        source_type=lead.source_type,  # type: ignore[arg-type]
-                    )
-                    for lead in raw_leads
-                ),
-                key=lead_batch_sort_key,
-            )
-        )
+        leads = tuple(sorted(parsed_leads, key=lead_batch_sort_key))
         batch = LeadBatchV1(
             batch_id=batch_identifier(
                 source_id=source.source_id,
@@ -419,7 +415,8 @@ def _state_from_response(
             ),
             source_id=source.source_id,
             source_name=source.name,
-            source_url=redact_public_url(source.url),
+            adapter=adapter.adapter_id,
+            source_url=source_locator,
             fetched_at=observed_at,
             content_sha256=response.content_sha256,
             record_count=len(leads),
@@ -427,13 +424,13 @@ def _state_from_response(
         )
         cache = DiscoveryCacheV1(
             source_id=source.source_id,
-            source_url=redact_public_url(source.url),
+            source_url=source_locator,
             etag=response.etag,
             last_modified=response.last_modified,
             validated_at=observed_at,
             content_sha256=response.content_sha256,
         )
-    except (LeadNormalizationError, ValidationError, ValueError) as exc:
+    except (ValidationError, ValueError) as exc:
         raise _SourceFailure(
             code="source.batch_invalid",
             attempts=response.attempts,
@@ -546,6 +543,7 @@ def _compatible_previous_batch(
     path: Path,
     source: DiscoverySourceV1,
 ) -> LeadBatchV1 | None:
+    source_locator = discovery_adapter(source).source_locator(source)
     try:
         batch = load_lead_batch(path)
     except DiscoveryRefreshInputError:
@@ -553,7 +551,7 @@ def _compatible_previous_batch(
     if (
         batch.source_id != source.source_id
         or batch.source_name != source.name
-        or batch.source_url != redact_public_url(source.url)
+        or batch.source_url != source_locator
     ):
         return None
     return batch
@@ -566,13 +564,14 @@ def _compatible_previous_cache(
 ) -> DiscoveryCacheV1 | None:
     if batch is None:
         return None
+    source_locator = discovery_adapter(source).source_locator(source)
     try:
         cache = load_discovery_cache(path)
     except DiscoveryRefreshInputError:
         return None
     if (
         cache.source_id != source.source_id
-        or cache.source_url != redact_public_url(source.url)
+        or cache.source_url != source_locator
         or cache.content_sha256 != batch.content_sha256
     ):
         return None
@@ -580,14 +579,15 @@ def _compatible_previous_cache(
 
 
 def _transport_policy(source: DiscoverySourceV1) -> TransportPolicy:
+    spec = discovery_adapter(source).transport_spec()
     return TransportPolicy(
-        allowed_media_types=tuple(sorted(ALLOWED_FEED_CONTENT_TYPES)),
-        allow_application_xml_suffix=True,
+        allowed_media_types=spec.allowed_media_types,
+        allow_application_xml_suffix=spec.allow_application_xml_suffix,
         media_subject="Discovery source response",
-        media_description="XML, RSS, or Atom content",
+        media_description=spec.media_description,
         size_subject="Discovery source",
         user_agent="CanISend/0.3 discovery-refresh",
-        accept="application/atom+xml, application/rss+xml, application/xml, text/xml",
+        accept=spec.accept,
         timeout_seconds=source.timeout_seconds,
         max_bytes=source.max_bytes,
         max_attempts=source.max_attempts,
@@ -598,7 +598,8 @@ def _transport_policy(source: DiscoverySourceV1) -> TransportPolicy:
 
 
 def _source_artifact_stem(source: DiscoverySourceV1) -> str:
-    locator_hash = sha256(source.url.encode("utf-8")).hexdigest()[:12]
+    locator = discovery_adapter(source).source_locator(source)
+    locator_hash = sha256(locator.encode("utf-8")).hexdigest()[:12]
     return f"{source.source_id}-{locator_hash}"
 
 
@@ -705,3 +706,4 @@ def _read_clock(clock: Callable[[], datetime]) -> datetime:
         raise DiscoveryRefreshInputError(
             "Discovery refresh clock could not be read."
         ) from exc
+    source_locator = discovery_adapter(source).source_locator(source)

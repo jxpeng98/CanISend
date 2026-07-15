@@ -42,6 +42,7 @@ DISCOVERY_REFRESH_REPORT_PROTOCOL = "canisend.discovery-refresh-report/v1"
 DISCOVERY_REFRESH_REPORT_SCHEMA_VERSION = "1.0.0"
 
 _SOURCE_ID_RE = re.compile(r"^[a-z](?:[a-z0-9._-]{0,62}[a-z0-9_])?$")
+_ADAPTER_KEY_RE = re.compile(r"^[a-z0-9](?:[a-z0-9_-]{0,126}[a-z0-9])?$")
 _BATCH_ID_RE = re.compile(r"^batch_[0-9a-f]{32}$")
 _REFRESH_ID_RE = re.compile(r"^refresh_[0-9a-f]{32}$")
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -82,6 +83,7 @@ SourceIdentifier = Annotated[
     Field(pattern=_SOURCE_ID_RE.pattern),
     AfterValidator(_validated_source_id),
 ]
+AdapterKey = Annotated[str, Field(pattern=_ADAPTER_KEY_RE.pattern)]
 BatchIdentifier = Annotated[str, Field(pattern=_BATCH_ID_RE.pattern)]
 RefreshIdentifier = Annotated[str, Field(pattern=_REFRESH_ID_RE.pattern)]
 Sha256Digest = Annotated[str, Field(pattern=_SHA256_RE.pattern)]
@@ -95,8 +97,11 @@ BoundedSeconds = Annotated[
 class DiscoverySourceV1(DiscoveryContractModel):
     source_id: SourceIdentifier
     name: str = Field(min_length=1, max_length=256)
-    kind: Literal["rss_atom"] = "rss_atom"
-    url: str = Field(min_length=1, max_length=8_192)
+    kind: Literal["rss_atom", "greenhouse", "lever"] = "rss_atom"
+    url: str = Field(default="", max_length=8_192)
+    board_token: AdapterKey | None = None
+    site_id: AdapterKey | None = None
+    region: Literal["global", "eu"] = "global"
     enabled: StrictBool = True
     timeout_seconds: StrictInt = Field(default=30, ge=1, le=300)
     max_bytes: StrictInt = Field(default=2_000_000, ge=1, le=100_000_000)
@@ -126,6 +131,8 @@ class DiscoverySourceV1(DiscoveryContractModel):
     @classmethod
     def _public_credential_free_url(cls, value: str) -> str:
         raw = value.strip()
+        if not raw:
+            return ""
         try:
             redact_public_url(raw)
         except PublicTransportError as exc:
@@ -149,6 +156,26 @@ class DiscoverySourceV1(DiscoveryContractModel):
             }:
                 raise ValueError("source URL must not contain credential-like query fields")
         return raw
+
+    @model_validator(mode="after")
+    def _consistent_adapter_configuration(self) -> DiscoverySourceV1:
+        if self.kind == "rss_atom":
+            if not self.url or self.board_token is not None or self.site_id is not None:
+                raise ValueError(
+                    "rss_atom sources require only a public feed URL"
+                )
+            if self.region != "global":
+                raise ValueError("rss_atom sources do not accept an API region")
+        elif self.kind == "greenhouse":
+            if self.url or self.board_token is None or self.site_id is not None:
+                raise ValueError(
+                    "greenhouse sources require only an explicit board_token"
+                )
+            if self.region != "global":
+                raise ValueError("greenhouse sources do not accept an API region")
+        elif self.url or self.board_token is not None or self.site_id is None:
+            raise ValueError("lever sources require only an explicit site_id")
+        return self
 
 
 class DiscoverySourcesV1(DiscoveryContractModel):

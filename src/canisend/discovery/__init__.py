@@ -1,5 +1,12 @@
 """Versioned, source-neutral job discovery contracts and normalization."""
 
+from canisend.discovery.adapters import (
+    AdapterTransportSpec,
+    DiscoveryAdapter,
+    DiscoveryAdapterError,
+    discovery_adapter,
+    registered_discovery_adapters,
+)
 from canisend.discovery.identity import (
     canonicalize_job_url,
     normalize_job_lead,
@@ -50,6 +57,9 @@ from canisend.discovery.search_models import (
 
 __all__ = [
     "JOB_LEAD_SCHEMA_VERSION",
+    "AdapterTransportSpec",
+    "DiscoveryAdapter",
+    "DiscoveryAdapterError",
     "DISCOVERY_CACHE_PROTOCOL",
     "DISCOVERY_IMPORT_REPORT_PROTOCOL",
     "DISCOVERY_REFRESH_REPORT_PROTOCOL",
@@ -76,10 +86,12 @@ __all__ = [
     "SourceRefreshResultV1",
     "build_catalog_from_files",
     "canonicalize_job_url",
+    "discovery_adapter",
     "load_lead_document",
     "merge_lead_catalog",
     "normalize_job_lead",
     "normalized_ranking_policy",
+    "registered_discovery_adapters",
     "stable_lead_id",
     "write_lead_catalog",
 ]

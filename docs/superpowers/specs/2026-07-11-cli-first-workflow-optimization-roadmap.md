@@ -1,7 +1,7 @@
 # CLI-First Workflow Optimization Execution Roadmap
 
 **Status:** Active — Stages 1–3 are accepted; `0.3.0.dev2` and the independently verified `0.3.0b1` prerelease are
-published, and Stage 4 Tasks 0–5 are locally accepted
+published, and Stage 4 Tasks 0–6 are locally accepted
 
 **Date:** 2026-07-11
 
@@ -347,7 +347,7 @@ TestPyPI and PyPI and independently verified. See
 ## Stage 4: Discovery Ecosystem
 
 **Stage status:** In progress on `feat/discovery-ecosystem`. ADR-023, the complete Stage 4 implementation plan, and
-Tasks 1–5 are locally accepted. Lead v2 preserves the existing RSS/Atom list workflow while adding stable identity,
+Tasks 1–6 are locally accepted. Lead v2 preserves the existing RSS/Atom list workflow while adding stable identity,
 canonical/redacted provenance, aliases, timestamps, and `--lead-id`. The strict discovery catalog performs
 order-independent union dedupe, stable-ID refresh, explainable include/exclude ranking, inspectable exclusions, and
 atomic `discovery merge` output through private-safe text and AgentResponse surfaces. `discovery refresh` now adds
@@ -355,8 +355,9 @@ strict source/batch/cache/report contracts, a shared bounded public GET transpor
 retry/backoff/throttling, atomic promotion, and stale-batch partial-failure recovery. CSV/JSON/EML/MBOX imports now
 create persistent private-safe local batches and enter the same catalog pipeline without becoming application
 materials. The strict host-neutral search envelope now lets Codex, Claude, and generic hosts import equivalent Lead
-v2 batches without persisting provider/session fields. Public API adapters, compatibility/docs, remote CI, and the
-Stage 4 release candidate remain open; Task 6 is next.
+v2 batches without persisting provider/session fields. A shared adapter contract now provides offline-conformant,
+identifier-only, read-only Greenhouse and Lever public-job GET adapters without application or credential surfaces.
+Compatibility/skills/migration work, remote CI, and the Stage 4 release candidate remain open; Task 7 is next.
 
 ### Deliverables
 
