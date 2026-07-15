@@ -304,8 +304,9 @@
       "type": "string"
     },
     "adapter": {
-      "const": "feed.rss_atom",
       "default": "feed.rss_atom",
+      "maxLength": 128,
+      "pattern": "^[a-z][a-z0-9_-]*(?:\\.[a-z][a-z0-9_-]*)+$",
       "title": "Adapter",
       "type": "string"
     },

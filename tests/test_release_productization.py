@@ -236,6 +236,7 @@ def test_package_check_requires_all_run_example_resources():
         "canisend/resources/schemas/lead-batch-v1.schema.json",
         "canisend/resources/schemas/discovery-cache-v1.schema.json",
         "canisend/resources/schemas/discovery-refresh-report-v1.schema.json",
+        "canisend/resources/schemas/discovery-import-report-v1.schema.json",
         "canisend/resources/schemas/workflow-state.schema.json",
         "canisend/resources/schemas/task-spec.schema.json",
         "canisend/resources/schemas/task-result.schema.json",

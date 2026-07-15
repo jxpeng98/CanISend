@@ -34,6 +34,7 @@ def test_agent_capabilities_reports_versioned_phase_one_contract() -> None:
         "job.intake",
         "job.intake_from_lead",
         "job.list",
+        "discovery.import",
         "discovery.merge",
         "discovery.refresh",
         "package.check",

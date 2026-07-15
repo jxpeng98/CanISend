@@ -20,6 +20,7 @@ from canisend.draft_models import (
 from canisend.document_execution import DocumentExecutionPlanV1
 from canisend.discovery.models import JobLeadV2
 from canisend.discovery.catalog_models import LeadCatalogV1
+from canisend.discovery.import_models import DiscoveryImportReportV1
 from canisend.discovery.refresh_models import (
     DiscoveryCacheV1,
     DiscoveryRefreshReportV1,
@@ -42,6 +43,7 @@ SCHEMAS = {
     "lead-batch-v1.schema.json": LeadBatchV1,
     "discovery-cache-v1.schema.json": DiscoveryCacheV1,
     "discovery-refresh-report-v1.schema.json": DiscoveryRefreshReportV1,
+    "discovery-import-report-v1.schema.json": DiscoveryImportReportV1,
     "criteria.schema.json": CriteriaCatalogV1,
     "evidence-catalog.schema.json": EvidenceCatalogV1,
     "criterion-matches.schema.json": CriterionMatchesV1,

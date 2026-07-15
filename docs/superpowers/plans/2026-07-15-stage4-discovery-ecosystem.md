@@ -1,6 +1,6 @@
 # Stage 4 Discovery Ecosystem Implementation Plan
 
-**Status:** In progress — Tasks 0–3 locally accepted; Task 4 is next
+**Status:** In progress — Tasks 0–4 locally accepted; Task 5 is next
 
 **Date:** 2026-07-15
 
@@ -27,6 +27,8 @@ arbitrary pages, or weakening direct URL and PDF intake.
 - Use public documented GET interfaces only. No account, portal, application POST, upload, private API emulation,
   adjacent-page crawl, or scheduled background service belongs to Stage 4.
 - Preserve the existing explicit one-URL HTML/PDF fetch and local `.pdf`, `.md`, or `.txt` advert paths as peers.
+- Treat CSV, JSON, EML, and MBOX as discovery-candidate imports only. They do not import application materials,
+  create a full advert, or authorize application actions.
 - Require offline fixture tests; CI and release acceptance must not depend on live job boards.
 - Version schemas and public file contracts independently from `canisend.agent/v1`; additions to agent capabilities
   remain additive.
@@ -91,11 +93,11 @@ records, and a body-free partial-failure report. `new-job-from-lead` accepts eit
 
 ### Task 4: Local Export Ingestion
 
-- [ ] Add strict CSV field aliases and row-level validation/reporting.
-- [ ] Accept JSON lists and versioned CanISend lead batches without silently accepting vendor-specific envelopes.
-- [ ] Add `.eml` and `.mbox` alert extraction without persisting raw headers, bodies, local absolute paths, or
+- [x] Add strict CSV field aliases and row-level validation/reporting.
+- [x] Accept JSON lists and versioned CanISend lead batches without silently accepting vendor-specific envelopes.
+- [x] Add `.eml` and `.mbox` alert extraction without persisting raw headers, bodies, local absolute paths, or
   unrelated links.
-- [ ] Route every record through the same normalization, dedupe, ranking, and atomic writer.
+- [x] Route every record through the same normalization, dedupe, ranking, and atomic writer.
 
 ### Task 5: Host-Agent Search Import
 
@@ -144,7 +146,7 @@ records, and a body-free partial-failure report. `new-job-from-lead` accepts eit
 
 ## Validation Record
 
-Tasks 0–3 were locally accepted on 2026-07-15:
+Tasks 0–4 were locally accepted on 2026-07-15:
 
 - ADR-023 and this complete Stage 4 task graph freeze identity precedence, URL/provenance redaction, untrusted data,
   read-only source authority, partial-failure semantics, and continued direct URL/PDF intake.
@@ -202,6 +204,29 @@ Tasks 0–3 were locally accepted on 2026-07-15:
   both artifacts. A Python 3.12.12 clean install exposed `discovery refresh`, loaded all four packaged contracts,
   returned a one-line body-free AgentResponse for invalid input, and completed an offline successful refresh smoke
   test. Nothing was uploaded or published.
+- Task 4 makes local exports an explicit discovery-only bridge: `.csv`, `.json`, `.eml`, and `.mbox` inputs become
+  normalized Lead v2 candidates and never become application materials or full adverts. Selection still proceeds by
+  stable lead ID, and complete advert intake still uses the existing URL, PDF, text, or manual-paste paths.
+- CSV imports use a bounded alias table, reject ambiguous headers, ignore unknown column values, and record invalid
+  rows only as stable row number/code/field tuples. JSON accepts lists of canonical/Lead v2 records or a strict
+  `canisend.discovery-batch/v1` object; unversioned and vendor-specific envelopes fail closed.
+- EML/MBOX imports parse the already hashed bytes, skip attachments, extract only credential-free public HTTP(S) job
+  links and minimal user-visible link text, and ignore unrelated/footer links. Sender, recipient, subject, message ID,
+  raw headers, bodies, local paths, and credential-like source IDs/locators never enter persisted artifacts or normal
+  responses.
+- `canisend.discovery-import-report/v1` provides a generated packaged schema, deterministic import ID, safe counts,
+  bounded row issues, and relative batch/catalog paths. `discovery import` exposes the same information through text
+  and `canisend.agent/v1` without returning lead content or source paths.
+- Valid local imports are written as atomic complete Lead Batches under `job_leads/imports/`, deduplicated, filtered,
+  ranked, and merged into the catalog. Repeating identical input reuses the complete batch; subsequent network
+  refreshes continue to include current valid local batches.
+- The final discovery, local-import, URL/PDF intake, agent, schema, and resource acceptance group passed 291 tests.
+  The complete development-interpreter suite passed 1,199 tests in 843.85 seconds; Python bytecode compilation and
+  `git diff --check` passed.
+- An isolated source distribution and wheel built successfully. The packaged-resource checker and Twine accepted
+  both artifacts. A Python 3.12.12 clean install exposed `discovery import`, loaded the packaged import/batch
+  contracts, completed CSV and EML CLI imports, merged both leads, and passed a persisted-artifact privacy scan.
+  Nothing was uploaded or published.
 
-Remote CI, cross-version/cross-OS acceptance, local and host-agent imports, public API adapters, compatibility/docs,
-and a Stage 4 release candidate remain later tasks; they are not claimed here.
+Remote CI, cross-version/cross-OS acceptance, host-agent imports, public API adapters, compatibility/docs, and a
+Stage 4 release candidate remain later tasks; they are not claimed here.

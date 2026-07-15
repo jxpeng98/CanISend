@@ -168,6 +168,10 @@ def refresh_discovery_sources(
         workspace_root,
         discovery_root / "cache",
     )
+    imports_dir = _safe_artifact_directory(
+        workspace_root,
+        discovery_root / "imports",
+    )
     report_path = discovery_root / "refresh-report.json"
     candidate_catalog_path = discovery_root / "catalog.json"
     active_sources = tuple(
@@ -236,12 +240,13 @@ def refresh_discovery_sources(
     for state in states:
         _promote_source_state(state)
 
-    usable_batches = tuple(
+    source_batches = tuple(
         state.batch
         for state in states
         if state.status in {"refreshed", "not_modified", "stale_reused"}
         and state.batch is not None
     )
+    usable_batches = (*source_batches, *_load_local_import_batches(imports_dir))
     catalog: LeadCatalogV1 | None = None
     catalog_error_code: str | None = None
     if not usable_batches:
@@ -277,12 +282,7 @@ def refresh_discovery_sources(
         if promoted
         else None
     )
-    input_records = sum(
-        state.batch.record_count
-        for state in states
-        if state.batch is not None
-        and state.status in {"refreshed", "not_modified", "stale_reused"}
-    )
+    input_records = sum(batch.record_count for batch in usable_batches)
     report_id = refresh_identifier(
         started_at=started_at,
         completed_at=completed_at,
@@ -627,6 +627,10 @@ def _safe_artifact_directory(workspace: Path, path: Path) -> Path:
         raise DiscoveryRefreshInputError(
             "Discovery artifact directories must not be symbolic links."
         )
+    if candidate.exists() and not candidate.is_dir():
+        raise DiscoveryRefreshInputError(
+            "Discovery artifact directory must be a directory."
+        )
     resolved = candidate.resolve()
     try:
         resolved.relative_to(workspace)
@@ -635,6 +639,19 @@ def _safe_artifact_directory(workspace: Path, path: Path) -> Path:
             "Discovery artifact directory escaped the workspace."
         ) from exc
     return resolved
+
+
+def _load_local_import_batches(path: Path) -> tuple[LeadBatchV1, ...]:
+    directory = Path(path)
+    if not directory.exists():
+        return ()
+    batches: list[LeadBatchV1] = []
+    for candidate in sorted(directory.glob("*.batch.json"), key=lambda item: item.name):
+        try:
+            batches.append(load_lead_batch(candidate))
+        except DiscoveryRefreshInputError:
+            continue
+    return tuple(batches)
 
 
 def _load_json_contract(path: Path, *, model, label: str):

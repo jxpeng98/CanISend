@@ -10,6 +10,7 @@ from canisend.agent_protocol import (
     success_response,
 )
 from canisend.discovery.catalog_models import LeadCatalogV1
+from canisend.discovery.local_import import DiscoveryLocalImportExecution
 from canisend.discovery.refresh import DiscoveryRefreshExecution
 
 
@@ -137,6 +138,103 @@ def discovery_refresh_agent_response(
             else NextAction(
                 id="discovery.adjust_filters",
                 label="Adjust discovery filters or source inputs",
+            )
+        ],
+        extensions=extensions,
+    )
+
+
+def discovery_local_import_agent_response(
+    workspace: Path,
+    execution: DiscoveryLocalImportExecution,
+    *,
+    operation: str = "discovery.import",
+) -> AgentResponse:
+    report = execution.report
+    artifacts = [
+        artifact_reference_from_path(
+            workspace=workspace,
+            path=execution.report_path,
+            kind="discovery-import-report",
+            privacy_tier=1,
+            trust_level="validated",
+            media_type="application/json",
+            include_hash=True,
+        )
+    ]
+    if execution.batch_path is not None:
+        artifacts.insert(
+            0,
+            artifact_reference_from_path(
+                workspace=workspace,
+                path=execution.batch_path,
+                kind="discovery-lead-batch",
+                privacy_tier=1,
+                trust_level="untrusted_import",
+                media_type="application/json",
+                include_hash=True,
+            ),
+        )
+    if execution.catalog_path is not None:
+        artifacts.insert(
+            0,
+            artifact_reference_from_path(
+                workspace=workspace,
+                path=execution.catalog_path,
+                kind="discovery-catalog",
+                privacy_tier=1,
+                trust_level="untrusted_import",
+                media_type="application/json",
+                include_hash=True,
+            ),
+        )
+    warnings: list[str] = []
+    if report.status == "partial":
+        warnings.append("discovery.import_rows_rejected")
+    if report.ignored_records:
+        warnings.append("discovery.import_records_ignored")
+    extensions = {
+        "canisend.discovery.import_id": report.import_id,
+        "canisend.discovery.import_status": report.status,
+        "canisend.discovery.import_format": report.format,
+        "canisend.discovery.batch_id": report.batch_id,
+        "canisend.discovery.catalog_id": report.catalog_id,
+        "canisend.discovery.input_records": report.input_records,
+        "canisend.discovery.imported_records": report.imported_records,
+        "canisend.discovery.rejected_records": report.rejected_records,
+        "canisend.discovery.ignored_records": report.ignored_records,
+        "canisend.discovery.retained_records": report.retained_records,
+        "canisend.discovery.excluded_records": report.excluded_records,
+    }
+    if report.status == "failed":
+        return error_response(
+            operation=operation,
+            code="source.import_failed",
+            message="No validated local discovery import could be promoted.",
+            retryable=False,
+            artifacts=artifacts,
+            warnings=["discovery.import_failed", *warnings],
+            next_actions=[
+                NextAction(
+                    id="discovery.review_import_report",
+                    label="Inspect the body-free import report and correct the export",
+                )
+            ],
+            extensions=extensions,
+        )
+    return success_response(
+        operation=operation,
+        artifacts=artifacts,
+        warnings=warnings,
+        next_actions=[
+            NextAction(
+                id="job.intake_from_lead",
+                label="Select a retained lead by stable lead ID",
+            )
+            if report.retained_records
+            else NextAction(
+                id="discovery.adjust_filters",
+                label="Adjust discovery filters or local inputs",
             )
         ],
         extensions=extensions,

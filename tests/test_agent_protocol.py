@@ -58,6 +58,7 @@ STAGE3_PACKAGE_REVIEW_OPERATIONS = {
 }
 
 STAGE4_DISCOVERY_OPERATIONS = {
+    "discovery.import",
     "discovery.merge",
     "discovery.refresh",
 }

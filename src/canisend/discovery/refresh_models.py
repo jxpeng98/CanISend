@@ -20,6 +20,7 @@ from pydantic import (
 )
 
 from canisend.discovery.catalog_models import CatalogIdentifier, RankingPolicyV1
+from canisend.discovery.identity import redact_feed_url
 from canisend.discovery.models import (
     DiscoveryContractModel,
     DiscoveryTimestamp,
@@ -203,7 +204,7 @@ class LeadBatchV1(DiscoveryContractModel):
     batch_id: BatchIdentifier
     source_id: SourceIdentifier
     source_name: str = Field(min_length=1, max_length=256)
-    adapter: Literal["feed.rss_atom"] = "feed.rss_atom"
+    adapter: DottedIdentifier = Field(default="feed.rss_atom", max_length=128)
     source_url: str = Field(min_length=1, max_length=8_192)
     fetched_at: DiscoveryTimestamp
     content_sha256: Sha256Digest
@@ -213,8 +214,15 @@ class LeadBatchV1(DiscoveryContractModel):
     @field_validator("source_url")
     @classmethod
     def _redacted_source_url(cls, value: str) -> str:
-        if redact_public_url(value) != value:
-            raise ValueError("batch source URL must be redacted")
+        if redact_feed_url(value) != value:
+            raise ValueError("batch source locator must be redacted and path-free")
+        return value
+
+    @field_validator("adapter")
+    @classmethod
+    def _safe_adapter(cls, value: str) -> str:
+        if not value.startswith(("feed.", "local.", "public_api.")):
+            raise ValueError("batch adapter is outside the discovery adapter boundary")
         return value
 
     @field_validator("leads")
@@ -236,21 +244,35 @@ class LeadBatchV1(DiscoveryContractModel):
         if self.record_count != len(self.leads):
             raise ValueError("batch record_count does not match leads")
         for lead in self.leads:
-            if lead.source != self.source_name:
-                raise ValueError("batch leads must use the configured source name")
             if lead.rank != 0 or lead.score != 0 or lead.match_reasons:
                 raise ValueError("batch leads must remain unranked")
             if lead.fetched_at != self.fetched_at:
                 raise ValueError("batch leads must share the batch fetch timestamp")
-            if lead.source_feed != self.source_url:
-                raise ValueError("batch lead source_feed must match the redacted batch URL")
-            if not any(
+            if self.adapter == "feed.rss_atom":
+                has_receipt = any(
+                    item.source == self.source_name
+                    and item.source_type in {"rss", "atom"}
+                    and item.adapter in {"feed.rss", "feed.atom"}
+                    and item.source_feed == self.source_url
+                    and item.fetched_at == self.fetched_at
+                    for item in lead.provenance
+                )
+                if (
+                    lead.source != self.source_name
+                    or lead.source_feed != self.source_url
+                    or not has_receipt
+                ):
+                    raise ValueError(
+                        "feed batches must resolve to their configured feed source"
+                    )
+            elif not any(
                 item.source == self.source_name
-                and item.source_type in {"rss", "atom"}
+                and item.adapter == self.adapter
                 and item.source_feed == self.source_url
+                and item.fetched_at == self.fetched_at
                 for item in lead.provenance
             ):
-                raise ValueError("batch lead provenance must resolve to its feed source")
+                raise ValueError("batch leads must resolve to the batch provenance receipt")
         return self
 
 

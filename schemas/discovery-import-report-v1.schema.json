@@ -1,0 +1,270 @@
+{
+  "$defs": {
+    "DiscoveryImportIssueV1": {
+      "additionalProperties": false,
+      "properties": {
+        "record_number": {
+          "maximum": 100000,
+          "minimum": 1,
+          "title": "Record Number",
+          "type": "integer"
+        },
+        "code": {
+          "pattern": "^[a-z][a-z0-9_-]*(?:\\.[a-z][a-z0-9_-]*)+$",
+          "title": "Code",
+          "type": "string"
+        },
+        "field": {
+          "default": "record",
+          "enum": [
+            "record",
+            "title",
+            "source_url",
+            "description",
+            "published_at",
+            "source_record_id",
+            "institution",
+            "location",
+            "deadline",
+            "link"
+          ],
+          "title": "Field",
+          "type": "string"
+        }
+      },
+      "required": [
+        "record_number",
+        "code"
+      ],
+      "title": "DiscoveryImportIssueV1",
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/jxpeng98/CanISend/schemas/discovery-import-report-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "protocol": {
+      "const": "canisend.discovery-import-report/v1",
+      "default": "canisend.discovery-import-report/v1",
+      "title": "Protocol",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "import_id": {
+      "pattern": "^import_[0-9a-f]{32}$",
+      "title": "Import Id",
+      "type": "string"
+    },
+    "imported_at": {
+      "format": "date-time",
+      "title": "Imported At",
+      "type": "string"
+    },
+    "format": {
+      "enum": [
+        "csv",
+        "json",
+        "eml",
+        "mbox"
+      ],
+      "title": "Format",
+      "type": "string"
+    },
+    "source_id": {
+      "pattern": "^[a-z](?:[a-z0-9._-]{0,62}[a-z0-9_])?$",
+      "title": "Source Id",
+      "type": "string"
+    },
+    "source_name": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Source Name",
+      "type": "string"
+    },
+    "input_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Input Sha256",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "complete",
+        "partial",
+        "failed"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "catalog_promoted": {
+      "title": "Catalog Promoted",
+      "type": "boolean"
+    },
+    "error_code": {
+      "anyOf": [
+        {
+          "pattern": "^[a-z][a-z0-9_-]*(?:\\.[a-z][a-z0-9_-]*)+$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Error Code"
+    },
+    "input_records": {
+      "maximum": 100000,
+      "minimum": 0,
+      "title": "Input Records",
+      "type": "integer"
+    },
+    "imported_records": {
+      "maximum": 100000,
+      "minimum": 0,
+      "title": "Imported Records",
+      "type": "integer"
+    },
+    "rejected_records": {
+      "maximum": 100000,
+      "minimum": 0,
+      "title": "Rejected Records",
+      "type": "integer"
+    },
+    "ignored_records": {
+      "maximum": 100000,
+      "minimum": 0,
+      "title": "Ignored Records",
+      "type": "integer"
+    },
+    "issue_count": {
+      "maximum": 100000,
+      "minimum": 0,
+      "title": "Issue Count",
+      "type": "integer"
+    },
+    "issues_truncated": {
+      "default": false,
+      "title": "Issues Truncated",
+      "type": "boolean"
+    },
+    "issues": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/DiscoveryImportIssueV1"
+      },
+      "maxItems": 1000,
+      "title": "Issues",
+      "type": "array"
+    },
+    "skipped_batches": {
+      "default": 0,
+      "maximum": 100000,
+      "minimum": 0,
+      "title": "Skipped Batches",
+      "type": "integer"
+    },
+    "batch_id": {
+      "anyOf": [
+        {
+          "pattern": "^batch_[0-9a-f]{32}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Batch Id"
+    },
+    "batch_path": {
+      "anyOf": [
+        {
+          "maxLength": 1024,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Batch Path"
+    },
+    "catalog_id": {
+      "anyOf": [
+        {
+          "pattern": "^catalog_[0-9a-f]{32}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Catalog Id"
+    },
+    "catalog_path": {
+      "anyOf": [
+        {
+          "maxLength": 1024,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Catalog Path"
+    },
+    "catalog_input_records": {
+      "default": 0,
+      "maximum": 10000000,
+      "minimum": 0,
+      "title": "Catalog Input Records",
+      "type": "integer"
+    },
+    "merged_records": {
+      "default": 0,
+      "maximum": 10000000,
+      "minimum": 0,
+      "title": "Merged Records",
+      "type": "integer"
+    },
+    "retained_records": {
+      "default": 0,
+      "maximum": 10000000,
+      "minimum": 0,
+      "title": "Retained Records",
+      "type": "integer"
+    },
+    "excluded_records": {
+      "default": 0,
+      "maximum": 10000000,
+      "minimum": 0,
+      "title": "Excluded Records",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "import_id",
+    "imported_at",
+    "format",
+    "source_id",
+    "source_name",
+    "input_sha256",
+    "status",
+    "catalog_promoted",
+    "input_records",
+    "imported_records",
+    "rejected_records",
+    "ignored_records",
+    "issue_count"
+  ],
+  "title": "CanISendDiscoveryImportReportV1",
+  "type": "object"
+}

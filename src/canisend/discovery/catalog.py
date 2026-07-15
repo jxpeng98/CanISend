@@ -21,6 +21,7 @@ from canisend.discovery.catalog_models import (
 )
 from canisend.discovery.identity import LeadNormalizationError, normalize_job_lead
 from canisend.discovery.models import JobLeadV2, LeadMatchReasonV1, LeadProvenanceV1
+from canisend.discovery.refresh_models import LEAD_BATCH_PROTOCOL, LeadBatchV1
 from canisend.discovery.store import DiscoveryStoreError, atomic_write_json
 
 
@@ -86,6 +87,12 @@ def load_lead_document(
 
     if isinstance(document, list):
         raw_leads = document
+    elif isinstance(document, dict) and document.get("protocol") == LEAD_BATCH_PROTOCOL:
+        try:
+            batch = LeadBatchV1.model_validate(document)
+            return list(batch.leads)
+        except ValidationError as exc:
+            raise DiscoveryInputError("Discovery Lead Batch input is invalid.") from exc
     elif isinstance(document, dict) and document.get("protocol") == LEAD_CATALOG_PROTOCOL:
         try:
             catalog = LeadCatalogV1.model_validate(document)
@@ -97,7 +104,7 @@ def load_lead_document(
             raise DiscoveryInputError("Discovery catalog input is invalid.") from exc
     else:
         raise DiscoveryInputError(
-            "Discovery input must be a lead JSON list or a versioned CanISend catalog."
+            "Discovery input must be a lead JSON list or a versioned CanISend catalog or Lead Batch."
         )
 
     observation = _aware_utc_datetime(observed_at)

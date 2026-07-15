@@ -25,6 +25,7 @@ from canisend.document_execution import (
 )
 from canisend.discovery.agent import (
     discovery_catalog_agent_response,
+    discovery_local_import_agent_response,
     discovery_refresh_agent_response,
 )
 from canisend.discovery.catalog import (
@@ -34,6 +35,11 @@ from canisend.discovery.catalog import (
     write_lead_catalog,
 )
 from canisend.discovery.catalog_models import normalized_ranking_policy
+from canisend.discovery.local_import import (
+    DiscoveryLocalImportInputError,
+    DiscoveryLocalImportWriteError,
+    import_local_discovery_file,
+)
 from canisend.discovery.refresh import (
     DiscoveryRefreshInputError,
     DiscoveryRefreshWriteError,
@@ -2211,6 +2217,110 @@ def list_jobs_command(
             f"{job['next_action']}"
         )
     typer.echo(f"\n{len(jobs)} job(s) found.")
+
+
+@discovery_app.command("import")
+def import_local_discovery_export(
+    input_path: Path = typer.Option(
+        ...,
+        "--input",
+        help="Local .csv, .json, .eml, or .mbox discovery export.",
+    ),
+    source_name: str | None = typer.Option(
+        None,
+        "--source-name",
+        help="Private-safe source label; required except for a versioned Lead Batch.",
+    ),
+    source_id: str | None = typer.Option(
+        None,
+        "--source-id",
+        help="Stable lowercase source ID used to replace the same local import source.",
+    ),
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="User workspace directory containing canisend.yaml.",
+    ),
+    include: list[str] = typer.Option(
+        [],
+        "--include",
+        help="Retain imported leads matching this keyword and explain each match.",
+    ),
+    exclude: list[str] = typer.Option(
+        [],
+        "--exclude",
+        help="Exclude imported leads matching this keyword and record the reason.",
+    ),
+    prefer_source: list[str] = typer.Option(
+        [],
+        "--prefer-source",
+        help="Source preference in descending priority. Repeat in priority order.",
+    ),
+    output_format: str = typer.Option(
+        "text",
+        "--format",
+        help="Output format: text or json.",
+    ),
+) -> None:
+    """Import local discovery exports into the normalized candidate catalog."""
+    _validate_output_format(output_format)
+    try:
+        config = load_workspace_config(workspace)
+        resolved_input = input_path.expanduser()
+        if not resolved_input.is_absolute():
+            resolved_input = config.root / resolved_input
+        policy = normalized_ranking_policy(
+            include_keywords=include,
+            exclude_keywords=exclude,
+            source_preference=prefer_source,
+        )
+        execution = import_local_discovery_file(
+            config.root,
+            resolved_input,
+            source_name=source_name,
+            source_id=source_id,
+            policy=policy,
+            lead_root=config.path("job_leads_dir"),
+        )
+        response = discovery_local_import_agent_response(config.root, execution)
+    except DiscoveryLocalImportInputError as exc:
+        if output_format == "json":
+            _emit_operation_error(
+                operation="discovery.import",
+                code="input.invalid",
+                message="The local discovery export is invalid.",
+            )
+        raise typer.BadParameter(str(exc)) from exc
+    except DiscoveryLocalImportWriteError as exc:
+        if output_format == "json":
+            _emit_operation_error(
+                operation="discovery.import",
+                code="operation.failed",
+                message="CanISend could not write the discovery import artifacts.",
+            )
+        raise typer.BadParameter(str(exc)) from exc
+    except Exception as exc:
+        if output_format != "json":
+            raise typer.BadParameter(
+                "The discovery import operation failed unexpectedly."
+            ) from exc
+        _emit_operation_error(
+            operation="discovery.import",
+            code="operation.failed",
+            message="The discovery import operation failed unexpectedly.",
+        )
+
+    _emit_agent_response(response, output_format=output_format)
+    if output_format == "json":
+        return
+    typer.echo(
+        "Import: "
+        f"{execution.report.status}, "
+        f"{execution.report.imported_records} imported, "
+        f"{execution.report.rejected_records} rejected, "
+        f"{execution.report.ignored_records} ignored, "
+        f"{execution.report.retained_records} retained"
+    )
 
 
 @discovery_app.command("merge")

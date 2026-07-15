@@ -46,6 +46,7 @@ def test_v1_contract_files_exist():
         "schemas/lead-batch-v1.schema.json",
         "schemas/discovery-cache-v1.schema.json",
         "schemas/discovery-refresh-report-v1.schema.json",
+        "schemas/discovery-import-report-v1.schema.json",
         "schemas/criteria.schema.json",
         "schemas/criterion-matches.schema.json",
         "schemas/confirmed-corrections.schema.json",
