@@ -32,6 +32,7 @@ def test_init_workspace_creates_user_layout_and_default_resources(tmp_path):
     assert (workspace / "prompts" / "structured_cover_letter_draft.md").exists()
     assert (workspace / "templates" / "typst" / "cover_letter.typ").exists()
     assert (workspace / "schemas" / "parsed_job.schema.json").exists()
+    assert (workspace / "schemas" / "job-lead-v2.schema.json").exists()
     assert (workspace / "schemas" / "workflow-state.schema.json").exists()
     assert (workspace / "schemas" / "task-spec.schema.json").exists()
     assert (workspace / "schemas" / "task-result.schema.json").exists()

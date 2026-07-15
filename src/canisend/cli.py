@@ -2056,7 +2056,16 @@ def new_job_from_lead(
         "--leads-file",
         help="Local lead JSON file created by fetch-jobs-ac-uk or fetch-job-feed. Relative paths are resolved against --workspace.",
     ),
-    lead_index: int = typer.Option(..., "--lead-index", help="Zero-based index of the selected lead."),
+    lead_id: str | None = typer.Option(
+        None,
+        "--lead-id",
+        help="Stable Lead v2 identifier. Use exactly one of --lead-id or --lead-index.",
+    ),
+    lead_index: int | None = typer.Option(
+        None,
+        "--lead-index",
+        help="Legacy zero-based lead index. Use exactly one selector.",
+    ),
     institution: str = typer.Option(..., "--institution", help="Hiring institution for the job workspace."),
     deadline: str = typer.Option("unknown", "--deadline", help="Application deadline."),
     title: str | None = typer.Option(None, "--title", help="Override the feed lead title."),
@@ -2088,6 +2097,7 @@ def new_job_from_lead(
         job_dir = create_job_from_lead(
             leads_file=config.lead_file(leads_file),
             lead_index=lead_index,
+            lead_id=lead_id,
             jobs_dir=config.path("jobs_dir", jobs_dir),
             institution=institution,
             deadline=deadline,

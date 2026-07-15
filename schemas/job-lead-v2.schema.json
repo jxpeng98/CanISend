@@ -1,0 +1,265 @@
+{
+  "$defs": {
+    "LeadMatchReasonV1": {
+      "additionalProperties": false,
+      "description": "One machine-readable reason contributing to retention, exclusion, or rank.",
+      "properties": {
+        "code": {
+          "pattern": "^[a-z][a-z0-9_-]*(?:\\.[a-z][a-z0-9_-]*)+$",
+          "title": "Code",
+          "type": "string"
+        },
+        "field": {
+          "enum": [
+            "title",
+            "description",
+            "institution",
+            "location",
+            "deadline",
+            "source",
+            "record"
+          ],
+          "title": "Field",
+          "type": "string"
+        },
+        "term": {
+          "default": "",
+          "maxLength": 256,
+          "title": "Term",
+          "type": "string"
+        },
+        "score_delta": {
+          "default": 0,
+          "maximum": 100000,
+          "minimum": -100000,
+          "title": "Score Delta",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "code",
+        "field"
+      ],
+      "title": "LeadMatchReasonV1",
+      "type": "object"
+    },
+    "LeadProvenanceV1": {
+      "additionalProperties": false,
+      "description": "Source-neutral origin receipt with no response body or credentials.",
+      "properties": {
+        "source": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Source",
+          "type": "string"
+        },
+        "source_type": {
+          "enum": [
+            "rss",
+            "atom",
+            "public_api",
+            "csv",
+            "json",
+            "email_alert",
+            "host_agent",
+            "legacy"
+          ],
+          "title": "Source Type",
+          "type": "string"
+        },
+        "adapter": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-z][a-z0-9_-]*(?:\\.[a-z][a-z0-9_-]*)+$",
+          "title": "Adapter",
+          "type": "string"
+        },
+        "source_record_id": {
+          "default": "",
+          "maxLength": 1024,
+          "title": "Source Record Id",
+          "type": "string"
+        },
+        "source_url": {
+          "default": "",
+          "maxLength": 8192,
+          "title": "Source Url",
+          "type": "string"
+        },
+        "source_feed": {
+          "default": "",
+          "maxLength": 8192,
+          "title": "Source Feed",
+          "type": "string"
+        },
+        "fetched_at": {
+          "format": "date-time",
+          "title": "Fetched At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "source_type",
+        "adapter",
+        "fetched_at"
+      ],
+      "title": "LeadProvenanceV1",
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/jxpeng98/CanISend/schemas/job-lead-v2.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Additive Lead v2 contract retaining the original six lead fields.",
+  "properties": {
+    "schema_version": {
+      "const": "2.0.0",
+      "default": "2.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "lead_id": {
+      "pattern": "^lead_[0-9a-f]{32}$",
+      "title": "Lead Id",
+      "type": "string"
+    },
+    "identity_method": {
+      "enum": [
+        "source_record_id",
+        "canonical_url",
+        "fingerprint"
+      ],
+      "title": "Identity Method",
+      "type": "string"
+    },
+    "title": {
+      "maxLength": 2048,
+      "title": "Title",
+      "type": "string"
+    },
+    "source_url": {
+      "default": "",
+      "maxLength": 8192,
+      "title": "Source Url",
+      "type": "string"
+    },
+    "description": {
+      "default": "",
+      "maxLength": 1000000,
+      "title": "Description",
+      "type": "string"
+    },
+    "published_at": {
+      "default": "",
+      "maxLength": 256,
+      "title": "Published At",
+      "type": "string"
+    },
+    "source": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Source",
+      "type": "string"
+    },
+    "source_feed": {
+      "default": "",
+      "maxLength": 8192,
+      "title": "Source Feed",
+      "type": "string"
+    },
+    "source_record_id": {
+      "default": "",
+      "maxLength": 1024,
+      "title": "Source Record Id",
+      "type": "string"
+    },
+    "canonical_url": {
+      "default": "",
+      "maxLength": 8192,
+      "title": "Canonical Url",
+      "type": "string"
+    },
+    "institution": {
+      "default": "",
+      "maxLength": 1024,
+      "title": "Institution",
+      "type": "string"
+    },
+    "location": {
+      "default": "",
+      "maxLength": 1024,
+      "title": "Location",
+      "type": "string"
+    },
+    "deadline": {
+      "default": "",
+      "maxLength": 256,
+      "title": "Deadline",
+      "type": "string"
+    },
+    "fetched_at": {
+      "format": "date-time",
+      "title": "Fetched At",
+      "type": "string"
+    },
+    "first_seen_at": {
+      "format": "date-time",
+      "title": "First Seen At",
+      "type": "string"
+    },
+    "last_seen_at": {
+      "format": "date-time",
+      "title": "Last Seen At",
+      "type": "string"
+    },
+    "provenance": {
+      "items": {
+        "$ref": "#/$defs/LeadProvenanceV1"
+      },
+      "maxItems": 4096,
+      "minItems": 1,
+      "title": "Provenance",
+      "type": "array"
+    },
+    "alternate_lead_ids": {
+      "default": [],
+      "items": {
+        "pattern": "^lead_[0-9a-f]{32}$",
+        "type": "string"
+      },
+      "maxItems": 4096,
+      "title": "Alternate Lead Ids",
+      "type": "array",
+      "uniqueItems": true
+    },
+    "match_reasons": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/LeadMatchReasonV1"
+      },
+      "maxItems": 4096,
+      "title": "Match Reasons",
+      "type": "array"
+    },
+    "score": {
+      "default": 0,
+      "maximum": 1000000,
+      "minimum": -1000000,
+      "title": "Score",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "lead_id",
+    "identity_method",
+    "title",
+    "source",
+    "fetched_at",
+    "first_seen_at",
+    "last_seen_at",
+    "provenance"
+  ],
+  "title": "CanISendJobLeadV2",
+  "type": "object"
+}

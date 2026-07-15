@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from html import unescape
-import json
 from pathlib import Path
 import re
 from typing import Any, Callable
@@ -16,6 +16,9 @@ from canisend.network_safety import (
     require_public_resolved_addresses,
     resolve_host_addresses,
 )
+from canisend.discovery.identity import LeadNormalizationError, normalize_job_lead
+from canisend.discovery.models import JobLeadV2
+from canisend.discovery.store import DiscoveryStoreError, atomic_write_json
 
 
 ATOM_NAMESPACE = "http://www.w3.org/2005/Atom"
@@ -47,6 +50,11 @@ class JobLead:
     published_at: str
     source: str
     source_feed: str
+    source_record_id: str = ""
+    institution: str = ""
+    location: str = ""
+    deadline: str = ""
+    source_type: str = "legacy"
 
 
 def parse_jobs_ac_uk_rss(xml_text: str, feed_url: str = "") -> list[JobLead]:
@@ -145,6 +153,11 @@ def _rss_item_lead(
         published_at=_child_text(item, "pubDate") or _child_text(item, "date"),
         source=source_name,
         source_feed=feed_url,
+        source_record_id=(
+            _child_text(item, "guid")
+            or _attribute_text(item, "about")
+        ),
+        source_type="rss",
     )
 
 
@@ -173,6 +186,8 @@ def _parse_atom_feed(
                 ),
                 source=source_name,
                 source_feed=feed_url,
+                source_record_id=_child_text(entry, "id"),
+                source_type="atom",
             )
         )
 
@@ -228,13 +243,29 @@ def fetch_rss_text(
     return _decode_feed_xml(raw, content_type)
 
 
-def write_job_leads(path: Path, leads: list[JobLead]) -> Path:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps([asdict(lead) for lead in leads], indent=2) + "\n",
-        encoding="utf-8",
-    )
-    return path
+def write_job_leads(
+    path: Path,
+    leads: list[JobLead | JobLeadV2 | dict[str, Any]],
+    *,
+    fetched_at: datetime | str | None = None,
+) -> Path:
+    observed_at = fetched_at or datetime.now(UTC).replace(microsecond=0)
+    try:
+        normalized = [
+            normalize_job_lead(
+                lead,
+                fetched_at=observed_at,
+                source_type=(
+                    lead.source_type
+                    if isinstance(lead, JobLead) and lead.source_type in {"rss", "atom"}
+                    else None
+                ),
+            ).model_dump(mode="json")
+            for lead in leads
+        ]
+        return atomic_write_json(path, normalized)
+    except (LeadNormalizationError, DiscoveryStoreError, ValueError) as exc:
+        raise JobFeedError(f"Could not write normalized job leads: {exc}") from exc
 
 
 def _validate_feed_url(
@@ -357,6 +388,13 @@ def _child_text(item: ET.Element, tag: str) -> str:
     if child is None:
         return ""
     return "".join(child.itertext()).strip()
+
+
+def _attribute_text(item: ET.Element, name: str) -> str:
+    for key, value in item.attrib.items():
+        if _local_name(key) == name:
+            return value.strip()
+    return ""
 
 
 def _atom_link(entry: ET.Element) -> str:

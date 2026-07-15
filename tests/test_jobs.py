@@ -8,6 +8,7 @@ import pytest
 from typer.testing import CliRunner
 
 from canisend.cli import app
+from canisend.discovery.identity import normalize_job_lead
 from canisend.jobs import JobMetadataError, job_advert_is_stub, load_job_metadata
 
 
@@ -387,6 +388,167 @@ def test_new_job_from_lead_rejects_negative_index(tmp_path):
 
     assert result.exit_code != 0
     assert "Lead index must be zero or greater" in result.output
+
+
+def test_new_job_from_lead_selects_stable_id_from_reordered_v2_list(tmp_path):
+    workspace = tmp_path / "workspace"
+    jobs_dir = workspace / "jobs"
+    leads_file = workspace / "job_leads" / "catalog.json"
+    leads_file.parent.mkdir(parents=True)
+    selected = normalize_job_lead(
+        {
+            "title": "Senior Lecturer in Economics",
+            "source_url": "https://example.edu/jobs/42",
+            "description": "Teach and research.",
+            "published_at": "2026-07-14T09:00:00Z",
+            "source": "Example",
+            "source_feed": "https://example.edu/jobs.xml",
+            "source_record_id": "role-42",
+        },
+        fetched_at="2026-07-15T10:30:00Z",
+        source_type="rss",
+    ).model_dump(mode="json")
+    other = normalize_job_lead(
+        {
+            "title": "Research Assistant",
+            "source_url": "https://example.edu/jobs/7",
+            "description": "Research support.",
+            "published_at": "",
+            "source": "Example",
+            "source_feed": "https://example.edu/jobs.xml",
+            "source_record_id": "role-7",
+        },
+        fetched_at="2026-07-15T10:30:00Z",
+        source_type="rss",
+    ).model_dump(mode="json")
+    leads_file.write_text(json.dumps([other, selected]), encoding="utf-8")
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "new-job-from-lead",
+            "--workspace",
+            str(workspace),
+            "--leads-file",
+            "job_leads/catalog.json",
+            "--lead-id",
+            selected["lead_id"],
+            "--institution",
+            "Example University",
+            "--deadline",
+            "2026-08-31",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    job_dir = jobs_dir / "2026-08-31_example-university_senior-lecturer-in-economics"
+    metadata = yaml.safe_load((job_dir / "job.yaml").read_text(encoding="utf-8"))
+    assert metadata["source_lead_id"] == selected["lead_id"]
+    assert selected["lead_id"] in (job_dir / "job_advert.md").read_text(encoding="utf-8")
+
+
+def test_new_job_from_lead_resolves_alias_inside_catalog_object(tmp_path):
+    alias = "lead_00000000000000000000000000000000"
+    lead = normalize_job_lead(
+        {
+            "title": "Reader in Finance",
+            "source_url": "https://example.edu/jobs/reader",
+            "description": "Finance role.",
+            "published_at": "",
+            "source": "Example",
+            "source_feed": "",
+        },
+        fetched_at="2026-07-15T10:30:00Z",
+        source_type="json",
+    ).model_dump(mode="json")
+    lead["alternate_lead_ids"] = [alias]
+    leads_file = tmp_path / "catalog.json"
+    leads_file.write_text(json.dumps({"leads": [lead]}), encoding="utf-8")
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "new-job-from-lead",
+            "--leads-file",
+            str(leads_file),
+            "--lead-id",
+            alias,
+            "--institution",
+            "Example University",
+            "--jobs-dir",
+            str(tmp_path / "jobs"),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+
+
+def test_new_job_from_lead_can_derive_stable_id_for_legacy_list(tmp_path):
+    legacy = {
+        "title": "Lecturer in Accounting",
+        "source_url": "https://example.edu/jobs/accounting",
+        "description": "Accounting role.",
+        "published_at": "",
+        "source": "Example",
+        "source_feed": "https://example.edu/feed.xml",
+    }
+    lead_id = normalize_job_lead(
+        legacy, fetched_at="2026-07-15T10:30:00Z"
+    ).lead_id
+    leads_file = tmp_path / "legacy.json"
+    leads_file.write_text(json.dumps([legacy]), encoding="utf-8")
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "new-job-from-lead",
+            "--leads-file",
+            str(leads_file),
+            "--lead-id",
+            lead_id,
+            "--institution",
+            "Example University",
+            "--jobs-dir",
+            str(tmp_path / "jobs"),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+
+
+@pytest.mark.parametrize("selectors", [[], ["--lead-index", "0", "--lead-id", "lead_00000000000000000000000000000000"]])
+def test_new_job_from_lead_requires_exactly_one_selector(tmp_path, selectors):
+    leads_file = tmp_path / "leads.json"
+    leads_file.write_text(
+        json.dumps(
+            [
+                {
+                    "title": "Lecturer",
+                    "source_url": "https://example.edu/jobs/1",
+                    "description": "",
+                    "published_at": "",
+                    "source": "Example",
+                    "source_feed": "",
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "new-job-from-lead",
+            "--leads-file",
+            str(leads_file),
+            *selectors,
+            "--institution",
+            "Example University",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "Provide exactly one of --lead-id or --lead-index" in strip_ansi(result.output)
 
 
 def test_list_jobs_shows_next_action_for_each_lifecycle_state(tmp_path):

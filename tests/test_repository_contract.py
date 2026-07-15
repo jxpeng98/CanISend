@@ -40,6 +40,7 @@ def test_v1_contract_files_exist():
         "schemas/fit_report.schema.json",
         "schemas/criteria_check.schema.json",
         "schemas/agent-response.schema.json",
+        "schemas/job-lead-v2.schema.json",
         "schemas/criteria.schema.json",
         "schemas/criterion-matches.schema.json",
         "schemas/confirmed-corrections.schema.json",

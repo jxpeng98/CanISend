@@ -7,6 +7,7 @@ from typing import Any
 import yaml
 
 from canisend.job_import import JobImportError, fetch_advert_from_url, import_advert_file
+from canisend.discovery.identity import LeadNormalizationError, normalize_job_lead
 
 
 class JobMetadataError(ValueError):
@@ -78,7 +79,8 @@ def create_job(
 def create_job_from_lead(
     *,
     leads_file: Path,
-    lead_index: int,
+    lead_index: int | None = None,
+    lead_id: str | None = None,
     jobs_dir: Path,
     institution: str,
     deadline: str = "unknown",
@@ -86,7 +88,7 @@ def create_job_from_lead(
     english_variant: str = "",
     writing_style: str = "",
 ) -> Path:
-    lead = _load_lead(leads_file, lead_index)
+    lead = _load_lead(leads_file, lead_index=lead_index, lead_id=lead_id)
     lead_title = (title or str(lead.get("title", ""))).strip()
     if not lead_title:
         raise ValueError("Selected lead does not contain a title; provide --title.")
@@ -101,9 +103,10 @@ def create_job_from_lead(
         source_url=str(lead.get("source_url", "")),
         advert_text=_lead_advert_markdown(lead, lead_title),
         status="lead_imported",
-        notes="Created from a feed lead only; paste or import and review the full advert.",
+        notes="Created from a discovery lead only; paste or import and review the full advert.",
         english_variant=english_variant,
         writing_style=writing_style,
+        source_lead_id=str(lead.get("lead_id", "")),
     )
 
 
@@ -119,6 +122,7 @@ def _write_job_workspace(
     notes: str,
     english_variant: str,
     writing_style: str,
+    source_lead_id: str = "",
 ) -> Path:
     job_id = build_job_slug(deadline, institution, title)
     job_dir = jobs_dir / job_id
@@ -141,6 +145,8 @@ def _write_job_workspace(
         "updated_at": now,
         "notes": notes,
     }
+    if source_lead_id:
+        metadata["source_lead_id"] = source_lead_id
     (job_dir / "job.yaml").write_text(yaml.safe_dump(metadata, sort_keys=False), encoding="utf-8")
 
     return job_dir
@@ -211,7 +217,11 @@ def job_advert_is_stub(text: str) -> bool:
         return True
     if "the full advert still needs manual paste" in lowered:
         return True
-    if "rss lead only" not in lowered and "feed lead only" not in lowered:
+    if (
+        "rss lead only" not in lowered
+        and "feed lead only" not in lowered
+        and "discovery lead only" not in lowered
+    ):
         return False
 
     full_advert_match = re.search(
@@ -238,19 +248,74 @@ def _source_url_stub(source_url: str) -> str:
     )
 
 
-def _load_lead(leads_file: Path, lead_index: int) -> dict[str, Any]:
-    if lead_index < 0:
+def _load_lead(
+    leads_file: Path,
+    *,
+    lead_index: int | None,
+    lead_id: str | None,
+) -> dict[str, Any]:
+    selected_id = (lead_id or "").strip()
+    if (lead_index is None) == (not selected_id):
+        raise ValueError("Provide exactly one of --lead-id or --lead-index.")
+    if lead_index is not None and lead_index < 0:
         raise ValueError("Lead index must be zero or greater.")
-    leads = json.loads(leads_file.read_text(encoding="utf-8"))
-    if not isinstance(leads, list):
-        raise ValueError("Lead file must contain a JSON list.")
+
     try:
-        lead = leads[lead_index]
-    except IndexError as exc:
-        raise ValueError(f"Lead index {lead_index} is out of range.") from exc
-    if not isinstance(lead, dict):
-        raise ValueError(f"Lead index {lead_index} is not an object.")
-    return lead
+        document = json.loads(leads_file.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise ValueError("Lead file could not be read.") from exc
+    except (UnicodeError, json.JSONDecodeError) as exc:
+        raise ValueError("Lead file must contain valid UTF-8 JSON.") from exc
+
+    if isinstance(document, list):
+        leads = document
+    elif isinstance(document, dict) and isinstance(document.get("leads"), list):
+        leads = document["leads"]
+    else:
+        raise ValueError("Lead file must contain a JSON list or a catalog with a leads list.")
+
+    if lead_index is not None:
+        try:
+            lead = leads[lead_index]
+        except IndexError as exc:
+            raise ValueError(f"Lead index {lead_index} is out of range.") from exc
+        if not isinstance(lead, dict):
+            raise ValueError(f"Lead index {lead_index} is not an object.")
+        return _validated_or_legacy_lead(lead)
+
+    matches: list[dict[str, Any]] = []
+    for position, candidate in enumerate(leads):
+        if not isinstance(candidate, dict):
+            raise ValueError(f"Lead index {position} is not an object.")
+        normalized = _validated_or_legacy_lead(candidate)
+        candidate_ids = {
+            str(normalized.get("lead_id", "")),
+            *(
+                str(value)
+                for value in normalized.get("alternate_lead_ids", [])
+                if isinstance(value, str)
+            ),
+        }
+        if selected_id in candidate_ids:
+            matches.append(normalized)
+    if not matches:
+        raise ValueError(f"Lead ID {selected_id} was not found.")
+    if len(matches) > 1:
+        raise ValueError(f"Lead ID {selected_id} is ambiguous in the selected file.")
+    return matches[0]
+
+
+def _validated_or_legacy_lead(lead: dict[str, Any]) -> dict[str, Any]:
+    if lead.get("schema_version") == "2.0.0":
+        try:
+            return normalize_job_lead(lead).model_dump(mode="json")
+        except (LeadNormalizationError, ValueError) as exc:
+            raise ValueError("Selected Lead v2 record is invalid.") from exc
+    try:
+        normalized = normalize_job_lead(lead)
+    except (LeadNormalizationError, ValueError) as exc:
+        raise ValueError("Selected legacy lead record is invalid.") from exc
+    return {**lead, "lead_id": normalized.lead_id, "canonical_url": normalized.canonical_url}
 
 
 def list_jobs(jobs_dir: Path) -> list[dict[str, Any]]:
@@ -300,12 +365,14 @@ def _lead_advert_markdown(lead: dict[str, Any], title: str) -> str:
     lines = [
         f"# {title}",
         "",
-        "> Feed lead only (RSS/Atom). Paste or import the full advert below before final generation.",
+        "> Discovery lead only (Feed lead only for RSS/Atom; untrusted imported metadata). Paste or import the full advert below before final generation.",
         "",
         "## Feed Lead Metadata",
         "",
         f"- Source: {lead.get('source', 'unknown') or 'unknown'}",
+        f"- Lead ID: {lead.get('lead_id', '')}",
         f"- Source URL: {lead.get('source_url', '')}",
+        f"- Canonical URL: {lead.get('canonical_url', '')}",
         f"- Published: {lead.get('published_at', '')}",
         f"- Source feed: {lead.get('source_feed', '')}",
         "",

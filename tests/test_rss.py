@@ -12,6 +12,7 @@ from canisend.rss import (
     filter_job_leads,
     parse_job_feed,
     parse_jobs_ac_uk_rss,
+    write_job_leads,
 )
 
 
@@ -159,6 +160,20 @@ def test_parse_job_feed_extracts_namespaced_atom_entries_with_fallback_fields():
     assert leads[1].source_url == "https://example.edu/jobs/lecturer-finance"
     assert leads[1].description == "Teach finance and supervise students."
     assert leads[1].published_at == "2026-05-03T10:00:00Z"
+
+
+def test_parse_job_feed_extracts_rss_guid_and_atom_id_as_source_record_ids():
+    rss = """<rss version="2.0"><channel><item><title>Role</title>
+    <link>https://example.edu/jobs/1</link><guid isPermaLink="false">role-1</guid>
+    </item></channel></rss>"""
+    atom = """<feed xmlns="http://www.w3.org/2005/Atom"><entry><title>Role</title>
+    <id>tag:example.edu,2026:role-1</id><link href="https://example.edu/jobs/1" />
+    </entry></feed>"""
+
+    assert parse_job_feed(rss)[0].source_record_id == "role-1"
+    assert parse_job_feed(atom)[0].source_record_id == "tag:example.edu,2026:role-1"
+    assert parse_job_feed(rss)[0].source_type == "rss"
+    assert parse_job_feed(atom)[0].source_type == "atom"
 
 
 def test_parse_job_feed_extracts_rss1_rdf_items():
@@ -392,6 +407,26 @@ def test_fetch_jobs_ac_uk_cli_reads_local_rss_and_writes_filtered_json(tmp_path)
     assert len(leads) == 1
     assert leads[0]["title"] == "Lecturer in Economics"
     assert leads[0]["source"] == "jobs.ac.uk"
+    assert leads[0]["schema_version"] == "2.0.0"
+    assert leads[0]["lead_id"].startswith("lead_")
+    assert leads[0]["canonical_url"] == leads[0]["source_url"]
+    assert leads[0]["provenance"][0]["source_type"] == "rss"
+
+
+def test_write_job_leads_is_stable_for_one_observation_timestamp(tmp_path):
+    leads = parse_jobs_ac_uk_rss(SAMPLE_RSS, feed_url="https://example.edu/feed.xml")
+    first = tmp_path / "first.json"
+    second = tmp_path / "second.json"
+
+    write_job_leads(first, leads, fetched_at="2026-07-15T10:30:00Z")
+    write_job_leads(second, list(reversed(leads)), fetched_at="2026-07-15T10:30:00Z")
+    first_payload = json.loads(first.read_text(encoding="utf-8"))
+    second_payload = json.loads(second.read_text(encoding="utf-8"))
+
+    assert {lead["lead_id"] for lead in first_payload} == {
+        lead["lead_id"] for lead in second_payload
+    }
+    assert {lead["fetched_at"] for lead in first_payload} == {"2026-07-15T10:30:00Z"}
 
 
 def test_fetch_job_feed_cli_reads_atom_and_uses_source_slug_for_default_output(tmp_path):
