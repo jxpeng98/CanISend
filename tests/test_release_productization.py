@@ -112,6 +112,31 @@ def test_shared_decision_spine_smoke_does_not_echo_failed_command_bodies(monkeyp
     assert private_body not in str(failure.value)
 
 
+def test_shared_decision_spine_smoke_extracts_only_example_failure_code(monkeypatch):
+    private_body = "PRIVATE-SMOKE-BODY-DO-NOT-ECHO"
+    monkeypatch.setattr(
+        smoke_decision_spine.subprocess,
+        "run",
+        lambda *args, **kwargs: smoke_decision_spine.subprocess.CompletedProcess(
+            args=args,
+            returncode=9,
+            stdout=private_body,
+            stderr=(
+                f"{private_body}\n"
+                "CanISend example failed [example.RuntimeError].\n"
+            ),
+        ),
+    )
+
+    with pytest.raises(smoke_decision_spine.SmokeFailure) as failure:
+        smoke_decision_spine._run(
+            "canisend", ["run-example", "--workspace"], expect_json=False
+        )
+
+    assert "example.RuntimeError" in str(failure.value)
+    assert private_body not in str(failure.value)
+
+
 def test_doctor_reports_installed_package_version(tmp_path):
     workspace = tmp_path / "workspace"
     runner = CliRunner()

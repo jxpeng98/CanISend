@@ -8,6 +8,7 @@ from collections import Counter
 import json
 import os
 from pathlib import Path
+import re
 import shlex
 import subprocess
 import sys
@@ -63,6 +64,16 @@ class SmokeFailure(RuntimeError):
     """A body-free failure raised by the release smoke test."""
 
 
+_EXAMPLE_FAILURE_CODE = re.compile(
+    r"CanISend example failed \[(example\.[A-Za-z][A-Za-z0-9_]*)\]\."
+)
+
+
+def _body_free_failure_code(stderr: str) -> str | None:
+    match = _EXAMPLE_FAILURE_CODE.search(stderr)
+    return None if match is None else match.group(1)
+
+
 def _run(
     canisend: str,
     arguments: Sequence[str],
@@ -83,9 +94,11 @@ def _run(
     )
     operation = " ".join(arguments[:2])
     if completed.returncode not in expected_returncodes:
+        failure_code = _body_free_failure_code(completed.stderr)
+        detail = "" if failure_code is None else f" ({failure_code})"
         raise SmokeFailure(
             f"CanISend smoke operation {operation!r} failed "
-            f"with exit code {completed.returncode}."
+            f"with exit code {completed.returncode}{detail}."
         )
     if not expect_json:
         return None

@@ -55,6 +55,26 @@ def test_run_example_overwrite_refuses_unmarked_workspace(tmp_path):
     assert private_file.read_text() == "real private cv\n"
 
 
+def test_run_example_reports_only_body_free_internal_failure_code(
+    tmp_path, monkeypatch
+):
+    private_detail = "PRIVATE EXAMPLE FAILURE DETAIL"
+
+    def fail_example(*args, **kwargs):
+        raise RuntimeError(private_detail)
+
+    monkeypatch.setattr("canisend.cli.run_packaged_example", fail_example)
+    result = CliRunner().invoke(
+        app,
+        ["run-example", "--workspace", str(tmp_path / "example")],
+    )
+
+    assert result.exit_code == 1
+    assert "example.RuntimeError" in result.output
+    assert private_detail not in result.output
+    assert "Traceback" not in result.output
+
+
 def test_end_to_end_example_runs_full_local_workflow(tmp_path, monkeypatch):
     root = Path(__file__).resolve().parents[1]
     example_dir = root / "examples" / "end_to_end"

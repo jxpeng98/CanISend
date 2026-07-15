@@ -1706,6 +1706,12 @@ def run_example(
     except ValueError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc
+    except Exception as exc:
+        typer.echo(
+            f"CanISend example failed [example.{type(exc).__name__}].",
+            err=True,
+        )
+        raise typer.Exit(code=1) from exc
 
     typer.echo(f"Example workflow complete at {result.workspace}")
     typer.echo(f"Job: {result.job_dir.relative_to(result.workspace)}")
