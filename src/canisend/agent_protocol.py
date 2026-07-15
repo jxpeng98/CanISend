@@ -55,6 +55,7 @@ SUPPORTED_AGENT_OPERATIONS = (
     "job.intake_from_lead",
     "job.list",
     "discovery.merge",
+    "discovery.refresh",
     "package.check",
     "criteria.corrections_status",
     "criteria.corrections_initialize",

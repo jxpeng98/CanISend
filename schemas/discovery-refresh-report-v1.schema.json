@@ -1,0 +1,261 @@
+{
+  "$defs": {
+    "SourceRefreshResultV1": {
+      "additionalProperties": false,
+      "properties": {
+        "source_id": {
+          "pattern": "^[a-z](?:[a-z0-9._-]{0,62}[a-z0-9_])?$",
+          "title": "Source Id",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "refreshed",
+            "not_modified",
+            "stale_reused",
+            "failed"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "batch_id": {
+          "anyOf": [
+            {
+              "pattern": "^batch_[0-9a-f]{32}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Batch Id"
+        },
+        "batch_path": {
+          "anyOf": [
+            {
+              "maxLength": 1024,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Batch Path"
+        },
+        "cache_path": {
+          "anyOf": [
+            {
+              "maxLength": 1024,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cache Path"
+        },
+        "record_count": {
+          "default": 0,
+          "maximum": 100000,
+          "minimum": 0,
+          "title": "Record Count",
+          "type": "integer"
+        },
+        "attempts": {
+          "default": 0,
+          "maximum": 5,
+          "minimum": 0,
+          "title": "Attempts",
+          "type": "integer"
+        },
+        "http_status": {
+          "default": 0,
+          "maximum": 599,
+          "minimum": 0,
+          "title": "Http Status",
+          "type": "integer"
+        },
+        "error_code": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_-]*(?:\\.[a-z][a-z0-9_-]*)+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error Code"
+        }
+      },
+      "required": [
+        "source_id",
+        "status"
+      ],
+      "title": "SourceRefreshResultV1",
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/jxpeng98/CanISend/schemas/discovery-refresh-report-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "protocol": {
+      "const": "canisend.discovery-refresh-report/v1",
+      "default": "canisend.discovery-refresh-report/v1",
+      "title": "Protocol",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "refresh_id": {
+      "pattern": "^refresh_[0-9a-f]{32}$",
+      "title": "Refresh Id",
+      "type": "string"
+    },
+    "started_at": {
+      "format": "date-time",
+      "title": "Started At",
+      "type": "string"
+    },
+    "completed_at": {
+      "format": "date-time",
+      "title": "Completed At",
+      "type": "string"
+    },
+    "config_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Config Sha256",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "complete",
+        "partial",
+        "failed"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "catalog_promoted": {
+      "title": "Catalog Promoted",
+      "type": "boolean"
+    },
+    "catalog_id": {
+      "anyOf": [
+        {
+          "pattern": "^catalog_[0-9a-f]{32}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Catalog Id"
+    },
+    "catalog_path": {
+      "anyOf": [
+        {
+          "maxLength": 1024,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Catalog Path"
+    },
+    "catalog_error_code": {
+      "anyOf": [
+        {
+          "pattern": "^[a-z][a-z0-9_-]*(?:\\.[a-z][a-z0-9_-]*)+$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Catalog Error Code"
+    },
+    "source_count": {
+      "maximum": 1000,
+      "minimum": 1,
+      "title": "Source Count",
+      "type": "integer"
+    },
+    "successful_sources": {
+      "maximum": 1000,
+      "minimum": 0,
+      "title": "Successful Sources",
+      "type": "integer"
+    },
+    "stale_sources": {
+      "maximum": 1000,
+      "minimum": 0,
+      "title": "Stale Sources",
+      "type": "integer"
+    },
+    "failed_sources": {
+      "maximum": 1000,
+      "minimum": 0,
+      "title": "Failed Sources",
+      "type": "integer"
+    },
+    "input_records": {
+      "maximum": 10000000,
+      "minimum": 0,
+      "title": "Input Records",
+      "type": "integer"
+    },
+    "retained_records": {
+      "maximum": 10000000,
+      "minimum": 0,
+      "title": "Retained Records",
+      "type": "integer"
+    },
+    "excluded_records": {
+      "maximum": 10000000,
+      "minimum": 0,
+      "title": "Excluded Records",
+      "type": "integer"
+    },
+    "sources": {
+      "items": {
+        "$ref": "#/$defs/SourceRefreshResultV1"
+      },
+      "maxItems": 1000,
+      "minItems": 1,
+      "title": "Sources",
+      "type": "array"
+    }
+  },
+  "required": [
+    "refresh_id",
+    "started_at",
+    "completed_at",
+    "config_sha256",
+    "status",
+    "catalog_promoted",
+    "source_count",
+    "successful_sources",
+    "stale_sources",
+    "failed_sources",
+    "input_records",
+    "retained_records",
+    "excluded_records",
+    "sources"
+  ],
+  "title": "CanISendDiscoveryRefreshReportV1",
+  "type": "object"
+}

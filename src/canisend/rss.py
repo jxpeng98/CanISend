@@ -5,20 +5,25 @@ from datetime import UTC, datetime
 from html import unescape
 from pathlib import Path
 import re
-from typing import Any, Callable
+from typing import Any
 from urllib.parse import urlsplit, urlunsplit
-from urllib.request import Request, urlopen
+from urllib.request import urlopen  # retained for compatibility/offline sentinels
 import xml.etree.ElementTree as ET
 
 from canisend.network_safety import (
     AddressResolver,
-    ResolvedAddressError,
-    require_public_resolved_addresses,
     resolve_host_addresses,
 )
 from canisend.discovery.identity import LeadNormalizationError, normalize_job_lead
 from canisend.discovery.models import JobLeadV2
 from canisend.discovery.store import DiscoveryStoreError, atomic_write_json
+from canisend.discovery.transport import (
+    PublicTransport,
+    PublicTransportError,
+    TransportOpener,
+    TransportPolicy,
+    validate_public_http_url,
+)
 
 
 ATOM_NAMESPACE = "http://www.w3.org/2005/Atom"
@@ -219,28 +224,29 @@ def fetch_rss_text(
     feed_url: str,
     timeout_seconds: int = 30,
     *,
-    opener: Callable[..., Any] = urlopen,
+    opener: TransportOpener | None = None,
     max_bytes: int = DEFAULT_MAX_FEED_BYTES,
     resolver: AddressResolver | None = None,
 ) -> str:
-    url = _validate_feed_url(feed_url, resolver=resolver)
-    if max_bytes <= 0:
-        raise JobFeedError("Feed response byte limit must be greater than zero.")
-
-    request = Request(url, headers={"User-Agent": "CanISend/0.2 job-feed-fetch"})
     try:
-        with opener(request, timeout=timeout_seconds) as response:
-            final_url = response.geturl() if hasattr(response, "geturl") else request.full_url
-            _validate_feed_url(str(final_url or request.full_url), resolver=resolver)
-            content_type = response.headers.get("Content-Type", "")
-            _validate_feed_content_type(content_type)
-            raw = _read_limited_response(response, max_bytes=max_bytes)
-    except JobFeedError:
-        raise
-    except Exception as exc:
-        raise JobFeedError(f"Could not fetch job feed: {exc}") from exc
-
-    return _decode_feed_xml(raw, content_type)
+        policy = TransportPolicy(
+            allowed_media_types=tuple(sorted(ALLOWED_FEED_CONTENT_TYPES)),
+            allow_application_xml_suffix=True,
+            media_subject="Job feed response",
+            media_description="XML, RSS, or Atom content",
+            size_subject="Job feed",
+            user_agent="CanISend/0.2 job-feed-fetch",
+            accept="application/atom+xml, application/rss+xml, application/xml, text/xml",
+            timeout_seconds=timeout_seconds,
+            max_bytes=max_bytes,
+        )
+        response = PublicTransport(
+            opener=opener,
+            resolver=resolver or resolve_host_addresses,
+        ).fetch(feed_url, policy=policy)
+    except (PublicTransportError, ValueError) as exc:
+        raise JobFeedError(str(exc)) from exc
+    return decode_job_feed_bytes(response.body, response.content_type)
 
 
 def write_job_leads(
@@ -273,68 +279,18 @@ def _validate_feed_url(
     *,
     resolver: AddressResolver | None = None,
 ) -> str:
-    url = feed_url.strip()
     try:
-        parsed = urlsplit(url)
-    except ValueError as exc:
-        raise JobFeedError("Job feed URL is invalid.") from exc
-    if parsed.scheme.lower() not in {"http", "https"}:
-        raise JobFeedError("Only http:// and https:// job feed URLs can be fetched.")
-    if not parsed.hostname:
-        raise JobFeedError("Job feed URL must include a host.")
-    if parsed.username is not None or parsed.password is not None:
-        raise JobFeedError("Job feed URL must not include credentials.")
-    try:
-        parsed.port
-    except ValueError as exc:
-        raise JobFeedError("Job feed URL port is invalid.") from exc
-
-    hostname = parsed.hostname.rstrip(".").lower()
-    if (
-        hostname in {"localhost", "localhost.localdomain", "ip6-localhost", "ip6-loopback"}
-        or hostname.endswith(".localhost")
-        or hostname.endswith(".local")
-    ):
-        raise JobFeedError("Job feed URL must not target localhost.")
-
-    try:
-        require_public_resolved_addresses(
-            hostname,
+        return validate_public_http_url(
+            feed_url,
             resolver=resolver or resolve_host_addresses,
+            label="Job feed URL",
         )
-    except ResolvedAddressError as exc:
+    except PublicTransportError as exc:
         raise JobFeedError(str(exc)) from exc
-    return url
 
 
-def _validate_feed_content_type(content_type: str) -> None:
-    media_type = content_type.partition(";")[0].strip().lower()
-    if media_type in ALLOWED_FEED_CONTENT_TYPES or (
-        media_type.startswith("application/") and media_type.endswith("+xml")
-    ):
-        return
-    detail = media_type or "missing content type"
-    raise JobFeedError(f"Job feed response did not return XML, RSS, or Atom content: {detail}")
-
-
-def _read_limited_response(response: Any, *, max_bytes: int) -> bytes:
-    content_length = response.headers.get("Content-Length")
-    if content_length:
-        try:
-            length = int(content_length)
-        except (TypeError, ValueError):
-            length = None
-        if length is not None and length > max_bytes:
-            raise JobFeedError(
-                f"Job feed response exceeds the configured limit of {max_bytes} bytes."
-            )
-
-    raw = response.read(max_bytes + 1)
-    if len(raw) > max_bytes:
-        raise JobFeedError(
-            f"Job feed response exceeds the configured limit of {max_bytes} bytes."
-        )
-    return raw
+def decode_job_feed_bytes(raw: bytes, content_type: str) -> str:
+    return _decode_feed_xml(raw, content_type)
 
 
 def _decode_feed_xml(raw: bytes, content_type: str) -> str:
@@ -345,9 +301,11 @@ def _decode_feed_xml(raw: bytes, content_type: str) -> str:
     try:
         return raw.decode(encoding)
     except LookupError as exc:
-        raise JobFeedError(f"Job feed declares an unsupported charset: {encoding}") from exc
+        raise JobFeedError("Job feed declares an unsupported charset.") from exc
     except UnicodeDecodeError as exc:
-        raise JobFeedError(f"Could not decode job feed using charset {encoding}: {exc}") from exc
+        raise JobFeedError(
+            "Could not decode job feed using its declared charset."
+        ) from exc
 
 
 def _content_type_charset(content_type: str) -> str:

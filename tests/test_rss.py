@@ -349,6 +349,22 @@ def test_fetch_rss_text_rejects_non_feed_content_type():
         )
 
 
+def test_fetch_rss_text_does_not_echo_untrusted_charset_header():
+    response = FakeFeedResponse(
+        SAMPLE_RSS.encode("utf-8"),
+        content_type="application/rss+xml; charset=private-token",
+    )
+
+    with pytest.raises(JobFeedError) as failure:
+        fetch_rss_text(
+            "https://example.edu/jobs.xml",
+            opener=lambda request, timeout: response,
+        )
+
+    assert str(failure.value) == "Job feed declares an unsupported charset."
+    assert "private-token" not in str(failure.value)
+
+
 def test_fetch_rss_text_decodes_charset_from_content_type_header():
     body = "<rss version='2.0'><channel><title>Café jobs</title></channel></rss>".encode(
         "iso-8859-1"

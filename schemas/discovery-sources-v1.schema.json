@@ -1,0 +1,176 @@
+{
+  "$defs": {
+    "DiscoverySourceV1": {
+      "additionalProperties": false,
+      "properties": {
+        "source_id": {
+          "pattern": "^[a-z](?:[a-z0-9._-]{0,62}[a-z0-9_])?$",
+          "title": "Source Id",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "kind": {
+          "const": "rss_atom",
+          "default": "rss_atom",
+          "title": "Kind",
+          "type": "string"
+        },
+        "url": {
+          "maxLength": 8192,
+          "minLength": 1,
+          "title": "Url",
+          "type": "string"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "timeout_seconds": {
+          "default": 30,
+          "maximum": 300,
+          "minimum": 1,
+          "title": "Timeout Seconds",
+          "type": "integer"
+        },
+        "max_bytes": {
+          "default": 2000000,
+          "maximum": 100000000,
+          "minimum": 1,
+          "title": "Max Bytes",
+          "type": "integer"
+        },
+        "max_leads": {
+          "default": 10000,
+          "maximum": 100000,
+          "minimum": 1,
+          "title": "Max Leads",
+          "type": "integer"
+        },
+        "max_attempts": {
+          "default": 3,
+          "maximum": 5,
+          "minimum": 1,
+          "title": "Max Attempts",
+          "type": "integer"
+        },
+        "backoff_seconds": {
+          "default": 1.0,
+          "ge": 0,
+          "le": 3600,
+          "title": "Backoff Seconds",
+          "type": "number"
+        },
+        "max_retry_delay_seconds": {
+          "default": 300.0,
+          "ge": 0,
+          "le": 3600,
+          "title": "Max Retry Delay Seconds",
+          "type": "number"
+        },
+        "min_interval_seconds": {
+          "default": 0.0,
+          "ge": 0,
+          "le": 3600,
+          "title": "Min Interval Seconds",
+          "type": "number"
+        }
+      },
+      "required": [
+        "source_id",
+        "name",
+        "url"
+      ],
+      "title": "DiscoverySourceV1",
+      "type": "object"
+    },
+    "RankingPolicyV1": {
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Version",
+          "type": "string"
+        },
+        "include_keywords": {
+          "default": [],
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 256,
+          "title": "Include Keywords",
+          "type": "array",
+          "uniqueItems": true
+        },
+        "exclude_keywords": {
+          "default": [],
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 256,
+          "title": "Exclude Keywords",
+          "type": "array",
+          "uniqueItems": true
+        },
+        "source_preference": {
+          "default": [],
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 256,
+          "title": "Source Preference",
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "title": "RankingPolicyV1",
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/jxpeng98/CanISend/schemas/discovery-sources-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "protocol": {
+      "const": "canisend.discovery-sources/v1",
+      "default": "canisend.discovery-sources/v1",
+      "title": "Protocol",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "policy": {
+      "$ref": "#/$defs/RankingPolicyV1"
+    },
+    "sources": {
+      "items": {
+        "$ref": "#/$defs/DiscoverySourceV1"
+      },
+      "maxItems": 1000,
+      "minItems": 1,
+      "title": "Sources",
+      "type": "array"
+    }
+  },
+  "required": [
+    "sources"
+  ],
+  "title": "CanISendDiscoverySourcesV1",
+  "type": "object"
+}

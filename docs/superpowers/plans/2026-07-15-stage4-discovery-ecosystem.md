@@ -1,6 +1,6 @@
 # Stage 4 Discovery Ecosystem Implementation Plan
 
-**Status:** In progress — Tasks 0–2 locally accepted; Task 3 is next
+**Status:** In progress — Tasks 0–3 locally accepted; Task 4 is next
 
 **Date:** 2026-07-15
 
@@ -82,12 +82,12 @@ records, and a body-free partial-failure report. `new-job-from-lead` accepts eit
 
 ### Task 3: Atomic Multi-Source Refresh And Shared Transport
 
-- [ ] Add a strict source-config and Lead Batch/report contract.
-- [ ] Centralize DNS-aware public-address checks, redirect checks, response limits, and media-type policy.
-- [ ] Add ETag/Last-Modified conditional requests and reuse of the last validated complete batch on `304`.
-- [ ] Add bounded retry/backoff, `Retry-After`, injectable clocks/sleep, and per-host throttling.
-- [ ] Atomically promote per-source batches and the merged catalog only after validation.
-- [ ] Preserve stale prior batches and report one source failure without discarding successful sources.
+- [x] Add a strict source-config and Lead Batch/report contract.
+- [x] Centralize DNS-aware public-address checks, redirect checks, response limits, and media-type policy.
+- [x] Add ETag/Last-Modified conditional requests and reuse of the last validated complete batch on `304`.
+- [x] Add bounded retry/backoff, `Retry-After`, injectable clocks/sleep, and per-host throttling.
+- [x] Atomically promote per-source batches and the merged catalog only after validation.
+- [x] Preserve stale prior batches and report one source failure without discarding successful sources.
 
 ### Task 4: Local Export Ingestion
 
@@ -144,7 +144,7 @@ records, and a body-free partial-failure report. `new-job-from-lead` accepts eit
 
 ## Validation Record
 
-Tasks 0–2 were locally accepted on 2026-07-15:
+Tasks 0–3 were locally accepted on 2026-07-15:
 
 - ADR-023 and this complete Stage 4 task graph freeze identity precedence, URL/provenance redaction, untrusted data,
   read-only source authority, partial-failure semantics, and continued direct URL/PDF intake.
@@ -180,6 +180,28 @@ Tasks 0–2 were locally accepted on 2026-07-15:
 - A new isolated wheel and source distribution built successfully. The packaged-resource checker and Twine accepted
   both artifacts. A Python 3.12 clean install from that wheel exposed `discovery merge`, loaded the packaged catalog
   schema, and completed an offline merge smoke test. Nothing was uploaded or published.
+- Task 3 adds strict `canisend.discovery-sources/v1`, `canisend.discovery-batch/v1`,
+  `canisend.discovery-cache/v1`, and `canisend.discovery-refresh-report/v1` contracts with generated, packaged
+  schemas. Source configurations currently admit only explicit RSS/Atom GET sources; vendor API adapters remain
+  gated behind Task 6 conformance work.
+- One shared public GET transport now serves discovery refresh, existing RSS/Atom fetch, and explicit HTML/PDF
+  intake. It validates public DNS results before requests and after redirects, bounds media and response size,
+  performs conditional requests, honors bounded `Retry-After`/backoff, throttles per host, and supports injected
+  clocks and waits without exposing response bodies or untrusted response-header values in stable errors.
+- `discovery refresh` sorts enabled sources, writes validated complete batches and validator-only caches atomically,
+  reuses the complete batch on `304`, and promotes the merged catalog after source promotion. A failed or invalid
+  source reuses its prior complete batch as explicitly stale while unrelated sources advance; an unusable run or
+  catalog write failure preserves the existing catalog.
+- The text and `canisend.agent/v1` JSON refresh surfaces expose only relative catalog/report artifacts, hashes,
+  stable IDs, counts, status codes, warnings, and next actions. Source bodies, lead descriptions, query values,
+  absolute paths, and exception details stay out of ordinary responses and the body-free refresh report.
+- The final discovery, transport, intake-compatibility, agent, schema, and resource acceptance group passed 271
+  tests. The complete development-interpreter suite passed 1,179 tests in 801.41 seconds; Python bytecode
+  compilation and `git diff --check` passed.
+- An isolated source distribution and wheel built successfully. The packaged-resource checker and Twine accepted
+  both artifacts. A Python 3.12.12 clean install exposed `discovery refresh`, loaded all four packaged contracts,
+  returned a one-line body-free AgentResponse for invalid input, and completed an offline successful refresh smoke
+  test. Nothing was uploaded or published.
 
-Remote CI, cross-version/cross-OS acceptance, multi-source refresh/transport, local and agent imports, public API
-adapters, and a Stage 4 release candidate remain later tasks; they are not claimed here.
+Remote CI, cross-version/cross-OS acceptance, local and host-agent imports, public API adapters, compatibility/docs,
+and a Stage 4 release candidate remain later tasks; they are not claimed here.

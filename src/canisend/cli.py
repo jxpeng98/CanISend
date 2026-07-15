@@ -23,7 +23,10 @@ from canisend.document_execution import (
     document_execution_status_agent_response,
     inspect_document_execution,
 )
-from canisend.discovery.agent import discovery_catalog_agent_response
+from canisend.discovery.agent import (
+    discovery_catalog_agent_response,
+    discovery_refresh_agent_response,
+)
 from canisend.discovery.catalog import (
     DiscoveryInputError,
     DiscoveryWriteError,
@@ -31,6 +34,12 @@ from canisend.discovery.catalog import (
     write_lead_catalog,
 )
 from canisend.discovery.catalog_models import normalized_ranking_policy
+from canisend.discovery.refresh import (
+    DiscoveryRefreshInputError,
+    DiscoveryRefreshWriteError,
+    load_discovery_sources,
+    refresh_discovery_sources,
+)
 from canisend.examples import run_packaged_example
 from canisend.git_tracking import GitTrackingError, git_add_application_materials
 from canisend.jobs import create_job, create_job_from_lead, list_jobs as list_job_folders, slugify
@@ -181,7 +190,7 @@ user_mutation_app = typer.Typer(
 )
 app.add_typer(user_mutation_app, name="user-mutation")
 discovery_app = typer.Typer(
-    help="Merge, filter, and rank source-neutral local job leads.",
+    help="Refresh, merge, filter, and rank source-neutral job leads.",
     no_args_is_help=True,
 )
 app.add_typer(discovery_app, name="discovery")
@@ -2302,6 +2311,78 @@ def merge_discovery_catalog(
         f"{catalog.stats.merged_records} merged, "
         f"{catalog.stats.retained_records} retained, "
         f"{catalog.stats.excluded_records} excluded"
+    )
+
+
+@discovery_app.command("refresh")
+def refresh_discovery_catalog(
+    sources: Path = typer.Option(
+        Path("discovery-sources.yaml"),
+        "--sources",
+        help="Versioned discovery source configuration YAML.",
+    ),
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="User workspace directory containing canisend.yaml.",
+    ),
+    output_format: str = typer.Option(
+        "text",
+        "--format",
+        help="Output format: text or json.",
+    ),
+) -> None:
+    """Conditionally refresh configured sources and atomically promote a catalog."""
+    _validate_output_format(output_format)
+    try:
+        config = load_workspace_config(workspace)
+        source_path = sources.expanduser()
+        if not source_path.is_absolute():
+            source_path = config.root / source_path
+        source_config = load_discovery_sources(source_path)
+        execution = refresh_discovery_sources(
+            config.root,
+            source_config,
+            lead_root=config.path("job_leads_dir"),
+        )
+        response = discovery_refresh_agent_response(config.root, execution)
+    except DiscoveryRefreshInputError as exc:
+        if output_format == "json":
+            _emit_operation_error(
+                operation="discovery.refresh",
+                code="input.invalid",
+                message="The discovery source configuration is invalid.",
+            )
+        raise typer.BadParameter(str(exc)) from exc
+    except DiscoveryRefreshWriteError as exc:
+        if output_format == "json":
+            _emit_operation_error(
+                operation="discovery.refresh",
+                code="operation.failed",
+                message="CanISend could not write the discovery refresh artifacts.",
+            )
+        raise typer.BadParameter(str(exc)) from exc
+    except Exception as exc:
+        if output_format != "json":
+            raise typer.BadParameter(
+                "The discovery refresh operation failed unexpectedly."
+            ) from exc
+        _emit_operation_error(
+            operation="discovery.refresh",
+            code="operation.failed",
+            message="The discovery refresh operation failed unexpectedly.",
+        )
+
+    _emit_agent_response(response, output_format=output_format)
+    if output_format == "json":
+        return
+    typer.echo(
+        "Refresh: "
+        f"{execution.report.status}, "
+        f"{execution.report.successful_sources} current, "
+        f"{execution.report.stale_sources} stale, "
+        f"{execution.report.failed_sources} failed, "
+        f"{execution.report.retained_records} retained"
     )
 
 

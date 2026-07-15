@@ -7,13 +7,18 @@ from pathlib import Path
 import re
 from typing import Any, Callable
 from urllib.parse import quote, unquote, urlsplit, urlunsplit
-from urllib.request import Request, urlopen
+from urllib.request import urlopen  # retained for compatibility/offline sentinels
 
 from canisend.network_safety import (
     AddressResolver,
-    ResolvedAddressError,
-    require_public_resolved_addresses,
     resolve_host_addresses,
+)
+from canisend.discovery.transport import (
+    PublicTransport,
+    PublicTransportError,
+    TransportOpener,
+    TransportPolicy,
+    validate_public_http_url,
 )
 
 
@@ -161,41 +166,16 @@ def validate_fetch_url(
     *,
     resolver: AddressResolver | None = None,
 ) -> str:
-    url = source_url.strip()
-    if not url:
+    if not source_url.strip():
         raise JobImportError("--fetch-url requires --source-url.")
-    parsed = urlsplit(url)
-    if parsed.scheme.lower() not in {"http", "https"}:
-        raise JobImportError("Only http:// and https:// URLs can be fetched.")
-    if not parsed.hostname:
-        raise JobImportError("Fetch URL must include a host.")
-    if parsed.username is not None or parsed.password is not None:
-        raise JobImportError("Fetch URL must not include credentials.")
-    if not re.fullmatch(r"[A-Za-z0-9.-]+", parsed.hostname):
-        raise JobImportError("Fetch URL host contains unsafe characters.")
     try:
-        port = parsed.port
-    except ValueError as exc:
-        raise JobImportError("Fetch URL port is invalid.") from exc
-    hostname = parsed.hostname.rstrip(".").lower()
-    if (
-        hostname in {"localhost", "localhost.localdomain", "ip6-localhost", "ip6-loopback"}
-        or hostname.endswith(".localhost")
-        or hostname.endswith(".local")
-    ):
-        raise JobImportError("Fetch URL must not target localhost.")
-    try:
-        require_public_resolved_addresses(
-            hostname,
+        return validate_public_http_url(
+            source_url,
             resolver=resolver or resolve_host_addresses,
+            label="Fetch URL",
         )
-    except ResolvedAddressError as exc:
+    except PublicTransportError as exc:
         raise JobImportError(str(exc)) from exc
-
-    safe_netloc = parsed.hostname
-    if port is not None:
-        safe_netloc = f"{safe_netloc}:{port}"
-    return urlunsplit((parsed.scheme, safe_netloc, parsed.path, parsed.query, ""))
 
 
 def _provenance_url(fetch_url: str) -> str:
@@ -205,57 +185,50 @@ def _provenance_url(fetch_url: str) -> str:
     return urlunsplit((parsed.scheme, parsed.netloc, safe_path, safe_query, ""))
 
 
-def _read_limited_response(response: Any, *, max_bytes: int) -> bytes:
-    content_length = response.headers.get("Content-Length")
-    if content_length:
-        try:
-            length = int(content_length)
-        except ValueError:
-            length = None
-        if length is not None and length > max_bytes:
-            raise JobImportError(
-                f"Fetched URL response is larger than the configured limit "
-                f"of {max_bytes} bytes."
-            )
-
-    raw = response.read(max_bytes + 1)
-    if len(raw) > max_bytes:
-        raise JobImportError(
-            f"Fetched URL response is larger than the configured limit "
-            f"of {max_bytes} bytes."
-        )
-    return raw
-
-
 def fetch_advert_from_url(
     source_url: str,
     *,
-    opener: Callable[..., Any] = urlopen,
+    opener: TransportOpener | None = None,
     timeout: int = 30,
     max_bytes: int = _DEFAULT_MAX_BYTES,
     resolver: AddressResolver | None = None,
 ) -> ImportedAdvert:
-    url = validate_fetch_url(source_url, resolver=resolver)
-    request = Request(url, headers={"User-Agent": "CanISend/0.2 job-advert-import"})
+    validated_url = validate_fetch_url(source_url, resolver=resolver)
     try:
-        with opener(request, timeout=timeout) as response:
-            final_url = response.geturl() if hasattr(response, "geturl") else request.full_url
-            validated_final_url = validate_fetch_url(
-                str(final_url or request.full_url),
-                resolver=resolver,
-            )
-            content_type = response.headers.get("Content-Type", "")
-            media_type = content_type.partition(";")[0].strip().lower()
-            if "html" not in media_type and media_type != "application/pdf":
-                detail = content_type or "unknown content type"
-                raise JobImportError(f"Fetched URL did not return HTML or PDF: {detail}")
-            raw = _read_limited_response(response, max_bytes=max_bytes)
-    except JobImportError:
-        raise
-    except Exception as exc:
-        raise JobImportError(f"Could not fetch job URL: {exc}") from exc
+        response = PublicTransport(
+            opener=opener,
+            resolver=resolver or resolve_host_addresses,
+        ).fetch(
+            validated_url,
+            policy=TransportPolicy(
+                allowed_media_types=(
+                    "application/pdf",
+                    "application/xhtml+xml",
+                    "text/html",
+                ),
+                media_subject="Fetched URL",
+                media_description="HTML or PDF",
+                size_subject="Fetched URL",
+                user_agent="CanISend/0.2 job-advert-import",
+                accept="text/html, application/xhtml+xml, application/pdf",
+                timeout_seconds=timeout,
+                max_bytes=max_bytes,
+            ),
+        )
+    except PublicTransportError as exc:
+        if exc.code == "transport.response_too_large":
+            raise JobImportError(
+                "Fetched URL response is larger than the configured limit "
+                f"of {max_bytes} bytes."
+            ) from exc
+        raise JobImportError(str(exc)) from exc
+    except ValueError as exc:
+        raise JobImportError(str(exc)) from exc
 
-    provenance_url = _provenance_url(validated_final_url)
+    raw = response.body
+    content_type = response.content_type
+    media_type = response.media_type
+    provenance_url = _provenance_url(response.final_url)
     if media_type == "application/pdf":
         text = extract_pdf_bytes(raw)
         source_label = "PDF from"

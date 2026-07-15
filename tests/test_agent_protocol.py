@@ -59,6 +59,7 @@ STAGE3_PACKAGE_REVIEW_OPERATIONS = {
 
 STAGE4_DISCOVERY_OPERATIONS = {
     "discovery.merge",
+    "discovery.refresh",
 }
 
 TASK5_USER_INPUT_ERROR_CODES = {

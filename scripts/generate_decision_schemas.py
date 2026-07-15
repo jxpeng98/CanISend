@@ -20,6 +20,12 @@ from canisend.draft_models import (
 from canisend.document_execution import DocumentExecutionPlanV1
 from canisend.discovery.models import JobLeadV2
 from canisend.discovery.catalog_models import LeadCatalogV1
+from canisend.discovery.refresh_models import (
+    DiscoveryCacheV1,
+    DiscoveryRefreshReportV1,
+    DiscoverySourcesV1,
+    LeadBatchV1,
+)
 from canisend.package_review_models import PackageReviewFindingsV1
 from canisend.package_readiness import (
     ApplicationPackageReadinessV1,
@@ -32,6 +38,10 @@ from canisend.user_mutations import UserMutationReceiptV1
 SCHEMAS = {
     "job-lead-v2.schema.json": JobLeadV2,
     "lead-catalog-v1.schema.json": LeadCatalogV1,
+    "discovery-sources-v1.schema.json": DiscoverySourcesV1,
+    "lead-batch-v1.schema.json": LeadBatchV1,
+    "discovery-cache-v1.schema.json": DiscoveryCacheV1,
+    "discovery-refresh-report-v1.schema.json": DiscoveryRefreshReportV1,
     "criteria.schema.json": CriteriaCatalogV1,
     "evidence-catalog.schema.json": EvidenceCatalogV1,
     "criterion-matches.schema.json": CriterionMatchesV1,
