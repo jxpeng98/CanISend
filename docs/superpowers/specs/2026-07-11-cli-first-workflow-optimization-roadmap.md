@@ -1,7 +1,7 @@
 # CLI-First Workflow Optimization Execution Roadmap
 
-**Status:** Active — Stages 1 and 2 plus Stage 3 Tasks 0–14 are locally accepted; the `0.3.0.dev2` TestPyPI
-development checkpoint is accepted and Stage 3 exit/`0.3.0b1` preparation is in progress
+**Status:** Active — Stages 1 and 2 plus Stage 3 Tasks 0–15 are locally accepted; the `0.3.0.dev2` TestPyPI
+development checkpoint is accepted and remote CI/`0.3.0b1` release is in progress
 
 **Date:** 2026-07-11
 
@@ -309,12 +309,13 @@ Statement Draft and deterministic Review boundary with separate targets and vali
 document selection plus independent Cover Letter and Research Statement disposition/CAS/readiness namespaces;
 ADR-020 freezes a reviewed, standalone Research Statement compatibility projection without expanding package
 readiness; ADR-021 freezes deterministic aggregate Review, exact dynamic document receipt fan-in, body-free control
-responses, and guarded correction proposals. The Cover Letter and Research Statement
-Draft/Review/disposition/readiness slices and aggregate Review are locally accepted with strict schemas, guarded
-promotion, fail-closed document selection, local tests, and clean-wheel smoke. Both documents are available guarded
-executors with per-document readiness. Cover Letter keeps package-integrated compatibility views; a reviewed
-Research Statement has standalone Markdown/Typst views only. Package-level dispositions, aggregate readiness,
-remote CI, and final distribution acceptance remain.
+responses, and guarded correction proposals; ADR-022 freezes guarded aggregate decisions, non-waivable blockers,
+derived package readiness, and fail-closed APP-Q5 integration. The Cover Letter and Research Statement
+Draft/Review/disposition/readiness slices, aggregate Review/decisions/readiness, migration guidance, full supported
+version matrix, real Typst compilation, and source/clean-wheel Stage 3 exit smoke are locally accepted. Both
+documents are available guarded executors with per-document readiness. Cover Letter keeps package-integrated
+compatibility views; a reviewed Research Statement has standalone Markdown/Typst views only. Remote CI,
+`0.3.0b1` publication, and final installed-PyPI acceptance remain.
 
 **Release milestones:** `0.3.0.dev2` was published to TestPyPI from the Task 12 baseline (`0.3.0.dev1` is retained as
 a pre-upload failed CI candidate); publish `0.3.0b1` to TestPyPI and PyPI only after Tasks 13–15 are accepted. See

@@ -36,7 +36,7 @@ EXPECTED_STAGE_RUN_COUNTS = {
     "review": 2,
     "package_review": 1,
 }
-EXPECTED_USER_MUTATION_RECEIPTS = 19
+EXPECTED_USER_MUTATION_RECEIPTS = 20
 STRUCTURED_DRAFT_SENTINEL = "I hold a PhD in Economics."
 RESEARCH_DRAFT_SENTINEL = "My research applies policy-evaluation methods."
 USER_AND_STRUCTURED_ARTIFACTS = (
@@ -111,6 +111,21 @@ def _job_arguments(workspace: Path) -> list[str]:
         "--format",
         "json",
     ]
+
+
+def _configure_reviewable_dual_document_fixture(workspace: Path) -> None:
+    """Narrow the packaged fake advert to the two implemented guarded executors."""
+
+    advert_path = workspace / EXAMPLE_JOB / "job_advert.md"
+    original = "Required documents: CV, Cover letter, Research statement, Teaching statement"
+    replacement = "Required documents: Cover letter, Research statement"
+    try:
+        advert = advert_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        raise SmokeFailure("The packaged smoke advert could not be inspected.") from exc
+    if advert.count(original) != 1:
+        raise SmokeFailure("The packaged smoke advert requirements changed unexpectedly.")
+    advert_path.write_text(advert.replace(original, replacement), encoding="utf-8")
 
 
 def _artifact(payload: dict[str, Any], kind: str) -> dict[str, Any]:
@@ -674,6 +689,14 @@ def _assert_workspace_contract(workspace: Path) -> None:
         raise SmokeFailure(
             "The smoke plan did not retain the confirmed blocker-free document set."
         )
+    if {
+        item.get("normalized_kind")
+        for item in requirements
+        if isinstance(item, dict) and item.get("requirement") == "required"
+    } != {"cover_letter", "research_statement"}:
+        raise SmokeFailure(
+            "The Stage 3 exit fixture did not retain exactly two supported required documents."
+        )
 
     fit_report = (job / "02_fit_report.md").read_text(encoding="utf-8")
     checklist = (job / "05_criteria_checklist.md").read_text(encoding="utf-8")
@@ -782,11 +805,8 @@ def _assert_workspace_contract(workspace: Path) -> None:
             in str(issue.get("message", ""))
             for issue in gate_issues
         )
-        or not any(
-            isinstance(issue, dict)
-            and issue.get("gate") == "APP-Q5"
-            and "unresolved required-document or aggregate blockers"
-            in str(issue.get("message", ""))
+        or any(
+            isinstance(issue, dict) and issue.get("gate") == "APP-Q5"
             for issue in gate_issues
         )
     ):
@@ -823,6 +843,7 @@ def run_smoke(canisend: str, workspace: Path) -> None:
         ["run-example", "--workspace", str(workspace), "--overwrite"],
         expect_json=False,
     )
+    _configure_reviewable_dual_document_fixture(workspace)
     _run(
         canisend,
         ["doctor", "--workspace", str(workspace), "--format", "json"],
@@ -1195,9 +1216,9 @@ def run_smoke(canisend: str, workspace: Path) -> None:
         if isinstance(package_extensions, dict)
         else None
     )
-    if not isinstance(package_blockers, int) or package_blockers < 1:
+    if package_blockers != 0:
         raise SmokeFailure(
-            "Aggregate Package Review did not preserve the unsupported required-document blocker."
+            "The reviewed dual-document fixture retained an aggregate blocker."
         )
 
     _run(
@@ -1221,32 +1242,35 @@ def run_smoke(canisend: str, workspace: Path) -> None:
         package_review_payload = json.loads(
             (job / "package_review_findings.json").read_text(encoding="utf-8")
         )
-        package_blocker_id = package_review_payload["blocker_finding_ids"][0]
+        package_finding_ids = [
+            item["finding_id"] for item in package_review_payload["findings"]
+        ]
+        package_blocker_ids = package_review_payload["blocker_finding_ids"]
     except (
         OSError,
         UnicodeError,
         json.JSONDecodeError,
-        IndexError,
         KeyError,
         TypeError,
     ) as exc:
-        raise SmokeFailure("Package Review omitted its non-waivable blocker ID.") from exc
-    rejected = _package_review_disposition_patch(
-        canisend,
-        workspace,
-        package_dispositions,
-        {
-            "operation": "set_package_finding_disposition",
-            "finding_id": package_blocker_id,
-            "disposition": "accepted",
-        },
-        expected_returncodes=(1,),
-    )
-    if (
-        not isinstance(rejected.get("error"), dict)
-        or rejected["error"].get("code") != "user_input.invalid"
-    ):
-        raise SmokeFailure("Package disposition incorrectly waived an aggregate blocker.")
+        raise SmokeFailure("Package Review omitted stable aggregate finding IDs.") from exc
+    if package_blocker_ids != [] or not package_finding_ids:
+        raise SmokeFailure(
+            "The reviewed dual-document fixture did not produce reviewable aggregate findings."
+        )
+    for finding_id in package_finding_ids:
+        if not isinstance(finding_id, str):
+            raise SmokeFailure("Package Review emitted an invalid aggregate finding ID.")
+        package_dispositions = _package_review_disposition_patch(
+            canisend,
+            workspace,
+            package_dispositions,
+            {
+                "operation": "set_package_finding_disposition",
+                "finding_id": finding_id,
+                "disposition": "accepted",
+            },
+        )
     package_status = _run(
         canisend,
         ["package-review", "status", *job_args],
@@ -1260,9 +1284,11 @@ def run_smoke(canisend: str, workspace: Path) -> None:
     if (
         not isinstance(package_status_extensions, dict)
         or package_status_extensions.get("canisend.application_package_readiness")
-        != "blocked"
+        != "reviewed"
     ):
-        raise SmokeFailure("Package readiness did not remain blocked after rejection.")
+        raise SmokeFailure(
+            "Complete aggregate decisions did not review the dual-document package."
+        )
 
     before_run = {
         name: (job / name).read_bytes()

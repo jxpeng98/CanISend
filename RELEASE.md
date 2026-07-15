@@ -30,6 +30,9 @@ the tag-triggered workflow. A reviewed prerelease may originate from a non-main 
 the candidate commit is verified before the tag is created. Do not reuse `v0.2.0` or any published tag/version; the
 accepted Stage 3 candidate is `0.3.0b1`.
 
+Before validating an upgraded private workspace, follow `docs/stage3-migration.md`; release automation refreshes
+packaged resources but never migrates or rewrites user-owned workspace data.
+
 ## Local Release Checks
 
 Run these before triggering any remote publish workflow:

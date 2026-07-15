@@ -35,6 +35,7 @@ def test_v1_contract_files_exist():
         "scripts/release.sh",
         "scripts/smoke_decision_spine.py",
         "scripts/sync_workspace_skill_mirror.py",
+        "docs/stage3-migration.md",
         "schemas/parsed_job.schema.json",
         "schemas/fit_report.schema.json",
         "schemas/criteria_check.schema.json",
@@ -76,6 +77,22 @@ def test_repository_native_skill_mirror_gate_blocks_ci_and_local_release():
     assert "content/type drift" in script
     assert "sync_hermes_tap" not in script
     assert "repository-native substitute for an external `sync_hermes_tap` contract" in readme
+
+
+def test_stage3_migration_guide_is_fail_closed_and_non_destructive():
+    root = Path(__file__).resolve().parents[1]
+    guide = (root / "docs" / "stage3-migration.md").read_text(encoding="utf-8")
+
+    for contract in (
+        "not a user-data migration",
+        "APP-Q5 fails closed",
+        "reset_for_current_review",
+        "reset_for_current_package_review",
+        "user-mutation recover",
+        "does not roll back private data",
+        "is not rendering approval",
+    ):
+        assert contract in guide
 
 
 def test_typst_templates_use_modernpro_packages():

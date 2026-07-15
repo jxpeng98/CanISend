@@ -1007,6 +1007,7 @@ examples/agent_handoff/   host-neutral agent contract fixtures
 tests/                    CLI, pipeline, packaging, release, and contract tests
 assets/                   project logo and README media
 RELEASE.md                maintainer release playbook
+docs/stage3-migration.md  Stage 3 workspace upgrade and recovery guide
 ```
 
 See `canisend_v1_proposal.md` for the original V1 engineering proposal,
@@ -1014,4 +1015,5 @@ See `canisend_v1_proposal.md` for the original V1 engineering proposal,
 constraints, and `docs/superpowers/specs/2026-07-11-cli-first-workflow-optimization-roadmap.md` for the current
 delivery roadmap. The current Stage 3 execution plan is
 `docs/superpowers/plans/2026-07-13-evidence-backed-draft-foundation.md`; the 2026-07-11 Decision Spine and 2026-07-10
-Agent Runtime plans remain the accepted Stage 2 and Stage 1 records.
+Agent Runtime plans remain the accepted Stage 2 and Stage 1 records. Existing private workspaces should follow
+`docs/stage3-migration.md` before first use with the Stage 3 prerelease.

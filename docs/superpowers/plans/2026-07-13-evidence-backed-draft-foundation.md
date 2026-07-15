@@ -1,6 +1,6 @@
 # Evidence-Backed Draft Foundation Implementation Plan
 
-**Status:** In progress — Tasks 0–14 and the `0.3.0.dev2` TestPyPI checkpoint accepted; Task 15 underway
+**Status:** In progress — Tasks 0–15 and the `0.3.0.dev2` TestPyPI checkpoint accepted; `0.3.0b1` release underway
 
 **Date:** 2026-07-13
 
@@ -189,14 +189,32 @@ AgentResponse/TaskSpec contracts, and without claiming package readiness.
 
 ## Task 15: Stage 3 Exit And `0.3.0b1` Prerelease
 
-- [ ] Complete Stage 3 dual-document and aggregate-readiness fixtures, docs, skills, migration, and recovery evidence.
-- [ ] Pass full supported-version, distribution, installed-wheel, Typst, repository, and privacy validation.
+- [x] Complete Stage 3 dual-document and aggregate-readiness fixtures, docs, skills, migration, and recovery evidence.
+- [x] Pass full supported-version, distribution, installed-wheel, Typst, repository, and privacy validation.
 - [ ] Push the reviewed candidate and require successful remote CI.
 - [ ] Run `scripts/release.sh beta --version 0.3.0b1` with every local check enabled.
 - [ ] Verify TestPyPI publish/smoke, PyPI prerelease promotion, GitHub prerelease, and fresh PyPI installation.
 
 **Detailed execution and release gates:**
 `docs/superpowers/plans/2026-07-14-stage3-completion-and-release.md`
+
+## Task 15 Local Validation Snapshot
+
+Task 15 was locally accepted on 2026-07-14:
+
+- 1,094 tests passed independently on Python 3.11.15, 3.12.12, 3.13.14, and 3.14.2;
+- source and fresh Python 3.12 wheel installations completed the reviewed dual-document Stage 3 path with 11
+  successful stages and 20 immutable user-mutation receipts;
+- aggregate package readiness reached `reviewed` from exact current receipts while the separate APP-Q4 material
+  review boundary remained fail-closed and APP-Q5 passed;
+- source and installed-distribution Cover Letter, Research Statement, and aggregate package Typst compiled with
+  Typst 0.15.0;
+- schema generation, skill mirroring, repository/privacy contracts, build, Twine metadata, packaged resources,
+  migration/recovery guidance, restart/cache/invalidation/tamper/recovery/edited-Typst/legacy behavior all passed or
+  were exercised by the full suite.
+
+This is local Stage 3 acceptance only. Remote CI, the immutable `v0.3.0b1` candidate, TestPyPI/PyPI promotion, GitHub
+prerelease creation, and independent PyPI installation remain open release work.
 
 ## Task 0–5 Validation Snapshot
 

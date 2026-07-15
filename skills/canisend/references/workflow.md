@@ -527,6 +527,9 @@ preserved and must be explicitly rebound with `reset_for_current_package_review`
 Every required document must already be individually reviewed, and every current non-blocker aggregate finding
 must have a decision, before the derived application-package state becomes `reviewed`.
 
+If an accepted package decision reports receipt or recovery pending, use the generic body-free
+`user-mutation recover` operation with its mutation ID and explicit recovery consent; do not replay the patch.
+
 `canisend check-package` independently rederives this boundary as APP-Q5. Missing, invalid, stale, incomplete, or
 changed aggregate receipts fail closed, including for backward-readable legacy packages. Application-package
 `reviewed` is not rendering approval, manual submission, or proof of submission.

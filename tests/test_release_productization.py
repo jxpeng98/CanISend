@@ -73,7 +73,9 @@ def test_shared_decision_spine_smoke_owns_the_full_body_free_contract():
     assert "not document readiness" in rendered
     assert "structured-draft projection" in rendered
     assert "application_package_content.json" in rendered
-    assert "EXPECTED_USER_MUTATION_RECEIPTS = 19" in rendered
+    assert "EXPECTED_USER_MUTATION_RECEIPTS = 20" in rendered
+    assert "_configure_reviewable_dual_document_fixture(workspace)" in rendered
+    assert '!= {"cover_letter", "research_statement"}' in rendered
     for stage in (
         "evidence",
         "parse",

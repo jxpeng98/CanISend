@@ -1,6 +1,6 @@
 # Stage 3 Completion And 0.3.0 Release Implementation Plan
 
-**Status:** In progress — Release A (`0.3.0.dev2`) and Tasks 13–14 accepted; Task 15 underway
+**Status:** In progress — Release A (`0.3.0.dev2`) and Tasks 13–15 locally accepted; remote CI and Release B remain
 
 **Date:** 2026-07-14
 
@@ -257,11 +257,38 @@ views, and release artifacts remain consistent across fresh agent hosts and inst
 - Aggregate readiness is reproducible from exact receipts in a fresh supported host.
 - All local and remote release gates pass with no private bodies in logs, reports, or release metadata.
 
+### Task 15 Local Validation Snapshot
+
+Task 15 was locally accepted on 2026-07-14:
+
+- The complete suite passed independently on every supported interpreter: 1,094 tests on Python 3.11.15 in
+  820.70 seconds, Python 3.12.12 in 926.66 seconds, Python 3.13.14 in 815.09 seconds, and Python 3.14.2 in
+  899.29 seconds.
+- The Stage 3 exit fixture confirms exactly two supported required documents, drives both through guarded Draft,
+  deterministic Review, per-document decisions/readiness, aggregate Review, and package decisions, and derives
+  application-package `reviewed` from exact current receipts. Source and fresh Python 3.12 wheel installations both
+  passed 11 successful stages and 20 immutable user-mutation receipts.
+- The same fixture keeps submission semantics separate: `check-package` remains `FAIL` on the independent APP-Q4
+  material-review boundary while APP-Q5 has no issue. Package `reviewed` therefore does not claim rendering approval,
+  portal readiness, submission, or proof of receipt.
+- Cover Letter, Research Statement, and aggregate application-package Typst sources from both source and installed
+  distribution fixtures compiled successfully with Typst 0.15.0.
+- Restart reconstruction, exact-input cache reuse, selective aggregate invalidation, stale/tampered receipt closure,
+  interrupted mutation recovery, edited Typst preservation, and legacy control/disposition compatibility are covered
+  by the full suite. The additive, fail-closed upgrade and rollback procedure is recorded in
+  `docs/stage3-migration.md`.
+- Generated-schema parity, canonical/compatibility skill mirroring, Python bytecode compilation, repository and
+  privacy contracts, `git diff --check`, `uv build`, Twine metadata, and packaged-resource validation passed. The
+  current local build remains the development checkpoint; final immutable hashes will be recorded from the published
+  `0.3.0b1` artifacts.
+- Remote CI, prerelease publication, and independent installation from PyPI remain Release B work and are not claimed
+  by this local acceptance.
+
 ## Release B: `0.3.0b1` PyPI Prerelease
 
 ### Preconditions
 
-- [ ] Tasks 13, 14, and 15 are locally accepted and recorded in the Stage 3 implementation plan.
+- [x] Tasks 13, 14, and 15 are locally accepted and recorded in the Stage 3 implementation plan.
 - [ ] The candidate branch is reviewed, clean, pushed, and passes remote CI.
 - [ ] `v0.3.0b1` is absent locally, on GitHub, TestPyPI, and PyPI.
 - [ ] TestPyPI and PyPI Trusted Publishing environments remain configured.

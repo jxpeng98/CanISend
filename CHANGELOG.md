@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Locally accepted the complete Stage 3 dual-document and aggregate-readiness path across Python 3.11–3.14. Source
+  and clean-wheel fixtures reach package `reviewed` through 11 guarded stages and 20 immutable user-mutation receipts
+  without claiming rendering or submission, and Cover Letter, Research Statement, and package Typst compile with
+  Typst 0.15.0.
+- Added a fail-closed Stage 3 workspace migration/recovery guide covering additive resource refresh, legacy control
+  records, stale decision reset, interrupted mutation recovery, edited Typst preservation, and executable rollback.
 - Added strict user-owned `package_review_dispositions.yaml` with explicit-consent revision/hash CAS, immutable
   mutation claims/receipts, interrupted-publication recovery, stale-basis preservation/reset, and non-waivable
   aggregate blockers. `package-review status|init|update` exposes only body-free states, counts, consents, and actions.
