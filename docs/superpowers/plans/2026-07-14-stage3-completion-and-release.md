@@ -1,12 +1,12 @@
 # Stage 3 Completion And 0.3.0 Release Implementation Plan
 
-**Status:** In progress — Release A (`0.3.0.dev2`) and Tasks 13–15 accepted locally and remotely; Release B remains
+**Status:** Complete — Release A (`0.3.0.dev2`), Tasks 13–15, and Release B (`0.3.0b1`) accepted
 
 **Date:** 2026-07-14
 
 **Branch:** `feat/evidence-backed-draft-foundation`
 
-**Current reviewed Stage 3 implementation candidate:** `ab8c99042894b0f69a1f28f035976c1cfccc6a73`
+**Released Stage 3 candidate:** `f3a377c877e4091b250eaab48acbfd2a1d38b026`
 
 **Release sequence:** `0.3.0.dev2` on TestPyPI, then `0.3.0b1` on TestPyPI and PyPI after Stage 3 acceptance
 
@@ -278,11 +278,8 @@ Task 15 was locally accepted on 2026-07-14:
   by the full suite. The additive, fail-closed upgrade and rollback procedure is recorded in
   `docs/stage3-migration.md`.
 - Generated-schema parity, canonical/compatibility skill mirroring, Python bytecode compilation, repository and
-  privacy contracts, `git diff --check`, `uv build`, Twine metadata, and packaged-resource validation passed. The
-  current local build remains the development checkpoint; final immutable hashes will be recorded from the published
-  `0.3.0b1` artifacts.
-- Prerelease publication and independent installation from PyPI remain Release B work and are not claimed by this
-  acceptance.
+  privacy contracts, `git diff --check`, `uv build`, Twine metadata, and packaged-resource validation passed. Final
+  immutable `0.3.0b1` artifact hashes are recorded in the Release B outcome below.
 
 ### Task 15 Remote CI Acceptance Snapshot
 
@@ -320,6 +317,39 @@ The clean, pushed Stage 3 implementation candidate
 4. Require a GitHub prerelease attached to the exact `v0.3.0b1` candidate.
 5. Independently install from PyPI and run the packaged Stage 3 smoke in a fresh Python 3.12 environment.
 6. Record immutable tag, commit, workflow run, TestPyPI/PyPI project links, hashes, and test evidence in the plan.
+
+### Release Outcome
+
+Release B completed on 2026-07-15:
+
+- `scripts/release.sh beta --version 0.3.0b1` ran with every local check enabled. Python 3.14 passed 1,101 tests in
+  789.64 seconds; build, Twine, packaged-resource checks, and a fresh installed-wheel smoke with 11 successful stages
+  and 20 immutable user-mutation receipts passed before the script created release commit
+  `f3a377c877e4091b250eaab48acbfd2a1d38b026`.
+- The final evidence commit `63525a219efea596282feb0e12fef57043277941` passed
+  [candidate CI run 29382302646](https://github.com/jxpeng98/CanISend/actions/runs/29382302646). The version commit then
+  independently passed the full Python 3.11–3.13, Ubuntu/macOS/Windows, and built-wheel matrix in
+  [CI run 29384382310](https://github.com/jxpeng98/CanISend/actions/runs/29384382310).
+- Annotated tag object `d603eeeb2c00ea5640f821a365b624fbb0b6b661` is published as `v0.3.0b1` and peels to the
+  exact release commit `f3a377c877e4091b250eaab48acbfd2a1d38b026`.
+- [Release workflow run 29384382957](https://github.com/jxpeng98/CanISend/actions/runs/29384382957) passed 1,101 tests
+  on Python 3.12 in 1,891.09 seconds, built and checked both distributions, and completed built-wheel smoke with
+  11 successful stages and 20 receipts. It then published to TestPyPI, installed that exact public wheel and repeated
+  the 11-stage/20-receipt smoke, promoted the artifacts to PyPI, and created the GitHub prerelease.
+- Public records are available on
+  [TestPyPI](https://test.pypi.org/project/canisend/0.3.0b1/),
+  [PyPI](https://pypi.org/project/canisend/0.3.0b1/), and the
+  [GitHub prerelease](https://github.com/jxpeng98/CanISend/releases/tag/v0.3.0b1).
+- TestPyPI and PyPI expose identical immutable files: `canisend-0.3.0b1-py3-none-any.whl` is 466,425 bytes with
+  SHA-256 `10319be701e3fe125c67fd21fbfe6e492483ef9bdebcdcb29117f5068de93ecd`; the
+  `canisend-0.3.0b1.tar.gz` sdist is 727,923 bytes with SHA-256
+  `5e615e7c5df74729e1377ad29675ea524dd7b965d876cf5faf36c954637803d7`.
+- A separate Python 3.12.12 environment installed `canisend==0.3.0b1` from PyPI with cache disabled after the brief
+  post-publication simple-index propagation window. The installed metadata and CLI reported `0.3.0b1`, the complete
+  Stage 3 smoke passed with 11 stages and 20 receipts, and Typst 0.15.0 compiled the generated Cover Letter,
+  Research Statement, and aggregate application package to one-, one-, and two-page PDFs respectively.
+- Package `reviewed` semantics remain unchanged: this release does not claim rendering approval, portal readiness,
+  submission, employer acceptance, or proof of receipt. The independent APP-Q4 boundary remains fail-closed.
 
 ## Explicit Non-Goals
 

@@ -1,6 +1,6 @@
 # Evidence-Backed Draft Foundation Implementation Plan
 
-**Status:** In progress — Tasks 0–15 accepted locally and remotely; `0.3.0b1` release underway
+**Status:** Complete — Tasks 0–15 accepted and `0.3.0b1` published and independently verified
 
 **Date:** 2026-07-13
 
@@ -192,8 +192,8 @@ AgentResponse/TaskSpec contracts, and without claiming package readiness.
 - [x] Complete Stage 3 dual-document and aggregate-readiness fixtures, docs, skills, migration, and recovery evidence.
 - [x] Pass full supported-version, distribution, installed-wheel, Typst, repository, and privacy validation.
 - [x] Push the reviewed candidate and require successful remote CI.
-- [ ] Run `scripts/release.sh beta --version 0.3.0b1` with every local check enabled.
-- [ ] Verify TestPyPI publish/smoke, PyPI prerelease promotion, GitHub prerelease, and fresh PyPI installation.
+- [x] Run `scripts/release.sh beta --version 0.3.0b1` with every local check enabled.
+- [x] Verify TestPyPI publish/smoke, PyPI prerelease promotion, GitHub prerelease, and fresh PyPI installation.
 
 **Detailed execution and release gates:**
 `docs/superpowers/plans/2026-07-14-stage3-completion-and-release.md`
@@ -215,9 +215,10 @@ Task 15 was locally accepted on 2026-07-14:
 
 The reviewed implementation candidate `ab8c99042894b0f69a1f28f035976c1cfccc6a73` also passed the complete remote
 CI matrix on 2026-07-15: 1,101 tests on Python 3.11, 3.12, and 3.13; Ubuntu, macOS, and Windows CLI smoke; and a
-fresh built-wheel Stage 3 smoke with 11 successful stages and 20 immutable user-mutation receipts. The immutable
-`v0.3.0b1` candidate, TestPyPI/PyPI promotion, GitHub prerelease creation, and independent PyPI installation remain
-open release work.
+fresh built-wheel Stage 3 smoke with 11 successful stages and 20 immutable user-mutation receipts. Release commit
+`f3a377c877e4091b250eaab48acbfd2a1d38b026` is now published as `v0.3.0b1` on TestPyPI and PyPI, with a GitHub
+prerelease. The tag workflow, TestPyPI installation smoke, promotion, fresh no-cache Python 3.12 PyPI installation,
+11-stage/20-receipt Stage 3 smoke, and three real Typst compilations all passed.
 
 ## Task 0–5 Validation Snapshot
 

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.3.0b1 - 2026-07-15
+
 - Made command-provider transport, evidence citations, Typst source hashes, and public smoke diagnostics portable
   across Windows while preserving body-free failure reporting.
 - Locally accepted the complete Stage 3 dual-document and aggregate-readiness path across Python 3.11–3.14. Source
