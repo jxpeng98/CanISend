@@ -172,6 +172,10 @@ def refresh_discovery_sources(
         workspace_root,
         discovery_root / "imports",
     )
+    searches_dir = _safe_artifact_directory(
+        workspace_root,
+        discovery_root / "searches",
+    )
     report_path = discovery_root / "refresh-report.json"
     candidate_catalog_path = discovery_root / "catalog.json"
     active_sources = tuple(
@@ -246,7 +250,11 @@ def refresh_discovery_sources(
         if state.status in {"refreshed", "not_modified", "stale_reused"}
         and state.batch is not None
     )
-    usable_batches = (*source_batches, *_load_local_import_batches(imports_dir))
+    usable_batches = (
+        *source_batches,
+        *_load_local_import_batches(imports_dir),
+        *_load_local_import_batches(searches_dir),
+    )
     catalog: LeadCatalogV1 | None = None
     catalog_error_code: str | None = None
     if not usable_batches:

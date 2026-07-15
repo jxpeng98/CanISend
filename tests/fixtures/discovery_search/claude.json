@@ -1,0 +1,30 @@
+{
+  "protocol": "canisend.discovery-search/v1",
+  "schema_version": "1.0.0",
+  "source_id": "host-academic-search",
+  "source_name": "Academic Host Search",
+  "observed_at": "2026-07-15T13:00:00Z",
+  "result_count": 2,
+  "results": [
+    {
+      "title": "Research Fellow in Political Economy",
+      "source_url": "https://careers.example.org/vacancies/research-fellow?utm_source=claude",
+      "snippet": "Fixed-term research fellowship in political economy.",
+      "published_at": "2026-07-11",
+      "source_record_id": "",
+      "institution": "Example Institute",
+      "location": "Manchester",
+      "deadline": "2026-09-05"
+    },
+    {
+      "title": "Lecturer in Economics",
+      "source_url": "https://jobs.example.edu/jobs/lecturer",
+      "snippet": "Teach economics and conduct public research.",
+      "published_at": "2026-07-10",
+      "source_record_id": "job-101",
+      "institution": "Example University",
+      "location": "London",
+      "deadline": "2026-08-31"
+    }
+  ]
+}

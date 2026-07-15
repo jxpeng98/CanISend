@@ -41,12 +41,20 @@ from canisend.discovery.refresh_models import (
     LeadBatchV1,
     SourceRefreshResultV1,
 )
+from canisend.discovery.search_models import (
+    DISCOVERY_SEARCH_PROTOCOL,
+    DISCOVERY_SEARCH_SCHEMA_VERSION,
+    DiscoverySearchResultV1,
+    DiscoverySearchV1,
+)
 
 __all__ = [
     "JOB_LEAD_SCHEMA_VERSION",
     "DISCOVERY_CACHE_PROTOCOL",
     "DISCOVERY_IMPORT_REPORT_PROTOCOL",
     "DISCOVERY_REFRESH_REPORT_PROTOCOL",
+    "DISCOVERY_SEARCH_PROTOCOL",
+    "DISCOVERY_SEARCH_SCHEMA_VERSION",
     "DISCOVERY_SOURCES_PROTOCOL",
     "LEAD_BATCH_PROTOCOL",
     "LEAD_CATALOG_PROTOCOL",
@@ -60,6 +68,8 @@ __all__ = [
     "DiscoveryImportIssueV1",
     "DiscoveryImportReportV1",
     "DiscoveryRefreshReportV1",
+    "DiscoverySearchResultV1",
+    "DiscoverySearchV1",
     "DiscoverySourceV1",
     "DiscoverySourcesV1",
     "RankingPolicyV1",

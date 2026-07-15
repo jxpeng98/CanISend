@@ -39,6 +39,7 @@ def test_init_workspace_creates_user_layout_and_default_resources(tmp_path):
     assert (workspace / "schemas" / "discovery-cache-v1.schema.json").exists()
     assert (workspace / "schemas" / "discovery-refresh-report-v1.schema.json").exists()
     assert (workspace / "schemas" / "discovery-import-report-v1.schema.json").exists()
+    assert (workspace / "schemas" / "discovery-search-v1.schema.json").exists()
     assert (workspace / "schemas" / "workflow-state.schema.json").exists()
     assert (workspace / "schemas" / "task-spec.schema.json").exists()
     assert (workspace / "schemas" / "task-result.schema.json").exists()

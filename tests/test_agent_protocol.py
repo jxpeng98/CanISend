@@ -61,6 +61,7 @@ STAGE4_DISCOVERY_OPERATIONS = {
     "discovery.import",
     "discovery.merge",
     "discovery.refresh",
+    "discovery.search_import",
 }
 
 TASK5_USER_INPUT_ERROR_CODES = {

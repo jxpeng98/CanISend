@@ -27,6 +27,7 @@ from canisend.discovery.refresh_models import (
     DiscoverySourcesV1,
     LeadBatchV1,
 )
+from canisend.discovery.search_models import DiscoverySearchV1
 from canisend.package_review_models import PackageReviewFindingsV1
 from canisend.package_readiness import (
     ApplicationPackageReadinessV1,
@@ -44,6 +45,7 @@ SCHEMAS = {
     "discovery-cache-v1.schema.json": DiscoveryCacheV1,
     "discovery-refresh-report-v1.schema.json": DiscoveryRefreshReportV1,
     "discovery-import-report-v1.schema.json": DiscoveryImportReportV1,
+    "discovery-search-v1.schema.json": DiscoverySearchV1,
     "criteria.schema.json": CriteriaCatalogV1,
     "evidence-catalog.schema.json": EvidenceCatalogV1,
     "criterion-matches.schema.json": CriterionMatchesV1,

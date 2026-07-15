@@ -1,6 +1,6 @@
 # Stage 4 Discovery Ecosystem Implementation Plan
 
-**Status:** In progress — Tasks 0–4 locally accepted; Task 5 is next
+**Status:** In progress — Tasks 0–5 locally accepted; Task 6 is next
 
 **Date:** 2026-07-15
 
@@ -101,11 +101,11 @@ records, and a body-free partial-failure report. `new-job-from-lead` accepts eit
 
 ### Task 5: Host-Agent Search Import
 
-- [ ] Add a strict `canisend.discovery-search/v1` envelope and schema.
-- [ ] Normalize connector/search results into Lead v2 without storing provider credentials or opaque sessions.
-- [ ] Expose additive discovery operations/capabilities and body-free result counts/paths through
+- [x] Add a strict `canisend.discovery-search/v1` envelope and schema.
+- [x] Normalize connector/search results into Lead v2 without storing provider credentials or opaque sessions.
+- [x] Expose additive discovery operations/capabilities and body-free result counts/paths through
   `canisend.agent/v1`.
-- [ ] Add Codex/Claude/generic-host fixtures proving identical imported catalogs.
+- [x] Add Codex/Claude/generic-host fixtures proving identical imported catalogs.
 
 ### Task 6: Adapter Conformance, Greenhouse, And Lever
 
@@ -146,7 +146,7 @@ records, and a body-free partial-failure report. `new-job-from-lead` accepts eit
 
 ## Validation Record
 
-Tasks 0–4 were locally accepted on 2026-07-15:
+Tasks 0–5 were locally accepted on 2026-07-15:
 
 - ADR-023 and this complete Stage 4 task graph freeze identity precedence, URL/provenance redaction, untrusted data,
   read-only source authority, partial-failure semantics, and continued direct URL/PDF intake.
@@ -227,6 +227,26 @@ Tasks 0–4 were locally accepted on 2026-07-15:
   both artifacts. A Python 3.12.12 clean install exposed `discovery import`, loaded the packaged import/batch
   contracts, completed CSV and EML CLI imports, merged both leads, and passed a persisted-artifact privacy scan.
   Nothing was uploaded or published.
+- Task 5 adds the strict, generated, and packaged `canisend.discovery-search/v1` envelope. It contains only a safe
+  logical source, observation time, exact result count, and source-neutral public job fields. Unknown provider,
+  host, query, header, cursor, session, or vendor fields fail closed before any artifact is written.
+- `discovery import-search` normalizes every accepted result into Lead v2 with `host_agent` provenance and the fixed
+  `host.search` adapter, removes tracking parameters, writes a complete batch atomically under
+  `job_leads/searches/`, and enters the same catalog dedupe/filter/ranking pipeline. Network refresh continues to
+  include current validated host-search batches.
+- `discovery.search_import` is additive in `canisend.agent/v1`. Its response contains only relative catalog/batch
+  paths, hashes, IDs, counts, and a next action; titles, snippets, raw envelopes, input paths, provider fields, and
+  exception details remain outside the response.
+- Codex, Claude, and generic-host fixtures vary result ordering and tracking parameters but produce byte-equivalent
+  validated batch models and identical catalogs. Provider/session/cursor/header/query inputs, private locators,
+  future timestamps, symlink escapes, invalid batches, and unexpected CLI failures have offline adversarial tests.
+- The Task 5 discovery/agent/schema/resource acceptance group passed 209 tests. The complete
+  development-interpreter suite passed 1,223 tests in 823.94 seconds; Python bytecode compilation and
+  `git diff --check` passed.
+- An isolated source distribution and wheel built successfully. The packaged-resource checker and Twine accepted
+  both artifacts. A Python 3.12.12 clean install exposed `discovery.search_import`, imported a normalized host-search
+  fixture, loaded the packaged search schema, produced two catalog leads, and passed a persisted-artifact scan for
+  host names, tracking values, credentials, cursors, and private sentinels. Nothing was uploaded or published.
 
-Remote CI, cross-version/cross-OS acceptance, host-agent imports, public API adapters, compatibility/docs, and a
-Stage 4 release candidate remain later tasks; they are not claimed here.
+Remote CI, cross-version/cross-OS acceptance, public API adapters, compatibility/docs, and a Stage 4 release
+candidate remain later tasks; they are not claimed here.

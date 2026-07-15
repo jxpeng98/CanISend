@@ -12,6 +12,7 @@ from canisend.agent_protocol import (
 from canisend.discovery.catalog_models import LeadCatalogV1
 from canisend.discovery.local_import import DiscoveryLocalImportExecution
 from canisend.discovery.refresh import DiscoveryRefreshExecution
+from canisend.discovery.search_import import DiscoverySearchImportExecution
 
 
 def discovery_catalog_agent_response(
@@ -238,4 +239,58 @@ def discovery_local_import_agent_response(
             )
         ],
         extensions=extensions,
+    )
+
+
+def discovery_search_import_agent_response(
+    workspace: Path,
+    execution: DiscoverySearchImportExecution,
+    *,
+    operation: str = "discovery.search_import",
+) -> AgentResponse:
+    """Return control metadata only; imported titles and snippets stay in artifacts."""
+
+    catalog = execution.catalog
+    return success_response(
+        operation=operation,
+        artifacts=[
+            artifact_reference_from_path(
+                workspace=workspace,
+                path=execution.catalog_path,
+                kind="discovery-catalog",
+                privacy_tier=1,
+                trust_level="untrusted_import",
+                media_type="application/json",
+                include_hash=True,
+            ),
+            artifact_reference_from_path(
+                workspace=workspace,
+                path=execution.batch_path,
+                kind="discovery-lead-batch",
+                privacy_tier=1,
+                trust_level="untrusted_import",
+                media_type="application/json",
+                include_hash=True,
+            ),
+        ],
+        next_actions=[
+            NextAction(
+                id="job.intake_from_lead",
+                label="Select a retained host-search lead by stable lead ID",
+            )
+            if catalog.leads
+            else NextAction(
+                id="discovery.adjust_filters",
+                label="Adjust discovery filters or host search inputs",
+            )
+        ],
+        extensions={
+            "canisend.discovery.source_id": execution.envelope.source_id,
+            "canisend.discovery.batch_id": execution.batch.batch_id,
+            "canisend.discovery.catalog_id": catalog.catalog_id,
+            "canisend.discovery.input_records": execution.envelope.result_count,
+            "canisend.discovery.imported_records": execution.batch.record_count,
+            "canisend.discovery.retained_records": catalog.stats.retained_records,
+            "canisend.discovery.excluded_records": catalog.stats.excluded_records,
+        },
     )

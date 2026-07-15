@@ -27,6 +27,7 @@ from canisend.discovery.agent import (
     discovery_catalog_agent_response,
     discovery_local_import_agent_response,
     discovery_refresh_agent_response,
+    discovery_search_import_agent_response,
 )
 from canisend.discovery.catalog import (
     DiscoveryInputError,
@@ -45,6 +46,11 @@ from canisend.discovery.refresh import (
     DiscoveryRefreshWriteError,
     load_discovery_sources,
     refresh_discovery_sources,
+)
+from canisend.discovery.search_import import (
+    DiscoverySearchImportInputError,
+    DiscoverySearchImportWriteError,
+    import_host_search_file,
 )
 from canisend.examples import run_packaged_example
 from canisend.git_tracking import GitTrackingError, git_add_application_materials
@@ -2320,6 +2326,97 @@ def import_local_discovery_export(
         f"{execution.report.rejected_records} rejected, "
         f"{execution.report.ignored_records} ignored, "
         f"{execution.report.retained_records} retained"
+    )
+
+
+@discovery_app.command("import-search")
+def import_host_search_results(
+    input_path: Path = typer.Option(
+        ...,
+        "--input",
+        help="Normalized canisend.discovery-search/v1 JSON envelope.",
+    ),
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="User workspace directory containing canisend.yaml.",
+    ),
+    include: list[str] = typer.Option(
+        [],
+        "--include",
+        help="Retain imported leads matching this keyword and explain each match.",
+    ),
+    exclude: list[str] = typer.Option(
+        [],
+        "--exclude",
+        help="Exclude imported leads matching this keyword and record the reason.",
+    ),
+    prefer_source: list[str] = typer.Option(
+        [],
+        "--prefer-source",
+        help="Source preference in descending priority. Repeat in priority order.",
+    ),
+    output_format: str = typer.Option(
+        "text",
+        "--format",
+        help="Output format: text or json.",
+    ),
+) -> None:
+    """Import a normalized host-agent search into the discovery catalog."""
+
+    _validate_output_format(output_format)
+    try:
+        config = load_workspace_config(workspace)
+        resolved_input = input_path.expanduser()
+        if not resolved_input.is_absolute():
+            resolved_input = config.root / resolved_input
+        policy = normalized_ranking_policy(
+            include_keywords=include,
+            exclude_keywords=exclude,
+            source_preference=prefer_source,
+        )
+        execution = import_host_search_file(
+            config.root,
+            resolved_input,
+            policy=policy,
+            lead_root=config.path("job_leads_dir"),
+        )
+        response = discovery_search_import_agent_response(config.root, execution)
+    except DiscoverySearchImportInputError as exc:
+        if output_format == "json":
+            _emit_operation_error(
+                operation="discovery.search_import",
+                code="input.invalid",
+                message="The normalized discovery search envelope is invalid.",
+            )
+        raise typer.BadParameter(str(exc)) from exc
+    except DiscoverySearchImportWriteError as exc:
+        if output_format == "json":
+            _emit_operation_error(
+                operation="discovery.search_import",
+                code="operation.failed",
+                message="CanISend could not write the host-search import artifacts.",
+            )
+        raise typer.BadParameter(str(exc)) from exc
+    except Exception as exc:
+        if output_format != "json":
+            raise typer.BadParameter(
+                "The host-search import operation failed unexpectedly."
+            ) from exc
+        _emit_operation_error(
+            operation="discovery.search_import",
+            code="operation.failed",
+            message="The host-search import operation failed unexpectedly.",
+        )
+
+    _emit_agent_response(response, output_format=output_format)
+    if output_format == "json":
+        return
+    typer.echo(
+        "Host search: "
+        f"{execution.batch.record_count} imported, "
+        f"{execution.catalog.stats.retained_records} retained, "
+        f"{execution.catalog.stats.excluded_records} excluded"
     )
 
 

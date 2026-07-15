@@ -221,7 +221,7 @@ class LeadBatchV1(DiscoveryContractModel):
     @field_validator("adapter")
     @classmethod
     def _safe_adapter(cls, value: str) -> str:
-        if not value.startswith(("feed.", "local.", "public_api.")):
+        if not value.startswith(("feed.", "host.", "local.", "public_api.")):
             raise ValueError("batch adapter is outside the discovery adapter boundary")
         return value
 

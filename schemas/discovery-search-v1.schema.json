@@ -1,0 +1,118 @@
+{
+  "$defs": {
+    "DiscoverySearchResultV1": {
+      "additionalProperties": false,
+      "description": "One host-neutral public job search result.",
+      "properties": {
+        "title": {
+          "default": "",
+          "maxLength": 2048,
+          "title": "Title",
+          "type": "string"
+        },
+        "source_url": {
+          "default": "",
+          "maxLength": 8192,
+          "title": "Source Url",
+          "type": "string"
+        },
+        "snippet": {
+          "default": "",
+          "maxLength": 100000,
+          "title": "Snippet",
+          "type": "string"
+        },
+        "published_at": {
+          "default": "",
+          "maxLength": 256,
+          "title": "Published At",
+          "type": "string"
+        },
+        "source_record_id": {
+          "default": "",
+          "maxLength": 1024,
+          "title": "Source Record Id",
+          "type": "string"
+        },
+        "institution": {
+          "default": "",
+          "maxLength": 1024,
+          "title": "Institution",
+          "type": "string"
+        },
+        "location": {
+          "default": "",
+          "maxLength": 1024,
+          "title": "Location",
+          "type": "string"
+        },
+        "deadline": {
+          "default": "",
+          "maxLength": 256,
+          "title": "Deadline",
+          "type": "string"
+        }
+      },
+      "title": "DiscoverySearchResultV1",
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/jxpeng98/CanISend/schemas/discovery-search-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Normalized handoff contract shared by Codex, Claude, and other hosts.",
+  "properties": {
+    "protocol": {
+      "const": "canisend.discovery-search/v1",
+      "default": "canisend.discovery-search/v1",
+      "title": "Protocol",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source_id": {
+      "pattern": "^[a-z](?:[a-z0-9._-]{0,62}[a-z0-9_])?$",
+      "title": "Source Id",
+      "type": "string"
+    },
+    "source_name": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Source Name",
+      "type": "string"
+    },
+    "observed_at": {
+      "format": "date-time",
+      "title": "Observed At",
+      "type": "string"
+    },
+    "result_count": {
+      "maximum": 100000,
+      "minimum": 1,
+      "title": "Result Count",
+      "type": "integer"
+    },
+    "results": {
+      "items": {
+        "$ref": "#/$defs/DiscoverySearchResultV1"
+      },
+      "maxItems": 100000,
+      "minItems": 1,
+      "title": "Results",
+      "type": "array"
+    }
+  },
+  "required": [
+    "source_id",
+    "source_name",
+    "observed_at",
+    "result_count",
+    "results"
+  ],
+  "title": "CanISendDiscoverySearchV1",
+  "type": "object"
+}

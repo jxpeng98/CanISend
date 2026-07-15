@@ -57,6 +57,7 @@ SUPPORTED_AGENT_OPERATIONS = (
     "discovery.import",
     "discovery.merge",
     "discovery.refresh",
+    "discovery.search_import",
     "package.check",
     "criteria.corrections_status",
     "criteria.corrections_initialize",
