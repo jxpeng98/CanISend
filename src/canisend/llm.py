@@ -42,6 +42,8 @@ class CommandProvider(LLMProvider):
             shlex.split(self.config.command),
             input=prompt,
             text=True,
+            encoding="utf-8",
+            errors="strict",
             capture_output=True,
             timeout=self.config.timeout_seconds,
             check=False,

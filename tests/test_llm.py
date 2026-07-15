@@ -1,3 +1,4 @@
+import subprocess
 import sys
 
 import pytest
@@ -42,6 +43,30 @@ def test_command_provider_sends_prompt_to_configured_command(tmp_path):
     response = CommandProvider(config).complete("hello")
 
     assert response.content == "HELLO"
+
+
+def test_command_provider_uses_utf8_for_cross_platform_text(monkeypatch):
+    captured = {}
+
+    def fake_run(argv, **kwargs):
+        captured["argv"] = argv
+        captured.update(kwargs)
+        return subprocess.CompletedProcess(argv, 0, stdout="reviewed ✓\n", stderr="")
+
+    monkeypatch.setattr("canisend.llm.subprocess.run", fake_run)
+    config = LLMConfig(
+        provider="command",
+        command="example-model --json",
+        timeout_seconds=5,
+    )
+
+    response = CommandProvider(config).complete("Evidence — 研究")
+
+    assert response.content == "reviewed ✓"
+    assert captured["input"] == "Evidence — 研究"
+    assert captured["text"] is True
+    assert captured["encoding"] == "utf-8"
+    assert captured["errors"] == "strict"
 
 
 def test_command_provider_requires_command():
