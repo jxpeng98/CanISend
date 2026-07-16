@@ -111,6 +111,14 @@ def test_local_release_smoke_runs_complete_decision_spine_from_installed_wheel()
     assert '--workspace "$smoke_root/workspace"' in script
 
 
+def test_local_release_smoke_runs_stage4_discovery_from_installed_wheel():
+    script = SCRIPT.read_text()
+
+    assert "scripts/smoke_discovery.py" in script
+    assert '--canisend "$smoke_root/venv/bin/canisend"' in script
+    assert '--workspace "$smoke_root/discovery-workspace"' in script
+
+
 def test_beta_versions_must_be_pep440_prereleases():
     valid = run_release("beta", "--version", "0.2.0b1", "--skip-local-checks")
     invalid = run_release("beta", "--version", "0.2.0", "--skip-local-checks")

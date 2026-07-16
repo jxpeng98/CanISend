@@ -1,3 +1,3 @@
 """Academic application preparation CLI package."""
 
-__version__ = "0.3.0b1"
+__version__ = "0.6.0b1"

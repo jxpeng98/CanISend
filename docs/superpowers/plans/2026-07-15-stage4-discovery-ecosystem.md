@@ -1,6 +1,6 @@
 # Stage 4 Discovery Ecosystem Implementation Plan
 
-**Status:** In progress — Tasks 0–7 locally accepted; Task 8 exit acceptance is next
+**Status:** In progress — Tasks 0–7 accepted; Task 8 local gates passed and remote exit acceptance is next
 
 **Date:** 2026-07-15
 
@@ -125,9 +125,9 @@ records, and a body-free partial-failure report. `new-job-from-lead` accepts eit
 
 ### Task 8: Stage 4 Exit Acceptance
 
-- [ ] Run focused adversarial identity, privacy, transport, batch, import, adapter, and compatibility tests.
-- [ ] Run the full supported Python 3.11-3.13 matrix plus the available development interpreter.
-- [ ] Run source-tree, built-wheel, clean-install, schema/resource, Twine, mirror, and CLI/agent smoke gates.
+- [x] Run focused adversarial identity, privacy, transport, batch, import, adapter, and compatibility tests.
+- [x] Run the full supported Python 3.11-3.13 matrix plus the available development interpreter.
+- [x] Run source-tree, built-wheel, clean-install, schema/resource, Twine, mirror, and CLI/agent smoke gates.
 - [ ] Require remote Linux/macOS/Windows CLI smoke before marking the stage complete.
 - [ ] Record immutable evidence and decide separately whether to publish the `0.6.0b1` candidate.
 
@@ -285,3 +285,25 @@ Tasks 0–7 were locally accepted on 2026-07-15:
 
 Remote CI, cross-version/cross-OS exit acceptance, and the `0.6.0b1` Stage 4 release candidate remain Task 8; they are
 not claimed here.
+
+### Task 8 Local Candidate Evidence
+
+The `0.6.0b1` candidate passed the local portion of Task 8 on 2026-07-15:
+
+- Python 3.11 passed 1,248 tests in 825.95 seconds; Python 3.12 passed 1,248 in 930.29 seconds; Python 3.13 passed
+  1,248 in 832.67 seconds; and the additional Python 3.14 development interpreter passed 1,248 in 749.16 seconds.
+- The source-tree Stage 4 discovery smoke initialized a fresh workspace, validated every installed discovery schema,
+  example and migration resource, mapped offline Greenhouse/Lever fixtures, imported CSV and normalized host search,
+  deduplicated one catalog, selected by stable ID, retained the full-advert blocker, and passed the private-safe
+  artifact scan.
+- The `0.6.0b1` sdist and wheel built successfully; Twine and the wheel resource checker accepted both artifacts.
+  A Python 3.12.12 clean install passed the Stage 4 discovery smoke and the complete Decision Spine smoke with 11
+  successful stages and 20 mutation receipts.
+- Canonical skill mirror, Bash syntax, bytecode compilation, release/resource contracts, and `git diff --check`
+  passed. PyPI, TestPyPI, and GitHub returned no existing `0.6.0b1` release/tag before candidate preparation.
+- CI and release workflows now run the offline Stage 4 discovery smoke from source, built wheel, and TestPyPI wheel;
+  Linux, macOS, and Windows remote evidence is still required before the release tag can be created.
+
+No tag was created and nothing was uploaded or published during local acceptance. The exact pushed candidate commit,
+remote CI run, tag workflow, TestPyPI/PyPI artifacts, GitHub prerelease, and independent public-index install remain
+open evidence.

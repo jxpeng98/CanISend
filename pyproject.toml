@@ -1,6 +1,6 @@
 [project]
 name = "canisend"
-version = "0.3.0b1"
+version = "0.6.0b1"
 description = "Evidence-backed application prep for academic and professional jobs."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -20,7 +20,7 @@ keywords = [
     "llm",
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Environment :: Console",
     "Intended Audience :: Education",
     "Intended Audience :: End Users/Desktop",

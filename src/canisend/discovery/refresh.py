@@ -11,6 +11,7 @@ from typing import Any
 from pydantic import ValidationError
 import yaml
 
+from canisend import __version__
 from canisend.discovery.adapters import (
     DiscoveryAdapterError,
     discovery_adapter,
@@ -586,7 +587,7 @@ def _transport_policy(source: DiscoverySourceV1) -> TransportPolicy:
         media_subject="Discovery source response",
         media_description=spec.media_description,
         size_subject="Discovery source",
-        user_agent="CanISend/0.3 discovery-refresh",
+        user_agent=f"CanISend/{__version__} discovery-refresh",
         accept=spec.accept,
         timeout_seconds=source.timeout_seconds,
         max_bytes=source.max_bytes,

@@ -58,6 +58,9 @@ jobs:
       - name: Smoke test CLI contract
         run: uv run python scripts/smoke_decision_spine.py --canisend canisend --workspace .ci-smoke-stage2
 
+      - name: Smoke test Stage 4 discovery contract
+        run: uv run python scripts/smoke_discovery.py --canisend canisend --workspace .ci-smoke-discovery
+
   build-package:
     needs: test
     runs-on: ubuntu-latest
@@ -91,3 +94,6 @@ jobs:
           /tmp/canisend-smoke/bin/python scripts/smoke_decision_spine.py \
             --canisend /tmp/canisend-smoke/bin/canisend \
             --workspace /tmp/canisend-stage2-example
+          /tmp/canisend-smoke/bin/python scripts/smoke_discovery.py \
+            --canisend /tmp/canisend-smoke/bin/canisend \
+            --workspace /tmp/canisend-stage4-discovery

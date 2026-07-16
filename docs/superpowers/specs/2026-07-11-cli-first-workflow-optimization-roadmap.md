@@ -1,7 +1,7 @@
 # CLI-First Workflow Optimization Execution Roadmap
 
 **Status:** Active — Stages 1–3 are accepted; `0.3.0.dev2` and the independently verified `0.3.0b1` prerelease are
-published, and Stage 4 Tasks 0–7 are locally accepted
+published, Stage 4 Tasks 0–7 are accepted, and the Task 8 local `0.6.0b1` candidate gates have passed
 
 **Date:** 2026-07-11
 
@@ -359,7 +359,8 @@ v2 batches without persisting provider/session fields. A shared adapter contract
 identifier-only, read-only Greenhouse and Lever public-job GET adapters without application or credential surfaces.
 Stage 4 now ships synchronized agent skills, private-safe public examples, installed resource gates, full-advert
 intake compatibility proofs, and additive migration/rollback guidance. Remote CI, cross-version/cross-OS exit
-acceptance, and the `0.6.0b1` Stage 4 release candidate remain open; Task 8 is next.
+acceptance, tag publication, and independent public-index verification remain open in Task 8. The local Python
+3.11–3.14 matrix, distribution/resource checks, and installed-wheel Decision Spine plus discovery smokes are green.
 
 ### Deliverables
 

@@ -21,6 +21,12 @@ def _assert_complete_decision_spine_smoke(command: str) -> None:
     assert "--workspace" in command
 
 
+def _assert_stage4_discovery_smoke(command: str) -> None:
+    assert "scripts/smoke_discovery.py" in command
+    assert "--canisend" in command
+    assert "--workspace" in command
+
+
 def test_shared_decision_spine_smoke_owns_the_full_body_free_contract():
     rendered = Path("scripts/smoke_decision_spine.py").read_text()
     ordered_steps = [
@@ -197,7 +203,7 @@ def test_project_metadata_is_ready_for_public_package_index():
     assert {"name": "Peng Jiaxin"} in metadata["authors"]
     assert "academic jobs" in metadata["keywords"]
     assert "professional jobs" in metadata["keywords"]
-    assert "Development Status :: 3 - Alpha" in metadata["classifiers"]
+    assert "Development Status :: 4 - Beta" in metadata["classifiers"]
     assert "License :: OSI Approved :: MIT License" in metadata["classifiers"]
     assert "Programming Language :: Python :: 3.12" in metadata["classifiers"]
     assert metadata["urls"]["Repository"] == "https://github.com/jxpeng98/CanISend"
@@ -329,12 +335,14 @@ def test_ci_workflow_runs_tests_build_and_package_resource_check():
     assert "uvx twine check dist/*" in rendered
     assert "python -m venv /tmp/canisend-smoke" in rendered
     assert rendered.count("scripts/smoke_decision_spine.py") == 2
+    assert rendered.count("scripts/smoke_discovery.py") == 2
     built_wheel_smoke = next(
         step["run"]
         for step in workflow["jobs"]["build-package"]["steps"]
         if step.get("name") == "Smoke test built wheel"
     )
     _assert_complete_decision_spine_smoke(built_wheel_smoke)
+    _assert_stage4_discovery_smoke(built_wheel_smoke)
 
 
 def test_ci_covers_supported_python_versions_and_cross_os_cli_smoke():
@@ -353,6 +361,7 @@ def test_ci_covers_supported_python_versions_and_cross_os_cli_smoke():
     smoke = json.dumps(smoke_job)
     assert 'python-version: "3.12"' in Path(".github/workflows/ci.yml").read_text()
     assert "scripts/smoke_decision_spine.py" in smoke
+    assert "scripts/smoke_discovery.py" in smoke
     assert "--canisend canisend" in smoke
     assert "--workspace .ci-smoke-stage2" in smoke
     cross_os_smoke = next(
@@ -361,6 +370,12 @@ def test_ci_covers_supported_python_versions_and_cross_os_cli_smoke():
         if step.get("name") == "Smoke test CLI contract"
     )
     _assert_complete_decision_spine_smoke(cross_os_smoke)
+    cross_os_discovery_smoke = next(
+        step["run"]
+        for step in smoke_job["steps"]
+        if step.get("name") == "Smoke test Stage 4 discovery contract"
+    )
+    _assert_stage4_discovery_smoke(cross_os_discovery_smoke)
 
 
 def test_release_workflow_publishes_with_trusted_publishing():
@@ -391,6 +406,7 @@ def test_release_workflow_publishes_with_trusted_publishing():
     assert "uvx twine check dist/*" in rendered
     assert "python -m venv /tmp/canisend-smoke" in rendered
     assert rendered.count("scripts/smoke_decision_spine.py") == 2
+    assert rendered.count("scripts/smoke_discovery.py") == 2
     assert "--workspace /tmp/canisend-stage2-example" in rendered
     assert "--workspace /tmp/canisend-testpypi-stage2-example" in rendered
     testpypi_steps = workflow["jobs"]["smoke-test-testpypi"]["steps"]
@@ -405,6 +421,7 @@ def test_release_workflow_publishes_with_trusted_publishing():
             if step.get("name") == step_name
         )
         _assert_complete_decision_spine_smoke(smoke_command)
+        _assert_stage4_discovery_smoke(smoke_command)
 
 
 def test_local_release_checks_use_shared_smoke_through_brief():
@@ -412,8 +429,10 @@ def test_local_release_checks_use_shared_smoke_through_brief():
 
     assert "uv pip install --python" in rendered
     assert rendered.count("scripts/smoke_decision_spine.py") == 1
+    assert rendered.count("scripts/smoke_discovery.py") == 1
     assert '--canisend "$smoke_root/venv/bin/canisend"' in rendered
     assert '--workspace "$smoke_root/workspace"' in rendered
+    assert '--workspace "$smoke_root/discovery-workspace"' in rendered
 
 
 def test_release_workflow_guards_stable_tag_source_provenance():
@@ -432,11 +451,11 @@ def test_release_playbook_documents_testpypi_dry_run():
 
     assert "## Release Channels" in playbook
     assert "scripts/release.sh test" in playbook
-    assert "scripts/release.sh beta --version 0.3.0b1" in playbook
-    assert "scripts/release.sh stable --version 0.3.0" in playbook
+    assert "scripts/release.sh beta --version 0.6.0b1" in playbook
+    assert "scripts/release.sh stable --version 0.6.0" in playbook
     assert "test/v0.3.0.dev2" in playbook
-    assert "v0.3.0b1" in playbook
-    assert "v0.3.0" in playbook
+    assert "v0.6.0b1" in playbook
+    assert "v0.6.0" in playbook
     assert "Do not reuse `v0.2.0`" in playbook
     assert "stable" in playbook and "origin/main" in playbook
     assert "prerelease" in playbook and "non-main branch" in playbook

@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://github.com/jxpeng98/CanISend/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/jxpeng98/CanISend/ci.yml?branch=main&label=ci" alt="CI status"></a>
-  <a href="https://test.pypi.org/project/canisend/"><img src="https://img.shields.io/badge/TestPyPI-0.3.0b1-blue" alt="TestPyPI"></a>
+  <a href="https://test.pypi.org/project/canisend/"><img src="https://img.shields.io/badge/TestPyPI-0.6.0b1-blue" alt="TestPyPI"></a>
   <img src="https://img.shields.io/badge/python-3.11%2B-blue" alt="Python 3.11+">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT license">
 </p>
@@ -84,13 +84,13 @@ python -m pip install canisend
 
 ### Install the current TestPyPI build
 
-For the current TestPyPI build, install `canisend==0.3.0b1` while still resolving dependencies from PyPI:
+For the current TestPyPI build, install `canisend==0.6.0b1` while still resolving dependencies from PyPI:
 
 ```bash
 uv tool install \
   --index-url https://test.pypi.org/simple/ \
   --extra-index-url https://pypi.org/simple/ \
-  canisend==0.3.0b1
+  canisend==0.6.0b1
 ```
 
 Or with `pip` inside an active virtual environment:
@@ -99,7 +99,7 @@ Or with `pip` inside an active virtual environment:
 python -m pip install \
   --index-url https://test.pypi.org/simple/ \
   --extra-index-url https://pypi.org/simple/ \
-  canisend==0.3.0b1
+  canisend==0.6.0b1
 ```
 
 Run the packaged fake-data workflow before using private profile or job data:
@@ -1050,16 +1050,16 @@ Preferred tag-driven release orchestration:
 
 ```bash
 scripts/release.sh test --version 0.3.0.dev2
-scripts/release.sh beta --version 0.3.0b1
-scripts/release.sh stable --version 0.3.0
+scripts/release.sh beta --version 0.6.0b1
+scripts/release.sh stable --version 0.6.0
 ```
 
 The script updates `pyproject.toml` and `src/canisend/__init__.py`, runs local checks, commits the version bump, pushes the current branch, then creates and pushes the matching git tag:
 
 ```bash
 git tag -a test/v0.3.0.dev2 HEAD -m "canisend 0.3.0.dev2 TestPyPI"
-git tag -a v0.3.0b1 HEAD -m "canisend 0.3.0b1 prerelease"
-git tag -a v0.3.0 HEAD -m "canisend 0.3.0 stable"
+git tag -a v0.6.0b1 HEAD -m "canisend 0.6.0b1 prerelease"
+git tag -a v0.6.0 HEAD -m "canisend 0.6.0 stable"
 ```
 
 `release.yml` is the only remote publisher. It always publishes to TestPyPI first, and only promotes `v*` tags to
@@ -1083,16 +1083,18 @@ skills/                   canonical reusable and workspace-installed skill pack
 platform-bridges/         AGENTS.md and CLAUDE.md workspace bridges
 examples/end_to_end/      fully local fake-data workflow
 examples/agent_handoff/   host-neutral agent contract fixtures
+examples/discovery/       public synthetic Stage 4 discovery fixtures
 tests/                    CLI, pipeline, packaging, release, and contract tests
 assets/                   project logo and README media
 RELEASE.md                maintainer release playbook
 docs/stage3-migration.md  Stage 3 workspace upgrade and recovery guide
+docs/stage4-migration.md  Stage 4 discovery upgrade and rollback guide
 ```
 
 See `canisend_v1_proposal.md` for the original V1 engineering proposal,
 `docs/superpowers/specs/2026-07-09-discovery-and-workflow-v2-design.md` for detailed multi-source and stage-hardening
 constraints, and `docs/superpowers/specs/2026-07-11-cli-first-workflow-optimization-roadmap.md` for the current
-delivery roadmap. The current Stage 3 execution plan is
-`docs/superpowers/plans/2026-07-13-evidence-backed-draft-foundation.md`; the 2026-07-11 Decision Spine and 2026-07-10
-Agent Runtime plans remain the accepted Stage 2 and Stage 1 records. Existing private workspaces should follow
-`docs/stage3-migration.md` before first use with the Stage 3 prerelease.
+delivery roadmap. The current Stage 4 execution plan is
+`docs/superpowers/plans/2026-07-15-stage4-discovery-ecosystem.md`; the Stage 3 Draft, Stage 2 Decision Spine, and Stage
+1 Agent Runtime plans remain accepted records. Existing private workspaces should follow
+`docs/stage4-migration.md` before first use with the Stage 4 beta.

@@ -40,6 +40,7 @@ def test_v1_contract_files_exist():
         "platform-bridges/CLAUDE.md",
         "scripts/release.sh",
         "scripts/smoke_decision_spine.py",
+        "scripts/smoke_discovery.py",
         "scripts/sync_workspace_skill_mirror.py",
         "docs/stage3-migration.md",
         "docs/stage4-migration.md",

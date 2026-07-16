@@ -106,6 +106,9 @@ jobs:
           /tmp/canisend-smoke/bin/python scripts/smoke_decision_spine.py \
             --canisend /tmp/canisend-smoke/bin/canisend \
             --workspace /tmp/canisend-stage2-example
+          /tmp/canisend-smoke/bin/python scripts/smoke_discovery.py \
+            --canisend /tmp/canisend-smoke/bin/canisend \
+            --workspace /tmp/canisend-stage4-discovery
 
       - name: Upload distributions
         uses: actions/upload-artifact@v4
@@ -166,6 +169,9 @@ jobs:
           /tmp/canisend-testpypi/bin/python scripts/smoke_decision_spine.py \
             --canisend /tmp/canisend-testpypi/bin/canisend \
             --workspace /tmp/canisend-testpypi-stage2-example
+          /tmp/canisend-testpypi/bin/python scripts/smoke_discovery.py \
+            --canisend /tmp/canisend-testpypi/bin/canisend \
+            --workspace /tmp/canisend-testpypi-stage4-discovery
 
   publish-pypi:
     if: needs.build.outputs.publish_pypi == 'true'

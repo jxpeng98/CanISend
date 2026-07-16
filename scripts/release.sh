@@ -196,6 +196,9 @@ local_release_checks() {
   run "$smoke_root/venv/bin/python" scripts/smoke_decision_spine.py \
     --canisend "$smoke_root/venv/bin/canisend" \
     --workspace "$smoke_root/workspace"
+  run "$smoke_root/venv/bin/python" scripts/smoke_discovery.py \
+    --canisend "$smoke_root/venv/bin/canisend" \
+    --workspace "$smoke_root/discovery-workspace"
 }
 
 tag_name_for_channel() {

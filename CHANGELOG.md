@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.6.0b1 - 2026-07-15
+
 - Added the Stage 4 source-neutral discovery catalog with Lead v2 stable identity, deterministic union/deduplication,
   explainable filtering/ranking, aliases, inspectable exclusions, and stable `--lead-id` selection while retaining
   legacy JSON-list and `--lead-index` compatibility.
