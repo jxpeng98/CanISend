@@ -383,6 +383,11 @@ PyPI-only installation are green. Immutable evidence is recorded in the Stage 4 
 
 ## Stage 5: Resilience + Legacy Convergence
 
+**Stage status:** In progress on `feat/resilience-legacy-convergence`. ADR-024 and the complete Stage 5 implementation
+plan freeze source-stage ownership, per-job coordination, guarded Package/Render bundles, recoverable projections,
+sequence-runner compatibility, explicit migration/rollback, and orchestrator promotion convergence. Task 0 is
+accepted; implementation begins with coordination and failure recovery.
+
 ### Deliverables
 
 - remaining logical stages implemented behind the registry;
