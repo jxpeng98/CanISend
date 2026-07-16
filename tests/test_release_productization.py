@@ -12,7 +12,7 @@ from typer.testing import CliRunner
 from canisend import __version__
 from canisend.cli import app
 from canisend.package_check import missing_wheel_resources, required_wheel_resources
-from scripts import smoke_decision_spine
+from scripts import smoke_decision_spine, smoke_discovery
 
 
 def _assert_complete_decision_spine_smoke(command: str) -> None:
@@ -25,6 +25,18 @@ def _assert_stage4_discovery_smoke(command: str) -> None:
     assert "scripts/smoke_discovery.py" in command
     assert "--canisend" in command
     assert "--workspace" in command
+
+
+def test_discovery_smoke_resolves_relative_workspace_before_cli_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    resolved = smoke_discovery._resolve_new_workspace(Path("relative-smoke"))
+
+    assert resolved == tmp_path / "relative-smoke"
+    assert resolved.is_absolute()
 
 
 def test_shared_decision_spine_smoke_owns_the_full_body_free_contract():

@@ -131,9 +131,15 @@ def _scan_private_safe_artifacts(workspace: Path) -> None:
         raise SmokeFailure("Discovery artifacts retained a forbidden private transport field.")
 
 
-def run_smoke(canisend: str, workspace: Path) -> None:
-    if workspace.exists():
+def _resolve_new_workspace(workspace: Path) -> Path:
+    resolved = workspace.resolve()
+    if resolved.exists():
         raise SmokeFailure("Discovery smoke workspace must not already exist.")
+    return resolved
+
+
+def run_smoke(canisend: str, workspace: Path) -> None:
+    workspace = _resolve_new_workspace(workspace)
 
     init = subprocess.run(
         [canisend, "init-workspace", "--workspace", str(workspace)],
