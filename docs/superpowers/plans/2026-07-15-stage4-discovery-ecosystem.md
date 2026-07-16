@@ -1,14 +1,16 @@
 # Stage 4 Discovery Ecosystem Implementation Plan
 
-**Status:** In progress — Tasks 0–7 accepted; Task 8 local gates passed and remote exit acceptance is next
+**Status:** Complete — Tasks 0–8 accepted; `0.6.0b1` published and independently verified
 
 **Date:** 2026-07-15
+
+**Completed:** 2026-07-16
 
 **Branch:** `feat/discovery-ecosystem`
 
 **Baseline:** Stage 3 `0.3.0b1`, post-release evidence commit `cd4f2124669076133faa11469470aa10c5e9a70c`
 
-**Candidate milestone:** `0.6.0b1` after Stage 4 exit acceptance; no publication is implied by this plan
+**Released milestone:** `0.6.0b1` on TestPyPI and PyPI with a GitHub prerelease
 
 ## Goal
 
@@ -128,8 +130,8 @@ records, and a body-free partial-failure report. `new-job-from-lead` accepts eit
 - [x] Run focused adversarial identity, privacy, transport, batch, import, adapter, and compatibility tests.
 - [x] Run the full supported Python 3.11-3.13 matrix plus the available development interpreter.
 - [x] Run source-tree, built-wheel, clean-install, schema/resource, Twine, mirror, and CLI/agent smoke gates.
-- [ ] Require remote Linux/macOS/Windows CLI smoke before marking the stage complete.
-- [ ] Record immutable evidence and decide separately whether to publish the `0.6.0b1` candidate.
+- [x] Require remote Linux/macOS/Windows CLI smoke before marking the stage complete.
+- [x] Record immutable evidence and publish the accepted `0.6.0b1` candidate.
 
 ## Exit Criteria
 
@@ -283,8 +285,8 @@ Tasks 0–7 were locally accepted on 2026-07-15:
   `discovery refresh`, imported packaged CSV and host-search examples into one catalog, and selected a lead by stable
   ID while correctly blocking application work on the missing full advert. Nothing was uploaded or published.
 
-Remote CI, cross-version/cross-OS exit acceptance, and the `0.6.0b1` Stage 4 release candidate remain Task 8; they are
-not claimed here.
+Remote CI, cross-version/cross-OS exit acceptance, publication, and independent public-index verification are
+recorded below as the final Task 8 evidence.
 
 ### Task 8 Local Candidate Evidence
 
@@ -301,9 +303,37 @@ The `0.6.0b1` candidate passed the local portion of Task 8 on 2026-07-15:
   successful stages and 20 mutation receipts.
 - Canonical skill mirror, Bash syntax, bytecode compilation, release/resource contracts, and `git diff --check`
   passed. PyPI, TestPyPI, and GitHub returned no existing `0.6.0b1` release/tag before candidate preparation.
-- CI and release workflows now run the offline Stage 4 discovery smoke from source, built wheel, and TestPyPI wheel;
-  Linux, macOS, and Windows remote evidence is still required before the release tag can be created.
+- CI and release workflows run the offline Stage 4 discovery smoke from source, built wheel, and TestPyPI wheel.
 
-No tag was created and nothing was uploaded or published during local acceptance. The exact pushed candidate commit,
-remote CI run, tag workflow, TestPyPI/PyPI artifacts, GitHub prerelease, and independent public-index install remain
-open evidence.
+No tag was created and nothing was uploaded or published during local acceptance. Publication happened only after
+the remote acceptance recorded below.
+
+### Task 8 Remote And Release Evidence
+
+Stage 4 completed on 2026-07-16 with the following immutable evidence:
+
+- Candidate commit `fc3614c63d060c66bb74206151575f2a1f9cf340` passed remote
+  [CI run 29462344983](https://github.com/jxpeng98/CanISend/actions/runs/29462344983). Python 3.11 passed
+  1,249 tests in 1,552.75 seconds, Python 3.12 passed 1,249 in 1,858.82 seconds, and Python 3.13 passed 1,249 in
+  1,513.30 seconds. Source-tree Decision Spine and discovery smokes passed on Linux, macOS, and Windows; the final
+  built-wheel job also passed metadata, resource, clean-install, 11-stage/20-receipt, and discovery gates.
+- Annotated tag `v0.6.0b1` resolves to the same candidate commit. Tag-driven
+  [release run 29463935404](https://github.com/jxpeng98/CanISend/actions/runs/29463935404) passed 1,249 tests,
+  built and checked both distributions, passed built-wheel smoke, published to TestPyPI, installed the public
+  TestPyPI wheel and repeated both smokes, promoted the artifacts to PyPI, and created the
+  [GitHub prerelease](https://github.com/jxpeng98/CanISend/releases/tag/v0.6.0b1).
+- [TestPyPI](https://test.pypi.org/project/canisend/0.6.0b1/) and
+  [PyPI](https://pypi.org/project/canisend/0.6.0b1/) expose identical immutable files. The
+  `canisend-0.6.0b1-py3-none-any.whl` is 542,881 bytes with SHA-256
+  `6361be68f5858cdc3f6581788a2f90e161a2ebe18e7baab5bf0c6a6c359ba620`; the
+  `canisend-0.6.0b1.tar.gz` is 825,722 bytes with SHA-256
+  `5f3fe6c8d6824597f6ddf7cc9afcbb8158e7f40f7c9fc0062ae7a1bea9f8de6b`.
+- A separate Python 3.12.12 environment installed `canisend==0.6.0b1` from the PyPI simple index with cache disabled
+  after the brief normal index-propagation delay. The installed CLI reported `0.6.0b1`, initialized all 101 workspace
+  resources, passed Doctor with current defaults and no deprecated files, passed the complete Decision Spine with
+  11 successful stages and 20 mutation receipts, and passed the Stage 4 discovery smoke covering packaged resources,
+  read-only adapters, local import, host search, catalog dedupe, stable selection, and the full-advert boundary.
+
+Stage 4 is complete. CSV, JSON, EML, MBOX, host-search, feed, and read-only adapter inputs remain discovery candidates
+only; a user-supplied full URL/PDF/text advert remains required before application preparation can claim complete job
+context.

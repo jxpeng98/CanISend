@@ -1,7 +1,7 @@
 # CLI-First Workflow Optimization Execution Roadmap
 
-**Status:** Active — Stages 1–3 are accepted; `0.3.0.dev2` and the independently verified `0.3.0b1` prerelease are
-published, Stage 4 Tasks 0–7 are accepted, and the Task 8 local `0.6.0b1` candidate gates have passed
+**Status:** Active — Stages 1–4 are accepted; `0.3.0.dev2`, `0.3.0b1`, and the independently verified Stage 4
+`0.6.0b1` prerelease are published
 
 **Date:** 2026-07-11
 
@@ -346,8 +346,9 @@ TestPyPI and PyPI and independently verified. See
 
 ## Stage 4: Discovery Ecosystem
 
-**Stage status:** In progress on `feat/discovery-ecosystem`. ADR-023, the complete Stage 4 implementation plan, and
-Tasks 1–7 are locally accepted. Lead v2 preserves the existing RSS/Atom list workflow while adding stable identity,
+**Stage status:** Complete on `feat/discovery-ecosystem`; `0.6.0b1` is published on TestPyPI and PyPI and independently
+verified from the public PyPI index. ADR-023 and Tasks 0–8 are accepted. Lead v2 preserves the existing RSS/Atom list
+workflow while adding stable identity,
 canonical/redacted provenance, aliases, timestamps, and `--lead-id`. The strict discovery catalog performs
 order-independent union dedupe, stable-ID refresh, explainable include/exclude ranking, inspectable exclusions, and
 atomic `discovery merge` output through private-safe text and AgentResponse surfaces. `discovery refresh` now adds
@@ -358,9 +359,9 @@ materials. The strict host-neutral search envelope now lets Codex, Claude, and g
 v2 batches without persisting provider/session fields. A shared adapter contract now provides offline-conformant,
 identifier-only, read-only Greenhouse and Lever public-job GET adapters without application or credential surfaces.
 Stage 4 now ships synchronized agent skills, private-safe public examples, installed resource gates, full-advert
-intake compatibility proofs, and additive migration/rollback guidance. Remote CI, cross-version/cross-OS exit
-acceptance, tag publication, and independent public-index verification remain open in Task 8. The local Python
-3.11–3.14 matrix, distribution/resource checks, and installed-wheel Decision Spine plus discovery smokes are green.
+intake compatibility proofs, and additive migration/rollback guidance. Local Python 3.11–3.14 acceptance, remote
+Python 3.11–3.13 and Linux/macOS/Windows CI, built-wheel and TestPyPI smokes, tag publication, and independent
+PyPI-only installation are green. Immutable evidence is recorded in the Stage 4 implementation plan.
 
 ### Deliverables
 
