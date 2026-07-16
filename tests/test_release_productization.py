@@ -275,6 +275,13 @@ def test_package_check_requires_all_run_example_resources():
         "canisend/resources/examples/agent_handoff/README.md",
         "canisend/resources/examples/agent_handoff/expected_capabilities.json",
         "canisend/resources/examples/agent_handoff/expected_context_shape.json",
+        "canisend/resources/examples/discovery/README.md",
+        "canisend/resources/examples/discovery/discovery-sources.example.yaml",
+        "canisend/resources/examples/discovery/normalized-search.example.json",
+        "canisend/resources/examples/discovery/local-leads.example.csv",
+        "canisend/resources/examples/discovery/greenhouse-list.fixture.json",
+        "canisend/resources/examples/discovery/lever-list.fixture.json",
+        "canisend/resources/docs/stage4-migration.md",
     }
 
     assert expected <= resources

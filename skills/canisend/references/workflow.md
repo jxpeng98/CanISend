@@ -42,7 +42,39 @@ Agents should read generated evidence from `profile/generated/`, not directly re
 
 If generated evidence is incomplete, first report the gap. Read raw profile sources only with user approval, because in agent-assisted mode the content read by the agent may be processed by the agent model provider. `extract-profile-evidence --llm-augment` must also be explicit opt-in; it rejects augmented items that do not cite a local source chunk.
 
-## 3. Fetch And Select Leads
+## 3. Discover And Select Candidate Leads
+
+For configured RSS/Atom plus read-only Greenhouse/Lever public boards, start from the packaged discovery source
+example and run:
+
+```bash
+canisend discovery refresh \
+  --workspace <private-workspace> \
+  --sources discovery-sources.yaml
+```
+
+For a user-supplied saved search or email-alert export:
+
+```bash
+canisend discovery import \
+  --workspace <private-workspace> \
+  --input <export.csv|export.json|alert.eml|alerts.mbox> \
+  --source-name "<private-safe label>"
+```
+
+For a Codex, Claude, or other host search, require the strict `canisend.discovery-search/v1` JSON envelope and use:
+
+```bash
+canisend discovery import-search \
+  --workspace <private-workspace> \
+  --input <normalized-search.json>
+```
+
+The host envelope contains only normalized published-job fields. Do not include credentials, email addresses,
+provider/session/connector identifiers, private paths, or arbitrary host metadata. Apply only user-supplied
+include/exclude/source-preference terms and treat score/rank as inspectable discovery support, not an apply decision.
+
+The legacy jobs.ac.uk and generic feed commands remain available:
 
 Fetch jobs.ac.uk RSS leads locally:
 
@@ -63,12 +95,25 @@ canisend fetch-job-feed \
   --feed-url "<rss-or-atom-url>"
 ```
 
-Feed leads are discovery records, not full adverts. Ask the user to choose a lead index unless they already provided
-one. Generic source files are written under `job_leads/<source-name>.json` and should be passed with `--leads-file`.
+All source records are discovery candidates, not full adverts. New workflows should select the deterministic catalog
+by stable ID:
+
+```bash
+canisend new-job-from-lead \
+  --workspace <private-workspace> \
+  --leads-file job_leads/catalog.json \
+  --lead-id <lead_id> \
+  --institution "<institution>" \
+  --deadline "YYYY-MM-DD"
+```
+
+Ask the user to choose the lead unless they already provided one. Generic legacy source files are written under
+`job_leads/<source-name>.json`; `--lead-index` remains available for those lists, but do not combine it with
+`--lead-id`.
 
 ## 4. Create One Job Workspace
 
-From a feed lead:
+From a legacy list by index:
 
 ```bash
 canisend new-job-from-lead \

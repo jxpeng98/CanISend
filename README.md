@@ -20,7 +20,8 @@ It prepares materials only. It does not submit applications, create accounts, fi
 ## What It Does
 
 - Creates a private workspace for profile evidence, job folders, prompts, Typst templates, schemas, and agent instructions.
-- Imports and filters jobs.ac.uk RSS plus generic RSS/Atom leads without crawling full job pages.
+- Builds one private discovery catalog from jobs.ac.uk and generic RSS/Atom feeds, read-only Greenhouse/Lever public
+  boards, local CSV/JSON/email-alert exports, and normalized Codex/Claude/other host-agent search results.
 - Creates one local folder per application, with the full advert kept as a manual input.
 - Extracts normalized evidence from Typst-first profile sources into `profile/generated/`.
 - Materializes a private, run-scoped Evidence snapshot and durable `evidence_catalog.json` without exposing evidence
@@ -173,6 +174,10 @@ The workspace contains private profile data, job leads, job folders, editable pr
   prompts/
   templates/
   schemas/
+  examples/
+    discovery/
+  docs/
+    stage4-migration.md
   agent-skills/
     canisend/
     canisend-job-intake/
@@ -236,6 +241,77 @@ by an older CanISend version and the resumable Evidence stage reports `evidence.
 
 ### 3. Import leads and create one job folder
 
+Discovery inputs create candidate leads only. They do not become complete job adverts, applicant evidence, or
+application materials. Stage 4 keeps a deterministic catalog at `job_leads/catalog.json`, with stable lead IDs,
+source provenance, aliases, ranking reasons, and inspectable exclusions.
+
+Start with the packaged
+[`examples/discovery/discovery-sources.example.yaml`](examples/discovery/discovery-sources.example.yaml), replace its
+placeholder identifiers, and save it as `discovery-sources.yaml` in the private workspace. It can combine RSS/Atom
+feeds with identifier-only, read-only Greenhouse and Lever public-job adapters:
+
+```bash
+canisend discovery refresh \
+  --workspace ~/CanISendWorkspace \
+  --sources discovery-sources.yaml
+```
+
+The public adapter endpoints and exclusions are documented in
+[`docs/discovery-adapters.md`](docs/discovery-adapters.md). Source configuration does not accept credentials,
+arbitrary public-API URLs, application endpoints, or upload behavior.
+
+Local saved searches and email alerts can enter the same catalog without calling an API:
+
+```bash
+canisend discovery import \
+  --workspace ~/CanISendWorkspace \
+  --input ~/Downloads/saved-jobs.csv \
+  --source-name "Saved Academic Search" \
+  --include economics \
+  --exclude phd
+```
+
+Supported local discovery exports are CSV, JSON, EML, and MBOX. The importer retains only normalized job fields;
+raw email bodies, unknown vendor columns, credentials, local absolute paths, and connector/session metadata do not
+enter catalog artifacts.
+
+Codex, Claude, or another host can perform a public search and save only the strict
+`canisend.discovery-search/v1` envelope. Import it with:
+
+```bash
+canisend discovery import-search \
+  --workspace ~/CanISendWorkspace \
+  --input normalized-search.json
+```
+
+The packaged
+[`normalized-search.example.json`](examples/discovery/normalized-search.example.json) shows the host-neutral shape.
+The host must not put provider names, session IDs, credentials, email addresses, or private paths into that file.
+
+Existing lists can also be merged explicitly:
+
+```bash
+canisend discovery merge \
+  --workspace ~/CanISendWorkspace \
+  --input job_leads/jobs_ac_uk.json \
+  --input job_leads/example-university.json \
+  --include economics \
+  --exclude phd
+```
+
+Select from the catalog by stable ID so source reordering cannot change the selected role:
+
+```bash
+canisend new-job-from-lead \
+  --workspace ~/CanISendWorkspace \
+  --leads-file job_leads/catalog.json \
+  --lead-id <lead_id> \
+  --institution "Example University" \
+  --deadline "2026-08-31"
+```
+
+The original jobs.ac.uk, generic RSS/Atom, and zero-based index workflows remain available for compatibility.
+
 Fetch jobs.ac.uk RSS leads locally:
 
 ```bash
@@ -260,7 +336,7 @@ canisend fetch-job-feed \
 Generic feeds default to `job_leads/<source-name>.json`. They use the same normalized lead fields and local filters as
 jobs.ac.uk. Feed records are discovery leads, not full adverts.
 
-Create a job folder from a selected zero-based lead index:
+Create a job folder from a selected zero-based lead index when using a legacy list:
 
 ```bash
 canisend new-job-from-lead \
@@ -270,7 +346,7 @@ canisend new-job-from-lead \
   --deadline "2026-06-15"
 ```
 
-For a generic feed output, pass its lead file explicitly:
+For a generic legacy feed output, pass its lead file explicitly:
 
 ```bash
 canisend new-job-from-lead \
@@ -317,6 +393,9 @@ canisend new-job \
   --source-url "https://example.edu/jobs/123" \
   --fetch-url
 ```
+
+See [`docs/stage4-migration.md`](docs/stage4-migration.md) for legacy list/index migration, catalog and cache
+recovery, workspace update behavior, and rollback.
 
 ### 4. Generate draft materials
 

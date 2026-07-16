@@ -71,6 +71,43 @@ Generated evidence items should have stable local IDs:
 
 New materials should cite item-level evidence as `profile/generated/file.evidence.md#Section/item-id`, for example `profile/generated/cv.evidence.md#Teaching/cv-001`. Section-level citations remain a compatibility fallback, not the preferred new output.
 
+## Discovery Store
+
+All discovery artifacts live in ignored `job_leads/` and are untrusted candidate data, not applicant evidence,
+complete adverts, application decisions, or submission records:
+
+```text
+job_leads/
+  catalog.json
+  batches/<source-id>--<adapter>.json
+  cache/<source-id>--<adapter>.json
+  imports/<source-id>.batch.json
+  imports/<source-id>.report.json
+  searches/<source-id>.batch.json
+  refresh-report.json
+```
+
+- `catalog.json` uses `canisend.lead-catalog/v1`. It is the deterministic, order-independent union/ranking view and
+  records retained leads, exclusions, aliases, match reasons, counts, policy, and input receipts.
+- Every current lead uses `JobLeadV2`: a stable `lead_id`, identity method, original six compatibility fields,
+  canonical URL, published metadata, first/last seen timestamps, bounded provenance, aliases, and rank reasons.
+- Network and imported source snapshots use `canisend.lead-batch/v1`. Only a validated complete batch is promoted;
+  an interrupted or invalid source cannot replace the previous complete batch.
+- `cache/*.json` uses `canisend.discovery-cache/v1` and stores only validators, redacted source locator, content hash,
+  and timestamps. It never stores response or email bodies.
+- `refresh-report.json` uses `canisend.discovery-refresh-report/v1`; local import reports use
+  `canisend.discovery-import-report/v1`. Reports contain private-safe counts, paths relative to the workspace, and
+  reason codes rather than raw rejected content.
+- Host-agent handoff input uses `canisend.discovery-search/v1`. The imported batch does not retain provider names,
+  connector/session IDs, credentials, email addresses, private absolute paths, or arbitrary host metadata.
+- `discovery-sources.yaml` uses `canisend.discovery-sources/v1`: RSS/Atom accepts one public URL; Greenhouse accepts
+  only a public board token; Lever accepts only a public site ID and global/EU region.
+
+Legacy top-level JSON lead lists and `--lead-index` remain readable. New selection should use
+`new-job-from-lead --leads-file job_leads/catalog.json --lead-id <lead_id>` so source reordering cannot change the
+selected candidate. Selecting a lead creates a lead-only job folder; the full advert still comes from user paste,
+local Markdown/text/PDF, or an explicitly approved single HTML/PDF URL.
+
 ## Job Folder
 
 Each application task lives in ignored `jobs/<job-slug>/` and contains:
@@ -126,7 +163,7 @@ typst/
   research_statement.typ     # conditional reviewed standalone projection
 ```
 
-RSS and Atom lead outputs live in ignored `job_leads/`.
+Discovery lead outputs live in ignored `job_leads/`.
 
 ## Output Contracts
 

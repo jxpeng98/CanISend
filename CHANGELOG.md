@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- Added the Stage 4 source-neutral discovery catalog with Lead v2 stable identity, deterministic union/deduplication,
+  explainable filtering/ranking, aliases, inspectable exclusions, and stable `--lead-id` selection while retaining
+  legacy JSON-list and `--lead-index` compatibility.
+- Added bounded conditional RSS/Atom refresh, atomic complete batches, private-safe cache/report contracts, retry,
+  backoff, throttling, partial-failure recovery, and read-only identifier-only Greenhouse and Lever public-job
+  adapters. No discovery adapter can apply, upload, authenticate, crawl adjacent pages, or call an application
+  endpoint.
+- Added local CSV/JSON/EML/MBOX discovery import plus a strict host-neutral search envelope for Codex, Claude, and
+  other agents. Both paths retain normalized candidate fields only and exclude raw email bodies, unknown vendor
+  fields, credentials, session identifiers, and absolute local paths from durable discovery artifacts.
+- Added packaged discovery schemas, synthetic examples, adapter fixtures, migration/rollback guidance, privacy and
+  skill updates, and compatibility coverage for legacy feeds plus explicit HTML/PDF URL and local PDF/text intake.
+
 ## 0.3.0b1 - 2026-07-15
 
 - Made command-provider transport, evidence citations, Typst source hashes, and public smoke diagnostics portable

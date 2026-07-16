@@ -40,6 +40,20 @@ def test_init_workspace_creates_user_layout_and_default_resources(tmp_path):
     assert (workspace / "schemas" / "discovery-refresh-report-v1.schema.json").exists()
     assert (workspace / "schemas" / "discovery-import-report-v1.schema.json").exists()
     assert (workspace / "schemas" / "discovery-search-v1.schema.json").exists()
+    assert (workspace / "examples" / "discovery" / "README.md").exists()
+    assert (
+        workspace / "examples" / "discovery" / "discovery-sources.example.yaml"
+    ).exists()
+    assert (
+        workspace / "examples" / "discovery" / "normalized-search.example.json"
+    ).exists()
+    assert (
+        workspace / "examples" / "discovery" / "greenhouse-list.fixture.json"
+    ).exists()
+    assert (
+        workspace / "examples" / "discovery" / "lever-list.fixture.json"
+    ).exists()
+    assert (workspace / "docs" / "stage4-migration.md").exists()
     assert (workspace / "schemas" / "workflow-state.schema.json").exists()
     assert (workspace / "schemas" / "task-spec.schema.json").exists()
     assert (workspace / "schemas" / "task-result.schema.json").exists()
@@ -120,6 +134,8 @@ def test_update_workspace_adds_focused_skills_without_overwriting_local_main_ski
     assert (workspace / "agent-skills" / "canisend-job-intake" / "SKILL.md").is_file()
     assert (workspace / "agent-skills" / "canisend-application-package" / "SKILL.md").is_file()
     assert (workspace / "agent-skills" / "canisend-submission-readiness" / "SKILL.md").is_file()
+    assert (workspace / "examples" / "discovery" / "normalized-search.example.json").is_file()
+    assert (workspace / "docs" / "stage4-migration.md").is_file()
 
 
 def test_update_workspace_overwrite_refreshes_main_skill_from_canonical_pack(tmp_path):

@@ -1,0 +1,20 @@
+protocol: canisend.discovery-sources/v1
+schema_version: 1.0.0
+policy:
+  include_keywords: []
+  exclude_keywords: []
+  source_preference: []
+sources:
+  - source_id: example-rss
+    name: Example University RSS
+    kind: rss_atom
+    url: https://jobs.example.edu/feed.xml
+  - source_id: example-greenhouse
+    name: Example University Greenhouse
+    kind: greenhouse
+    board_token: example_university
+  - source_id: example-lever
+    name: Example Institute Lever
+    kind: lever
+    site_id: example
+    region: global

@@ -72,6 +72,7 @@ packages = ["src/canisend"]
 "agent-skills" = "canisend/resources/agent-skills"
 "platform-bridges" = "canisend/resources/platform-bridges"
 "examples" = "canisend/resources/examples"
+"docs/stage4-migration.md" = "canisend/resources/docs/stage4-migration.md"
 ".env.example" = "canisend/resources/.env.example"
 
 [tool.pytest.ini_options]

@@ -1,6 +1,6 @@
 # Stage 4 Discovery Ecosystem Implementation Plan
 
-**Status:** In progress — Tasks 0–6 locally accepted; Task 7 is next
+**Status:** In progress — Tasks 0–7 locally accepted; Task 8 exit acceptance is next
 
 **Date:** 2026-07-15
 
@@ -8,7 +8,7 @@
 
 **Baseline:** Stage 3 `0.3.0b1`, post-release evidence commit `cd4f2124669076133faa11469470aa10c5e9a70c`
 
-**Candidate milestone:** `0.6.0a1` after Stage 4 exit acceptance; no publication is implied by this plan
+**Candidate milestone:** `0.6.0b1` after Stage 4 exit acceptance; no publication is implied by this plan
 
 ## Goal
 
@@ -118,10 +118,10 @@ records, and a body-free partial-failure report. `new-job-from-lead` accepts eit
 
 ### Task 7: Compatibility, Skills, And Migration
 
-- [ ] Update README, changelog, file contracts, privacy guidance, job-intake skill, canonical mirror, and examples.
-- [ ] Add Stage 4 migration guidance for legacy lists, indexes, catalog selection, caches, and rollback.
-- [ ] Prove explicit URL HTML/PDF and local PDF/text imports still enter the same job/application workflow.
-- [ ] Add all public schemas and fixtures to workspace and wheel resource checks.
+- [x] Update README, changelog, file contracts, privacy guidance, job-intake skill, canonical mirror, and examples.
+- [x] Add Stage 4 migration guidance for legacy lists, indexes, catalog selection, caches, and rollback.
+- [x] Prove explicit URL HTML/PDF and local PDF/text imports still enter the same job/application workflow.
+- [x] Add all public schemas and fixtures to workspace and wheel resource checks.
 
 ### Task 8: Stage 4 Exit Acceptance
 
@@ -129,7 +129,7 @@ records, and a body-free partial-failure report. `new-job-from-lead` accepts eit
 - [ ] Run the full supported Python 3.11-3.13 matrix plus the available development interpreter.
 - [ ] Run source-tree, built-wheel, clean-install, schema/resource, Twine, mirror, and CLI/agent smoke gates.
 - [ ] Require remote Linux/macOS/Windows CLI smoke before marking the stage complete.
-- [ ] Record immutable evidence and decide separately whether to publish the `0.6.0a1` candidate.
+- [ ] Record immutable evidence and decide separately whether to publish the `0.6.0b1` candidate.
 
 ## Exit Criteria
 
@@ -146,7 +146,7 @@ records, and a body-free partial-failure report. `new-job-from-lead` accepts eit
 
 ## Validation Record
 
-Tasks 0–6 were locally accepted on 2026-07-15:
+Tasks 0–7 were locally accepted on 2026-07-15:
 
 - ADR-023 and this complete Stage 4 task graph freeze identity precedence, URL/provenance redaction, untrusted data,
   read-only source authority, partial-failure semantics, and continued direct URL/PDF intake.
@@ -267,6 +267,21 @@ Tasks 0–6 were locally accepted on 2026-07-15:
   both artifacts. A Python 3.12.12 clean install exposed `discovery refresh`, loaded the packaged source schema with
   all three adapter kinds, derived the exact Greenhouse/Lever GET URLs, and mapped both offline fixtures into four
   Lead v2 records. Nothing was uploaded or published.
+- Task 7 adds one coherent Stage 4 operator surface across README, changelog, file contracts, privacy guidance,
+  workflow references, the focused job-intake skill, canonical skill mirror, public synthetic examples, and an
+  additive migration/rollback guide. Installed workspaces receive the discovery examples and migration guide while
+  preserving local edits by default.
+- Focused compatibility tests run local `.txt`, local PDF, explicitly supplied HTML URL, and explicitly supplied PDF
+  URL intake through `new-job` and the existing application pipeline to Parsed Job plus compatibility materials.
+  Legacy list/index, stable catalog/ID, jobs.ac.uk, and generic RSS/Atom coverage remains in the same acceptance
+  group.
+- The final Task 7 discovery/intake/agent/schema/resource group passed 374 tests; the focused documentation/resource
+  group passed 68 tests. The complete development-interpreter suite passed 1,247 tests in 749.14 seconds; bytecode
+  compilation, canonical-mirror check, and `git diff --check` passed.
+- An isolated source distribution and wheel built successfully. The packaged-resource checker and Twine accepted
+  both artifacts. A Python 3.12.12 clean install initialized 101 workspace defaults, reported them current, exposed
+  `discovery refresh`, imported packaged CSV and host-search examples into one catalog, and selected a lead by stable
+  ID while correctly blocking application work on the missing full advert. Nothing was uploaded or published.
 
-Remote CI, cross-version/cross-OS acceptance, compatibility/skills/migration work, and a Stage 4 release candidate
-remain later tasks; they are not claimed here.
+Remote CI, cross-version/cross-OS exit acceptance, and the `0.6.0b1` Stage 4 release candidate remain Task 8; they are
+not claimed here.

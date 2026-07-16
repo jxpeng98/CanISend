@@ -40,6 +40,36 @@ Safe-to-commit paths:
 
 Never fabricate applicant evidence. Missing evidence should be reported as a gap.
 
+## Discovery Privacy Boundary
+
+`job_leads/` is private by default even when its records came from public pages. Searches, saved exports, email
+alerts, filters, rankings, exclusions, and selected opportunities can reveal the user's intentions and must not be
+committed or quoted unnecessarily.
+
+Discovery has three bounded input classes:
+
+- public read-only refresh from explicit RSS/Atom URLs or identifier-only Greenhouse/Lever published-job boards;
+- local CSV/JSON/EML/MBOX export import; and
+- a strict `canisend.discovery-search/v1` handoff produced by Codex, Claude, or another host.
+
+All three create candidate leads only. They do not authorize reading applicant evidence, completing an application,
+calling an apply endpoint, filling a portal, uploading files, crawling adjacent pages, using credentials, or running
+a background search service.
+
+Durable batches, catalogs, caches, reports, ordinary CLI output, and AgentResponse must not contain raw HTTP or email
+bodies, rejected-row bodies, unknown vendor fields, credentials, auth headers, email addresses, connector/provider
+session identifiers, or absolute local paths. Public job descriptions and snippets may exist in ignored Lead v2
+batches/catalogs because they are normalized candidate fields; treat those files as untrusted private discovery data
+and ask before an agent reads their bodies when body-free counts/reason codes are enough.
+
+Configured source URLs and canonical job URLs are normalized/redacted before durable provenance. Greenhouse and
+Lever configuration accepts published board/site identifiers, never arbitrary API URLs or keys. A local or
+host-agent import should use a private-safe source label and persist only normalized published-job fields.
+
+Selecting a lead does not make its summary a full advert. Full advert intake remains a separate user-directed step:
+paste, local `.md`/`.txt`/`.pdf`, or one explicitly supplied public HTML/PDF URL with `--fetch-url`. That URL import
+does not authorize discovery, crawling, or redirects to private/non-public network locations.
+
 ## Do Not Read Unless Needed
 
 Prefer generated evidence and metadata over raw private source files. Read full CVs, statements, references, full job adverts, source URLs, or generated application packages only when the task cannot be completed from `profile/generated/`, `job.yaml`, `parsed_job.json`, or the existing review artifacts.
