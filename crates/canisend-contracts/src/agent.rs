@@ -284,17 +284,67 @@ pub struct CapabilitiesData {
     pub workspace_format: String,
     pub resource_format: String,
     pub capabilities: Vec<Capability>,
+    pub stages: Vec<AgentStageCapability>,
+    pub discovery_adapters: Vec<crate::DiscoveryAdapterCapabilities>,
     pub error_codes: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AgentStageCapability {
+    pub id: String,
+    pub status: CapabilityStatus,
+    pub execution_modes: Vec<ExecutionMode>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkspaceSummary {
+    pub workspace_id: EntityId,
+    pub workspace_format: String,
+    pub active_job_count: u64,
+    pub total_job_count: u64,
+    pub active_lead_count: u64,
+    pub historical_lead_count: u64,
+    pub open_task_count: u64,
+    pub stale_artifact_count: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AgentJobSummary {
+    pub id: EntityId,
+    pub title: String,
+    pub institution: String,
+    pub revision: Revision,
+    pub source_count: u64,
+    pub archived: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AgentContextBlocker {
+    pub code: String,
+    pub description: String,
+    pub subject_id: Option<EntityId>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AgentContextData {
     pub product_version: SemanticVersion,
+    pub protocol: String,
+    pub workspace_format: String,
+    pub resource_format: String,
     pub actor: ActorKind,
     pub execution_mode: ExecutionMode,
     pub workspace_id: Option<EntityId>,
     pub active_job_id: Option<EntityId>,
+    pub workspace: Option<AgentWorkspaceSummary>,
+    pub selected_job: Option<AgentJobSummary>,
+    pub supported_stages: Vec<AgentStageCapability>,
+    pub blockers: Vec<AgentContextBlocker>,
+    pub next_actions: Vec<NextAction>,
     pub privacy: PrivacyClassification,
 }
 

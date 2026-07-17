@@ -1,6 +1,8 @@
 #![forbid(unsafe_code)]
 
-use canisend_contracts::{Capability, CapabilityStatus, SemanticVersion};
+use canisend_contracts::{
+    AgentStageCapability, Capability, CapabilityStatus, ExecutionMode, SemanticVersion,
+};
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct CapabilityRegistry;
@@ -25,6 +27,84 @@ impl CapabilityRegistry {
     }
 }
 
+#[derive(Debug, Default, Clone, Copy)]
+pub struct StageRegistry;
+
+impl StageRegistry {
+    #[must_use]
+    pub fn built_in() -> Vec<AgentStageCapability> {
+        vec![
+            stage(
+                "intake",
+                CapabilityStatus::Available,
+                &[ExecutionMode::ManualImport],
+            ),
+            stage(
+                "discovery",
+                CapabilityStatus::Available,
+                &[ExecutionMode::Deterministic, ExecutionMode::HostAgent],
+            ),
+            stage(
+                "parse",
+                CapabilityStatus::Planned,
+                &[ExecutionMode::HostAgent],
+            ),
+            stage(
+                "criteria",
+                CapabilityStatus::Planned,
+                &[ExecutionMode::UserDecision],
+            ),
+            stage(
+                "evidence",
+                CapabilityStatus::Planned,
+                &[ExecutionMode::HostAgent],
+            ),
+            stage(
+                "match",
+                CapabilityStatus::Planned,
+                &[ExecutionMode::HostAgent],
+            ),
+            stage(
+                "plan",
+                CapabilityStatus::Planned,
+                &[ExecutionMode::UserDecision],
+            ),
+            stage(
+                "draft",
+                CapabilityStatus::Planned,
+                &[ExecutionMode::HostAgent],
+            ),
+            stage(
+                "review",
+                CapabilityStatus::Planned,
+                &[ExecutionMode::HostAgent],
+            ),
+            stage(
+                "package",
+                CapabilityStatus::Planned,
+                &[ExecutionMode::Deterministic],
+            ),
+            stage(
+                "render",
+                CapabilityStatus::Planned,
+                &[ExecutionMode::Deterministic],
+            ),
+        ]
+    }
+}
+
+fn stage(
+    id: &str,
+    status: CapabilityStatus,
+    execution_modes: &[ExecutionMode],
+) -> AgentStageCapability {
+    AgentStageCapability {
+        id: id.to_owned(),
+        status,
+        execution_modes: execution_modes.to_vec(),
+    }
+}
+
 fn available(id: &str) -> Capability {
     Capability {
         id: id.to_owned(),
@@ -45,7 +125,7 @@ fn planned(id: &str) -> Capability {
 mod tests {
     use canisend_contracts::CapabilityStatus;
 
-    use super::CapabilityRegistry;
+    use super::{CapabilityRegistry, StageRegistry};
 
     #[test]
     fn registry_is_unique_and_truthful() {
@@ -66,5 +146,20 @@ mod tests {
         assert!(capabilities.iter().any(|item| {
             item.id == "discovery.refresh" && item.status == CapabilityStatus::Available
         }));
+        let stages = StageRegistry::built_in();
+        assert_eq!(
+            stages
+                .iter()
+                .filter(|stage| stage.status == CapabilityStatus::Available)
+                .count(),
+            2
+        );
+        let mut stage_ids = stages
+            .iter()
+            .map(|stage| stage.id.as_str())
+            .collect::<Vec<_>>();
+        stage_ids.sort_unstable();
+        stage_ids.dedup();
+        assert_eq!(stage_ids.len(), stages.len());
     }
 }

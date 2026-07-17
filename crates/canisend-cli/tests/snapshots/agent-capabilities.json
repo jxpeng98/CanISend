@@ -18,6 +18,12 @@
       {"id":"workflow.execute","status":"planned","version":"2.0.0"},
       {"id":"render.pdf","status":"planned","version":"2.0.0"}
     ],
+    "discovery_adapters": [
+      {"kind":"rss-atom","max_items_per_refresh":1000,"network":true,"preserves_removed":true,"supports_cursor":true},
+      {"kind":"jobs-ac-uk","max_items_per_refresh":1000,"network":true,"preserves_removed":true,"supports_cursor":true},
+      {"kind":"greenhouse","max_items_per_refresh":1000,"network":true,"preserves_removed":true,"supports_cursor":true},
+      {"kind":"lever","max_items_per_refresh":1000,"network":true,"preserves_removed":true,"supports_cursor":true}
+    ],
     "error_codes": [
       "input.invalid",
       "input.path_rejected",
@@ -48,6 +54,19 @@
     "product_version": "0.7.0-alpha.1",
     "protocol": "canisend.agent/v2",
     "resource_format": "canisend.resources/v2",
+    "stages": [
+      {"execution_modes":["manual-import"],"id":"intake","status":"available"},
+      {"execution_modes":["deterministic","host-agent"],"id":"discovery","status":"available"},
+      {"execution_modes":["host-agent"],"id":"parse","status":"planned"},
+      {"execution_modes":["user-decision"],"id":"criteria","status":"planned"},
+      {"execution_modes":["host-agent"],"id":"evidence","status":"planned"},
+      {"execution_modes":["host-agent"],"id":"match","status":"planned"},
+      {"execution_modes":["user-decision"],"id":"plan","status":"planned"},
+      {"execution_modes":["host-agent"],"id":"draft","status":"planned"},
+      {"execution_modes":["host-agent"],"id":"review","status":"planned"},
+      {"execution_modes":["deterministic"],"id":"package","status":"planned"},
+      {"execution_modes":["deterministic"],"id":"render","status":"planned"}
+    ],
     "workspace_format": "canisend.workspace/v2"
   },
   "artifacts": [],

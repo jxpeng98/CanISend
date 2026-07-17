@@ -46,6 +46,19 @@ pub trait DiscoveryAdapter {
     fn validate_endpoint(&self, source_url: &str) -> Result<(), IoAdapterError>;
 }
 
+#[must_use]
+pub fn discovery_adapter_capabilities() -> Vec<DiscoveryAdapterCapabilities> {
+    [
+        DiscoverySourceKind::RssAtom,
+        DiscoverySourceKind::JobsAcUk,
+        DiscoverySourceKind::Greenhouse,
+        DiscoverySourceKind::Lever,
+    ]
+    .into_iter()
+    .map(capabilities)
+    .collect()
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RssAtomAdapter {
     source_name: String,

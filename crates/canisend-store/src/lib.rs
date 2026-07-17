@@ -3,6 +3,7 @@
 mod artifact;
 mod backup;
 mod blob;
+mod context;
 mod database;
 mod discovery;
 mod job;
@@ -16,6 +17,7 @@ use std::{
 pub use artifact::ArtifactService;
 pub use backup::{BackupResult, verify_backup};
 pub use blob::{BlobAudit, BlobStore, DEFAULT_MAX_BLOB_BYTES};
+pub use context::AgentContextService;
 pub use database::{DATABASE_SCHEMA_VERSION, Database};
 pub use discovery::DiscoveryService;
 pub use job::{JobService, NewSource};

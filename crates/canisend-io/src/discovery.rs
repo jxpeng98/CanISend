@@ -19,6 +19,7 @@ mod adapters;
 
 pub use adapters::{
     DiscoveryAdapter, GreenhouseAdapter, JobsAcUkAdapter, LeverAdapter, RssAtomAdapter,
+    discovery_adapter_capabilities,
 };
 
 pub const MAX_DISCOVERY_BATCH_BYTES: usize = 4 * 1024 * 1024;

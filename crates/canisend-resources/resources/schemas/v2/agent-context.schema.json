@@ -9,6 +9,146 @@
       ],
       "type": "string"
     },
+    "AgentContextBlocker": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "subject_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "code",
+        "description"
+      ],
+      "type": "object"
+    },
+    "AgentJobSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "archived": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "institution": {
+          "type": "string"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "source_count": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "institution",
+        "revision",
+        "source_count",
+        "archived"
+      ],
+      "type": "object"
+    },
+    "AgentStageCapability": {
+      "additionalProperties": false,
+      "properties": {
+        "execution_modes": {
+          "items": {
+            "$ref": "#/$defs/ExecutionMode"
+          },
+          "type": "array"
+        },
+        "id": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/CapabilityStatus"
+        }
+      },
+      "required": [
+        "id",
+        "status",
+        "execution_modes"
+      ],
+      "type": "object"
+    },
+    "AgentWorkspaceSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "active_job_count": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "active_lead_count": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "historical_lead_count": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "open_task_count": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "stale_artifact_count": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "total_job_count": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "workspace_format": {
+          "type": "string"
+        },
+        "workspace_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "workspace_id",
+        "workspace_format",
+        "active_job_count",
+        "total_job_count",
+        "active_lead_count",
+        "historical_lead_count",
+        "open_task_count",
+        "stale_artifact_count"
+      ],
+      "type": "object"
+    },
+    "CapabilityStatus": {
+      "enum": [
+        "available",
+        "planned"
+      ],
+      "type": "string"
+    },
     "ExecutionMode": {
       "enum": [
         "deterministic",
@@ -18,6 +158,22 @@
         "manual-import"
       ],
       "type": "string"
+    },
+    "NextAction": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "description"
+      ],
+      "type": "object"
     },
     "PrivacyClassification": {
       "enum": [
@@ -42,13 +198,60 @@
     "actor": {
       "$ref": "#/$defs/ActorKind"
     },
+    "blockers": {
+      "items": {
+        "$ref": "#/$defs/AgentContextBlocker"
+      },
+      "type": "array"
+    },
     "execution_mode": {
       "$ref": "#/$defs/ExecutionMode"
+    },
+    "next_actions": {
+      "items": {
+        "$ref": "#/$defs/NextAction"
+      },
+      "type": "array"
     },
     "privacy": {
       "$ref": "#/$defs/PrivacyClassification"
     },
     "product_version": {
+      "type": "string"
+    },
+    "protocol": {
+      "type": "string"
+    },
+    "resource_format": {
+      "type": "string"
+    },
+    "selected_job": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AgentJobSummary"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "supported_stages": {
+      "items": {
+        "$ref": "#/$defs/AgentStageCapability"
+      },
+      "type": "array"
+    },
+    "workspace": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AgentWorkspaceSummary"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "workspace_format": {
       "type": "string"
     },
     "workspace_id": {
@@ -60,8 +263,14 @@
   },
   "required": [
     "product_version",
+    "protocol",
+    "workspace_format",
+    "resource_format",
     "actor",
     "execution_mode",
+    "supported_stages",
+    "blockers",
+    "next_actions",
     "privacy"
   ],
   "title": "AgentContextData",

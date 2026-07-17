@@ -117,6 +117,17 @@ fn capabilities_distinguish_available_from_planned_work() {
             .iter()
             .any(|item| { item["id"] == "job.intake" && item["status"] == "available" })
     );
+    assert_eq!(
+        value["data"]["discovery_adapters"].as_array().map(Vec::len),
+        Some(4)
+    );
+    assert_eq!(
+        value["data"]["stages"].as_array().map(|stages| stages
+            .iter()
+            .filter(|stage| stage["status"] == "available")
+            .count()),
+        Some(2)
+    );
 }
 
 #[test]
@@ -318,6 +329,22 @@ fn native_job_commands_import_original_and_normalized_local_text() {
     ]);
     assert_eq!(shown["data"]["job"]["revision"], 3);
     assert_eq!(shown["data"]["sources"].as_array().map(Vec::len), Some(2));
+    let context = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "agent",
+        "context",
+        "--job",
+        job_id,
+        "--json",
+    ]);
+    assert_eq!(context["data"]["selected_job"]["source_count"], 2);
+    assert_eq!(context["data"]["active_job_id"], job_id);
+    assert!(
+        !serde_json::to_string(&context)
+            .expect("context JSON")
+            .contains("Teach economics")
+    );
     let listed = run_json(&["--workspace", workspace.text(), "job", "list", "--json"]);
     assert_eq!(listed["data"]["jobs"].as_array().map(Vec::len), Some(1));
 

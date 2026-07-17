@@ -3,23 +3,23 @@
 use std::{io::IsTerminal, path::PathBuf, process::ExitCode, str::FromStr};
 
 use canisend_contracts::{
-    AGENT_PROTOCOL, ActorKind, AgentContextData, AgentError, AgentResponse, CapabilitiesData,
-    EntityId, ErrorCode, ExecutionMode, ExitClass, NextAction, PUBLIC_SCHEMA_VERSION,
-    PrivacyClassification, PublicSchemaId, RESOURCE_FORMAT, ResourceCatalogData,
-    ResourceCatalogEntry, SchemaCatalogData, SchemaCatalogEntry, SemanticVersion, Sha256Digest,
-    SourceKind, VersionData, WORKSPACE_FORMAT,
+    AGENT_PROTOCOL, ActorKind, AgentContextBlocker, AgentContextData, AgentError, AgentResponse,
+    CapabilitiesData, EntityId, ErrorCode, ExecutionMode, ExitClass, NextAction,
+    PUBLIC_SCHEMA_VERSION, PrivacyClassification, PublicSchemaId, RESOURCE_FORMAT,
+    ResourceCatalogData, ResourceCatalogEntry, SchemaCatalogData, SchemaCatalogEntry,
+    SemanticVersion, Sha256Digest, SourceKind, VersionData, WORKSPACE_FORMAT,
 };
-use canisend_core::CapabilityRegistry;
+use canisend_core::{CapabilityRegistry, StageRegistry};
 use canisend_io::{
     DiscoveryAdapter, DiscoveryFileKind, GreenhouseAdapter, HttpFetcher, IoAdapterError,
-    JobsAcUkAdapter, LeverAdapter, RemoteDocumentKind, RssAtomAdapter, extract_pdf_text,
-    parse_csv_batch, parse_host_agent_batch, parse_json_batch, read_discovery_file, read_local_pdf,
-    read_local_text,
+    JobsAcUkAdapter, LeverAdapter, RemoteDocumentKind, RssAtomAdapter,
+    discovery_adapter_capabilities, extract_pdf_text, parse_csv_batch, parse_host_agent_batch,
+    parse_json_batch, read_discovery_file, read_local_pdf, read_local_text,
 };
 use canisend_resources::{ResourceId, ResourceKind};
 use canisend_store::{
-    ArtifactService, DiscoveryService, JobService, NewSource, StoreError, Workspace,
-    current_utc_timestamp,
+    AgentContextService, ArtifactService, DiscoveryService, JobService, NewSource, StoreError,
+    Workspace, current_utc_timestamp,
 };
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use serde_json::json;
@@ -81,7 +81,7 @@ enum AgentCommand {
     /// List compiled capabilities and their availability.
     Capabilities(OutputArgs),
     /// Return the body-free public execution context.
-    Context(OutputArgs),
+    Context(AgentContextArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -153,6 +153,15 @@ struct OutputArgs {
     /// Emit exactly one canisend.agent/v2 JSON object on stdout.
     #[arg(long)]
     json: bool,
+}
+
+#[derive(Debug, Args)]
+struct AgentContextArgs {
+    /// Select one job for body-free stage blockers and next actions.
+    #[arg(long)]
+    job: Option<String>,
+    #[command(flatten)]
+    output: OutputArgs,
 }
 
 #[derive(Debug, Args)]
@@ -313,7 +322,7 @@ impl Cli {
         match &self.command {
             Command::Version(output) | Command::Doctor(output) => output.json,
             Command::Agent {
-                command: AgentCommand::Capabilities(output) | AgentCommand::Context(output),
+                command: AgentCommand::Capabilities(output),
             }
             | Command::Schema {
                 command: SchemaCommand::List(output),
@@ -321,6 +330,9 @@ impl Cli {
             | Command::Resource {
                 command: ResourceCommand::List(output),
             } => output.json,
+            Command::Agent {
+                command: AgentCommand::Context(arguments),
+            } => arguments.output.json,
             Command::Schema {
                 command: SchemaCommand::Show(arguments),
             } => arguments.output.json,
@@ -425,8 +437,8 @@ fn execute(cli: Cli) -> CommandResult<CommandOutput> {
             command: AgentCommand::Capabilities(_),
         } => capabilities(),
         Command::Agent {
-            command: AgentCommand::Context(_),
-        } => context(),
+            command: AgentCommand::Context(arguments),
+        } => context(workspace, arguments.job.as_deref()),
         Command::Schema {
             command: SchemaCommand::List(_),
         } => schema_list(),
@@ -554,6 +566,8 @@ fn capabilities() -> CommandResult<CommandOutput> {
         workspace_format: WORKSPACE_FORMAT.to_owned(),
         resource_format: RESOURCE_FORMAT.to_owned(),
         capabilities: CapabilityRegistry::built_in(),
+        stages: StageRegistry::built_in(),
+        discovery_adapters: discovery_adapter_capabilities(),
         error_codes: ErrorCode::ALL
             .into_iter()
             .map(|code| code.as_str().to_owned())
@@ -569,25 +583,139 @@ fn capabilities() -> CommandResult<CommandOutput> {
     success("agent.capabilities", "available", &data, human)
 }
 
-fn context() -> CommandResult<CommandOutput> {
+fn context(
+    workspace_path: Option<PathBuf>,
+    selected_job_id: Option<&str>,
+) -> CommandResult<CommandOutput> {
+    let workspace = if workspace_path.is_some() {
+        Some(open_workspace(workspace_path, "agent.context")?)
+    } else {
+        match Workspace::open(None) {
+            Ok(workspace) => Some(workspace),
+            Err(StoreError::WorkspaceNotFound(_)) => None,
+            Err(error) => return Err(store_failure("agent.context", error)),
+        }
+    };
+    let mut blockers = Vec::new();
+    let mut next_actions = Vec::new();
+    let mut workspace_summary = None;
+    let mut selected_job = None;
+    if let Some(workspace) = &workspace {
+        let service = AgentContextService::new(&workspace.database);
+        let summary = service
+            .workspace_summary()
+            .map_err(|error| store_failure("agent.context", error))?;
+        if let Some(job_id) = selected_job_id {
+            let job_id = parse_entity_id("agent.context", job_id)?;
+            let job = service
+                .job_summary(&job_id)
+                .map_err(|error| store_failure("agent.context", error))?;
+            if job.archived {
+                blockers.push(AgentContextBlocker {
+                    code: "job.archived".to_owned(),
+                    description: "The selected job is archived".to_owned(),
+                    subject_id: Some(job.id.clone()),
+                });
+            } else if job.source_count == 0 {
+                blockers.push(AgentContextBlocker {
+                    code: "job.source_missing".to_owned(),
+                    description: "The selected job has no imported advert source".to_owned(),
+                    subject_id: Some(job.id.clone()),
+                });
+                next_actions.push(NextAction {
+                    action: format!("canisend job import {} --file PATH", job.id),
+                    description: "Import a local advert, PDF, or use --url before preparing work"
+                        .to_owned(),
+                });
+            } else {
+                next_actions.push(NextAction {
+                    action: format!("canisend job show {} --json", job.id),
+                    description: "Inspect body-free source and revision metadata".to_owned(),
+                });
+            }
+            selected_job = Some(job);
+        } else if summary.active_job_count > 0 {
+            blockers.push(AgentContextBlocker {
+                code: "job.not_selected".to_owned(),
+                description: "Select an active job with agent context --job JOB_ID".to_owned(),
+                subject_id: None,
+            });
+            next_actions.push(NextAction {
+                action: "canisend job list --json".to_owned(),
+                description: "Choose one active job for the next workflow operation".to_owned(),
+            });
+        } else if summary.active_lead_count > 0 {
+            blockers.push(AgentContextBlocker {
+                code: "job.missing".to_owned(),
+                description: "Promote a discovery lead before preparing application work"
+                    .to_owned(),
+                subject_id: None,
+            });
+            next_actions.push(NextAction {
+                action: "canisend discovery list --json".to_owned(),
+                description: "Select and promote an active discovery lead".to_owned(),
+            });
+        } else {
+            blockers.push(AgentContextBlocker {
+                code: "job.missing".to_owned(),
+                description: "Create or discover a job before preparing application work"
+                    .to_owned(),
+                subject_id: None,
+            });
+            next_actions.push(NextAction {
+                action: "canisend job create --title TITLE --institution INSTITUTION --json"
+                    .to_owned(),
+                description: "Create a direct-intake job or import discovery leads".to_owned(),
+            });
+        }
+        workspace_summary = Some(summary);
+    } else {
+        blockers.push(AgentContextBlocker {
+            code: "workspace.not_selected".to_owned(),
+            description: "No CanISend workspace was discovered or selected".to_owned(),
+            subject_id: None,
+        });
+        next_actions.push(NextAction {
+            action: "canisend --workspace PATH workspace init --json".to_owned(),
+            description: "Initialize or explicitly select a workspace".to_owned(),
+        });
+    }
     let data = AgentContextData {
         product_version: product_version()?,
+        protocol: AGENT_PROTOCOL.to_owned(),
+        workspace_format: WORKSPACE_FORMAT.to_owned(),
+        resource_format: RESOURCE_FORMAT.to_owned(),
         actor: ActorKind::HostAgent,
         execution_mode: ExecutionMode::HostAgent,
-        workspace_id: None,
-        active_job_id: None,
+        workspace_id: workspace_summary
+            .as_ref()
+            .map(|summary| summary.workspace_id.clone()),
+        active_job_id: selected_job.as_ref().map(|job| job.id.clone()),
+        workspace: workspace_summary,
+        selected_job,
+        supported_stages: StageRegistry::built_in(),
+        blockers,
+        next_actions,
         privacy: PrivacyClassification::Public,
     };
-    success(
+    let mut output = success(
         "agent.context",
         "available",
         &data,
         vec![
-            "CanISend public agent context".to_owned(),
-            "Workspace: not selected".to_owned(),
+            "CanISend body-free agent context".to_owned(),
+            format!(
+                "Workspace: {}",
+                data.workspace_id
+                    .as_ref()
+                    .map_or("not selected", EntityId::as_str)
+            ),
+            format!("Blockers: {}", data.blockers.len()),
             "Privacy: public metadata only".to_owned(),
         ],
-    )
+    )?;
+    output.response.next_actions = data.next_actions.clone();
+    Ok(output)
 }
 
 fn schema_list() -> CommandResult<CommandOutput> {
@@ -1053,12 +1181,7 @@ fn discovery_import(
 }
 
 fn discovery_adapters() -> CommandResult<CommandOutput> {
-    let adapters = vec![
-        RssAtomAdapter::new("RSS/Atom", None).capabilities(),
-        JobsAcUkAdapter::new(None).capabilities(),
-        GreenhouseAdapter::new("organization").capabilities(),
-        LeverAdapter::new("organization").capabilities(),
-    ];
+    let adapters = discovery_adapter_capabilities();
     let human = adapters
         .iter()
         .map(|adapter| {

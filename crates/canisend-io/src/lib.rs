@@ -73,6 +73,7 @@ pub enum IoAdapterError {
 }
 pub use discovery::{
     DiscoveryAdapter, DiscoveryFile, DiscoveryFileKind, GreenhouseAdapter, JobsAcUkAdapter,
-    LeverAdapter, MAX_DISCOVERY_BATCH_BYTES, MAX_DISCOVERY_LEADS, RssAtomAdapter, parse_csv_batch,
-    parse_host_agent_batch, parse_json_batch, read_discovery_file,
+    LeverAdapter, MAX_DISCOVERY_BATCH_BYTES, MAX_DISCOVERY_LEADS, RssAtomAdapter,
+    discovery_adapter_capabilities, parse_csv_batch, parse_host_agent_batch, parse_json_batch,
+    read_discovery_file,
 };

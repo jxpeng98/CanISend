@@ -1,5 +1,28 @@
 {
   "$defs": {
+    "AgentStageCapability": {
+      "additionalProperties": false,
+      "properties": {
+        "execution_modes": {
+          "items": {
+            "$ref": "#/$defs/ExecutionMode"
+          },
+          "type": "array"
+        },
+        "id": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/CapabilityStatus"
+        }
+      },
+      "required": [
+        "id",
+        "status",
+        "execution_modes"
+      ],
+      "type": "object"
+    },
     "Capability": {
       "additionalProperties": false,
       "properties": {
@@ -26,6 +49,58 @@
         "planned"
       ],
       "type": "string"
+    },
+    "DiscoveryAdapterCapabilities": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/DiscoverySourceKind"
+        },
+        "max_items_per_refresh": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "network": {
+          "type": "boolean"
+        },
+        "preserves_removed": {
+          "type": "boolean"
+        },
+        "supports_cursor": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "kind",
+        "network",
+        "supports_cursor",
+        "preserves_removed",
+        "max_items_per_refresh"
+      ],
+      "type": "object"
+    },
+    "DiscoverySourceKind": {
+      "enum": [
+        "csv",
+        "json",
+        "host-agent",
+        "rss-atom",
+        "jobs-ac-uk",
+        "greenhouse",
+        "lever"
+      ],
+      "type": "string"
+    },
+    "ExecutionMode": {
+      "enum": [
+        "deterministic",
+        "host-agent",
+        "configured-provider",
+        "user-decision",
+        "manual-import"
+      ],
+      "type": "string"
     }
   },
   "$id": "https://schemas.canisend.dev/v2/capabilities.schema.json",
@@ -35,6 +110,12 @@
     "capabilities": {
       "items": {
         "$ref": "#/$defs/Capability"
+      },
+      "type": "array"
+    },
+    "discovery_adapters": {
+      "items": {
+        "$ref": "#/$defs/DiscoveryAdapterCapabilities"
       },
       "type": "array"
     },
@@ -53,6 +134,12 @@
     "resource_format": {
       "type": "string"
     },
+    "stages": {
+      "items": {
+        "$ref": "#/$defs/AgentStageCapability"
+      },
+      "type": "array"
+    },
     "workspace_format": {
       "type": "string"
     }
@@ -63,6 +150,8 @@
     "workspace_format",
     "resource_format",
     "capabilities",
+    "stages",
+    "discovery_adapters",
     "error_codes"
   ],
   "title": "CapabilitiesData",
