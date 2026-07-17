@@ -1,0 +1,22 @@
+spec_version = "canisend.spec/v2"
+name = "synthetic-lecturer-economics"
+description = "Executable greenfield product example for Rust-native CanISend"
+
+[source]
+advert = "job-advert.md"
+profile = "profile-evidence.json"
+
+[expected]
+criteria = "expected-criteria.json"
+matches = "expected-matches.json"
+document_plan = "expected-document-plan.json"
+cover_letter_candidate = "cover-letter-candidate.json"
+review = "review-findings.json"
+invalid_candidate_error = "invalid-candidate-error.json"
+cli_transcript = "successful-cli-transcript.md"
+
+[policy]
+python_oracle = false
+old_workspace_compatible = false
+network_required = false
+contains_real_personal_data = false

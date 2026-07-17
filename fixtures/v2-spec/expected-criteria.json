@@ -1,0 +1,48 @@
+{
+  "schema": "canisend.criteria/v2",
+  "job_id": "019f2f55-7c00-7000-8000-000000000002",
+  "criteria": [
+    {
+      "id": "019f2f55-7c00-7000-8000-000000000201",
+      "kind": "qualification",
+      "requirement": "Completed PhD in Economics or a closely related discipline",
+      "importance": "essential",
+      "source_quote": "A completed PhD in Economics or a closely related discipline."
+    },
+    {
+      "id": "019f2f55-7c00-7000-8000-000000000202",
+      "kind": "teaching",
+      "requirement": "Evidence of effective university-level teaching",
+      "importance": "essential",
+      "source_quote": "Evidence of effective university-level teaching."
+    },
+    {
+      "id": "019f2f55-7c00-7000-8000-000000000203",
+      "kind": "research",
+      "requirement": "Developing record of peer-reviewed research in applied economics",
+      "importance": "essential",
+      "source_quote": "A developing record of peer-reviewed research in applied economics."
+    },
+    {
+      "id": "019f2f55-7c00-7000-8000-000000000204",
+      "kind": "communication",
+      "requirement": "Communicate research to specialist and non-specialist audiences",
+      "importance": "essential",
+      "source_quote": "Ability to communicate research clearly to specialist and non-specialist audiences."
+    },
+    {
+      "id": "019f2f55-7c00-7000-8000-000000000205",
+      "kind": "teaching",
+      "requirement": "Experience teaching econometrics",
+      "importance": "desirable",
+      "source_quote": "Experience teaching econometrics."
+    },
+    {
+      "id": "019f2f55-7c00-7000-8000-000000000206",
+      "kind": "research",
+      "requirement": "Evidence of collaborative research",
+      "importance": "desirable",
+      "source_quote": "Evidence of collaborative research."
+    }
+  ]
+}

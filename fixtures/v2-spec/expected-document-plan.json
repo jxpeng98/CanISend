@@ -1,0 +1,31 @@
+{
+  "schema": "canisend.document-plan/v2",
+  "job_id": "019f2f55-7c00-7000-8000-000000000002",
+  "documents": [
+    {
+      "kind": "cover-letter",
+      "requirement": "required",
+      "executor": "host-agent",
+      "status": "ready-to-prepare"
+    },
+    {
+      "kind": "research-statement",
+      "requirement": "required",
+      "executor": "host-agent",
+      "status": "ready-to-prepare",
+      "constraints": ["maximum two pages"]
+    },
+    {
+      "kind": "cv",
+      "requirement": "required",
+      "executor": "manual-import",
+      "status": "awaiting-user-input"
+    },
+    {
+      "kind": "teaching-statement",
+      "requirement": "not-requested",
+      "executor": null,
+      "status": "omitted"
+    }
+  ]
+}

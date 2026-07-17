@@ -1,0 +1,38 @@
+{
+  "schema": "canisend.evidence/v2",
+  "profile_id": "019f2f55-7c00-7000-8000-000000000001",
+  "items": [
+    {
+      "id": "019f2f55-7c00-7000-8000-000000000101",
+      "kind": "qualification",
+      "summary": "PhD in Economics awarded by Example University in 2024",
+      "source": "synthetic-profile.md",
+      "confirmed": true,
+      "sensitivity": "private-local"
+    },
+    {
+      "id": "019f2f55-7c00-7000-8000-000000000102",
+      "kind": "teaching",
+      "summary": "Designed and delivered undergraduate Applied Econometrics seminars for two academic years",
+      "source": "synthetic-profile.md",
+      "confirmed": true,
+      "sensitivity": "private-local"
+    },
+    {
+      "id": "019f2f55-7c00-7000-8000-000000000103",
+      "kind": "research",
+      "summary": "Published two peer-reviewed articles on regional labour-market adjustment",
+      "source": "synthetic-profile.md",
+      "confirmed": true,
+      "sensitivity": "private-local"
+    },
+    {
+      "id": "019f2f55-7c00-7000-8000-000000000104",
+      "kind": "communication",
+      "summary": "Presented applied economics findings to academic seminars and a local policy forum",
+      "source": "synthetic-profile.md",
+      "confirmed": true,
+      "sensitivity": "private-local"
+    }
+  ]
+}

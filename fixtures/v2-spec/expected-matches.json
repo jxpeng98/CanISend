@@ -1,0 +1,42 @@
+{
+  "schema": "canisend.matches/v2",
+  "job_id": "019f2f55-7c00-7000-8000-000000000002",
+  "matches": [
+    {
+      "criterion_id": "019f2f55-7c00-7000-8000-000000000201",
+      "evidence_ids": ["019f2f55-7c00-7000-8000-000000000101"],
+      "support": "strong",
+      "gap": null
+    },
+    {
+      "criterion_id": "019f2f55-7c00-7000-8000-000000000202",
+      "evidence_ids": ["019f2f55-7c00-7000-8000-000000000102"],
+      "support": "strong",
+      "gap": null
+    },
+    {
+      "criterion_id": "019f2f55-7c00-7000-8000-000000000203",
+      "evidence_ids": ["019f2f55-7c00-7000-8000-000000000103"],
+      "support": "strong",
+      "gap": null
+    },
+    {
+      "criterion_id": "019f2f55-7c00-7000-8000-000000000204",
+      "evidence_ids": ["019f2f55-7c00-7000-8000-000000000104"],
+      "support": "moderate",
+      "gap": "No recorded large public lecture or media communication"
+    },
+    {
+      "criterion_id": "019f2f55-7c00-7000-8000-000000000205",
+      "evidence_ids": ["019f2f55-7c00-7000-8000-000000000102"],
+      "support": "strong",
+      "gap": null
+    },
+    {
+      "criterion_id": "019f2f55-7c00-7000-8000-000000000206",
+      "evidence_ids": [],
+      "support": "none",
+      "gap": "No confirmed collaborative research evidence"
+    }
+  ]
+}

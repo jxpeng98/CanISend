@@ -23,6 +23,8 @@
   the execution authority.
 - 2026-07-17: Accepted eight Rust-native ADRs covering the greenfield boundary, crate graph, SQLite/blob authority,
   generated contracts, agent protocol v2, embedded resources/rendering, privacy/consent, and native releases.
+- 2026-07-17: Added a synthetic Lecturer in Economics v2 specification with source inputs, normalized criteria,
+  evidence matches, document plan, Cover Letter candidate, review findings, validation error, and CLI transcript.
 
 ## 1. Executive Decision
 
@@ -1108,13 +1110,13 @@ shorter estimate unrealistic.
 
 #### R0.3 Create executable examples
 
-- [ ] Write one synthetic academic job advert fixture.
-- [ ] Write one synthetic profile evidence fixture.
-- [ ] Define expected normalized criteria and evidence records.
-- [ ] Define expected match and document plan structures.
-- [ ] Define one cover-letter candidate and review result.
-- [ ] Define the expected agent error envelope for an invalid candidate.
-- [ ] Define the expected successful end-to-end CLI transcript.
+- [x] Write one synthetic academic job advert fixture.
+- [x] Write one synthetic profile evidence fixture.
+- [x] Define expected normalized criteria and evidence records.
+- [x] Define expected match and document plan structures.
+- [x] Define one Cover Letter candidate and review result.
+- [x] Define the expected agent error envelope for an invalid candidate.
+- [x] Define the expected successful end-to-end CLI transcript.
 
 #### R0.4 Dependency spikes
 

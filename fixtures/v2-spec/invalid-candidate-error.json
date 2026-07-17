@@ -1,0 +1,24 @@
+{
+  "protocol": "canisend.agent/v2",
+  "operation": "task.complete",
+  "ok": false,
+  "status": "validation-failed",
+  "data": null,
+  "artifacts": [],
+  "required_consents": [],
+  "warnings": [],
+  "next_actions": [
+    {
+      "action": "correct-candidate",
+      "description": "Remove the unknown evidence reference or replace it with a declared task input evidence ID."
+    }
+  ],
+  "error": {
+    "code": "candidate.unknown_evidence",
+    "message": "The candidate references evidence that is not declared by the task.",
+    "retryable": true,
+    "details": {
+      "json_pointer": "/sections/1/claims/0/evidence_ids/0"
+    }
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "schema": "canisend.document-candidate/v2",
+  "job_id": "019f2f55-7c00-7000-8000-000000000002",
+  "document_kind": "cover-letter",
+  "sections": [
+    {
+      "kind": "opening",
+      "text": "I am applying for the Lecturer in Economics position at Northbridge University.",
+      "claims": []
+    },
+    {
+      "kind": "research",
+      "text": "My applied economics research examines regional labour-market adjustment and has produced two peer-reviewed articles.",
+      "claims": [
+        {
+          "text": "My applied economics research has produced two peer-reviewed articles.",
+          "evidence_ids": ["019f2f55-7c00-7000-8000-000000000103"]
+        }
+      ]
+    },
+    {
+      "kind": "teaching",
+      "text": "I have designed and delivered Applied Econometrics seminars across two academic years.",
+      "claims": [
+        {
+          "text": "I designed and delivered Applied Econometrics seminars for two academic years.",
+          "evidence_ids": ["019f2f55-7c00-7000-8000-000000000102"]
+        }
+      ]
+    },
+    {
+      "kind": "closing",
+      "text": "I would welcome the opportunity to contribute to Northbridge University's teaching and research community.",
+      "claims": []
+    }
+  ]
+}

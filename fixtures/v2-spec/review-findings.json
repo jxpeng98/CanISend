@@ -1,0 +1,22 @@
+{
+  "schema": "canisend.review/v2",
+  "job_id": "019f2f55-7c00-7000-8000-000000000002",
+  "document_kind": "cover-letter",
+  "result": "human-review-required",
+  "findings": [
+    {
+      "id": "019f2f55-7c00-7000-8000-000000000401",
+      "kind": "evidence-gap",
+      "severity": "warning",
+      "message": "The desirable collaborative-research criterion has no confirmed supporting evidence.",
+      "criterion_id": "019f2f55-7c00-7000-8000-000000000206"
+    },
+    {
+      "id": "019f2f55-7c00-7000-8000-000000000402",
+      "kind": "human-judgement",
+      "severity": "review",
+      "message": "Confirm that the closing sentence reflects the applicant's genuine motivation.",
+      "criterion_id": null
+    }
+  ]
+}
