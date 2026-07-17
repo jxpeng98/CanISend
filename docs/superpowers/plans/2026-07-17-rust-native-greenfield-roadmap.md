@@ -1,6 +1,6 @@
 # CanISend Rust-Native Greenfield Rebuild Roadmap
 
-**Status:** In progress — R0 through R5 complete; R6 agent collaboration active
+**Status:** In progress — R0 through R5 complete; R6 implementation complete and remote acceptance pending
 
 **Date:** 2026-07-17
 
@@ -1408,40 +1408,41 @@ lists the resulting lead, promotes it into a job, and preserves that state throu
 
 #### R6.1 Context and capabilities
 
-- [ ] Implement `agent capabilities` from the compiled stage and adapter registry.
-- [ ] Implement body-free `agent context` from workspace/job state.
-- [ ] Include protocol, workspace, supported stages, blockers, and next actions.
-- [ ] Prove normal responses contain no private source body.
+- [x] Implement `agent capabilities` from the compiled stage and adapter registry.
+- [x] Implement body-free `agent context` from workspace/job state.
+- [x] Include protocol, workspace, supported stages, blockers, and next actions.
+- [x] Prove normal responses contain no private source body.
 
 #### R6.2 Task service
 
-- [ ] Implement `task prepare` with exact input revision hashes.
-- [ ] Implement task lease, expiry, cancellation, and stale detection.
-- [ ] Implement candidate input from stdin and regular files.
-- [ ] Reject symlinked or oversized candidate files.
-- [ ] Implement structural and semantic validation.
-- [ ] Implement atomic `task complete`.
-- [ ] Make repeated valid completion idempotent where the task/result hash is identical.
+- [x] Implement `task prepare` with exact input revision hashes.
+- [x] Implement task lease, expiry, cancellation, and stale detection.
+- [x] Implement candidate input from stdin and regular files.
+- [x] Reject symlinked or oversized candidate files.
+- [x] Implement structural and semantic validation.
+- [x] Implement atomic `task complete`.
+- [x] Make repeated valid completion idempotent where the task/result hash is identical.
 
 #### R6.3 Host assets
 
-- [ ] Write Codex skill/instruction assets for protocol v2.
-- [ ] Write Claude assets for protocol v2.
-- [ ] Write generic Markdown integration instructions.
-- [ ] Embed and export assets.
-- [ ] Include version and resource manifest in each exported pack.
+- [x] Write Codex skill/instruction assets for protocol v2.
+- [x] Write Claude assets for protocol v2.
+- [x] Write generic Markdown integration instructions.
+- [x] Embed and export assets.
+- [x] Include version and resource manifest in each exported pack.
 
 #### R6.4 Host smoke tests
 
-- [ ] Add a scripted host-agent transcript using only the packaged CLI protocol.
-- [ ] Verify task candidate creation outside internal state.
-- [ ] Verify validation failure remediation.
-- [ ] Verify stale task behavior after a source edit.
-- [ ] Verify no direct internal writes are required.
+- [x] Add a scripted host-agent transcript using only the packaged CLI protocol.
+- [x] Verify task candidate creation outside internal state.
+- [x] Verify validation failure remediation.
+- [x] Verify stale task behavior after a source edit.
+- [x] Verify no direct internal writes are required.
 
-**Deliverables:** Agent protocol v2 implementation and self-contained host asset packs.
+**Deliverables:** Agent protocol v2 implementation and self-contained host asset packs. Complete.
 
-**Exit criteria:** A new Codex or Claude workspace can follow exported instructions and complete a synthetic task.
+**Exit criteria:** Local acceptance passed with 54 Rust tests, Clippy, 20-schema/26-resource checks, a release build,
+and the packaged `smoke_host_agent.sh` workflow. Remote clean-checkout acceptance is pending.
 
 ### Phase R7 — Workflow kernel, evidence, match, and plan
 

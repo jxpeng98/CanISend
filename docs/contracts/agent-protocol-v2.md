@@ -38,6 +38,7 @@ Artifact references contain only an artifact kind, UUIDv7 identity, positive rev
 They contain no filesystem path or private body. Task descriptors declare:
 
 - task identity and lease expiry;
+- subject job identity and exact job revision;
 - actor and execution mode;
 - exact input artifact revisions;
 - one allowed output artifact kind;
@@ -45,9 +46,27 @@ They contain no filesystem path or private body. Task descriptors declare:
 - required consent scopes;
 - the exact private-read scope.
 
-Task completion repeats expected input revisions and carries the candidate JSON. The runtime validates the generated
-Draft 2020-12 schema first, then Rust deserialization and semantic rules. A failed validation cannot be treated as an
-authoritative state transition.
+Task completion repeats the expected job revision and every expected input revision/hash, then carries the candidate
+JSON. The runtime validates the generated Draft 2020-12 schema first, then Rust deserialization and semantic rules.
+A failed validation cannot be treated as an authoritative state transition. Completion rechecks the lease, job
+revision, and artifact heads in an immediate SQLite transaction; a matching replay returns the same artifact, while
+changed context becomes `task.stale`.
+
+The available task lifecycle is:
+
+```text
+canisend --workspace WORKSPACE task prepare --job JOB_ID --operation job-criterion --json
+canisend --workspace WORKSPACE task show TASK_ID --json
+canisend --workspace WORKSPACE task inputs TASK_ID --destination DIRECTORY \
+  --allow-private-read --json
+canisend --workspace WORKSPACE task complete --file COMPLETION.json --json
+canisend --workspace WORKSPACE task complete --stdin --json
+canisend --workspace WORKSPACE task cancel TASK_ID --json
+```
+
+`task inputs` requires explicit `read-private-inputs` confirmation and exports only the descriptor's declared scope
+to a new or empty external directory. Candidate files are capped at 4 MiB; file input must be a regular, non-symlink
+`.json` file. Hosts never need filesystem access to `.canisend/`.
 
 ## Data and consent types
 
@@ -112,6 +131,18 @@ canisend resource list --json
 `schema list` reports canonical schema IDs, versions, resource IDs, sizes, and SHA-256 digests. `resource list`
 reports all compiled host guides, examples, prompts, schemas, and templates. The embedded Codex, Claude, and generic
 guides instruct hosts never to edit `.canisend/` state directly.
+
+Self-contained host packs are exported without a workspace:
+
+```text
+canisend agent assets export --host codex --destination DIRECTORY --json
+canisend agent assets export --host claude --destination DIRECTORY --json
+canisend agent assets export --host generic --destination DIRECTORY --json
+```
+
+Each pack contains its host entrypoint, the task prompt and example, task descriptor/completion/criterion schemas, and
+`canisend-agent-pack.json`. The manifest records pack, product, protocol, and resource versions plus every resource
+ID, path, size, and SHA-256 digest.
 
 Job intake is available through `job create`, `job import JOB_ID --file PATH`, `job import JOB_ID --url URL`,
 `job list`, `job show`, and `job archive`. Import success returns source and artifact references without returning the

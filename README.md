@@ -19,8 +19,8 @@ the Git tag `archive/python-v0.6.0b1-final`.
 
 ## Current status
 
-The Rust rebuild has completed R5, including durable direct intake and the discovery ecosystem. R6 agent
-collaboration is now active. The current binary provides:
+The Rust rebuild has implemented R6, including durable direct intake, discovery, and bounded agent collaboration.
+Clean-checkout acceptance is pending before R7 becomes active. The current binary provides:
 
 - Native `canisend` executable scaffolding.
 - Validated UUIDv7, SHA-256, revision, UTC timestamp, and safe relative-path contract types.
@@ -40,6 +40,12 @@ collaboration is now active. The current binary provides:
 - CSV, JSON, and normalized host-agent discovery imports with dry-run and row-level diagnostics.
 - Public RSS/Atom, jobs.ac.uk, Greenhouse, and Lever adapters over the same bounded SSRF-safe transport.
 - Durable lead identity, freshness, refresh receipts/cursors, retained history, suggestions, and job promotion.
+- Body-free compiled capabilities/context for Codex, Claude, and generic agent hosts.
+- Leased tasks with exact job/artifact revisions, expiry, cancellation, stale detection, and idempotent completion.
+- Bounded candidate JSON from regular files or stdin with schema-first and semantic validation.
+- Explicit-consent export of only declared private inputs into an external task directory.
+- Self-contained versioned Codex, Claude, and generic host packs with prompts, examples, schemas, and SHA-256
+  manifests.
 
 Application workflow, evidence-backed drafting, and embedded PDF rendering are not yet available in the production
 binary. Their execution order and acceptance gates are defined in the
@@ -76,6 +82,15 @@ cargo build --release --locked
   --source-name "University X" --json
 ./target/release/canisend --workspace ./my-workspace discovery list --json
 ./target/release/canisend --workspace ./my-workspace discovery promote LEAD_ID --json
+./target/release/canisend agent assets export --host codex \
+  --destination ./codex-canisend-pack --json
+./target/release/canisend --workspace ./my-workspace agent context --job JOB_ID --json
+./target/release/canisend --workspace ./my-workspace task prepare \
+  --job JOB_ID --operation job-criterion --json
+./target/release/canisend --workspace ./my-workspace task inputs TASK_ID \
+  --destination ./agent-work --allow-private-read --json
+./target/release/canisend --workspace ./my-workspace task complete \
+  --file ./agent-work/completion.json --json
 ./target/release/canisend --workspace ./my-workspace workspace check --json
 ./target/release/canisend --workspace ./my-workspace workspace backup ./my-backup --json
 ```
@@ -93,6 +108,7 @@ cargo run -p xtask -- schemas write
 cargo run -p xtask -- schemas check
 cargo run -p xtask -- resources check
 cargo build --release --locked
+./scripts/smoke_host_agent.sh ./target/release/canisend /tmp/canisend-host-smoke
 ```
 
 No Python interpreter, virtual environment, PyPI package, or Pytest runner participates in these checks.
