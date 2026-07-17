@@ -162,6 +162,17 @@ mod tests {
         assert!(extracted.normalized_text.contains("--- Page 1 ---"));
         assert!(extracted.normalized_text.contains("Lecturer in Economics"));
 
+        let layout = extract_pdf_text(make_layout_pdf()).expect("layout PDF");
+        for expected in [
+            "University X",
+            "Essential criteria",
+            "Desirable criteria",
+            "Teaching",
+            "Research",
+        ] {
+            assert!(layout.normalized_text.contains(expected));
+        }
+
         assert!(matches!(
             extract_pdf_text(b"not a PDF".to_vec()),
             Err(IoAdapterError::PdfMalformed(_))
@@ -191,6 +202,39 @@ mod tests {
     }
 
     fn make_pdf_pages(page_count: usize, text: Option<&str>) -> Vec<u8> {
+        let operations = text.map_or_else(Vec::new, |text| {
+            vec![
+                Operation::new("BT", vec![]),
+                Operation::new("Tf", vec!["F1".into(), 12.into()]),
+                Operation::new("Td", vec![50.into(), 750.into()]),
+                Operation::new("Tj", vec![Object::string_literal(text)]),
+                Operation::new("ET", vec![]),
+            ]
+        });
+        make_pdf_with_operations(page_count, operations)
+    }
+
+    fn make_layout_pdf() -> Vec<u8> {
+        let mut operations = Vec::new();
+        for (x, y, text) in [
+            (50, 760, "University X"),
+            (50, 720, "Essential criteria"),
+            (50, 690, "Teaching"),
+            (310, 720, "Desirable criteria"),
+            (310, 690, "Research"),
+        ] {
+            operations.extend([
+                Operation::new("BT", vec![]),
+                Operation::new("Tf", vec!["F1".into(), 11.into()]),
+                Operation::new("Td", vec![x.into(), y.into()]),
+                Operation::new("Tj", vec![Object::string_literal(text)]),
+                Operation::new("ET", vec![]),
+            ]);
+        }
+        make_pdf_with_operations(1, operations)
+    }
+
+    fn make_pdf_with_operations(page_count: usize, operations: Vec<Operation>) -> Vec<u8> {
         let mut document = Document::with_version("1.5");
         let pages_id = document.new_object_id();
         let font_id = document.add_object(dictionary! {
@@ -201,15 +245,6 @@ mod tests {
         });
         let resources_id = document.add_object(dictionary! {
             "Font" => dictionary! { "F1" => font_id },
-        });
-        let operations = text.map_or_else(Vec::new, |text| {
-            vec![
-                Operation::new("BT", vec![]),
-                Operation::new("Tf", vec!["F1".into(), 12.into()]),
-                Operation::new("Td", vec![50.into(), 750.into()]),
-                Operation::new("Tj", vec![Object::string_literal(text)]),
-                Operation::new("ET", vec![]),
-            ]
         });
         let content_id = document.add_object(Stream::new(
             dictionary! {},
