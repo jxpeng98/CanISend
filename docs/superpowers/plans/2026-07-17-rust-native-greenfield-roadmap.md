@@ -1,6 +1,6 @@
 # CanISend Rust-Native Greenfield Rebuild Roadmap
 
-**Status:** In progress — R0 complete; R1 Rust-only repository cutover active
+**Status:** In progress — R0 and R1 complete; R2 contracts, CLI envelope, and resources active
 
 **Date:** 2026-07-17
 
@@ -34,6 +34,10 @@
 - 2026-07-17: GitHub Actions run `29608591519` passed the locked dependency spike on native Ubuntu, macOS, and
   Windows, including bundled SQLite, schema validation, embedded Typst/PDF extraction, and Rustls HTTPS. R0 exit
   criteria are satisfied; R1 repository cutover is authorized by the roadmap sequence.
+- 2026-07-17: Replaced the active Python product, Pytest suite, legacy schemas/resources, and Python distribution
+  workflows with the Rust workspace and Rust-only CI. GitHub Actions run `29609526692` passed the Python-file guard,
+  formatting, Clippy, seven Rust tests, generated-contract/resource checks, release build, and packaged-binary smoke
+  in 25 seconds with no annotations. R1 exit criteria are satisfied; R2 is active.
 
 ## 1. Executive Decision
 
@@ -1147,10 +1151,10 @@ or rendering, and the dependency families passed their required native matrix.
 #### R1.1 Repository cutover
 
 - [x] Create the dedicated `rewrite/rust-native` branch.
-- [ ] Remove `src/canisend/`, `tests/`, Python scripts, `pyproject.toml`, and Python lock files from the active branch.
-- [ ] Remove Python build, wheel, PyPI, TestPyPI, and Pytest workflows.
-- [ ] Preserve only deliberately reviewed product resources and documentation.
-- [ ] Add a CI check that rejects new required `.py` files and Python package metadata.
+- [x] Remove `src/canisend/`, `tests/`, Python scripts, `pyproject.toml`, and Python lock files from the active branch.
+- [x] Remove Python build, wheel, PyPI, TestPyPI, and Pytest workflows.
+- [x] Preserve only deliberately reviewed product resources and documentation.
+- [x] Add a CI check that rejects new required `.py` files and Python package metadata.
 
 #### R1.2 Cargo workspace
 
@@ -1164,11 +1168,11 @@ or rendering, and the dependency families passed their required native matrix.
 #### R1.3 Engineering policy
 
 - [x] Add `rustfmt.toml`.
-- [ ] Add Clippy policy and deny warnings in Rust CI.
+- [x] Add Clippy policy and deny warnings in Rust CI.
 - [x] Add dependency license/advisory configuration.
-- [ ] Add `CONTRIBUTING.md`, `SECURITY.md`, and Rust development commands.
-- [ ] Define unsafe-code policy; default to `#![forbid(unsafe_code)]` where dependencies and FFI boundaries allow.
-- [ ] Define minimum supported Rust version or explicitly use the pinned stable toolchain only for alpha.
+- [x] Add `CONTRIBUTING.md`, `SECURITY.md`, and Rust development commands.
+- [x] Define unsafe-code policy; default to `#![forbid(unsafe_code)]` where dependencies and FFI boundaries allow.
+- [x] Define minimum supported Rust version or explicitly use the pinned stable toolchain only for alpha.
 
 #### R1.4 Minimal binary
 
@@ -1178,9 +1182,11 @@ or rendering, and the dependency families passed their required native matrix.
 - [x] Add CLI binary contract tests.
 - [x] Add and verify release-profile compilation.
 
-**Deliverables:** Rust-only compiling repository, minimal binary, fast CI.
+**Deliverables:** Rust-only compiling repository, minimal binary, fast CI. Complete.
 
-**Exit criteria:** A clean checkout can run formatting, Clippy, all tests, and `cargo build --release` without Python.
+**Exit criteria:** Satisfied by GitHub Actions run `29609526692`. A clean checkout ran the active-file guard,
+formatting, Clippy, all tests, generated-contract/resource checks, `cargo build --release`, and packaged-binary smoke
+without Python in 25 seconds.
 
 ### Phase R2 — Contracts, CLI envelope, and embedded resources
 

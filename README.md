@@ -19,7 +19,8 @@ the Git tag `archive/python-v0.6.0b1-final`.
 
 ## Current status
 
-The Rust rebuild is in R1 foundation development. The current binary provides:
+The Rust rebuild has completed its R1 repository foundation and is now implementing R2 contracts, CLI envelopes,
+and embedded resources. The current binary provides:
 
 - Native `canisend` executable scaffolding.
 - `canisend.agent/v2` JSON envelopes.

@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-17
 
-**Status:** Foundation implemented alongside the archived Python tree; repository cutover still awaits R0 native CI
+**Status:** Complete
 
 ## Implemented
 
@@ -15,6 +15,10 @@
 - Native `version`, `doctor`, and `agent capabilities` commands.
 - Binary integration tests that require exactly one JSON object on stdout.
 - Rust `xtask` checks for schema generation and embedded resource integrity.
+- Complete removal of the active Python package, Pytest suite, package metadata, scripts, legacy contracts, and
+  Python distribution workflows after preservation in `archive/python-v0.6.0b1-final`.
+- Rust-only CI with an explicit guard against tracked Python product files and package metadata.
+- Native preview build scaffolding for Linux, macOS, and Windows; public publication remains disabled until R11.
 
 ## Evidence
 
@@ -36,6 +40,10 @@ cargo run -p xtask -- resources check
 cargo build --release --locked
 ```
 
+GitHub Actions run `29609526692` repeated the active-file guard, formatting, Clippy, all seven tests,
+schema/resource checks, release build, and native binary smoke from a clean Linux checkout in 25 seconds. The run
+completed without annotations.
+
 The initial stripped release binary was approximately 613 KB before storage, HTTP, PDF, and Typst production
 dependencies are introduced. This number is a foundation baseline, not the final binary-size budget.
 
@@ -47,8 +55,8 @@ Representative JSON results reported:
 - `python_required = false`.
 - One verified embedded resource.
 
-## Boundary still in force
+## Completed boundary
 
-The Python source and Pytest tree remain in the working branch only because the R0 native dependency matrix has not
-finished. They are not referenced by Cargo. After R0 passes, R1 will remove them and replace the active README and CI
-before declaring the repository Rust-only.
+The active branch is Rust-only. Python-era material is available through the archive tag for historical inspection,
+but it is not a product dependency, compatibility target, build input, test input, or release channel. R2 begins
+from the generated-contract and embedded-resource foundation established here.
