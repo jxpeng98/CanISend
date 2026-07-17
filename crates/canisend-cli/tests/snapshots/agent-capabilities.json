@@ -13,7 +13,7 @@
       {"id":"resource.list","status":"available","version":"2.0.0"},
       {"id":"schema.list","status":"available","version":"2.0.0"},
       {"id":"workspace.lifecycle","status":"available","version":"2.0.0"},
-      {"id":"job.intake","status":"planned","version":"2.0.0"},
+      {"id":"job.intake","status":"available","version":"2.0.0"},
       {"id":"discovery.refresh","status":"planned","version":"2.0.0"},
       {"id":"workflow.execute","status":"planned","version":"2.0.0"},
       {"id":"render.pdf","status":"planned","version":"2.0.0"}
@@ -25,6 +25,9 @@
       "workspace.conflict",
       "job.not_found",
       "job.archived",
+      "pdf.encrypted",
+      "pdf.malformed",
+      "pdf_text_unavailable",
       "resource.not_found",
       "resources.integrity_failed",
       "schema.not_found",

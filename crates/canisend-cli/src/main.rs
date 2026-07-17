@@ -9,7 +9,10 @@ use canisend_contracts::{
     SchemaCatalogEntry, SemanticVersion, Sha256Digest, SourceKind, VersionData, WORKSPACE_FORMAT,
 };
 use canisend_core::CapabilityRegistry;
-use canisend_io::{IoAdapterError, read_local_text};
+use canisend_io::{
+    HttpFetcher, IoAdapterError, RemoteDocumentKind, extract_pdf_text, read_local_pdf,
+    read_local_text,
+};
 use canisend_resources::{ResourceId, ResourceKind};
 use canisend_store::{ArtifactService, JobService, NewSource, StoreError, Workspace};
 use clap::{Args, Parser, Subcommand};
@@ -162,8 +165,21 @@ struct JobImportArgs {
     /// Canonical UUIDv7 job ID.
     job_id: String,
     /// UTF-8 Markdown or plain-text job advert.
-    #[arg(long, value_name = "PATH")]
-    file: PathBuf,
+    #[arg(
+        long,
+        value_name = "PATH",
+        required_unless_present = "url",
+        conflicts_with = "url"
+    )]
+    file: Option<PathBuf>,
+    /// Public HTTP(S) job advert URL fetched with SSRF-safe redirect handling.
+    #[arg(
+        long,
+        value_name = "URL",
+        required_unless_present = "file",
+        conflicts_with = "file"
+    )]
+    url: Option<String>,
     #[command(flatten)]
     output: OutputArgs,
 }
@@ -323,7 +339,7 @@ fn execute(cli: Cli) -> CommandResult<CommandOutput> {
         } => job_create(workspace, arguments),
         Command::Job {
             command: JobCommand::Import(arguments),
-        } => job_import_file(workspace, arguments),
+        } => job_import(workspace, arguments),
         Command::Job {
             command: JobCommand::List(arguments),
         } => job_list(workspace, arguments.include_archived),
@@ -652,17 +668,32 @@ fn job_create(
     )
 }
 
-fn job_import_file(
+fn job_import(
     workspace_path: Option<PathBuf>,
     arguments: JobImportArgs,
 ) -> CommandResult<CommandOutput> {
     let job_id = parse_entity_id("job.import", &arguments.job_id)?;
-    let document = read_local_text(&arguments.file)
-        .map_err(|error| io_adapter_failure("job.import", error))?;
-    let mut workspace = open_workspace(workspace_path, "job.import")?;
-    let record = JobService::new(&mut workspace.database, &workspace.blobs)
-        .import_source(
-            &job_id,
+    let source = if let Some(path) = arguments.file {
+        if path
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .is_some_and(|extension| extension.eq_ignore_ascii_case("pdf"))
+        {
+            let document =
+                read_local_pdf(&path).map_err(|error| io_adapter_failure("job.import", error))?;
+            NewSource {
+                kind: SourceKind::LocalFile,
+                original_bytes: document.original_bytes,
+                normalized_text: document.normalized_text,
+                source_url: None,
+                final_url: None,
+                content_type: "application/pdf".to_owned(),
+                redirect_chain: Vec::new(),
+                privacy: PrivacyClassification::PrivateLocal,
+            }
+        } else {
+            let document =
+                read_local_text(&path).map_err(|error| io_adapter_failure("job.import", error))?;
             NewSource {
                 kind: SourceKind::LocalFile,
                 original_bytes: document.original_bytes,
@@ -672,9 +703,43 @@ fn job_import_file(
                 content_type: document.content_type.to_owned(),
                 redirect_chain: Vec::new(),
                 privacy: PrivacyClassification::PrivateLocal,
-            },
-            ActorKind::User,
-        )
+            }
+        }
+    } else if let Some(url) = arguments.url {
+        let document = HttpFetcher::new()
+            .fetch(&url)
+            .map_err(|error| io_adapter_failure("job.import", error))?;
+        let normalized_text = if document.kind == RemoteDocumentKind::Pdf {
+            extract_pdf_text(document.original_bytes.clone())
+                .map_err(|error| io_adapter_failure("job.import", error))?
+                .normalized_text
+        } else {
+            document
+                .normalized_text
+                .ok_or_else(|| io_adapter_failure("job.import", IoAdapterError::TextUnavailable))?
+        };
+        NewSource {
+            kind: SourceKind::UserUrl,
+            original_bytes: document.original_bytes,
+            normalized_text,
+            source_url: Some(document.source_url),
+            final_url: Some(document.final_url),
+            content_type: document.content_type,
+            redirect_chain: document.redirect_chain,
+            privacy: PrivacyClassification::PrivateLocal,
+        }
+    } else {
+        return Err(CommandFailure::new(
+            "job.import",
+            "invalid",
+            ErrorCode::InputInvalid,
+            "exactly one of --file or --url is required",
+            false,
+        ));
+    };
+    let mut workspace = open_workspace(workspace_path, "job.import")?;
+    let record = JobService::new(&mut workspace.database, &workspace.blobs)
+        .import_source(&job_id, source, ActorKind::User)
         .map_err(|error| store_failure("job.import", error))?;
     success(
         "job.import",
@@ -775,14 +840,31 @@ fn parse_entity_id(operation: &'static str, value: &str) -> CommandResult<Entity
 
 fn io_adapter_failure(operation: &'static str, error: IoAdapterError) -> Box<CommandFailure> {
     let (status, code, retryable) = match &error {
+        IoAdapterError::PdfEncrypted => ("invalid", ErrorCode::PdfEncrypted, false),
+        IoAdapterError::PdfMalformed(_) | IoAdapterError::PdfPageLimit { .. } => {
+            ("invalid", ErrorCode::PdfMalformed, false)
+        }
+        IoAdapterError::PdfTextUnavailable => {
+            ("text-unavailable", ErrorCode::PdfTextUnavailable, false)
+        }
         IoAdapterError::Io { .. } => ("io-failed", ErrorCode::ExternalIoFailed, true),
+        IoAdapterError::Http(_)
+        | IoAdapterError::ResponseRead(_)
+        | IoAdapterError::DnsResolution(_)
+        | IoAdapterError::HttpStatus(_) => ("fetch-failed", ErrorCode::ExternalIoFailed, true),
         IoAdapterError::UnsafeLocalFile(_) | IoAdapterError::UnsupportedLocalType(_) => {
             ("invalid", ErrorCode::InputPathRejected, false)
         }
         IoAdapterError::InputTooLarge { .. }
         | IoAdapterError::InvalidTextEncoding
         | IoAdapterError::UnsafeTextControlCharacter
-        | IoAdapterError::TextUnavailable => ("invalid", ErrorCode::InputInvalid, false),
+        | IoAdapterError::TextUnavailable
+        | IoAdapterError::InvalidUrl(_)
+        | IoAdapterError::UrlPolicy(_)
+        | IoAdapterError::InvalidRedirect(_)
+        | IoAdapterError::UnsupportedContentType(_)
+        | IoAdapterError::Html(_)
+        | IoAdapterError::PdfTimeBudget => ("invalid", ErrorCode::InputInvalid, false),
     };
     CommandFailure::new(operation, status, code, error.to_string(), retryable)
 }

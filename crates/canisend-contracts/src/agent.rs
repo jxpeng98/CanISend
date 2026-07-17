@@ -57,6 +57,12 @@ pub enum ErrorCode {
     JobNotFound,
     #[serde(rename = "job.archived")]
     JobArchived,
+    #[serde(rename = "pdf.encrypted")]
+    PdfEncrypted,
+    #[serde(rename = "pdf.malformed")]
+    PdfMalformed,
+    #[serde(rename = "pdf_text_unavailable")]
+    PdfTextUnavailable,
     #[serde(rename = "resource.not_found")]
     ResourceNotFound,
     #[serde(rename = "resources.integrity_failed")]
@@ -86,13 +92,16 @@ pub enum ErrorCode {
 }
 
 impl ErrorCode {
-    pub const ALL: [Self; 19] = [
+    pub const ALL: [Self; 22] = [
         Self::InputInvalid,
         Self::InputPathRejected,
         Self::WorkspaceNotFound,
         Self::WorkspaceConflict,
         Self::JobNotFound,
         Self::JobArchived,
+        Self::PdfEncrypted,
+        Self::PdfMalformed,
+        Self::PdfTextUnavailable,
         Self::ResourceNotFound,
         Self::ResourcesIntegrityFailed,
         Self::SchemaNotFound,
@@ -122,6 +131,9 @@ impl ErrorCode {
             Self::ResourcesIntegrityFailed | Self::InternalInvariantFailed => ExitClass::Internal,
             Self::InputInvalid
             | Self::InputPathRejected
+            | Self::PdfEncrypted
+            | Self::PdfMalformed
+            | Self::PdfTextUnavailable
             | Self::ResourceNotFound
             | Self::SchemaNotFound
             | Self::CandidateSchemaInvalid
@@ -140,6 +152,9 @@ impl ErrorCode {
             Self::WorkspaceConflict => "workspace.conflict",
             Self::JobNotFound => "job.not_found",
             Self::JobArchived => "job.archived",
+            Self::PdfEncrypted => "pdf.encrypted",
+            Self::PdfMalformed => "pdf.malformed",
+            Self::PdfTextUnavailable => "pdf_text_unavailable",
             Self::ResourceNotFound => "resource.not_found",
             Self::ResourcesIntegrityFailed => "resources.integrity_failed",
             Self::SchemaNotFound => "schema.not_found",

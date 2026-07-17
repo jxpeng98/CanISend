@@ -115,7 +115,7 @@ fn capabilities_distinguish_available_from_planned_work() {
     assert!(
         capabilities
             .iter()
-            .any(|item| { item["id"] == "job.intake" && item["status"] == "planned" })
+            .any(|item| { item["id"] == "job.intake" && item["status"] == "available" })
     );
 }
 
@@ -263,6 +263,51 @@ fn native_job_commands_import_original_and_normalized_local_text() {
         imported["data"]["normalized_text"]["sha256"]
     );
 
+    let pdf = input.path().join("advert.pdf");
+    write_pdf(&pdf, Some("Text PDF job advert"));
+    let pdf_imported = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "job",
+        "import",
+        job_id,
+        "--file",
+        pdf.to_str().expect("PDF path is UTF-8"),
+        "--json",
+    ]);
+    assert_eq!(pdf_imported["data"]["content_type"], "application/pdf");
+
+    let image_only = input.path().join("image-only.pdf");
+    write_pdf(&image_only, None);
+    let unavailable = run(&[
+        "--workspace",
+        workspace.text(),
+        "job",
+        "import",
+        job_id,
+        "--file",
+        image_only.to_str().expect("image-only path is UTF-8"),
+        "--json",
+    ]);
+    assert_eq!(unavailable.status.code(), Some(3));
+    assert!(unavailable.stderr.is_empty());
+    let unavailable: Value =
+        serde_json::from_slice(&unavailable.stdout).expect("PDF error is JSON");
+    assert_eq!(unavailable["error"]["code"], "pdf_text_unavailable");
+
+    let private_url = run(&[
+        "--workspace",
+        workspace.text(),
+        "job",
+        "import",
+        job_id,
+        "--url",
+        "http://127.0.0.1:9/private",
+        "--json",
+    ]);
+    assert_eq!(private_url.status.code(), Some(3));
+    assert!(private_url.stderr.is_empty());
+
     let shown = run_json(&[
         "--workspace",
         workspace.text(),
@@ -271,8 +316,8 @@ fn native_job_commands_import_original_and_normalized_local_text() {
         job_id,
         "--json",
     ]);
-    assert_eq!(shown["data"]["job"]["revision"], 2);
-    assert_eq!(shown["data"]["sources"].as_array().map(Vec::len), Some(1));
+    assert_eq!(shown["data"]["job"]["revision"], 3);
+    assert_eq!(shown["data"]["sources"].as_array().map(Vec::len), Some(2));
     let listed = run_json(&["--workspace", workspace.text(), "job", "list", "--json"]);
     assert_eq!(listed["data"]["jobs"].as_array().map(Vec::len), Some(1));
 
@@ -296,5 +341,61 @@ fn native_job_commands_import_original_and_normalized_local_text() {
         "--json",
     ]);
     assert_eq!(all["data"]["jobs"].as_array().map(Vec::len), Some(1));
-    assert_eq!(all["data"]["jobs"][0]["revision"], 3);
+    assert_eq!(all["data"]["jobs"][0]["revision"], 4);
+}
+
+fn write_pdf(path: &std::path::Path, text: Option<&str>) {
+    use lopdf::{
+        Document, Object, Stream,
+        content::{Content, Operation},
+        dictionary,
+    };
+
+    let mut document = Document::with_version("1.5");
+    let pages_id = document.new_object_id();
+    let font_id = document.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "Type1",
+        "BaseFont" => "Helvetica",
+        "Encoding" => "WinAnsiEncoding"
+    });
+    let resources_id = document.add_object(dictionary! {
+        "Font" => dictionary! { "F1" => font_id },
+    });
+    let content = Content {
+        operations: text.map_or_else(Vec::new, |text| {
+            vec![
+                Operation::new("BT", vec![]),
+                Operation::new("Tf", vec!["F1".into(), 12.into()]),
+                Operation::new("Td", vec![50.into(), 750.into()]),
+                Operation::new("Tj", vec![Object::string_literal(text)]),
+                Operation::new("ET", vec![]),
+            ]
+        }),
+    };
+    let content_id = document.add_object(Stream::new(
+        dictionary! {},
+        content.encode().expect("PDF content"),
+    ));
+    let page_id = document.add_object(dictionary! {
+        "Type" => "Page",
+        "Parent" => pages_id,
+        "Contents" => content_id,
+        "Resources" => resources_id,
+        "MediaBox" => vec![0.into(), 0.into(), 612.into(), 792.into()],
+    });
+    document.objects.insert(
+        pages_id,
+        Object::Dictionary(dictionary! {
+            "Type" => "Pages",
+            "Kids" => vec![page_id.into()],
+            "Count" => 1,
+        }),
+    );
+    let catalog_id = document.add_object(dictionary! {
+        "Type" => "Catalog",
+        "Pages" => pages_id,
+    });
+    document.trailer.set("Root", catalog_id);
+    document.save(path).expect("write text PDF");
 }

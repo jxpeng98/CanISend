@@ -17,7 +17,7 @@ impl CapabilityRegistry {
             available("resource.list"),
             available("schema.list"),
             available("workspace.lifecycle"),
-            planned("job.intake"),
+            available("job.intake"),
             planned("discovery.refresh"),
             planned("workflow.execute"),
             planned("render.pdf"),
@@ -60,7 +60,7 @@ mod tests {
         }));
         assert!(
             capabilities.iter().any(|item| {
-                item.id == "job.intake" && item.status == CapabilityStatus::Planned
+                item.id == "job.intake" && item.status == CapabilityStatus::Available
             })
         );
     }

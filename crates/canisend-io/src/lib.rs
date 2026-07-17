@@ -1,6 +1,8 @@
 #![forbid(unsafe_code)]
 
 mod local;
+mod pdf;
+mod remote;
 
 use std::path::PathBuf;
 
@@ -9,6 +11,8 @@ use thiserror::Error;
 pub use local::{
     LocalTextDocument, LocalTextKind, MAX_LOCAL_SOURCE_BYTES, normalize_utf8_text, read_local_text,
 };
+pub use pdf::{MAX_PDF_PAGES, PdfTextDocument, extract_pdf_text, read_local_pdf};
+pub use remote::{HttpFetcher, MAX_REMOTE_SOURCE_BYTES, RemoteDocument, RemoteDocumentKind};
 
 #[derive(Debug, Error)]
 pub enum IoAdapterError {
@@ -30,4 +34,34 @@ pub enum IoAdapterError {
     UnsafeTextControlCharacter,
     #[error("no usable text was available in the input")]
     TextUnavailable,
+    #[error("URL is invalid: {0}")]
+    InvalidUrl(String),
+    #[error("URL is forbidden by the network policy: {0}")]
+    UrlPolicy(String),
+    #[error("DNS resolution failed for {0}")]
+    DnsResolution(String),
+    #[error("HTTP request failed: {0}")]
+    Http(#[from] reqwest::Error),
+    #[error("HTTP response body read failed: {0}")]
+    ResponseRead(#[source] std::io::Error),
+    #[error("HTTP response returned unsupported status {0}")]
+    HttpStatus(u16),
+    #[error("HTTP redirect is invalid: {0}")]
+    InvalidRedirect(String),
+    #[error("HTTP response content type is unsupported or misleading: {0}")]
+    UnsupportedContentType(String),
+    #[error("HTML parsing failed: {0}")]
+    Html(String),
+    #[error("PDF is encrypted and cannot be imported without a password")]
+    PdfEncrypted,
+    #[error("PDF is malformed or extraction failed: {0}")]
+    PdfMalformed(String),
+    #[error(
+        "pdf_text_unavailable: PDF contains no extractable text; provide a text-based PDF, Markdown, or plain text"
+    )]
+    PdfTextUnavailable,
+    #[error("PDF has {actual} pages, exceeding the configured {limit}-page limit")]
+    PdfPageLimit { limit: usize, actual: usize },
+    #[error("PDF extraction exceeded the configured time budget")]
+    PdfTimeBudget,
 }
