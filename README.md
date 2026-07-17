@@ -71,6 +71,9 @@ cargo build --release --locked
 ./target/release/canisend --workspace ./my-workspace job import JOB_ID \
   --url https://example.edu/job-advert --json
 ./target/release/canisend --workspace ./my-workspace job show JOB_ID --json
+./target/release/canisend --workspace ./my-workspace profile source add \
+  --file ./profile-evidence.json --json
+./target/release/canisend --workspace ./my-workspace profile source list --json
 ./target/release/canisend discovery adapters --json
 ./target/release/canisend discovery import --file ./leads.csv \
   --source-name "University export" --dry-run --json

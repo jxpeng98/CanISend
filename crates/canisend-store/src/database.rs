@@ -7,12 +7,13 @@ use rusqlite::{
 
 use crate::{StoreError, now_utc};
 
-pub const DATABASE_SCHEMA_VERSION: u32 = 5;
+pub const DATABASE_SCHEMA_VERSION: u32 = 6;
 const INITIAL_MIGRATION: &str = include_str!("../migrations/0001_initial.sql");
 const INTAKE_MIGRATION: &str = include_str!("../migrations/0002_job_intake.sql");
 const DISCOVERY_MIGRATION: &str = include_str!("../migrations/0003_discovery.sql");
 const AGENT_TASK_MIGRATION: &str = include_str!("../migrations/0004_agent_tasks.sql");
 const WORKFLOW_KERNEL_MIGRATION: &str = include_str!("../migrations/0005_workflow_kernel.sql");
+const PROFILE_SOURCES_MIGRATION: &str = include_str!("../migrations/0006_profile_sources.sql");
 
 pub struct Database {
     connection: Connection,
@@ -71,6 +72,11 @@ impl Database {
         if version == 4 {
             let applied_at = now_utc()?;
             self.apply_migration(5, WORKFLOW_KERNEL_MIGRATION, &applied_at)?;
+            version = 5;
+        }
+        if version == 5 {
+            let applied_at = now_utc()?;
+            self.apply_migration(6, PROFILE_SOURCES_MIGRATION, &applied_at)?;
         }
         Ok(())
     }
@@ -306,7 +312,7 @@ mod tests {
             .connection
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .expect("schema version");
-        assert_eq!(version, 5);
+        assert_eq!(version, 6);
         let revision_column: i64 = database
             .connection
             .query_row(
@@ -344,6 +350,16 @@ mod tests {
             )
             .expect("workflow output column");
         assert_eq!(workflow_output_column, 1);
+        let profile_revision_column: i64 = database
+            .connection
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('workspace_metadata')
+                 WHERE name = 'profile_revision'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("profile revision column");
+        assert_eq!(profile_revision_column, 1);
         drop(database);
         let _ = fs::remove_file(path);
     }

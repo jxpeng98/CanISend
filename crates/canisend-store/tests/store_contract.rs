@@ -7,12 +7,13 @@ use std::{
 
 use canisend_contracts::{
     ActorKind, ArtifactKind, ArtifactReference, EntityId, ExecutionMode, ExpectedInputRevision,
-    PrivacyClassification, Revision, SafeRelativePath, Sha256Digest, SourceKind,
+    PrivacyClassification, ProfileSourceKind, Revision, SafeRelativePath, Sha256Digest, SourceKind,
     StageExecutionStatus, TaskCompletionRequest, TaskStatus, WorkflowStage,
 };
 use canisend_store::{
-    ArtifactService, CriteriaService, DEFAULT_MAX_BLOB_BYTES, JobService, NewSource, StoreError,
-    TaskService, WorkflowService, Workspace, WorkspacePaths, verify_backup,
+    ArtifactService, CriteriaService, DEFAULT_MAX_BLOB_BYTES, JobService, NewProfileSource,
+    NewSource, ProfileService, StoreError, TaskService, WorkflowService, Workspace, WorkspacePaths,
+    verify_backup,
 };
 use serde_json::json;
 
@@ -54,7 +55,7 @@ fn workspace_init_discovery_status_and_check_are_consistent() {
     assert_eq!(discovered.root, root.path());
     assert_eq!(
         workspace.status().expect("status").database_schema_version,
-        5
+        6
     );
     let check = workspace.check().expect("workspace check");
     assert!(check.ok);
@@ -164,6 +165,101 @@ fn jobs_and_local_sources_are_revisioned_without_identity_merging() {
         Err(StoreError::JobArchived(_))
     ));
     assert_ne!(first.id, second.id);
+}
+
+#[test]
+fn profile_sources_are_private_revisioned_and_invalidate_evidence_only() {
+    let root = TestDirectory::new("profile-source");
+    let mut workspace = Workspace::init(root.path()).expect("workspace");
+    assert_eq!(
+        ProfileService::new(&mut workspace.database, &workspace.blobs)
+            .revision()
+            .expect("empty profile revision"),
+        0
+    );
+    let imported = ProfileService::new(&mut workspace.database, &workspace.blobs)
+        .import_source(
+            NewProfileSource {
+                kind: ProfileSourceKind::Markdown,
+                original_bytes: b"# Profile\nPhD in Economics\n".to_vec(),
+                normalized_text: "# Profile\nPhD in Economics\n".to_owned(),
+                content_type: "text/markdown; charset=utf-8".to_owned(),
+                sensitivity: PrivacyClassification::PrivateLocal,
+            },
+            ActorKind::User,
+        )
+        .expect("profile source");
+    assert_eq!(imported.revision.get(), 1);
+    assert_eq!(
+        ProfileService::new(&mut workspace.database, &workspace.blobs)
+            .revision()
+            .expect("profile revision"),
+        1
+    );
+    let listed = ProfileService::new(&mut workspace.database, &workspace.blobs)
+        .list_sources()
+        .expect("profile sources");
+    assert_eq!(listed, vec![imported.clone()]);
+    assert!(
+        !serde_json::to_string(&listed)
+            .expect("profile metadata JSON")
+            .contains("PhD in Economics")
+    );
+
+    let job = JobService::new(&mut workspace.database, &workspace.blobs)
+        .create("Lecturer", "University X", ActorKind::User)
+        .expect("job");
+    JobService::new(&mut workspace.database, &workspace.blobs)
+        .import_source(
+            &job.id,
+            NewSource {
+                kind: SourceKind::LocalFile,
+                original_bytes: b"Teach economics".to_vec(),
+                normalized_text: "Teach economics\n".to_owned(),
+                source_url: None,
+                final_url: None,
+                content_type: "text/plain; charset=utf-8".to_owned(),
+                redirect_chain: Vec::new(),
+                privacy: PrivacyClassification::PrivateLocal,
+            },
+            ActorKind::User,
+        )
+        .expect("job source");
+    WorkflowService::new(&mut workspace.database)
+        .start(&job.id)
+        .expect("workflow");
+    WorkflowService::new(&mut workspace.database)
+        .begin_stage(
+            &job.id,
+            WorkflowStage::Evidence,
+            ExecutionMode::HostAgent,
+            ActorKind::HostAgent,
+        )
+        .expect("running evidence");
+    ProfileService::new(&mut workspace.database, &workspace.blobs)
+        .import_source(
+            NewProfileSource {
+                kind: ProfileSourceKind::Json,
+                original_bytes: b"{\"teaching\":\"Econometrics\"}\n".to_vec(),
+                normalized_text: "{\"teaching\":\"Econometrics\"}\n".to_owned(),
+                content_type: "application/json; charset=utf-8".to_owned(),
+                sensitivity: PrivacyClassification::PrivateLocal,
+            },
+            ActorKind::User,
+        )
+        .expect("second profile source");
+    let status = WorkflowService::new(&mut workspace.database)
+        .status(&job.id)
+        .expect("workflow status");
+    assert_eq!(
+        workflow_stage_status(&status, WorkflowStage::Evidence),
+        StageExecutionStatus::Ready
+    );
+    assert_eq!(
+        workflow_stage_status(&status, WorkflowStage::Parse),
+        StageExecutionStatus::Ready,
+        "profile changes must not invalidate the independent job parse branch"
+    );
 }
 
 #[test]

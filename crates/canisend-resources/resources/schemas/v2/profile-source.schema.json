@@ -1,0 +1,112 @@
+{
+  "$defs": {
+    "ArtifactKind": {
+      "enum": [
+        "source-original",
+        "source-normalized-text",
+        "parsed-job",
+        "evidence-catalog",
+        "criteria",
+        "evidence-matches",
+        "application-plan",
+        "cover-letter",
+        "research-statement",
+        "teaching-statement",
+        "cv",
+        "review-findings",
+        "package-manifest",
+        "typst-source",
+        "pdf"
+      ],
+      "type": "string"
+    },
+    "ArtifactReference": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/ArtifactKind"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sha256": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "revision",
+        "sha256"
+      ],
+      "type": "object"
+    },
+    "PrivacyClassification": {
+      "enum": [
+        "public",
+        "private-local",
+        "provider-bound",
+        "secret"
+      ],
+      "type": "string"
+    },
+    "ProfileSourceKind": {
+      "enum": [
+        "markdown",
+        "plain-text",
+        "json"
+      ],
+      "type": "string"
+    }
+  },
+  "$id": "https://schemas.canisend.dev/v2/profile-source.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "content_type": {
+      "type": "string"
+    },
+    "created_at": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string"
+    },
+    "kind": {
+      "$ref": "#/$defs/ProfileSourceKind"
+    },
+    "normalized_text": {
+      "$ref": "#/$defs/ArtifactReference"
+    },
+    "original": {
+      "$ref": "#/$defs/ArtifactReference"
+    },
+    "revision": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "sensitivity": {
+      "$ref": "#/$defs/PrivacyClassification"
+    }
+  },
+  "required": [
+    "id",
+    "kind",
+    "original",
+    "normalized_text",
+    "content_type",
+    "sensitivity",
+    "created_at",
+    "revision"
+  ],
+  "title": "ProfileSourceRecord",
+  "type": "object",
+  "x-canisend-id": "canisend.profile-source/v2",
+  "x-canisend-version": "2.0.0"
+}

@@ -57,6 +57,8 @@ pub enum ErrorCode {
     JobNotFound,
     #[serde(rename = "job.archived")]
     JobArchived,
+    #[serde(rename = "profile.source_not_found")]
+    ProfileSourceNotFound,
     #[serde(rename = "discovery.source_not_found")]
     DiscoverySourceNotFound,
     #[serde(rename = "discovery.lead_not_found")]
@@ -102,13 +104,14 @@ pub enum ErrorCode {
 }
 
 impl ErrorCode {
-    pub const ALL: [Self; 27] = [
+    pub const ALL: [Self; 28] = [
         Self::InputInvalid,
         Self::InputPathRejected,
         Self::WorkspaceNotFound,
         Self::WorkspaceConflict,
         Self::JobNotFound,
         Self::JobArchived,
+        Self::ProfileSourceNotFound,
         Self::DiscoverySourceNotFound,
         Self::DiscoveryLeadNotFound,
         Self::DiscoveryConflict,
@@ -139,6 +142,7 @@ impl ErrorCode {
             | Self::WorkspaceConflict
             | Self::JobNotFound
             | Self::JobArchived
+            | Self::ProfileSourceNotFound
             | Self::DiscoverySourceNotFound
             | Self::DiscoveryLeadNotFound
             | Self::DiscoveryConflict
@@ -172,6 +176,7 @@ impl ErrorCode {
             Self::WorkspaceConflict => "workspace.conflict",
             Self::JobNotFound => "job.not_found",
             Self::JobArchived => "job.archived",
+            Self::ProfileSourceNotFound => "profile.source_not_found",
             Self::DiscoverySourceNotFound => "discovery.source_not_found",
             Self::DiscoveryLeadNotFound => "discovery.lead_not_found",
             Self::DiscoveryConflict => "discovery.conflict",

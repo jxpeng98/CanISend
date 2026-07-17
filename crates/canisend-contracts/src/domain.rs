@@ -24,6 +24,14 @@ pub enum SourceKind {
     ManualText,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum ProfileSourceKind {
+    Markdown,
+    PlainText,
+    Json,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct JobRecord {
@@ -50,6 +58,19 @@ pub struct SourceRecord {
     pub redirect_chain: Vec<String>,
     pub retrieved_at: UtcTimestamp,
     pub privacy: PrivacyClassification,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ProfileSourceRecord {
+    pub id: EntityId,
+    pub kind: ProfileSourceKind,
+    pub original: ArtifactReference,
+    pub normalized_text: ArtifactReference,
+    pub content_type: String,
+    pub sensitivity: PrivacyClassification,
+    pub created_at: UtcTimestamp,
+    pub revision: Revision,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

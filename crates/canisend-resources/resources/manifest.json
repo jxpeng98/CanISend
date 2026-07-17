@@ -19,6 +19,7 @@
   {"id":"schema.finding","kind":"schema","path":"schemas/v2/finding.schema.json","version":"2.0.0"},
   {"id":"schema.job","kind":"schema","path":"schemas/v2/job.schema.json","version":"2.0.0"},
   {"id":"schema.parsed-job","kind":"schema","path":"schemas/v2/parsed-job.schema.json","version":"2.0.0"},
+  {"id":"schema.profile-source","kind":"schema","path":"schemas/v2/profile-source.schema.json","version":"2.0.0"},
   {"id":"schema.readiness","kind":"schema","path":"schemas/v2/readiness.schema.json","version":"2.0.0"},
   {"id":"schema.source","kind":"schema","path":"schemas/v2/source.schema.json","version":"2.0.0"},
   {"id":"schema.task-completion","kind":"schema","path":"schemas/v2/task-completion.schema.json","version":"2.0.0"},

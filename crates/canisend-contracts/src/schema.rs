@@ -8,8 +8,8 @@ use crate::{
     AgentContextData, AgentResponse, ApplicationPlanRecord, BackupManifestData, CapabilitiesData,
     CriteriaSetRecord, CriterionRecord, DiscoveryBatch, DiscoveryLeadRecord, DocumentRecord,
     EvidenceMatchRecord, EvidenceRecord, FindingRecord, JobRecord, ParsedJobRecord,
-    ReadinessRecord, SourceRecord, TaskCompletionRequest, TaskDescriptor, VersionData,
-    WorkflowStatusData, WorkspaceCheckData, WorkspaceStatusData,
+    ProfileSourceRecord, ReadinessRecord, SourceRecord, TaskCompletionRequest, TaskDescriptor,
+    VersionData, WorkflowStatusData, WorkspaceCheckData, WorkspaceStatusData,
 };
 
 pub const PUBLIC_SCHEMA_VERSION: &str = "2.0.0";
@@ -41,10 +41,11 @@ pub enum PublicSchemaId {
     WorkflowStatus,
     ParsedJob,
     CriteriaSet,
+    ProfileSource,
 }
 
 impl PublicSchemaId {
-    pub const ALL: [Self; 23] = [
+    pub const ALL: [Self; 24] = [
         Self::AgentResponse,
         Self::Capabilities,
         Self::AgentContext,
@@ -68,6 +69,7 @@ impl PublicSchemaId {
         Self::WorkflowStatus,
         Self::ParsedJob,
         Self::CriteriaSet,
+        Self::ProfileSource,
     ];
 
     #[must_use]
@@ -96,6 +98,7 @@ impl PublicSchemaId {
             Self::WorkflowStatus => "canisend.workflow-status/v2",
             Self::ParsedJob => "canisend.parsed-job/v2",
             Self::CriteriaSet => "canisend.criteria/v2",
+            Self::ProfileSource => "canisend.profile-source/v2",
         }
     }
 
@@ -125,6 +128,7 @@ impl PublicSchemaId {
             Self::WorkflowStatus => "workflow-status",
             Self::ParsedJob => "parsed-job",
             Self::CriteriaSet => "criteria",
+            Self::ProfileSource => "profile-source",
         }
     }
 
@@ -181,6 +185,7 @@ pub fn generate_public_schemas() -> Vec<GeneratedSchema> {
         generate::<WorkflowStatusData>(PublicSchemaId::WorkflowStatus),
         generate::<ParsedJobRecord>(PublicSchemaId::ParsedJob),
         generate::<CriteriaSetRecord>(PublicSchemaId::CriteriaSet),
+        generate::<ProfileSourceRecord>(PublicSchemaId::ProfileSource),
     ]
 }
 

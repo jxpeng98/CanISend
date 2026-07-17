@@ -162,7 +162,7 @@ fn public_catalogs_are_available_without_a_workspace() {
 
     assert_eq!(
         schemas["data"]["schemas"].as_array().map(Vec::len),
-        Some(23)
+        Some(24)
     );
     assert!(
         resources["data"]["resources"]
@@ -428,6 +428,58 @@ fn native_job_commands_import_original_and_normalized_local_text() {
     ]);
     assert_eq!(all["data"]["jobs"].as_array().map(Vec::len), Some(1));
     assert_eq!(all["data"]["jobs"][0]["revision"], 4);
+}
+
+#[test]
+fn profile_source_commands_import_json_without_returning_private_bodies() {
+    let workspace = TestDirectory::new("profile-workspace");
+    let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../fixtures/v2-spec/profile-evidence.json");
+    run_json(&[
+        "--workspace",
+        workspace.text(),
+        "workspace",
+        "init",
+        "--json",
+    ]);
+    let imported = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "profile",
+        "source",
+        "add",
+        "--file",
+        fixture.to_str().expect("profile fixture path"),
+        "--json",
+    ]);
+    assert_eq!(imported["status"], "imported");
+    assert_eq!(imported["data"]["kind"], "json");
+    assert_eq!(imported["data"]["sensitivity"], "private-local");
+    assert!(
+        !serde_json::to_string(&imported)
+            .expect("profile response")
+            .contains("PhD in Economics awarded")
+    );
+    let source_id = imported["data"]["id"].as_str().expect("source ID");
+    let listed = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "profile",
+        "source",
+        "list",
+        "--json",
+    ]);
+    assert_eq!(listed["data"]["sources"].as_array().map(Vec::len), Some(1));
+    let shown = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "profile",
+        "source",
+        "show",
+        source_id,
+        "--json",
+    ]);
+    assert_eq!(shown["data"], imported["data"]);
 }
 
 #[test]

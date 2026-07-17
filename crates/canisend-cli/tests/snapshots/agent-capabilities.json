@@ -33,6 +33,7 @@
       "workspace.conflict",
       "job.not_found",
       "job.archived",
+      "profile.source_not_found",
       "discovery.source_not_found",
       "discovery.lead_not_found",
       "discovery.conflict",

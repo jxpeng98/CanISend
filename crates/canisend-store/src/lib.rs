@@ -8,6 +8,7 @@ mod criteria;
 mod database;
 mod discovery;
 mod job;
+mod profile;
 mod task;
 mod workflow;
 mod workspace;
@@ -25,6 +26,7 @@ pub use criteria::CriteriaService;
 pub use database::{DATABASE_SCHEMA_VERSION, Database};
 pub use discovery::DiscoveryService;
 pub use job::{JobService, NewSource};
+pub use profile::{NewProfileSource, ProfileService};
 pub use task::TaskService;
 pub use workflow::WorkflowService;
 pub use workspace::{Workspace, WorkspaceConfig, WorkspacePaths};
@@ -80,6 +82,8 @@ pub enum StoreError {
     JobNotFound(String),
     #[error("job is archived: {0}")]
     JobArchived(String),
+    #[error("profile source was not found: {0}")]
+    ProfileSourceNotFound(String),
     #[error("discovery source was not found: {0}")]
     DiscoverySourceNotFound(String),
     #[error("discovery lead was not found: {0}")]

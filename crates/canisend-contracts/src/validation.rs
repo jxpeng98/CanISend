@@ -5,7 +5,8 @@ use thiserror::Error;
 
 use crate::{
     ApplicationPlanRecord, CriteriaSetRecord, CriterionRecord, DocumentRecord, EvidenceMatchRecord,
-    EvidenceRecord, FindingRecord, JobRecord, ParsedJobRecord, ReadinessRecord, SourceRecord,
+    EvidenceRecord, FindingRecord, JobRecord, ParsedJobRecord, ProfileSourceRecord,
+    ReadinessRecord, SourceRecord,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
@@ -127,6 +128,28 @@ impl SemanticValidate for SourceRecord {
                 "source.url_required",
                 "/source_url",
                 "a user URL source requires an http or https URL",
+            ));
+        }
+        violations
+    }
+}
+
+impl SemanticValidate for ProfileSourceRecord {
+    fn validate_semantics(&self) -> Vec<ContractViolation> {
+        let mut violations = Vec::new();
+        required_text(&self.content_type, "/content_type", &mut violations);
+        if self.original.kind != crate::ArtifactKind::SourceOriginal {
+            violations.push(ContractViolation::new(
+                "profile_source.original_kind_invalid",
+                "/original/kind",
+                "profile original must reference source-original",
+            ));
+        }
+        if self.normalized_text.kind != crate::ArtifactKind::SourceNormalizedText {
+            violations.push(ContractViolation::new(
+                "profile_source.normalized_kind_invalid",
+                "/normalized_text/kind",
+                "profile text must reference source-normalized-text",
             ));
         }
         violations

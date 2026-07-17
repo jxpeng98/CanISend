@@ -12,6 +12,7 @@ pub const MAX_LOCAL_SOURCE_BYTES: u64 = 16 * 1024 * 1024;
 pub enum LocalTextKind {
     Markdown,
     PlainText,
+    Json,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -42,6 +43,9 @@ pub fn read_local_text(path: &Path) -> Result<LocalTextDocument, IoAdapterError>
         }
         Some(extension) if extension.eq_ignore_ascii_case("txt") => {
             (LocalTextKind::PlainText, "text/plain; charset=utf-8")
+        }
+        Some(extension) if extension.eq_ignore_ascii_case("json") => {
+            (LocalTextKind::Json, "application/json; charset=utf-8")
         }
         _ => return Err(IoAdapterError::UnsupportedLocalType(path.to_path_buf())),
     };
@@ -140,6 +144,12 @@ mod tests {
                 .expect("supported regular file")
                 .normalized_text,
             "Job advert\n"
+        );
+        let json = root.join("profile.json");
+        fs::write(&json, b"{\"teaching\":\"Applied econometrics\"}\n").expect("JSON fixture");
+        assert_eq!(
+            read_local_text(&json).expect("profile JSON").kind,
+            super::LocalTextKind::Json
         );
 
         let unsupported = root.join("advert.html");

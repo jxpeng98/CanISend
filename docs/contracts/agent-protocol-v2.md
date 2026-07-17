@@ -105,6 +105,7 @@ Error codes are stable within protocol v2 even when human messages improve:
 | `workspace.conflict` | 4 |
 | `job.not_found` | 4 |
 | `job.archived` | 4 |
+| `profile.source_not_found` | 4 |
 | `discovery.source_not_found` | 4 |
 | `discovery.lead_not_found` | 4 |
 | `discovery.conflict` | 4 |
@@ -184,7 +185,7 @@ next action for `job import JOB_ID --url URL`, keeping advert retrieval inside t
 
 ## Contract generation
 
-Rust types in `canisend-contracts` are authoritative. Twenty-three public schemas are generated with canonical IDs under
+Rust types in `canisend-contracts` are authoritative. Twenty-four public schemas are generated with canonical IDs under
 `https://schemas.canisend.dev/v2/`, semantic version `2.0.0`, deterministic key ordering, and a final newline.
 `cargo run -p xtask -- schemas check` rejects byte drift, missing files, and additional schema files.
 
