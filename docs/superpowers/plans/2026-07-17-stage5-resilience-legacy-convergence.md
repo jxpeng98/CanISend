@@ -1,6 +1,6 @@
 # Stage 5 Resilience And Legacy Convergence Implementation Plan
 
-**Status:** In progress — Tasks 0–5 accepted; orchestrator and host convergence are next
+**Status:** In progress — Tasks 0–6 accepted; skills, documentation, and packaging are next
 
 **Date:** 2026-07-17
 
@@ -102,11 +102,11 @@ promotion path across direct CLI, host agents, and orchestration.
 
 ### Task 6: Orchestrator And Host Convergence
 
-- [ ] Add an optional registered-stage task contract to orchestration plans.
-- [ ] Prepare immutable TaskSpecs before dispatch and expose only declared reads/writes/consents.
-- [ ] Submit worker candidate bytes through the guarded service and apply through the shared terminal claim.
-- [ ] Retain generic non-stage orchestration behavior without presenting it as stage promotion.
-- [ ] Prove direct CLI, Codex-style, Claude-style, configured-provider, and orchestrated execution produce equivalent
+- [x] Add an optional registered-stage task contract to orchestration plans.
+- [x] Prepare immutable TaskSpecs before dispatch and expose only declared reads/writes/consents.
+- [x] Submit worker candidate bytes through the guarded service and apply through the shared terminal claim.
+- [x] Retain generic non-stage orchestration behavior without presenting it as stage promotion.
+- [x] Prove direct CLI, Codex-style, Claude-style, configured-provider, and orchestrated execution produce equivalent
   validated receipts for the same candidate.
 
 ### Task 7: Skills, Documentation, Packaging, And Migration Guidance
@@ -237,3 +237,21 @@ promotion path across direct CLI, host agents, and orchestration.
 - Strict schemas cover migration plan/receipt/rollback and repair receipts. Focused migration/repair, schema,
   runtime, store, CLI, AgentResponse, and projection evidence: `149 passed`; full Package-to-Render explicit-repair
   routing/no-silent-repair evidence: `1 passed`.
+
+## Task 6 Acceptance Record
+
+- Orchestration plans may opt into `registered_stage` with an exact stage/document identity. Only implemented
+  host-agent stages are accepted; user-declared inputs, outputs, writes, and profile edits are rejected so the
+  immutable core TaskSpec remains the sole read/write/consent authority.
+- Registered stage tasks reserve canonical output ownership and one shared stage-runtime slot. The TaskSpec is
+  prepared before worker dispatch, its privacy ceiling is rechecked against both task and worker declarations, and
+  prompts contain only TaskSpec-bound reads, core-service writes, required consents, and output schema.
+- Exit zero is treated only as candidate availability. Worker stdout enters `submit_stage_candidate`, validation,
+  the shared terminal claim, and `apply_stage_result`; invalid, failed, or timed-out workers are cancelled without
+  direct authoritative promotion. Current stages skip dispatch as explicit cache hits.
+- Generic orchestration tasks retain declared-output compatibility and now identify themselves as `generic` with
+  `generic_declared_output`; only registered tasks report `guarded_stage_runtime` promotion.
+- Semantic receipt signatures across direct CLI, configured-provider, Codex-style, Claude-style, and custom
+  orchestrated Parse runs match for input hashes, candidate/promoted hashes, validation checks, promotion receipt,
+  and terminal action. Focused orchestrator evidence: `34 passed`; cross-runtime/CLI/Parse/Draft evidence:
+  `120 passed`.

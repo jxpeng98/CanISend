@@ -15,6 +15,19 @@ from uuid import uuid4
 
 import yaml
 
+from canisend.stage_models import TaskSpecV1
+from canisend.stage_registry import DEFAULT_STAGE_REGISTRY
+from canisend.stage_runtime import (
+    PreparedStage,
+    StageRuntimeError,
+    apply_stage_result,
+    cancel_stage_task,
+    inspect_stage_status,
+    prepare_stage,
+    submit_stage_candidate,
+)
+from canisend.stage_store import resolve_job_relative_path
+
 
 SAFE_SEGMENT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
 PROMPT_MODES = {"arg", "none", "stdin"}
@@ -43,6 +56,12 @@ class WorkerConfig:
 
 
 @dataclass(frozen=True)
+class RegisteredStageTask:
+    stage: str
+    document_id: str | None = None
+
+
+@dataclass(frozen=True)
 class OrchestrationTask:
     id: str
     worker: str
@@ -54,6 +73,7 @@ class OrchestrationTask:
     depends_on: tuple[str, ...] = ()
     agent_count: int = 1
     edits_profile_input: bool = False
+    registered_stage: RegisteredStageTask | None = None
 
 
 @dataclass(frozen=True)
@@ -120,11 +140,12 @@ def run_orchestration(
     )
     _validate_inputs(plan, workspace=workspace, job_dir=job_dir)
     if dry_run:
+        task_statuses = _dry_run_task_statuses(plan, workspace=workspace, job_dir=job_dir)
         return OrchestrationResult(
-            ok=True,
+            ok=all(status in {"current", "ready"} for status in task_statuses.values()),
             run_dir=None,
             dry_run=True,
-            task_statuses={task_id: "ready" for task_id in plan.tasks},
+            task_statuses=task_statuses,
         )
     return _execute_plan(
         plan,
@@ -213,7 +234,16 @@ def _parse_tasks(raw_tasks: Any, workers: dict[str, WorkerConfig]) -> dict[str, 
         if not role:
             raise OrchestrationError(f"Task {task_id!r} must define role")
 
-        privacy_tier = _privacy_tier(raw_task.get("privacy_tier", 1), f"task {task_id!r}")
+        registered_stage = _parse_registered_stage(raw_task, task_id=task_id)
+        default_privacy_tier = 2 if registered_stage is not None else 1
+        privacy_tier = _privacy_tier(
+            raw_task.get("privacy_tier", default_privacy_tier),
+            f"task {task_id!r}",
+        )
+        if registered_stage is not None and privacy_tier < 2:
+            raise OrchestrationError(
+                f"Registered stage task {task_id!r} requires privacy tier 2 or higher"
+            )
         if privacy_tier > workers[worker_name].privacy_tier_limit:
             raise OrchestrationError(
                 f"Task {task_id!r} privacy tier exceeds worker {worker_name!r} privacy tier limit"
@@ -222,6 +252,12 @@ def _parse_tasks(raw_tasks: Any, workers: dict[str, WorkerConfig]) -> dict[str, 
         inputs = _normalized_relative_paths(raw_task, "inputs", f"task {task_id!r} inputs")
         outputs = _normalized_relative_paths(raw_task, "outputs", f"task {task_id!r} outputs")
         writes = _normalized_relative_paths(raw_task, "writes", f"task {task_id!r} writes") or outputs
+        edits_profile_input = bool(raw_task.get("edits_profile_input", False))
+        if registered_stage is not None and (inputs or outputs or writes or edits_profile_input):
+            raise OrchestrationError(
+                f"Registered stage task {task_id!r} must not declare inputs, outputs, writes, "
+                "or profile input edits; its immutable TaskSpec owns that authority"
+            )
         task = OrchestrationTask(
             id=task_id,
             worker=worker_name,
@@ -232,10 +268,62 @@ def _parse_tasks(raw_tasks: Any, workers: dict[str, WorkerConfig]) -> dict[str, 
             writes=writes,
             depends_on=_tuple_field(raw_task, "depends_on"),
             agent_count=_agent_count(raw_task.get("agent_count", 1), task_id),
-            edits_profile_input=bool(raw_task.get("edits_profile_input", False)),
+            edits_profile_input=edits_profile_input,
+            registered_stage=registered_stage,
         )
         tasks[task_id] = task
     return tasks
+
+
+def _parse_registered_stage(
+    raw_task: dict[str, Any],
+    *,
+    task_id: str,
+) -> RegisteredStageTask | None:
+    raw_contract = raw_task.get("registered_stage")
+    if raw_contract is None:
+        return None
+    if not isinstance(raw_contract, dict):
+        raise OrchestrationError(f"Task {task_id!r} registered_stage must be a mapping")
+    unexpected = set(raw_contract).difference({"stage", "document_id"})
+    if unexpected:
+        fields = ", ".join(sorted(unexpected))
+        raise OrchestrationError(
+            f"Task {task_id!r} registered_stage has unsupported fields: {fields}"
+        )
+    stage = str(raw_contract.get("stage", "")).strip()
+    if not stage:
+        raise OrchestrationError(f"Task {task_id!r} registered_stage.stage is required")
+    try:
+        definition = DEFAULT_STAGE_REGISTRY.get(stage)
+    except KeyError as exc:
+        raise OrchestrationError(
+            f"Task {task_id!r} references unknown registered stage: {stage}"
+        ) from exc
+    if not definition.implemented or definition.execution_kind != "task":
+        raise OrchestrationError(
+            f"Task {task_id!r} registered stage {stage!r} is not an executable task stage"
+        )
+    if "host_agent" not in definition.execution_modes:
+        raise OrchestrationError(
+            f"Task {task_id!r} registered stage {stage!r} does not support host-agent execution"
+        )
+
+    raw_document_id = raw_contract.get("document_id")
+    document_id = None if raw_document_id is None else str(raw_document_id).strip()
+    if document_id == "":
+        raise OrchestrationError(
+            f"Task {task_id!r} registered_stage.document_id must not be empty"
+        )
+    if document_id is not None and not re.fullmatch(r"document_[0-9a-f]{32}", document_id):
+        raise OrchestrationError(
+            f"Task {task_id!r} registered_stage.document_id is invalid"
+        )
+    if stage != "draft" and document_id is not None:
+        raise OrchestrationError(
+            f"Task {task_id!r} registered stage {stage!r} does not accept document_id"
+        )
+    return RegisteredStageTask(stage=stage, document_id=document_id)
 
 
 def _validate_dependencies(tasks: dict[str, OrchestrationTask]) -> None:
@@ -266,11 +354,11 @@ def _validate_dependencies(tasks: dict[str, OrchestrationTask]) -> None:
 def _validate_write_conflicts(tasks: dict[str, OrchestrationTask]) -> None:
     task_list = list(tasks.values())
     for index, first in enumerate(task_list):
-        first_writes = set(first.writes)
+        first_writes = _task_write_set(first)
         if not first_writes:
             continue
         for second in task_list[index + 1 :]:
-            shared = first_writes.intersection(second.writes)
+            shared = first_writes.intersection(_task_write_set(second))
             if not shared:
                 continue
             if _depends_on(tasks, first.id, second.id) or _depends_on(tasks, second.id, first.id):
@@ -348,6 +436,46 @@ def _validate_inputs(plan: OrchestrationPlan, *, workspace: Path, job_dir: Path)
         for input_path in task.inputs:
             if not _resolve_input_paths(input_path, workspace=workspace, job_dir=job_dir):
                 raise OrchestrationError(f"Task {task.id!r} missing input: {input_path}")
+
+
+def _dry_run_task_statuses(
+    plan: OrchestrationPlan,
+    *,
+    workspace: Path,
+    job_dir: Path,
+) -> dict[str, str]:
+    statuses: dict[str, str] = {}
+    for task_id, task in plan.tasks.items():
+        contract = task.registered_stage
+        if contract is None:
+            statuses[task_id] = "ready"
+            continue
+        try:
+            inspection = inspect_stage_status(
+                workspace,
+                job_dir,
+                stage=contract.stage,  # type: ignore[arg-type]
+                document_id=contract.document_id,
+            )
+        except StageRuntimeError as exc:
+            raise OrchestrationError(
+                f"Registered stage task {task_id!r} cannot be inspected ({exc.code}): {exc}"
+            ) from exc
+        if (
+            inspection.stage.status == "succeeded"
+            and not inspection.reasons
+            and not inspection.output_drift
+        ):
+            statuses[task_id] = "current"
+        elif (
+            inspection.input_fingerprint is None
+            or inspection.output_drift
+            or inspection.stage.status == "blocked"
+        ):
+            statuses[task_id] = "blocked"
+        else:
+            statuses[task_id] = "ready"
+    return statuses
 
 
 def _resolve_input_paths(input_path: str, *, workspace: Path, job_dir: Path) -> list[Path]:
@@ -463,6 +591,9 @@ def _schedule_ready_tasks(
     run_dir: Path,
 ) -> bool:
     scheduled = False
+    registered_stage_in_flight = any(
+        plan.tasks[task_id].registered_stage is not None for task_id in futures.values()
+    )
     for task_id in sorted(pending):
         task = plan.tasks[task_id]
         worker = plan.workers[task.worker]
@@ -470,13 +601,15 @@ def _schedule_ready_tasks(
             continue
         if worker_in_flight[worker.name] >= worker.max_parallel_tasks:
             continue
+        if task.registered_stage is not None and registered_stage_in_flight:
+            continue
         if _has_running_write_conflict(task, running_writes):
             continue
 
         task_statuses[task_id] = "running"
         pending.remove(task_id)
         worker_in_flight[worker.name] += 1
-        running_writes[task_id] = set(task.writes)
+        running_writes[task_id] = _task_write_set(task)
         future = executor.submit(
             _run_task,
             task,
@@ -487,6 +620,8 @@ def _schedule_ready_tasks(
             run_dir=run_dir,
         )
         futures[future] = task_id
+        if task.registered_stage is not None:
+            registered_stage_in_flight = True
         scheduled = True
     return scheduled
 
@@ -517,8 +652,15 @@ def _skip_blocked_tasks(
 
 
 def _has_running_write_conflict(task: OrchestrationTask, running_writes: dict[str, set[str]]) -> bool:
-    task_writes = set(task.writes)
+    task_writes = _task_write_set(task)
     return any(task_writes.intersection(writes) for writes in running_writes.values())
+
+
+def _task_write_set(task: OrchestrationTask) -> set[str]:
+    contract = task.registered_stage
+    if contract is None:
+        return set(task.writes)
+    return set(DEFAULT_STAGE_REGISTRY.get(contract.stage).authoritative_outputs)
 
 
 def _run_task(
@@ -530,6 +672,16 @@ def _run_task(
     job_dir: Path,
     run_dir: Path,
 ) -> TaskExecution:
+    if task.registered_stage is not None:
+        return _run_registered_stage_task(
+            task,
+            worker,
+            argv,
+            workspace=workspace,
+            job_dir=job_dir,
+            run_dir=run_dir,
+        )
+
     task_dir = run_dir / "tasks" / task.id
     task_dir.mkdir(parents=True, exist_ok=True)
     prompt = _task_prompt(task, workspace=workspace, job_dir=job_dir)
@@ -582,9 +734,199 @@ def _run_task(
             "writes": list(task.writes),
             "privacy_tier": task.privacy_tier,
             "edits_profile_input": task.edits_profile_input,
+            "execution_kind": "generic",
+            "promotion": "generic_declared_output",
         },
     )
     return TaskExecution(task_id=task.id, status=status, exit_code=exit_code)
+
+
+def _run_registered_stage_task(
+    task: OrchestrationTask,
+    worker: WorkerConfig,
+    argv: list[str],
+    *,
+    workspace: Path,
+    job_dir: Path,
+    run_dir: Path,
+) -> TaskExecution:
+    contract = task.registered_stage
+    if contract is None:  # pragma: no cover - guarded by caller
+        raise OrchestrationError("Registered stage execution requires a stage contract")
+    task_dir = run_dir / "tasks" / task.id
+    task_dir.mkdir(parents=True, exist_ok=True)
+    started_at = _utc_now()
+    prepared: PreparedStage | None = None
+    stdout = ""
+    stderr = ""
+    exit_code: int | None = None
+
+    try:
+        inspection = inspect_stage_status(
+            workspace,
+            job_dir,
+            stage=contract.stage,  # type: ignore[arg-type]
+            document_id=contract.document_id,
+        )
+        if (
+            inspection.stage.status == "succeeded"
+            and not inspection.reasons
+            and not inspection.output_drift
+        ):
+            (task_dir / "stdout.txt").write_text("", encoding="utf-8")
+            (task_dir / "stderr.txt").write_text("", encoding="utf-8")
+            (task_dir / "result.md").write_text("", encoding="utf-8")
+            _write_json(
+                task_dir / "status.json",
+                {
+                    "task_id": task.id,
+                    "status": "succeeded",
+                    "stage": contract.stage,
+                    "document_id": contract.document_id,
+                    "cache_hit": True,
+                    "execution_kind": "registered_stage",
+                    "promotion": "not_required_current",
+                    "started_at": started_at,
+                    "finished_at": _utc_now(),
+                },
+            )
+            return TaskExecution(task_id=task.id, status="succeeded", exit_code=None)
+
+        prepared = prepare_stage(
+            workspace,
+            job_dir,
+            stage=contract.stage,  # type: ignore[arg-type]
+            execution_mode="host_agent",
+            document_id=contract.document_id,
+        )
+        _validate_prepared_stage_authority(task, worker, prepared.task_spec)
+        prompt = _registered_stage_prompt(
+            task,
+            prepared.task_spec,
+            job_dir=job_dir,
+        )
+        (task_dir / "prompt.md").write_text(prompt, encoding="utf-8")
+        invocation_argv, input_text, stdin = _worker_invocation(worker, argv, prompt)
+        run_kwargs: dict[str, Any] = {
+            "cwd": workspace,
+            "text": True,
+            "capture_output": True,
+            "timeout": worker.timeout_seconds,
+            "check": False,
+        }
+        if input_text is not None:
+            run_kwargs["input"] = input_text
+        else:
+            run_kwargs["stdin"] = stdin
+        completed = subprocess.run(invocation_argv, **run_kwargs)
+        stdout = completed.stdout
+        stderr = completed.stderr
+        exit_code = completed.returncode
+        (task_dir / "stdout.txt").write_text(stdout, encoding="utf-8")
+        (task_dir / "stderr.txt").write_text(stderr, encoding="utf-8")
+        (task_dir / "result.md").write_text(stdout, encoding="utf-8")
+        if exit_code != 0:
+            _cancel_prepared_stage_safely(workspace, job_dir, prepared)
+            _write_registered_stage_status(
+                task,
+                argv,
+                prepared,
+                task_dir=task_dir,
+                job_dir=job_dir,
+                status="failed",
+                started_at=started_at,
+                exit_code=exit_code,
+                error="Worker process did not return a successful candidate.",
+            )
+            return TaskExecution(task_id=task.id, status="failed", exit_code=exit_code)
+
+        submitted = submit_stage_candidate(
+            workspace,
+            job_dir,
+            task_spec_path=prepared.task_spec_path,
+            candidate_bytes=stdout.encode("utf-8"),
+        )
+        applied = apply_stage_result(
+            workspace,
+            job_dir,
+            task_spec_path=prepared.task_spec_path,
+            task_result_path=submitted.result_path,
+        )
+        _write_registered_stage_status(
+            task,
+            argv,
+            prepared,
+            task_dir=task_dir,
+            job_dir=job_dir,
+            status="succeeded",
+            started_at=started_at,
+            exit_code=exit_code,
+            manifest_path=applied.manifest_path,
+            authoritative_path=applied.authoritative_path,
+        )
+        return TaskExecution(task_id=task.id, status="succeeded", exit_code=exit_code)
+    except subprocess.TimeoutExpired as exc:
+        stdout = _timeout_output(exc.stdout)
+        stderr = (
+            _timeout_output(exc.stderr) + f"\nTimed out after {worker.timeout_seconds} seconds"
+        ).strip()
+        exit_code = None
+        if prepared is not None:
+            _cancel_prepared_stage_safely(workspace, job_dir, prepared)
+        (task_dir / "stdout.txt").write_text(stdout, encoding="utf-8")
+        (task_dir / "stderr.txt").write_text(stderr, encoding="utf-8")
+        (task_dir / "result.md").write_text(stdout, encoding="utf-8")
+        _write_registered_stage_status(
+            task,
+            argv,
+            prepared,
+            task_dir=task_dir,
+            job_dir=job_dir,
+            status="failed",
+            started_at=started_at,
+            exit_code=exit_code,
+            error=f"Worker timed out after {worker.timeout_seconds} seconds.",
+        )
+        return TaskExecution(task_id=task.id, status="failed", exit_code=exit_code)
+    except (OrchestrationError, StageRuntimeError, OSError, UnicodeError, ValueError) as exc:
+        if prepared is not None:
+            _cancel_prepared_stage_safely(workspace, job_dir, prepared)
+        if not (task_dir / "stdout.txt").exists():
+            (task_dir / "stdout.txt").write_text(stdout, encoding="utf-8")
+        error = _safe_stage_error(exc)
+        (task_dir / "stderr.txt").write_text(error, encoding="utf-8")
+        (task_dir / "result.md").write_text(stdout, encoding="utf-8")
+        _write_registered_stage_status(
+            task,
+            argv,
+            prepared,
+            task_dir=task_dir,
+            job_dir=job_dir,
+            status="failed",
+            started_at=started_at,
+            exit_code=exit_code,
+            error=error,
+        )
+        return TaskExecution(task_id=task.id, status="failed", exit_code=exit_code)
+    except Exception:
+        if prepared is not None:
+            _cancel_prepared_stage_safely(workspace, job_dir, prepared)
+        error = "Registered stage execution failed before guarded promotion."
+        (task_dir / "stdout.txt").write_text(stdout, encoding="utf-8")
+        (task_dir / "stderr.txt").write_text(error, encoding="utf-8")
+        (task_dir / "result.md").write_text(stdout, encoding="utf-8")
+        _write_registered_stage_status(
+            task,
+            argv,
+            prepared,
+            task_dir=task_dir,
+            job_dir=job_dir,
+            status="failed",
+            started_at=started_at,
+            exit_code=exit_code,
+            error=error,
+        )
+        return TaskExecution(task_id=task.id, status="failed", exit_code=exit_code)
 
 
 def _worker_invocation(
@@ -599,6 +941,168 @@ def _worker_invocation(
     if worker.prompt_mode == "none":
         return argv, None, subprocess.DEVNULL
     raise OrchestrationError(f"Worker {worker.name!r} prompt_mode is unsupported: {worker.prompt_mode}")
+
+
+def _validate_prepared_stage_authority(
+    task: OrchestrationTask,
+    worker: WorkerConfig,
+    task_spec: TaskSpecV1,
+) -> None:
+    contract = task.registered_stage
+    if contract is None:  # pragma: no cover - guarded by caller
+        raise OrchestrationError("Registered stage authority requires a stage contract")
+    if (
+        task_spec.stage != contract.stage
+        or task_spec.document_id != contract.document_id
+        or task_spec.execution_mode != "host_agent"
+    ):
+        raise OrchestrationError("Prepared TaskSpec does not match the registered stage contract")
+    if task_spec.privacy_tier > task.privacy_tier:
+        raise OrchestrationError(
+            "Prepared TaskSpec privacy tier exceeds the task's declared privacy ceiling"
+        )
+    if task_spec.privacy_tier > worker.privacy_tier_limit:
+        raise OrchestrationError(
+            "Prepared TaskSpec privacy tier exceeds the selected worker's privacy limit"
+        )
+    if set(task_spec.allowed_reads) != {item.path for item in task_spec.inputs}:
+        raise OrchestrationError("Prepared TaskSpec read authority does not match its bound inputs")
+    if set(task_spec.allowed_writes) != {
+        task_spec.candidate_output,
+        task_spec.result_output,
+    }:
+        raise OrchestrationError("Prepared TaskSpec write authority is not isolated to its run")
+
+
+def _registered_stage_prompt(
+    task: OrchestrationTask,
+    task_spec: TaskSpecV1,
+    *,
+    job_dir: Path,
+) -> str:
+    input_blocks: list[str] = []
+    for allowed_read in task_spec.allowed_reads:
+        path = resolve_job_relative_path(job_dir, allowed_read)
+        input_blocks.append(
+            f"## {allowed_read}\n\n{path.read_text(encoding='utf-8', errors='strict')}"
+        )
+    consents = [f"- {consent}" for consent in task_spec.required_consents] or ["- none"]
+    reads = [f"- {path}" for path in task_spec.allowed_reads] or ["- none"]
+    writes = [f"- {path}" for path in task_spec.allowed_writes] or ["- none"]
+    return "\n".join(
+        [
+            f"Role: {task.role}",
+            f"Orchestration task: {task.id}",
+            f"Registered stage: {task_spec.stage}",
+            f"Document id: {task_spec.document_id or 'none'}",
+            f"TaskSpec id: {task_spec.task_id}",
+            f"Run id: {task_spec.run_id}",
+            f"Input fingerprint: {task_spec.input_fingerprint}",
+            f"Privacy tier: {task_spec.privacy_tier}",
+            "",
+            "Required consents:",
+            *consents,
+            "",
+            "Allowed reads:",
+            *reads,
+            "",
+            "Core-service writes (do not write these paths directly):",
+            *writes,
+            "",
+            "Output contract:",
+            f"- schema: {task_spec.output_schema}",
+            f"- authoritative target: {task_spec.authoritative_target}",
+            "- Return exactly one UTF-8 JSON candidate on stdout.",
+            "- Do not wrap the candidate in Markdown or explanatory text.",
+            "- Do not modify workspace files; CanISend validates and promotes the candidate.",
+            "",
+            "Inputs:",
+            *input_blocks,
+        ]
+    )
+
+
+def _cancel_prepared_stage_safely(
+    workspace: Path,
+    job_dir: Path,
+    prepared: PreparedStage,
+) -> None:
+    try:
+        cancel_stage_task(
+            workspace,
+            job_dir,
+            stage=prepared.task_spec.stage,  # type: ignore[arg-type]
+            document_id=prepared.task_spec.document_id,
+        )
+    except StageRuntimeError:
+        # Submit/apply may already have established an immutable terminal outcome.
+        return
+
+
+def _write_registered_stage_status(
+    task: OrchestrationTask,
+    argv: list[str],
+    prepared: PreparedStage | None,
+    *,
+    task_dir: Path,
+    job_dir: Path,
+    status: str,
+    started_at: str,
+    exit_code: int | None,
+    error: str | None = None,
+    manifest_path: Path | None = None,
+    authoritative_path: Path | None = None,
+) -> None:
+    contract = task.registered_stage
+    payload: dict[str, Any] = {
+        "task_id": task.id,
+        "status": status,
+        "stage": contract.stage if contract is not None else None,
+        "document_id": contract.document_id if contract is not None else None,
+        "command": _redact_command(argv),
+        "started_at": started_at,
+        "finished_at": _utc_now(),
+        "exit_code": exit_code,
+        "privacy_tier": (
+            prepared.task_spec.privacy_tier if prepared is not None else task.privacy_tier
+        ),
+        "required_consents": (
+            list(prepared.task_spec.required_consents) if prepared is not None else []
+        ),
+        "execution_kind": "registered_stage",
+        "promotion": "guarded_stage_runtime",
+    }
+    if prepared is not None:
+        payload.update(
+            {
+                "stage_task_id": prepared.task_spec.task_id,
+                "stage_run_id": prepared.task_spec.run_id,
+                "task_spec_path": _job_relative_path(job_dir, prepared.task_spec_path),
+                "task_result_path": _job_relative_path(job_dir, prepared.result_path),
+                "allowed_reads": list(prepared.task_spec.allowed_reads),
+                "allowed_writes": list(prepared.task_spec.allowed_writes),
+            }
+        )
+    if manifest_path is not None:
+        payload["manifest_path"] = _job_relative_path(job_dir, manifest_path)
+    if authoritative_path is not None:
+        payload["authoritative_path"] = _job_relative_path(job_dir, authoritative_path)
+    if error is not None:
+        payload["error"] = error
+    _write_json(task_dir / "status.json", payload)
+
+
+def _job_relative_path(job_dir: Path, path: Path) -> str:
+    try:
+        return path.resolve().relative_to(job_dir.resolve()).as_posix()
+    except ValueError:
+        return path.name
+
+
+def _safe_stage_error(error: Exception) -> str:
+    if isinstance(error, StageRuntimeError):
+        return f"{error.code}: {error}"
+    return str(error)
 
 
 def _task_prompt(task: OrchestrationTask, *, workspace: Path, job_dir: Path) -> str:
@@ -666,6 +1170,9 @@ def _write_skipped_task_status(task: OrchestrationTask, *, run_dir: Path, reason
             "outputs": list(task.outputs),
             "writes": list(task.writes),
             "privacy_tier": task.privacy_tier,
+            "execution_kind": (
+                "registered_stage" if task.registered_stage is not None else "generic"
+            ),
         },
     )
 
@@ -684,6 +1191,9 @@ def _write_internal_task_failure(task: OrchestrationTask, *, run_dir: Path, erro
             "status": "failed",
             "error": message,
             "finished_at": _utc_now(),
+            "execution_kind": (
+                "registered_stage" if task.registered_stage is not None else "generic"
+            ),
         },
     )
     return TaskExecution(task_id=task.id, status="failed", exit_code=None)

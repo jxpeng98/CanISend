@@ -513,6 +513,9 @@ def test_run_orchestration_executes_worker_and_writes_artifacts(tmp_path):
     assert result.task_statuses["review"] == "succeeded"
     assert (run_task_dir / "stdout.txt").exists()
     assert "RESULT:Role: job_parser_reviewer" in (job_dir / "orchestration" / "reviews" / "review.md").read_text()
+    status = json.loads((run_task_dir / "status.json").read_text(encoding="utf-8"))
+    assert status["execution_kind"] == "generic"
+    assert status["promotion"] == "generic_declared_output"
 
 
 def test_run_orchestration_prompt_mode_arg_passes_prompt_as_argument(tmp_path):
