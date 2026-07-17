@@ -1,0 +1,18 @@
+[package]
+name = "canisend-r0-native-probe"
+version = "0.0.0"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+jsonschema = { version = "0.48.0", default-features = false }
+lopdf = { version = "0.42.0", default-features = false }
+pdf-extract = "0.12.0"
+rusqlite = { version = "0.40.1", default-features = false, features = ["bundled"] }
+schemars = "1.2.1"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+typst-as-lib = { version = "0.16.0", features = ["typst-kit-embed-fonts", "typst-kit-fonts"] }
+typst-pdf = "0.15.1"

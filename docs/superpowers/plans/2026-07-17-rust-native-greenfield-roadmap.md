@@ -25,6 +25,9 @@
   generated contracts, agent protocol v2, embedded resources/rendering, privacy/consent, and native releases.
 - 2026-07-17: Added a synthetic Lecturer in Economics v2 specification with source inputs, normalized criteria,
   evidence matches, document plan, Cover Letter candidate, review findings, validation error, and CLI transcript.
+- 2026-07-17: The local native dependency spike passed bundled SQLite, schema generation/validation, embedded Typst,
+  PDF generation/extraction, and Rustls HTTPS on macOS. Added a native Ubuntu/macOS/Windows spike matrix; R0 remains
+  open until that matrix passes.
 
 ## 1. Executive Decision
 
@@ -1120,11 +1123,11 @@ shorter estimate unrealistic.
 
 #### R0.4 Dependency spikes
 
-- [ ] Compare candidate SQLite integration options and prove a static/bundled build.
-- [ ] Compare PDF extraction candidates against the initial corpus.
-- [ ] Prove a minimal embedded Typst compilation with bundled fonts and no network.
+- [x] Compare candidate SQLite integration options and prove a bundled build on the local target.
+- [x] Compare `pdf-extract` and direct `lopdf` extraction against the generated initial PDF.
+- [x] Prove a minimal embedded Typst compilation with bundled fonts and no network.
 - [ ] Prove Rustls HTTPS on macOS, Linux, and Windows release targets.
-- [ ] Confirm selected JSON Schema tooling supports required generated and runtime validation.
+- [x] Confirm selected JSON Schema tooling supports generated schemas and Draft 2020-12 runtime validation.
 
 **Deliverables:** Eight ADRs, synthetic v2 fixtures, dependency spike notes, final crate graph.
 
