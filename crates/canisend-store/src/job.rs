@@ -317,7 +317,10 @@ fn insert_artifact(
     Ok(())
 }
 
-fn load_job(connection: &Connection, job_id: &EntityId) -> Result<JobRecord, StoreError> {
+pub(crate) fn load_job(
+    connection: &Connection,
+    job_id: &EntityId,
+) -> Result<JobRecord, StoreError> {
     let row: Option<(String, String, i64, String, i64)> = connection
         .query_row(
             "SELECT title, institution, archived, created_at, revision FROM jobs WHERE id = ?1",

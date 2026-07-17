@@ -4,6 +4,7 @@ mod artifact;
 mod backup;
 mod blob;
 mod database;
+mod discovery;
 mod job;
 mod workspace;
 
@@ -16,6 +17,7 @@ pub use artifact::ArtifactService;
 pub use backup::{BackupResult, verify_backup};
 pub use blob::{BlobAudit, BlobStore, DEFAULT_MAX_BLOB_BYTES};
 pub use database::{DATABASE_SCHEMA_VERSION, Database};
+pub use discovery::DiscoveryService;
 pub use job::{JobService, NewSource};
 pub use workspace::{Workspace, WorkspaceConfig, WorkspacePaths};
 
@@ -70,6 +72,12 @@ pub enum StoreError {
     JobNotFound(String),
     #[error("job is archived: {0}")]
     JobArchived(String),
+    #[error("discovery source was not found: {0}")]
+    DiscoverySourceNotFound(String),
+    #[error("discovery lead was not found: {0}")]
+    DiscoveryLeadNotFound(String),
+    #[error("discovery operation conflicts with current state: {0}")]
+    DiscoveryConflict(String),
     #[error("input is invalid: {0}")]
     InvalidInput(String),
     #[error("artifact dependency is not current: {0}")]
@@ -127,4 +135,8 @@ pub(crate) fn now_utc() -> Result<UtcTimestamp, StoreError> {
         .format(&Rfc3339)
         .map_err(|error| StoreError::Invariant(error.to_string()))?;
     UtcTimestamp::try_new(value).map_err(StoreError::from)
+}
+
+pub fn current_utc_timestamp() -> Result<UtcTimestamp, StoreError> {
+    now_utc()
 }

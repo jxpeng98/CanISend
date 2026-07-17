@@ -69,6 +69,6 @@ pub enum IoAdapterError {
     DiscoveryInput(String),
 }
 pub use discovery::{
-    MAX_DISCOVERY_BATCH_BYTES, MAX_DISCOVERY_LEADS, parse_csv_batch, parse_host_agent_batch,
-    parse_json_batch,
+    DiscoveryFile, DiscoveryFileKind, MAX_DISCOVERY_BATCH_BYTES, MAX_DISCOVERY_LEADS,
+    parse_csv_batch, parse_host_agent_batch, parse_json_batch, read_discovery_file,
 };

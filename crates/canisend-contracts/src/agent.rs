@@ -57,6 +57,12 @@ pub enum ErrorCode {
     JobNotFound,
     #[serde(rename = "job.archived")]
     JobArchived,
+    #[serde(rename = "discovery.source_not_found")]
+    DiscoverySourceNotFound,
+    #[serde(rename = "discovery.lead_not_found")]
+    DiscoveryLeadNotFound,
+    #[serde(rename = "discovery.conflict")]
+    DiscoveryConflict,
     #[serde(rename = "pdf.encrypted")]
     PdfEncrypted,
     #[serde(rename = "pdf.malformed")]
@@ -92,13 +98,16 @@ pub enum ErrorCode {
 }
 
 impl ErrorCode {
-    pub const ALL: [Self; 22] = [
+    pub const ALL: [Self; 25] = [
         Self::InputInvalid,
         Self::InputPathRejected,
         Self::WorkspaceNotFound,
         Self::WorkspaceConflict,
         Self::JobNotFound,
         Self::JobArchived,
+        Self::DiscoverySourceNotFound,
+        Self::DiscoveryLeadNotFound,
+        Self::DiscoveryConflict,
         Self::PdfEncrypted,
         Self::PdfMalformed,
         Self::PdfTextUnavailable,
@@ -124,6 +133,9 @@ impl ErrorCode {
             | Self::WorkspaceConflict
             | Self::JobNotFound
             | Self::JobArchived
+            | Self::DiscoverySourceNotFound
+            | Self::DiscoveryLeadNotFound
+            | Self::DiscoveryConflict
             | Self::TaskNotFound
             | Self::TaskStale
             | Self::TaskConflict => ExitClass::Conflict,
@@ -152,6 +164,9 @@ impl ErrorCode {
             Self::WorkspaceConflict => "workspace.conflict",
             Self::JobNotFound => "job.not_found",
             Self::JobArchived => "job.archived",
+            Self::DiscoverySourceNotFound => "discovery.source_not_found",
+            Self::DiscoveryLeadNotFound => "discovery.lead_not_found",
+            Self::DiscoveryConflict => "discovery.conflict",
             Self::PdfEncrypted => "pdf.encrypted",
             Self::PdfMalformed => "pdf.malformed",
             Self::PdfTextUnavailable => "pdf_text_unavailable",

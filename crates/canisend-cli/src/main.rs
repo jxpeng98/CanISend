@@ -4,17 +4,22 @@ use std::{io::IsTerminal, path::PathBuf, process::ExitCode, str::FromStr};
 
 use canisend_contracts::{
     AGENT_PROTOCOL, ActorKind, AgentContextData, AgentError, AgentResponse, CapabilitiesData,
-    EntityId, ErrorCode, ExecutionMode, ExitClass, PUBLIC_SCHEMA_VERSION, PrivacyClassification,
-    PublicSchemaId, RESOURCE_FORMAT, ResourceCatalogData, ResourceCatalogEntry, SchemaCatalogData,
-    SchemaCatalogEntry, SemanticVersion, Sha256Digest, SourceKind, VersionData, WORKSPACE_FORMAT,
+    EntityId, ErrorCode, ExecutionMode, ExitClass, NextAction, PUBLIC_SCHEMA_VERSION,
+    PrivacyClassification, PublicSchemaId, RESOURCE_FORMAT, ResourceCatalogData,
+    ResourceCatalogEntry, SchemaCatalogData, SchemaCatalogEntry, SemanticVersion, Sha256Digest,
+    SourceKind, VersionData, WORKSPACE_FORMAT,
 };
 use canisend_core::CapabilityRegistry;
 use canisend_io::{
-    HttpFetcher, IoAdapterError, RemoteDocumentKind, extract_pdf_text, read_local_pdf,
+    DiscoveryFileKind, HttpFetcher, IoAdapterError, RemoteDocumentKind, extract_pdf_text,
+    parse_csv_batch, parse_host_agent_batch, parse_json_batch, read_discovery_file, read_local_pdf,
     read_local_text,
 };
 use canisend_resources::{ResourceId, ResourceKind};
-use canisend_store::{ArtifactService, JobService, NewSource, StoreError, Workspace};
+use canisend_store::{
+    ArtifactService, DiscoveryService, JobService, NewSource, StoreError, Workspace,
+    current_utc_timestamp,
+};
 use clap::{Args, Parser, Subcommand};
 use serde_json::json;
 
@@ -62,6 +67,11 @@ enum Command {
     Job {
         #[command(subcommand)]
         command: JobCommand,
+    },
+    /// Import, inspect, compare, or promote discovered job leads.
+    Discovery {
+        #[command(subcommand)]
+        command: DiscoveryCommand,
     },
 }
 
@@ -115,6 +125,22 @@ enum JobCommand {
     Show(JobIdArgs),
     /// Archive a job without deleting its history.
     Archive(JobIdArgs),
+}
+
+#[derive(Debug, Subcommand)]
+enum DiscoveryCommand {
+    /// Validate or commit a normalized CSV, JSON, or host-agent lead batch.
+    Import(DiscoveryImportArgs),
+    /// List registered discovery sources.
+    Sources(OutputArgs),
+    /// List active leads, or include preserved history explicitly.
+    List(DiscoveryListArgs),
+    /// Show one discovery lead.
+    Show(DiscoveryIdArgs),
+    /// Suggest bounded possible duplicates without merging records.
+    Suggest(DiscoverySuggestArgs),
+    /// Create a direct-intake job from a selected lead.
+    Promote(DiscoveryIdArgs),
 }
 
 #[derive(Debug, Args)]
@@ -200,6 +226,54 @@ struct JobIdArgs {
     output: OutputArgs,
 }
 
+#[derive(Debug, Args)]
+struct DiscoveryImportArgs {
+    /// Regular .csv or .json file containing normalized job leads.
+    #[arg(long, value_name = "PATH")]
+    file: PathBuf,
+    /// Explicit source label for CSV imports; defaults to the file stem.
+    #[arg(long)]
+    source_name: Option<String>,
+    /// Public source URL recorded for CSV provenance.
+    #[arg(long)]
+    source_url: Option<String>,
+    /// Require the JSON batch to identify itself as a host-agent result.
+    #[arg(long)]
+    host_agent: bool,
+    /// Validate and report rows without opening or changing a workspace.
+    #[arg(long)]
+    dry_run: bool,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
+struct DiscoveryListArgs {
+    #[arg(long)]
+    include_history: bool,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
+struct DiscoveryIdArgs {
+    /// Canonical UUIDv7 discovery lead ID.
+    lead_id: String,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
+struct DiscoverySuggestArgs {
+    /// Canonical UUIDv7 discovery lead ID.
+    lead_id: String,
+    /// Maximum suggestions to return, clamped to the safe range 1..=20.
+    #[arg(long, default_value_t = 5)]
+    limit: usize,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
 impl Cli {
     fn explicit_json(&self) -> bool {
         match &self.command {
@@ -236,6 +310,15 @@ impl Cli {
                 JobCommand::Show(arguments) | JobCommand::Archive(arguments) => {
                     arguments.output.json
                 }
+            },
+            Command::Discovery { command } => match command {
+                DiscoveryCommand::Import(arguments) => arguments.output.json,
+                DiscoveryCommand::Sources(output) => output.json,
+                DiscoveryCommand::List(arguments) => arguments.output.json,
+                DiscoveryCommand::Show(arguments) | DiscoveryCommand::Promote(arguments) => {
+                    arguments.output.json
+                }
+                DiscoveryCommand::Suggest(arguments) => arguments.output.json,
             },
         }
     }
@@ -349,6 +432,24 @@ fn execute(cli: Cli) -> CommandResult<CommandOutput> {
         Command::Job {
             command: JobCommand::Archive(arguments),
         } => job_archive(workspace, &arguments.job_id),
+        Command::Discovery {
+            command: DiscoveryCommand::Import(arguments),
+        } => discovery_import(workspace, arguments),
+        Command::Discovery {
+            command: DiscoveryCommand::Sources(_),
+        } => discovery_sources(workspace),
+        Command::Discovery {
+            command: DiscoveryCommand::List(arguments),
+        } => discovery_list(workspace, arguments.include_history),
+        Command::Discovery {
+            command: DiscoveryCommand::Show(arguments),
+        } => discovery_show(workspace, &arguments.lead_id),
+        Command::Discovery {
+            command: DiscoveryCommand::Suggest(arguments),
+        } => discovery_suggest(workspace, &arguments.lead_id, arguments.limit),
+        Command::Discovery {
+            command: DiscoveryCommand::Promote(arguments),
+        } => discovery_promote(workspace, &arguments.lead_id),
     }
 }
 
@@ -826,6 +927,225 @@ fn job_archive(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<C
     )
 }
 
+fn discovery_import(
+    workspace_path: Option<PathBuf>,
+    arguments: DiscoveryImportArgs,
+) -> CommandResult<CommandOutput> {
+    let document = read_discovery_file(&arguments.file)
+        .map_err(|error| io_adapter_failure("discovery.import", error))?;
+    let actor = if arguments.host_agent {
+        ActorKind::HostAgent
+    } else {
+        ActorKind::User
+    };
+    let report = match document.kind {
+        DiscoveryFileKind::Csv => {
+            if arguments.host_agent {
+                return Err(CommandFailure::new(
+                    "discovery.import",
+                    "invalid",
+                    ErrorCode::InputInvalid,
+                    "--host-agent requires a JSON batch",
+                    false,
+                ));
+            }
+            let source_name = arguments.source_name.unwrap_or_else(|| {
+                document
+                    .path
+                    .file_stem()
+                    .map(|value| value.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| "CSV import".to_owned())
+            });
+            let observed_at = current_utc_timestamp()
+                .map_err(|error| store_failure("discovery.import", error))?;
+            parse_csv_batch(
+                &document.bytes,
+                &source_name,
+                arguments.source_url.as_deref(),
+                observed_at,
+            )
+            .map_err(|error| io_adapter_failure("discovery.import", error))?
+        }
+        DiscoveryFileKind::Json => {
+            if arguments.source_name.is_some() || arguments.source_url.is_some() {
+                return Err(CommandFailure::new(
+                    "discovery.import",
+                    "invalid",
+                    ErrorCode::InputInvalid,
+                    "JSON batches declare source_name and source_url inside the versioned contract",
+                    false,
+                ));
+            }
+            if arguments.host_agent {
+                parse_host_agent_batch(&document.bytes)
+            } else {
+                parse_json_batch(&document.bytes)
+            }
+            .map_err(|error| io_adapter_failure("discovery.import", error))?
+        }
+    };
+    let report = if arguments.dry_run {
+        report
+    } else {
+        let mut workspace = open_workspace(workspace_path, "discovery.import")?;
+        DiscoveryService::new(&mut workspace.database)
+            .import_report(report, actor)
+            .map_err(|error| store_failure("discovery.import", error))?
+    };
+    let status = if report.dry_run {
+        "validated"
+    } else {
+        "imported"
+    };
+    success(
+        "discovery.import",
+        status,
+        &report,
+        vec![
+            format!("Discovery batch: {status}"),
+            format!("Accepted leads: {}", report.accepted),
+            format!("Rejected rows: {}", report.rejected),
+        ],
+    )
+}
+
+fn discovery_sources(workspace_path: Option<PathBuf>) -> CommandResult<CommandOutput> {
+    let mut workspace = open_workspace(workspace_path, "discovery.sources")?;
+    let sources = DiscoveryService::new(&mut workspace.database)
+        .list_sources()
+        .map_err(|error| store_failure("discovery.sources", error))?;
+    let human = if sources.is_empty() {
+        vec!["No discovery sources found".to_owned()]
+    } else {
+        sources
+            .iter()
+            .map(|source| format!("{}  {:?} — {}", source.id, source.kind, source.name))
+            .collect()
+    };
+    success(
+        "discovery.sources",
+        "available",
+        &json!({"sources": sources}),
+        human,
+    )
+}
+
+fn discovery_list(
+    workspace_path: Option<PathBuf>,
+    include_history: bool,
+) -> CommandResult<CommandOutput> {
+    let mut workspace = open_workspace(workspace_path, "discovery.list")?;
+    let leads = DiscoveryService::new(&mut workspace.database)
+        .list_leads(include_history)
+        .map_err(|error| store_failure("discovery.list", error))?;
+    let human = if leads.is_empty() {
+        vec!["No discovery leads found".to_owned()]
+    } else {
+        leads
+            .iter()
+            .map(|lead| {
+                format!(
+                    "{}  {} — {} [{:?}]",
+                    lead.id, lead.title, lead.organization, lead.status
+                )
+            })
+            .collect()
+    };
+    success(
+        "discovery.list",
+        "available",
+        &json!({"leads": leads}),
+        human,
+    )
+}
+
+fn discovery_show(workspace_path: Option<PathBuf>, lead_id: &str) -> CommandResult<CommandOutput> {
+    let lead_id = parse_entity_id("discovery.show", lead_id)?;
+    let mut workspace = open_workspace(workspace_path, "discovery.show")?;
+    let lead = DiscoveryService::new(&mut workspace.database)
+        .get_lead(&lead_id)
+        .map_err(|error| store_failure("discovery.show", error))?;
+    success(
+        "discovery.show",
+        "available",
+        &lead,
+        vec![
+            format!("{} — {}", lead.title, lead.organization),
+            format!("Lead ID: {}", lead.id),
+            format!("Status: {:?}", lead.status),
+            format!("URL: {}", lead.url),
+        ],
+    )
+}
+
+fn discovery_suggest(
+    workspace_path: Option<PathBuf>,
+    lead_id: &str,
+    limit: usize,
+) -> CommandResult<CommandOutput> {
+    let lead_id = parse_entity_id("discovery.suggest", lead_id)?;
+    let mut workspace = open_workspace(workspace_path, "discovery.suggest")?;
+    let suggestions = DiscoveryService::new(&mut workspace.database)
+        .suggestions(&lead_id, limit)
+        .map_err(|error| store_failure("discovery.suggest", error))?;
+    let human = if suggestions.is_empty() {
+        vec!["No likely duplicate candidates found".to_owned()]
+    } else {
+        suggestions
+            .iter()
+            .map(|suggestion| {
+                format!(
+                    "{}%  {} — {} ({})",
+                    suggestion.similarity_percent,
+                    suggestion.lead.title,
+                    suggestion.lead.organization,
+                    suggestion.lead.id
+                )
+            })
+            .collect()
+    };
+    success(
+        "discovery.suggest",
+        "available",
+        &json!({"suggestions": suggestions, "automatic_merge": false}),
+        human,
+    )
+}
+
+fn discovery_promote(
+    workspace_path: Option<PathBuf>,
+    lead_id: &str,
+) -> CommandResult<CommandOutput> {
+    let lead_id = parse_entity_id("discovery.promote", lead_id)?;
+    let mut workspace = open_workspace(workspace_path, "discovery.promote")?;
+    let (lead, job) = {
+        let mut service = DiscoveryService::new(&mut workspace.database);
+        let lead = service
+            .get_lead(&lead_id)
+            .map_err(|error| store_failure("discovery.promote", error))?;
+        let job = service
+            .promote(&lead_id, ActorKind::User)
+            .map_err(|error| store_failure("discovery.promote", error))?;
+        (lead, job)
+    };
+    let import_action = format!("canisend job import {} --url {}", job.id, lead.url);
+    let mut output = success(
+        "discovery.promote",
+        "promoted",
+        &json!({"job": job, "lead_id": lead_id}),
+        vec![
+            format!("Promoted lead into job: {}", job.id),
+            format!("Next: {import_action}"),
+        ],
+    )?;
+    output.response.next_actions.push(NextAction {
+        action: import_action,
+        description: "Import the selected advert through the safe direct-intake URL boundary"
+            .to_owned(),
+    });
+    Ok(output)
+}
+
 fn parse_entity_id(operation: &'static str, value: &str) -> CommandResult<EntityId> {
     EntityId::try_new(value).map_err(|error| {
         CommandFailure::new(
@@ -882,6 +1202,13 @@ fn store_failure(operation: &'static str, error: StoreError) -> Box<CommandFailu
         StoreError::WorkspaceNotFound(_) => ("not-found", ErrorCode::WorkspaceNotFound, false),
         StoreError::JobNotFound(_) => ("not-found", ErrorCode::JobNotFound, false),
         StoreError::JobArchived(_) => ("archived", ErrorCode::JobArchived, false),
+        StoreError::DiscoverySourceNotFound(_) => {
+            ("not-found", ErrorCode::DiscoverySourceNotFound, false)
+        }
+        StoreError::DiscoveryLeadNotFound(_) => {
+            ("not-found", ErrorCode::DiscoveryLeadNotFound, false)
+        }
+        StoreError::DiscoveryConflict(_) => ("conflict", ErrorCode::DiscoveryConflict, false),
         StoreError::WorkspaceExists(_)
         | StoreError::Sqlite(_)
         | StoreError::DependencyConflict(_)

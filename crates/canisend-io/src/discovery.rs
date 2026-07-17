@@ -1,4 +1,9 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fs::{self, File},
+    io::Read,
+    path::{Path, PathBuf},
+};
 
 use canisend_contracts::{
     DiscoveryBatch, DiscoveryImportDiagnostic, DiscoveryImportReport, DiscoveryLeadCandidate,
@@ -22,6 +27,58 @@ const MAX_METADATA_BYTES: usize = 16 * 1024;
 
 const REQUIRED_HEADERS: [&str; 3] = ["title", "organization", "url"];
 const OPTIONAL_HEADERS: [&str; 4] = ["external_id", "location", "deadline", "summary"];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DiscoveryFileKind {
+    Csv,
+    Json,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DiscoveryFile {
+    pub path: PathBuf,
+    pub kind: DiscoveryFileKind,
+    pub bytes: Vec<u8>,
+}
+
+pub fn read_discovery_file(path: &Path) -> Result<DiscoveryFile, IoAdapterError> {
+    let metadata = fs::symlink_metadata(path).map_err(|source| IoAdapterError::Io {
+        path: path.to_path_buf(),
+        source,
+    })?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err(IoAdapterError::UnsafeLocalFile(path.to_path_buf()));
+    }
+    let limit = u64::try_from(MAX_DISCOVERY_BATCH_BYTES).expect("batch limit fits u64");
+    if metadata.len() > limit {
+        return Err(IoAdapterError::InputTooLarge { limit });
+    }
+    let kind = match path.extension().and_then(|extension| extension.to_str()) {
+        Some(extension) if extension.eq_ignore_ascii_case("csv") => DiscoveryFileKind::Csv,
+        Some(extension) if extension.eq_ignore_ascii_case("json") => DiscoveryFileKind::Json,
+        _ => return Err(IoAdapterError::UnsupportedLocalType(path.to_path_buf())),
+    };
+    let mut file = File::open(path).map_err(|source| IoAdapterError::Io {
+        path: path.to_path_buf(),
+        source,
+    })?;
+    let mut bytes = Vec::with_capacity(
+        usize::try_from(metadata.len()).map_err(|_| IoAdapterError::InputTooLarge { limit })?,
+    );
+    file.by_ref()
+        .take(limit + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|source| IoAdapterError::Io {
+            path: path.to_path_buf(),
+            source,
+        })?;
+    check_batch_size(&bytes)?;
+    Ok(DiscoveryFile {
+        path: path.to_path_buf(),
+        kind,
+        bytes,
+    })
+}
 
 pub fn parse_csv_batch(
     bytes: &[u8],
@@ -82,7 +139,7 @@ pub fn parse_csv_batch(
 }
 
 pub fn parse_json_batch(bytes: &[u8]) -> Result<DiscoveryImportReport, IoAdapterError> {
-    parse_json_batch_as(bytes, None)
+    parse_json_batch_as(bytes, Some(DiscoverySourceKind::Json))
 }
 
 pub fn parse_host_agent_batch(bytes: &[u8]) -> Result<DiscoveryImportReport, IoAdapterError> {

@@ -344,6 +344,86 @@ fn native_job_commands_import_original_and_normalized_local_text() {
     assert_eq!(all["data"]["jobs"][0]["revision"], 4);
 }
 
+#[test]
+fn discovery_csv_dry_run_commit_and_promotion_are_agent_callable() {
+    let workspace = TestDirectory::new("discovery-workspace");
+    let input = TestDirectory::new("discovery-input");
+    fs::create_dir_all(input.path()).expect("input directory");
+    let batch = input.path().join("leads.csv");
+    fs::write(
+        &batch,
+        b"external_id,title,organization,url,deadline\n1,Lecturer in Economics,University X,https://example.edu/jobs/1,2099-08-31\n2,Bad URL,University X,ftp://example.edu/jobs/2,2099-08-31\n",
+    )
+    .expect("write discovery batch");
+    let batch_path = batch.to_str().expect("batch path is UTF-8");
+
+    let dry_run = run_json(&[
+        "discovery",
+        "import",
+        "--file",
+        batch_path,
+        "--source-name",
+        "University export",
+        "--dry-run",
+        "--json",
+    ]);
+    assert_eq!(dry_run["status"], "validated");
+    assert_eq!(dry_run["data"]["accepted"], 1);
+    assert_eq!(dry_run["data"]["rejected"], 1);
+    assert_eq!(dry_run["data"]["receipt"], Value::Null);
+
+    run_json(&[
+        "--workspace",
+        workspace.text(),
+        "workspace",
+        "init",
+        "--json",
+    ]);
+    let imported = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "discovery",
+        "import",
+        "--file",
+        batch_path,
+        "--source-name",
+        "University export",
+        "--json",
+    ]);
+    assert_eq!(imported["status"], "imported");
+    assert_eq!(imported["data"]["receipt"]["inserted"], 1);
+    assert_eq!(imported["data"]["receipt"]["rejected"], 1);
+
+    let listed = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "discovery",
+        "list",
+        "--json",
+    ]);
+    let lead_id = listed["data"]["leads"][0]["id"].as_str().expect("lead ID");
+    let promoted = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "discovery",
+        "promote",
+        lead_id,
+        "--json",
+    ]);
+    assert_eq!(promoted["status"], "promoted");
+    assert_eq!(promoted["data"]["job"]["title"], "Lecturer in Economics");
+    assert_eq!(promoted["next_actions"].as_array().map(Vec::len), Some(1));
+    let history = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "discovery",
+        "list",
+        "--include-history",
+        "--json",
+    ]);
+    assert_eq!(history["data"]["leads"][0]["status"], "promoted");
+}
+
 fn write_pdf(path: &std::path::Path, text: Option<&str>) {
     use lopdf::{
         Document, Object, Stream,

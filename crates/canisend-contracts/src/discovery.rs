@@ -95,6 +95,7 @@ pub struct DiscoverySourceRecord {
     pub enabled: bool,
     pub policy: DiscoveryRefreshPolicy,
     pub cursor: Option<String>,
+    pub last_refreshed_at: Option<UtcTimestamp>,
     pub created_at: UtcTimestamp,
 }
 
@@ -153,4 +154,11 @@ pub struct DiscoveryImportReport {
     pub diagnostics: Vec<DiscoveryImportDiagnostic>,
     pub batch: Option<DiscoveryBatch>,
     pub receipt: Option<DiscoveryRefreshReceipt>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct DiscoveryLeadSuggestion {
+    pub lead: DiscoveryLeadRecord,
+    pub similarity_percent: u8,
 }
