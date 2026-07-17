@@ -1,0 +1,60 @@
+{
+  "$defs": {
+    "BackupBlobEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "sha256": {
+          "type": "string"
+        },
+        "size": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "sha256",
+        "size"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://schemas.canisend.dev/v2/backup-manifest.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "blobs": {
+      "items": {
+        "$ref": "#/$defs/BackupBlobEntry"
+      },
+      "type": "array"
+    },
+    "configuration_sha256": {
+      "type": "string"
+    },
+    "created_at": {
+      "type": "string"
+    },
+    "database_sha256": {
+      "type": "string"
+    },
+    "format": {
+      "type": "string"
+    },
+    "workspace_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "format",
+    "workspace_id",
+    "created_at",
+    "database_sha256",
+    "configuration_sha256",
+    "blobs"
+  ],
+  "title": "BackupManifestData",
+  "type": "object",
+  "x-canisend-id": "canisend.backup-manifest/v2",
+  "x-canisend-version": "2.0.0"
+}

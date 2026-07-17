@@ -1,0 +1,92 @@
+{
+  "$defs": {
+    "CheckSeverity": {
+      "enum": [
+        "warning",
+        "error"
+      ],
+      "type": "string"
+    },
+    "WorkspaceCheckIssue": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "severity": {
+          "$ref": "#/$defs/CheckSeverity"
+        },
+        "subject": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "severity",
+        "subject",
+        "message"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://schemas.canisend.dev/v2/workspace-check.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "checked_referenced_blobs": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "database_integrity": {
+      "type": "string"
+    },
+    "issues": {
+      "items": {
+        "$ref": "#/$defs/WorkspaceCheckIssue"
+      },
+      "type": "array"
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "projection_repairs_required": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "stale_artifact_ids": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "unreferenced_blobs": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "workspace_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "workspace_id",
+    "ok",
+    "database_integrity",
+    "checked_referenced_blobs",
+    "unreferenced_blobs",
+    "stale_artifact_ids",
+    "projection_repairs_required",
+    "issues"
+  ],
+  "title": "WorkspaceCheckData",
+  "type": "object",
+  "x-canisend-id": "canisend.workspace-check/v2",
+  "x-canisend-version": "2.0.0"
+}

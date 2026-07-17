@@ -7,6 +7,7 @@
   {"id":"schema.agent-context","kind":"schema","path":"schemas/v2/agent-context.schema.json","version":"2.0.0"},
   {"id":"schema.agent-response","kind":"schema","path":"schemas/v2/agent-response.schema.json","version":"2.0.0"},
   {"id":"schema.application-plan","kind":"schema","path":"schemas/v2/application-plan.schema.json","version":"2.0.0"},
+  {"id":"schema.backup-manifest","kind":"schema","path":"schemas/v2/backup-manifest.schema.json","version":"2.0.0"},
   {"id":"schema.capabilities","kind":"schema","path":"schemas/v2/capabilities.schema.json","version":"2.0.0"},
   {"id":"schema.criterion","kind":"schema","path":"schemas/v2/criterion.schema.json","version":"2.0.0"},
   {"id":"schema.document","kind":"schema","path":"schemas/v2/document.schema.json","version":"2.0.0"},
@@ -19,5 +20,7 @@
   {"id":"schema.task-completion","kind":"schema","path":"schemas/v2/task-completion.schema.json","version":"2.0.0"},
   {"id":"schema.task-descriptor","kind":"schema","path":"schemas/v2/task-descriptor.schema.json","version":"2.0.0"},
   {"id":"schema.version","kind":"schema","path":"schemas/v2/version.schema.json","version":"2.0.0"},
+  {"id":"schema.workspace-check","kind":"schema","path":"schemas/v2/workspace-check.schema.json","version":"2.0.0"},
+  {"id":"schema.workspace-status","kind":"schema","path":"schemas/v2/workspace-status.schema.json","version":"2.0.0"},
   {"id":"template.cover-letter","kind":"template","path":"templates/cover-letter.typ","version":"2.0.0"}
 ]

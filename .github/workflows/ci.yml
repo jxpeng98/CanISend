@@ -52,6 +52,15 @@ jobs:
       - name: Smoke native binary
         shell: bash
         run: |
+          workspace="$RUNNER_TEMP/canisend-smoke-workspace"
+          backup="$RUNNER_TEMP/canisend-smoke-backup"
+          restored="$RUNNER_TEMP/canisend-smoke-restored"
           ./target/release/canisend version --json
           ./target/release/canisend doctor --json
           ./target/release/canisend agent capabilities --json
+          ./target/release/canisend --workspace "$workspace" workspace init --json
+          ./target/release/canisend --workspace "$workspace" workspace status --json
+          ./target/release/canisend --workspace "$workspace" workspace check --json
+          ./target/release/canisend --workspace "$workspace" workspace backup "$backup" --json
+          ./target/release/canisend workspace restore "$backup" "$restored" --json
+          ./target/release/canisend --workspace "$restored" workspace check --json

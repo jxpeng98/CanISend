@@ -1,6 +1,35 @@
-use std::process::Command;
+use std::{
+    fs,
+    path::PathBuf,
+    process::Command,
+    sync::atomic::{AtomicU64, Ordering},
+};
 
 use serde_json::Value;
+
+static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(1);
+
+struct TestDirectory(PathBuf);
+
+impl TestDirectory {
+    fn new(label: &str) -> Self {
+        Self(std::env::temp_dir().join(format!(
+            "canisend-cli-{label}-{}-{}",
+            std::process::id(),
+            NEXT_DIRECTORY.fetch_add(1, Ordering::Relaxed)
+        )))
+    }
+
+    fn text(&self) -> &str {
+        self.0.to_str().expect("test path is UTF-8")
+    }
+}
+
+impl Drop for TestDirectory {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
+}
 
 fn run(arguments: &[&str]) -> std::process::Output {
     Command::new(env!("CARGO_BIN_EXE_canisend"))
@@ -77,7 +106,12 @@ fn capabilities_distinguish_available_from_planned_work() {
     assert!(
         capabilities
             .iter()
-            .any(|item| { item["id"] == "workspace.lifecycle" && item["status"] == "planned" })
+            .any(|item| { item["id"] == "workspace.lifecycle" && item["status"] == "available" })
+    );
+    assert!(
+        capabilities
+            .iter()
+            .any(|item| { item["id"] == "job.intake" && item["status"] == "planned" })
     );
 }
 
@@ -88,7 +122,7 @@ fn public_catalogs_are_available_without_a_workspace() {
 
     assert_eq!(
         schemas["data"]["schemas"].as_array().map(Vec::len),
-        Some(15)
+        Some(18)
     );
     assert!(
         resources["data"]["resources"]
@@ -120,4 +154,60 @@ fn known_json_error_uses_stdout_only_and_validation_exit_code() {
     let response: Value = serde_json::from_str(&stdout).expect("error response is JSON");
     assert_eq!(response["error"]["code"], "schema.not_found");
     assert_eq!(response["ok"], false);
+}
+
+#[test]
+fn native_workspace_commands_initialize_check_backup_and_restore() {
+    let workspace = TestDirectory::new("workspace");
+    let backup = TestDirectory::new("backup");
+    let restored = TestDirectory::new("restored");
+
+    let initialized = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "workspace",
+        "init",
+        "--json",
+    ]);
+    let status = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "workspace",
+        "status",
+        "--json",
+    ]);
+    let check = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "workspace",
+        "check",
+        "--json",
+    ]);
+    let backup_result = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "workspace",
+        "backup",
+        backup.text(),
+        "--json",
+    ]);
+    let restore_result = run_json(&[
+        "workspace",
+        "restore",
+        backup.text(),
+        restored.text(),
+        "--json",
+    ]);
+
+    assert_eq!(initialized["status"], "initialized");
+    assert_eq!(
+        status["data"]["workspace_id"],
+        initialized["data"]["workspace_id"]
+    );
+    assert_eq!(check["data"]["ok"], true);
+    assert_eq!(backup_result["status"], "verified");
+    assert_eq!(
+        restore_result["data"]["workspace_id"],
+        status["data"]["workspace_id"]
+    );
 }

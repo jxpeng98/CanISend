@@ -12,7 +12,7 @@
       {"id":"resources.manifest","status":"available","version":"2.0.0"},
       {"id":"resource.list","status":"available","version":"2.0.0"},
       {"id":"schema.list","status":"available","version":"2.0.0"},
-      {"id":"workspace.lifecycle","status":"planned","version":"2.0.0"},
+      {"id":"workspace.lifecycle","status":"available","version":"2.0.0"},
       {"id":"job.intake","status":"planned","version":"2.0.0"},
       {"id":"discovery.refresh","status":"planned","version":"2.0.0"},
       {"id":"workflow.execute","status":"planned","version":"2.0.0"},

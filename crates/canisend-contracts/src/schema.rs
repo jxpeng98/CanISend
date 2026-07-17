@@ -5,9 +5,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
 use crate::{
-    AgentContextData, AgentResponse, ApplicationPlanRecord, CapabilitiesData, CriterionRecord,
-    DocumentRecord, EvidenceMatchRecord, EvidenceRecord, FindingRecord, JobRecord, ReadinessRecord,
-    SourceRecord, TaskCompletionRequest, TaskDescriptor, VersionData,
+    AgentContextData, AgentResponse, ApplicationPlanRecord, BackupManifestData, CapabilitiesData,
+    CriterionRecord, DocumentRecord, EvidenceMatchRecord, EvidenceRecord, FindingRecord, JobRecord,
+    ReadinessRecord, SourceRecord, TaskCompletionRequest, TaskDescriptor, VersionData,
+    WorkspaceCheckData, WorkspaceStatusData,
 };
 
 pub const PUBLIC_SCHEMA_VERSION: &str = "2.0.0";
@@ -31,10 +32,13 @@ pub enum PublicSchemaId {
     Document,
     Finding,
     Readiness,
+    WorkspaceStatus,
+    WorkspaceCheck,
+    BackupManifest,
 }
 
 impl PublicSchemaId {
-    pub const ALL: [Self; 15] = [
+    pub const ALL: [Self; 18] = [
         Self::AgentResponse,
         Self::Capabilities,
         Self::AgentContext,
@@ -50,6 +54,9 @@ impl PublicSchemaId {
         Self::Document,
         Self::Finding,
         Self::Readiness,
+        Self::WorkspaceStatus,
+        Self::WorkspaceCheck,
+        Self::BackupManifest,
     ];
 
     #[must_use]
@@ -70,6 +77,9 @@ impl PublicSchemaId {
             Self::Document => "canisend.document/v2",
             Self::Finding => "canisend.finding/v2",
             Self::Readiness => "canisend.readiness/v2",
+            Self::WorkspaceStatus => "canisend.workspace-status/v2",
+            Self::WorkspaceCheck => "canisend.workspace-check/v2",
+            Self::BackupManifest => "canisend.backup-manifest/v2",
         }
     }
 
@@ -91,6 +101,9 @@ impl PublicSchemaId {
             Self::Document => "document",
             Self::Finding => "finding",
             Self::Readiness => "readiness",
+            Self::WorkspaceStatus => "workspace-status",
+            Self::WorkspaceCheck => "workspace-check",
+            Self::BackupManifest => "backup-manifest",
         }
     }
 
@@ -139,6 +152,9 @@ pub fn generate_public_schemas() -> Vec<GeneratedSchema> {
         generate::<DocumentRecord>(PublicSchemaId::Document),
         generate::<FindingRecord>(PublicSchemaId::Finding),
         generate::<ReadinessRecord>(PublicSchemaId::Readiness),
+        generate::<WorkspaceStatusData>(PublicSchemaId::WorkspaceStatus),
+        generate::<WorkspaceCheckData>(PublicSchemaId::WorkspaceCheck),
+        generate::<BackupManifestData>(PublicSchemaId::BackupManifest),
     ]
 }
 

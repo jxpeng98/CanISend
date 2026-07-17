@@ -1,0 +1,57 @@
+{
+  "$id": "https://schemas.canisend.dev/v2/workspace-status.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifact_count": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "created_at": {
+      "type": "string"
+    },
+    "database_schema_version": {
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "job_count": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "journal_mode": {
+      "type": "string"
+    },
+    "referenced_blob_count": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "sqlite_version": {
+      "type": "string"
+    },
+    "workspace_format": {
+      "type": "string"
+    },
+    "workspace_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "workspace_id",
+    "workspace_format",
+    "created_at",
+    "database_schema_version",
+    "sqlite_version",
+    "journal_mode",
+    "job_count",
+    "artifact_count",
+    "referenced_blob_count"
+  ],
+  "title": "WorkspaceStatusData",
+  "type": "object",
+  "x-canisend-id": "canisend.workspace-status/v2",
+  "x-canisend-version": "2.0.0"
+}

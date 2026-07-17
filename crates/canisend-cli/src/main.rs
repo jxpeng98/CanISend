@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-use std::{io::IsTerminal, process::ExitCode, str::FromStr};
+use std::{io::IsTerminal, path::PathBuf, process::ExitCode, str::FromStr};
 
 use canisend_contracts::{
     AGENT_PROTOCOL, ActorKind, AgentContextData, AgentError, AgentResponse, CapabilitiesData,
@@ -10,6 +10,7 @@ use canisend_contracts::{
 };
 use canisend_core::CapabilityRegistry;
 use canisend_resources::{ResourceId, ResourceKind};
+use canisend_store::{ArtifactService, StoreError, Workspace};
 use clap::{Args, Parser, Subcommand};
 use serde_json::json;
 
@@ -20,6 +21,9 @@ use serde_json::json;
     disable_version_flag = true
 )]
 struct Cli {
+    /// Resolve commands against this workspace instead of discovering from the current directory.
+    #[arg(long, global = true, value_name = "PATH")]
+    workspace: Option<PathBuf>,
     #[command(subcommand)]
     command: Command,
 }
@@ -45,6 +49,11 @@ enum Command {
         #[command(subcommand)]
         command: ResourceCommand,
     },
+    /// Initialize, inspect, check, back up, restore, or repair a workspace.
+    Workspace {
+        #[command(subcommand)]
+        command: WorkspaceCommand,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -69,6 +78,22 @@ enum ResourceCommand {
     List(OutputArgs),
 }
 
+#[derive(Debug, Subcommand)]
+enum WorkspaceCommand {
+    /// Initialize a new v2 workspace at --workspace or the current directory.
+    Init(OutputArgs),
+    /// Report authoritative workspace and SQLite status.
+    Status(OutputArgs),
+    /// Verify database, blob, freshness, and projection invariants.
+    Check(OutputArgs),
+    /// Create and verify a consistent backup directory.
+    Backup(WorkspaceBackupArgs),
+    /// Restore a verified backup into a new empty directory.
+    Restore(WorkspaceRestoreArgs),
+    /// Repair derived projections marked repair-required.
+    Repair(OutputArgs),
+}
+
 #[derive(Debug, Args)]
 struct OutputArgs {
     /// Emit exactly one canisend.agent/v2 JSON object on stdout.
@@ -80,6 +105,24 @@ struct OutputArgs {
 struct SchemaShowArgs {
     /// Schema ID such as canisend.job/v2, or its short slug such as job.
     id: String,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
+struct WorkspaceBackupArgs {
+    /// New or empty destination directory for the verified backup.
+    destination: PathBuf,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
+struct WorkspaceRestoreArgs {
+    /// Verified CanISend backup directory.
+    backup: PathBuf,
+    /// New or empty destination directory for the restored workspace.
+    destination: PathBuf,
     #[command(flatten)]
     output: OutputArgs,
 }
@@ -99,6 +142,19 @@ impl Cli {
             } => output.json,
             Command::Schema {
                 command: SchemaCommand::Show(arguments),
+            } => arguments.output.json,
+            Command::Workspace {
+                command:
+                    WorkspaceCommand::Init(output)
+                    | WorkspaceCommand::Status(output)
+                    | WorkspaceCommand::Check(output)
+                    | WorkspaceCommand::Repair(output),
+            } => output.json,
+            Command::Workspace {
+                command: WorkspaceCommand::Backup(arguments),
+            } => arguments.output.json,
+            Command::Workspace {
+                command: WorkspaceCommand::Restore(arguments),
             } => arguments.output.json,
         }
     }
@@ -160,7 +216,8 @@ fn main() -> ExitCode {
 }
 
 fn execute(cli: Cli) -> CommandResult<CommandOutput> {
-    match cli.command {
+    let Cli { workspace, command } = cli;
+    match command {
         Command::Version(_) => version(),
         Command::Doctor(_) => doctor(),
         Command::Agent {
@@ -178,6 +235,24 @@ fn execute(cli: Cli) -> CommandResult<CommandOutput> {
         Command::Resource {
             command: ResourceCommand::List(_),
         } => resource_list(),
+        Command::Workspace {
+            command: WorkspaceCommand::Init(_),
+        } => workspace_init(workspace),
+        Command::Workspace {
+            command: WorkspaceCommand::Status(_),
+        } => workspace_status(workspace),
+        Command::Workspace {
+            command: WorkspaceCommand::Check(_),
+        } => workspace_check(workspace),
+        Command::Workspace {
+            command: WorkspaceCommand::Backup(arguments),
+        } => workspace_backup(workspace, arguments.destination),
+        Command::Workspace {
+            command: WorkspaceCommand::Restore(arguments),
+        } => workspace_restore(arguments.backup, arguments.destination),
+        Command::Workspace {
+            command: WorkspaceCommand::Repair(_),
+        } => workspace_repair(workspace),
     }
 }
 
@@ -363,6 +438,159 @@ fn resource_list() -> CommandResult<CommandOutput> {
         &ResourceCatalogData { resources },
         human,
     )
+}
+
+fn workspace_init(workspace_path: Option<PathBuf>) -> CommandResult<CommandOutput> {
+    let root = workspace_path.unwrap_or_else(|| PathBuf::from("."));
+    let workspace =
+        Workspace::init(&root).map_err(|error| store_failure("workspace.init", error))?;
+    let data = workspace
+        .status()
+        .map_err(|error| store_failure("workspace.init", error))?;
+    success(
+        "workspace.init",
+        "initialized",
+        &data,
+        vec![
+            format!(
+                "Initialized CanISend workspace at {}",
+                workspace.paths.root.display()
+            ),
+            format!("Workspace ID: {}", data.workspace_id),
+        ],
+    )
+}
+
+fn workspace_status(workspace_path: Option<PathBuf>) -> CommandResult<CommandOutput> {
+    let workspace = open_workspace(workspace_path, "workspace.status")?;
+    let data = workspace
+        .status()
+        .map_err(|error| store_failure("workspace.status", error))?;
+    success(
+        "workspace.status",
+        "available",
+        &data,
+        vec![
+            format!("Workspace: {}", data.workspace_id),
+            format!("Format: {}", data.workspace_format),
+            format!("SQLite: {} ({})", data.sqlite_version, data.journal_mode),
+            format!("Artifacts: {}", data.artifact_count),
+        ],
+    )
+}
+
+fn workspace_check(workspace_path: Option<PathBuf>) -> CommandResult<CommandOutput> {
+    let workspace = open_workspace(workspace_path, "workspace.check")?;
+    let data = workspace
+        .check()
+        .map_err(|error| store_failure("workspace.check", error))?;
+    let status = if data.ok { "healthy" } else { "issues-found" };
+    success(
+        "workspace.check",
+        status,
+        &data,
+        vec![
+            format!("Workspace check: {status}"),
+            format!("Database integrity: {}", data.database_integrity),
+            format!("Issues: {}", data.issues.len()),
+        ],
+    )
+}
+
+fn workspace_backup(
+    workspace_path: Option<PathBuf>,
+    destination: PathBuf,
+) -> CommandResult<CommandOutput> {
+    let mut workspace = open_workspace(workspace_path, "workspace.backup")?;
+    let result = workspace
+        .backup(&destination)
+        .map_err(|error| store_failure("workspace.backup", error))?;
+    success(
+        "workspace.backup",
+        "verified",
+        &result.manifest,
+        vec![
+            format!("Verified backup: {}", result.directory.display()),
+            format!("Blobs: {}", result.manifest.blobs.len()),
+        ],
+    )
+}
+
+fn workspace_restore(backup: PathBuf, destination: PathBuf) -> CommandResult<CommandOutput> {
+    let workspace = Workspace::restore(&backup, &destination)
+        .map_err(|error| store_failure("workspace.restore", error))?;
+    let data = workspace
+        .status()
+        .map_err(|error| store_failure("workspace.restore", error))?;
+    success(
+        "workspace.restore",
+        "restored",
+        &data,
+        vec![
+            format!("Restored workspace at {}", destination.display()),
+            format!("Workspace ID: {}", data.workspace_id),
+        ],
+    )
+}
+
+fn workspace_repair(workspace_path: Option<PathBuf>) -> CommandResult<CommandOutput> {
+    let mut workspace = open_workspace(workspace_path, "workspace.repair")?;
+    let repaired = {
+        let mut service = ArtifactService::new(
+            &mut workspace.database,
+            &workspace.blobs,
+            &workspace.paths.root,
+        );
+        service
+            .repair_projections()
+            .map_err(|error| store_failure("workspace.repair", error))?
+    };
+    success(
+        "workspace.repair",
+        "repaired",
+        &json!({"repaired_projections": repaired}),
+        vec![format!("Repaired projections: {repaired}")],
+    )
+}
+
+fn open_workspace(
+    workspace_path: Option<PathBuf>,
+    operation: &'static str,
+) -> CommandResult<Workspace> {
+    Workspace::open(workspace_path.as_deref()).map_err(|error| store_failure(operation, error))
+}
+
+fn store_failure(operation: &'static str, error: StoreError) -> Box<CommandFailure> {
+    let (status, code, retryable) = match &error {
+        StoreError::WorkspaceNotFound(_) => ("not-found", ErrorCode::WorkspaceNotFound, false),
+        StoreError::WorkspaceExists(_)
+        | StoreError::Sqlite(_)
+        | StoreError::DependencyConflict(_)
+        | StoreError::ArtifactNotFound(_) => ("conflict", ErrorCode::WorkspaceConflict, true),
+        StoreError::UnsafePath(_)
+        | StoreError::NotDirectory(_)
+        | StoreError::ProjectionPathRejected
+        | StoreError::BlobTooLarge { .. }
+        | StoreError::ConfigDecode(_)
+        | StoreError::BackupInvalid(_) => ("invalid", ErrorCode::InputPathRejected, false),
+        StoreError::Io { .. } | StoreError::BlobMissing(_) => {
+            ("io-failed", ErrorCode::ExternalIoFailed, true)
+        }
+        StoreError::BlobDigestMismatch { .. } | StoreError::BlobCollision(_) => {
+            ("integrity-failed", ErrorCode::WorkspaceConflict, false)
+        }
+        StoreError::ConfigEncode(_)
+        | StoreError::Json(_)
+        | StoreError::Contract(_)
+        | StoreError::Random(_)
+        | StoreError::Clock
+        | StoreError::Invariant(_) => (
+            "invariant-failed",
+            ErrorCode::InternalInvariantFailed,
+            false,
+        ),
+    };
+    CommandFailure::new(operation, status, code, error.to_string(), retryable)
 }
 
 fn product_version() -> CommandResult<SemanticVersion> {

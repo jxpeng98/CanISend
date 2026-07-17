@@ -16,7 +16,7 @@ impl CapabilityRegistry {
             available("resources.manifest"),
             available("resource.list"),
             available("schema.list"),
-            planned("workspace.lifecycle"),
+            available("workspace.lifecycle"),
             planned("job.intake"),
             planned("discovery.refresh"),
             planned("workflow.execute"),
@@ -56,7 +56,12 @@ mod tests {
 
         assert_eq!(ids.len(), capabilities.len());
         assert!(capabilities.iter().any(|item| {
-            item.id == "workspace.lifecycle" && item.status == CapabilityStatus::Planned
+            item.id == "workspace.lifecycle" && item.status == CapabilityStatus::Available
         }));
+        assert!(
+            capabilities.iter().any(|item| {
+                item.id == "job.intake" && item.status == CapabilityStatus::Planned
+            })
+        );
     }
 }

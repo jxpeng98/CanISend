@@ -42,9 +42,18 @@ jobs:
         shell: bash
         run: |
           binary="${{ matrix.binary }}"
+          workspace="$RUNNER_TEMP/canisend-smoke-workspace"
+          backup="$RUNNER_TEMP/canisend-smoke-backup"
+          restored="$RUNNER_TEMP/canisend-smoke-restored"
           "$binary" version --json
           "$binary" doctor --json
           "$binary" agent capabilities --json
+          "$binary" --workspace "$workspace" workspace init --json
+          "$binary" --workspace "$workspace" workspace status --json
+          "$binary" --workspace "$workspace" workspace check --json
+          "$binary" --workspace "$workspace" workspace backup "$backup" --json
+          "$binary" workspace restore "$backup" "$restored" --json
+          "$binary" --workspace "$restored" workspace check --json
 
       - name: Upload unsigned preview binary
         uses: actions/upload-artifact@v7
