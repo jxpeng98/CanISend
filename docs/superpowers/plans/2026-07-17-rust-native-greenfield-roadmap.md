@@ -63,6 +63,11 @@
   scoped input export, and self-contained Codex/Claude/generic packs. GitHub Actions run `29618142639` passed 54
   Rust tests, 20-schema/26-resource checks, release build, and packaged external-candidate/remediation/stale-task smoke
   in 1 minute 39 seconds. R6 exit criteria are satisfied; R7 is active.
+- 2026-07-17: Completed R7.1 and R7.2 with the compiled ten-stage DAG, durable execution state, scoped rerun and
+  invalidation, `job.parse` tasks for host-agent and configured-provider modes, exact criterion source spans and
+  confidence, explicit provider-send consent, and user-only criteria correction/confirmation. GitHub Actions run
+  `29620247965` passed 58 Rust tests, 23-schema/29-resource checks, release compilation, and the packaged
+  parse-confirm-stale workflow in 1 minute 49 seconds. R7.3 evidence is active.
 
 ## 1. Executive Decision
 
@@ -1457,19 +1462,19 @@ remediation and idempotency, and detects a stale task after the job source revis
 
 #### R7.1 Stage registry and graph executor
 
-- [ ] Implement stage descriptors and dependency graph validation.
-- [ ] Reject cycles and duplicate outputs at startup/test time.
-- [ ] Implement status, readiness, blockers, and next-action derivation.
-- [ ] Implement deterministic, host-agent, provider, and user-decision modes.
-- [ ] Implement scoped rerun and invalidation.
+- [x] Implement stage descriptors and dependency graph validation.
+- [x] Reject cycles and duplicate outputs at startup/test time.
+- [x] Implement status, readiness, blockers, and next-action derivation.
+- [x] Implement deterministic, host-agent, provider, and user-decision modes.
+- [x] Implement scoped rerun and invalidation.
 
 #### R7.2 Parse and criteria confirmation
 
-- [ ] Define parsed-job and criterion contracts.
-- [ ] Implement host-agent parse task.
-- [ ] Implement optional configured-provider parse through the same validator.
-- [ ] Implement user correction and confirmation commands.
-- [ ] Track criterion source spans and confidence.
+- [x] Define parsed-job and criterion contracts.
+- [x] Implement host-agent parse task.
+- [x] Implement optional configured-provider parse through the same validator.
+- [x] Implement user correction and confirmation commands.
+- [x] Track criterion source spans and confidence.
 
 #### R7.3 Evidence
 
