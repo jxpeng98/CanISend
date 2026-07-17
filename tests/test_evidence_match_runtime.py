@@ -1136,7 +1136,7 @@ def test_evidence_and_match_never_invoke_provider_network_or_platform_api(
     assert (job_dir / "criterion_matches.json").is_file()
 
 
-def test_legacy_pipeline_preserves_current_structured_decision_spine(tmp_path: Path) -> None:
+def test_sequence_preserves_current_structured_decision_spine_at_later_boundary(tmp_path: Path) -> None:
     workspace, job_dir, _ = _write_workspace(tmp_path)
     _run_to_match(workspace, job_dir)
     initialize_confirmed_corrections(
@@ -1194,19 +1194,9 @@ def test_legacy_pipeline_preserves_current_structured_decision_spine(tmp_path: P
 
     assert result.exit_code == 0, result.output
     assert {name: (job_dir / name).read_bytes() for name in structured} == before
-    fit_report = (job_dir / "02_fit_report.md").read_text(encoding="utf-8")
-    checklist = (job_dir / "05_criteria_checklist.md").read_text(encoding="utf-8")
-    package_content = json.loads(
-        (job_dir / "typst" / "application_package_content.json").read_text(
-            encoding="utf-8"
-        )
-    )
-    assert "Deterministic proposal" in fit_report
-    assert "PROPOSED" in fit_report
-    assert "Deterministic Match proposals only" in checklist
-    assert PRIVATE_EVIDENCE not in fit_report + checklist
-    assert package_content["fit_report"] == fit_report
-    assert package_content["criteria_checklist"] == checklist
+    assert not (job_dir / "package_bundle.json").exists()
+    assert not (job_dir / "02_fit_report.md").exists()
+    assert "Legacy compatibility materials were projected" not in result.output
     for stage in ("evidence", "parse", "confirm", "match", "brief"):
         status = inspect_stage_status(
             workspace,
@@ -1216,31 +1206,12 @@ def test_legacy_pipeline_preserves_current_structured_decision_spine(tmp_path: P
         assert status.stage.status == "succeeded"
         assert status.reasons == ()
 
-    primary = job_dir / "typst" / "application_package.typ"
-    edited_primary = primary.read_text(encoding="utf-8") + "\n// user edit\n"
-    primary.write_text(edited_primary, encoding="utf-8")
-    rerun = CliRunner().invoke(
-        app,
-        [
-            "run",
-            "--workspace",
-            str(workspace),
-            "--job",
-            "jobs/example-role",
-            "--no-git-add-materials",
-        ],
-    )
-    assert rerun.exit_code == 0, rerun.output
-    candidate = job_dir / "typst" / "application_package.generated.typ"
-    assert primary.read_text(encoding="utf-8") == edited_primary
-    assert "Deterministic proposal" in candidate.read_text(encoding="utf-8")
-
 
 @pytest.mark.parametrize(
     "drift",
     ["advert", "criteria_output", "evidence_output", "match_output"],
 )
-def test_legacy_pipeline_falls_back_when_structured_match_is_not_current(
+def test_sequence_refreshes_source_changes_but_requires_repair_for_output_drift(
     tmp_path: Path,
     drift: str,
 ) -> None:
@@ -1276,14 +1247,14 @@ def test_legacy_pipeline_falls_back_when_structured_match_is_not_current(
     )
 
     assert result.exit_code == 0, result.output
-    fit_report = (job_dir / "02_fit_report.md").read_text(encoding="utf-8")
-    checklist = (job_dir / "05_criteria_checklist.md").read_text(encoding="utf-8")
-    assert "Deterministic proposal" not in fit_report
-    assert "Deterministic Match proposals only" not in checklist
     status = inspect_stage_status(workspace, job_dir, stage="match")
     if drift == "advert":
-        assert status.stage.status == "stale"
-        assert status.reasons
+        fit_report = (job_dir / "02_fit_report.md").read_text(encoding="utf-8")
+        checklist = (job_dir / "05_criteria_checklist.md").read_text(encoding="utf-8")
+        assert "Deterministic proposal" not in fit_report
+        assert "Deterministic Match proposals only" not in checklist
+        assert status.stage.status == "succeeded"
+        assert status.reasons == ()
     elif drift == "criteria_output":
         assert inspect_stage_status(
             workspace,
@@ -1298,9 +1269,12 @@ def test_legacy_pipeline_falls_back_when_structured_match_is_not_current(
         ).output_drift
     else:
         assert status.output_drift
+    if drift != "advert":
+        assert not (job_dir / "package_bundle.json").exists()
+        assert not (job_dir / "02_fit_report.md").exists()
 
 
-def test_legacy_pipeline_does_not_mix_structured_match_with_profile_override(
+def test_resumable_sequence_rejects_profile_override(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1345,22 +1319,10 @@ def test_legacy_pipeline_does_not_mix_structured_match_with_profile_override(
         ],
     )
 
-    assert result.exit_code == 0, result.output
-    generated = "\n".join(
-        (job_dir / name).read_text(encoding="utf-8")
-        for name in (
-            "02_fit_report.md",
-            "03_cover_letter_draft.md",
-            "04_cv_tailoring_notes.md",
-            "05_criteria_checklist.md",
-            "06_final_application_package.md",
-            "07_material_review_checklist.md",
-        )
-    )
-    assert "Deterministic proposal" not in generated
-    assert "profile-b/generated/cv.evidence.md" in generated
-    assert "profile/generated/cv.evidence.md" not in generated
-    assert PRIVATE_EVIDENCE not in generated
+    assert result.exit_code == 2
+    assert "must match the workspace configuration" in result.output
+    assert "resumable execution" in result.output
+    assert not (job_dir / "package_bundle.json").exists()
 
 
 def test_scoped_correction_invalidates_only_declared_dependants_and_preserves_brief(
@@ -1450,17 +1412,12 @@ def test_scoped_correction_invalidates_only_declared_dependants_and_preserves_br
         ],
     )
     assert result.exit_code == 0, result.output
-    fit_report = (job_dir / "02_fit_report.md").read_text(encoding="utf-8")
-    checklist = (job_dir / "05_criteria_checklist.md").read_text(encoding="utf-8")
-    material_review = (job_dir / "07_material_review_checklist.md").read_text(
-        encoding="utf-8"
-    )
-    assert "User-confirmed scoped criterion wording" in fit_report
-    assert "User-confirmed scoped criterion wording" in checklist
-    assert "User-confirmed scoped criterion wording" in material_review
-    strict_hr = material_review.split("## Strict University HR Review", 1)[1]
-    assert "PhD in Economics" not in fit_report + checklist + strict_hr
+    assert not (job_dir / "package_bundle.json").exists()
+    assert not (job_dir / "02_fit_report.md").exists()
     rerun_criteria = json.loads(
         (job_dir / "criteria.json").read_text(encoding="utf-8")
     )["criteria"]
     assert criterion_id in {item["criterion_id"] for item in rerun_criteria}
+    assert "User-confirmed scoped criterion wording" in {
+        item["text"] for item in rerun_criteria
+    }

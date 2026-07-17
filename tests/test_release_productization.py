@@ -42,6 +42,7 @@ def test_discovery_smoke_resolves_relative_workspace_before_cli_paths(
 def test_shared_decision_spine_smoke_owns_the_full_body_free_contract():
     rendered = Path("scripts/smoke_decision_spine.py").read_text()
     ordered_steps = [
+        '["migration", "inspect", *job_args]',
         'for stage in ("evidence", "parse", "confirm")',
         '["corrections", "status"',
         '["corrections", "init"',
@@ -65,6 +66,7 @@ def test_shared_decision_spine_smoke_owns_the_full_body_free_contract():
         '"package-review",\n            "init"',
         '"operation": "set_package_finding_disposition"',
         '"run",\n            "--workspace"',
+        '["repair", "projection", *job_args',
         '"check-package"',
     ]
 
@@ -103,8 +105,18 @@ def test_shared_decision_spine_smoke_owns_the_full_body_free_contract():
         "draft",
         "review",
         "package_review",
+        "package",
+        "verify",
     ):
         assert f'"{stage}":' in rendered
+    assert '"workflow/projections/package.json"' in rendered
+    assert '"package_bundle.json"' in rendered
+    assert '"render_bundle.json"' in rendered
+    assert '"typst/cover_letter.generated.typ"' in rendered
+    assert '"typst/application_package.generated.typ"' in rendered
+    assert "overwrote a preserved Typst primary" in rendered
+    assert "Read-only migration inspection created Stage 5 runtime state" in rendered
+    assert "Stage 5 repair/sequence inspection mutated current state" in rendered
     assert "preparation.json" in rendered
     assert "submission.json" in rendered
     assert "completed.stdout" not in rendered[rendered.index("def main(") :]
@@ -385,11 +397,11 @@ def test_ci_covers_supported_python_versions_and_cross_os_cli_smoke():
     assert "scripts/smoke_decision_spine.py" in smoke
     assert "scripts/smoke_discovery.py" in smoke
     assert "--canisend canisend" in smoke
-    assert "--workspace .ci-smoke-stage2" in smoke
+    assert "--workspace .ci-smoke-stage5" in smoke
     cross_os_smoke = next(
         step["run"]
         for step in smoke_job["steps"]
-        if step.get("name") == "Smoke test CLI contract"
+        if step.get("name") == "Smoke test Stage 5 workflow contract"
     )
     _assert_complete_decision_spine_smoke(cross_os_smoke)
     cross_os_discovery_smoke = next(
@@ -429,8 +441,8 @@ def test_release_workflow_publishes_with_trusted_publishing():
     assert "python -m venv /tmp/canisend-smoke" in rendered
     assert rendered.count("scripts/smoke_decision_spine.py") == 2
     assert rendered.count("scripts/smoke_discovery.py") == 2
-    assert "--workspace /tmp/canisend-stage2-example" in rendered
-    assert "--workspace /tmp/canisend-testpypi-stage2-example" in rendered
+    assert "--workspace /tmp/canisend-stage5-example" in rendered
+    assert "--workspace /tmp/canisend-testpypi-stage5-example" in rendered
     testpypi_steps = workflow["jobs"]["smoke-test-testpypi"]["steps"]
     assert testpypi_steps[0]["uses"] == "actions/checkout@v4"
     for job_name, step_name in (

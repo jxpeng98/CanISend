@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the packaged decision-spine smoke test without echoing private bodies."""
+"""Run the packaged Stage 5 workflow smoke test without echoing private bodies."""
 
 from __future__ import annotations
 
@@ -36,6 +36,8 @@ EXPECTED_STAGE_RUN_COUNTS = {
     "draft": 2,
     "review": 2,
     "package_review": 1,
+    "package": 1,
+    "verify": 1,
 }
 EXPECTED_USER_MUTATION_RECEIPTS = 20
 STRUCTURED_DRAFT_SENTINEL = "I hold a PhD in Economics."
@@ -648,10 +650,14 @@ def _assert_workspace_contract(workspace: Path) -> None:
         "08_research_statement.md",
         "typst/cover_letter_content.json",
         "typst/cover_letter.typ",
+        "typst/cover_letter.generated.typ",
         "typst/research_statement_content.json",
         "typst/research_statement.typ",
         "typst/application_package_content.json",
         "typst/application_package.typ",
+        "typst/application_package.generated.typ",
+        "package_bundle.json",
+        "workflow/projections/package.json",
         "application_gate_report.json",
     }
     missing = sorted(name for name in expected_artifacts if not (job / name).is_file())
@@ -693,6 +699,27 @@ def _assert_workspace_contract(workspace: Path) -> None:
         raise SmokeFailure("The decision-spine smoke test ran unexpected stage counts.")
     if draft_modes != Counter({"configured_provider": 1, "host_agent": 1}):
         raise SmokeFailure("The release smoke did not exercise both Draft modes.")
+
+    try:
+        package_bundle = json.loads((job / "package_bundle.json").read_text(encoding="utf-8"))
+        package_projection = json.loads(
+            (job / "workflow" / "projections" / "package.json").read_text(encoding="utf-8")
+        )
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise SmokeFailure("The Stage 5 Package bundle or projection journal is invalid.") from exc
+    if (
+        package_bundle.get("schema_version") != "1.0.0"
+        or package_bundle.get("stage") != "package"
+        or package_bundle.get("mode") != "guarded"
+        or package_bundle.get("job_id") != job.name
+        or package_projection.get("schema_version") != "1.0.0"
+        or package_projection.get("stage") != "package"
+        or package_projection.get("job_id") != job.name
+        or len(package_projection.get("entries", [])) != len(package_bundle.get("entries", []))
+    ):
+        raise SmokeFailure("The Stage 5 Package bundle and projection contract diverged.")
+    if (job / "render_bundle.json").exists() or "render" in stage_counts:
+        raise SmokeFailure("A failed Verify result did not stop the sequence before Render.")
 
     try:
         plan = json.loads((job / "required_document_plan.json").read_text(encoding="utf-8"))
@@ -747,13 +774,15 @@ def _assert_workspace_contract(workspace: Path) -> None:
     research_markdown = (job / "08_research_statement.md").read_text(
         encoding="utf-8"
     )
-    cover_source = (job / "typst" / "cover_letter.typ").read_text(encoding="utf-8")
+    cover_primary = (job / "typst" / "cover_letter.typ").read_text(encoding="utf-8")
+    cover_source = (job / "typst" / "cover_letter.generated.typ").read_text(
+        encoding="utf-8"
+    )
     research_source = (job / "typst" / "research_statement.typ").read_text(
         encoding="utf-8"
     )
-    package_source = (job / "typst" / "application_package.typ").read_text(
-        encoding="utf-8"
-    )
+    package_primary = (job / "typst" / "application_package.typ").read_text(encoding="utf-8")
+    package_source = (job / "typst" / "application_package.generated.typ").read_text(encoding="utf-8")
     if "Deterministic proposal" not in fit_report or "(PROPOSED)" not in fit_report:
         raise SmokeFailure("The installed wheel did not render the current structured Match view.")
     if "Deterministic Match proposals only" not in checklist:
@@ -781,6 +810,11 @@ def _assert_workspace_contract(workspace: Path) -> None:
     for source in (cover_source, package_source):
         if source.count(STRUCTURED_DRAFT_SENTINEL) != 1:
             raise SmokeFailure("The installed-wheel Typst projection duplicated or lost a Claim.")
+    if (
+        STRUCTURED_DRAFT_SENTINEL in cover_primary
+        or STRUCTURED_DRAFT_SENTINEL in package_primary
+    ):
+        raise SmokeFailure("The Stage 5 Package projection overwrote a preserved Typst primary.")
     if "// CANISEND: structured-draft projection" not in cover_source:
         raise SmokeFailure("The installed-wheel Cover Letter omitted its structured marker.")
     research_projection = (
@@ -880,6 +914,12 @@ def run_smoke(canisend: str, workspace: Path) -> None:
     _run(canisend, ["agent", "capabilities", "--format", "json"], expect_json=True)
 
     job_args = _job_arguments(workspace)
+    job = workspace / EXAMPLE_JOB
+    if (job / "workflow").exists():
+        raise SmokeFailure("The packaged legacy fixture unexpectedly created Stage 5 runtime state.")
+    _run(canisend, ["migration", "inspect", *job_args], expect_json=True)
+    if (job / "workflow").exists():
+        raise SmokeFailure("Read-only migration inspection created Stage 5 runtime state.")
     for stage in ("evidence", "parse", "confirm"):
         _run(
             canisend,
@@ -954,7 +994,6 @@ def run_smoke(canisend: str, workspace: Path) -> None:
         ["stage", "run", *job_args, "--stage", "brief"],
         expect_json=True,
     )
-    job = workspace / EXAMPLE_JOB
     try:
         initial_plan = json.loads(
             (job / "required_document_plan.json").read_text(encoding="utf-8")
@@ -1339,6 +1378,44 @@ def run_smoke(canisend: str, workspace: Path) -> None:
         for name, content in before_run.items()
     ):
         raise SmokeFailure("The compatible pipeline rewrote a Decision Spine artifact.")
+
+    package_control_before = {
+        name: (job / name).read_bytes()
+        for name in (
+            "package_bundle.json",
+            "workflow/projections/package.json",
+            "application_gate_report.json",
+            "workflow/state.json",
+            "typst/cover_letter.typ",
+            "typst/cover_letter.generated.typ",
+            "typst/application_package.typ",
+            "typst/application_package.generated.typ",
+        )
+    }
+    _run(
+        canisend,
+        ["repair", "projection", *job_args, "--stage", "package", "--dry-run"],
+        expect_json=True,
+    )
+    _run(
+        canisend,
+        [
+            "run",
+            "--workspace",
+            str(workspace),
+            "--job",
+            EXAMPLE_JOB,
+            "--dry-run",
+            "--format",
+            "json",
+        ],
+        expect_json=True,
+    )
+    if any(
+        (job / name).read_bytes() != content
+        for name, content in package_control_before.items()
+    ):
+        raise SmokeFailure("Stage 5 repair/sequence inspection mutated current state.")
     _run(
         canisend,
         [

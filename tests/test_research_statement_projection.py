@@ -4,9 +4,10 @@ import hashlib
 import json
 from pathlib import Path
 
-import pytest
 from typer.testing import CliRunner
 
+from canisend.bundle_models import ProjectionJournalV1
+from canisend.bundle_projection import load_artifact_bundle, project_artifact_bundle
 from canisend.cli import app
 from canisend.draft_models import stable_claim_id
 from canisend.draft_views import (
@@ -18,15 +19,18 @@ from canisend.draft_views import (
 from canisend.ready_check import check_application_package
 from canisend.stage_runtime import run_deterministic_stage
 from canisend.stage_store import read_json_object
-from canisend.typst import render_typst_files
 from canisend.typst_mapping import render_modernpro_research_statement_source
 from canisend.user_mutations import (
     SetFindingDispositionPatch,
+    SetPackageFindingDispositionPatch,
     apply_user_patch,
+    initialize_package_review_dispositions,
     initialize_review_dispositions,
 )
-from tests.test_draft_stage import _workspace
+from canisend.workflow_sequence import SequenceOptions, run_sequence
+from tests.test_draft_stage import _candidate, _workspace
 from tests.test_research_statement_stage import _promote, _research_candidate
+from tests.test_review_stage import _complete_sections, _promote_draft
 
 
 RESEARCH_PROJECTION_SENTINEL = "PRIVATE-RESEARCH-PROJECTION-SENTINEL-5291"
@@ -39,9 +43,39 @@ def _reviewed_research_statement(
 ) -> tuple[Path, Path, dict[str, object]]:
     workspace, job = _workspace(
         tmp_path,
-        include_cover_letter=False,
+        include_cv=False,
+        include_cover_letter=True,
         include_research_statement=True,
     )
+    cover_payload = _complete_sections(_candidate(workspace, job, factual=True))
+    _promote_draft(workspace, job, cover_payload)
+    run_deterministic_stage(
+        workspace,
+        job,
+        stage="review",
+        document_id=str(cover_payload["document_id"]),
+    )
+    cover_outcome = initialize_review_dispositions(
+        workspace,
+        job,
+        document_id=str(cover_payload["document_id"]),
+        consent_confirmed=True,
+    )
+    cover_review = read_json_object(job / "review_findings.json")
+    for finding in cover_review["findings"]:
+        cover_outcome = apply_user_patch(
+            workspace,
+            job,
+            SetFindingDispositionPatch(
+                finding_id=finding["finding_id"],
+                disposition="accepted",
+            ),
+            document_id=str(cover_payload["document_id"]),
+            expected_sha256=cover_outcome.snapshot.sha256,
+            expected_revision=cover_outcome.snapshot.revision,
+            consent_confirmed=True,
+        )
+
     payload = _research_candidate(workspace, job)
     first_claim = payload["sections"][0]["claims"][0]  # type: ignore[index]
     first_claim["text"] = text
@@ -97,6 +131,34 @@ def _run_pipeline(workspace: Path) -> None:
     assert result.exit_code == 0, result.output
 
 
+def _project_guarded_package(workspace: Path, job: Path) -> ProjectionJournalV1:
+    run_deterministic_stage(workspace, job, stage="package_review")
+    package_review = read_json_object(job / "package_review_findings.json")
+    assert package_review["blocker_finding_ids"] == []
+    outcome = initialize_package_review_dispositions(
+        workspace,
+        job,
+        consent_confirmed=True,
+    )
+    for finding in package_review["findings"]:
+        outcome = apply_user_patch(
+            workspace,
+            job,
+            SetPackageFindingDispositionPatch(
+                finding_id=finding["finding_id"],
+                disposition="accepted",
+            ),
+            expected_sha256=outcome.snapshot.sha256,
+            expected_revision=outcome.snapshot.revision,
+            consent_confirmed=True,
+        )
+
+    run_deterministic_stage(workspace, job, stage="package")
+    bundle = load_artifact_bundle(job / "package_bundle.json")
+    assert bundle.mode == "guarded"
+    return project_artifact_bundle(job, bundle)
+
+
 def test_reviewed_research_statement_view_is_traceable_and_structure_safe(
     tmp_path: Path,
 ) -> None:
@@ -147,7 +209,7 @@ def test_reviewed_research_statement_view_is_traceable_and_structure_safe(
     assert "\n# Claimed heading" not in source
 
 
-def test_pipeline_projects_reviewed_research_statement_without_package_embedding(
+def test_package_projects_reviewed_research_statement_without_package_embedding(
     tmp_path: Path,
 ) -> None:
     workspace, job, payload = _reviewed_research_statement(tmp_path)
@@ -165,7 +227,7 @@ def test_pipeline_projects_reviewed_research_statement_without_package_embedding
     )
     before = {name: (job / name).read_bytes() for name in authoritative_names}
 
-    _run_pipeline(workspace)
+    journal = _project_guarded_package(workspace, job)
 
     assert {name: (job / name).read_bytes() for name in authoritative_names} == before
     markdown = (job / "08_research_statement.md").read_text(encoding="utf-8")
@@ -185,16 +247,6 @@ def test_pipeline_projects_reviewed_research_statement_without_package_embedding
     package_source = (job / "typst" / "application_package.typ").read_text(
         encoding="utf-8"
     )
-    package_manifest = json.loads(
-        (job / "typst" / ".canisend-generated.json").read_text(
-            encoding="utf-8"
-        )
-    )
-    research_manifest = json.loads(
-        (job / "typst" / ".canisend-research-generated.json").read_text(
-            encoding="utf-8"
-        )
-    )
     claim_id = payload["sections"][0]["claims"][0]["claim_id"]  # type: ignore[index]
 
     assert markdown.count(RESEARCH_PROJECTION_SENTINEL) == 1
@@ -205,11 +257,12 @@ def test_pipeline_projects_reviewed_research_statement_without_package_embedding
     assert "research_statement_projection" not in package_content
     assert "structured_research_statement_sections" not in package_content
     assert RESEARCH_PROJECTION_SENTINEL not in package_source
-    assert set(package_manifest["files"]) == {
-        "cover_letter.typ",
-        "application_package.typ",
-    }
-    assert set(research_manifest["files"]) == {"research_statement.typ"}
+    projected_targets = {entry.target_path for entry in journal.entries}
+    assert {
+        "typst/cover_letter.typ",
+        "typst/application_package.typ",
+        "typst/research_statement.typ",
+    } <= projected_targets
 
     package_check = check_application_package(job, workspace / "profile")
     assert not any(
@@ -247,59 +300,61 @@ def test_pipeline_does_not_project_research_statement_before_reviewed(
     assert not (job / "typst" / "research_statement.typ").exists()
 
 
-def test_stale_research_projection_is_replaced_without_retaining_claim_body(
+def test_sequence_fails_closed_and_preserves_research_projection_on_review_drift(
     tmp_path: Path,
 ) -> None:
     workspace, job, _payload = _reviewed_research_statement(tmp_path)
-    _run_pipeline(workspace)
+    _project_guarded_package(workspace, job)
+    protected = {
+        path: path.read_bytes()
+        for path in (
+            job / "08_research_statement.md",
+            job / "typst" / "research_statement_content.json",
+            job / "typst" / "research_statement.typ",
+            job / "package_bundle.json",
+            job / "workflow" / "projections" / "package.json",
+        )
+    }
     dispositions = job / "research_statement_review_dispositions.yaml"
     dispositions.write_bytes(dispositions.read_bytes() + b" ")
 
-    _run_pipeline(workspace)
-
-    markdown = (job / "08_research_statement.md").read_text(encoding="utf-8")
-    content = json.loads(
-        (job / "typst" / "research_statement_content.json").read_text(
-            encoding="utf-8"
-        )
+    sequence = run_sequence(
+        workspace,
+        job,
+        options=SequenceOptions(legacy_compatibility=True),
     )
-    source = (job / "typst" / "research_statement.typ").read_text(
-        encoding="utf-8"
-    )
-    assert RESEARCH_PROJECTION_SENTINEL not in markdown
-    assert RESEARCH_PROJECTION_SENTINEL not in json.dumps(content)
-    assert RESEARCH_PROJECTION_SENTINEL not in source
-    assert content == {
-        "projection": {
-            "status": "unavailable",
-            "reason": "current_reviewed_projection_unavailable",
-            "integration_scope": "standalone_document",
-            "document_kind": "research_statement",
-        },
-        "structured_sections": [],
-    }
-    assert "research-statement projection unavailable" in source
+
+    assert sequence.legacy_compatibility is None
+    assert sequence.plan.first_stop is not None
+    assert sequence.plan.first_stop.decision in {"blocked", "repair"}
+    assert not any(item.decision == "execute" for item in sequence.plan.items)
+    assert {path: path.read_bytes() for path in protected} == protected
 
 
-def test_stale_projection_preserves_edited_typst_and_isolated_candidate(
+def test_review_drift_preserves_edited_typst_without_silent_candidate(
     tmp_path: Path,
 ) -> None:
     workspace, job, _payload = _reviewed_research_statement(tmp_path)
-    _run_pipeline(workspace)
+    _project_guarded_package(workspace, job)
     primary = job / "typst" / "research_statement.typ"
     edited = primary.read_text(encoding="utf-8") + "\n// user edit\n"
     primary.write_text(edited, encoding="utf-8")
     dispositions = job / "research_statement_review_dispositions.yaml"
     dispositions.write_bytes(dispositions.read_bytes() + b" ")
 
-    _run_pipeline(workspace)
+    sequence = run_sequence(
+        workspace,
+        job,
+        options=SequenceOptions(legacy_compatibility=True),
+    )
 
     candidate = job / "typst" / "research_statement.generated.typ"
+    assert sequence.legacy_compatibility is None
+    assert sequence.plan.first_stop is not None
+    assert sequence.plan.first_stop.decision in {"blocked", "repair"}
+    assert not any(item.decision == "execute" for item in sequence.plan.items)
     assert primary.read_text(encoding="utf-8") == edited
-    assert candidate.is_file()
-    assert RESEARCH_PROJECTION_SENTINEL not in candidate.read_text(encoding="utf-8")
+    assert not candidate.exists()
     package_check = check_application_package(job, workspace / "profile")
     assert not any(issue.path == "typst/research_statement.generated.typ" for issue in package_check.issues)
     assert "job/typst/research_statement.generated.typ" not in package_check.input_hashes
-    with pytest.raises(RuntimeError, match="research_statement.generated.typ"):
-        render_typst_files(job, typst_bin="missing-typst")

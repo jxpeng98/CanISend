@@ -6,9 +6,9 @@ import json
 from pathlib import Path
 
 import pytest
-from typer.testing import CliRunner
 
-from canisend.cli import app
+from canisend.bundle_models import ProjectionJournalV1
+from canisend.bundle_projection import load_artifact_bundle, project_artifact_bundle
 from canisend.draft_models import stable_claim_id
 from canisend.draft_views import (
     STRUCTURED_DRAFT_PROJECTION_SOURCE,
@@ -17,19 +17,83 @@ from canisend.draft_views import (
     load_current_structured_draft_views,
 )
 from canisend.pipeline import run_pipeline
+from canisend.legacy_compatibility import (
+    LegacyCompatibilityOutcome,
+    run_legacy_package_compatibility,
+)
 from canisend.ready_check import check_application_package
 from canisend.stage_runtime import run_deterministic_stage
 from canisend.stage_store import read_json_object
 from canisend.user_mutations import (
     SetFindingDispositionPatch,
+    SetPackageFindingDispositionPatch,
     apply_user_patch,
+    initialize_package_review_dispositions,
     initialize_review_dispositions,
 )
+from canisend.workflow_sequence import SequenceOptions, run_sequence
 from tests.test_draft_stage import _candidate, _workspace
 from tests.test_review_stage import _complete_sections, _promote_draft
 
 
 STRUCTURED_SENTINEL = "STRUCTURED-DRAFT-PROJECTION-SENTINEL-7319"
+
+
+def _project_legacy_compatibility(
+    workspace: Path,
+    job: Path,
+) -> LegacyCompatibilityOutcome:
+    outcome = run_legacy_package_compatibility(workspace, job)
+    assert outcome.active
+    return outcome
+
+
+def _project_guarded_package(workspace: Path, job: Path) -> ProjectionJournalV1:
+    if not (job / "review_dispositions.yaml").is_file():
+        review_outcome = initialize_review_dispositions(
+            workspace,
+            job,
+            consent_confirmed=True,
+        )
+        review = read_json_object(job / "review_findings.json")
+        for finding in review["findings"]:
+            review_outcome = apply_user_patch(
+                workspace,
+                job,
+                SetFindingDispositionPatch(
+                    finding_id=finding["finding_id"],
+                    disposition="accepted",
+                ),
+                expected_sha256=review_outcome.snapshot.sha256,
+                expected_revision=review_outcome.snapshot.revision,
+                consent_confirmed=True,
+            )
+
+    run_deterministic_stage(workspace, job, stage="package_review")
+    package_review = read_json_object(job / "package_review_findings.json")
+    assert package_review["blocker_finding_ids"] == []
+    package_outcome = initialize_package_review_dispositions(
+        workspace,
+        job,
+        consent_confirmed=True,
+    )
+    for finding in package_review["findings"]:
+        package_outcome = apply_user_patch(
+            workspace,
+            job,
+            SetPackageFindingDispositionPatch(
+                finding_id=finding["finding_id"],
+                disposition="accepted",
+            ),
+            expected_sha256=package_outcome.snapshot.sha256,
+            expected_revision=package_outcome.snapshot.revision,
+            consent_confirmed=True,
+        )
+
+    run_deterministic_stage(workspace, job, stage="package")
+    bundle = load_artifact_bundle(job / "package_bundle.json")
+    assert bundle.mode == "guarded"
+    return project_artifact_bundle(job, bundle)
 
 
 def _reviewed_draft(
@@ -41,6 +105,7 @@ def _reviewed_draft(
 ) -> tuple[Path, Path, dict[str, object]]:
     workspace, job = _workspace(
         tmp_path,
+        include_cv=False,
         include_research_statement=include_research_statement,
     )
     payload = _complete_sections(_candidate(workspace, job, factual=True))
@@ -165,19 +230,7 @@ def test_typst_projection_keeps_agent_claim_text_inside_a_string(
     text = '#evil("x")\n= heading\n// comment\n*bold*'
     workspace, job, _payload = _reviewed_draft(tmp_path, text=text)
 
-    result = CliRunner().invoke(
-        app,
-        [
-            "run",
-            "--workspace",
-            str(workspace),
-            "--job",
-            "jobs/example-role",
-            "--no-git-add-materials",
-        ],
-    )
-
-    assert result.exit_code == 0, result.output
+    _project_guarded_package(workspace, job)
     source = (job / "typst" / "cover_letter.typ").read_text(encoding="utf-8")
     assert '#text("#evil(\\"x\\")\\n= heading\\n// comment\\n*bold*")' in source
     assert "\n#evil(" not in source
@@ -237,19 +290,7 @@ def test_pipeline_projects_structured_draft_into_markdown_and_typst(
     )
     before = {name: (job / name).read_bytes() for name in protected_names}
 
-    result = CliRunner().invoke(
-        app,
-        [
-            "run",
-            "--workspace",
-            str(workspace),
-            "--job",
-            "jobs/example-role",
-            "--no-git-add-materials",
-        ],
-    )
-
-    assert result.exit_code == 0, result.output
+    _project_guarded_package(workspace, job)
     assert {name: (job / name).read_bytes() for name in protected_names} == before
     markdown = (job / "03_cover_letter_draft.md").read_text(encoding="utf-8")
     cover_content = json.loads(
@@ -284,11 +325,7 @@ def test_pipeline_projects_structured_draft_into_markdown_and_typst(
         and "missing stable section marker" in issue.message
         for issue in package_check.issues
     )
-    assert any(
-        issue.path == "typst/cover_letter_content.json"
-        and "not document readiness" in issue.message
-        for issue in package_check.issues
-    )
+    assert not any("not document readiness" in issue.message for issue in package_check.issues)
 
 
 def test_complete_user_dispositions_make_only_the_cover_letter_reviewed(
@@ -314,19 +351,7 @@ def test_complete_user_dispositions_make_only_the_cover_letter_reviewed(
             consent_confirmed=True,
         )
 
-    result = CliRunner().invoke(
-        app,
-        [
-            "run",
-            "--workspace",
-            str(workspace),
-            "--job",
-            "jobs/example-role",
-            "--no-git-add-materials",
-        ],
-    )
-
-    assert result.exit_code == 0, result.output
+    _project_guarded_package(workspace, job)
     cover_content = json.loads(
         (job / "typst" / "cover_letter_content.json").read_text(encoding="utf-8")
     )
@@ -354,18 +379,7 @@ def test_package_check_binds_structured_projection_to_draft_and_review(
     tmp_path: Path,
 ) -> None:
     workspace, job, _payload = _reviewed_draft(tmp_path)
-    result = CliRunner().invoke(
-        app,
-        [
-            "run",
-            "--workspace",
-            str(workspace),
-            "--job",
-            "jobs/example-role",
-            "--no-git-add-materials",
-        ],
-    )
-    assert result.exit_code == 0, result.output
+    _project_guarded_package(workspace, job)
 
     cover_source_path = job / "typst" / "cover_letter.typ"
     cover_source = cover_source_path.read_text(encoding="utf-8")
@@ -403,7 +417,7 @@ def test_package_check_binds_structured_projection_to_draft_and_review(
 
 
 @pytest.mark.parametrize("drifted_output", ["cover_letter_draft.json", "review_findings.json"])
-def test_pipeline_falls_back_to_legacy_when_structured_draft_output_drifts(
+def test_sequence_fails_closed_without_legacy_fallback_when_structured_output_drifts(
     tmp_path: Path,
     drifted_output: str,
 ) -> None:
@@ -411,44 +425,23 @@ def test_pipeline_falls_back_to_legacy_when_structured_draft_output_drifts(
     drifted_path = job / drifted_output
     drifted_path.write_bytes(drifted_path.read_bytes() + b" ")
 
-    result = CliRunner().invoke(
-        app,
-        [
-            "run",
-            "--workspace",
-            str(workspace),
-            "--job",
-            "jobs/example-role",
-            "--no-git-add-materials",
-        ],
+    sequence = run_sequence(
+        workspace,
+        job,
+        options=SequenceOptions(legacy_compatibility=True),
     )
 
-    assert result.exit_code == 0, result.output
-    markdown = (job / "03_cover_letter_draft.md").read_text(encoding="utf-8")
-    content = json.loads(
-        (job / "typst" / "cover_letter_content.json").read_text(encoding="utf-8")
-    )
-    assert STRUCTURED_SENTINEL not in markdown
-    assert "## Research Fit" in markdown
-    assert "projection" not in content
+    assert sequence.legacy_compatibility is None
+    assert any(item.decision == "repair" for item in sequence.plan.items)
+    assert not (job / "package_bundle.json").exists()
+    assert not (job / "03_cover_letter_draft.md").exists()
 
 
 def test_pipeline_preserves_edited_typst_when_structured_projection_appears(
     tmp_path: Path,
 ) -> None:
-    workspace, job = _workspace(tmp_path)
-    runner = CliRunner()
-    first = runner.invoke(
-        app,
-        [
-            "run",
-            "--workspace",
-            str(workspace),
-            "--job",
-            "jobs/example-role",
-            "--no-git-add-materials",
-        ],
-    )
+    workspace, job = _workspace(tmp_path, include_cv=False)
+    first = _project_legacy_compatibility(workspace, job)
     primary = job / "typst" / "cover_letter.typ"
     edited = primary.read_text(encoding="utf-8") + "\n// USER EDIT\n"
     primary.write_text(edited, encoding="utf-8")
@@ -465,25 +458,18 @@ def test_pipeline_preserves_edited_typst_when_structured_projection_appears(
     _promote_draft(workspace, job, payload)
     run_deterministic_stage(workspace, job, stage="review")
 
-    second = runner.invoke(
-        app,
-        [
-            "run",
-            "--workspace",
-            str(workspace),
-            "--job",
-            "jobs/example-role",
-            "--no-git-add-materials",
-        ],
-    )
+    second = _project_guarded_package(workspace, job)
 
     candidate = job / "typst" / "cover_letter.generated.typ"
-    assert first.exit_code == 0, first.output
-    assert second.exit_code == 0, second.output
+    assert first.journal is not None
     assert primary.read_text(encoding="utf-8") == edited
     assert candidate.is_file()
     assert STRUCTURED_SENTINEL in candidate.read_text(encoding="utf-8")
-    assert "WARNING: Preserved edited Typst source" in second.output
+    assert any(
+        entry.target_path == "typst/cover_letter.generated.typ"
+        and entry.outcome == "candidate_created"
+        for entry in second.entries
+    )
 
 
 def test_direct_library_call_preserves_legacy_draft_behavior(tmp_path: Path) -> None:

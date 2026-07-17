@@ -150,7 +150,7 @@ def test_end_to_end_example_runs_full_local_workflow(tmp_path, monkeypatch):
 
     assert parsed_job["title"] == "Lecturer in Applied Economics"
     assert cover_content["recipient"]["institution"] == "Example University"
-    assert "econometrics teaching" in cover_content["sections"]["teaching_fit"]
+    assert "Teaching Fellow in Econometrics" in cover_content["sections"]["teaching_fit"]
     assert final_package.startswith("# Final Application Package\n")
     assert "profile/generated/cv.evidence.md#Teaching" in package_content["cover_letter"]
     assert 'json("cover_letter_content.json")' not in cover_source

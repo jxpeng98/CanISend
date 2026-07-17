@@ -105,7 +105,7 @@ jobs:
           /tmp/canisend-smoke/bin/pip install dist/*.whl
           /tmp/canisend-smoke/bin/python scripts/smoke_decision_spine.py \
             --canisend /tmp/canisend-smoke/bin/canisend \
-            --workspace /tmp/canisend-stage2-example
+            --workspace /tmp/canisend-stage5-example
           /tmp/canisend-smoke/bin/python scripts/smoke_discovery.py \
             --canisend /tmp/canisend-smoke/bin/canisend \
             --workspace /tmp/canisend-stage4-discovery
@@ -168,7 +168,7 @@ jobs:
           done
           /tmp/canisend-testpypi/bin/python scripts/smoke_decision_spine.py \
             --canisend /tmp/canisend-testpypi/bin/canisend \
-            --workspace /tmp/canisend-testpypi-stage2-example
+            --workspace /tmp/canisend-testpypi-stage5-example
           /tmp/canisend-testpypi/bin/python scripts/smoke_discovery.py \
             --canisend /tmp/canisend-testpypi/bin/canisend \
             --workspace /tmp/canisend-testpypi-stage4-discovery
