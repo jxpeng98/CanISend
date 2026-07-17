@@ -1,0 +1,19 @@
+{
+  "protocol": "canisend.agent/v2",
+  "operation": "agent.context",
+  "ok": true,
+  "status": "available",
+  "data": {
+    "active_job_id": null,
+    "actor": "host-agent",
+    "execution_mode": "host-agent",
+    "privacy": "public",
+    "product_version": "0.7.0-alpha.1",
+    "workspace_id": null
+  },
+  "artifacts": [],
+  "required_consents": [],
+  "warnings": [],
+  "next_actions": [],
+  "error": null
+}

@@ -23,11 +23,13 @@ The Rust rebuild has completed its R1 repository foundation and is now implement
 and embedded resources. The current binary provides:
 
 - Native `canisend` executable scaffolding.
-- `canisend.agent/v2` JSON envelopes.
+- Validated UUIDv7, SHA-256, revision, UTC timestamp, and safe relative-path contract types.
+- `canisend.agent/v2` success/error envelopes, stable error registry, and grouped exit policy.
 - Product/version/build inspection.
-- Embedded-resource integrity checks.
+- Fifteen deterministic Draft 2020-12 schemas generated from Rust types.
+- Twenty-one typed embedded schemas, prompts, templates, examples, and host assets with SHA-256 verification.
 - A truthful capability registry that marks unfinished functions as `planned`.
-- Rust-only unit and binary contract tests.
+- Agent context plus schema/resource diagnostics with deterministic JSON snapshots.
 
 Workspace lifecycle, job intake, discovery, application workflow, and embedded PDF rendering are not yet available
 in the production binary. Their execution order and acceptance gates are defined in the
@@ -42,6 +44,9 @@ cargo build --release --locked
 ./target/release/canisend version --json
 ./target/release/canisend doctor --json
 ./target/release/canisend agent capabilities --json
+./target/release/canisend agent context --json
+./target/release/canisend schema list --json
+./target/release/canisend resource list --json
 ```
 
 Representative capability output distinguishes implemented and planned work. Agent hosts must not treat a planned
@@ -53,6 +58,7 @@ capability as executable.
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace
+cargo run -p xtask -- schemas write
 cargo run -p xtask -- schemas check
 cargo run -p xtask -- resources check
 cargo build --release --locked
@@ -85,6 +91,7 @@ documents are exported projections. Rust types generate v2 schemas, agents compl
 and Typst will be embedded into the final executable.
 
 Accepted decisions are under `docs/architecture/rust-native/decisions/`.
+The machine interface is documented in [Agent Protocol v2](docs/contracts/agent-protocol-v2.md).
 
 ## Product boundary
 

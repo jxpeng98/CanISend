@@ -143,6 +143,7 @@ dependencies = [
  "canisend-core",
  "canisend-resources",
  "clap",
+ "serde",
  "serde_json",
 ]
 

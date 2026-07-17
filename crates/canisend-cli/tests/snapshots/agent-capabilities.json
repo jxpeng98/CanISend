@@ -1,0 +1,50 @@
+{
+  "protocol": "canisend.agent/v2",
+  "operation": "agent.capabilities",
+  "ok": true,
+  "status": "available",
+  "data": {
+    "capabilities": [
+      {"id":"product.version","status":"available","version":"2.0.0"},
+      {"id":"product.doctor","status":"available","version":"2.0.0"},
+      {"id":"agent.capabilities","status":"available","version":"2.0.0"},
+      {"id":"agent.context","status":"available","version":"2.0.0"},
+      {"id":"resources.manifest","status":"available","version":"2.0.0"},
+      {"id":"resource.list","status":"available","version":"2.0.0"},
+      {"id":"schema.list","status":"available","version":"2.0.0"},
+      {"id":"workspace.lifecycle","status":"planned","version":"2.0.0"},
+      {"id":"job.intake","status":"planned","version":"2.0.0"},
+      {"id":"discovery.refresh","status":"planned","version":"2.0.0"},
+      {"id":"workflow.execute","status":"planned","version":"2.0.0"},
+      {"id":"render.pdf","status":"planned","version":"2.0.0"}
+    ],
+    "error_codes": [
+      "input.invalid",
+      "input.path_rejected",
+      "workspace.not_found",
+      "workspace.conflict",
+      "resource.not_found",
+      "resources.integrity_failed",
+      "schema.not_found",
+      "candidate.schema_invalid",
+      "candidate.semantic_invalid",
+      "candidate.unknown_evidence",
+      "task.not_found",
+      "task.stale",
+      "task.conflict",
+      "consent.required",
+      "external.io_failed",
+      "provider.failed",
+      "internal.invariant_failed"
+    ],
+    "product_version": "0.7.0-alpha.1",
+    "protocol": "canisend.agent/v2",
+    "resource_format": "canisend.resources/v2",
+    "workspace_format": "canisend.workspace/v2"
+  },
+  "artifacts": [],
+  "required_consents": [],
+  "warnings": [],
+  "next_actions": [],
+  "error": null
+}

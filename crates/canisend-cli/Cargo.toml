@@ -19,6 +19,7 @@ canisend-contracts = { path = "../canisend-contracts" }
 canisend-core = { path = "../canisend-core" }
 canisend-resources = { path = "../canisend-resources" }
 clap.workspace = true
+serde.workspace = true
 serde_json.workspace = true
 
 [lints]

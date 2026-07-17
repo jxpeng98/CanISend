@@ -1,12 +1,15 @@
 #![forbid(unsafe_code)]
 
-use std::{io::IsTerminal, process::ExitCode};
+use std::{io::IsTerminal, process::ExitCode, str::FromStr};
 
 use canisend_contracts::{
-    AGENT_PROTOCOL, AgentError, AgentResponse, CapabilitiesData, ErrorCode, RESOURCE_FORMAT,
-    SemanticVersion, VersionData, WORKSPACE_FORMAT,
+    AGENT_PROTOCOL, ActorKind, AgentContextData, AgentError, AgentResponse, CapabilitiesData,
+    ErrorCode, ExecutionMode, ExitClass, PUBLIC_SCHEMA_VERSION, PrivacyClassification,
+    PublicSchemaId, RESOURCE_FORMAT, ResourceCatalogData, ResourceCatalogEntry, SchemaCatalogData,
+    SchemaCatalogEntry, SemanticVersion, Sha256Digest, VersionData, WORKSPACE_FORMAT,
 };
 use canisend_core::CapabilityRegistry;
+use canisend_resources::{ResourceId, ResourceKind};
 use clap::{Args, Parser, Subcommand};
 use serde_json::json;
 
@@ -32,12 +35,38 @@ enum Command {
         #[command(subcommand)]
         command: AgentCommand,
     },
+    /// Inspect generated public JSON Schemas.
+    Schema {
+        #[command(subcommand)]
+        command: SchemaCommand,
+    },
+    /// Inspect resources embedded in this executable.
+    Resource {
+        #[command(subcommand)]
+        command: ResourceCommand,
+    },
 }
 
 #[derive(Debug, Subcommand)]
 enum AgentCommand {
     /// List compiled capabilities and their availability.
     Capabilities(OutputArgs),
+    /// Return the body-free public execution context.
+    Context(OutputArgs),
+}
+
+#[derive(Debug, Subcommand)]
+enum SchemaCommand {
+    /// List generated schemas with version and integrity metadata.
+    List(OutputArgs),
+    /// Inspect one generated schema by logical ID or short slug.
+    Show(SchemaShowArgs),
+}
+
+#[derive(Debug, Subcommand)]
+enum ResourceCommand {
+    /// List embedded resources with version and integrity metadata.
+    List(OutputArgs),
 }
 
 #[derive(Debug, Args)]
@@ -47,30 +76,115 @@ struct OutputArgs {
     json: bool,
 }
 
-fn main() -> ExitCode {
-    match run(Cli::parse()) {
-        Ok(()) => ExitCode::SUCCESS,
-        Err(error) => {
-            eprintln!("canisend: {error}");
-            ExitCode::from(6)
+#[derive(Debug, Args)]
+struct SchemaShowArgs {
+    /// Schema ID such as canisend.job/v2, or its short slug such as job.
+    id: String,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+impl Cli {
+    fn explicit_json(&self) -> bool {
+        match &self.command {
+            Command::Version(output) | Command::Doctor(output) => output.json,
+            Command::Agent {
+                command: AgentCommand::Capabilities(output) | AgentCommand::Context(output),
+            }
+            | Command::Schema {
+                command: SchemaCommand::List(output),
+            }
+            | Command::Resource {
+                command: ResourceCommand::List(output),
+            } => output.json,
+            Command::Schema {
+                command: SchemaCommand::Show(arguments),
+            } => arguments.output.json,
         }
     }
 }
 
-fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
-    match cli.command {
-        Command::Version(output) => version(output.json),
-        Command::Doctor(output) => doctor(output.json),
-        Command::Agent {
-            command: AgentCommand::Capabilities(output),
-        } => capabilities(output.json),
+struct CommandOutput {
+    response: AgentResponse,
+    human: Vec<String>,
+}
+
+struct CommandFailure {
+    operation: &'static str,
+    status: &'static str,
+    error: AgentError,
+    human: String,
+}
+
+type CommandResult<T> = Result<T, Box<CommandFailure>>;
+
+impl CommandFailure {
+    fn new(
+        operation: &'static str,
+        status: &'static str,
+        code: ErrorCode,
+        message: impl Into<String>,
+        retryable: bool,
+    ) -> Box<Self> {
+        let message = message.into();
+        Box::new(Self {
+            operation,
+            status,
+            error: AgentError {
+                code,
+                message: message.clone(),
+                retryable,
+                details: None,
+                remediation: None,
+            },
+            human: message,
+        })
+    }
+
+    fn exit_class(&self) -> ExitClass {
+        self.error.code.exit_class()
+    }
+
+    fn response(&self) -> AgentResponse {
+        AgentResponse::failure(self.operation, self.status, self.error.clone())
     }
 }
 
-fn version(json_output: bool) -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> ExitCode {
+    let cli = Cli::parse();
+    let json_output = wants_json(cli.explicit_json());
+    match execute(cli) {
+        Ok(output) => render_success(output, json_output),
+        Err(failure) => render_failure(*failure, json_output),
+    }
+}
+
+fn execute(cli: Cli) -> CommandResult<CommandOutput> {
+    match cli.command {
+        Command::Version(_) => version(),
+        Command::Doctor(_) => doctor(),
+        Command::Agent {
+            command: AgentCommand::Capabilities(_),
+        } => capabilities(),
+        Command::Agent {
+            command: AgentCommand::Context(_),
+        } => context(),
+        Command::Schema {
+            command: SchemaCommand::List(_),
+        } => schema_list(),
+        Command::Schema {
+            command: SchemaCommand::Show(arguments),
+        } => schema_show(&arguments.id),
+        Command::Resource {
+            command: ResourceCommand::List(_),
+        } => resource_list(),
+    }
+}
+
+fn version() -> CommandResult<CommandOutput> {
     let data = VersionData {
         product: "canisend".to_owned(),
-        version: SemanticVersion::try_new(env!("CARGO_PKG_VERSION"))?,
+        version: product_version()?,
         protocol: AGENT_PROTOCOL.to_owned(),
         workspace_format: WORKSPACE_FORMAT.to_owned(),
         resource_format: RESOURCE_FORMAT.to_owned(),
@@ -78,59 +192,49 @@ fn version(json_output: bool) -> Result<(), Box<dyn std::error::Error>> {
         target: env!("CANISEND_BUILD_TARGET").to_owned(),
         git_revision: env!("CANISEND_GIT_REVISION").to_owned(),
     };
-
-    if wants_json(json_output) {
-        write_response(&AgentResponse::success(
-            "product.version",
-            "available",
-            serde_json::to_value(data)?,
-        ))?;
-    } else {
-        println!("canisend {}", data.version);
-        println!("protocol: {}", data.protocol);
-        println!("target: {}", data.target);
-        println!("git: {}", data.git_revision);
-    }
-    Ok(())
+    success(
+        "product.version",
+        "available",
+        &data,
+        vec![
+            format!("canisend {}", data.version),
+            format!("protocol: {}", data.protocol),
+            format!("target: {}", data.target),
+            format!("git: {}", data.git_revision),
+        ],
+    )
 }
 
-fn doctor(json_output: bool) -> Result<(), Box<dyn std::error::Error>> {
-    if let Err(message) = canisend_resources::verify() {
-        let response = AgentResponse::failure(
+fn doctor() -> CommandResult<CommandOutput> {
+    canisend_resources::verify().map_err(|message| {
+        CommandFailure::new(
             "product.doctor",
             "unhealthy",
-            AgentError {
-                code: ErrorCode::ResourcesIntegrityFailed,
-                message,
-                retryable: false,
-                details: None,
-                remediation: None,
-            },
-        );
-        if wants_json(json_output) {
-            write_response(&response)?;
-        }
-        return Err("embedded resource integrity check failed".into());
-    }
-
+            ErrorCode::ResourcesIntegrityFailed,
+            message,
+            false,
+        )
+    })?;
     let data = json!({
         "resource_manifest": "verified",
         "resource_count": canisend_resources::manifest().len(),
+        "schema_count": PublicSchemaId::ALL.len(),
         "python_required": false,
     });
-    if wants_json(json_output) {
-        write_response(&AgentResponse::success("product.doctor", "healthy", data))?;
-    } else {
-        println!("CanISend native foundation: healthy");
-        println!("Embedded resources: verified");
-        println!("Python runtime: not required");
-    }
-    Ok(())
+    Ok(CommandOutput {
+        response: AgentResponse::success("product.doctor", "healthy", data),
+        human: vec![
+            "CanISend native foundation: healthy".to_owned(),
+            "Embedded resources: verified".to_owned(),
+            "Generated schemas: verified".to_owned(),
+            "Python runtime: not required".to_owned(),
+        ],
+    })
 }
 
-fn capabilities(json_output: bool) -> Result<(), Box<dyn std::error::Error>> {
+fn capabilities() -> CommandResult<CommandOutput> {
     let data = CapabilitiesData {
-        product_version: SemanticVersion::try_new(env!("CARGO_PKG_VERSION"))?,
+        product_version: product_version()?,
         protocol: AGENT_PROTOCOL.to_owned(),
         workspace_format: WORKSPACE_FORMAT.to_owned(),
         resource_format: RESOURCE_FORMAT.to_owned(),
@@ -140,27 +244,220 @@ fn capabilities(json_output: bool) -> Result<(), Box<dyn std::error::Error>> {
             .map(|code| code.as_str().to_owned())
             .collect(),
     };
+    let human = std::iter::once(format!("CanISend {} capabilities", data.product_version))
+        .chain(
+            data.capabilities
+                .iter()
+                .map(|capability| format!("{}: {:?}", capability.id, capability.status)),
+        )
+        .collect();
+    success("agent.capabilities", "available", &data, human)
+}
 
-    if wants_json(json_output) {
-        write_response(&AgentResponse::success(
-            "agent.capabilities",
-            "available",
-            serde_json::to_value(data)?,
-        ))?;
-    } else {
-        println!("CanISend {} capabilities", data.product_version);
-        for capability in data.capabilities {
-            println!("{}: {:?}", capability.id, capability.status);
-        }
+fn context() -> CommandResult<CommandOutput> {
+    let data = AgentContextData {
+        product_version: product_version()?,
+        actor: ActorKind::HostAgent,
+        execution_mode: ExecutionMode::HostAgent,
+        workspace_id: None,
+        active_job_id: None,
+        privacy: PrivacyClassification::Public,
+    };
+    success(
+        "agent.context",
+        "available",
+        &data,
+        vec![
+            "CanISend public agent context".to_owned(),
+            "Workspace: not selected".to_owned(),
+            "Privacy: public metadata only".to_owned(),
+        ],
+    )
+}
+
+fn schema_list() -> CommandResult<CommandOutput> {
+    let schemas = PublicSchemaId::ALL
+        .into_iter()
+        .map(schema_catalog_entry)
+        .collect::<CommandResult<Vec<_>>>()?;
+    let human = schemas
+        .iter()
+        .map(|schema| format!("{} {}", schema.id, schema.sha256))
+        .collect();
+    success(
+        "schema.list",
+        "available",
+        &SchemaCatalogData { schemas },
+        human,
+    )
+}
+
+fn schema_show(query: &str) -> CommandResult<CommandOutput> {
+    let schema_id = PublicSchemaId::ALL
+        .into_iter()
+        .find(|schema_id| schema_id.as_str() == query || schema_id.slug() == query)
+        .ok_or_else(|| {
+            CommandFailure::new(
+                "schema.show",
+                "not-found",
+                ErrorCode::SchemaNotFound,
+                format!("unknown public schema: {query}"),
+                false,
+            )
+        })?;
+    let schema = schema_catalog_entry(schema_id)?;
+    success(
+        "schema.show",
+        "available",
+        &schema,
+        vec![
+            format!("{} {}", schema.id, schema.version),
+            format!("resource: {}", schema.resource_id),
+            format!("sha256: {}", schema.sha256),
+        ],
+    )
+}
+
+fn schema_catalog_entry(schema_id: PublicSchemaId) -> CommandResult<SchemaCatalogEntry> {
+    let resource_id =
+        ResourceId::from_str(&format!("schema.{}", schema_id.slug())).map_err(|error| {
+            CommandFailure::new(
+                "schema.catalog",
+                "unavailable",
+                ErrorCode::InternalInvariantFailed,
+                error.to_string(),
+                false,
+            )
+        })?;
+    let descriptor = canisend_resources::get(resource_id).descriptor;
+    Ok(SchemaCatalogEntry {
+        id: schema_id.as_str().to_owned(),
+        version: SemanticVersion::try_new(PUBLIC_SCHEMA_VERSION).map_err(internal_version)?,
+        uri: schema_id.canonical_uri(),
+        resource_id: resource_id.as_str().to_owned(),
+        size: descriptor.size,
+        sha256: Sha256Digest::try_new(descriptor.sha256).map_err(internal_version)?,
+    })
+}
+
+fn resource_list() -> CommandResult<CommandOutput> {
+    let resources = canisend_resources::manifest()
+        .into_iter()
+        .map(|resource| {
+            Ok(ResourceCatalogEntry {
+                id: resource.id.to_owned(),
+                kind: resource_kind_name(resource.kind).to_owned(),
+                version: SemanticVersion::try_new(resource.version).map_err(internal_version)?,
+                size: resource.size,
+                sha256: Sha256Digest::try_new(resource.sha256).map_err(internal_version)?,
+            })
+        })
+        .collect::<CommandResult<Vec<_>>>()?;
+    let human = resources
+        .iter()
+        .map(|resource| format!("{} [{}]", resource.id, resource.kind))
+        .collect();
+    success(
+        "resource.list",
+        "available",
+        &ResourceCatalogData { resources },
+        human,
+    )
+}
+
+fn product_version() -> CommandResult<SemanticVersion> {
+    SemanticVersion::try_new(env!("CARGO_PKG_VERSION")).map_err(internal_version)
+}
+
+fn internal_version(error: impl std::fmt::Display) -> Box<CommandFailure> {
+    CommandFailure::new(
+        "product.contract",
+        "invariant-failed",
+        ErrorCode::InternalInvariantFailed,
+        error.to_string(),
+        false,
+    )
+}
+
+fn success<T: serde::Serialize>(
+    operation: &'static str,
+    status: &'static str,
+    data: &T,
+    human: Vec<String>,
+) -> CommandResult<CommandOutput> {
+    let value = serde_json::to_value(data).map_err(|error| {
+        CommandFailure::new(
+            operation,
+            "invariant-failed",
+            ErrorCode::InternalInvariantFailed,
+            error.to_string(),
+            false,
+        )
+    })?;
+    Ok(CommandOutput {
+        response: AgentResponse::success(operation, status, value),
+        human,
+    })
+}
+
+fn resource_kind_name(kind: ResourceKind) -> &'static str {
+    match kind {
+        ResourceKind::Agent => "agent",
+        ResourceKind::Example => "example",
+        ResourceKind::Prompt => "prompt",
+        ResourceKind::Schema => "schema",
+        ResourceKind::Template => "template",
     }
-    Ok(())
 }
 
 fn wants_json(explicit: bool) -> bool {
     explicit || !std::io::stdout().is_terminal()
 }
 
-fn write_response(response: &AgentResponse) -> Result<(), serde_json::Error> {
-    println!("{}", serde_json::to_string(response)?);
-    Ok(())
+fn render_success(output: CommandOutput, json_output: bool) -> ExitCode {
+    if json_output {
+        render_json(&output.response)
+    } else {
+        for line in output.human {
+            println!("{line}");
+        }
+        ExitCode::SUCCESS
+    }
+}
+
+fn render_failure(failure: CommandFailure, json_output: bool) -> ExitCode {
+    let exit_class = failure.exit_class();
+    if json_output {
+        if render_json(&failure.response()) == ExitCode::from(ExitClass::Internal.code()) {
+            return ExitCode::from(ExitClass::Internal.code());
+        }
+    } else {
+        eprintln!("canisend: {}", failure.human);
+    }
+    ExitCode::from(exit_class.code())
+}
+
+fn render_json(response: &AgentResponse) -> ExitCode {
+    match serde_json::to_string(response) {
+        Ok(serialized) => {
+            println!("{serialized}");
+            ExitCode::SUCCESS
+        }
+        Err(error) => {
+            eprintln!("canisend: failed to serialize protocol response: {error}");
+            ExitCode::from(ExitClass::Internal.code())
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Cli, ExitClass};
+    use clap::Parser;
+
+    #[test]
+    fn clap_usage_errors_are_reserved_for_exit_two() {
+        let error = Cli::try_parse_from(["canisend", "unknown"]).expect_err("unknown command");
+        assert_eq!(error.exit_code(), i32::from(ExitClass::CliUsage.code()));
+    }
 }

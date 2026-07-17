@@ -260,6 +260,39 @@ pub struct AgentContextData {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+pub struct SchemaCatalogEntry {
+    pub id: String,
+    pub version: SemanticVersion,
+    pub uri: String,
+    pub resource_id: String,
+    pub size: usize,
+    pub sha256: Sha256Digest,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SchemaCatalogData {
+    pub schemas: Vec<SchemaCatalogEntry>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ResourceCatalogEntry {
+    pub id: String,
+    pub kind: String,
+    pub version: SemanticVersion,
+    pub size: usize,
+    pub sha256: Sha256Digest,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ResourceCatalogData {
+    pub resources: Vec<ResourceCatalogEntry>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct VersionData {
     pub product: String,
     pub version: SemanticVersion,
