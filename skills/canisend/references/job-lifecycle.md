@@ -9,6 +9,10 @@ Use this reference to decide the next action from current files and `job.yaml` s
 - `status: advert_imported`: job was created with a local advert file.
 - `status: packaged`: pipeline generated parsed data, reports, drafts, final package, and Typst sources.
 
+`job.yaml` status remains a compatibility summary. For Stage 5 work, `canisend stage status` and the guarded state,
+terminal claim, authoritative output, and input basis decide whether a stage is current; the summary status alone
+does not prove Package, Verify, Render, or submission readiness.
+
 ## Next Action By State
 
 ### No workspace
@@ -73,24 +77,38 @@ JSON, or use `stage run --stage draft --mode configured-provider --allow-provide
 approval. Both use the same TaskSpec, validator, and guarded promotion boundary. Then run deterministic
 `stage run --stage review`. Draft and Review bodies remain Tier 2, and neither result alone is package readiness.
 
-After current deterministic Match, `canisend run --workspace ...` with the configured workspace profile and no
-`--llm-drafts` projects the proposed Match view consistently into `02_fit_report.md`, `05_criteria_checklist.md`,
+After current deterministic Match, `canisend run --workspace ...` with the configured workspace profile projects the
+proposed Match view consistently into `02_fit_report.md`, `05_criteria_checklist.md`,
 structured checks in `07_material_review_checklist.md`, `typst/application_package_content.json`, and
 `typst/application_package.typ`. If Match or upstream state is stale, a structured artifact is drifted/tampered, the
-parsed view or profile provenance differs, or the run uses `--llm-drafts`, the pipeline keeps its compatible
-legacy/provider path. A fallback does not turn a proposal into a Decision or establish readiness.
+parsed view or profile provenance differs, the pipeline keeps its non-ready compatible legacy path.
+`--llm-drafts` may request provider Draft only through an eligible registered stage; it does not turn fallback into
+a direct provider path. A fallback does not turn a proposal into a Decision or establish readiness.
 
 Use `extract-profile-evidence --llm-augment`, `--llm-parser`, or `--llm-drafts` only when provider config is ready and the user explicitly wants model-backed steps.
 
 ### `status: packaged`
 
-Review quality gates before rendering:
+Resume the guarded graph and inspect its body-free status before claiming readiness:
+
+```bash
+canisend stage status --workspace <private-workspace> --job jobs/<job-slug> --format json
+canisend run --workspace <private-workspace> --job jobs/<job-slug> --dry-run --format json
+```
+
+Review quality gates before Package, Verify, or Render:
 
 1. Confirm `parsed_job.json` matches the advert.
 2. Confirm criteria checklist covers essential criteria.
 3. Confirm strong claims cite `profile/generated/` evidence.
-4. Confirm `typst/cover_letter.typ` matches the edited cover letter.
-5. Render Typst only when the user wants PDFs.
+4. Confirm every required document and aggregate Package Review is current and reviewed.
+5. Treat `package_bundle.json` and `render_bundle.json` as stage truth; verify their projection journals rather than
+   inferring completion from Markdown, Typst, or PDF files.
+6. Require a current PASS Verify result before Render, and render PDFs only when the user wants them.
+
+For a legacy workspace, run `migration inspect` first. Applying or rolling back migration and repairing a Package or
+Render projection are explicit, confirmed mutations. Use `repair projection --stage package|render --dry-run` before
+repair; do not edit bundles, receipts, stage state, terminal claims, or projection journals directly.
 
 ## Missing Or Inconsistent Files
 
@@ -139,5 +157,10 @@ Review quality gates before rendering:
 - Mutation recovery requested: use `user-mutation recover` with the opaque accepted mutation ID and explicit
   consent; do not replay the private patch as a new write.
 - Existing generated outputs after advert/profile changes: rerun the pipeline and review diffs.
+- Missing, partial, or drifted Package/Render projections: inspect with
+  `repair projection --stage package|render --dry-run`, then perform an explicitly approved repair. Do not regenerate
+  projection files ad hoc or change the journal.
+- Legacy or interrupted Stage 5 migration: inspect the migration receipt, then resume or roll back with explicit
+  confirmation. Do not treat projected files as proof that migration completed.
 - A `typst/*.generated.typ` file after rerun: the editable `.typ` had user changes and was preserved; review and merge
   the candidate intentionally.

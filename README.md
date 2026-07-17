@@ -40,6 +40,13 @@ It prepares materials only. It does not submit applications, create accounts, fi
 - Preserves package finding decisions in an independent user-owned CAS file and derives body-free application-package
   readiness from exact required-document, aggregate Review, and decision receipts. `check-package` rederives APP-Q5;
   this review boundary is not rendering approval or submission evidence.
+- Runs the complete registered graph through one resumable runtime: source-owned Intake/Decision, immutable
+  TaskSpecs, validated candidate submission, terminal claims, exact stage receipts, precise invalidation, and no-op
+  resume across CLI and agent hosts.
+- Promotes strict Package/Render bundles, treats Markdown/Typst/PDF files as repairable projections, and provides
+  explicit migration, rollback, projection repair, and state reconstruction without silently repairing output drift.
+- Lets Codex-, Claude-, or custom-worker orchestration declare a registered Parse/Draft task that uses the same
+  guarded submit/validate/apply path as direct CLI and configured-provider execution.
 - Derives a body-free required-document execution fan-out, so guarded Cover Letter/Research Statement work,
   confirmed omissions, unresolved tasks, and document kinds without implemented executors remain distinguishable
   across agent hosts.
@@ -148,6 +155,12 @@ full advert -> Parsed Job -> stable Criteria ----------------+            v
                                                                   |
                                                                   v
                                                     deterministic independent Review
+                                                                  |
+                                                                  v
+                                           aggregate package Review and user decisions
+                                                                  |
+                                                                  v
+                                  Package bundle -> Verify gate -> Render bundle/projection
 ```
 
 ### 1. Initialize a private workspace
@@ -176,8 +189,10 @@ The workspace contains private profile data, job leads, job folders, editable pr
   schemas/
   examples/
     discovery/
+    orchestration/
   docs/
     stage4-migration.md
+    stage5-migration.md
   agent-skills/
     canisend/
     canisend-job-intake/
@@ -396,10 +411,12 @@ canisend new-job \
 
 See [`docs/stage4-migration.md`](docs/stage4-migration.md) for legacy list/index migration, catalog and cache
 recovery, workspace update behavior, and rollback.
+See [`docs/stage5-migration.md`](docs/stage5-migration.md) before explicitly migrating or repairing an older job's
+resumable runtime metadata.
 
 ### 4. Generate draft materials
 
-Run the deterministic local pipeline:
+Run or resume the local workflow:
 
 ```bash
 canisend run \
@@ -427,7 +444,14 @@ jobs/<job-slug>/
     research_statement.typ       # conditional standalone document
 ```
 
-Generated Typst files are the editable source of truth for final formatting. Content JSON files may still be emitted as compatibility/debug artifacts, but normal edits should happen in the `.typ` files.
+`canisend run` is now a compatibility wrapper over the registered sequence. It reuses current stage receipts, runs
+eligible deterministic work, and stops safely at user-owned decisions, host-agent/provider consent, review, or
+explicit-repair boundaries. It may still produce the established non-ready compatibility files, but their presence
+does not prove Package, Verify, Render, portal, or submission readiness.
+
+Generated Typst files remain the editable user-facing source for final wording and formatting. The guarded stage
+source of truth is the accepted Package/Render bundle plus its projection journal. Content JSON and legacy Markdown
+remain compatibility/projection artifacts rather than alternate promotion paths.
 
 The Research Statement files appear only after its exact current Draft, deterministic blocker-free Review, and
 user dispositions derive document readiness `reviewed`. They remain standalone: they are not embedded in the
@@ -473,6 +497,11 @@ canisend run \
   --llm-parser \
   --llm-drafts
 ```
+
+The flags request registered provider modes only when their stage prerequisites are current. They do not bypass
+Decision, Brief, document identity, Review, Package, or consent gates. Before Draft is eligible, `--llm-drafts`
+cannot write a provider Draft or imply readiness; accepted provider output still uses guarded candidate validation
+and promotion.
 
 For local CLI model access, use the command provider:
 
@@ -543,6 +572,47 @@ canisend render-typst \
 
 Rendering requires a local `typst` binary. Source generation does not. Submit manually through the institution portal outside this tool.
 
+### Stage 5 resume and recovery
+
+Preview sequence work without creating runtime state:
+
+```bash
+canisend run \
+  --workspace ~/CanISendWorkspace \
+  --job jobs/<job-slug> \
+  --dry-run
+```
+
+Older jobs remain readable without migration. Inspect first, then explicitly apply or roll back only recorded
+runtime metadata:
+
+```bash
+canisend migration inspect --workspace ~/CanISendWorkspace --job jobs/<job-slug> --format json
+canisend migration apply --workspace ~/CanISendWorkspace --job jobs/<job-slug> --format json
+canisend migration rollback --workspace ~/CanISendWorkspace --job jobs/<job-slug> --format json
+```
+
+Inspect repair before mutation, then remove `--dry-run` only for a reported repairable projection/state:
+
+```bash
+canisend repair projection \
+  --workspace ~/CanISendWorkspace \
+  --job jobs/<job-slug> \
+  --stage package \
+  --dry-run \
+  --format json
+
+canisend repair state \
+  --workspace ~/CanISendWorkspace \
+  --job jobs/<job-slug> \
+  --dry-run \
+  --format json
+```
+
+Use `--stage render` for PDF projections. Repair never silently overwrites an edited Typst primary or an
+authoritative output conflict. See [`docs/stage5-migration.md`](docs/stage5-migration.md) for retry, cancellation,
+concurrency, interruption, rollback-conflict, and privacy guidance.
+
 ## Agent Usage
 
 Codex, Claude Code, and IDE agents can run the `canisend` workflow by opening the private workspace as the project root. This is an agent-assisted workflow, not a local-only workflow: any file, PDF, webpage, or generated material the agent reads or summarizes may be processed by the agent model provider.
@@ -569,8 +639,8 @@ successful invocation writes one `canisend.agent/v1` response to stdout. Respons
 artifact references and hashes rather than private document bodies. A failed package gate remains a successful
 operation result (`ok: true`) but exits non-zero; operational failures return `ok: false` with a stable error code.
 
-The locally accepted Stage 2 resumable workflow exposes Parse, Confirm, Evidence, Match, guarded user-owned mutation,
-Brief, document planning, and compatible structured views through the same shell-capable hosts. Start
+The Stage 5 resumable workflow exposes the complete source/task graph, guarded user-owned mutation, document
+fan-out, Package/Verify/Render bundles, migration, and explicit repair through the same shell-capable hosts. Start
 a deterministic fresh session with:
 
 ```bash
@@ -740,8 +810,8 @@ The consent flag is required on each non-cached invocation. The provider receive
 `application_brief.yaml`, and `required_document_plan.json`. It proposes sections and Claim semantics only; the core
 derives identity, current-basis receipts, stable Claim IDs, generation metadata, and review state. Raw provider output
 is bounded and is not stored. Failure, invalid output, or input drift promotes nothing, while an already submitted
-candidate resumes without another provider call. Legacy `canisend run --llm-drafts` remains a separate compatibility
-path.
+candidate resumes without another provider call. `canisend run --llm-drafts` may request this registered mode only
+when the same prerequisites are current; it never restores a direct compatibility writer.
 
 Review the promoted Draft independently and deterministically:
 
@@ -872,7 +942,8 @@ deterministic Review also validate and Review has no blocker findings, the same 
 once into `03_cover_letter_draft.md`, Cover Letter/package content JSON, and Typst. Complete exact dispositions make
 that document reviewed; stale/drifted state, a different
 parsed view, a profile override, blocked/missing Draft or Review, a direct library call without workspace provenance,
-or `--llm-drafts` keeps the compatible fallback path. Match, Draft, and Review remain proposed; document readiness is
+keeps the compatible fallback path. `--llm-drafts` still requires an eligible registered Draft and guarded
+promotion. Match, Draft, and Review remain proposed; document readiness is
 derived and never becomes a Decision or whole-package result.
 
 When the Research Statement Draft and Review pass the same currentness checks and every non-blocker finding is
@@ -927,6 +998,29 @@ workers:
 ```
 
 Worker entries also support `max_parallel_tasks`, `supports_native_subagents`, and `privacy_tier_limit`. Task entries declare `role`, `inputs`, `outputs`, `writes`, `depends_on`, `privacy_tier`, optional `agent_count`, and optional `edits_profile_input` for tightly controlled original profile source edits. The orchestrator runs dependency-ready tasks in parallel, enforces worker concurrency limits, writes run artifacts under `jobs/<job-slug>/orchestration/runs/`, and requires `--allow-private-sources`, `--allow-provider-backed`, or the profile-input edit confirmation flags for higher-risk tasks.
+
+A Parse or Draft worker can instead opt into the guarded registered-stage contract. Such a task declares no custom
+inputs, outputs, writes, or profile edits; the core-prepared TaskSpec is the exact authority:
+
+```yaml
+workers:
+  parser:
+    kind: codex
+    privacy_tier_limit: 2
+
+tasks:
+  - id: guarded-parse
+    worker: parser
+    role: job_parser
+    privacy_tier: 2
+    registered_stage:
+      stage: parse
+```
+
+Run it with `--allow-private-sources` after Tier 2 approval. The TaskSpec exists before dispatch, worker stdout is
+only a candidate, and CanISend performs submission, validation, terminal claim, and promotion. Generic tasks retain
+declared stdout output and are not stage promotion. A ready-to-copy plan is installed at
+`examples/orchestration/registered-parse.example.yaml`.
 
 Privacy modes:
 
@@ -1022,6 +1116,9 @@ This repository is intended to be open source. Personal application data should 
   and recovery. Keep job folders private and git-ignored, include them in backups only intentionally, and delete the
   relevant private mutation events or whole job when retention is no longer wanted. CanISend does not currently
   promise automatic secure erasure, including from backups or filesystem snapshots.
+- Stage TaskSpecs, state, manifests, migration/rollback receipts, repair receipts, coordination metadata, and normal
+  errors are Tier 1 body-free control records. Run-scoped inputs/candidates and Package/Render projections remain
+  Tier 2 data. Migration inventories omit candidate/prepared-input bodies and never make legacy output trustworthy.
 - Sensitive declarations such as right-to-work, visa, disability, equality monitoring, health, criminal record, and conflicts remain user-only.
 
 这也能投只是材料准备工具，不是提交凭证。
@@ -1084,17 +1181,19 @@ platform-bridges/         AGENTS.md and CLAUDE.md workspace bridges
 examples/end_to_end/      fully local fake-data workflow
 examples/agent_handoff/   host-neutral agent contract fixtures
 examples/discovery/       public synthetic Stage 4 discovery fixtures
+examples/orchestration/   host-neutral registered-stage plan and guidance
 tests/                    CLI, pipeline, packaging, release, and contract tests
 assets/                   project logo and README media
 RELEASE.md                maintainer release playbook
 docs/stage3-migration.md  Stage 3 workspace upgrade and recovery guide
 docs/stage4-migration.md  Stage 4 discovery upgrade and rollback guide
+docs/stage5-migration.md  Stage 5 runtime migration, repair, and rollback guide
 ```
 
 See `canisend_v1_proposal.md` for the original V1 engineering proposal,
 `docs/superpowers/specs/2026-07-09-discovery-and-workflow-v2-design.md` for detailed multi-source and stage-hardening
 constraints, and `docs/superpowers/specs/2026-07-11-cli-first-workflow-optimization-roadmap.md` for the current
-delivery roadmap. The current Stage 4 execution plan is
-`docs/superpowers/plans/2026-07-15-stage4-discovery-ecosystem.md`; the Stage 3 Draft, Stage 2 Decision Spine, and Stage
-1 Agent Runtime plans remain accepted records. Existing private workspaces should follow
-`docs/stage4-migration.md` before first use with the Stage 4 beta.
+delivery roadmap. The current Stage 5 execution plan is
+`docs/superpowers/plans/2026-07-17-stage5-resilience-legacy-convergence.md`; prior stage plans remain accepted records.
+Existing private workspaces should follow `docs/stage4-migration.md` for discovery data and
+`docs/stage5-migration.md` before explicit runtime migration or repair.

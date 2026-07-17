@@ -501,7 +501,8 @@ semantics; core derives the trusted envelope, hashes, stable IDs, mode, and revi
 validation and atomic promotion path. Raw output is bounded and not retained. No consent means no provider
 construction, call, or workspace write; a cache hit also makes no call. Provider failure, invalid output, or input
 drift promotes nothing. If a valid candidate was already submitted before interruption, rerunning resumes without a
-second provider call. This path is distinct from legacy `canisend run --llm-drafts`.
+second provider call. `canisend run --llm-drafts` may request this mode only when the same registered-stage
+prerequisites are current; it never creates a separate direct provider path.
 
 Run independent deterministic Review:
 
@@ -587,7 +588,8 @@ Deterministic baseline:
 canisend run --workspace <private-workspace> --job jobs/<job-slug>
 ```
 
-Legacy monolithic LLM-backed parse and draft generation require explicit opt-in and provider configuration:
+Compatibility flags may request registered provider-backed Parse/Draft when the corresponding stage is eligible;
+they require explicit opt-in and provider configuration:
 
 ```bash
 canisend run \
@@ -598,6 +600,10 @@ canisend run \
 ```
 
 Use only `--llm-parser` when the user wants structured parsing but not drafted prose. Use only `--llm-drafts` when deterministic parsing is sufficient.
+
+These flags do not bypass Intake, Decision, Brief, document identity, Review, Package, or consent boundaries.
+Before Draft is eligible, `--llm-drafts` may emit only deterministic non-ready compatibility output; provider output
+can enter the job only through the registered Draft TaskSpec and guarded submit/apply path.
 
 Always ask before enabling LLM-backed flags or a command provider for a real workspace, because those modes can send selected private advert, profile, evidence, and draft context to the configured provider. If the user has not opted in, run the deterministic baseline and report any gaps for manual review.
 
@@ -632,16 +638,47 @@ views become body-free unavailable; an edited Typst primary is preserved and rec
 
 If Match or an upstream stage is stale, any protected structured output is drifted or tampered, the structured graph
 is invalid, the current run parses a different job view, or `--profile-dir` selects a profile other than the
-workspace-configured profile, the command safely generates the legacy deterministic views instead of mixing
-provenance. `--llm-drafts` always keeps provider-generated draft views and does not replace them with deterministic
-Match views. Legacy fallback is compatibility behavior, not evidence that the structured proposal or package is
-current; report the reason and refresh Stage 2 before relying on Match.
+workspace-configured profile, the command safely generates non-ready legacy compatibility views instead of mixing
+provenance. `--llm-drafts` never restores a direct provider writer: an eligible provider Draft still uses the
+registered candidate validator and promotion service. Legacy fallback is compatibility behavior, not evidence that
+the structured proposal or package is current; report the reason and refresh the true upstream stage before relying
+on Match.
 
 A missing/blocked Review, Draft or Review drift, invalid structured content, a direct library call without workspace
-provenance, or any guard above also keeps the legacy/provider Cover Letter path. If an editable Typst source has
+provenance, or any guard above also keeps the non-ready legacy Cover Letter path. If an editable Typst source has
 changed, the structured regeneration is written to `*.generated.typ` for reconciliation rather than overwriting it.
 
-## 12. Review Before Rendering
+## 12. Resume, Migrate, And Repair The Guarded Runtime
+
+`canisend run --dry-run` inspects the registered sequence without creating a task, state, lock, bundle, or
+projection. A normal `run` resumes only eligible work and reuses current receipts. It stops at user-owned Decision or
+Brief work, host-agent/provider consent, review, output drift, or an explicit-repair boundary.
+
+Package and Render each promote one strict JSON bundle through TaskSpec, candidate validation, terminal claim, and
+manifest. Established Markdown/Typst/PDF filenames are derived projections. They are not alternate promotion paths,
+and compatibility generation cannot imply Package/Verify/Render, portal, or submission readiness.
+
+For an old job, inspect before mutation:
+
+```bash
+canisend migration inspect --workspace <private-workspace> --job jobs/<job-slug> --format json
+```
+
+Use `migration apply` or `migration rollback` only after separate approval. Apply records an immutable plan, exact
+backups, and a body-free receipt. Rollback restores/removes only unchanged migration-owned metadata and preserves
+hash conflicts. Neither operation edits profile, advert, Decision Spine, Draft/Review, Markdown, Typst, PDF, or
+discovery content.
+
+For missing/partial Package or Render projections, inspect with `repair projection --stage package|render --dry-run`.
+For missing or invalid `workflow/state.json`, inspect with `repair state --dry-run`. Apply a repair only when reported
+repairable. Projection repair replays a validated bundle and preserves edited Typst through `*.generated.typ`; state
+repair reconstructs only from immutable evidence. Neither repair changes an authoritative output conflict.
+
+One cooperative mutation at a time is enforced by `workflow/job.lock`. After interruption, use `stage status` and
+resume its returned submit/apply action or explicitly cancel the exact active stage. Never delete or rewrite
+TaskSpecs, results, claims, manifests, migration/repair receipts, or projection journals to force currentness.
+
+## 13. Review Before Rendering
 
 Review, in order:
 
@@ -679,7 +716,7 @@ that flag, the check remains read-only.
 
 In agent-assisted mode, also report which private sources were read directly, which LLM-backed CLI flags were used, and which remaining claims need manual confirmation.
 
-## 13. Optional Typst Rendering
+## 14. Optional Typst Rendering
 
 Render only when the user asks for PDFs or needs local PDF review:
 
@@ -689,6 +726,6 @@ canisend render-typst --workspace <private-workspace> --job jobs/<job-slug>
 
 Rendering requires a local `typst` binary. Source generation does not.
 
-## 13. Manual Submission
+## 15. Manual Submission
 
 The tool stops at preparation. The user manually handles portal upload, eligibility declarations, equality monitoring, right-to-work, disability, visa, conflict, criminal record, and other sensitive form answers.

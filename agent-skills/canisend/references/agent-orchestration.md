@@ -140,17 +140,23 @@ an agent may not. Agent writes use the corresponding status/init/update operatio
 the latest revision/hash CAS baseline, and explicit consent. Serialize these mutations and avoid concurrent manual
 editor saves; CAS protects cooperative CanISend writers, not an editor racing the final replacement.
 
-After a current deterministic Match, `canisend run` with the workspace-configured profile and no `--llm-drafts`
-projects the same proposed graph into `02_fit_report.md`, `05_criteria_checklist.md`, structured checks in
+After a current deterministic Match, `canisend run` with the workspace-configured profile projects the same proposed
+graph into `02_fit_report.md`, `05_criteria_checklist.md`, structured checks in
 `07_material_review_checklist.md`, `typst/application_package_content.json`, and
 `typst/application_package.typ`. These classifications remain proposals, not Decision or readiness. Stale inputs,
 output drift/tampering, an invalid graph, a mismatching parsed view, or a profile override cause legacy deterministic
-fallback; `--llm-drafts` retains the provider draft path.
+fallback. `--llm-drafts` may request provider execution only after the registered Draft prerequisites are current;
+it never restores a direct compatibility writer.
 
 CAS coordinates cooperative CanISend writers in a stable job directory, not concurrent manual editor saves or
 hostile same-user renames. Do not run mutation workers in parallel and tell the user to avoid saving the same YAML
 during an update. Private patch/YAML/candidate bodies are Tier 2; receipts and AgentResponse are body-free Tier 1
 control data.
+
+For old or interrupted jobs, inspect before mutation: `migration inspect`, `repair projection --dry-run`, or
+`repair state --dry-run`. Apply migration/rollback/repair only after explaining the bounded change and receiving
+approval. Preserve hash conflicts, edited Typst, immutable run evidence, and authoritative output drift. Use
+`stage status` to resume or cancel one active stage; never delete runtime records to unlock a job.
 
 ## Local Orchestrator Plans
 
@@ -174,6 +180,38 @@ Worker entries declare:
 - `privacy_tier_limit`: highest privacy tier the worker may receive.
 
 Task entries declare `role`, `inputs`, `outputs`, `writes`, `depends_on`, `privacy_tier`, optional `agent_count`, and optional `edits_profile_input`. Use `agent_count` only when the worker supports native subagents and the task can safely split work internally. Keep `writes` disjoint unless an explicit dependency serializes the tasks.
+
+### Registered Stage Tasks
+
+Use `registered_stage` only when the worker is producing a candidate for an implemented host-agent stage (currently
+Parse or document-scoped Draft):
+
+```yaml
+workers:
+  parser:
+    kind: codex
+    privacy_tier_limit: 2
+
+tasks:
+  - id: guarded-parse
+    worker: parser
+    role: job_parser
+    privacy_tier: 2
+    registered_stage:
+      stage: parse
+```
+
+For a multi-document Draft, add the exact current `document_id` inside `registered_stage`. A registered task must not
+declare `inputs`, `outputs`, `writes`, or `edits_profile_input`; those would compete with the immutable TaskSpec.
+Run with `--allow-private-sources` after Tier 2 approval.
+
+CanISend prepares the TaskSpec before dispatch, checks the worker privacy ceiling, and exposes only TaskSpec reads,
+core-service write paths, required consents, and output schema. The worker writes exactly one UTF-8 JSON candidate
+to stdout. CanISend then performs guarded submit, validation, terminal claim, and apply. Exit zero alone is never
+promotion evidence. Invalid, failed, or timed-out work is cancelled when still active.
+
+Generic tasks keep declared stdout-to-output behavior and are labelled `generic_declared_output`; do not describe
+that behavior as stage promotion. Start from `examples/orchestration/registered-parse.example.yaml`.
 
 ## Profile Input Edit Tasks
 

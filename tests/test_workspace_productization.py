@@ -53,7 +53,12 @@ def test_init_workspace_creates_user_layout_and_default_resources(tmp_path):
     assert (
         workspace / "examples" / "discovery" / "lever-list.fixture.json"
     ).exists()
+    assert (workspace / "examples" / "orchestration" / "README.md").exists()
+    assert (
+        workspace / "examples" / "orchestration" / "registered-parse.example.yaml"
+    ).exists()
     assert (workspace / "docs" / "stage4-migration.md").exists()
+    assert (workspace / "docs" / "stage5-migration.md").exists()
     assert (workspace / "schemas" / "workflow-state.schema.json").exists()
     assert (workspace / "schemas" / "task-spec.schema.json").exists()
     assert (workspace / "schemas" / "task-result.schema.json").exists()
@@ -73,6 +78,10 @@ def test_init_workspace_creates_user_layout_and_default_resources(tmp_path):
     assert (workspace / "schemas" / "package-review-findings.schema.json").exists()
     assert (workspace / "schemas" / "package-review-dispositions.schema.json").exists()
     assert (workspace / "schemas" / "application-package-readiness.schema.json").exists()
+    assert (workspace / "schemas" / "migration-plan.schema.json").exists()
+    assert (workspace / "schemas" / "migration-receipt.schema.json").exists()
+    assert (workspace / "schemas" / "migration-rollback-receipt.schema.json").exists()
+    assert (workspace / "schemas" / "repair-receipt.schema.json").exists()
     assert (workspace / "agent-skills" / "canisend" / "SKILL.md").exists()
     assert (workspace / "agent-skills" / "canisend-job-intake" / "SKILL.md").exists()
     assert (workspace / "agent-skills" / "canisend-application-package" / "SKILL.md").exists()
@@ -136,6 +145,8 @@ def test_update_workspace_adds_focused_skills_without_overwriting_local_main_ski
     assert (workspace / "agent-skills" / "canisend-submission-readiness" / "SKILL.md").is_file()
     assert (workspace / "examples" / "discovery" / "normalized-search.example.json").is_file()
     assert (workspace / "docs" / "stage4-migration.md").is_file()
+    assert (workspace / "examples" / "orchestration" / "registered-parse.example.yaml").is_file()
+    assert (workspace / "docs" / "stage5-migration.md").is_file()
 
 
 def test_update_workspace_overwrite_refreshes_main_skill_from_canonical_pack(tmp_path):

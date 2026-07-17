@@ -1,0 +1,15 @@
+workers:
+  parser:
+    kind: custom
+    command: replace-with-local-json-worker
+    prompt_mode: stdin
+    max_parallel_tasks: 1
+    privacy_tier_limit: 2
+
+tasks:
+  - id: guarded-parse
+    worker: parser
+    role: job_parser
+    privacy_tier: 2
+    registered_stage:
+      stage: parse

@@ -17,6 +17,8 @@ def test_v1_contract_files_exist():
         "examples/discovery/local-leads.example.csv",
         "examples/discovery/greenhouse-list.fixture.json",
         "examples/discovery/lever-list.fixture.json",
+        "examples/orchestration/README.md",
+        "examples/orchestration/registered-parse.example.yaml",
         "prompts/job_parser.md",
         "prompts/profile_matcher.md",
         "prompts/cover_letter_writer.md",
@@ -44,6 +46,7 @@ def test_v1_contract_files_exist():
         "scripts/sync_workspace_skill_mirror.py",
         "docs/stage3-migration.md",
         "docs/stage4-migration.md",
+        "docs/stage5-migration.md",
         "schemas/parsed_job.schema.json",
         "schemas/fit_report.schema.json",
         "schemas/criteria_check.schema.json",
@@ -114,6 +117,26 @@ def test_stage3_migration_guide_is_fail_closed_and_non_destructive():
         "user-mutation recover",
         "does not roll back private data",
         "is not rendering approval",
+    ):
+        assert contract in guide
+
+
+def test_stage5_migration_guide_covers_reversible_recovery_and_legacy_compatibility():
+    root = Path(__file__).resolve().parents[1]
+    guide = (root / "docs" / "stage5-migration.md").read_text(encoding="utf-8")
+
+    for contract in (
+        "Inspection is read-only",
+        "preserves exact backup bytes",
+        "compare-and-swap",
+        "repair projection",
+        "repair state",
+        "workflow/job.lock",
+        "registered_stage",
+        "Exit zero alone cannot promote",
+        "Stage 4 CSV/JSON/EML/MBOX imports",
+        "explicit URL/PDF/text advert intake",
+        "not portal upload",
     ):
         assert contract in guide
 

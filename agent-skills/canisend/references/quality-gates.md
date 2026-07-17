@@ -105,7 +105,7 @@ Do not use ready, final, complete, or submission-ready for generated materials u
 - When structured Match views were used, Match and its upstream stages are still current and free of output drift;
   `02_fit_report.md`, `05_criteria_checklist.md`, `07_material_review_checklist.md`,
   `typst/application_package_content.json`, and `typst/application_package.typ` represent the same proposed graph.
-- A legacy fallback caused by stale/tampered state, parsed-view or profile-provenance mismatch, or `--llm-drafts` is
+- A legacy fallback caused by stale/tampered state or parsed-view/profile-provenance mismatch is
   identified as such; it is not presented as current structured Match evidence.
 - `02_fit_report.md` separates strong fit, partial fit, and gaps.
 - If `typst/cover_letter_content.json` declares `projection.source=cover_letter_draft.json`, its Draft and Review
@@ -113,7 +113,8 @@ Do not use ready, final, complete, or submission-ready for generated materials u
   appears exactly once in `03_cover_letter_draft.md` and both Typst views.
 - Draft and Review remain `review_state=proposed`; reviewed status is a derived document-readiness projection. Missing,
   stale, incomplete, or revision-required dispositions keep `requires_human_review=true`. A missing, blocked, stale,
-  drifted, or invalid Draft/Review uses the legacy/provider view rather than mixed provenance.
+  drifted, or invalid Draft/Review uses the non-ready legacy view rather than mixed provenance. `--llm-drafts`
+  cannot bypass the registered Draft validator/promotion boundary.
 - A current reviewed Research Statement projection binds exact Draft, Review, disposition, readiness, and Markdown
   hashes, renders each Claim once, and declares standalone scope. It does not enter application-package content,
   required package files, APP-Q outcomes, or package input hashes.
@@ -147,6 +148,26 @@ Do not use ready, final, complete, or submission-ready for generated materials u
   reviewed and every current aggregate finding is resolved on the exact basis. Optional documents are reported but
   do not silently become required. This state is not rendering approval, submission readiness, or proof of
   submission.
+
+## Guarded Package, Verify, And Render Gate
+
+- Package starts only from current, reviewed required documents and a current reviewed aggregate package basis.
+  Its authoritative output is the strict `package_bundle.json`, promoted through TaskSpec, candidate validation,
+  terminal claim, and apply; compatible Markdown, content JSON, and Typst are projections rather than stage truth.
+- Verify independently rederives APP-Q1 through APP-Q5 from the current Package basis. A schema-valid FAIL
+  `application_gate_report.json` completes Verify but blocks Render; an older readable report never proves current
+  verification.
+- Render starts only from a current PASS Verify result. Its authoritative `render_bundle.json` binds each validated
+  PDF byte-for-byte; a PDF on disk without the current bundle and journal is not a Render result.
+- `workflow/projections/package.json` and `workflow/projections/render.json` bind every derived path to its
+  authoritative bundle hash. Missing, partial, drifted, or user-edited projections fail closed and require explicit
+  `repair projection --stage package|render --dry-run` inspection before an approved repair.
+- A resumable stage may be skipped only when its state, terminal claim, authoritative output, and exact input basis
+  are current. Failed, cancelled, stale, tampered, or concurrently changed work is retried through the guarded
+  runtime; agents do not hand-edit state, claims, bundles, journals, receipts, or candidates.
+- Legacy workspaces are inspected with `migration inspect`. Apply and rollback require explicit confirmation, use
+  the workspace job lock and compare-and-swap expectations, and preserve user-owned source bytes. A partial
+  migration is resumed or rolled back from its receipt; it is never inferred complete from projected files.
 
 ## Typst Gate
 
@@ -223,6 +244,9 @@ Review files in this order:
 18. `typst/cover_letter.typ`
 19. `typst/research_statement.typ` when present
 20. `typst/application_package.typ`
-21. `06_final_application_package.md`
+21. `package_bundle.json` and `workflow/projections/package.json` when Package has completed
+22. `application_gate_report.json` when Verify has completed
+23. `render_bundle.json` and `workflow/projections/render.json` when Render has completed
+24. `06_final_application_package.md`
 
 Before editing prose, confirm `00_preparation_questions.md` has resolved US English vs UK English, the target writing style, specific motivation, emphasis, risk areas, and details to exclude.

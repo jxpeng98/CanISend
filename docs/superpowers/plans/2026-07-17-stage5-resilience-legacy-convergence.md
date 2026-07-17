@@ -1,6 +1,6 @@
 # Stage 5 Resilience And Legacy Convergence Implementation Plan
 
-**Status:** In progress — Tasks 0–6 accepted; skills, documentation, and packaging are next
+**Status:** In progress — Tasks 0–7 accepted; Stage 5 exit acceptance is next
 
 **Date:** 2026-07-17
 
@@ -111,10 +111,10 @@ promotion path across direct CLI, host agents, and orchestration.
 
 ### Task 7: Skills, Documentation, Packaging, And Migration Guidance
 
-- [ ] Update README, changelog, runtime/file/privacy contracts, canonical skills, compatibility mirror, and examples.
-- [ ] Add Stage 5 migration, rollback, repair, concurrency, retry, and troubleshooting guidance.
-- [ ] Package every new schema, example, skill, and guide into initialized workspaces and wheels.
-- [ ] Preserve Stage 4 CSV/JSON/search/feed/adapter candidate semantics and URL/PDF/text full-advert compatibility.
+- [x] Update README, changelog, runtime/file/privacy contracts, canonical skills, compatibility mirror, and examples.
+- [x] Add Stage 5 migration, rollback, repair, concurrency, retry, and troubleshooting guidance.
+- [x] Package every new schema, example, skill, and guide into initialized workspaces and wheels.
+- [x] Preserve Stage 4 CSV/JSON/search/feed/adapter candidate semantics and URL/PDF/text full-advert compatibility.
 
 ### Task 8: Stage 5 Exit Acceptance
 
@@ -255,3 +255,19 @@ promotion path across direct CLI, host agents, and orchestration.
   orchestrated Parse runs match for input hashes, candidate/promoted hashes, validation checks, promotion receipt,
   and terminal action. Focused orchestrator evidence: `34 passed`; cross-runtime/CLI/Parse/Draft evidence:
   `120 passed`.
+
+## Task 7 Acceptance Record
+
+- README, changelog, canonical skill references, file/privacy/quality/lifecycle contracts, and the repository-native
+  compatibility mirror now describe the complete Stage 5 graph, guarded bundles, explicit projections, resume,
+  migration, repair, and registered orchestration without restoring a direct provider writer.
+- `docs/stage5-migration.md` documents read-only inspection, resumable compare-and-swap migration, conflict-safe
+  rollback, projection/state repair, cooperative locking, retry/cancellation, troubleshooting, and preservation of
+  Stage 4 discovery plus explicit URL/PDF/text advert intake.
+- Initialized and updated workspaces receive the Stage 5 guide, all Stage 5 schemas, and a loadable registered Parse
+  orchestration example. The canonical skill mirror is byte-identical after the repository sync gate.
+- The isolated `0.6.0b1` wheel passed the required-resource checker, installed with declared dependencies, initialized
+  a fresh 111-file workspace, passed `doctor`, and loaded the packaged registered-stage example outside the source
+  tree.
+- Focused documentation/resource/workspace/orchestrator and Stage 4 discovery/intake compatibility evidence:
+  `321 passed`. Task 8 owns the full interpreter/OS/adversarial/release-candidate exit matrix.

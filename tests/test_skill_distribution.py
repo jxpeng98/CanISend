@@ -242,6 +242,26 @@ def test_main_skill_preserves_guarded_draft_and_review_contract():
     assert "Each Claim is emitted once" in workflow
 
 
+def test_main_skill_documents_stage5_runtime_recovery_and_projection_boundaries():
+    main_skill = Path("skills/canisend/SKILL.md").read_text(encoding="utf-8")
+    workflow = Path("skills/canisend/references/workflow.md").read_text(encoding="utf-8")
+    files = Path("skills/canisend/references/file-contracts.md").read_text(encoding="utf-8")
+    quality = Path("skills/canisend/references/quality-gates.md").read_text(encoding="utf-8")
+    lifecycle = Path("skills/canisend/references/job-lifecycle.md").read_text(encoding="utf-8")
+    orchestration = Path("skills/canisend/references/agent-orchestration.md").read_text(encoding="utf-8")
+    combined = "\n".join((main_skill, workflow, files, quality, lifecycle, orchestration))
+
+    assert "migration inspect" in combined
+    assert "repair projection" in combined
+    assert "repair state" in combined
+    assert "package_bundle.json" in combined
+    assert "render_bundle.json" in combined
+    assert "workflow/projections/package.json" in combined
+    assert "registered_stage" in combined
+    assert "do not hand-edit" in combined
+    assert "status remains a compatibility summary" in combined
+
+
 def test_package_check_requires_distributed_skill_pack_resources():
     resources = set(required_wheel_resources())
 
@@ -267,6 +287,13 @@ def test_package_check_requires_distributed_skill_pack_resources():
         "canisend/resources/skills/canisend-material-review/SKILL.md",
         "canisend/resources/skills/canisend-submission-readiness/SKILL.md",
         "canisend/resources/skills/canisend-submission-readiness/agents/openai.yaml",
+        "canisend/resources/schemas/migration-plan.schema.json",
+        "canisend/resources/schemas/migration-receipt.schema.json",
+        "canisend/resources/schemas/migration-rollback-receipt.schema.json",
+        "canisend/resources/schemas/repair-receipt.schema.json",
+        "canisend/resources/examples/orchestration/README.md",
+        "canisend/resources/examples/orchestration/registered-parse.example.yaml",
+        "canisend/resources/docs/stage5-migration.md",
     }
 
     assert expected <= resources

@@ -102,9 +102,10 @@ receipts and AgentResponse remain body-free. CAS assumes a stable local job dire
 writers, so avoid concurrent manual editor saves. The three user YAML files remain manual user-owned Tier 2
 ask-first inputs; agents use only status plus one scoped patch with fresh CAS receipts and explicit consent.
 
-Stage 2 is locally accepted across these shell-capable hosts. In a deterministic `canisend run`, a current Match and
+The Stage 5 resumable runtime is host-neutral across these shell-capable hosts. In a deterministic `canisend run`, a current Match and
 the configured workspace profile drive consistent proposed views in `02_fit_report.md`, `05_criteria_checklist.md`,
 `07_material_review_checklist.md`, `typst/application_package_content.json`, and
 `typst/application_package.typ`. Stale or drifted/tampered state, a mismatching parsed view, or a profile override
-falls back to legacy deterministic generation; `--llm-drafts` retains provider drafts. Neither Stage 2 acceptance
-nor these proposed views establishes Draft or package readiness.
+falls back to non-ready legacy deterministic generation. `--llm-drafts` may use a provider only through an eligible
+registered Draft and the same guarded validator/promotion service. Neither runtime completion nor these proposed
+views establishes portal or submission readiness.

@@ -131,8 +131,21 @@ package_review_findings.json  # deterministic aggregate Package Review
 review_dispositions.yaml      # user-owned Cover Letter finding decisions
 research_statement_review_dispositions.yaml # user-owned Research Statement finding decisions
 package_review_dispositions.yaml # user-owned aggregate finding decisions
+package_bundle.json          # guarded Package artifact bundle
+application_gate_report.json # guarded Verify report when Package exists
+render_bundle.json           # guarded Render artifact bundle
 workflow/
+  job.lock                  # persistent inode; crash-released OS coordination lock
   state.json                 # rebuildable view
+  projections/
+    package.json             # derived-file journal bound to Package bundle hash
+    render.json              # derived-PDF journal bound to Render bundle hash
+  migrations/stage5-v1/
+    plan.json
+    receipt.json
+    backups/                 # exact replaced runtime metadata bytes only
+    rollbacks/<rollback-id>.json
+  repairs/<repair-id>.json   # body-free explicit repair receipt
   user-mutations/
     claims/<artifact>/<baseline>.json
     events/<mutation-id>/candidate.yaml  # immutable Tier 2 private body
@@ -244,6 +257,21 @@ Discovery lead outputs live in ignored `job_leads/`.
   exact required-document receipts, package Review, and current package dispositions, and distinguishes `blocked`,
   `review_required`, `revision_required`, and `reviewed`. It is not a mutable approval file, rendering approval,
   submission readiness, or submission evidence.
+- `package_bundle.json`: strict guarded `canisend.artifact-bundle/v1` Package output. It binds the current package
+  basis and declares an exact safe projection inventory. Legacy Markdown/content JSON/Typst files are derived from
+  this bundle and cannot establish stage success independently.
+- `application_gate_report.json`: strict guarded Verify output when a Package bundle exists. Verify independently
+  rederives the gate basis. A schema-valid FAIL report is a completed Verify result but blocks Render.
+- `render_bundle.json`: strict guarded Render output whose entries bind validated compiled PDF bytes. PDFs are
+  projected only after bundle promotion and remain preparation artifacts, not upload/submission evidence.
+- `workflow/projections/{package,render}.json`: rebuildable projection journals binding one accepted bundle hash to
+  exact derived-file hashes and edit-preservation outcomes. Missing, invalid, partial, or drifted journals require
+  explicit projection repair; edited Typst primaries receive `*.generated.typ` candidates.
+- `workflow/migrations/stage5-v1/`: immutable migration plan, exact runtime-metadata backup when needed,
+  body-free apply receipt, and one immutable receipt per rollback attempt. Candidate/prepared-input bodies and all
+  profile/advert/user/Markdown/Typst/PDF content are outside migration ownership.
+- `workflow/repairs/*.json`: immutable body-free receipts for explicit projection or state repair. State repair
+  reconstructs from immutable run evidence and never rewrites authoritative stage output drift.
 - `workflow/user-mutations/`: private immutable candidates plus cooperative single-winner claims and immutable
   receipts. Candidate/YAML bodies and corrected Criteria are Tier 2. Claims and receipts never include correction
   text, rationale, Brief values, finding messages, or document source text; the receipt is Tier 1 and validates against
@@ -271,8 +299,8 @@ Discovery lead outputs live in ignored `job_leads/`.
 - `02_fit_report.md`, `03_cover_letter_draft.md`, `04_cv_tailoring_notes.md`, `05_criteria_checklist.md`:
   compatibility Markdown review artifacts. A workspace `run` projects a current, validated, blocker-free structured
   Cover Letter into `03_cover_letter_draft.md` only when the same run can use current structured Match, the parsed
-  view and configured profile provenance agree, and `--llm-drafts` is absent. Otherwise the compatible legacy or
-  provider path remains in effect.
+  view and configured profile provenance agree. Otherwise a non-ready legacy compatibility projection may remain;
+  `--llm-drafts` does not restore a direct provider writer or bypass registered Draft validation.
 - `07_material_review_checklist.md`: management artifact for cover letter draft, CV tailoring notes, placeholders, item-level citations, and manual follow-up actions.
 - `08_research_statement.md`: conditional standalone compatibility view emitted only for an exact current reviewed
   Research Statement. It is not a required package file.
@@ -280,9 +308,8 @@ Discovery lead outputs live in ignored `job_leads/`.
 - `typst/application_package.typ`: editable Typst source for the final package, including remaining actions and review sections.
 - `typst/research_statement.typ`: conditional standalone reviewed Research Statement with stable Claim markers. It
   is not embedded in the application-package source.
-- `typst/.canisend-generated.json`: generated-hash metadata used to avoid overwriting user-edited Typst files.
-- `typst/.canisend-research-generated.json`: separate generated-hash metadata for the optional standalone Research
-  Statement, keeping its edit lifecycle outside package-gate inputs.
+- Historical `typst/.canisend-generated.json` and `.canisend-research-generated.json` files remain readable migration
+  markers. Current edit ownership comes from `workflow/projections/package.json`, not an alternate stage receipt.
 - `typst/*.generated.typ`: candidate regeneration written only when the corresponding editable `.typ` has diverged
   from its generated baseline.
 - `application_gate_report.json`: optional machine-readable `APP-Q*` report written only by an explicit
@@ -296,15 +323,16 @@ In deterministic workspace runs, a current validated Match graph supplies the pr
 `07_material_review_checklist.md`, `typst/application_package_content.json`, and
 `typst/application_package.typ`. The same proposal text may also appear in `06_final_application_package.md`. These
 derived files do not change `review_state=proposed` into user confirmation,
-Decision, or readiness. Stale or drifted/tampered structured artifacts, a mismatching parsed view, a profile override,
-or `--llm-drafts` cause safe legacy/provider fallback rather than mixed-provenance output.
+Decision, or readiness. Stale or drifted/tampered structured artifacts, a mismatching parsed view, or a profile
+override cause safe non-ready legacy fallback rather than mixed-provenance output. `--llm-drafts` may call a provider
+only through an eligible registered Draft and never restores a direct compatibility writer.
 
 When that Match guard passes, a current validated Draft plus current deterministic Review with zero blocker findings
 may also supply `03_cover_letter_draft.md`, `typst/cover_letter_content.json`, the Cover Letter portion of
 `typst/application_package_content.json`, and both Typst sources. Each structured Claim is rendered once and the
 content JSON records exact Draft/Review hashes and `requires_human_review`. Open review/warning findings remain open;
 the projection is not a reviewed/final package. Missing, blocked, stale, drifted, or invalid Draft/Review artifacts,
-direct library use without workspace provenance, profile override, or `--llm-drafts` use safe fallback instead.
+direct library use without workspace provenance, or profile override use safe non-ready fallback instead.
 
 When the same Match guard passes, an exact current Research Statement Draft, deterministic blocker-free Review, and
 audited complete dispositions may supply standalone `08_research_statement.md` and

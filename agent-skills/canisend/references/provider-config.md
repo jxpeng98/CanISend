@@ -80,7 +80,9 @@ and validates the canonical candidate through the same Draft validator used by h
 output is untrusted and is never stored. Invalid output, provider failure, or input drift cannot promote
 `cover_letter_draft.json`; a previously submitted valid candidate resumes without another call.
 
-Legacy `canisend run --llm-drafts` remains a separate compatibility path with its existing output contract.
+`canisend run --llm-drafts` requests registered provider Draft only after Intake, Decision, Brief, document identity,
+and Draft prerequisites are current. Before eligibility it may emit only deterministic non-ready compatibility
+output. It never restores a direct provider writer or bypasses guarded submission, validation, and promotion.
 
 The parser provider must return JSON matching `schemas/parsed_job.schema.json`. It must not invent missing advert fields.
 

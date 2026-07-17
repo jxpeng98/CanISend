@@ -73,6 +73,7 @@ packages = ["src/canisend"]
 "platform-bridges" = "canisend/resources/platform-bridges"
 "examples" = "canisend/resources/examples"
 "docs/stage4-migration.md" = "canisend/resources/docs/stage4-migration.md"
+"docs/stage5-migration.md" = "canisend/resources/docs/stage5-migration.md"
 ".env.example" = "canisend/resources/.env.example"
 
 [tool.pytest.ini_options]

@@ -150,7 +150,9 @@ Deterministic package generation may also read a current validated Match graph l
 checklist, material-review, `typst/application_package_content.json`, and `typst/application_package.typ` views. If
 currentness, integrity, parse identity, or configured profile provenance cannot be established, it falls back to the
 legacy path instead of combining sources.
-`--llm-drafts` remains a separate provider path. No generated Match view is a Decision or readiness claim.
+`--llm-drafts` may request registered provider Draft only after its prerequisites are current; it cannot bypass the
+guarded candidate validator or turn compatibility output into readiness. No generated Match view is a Decision or
+readiness claim.
 
 ## Structured Draft And Review Data Plane
 
@@ -191,6 +193,28 @@ Research Statement, into Tier 2 Markdown, content JSON, and Typst files. This is
 transformation; bodies still do not enter workflow control records or ordinary Agent output. Projection metadata
 contains hashes, states, and counts rather than Review bodies. Research Statement output remains standalone and
 outside package-gate inputs; an ineligible prior generated view is replaced with body-free unavailable content.
+
+## Stage Runtime, Projection, Migration, And Orchestration Data
+
+`workflow/job.lock`, state, TaskSpecs, preparation/submission/result/validation records, terminal claims, promotion
+receipts, manifests, migration plans/receipts, rollback receipts, repair receipts, and ordinary AgentResponse status
+are Tier 1 control data. They contain relative paths, hashes, IDs, timestamps, states, counts, and reason/error codes,
+not private document bodies. Migration inventory explicitly excludes run candidates and prepared-input bodies.
+
+Run-scoped inputs/candidates, `package_bundle.json`, `render_bundle.json`, compatibility Markdown/content JSON,
+editable/generated Typst, projected PDFs, and their source material remain Tier 2. Projection journals are body-free
+but reveal private workflow/file activity and stay inside the ignored job. Repair replays validated bundles; it does
+not make their projected bodies public or safe to commit.
+
+Registered orchestration prepares the immutable TaskSpec before dispatch and exposes only its declared
+reads/core-service writes/consents. The worker must return one candidate on stdout and never write authoritative or
+run paths. `orchestration/runs/*/prompt.md`, `stdout.txt`, `stderr.txt`, and `result.md` may duplicate full advert,
+candidate, diagnostic, or Draft content and are Tier 2. Only the body-free orchestration/stage status and immutable
+stage receipts should be used for routine handoff.
+
+Migration apply/rollback and projection/state repair are local mutations and require explicit approval after
+read-only inspection. Rollback preserves any metadata whose hash changed. State repair never rewrites an
+authoritative output conflict; projection repair preserves an edited Typst primary through a reviewable candidate.
 
 ### Retention Is Not Semantic Reset
 

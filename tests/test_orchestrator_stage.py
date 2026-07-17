@@ -13,6 +13,7 @@ from canisend.cli import app
 from canisend.llm import LLMProvider, LLMResponse
 from canisend.orchestrator import (
     OrchestrationError,
+    RegisteredStageTask,
     load_orchestration_plan,
     run_orchestration,
 )
@@ -207,6 +208,17 @@ def test_registered_stage_contract_rejects_unsupported_or_expanded_authority(
 
     with pytest.raises(OrchestrationError, match="requires privacy tier 2"):
         load_orchestration_plan(understated_path)
+
+
+def test_packaged_registered_parse_example_loads_with_guarded_authority() -> None:
+    plan = load_orchestration_plan(Path("examples/orchestration/registered-parse.example.yaml"))
+
+    task = plan.tasks["guarded-parse"]
+    assert task.registered_stage == RegisteredStageTask(stage="parse")
+    assert task.privacy_tier == 2
+    assert task.inputs == ()
+    assert task.outputs == ()
+    assert task.writes == ()
 
 
 def test_registered_stage_dry_run_is_read_only_and_reports_core_readiness(

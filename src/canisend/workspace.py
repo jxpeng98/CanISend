@@ -32,7 +32,11 @@ DEFAULT_RESOURCE_CHECKS = {
     "templates/typst/cover_letter.typ": "templates/typst/cover_letter.typ",
     "schemas/parsed_job.schema.json": "schemas/parsed_job.schema.json",
     "examples/discovery/discovery-sources.example.yaml": "examples/discovery/discovery-sources.example.yaml",
+    "examples/orchestration/registered-parse.example.yaml": (
+        "examples/orchestration/registered-parse.example.yaml"
+    ),
     "docs/stage4-migration.md": "docs/stage4-migration.md",
+    "docs/stage5-migration.md": "docs/stage5-migration.md",
     "agent-skills/canisend/SKILL.md": "skills/canisend/SKILL.md",
     "AGENTS.md": "platform-bridges/AGENTS.md",
     "CLAUDE.md": "platform-bridges/CLAUDE.md",
@@ -142,8 +146,22 @@ def update_workspace_defaults(workspace: Path, *, overwrite: bool = False) -> li
     )
     copied.extend(
         copy_resource_tree(
+            "examples/orchestration",
+            workspace / "examples" / "orchestration",
+            overwrite=overwrite,
+        )
+    )
+    copied.extend(
+        copy_resource_tree(
             "docs/stage4-migration.md",
             workspace / "docs" / "stage4-migration.md",
+            overwrite=overwrite,
+        )
+    )
+    copied.extend(
+        copy_resource_tree(
+            "docs/stage5-migration.md",
+            workspace / "docs" / "stage5-migration.md",
             overwrite=overwrite,
         )
     )

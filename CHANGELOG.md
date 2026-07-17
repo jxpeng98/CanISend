@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+- Converged `canisend run`, direct stage CLI, configured-provider Parse/Draft, and registered orchestration tasks on
+  one resumable TaskSpec/candidate/validation/terminal-claim/promotion runtime with precise source receipts,
+  no-op resume, and body-free AgentResponse status.
+- Completed the registered graph with source-owned Intake and Decision plus guarded Evidence, Parse, Confirm, Match,
+  Brief, document Draft/Review, Package Review, Package, Verify, and Render execution. User-owned corrections,
+  Decision, Brief, and review dispositions retain explicit-consent revision/hash CAS ownership.
+- Added strict Package/Render bundles and projection journals. Legacy Markdown/Typst/PDF outputs are idempotent
+  recoverable projections; edited Typst primaries are preserved through `*.generated.typ`, and authoritative output
+  drift requires explicit review rather than silent repair.
+- Added one crash-released per-job coordination boundary, deterministic failure/recovery evidence, cancellation-safe
+  retries, explicit projection/state repair, and reversible legacy migration with immutable plans, exact backups,
+  hash-guarded rollback, and conflict-preserving receipts.
+- Added host-neutral `registered_stage` orchestration for Parse/Draft. CanISend prepares the immutable TaskSpec before
+  dispatch and accepts worker stdout only through guarded submit/apply; generic declared-output tasks remain
+  compatible but are explicitly not stage promotion.
+- Added Stage 5 migration/recovery guidance, packaged registered-orchestration examples, migration/repair schemas,
+  workspace skill updates, and wheel/init-workspace resource gates while preserving Stage 4 CSV/JSON/EML/MBOX,
+  normalized search, feed/adapter candidate semantics, and explicit URL/PDF/text full-advert intake.
+
 ## 0.6.0b1 - 2026-07-15
 
 - Added the Stage 4 source-neutral discovery catalog with Lead v2 stable identity, deterministic union/deduplication,

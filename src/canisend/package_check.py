@@ -51,6 +51,10 @@ REQUIRED_WHEEL_RESOURCES = [
     "canisend/resources/schemas/artifact-bundle.schema.json",
     "canisend/resources/schemas/projection-journal.schema.json",
     "canisend/resources/schemas/application-gate-report.schema.json",
+    "canisend/resources/schemas/migration-plan.schema.json",
+    "canisend/resources/schemas/migration-receipt.schema.json",
+    "canisend/resources/schemas/migration-rollback-receipt.schema.json",
+    "canisend/resources/schemas/repair-receipt.schema.json",
     "canisend/resources/.codex-plugin/plugin.json",
     "canisend/resources/skills/canisend/SKILL.md",
     "canisend/resources/skills/canisend/agents/openai.yaml",
@@ -120,7 +124,10 @@ REQUIRED_WHEEL_RESOURCES = [
     "canisend/resources/examples/discovery/local-leads.example.csv",
     "canisend/resources/examples/discovery/greenhouse-list.fixture.json",
     "canisend/resources/examples/discovery/lever-list.fixture.json",
+    "canisend/resources/examples/orchestration/README.md",
+    "canisend/resources/examples/orchestration/registered-parse.example.yaml",
     "canisend/resources/docs/stage4-migration.md",
+    "canisend/resources/docs/stage5-migration.md",
 ]
 
 
