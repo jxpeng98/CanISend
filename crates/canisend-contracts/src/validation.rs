@@ -238,7 +238,8 @@ mod tests {
             "institution": "Example University",
             "source_ids": [],
             "created_at": "2026-07-17T12:30:00Z",
-            "revision": 1
+            "revision": 1,
+            "archived": false
         });
         let error = validate_external_candidate::<JobRecord>(&semantically_invalid)
             .expect_err("semantic validation must fail");

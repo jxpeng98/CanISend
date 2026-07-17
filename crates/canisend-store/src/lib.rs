@@ -4,6 +4,7 @@ mod artifact;
 mod backup;
 mod blob;
 mod database;
+mod job;
 mod workspace;
 
 use std::{
@@ -15,6 +16,7 @@ pub use artifact::ArtifactService;
 pub use backup::{BackupResult, verify_backup};
 pub use blob::{BlobAudit, BlobStore, DEFAULT_MAX_BLOB_BYTES};
 pub use database::{DATABASE_SCHEMA_VERSION, Database};
+pub use job::{JobService, NewSource};
 pub use workspace::{Workspace, WorkspaceConfig, WorkspacePaths};
 
 use canisend_contracts::{EntityId, PrimitiveError, UtcTimestamp};
@@ -64,6 +66,12 @@ pub enum StoreError {
     BlobCollision(PathBuf),
     #[error("artifact was not found: {0}")]
     ArtifactNotFound(String),
+    #[error("job was not found: {0}")]
+    JobNotFound(String),
+    #[error("job is archived: {0}")]
+    JobArchived(String),
+    #[error("input is invalid: {0}")]
+    InvalidInput(String),
     #[error("artifact dependency is not current: {0}")]
     DependencyConflict(String),
     #[error("projection path must be inside jobs/ or profile/")]

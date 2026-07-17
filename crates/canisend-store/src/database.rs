@@ -7,8 +7,9 @@ use rusqlite::{
 
 use crate::{StoreError, now_utc};
 
-pub const DATABASE_SCHEMA_VERSION: u32 = 1;
+pub const DATABASE_SCHEMA_VERSION: u32 = 2;
 const INITIAL_MIGRATION: &str = include_str!("../migrations/0001_initial.sql");
+const INTAKE_MIGRATION: &str = include_str!("../migrations/0002_job_intake.sql");
 
 pub struct Database {
     connection: Connection,
@@ -43,15 +44,22 @@ impl Database {
                 "database schema {version} is newer than supported {DATABASE_SCHEMA_VERSION}"
             )));
         }
+        let mut version = version;
         if version == 0 {
             let applied_at = now_utc()?;
-            self.apply_initial_migration(INITIAL_MIGRATION, &applied_at)?;
+            self.apply_migration(1, INITIAL_MIGRATION, &applied_at)?;
+            version = 1;
+        }
+        if version == 1 {
+            let applied_at = now_utc()?;
+            self.apply_migration(2, INTAKE_MIGRATION, &applied_at)?;
         }
         Ok(())
     }
 
-    fn apply_initial_migration(
+    fn apply_migration(
         &mut self,
+        version: u32,
         sql: &str,
         applied_at: &UtcTimestamp,
     ) -> Result<(), StoreError> {
@@ -61,7 +69,7 @@ impl Database {
         transaction.execute_batch(sql)?;
         transaction.execute(
             "INSERT INTO schema_migrations(version, applied_at) VALUES (?1, ?2)",
-            params![DATABASE_SCHEMA_VERSION, applied_at.as_str()],
+            params![version, applied_at.as_str()],
         )?;
         transaction.commit()?;
         Ok(())
@@ -192,7 +200,7 @@ mod tests {
 
     use rusqlite::TransactionBehavior;
 
-    use super::Database;
+    use super::{Database, INITIAL_MIGRATION};
     use crate::now_utc;
 
     static NEXT: AtomicU64 = AtomicU64::new(1);
@@ -244,7 +252,7 @@ mod tests {
             .expect("migration count");
         assert!(
             database
-                .apply_initial_migration("CREATE TABLE broken (", &now_utc().expect("timestamp"))
+                .apply_migration(99, "CREATE TABLE broken (", &now_utc().expect("timestamp"))
                 .is_err()
         );
         let after: i64 = database
@@ -257,6 +265,40 @@ mod tests {
         drop(database);
         fs::write(&path, b"not sqlite").expect("corrupt database");
         assert!(Database::open(&path).is_err());
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn version_one_workspace_upgrades_transactionally_to_intake_schema() {
+        let path = path("upgrade-v1");
+        let connection = rusqlite::Connection::open(&path).expect("version one database");
+        connection
+            .execute_batch(INITIAL_MIGRATION)
+            .expect("initial migration");
+        connection
+            .execute(
+                "INSERT INTO schema_migrations(version, applied_at) VALUES (1, ?1)",
+                [now_utc().expect("timestamp").as_str()],
+            )
+            .expect("migration record");
+        drop(connection);
+
+        let database = Database::open(&path).expect("upgrade database");
+        let version: u32 = database
+            .connection
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .expect("schema version");
+        assert_eq!(version, 2);
+        let revision_column: i64 = database
+            .connection
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('jobs') WHERE name = 'revision'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("revision column");
+        assert_eq!(revision_column, 1);
+        drop(database);
         let _ = fs::remove_file(path);
     }
 }

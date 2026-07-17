@@ -141,6 +141,7 @@ version = "0.7.0-alpha.1"
 dependencies = [
  "canisend-contracts",
  "canisend-core",
+ "canisend-io",
  "canisend-resources",
  "canisend-store",
  "clap",

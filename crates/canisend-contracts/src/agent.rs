@@ -53,6 +53,10 @@ pub enum ErrorCode {
     WorkspaceNotFound,
     #[serde(rename = "workspace.conflict")]
     WorkspaceConflict,
+    #[serde(rename = "job.not_found")]
+    JobNotFound,
+    #[serde(rename = "job.archived")]
+    JobArchived,
     #[serde(rename = "resource.not_found")]
     ResourceNotFound,
     #[serde(rename = "resources.integrity_failed")]
@@ -82,11 +86,13 @@ pub enum ErrorCode {
 }
 
 impl ErrorCode {
-    pub const ALL: [Self; 17] = [
+    pub const ALL: [Self; 19] = [
         Self::InputInvalid,
         Self::InputPathRejected,
         Self::WorkspaceNotFound,
         Self::WorkspaceConflict,
+        Self::JobNotFound,
+        Self::JobArchived,
         Self::ResourceNotFound,
         Self::ResourcesIntegrityFailed,
         Self::SchemaNotFound,
@@ -107,6 +113,8 @@ impl ErrorCode {
         match self {
             Self::WorkspaceNotFound
             | Self::WorkspaceConflict
+            | Self::JobNotFound
+            | Self::JobArchived
             | Self::TaskNotFound
             | Self::TaskStale
             | Self::TaskConflict => ExitClass::Conflict,
@@ -130,6 +138,8 @@ impl ErrorCode {
             Self::InputPathRejected => "input.path_rejected",
             Self::WorkspaceNotFound => "workspace.not_found",
             Self::WorkspaceConflict => "workspace.conflict",
+            Self::JobNotFound => "job.not_found",
+            Self::JobArchived => "job.archived",
             Self::ResourceNotFound => "resource.not_found",
             Self::ResourcesIntegrityFailed => "resources.integrity_failed",
             Self::SchemaNotFound => "schema.not_found",

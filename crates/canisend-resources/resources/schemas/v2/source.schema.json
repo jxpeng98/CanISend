@@ -68,6 +68,15 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
+    "content_type": {
+      "type": "string"
+    },
+    "final_url": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "id": {
       "type": "string"
     },
@@ -93,6 +102,12 @@
     "privacy": {
       "$ref": "#/$defs/PrivacyClassification"
     },
+    "redirect_chain": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
     "retrieved_at": {
       "type": "string"
     },
@@ -108,6 +123,8 @@
     "job_id",
     "kind",
     "original",
+    "content_type",
+    "redirect_chain",
     "retrieved_at",
     "privacy"
   ],

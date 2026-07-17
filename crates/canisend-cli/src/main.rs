@@ -4,13 +4,14 @@ use std::{io::IsTerminal, path::PathBuf, process::ExitCode, str::FromStr};
 
 use canisend_contracts::{
     AGENT_PROTOCOL, ActorKind, AgentContextData, AgentError, AgentResponse, CapabilitiesData,
-    ErrorCode, ExecutionMode, ExitClass, PUBLIC_SCHEMA_VERSION, PrivacyClassification,
+    EntityId, ErrorCode, ExecutionMode, ExitClass, PUBLIC_SCHEMA_VERSION, PrivacyClassification,
     PublicSchemaId, RESOURCE_FORMAT, ResourceCatalogData, ResourceCatalogEntry, SchemaCatalogData,
-    SchemaCatalogEntry, SemanticVersion, Sha256Digest, VersionData, WORKSPACE_FORMAT,
+    SchemaCatalogEntry, SemanticVersion, Sha256Digest, SourceKind, VersionData, WORKSPACE_FORMAT,
 };
 use canisend_core::CapabilityRegistry;
+use canisend_io::{IoAdapterError, read_local_text};
 use canisend_resources::{ResourceId, ResourceKind};
-use canisend_store::{ArtifactService, StoreError, Workspace};
+use canisend_store::{ArtifactService, JobService, NewSource, StoreError, Workspace};
 use clap::{Args, Parser, Subcommand};
 use serde_json::json;
 
@@ -54,6 +55,11 @@ enum Command {
         #[command(subcommand)]
         command: WorkspaceCommand,
     },
+    /// Create, import, inspect, list, or archive jobs.
+    Job {
+        #[command(subcommand)]
+        command: JobCommand,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -94,6 +100,20 @@ enum WorkspaceCommand {
     Repair(OutputArgs),
 }
 
+#[derive(Debug, Subcommand)]
+enum JobCommand {
+    /// Create an empty job record ready for one or more sources.
+    Create(JobCreateArgs),
+    /// Import a supported local source into an active job.
+    Import(JobImportArgs),
+    /// List active jobs, or include archived jobs explicitly.
+    List(JobListArgs),
+    /// Show one job and its body-free source metadata.
+    Show(JobIdArgs),
+    /// Archive a job without deleting its history.
+    Archive(JobIdArgs),
+}
+
 #[derive(Debug, Args)]
 struct OutputArgs {
     /// Emit exactly one canisend.agent/v2 JSON object on stdout.
@@ -127,6 +147,43 @@ struct WorkspaceRestoreArgs {
     output: OutputArgs,
 }
 
+#[derive(Debug, Args)]
+struct JobCreateArgs {
+    #[arg(long)]
+    title: String,
+    #[arg(long)]
+    institution: String,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
+struct JobImportArgs {
+    /// Canonical UUIDv7 job ID.
+    job_id: String,
+    /// UTF-8 Markdown or plain-text job advert.
+    #[arg(long, value_name = "PATH")]
+    file: PathBuf,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
+struct JobListArgs {
+    #[arg(long)]
+    include_archived: bool,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
+struct JobIdArgs {
+    /// Canonical UUIDv7 job ID.
+    job_id: String,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
 impl Cli {
     fn explicit_json(&self) -> bool {
         match &self.command {
@@ -156,6 +213,14 @@ impl Cli {
             Command::Workspace {
                 command: WorkspaceCommand::Restore(arguments),
             } => arguments.output.json,
+            Command::Job { command } => match command {
+                JobCommand::Create(arguments) => arguments.output.json,
+                JobCommand::Import(arguments) => arguments.output.json,
+                JobCommand::List(arguments) => arguments.output.json,
+                JobCommand::Show(arguments) | JobCommand::Archive(arguments) => {
+                    arguments.output.json
+                }
+            },
         }
     }
 }
@@ -253,6 +318,21 @@ fn execute(cli: Cli) -> CommandResult<CommandOutput> {
         Command::Workspace {
             command: WorkspaceCommand::Repair(_),
         } => workspace_repair(workspace),
+        Command::Job {
+            command: JobCommand::Create(arguments),
+        } => job_create(workspace, arguments),
+        Command::Job {
+            command: JobCommand::Import(arguments),
+        } => job_import_file(workspace, arguments),
+        Command::Job {
+            command: JobCommand::List(arguments),
+        } => job_list(workspace, arguments.include_archived),
+        Command::Job {
+            command: JobCommand::Show(arguments),
+        } => job_show(workspace, &arguments.job_id),
+        Command::Job {
+            command: JobCommand::Archive(arguments),
+        } => job_archive(workspace, &arguments.job_id),
     }
 }
 
@@ -553,6 +633,160 @@ fn workspace_repair(workspace_path: Option<PathBuf>) -> CommandResult<CommandOut
     )
 }
 
+fn job_create(
+    workspace_path: Option<PathBuf>,
+    arguments: JobCreateArgs,
+) -> CommandResult<CommandOutput> {
+    let mut workspace = open_workspace(workspace_path, "job.create")?;
+    let record = JobService::new(&mut workspace.database, &workspace.blobs)
+        .create(&arguments.title, &arguments.institution, ActorKind::User)
+        .map_err(|error| store_failure("job.create", error))?;
+    success(
+        "job.create",
+        "created",
+        &record,
+        vec![
+            format!("Created job: {}", record.id),
+            format!("{} — {}", record.title, record.institution),
+        ],
+    )
+}
+
+fn job_import_file(
+    workspace_path: Option<PathBuf>,
+    arguments: JobImportArgs,
+) -> CommandResult<CommandOutput> {
+    let job_id = parse_entity_id("job.import", &arguments.job_id)?;
+    let document = read_local_text(&arguments.file)
+        .map_err(|error| io_adapter_failure("job.import", error))?;
+    let mut workspace = open_workspace(workspace_path, "job.import")?;
+    let record = JobService::new(&mut workspace.database, &workspace.blobs)
+        .import_source(
+            &job_id,
+            NewSource {
+                kind: SourceKind::LocalFile,
+                original_bytes: document.original_bytes,
+                normalized_text: document.normalized_text,
+                source_url: None,
+                final_url: None,
+                content_type: document.content_type.to_owned(),
+                redirect_chain: Vec::new(),
+                privacy: PrivacyClassification::PrivateLocal,
+            },
+            ActorKind::User,
+        )
+        .map_err(|error| store_failure("job.import", error))?;
+    success(
+        "job.import",
+        "imported",
+        &record,
+        vec![
+            format!("Imported source: {}", record.id),
+            format!("Job: {}", record.job_id),
+            format!("Original: {}", record.original.sha256),
+            format!(
+                "Normalized: {}",
+                record
+                    .normalized_text
+                    .as_ref()
+                    .map(|reference| reference.sha256.as_str())
+                    .unwrap_or("unavailable")
+            ),
+        ],
+    )
+}
+
+fn job_list(
+    workspace_path: Option<PathBuf>,
+    include_archived: bool,
+) -> CommandResult<CommandOutput> {
+    let mut workspace = open_workspace(workspace_path, "job.list")?;
+    let records = JobService::new(&mut workspace.database, &workspace.blobs)
+        .list(include_archived)
+        .map_err(|error| store_failure("job.list", error))?;
+    let human = if records.is_empty() {
+        vec!["No jobs found".to_owned()]
+    } else {
+        records
+            .iter()
+            .map(|record| {
+                format!(
+                    "{}  {} — {}{}",
+                    record.id,
+                    record.title,
+                    record.institution,
+                    if record.archived { " [archived]" } else { "" }
+                )
+            })
+            .collect()
+    };
+    success("job.list", "available", &json!({"jobs": records}), human)
+}
+
+fn job_show(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<CommandOutput> {
+    let job_id = parse_entity_id("job.show", job_id)?;
+    let mut workspace = open_workspace(workspace_path, "job.show")?;
+    let service = JobService::new(&mut workspace.database, &workspace.blobs);
+    let record = service
+        .get(&job_id)
+        .map_err(|error| store_failure("job.show", error))?;
+    let sources = service
+        .sources(&job_id)
+        .map_err(|error| store_failure("job.show", error))?;
+    let data = json!({"job": record, "sources": sources});
+    success(
+        "job.show",
+        "available",
+        &data,
+        vec![
+            format!("{} — {}", record.title, record.institution),
+            format!("Job ID: {}", record.id),
+            format!("Sources: {}", sources.len()),
+            format!("Archived: {}", record.archived),
+        ],
+    )
+}
+
+fn job_archive(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<CommandOutput> {
+    let job_id = parse_entity_id("job.archive", job_id)?;
+    let mut workspace = open_workspace(workspace_path, "job.archive")?;
+    let record = JobService::new(&mut workspace.database, &workspace.blobs)
+        .archive(&job_id, ActorKind::User)
+        .map_err(|error| store_failure("job.archive", error))?;
+    success(
+        "job.archive",
+        "archived",
+        &record,
+        vec![format!("Archived job: {}", record.id)],
+    )
+}
+
+fn parse_entity_id(operation: &'static str, value: &str) -> CommandResult<EntityId> {
+    EntityId::try_new(value).map_err(|error| {
+        CommandFailure::new(
+            operation,
+            "invalid",
+            ErrorCode::InputInvalid,
+            error.to_string(),
+            false,
+        )
+    })
+}
+
+fn io_adapter_failure(operation: &'static str, error: IoAdapterError) -> Box<CommandFailure> {
+    let (status, code, retryable) = match &error {
+        IoAdapterError::Io { .. } => ("io-failed", ErrorCode::ExternalIoFailed, true),
+        IoAdapterError::UnsafeLocalFile(_) | IoAdapterError::UnsupportedLocalType(_) => {
+            ("invalid", ErrorCode::InputPathRejected, false)
+        }
+        IoAdapterError::InputTooLarge { .. }
+        | IoAdapterError::InvalidTextEncoding
+        | IoAdapterError::UnsafeTextControlCharacter
+        | IoAdapterError::TextUnavailable => ("invalid", ErrorCode::InputInvalid, false),
+    };
+    CommandFailure::new(operation, status, code, error.to_string(), retryable)
+}
+
 fn open_workspace(
     workspace_path: Option<PathBuf>,
     operation: &'static str,
@@ -563,6 +797,8 @@ fn open_workspace(
 fn store_failure(operation: &'static str, error: StoreError) -> Box<CommandFailure> {
     let (status, code, retryable) = match &error {
         StoreError::WorkspaceNotFound(_) => ("not-found", ErrorCode::WorkspaceNotFound, false),
+        StoreError::JobNotFound(_) => ("not-found", ErrorCode::JobNotFound, false),
+        StoreError::JobArchived(_) => ("archived", ErrorCode::JobArchived, false),
         StoreError::WorkspaceExists(_)
         | StoreError::Sqlite(_)
         | StoreError::DependencyConflict(_)
@@ -573,6 +809,7 @@ fn store_failure(operation: &'static str, error: StoreError) -> Box<CommandFailu
         | StoreError::BlobTooLarge { .. }
         | StoreError::ConfigDecode(_)
         | StoreError::BackupInvalid(_) => ("invalid", ErrorCode::InputPathRejected, false),
+        StoreError::InvalidInput(_) => ("invalid", ErrorCode::InputInvalid, false),
         StoreError::Io { .. } | StoreError::BlobMissing(_) => {
             ("io-failed", ErrorCode::ExternalIoFailed, true)
         }

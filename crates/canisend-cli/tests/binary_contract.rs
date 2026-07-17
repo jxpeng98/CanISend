@@ -23,6 +23,10 @@ impl TestDirectory {
     fn text(&self) -> &str {
         self.0.to_str().expect("test path is UTF-8")
     }
+
+    fn path(&self) -> &std::path::Path {
+        &self.0
+    }
 }
 
 impl Drop for TestDirectory {
@@ -210,4 +214,87 @@ fn native_workspace_commands_initialize_check_backup_and_restore() {
         restore_result["data"]["workspace_id"],
         status["data"]["workspace_id"]
     );
+}
+
+#[test]
+fn native_job_commands_import_original_and_normalized_local_text() {
+    let workspace = TestDirectory::new("job-workspace");
+    let input = TestDirectory::new("job-input");
+    fs::create_dir_all(input.path()).expect("input directory");
+    let advert = input.path().join("advert.md");
+    fs::write(
+        &advert,
+        b"# Lecturer in Economics  \r\n\r\nTeach economics.\r\n",
+    )
+    .expect("write advert");
+
+    run_json(&[
+        "--workspace",
+        workspace.text(),
+        "workspace",
+        "init",
+        "--json",
+    ]);
+    let created = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "job",
+        "create",
+        "--title",
+        "Lecturer in Economics",
+        "--institution",
+        "University X",
+        "--json",
+    ]);
+    let job_id = created["data"]["id"].as_str().expect("job ID");
+    let imported = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "job",
+        "import",
+        job_id,
+        "--file",
+        advert.to_str().expect("advert path is UTF-8"),
+        "--json",
+    ]);
+    assert_eq!(imported["data"]["kind"], "local-file");
+    assert_ne!(
+        imported["data"]["original"]["sha256"],
+        imported["data"]["normalized_text"]["sha256"]
+    );
+
+    let shown = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "job",
+        "show",
+        job_id,
+        "--json",
+    ]);
+    assert_eq!(shown["data"]["job"]["revision"], 2);
+    assert_eq!(shown["data"]["sources"].as_array().map(Vec::len), Some(1));
+    let listed = run_json(&["--workspace", workspace.text(), "job", "list", "--json"]);
+    assert_eq!(listed["data"]["jobs"].as_array().map(Vec::len), Some(1));
+
+    let archived = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "job",
+        "archive",
+        job_id,
+        "--json",
+    ]);
+    assert_eq!(archived["data"]["archived"], true);
+    let active = run_json(&["--workspace", workspace.text(), "job", "list", "--json"]);
+    assert_eq!(active["data"]["jobs"].as_array().map(Vec::len), Some(0));
+    let all = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "job",
+        "list",
+        "--include-archived",
+        "--json",
+    ]);
+    assert_eq!(all["data"]["jobs"].as_array().map(Vec::len), Some(1));
+    assert_eq!(all["data"]["jobs"][0]["revision"], 3);
 }

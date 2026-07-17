@@ -3,6 +3,9 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
+    "archived": {
+      "type": "boolean"
+    },
     "created_at": {
       "type": "string"
     },
@@ -33,7 +36,8 @@
     "institution",
     "source_ids",
     "created_at",
-    "revision"
+    "revision",
+    "archived"
   ],
   "title": "JobRecord",
   "type": "object",

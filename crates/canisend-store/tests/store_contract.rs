@@ -6,10 +6,12 @@ use std::{
 };
 
 use canisend_contracts::{
-    ActorKind, ArtifactKind, ArtifactReference, EntityId, Revision, SafeRelativePath, Sha256Digest,
+    ActorKind, ArtifactKind, ArtifactReference, EntityId, PrivacyClassification, Revision,
+    SafeRelativePath, Sha256Digest, SourceKind,
 };
 use canisend_store::{
-    ArtifactService, DEFAULT_MAX_BLOB_BYTES, StoreError, Workspace, WorkspacePaths, verify_backup,
+    ArtifactService, DEFAULT_MAX_BLOB_BYTES, JobService, NewSource, StoreError, Workspace,
+    WorkspacePaths, verify_backup,
 };
 
 static NEXT: AtomicU64 = AtomicU64::new(1);
@@ -50,7 +52,7 @@ fn workspace_init_discovery_status_and_check_are_consistent() {
     assert_eq!(discovered.root, root.path());
     assert_eq!(
         workspace.status().expect("status").database_schema_version,
-        1
+        2
     );
     let check = workspace.check().expect("workspace check");
     assert!(check.ok);
@@ -76,6 +78,90 @@ fn workspace_init_discovery_status_and_check_are_consistent() {
             0o600
         );
     }
+}
+
+#[test]
+fn jobs_and_local_sources_are_revisioned_without_identity_merging() {
+    let root = TestDirectory::new("job-intake");
+    let mut workspace = Workspace::init(root.path()).expect("workspace");
+    let (job, first, second) = {
+        let mut jobs = JobService::new(&mut workspace.database, &workspace.blobs);
+        let job = jobs
+            .create(" Lecturer in Economics ", " University X ", ActorKind::User)
+            .expect("job create");
+        assert_eq!(job.title, "Lecturer in Economics");
+        assert_eq!(job.revision.get(), 1);
+
+        let source = || NewSource {
+            kind: SourceKind::LocalFile,
+            original_bytes: b"Title  \r\nBody\r\n".to_vec(),
+            normalized_text: "Title\nBody\n".to_owned(),
+            source_url: None,
+            final_url: None,
+            content_type: "text/markdown; charset=utf-8".to_owned(),
+            redirect_chain: Vec::new(),
+            privacy: PrivacyClassification::PrivateLocal,
+        };
+        let first = jobs
+            .import_source(&job.id, source(), ActorKind::User)
+            .expect("first source");
+        let second = jobs
+            .import_source(&job.id, source(), ActorKind::User)
+            .expect("second source");
+        assert_ne!(first.id, second.id);
+        assert_ne!(first.original.id, second.original.id);
+        assert_eq!(first.original.sha256, second.original.sha256);
+        let current = jobs.get(&job.id).expect("updated job");
+        assert_eq!(current.revision.get(), 3);
+        assert_eq!(current.source_ids.len(), 2);
+        assert_eq!(jobs.sources(&job.id).expect("sources").len(), 2);
+        (job, first, second)
+    };
+
+    {
+        let artifacts = ArtifactService::new(
+            &mut workspace.database,
+            &workspace.blobs,
+            &workspace.paths.root,
+        );
+        assert_eq!(
+            artifacts
+                .read(&first.original.id, first.original.revision)
+                .expect("original bytes"),
+            b"Title  \r\nBody\r\n"
+        );
+        let normalized = first.normalized_text.expect("normalized reference");
+        assert_eq!(
+            artifacts
+                .read(&normalized.id, normalized.revision)
+                .expect("normalized bytes"),
+            b"Title\nBody\n"
+        );
+    }
+
+    let mut jobs = JobService::new(&mut workspace.database, &workspace.blobs);
+    let archived = jobs.archive(&job.id, ActorKind::User).expect("archive job");
+    assert!(archived.archived);
+    assert!(jobs.list(false).expect("active jobs").is_empty());
+    assert_eq!(jobs.list(true).expect("all jobs").len(), 1);
+    assert!(matches!(
+        jobs.import_source(
+            &job.id,
+            NewSource {
+                kind: SourceKind::LocalFile,
+                original_bytes: b"later".to_vec(),
+                normalized_text: "later\n".to_owned(),
+                source_url: None,
+                final_url: None,
+                content_type: "text/plain; charset=utf-8".to_owned(),
+                redirect_chain: Vec::new(),
+                privacy: PrivacyClassification::PrivateLocal,
+            },
+            ActorKind::User,
+        ),
+        Err(StoreError::JobArchived(_))
+    ));
+    assert_ne!(first.id, second.id);
 }
 
 #[test]

@@ -23,6 +23,8 @@
       "input.path_rejected",
       "workspace.not_found",
       "workspace.conflict",
+      "job.not_found",
+      "job.archived",
       "resource.not_found",
       "resources.integrity_failed",
       "schema.not_found",

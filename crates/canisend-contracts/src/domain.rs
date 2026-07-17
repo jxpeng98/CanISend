@@ -33,6 +33,7 @@ pub struct JobRecord {
     pub source_ids: Vec<EntityId>,
     pub created_at: UtcTimestamp,
     pub revision: Revision,
+    pub archived: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -44,6 +45,9 @@ pub struct SourceRecord {
     pub original: ArtifactReference,
     pub normalized_text: Option<ArtifactReference>,
     pub source_url: Option<String>,
+    pub final_url: Option<String>,
+    pub content_type: String,
+    pub redirect_chain: Vec<String>,
     pub retrieved_at: UtcTimestamp,
     pub privacy: PrivacyClassification,
 }

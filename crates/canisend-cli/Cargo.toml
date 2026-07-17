@@ -17,6 +17,7 @@ path = "src/main.rs"
 [dependencies]
 canisend-contracts = { path = "../canisend-contracts" }
 canisend-core = { path = "../canisend-core" }
+canisend-io = { path = "../canisend-io" }
 canisend-resources = { path = "../canisend-resources" }
 canisend-store = { path = "../canisend-store" }
 clap.workspace = true
