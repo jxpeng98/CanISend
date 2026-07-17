@@ -85,9 +85,16 @@ A macOS-hosted `cargo check --target x86_64-pc-windows-msvc` reached `aws-lc-sys
 does not contain Windows SDK headers such as `windows.h`. That result is a cross-toolchain limitation and does not
 prove either Windows success or a product failure.
 
-Native Ubuntu, macOS, and Windows execution is therefore delegated to `.github/workflows/rust-r0-spikes.yml`. R0 is
-not complete until that matrix passes. The workflow runs the locked native probe and an explicit Rustls HTTPS request
-on every platform.
+Native Ubuntu, macOS, and Windows execution was delegated to `.github/workflows/rust-r0-spikes.yml`. GitHub Actions
+run `29608591519` passed on 2026-07-17:
+
+- Ubuntu completed the native probe and Rustls HTTPS in approximately 2 minutes 45 seconds.
+- macOS completed the native probe and Rustls HTTPS in approximately 4 minutes 1 second.
+- Windows completed the native probe and Rustls HTTPS in approximately 5 minutes 32 seconds.
+
+Every job used the locked spike workspace and Rust `1.97.0`. The Windows native success closes the earlier macOS
+cross-toolchain evidence gap. R0 now has native bundled SQLite, schema, Typst/PDF, extraction, and HTTPS evidence on
+all three primary operating systems.
 
 ## Follow-up risks
 

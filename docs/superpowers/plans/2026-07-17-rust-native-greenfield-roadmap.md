@@ -1,6 +1,6 @@
 # CanISend Rust-Native Greenfield Rebuild Roadmap
 
-**Status:** In progress — R0 architecture and executable specifications
+**Status:** In progress — R0 complete; R1 Rust-only repository cutover active
 
 **Date:** 2026-07-17
 
@@ -31,6 +31,9 @@
 - 2026-07-17: Added the root Cargo workspace, six product crates, Rust `xtask`, protocol v2 envelope, truthful
   capability registry, embedded resource manifest, and native version/doctor/capabilities commands. Seven Rust tests,
   Clippy, schema/resource checks, and the first release build passed; Python deletion still awaits R0 native CI.
+- 2026-07-17: GitHub Actions run `29608591519` passed the locked dependency spike on native Ubuntu, macOS, and
+  Windows, including bundled SQLite, schema validation, embedded Typst/PDF extraction, and Rustls HTTPS. R0 exit
+  criteria are satisfied; R1 repository cutover is authorized by the roadmap sequence.
 
 ## 1. Executive Decision
 
@@ -1129,12 +1132,13 @@ shorter estimate unrealistic.
 - [x] Compare candidate SQLite integration options and prove a bundled build on the local target.
 - [x] Compare `pdf-extract` and direct `lopdf` extraction against the generated initial PDF.
 - [x] Prove a minimal embedded Typst compilation with bundled fonts and no network.
-- [ ] Prove Rustls HTTPS on macOS, Linux, and Windows release targets.
+- [x] Prove Rustls HTTPS on macOS, Linux, and Windows native GitHub runners in run `29608591519`.
 - [x] Confirm selected JSON Schema tooling supports generated schemas and Draft 2020-12 runtime validation.
 
-**Deliverables:** Eight ADRs, synthetic v2 fixtures, dependency spike notes, final crate graph.
+**Deliverables:** Eight ADRs, synthetic v2 fixtures, dependency spike notes, final crate graph. Complete.
 
-**Exit criteria:** No unresolved decision blocks repository scaffolding, storage, agent tasks, PDF intake, or rendering.
+**Exit criteria:** Satisfied. No unresolved decision blocks repository scaffolding, storage, agent tasks, PDF intake,
+or rendering, and the dependency families passed their required native matrix.
 
 ### Phase R1 — Rust-only repository foundation
 
