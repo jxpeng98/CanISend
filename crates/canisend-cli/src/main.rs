@@ -26,9 +26,9 @@ use canisend_io::{
 };
 use canisend_resources::{AgentHost, ResourceError, ResourceId, ResourceKind, export_agent_pack};
 use canisend_store::{
-    AgentContextService, ArtifactService, CriteriaService, DiscoveryService, JobService,
-    NewProfileSource, NewSource, ProfileService, StoreError, TaskService, WorkflowService,
-    Workspace, current_utc_timestamp,
+    AgentContextService, ArtifactService, CriteriaService, DiscoveryService, EvidenceService,
+    JobService, NewProfileSource, NewSource, ProfileService, StoreError, TaskService,
+    WorkflowService, Workspace, current_utc_timestamp,
 };
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use serde_json::json;
@@ -175,6 +175,11 @@ enum ProfileCommand {
         #[command(subcommand)]
         command: ProfileSourceCommand,
     },
+    /// Normalize, review, confirm, and revise reusable profile evidence.
+    Evidence {
+        #[command(subcommand)]
+        command: ProfileEvidenceCommand,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -185,6 +190,18 @@ enum ProfileSourceCommand {
     List(OutputArgs),
     /// Show one profile source and exact artifact references.
     Show(ProfileSourceIdArgs),
+}
+
+#[derive(Debug, Subcommand)]
+enum ProfileEvidenceCommand {
+    /// Show the unconfirmed core-ID-assigned evidence proposal.
+    Proposed(ProfileEvidenceJobArgs),
+    /// Export an editable, pre-confirmed evidence catalog candidate.
+    Export(ProfileEvidenceExportArgs),
+    /// Validate corrections, exclusions, or revisions and commit user confirmation.
+    Confirm(ProfileEvidenceConfirmArgs),
+    /// Show the current confirmed evidence catalog.
+    Show(ProfileEvidenceJobArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -385,6 +402,39 @@ struct ProfileSourceIdArgs {
 }
 
 #[derive(Debug, Args)]
+struct ProfileEvidenceJobArgs {
+    /// Canonical UUIDv7 job whose workflow consumes the reusable profile evidence.
+    #[arg(long)]
+    job: String,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
+struct ProfileEvidenceExportArgs {
+    /// Canonical UUIDv7 job whose evidence decision is being reviewed.
+    #[arg(long)]
+    job: String,
+    /// New external JSON file that the user or host agent can edit.
+    #[arg(long, value_name = "PATH")]
+    destination: PathBuf,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
+struct ProfileEvidenceConfirmArgs {
+    /// Canonical UUIDv7 job whose evidence decision is being confirmed or revised.
+    #[arg(long)]
+    job: String,
+    /// Regular, non-symlink evidence JSON exported by `profile evidence export`.
+    #[arg(long, value_name = "PATH")]
+    file: PathBuf,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
 struct DiscoveryImportArgs {
     /// Regular .csv or .json file containing normalized job leads.
     #[arg(long, value_name = "PATH")]
@@ -464,6 +514,7 @@ struct DiscoverySuggestArgs {
 #[derive(Debug, Clone, Copy, ValueEnum)]
 enum TaskOperationName {
     JobParse,
+    EvidenceNormalize,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -710,6 +761,12 @@ impl Cli {
                     ProfileSourceCommand::List(output) => output.json,
                     ProfileSourceCommand::Show(arguments) => arguments.output.json,
                 },
+                ProfileCommand::Evidence { command } => match command {
+                    ProfileEvidenceCommand::Proposed(arguments)
+                    | ProfileEvidenceCommand::Show(arguments) => arguments.output.json,
+                    ProfileEvidenceCommand::Export(arguments) => arguments.output.json,
+                    ProfileEvidenceCommand::Confirm(arguments) => arguments.output.json,
+                },
             },
             Command::Discovery { command } => match command {
                 DiscoveryCommand::Import(arguments) => arguments.output.json,
@@ -882,6 +939,30 @@ fn execute(cli: Cli) -> CommandResult<CommandOutput> {
                     command: ProfileSourceCommand::Show(arguments),
                 },
         } => profile_source_show(workspace, &arguments.source_id),
+        Command::Profile {
+            command:
+                ProfileCommand::Evidence {
+                    command: ProfileEvidenceCommand::Proposed(arguments),
+                },
+        } => profile_evidence_proposed(workspace, &arguments.job),
+        Command::Profile {
+            command:
+                ProfileCommand::Evidence {
+                    command: ProfileEvidenceCommand::Export(arguments),
+                },
+        } => profile_evidence_export(workspace, arguments),
+        Command::Profile {
+            command:
+                ProfileCommand::Evidence {
+                    command: ProfileEvidenceCommand::Confirm(arguments),
+                },
+        } => profile_evidence_confirm(workspace, arguments),
+        Command::Profile {
+            command:
+                ProfileCommand::Evidence {
+                    command: ProfileEvidenceCommand::Show(arguments),
+                },
+        } => profile_evidence_show(workspace, &arguments.job),
         Command::Discovery {
             command: DiscoveryCommand::Import(arguments),
         } => discovery_import(workspace, arguments),
@@ -1641,6 +1722,117 @@ fn profile_source_show(
     )
 }
 
+fn profile_evidence_proposed(
+    workspace_path: Option<PathBuf>,
+    job_id: &str,
+) -> CommandResult<CommandOutput> {
+    let job_id = parse_entity_id("profile.evidence.proposed", job_id)?;
+    let mut workspace = open_workspace(workspace_path, "profile.evidence.proposed")?;
+    let proposed = EvidenceService::new(&mut workspace.database, &workspace.blobs)
+        .proposed(&job_id)
+        .map_err(|error| store_failure("profile.evidence.proposed", error))?;
+    success(
+        "profile.evidence.proposed",
+        "available",
+        &proposed,
+        vec![
+            format!("Evidence proposal: {}", proposed.id),
+            format!("Items proposed: {}", proposed.items.len()),
+            "Agent proposals remain unconfirmed until an explicit user decision".to_owned(),
+        ],
+    )
+}
+
+fn profile_evidence_export(
+    workspace_path: Option<PathBuf>,
+    arguments: ProfileEvidenceExportArgs,
+) -> CommandResult<CommandOutput> {
+    let job_id = parse_entity_id("profile.evidence.export", &arguments.job)?;
+    let mut workspace = open_workspace(workspace_path, "profile.evidence.export")?;
+    let template = EvidenceService::new(&mut workspace.database, &workspace.blobs)
+        .template(&job_id)
+        .map_err(|error| store_failure("profile.evidence.export", error))?;
+    write_private_json_new(&arguments.destination, &template)
+        .map_err(|error| io_adapter_failure("profile.evidence.export", error))?;
+    let mut output = success(
+        "profile.evidence.export",
+        "exported",
+        &json!({
+            "job_id": job_id,
+            "destination": arguments.destination,
+            "evidence_count": template.items.len(),
+            "profile_revision": template.profile_revision,
+            "schema": PublicSchemaId::EvidenceCatalog.as_str(),
+        }),
+        vec![
+            format!(
+                "Exported evidence candidate: {}",
+                arguments.destination.display()
+            ),
+            format!("Evidence items: {}", template.items.len()),
+        ],
+    )?;
+    output.response.next_actions.push(NextAction {
+        action: format!(
+            "canisend profile evidence confirm --job {} --file {} --json",
+            job_id,
+            arguments.destination.display()
+        ),
+        description: "Review corrections, sensitivity, and excluded flags, then explicitly confirm"
+            .to_owned(),
+    });
+    Ok(output)
+}
+
+fn profile_evidence_confirm(
+    workspace_path: Option<PathBuf>,
+    arguments: ProfileEvidenceConfirmArgs,
+) -> CommandResult<CommandOutput> {
+    let job_id = parse_entity_id("profile.evidence.confirm", &arguments.job)?;
+    let candidate = read_criteria_file(&arguments.file)
+        .map_err(|error| io_adapter_failure("profile.evidence.confirm", error))?;
+    let mut workspace = open_workspace(workspace_path, "profile.evidence.confirm")?;
+    let artifact = EvidenceService::new(&mut workspace.database, &workspace.blobs)
+        .confirm(&job_id, &candidate)
+        .map_err(|error| store_failure("profile.evidence.confirm", error))?;
+    let confirmed = EvidenceService::new(&mut workspace.database, &workspace.blobs)
+        .confirmed(&job_id)
+        .map_err(|error| store_failure("profile.evidence.confirm", error))?;
+    let mut output = success(
+        "profile.evidence.confirm",
+        "confirmed",
+        &confirmed,
+        vec![
+            format!("Confirmed evidence artifact: {}", artifact.id),
+            format!("Artifact revision: {}", artifact.revision.get()),
+            format!("Evidence items: {}", confirmed.items.len()),
+        ],
+    )?;
+    output.response.artifacts.push(artifact);
+    Ok(output)
+}
+
+fn profile_evidence_show(
+    workspace_path: Option<PathBuf>,
+    job_id: &str,
+) -> CommandResult<CommandOutput> {
+    let job_id = parse_entity_id("profile.evidence.show", job_id)?;
+    let mut workspace = open_workspace(workspace_path, "profile.evidence.show")?;
+    let confirmed = EvidenceService::new(&mut workspace.database, &workspace.blobs)
+        .confirmed(&job_id)
+        .map_err(|error| store_failure("profile.evidence.show", error))?;
+    success(
+        "profile.evidence.show",
+        "available",
+        &confirmed,
+        vec![
+            format!("Confirmed evidence: {}", confirmed.id),
+            format!("Revision: {}", confirmed.revision.get()),
+            format!("Evidence items: {}", confirmed.items.len()),
+        ],
+    )
+}
+
 fn discovery_import(
     workspace_path: Option<PathBuf>,
     arguments: DiscoveryImportArgs,
@@ -1947,6 +2139,11 @@ fn task_prepare(
         TaskOperationName::JobParse => TaskService::new(&mut workspace.database, &workspace.blobs)
             .prepare_job_parse(&job_id, mode)
             .map_err(|error| store_failure("task.prepare", error))?,
+        TaskOperationName::EvidenceNormalize => {
+            TaskService::new(&mut workspace.database, &workspace.blobs)
+                .prepare_evidence_normalization(&job_id, mode)
+                .map_err(|error| store_failure("task.prepare", error))?
+        }
     };
     let mut output = success(
         "task.prepare",

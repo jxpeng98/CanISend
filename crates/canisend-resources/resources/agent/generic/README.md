@@ -20,6 +20,10 @@ Then:
 5. Submit with `task complete --file FILE --json` or `task complete --stdin --json`.
 6. Correct validation errors while the lease is live; discard candidates for stale tasks.
 7. Use `criteria export` for an editable proposal and `criteria confirm` only after explicit user review.
+8. After profile sources are imported, repeat the bounded task flow with `--operation evidence-normalize`.
+   Submit only `canisend.evidence-proposals/v2`; CanISend assigns stable catalog and evidence IDs.
+9. Use `profile evidence export` for correction, sensitivity, and exclusion decisions. Run
+   `profile evidence confirm` only after explicit user review; the same export/confirm path creates later revisions.
 
 Read only capabilities marked `available`. Never inspect or edit `.canisend/`, invent source identities, or transmit
 private data without the matching consent. Readiness describes preparation status and is not evidence of submission.

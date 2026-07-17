@@ -11,9 +11,9 @@ use canisend_contracts::{
     StageExecutionStatus, TaskCompletionRequest, TaskStatus, WorkflowStage,
 };
 use canisend_store::{
-    ArtifactService, CriteriaService, DEFAULT_MAX_BLOB_BYTES, JobService, NewProfileSource,
-    NewSource, ProfileService, StoreError, TaskService, WorkflowService, Workspace, WorkspacePaths,
-    verify_backup,
+    ArtifactService, CriteriaService, DEFAULT_MAX_BLOB_BYTES, EvidenceService, JobService,
+    NewProfileSource, NewSource, ProfileService, StoreError, TaskService, WorkflowService,
+    Workspace, WorkspacePaths, verify_backup,
 };
 use serde_json::json;
 
@@ -55,7 +55,7 @@ fn workspace_init_discovery_status_and_check_are_consistent() {
     assert_eq!(discovered.root, root.path());
     assert_eq!(
         workspace.status().expect("status").database_schema_version,
-        6
+        7
     );
     let check = workspace.check().expect("workspace check");
     assert!(check.ok);
@@ -259,6 +259,183 @@ fn profile_sources_are_private_revisioned_and_invalidate_evidence_only() {
         workflow_stage_status(&status, WorkflowStage::Parse),
         StageExecutionStatus::Ready,
         "profile changes must not invalidate the independent job parse branch"
+    );
+}
+
+#[test]
+fn evidence_tasks_generate_stable_ids_and_require_source_bound_user_revisions() {
+    let root = TestDirectory::new("evidence-workflow");
+    let mut workspace = Workspace::init(root.path()).expect("workspace");
+    let job = JobService::new(&mut workspace.database, &workspace.blobs)
+        .create("Lecturer", "University X", ActorKind::User)
+        .expect("job");
+    JobService::new(&mut workspace.database, &workspace.blobs)
+        .import_source(
+            &job.id,
+            NewSource {
+                kind: SourceKind::ManualText,
+                original_bytes: b"Teach economics".to_vec(),
+                normalized_text: "Teach economics\n".to_owned(),
+                source_url: None,
+                final_url: None,
+                content_type: "text/plain; charset=utf-8".to_owned(),
+                redirect_chain: Vec::new(),
+                privacy: PrivacyClassification::PrivateLocal,
+            },
+            ActorKind::User,
+        )
+        .expect("job source");
+    ProfileService::new(&mut workspace.database, &workspace.blobs)
+        .import_source(
+            NewProfileSource {
+                kind: ProfileSourceKind::Markdown,
+                original_bytes: b"# Profile\nPhD in Economics\n".to_vec(),
+                normalized_text: "# Profile\nPhD in Economics\n".to_owned(),
+                content_type: "text/markdown; charset=utf-8".to_owned(),
+                sensitivity: PrivacyClassification::PrivateLocal,
+            },
+            ActorKind::User,
+        )
+        .expect("profile source");
+    WorkflowService::new(&mut workspace.database)
+        .start(&job.id)
+        .expect("workflow");
+    let descriptor = TaskService::new(&mut workspace.database, &workspace.blobs)
+        .prepare_evidence_normalization(&job.id, ExecutionMode::HostAgent)
+        .expect("evidence task");
+    assert_eq!(
+        descriptor.profile_revision.expect("profile revision").get(),
+        1
+    );
+    assert_eq!(descriptor.input_artifacts.len(), 1);
+    let candidate = json!({
+        "profile_revision": 1,
+        "proposals": [{
+            "kind": "qualification",
+            "summary": "Doctorate in economics",
+            "source_quote": "PhD in Economics",
+            "source_span": {
+                "source": descriptor.input_artifacts[0],
+                "start_byte": 10,
+                "end_byte": 26
+            },
+            "sensitivity": "private-local"
+        }]
+    });
+    let request = TaskCompletionRequest {
+        task_id: descriptor.id.clone(),
+        lease_id: descriptor.lease.id.clone(),
+        expected_job_revision: descriptor.job_revision,
+        expected_inputs: descriptor
+            .input_artifacts
+            .iter()
+            .map(|input| ExpectedInputRevision {
+                artifact_id: input.id.clone(),
+                revision: input.revision,
+                sha256: input.sha256.clone(),
+            })
+            .collect(),
+        candidate: candidate.clone(),
+    };
+    let mut agent_invented_id = request.clone();
+    agent_invented_id.candidate["proposals"][0]["id"] =
+        json!("019f2f55-7c00-7000-8000-000000000401");
+    assert!(matches!(
+        TaskService::new(&mut workspace.database, &workspace.blobs).complete(&agent_invented_id),
+        Err(StoreError::CandidateStructural(_))
+    ));
+    let proposal_artifact = TaskService::new(&mut workspace.database, &workspace.blobs)
+        .complete(&request)
+        .expect("evidence proposals");
+    assert_eq!(
+        proposal_artifact.artifact.kind,
+        ArtifactKind::EvidenceCatalog
+    );
+    assert!(
+        TaskService::new(&mut workspace.database, &workspace.blobs)
+            .complete(&request)
+            .expect("evidence replay")
+            .idempotent
+    );
+    let proposed = EvidenceService::new(&mut workspace.database, &workspace.blobs)
+        .proposed(&job.id)
+        .expect("proposed evidence");
+    assert_eq!(proposed.items.len(), 1);
+    assert!(!proposed.items[0].confirmed);
+    let generated_catalog_id = proposed.id.clone();
+    let generated_item_id = proposed.items[0].id.clone();
+
+    let mut confirmation = EvidenceService::new(&mut workspace.database, &workspace.blobs)
+        .template(&job.id)
+        .expect("confirmation template");
+    confirmation.items[0].summary = "Corrected doctorate in economics".to_owned();
+    confirmation.items[0].excluded = true;
+    let mut wrong_span = confirmation.clone();
+    wrong_span.items[0].source_span.end_byte = 25;
+    assert!(matches!(
+        EvidenceService::new(&mut workspace.database, &workspace.blobs).confirm(
+            &job.id,
+            &serde_json::to_value(wrong_span).expect("invalid evidence JSON"),
+        ),
+        Err(StoreError::CandidateSemantic(_))
+    ));
+    let confirmed_artifact = EvidenceService::new(&mut workspace.database, &workspace.blobs)
+        .confirm(
+            &job.id,
+            &serde_json::to_value(&confirmation).expect("evidence JSON"),
+        )
+        .expect("confirm evidence");
+    assert_eq!(confirmed_artifact.revision.get(), 1);
+    let confirmed = EvidenceService::new(&mut workspace.database, &workspace.blobs)
+        .confirmed(&job.id)
+        .expect("confirmed catalog");
+    assert_eq!(confirmed.id, generated_catalog_id);
+    assert_eq!(confirmed.items[0].id, generated_item_id);
+    assert!(confirmed.items[0].excluded);
+
+    let mut revision = EvidenceService::new(&mut workspace.database, &workspace.blobs)
+        .template(&job.id)
+        .expect("revision template");
+    revision.items[0].summary = "Reviewed doctorate in economics".to_owned();
+    revision.items[0].excluded = false;
+    let revised_artifact = EvidenceService::new(&mut workspace.database, &workspace.blobs)
+        .confirm(
+            &job.id,
+            &serde_json::to_value(revision).expect("revision JSON"),
+        )
+        .expect("revise evidence");
+    assert_eq!(revised_artifact.id, confirmed_artifact.id);
+    assert_eq!(revised_artifact.revision.get(), 2);
+    let revised = EvidenceService::new(&mut workspace.database, &workspace.blobs)
+        .confirmed(&job.id)
+        .expect("revised catalog");
+    assert_eq!(revised.revision.get(), 2);
+    assert_eq!(revised.items[0].revision.get(), 2);
+    assert_eq!(revised.items[0].id, generated_item_id);
+    assert!(!revised.items[0].excluded);
+
+    ProfileService::new(&mut workspace.database, &workspace.blobs)
+        .import_source(
+            NewProfileSource {
+                kind: ProfileSourceKind::PlainText,
+                original_bytes: b"New evidence".to_vec(),
+                normalized_text: "New evidence\n".to_owned(),
+                content_type: "text/plain; charset=utf-8".to_owned(),
+                sensitivity: PrivacyClassification::PrivateLocal,
+            },
+            ActorKind::User,
+        )
+        .expect("profile revision");
+    assert!(matches!(
+        EvidenceService::new(&mut workspace.database, &workspace.blobs).confirmed(&job.id),
+        Err(StoreError::WorkflowConflict(_))
+    ));
+    let status = WorkflowService::new(&mut workspace.database)
+        .status(&job.id)
+        .expect("workflow after profile change");
+    assert_eq!(
+        workflow_stage_status(&status, WorkflowStage::Evidence),
+        StageExecutionStatus::Ready
     );
 }
 

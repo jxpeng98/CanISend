@@ -7,13 +7,14 @@ use rusqlite::{
 
 use crate::{StoreError, now_utc};
 
-pub const DATABASE_SCHEMA_VERSION: u32 = 6;
+pub const DATABASE_SCHEMA_VERSION: u32 = 7;
 const INITIAL_MIGRATION: &str = include_str!("../migrations/0001_initial.sql");
 const INTAKE_MIGRATION: &str = include_str!("../migrations/0002_job_intake.sql");
 const DISCOVERY_MIGRATION: &str = include_str!("../migrations/0003_discovery.sql");
 const AGENT_TASK_MIGRATION: &str = include_str!("../migrations/0004_agent_tasks.sql");
 const WORKFLOW_KERNEL_MIGRATION: &str = include_str!("../migrations/0005_workflow_kernel.sql");
 const PROFILE_SOURCES_MIGRATION: &str = include_str!("../migrations/0006_profile_sources.sql");
+const EVIDENCE_WORKFLOW_MIGRATION: &str = include_str!("../migrations/0007_evidence_workflow.sql");
 
 pub struct Database {
     connection: Connection,
@@ -77,6 +78,11 @@ impl Database {
         if version == 5 {
             let applied_at = now_utc()?;
             self.apply_migration(6, PROFILE_SOURCES_MIGRATION, &applied_at)?;
+            version = 6;
+        }
+        if version == 6 {
+            let applied_at = now_utc()?;
+            self.apply_migration(7, EVIDENCE_WORKFLOW_MIGRATION, &applied_at)?;
         }
         Ok(())
     }
@@ -312,7 +318,7 @@ mod tests {
             .connection
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .expect("schema version");
-        assert_eq!(version, 6);
+        assert_eq!(version, 7);
         let revision_column: i64 = database
             .connection
             .query_row(
@@ -360,6 +366,16 @@ mod tests {
             )
             .expect("profile revision column");
         assert_eq!(profile_revision_column, 1);
+        let evidence_catalog_column: i64 = database
+            .connection
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('evidence_revisions')
+                 WHERE name = 'artifact_id'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("evidence catalog column");
+        assert_eq!(evidence_catalog_column, 1);
         drop(database);
         let _ = fs::remove_file(path);
     }

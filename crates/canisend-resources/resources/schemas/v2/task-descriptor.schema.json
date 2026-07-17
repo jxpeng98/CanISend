@@ -176,6 +176,15 @@
       },
       "type": "array"
     },
+    "profile_revision": {
+      "default": null,
+      "format": "uint64",
+      "minimum": 0,
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
     "required_consents": {
       "items": {
         "$ref": "#/$defs/ConsentRequest"

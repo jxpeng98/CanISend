@@ -4,7 +4,8 @@ use serde_json::Value;
 use thiserror::Error;
 
 use crate::{
-    ApplicationPlanRecord, CriteriaSetRecord, CriterionRecord, DocumentRecord, EvidenceMatchRecord,
+    ApplicationPlanRecord, CriteriaSetRecord, CriterionRecord, DocumentRecord,
+    EvidenceCatalogRecord, EvidenceMatchRecord, EvidenceProposalRecord, EvidenceProposalSet,
     EvidenceRecord, FindingRecord, JobRecord, ParsedJobRecord, ProfileSourceRecord,
     ReadinessRecord, SourceRecord,
 };
@@ -160,7 +161,103 @@ impl SemanticValidate for EvidenceRecord {
     fn validate_semantics(&self) -> Vec<ContractViolation> {
         let mut violations = Vec::new();
         required_text(&self.summary, "/summary", &mut violations);
+        required_text(&self.source_quote, "/source_quote", &mut violations);
+        validate_source_span(&self.source_span, "/source_span", &mut violations);
+        if self.excluded && !self.confirmed {
+            violations.push(ContractViolation::new(
+                "evidence.exclusion_unconfirmed",
+                "/excluded",
+                "only a confirmed evidence decision may exclude an item",
+            ));
+        }
         violations
+    }
+}
+
+impl SemanticValidate for EvidenceProposalRecord {
+    fn validate_semantics(&self) -> Vec<ContractViolation> {
+        let mut violations = Vec::new();
+        required_text(&self.summary, "/summary", &mut violations);
+        required_text(&self.source_quote, "/source_quote", &mut violations);
+        validate_source_span(&self.source_span, "/source_span", &mut violations);
+        violations
+    }
+}
+
+impl SemanticValidate for EvidenceProposalSet {
+    fn validate_semantics(&self) -> Vec<ContractViolation> {
+        let mut violations = Vec::new();
+        if self.proposals.is_empty() || self.proposals.len() > 1_000 {
+            violations.push(ContractViolation::new(
+                "evidence_proposals.count_invalid",
+                "/proposals",
+                "evidence proposal set must contain between 1 and 1000 items",
+            ));
+        }
+        for (index, proposal) in self.proposals.iter().enumerate() {
+            for mut violation in proposal.validate_semantics() {
+                violation.json_pointer = format!("/proposals/{index}{}", violation.json_pointer);
+                violations.push(violation);
+            }
+        }
+        violations
+    }
+}
+
+impl SemanticValidate for EvidenceCatalogRecord {
+    fn validate_semantics(&self) -> Vec<ContractViolation> {
+        let mut violations = Vec::new();
+        if self.items.is_empty() || self.items.len() > 1_000 {
+            violations.push(ContractViolation::new(
+                "evidence_catalog.count_invalid",
+                "/items",
+                "evidence catalog must contain between 1 and 1000 items",
+            ));
+        }
+        let mut ids = std::collections::BTreeSet::new();
+        let confirmation = self.items.first().map(|item| item.confirmed);
+        for (index, item) in self.items.iter().enumerate() {
+            for mut violation in item.validate_semantics() {
+                violation.json_pointer = format!("/items/{index}{}", violation.json_pointer);
+                violations.push(violation);
+            }
+            if !ids.insert(item.id.clone()) {
+                violations.push(ContractViolation::new(
+                    "evidence.id_duplicate",
+                    format!("/items/{index}/id"),
+                    "evidence IDs must be unique within the catalog",
+                ));
+            }
+            if Some(item.confirmed) != confirmation {
+                violations.push(ContractViolation::new(
+                    "evidence.confirmation_mixed",
+                    format!("/items/{index}/confirmed"),
+                    "a catalog cannot mix proposed and confirmed evidence",
+                ));
+            }
+        }
+        violations
+    }
+}
+
+fn validate_source_span(
+    span: &crate::SourceTextSpan,
+    pointer: &str,
+    violations: &mut Vec<ContractViolation>,
+) {
+    if span.source.kind != crate::ArtifactKind::SourceNormalizedText {
+        violations.push(ContractViolation::new(
+            "source_span.kind_invalid",
+            format!("{pointer}/source/kind"),
+            "source span must reference normalized source text",
+        ));
+    }
+    if span.start_byte >= span.end_byte {
+        violations.push(ContractViolation::new(
+            "source_span.range_invalid",
+            pointer,
+            "source span start must be less than its end",
+        ));
     }
 }
 
@@ -169,20 +266,7 @@ impl SemanticValidate for CriterionRecord {
         let mut violations = Vec::new();
         required_text(&self.requirement, "/requirement", &mut violations);
         required_text(&self.source_quote, "/source_quote", &mut violations);
-        if self.source_span.source.kind != crate::ArtifactKind::SourceNormalizedText {
-            violations.push(ContractViolation::new(
-                "criterion.source_kind_invalid",
-                "/source_span/source/kind",
-                "criterion spans must reference normalized source text",
-            ));
-        }
-        if self.source_span.start_byte >= self.source_span.end_byte {
-            violations.push(ContractViolation::new(
-                "criterion.span_invalid",
-                "/source_span",
-                "source span start must be less than its end",
-            ));
-        }
+        validate_source_span(&self.source_span, "/source_span", &mut violations);
         if self.confidence_milli > 1_000 {
             violations.push(ContractViolation::new(
                 "criterion.confidence_invalid",

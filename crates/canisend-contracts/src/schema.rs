@@ -7,9 +7,10 @@ use serde_json::{Map, Value};
 use crate::{
     AgentContextData, AgentResponse, ApplicationPlanRecord, BackupManifestData, CapabilitiesData,
     CriteriaSetRecord, CriterionRecord, DiscoveryBatch, DiscoveryLeadRecord, DocumentRecord,
-    EvidenceMatchRecord, EvidenceRecord, FindingRecord, JobRecord, ParsedJobRecord,
-    ProfileSourceRecord, ReadinessRecord, SourceRecord, TaskCompletionRequest, TaskDescriptor,
-    VersionData, WorkflowStatusData, WorkspaceCheckData, WorkspaceStatusData,
+    EvidenceCatalogRecord, EvidenceMatchRecord, EvidenceProposalSet, EvidenceRecord, FindingRecord,
+    JobRecord, ParsedJobRecord, ProfileSourceRecord, ReadinessRecord, SourceRecord,
+    TaskCompletionRequest, TaskDescriptor, VersionData, WorkflowStatusData, WorkspaceCheckData,
+    WorkspaceStatusData,
 };
 
 pub const PUBLIC_SCHEMA_VERSION: &str = "2.0.0";
@@ -42,10 +43,12 @@ pub enum PublicSchemaId {
     ParsedJob,
     CriteriaSet,
     ProfileSource,
+    EvidenceProposals,
+    EvidenceCatalog,
 }
 
 impl PublicSchemaId {
-    pub const ALL: [Self; 24] = [
+    pub const ALL: [Self; 26] = [
         Self::AgentResponse,
         Self::Capabilities,
         Self::AgentContext,
@@ -70,6 +73,8 @@ impl PublicSchemaId {
         Self::ParsedJob,
         Self::CriteriaSet,
         Self::ProfileSource,
+        Self::EvidenceProposals,
+        Self::EvidenceCatalog,
     ];
 
     #[must_use]
@@ -99,6 +104,8 @@ impl PublicSchemaId {
             Self::ParsedJob => "canisend.parsed-job/v2",
             Self::CriteriaSet => "canisend.criteria/v2",
             Self::ProfileSource => "canisend.profile-source/v2",
+            Self::EvidenceProposals => "canisend.evidence-proposals/v2",
+            Self::EvidenceCatalog => "canisend.evidence-catalog/v2",
         }
     }
 
@@ -129,6 +136,8 @@ impl PublicSchemaId {
             Self::ParsedJob => "parsed-job",
             Self::CriteriaSet => "criteria",
             Self::ProfileSource => "profile-source",
+            Self::EvidenceProposals => "evidence-proposals",
+            Self::EvidenceCatalog => "evidence-catalog",
         }
     }
 
@@ -186,6 +195,8 @@ pub fn generate_public_schemas() -> Vec<GeneratedSchema> {
         generate::<ParsedJobRecord>(PublicSchemaId::ParsedJob),
         generate::<CriteriaSetRecord>(PublicSchemaId::CriteriaSet),
         generate::<ProfileSourceRecord>(PublicSchemaId::ProfileSource),
+        generate::<EvidenceProposalSet>(PublicSchemaId::EvidenceProposals),
+        generate::<EvidenceCatalogRecord>(PublicSchemaId::EvidenceCatalog),
     ]
 }
 

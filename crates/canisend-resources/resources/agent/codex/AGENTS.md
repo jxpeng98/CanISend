@@ -15,6 +15,11 @@ Use CanISend as the state owner and Codex as a bounded reasoning host. Never ins
    candidate and prepare a new task.
 8. After completion, run `criteria export --job JOB_ID --destination FILE.json --json`. Let the user review or edit
    the proposal, then run `criteria confirm --job JOB_ID --file FILE.json --json`. Never confirm on the user's behalf.
+9. When profile sources exist, prepare `--operation evidence-normalize`, obtain the same scoped consent, and return
+   only an `evidence-proposals` candidate. Never invent evidence IDs; CanISend assigns them after validation.
+10. Run `profile evidence export --job JOB_ID --destination FILE.json --json`. Let the user correct summaries,
+    source spans, sensitivity, or `excluded`, then run `profile evidence confirm` only after explicit approval.
+    Re-exporting a confirmed catalog is the supported revision path.
 
 Do not invent source identities, bypass candidate validation, transmit private inputs to a provider without separate
 consent, or interpret readiness as permission to submit an application.

@@ -462,25 +462,63 @@ fn load_status(
                     });
                     continue;
                 }
-                let mode = graph
-                    .descriptor(state.stage)
-                    .execution_modes
-                    .first()
-                    .copied()
-                    .ok_or_else(|| {
-                        StoreError::Invariant(format!(
-                            "stage {} has no execution mode",
-                            state.stage.as_str()
-                        ))
-                    })?;
-                next_actions.push(NextAction {
-                    action: format!(
-                        "canisend workflow begin --job {} --stage {} --mode {} --json",
-                        job_id,
-                        state.stage.as_str(),
-                        enum_name(mode)?
+                let descriptor = graph.descriptor(state.stage);
+                let mode = descriptor.execution_modes.first().copied().ok_or_else(|| {
+                    StoreError::Invariant(format!(
+                        "stage {} has no execution mode",
+                        state.stage.as_str()
+                    ))
+                })?;
+                let (action, description) = match state.stage {
+                    WorkflowStage::Parse => (
+                        format!(
+                            "canisend task prepare --job {} --operation job-parse --mode host-agent --json",
+                            job_id
+                        ),
+                        "Prepare the ready parse stage as a revision-bound task".to_owned(),
                     ),
-                    description: format!("Begin the ready {} stage", state.stage.as_str()),
+                    WorkflowStage::Criteria => (
+                        format!(
+                            "canisend criteria export --job {} --destination criteria.json --json",
+                            job_id
+                        ),
+                        "Export parsed criteria for explicit user review".to_owned(),
+                    ),
+                    WorkflowStage::Evidence => {
+                        let profile_revision: i64 = connection.query_row(
+                            "SELECT profile_revision FROM workspace_metadata WHERE singleton = 1",
+                            [],
+                            |row| row.get(0),
+                        )?;
+                        if profile_revision > 0 {
+                            (
+                                format!(
+                                    "canisend task prepare --job {} --operation evidence-normalize --mode host-agent --json",
+                                    job_id
+                                ),
+                                "Prepare evidence normalization from the current profile revision"
+                                    .to_owned(),
+                            )
+                        } else {
+                            (
+                                "canisend profile source add --file PROFILE.md --json".to_owned(),
+                                "Import a profile source before normalizing evidence".to_owned(),
+                            )
+                        }
+                    }
+                    _ => (
+                        format!(
+                            "canisend workflow begin --job {} --stage {} --mode {} --json",
+                            job_id,
+                            state.stage.as_str(),
+                            enum_name(mode)?
+                        ),
+                        format!("Begin the ready {} stage", state.stage.as_str()),
+                    ),
+                };
+                next_actions.push(NextAction {
+                    action,
+                    description,
                 });
             }
             StageExecutionStatus::Running | StageExecutionStatus::Complete => {}

@@ -68,6 +68,11 @@
   confidence, explicit provider-send consent, and user-only criteria correction/confirmation. GitHub Actions run
   `29620247965` passed 58 Rust tests, 23-schema/29-resource checks, release compilation, and the packaged
   parse-confirm-stale workflow in 1 minute 49 seconds. R7.3 evidence is active.
+- 2026-07-17: Completed R7.3 with revisioned Markdown/text/JSON profile sources, evidence proposal tasks bound to
+  exact profile revisions, core-generated stable evidence IDs, exact source quotes/spans, sensitivity labels, and
+  user-only correction, exclusion, confirmation, and revision. Local verification passed 62 Rust tests, Clippy,
+  26-schema/33-resource checks, release compilation, and packaged parse/criteria/evidence host-agent smoke. R7.4
+  criterion-to-evidence matching is active.
 
 ## 1. Executive Decision
 
@@ -1478,11 +1483,11 @@ remediation and idempotency, and detects a stale task after the job source revis
 
 #### R7.3 Evidence
 
-- [ ] Implement profile source import.
-- [ ] Define evidence record types and sensitivity labels.
-- [ ] Implement evidence normalization tasks.
-- [ ] Implement user confirmation, correction, exclusion, and revision.
-- [ ] Prevent an agent from inventing source identities or evidence IDs.
+- [x] Implement profile source import.
+- [x] Define evidence record types and sensitivity labels.
+- [x] Implement evidence normalization tasks.
+- [x] Implement user confirmation, correction, exclusion, and revision.
+- [x] Prevent an agent from inventing source identities or evidence IDs.
 
 #### R7.4 Match
 

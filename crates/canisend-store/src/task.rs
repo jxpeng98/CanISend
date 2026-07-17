@@ -7,11 +7,11 @@ use std::{
 
 use canisend_contracts::{
     ActorKind, ArtifactKind, ArtifactReference, CandidateValidationError, ConsentRequest,
-    ConsentScope, ContractViolation, EntityId, ExecutionMode, PUBLIC_SCHEMA_VERSION,
-    ParsedJobRecord, PublicSchemaId, Revision, SafeRelativePath, SchemaReference, SemanticVersion,
-    Sha256Digest, TaskCommitData, TaskCompletionRequest, TaskDescriptor, TaskInputExportData,
-    TaskInputExportFile, TaskLease, TaskStateData, TaskStatus, UtcTimestamp,
-    validate_external_candidate,
+    ConsentScope, ContractViolation, EntityId, EvidenceCatalogRecord, EvidenceProposalSet,
+    EvidenceRecord, ExecutionMode, PUBLIC_SCHEMA_VERSION, ParsedJobRecord, PublicSchemaId,
+    Revision, SafeRelativePath, SchemaReference, SemanticVersion, Sha256Digest, TaskCommitData,
+    TaskCompletionRequest, TaskDescriptor, TaskInputExportData, TaskInputExportFile, TaskLease,
+    TaskStateData, TaskStatus, UtcTimestamp, validate_external_candidate,
 };
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use serde::Serialize;
@@ -22,6 +22,7 @@ use time::{Duration, OffsetDateTime, format_description::well_known::Rfc3339};
 use crate::{BlobStore, DEFAULT_MAX_BLOB_BYTES, Database, StoreError, generate_id, now_utc};
 
 pub const JOB_PARSE_OPERATION: &str = "job.parse";
+pub const EVIDENCE_NORMALIZE_OPERATION: &str = "profile.evidence.normalize";
 const TASK_LEASE_MINUTES: i64 = 15;
 
 pub struct TaskService<'a> {
@@ -117,6 +118,7 @@ impl<'a> TaskService<'a> {
             operation: JOB_PARSE_OPERATION.to_owned(),
             job_id: job_id.clone(),
             job_revision: Revision::try_new(to_u64(job_revision)?)?,
+            profile_revision: None,
             actor,
             execution_mode: mode,
             input_artifacts: inputs.clone(),
@@ -190,6 +192,161 @@ impl<'a> TaskService<'a> {
             &task_id,
             None,
             "prepare parse task with immutable input revisions",
+            &created_at,
+        )?;
+        transaction.commit()?;
+        Ok(descriptor)
+    }
+
+    pub fn prepare_evidence_normalization(
+        &mut self,
+        job_id: &EntityId,
+        mode: ExecutionMode,
+    ) -> Result<TaskDescriptor, StoreError> {
+        if !matches!(
+            mode,
+            ExecutionMode::HostAgent | ExecutionMode::ConfiguredProvider
+        ) {
+            return Err(StoreError::TaskConflict(
+                "profile.evidence.normalize supports only host-agent or configured-provider mode"
+                    .to_owned(),
+            ));
+        }
+        let task_id = generate_id()?;
+        let lease_id = generate_id()?;
+        let event_id = generate_id()?;
+        let created_at = now_utc()?;
+        let expires_at = timestamp_after_minutes(TASK_LEASE_MINUTES)?;
+        let transaction = self.database.immediate_transaction()?;
+        let (archived, job_revision): (i64, i64) = transaction
+            .query_row(
+                "SELECT archived, revision FROM jobs WHERE id = ?1",
+                params![job_id.as_str()],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()?
+            .ok_or_else(|| StoreError::JobNotFound(job_id.to_string()))?;
+        if archived != 0 {
+            return Err(StoreError::JobArchived(job_id.to_string()));
+        }
+        let profile_revision: i64 = transaction.query_row(
+            "SELECT profile_revision FROM workspace_metadata WHERE singleton = 1",
+            [],
+            |row| row.get(0),
+        )?;
+        if profile_revision <= 0 {
+            return Err(StoreError::InvalidInput(
+                "import at least one profile source before normalizing evidence".to_owned(),
+            ));
+        }
+        let inputs = load_profile_inputs(&transaction)?;
+        if inputs.is_empty() {
+            return Err(StoreError::Invariant(
+                "positive profile revision has no normalized sources".to_owned(),
+            ));
+        }
+        let (stage_execution_id, stage_status): (String, String) = transaction
+            .query_row(
+                "SELECT se.id, se.status
+                 FROM workflow_runs AS wr
+                 JOIN stage_executions AS se ON se.workflow_run_id = wr.id
+                 WHERE wr.job_id = ?1 AND wr.job_revision = ?2 AND se.stage = 'evidence'
+                 ORDER BY wr.created_at DESC, wr.id DESC LIMIT 1",
+                params![job_id.as_str(), job_revision],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()?
+            .ok_or_else(|| StoreError::WorkflowNotFound(job_id.to_string()))?;
+        if stage_status != "ready" {
+            return Err(StoreError::WorkflowConflict(format!(
+                "evidence stage is {stage_status}, not ready"
+            )));
+        }
+        let actor = actor_for_mode(mode);
+        let required_consents = task_consents(mode, &inputs);
+        let descriptor = TaskDescriptor {
+            id: task_id.clone(),
+            operation: EVIDENCE_NORMALIZE_OPERATION.to_owned(),
+            job_id: job_id.clone(),
+            job_revision: Revision::try_new(to_u64(job_revision)?)?,
+            profile_revision: Some(Revision::try_new(to_u64(profile_revision)?)?),
+            actor,
+            execution_mode: mode,
+            input_artifacts: inputs.clone(),
+            allowed_output_kind: ArtifactKind::EvidenceCatalog,
+            candidate_schema: SchemaReference {
+                id: PublicSchemaId::EvidenceProposals.as_str().to_owned(),
+                version: SemanticVersion::try_new(PUBLIC_SCHEMA_VERSION)?,
+            },
+            required_consents,
+            private_read_scope: inputs.clone(),
+            lease: TaskLease {
+                id: lease_id.clone(),
+                expires_at: expires_at.clone(),
+            },
+        };
+        transaction.execute(
+            "INSERT INTO tasks(
+                id, stage_execution_id, status, lease_expires_at, created_at,
+                job_id, job_revision, operation, actor, execution_mode,
+                allowed_output_kind, candidate_schema_id, candidate_schema_version,
+                lease_id, descriptor_json, profile_revision
+             ) VALUES (?1, ?2, 'prepared', ?3, ?4, ?5, ?6, ?7, ?8, ?9,
+                       ?10, ?11, ?12, ?13, ?14, ?15)",
+            params![
+                task_id.as_str(),
+                &stage_execution_id,
+                expires_at.as_str(),
+                created_at.as_str(),
+                job_id.as_str(),
+                job_revision,
+                descriptor.operation,
+                enum_name(descriptor.actor)?,
+                enum_name(descriptor.execution_mode)?,
+                enum_name(descriptor.allowed_output_kind)?,
+                descriptor.candidate_schema.id,
+                descriptor.candidate_schema.version.as_str(),
+                lease_id.as_str(),
+                serde_json::to_string(&descriptor)?,
+                profile_revision
+            ],
+        )?;
+        let started = transaction.execute(
+            "UPDATE stage_executions
+             SET status = 'running', execution_mode = ?2, input_profile_revision = ?3,
+                 started_at = ?4, updated_at = ?4
+             WHERE id = ?1 AND status = 'ready'",
+            params![
+                &stage_execution_id,
+                enum_name(mode)?,
+                profile_revision,
+                created_at.as_str()
+            ],
+        )?;
+        if started != 1 {
+            return Err(StoreError::Invariant(
+                "evidence task could not claim exactly one ready stage".to_owned(),
+            ));
+        }
+        for input in &inputs {
+            transaction.execute(
+                "INSERT INTO task_inputs(task_id, artifact_id, revision, sha256)
+                 VALUES (?1, ?2, ?3, ?4)",
+                params![
+                    task_id.as_str(),
+                    input.id.as_str(),
+                    to_i64(input.revision.get())?,
+                    input.sha256.as_str()
+                ],
+            )?;
+        }
+        insert_audit_as(
+            &transaction,
+            &event_id,
+            (actor, "task.prepare"),
+            &task_id,
+            None,
+            "prepare evidence normalization with immutable profile revisions",
             &created_at,
         )?;
         transaction.commit()?;
@@ -363,20 +520,46 @@ impl<'a> TaskService<'a> {
     ) -> Result<TaskCommitData, StoreError> {
         let initial = self.get(&request.task_id)?;
         validate_request_shape(&initial.descriptor, request)?;
-        let parsed_job = validate_candidate(&initial.descriptor, &request.candidate)?;
-        validate_parsed_source_spans(
+        let validated = validate_candidate(&initial.descriptor, &request.candidate)?;
+        validate_task_source_spans(
             self.database.connection(),
             self.blobs,
             &initial.descriptor,
-            &parsed_job,
+            &validated,
         )?;
-        let bytes = canonical_json_bytes(&request.candidate)?;
+        let candidate_bytes = canonical_json_bytes(&request.candidate)?;
+        let candidate_sha256 =
+            Sha256Digest::try_new(hex::encode(Sha256::digest(&candidate_bytes)))?;
+        if initial.status == TaskStatus::Committed {
+            return replay_task(
+                self.database.connection(),
+                &request.task_id,
+                &candidate_sha256,
+            );
+        }
+        let output_value = match validated {
+            ValidatedTaskCandidate::ParsedJob(_) => request.candidate.clone(),
+            ValidatedTaskCandidate::EvidenceProposals(proposals) => {
+                serde_json::to_value(build_evidence_catalog(proposals)?)?
+            }
+        };
+        let bytes = canonical_json_bytes(&output_value)?;
         let digest = self.blobs.put_bytes(&bytes)?;
         let size = self.blobs.verify(&digest, DEFAULT_MAX_BLOB_BYTES)?;
         let transaction = self.database.immediate_transaction()?;
-        let row: (String, String, String, i64, Option<String>) = transaction
+        type TaskRow = (
+            String,
+            String,
+            String,
+            i64,
+            Option<String>,
+            Option<i64>,
+            Option<String>,
+        );
+        let row: TaskRow = transaction
             .query_row(
-                "SELECT status, lease_id, lease_expires_at, job_revision, stage_execution_id
+                "SELECT status, lease_id, lease_expires_at, job_revision, stage_execution_id,
+                        profile_revision, candidate_sha256
                  FROM tasks WHERE id = ?1",
                 params![request.task_id.as_str()],
                 |row| {
@@ -386,18 +569,28 @@ impl<'a> TaskService<'a> {
                         row.get(2)?,
                         row.get(3)?,
                         row.get(4)?,
+                        row.get(5)?,
+                        row.get(6)?,
                     ))
                 },
             )
             .optional()?
             .ok_or_else(|| StoreError::TaskNotFound(request.task_id.to_string()))?;
-        let (status, lease_id, lease_expires_at, prepared_job_revision, stage_execution_id) = row;
+        let (
+            status,
+            lease_id,
+            lease_expires_at,
+            prepared_job_revision,
+            stage_execution_id,
+            prepared_profile_revision,
+            stored_candidate_sha256,
+        ) = row;
         if status == "committed" {
             let (artifact, committed_at) = load_task_result(&transaction, &request.task_id)?
                 .ok_or_else(|| {
                     StoreError::Invariant("committed task has no result artifact".to_owned())
                 })?;
-            if artifact.sha256 != digest {
+            if stored_candidate_sha256.as_deref() != Some(candidate_sha256.as_str()) {
                 return Err(StoreError::TaskConflict(format!(
                     "task {} was already completed with a different candidate",
                     request.task_id
@@ -411,6 +604,12 @@ impl<'a> TaskService<'a> {
                 committed_at,
                 idempotent: true,
             });
+        }
+        if status == "stale" {
+            return Err(StoreError::TaskStale(format!(
+                "task {} must be prepared again",
+                request.task_id
+            )));
         }
         if status != "prepared" {
             return Err(StoreError::TaskConflict(format!(
@@ -432,10 +631,18 @@ impl<'a> TaskService<'a> {
             )
             .optional()?
             .ok_or_else(|| StoreError::TaskStale("job no longer exists".to_owned()))?;
+        let current_profile_revision: i64 = transaction.query_row(
+            "SELECT profile_revision FROM workspace_metadata WHERE singleton = 1",
+            [],
+            |row| row.get(0),
+        )?;
         let expired = timestamp_is_past(&lease_expires_at)?;
+        let profile_stale =
+            prepared_profile_revision.is_some_and(|revision| revision != current_profile_revision);
         let stale = expired
             || current_job_revision != prepared_job_revision
             || current_job_revision != to_i64(request.expected_job_revision.get())?
+            || profile_stale
             || !inputs_are_current(&transaction, request)?;
         if stale {
             let stale_at = now_utc()?;
@@ -464,6 +671,8 @@ impl<'a> TaskService<'a> {
                 None,
                 if expired {
                     "task lease expired before completion"
+                } else if profile_stale {
+                    "profile revision changed before completion"
                 } else {
                     "task input or job revision changed before completion"
                 },
@@ -529,33 +738,53 @@ impl<'a> TaskService<'a> {
             ],
         )?;
         transaction.execute(
-            "UPDATE tasks SET status = 'committed', completed_at = ?2 WHERE id = ?1",
-            params![request.task_id.as_str(), committed_at.as_str()],
+            "UPDATE tasks
+             SET status = 'committed', completed_at = ?2, candidate_sha256 = ?3
+             WHERE id = ?1",
+            params![
+                request.task_id.as_str(),
+                committed_at.as_str(),
+                candidate_sha256.as_str()
+            ],
         )?;
         if let Some(stage_execution_id) = &stage_execution_id {
-            let completed = transaction.execute(
-                "UPDATE stage_executions
-                 SET status = 'complete', output_artifact_id = ?2,
-                     output_artifact_revision = 1, completed_at = ?3, updated_at = ?3
-                 WHERE id = ?1 AND status = 'running'",
-                params![
-                    stage_execution_id,
-                    artifact_id.as_str(),
-                    committed_at.as_str()
-                ],
-            )?;
-            if completed != 1 {
-                return Err(StoreError::Invariant(
-                    "parse task could not complete its claimed stage".to_owned(),
-                ));
+            if initial.descriptor.operation == JOB_PARSE_OPERATION {
+                let completed = transaction.execute(
+                    "UPDATE stage_executions
+                     SET status = 'complete', output_artifact_id = ?2,
+                         output_artifact_revision = 1, completed_at = ?3, updated_at = ?3
+                     WHERE id = ?1 AND status = 'running'",
+                    params![
+                        stage_execution_id,
+                        artifact_id.as_str(),
+                        committed_at.as_str()
+                    ],
+                )?;
+                if completed != 1 {
+                    return Err(StoreError::Invariant(
+                        "parse task could not complete its claimed stage".to_owned(),
+                    ));
+                }
+                transaction.execute(
+                    "UPDATE stage_executions SET status = 'ready', updated_at = ?2
+                     WHERE workflow_run_id = (
+                         SELECT workflow_run_id FROM stage_executions WHERE id = ?1
+                     ) AND stage = 'criteria' AND status IN ('blocked', 'stale')",
+                    params![stage_execution_id, committed_at.as_str()],
+                )?;
+            } else {
+                let awaiting = transaction.execute(
+                    "UPDATE stage_executions
+                     SET status = 'awaiting-user', updated_at = ?2
+                     WHERE id = ?1 AND status = 'running'",
+                    params![stage_execution_id, committed_at.as_str()],
+                )?;
+                if awaiting != 1 {
+                    return Err(StoreError::Invariant(
+                        "evidence task could not enter user confirmation".to_owned(),
+                    ));
+                }
             }
-            transaction.execute(
-                "UPDATE stage_executions SET status = 'ready', updated_at = ?2
-                 WHERE workflow_run_id = (
-                     SELECT workflow_run_id FROM stage_executions WHERE id = ?1
-                 ) AND stage = 'criteria' AND status IN ('blocked', 'stale')",
-                params![stage_execution_id, committed_at.as_str()],
-            )?;
         }
         insert_audit_as(
             &transaction,
@@ -563,7 +792,7 @@ impl<'a> TaskService<'a> {
             (initial.descriptor.actor, "task.complete"),
             &request.task_id,
             Some(1),
-            "atomically commit validated parse candidate",
+            "atomically commit validated task candidate",
             &committed_at,
         )?;
         transaction.commit()?;
@@ -733,6 +962,68 @@ fn load_normalized_inputs(
         .collect()
 }
 
+fn load_profile_inputs(
+    transaction: &Transaction<'_>,
+) -> Result<Vec<ArtifactReference>, StoreError> {
+    let mut statement = transaction.prepare(
+        "SELECT revision.normalized_artifact_id, revision.normalized_artifact_revision,
+                artifact.sha256
+         FROM profile_sources AS source
+         JOIN profile_source_revisions AS revision ON revision.source_id = source.id
+         JOIN artifact_revisions AS artifact
+           ON artifact.artifact_id = revision.normalized_artifact_id
+          AND artifact.revision = revision.normalized_artifact_revision
+         WHERE revision.revision = (
+             SELECT MAX(head.revision) FROM profile_source_revisions AS head
+             WHERE head.source_id = source.id
+         )
+         ORDER BY source.created_at, source.id",
+    )?;
+    statement
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, i64>(1)?,
+                row.get::<_, String>(2)?,
+            ))
+        })?
+        .map(|row| {
+            let (id, revision, sha256) = row?;
+            Ok(ArtifactReference {
+                kind: ArtifactKind::SourceNormalizedText,
+                id: EntityId::try_new(id)?,
+                revision: Revision::try_new(to_u64(revision)?)?,
+                sha256: Sha256Digest::try_new(sha256)?,
+            })
+        })
+        .collect()
+}
+
+fn actor_for_mode(mode: ExecutionMode) -> ActorKind {
+    if mode == ExecutionMode::ConfiguredProvider {
+        ActorKind::ConfiguredProvider
+    } else {
+        ActorKind::HostAgent
+    }
+}
+
+fn task_consents(mode: ExecutionMode, inputs: &[ArtifactReference]) -> Vec<ConsentRequest> {
+    let mut consents = vec![ConsentRequest {
+        scope: ConsentScope::ReadPrivateInputs,
+        description: "Read only the normalized artifacts declared by this task".to_owned(),
+        artifacts: inputs.to_vec(),
+    }];
+    if mode == ExecutionMode::ConfiguredProvider {
+        consents.push(ConsentRequest {
+            scope: ConsentScope::SendToConfiguredProvider,
+            description: "Send only these exact source revisions to the configured provider"
+                .to_owned(),
+            artifacts: inputs.to_vec(),
+        });
+    }
+    consents
+}
+
 fn load_task_state(
     connection: &Connection,
     task_id: &EntityId,
@@ -835,42 +1126,97 @@ fn validate_request_shape(
     Ok(())
 }
 
+enum ValidatedTaskCandidate {
+    ParsedJob(ParsedJobRecord),
+    EvidenceProposals(EvidenceProposalSet),
+}
+
 fn validate_candidate(
     descriptor: &TaskDescriptor,
     value: &Value,
-) -> Result<ParsedJobRecord, StoreError> {
-    if descriptor.operation != JOB_PARSE_OPERATION
-        || descriptor.candidate_schema.id != PublicSchemaId::ParsedJob.as_str()
-    {
-        return Err(StoreError::Invariant(format!(
-            "unsupported task contract: {}",
-            descriptor.operation
-        )));
-    }
-    let candidate =
-        validate_external_candidate::<ParsedJobRecord>(value).map_err(|error| match error {
-            CandidateValidationError::Structural(violations) => {
-                StoreError::CandidateStructural(violations)
+) -> Result<ValidatedTaskCandidate, StoreError> {
+    match (
+        descriptor.operation.as_str(),
+        descriptor.candidate_schema.id.as_str(),
+    ) {
+        (JOB_PARSE_OPERATION, schema) if schema == PublicSchemaId::ParsedJob.as_str() => {
+            let candidate = validate_external_candidate::<ParsedJobRecord>(value)
+                .map_err(map_candidate_error)?;
+            if candidate.job_id != descriptor.job_id {
+                return Err(StoreError::CandidateSemantic(vec![ContractViolation::new(
+                    "candidate.job_mismatch",
+                    "/job_id",
+                    "candidate job ID does not match the task subject",
+                )]));
             }
-            CandidateValidationError::Semantic(violations) => {
-                StoreError::CandidateSemantic(violations)
+            Ok(ValidatedTaskCandidate::ParsedJob(candidate))
+        }
+        (EVIDENCE_NORMALIZE_OPERATION, schema)
+            if schema == PublicSchemaId::EvidenceProposals.as_str() =>
+        {
+            let candidate = validate_external_candidate::<EvidenceProposalSet>(value)
+                .map_err(map_candidate_error)?;
+            let expected_revision = descriptor.profile_revision.ok_or_else(|| {
+                StoreError::Invariant("evidence task is missing its profile revision".to_owned())
+            })?;
+            if candidate.profile_revision != expected_revision {
+                return Err(StoreError::CandidateSemantic(vec![ContractViolation::new(
+                    "candidate.profile_revision_mismatch",
+                    "/profile_revision",
+                    "candidate profile revision does not match the prepared task",
+                )]));
             }
-        })?;
-    if candidate.job_id != descriptor.job_id {
-        return Err(StoreError::CandidateSemantic(vec![ContractViolation::new(
-            "candidate.job_mismatch",
-            "/job_id",
-            "candidate job ID does not match the task subject",
-        )]));
+            Ok(ValidatedTaskCandidate::EvidenceProposals(candidate))
+        }
+        _ => Err(StoreError::Invariant(format!(
+            "unsupported task contract: {} -> {}",
+            descriptor.operation, descriptor.candidate_schema.id
+        ))),
     }
-    Ok(candidate)
 }
 
-fn validate_parsed_source_spans(
+fn map_candidate_error(error: CandidateValidationError) -> StoreError {
+    match error {
+        CandidateValidationError::Structural(violations) => {
+            StoreError::CandidateStructural(violations)
+        }
+        CandidateValidationError::Semantic(violations) => StoreError::CandidateSemantic(violations),
+    }
+}
+
+fn build_evidence_catalog(
+    proposals: EvidenceProposalSet,
+) -> Result<EvidenceCatalogRecord, StoreError> {
+    let items = proposals
+        .proposals
+        .into_iter()
+        .map(|proposal| {
+            Ok(EvidenceRecord {
+                id: generate_id()?,
+                kind: proposal.kind,
+                summary: proposal.summary,
+                source_quote: proposal.source_quote,
+                source_span: proposal.source_span,
+                confirmed: false,
+                excluded: false,
+                sensitivity: proposal.sensitivity,
+                revision: Revision::try_new(1)?,
+            })
+        })
+        .collect::<Result<Vec<_>, StoreError>>()?;
+    Ok(EvidenceCatalogRecord {
+        id: generate_id()?,
+        profile_revision: proposals.profile_revision,
+        items,
+        revision: Revision::try_new(1)?,
+    })
+}
+
+fn validate_task_source_spans(
     connection: &Connection,
     blobs: &BlobStore,
     descriptor: &TaskDescriptor,
-    parsed_job: &ParsedJobRecord,
+    candidate: &ValidatedTaskCandidate,
 ) -> Result<(), StoreError> {
     let allowed = descriptor
         .input_artifacts
@@ -879,21 +1225,47 @@ fn validate_parsed_source_spans(
         .collect::<BTreeMap<_, _>>();
     let mut cached = BTreeMap::new();
     let mut violations = Vec::new();
-    for (index, criterion) in parsed_job.criteria.iter().enumerate() {
-        let source = &criterion.source_span.source;
+    let spans = match candidate {
+        ValidatedTaskCandidate::ParsedJob(parsed_job) => parsed_job
+            .criteria
+            .iter()
+            .enumerate()
+            .map(|(index, criterion)| {
+                (
+                    &criterion.source_span,
+                    criterion.source_quote.as_str(),
+                    format!("/criteria/{index}/source_span"),
+                )
+            })
+            .collect::<Vec<_>>(),
+        ValidatedTaskCandidate::EvidenceProposals(proposals) => proposals
+            .proposals
+            .iter()
+            .enumerate()
+            .map(|(index, proposal)| {
+                (
+                    &proposal.source_span,
+                    proposal.source_quote.as_str(),
+                    format!("/proposals/{index}/source_span"),
+                )
+            })
+            .collect::<Vec<_>>(),
+    };
+    for (span, source_quote, pointer) in spans {
+        let source = &span.source;
         let Some(expected) = allowed.get(source.id.as_str()) else {
             violations.push(ContractViolation::new(
                 "candidate.source_out_of_scope",
-                format!("/criteria/{index}/source_span/source"),
-                "criterion source is outside the task input scope",
+                format!("{pointer}/source"),
+                "source is outside the task input scope",
             ));
             continue;
         };
         if *expected != source {
             violations.push(ContractViolation::new(
                 "candidate.source_revision_mismatch",
-                format!("/criteria/{index}/source_span/source"),
-                "criterion source revision/hash does not exactly match the task input",
+                format!("{pointer}/source"),
+                "source revision/hash does not exactly match the task input",
             ));
             continue;
         }
@@ -907,15 +1279,15 @@ fn validate_parsed_source_spans(
                 .get(source.id.as_str())
                 .expect("inserted source bytes are present")
         };
-        let start = usize::try_from(criterion.source_span.start_byte).unwrap_or(usize::MAX);
-        let end = usize::try_from(criterion.source_span.end_byte).unwrap_or(usize::MAX);
+        let start = usize::try_from(span.start_byte).unwrap_or(usize::MAX);
+        let end = usize::try_from(span.end_byte).unwrap_or(usize::MAX);
         let exact = bytes
             .get(start..end)
-            .is_some_and(|span| span == criterion.source_quote.as_bytes());
+            .is_some_and(|bytes| bytes == source_quote.as_bytes());
         if !exact {
             violations.push(ContractViolation::new(
                 "candidate.source_span_mismatch",
-                format!("/criteria/{index}/source_span"),
+                pointer,
                 "source span must select bytes exactly equal to source_quote",
             ));
         }
@@ -925,6 +1297,35 @@ fn validate_parsed_source_spans(
     } else {
         Err(StoreError::CandidateSemantic(violations))
     }
+}
+
+fn replay_task(
+    connection: &Connection,
+    task_id: &EntityId,
+    candidate_sha256: &Sha256Digest,
+) -> Result<TaskCommitData, StoreError> {
+    let stored_candidate_sha256: Option<String> = connection
+        .query_row(
+            "SELECT candidate_sha256 FROM tasks WHERE id = ?1 AND status = 'committed'",
+            params![task_id.as_str()],
+            |row| row.get(0),
+        )
+        .optional()?
+        .flatten();
+    if stored_candidate_sha256.as_deref() != Some(candidate_sha256.as_str()) {
+        return Err(StoreError::TaskConflict(format!(
+            "task {task_id} was already completed with a different candidate"
+        )));
+    }
+    let (artifact, committed_at) = load_task_result(connection, task_id)?
+        .ok_or_else(|| StoreError::Invariant("committed task has no result artifact".to_owned()))?;
+    Ok(TaskCommitData {
+        task_id: task_id.clone(),
+        status: TaskStatus::Committed,
+        artifact,
+        committed_at,
+        idempotent: true,
+    })
 }
 
 fn verify_artifact_revision(

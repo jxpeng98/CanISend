@@ -59,6 +59,34 @@
       ],
       "type": "string"
     },
+    "EvidenceProposalRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/EvidenceKind"
+        },
+        "sensitivity": {
+          "$ref": "#/$defs/PrivacyClassification"
+        },
+        "source_quote": {
+          "type": "string"
+        },
+        "source_span": {
+          "$ref": "#/$defs/SourceTextSpan"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "summary",
+        "source_quote",
+        "source_span",
+        "sensitivity"
+      ],
+      "type": "object"
+    },
     "PrivacyClassification": {
       "enum": [
         "public",
@@ -93,53 +121,28 @@
       "type": "object"
     }
   },
-  "$id": "https://schemas.canisend.dev/v2/evidence.schema.json",
+  "$id": "https://schemas.canisend.dev/v2/evidence-proposals.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
-    "confirmed": {
-      "type": "boolean"
-    },
-    "excluded": {
-      "type": "boolean"
-    },
-    "id": {
-      "type": "string"
-    },
-    "kind": {
-      "$ref": "#/$defs/EvidenceKind"
-    },
-    "revision": {
+    "profile_revision": {
       "format": "uint64",
       "minimum": 0,
       "type": "integer"
     },
-    "sensitivity": {
-      "$ref": "#/$defs/PrivacyClassification"
-    },
-    "source_quote": {
-      "type": "string"
-    },
-    "source_span": {
-      "$ref": "#/$defs/SourceTextSpan"
-    },
-    "summary": {
-      "type": "string"
+    "proposals": {
+      "items": {
+        "$ref": "#/$defs/EvidenceProposalRecord"
+      },
+      "type": "array"
     }
   },
   "required": [
-    "id",
-    "kind",
-    "summary",
-    "source_quote",
-    "source_span",
-    "confirmed",
-    "excluded",
-    "sensitivity",
-    "revision"
+    "profile_revision",
+    "proposals"
   ],
-  "title": "EvidenceRecord",
+  "title": "EvidenceProposalSet",
   "type": "object",
-  "x-canisend-id": "canisend.evidence/v2",
+  "x-canisend-id": "canisend.evidence-proposals/v2",
   "x-canisend-version": "2.0.0"
 }

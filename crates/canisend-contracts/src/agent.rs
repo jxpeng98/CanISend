@@ -430,6 +430,8 @@ pub struct TaskDescriptor {
     pub operation: String,
     pub job_id: EntityId,
     pub job_revision: Revision,
+    #[serde(default)]
+    pub profile_revision: Option<Revision>,
     pub actor: ActorKind,
     pub execution_mode: ExecutionMode,
     pub input_artifacts: Vec<ArtifactReference>,

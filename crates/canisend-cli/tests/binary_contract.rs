@@ -151,7 +151,7 @@ fn capabilities_distinguish_available_from_planned_work() {
             .iter()
             .filter(|stage| stage["status"] == "available")
             .count()),
-        Some(4)
+        Some(5)
     );
 }
 
@@ -162,7 +162,7 @@ fn public_catalogs_are_available_without_a_workspace() {
 
     assert_eq!(
         schemas["data"]["schemas"].as_array().map(Vec::len),
-        Some(24)
+        Some(26)
     );
     assert!(
         resources["data"]["resources"]
@@ -204,16 +204,25 @@ fn agent_host_pack_export_is_versioned_and_self_contained() {
         exported["data"]["manifest"]["files"]
             .as_array()
             .map(Vec::len),
-        Some(8)
+        Some(12)
     );
     assert!(pack.join("AGENTS.md").is_file());
     assert!(pack.join("prompts/job-parse.md").is_file());
+    assert!(pack.join("prompts/evidence-normalize.md").is_file());
     assert!(
         pack.join("schemas/v2/task-completion.schema.json")
             .is_file()
     );
     assert!(pack.join("schemas/v2/parsed-job.schema.json").is_file());
     assert!(pack.join("schemas/v2/criteria.schema.json").is_file());
+    assert!(
+        pack.join("schemas/v2/evidence-proposals.schema.json")
+            .is_file()
+    );
+    assert!(
+        pack.join("schemas/v2/evidence-catalog.schema.json")
+            .is_file()
+    );
     assert!(pack.join("canisend-agent-pack.json").is_file());
 }
 
@@ -976,6 +985,184 @@ fn leased_task_completion_is_validated_atomic_and_idempotent() {
     let stale: Value = serde_json::from_slice(&stale.stdout).expect("stale JSON");
     assert_eq!(stale["error"]["code"], "task.stale");
     assert!(stale["error"]["remediation"].is_object());
+}
+
+#[test]
+fn evidence_workflow_is_agent_callable_and_user_confirmed_through_the_binary() {
+    let workspace = TestDirectory::new("evidence-cli-workspace");
+    let input = TestDirectory::new("evidence-cli-input");
+    fs::create_dir_all(input.path()).expect("input directory");
+    let advert = input.path().join("advert.txt");
+    let profile = input.path().join("profile.txt");
+    fs::write(&advert, "Economics lecturer\n").expect("advert");
+    fs::write(&profile, "PhD in Economics\n").expect("profile");
+    run_json(&[
+        "--workspace",
+        workspace.text(),
+        "workspace",
+        "init",
+        "--json",
+    ]);
+    let job = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "job",
+        "create",
+        "--title",
+        "Lecturer in Economics",
+        "--institution",
+        "University X",
+        "--json",
+    ]);
+    let job_id = job["data"]["id"].as_str().expect("job ID");
+    run_json(&[
+        "--workspace",
+        workspace.text(),
+        "job",
+        "import",
+        job_id,
+        "--file",
+        advert.to_str().expect("advert path"),
+        "--json",
+    ]);
+    run_json(&[
+        "--workspace",
+        workspace.text(),
+        "profile",
+        "source",
+        "add",
+        "--file",
+        profile.to_str().expect("profile path"),
+        "--json",
+    ]);
+    let prepared = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "task",
+        "prepare",
+        "--job",
+        job_id,
+        "--operation",
+        "evidence-normalize",
+        "--json",
+    ]);
+    let descriptor = &prepared["data"];
+    assert_eq!(descriptor["operation"], "profile.evidence.normalize");
+    assert_eq!(
+        descriptor["candidate_schema"]["id"],
+        "canisend.evidence-proposals/v2"
+    );
+    let expected_inputs = descriptor["input_artifacts"]
+        .as_array()
+        .expect("profile inputs")
+        .iter()
+        .map(|input| {
+            serde_json::json!({
+                "artifact_id": input["id"],
+                "revision": input["revision"],
+                "sha256": input["sha256"]
+            })
+        })
+        .collect::<Vec<_>>();
+    let completion = serde_json::json!({
+        "task_id": descriptor["id"],
+        "lease_id": descriptor["lease"]["id"],
+        "expected_job_revision": descriptor["job_revision"],
+        "expected_inputs": expected_inputs,
+        "candidate": {
+            "profile_revision": descriptor["profile_revision"],
+            "proposals": [{
+                "kind": "qualification",
+                "summary": "Doctorate in economics",
+                "source_quote": "PhD in Economics",
+                "source_span": {
+                    "source": descriptor["input_artifacts"][0],
+                    "start_byte": 0,
+                    "end_byte": 16
+                },
+                "sensitivity": "private-local"
+            }]
+        }
+    });
+    let completion_path = input.path().join("evidence-completion.json");
+    fs::write(
+        &completion_path,
+        serde_json::to_vec(&completion).expect("completion JSON"),
+    )
+    .expect("completion file");
+    let committed = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "task",
+        "complete",
+        "--file",
+        completion_path.to_str().expect("completion path"),
+        "--json",
+    ]);
+    assert_eq!(committed["data"]["artifact"]["kind"], "evidence-catalog");
+    let proposed = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "profile",
+        "evidence",
+        "proposed",
+        "--job",
+        job_id,
+        "--json",
+    ]);
+    assert_eq!(proposed["data"]["items"][0]["confirmed"], false);
+    let generated_id = proposed["data"]["items"][0]["id"].clone();
+
+    let decision_path = input.path().join("evidence-decision.json");
+    let exported = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "profile",
+        "evidence",
+        "export",
+        "--job",
+        job_id,
+        "--destination",
+        decision_path.to_str().expect("decision path"),
+        "--json",
+    ]);
+    assert_eq!(exported["data"]["evidence_count"], 1);
+    let mut decision: Value =
+        serde_json::from_slice(&fs::read(&decision_path).expect("decision bytes"))
+            .expect("decision JSON");
+    decision["items"][0]["summary"] = Value::String("Reviewed doctorate".to_owned());
+    decision["items"][0]["excluded"] = Value::Bool(true);
+    fs::write(
+        &decision_path,
+        serde_json::to_vec(&decision).expect("revised decision JSON"),
+    )
+    .expect("revised decision file");
+    let confirmed = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "profile",
+        "evidence",
+        "confirm",
+        "--job",
+        job_id,
+        "--file",
+        decision_path.to_str().expect("decision path"),
+        "--json",
+    ]);
+    assert_eq!(confirmed["status"], "confirmed");
+    assert_eq!(confirmed["data"]["items"][0]["id"], generated_id);
+    assert_eq!(confirmed["data"]["items"][0]["excluded"], true);
+    let shown = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "profile",
+        "evidence",
+        "show",
+        "--job",
+        job_id,
+        "--json",
+    ]);
+    assert_eq!(shown["data"], confirmed["data"]);
 }
 
 fn write_pdf(path: &std::path::Path, text: Option<&str>) {

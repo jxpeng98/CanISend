@@ -17,6 +17,7 @@
       {"id":"discovery.refresh","status":"available","version":"2.0.0"},
       {"id":"task.lifecycle","status":"available","version":"2.0.0"},
       {"id":"criteria.lifecycle","status":"available","version":"2.0.0"},
+      {"id":"evidence.lifecycle","status":"available","version":"2.0.0"},
       {"id":"workflow.execute","status":"available","version":"2.0.0"},
       {"id":"render.pdf","status":"planned","version":"2.0.0"}
     ],
@@ -64,7 +65,7 @@
       {"execution_modes":["deterministic","host-agent"],"id":"discovery","status":"available"},
       {"execution_modes":["host-agent","configured-provider"],"id":"parse","status":"available"},
       {"execution_modes":["user-decision"],"id":"criteria","status":"available"},
-      {"execution_modes":["manual-import","host-agent","configured-provider"],"id":"evidence","status":"planned"},
+      {"execution_modes":["host-agent","configured-provider"],"id":"evidence","status":"available"},
       {"execution_modes":["host-agent","configured-provider"],"id":"match","status":"planned"},
       {"execution_modes":["user-decision"],"id":"plan","status":"planned"},
       {"execution_modes":["host-agent","configured-provider"],"id":"draft","status":"planned"},

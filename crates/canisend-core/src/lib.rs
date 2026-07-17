@@ -27,6 +27,7 @@ impl CapabilityRegistry {
             available("discovery.refresh"),
             available("task.lifecycle"),
             available("criteria.lifecycle"),
+            available("evidence.lifecycle"),
             available("workflow.execute"),
             planned("render.pdf"),
         ]
@@ -205,11 +206,7 @@ fn built_in_descriptors() -> Vec<StageDescriptor> {
             WorkflowStage::Evidence,
             &[],
             ArtifactKind::EvidenceCatalog,
-            &[
-                ExecutionMode::ManualImport,
-                ExecutionMode::HostAgent,
-                ExecutionMode::ConfiguredProvider,
-            ],
+            &[ExecutionMode::HostAgent, ExecutionMode::ConfiguredProvider],
         ),
         descriptor(
             WorkflowStage::Match,
@@ -276,7 +273,10 @@ impl StageRegistry {
     pub const fn is_available(stage: WorkflowStage) -> bool {
         matches!(
             stage,
-            WorkflowStage::Intake | WorkflowStage::Parse | WorkflowStage::Criteria
+            WorkflowStage::Intake
+                | WorkflowStage::Parse
+                | WorkflowStage::Criteria
+                | WorkflowStage::Evidence
         )
     }
 
@@ -415,6 +415,7 @@ mod tests {
             "job.intake",
             "discovery.refresh",
             "task.lifecycle",
+            "evidence.lifecycle",
         ] {
             assert!(capabilities.iter().any(|item| {
                 item.id == available_id && item.status == CapabilityStatus::Available
@@ -426,7 +427,7 @@ mod tests {
                 .iter()
                 .filter(|stage| stage.status == CapabilityStatus::Available)
                 .count(),
-            4
+            5
         );
         let mut stage_ids = stages
             .iter()

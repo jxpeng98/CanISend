@@ -15,6 +15,10 @@ CanISend owns durable state; Claude operates only through its versioned CLI prot
    and prepare again.
 7. Export the parsed proposal with `criteria export`, let the user review or correct the JSON, and use
    `criteria confirm` only after that explicit user decision.
+8. For imported profile sources, repeat the task flow with `--operation evidence-normalize`. Return only
+   `evidence-proposals`; CanISend, not Claude, assigns catalog and evidence IDs.
+9. Export with `profile evidence export`, let the user correct, classify, or exclude items, and run
+   `profile evidence confirm` only after explicit user review. Use the same path for later revisions.
 
 Never create evidence or source identities not supplied by CanISend, send private content to a provider without a
 separate consent, write internal state directly, or treat readiness as application submission.

@@ -92,9 +92,37 @@ pub struct EvidenceRecord {
     pub id: EntityId,
     pub kind: EvidenceKind,
     pub summary: String,
-    pub source: ArtifactReference,
+    pub source_quote: String,
+    pub source_span: SourceTextSpan,
     pub confirmed: bool,
-    pub privacy: PrivacyClassification,
+    pub excluded: bool,
+    pub sensitivity: PrivacyClassification,
+    pub revision: Revision,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct EvidenceProposalRecord {
+    pub kind: EvidenceKind,
+    pub summary: String,
+    pub source_quote: String,
+    pub source_span: SourceTextSpan,
+    pub sensitivity: PrivacyClassification,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct EvidenceProposalSet {
+    pub profile_revision: Revision,
+    pub proposals: Vec<EvidenceProposalRecord>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct EvidenceCatalogRecord {
+    pub id: EntityId,
+    pub profile_revision: Revision,
+    pub items: Vec<EvidenceRecord>,
     pub revision: Revision,
 }
 

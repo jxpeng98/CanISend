@@ -45,6 +45,13 @@ task_job_revision() {
     | cut -d: -f2
 }
 
+task_profile_revision() {
+  printf '%s' "$1" \
+    | grep -oE '"profile_revision":[0-9]+' \
+    | sed -n '1p' \
+    | cut -d: -f2
+}
+
 task_expected_inputs() {
   printf '%s' "$1" \
     | sed -E 's/^.*"input_artifacts":(\[[^]]*\]),"job_id".*$/\1/' \
@@ -70,10 +77,31 @@ write_completion() {
     > "$output"
 }
 
+write_evidence_completion() {
+  local task_json="$1"
+  local output="$2"
+  local task_id lease_id job_revision profile_revision expected_inputs source_artifact
+  local source_id source_revision source_sha256
+  task_id="$(first_uuid_id "$task_json")"
+  lease_id="$(task_lease_id "$task_json")"
+  job_revision="$(task_job_revision "$task_json")"
+  profile_revision="$(task_profile_revision "$task_json")"
+  expected_inputs="$(task_expected_inputs "$task_json")"
+  source_id="$(printf '%s' "$expected_inputs" | grep -oE '"artifact_id":"[^"]+"' | cut -d'"' -f4)"
+  source_revision="$(printf '%s' "$expected_inputs" | grep -oE '"revision":[0-9]+' | cut -d: -f2)"
+  source_sha256="$(printf '%s' "$expected_inputs" | grep -oE '"sha256":"[0-9a-f]+"' | cut -d'"' -f4)"
+  source_artifact="{\"kind\":\"source-normalized-text\",\"id\":\"$source_id\",\"revision\":$source_revision,\"sha256\":\"$source_sha256\"}"
+  printf '%s\n' \
+    "{\"task_id\":\"$task_id\",\"lease_id\":\"$lease_id\",\"expected_job_revision\":$job_revision,\"expected_inputs\":$expected_inputs,\"candidate\":{\"profile_revision\":$profile_revision,\"proposals\":[{\"kind\":\"qualification\",\"summary\":\"Doctorate in Economics\",\"source_quote\":\"$evidence_quote\",\"source_span\":{\"source\":$source_artifact,\"start_byte\":$evidence_start,\"end_byte\":$evidence_end},\"sensitivity\":\"private-local\"}]}}" \
+    > "$output"
+}
+
 "$binary" agent capabilities --json >/dev/null
 "$binary" agent assets export --host codex --destination "$pack" --json >/dev/null
 test -f "$pack/AGENTS.md"
 test -f "$pack/canisend-agent-pack.json"
+test -f "$pack/prompts/evidence-normalize.md"
+test -f "$pack/schemas/v2/evidence-proposals.schema.json"
 
 "$binary" --workspace "$workspace" workspace init --json >/dev/null
 job_json="$(
@@ -144,6 +172,40 @@ grep -q '"idempotent":true' "$agent_work/replayed.json"
   --file "$agent_work/criteria.json" --json >"$agent_work/criteria-confirm.json"
 grep -q '"status":"confirmed"' "$agent_work/criteria-confirm.json"
 grep -q '"confirmed":true' "$agent_work/criteria-confirm.json"
+
+"$binary" --workspace "$workspace" profile source add \
+  --file "$repo_root/fixtures/v2-spec/profile-evidence.json" --json \
+  >"$agent_work/profile-source.json"
+evidence_task_json="$(
+  "$binary" --workspace "$workspace" task prepare \
+    --job "$job_id" --operation evidence-normalize --json
+)"
+evidence_task_id="$(first_uuid_id "$evidence_task_json")"
+"$binary" --workspace "$workspace" task inputs "$evidence_task_id" \
+  --destination "$agent_work/evidence-inputs" --allow-private-read --json \
+  >"$agent_work/evidence-input-export.json"
+evidence_quote="PhD in Economics awarded by Example University in 2024"
+evidence_input_file="$(find "$agent_work/evidence-inputs/inputs" -type f -name '*.txt' -print -quit)"
+evidence_start="$(LC_ALL=C grep -boF "$evidence_quote" "$evidence_input_file" | sed -n '1s/:.*//p')"
+test -n "$evidence_start"
+evidence_end=$((evidence_start + ${#evidence_quote}))
+write_evidence_completion "$evidence_task_json" "$agent_work/evidence-completion.json"
+"$binary" --workspace "$workspace" task complete \
+  --file "$agent_work/evidence-completion.json" --json \
+  >"$agent_work/evidence-committed.json"
+"$binary" --workspace "$workspace" profile evidence proposed --job "$job_id" --json \
+  >"$agent_work/evidence-proposed.json"
+grep -q '"confirmed":false' "$agent_work/evidence-proposed.json"
+"$binary" --workspace "$workspace" profile evidence export --job "$job_id" \
+  --destination "$agent_work/evidence-decision.json" --json \
+  >"$agent_work/evidence-export.json"
+"$binary" --workspace "$workspace" profile evidence confirm --job "$job_id" \
+  --file "$agent_work/evidence-decision.json" --json \
+  >"$agent_work/evidence-confirm.json"
+grep -q '"status":"confirmed"' "$agent_work/evidence-confirm.json"
+grep -q '"confirmed":true' "$agent_work/evidence-confirm.json"
+"$binary" --workspace "$workspace" profile evidence show --job "$job_id" --json \
+  >"$agent_work/evidence-show.json"
 
 "$binary" --workspace "$workspace" workflow rerun --job "$job_id" \
   --stage parse --json >"$agent_work/parse-rerun.json"
