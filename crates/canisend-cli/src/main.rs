@@ -15,11 +15,12 @@ use canisend_io::{
     JobsAcUkAdapter, LeverAdapter, RemoteDocumentKind, RssAtomAdapter,
     discovery_adapter_capabilities, extract_pdf_text, parse_csv_batch, parse_host_agent_batch,
     parse_json_batch, read_discovery_file, read_local_pdf, read_local_text,
+    read_task_completion_file, read_task_completion_stdin,
 };
 use canisend_resources::{ResourceId, ResourceKind};
 use canisend_store::{
     AgentContextService, ArtifactService, DiscoveryService, JobService, NewSource, StoreError,
-    Workspace, current_utc_timestamp,
+    TaskService, Workspace, current_utc_timestamp,
 };
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use serde_json::json;
@@ -73,6 +74,11 @@ enum Command {
     Discovery {
         #[command(subcommand)]
         command: DiscoveryCommand,
+    },
+    /// Prepare, inspect, complete, or cancel bounded agent tasks.
+    Task {
+        #[command(subcommand)]
+        command: TaskCommand,
     },
 }
 
@@ -146,6 +152,18 @@ enum DiscoveryCommand {
     Suggest(DiscoverySuggestArgs),
     /// Create a direct-intake job from a selected lead.
     Promote(DiscoveryIdArgs),
+}
+
+#[derive(Debug, Subcommand)]
+enum TaskCommand {
+    /// Freeze exact source revisions and create a leased host-agent task.
+    Prepare(TaskPrepareArgs),
+    /// Inspect a task descriptor, state, and committed result metadata.
+    Show(TaskIdArgs),
+    /// Validate and atomically commit a host-agent completion request.
+    Complete(TaskCompleteArgs),
+    /// Cancel a prepared task without deleting its audit history.
+    Cancel(TaskIdArgs),
 }
 
 #[derive(Debug, Args)]
@@ -317,6 +335,48 @@ struct DiscoverySuggestArgs {
     output: OutputArgs,
 }
 
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum TaskOperationName {
+    JobCriterion,
+}
+
+#[derive(Debug, Args)]
+struct TaskPrepareArgs {
+    /// Canonical UUIDv7 job ID whose current source revisions become task inputs.
+    #[arg(long)]
+    job: String,
+    /// Bounded operation implemented by the compiled task registry.
+    #[arg(long, value_enum)]
+    operation: TaskOperationName,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
+struct TaskIdArgs {
+    /// Canonical UUIDv7 task ID.
+    task_id: String,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
+struct TaskCompleteArgs {
+    /// Regular, non-symlink JSON file containing canisend.task-completion/v2.
+    #[arg(
+        long,
+        value_name = "PATH",
+        required_unless_present = "stdin",
+        conflicts_with = "stdin"
+    )]
+    file: Option<PathBuf>,
+    /// Read one bounded canisend.task-completion/v2 object from standard input.
+    #[arg(long, required_unless_present = "file", conflicts_with = "file")]
+    stdin: bool,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
 impl Cli {
     fn explicit_json(&self) -> bool {
         match &self.command {
@@ -368,6 +428,13 @@ impl Cli {
                     arguments.output.json
                 }
                 DiscoveryCommand::Suggest(arguments) => arguments.output.json,
+            },
+            Command::Task { command } => match command {
+                TaskCommand::Prepare(arguments) => arguments.output.json,
+                TaskCommand::Show(arguments) | TaskCommand::Cancel(arguments) => {
+                    arguments.output.json
+                }
+                TaskCommand::Complete(arguments) => arguments.output.json,
             },
         }
     }
@@ -505,6 +572,18 @@ fn execute(cli: Cli) -> CommandResult<CommandOutput> {
         Command::Discovery {
             command: DiscoveryCommand::Promote(arguments),
         } => discovery_promote(workspace, &arguments.lead_id),
+        Command::Task {
+            command: TaskCommand::Prepare(arguments),
+        } => task_prepare(workspace, arguments),
+        Command::Task {
+            command: TaskCommand::Show(arguments),
+        } => task_show(workspace, &arguments.task_id),
+        Command::Task {
+            command: TaskCommand::Complete(arguments),
+        } => task_complete(workspace, arguments),
+        Command::Task {
+            command: TaskCommand::Cancel(arguments),
+        } => task_cancel(workspace, &arguments.task_id),
     }
 }
 
@@ -1387,6 +1466,113 @@ fn discovery_promote(
     Ok(output)
 }
 
+fn task_prepare(
+    workspace_path: Option<PathBuf>,
+    arguments: TaskPrepareArgs,
+) -> CommandResult<CommandOutput> {
+    let job_id = parse_entity_id("task.prepare", &arguments.job)?;
+    let mut workspace = open_workspace(workspace_path, "task.prepare")?;
+    let descriptor = match arguments.operation {
+        TaskOperationName::JobCriterion => {
+            TaskService::new(&mut workspace.database, &workspace.blobs)
+                .prepare_job_criterion(&job_id)
+                .map_err(|error| store_failure("task.prepare", error))?
+        }
+    };
+    let mut output = success(
+        "task.prepare",
+        "prepared",
+        &descriptor,
+        vec![
+            format!("Prepared task: {}", descriptor.id),
+            format!("Operation: {}", descriptor.operation),
+            format!("Inputs: {}", descriptor.input_artifacts.len()),
+            format!("Lease expires: {}", descriptor.lease.expires_at),
+        ],
+    )?;
+    output.response.required_consents = descriptor.required_consents.clone();
+    output.response.next_actions.push(NextAction {
+        action: "create a canisend.task-completion/v2 JSON file, then run canisend task complete --file PATH"
+            .to_owned(),
+        description:
+            "Repeat the task ID, lease ID, job revision, and every exact input revision/hash"
+                .to_owned(),
+    });
+    Ok(output)
+}
+
+fn task_show(workspace_path: Option<PathBuf>, task_id: &str) -> CommandResult<CommandOutput> {
+    let task_id = parse_entity_id("task.show", task_id)?;
+    let mut workspace = open_workspace(workspace_path, "task.show")?;
+    let state = TaskService::new(&mut workspace.database, &workspace.blobs)
+        .get(&task_id)
+        .map_err(|error| store_failure("task.show", error))?;
+    success(
+        "task.show",
+        "available",
+        &state,
+        vec![
+            format!("Task: {}", state.descriptor.id),
+            format!("Operation: {}", state.descriptor.operation),
+            format!("Status: {:?}", state.status),
+            format!("Inputs: {}", state.descriptor.input_artifacts.len()),
+        ],
+    )
+}
+
+fn task_complete(
+    workspace_path: Option<PathBuf>,
+    arguments: TaskCompleteArgs,
+) -> CommandResult<CommandOutput> {
+    let request = if let Some(path) = arguments.file {
+        read_task_completion_file(&path)
+            .map_err(|error| io_adapter_failure("task.complete", error))?
+    } else if arguments.stdin {
+        let stdin = std::io::stdin();
+        read_task_completion_stdin(stdin.lock())
+            .map_err(|error| io_adapter_failure("task.complete", error))?
+    } else {
+        return Err(CommandFailure::new(
+            "task.complete",
+            "invalid",
+            ErrorCode::InputInvalid,
+            "exactly one of --file or --stdin is required",
+            false,
+        ));
+    };
+    let mut workspace = open_workspace(workspace_path, "task.complete")?;
+    let result = TaskService::new(&mut workspace.database, &workspace.blobs)
+        .complete(&request)
+        .map_err(|error| store_failure("task.complete", error))?;
+    let mut output = success(
+        "task.complete",
+        "committed",
+        &result,
+        vec![
+            format!("Completed task: {}", result.task_id),
+            format!("Artifact: {}", result.artifact.id),
+            format!("SHA-256: {}", result.artifact.sha256),
+            format!("Idempotent replay: {}", result.idempotent),
+        ],
+    )?;
+    output.response.artifacts.push(result.artifact.clone());
+    Ok(output)
+}
+
+fn task_cancel(workspace_path: Option<PathBuf>, task_id: &str) -> CommandResult<CommandOutput> {
+    let task_id = parse_entity_id("task.cancel", task_id)?;
+    let mut workspace = open_workspace(workspace_path, "task.cancel")?;
+    let state = TaskService::new(&mut workspace.database, &workspace.blobs)
+        .cancel(&task_id)
+        .map_err(|error| store_failure("task.cancel", error))?;
+    success(
+        "task.cancel",
+        "cancelled",
+        &state,
+        vec![format!("Cancelled task: {}", state.descriptor.id)],
+    )
+}
+
 fn parse_entity_id(operation: &'static str, value: &str) -> CommandResult<EntityId> {
     EntityId::try_new(value).map_err(|error| {
         CommandFailure::new(
@@ -1426,7 +1612,8 @@ fn io_adapter_failure(operation: &'static str, error: IoAdapterError) -> Box<Com
         | IoAdapterError::UnsupportedContentType(_)
         | IoAdapterError::Html(_)
         | IoAdapterError::PdfTimeBudget
-        | IoAdapterError::DiscoveryInput(_) => ("invalid", ErrorCode::InputInvalid, false),
+        | IoAdapterError::DiscoveryInput(_)
+        | IoAdapterError::CandidateInput(_) => ("invalid", ErrorCode::InputInvalid, false),
     };
     CommandFailure::new(operation, status, code, error.to_string(), retryable)
 }
@@ -1450,6 +1637,17 @@ fn store_failure(operation: &'static str, error: StoreError) -> Box<CommandFailu
             ("not-found", ErrorCode::DiscoveryLeadNotFound, false)
         }
         StoreError::DiscoveryConflict(_) => ("conflict", ErrorCode::DiscoveryConflict, false),
+        StoreError::TaskNotFound(_) => ("not-found", ErrorCode::TaskNotFound, false),
+        StoreError::TaskStale(_) => ("stale", ErrorCode::TaskStale, true),
+        StoreError::TaskConflict(_) => ("conflict", ErrorCode::TaskConflict, false),
+        StoreError::CandidateStructural(_) => {
+            ("validation-failed", ErrorCode::CandidateSchemaInvalid, true)
+        }
+        StoreError::CandidateSemantic(_) => (
+            "validation-failed",
+            ErrorCode::CandidateSemanticInvalid,
+            true,
+        ),
         StoreError::WorkspaceExists(_)
         | StoreError::Sqlite(_)
         | StoreError::DependencyConflict(_)
@@ -1478,7 +1676,26 @@ fn store_failure(operation: &'static str, error: StoreError) -> Box<CommandFailu
             false,
         ),
     };
-    CommandFailure::new(operation, status, code, error.to_string(), retryable)
+    let mut failure = CommandFailure::new(operation, status, code, error.to_string(), retryable);
+    if let StoreError::CandidateStructural(violations) | StoreError::CandidateSemantic(violations) =
+        &error
+    {
+        failure.error.details = serde_json::to_value(violations).ok();
+        failure.error.remediation = Some(NextAction {
+            action: "correct the candidate JSON and retry the same leased task".to_owned(),
+            description:
+                "Use each violation's JSON pointer and stable code; no task state was committed"
+                    .to_owned(),
+        });
+    } else if matches!(error, StoreError::TaskStale(_)) {
+        failure.error.remediation = Some(NextAction {
+            action: "run canisend task prepare again for the current job revision".to_owned(),
+            description:
+                "A lease expired or a declared input changed; do not reuse the old candidate"
+                    .to_owned(),
+        });
+    }
+    failure
 }
 
 fn product_version() -> CommandResult<SemanticVersion> {

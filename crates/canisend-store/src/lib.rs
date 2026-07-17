@@ -7,6 +7,7 @@ mod context;
 mod database;
 mod discovery;
 mod job;
+mod task;
 mod workspace;
 
 use std::{
@@ -21,6 +22,7 @@ pub use context::AgentContextService;
 pub use database::{DATABASE_SCHEMA_VERSION, Database};
 pub use discovery::DiscoveryService;
 pub use job::{JobService, NewSource};
+pub use task::TaskService;
 pub use workspace::{Workspace, WorkspaceConfig, WorkspacePaths};
 
 use canisend_contracts::{EntityId, PrimitiveError, UtcTimestamp};
@@ -80,6 +82,16 @@ pub enum StoreError {
     DiscoveryLeadNotFound(String),
     #[error("discovery operation conflicts with current state: {0}")]
     DiscoveryConflict(String),
+    #[error("task was not found: {0}")]
+    TaskNotFound(String),
+    #[error("task inputs or lease are stale: {0}")]
+    TaskStale(String),
+    #[error("task operation conflicts with current state: {0}")]
+    TaskConflict(String),
+    #[error("candidate does not satisfy its JSON Schema")]
+    CandidateStructural(Vec<canisend_contracts::ContractViolation>),
+    #[error("candidate violates semantic contract rules")]
+    CandidateSemantic(Vec<canisend_contracts::ContractViolation>),
     #[error("input is invalid: {0}")]
     InvalidInput(String),
     #[error("artifact dependency is not current: {0}")]

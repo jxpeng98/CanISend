@@ -6,13 +6,15 @@ use std::{
 };
 
 use canisend_contracts::{
-    ActorKind, ArtifactKind, ArtifactReference, EntityId, PrivacyClassification, Revision,
-    SafeRelativePath, Sha256Digest, SourceKind,
+    ActorKind, ArtifactKind, ArtifactReference, EntityId, ExpectedInputRevision,
+    PrivacyClassification, Revision, SafeRelativePath, Sha256Digest, SourceKind,
+    TaskCompletionRequest, TaskStatus,
 };
 use canisend_store::{
-    ArtifactService, DEFAULT_MAX_BLOB_BYTES, JobService, NewSource, StoreError, Workspace,
-    WorkspacePaths, verify_backup,
+    ArtifactService, DEFAULT_MAX_BLOB_BYTES, JobService, NewSource, StoreError, TaskService,
+    Workspace, WorkspacePaths, verify_backup,
 };
+use serde_json::json;
 
 static NEXT: AtomicU64 = AtomicU64::new(1);
 
@@ -52,7 +54,7 @@ fn workspace_init_discovery_status_and_check_are_consistent() {
     assert_eq!(discovered.root, root.path());
     assert_eq!(
         workspace.status().expect("status").database_schema_version,
-        3
+        4
     );
     let check = workspace.check().expect("workspace check");
     assert!(check.ok);
@@ -162,6 +164,120 @@ fn jobs_and_local_sources_are_revisioned_without_identity_merging() {
         Err(StoreError::JobArchived(_))
     ));
     assert_ne!(first.id, second.id);
+}
+
+#[test]
+fn agent_tasks_validate_commit_idempotently_and_detect_changed_jobs() {
+    let root = TestDirectory::new("agent-task");
+    let mut workspace = Workspace::init(root.path()).expect("workspace");
+    let job = JobService::new(&mut workspace.database, &workspace.blobs)
+        .create("Lecturer in Economics", "University X", ActorKind::User)
+        .expect("job");
+    let source = || NewSource {
+        kind: SourceKind::LocalFile,
+        original_bytes: b"Teach economics".to_vec(),
+        normalized_text: "Teach economics\n".to_owned(),
+        source_url: None,
+        final_url: None,
+        content_type: "text/plain; charset=utf-8".to_owned(),
+        redirect_chain: Vec::new(),
+        privacy: PrivacyClassification::PrivateLocal,
+    };
+    JobService::new(&mut workspace.database, &workspace.blobs)
+        .import_source(&job.id, source(), ActorKind::User)
+        .expect("source");
+    let descriptor = TaskService::new(&mut workspace.database, &workspace.blobs)
+        .prepare_job_criterion(&job.id)
+        .expect("prepared task");
+    assert_eq!(descriptor.input_artifacts.len(), 1);
+    assert_eq!(descriptor.private_read_scope, descriptor.input_artifacts);
+    let candidate = json!({
+        "id": "019f2f55-7c00-7000-8000-000000000201",
+        "job_id": job.id,
+        "kind": "teaching",
+        "requirement": "Evidence of university-level teaching",
+        "importance": "essential",
+        "source_quote": "Teach economics",
+        "revision": 1
+    });
+    let request = TaskCompletionRequest {
+        task_id: descriptor.id.clone(),
+        lease_id: descriptor.lease.id.clone(),
+        expected_job_revision: descriptor.job_revision,
+        expected_inputs: descriptor
+            .input_artifacts
+            .iter()
+            .map(|input| ExpectedInputRevision {
+                artifact_id: input.id.clone(),
+                revision: input.revision,
+                sha256: input.sha256.clone(),
+            })
+            .collect(),
+        candidate: candidate.clone(),
+    };
+    let mut invalid = request.clone();
+    invalid.candidate = json!({"requirement": 3});
+    assert!(matches!(
+        TaskService::new(&mut workspace.database, &workspace.blobs).complete(&invalid),
+        Err(StoreError::CandidateStructural(_))
+    ));
+    assert_eq!(
+        TaskService::new(&mut workspace.database, &workspace.blobs)
+            .get(&descriptor.id)
+            .expect("task state")
+            .status,
+        TaskStatus::Prepared
+    );
+    let committed = TaskService::new(&mut workspace.database, &workspace.blobs)
+        .complete(&request)
+        .expect("commit");
+    assert!(!committed.idempotent);
+    let replay = TaskService::new(&mut workspace.database, &workspace.blobs)
+        .complete(&request)
+        .expect("idempotent replay");
+    assert!(replay.idempotent);
+    assert_eq!(replay.artifact, committed.artifact);
+
+    let stale_descriptor = TaskService::new(&mut workspace.database, &workspace.blobs)
+        .prepare_job_criterion(&job.id)
+        .expect("second task");
+    JobService::new(&mut workspace.database, &workspace.blobs)
+        .import_source(&job.id, source(), ActorKind::User)
+        .expect("changed job inputs");
+    let stale_request = TaskCompletionRequest {
+        task_id: stale_descriptor.id.clone(),
+        lease_id: stale_descriptor.lease.id.clone(),
+        expected_job_revision: stale_descriptor.job_revision,
+        expected_inputs: stale_descriptor
+            .input_artifacts
+            .iter()
+            .map(|input| ExpectedInputRevision {
+                artifact_id: input.id.clone(),
+                revision: input.revision,
+                sha256: input.sha256.clone(),
+            })
+            .collect(),
+        candidate,
+    };
+    assert!(matches!(
+        TaskService::new(&mut workspace.database, &workspace.blobs).complete(&stale_request),
+        Err(StoreError::TaskStale(_))
+    ));
+    assert_eq!(
+        TaskService::new(&mut workspace.database, &workspace.blobs)
+            .get(&stale_descriptor.id)
+            .expect("stale state")
+            .status,
+        TaskStatus::Stale
+    );
+
+    let cancelled = TaskService::new(&mut workspace.database, &workspace.blobs)
+        .prepare_job_criterion(&job.id)
+        .expect("third task");
+    let state = TaskService::new(&mut workspace.database, &workspace.blobs)
+        .cancel(&cancelled.id)
+        .expect("cancel");
+    assert_eq!(state.status, TaskStatus::Cancelled);
 }
 
 #[test]

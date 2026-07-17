@@ -21,6 +21,7 @@ impl CapabilityRegistry {
             available("workspace.lifecycle"),
             available("job.intake"),
             available("discovery.refresh"),
+            available("task.lifecycle"),
             planned("workflow.execute"),
             planned("render.pdf"),
         ]
@@ -145,6 +146,9 @@ mod tests {
         );
         assert!(capabilities.iter().any(|item| {
             item.id == "discovery.refresh" && item.status == CapabilityStatus::Available
+        }));
+        assert!(capabilities.iter().any(|item| {
+            item.id == "task.lifecycle" && item.status == CapabilityStatus::Available
         }));
         let stages = StageRegistry::built_in();
         assert_eq!(

@@ -413,6 +413,8 @@ pub struct TaskLease {
 pub struct TaskDescriptor {
     pub id: EntityId,
     pub operation: String,
+    pub job_id: EntityId,
+    pub job_revision: Revision,
     pub actor: ActorKind,
     pub execution_mode: ExecutionMode,
     pub input_artifacts: Vec<ArtifactReference>,
@@ -436,8 +438,36 @@ pub struct ExpectedInputRevision {
 pub struct TaskCompletionRequest {
     pub task_id: EntityId,
     pub lease_id: EntityId,
+    pub expected_job_revision: Revision,
     pub expected_inputs: Vec<ExpectedInputRevision>,
     pub candidate: Value,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum TaskStatus {
+    Prepared,
+    Committed,
+    Cancelled,
+    Stale,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct TaskStateData {
+    pub descriptor: TaskDescriptor,
+    pub status: TaskStatus,
+    pub result: Option<ArtifactReference>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct TaskCommitData {
+    pub task_id: EntityId,
+    pub status: TaskStatus,
+    pub artifact: ArtifactReference,
+    pub committed_at: UtcTimestamp,
+    pub idempotent: bool,
 }
 
 #[cfg(test)]

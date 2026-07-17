@@ -34,6 +34,11 @@
       },
       "type": "array"
     },
+    "expected_job_revision": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
     "lease_id": {
       "type": "string"
     },
@@ -44,6 +49,7 @@
   "required": [
     "task_id",
     "lease_id",
+    "expected_job_revision",
     "expected_inputs",
     "candidate"
   ],

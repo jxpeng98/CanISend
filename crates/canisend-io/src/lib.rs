@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+mod candidate;
 mod discovery;
 mod local;
 mod pdf;
@@ -70,7 +71,12 @@ pub enum IoAdapterError {
     PdfTimeBudget,
     #[error("discovery input is invalid: {0}")]
     DiscoveryInput(String),
+    #[error("task completion input is invalid: {0}")]
+    CandidateInput(String),
 }
+pub use candidate::{
+    MAX_TASK_COMPLETION_BYTES, read_task_completion_file, read_task_completion_stdin,
+};
 pub use discovery::{
     DiscoveryAdapter, DiscoveryFile, DiscoveryFileKind, GreenhouseAdapter, JobsAcUkAdapter,
     LeverAdapter, MAX_DISCOVERY_BATCH_BYTES, MAX_DISCOVERY_LEADS, RssAtomAdapter,

@@ -7,10 +7,11 @@ use rusqlite::{
 
 use crate::{StoreError, now_utc};
 
-pub const DATABASE_SCHEMA_VERSION: u32 = 3;
+pub const DATABASE_SCHEMA_VERSION: u32 = 4;
 const INITIAL_MIGRATION: &str = include_str!("../migrations/0001_initial.sql");
 const INTAKE_MIGRATION: &str = include_str!("../migrations/0002_job_intake.sql");
 const DISCOVERY_MIGRATION: &str = include_str!("../migrations/0003_discovery.sql");
+const AGENT_TASK_MIGRATION: &str = include_str!("../migrations/0004_agent_tasks.sql");
 
 pub struct Database {
     connection: Connection,
@@ -59,6 +60,11 @@ impl Database {
         if version == 2 {
             let applied_at = now_utc()?;
             self.apply_migration(3, DISCOVERY_MIGRATION, &applied_at)?;
+            version = 3;
+        }
+        if version == 3 {
+            let applied_at = now_utc()?;
+            self.apply_migration(4, AGENT_TASK_MIGRATION, &applied_at)?;
         }
         Ok(())
     }
@@ -294,7 +300,7 @@ mod tests {
             .connection
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .expect("schema version");
-        assert_eq!(version, 3);
+        assert_eq!(version, 4);
         let revision_column: i64 = database
             .connection
             .query_row(
@@ -313,6 +319,15 @@ mod tests {
             )
             .expect("discovery column");
         assert_eq!(discovery_column, 1);
+        let task_descriptor_column: i64 = database
+            .connection
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('tasks') WHERE name = 'descriptor_json'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("task descriptor column");
+        assert_eq!(task_descriptor_column, 1);
         drop(database);
         let _ = fs::remove_file(path);
     }

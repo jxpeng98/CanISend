@@ -1,7 +1,8 @@
 use std::{
     fs,
+    io::Write,
     path::PathBuf,
-    process::Command,
+    process::{Command, Stdio},
     sync::atomic::{AtomicU64, Ordering},
 };
 
@@ -62,6 +63,30 @@ fn run_json(arguments: &[&str]) -> Value {
         "JSON stdout must contain one object"
     );
     serde_json::from_str(&stdout).expect("stdout is JSON")
+}
+
+fn run_json_stdin(arguments: &[&str], input: &[u8]) -> Value {
+    let mut child = Command::new(env!("CARGO_BIN_EXE_canisend"))
+        .args(arguments)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("canisend binary starts");
+    child
+        .stdin
+        .take()
+        .expect("stdin pipe")
+        .write_all(input)
+        .expect("completion input");
+    let output = child.wait_with_output().expect("canisend exits");
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(output.stderr.is_empty());
+    serde_json::from_slice(&output.stdout).expect("stdout is JSON")
 }
 
 fn assert_json_snapshot(arguments: &[&str], snapshot: &str) {
@@ -455,6 +480,147 @@ fn discovery_csv_dry_run_commit_and_promotion_are_agent_callable() {
         "--json",
     ]);
     assert_eq!(history["data"]["leads"][0]["status"], "promoted");
+}
+
+#[test]
+fn leased_task_completion_is_validated_atomic_and_idempotent() {
+    let workspace = TestDirectory::new("task-workspace");
+    let input = TestDirectory::new("task-input");
+    fs::create_dir_all(input.path()).expect("input directory");
+    let advert = input.path().join("advert.md");
+    fs::write(&advert, "Teach economics\n").expect("advert");
+    run_json(&[
+        "--workspace",
+        workspace.text(),
+        "workspace",
+        "init",
+        "--json",
+    ]);
+    let job = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "job",
+        "create",
+        "--title",
+        "Lecturer in Economics",
+        "--institution",
+        "University X",
+        "--json",
+    ]);
+    let job_id = job["data"]["id"].as_str().expect("job ID");
+    run_json(&[
+        "--workspace",
+        workspace.text(),
+        "job",
+        "import",
+        job_id,
+        "--file",
+        advert.to_str().expect("advert path"),
+        "--json",
+    ]);
+    let prepared = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "task",
+        "prepare",
+        "--job",
+        job_id,
+        "--operation",
+        "job-criterion",
+        "--json",
+    ]);
+    assert_eq!(prepared["status"], "prepared");
+    assert_eq!(
+        prepared["data"]["input_artifacts"].as_array().map(Vec::len),
+        Some(1)
+    );
+    assert!(
+        !serde_json::to_string(&prepared)
+            .expect("prepared response")
+            .contains("Teach economics")
+    );
+    let descriptor = &prepared["data"];
+    let expected_inputs = descriptor["input_artifacts"]
+        .as_array()
+        .expect("inputs")
+        .iter()
+        .map(|input| {
+            serde_json::json!({
+                "artifact_id": input["id"],
+                "revision": input["revision"],
+                "sha256": input["sha256"]
+            })
+        })
+        .collect::<Vec<_>>();
+    let candidate = serde_json::json!({
+        "id": "019f2f55-7c00-7000-8000-000000000201",
+        "job_id": job_id,
+        "kind": "teaching",
+        "requirement": "Evidence of university-level teaching",
+        "importance": "essential",
+        "source_quote": "Teach economics",
+        "revision": 1
+    });
+    let request = serde_json::json!({
+        "task_id": descriptor["id"],
+        "lease_id": descriptor["lease"]["id"],
+        "expected_job_revision": descriptor["job_revision"],
+        "expected_inputs": expected_inputs,
+        "candidate": candidate
+    });
+    let invalid_path = input.path().join("invalid.json");
+    let mut invalid = request.clone();
+    invalid["candidate"]["requirement"] = Value::String(" ".to_owned());
+    fs::write(
+        &invalid_path,
+        serde_json::to_vec(&invalid).expect("invalid request"),
+    )
+    .expect("invalid file");
+    let failure = run(&[
+        "--workspace",
+        workspace.text(),
+        "task",
+        "complete",
+        "--file",
+        invalid_path.to_str().expect("invalid path"),
+        "--json",
+    ]);
+    assert_eq!(failure.status.code(), Some(3));
+    let failure: Value = serde_json::from_slice(&failure.stdout).expect("failure JSON");
+    assert_eq!(failure["error"]["code"], "candidate.semantic_invalid");
+    assert!(
+        failure["error"]["details"]
+            .as_array()
+            .is_some_and(|items| !items.is_empty())
+    );
+
+    let bytes = serde_json::to_vec(&request).expect("completion request");
+    let committed = run_json_stdin(
+        &[
+            "--workspace",
+            workspace.text(),
+            "task",
+            "complete",
+            "--stdin",
+            "--json",
+        ],
+        &bytes,
+    );
+    assert_eq!(committed["status"], "committed");
+    assert_eq!(committed["data"]["idempotent"], false);
+    let request_path = input.path().join("completion.json");
+    fs::write(&request_path, bytes).expect("completion file");
+    let replay = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "task",
+        "complete",
+        "--file",
+        request_path.to_str().expect("request path"),
+        "--json",
+    ]);
+    assert_eq!(replay["data"]["idempotent"], true);
+    assert_eq!(replay["data"]["artifact"], committed["data"]["artifact"]);
 }
 
 fn write_pdf(path: &std::path::Path, text: Option<&str>) {
