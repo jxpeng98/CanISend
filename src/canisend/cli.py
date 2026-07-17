@@ -383,8 +383,8 @@ def stage_status_command(
         "parse",
         "--stage",
         help=(
-            "Workflow stage to inspect: evidence, parse, confirm, match, brief, draft, "
-            "review, or package_review."
+            "Workflow stage to inspect: intake, evidence, parse, confirm, match, decide, "
+            "brief, draft, review, or package_review."
         ),
     ),
     document_id: str | None = typer.Option(

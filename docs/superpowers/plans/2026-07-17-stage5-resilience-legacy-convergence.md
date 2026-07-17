@@ -1,6 +1,6 @@
 # Stage 5 Resilience And Legacy Convergence Implementation Plan
 
-**Status:** In progress — Tasks 0–1 accepted; source-stage and registry convergence is next
+**Status:** In progress — Tasks 0–2 accepted; Package, Verify, and Render convergence is next
 
 **Date:** 2026-07-17
 
@@ -67,11 +67,11 @@ promotion path across direct CLI, host agents, and orchestration.
 
 ### Task 2: Source Stages And Complete Registry
 
-- [ ] Add explicit registry execution kinds for source and task stages.
-- [ ] Implement dynamic Intake status over safe full-advert and job-metadata receipts.
-- [ ] Implement dynamic Decision status over the current confirmed user-owned decision basis.
-- [ ] Expose source stages through text and `canisend.agent/v1` status without prepare/apply authority.
-- [ ] Make descendant invalidation bind the exact source receipts.
+- [x] Add explicit registry execution kinds for source and task stages.
+- [x] Implement dynamic Intake status over safe full-advert and job-metadata receipts.
+- [x] Implement dynamic Decision status over the current confirmed user-owned decision basis.
+- [x] Expose source stages through text and `canisend.agent/v1` status without prepare/apply authority.
+- [x] Make descendant invalidation bind the exact source receipts.
 
 ### Task 3: Package, Verify, And Render Bundles
 
@@ -166,3 +166,18 @@ promotion path across direct CLI, host agents, and orchestration.
   mutable-state refresh. Retrying or resuming converges to one terminal run without duplicate promotion.
 - Spawned-process tests prove two concurrent prepares reuse one immutable TaskSpec and a concurrent apply/cancel pair
   produces exactly one terminal winner. Focused coordination/runtime/CLI evidence: `53 passed`.
+
+## Task 2 Acceptance Record
+
+- Registry definitions now distinguish `source` from `task` execution. Source stages cannot declare execution modes
+  or generated authoritative outputs; Intake owns no write path to `job.yaml`/`job_advert.md`, and Decision owns no
+  write path to `application_decision.yaml`.
+- Intake reads bounded no-follow receipts, validates strict job metadata, distinguishes a reviewed full advert from a
+  saved URL/feed stub, and derives a deterministic source identity without creating `workflow/`.
+- Decision reuses the user-mutation basis validator and reports missing, undecided, basis-changed, apply, hold, and
+  skip states without returning rationale text. Apply can advance; current hold/skip intentionally pause execution.
+- Parse binds exact Intake files in its existing input fingerprint; Brief binds the exact Decision file and basis;
+  dependency status adds no false Evidence invalidation when advert bytes change.
+- JSON and text status are available through the existing AgentResponse surface. Prepare/run reject both source
+  stages with `stage.source_read_only`. Focused registry/CLI/source-runtime evidence: `63 passed`; broader Decision
+  Spine regression evidence: `179 passed`.

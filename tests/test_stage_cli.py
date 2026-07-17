@@ -90,6 +90,36 @@ def test_stage_status_is_read_only_and_machine_safe(tmp_path: Path) -> None:
     assert str(workspace) not in json.dumps(payload)
 
 
+def test_source_stage_status_is_available_in_json_and_text_but_not_runnable(
+    tmp_path: Path,
+) -> None:
+    workspace, job_path = _workspace(tmp_path)
+    common = ["--workspace", str(workspace), "--job", job_path, "--stage", "intake"]
+
+    payload = _invoke_json(
+        CliRunner(),
+        ["stage", "status", *common, "--format", "json"],
+    )
+    assert payload["extensions"]["canisend.execution_kind"] == "source"
+    assert payload["extensions"]["canisend.stage_status"] == "succeeded"
+    assert payload["extensions"]["canisend.intake_status"] == "full_advert"
+
+    text_status = CliRunner().invoke(
+        app,
+        ["stage", "status", *common, "--format", "text"],
+    )
+    assert text_status.exit_code == 0, text_status.output
+    assert "Operation: workflow.stage_status" in text_status.stdout
+    assert "Workflow: intake (ready_for_next_stage)" in text_status.stdout
+
+    rejected = _invoke_json(
+        CliRunner(),
+        ["stage", "run", *common, "--format", "json"],
+        exit_code=1,
+    )
+    assert rejected["error"]["code"] == "stage.source_read_only"
+
+
 def test_stage_prepare_and_fresh_cli_status_share_task_state(tmp_path: Path) -> None:
     workspace, job_path = _workspace(tmp_path)
     first_host = CliRunner()

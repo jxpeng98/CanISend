@@ -7,6 +7,7 @@ from typing import Iterable, Literal
 
 
 ExecutionMode = Literal["deterministic", "host_agent", "configured_provider"]
+ExecutionKind = Literal["source", "task"]
 
 _SAFE_STAGE_ID = re.compile(r"^[a-z][a-z0-9_]*$")
 
@@ -22,13 +23,16 @@ class StageDefinition:
     id: str
     depends_on: tuple[str, ...] = ()
     implemented: bool = False
+    execution_kind: ExecutionKind = "task"
     execution_modes: tuple[ExecutionMode, ...] = ()
     authoritative_outputs: tuple[str, ...] = ()
+    source_inputs: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "depends_on", tuple(self.depends_on))
         object.__setattr__(self, "execution_modes", tuple(self.execution_modes))
         object.__setattr__(self, "authoritative_outputs", tuple(self.authoritative_outputs))
+        object.__setattr__(self, "source_inputs", tuple(self.source_inputs))
 
         _validate_stage_id(self.id, label="stage id")
         for dependency in self.depends_on:
@@ -44,6 +48,19 @@ class StageDefinition:
             if mode not in {"deterministic", "host_agent", "configured_provider"}:
                 raise StageRegistryError(f"stage {self.id} has unsupported execution mode: {mode}")
 
+        if self.execution_kind not in {"source", "task"}:
+            raise StageRegistryError(
+                f"stage {self.id} has unsupported execution kind: {self.execution_kind}"
+            )
+        if self.execution_kind == "source" and self.execution_modes:
+            raise StageRegistryError(f"source stage {self.id} must not declare execution modes")
+        if self.execution_kind == "source" and self.authoritative_outputs:
+            raise StageRegistryError(
+                f"source stage {self.id} must not own generated authoritative outputs"
+            )
+        if self.execution_kind == "task" and self.source_inputs:
+            raise StageRegistryError(f"task stage {self.id} must not declare source inputs")
+
         normalized_outputs = tuple(
             _normalize_authoritative_output(path, stage_id=self.id)
             for path in self.authoritative_outputs
@@ -51,6 +68,13 @@ class StageDefinition:
         if len(set(normalized_outputs)) != len(normalized_outputs):
             raise StageRegistryError(f"stage {self.id} declares a duplicate authoritative output")
         object.__setattr__(self, "authoritative_outputs", normalized_outputs)
+        normalized_sources = tuple(
+            _normalize_source_input(path, stage_id=self.id)
+            for path in self.source_inputs
+        )
+        if len(set(normalized_sources)) != len(normalized_sources):
+            raise StageRegistryError(f"stage {self.id} declares a duplicate source input")
+        object.__setattr__(self, "source_inputs", normalized_sources)
 
 
 class StageRegistry:
@@ -164,9 +188,25 @@ def _normalize_authoritative_output(value: str, *, stage_id: str) -> str:
     return path.as_posix()
 
 
+def _normalize_source_input(value: str, *, stage_id: str) -> str:
+    path = PurePosixPath(value)
+    if path.is_absolute() or value in {"", "."} or any(
+        part in {"", ".", ".."} for part in path.parts
+    ):
+        raise StageRegistryError(
+            f"stage {stage_id} source input must be a safe relative path: {value}"
+        )
+    return path.as_posix()
+
+
 DEFAULT_STAGE_REGISTRY = StageRegistry(
     (
-        StageDefinition(id="intake"),
+        StageDefinition(
+            id="intake",
+            implemented=True,
+            execution_kind="source",
+            source_inputs=("job.yaml", "job_advert.md"),
+        ),
         StageDefinition(
             id="evidence",
             depends_on=("intake",),
@@ -195,7 +235,13 @@ DEFAULT_STAGE_REGISTRY = StageRegistry(
             execution_modes=("deterministic",),
             authoritative_outputs=("criterion_matches.json",),
         ),
-        StageDefinition(id="decide", depends_on=("match", "confirm")),
+        StageDefinition(
+            id="decide",
+            depends_on=("match", "confirm"),
+            implemented=True,
+            execution_kind="source",
+            source_inputs=("application_decision.yaml",),
+        ),
         StageDefinition(
             id="brief",
             depends_on=("decide", "match", "confirm"),

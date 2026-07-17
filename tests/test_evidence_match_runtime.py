@@ -179,6 +179,110 @@ def _job_file_snapshot(job_dir: Path) -> dict[str, bytes]:
     }
 
 
+def test_intake_source_stage_is_dynamic_read_only_and_body_free(tmp_path: Path) -> None:
+    workspace, job_dir, _ = _write_workspace(tmp_path)
+
+    inspection = inspect_stage_status(workspace, job_dir, stage="intake")
+    response = stage_status_agent_response(workspace, job_dir, inspection)
+
+    assert inspection.stage.status == "succeeded"
+    assert inspection.source_value == "full_advert"
+    assert [item.path for item in inspection.stage.outputs] == [
+        "job.yaml",
+        "job_advert.md",
+    ]
+    assert inspection.stage.run_id == f"run_{inspection.input_fingerprint[:32]}"
+    assert response.extensions["canisend.execution_kind"] == "source"
+    assert response.extensions["canisend.intake_status"] == "full_advert"
+    assert response.workflow is not None
+    assert response.workflow.readiness == "ready_for_next_stage"
+    assert not (job_dir / "workflow").exists()
+
+    with pytest.raises(StageRuntimeError) as captured:
+        prepare_stage(
+            workspace,
+            job_dir,
+            stage="intake",
+            execution_mode="deterministic",
+        )
+    assert captured.value.code == "stage.source_read_only"
+
+
+def test_intake_source_blocks_stub_adverts_and_binds_parse_receipts(tmp_path: Path) -> None:
+    workspace, job_dir, _ = _write_workspace(tmp_path)
+    run_deterministic_stage(workspace, job_dir, stage="parse")
+    original_intake = inspect_stage_status(workspace, job_dir, stage="intake")
+    (job_dir / "job_advert.md").write_text(
+        "# Job Advert Pending Import\n\nThe full advert still needs manual paste.\n",
+        encoding="utf-8",
+    )
+
+    intake = inspect_stage_status(workspace, job_dir, stage="intake")
+    parsed = inspect_stage_status(workspace, job_dir, stage="parse")
+
+    assert original_intake.stage.status == "succeeded"
+    assert intake.stage.status == "blocked"
+    assert intake.reasons == ("input_not_ready:intake_full_advert",)
+    assert parsed.stage.status == "stale"
+    assert "dependency_not_current:intake" in parsed.reasons
+
+
+def test_decision_source_stage_tracks_user_owned_basis_and_pause_values(
+    tmp_path: Path,
+) -> None:
+    workspace, job_dir, _ = _write_workspace(tmp_path)
+    _run_to_match(workspace, job_dir)
+
+    missing = inspect_stage_status(workspace, job_dir, stage="decide")
+    assert missing.stage.status == "blocked"
+    assert missing.reasons == ("input_not_ready:decision_not_initialized",)
+
+    initialized = initialize_application_decision(
+        workspace,
+        job_dir,
+        consent_confirmed=True,
+    )
+    undecided = inspect_stage_status(workspace, job_dir, stage="decide")
+    assert undecided.stage.status == "blocked"
+    assert undecided.source_value == "undecided"
+    assert undecided.reasons == ("input_not_ready:decision_undecided",)
+
+    applied = apply_user_patch(
+        workspace,
+        job_dir,
+        SetDecisionPatch(decision="apply"),
+        expected_revision=initialized.snapshot.revision,
+        expected_sha256=initialized.snapshot.sha256,
+        consent_confirmed=True,
+    )
+    current = inspect_stage_status(workspace, job_dir, stage="decide")
+    current_response = stage_status_agent_response(workspace, job_dir, current)
+    assert current.stage.status == "succeeded"
+    assert current.source_value == "apply"
+    assert current_response.extensions["canisend.decision_value"] == "apply"
+    assert [item.id for item in current_response.next_actions] == ["brief.status"]
+
+    apply_user_patch(
+        workspace,
+        job_dir,
+        SetDecisionPatch(decision="hold"),
+        expected_revision=applied.snapshot.revision,
+        expected_sha256=applied.snapshot.sha256,
+        consent_confirmed=True,
+    )
+    held = inspect_stage_status(workspace, job_dir, stage="decide")
+    held_response = stage_status_agent_response(workspace, job_dir, held)
+    assert held.stage.status == "succeeded"
+    assert held.source_value == "hold"
+    assert held_response.workflow is not None
+    assert held_response.workflow.readiness == "blocked"
+    assert [item.id for item in held_response.next_actions] == ["decision.update"]
+
+    with pytest.raises(StageRuntimeError) as captured:
+        run_deterministic_stage(workspace, job_dir, stage="decide")
+    assert captured.value.code == "stage.source_read_only"
+
+
 def test_evidence_snapshot_and_match_use_truthful_job_local_inputs(tmp_path: Path) -> None:
     workspace, job_dir, _ = _write_workspace(tmp_path)
 
@@ -1326,6 +1430,7 @@ def test_scoped_correction_invalidates_only_declared_dependants_and_preserves_br
     assert statuses["match"].reasons == ("dependency_not_current:confirm",)
     assert statuses["brief"].stage.status == "stale"
     assert statuses["brief"].reasons == (
+        "dependency_not_current:decide",
         "dependency_not_current:match",
         "dependency_not_current:confirm",
     )

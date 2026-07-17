@@ -105,6 +105,7 @@ KNOWN_AGENT_ERROR_CODES = frozenset(
         "stage.unknown",
         "stage.unsupported",
         "stage.unsupported_mode",
+        "stage.source_read_only",
         "stage.document_ambiguous",
         "stage.document_id_invalid",
         "stage.document_not_found",

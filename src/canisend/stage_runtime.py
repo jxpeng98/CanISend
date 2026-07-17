@@ -19,6 +19,7 @@ from canisend.draft_provider import (
     build_configured_provider_draft_candidate,
 )
 from canisend.decision_models import RequiredDocumentPlanV1
+from canisend.jobs import job_advert_is_stub
 from canisend.stage_adapters import StageAdapter, get_stage_adapter
 from canisend.stage_models import (
     ArtifactFingerprint,
@@ -61,10 +62,12 @@ from canisend.user_file_store import (
 
 
 SupportedStage = Literal[
+    "intake",
     "evidence",
     "parse",
     "confirm",
     "match",
+    "decide",
     "brief",
     "draft",
     "review",
@@ -80,6 +83,7 @@ StageFailureInjector = Callable[[str], None]
 _MutationFunction = TypeVar("_MutationFunction", bound=Callable[..., object])
 
 MAX_PROVIDER_DRAFT_INPUT_BYTES = 20_000_000
+MAX_SOURCE_INPUT_BYTES = 20_000_000
 _EXECUTABLE_DOCUMENT_KINDS: tuple[DraftDocumentKind, ...] = (
     "cover_letter",
     "research_statement",
@@ -136,6 +140,8 @@ class StageStatusInspection:
     pending_task_path: Path | None = None
     reconstructed: bool = False
     document_kind: DraftDocumentKind | None = None
+    source_value: str | None = None
+    source_artifacts: tuple[ArtifactFingerprint, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -188,6 +194,18 @@ def inspect_stage_status(
     document_id: str | None = None,
 ) -> StageStatusInspection:
     root, job = _runtime_paths(workspace, job_dir)
+    definition = _implemented_stage(stage)
+    if definition.execution_kind == "source":
+        if document_id is not None:
+            raise StageRuntimeError(
+                "stage.document_scope_invalid",
+                "Source stages do not accept a document target.",
+            )
+        return _inspect_source_stage(
+            root,
+            job,
+            definition=definition,
+        )
     resolved_document_id = _resolve_stage_document_id(
         job,
         stage=stage,
@@ -198,7 +216,6 @@ def inspect_stage_status(
         stage=stage,
         document_id=resolved_document_id,
     )
-    definition = _implemented_stage(stage)
     adapter = _adapter(
         stage,
         document_id=resolved_document_id,
@@ -211,9 +228,6 @@ def inspect_stage_status(
             # Aggregate Review intentionally runs with missing/stale document
             # Reviews so those conditions can become durable findings. Its
             # adapter binds every observed document receipt dynamically.
-            continue
-        dependency_definition = DEFAULT_STAGE_REGISTRY.get(dependency)
-        if not dependency_definition.implemented:
             continue
         dependency_status = inspect_stage_status(
             root,
@@ -402,6 +416,173 @@ def inspect_stage_status(
     )
 
 
+def _inspect_source_stage(
+    workspace: Path,
+    job: Path,
+    *,
+    definition: StageDefinition,
+) -> StageStatusInspection:
+    state, reconstructed = _load_or_reconstruct_state(job)
+    dependency_reasons: list[str] = []
+    for dependency in definition.depends_on:
+        dependency_status = inspect_stage_status(
+            workspace,
+            job,
+            stage=dependency,  # type: ignore[arg-type]
+        )
+        state = _merge_state_views(state, dependency_status.state)
+        reconstructed = reconstructed or dependency_status.reconstructed
+        if not (
+            dependency_status.stage.status == "succeeded"
+            and not dependency_status.reasons
+            and not dependency_status.output_drift
+        ):
+            dependency_reasons.append(f"dependency_not_current:{dependency}")
+
+    artifacts: tuple[ArtifactFingerprint, ...] = ()
+    source_reason: str | None = None
+    source_value: str | None = None
+    if not dependency_reasons:
+        if definition.id == "intake":
+            artifacts, source_reason, source_value = _inspect_intake_receipts(job)
+        elif definition.id == "decide":
+            artifacts, source_reason, source_value = _inspect_decision_receipt(
+                workspace,
+                job,
+            )
+        else:  # pragma: no cover - registry validation keeps this branch unreachable
+            source_reason = "input_not_ready:source_unsupported"
+
+    reasons = tuple(
+        (*dependency_reasons, *((source_reason,) if source_reason is not None else ()))
+    )
+    if reasons:
+        record = StageRecord(stage=definition.id, status="blocked")
+        fingerprint = None
+    else:
+        fingerprint = _source_receipt_fingerprint(definition.id, artifacts)
+        record = StageRecord(
+            stage=definition.id,
+            status="succeeded",
+            attempt_count=1,
+            run_id=f"run_{fingerprint[:32]}",
+            input_fingerprint=fingerprint,
+            inputs=artifacts,
+            outputs=artifacts,
+            started_at=state.created_at,
+            completed_at=state.created_at,
+        )
+    visible_state = _state_with_stage(
+        state,
+        record,
+        active_run_id=state.active_run_id,
+    )
+    return StageStatusInspection(
+        state=visible_state,
+        stage=record,
+        input_fingerprint=fingerprint,
+        reasons=reasons,
+        reconstructed=reconstructed,
+        source_value=source_value,
+        source_artifacts=artifacts,
+    )
+
+
+def _inspect_intake_receipts(
+    job: Path,
+) -> tuple[tuple[ArtifactFingerprint, ...], str | None, str | None]:
+    try:
+        metadata = read_safe_bytes(
+            job,
+            "job.yaml",
+            max_bytes=MAX_SOURCE_INPUT_BYTES,
+        )
+        payload = load_strict_yaml(metadata.data, max_bytes=MAX_SOURCE_INPUT_BYTES)
+        required_fields = ("id", "title", "institution", "deadline", "status")
+        if any(
+            not isinstance(payload.get(field), str) or not payload[field].strip()
+            for field in required_fields
+        ) or payload["id"].strip() != job.name:
+            return (), "input_not_ready:intake_metadata", None
+        advert = read_safe_bytes(
+            job,
+            "job_advert.md",
+            max_bytes=MAX_SOURCE_INPUT_BYTES,
+        )
+        advert_text = advert.data.decode("utf-8")
+        artifacts = (
+            ArtifactFingerprint(
+                path=metadata.relative_path,
+                sha256=metadata.sha256,
+                size_bytes=len(metadata.data),
+            ),
+            ArtifactFingerprint(
+                path=advert.relative_path,
+                sha256=advert.sha256,
+                size_bytes=len(advert.data),
+            ),
+        )
+        if job_advert_is_stub(advert_text):
+            return artifacts, "input_not_ready:intake_full_advert", "advert_pending"
+        return artifacts, None, "full_advert"
+    except (
+        InvalidUserFileError,
+        UnsafeUserFileError,
+        UnicodeError,
+        OSError,
+        ValueError,
+    ):
+        return (), "input_not_ready:intake_source", None
+
+
+def _inspect_decision_receipt(
+    workspace: Path,
+    job: Path,
+) -> tuple[tuple[ArtifactFingerprint, ...], str | None, str | None]:
+    # Imported lazily because the user-mutation service depends on this runtime.
+    from canisend.user_mutations import inspect_application_decision
+
+    inspection = inspect_application_decision(workspace, job)
+    snapshot = inspection.snapshot
+    artifacts = (
+        (
+            ArtifactFingerprint(
+                path=snapshot.relative_path,
+                sha256=snapshot.sha256,
+                size_bytes=len(snapshot.raw_bytes),
+            ),
+        )
+        if snapshot is not None
+        else ()
+    )
+    value = (
+        str(getattr(snapshot.model, "decision", "")) or None
+        if snapshot is not None
+        else None
+    )
+    if inspection.basis_status == "current" and value in {"apply", "hold", "skip"}:
+        return artifacts, None, value
+    reason = {
+        "user_input.not_initialized": "input_not_ready:decision_not_initialized",
+        "decision.undecided": "input_not_ready:decision_undecided",
+        "decision.basis_changed": "input_not_ready:decision_basis_changed",
+    }.get(inspection.reason, "input_not_ready:decision_unavailable")
+    return artifacts, reason, value
+
+
+def _source_receipt_fingerprint(
+    stage: str,
+    artifacts: tuple[ArtifactFingerprint, ...],
+) -> str:
+    payload = {
+        "stage": stage,
+        "artifacts": [item.model_dump(mode="json") for item in artifacts],
+    }
+    return sha256_bytes(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    )
+
+
 @_coordinated_stage_mutation
 def prepare_stage(
     workspace: Path,
@@ -422,7 +603,7 @@ def prepare_stage(
         stage=stage,
         document_id=resolved_document_id,
     )
-    definition = _implemented_stage(stage)
+    definition = _task_stage(stage)
     adapter = _adapter(
         stage,
         document_id=resolved_document_id,
@@ -592,7 +773,7 @@ def prepare_stage(
         started_at=now,
     )
     state = _state_with_stage(
-        status.state,
+        _without_source_stage_views(status.state),
         running,
         active_run_id=run_id,
         increment_revision=True,
@@ -1042,7 +1223,7 @@ def cancel_stage_task(
     failure_injector: StageFailureInjector | None = None,
 ) -> CancelledStage:
     _, job = _runtime_paths(workspace, job_dir)
-    _implemented_stage(stage)
+    _task_stage(stage)
     resolved_document_id = _resolve_stage_document_id(
         job,
         stage=stage,
@@ -1188,6 +1369,7 @@ def run_deterministic_stage(
     failure_injector: StageFailureInjector | None = None,
 ) -> StageRunOutcome:
     root, job = _runtime_paths(workspace, job_dir)
+    _task_stage(stage)
     resolved_document_id = _resolve_stage_document_id(
         job,
         stage=stage,
@@ -1303,7 +1485,7 @@ def run_configured_provider_stage(
         stage=stage,
         document_id=resolved_document_id,
     )
-    definition = _implemented_stage(stage)
+    definition = _task_stage(stage)
     adapter = _adapter(
         stage,
         document_id=resolved_document_id,
@@ -1522,6 +1704,16 @@ def _implemented_stage(stage: str):
         raise StageRuntimeError(
             "stage.unsupported",
             "The requested workflow stage is declared but not implemented.",
+        )
+    return definition
+
+
+def _task_stage(stage: str) -> StageDefinition:
+    definition = _implemented_stage(stage)
+    if definition.execution_kind != "task":
+        raise StageRuntimeError(
+            "stage.source_read_only",
+            "Source stages are inspected from user-owned inputs and cannot be prepared or run.",
         )
     return definition
 
@@ -2098,6 +2290,10 @@ def _apply_reconstructed_dependency_staleness(
             dependency_definition = DEFAULT_STAGE_REGISTRY.get(dependency)
             if not dependency_definition.implemented:
                 continue
+            if dependency_definition.execution_kind == "source":
+                # Source stages are dynamic read-only views and are rebound by
+                # inspect_stage_status rather than reconstructed from manifests.
+                continue
             dependency_key = (
                 dependency,
                 record.document_id if dependency in {"draft", "review"} else None,
@@ -2273,6 +2469,15 @@ def _state_with_stage(
         active_run_id=active_run_id,
         stages=tuple(records),
     )
+
+
+def _without_source_stage_views(state: WorkflowStateV1) -> WorkflowStateV1:
+    records = tuple(
+        record
+        for record in state.stages
+        if DEFAULT_STAGE_REGISTRY.get(record.stage).execution_kind != "source"
+    )
+    return state.model_copy(update={"stages": records})
 
 
 def _with_stale_descendants(
@@ -2539,7 +2744,7 @@ def _validate_task_freshness(
             "stage.dependency_not_current",
             "The stage dependencies changed after this task was prepared.",
         )
-    current_fingerprint = adapter.input_fingerprint(workspace, job)
+    current_fingerprint = status.input_fingerprint
     if current_fingerprint != task.input_fingerprint:
         raise StageRuntimeError(
             "stage.stale_input",

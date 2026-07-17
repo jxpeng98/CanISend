@@ -49,15 +49,26 @@ def test_default_registry_exposes_complete_application_dag() -> None:
 
 def test_decision_spine_stages_are_implemented_in_the_registry() -> None:
     assert _ids(DEFAULT_STAGE_REGISTRY.implemented_stages()) == (
+        "intake",
         "evidence",
         "parse",
         "confirm",
         "match",
+        "decide",
         "brief",
         "draft",
         "review",
         "package_review",
     )
+
+    intake = DEFAULT_STAGE_REGISTRY.get("intake")
+    assert intake.execution_kind == "source"
+    assert intake.execution_modes == ()
+    assert intake.source_inputs == ("job.yaml", "job_advert.md")
+    decide = DEFAULT_STAGE_REGISTRY.get("decide")
+    assert decide.execution_kind == "source"
+    assert decide.execution_modes == ()
+    assert decide.source_inputs == ("application_decision.yaml",)
 
     evidence = DEFAULT_STAGE_REGISTRY.get("evidence")
     assert evidence.execution_modes == ("deterministic",)
@@ -142,4 +153,34 @@ def test_registry_rejects_duplicate_authoritative_output_ownership() -> None:
                 StageDefinition(id="parse", authoritative_outputs=("parsed_job.json",)),
                 StageDefinition(id="review", authoritative_outputs=("parsed_job.json",)),
             ]
+        )
+
+
+def test_registry_rejects_source_stage_write_authority() -> None:
+    with pytest.raises(StageRegistryError, match="must not declare execution modes"):
+        StageDefinition(
+            id="intake",
+            execution_kind="source",
+            execution_modes=("deterministic",),
+        )
+    with pytest.raises(StageRegistryError, match="must not own generated"):
+        StageDefinition(
+            id="decide",
+            execution_kind="source",
+            authoritative_outputs=("application_decision.yaml",),
+        )
+
+
+def test_registry_rejects_unsafe_or_duplicate_source_inputs() -> None:
+    with pytest.raises(StageRegistryError, match="safe relative path"):
+        StageDefinition(
+            id="intake",
+            execution_kind="source",
+            source_inputs=("../job.yaml",),
+        )
+    with pytest.raises(StageRegistryError, match="duplicate source input"):
+        StageDefinition(
+            id="intake",
+            execution_kind="source",
+            source_inputs=("job.yaml", "job.yaml"),
         )

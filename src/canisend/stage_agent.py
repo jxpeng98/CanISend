@@ -47,6 +47,13 @@ def stage_status_agent_response(
     inspection: StageStatusInspection,
 ) -> AgentResponse:
     stage_id = inspection.stage.stage
+    definition = DEFAULT_STAGE_REGISTRY.get(stage_id)
+    if definition.execution_kind == "source":
+        return _source_stage_status_agent_response(
+            workspace,
+            job_dir,
+            inspection,
+        )
     adapter = get_stage_adapter(
         stage_id,
         document_id=inspection.stage.document_id,
@@ -704,9 +711,125 @@ def _document_identity_extension(document_id: str | None) -> dict[str, str]:
 
 
 def _agent_phase(stage_id: str) -> str:
-    if stage_id in {"evidence", "parse"}:
+    if stage_id in {"intake", "evidence", "parse"}:
         return stage_id
     return "unknown"
+
+
+def _source_stage_status_agent_response(
+    workspace: Path,
+    job_dir: Path,
+    inspection: StageStatusInspection,
+) -> AgentResponse:
+    stage_id = inspection.stage.stage
+    artifacts = []
+    source_metadata = {
+        "job.yaml": ("job_metadata", 1, "application/yaml"),
+        "job_advert.md": ("job_advert", 2, "text/markdown"),
+        "application_decision.yaml": (
+            "application_decision",
+            2,
+            "application/yaml",
+        ),
+    }
+    for receipt in inspection.source_artifacts:
+        kind, privacy_tier, media_type = source_metadata.get(
+            receipt.path,
+            ("workflow_source", 2, "application/octet-stream"),
+        )
+        artifacts.append(
+            artifact_reference_from_path(
+                workspace=workspace,
+                path=job_dir / receipt.path,
+                kind=kind,
+                privacy_tier=privacy_tier,
+                trust_level="validated",
+                media_type=media_type,
+                include_hash=True,
+            )
+        )
+
+    state_path = job_dir / "workflow" / "state.json"
+    if state_path.is_file():
+        artifacts.append(
+            artifact_reference_from_path(
+                workspace=workspace,
+                path=state_path,
+                kind="workflow_state",
+                privacy_tier=1,
+                trust_level="trusted_local" if inspection.reconstructed else "validated",
+                media_type="application/json",
+                include_hash=True,
+            )
+        )
+
+    blockers: list[str] = []
+    actions: list[NextAction] = []
+    readiness = "ready_for_next_stage"
+    if inspection.stage.status != "succeeded":
+        readiness = "review_required"
+        if stage_id == "intake":
+            blockers.append("A reviewed full job advert and valid job metadata are required.")
+            actions.append(
+                NextAction(
+                    id="job.import_advert",
+                    label="Import or paste and review the full job advert",
+                )
+            )
+        else:
+            blockers.append("A current user-owned application decision is required.")
+            actions.append(
+                NextAction(
+                    id=(
+                        "decision.update"
+                        if inspection.source_value == "undecided"
+                        else "decision.status"
+                    ),
+                    label="Review and update the user-owned application decision",
+                )
+            )
+    elif stage_id == "intake":
+        actions.extend(_next_action_for_stage(workspace, job_dir, "parse"))
+    elif inspection.source_value == "apply":
+        actions.append(
+            NextAction(
+                id="brief.status",
+                label="Review the user-owned application brief before planning documents",
+            )
+        )
+    else:
+        readiness = "blocked"
+        blockers.append("The current decision intentionally pauses application preparation.")
+        actions.append(
+            NextAction(
+                id="decision.update",
+                label="Update the decision if application preparation should resume",
+            )
+        )
+
+    extensions: dict[str, int | str | bool | None] = {
+        "canisend.stage_id": stage_id,
+        "canisend.stage_status": inspection.stage.status,
+        "canisend.input_fingerprint": inspection.input_fingerprint,
+        "canisend.output_drift": False,
+        "canisend.state_reconstructed": inspection.reconstructed,
+        "canisend.execution_kind": "source",
+    }
+    if stage_id == "intake":
+        extensions["canisend.intake_status"] = inspection.source_value
+    else:
+        extensions["canisend.decision_value"] = inspection.source_value
+    return success_response(
+        operation="workflow.stage_status",
+        workflow=WorkflowSnapshotReference(
+            phase=_agent_phase(stage_id),  # type: ignore[arg-type]
+            readiness=readiness,  # type: ignore[arg-type]
+        ),
+        artifacts=artifacts,
+        blockers=blockers,
+        next_actions=actions,
+        extensions=extensions,
+    )
 
 
 def _stage_start_action(stage_id: str) -> NextAction:
