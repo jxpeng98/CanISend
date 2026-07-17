@@ -19,8 +19,8 @@ the Git tag `archive/python-v0.6.0b1-final`.
 
 ## Current status
 
-The Rust rebuild has completed its R1 repository foundation and is now implementing R2 contracts, CLI envelopes,
-and embedded resources. The current binary provides:
+The Rust rebuild has completed R2 contracts, CLI envelopes, and embedded resources. R3 workspace, SQLite, blob, and
+recovery implementation is now active. The current binary provides:
 
 - Native `canisend` executable scaffolding.
 - Validated UUIDv7, SHA-256, revision, UTC timestamp, and safe relative-path contract types.

@@ -1,6 +1,6 @@
 # CanISend Rust-Native Greenfield Rebuild Roadmap
 
-**Status:** In progress — R0 and R1 complete; R2 contracts, CLI envelope, and resources active
+**Status:** In progress — R0 through R2 complete; R3 workspace, SQLite, blobs, and recovery active
 
 **Date:** 2026-07-17
 
@@ -38,6 +38,11 @@
   workflows with the Rust workspace and Rust-only CI. GitHub Actions run `29609526692` passed the Python-file guard,
   formatting, Clippy, seven Rust tests, generated-contract/resource checks, release build, and packaged-binary smoke
   in 25 seconds with no annotations. R1 exit criteria are satisfied; R2 is active.
+- 2026-07-17: Implemented validated v2 primitives and domain/task contracts, schema-first plus semantic candidate
+  validation, 15 deterministic public schemas, and 21 typed embedded resources. Added body-free agent context,
+  schema/resource diagnostics, stable error/exit mapping, and JSON snapshots. GitHub Actions run `29610852669`
+  passed 19 Rust tests, Clippy, drift checks, release build, and packaged-binary smoke in 1 minute 59 seconds with no
+  annotations. R2 exit criteria are satisfied; R3 is active.
 
 ## 1. Executive Decision
 
@@ -1194,49 +1199,51 @@ without Python in 25 seconds.
 
 #### R2.1 Strong types
 
-- [ ] Implement version, ID, digest, revision, timestamp, and artifact-kind types.
-- [ ] Reject unvalidated path strings at contract boundaries.
-- [ ] Define job, source, evidence, criterion, match, plan, document, finding, and readiness types.
-- [ ] Define actor and execution-mode types.
-- [ ] Define privacy classification and consent-scope types.
+- [x] Implement version, ID, digest, revision, timestamp, and artifact-kind types.
+- [x] Reject unvalidated path strings at contract boundaries.
+- [x] Define job, source, evidence, criterion, match, plan, document, finding, and readiness types.
+- [x] Define actor and execution-mode types.
+- [x] Define privacy classification and consent-scope types.
 
 #### R2.2 Agent protocol v2
 
-- [ ] Implement response and error envelopes.
-- [ ] Define safe artifact references.
-- [ ] Define capabilities and context payloads.
-- [ ] Define task descriptor and completion request.
-- [ ] Define stable error code registry.
-- [ ] Implement JSON stdout and stderr separation.
-- [ ] Implement exit-code mapping.
+- [x] Implement response and error envelopes.
+- [x] Define safe artifact references.
+- [x] Define capabilities and context payloads.
+- [x] Define task descriptor and completion request.
+- [x] Define stable error code registry.
+- [x] Implement JSON stdout and stderr separation.
+- [x] Implement exit-code mapping.
 
 #### R2.3 Schema generation
 
-- [ ] Generate schemas from Rust contract types.
-- [ ] Give each public schema an ID and semantic version.
-- [ ] Sort and format generated schema output deterministically.
-- [ ] Add a drift check through `xtask`.
-- [ ] Add runtime external-candidate validation.
-- [ ] Add semantic validation after structural validation.
+- [x] Generate schemas from Rust contract types.
+- [x] Give each public schema an ID and semantic version.
+- [x] Sort and format generated schema output deterministically.
+- [x] Add a drift check through `xtask`.
+- [x] Add runtime external-candidate validation.
+- [x] Add semantic validation after structural validation.
 
 #### R2.4 Resource system
 
-- [ ] Define typed resource IDs.
-- [ ] Embed initial schemas, prompts, templates, examples, and host assets.
-- [ ] Generate a resource SHA-256 manifest during build.
-- [ ] Add resource lookup and export APIs.
-- [ ] Reject missing, duplicate, or undeclared resources at build/test time.
+- [x] Define typed resource IDs.
+- [x] Embed initial schemas, prompts, templates, examples, and host assets.
+- [x] Generate a resource SHA-256 manifest during build.
+- [x] Add resource lookup and export APIs.
+- [x] Reject missing, duplicate, or undeclared resources at build/test time.
 
 #### R2.5 Initial CLI contract
 
-- [ ] Implement `agent capabilities --json`.
-- [ ] Implement schema and resource listing commands for development diagnostics.
-- [ ] Implement JSON snapshot tests.
-- [ ] Document protocol v2 without referring to protocol v1 compatibility.
+- [x] Implement `agent capabilities --json`.
+- [x] Implement schema and resource listing commands for development diagnostics.
+- [x] Implement JSON snapshot tests.
+- [x] Document protocol v2 without referring to protocol v1 compatibility.
 
-**Deliverables:** Contract crate, generated schemas, embedded resource API, agent envelope.
+**Deliverables:** Contract crate, generated schemas, embedded resource API, agent envelope. Complete.
 
-**Exit criteria:** Schemas and JSON snapshots are deterministic; the binary exposes complete declared capabilities.
+**Exit criteria:** Satisfied by GitHub Actions run `29610852669`. Generated schema/resource checks and committed JSON
+snapshots are deterministic; the packaged binary exposes every capability marked available and returns grouped,
+stable JSON failures without mixing stderr into stdout.
 
 ### Phase R3 — Workspace, SQLite, blobs, and recovery
 
