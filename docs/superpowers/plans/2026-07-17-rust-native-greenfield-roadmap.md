@@ -1,6 +1,6 @@
 # CanISend Rust-Native Greenfield Rebuild Roadmap
 
-**Status:** In progress — R0 through R2 complete; R3 workspace, SQLite, blobs, and recovery active
+**Status:** In progress — R0 through R3 complete; R4 direct file, URL, HTML, and PDF intake active
 
 **Date:** 2026-07-17
 
@@ -43,6 +43,11 @@
   schema/resource diagnostics, stable error/exit mapping, and JSON snapshots. GitHub Actions run `29610852669`
   passed 19 Rust tests, Clippy, drift checks, release build, and packaged-binary smoke in 1 minute 59 seconds with no
   annotations. R2 exit criteria are satisfied; R3 is active.
+- 2026-07-17: Established workspace v2 on bundled SQLite and immutable SHA-256 blobs, including migrations,
+  transaction-bound audit events, exact artifact dependencies, recursive stale propagation, projection repair, and
+  verified backup/restore. GitHub Actions run `29612319788` passed 27 Rust tests, Clippy, 18-schema/24-resource drift
+  checks, release build, and packaged-binary workspace/backup/restore smoke in 1 minute 48 seconds. R3 exit criteria
+  are satisfied; R4 is active.
 
 ## 1. Executive Decision
 
@@ -1251,50 +1256,53 @@ stable JSON failures without mixing stderr into stdout.
 
 #### R3.1 Workspace bootstrap
 
-- [ ] Implement workspace discovery and explicit `--workspace` resolution.
-- [ ] Implement `workspace init` and `canisend.toml`.
-- [ ] Create internal directories with private permissions where supported.
-- [ ] Refuse unsafe internal symlinks and non-directory collisions.
-- [ ] Implement `workspace status` and `workspace check`.
+- [x] Implement workspace discovery and explicit `--workspace` resolution.
+- [x] Implement `workspace init` and `canisend.toml`.
+- [x] Create internal directories with private permissions where supported.
+- [x] Refuse unsafe internal symlinks and non-directory collisions.
+- [x] Implement `workspace status` and `workspace check`.
 
 #### R3.2 SQLite foundation
 
-- [ ] Add embedded SQLite and initial migrations.
-- [ ] Enable foreign keys and configure a documented journal mode and busy timeout.
-- [ ] Implement transaction helper and typed repositories.
-- [ ] Store migration state and workspace identity.
-- [ ] Add database integrity checks.
-- [ ] Test opening, concurrent readers, writer conflict, migration failure, and corrupt files.
+- [x] Add embedded SQLite and initial migrations.
+- [x] Enable foreign keys and configure a documented journal mode and busy timeout.
+- [x] Implement transaction helper and typed repositories.
+- [x] Store migration state and workspace identity.
+- [x] Add database integrity checks.
+- [x] Test opening, concurrent readers, writer conflict, migration failure, and corrupt files.
 
 #### R3.3 Blob store
 
-- [ ] Implement bounded streaming writes with SHA-256.
-- [ ] Implement atomic publication and post-write verification.
-- [ ] Implement immutable reads and digest verification.
-- [ ] Implement reference recording.
-- [ ] Implement unreferenced-blob audit without automatic deletion.
-- [ ] Add traversal, symlink, collision, interruption, and permission tests.
+- [x] Implement bounded streaming writes with SHA-256.
+- [x] Implement atomic publication and post-write verification.
+- [x] Implement immutable reads and digest verification.
+- [x] Implement reference recording.
+- [x] Implement unreferenced-blob audit without automatic deletion.
+- [x] Add traversal, symlink, collision, interruption, and permission tests.
 
 #### R3.4 Artifact and event service
 
-- [ ] Create artifact identities and monotonic revisions.
-- [ ] Record exact dependency edges.
-- [ ] Append audit events in the same transaction as state transitions.
-- [ ] Implement freshness queries and stale propagation.
-- [ ] Implement projection manifests.
-- [ ] Implement repair of derived projections.
+- [x] Create artifact identities and monotonic revisions.
+- [x] Record exact dependency edges.
+- [x] Append audit events in the same transaction as state transitions.
+- [x] Implement freshness queries and stale propagation.
+- [x] Implement projection manifests.
+- [x] Implement repair of derived projections.
 
 #### R3.5 Backup and recovery
 
-- [ ] Implement consistent SQLite backup.
-- [ ] Include referenced blobs and configuration in backup manifests.
-- [ ] Verify a backup before declaring success.
-- [ ] Implement restore into a new empty directory.
-- [ ] Test interruption after blob publication, transaction commit, and projection failure.
+- [x] Implement consistent SQLite backup.
+- [x] Include referenced blobs and configuration in backup manifests.
+- [x] Verify a backup before declaring success.
+- [x] Implement restore into a new empty directory.
+- [x] Test interruption after blob publication, transaction commit, and projection failure.
 
-**Deliverables:** Durable workspace, state store, blob store, audit events, backup/restore.
+**Deliverables:** Durable workspace, state store, blob store, audit events, backup/restore. Complete.
 
-**Exit criteria:** Fault-injection and concurrency tests show no partial authoritative transition or silent data loss.
+**Exit criteria:** Satisfied by GitHub Actions run `29612319788`. Fault-injection tests leave pre-transaction blobs
+auditable without partial database state, projection failure preserves authoritative artifacts and records a repair
+manifest, and SQLite concurrency tests prove concurrent readers plus bounded writer conflict behavior. The packaged
+release binary completes workspace initialization, integrity check, verified backup, restore, and post-restore check.
 
 ### Phase R4 — Job intake
 

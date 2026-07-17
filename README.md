@@ -19,20 +19,23 @@ the Git tag `archive/python-v0.6.0b1-final`.
 
 ## Current status
 
-The Rust rebuild has completed R2 contracts, CLI envelopes, and embedded resources. R3 workspace, SQLite, blob, and
-recovery implementation is now active. The current binary provides:
+The Rust rebuild has completed R3, including the durable workspace, SQLite, blob, artifact, and recovery foundation.
+R4 direct file, URL, HTML, and PDF job intake is now active. The current binary provides:
 
 - Native `canisend` executable scaffolding.
 - Validated UUIDv7, SHA-256, revision, UTC timestamp, and safe relative-path contract types.
 - `canisend.agent/v2` success/error envelopes, stable error registry, and grouped exit policy.
 - Product/version/build inspection.
-- Fifteen deterministic Draft 2020-12 schemas generated from Rust types.
-- Twenty-one typed embedded schemas, prompts, templates, examples, and host assets with SHA-256 verification.
+- Eighteen deterministic Draft 2020-12 schemas generated from Rust types.
+- Twenty-four typed embedded schemas, prompts, templates, examples, and host assets with SHA-256 verification.
 - A truthful capability registry that marks unfinished functions as `planned`.
 - Agent context plus schema/resource diagnostics with deterministic JSON snapshots.
+- Workspace discovery, explicit `--workspace` resolution, initialization, status, integrity checks, and repair.
+- Bundled SQLite authority with immutable SHA-256 blobs, revisions, dependency invalidation, and audit events.
+- Verified workspace backup and restore with referenced-blob manifests.
 
-Workspace lifecycle, job intake, discovery, application workflow, and embedded PDF rendering are not yet available
-in the production binary. Their execution order and acceptance gates are defined in the
+Job intake, discovery, application workflow, and embedded PDF rendering are not yet available in the production
+binary. Their execution order and acceptance gates are defined in the
 [Rust-native roadmap](docs/superpowers/plans/2026-07-17-rust-native-greenfield-roadmap.md).
 
 ## Build the native foundation
@@ -47,6 +50,9 @@ cargo build --release --locked
 ./target/release/canisend agent context --json
 ./target/release/canisend schema list --json
 ./target/release/canisend resource list --json
+./target/release/canisend --workspace ./my-workspace workspace init --json
+./target/release/canisend --workspace ./my-workspace workspace check --json
+./target/release/canisend --workspace ./my-workspace workspace backup ./my-backup --json
 ```
 
 Representative capability output distinguishes implemented and planned work. Agent hosts must not treat a planned
