@@ -51,21 +51,20 @@ task_expected_inputs() {
     | sed -E 's/"id":/"artifact_id":/g; s/,"kind":"[^"]+"//g'
 }
 
-task_source_artifact() {
-  printf '%s' "$1" \
-    | sed -E 's/^.*"input_artifacts":\[({[^]]*})\],"job_id".*$/\1/'
-}
-
 write_completion() {
   local task_json="$1"
   local requirement="$2"
   local output="$3"
   local task_id lease_id job_revision expected_inputs source_artifact
+  local source_id source_revision source_sha256
   task_id="$(first_uuid_id "$task_json")"
   lease_id="$(task_lease_id "$task_json")"
   job_revision="$(task_job_revision "$task_json")"
   expected_inputs="$(task_expected_inputs "$task_json")"
-  source_artifact="$(task_source_artifact "$task_json")"
+  source_id="$(printf '%s' "$expected_inputs" | grep -oE '"artifact_id":"[^"]+"' | cut -d'"' -f4)"
+  source_revision="$(printf '%s' "$expected_inputs" | grep -oE '"revision":[0-9]+' | cut -d: -f2)"
+  source_sha256="$(printf '%s' "$expected_inputs" | grep -oE '"sha256":"[0-9a-f]+"' | cut -d'"' -f4)"
+  source_artifact="{\"kind\":\"source-normalized-text\",\"id\":\"$source_id\",\"revision\":$source_revision,\"sha256\":\"$source_sha256\"}"
   printf '%s\n' \
     "{\"task_id\":\"$task_id\",\"lease_id\":\"$lease_id\",\"expected_job_revision\":$job_revision,\"expected_inputs\":$expected_inputs,\"candidate\":{\"id\":\"019f2f55-7c00-7000-8000-000000000201\",\"job_id\":\"$job_id\",\"title\":\"Lecturer in Economics\",\"institution\":\"Northbridge University\",\"summary\":\"Teaching and research role in economics.\",\"responsibilities\":[\"Teach economics\",\"Maintain an active research programme\"],\"criteria\":[{\"id\":\"019f2f55-7c00-7000-8000-000000000202\",\"job_id\":\"$job_id\",\"kind\":\"teaching\",\"requirement\":\"$requirement\",\"importance\":\"essential\",\"source_quote\":\"$source_quote\",\"source_span\":{\"source\":$source_artifact,\"start_byte\":$source_start,\"end_byte\":$source_end},\"confidence_milli\":950,\"confirmed\":false,\"revision\":1}],\"revision\":1}}" \
     > "$output"
