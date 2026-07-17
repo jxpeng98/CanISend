@@ -58,7 +58,18 @@ from canisend.jobs import create_job, create_job_from_lead, list_jobs as list_jo
 from canisend.orchestrator import OrchestrationError, run_orchestration
 from canisend.pipeline import run_pipeline as run_job_pipeline
 from canisend.profile import init_profile as create_profile
-from canisend.ready_check import check_application_package, package_check_agent_response
+from canisend.ready_check import (
+    PackageCheckIssue,
+    PackageCheckResult,
+    check_application_package,
+    package_check_agent_response,
+)
+from canisend.bundle_projection import (
+    BundleProjectionError,
+    load_artifact_bundle,
+    project_artifact_bundle,
+)
+from canisend.render_execution import run_render_stage_with_compiler
 from canisend.rss import (
     JobFeedError,
     fetch_rss_text,
@@ -88,6 +99,7 @@ from canisend.stage_runtime import (
     submit_stage_candidate,
 )
 from canisend.typst import render_typst_files
+from canisend.stages.verify_stage import ApplicationGateReportV1
 from canisend.user_mutation_agent import (
     application_brief_status_agent_response,
     application_decision_status_agent_response,
@@ -1834,8 +1846,27 @@ def check_package(
     report_write_failed = False
     if write_report:
         try:
-            report_path = result.write_report()
-        except ValueError as exc:
+            if (job_dir / "package_bundle.json").exists():
+                verified = run_deterministic_stage(config.root, job_dir, stage="verify")
+                report = ApplicationGateReportV1.model_validate_json(
+                    verified.authoritative_path.read_bytes()
+                )
+                result = PackageCheckResult(
+                    job_dir=job_dir,
+                    issues=[
+                        PackageCheckIssue(
+                            gate=issue.gate,
+                            path=issue.path,
+                            message=issue.message,
+                        )
+                        for issue in report.issues
+                    ],
+                    input_hashes=dict(report.input_hashes),
+                )
+                report_path = verified.authoritative_path
+            else:
+                report_path = result.write_report()
+        except (OSError, StageRuntimeError, ValueError) as exc:
             report_write_failed = True
             if output_format == "text":
                 typer.echo(str(exc), err=True)
@@ -1852,7 +1883,7 @@ def check_package(
             typer.echo(line)
         if report_path is not None:
             typer.echo(f"Application gate report: {report_path}")
-    if not result.ok:
+    if report_write_failed or not result.ok:
         raise typer.Exit(code=1)
 
 
@@ -2822,11 +2853,21 @@ def render_typst(
     config = load_workspace_config(workspace)
     job_dir = config.job_dir(job)
     try:
-        rendered = render_typst_files(job_dir, typst_bin=typst_bin)
+        if (job_dir / "package_bundle.json").exists():
+            outcome = run_render_stage_with_compiler(
+                config.root,
+                job_dir,
+                typst_bin=typst_bin,
+            )
+            bundle = load_artifact_bundle(outcome.authoritative_path)
+            journal = project_artifact_bundle(job_dir, bundle)
+            rendered = [job_dir / entry.target_path for entry in journal.entries]
+        else:
+            rendered = render_typst_files(job_dir, typst_bin=typst_bin)
     except FileNotFoundError as exc:
         typer.echo(str(exc))
         raise typer.Exit(code=1) from exc
-    except RuntimeError as exc:
+    except (BundleProjectionError, StageRuntimeError, RuntimeError) as exc:
         typer.echo(str(exc))
         raise typer.Exit(code=1) from exc
     typer.echo(f"Rendered {len(rendered)} PDF files for {job_dir}")

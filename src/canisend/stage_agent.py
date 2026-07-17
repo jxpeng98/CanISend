@@ -13,6 +13,7 @@ from canisend.agent_protocol import (
     error_response,
     success_response,
 )
+from canisend.bundle_models import ArtifactBundleV1
 from canisend.decision_models import (
     CriteriaCatalogV1,
     CriterionMatchesV1,
@@ -25,6 +26,7 @@ from canisend.draft_models import (
     ReviewFindingsV1,
 )
 from canisend.package_review_models import PackageReviewFindingsV1
+from canisend.stages.verify_stage import ApplicationGateReportV1
 from canisend.stage_adapters import get_stage_adapter
 from canisend.stage_models import CandidateSubmissionV1, TaskSpecV1
 from canisend.stage_registry import DEFAULT_STAGE_REGISTRY
@@ -893,6 +895,22 @@ def _downstream_actions(
                 label="Inspect required-document fan-out before starting Draft work",
             )
         ]
+    if stage_id == "package":
+        return [
+            NextAction(
+                id="package.project_bundle",
+                label="Project validated package files from the accepted bundle",
+            )
+        ]
+    if stage_id == "verify":
+        return _next_action_for_stage(workspace, job_dir, "render")
+    if stage_id == "render":
+        return [
+            NextAction(
+                id="render.project_bundle",
+                label="Project validated PDFs from the accepted Render bundle",
+            )
+        ]
     return []
 
 
@@ -987,6 +1005,70 @@ def _semantic_status(
             NextAction(
                 id="profile.extract_evidence",
                 label="Extract or add profile evidence, then rerun Evidence",
+            )
+        ]
+    if stage_id == "package":
+        try:
+            bundle = ArtifactBundleV1.model_validate(read_json_object(authoritative_path))
+        except (StageStoreError, ValidationError):
+            return "review_required", {}, [
+                NextAction(
+                    id="package.review_bundle",
+                    label="Review the invalid Package bundle",
+                )
+            ]
+        extensions = {
+            "canisend.package_mode": bundle.mode,
+            "canisend.package_entry_count": len(bundle.entries),
+        }
+        if bundle.stage == "package" and bundle.mode == "guarded":
+            return "ready_for_next_stage", extensions, []
+        return "blocked", extensions, [
+            NextAction(
+                id="package.complete_guarded_review",
+                label="Complete guarded review before claiming package readiness",
+            )
+        ]
+    if stage_id == "verify":
+        try:
+            report = ApplicationGateReportV1.model_validate(
+                read_json_object(authoritative_path)
+            )
+        except (StageStoreError, ValidationError):
+            return "review_required", {}, [
+                NextAction(
+                    id="verify.review_report",
+                    label="Review the invalid application gate report",
+                )
+            ]
+        extensions = {
+            "canisend.verify_status": report.status,
+            "canisend.verify_issue_count": len(report.issues),
+        }
+        if report.status == "PASS":
+            return "ready_for_next_stage", extensions, []
+        return "blocked", extensions, [
+            NextAction(
+                id="package.resolve_blockers",
+                label="Resolve application gate blockers and rebuild the package",
+            )
+        ]
+    if stage_id == "render":
+        try:
+            bundle = ArtifactBundleV1.model_validate(read_json_object(authoritative_path))
+        except (StageStoreError, ValidationError):
+            return "review_required", {}, [
+                NextAction(
+                    id="render.review_bundle",
+                    label="Review the invalid Render bundle",
+                )
+            ]
+        return "review_required", {
+            "canisend.render_pdf_count": len(bundle.entries),
+        }, [
+            NextAction(
+                id="render.project_bundle",
+                label="Project the validated PDFs for final human review",
             )
         ]
     if stage_id == "match":

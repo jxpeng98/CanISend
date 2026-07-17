@@ -72,6 +72,14 @@ from canisend.stages.package_review_stage import (
     package_review_precondition_reasons,
     validate_package_review_candidate,
 )
+from canisend.stages.package_stage import (
+    PACKAGE_BUNDLE_OUTPUT_PATH,
+    build_package_bundle_candidate,
+    package_input_artifacts,
+    package_input_fingerprint,
+    package_precondition_reasons,
+    validate_package_bundle_candidate,
+)
 from canisend.stages.parse_stage import (
     build_deterministic_parse_candidate,
     parse_input_fingerprint,
@@ -88,6 +96,24 @@ from canisend.stages.review_stage import (
     review_precondition_reasons,
     validate_research_statement_review_candidate,
     validate_review_candidate,
+)
+from canisend.stages.render_stage import (
+    RENDER_BUNDLE_OUTPUT_PATH,
+    build_render_bundle_candidate,
+    render_input_artifacts,
+    render_input_fingerprint,
+    render_precondition_reasons,
+    validate_render_bundle_candidate,
+)
+from canisend.stages.verify_stage import (
+    VERIFY_BASIS_NAME,
+    VERIFY_OUTPUT_PATH,
+    build_verify_candidate,
+    prepare_verify_basis,
+    validate_verify_candidate,
+    verify_input_fingerprint,
+    verify_precondition_reasons,
+    verify_prepared_inputs_are_current,
 )
 from canisend.user_file_store import UnsafeUserFileError, read_optional_safe_bytes
 from canisend.workspace import load_workspace_config
@@ -192,6 +218,200 @@ class StageAdapter:
         job_dir: Path,
     ) -> tuple[str, ...]:
         return ()
+
+
+class PackageStageAdapter(StageAdapter):
+    def input_fingerprint(self, workspace: Path, job_dir: Path) -> str:
+        del workspace
+        return package_input_fingerprint(job_dir)
+
+    def input_artifacts(
+        self,
+        workspace: Path,
+        job_dir: Path,
+    ) -> tuple[ArtifactFingerprint, ...]:
+        del workspace
+        return package_input_artifacts(job_dir)
+
+    def build_deterministic_candidate(
+        self,
+        workspace: Path,
+        job_dir: Path,
+        *,
+        input_fingerprint: str,
+        inputs: tuple[ArtifactFingerprint, ...],
+    ) -> dict[str, Any]:
+        del inputs
+        return build_package_bundle_candidate(
+            workspace,
+            job_dir,
+            input_fingerprint=input_fingerprint,
+            mode="guarded",
+        ).model_dump(mode="json")
+
+    def validate_candidate(
+        self,
+        workspace: Path,
+        job_dir: Path,
+        candidate: object,
+        *,
+        input_fingerprint: str,
+        inputs: tuple[ArtifactFingerprint, ...],
+        execution_mode: AdapterExecutionMode,
+    ) -> dict[str, Any]:
+        del workspace, inputs, execution_mode
+        return validate_package_bundle_candidate(
+            candidate,
+            job_dir=job_dir,
+            input_fingerprint=input_fingerprint,
+            mode="guarded",
+        ).model_dump(mode="json")
+
+    def precondition_reasons(
+        self,
+        workspace: Path,
+        job_dir: Path,
+    ) -> tuple[str, ...]:
+        return package_precondition_reasons(workspace, job_dir)
+
+
+class VerifyStageAdapter(StageAdapter):
+    def input_fingerprint(self, workspace: Path, job_dir: Path) -> str:
+        return verify_input_fingerprint(workspace, job_dir)
+
+    def input_artifacts(
+        self,
+        workspace: Path,
+        job_dir: Path,
+    ) -> tuple[ArtifactFingerprint, ...]:
+        del workspace, job_dir
+        raise ValueError("Verify inputs must be materialized into one immutable snapshot.")
+
+    def prepare_input_artifacts(
+        self,
+        workspace: Path,
+        job_dir: Path,
+        *,
+        run_root: str,
+        input_fingerprint: str,
+    ) -> tuple[ArtifactFingerprint, ...]:
+        return prepare_verify_basis(
+            workspace,
+            job_dir,
+            run_root=run_root,
+            input_fingerprint=input_fingerprint,
+        )
+
+    def prepared_inputs_are_current(
+        self,
+        workspace: Path,
+        job_dir: Path,
+        *,
+        inputs: tuple[ArtifactFingerprint, ...],
+        input_fingerprint: str,
+    ) -> bool:
+        return verify_prepared_inputs_are_current(
+            workspace,
+            job_dir,
+            inputs=inputs,
+            input_fingerprint=input_fingerprint,
+        )
+
+    def expected_prepared_input_paths(self, run_id: str) -> tuple[str, ...]:
+        return (f"workflow/runs/{run_id}/inputs/{VERIFY_BASIS_NAME}",)
+
+    def build_deterministic_candidate(
+        self,
+        workspace: Path,
+        job_dir: Path,
+        *,
+        input_fingerprint: str,
+        inputs: tuple[ArtifactFingerprint, ...],
+    ) -> dict[str, Any]:
+        del workspace
+        return build_verify_candidate(
+            job_dir,
+            input_fingerprint=input_fingerprint,
+            inputs=inputs,
+        ).model_dump(mode="json")
+
+    def validate_candidate(
+        self,
+        workspace: Path,
+        job_dir: Path,
+        candidate: object,
+        *,
+        input_fingerprint: str,
+        inputs: tuple[ArtifactFingerprint, ...],
+        execution_mode: AdapterExecutionMode,
+    ) -> dict[str, Any]:
+        del inputs, execution_mode
+        return validate_verify_candidate(
+            candidate,
+            workspace=workspace,
+            job_dir=job_dir,
+            input_fingerprint=input_fingerprint,
+        ).model_dump(mode="json")
+
+    def precondition_reasons(
+        self,
+        workspace: Path,
+        job_dir: Path,
+    ) -> tuple[str, ...]:
+        return verify_precondition_reasons(workspace, job_dir)
+
+
+class RenderStageAdapter(StageAdapter):
+    def input_fingerprint(self, workspace: Path, job_dir: Path) -> str:
+        del workspace
+        return render_input_fingerprint(job_dir)
+
+    def input_artifacts(
+        self,
+        workspace: Path,
+        job_dir: Path,
+    ) -> tuple[ArtifactFingerprint, ...]:
+        del workspace
+        return render_input_artifacts(job_dir)
+
+    def build_deterministic_candidate(
+        self,
+        workspace: Path,
+        job_dir: Path,
+        *,
+        input_fingerprint: str,
+        inputs: tuple[ArtifactFingerprint, ...],
+    ) -> dict[str, Any]:
+        del workspace, inputs
+        return build_render_bundle_candidate(
+            job_dir,
+            input_fingerprint=input_fingerprint,
+        ).model_dump(mode="json")
+
+    def validate_candidate(
+        self,
+        workspace: Path,
+        job_dir: Path,
+        candidate: object,
+        *,
+        input_fingerprint: str,
+        inputs: tuple[ArtifactFingerprint, ...],
+        execution_mode: AdapterExecutionMode,
+    ) -> dict[str, Any]:
+        del workspace, inputs, execution_mode
+        return validate_render_bundle_candidate(
+            candidate,
+            job_dir=job_dir,
+            input_fingerprint=input_fingerprint,
+        ).model_dump(mode="json")
+
+    def precondition_reasons(
+        self,
+        workspace: Path,
+        job_dir: Path,
+    ) -> tuple[str, ...]:
+        del workspace
+        return render_precondition_reasons(job_dir)
 
 
 class ParseStageAdapter(StageAdapter):
@@ -1234,6 +1454,39 @@ _ADAPTERS = {
         candidate_name=PACKAGE_REVIEW_FINDINGS_OUTPUT_PATH,
         output_schema="canisend.package-review-findings/v1",
         artifact_kind="package_review_findings",
+        media_type="application/json",
+        privacy_tier=2,
+        task_privacy_tier=2,
+        citations_validated=True,
+    ),
+    "package": PackageStageAdapter(
+        stage_id="package",
+        authoritative_target=PACKAGE_BUNDLE_OUTPUT_PATH,
+        candidate_name=PACKAGE_BUNDLE_OUTPUT_PATH,
+        output_schema="canisend.artifact-bundle/v1",
+        artifact_kind="package_bundle",
+        media_type="application/json",
+        privacy_tier=2,
+        task_privacy_tier=2,
+        citations_validated=True,
+    ),
+    "verify": VerifyStageAdapter(
+        stage_id="verify",
+        authoritative_target=VERIFY_OUTPUT_PATH,
+        candidate_name=VERIFY_OUTPUT_PATH,
+        output_schema="canisend.application-gate-report/v1",
+        artifact_kind="application_gate_report",
+        media_type="application/json",
+        privacy_tier=1,
+        task_privacy_tier=2,
+        citations_validated=True,
+    ),
+    "render": RenderStageAdapter(
+        stage_id="render",
+        authoritative_target=RENDER_BUNDLE_OUTPUT_PATH,
+        candidate_name=RENDER_BUNDLE_OUTPUT_PATH,
+        output_schema="canisend.artifact-bundle/v1",
+        artifact_kind="render_bundle",
         media_type="application/json",
         privacy_tier=2,
         task_privacy_tier=2,

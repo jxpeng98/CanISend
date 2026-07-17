@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jxpeng98/CanISend/schemas/artifact-bundle.schema.json",
+  "title": "CanISendArtifactBundleV1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "job_id": { "$ref": "#/$defs/jobId" },
+    "stage": { "enum": ["package", "render"] },
+    "mode": { "enum": ["guarded", "legacy_compatibility"] },
+    "input_fingerprint": { "$ref": "#/$defs/sha256" },
+    "entries": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/entry" }
+    }
+  },
+  "required": [
+    "schema_version",
+    "job_id",
+    "stage",
+    "mode",
+    "input_fingerprint",
+    "entries"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": { "stage": { "const": "package" } },
+        "required": ["stage"]
+      },
+      "then": {
+        "properties": {
+          "entries": {
+            "items": {
+              "allOf": [
+                { "$ref": "#/$defs/entry" },
+                {
+                  "properties": {
+                    "path": {
+                      "enum": [
+                        "00_preparation_questions.md",
+                        "01_job_summary.md",
+                        "02_fit_report.md",
+                        "03_cover_letter_draft.md",
+                        "04_cv_tailoring_notes.md",
+                        "05_criteria_checklist.md",
+                        "06_final_application_package.md",
+                        "07_material_review_checklist.md",
+                        "08_research_statement.md",
+                        "typst/application_package.typ",
+                        "typst/application_package_content.json",
+                        "typst/cover_letter.typ",
+                        "typst/cover_letter_content.json",
+                        "typst/research_statement.typ",
+                        "typst/research_statement_content.json"
+                      ]
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "stage": { "const": "render" } },
+        "required": ["stage"]
+      },
+      "then": {
+        "properties": {
+          "entries": {
+            "items": {
+              "allOf": [
+                { "$ref": "#/$defs/entry" },
+                {
+                  "properties": {
+                    "path": { "type": "string", "pattern": "^pdf/[^/]+\\.pdf$" },
+                    "media_type": { "const": "application/pdf" }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "jobId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_.-]*$"
+    },
+    "jobPath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*\\\\)(?!.*//)(?!.*/$)[^/]+(?:/[^/]+)*$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "path": { "$ref": "#/$defs/jobPath" },
+        "media_type": { "type": "string", "minLength": 1, "maxLength": 255 },
+        "content_base64": {
+          "type": "string",
+          "contentEncoding": "base64"
+        },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "size_bytes": { "type": "integer", "minimum": 0 }
+      },
+      "required": ["path", "media_type", "content_base64", "sha256", "size_bytes"]
+    }
+  }
+}

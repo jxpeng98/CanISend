@@ -379,7 +379,9 @@ def test_stage_apply_promotes_host_candidate_through_cli(tmp_path: Path) -> None
     assert (job_dir / "parsed_job.json").is_file()
 
 
-def test_stage_cli_returns_stable_safe_error_for_unsupported_stage(tmp_path: Path) -> None:
+def test_stage_cli_returns_stable_safe_error_for_unsupported_package_mode(
+    tmp_path: Path,
+) -> None:
     workspace, job_path = _workspace(tmp_path)
 
     payload = _invoke_json(
@@ -400,7 +402,7 @@ def test_stage_cli_returns_stable_safe_error_for_unsupported_stage(tmp_path: Pat
     )
 
     assert payload["ok"] is False
-    assert payload["error"]["code"] == "stage.unsupported"
+    assert payload["error"]["code"] == "stage.unsupported_mode"
     assert str(workspace) not in json.dumps(payload)
     assert "private=token" not in json.dumps(payload)
 

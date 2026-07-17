@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jxpeng98/CanISend/schemas/projection-journal.schema.json",
+  "title": "CanISendProjectionJournalV1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "job_id": { "$ref": "#/$defs/jobId" },
+    "stage": { "enum": ["package", "render"] },
+    "bundle_sha256": { "$ref": "#/$defs/sha256" },
+    "entries": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/entry" }
+    }
+  },
+  "required": ["schema_version", "job_id", "stage", "bundle_sha256", "entries"],
+  "$defs": {
+    "jobId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_.-]*$"
+    },
+    "jobPath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*\\\\)(?!.*//)(?!.*/$)[^/]+(?:/[^/]+)*$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "source_path": { "$ref": "#/$defs/jobPath" },
+        "target_path": { "$ref": "#/$defs/jobPath" },
+        "source_sha256": { "$ref": "#/$defs/sha256" },
+        "projected_sha256": { "$ref": "#/$defs/sha256" },
+        "outcome": {
+          "enum": [
+            "created",
+            "replaced",
+            "unchanged",
+            "candidate_created",
+            "candidate_replaced"
+          ]
+        }
+      },
+      "required": [
+        "source_path",
+        "target_path",
+        "source_sha256",
+        "projected_sha256",
+        "outcome"
+      ]
+    }
+  }
+}

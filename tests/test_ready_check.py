@@ -2,6 +2,7 @@ import json
 import hashlib
 import os
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import yaml
@@ -9,6 +10,7 @@ from typer.testing import CliRunner
 
 from canisend.cli import app
 from canisend.ready_check import REQUIRED_SOURCE_FILES, check_application_package
+from canisend.stages.verify_stage import ApplicationGateReportV1
 
 
 COVER_LETTER_TYPST = "\n".join(
@@ -530,6 +532,54 @@ def test_check_package_json_writes_report_only_when_explicit(tmp_path, monkeypat
         artifact["kind"] == "application_gate_report" and artifact["exists"]
         for artifact in payload["artifacts"]
     )
+
+
+def test_check_package_write_report_routes_guarded_bundle_through_verify_stage(
+    tmp_path,
+    monkeypatch,
+):
+    workspace, job_dir = _complete_workspace(tmp_path)
+    _allow_legacy_package_gate(monkeypatch)
+    (job_dir / "package_bundle.json").write_text("{}\n")
+    report = ApplicationGateReportV1(
+        job_id=job_dir.name,
+        package_bundle_sha256="a" * 64,
+        projection_journal_sha256="b" * 64,
+        status="PASS",
+        input_hashes={},
+        issues=(),
+        generated_at="2026-07-17T10:00:00Z",
+        input_fingerprint="c" * 64,
+    )
+    report_path = job_dir / "application_gate_report.json"
+    report_path.write_text(json.dumps(report.model_dump(mode="json")) + "\n")
+    calls = []
+
+    def run_verify(root, job, *, stage):
+        calls.append((root, job, stage))
+        return SimpleNamespace(authoritative_path=report_path)
+
+    monkeypatch.setattr("canisend.cli.run_deterministic_stage", run_verify)
+    monkeypatch.setattr(
+        "canisend.ready_check.PackageCheckResult.write_report",
+        lambda _self: pytest.fail("guarded verification must not use the legacy direct writer"),
+    )
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "check-package",
+            "--workspace",
+            str(workspace),
+            "--job",
+            "example-role",
+            "--write-report",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert calls == [(workspace.resolve(), job_dir.resolve(), "verify")]
+    assert "Application gate report:" in result.output
 
 
 def _complete_workspace(tmp_path: Path) -> tuple[Path, Path]:

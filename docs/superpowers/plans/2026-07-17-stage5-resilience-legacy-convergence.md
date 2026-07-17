@@ -1,6 +1,6 @@
 # Stage 5 Resilience And Legacy Convergence Implementation Plan
 
-**Status:** In progress — Tasks 0–2 accepted; Package, Verify, and Render convergence is next
+**Status:** In progress — Tasks 0–3 accepted; resumable sequence convergence is next
 
 **Date:** 2026-07-17
 
@@ -75,13 +75,13 @@ promotion path across direct CLI, host agents, and orchestration.
 
 ### Task 3: Package, Verify, And Render Bundles
 
-- [ ] Add strict versioned Bundle/entry/projection-journal schemas and packaged resources.
-- [ ] Refactor legacy material computation into a pure Package bundle builder and validator.
-- [ ] Add guarded and explicit legacy-compatibility package modes without readiness ambiguity.
-- [ ] Add idempotent Package projection with Typst edit preservation and drift reporting.
-- [ ] Implement Verify over independently rederived package checks and promote one gate report.
-- [ ] Implement Render compilation into one validated bundle plus recoverable PDF projection.
-- [ ] Route `check-package --write-report` and `render-typst` through their registered stages.
+- [x] Add strict versioned Bundle/entry/projection-journal schemas and packaged resources.
+- [x] Refactor legacy material computation into a pure Package bundle builder and validator.
+- [x] Add guarded and explicit legacy-compatibility package modes without readiness ambiguity.
+- [x] Add idempotent Package projection with Typst edit preservation and drift reporting.
+- [x] Implement Verify over independently rederived package checks and promote one gate report.
+- [x] Implement Render compilation into one validated bundle plus recoverable PDF projection.
+- [x] Route `check-package --write-report` and `render-typst` through their registered stages.
 
 ### Task 4: Resumable Sequence And `run` Convergence
 
@@ -181,3 +181,19 @@ promotion path across direct CLI, host agents, and orchestration.
 - JSON and text status are available through the existing AgentResponse surface. Prepare/run reject both source
   stages with `stage.source_read_only`. Focused registry/CLI/source-runtime evidence: `63 passed`; broader Decision
   Spine regression evidence: `179 passed`.
+
+## Task 3 Acceptance Record
+
+- Package promotes one strict `canisend.artifact-bundle/v1` JSON output. Its static projection scope cannot include
+  source, user-owned, workflow, or arbitrary job paths; guarded input receipts are rechecked during validation.
+  Explicit `legacy_compatibility` bundles remain non-ready and Verify rejects them.
+- Projection uses the per-job coordination service, atomic writes, a versioned journal, deterministic failure points,
+  idempotent no-op behavior, and `*.generated.typ` conflict preservation for edited user-facing Typst sources.
+- Verify snapshots and independently rederives the package gate basis, accepts only a current guarded Package
+  projection, and promotes one strict gate report. A valid FAIL report is a completed Verify result but blocks Render.
+- Render compiles into an isolated temporary directory, validates PDF signatures, promotes one strict bundle, and
+  projects recoverable `pdf/*.pdf` outputs only after promotion. Explicit compiler selection uses the same guarded
+  prepare, submit, validate, apply, and projection path.
+- `check-package --write-report` and `render-typst` retain a no-bundle legacy compatibility path. Once a Package
+  bundle exists, neither command may fall back to a direct authoritative writer. Package/Verify/Render integration
+  evidence: `4 passed`; bundle/schema/CLI/legacy regression evidence: `117 passed`.

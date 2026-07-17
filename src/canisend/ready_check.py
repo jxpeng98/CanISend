@@ -271,7 +271,15 @@ def check_application_package(
         )
 
     metadata_path = _require_file(job_dir, "job.yaml", issues, gate=APP_Q1)
-    metadata = _check_job_metadata(metadata_path, issues) if metadata_path is not None else None
+    metadata = (
+        _check_job_metadata(
+            metadata_path,
+            issues,
+            stage_package_present=_guarded_stage_package_present(job_dir),
+        )
+        if metadata_path is not None
+        else None
+    )
     advert_path = _require_file(job_dir, "job_advert.md", issues, gate=APP_Q1)
     if advert_path is not None:
         _check_job_advert(advert_path, issues)
@@ -347,7 +355,12 @@ def _require_file(
     return path
 
 
-def _check_job_metadata(path: Path, issues: list[PackageCheckIssue]) -> dict[str, object] | None:
+def _check_job_metadata(
+    path: Path,
+    issues: list[PackageCheckIssue],
+    *,
+    stage_package_present: bool = False,
+) -> dict[str, object] | None:
     relative_path = "job.yaml"
     try:
         value = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -367,7 +380,7 @@ def _check_job_metadata(path: Path, issues: list[PackageCheckIssue]) -> dict[str
                     APP_Q1,
                 )
             )
-    if value.get("status") != "packaged":
+    if value.get("status") != "packaged" and not stage_package_present:
         issues.append(
             PackageCheckIssue(
                 relative_path,
@@ -376,6 +389,24 @@ def _check_job_metadata(path: Path, issues: list[PackageCheckIssue]) -> dict[str
             )
         )
     return value
+
+
+def _guarded_stage_package_present(job_dir: Path) -> bool:
+    from canisend.bundle_projection import (
+        BundleProjectionError,
+        inspect_artifact_projection,
+        load_artifact_bundle,
+    )
+
+    try:
+        bundle = load_artifact_bundle(job_dir / "package_bundle.json")
+        return (
+            bundle.stage == "package"
+            and bundle.mode == "guarded"
+            and inspect_artifact_projection(job_dir, bundle).current
+        )
+    except (BundleProjectionError, OSError, ValueError):
+        return False
 
 
 def _check_job_metadata_matches_parsed_job(

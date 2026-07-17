@@ -72,6 +72,9 @@ SupportedStage = Literal[
     "draft",
     "review",
     "package_review",
+    "package",
+    "verify",
+    "render",
 ]
 SupportedExecutionMode = Literal[
     "deterministic",

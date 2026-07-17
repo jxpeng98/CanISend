@@ -72,6 +72,9 @@ def test_v1_contract_files_exist():
         "schemas/package-review-dispositions.schema.json",
         "schemas/application-package-readiness.schema.json",
         "schemas/user-mutation-receipt.schema.json",
+        "schemas/artifact-bundle.schema.json",
+        "schemas/projection-journal.schema.json",
+        "schemas/application-gate-report.schema.json",
     ]
 
     for path in expected_files:

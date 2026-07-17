@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jxpeng98/CanISend/schemas/application-gate-report.schema.json",
+  "title": "CanISendApplicationGateReportV1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "job_id": { "$ref": "#/$defs/jobId" },
+    "package_bundle_sha256": { "$ref": "#/$defs/sha256" },
+    "projection_journal_sha256": { "$ref": "#/$defs/sha256" },
+    "status": { "enum": ["PASS", "FAIL"] },
+    "input_hashes": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/jobPath" },
+      "additionalProperties": { "$ref": "#/$defs/sha256" }
+    },
+    "issues": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/issue" }
+    },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "input_fingerprint": { "$ref": "#/$defs/sha256" }
+  },
+  "required": [
+    "schema_version",
+    "job_id",
+    "package_bundle_sha256",
+    "projection_journal_sha256",
+    "status",
+    "input_hashes",
+    "issues",
+    "generated_at",
+    "input_fingerprint"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": { "status": { "const": "PASS" } },
+        "required": ["status"]
+      },
+      "then": { "properties": { "issues": { "maxItems": 0 } } },
+      "else": { "properties": { "issues": { "minItems": 1 } } }
+    }
+  ],
+  "$defs": {
+    "jobId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_.-]*$"
+    },
+    "jobPath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*\\\\)(?!.*//)(?!.*/$)[^/]+(?:/[^/]+)*$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "issue": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "gate": { "type": "string", "pattern": "^APP-Q[1-9][0-9]*$" },
+        "path": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "message": { "type": "string", "minLength": 1, "maxLength": 10000 }
+      },
+      "required": ["gate", "path", "message"]
+    }
+  }
+}

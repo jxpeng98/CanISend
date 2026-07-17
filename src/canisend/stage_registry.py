@@ -276,8 +276,26 @@ DEFAULT_STAGE_REGISTRY = StageRegistry(
             execution_modes=("deterministic",),
             authoritative_outputs=("package_review_findings.json",),
         ),
-        StageDefinition(id="package", depends_on=("package_review",)),
-        StageDefinition(id="verify", depends_on=("package",)),
-        StageDefinition(id="render", depends_on=("verify",)),
+        StageDefinition(
+            id="package",
+            depends_on=("package_review",),
+            implemented=True,
+            execution_modes=("deterministic",),
+            authoritative_outputs=("package_bundle.json",),
+        ),
+        StageDefinition(
+            id="verify",
+            depends_on=("package",),
+            implemented=True,
+            execution_modes=("deterministic",),
+            authoritative_outputs=("application_gate_report.json",),
+        ),
+        StageDefinition(
+            id="render",
+            depends_on=("verify",),
+            implemented=True,
+            execution_modes=("deterministic",),
+            authoritative_outputs=("render_bundle.json",),
+        ),
     )
 )

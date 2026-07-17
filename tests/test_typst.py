@@ -1,5 +1,9 @@
+import json
+from types import SimpleNamespace
+
 from typer.testing import CliRunner
 
+from canisend.bundle_models import ArtifactBundleV1, BundleEntryV1
 from canisend.cli import app
 
 
@@ -87,3 +91,58 @@ def test_render_typst_reports_missing_typst_binary(tmp_path):
 
     assert result.exit_code != 0
     assert "Typst binary not found" in result.output
+
+
+def test_render_typst_routes_guarded_package_through_render_stage(
+    tmp_path,
+    monkeypatch,
+):
+    workspace = tmp_path / "workspace"
+    job_dir = workspace / "jobs" / "job"
+    job_dir.mkdir(parents=True)
+    (workspace / "canisend.yaml").write_text("jobs_dir: jobs\n")
+    (job_dir / "package_bundle.json").write_text("{}\n")
+    bundle = ArtifactBundleV1(
+        job_id=job_dir.name,
+        stage="render",
+        input_fingerprint="a" * 64,
+        entries=(
+            BundleEntryV1.from_bytes(
+                path="pdf/cover_letter.pdf",
+                media_type="application/pdf",
+                data=b"%PDF-1.7 guarded",
+            ),
+        ),
+    )
+    bundle_path = job_dir / "render_bundle.json"
+    bundle_path.write_text(
+        json.dumps(bundle.model_dump(mode="json"), sort_keys=True) + "\n"
+    )
+    calls = []
+
+    def run_guarded(root, job, *, typst_bin):
+        calls.append((root, job, typst_bin))
+        return SimpleNamespace(authoritative_path=bundle_path)
+
+    monkeypatch.setattr(
+        "canisend.cli.run_render_stage_with_compiler",
+        run_guarded,
+    )
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "render-typst",
+            "--workspace",
+            str(workspace),
+            "--job",
+            "job",
+            "--typst-bin",
+            "explicit-typst",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert calls == [(workspace.resolve(), job_dir.resolve(), "explicit-typst")]
+    assert (job_dir / "pdf" / "cover_letter.pdf").read_bytes() == b"%PDF-1.7 guarded"
+    assert (job_dir / "workflow" / "projections" / "render.json").is_file()

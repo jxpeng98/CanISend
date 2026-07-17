@@ -59,6 +59,9 @@ def test_decision_spine_stages_are_implemented_in_the_registry() -> None:
         "draft",
         "review",
         "package_review",
+        "package",
+        "verify",
+        "render",
     )
 
     intake = DEFAULT_STAGE_REGISTRY.get("intake")
@@ -100,6 +103,15 @@ def test_decision_spine_stages_are_implemented_in_the_registry() -> None:
     package_review = DEFAULT_STAGE_REGISTRY.get("package_review")
     assert package_review.execution_modes == ("deterministic",)
     assert package_review.authoritative_outputs == ("package_review_findings.json",)
+    package = DEFAULT_STAGE_REGISTRY.get("package")
+    assert package.execution_modes == ("deterministic",)
+    assert package.authoritative_outputs == ("package_bundle.json",)
+    verify = DEFAULT_STAGE_REGISTRY.get("verify")
+    assert verify.execution_modes == ("deterministic",)
+    assert verify.authoritative_outputs == ("application_gate_report.json",)
+    render = DEFAULT_STAGE_REGISTRY.get("render")
+    assert render.execution_modes == ("deterministic",)
+    assert render.authoritative_outputs == ("render_bundle.json",)
 
 
 def test_descendants_are_transitive_and_topologically_ordered() -> None:
