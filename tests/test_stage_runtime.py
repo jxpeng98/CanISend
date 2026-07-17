@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import multiprocessing
 import os
 from pathlib import Path
 
@@ -87,6 +88,50 @@ def _write_success_result(prepared: object, candidate: dict[str, object]) -> Pat
     return submitted.result_path
 
 
+def _prepare_in_process(
+    workspace: str,
+    job_dir: str,
+    start: object,
+    results: object,
+) -> None:
+    start.wait(timeout=10)
+    try:
+        prepared = prepare_stage(
+            Path(workspace),
+            Path(job_dir),
+            stage="parse",
+            execution_mode="host_agent",
+        )
+        results.put(("ok", prepared.task_spec.run_id, prepared.reused))
+    except StageRuntimeError as exc:
+        results.put(("error", exc.code, False))
+
+
+def _finish_in_process(
+    action: str,
+    workspace: str,
+    job_dir: str,
+    task_spec_path: str,
+    task_result_path: str,
+    start: object,
+    results: object,
+) -> None:
+    start.wait(timeout=10)
+    try:
+        if action == "apply":
+            apply_stage_result(
+                Path(workspace),
+                Path(job_dir),
+                task_spec_path=Path(task_spec_path),
+                task_result_path=Path(task_result_path),
+            )
+        else:
+            cancel_stage_task(Path(workspace), Path(job_dir), stage="parse")
+        results.put((action, "ok"))
+    except StageRuntimeError as exc:
+        results.put((action, exc.code))
+
+
 def test_prepare_is_fresh_session_reusable_and_provider_free(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -112,6 +157,73 @@ def test_prepare_is_fresh_session_reusable_and_provider_free(
     assert state.pending_task_path == first.task_spec_path
 
 
+def test_concurrent_processes_prepare_exactly_one_stage_run(tmp_path: Path) -> None:
+    workspace, job_dir = _write_workspace(tmp_path)
+    context = multiprocessing.get_context("spawn")
+    start = context.Event()
+    results = context.Queue()
+    processes = [
+        context.Process(
+            target=_prepare_in_process,
+            args=(str(workspace), str(job_dir), start, results),
+        )
+        for _ in range(2)
+    ]
+    for process in processes:
+        process.start()
+    start.set()
+    for process in processes:
+        process.join(timeout=15)
+        assert process.exitcode == 0
+
+    outcomes = [results.get(timeout=5) for _ in processes]
+    assert {item[0] for item in outcomes} == {"ok"}
+    assert len({item[1] for item in outcomes}) == 1
+    assert {item[2] for item in outcomes} == {False, True}
+    assert len(list((job_dir / "workflow" / "runs").glob("*/task-spec.json"))) == 1
+
+
+def test_concurrent_apply_and_cancel_have_one_terminal_winner(tmp_path: Path) -> None:
+    workspace, job_dir = _write_workspace(tmp_path)
+    prepared = prepare_stage(workspace, job_dir, stage="parse", execution_mode="host_agent")
+    result_path = _write_success_result(
+        prepared,
+        build_deterministic_parse_candidate(job_dir),
+    )
+    context = multiprocessing.get_context("spawn")
+    start = context.Event()
+    results = context.Queue()
+    processes = [
+        context.Process(
+            target=_finish_in_process,
+            args=(
+                action,
+                str(workspace),
+                str(job_dir),
+                str(prepared.task_spec_path),
+                str(result_path),
+                start,
+                results,
+            ),
+        )
+        for action in ("apply", "cancel")
+    ]
+    for process in processes:
+        process.start()
+    start.set()
+    for process in processes:
+        process.join(timeout=15)
+        assert process.exitcode == 0
+
+    outcomes = [results.get(timeout=5) for _ in processes]
+    assert [result for _, result in outcomes].count("ok") == 1
+    assert len(list(prepared.task_spec_path.parent.glob("terminal-claim.json"))) == 1
+    assert len(list(prepared.task_spec_path.parent.glob("manifest.json"))) == 1
+    status = inspect_stage_status(workspace, job_dir, stage="parse")
+    assert status.stage.status in {"succeeded", "cancelled"}
+    assert status.state.active_run_id is None
+
+
 def test_deterministic_parse_cache_is_true_noop(tmp_path: Path) -> None:
     workspace, job_dir = _write_workspace(tmp_path)
 
@@ -129,6 +241,98 @@ def test_deterministic_parse_cache_is_true_noop(tmp_path: Path) -> None:
     assert authoritative.read_bytes() == first_bytes
     assert authoritative.stat().st_mtime_ns == first_mtime
     assert inspect_stage_status(workspace, job_dir).stage.status == "succeeded"
+
+
+@pytest.mark.parametrize(
+    "failure_point",
+    (
+        "after_terminal_claim",
+        "after_authoritative_replace",
+        "after_promotion_receipt",
+        "after_manifest",
+        "after_state_refresh",
+    ),
+)
+def test_apply_failure_points_converge_without_duplicate_promotion(
+    tmp_path: Path,
+    failure_point: str,
+) -> None:
+    workspace, job_dir = _write_workspace(tmp_path)
+    prepared = prepare_stage(workspace, job_dir, stage="parse", execution_mode="host_agent")
+    result_path = _write_success_result(
+        prepared,
+        build_deterministic_parse_candidate(job_dir),
+    )
+    injected = False
+
+    def fail_once(point: str) -> None:
+        nonlocal injected
+        if point == failure_point and not injected:
+            injected = True
+            raise RuntimeError(f"injected failure at {point}")
+
+    with pytest.raises(RuntimeError, match="injected failure"):
+        apply_stage_result(
+            workspace,
+            job_dir,
+            task_spec_path=prepared.task_spec_path,
+            task_result_path=result_path,
+            failure_injector=fail_once,
+        )
+
+    if failure_point in {
+        "after_terminal_claim",
+        "after_authoritative_replace",
+    }:
+        applied = apply_stage_result(
+            workspace,
+            job_dir,
+            task_spec_path=prepared.task_spec_path,
+            task_result_path=result_path,
+        )
+        assert applied.manifest.status == "succeeded"
+    else:
+        resumed = run_deterministic_stage(workspace, job_dir, stage="parse")
+        assert resumed.cache_hit is True
+
+    status = inspect_stage_status(workspace, job_dir, stage="parse")
+    assert status.stage.status == "succeeded"
+    assert not status.reasons
+    assert len(list((job_dir / "workflow" / "runs").glob("*/promotion.json"))) == 1
+
+
+@pytest.mark.parametrize(
+    "failure_point",
+    ("after_terminal_claim", "after_manifest", "after_state_refresh"),
+)
+def test_cancel_failure_points_converge_to_one_cancelled_run(
+    tmp_path: Path,
+    failure_point: str,
+) -> None:
+    workspace, job_dir = _write_workspace(tmp_path)
+    prepared = prepare_stage(workspace, job_dir, stage="parse", execution_mode="host_agent")
+
+    def fail_at(point: str) -> None:
+        if point == failure_point:
+            raise RuntimeError(f"injected failure at {point}")
+
+    with pytest.raises(RuntimeError, match="injected failure"):
+        cancel_stage_task(
+            workspace,
+            job_dir,
+            stage="parse",
+            failure_injector=fail_at,
+        )
+
+    if failure_point == "after_terminal_claim":
+        cancelled = cancel_stage_task(workspace, job_dir, stage="parse")
+        assert cancelled.manifest.status == "cancelled"
+
+    status = inspect_stage_status(workspace, job_dir, stage="parse")
+    assert status.stage.status == "cancelled"
+    assert status.state.active_run_id is None
+    manifests = list((job_dir / "workflow" / "runs").glob("*/manifest.json"))
+    assert manifests == [prepared.task_spec_path.parent / "manifest.json"]
 
 
 def test_parse_staleness_is_precise_for_advert_and_profile_changes(tmp_path: Path) -> None:

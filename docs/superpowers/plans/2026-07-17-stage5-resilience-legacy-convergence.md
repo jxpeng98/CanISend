@@ -1,6 +1,6 @@
 # Stage 5 Resilience And Legacy Convergence Implementation Plan
 
-**Status:** In progress — Task 0 accepted; implementation starts with coordination and recovery
+**Status:** In progress — Tasks 0–1 accepted; source-stage and registry convergence is next
 
 **Date:** 2026-07-17
 
@@ -57,11 +57,13 @@ promotion path across direct CLI, host agents, and orchestration.
 
 ### Task 1: Per-Job Coordination And Failure Model
 
-- [ ] Add one portable crash-released, reentrant per-job coordination service.
-- [ ] Guard stage prepare/submit/apply/cancel/run plus sequence, projection, migration, and repair mutations.
-- [ ] Preserve read-only status and body-free error semantics.
-- [ ] Add deterministic failure-injection hooks at claim, promotion, projection, receipt, and state boundaries.
-- [ ] Prove concurrent prepare/apply/cancel attempts have exactly one safe winner and no stale promotion.
+- [x] Add one portable crash-released, reentrant per-job coordination service.
+- [x] Guard stage prepare/submit/apply/cancel/run mutations; require sequence, projection, migration, and repair to use
+  the same service as they are added.
+- [x] Preserve read-only status and body-free error semantics.
+- [x] Add deterministic failure-injection hooks at claim, promotion, receipt, and state boundaries; require projection
+  hooks with the projection service in Task 3.
+- [x] Prove concurrent prepare/apply/cancel attempts have exactly one safe winner and no stale promotion.
 
 ### Task 2: Source Stages And Complete Registry
 
@@ -152,3 +154,15 @@ promotion path across direct CLI, host agents, and orchestration.
 - The current orchestrator writes declared stdout directly after a successful process exit; registered stage tasks
   must instead enter the existing guarded submission/apply service.
 - User-owned Decision Spine files and editable Typst sources remain outside ordinary generated-output ownership.
+
+## Task 1 Acceptance Record
+
+- `workflow/job.lock` is a persistent, body-free coordination inode guarded by a crash-released OS lock. It rejects
+  symlinked and multiply linked lock files, uses restrictive POSIX permissions, and is reentrant for nested runtime
+  services in the same thread.
+- Every existing public stage mutation enters the same coordination service. Read-only stage inspection remains
+  lock-free and does not create workflow state.
+- Programmatic failure points cover terminal claim, authoritative replacement, promotion receipt, manifest, and
+  mutable-state refresh. Retrying or resuming converges to one terminal run without duplicate promotion.
+- Spawned-process tests prove two concurrent prepares reuse one immutable TaskSpec and a concurrent apply/cancel pair
+  produces exactly one terminal winner. Focused coordination/runtime/CLI evidence: `53 passed`.

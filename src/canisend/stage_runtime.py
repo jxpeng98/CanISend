@@ -2,14 +2,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from functools import wraps
 import json
 from pathlib import Path
-from typing import Literal
+from typing import Callable, Literal, TypeVar, cast
 from uuid import uuid4
 
 from pydantic import ValidationError
 
 from canisend import llm
+from canisend.job_coordination import JobCoordinationError, coordinate_job
 from canisend.draft_provider import (
     DraftProviderExecutionError,
     DraftProviderInputChangedError,
@@ -73,6 +75,9 @@ SupportedExecutionMode = Literal[
     "host_agent",
     "configured_provider",
 ]
+StageFailureInjector = Callable[[str], None]
+
+_MutationFunction = TypeVar("_MutationFunction", bound=Callable[..., object])
 
 MAX_PROVIDER_DRAFT_INPUT_BYTES = 20_000_000
 _EXECUTABLE_DOCUMENT_KINDS: tuple[DraftDocumentKind, ...] = (
@@ -87,6 +92,26 @@ class StageRuntimeError(RuntimeError):
     def __init__(self, code: str, message: str) -> None:
         super().__init__(message)
         self.code = code
+
+
+def _coordinated_stage_mutation(function: _MutationFunction) -> _MutationFunction:
+    """Serialize one public workflow mutation while preserving nested calls."""
+
+    @wraps(function)
+    def wrapped(workspace: Path, job_dir: Path, *args: object, **kwargs: object) -> object:
+        root, job = _runtime_paths(workspace, job_dir)
+        try:
+            with coordinate_job(job):
+                return function(root, job, *args, **kwargs)
+        except JobCoordinationError as exc:
+            raise StageRuntimeError(exc.code, str(exc)) from exc
+
+    return cast(_MutationFunction, wrapped)
+
+
+def _inject_failure(injector: StageFailureInjector | None, point: str) -> None:
+    if injector is not None:
+        injector(point)
 
 
 @dataclass(frozen=True)
@@ -377,6 +402,7 @@ def inspect_stage_status(
     )
 
 
+@_coordinated_stage_mutation
 def prepare_stage(
     workspace: Path,
     job_dir: Path,
@@ -584,12 +610,14 @@ def prepare_stage(
     )
 
 
+@_coordinated_stage_mutation
 def apply_stage_result(
     workspace: Path,
     job_dir: Path,
     *,
     task_spec_path: Path,
     task_result_path: Path,
+    failure_injector: StageFailureInjector | None = None,
 ) -> AppliedStage:
     root, job = _runtime_paths(workspace, job_dir)
     task: TaskSpecV1 | None = None
@@ -728,7 +756,9 @@ def apply_stage_result(
             candidate_sha256=candidate.sha256,
         )
         promotion_claimed = True
+        _inject_failure(failure_injector, "after_terminal_claim")
         atomic_write_bytes(target, candidate_bytes)
+        _inject_failure(failure_injector, "after_authoritative_replace")
         promoted = _artifact(job, task.authoritative_target)
         promotion_relative = f"workflow/runs/{task.run_id}/promotion.json"
         promotion_path = resolve_job_relative_path(job, promotion_relative)
@@ -755,6 +785,7 @@ def apply_stage_result(
                 document_id=task.document_id,
             ),
         )
+        _inject_failure(failure_injector, "after_promotion_receipt")
 
         manifest = RunManifestV1(
             schema_version=task.schema_version,
@@ -786,6 +817,7 @@ def apply_stage_result(
             f"workflow/runs/{task.run_id}/manifest.json",
         )
         write_immutable_json(manifest_path, _stage_contract_payload(manifest))
+        _inject_failure(failure_injector, "after_manifest")
         state, _ = _load_or_reconstruct_state(job)
         succeeded = StageRecord(
             stage=task.stage,
@@ -812,6 +844,7 @@ def apply_stage_result(
             document_id=logical_document_id,
         )
         _write_state(job, updated_state)
+        _inject_failure(failure_injector, "after_state_refresh")
         return AppliedStage(
             manifest=manifest,
             manifest_path=manifest_path,
@@ -847,6 +880,7 @@ def apply_stage_result(
         raise wrapped from exc
 
 
+@_coordinated_stage_mutation
 def submit_stage_candidate(
     workspace: Path,
     job_dir: Path,
@@ -998,12 +1032,14 @@ def submit_stage_candidate(
         ) from exc
 
 
+@_coordinated_stage_mutation
 def cancel_stage_task(
     workspace: Path,
     job_dir: Path,
     *,
     stage: SupportedStage,
     document_id: str | None = None,
+    failure_injector: StageFailureInjector | None = None,
 ) -> CancelledStage:
     _, job = _runtime_paths(workspace, job_dir)
     _implemented_stage(stage)
@@ -1080,6 +1116,7 @@ def cancel_stage_task(
         task_path=task_path,
         action="cancel",
     )
+    _inject_failure(failure_injector, "after_terminal_claim")
     manifest = RunManifestV1(
         schema_version=preparation.schema_version,
         run_id=preparation.run_id,
@@ -1110,6 +1147,7 @@ def cancel_stage_task(
             "stage.store_failed",
             "The cancellation manifest could not be stored safely.",
         ) from exc
+    _inject_failure(failure_injector, "after_manifest")
     cancelled = StageRecord(
         stage=stage,
         document_id=resolved_document_id,
@@ -1130,6 +1168,7 @@ def cancel_stage_task(
         updated_at=now,
     )
     _write_state(job, updated)
+    _inject_failure(failure_injector, "after_state_refresh")
     return CancelledStage(
         manifest=manifest,
         manifest_path=manifest_path,
@@ -1139,12 +1178,14 @@ def cancel_stage_task(
     )
 
 
+@_coordinated_stage_mutation
 def run_deterministic_stage(
     workspace: Path,
     job_dir: Path,
     *,
     stage: SupportedStage,
     document_id: str | None = None,
+    failure_injector: StageFailureInjector | None = None,
 ) -> StageRunOutcome:
     root, job = _runtime_paths(workspace, job_dir)
     resolved_document_id = _resolve_stage_document_id(
@@ -1224,6 +1265,7 @@ def run_deterministic_stage(
         job,
         task_spec_path=prepared.task_spec_path,
         task_result_path=submitted.result_path,
+        failure_injector=failure_injector,
     )
     return StageRunOutcome(
         stage=stage,
@@ -1237,6 +1279,7 @@ def run_deterministic_stage(
     )
 
 
+@_coordinated_stage_mutation
 def run_configured_provider_stage(
     workspace: Path,
     job_dir: Path,
@@ -1245,6 +1288,7 @@ def run_configured_provider_stage(
     allow_provider_backed: bool,
     provider: llm.LLMProvider | None = None,
     document_id: str | None = None,
+    failure_injector: StageFailureInjector | None = None,
 ) -> StageRunOutcome:
     """Run one configured-provider stage through the guarded candidate path."""
 
@@ -1377,6 +1421,7 @@ def run_configured_provider_stage(
         job,
         task_spec_path=prepared.task_spec_path,
         task_result_path=submitted.result_path,
+        failure_injector=failure_injector,
     )
     return StageRunOutcome(
         stage=stage,
