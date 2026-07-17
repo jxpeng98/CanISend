@@ -1,0 +1,45 @@
+{
+  "$id": "https://schemas.canisend.dev/v2/version.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "git_revision": {
+      "type": "string"
+    },
+    "product": {
+      "type": "string"
+    },
+    "protocol": {
+      "type": "string"
+    },
+    "resource_format": {
+      "type": "string"
+    },
+    "rustc": {
+      "type": "string"
+    },
+    "target": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "workspace_format": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "product",
+    "version",
+    "protocol",
+    "workspace_format",
+    "resource_format",
+    "rustc",
+    "target",
+    "git_revision"
+  ],
+  "title": "VersionData",
+  "type": "object",
+  "x-canisend-id": "canisend.version/v2",
+  "x-canisend-version": "2.0.0"
+}

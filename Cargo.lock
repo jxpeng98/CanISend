@@ -179,9 +179,12 @@ dependencies = [
 name = "canisend-resources"
 version = "0.7.0-alpha.1"
 dependencies = [
+ "canisend-contracts",
  "hex",
  "serde",
+ "serde_json",
  "sha2",
+ "thiserror",
 ]
 
 [[package]]

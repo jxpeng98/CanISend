@@ -1,0 +1,193 @@
+{
+  "$defs": {
+    "ActorKind": {
+      "enum": [
+        "user",
+        "host-agent",
+        "configured-provider",
+        "system"
+      ],
+      "type": "string"
+    },
+    "ArtifactKind": {
+      "enum": [
+        "source-original",
+        "source-normalized-text",
+        "evidence-catalog",
+        "criteria",
+        "evidence-matches",
+        "application-plan",
+        "cover-letter",
+        "research-statement",
+        "teaching-statement",
+        "cv",
+        "review-findings",
+        "package-manifest",
+        "typst-source",
+        "pdf"
+      ],
+      "type": "string"
+    },
+    "ArtifactReference": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/ArtifactKind"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sha256": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "revision",
+        "sha256"
+      ],
+      "type": "object"
+    },
+    "ConsentRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "artifacts": {
+          "items": {
+            "$ref": "#/$defs/ArtifactReference"
+          },
+          "type": "array"
+        },
+        "description": {
+          "type": "string"
+        },
+        "scope": {
+          "$ref": "#/$defs/ConsentScope"
+        }
+      },
+      "required": [
+        "scope",
+        "description",
+        "artifacts"
+      ],
+      "type": "object"
+    },
+    "ConsentScope": {
+      "enum": [
+        "read-private-inputs",
+        "send-to-configured-provider",
+        "fetch-user-supplied-url",
+        "export-private-artifacts",
+        "use-system-fonts"
+      ],
+      "type": "string"
+    },
+    "ExecutionMode": {
+      "enum": [
+        "deterministic",
+        "host-agent",
+        "configured-provider",
+        "user-decision",
+        "manual-import"
+      ],
+      "type": "string"
+    },
+    "SchemaReference": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "version"
+      ],
+      "type": "object"
+    },
+    "TaskLease": {
+      "additionalProperties": false,
+      "properties": {
+        "expires_at": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "expires_at"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://schemas.canisend.dev/v2/task-descriptor.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "actor": {
+      "$ref": "#/$defs/ActorKind"
+    },
+    "allowed_output_kind": {
+      "$ref": "#/$defs/ArtifactKind"
+    },
+    "candidate_schema": {
+      "$ref": "#/$defs/SchemaReference"
+    },
+    "execution_mode": {
+      "$ref": "#/$defs/ExecutionMode"
+    },
+    "id": {
+      "type": "string"
+    },
+    "input_artifacts": {
+      "items": {
+        "$ref": "#/$defs/ArtifactReference"
+      },
+      "type": "array"
+    },
+    "lease": {
+      "$ref": "#/$defs/TaskLease"
+    },
+    "operation": {
+      "type": "string"
+    },
+    "private_read_scope": {
+      "items": {
+        "$ref": "#/$defs/ArtifactReference"
+      },
+      "type": "array"
+    },
+    "required_consents": {
+      "items": {
+        "$ref": "#/$defs/ConsentRequest"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "id",
+    "operation",
+    "actor",
+    "execution_mode",
+    "input_artifacts",
+    "allowed_output_kind",
+    "candidate_schema",
+    "required_consents",
+    "private_read_scope",
+    "lease"
+  ],
+  "title": "TaskDescriptor",
+  "type": "object",
+  "x-canisend-id": "canisend.task-descriptor/v2",
+  "x-canisend-version": "2.0.0"
+}

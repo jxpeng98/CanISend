@@ -1,0 +1,71 @@
+{
+  "$defs": {
+    "ActorKind": {
+      "enum": [
+        "user",
+        "host-agent",
+        "configured-provider",
+        "system"
+      ],
+      "type": "string"
+    },
+    "ExecutionMode": {
+      "enum": [
+        "deterministic",
+        "host-agent",
+        "configured-provider",
+        "user-decision",
+        "manual-import"
+      ],
+      "type": "string"
+    },
+    "PrivacyClassification": {
+      "enum": [
+        "public",
+        "private-local",
+        "provider-bound",
+        "secret"
+      ],
+      "type": "string"
+    }
+  },
+  "$id": "https://schemas.canisend.dev/v2/agent-context.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "active_job_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "actor": {
+      "$ref": "#/$defs/ActorKind"
+    },
+    "execution_mode": {
+      "$ref": "#/$defs/ExecutionMode"
+    },
+    "privacy": {
+      "$ref": "#/$defs/PrivacyClassification"
+    },
+    "product_version": {
+      "type": "string"
+    },
+    "workspace_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "product_version",
+    "actor",
+    "execution_mode",
+    "privacy"
+  ],
+  "title": "AgentContextData",
+  "type": "object",
+  "x-canisend-id": "canisend.agent-context/v2",
+  "x-canisend-version": "2.0.0"
+}

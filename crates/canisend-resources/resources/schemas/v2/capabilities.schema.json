@@ -1,0 +1,72 @@
+{
+  "$defs": {
+    "Capability": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/CapabilityStatus"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "status"
+      ],
+      "type": "object"
+    },
+    "CapabilityStatus": {
+      "enum": [
+        "available",
+        "planned"
+      ],
+      "type": "string"
+    }
+  },
+  "$id": "https://schemas.canisend.dev/v2/capabilities.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "capabilities": {
+      "items": {
+        "$ref": "#/$defs/Capability"
+      },
+      "type": "array"
+    },
+    "error_codes": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "product_version": {
+      "type": "string"
+    },
+    "protocol": {
+      "type": "string"
+    },
+    "resource_format": {
+      "type": "string"
+    },
+    "workspace_format": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "product_version",
+    "protocol",
+    "workspace_format",
+    "resource_format",
+    "capabilities",
+    "error_codes"
+  ],
+  "title": "CapabilitiesData",
+  "type": "object",
+  "x-canisend-id": "canisend.capabilities/v2",
+  "x-canisend-version": "2.0.0"
+}

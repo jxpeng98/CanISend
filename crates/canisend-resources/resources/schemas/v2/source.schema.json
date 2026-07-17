@@ -1,0 +1,118 @@
+{
+  "$defs": {
+    "ArtifactKind": {
+      "enum": [
+        "source-original",
+        "source-normalized-text",
+        "evidence-catalog",
+        "criteria",
+        "evidence-matches",
+        "application-plan",
+        "cover-letter",
+        "research-statement",
+        "teaching-statement",
+        "cv",
+        "review-findings",
+        "package-manifest",
+        "typst-source",
+        "pdf"
+      ],
+      "type": "string"
+    },
+    "ArtifactReference": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/ArtifactKind"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sha256": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "revision",
+        "sha256"
+      ],
+      "type": "object"
+    },
+    "PrivacyClassification": {
+      "enum": [
+        "public",
+        "private-local",
+        "provider-bound",
+        "secret"
+      ],
+      "type": "string"
+    },
+    "SourceKind": {
+      "enum": [
+        "local-file",
+        "user-url",
+        "discovery-lead",
+        "manual-text"
+      ],
+      "type": "string"
+    }
+  },
+  "$id": "https://schemas.canisend.dev/v2/source.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "job_id": {
+      "type": "string"
+    },
+    "kind": {
+      "$ref": "#/$defs/SourceKind"
+    },
+    "normalized_text": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ArtifactReference"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "original": {
+      "$ref": "#/$defs/ArtifactReference"
+    },
+    "privacy": {
+      "$ref": "#/$defs/PrivacyClassification"
+    },
+    "retrieved_at": {
+      "type": "string"
+    },
+    "source_url": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "id",
+    "job_id",
+    "kind",
+    "original",
+    "retrieved_at",
+    "privacy"
+  ],
+  "title": "SourceRecord",
+  "type": "object",
+  "x-canisend-id": "canisend.source/v2",
+  "x-canisend-version": "2.0.0"
+}

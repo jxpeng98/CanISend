@@ -1,0 +1,43 @@
+{
+  "$defs": {
+    "ReadinessState": {
+      "enum": [
+        "blocked",
+        "needs-review",
+        "ready-to-export",
+        "exported"
+      ],
+      "type": "string"
+    }
+  },
+  "$id": "https://schemas.canisend.dev/v2/readiness.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "blocker_finding_ids": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "checked_at": {
+      "type": "string"
+    },
+    "job_id": {
+      "type": "string"
+    },
+    "state": {
+      "$ref": "#/$defs/ReadinessState"
+    }
+  },
+  "required": [
+    "job_id",
+    "state",
+    "blocker_finding_ids",
+    "checked_at"
+  ],
+  "title": "ReadinessRecord",
+  "type": "object",
+  "x-canisend-id": "canisend.readiness/v2",
+  "x-canisend-version": "2.0.0"
+}

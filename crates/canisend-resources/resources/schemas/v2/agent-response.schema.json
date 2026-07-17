@@ -1,0 +1,223 @@
+{
+  "$defs": {
+    "AgentError": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/ErrorCode"
+        },
+        "details": true,
+        "message": {
+          "type": "string"
+        },
+        "remediation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NextAction"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "retryable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "retryable"
+      ],
+      "type": "object"
+    },
+    "AgentProtocolVersion": {
+      "enum": [
+        "canisend.agent/v2"
+      ],
+      "type": "string"
+    },
+    "ArtifactKind": {
+      "enum": [
+        "source-original",
+        "source-normalized-text",
+        "evidence-catalog",
+        "criteria",
+        "evidence-matches",
+        "application-plan",
+        "cover-letter",
+        "research-statement",
+        "teaching-statement",
+        "cv",
+        "review-findings",
+        "package-manifest",
+        "typst-source",
+        "pdf"
+      ],
+      "type": "string"
+    },
+    "ArtifactReference": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/ArtifactKind"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sha256": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "revision",
+        "sha256"
+      ],
+      "type": "object"
+    },
+    "ConsentRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "artifacts": {
+          "items": {
+            "$ref": "#/$defs/ArtifactReference"
+          },
+          "type": "array"
+        },
+        "description": {
+          "type": "string"
+        },
+        "scope": {
+          "$ref": "#/$defs/ConsentScope"
+        }
+      },
+      "required": [
+        "scope",
+        "description",
+        "artifacts"
+      ],
+      "type": "object"
+    },
+    "ConsentScope": {
+      "enum": [
+        "read-private-inputs",
+        "send-to-configured-provider",
+        "fetch-user-supplied-url",
+        "export-private-artifacts",
+        "use-system-fonts"
+      ],
+      "type": "string"
+    },
+    "ErrorCode": {
+      "enum": [
+        "input.invalid",
+        "input.path_rejected",
+        "workspace.not_found",
+        "workspace.conflict",
+        "resource.not_found",
+        "resources.integrity_failed",
+        "schema.not_found",
+        "candidate.schema_invalid",
+        "candidate.semantic_invalid",
+        "candidate.unknown_evidence",
+        "task.not_found",
+        "task.stale",
+        "task.conflict",
+        "consent.required",
+        "external.io_failed",
+        "provider.failed",
+        "internal.invariant_failed"
+      ],
+      "type": "string"
+    },
+    "NextAction": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "description"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://schemas.canisend.dev/v2/agent-response.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifacts": {
+      "items": {
+        "$ref": "#/$defs/ArtifactReference"
+      },
+      "type": "array"
+    },
+    "data": true,
+    "error": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AgentError"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "next_actions": {
+      "items": {
+        "$ref": "#/$defs/NextAction"
+      },
+      "type": "array"
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "operation": {
+      "type": "string"
+    },
+    "protocol": {
+      "$ref": "#/$defs/AgentProtocolVersion"
+    },
+    "required_consents": {
+      "items": {
+        "$ref": "#/$defs/ConsentRequest"
+      },
+      "type": "array"
+    },
+    "status": {
+      "type": "string"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "protocol",
+    "operation",
+    "ok",
+    "status",
+    "artifacts",
+    "required_consents",
+    "warnings",
+    "next_actions"
+  ],
+  "title": "AgentResponse",
+  "type": "object",
+  "x-canisend-id": "canisend.agent-response/v2",
+  "x-canisend-version": "2.0.0"
+}

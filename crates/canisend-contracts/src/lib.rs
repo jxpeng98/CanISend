@@ -3,11 +3,13 @@
 mod agent;
 mod domain;
 mod primitives;
+mod schema;
 mod validation;
 
 pub use agent::*;
 pub use domain::*;
 pub use primitives::*;
+pub use schema::*;
 pub use validation::*;
 
 pub const AGENT_PROTOCOL: &str = "canisend.agent/v2";

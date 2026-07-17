@@ -1,0 +1,137 @@
+{
+  "$defs": {
+    "ArtifactKind": {
+      "enum": [
+        "source-original",
+        "source-normalized-text",
+        "evidence-catalog",
+        "criteria",
+        "evidence-matches",
+        "application-plan",
+        "cover-letter",
+        "research-statement",
+        "teaching-statement",
+        "cv",
+        "review-findings",
+        "package-manifest",
+        "typst-source",
+        "pdf"
+      ],
+      "type": "string"
+    },
+    "ArtifactReference": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/ArtifactKind"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sha256": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "revision",
+        "sha256"
+      ],
+      "type": "object"
+    },
+    "DocumentKind": {
+      "enum": [
+        "cover-letter",
+        "research-statement",
+        "teaching-statement",
+        "cv"
+      ],
+      "type": "string"
+    },
+    "DocumentStatus": {
+      "enum": [
+        "planned",
+        "awaiting-input",
+        "draft",
+        "reviewed",
+        "current",
+        "stale",
+        "omitted"
+      ],
+      "type": "string"
+    },
+    "ExecutionMode": {
+      "enum": [
+        "deterministic",
+        "host-agent",
+        "configured-provider",
+        "user-decision",
+        "manual-import"
+      ],
+      "type": "string"
+    }
+  },
+  "$id": "https://schemas.canisend.dev/v2/document.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifact": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ArtifactReference"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "executor": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ExecutionMode"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "id": {
+      "type": "string"
+    },
+    "job_id": {
+      "type": "string"
+    },
+    "kind": {
+      "$ref": "#/$defs/DocumentKind"
+    },
+    "revision": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "status": {
+      "$ref": "#/$defs/DocumentStatus"
+    },
+    "title": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "job_id",
+    "kind",
+    "title",
+    "status",
+    "revision"
+  ],
+  "title": "DocumentRecord",
+  "type": "object",
+  "x-canisend-id": "canisend.document/v2",
+  "x-canisend-version": "2.0.0"
+}

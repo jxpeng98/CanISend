@@ -8,5 +8,6 @@ Start by running:
 canisend agent capabilities --json
 ```
 
-Read only capabilities marked `available`. Do not edit `.canisend/` internal state. Later R2/R6 work will replace
-this bootstrap guide with the complete generic, Codex, and Claude host packs.
+Read only capabilities marked `available`. Do not edit `.canisend/` internal state. Follow task input revisions,
+candidate schemas, privacy scope, and required consents. Submit candidates only through CanISend task commands;
+readiness is not evidence that an application was submitted.

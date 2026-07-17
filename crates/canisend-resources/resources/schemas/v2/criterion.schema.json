@@ -1,0 +1,66 @@
+{
+  "$defs": {
+    "CriterionImportance": {
+      "enum": [
+        "essential",
+        "desirable",
+        "informational"
+      ],
+      "type": "string"
+    },
+    "EvidenceKind": {
+      "enum": [
+        "qualification",
+        "teaching",
+        "research",
+        "communication",
+        "leadership",
+        "service",
+        "employment",
+        "other"
+      ],
+      "type": "string"
+    }
+  },
+  "$id": "https://schemas.canisend.dev/v2/criterion.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "importance": {
+      "$ref": "#/$defs/CriterionImportance"
+    },
+    "job_id": {
+      "type": "string"
+    },
+    "kind": {
+      "$ref": "#/$defs/EvidenceKind"
+    },
+    "requirement": {
+      "type": "string"
+    },
+    "revision": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "source_quote": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "job_id",
+    "kind",
+    "requirement",
+    "importance",
+    "source_quote",
+    "revision"
+  ],
+  "title": "CriterionRecord",
+  "type": "object",
+  "x-canisend-id": "canisend.criterion/v2",
+  "x-canisend-version": "2.0.0"
+}

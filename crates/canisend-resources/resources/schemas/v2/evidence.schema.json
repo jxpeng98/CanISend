@@ -1,0 +1,112 @@
+{
+  "$defs": {
+    "ArtifactKind": {
+      "enum": [
+        "source-original",
+        "source-normalized-text",
+        "evidence-catalog",
+        "criteria",
+        "evidence-matches",
+        "application-plan",
+        "cover-letter",
+        "research-statement",
+        "teaching-statement",
+        "cv",
+        "review-findings",
+        "package-manifest",
+        "typst-source",
+        "pdf"
+      ],
+      "type": "string"
+    },
+    "ArtifactReference": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/ArtifactKind"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sha256": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "revision",
+        "sha256"
+      ],
+      "type": "object"
+    },
+    "EvidenceKind": {
+      "enum": [
+        "qualification",
+        "teaching",
+        "research",
+        "communication",
+        "leadership",
+        "service",
+        "employment",
+        "other"
+      ],
+      "type": "string"
+    },
+    "PrivacyClassification": {
+      "enum": [
+        "public",
+        "private-local",
+        "provider-bound",
+        "secret"
+      ],
+      "type": "string"
+    }
+  },
+  "$id": "https://schemas.canisend.dev/v2/evidence.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "confirmed": {
+      "type": "boolean"
+    },
+    "id": {
+      "type": "string"
+    },
+    "kind": {
+      "$ref": "#/$defs/EvidenceKind"
+    },
+    "privacy": {
+      "$ref": "#/$defs/PrivacyClassification"
+    },
+    "revision": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "source": {
+      "$ref": "#/$defs/ArtifactReference"
+    },
+    "summary": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "kind",
+    "summary",
+    "source",
+    "confirmed",
+    "privacy",
+    "revision"
+  ],
+  "title": "EvidenceRecord",
+  "type": "object",
+  "x-canisend-id": "canisend.evidence/v2",
+  "x-canisend-version": "2.0.0"
+}

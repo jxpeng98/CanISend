@@ -1,0 +1,65 @@
+{
+  "$defs": {
+    "ActorKind": {
+      "enum": [
+        "user",
+        "host-agent",
+        "configured-provider",
+        "system"
+      ],
+      "type": "string"
+    },
+    "ApplicationDecision": {
+      "enum": [
+        "apply",
+        "do-not-apply",
+        "undecided"
+      ],
+      "type": "string"
+    }
+  },
+  "$id": "https://schemas.canisend.dev/v2/application-plan.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "decided_by": {
+      "$ref": "#/$defs/ActorKind"
+    },
+    "decision": {
+      "$ref": "#/$defs/ApplicationDecision"
+    },
+    "document_ids": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "id": {
+      "type": "string"
+    },
+    "job_id": {
+      "type": "string"
+    },
+    "revision": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "strategy": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "job_id",
+    "decision",
+    "strategy",
+    "document_ids",
+    "decided_by",
+    "revision"
+  ],
+  "title": "ApplicationPlanRecord",
+  "type": "object",
+  "x-canisend-id": "canisend.application-plan/v2",
+  "x-canisend-version": "2.0.0"
+}

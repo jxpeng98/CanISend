@@ -1,0 +1,42 @@
+{
+  "$id": "https://schemas.canisend.dev/v2/job.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "created_at": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string"
+    },
+    "institution": {
+      "type": "string"
+    },
+    "revision": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "source_ids": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "title": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "title",
+    "institution",
+    "source_ids",
+    "created_at",
+    "revision"
+  ],
+  "title": "JobRecord",
+  "type": "object",
+  "x-canisend-id": "canisend.job/v2",
+  "x-canisend-version": "2.0.0"
+}

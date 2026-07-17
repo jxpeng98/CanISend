@@ -1,0 +1,65 @@
+{
+  "$defs": {
+    "FindingSeverity": {
+      "enum": [
+        "info",
+        "warning",
+        "blocker"
+      ],
+      "type": "string"
+    },
+    "FindingStatus": {
+      "enum": [
+        "open",
+        "accepted",
+        "resolved",
+        "dismissed"
+      ],
+      "type": "string"
+    }
+  },
+  "$id": "https://schemas.canisend.dev/v2/finding.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "code": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string"
+    },
+    "message": {
+      "type": "string"
+    },
+    "related_ids": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "revision": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "severity": {
+      "$ref": "#/$defs/FindingSeverity"
+    },
+    "status": {
+      "$ref": "#/$defs/FindingStatus"
+    }
+  },
+  "required": [
+    "id",
+    "code",
+    "severity",
+    "message",
+    "related_ids",
+    "status",
+    "revision"
+  ],
+  "title": "FindingRecord",
+  "type": "object",
+  "x-canisend-id": "canisend.finding/v2",
+  "x-canisend-version": "2.0.0"
+}

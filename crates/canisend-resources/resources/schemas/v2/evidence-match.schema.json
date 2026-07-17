@@ -1,0 +1,53 @@
+{
+  "$defs": {
+    "MatchStrength": {
+      "enum": [
+        "strong",
+        "partial",
+        "gap",
+        "unknown"
+      ],
+      "type": "string"
+    }
+  },
+  "$id": "https://schemas.canisend.dev/v2/evidence-match.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "criterion_id": {
+      "type": "string"
+    },
+    "evidence_ids": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "id": {
+      "type": "string"
+    },
+    "rationale": {
+      "type": "string"
+    },
+    "revision": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "strength": {
+      "$ref": "#/$defs/MatchStrength"
+    }
+  },
+  "required": [
+    "id",
+    "criterion_id",
+    "evidence_ids",
+    "strength",
+    "rationale",
+    "revision"
+  ],
+  "title": "EvidenceMatchRecord",
+  "type": "object",
+  "x-canisend-id": "canisend.evidence-match/v2",
+  "x-canisend-version": "2.0.0"
+}
