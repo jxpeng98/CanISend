@@ -689,6 +689,67 @@ fn leased_task_completion_is_validated_atomic_and_idempotent() {
     ]);
     assert_eq!(replay["data"]["idempotent"], true);
     assert_eq!(replay["data"]["artifact"], committed["data"]["artifact"]);
+
+    let prepared_stale = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "task",
+        "prepare",
+        "--job",
+        job_id,
+        "--operation",
+        "job-criterion",
+        "--json",
+    ]);
+    let stale_descriptor = &prepared_stale["data"];
+    let stale_inputs = stale_descriptor["input_artifacts"]
+        .as_array()
+        .expect("stale inputs")
+        .iter()
+        .map(|input| {
+            serde_json::json!({
+                "artifact_id": input["id"],
+                "revision": input["revision"],
+                "sha256": input["sha256"]
+            })
+        })
+        .collect::<Vec<_>>();
+    let stale_request = serde_json::json!({
+        "task_id": stale_descriptor["id"],
+        "lease_id": stale_descriptor["lease"]["id"],
+        "expected_job_revision": stale_descriptor["job_revision"],
+        "expected_inputs": stale_inputs,
+        "candidate": candidate
+    });
+    run_json(&[
+        "--workspace",
+        workspace.text(),
+        "job",
+        "import",
+        job_id,
+        "--file",
+        advert.to_str().expect("advert path"),
+        "--json",
+    ]);
+    let stale_path = input.path().join("stale.json");
+    fs::write(
+        &stale_path,
+        serde_json::to_vec(&stale_request).expect("stale request"),
+    )
+    .expect("stale file");
+    let stale = run(&[
+        "--workspace",
+        workspace.text(),
+        "task",
+        "complete",
+        "--file",
+        stale_path.to_str().expect("stale path"),
+        "--json",
+    ]);
+    assert_eq!(stale.status.code(), Some(4));
+    let stale: Value = serde_json::from_slice(&stale.stdout).expect("stale JSON");
+    assert_eq!(stale["error"]["code"], "task.stale");
+    assert!(stale["error"]["remediation"].is_object());
 }
 
 fn write_pdf(path: &std::path::Path, text: Option<&str>) {

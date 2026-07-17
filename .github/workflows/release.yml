@@ -61,6 +61,7 @@ jobs:
           "$binary" --workspace "$workspace" workspace backup "$backup" --json
           "$binary" workspace restore "$backup" "$restored" --json
           "$binary" --workspace "$restored" workspace check --json
+          ./scripts/smoke_host_agent.sh "$binary" "$RUNNER_TEMP/canisend-host-agent-smoke"
 
       - name: Upload unsigned preview binary
         uses: actions/upload-artifact@v7

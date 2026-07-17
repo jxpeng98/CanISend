@@ -71,3 +71,4 @@ jobs:
           ./target/release/canisend --workspace "$workspace" workspace backup "$backup" --json
           ./target/release/canisend workspace restore "$backup" "$restored" --json
           ./target/release/canisend --workspace "$restored" workspace check --json
+          ./scripts/smoke_host_agent.sh ./target/release/canisend "$RUNNER_TEMP/canisend-host-agent-smoke"
