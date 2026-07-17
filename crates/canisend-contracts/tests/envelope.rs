@@ -1,4 +1,4 @@
-use canisend_contracts::{AGENT_PROTOCOL, AgentError, AgentResponse};
+use canisend_contracts::{AGENT_PROTOCOL, AgentError, AgentResponse, ErrorCode};
 use serde_json::json;
 
 #[test]
@@ -18,10 +18,11 @@ fn failure_envelope_has_no_success_data() {
         "workspace.open",
         "not-found",
         AgentError {
-            code: "workspace.not_found".to_owned(),
+            code: ErrorCode::WorkspaceNotFound,
             message: "The workspace does not exist.".to_owned(),
             retryable: false,
             details: None,
+            remediation: None,
         },
     );
     let value = serde_json::to_value(response).expect("response serializes");

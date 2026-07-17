@@ -3,8 +3,8 @@
 use std::{io::IsTerminal, process::ExitCode};
 
 use canisend_contracts::{
-    AGENT_PROTOCOL, AgentError, AgentResponse, CapabilitiesData, RESOURCE_FORMAT, VersionData,
-    WORKSPACE_FORMAT,
+    AGENT_PROTOCOL, AgentError, AgentResponse, CapabilitiesData, ErrorCode, RESOURCE_FORMAT,
+    SemanticVersion, VersionData, WORKSPACE_FORMAT,
 };
 use canisend_core::CapabilityRegistry;
 use clap::{Args, Parser, Subcommand};
@@ -70,7 +70,7 @@ fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
 fn version(json_output: bool) -> Result<(), Box<dyn std::error::Error>> {
     let data = VersionData {
         product: "canisend".to_owned(),
-        version: env!("CARGO_PKG_VERSION").to_owned(),
+        version: SemanticVersion::try_new(env!("CARGO_PKG_VERSION"))?,
         protocol: AGENT_PROTOCOL.to_owned(),
         workspace_format: WORKSPACE_FORMAT.to_owned(),
         resource_format: RESOURCE_FORMAT.to_owned(),
@@ -100,10 +100,11 @@ fn doctor(json_output: bool) -> Result<(), Box<dyn std::error::Error>> {
             "product.doctor",
             "unhealthy",
             AgentError {
-                code: "resources.integrity_failed".to_owned(),
+                code: ErrorCode::ResourcesIntegrityFailed,
                 message,
                 retryable: false,
                 details: None,
+                remediation: None,
             },
         );
         if wants_json(json_output) {
@@ -129,11 +130,15 @@ fn doctor(json_output: bool) -> Result<(), Box<dyn std::error::Error>> {
 
 fn capabilities(json_output: bool) -> Result<(), Box<dyn std::error::Error>> {
     let data = CapabilitiesData {
-        product_version: env!("CARGO_PKG_VERSION").to_owned(),
+        product_version: SemanticVersion::try_new(env!("CARGO_PKG_VERSION"))?,
         protocol: AGENT_PROTOCOL.to_owned(),
         workspace_format: WORKSPACE_FORMAT.to_owned(),
         resource_format: RESOURCE_FORMAT.to_owned(),
         capabilities: CapabilityRegistry::built_in(),
+        error_codes: ErrorCode::ALL
+            .into_iter()
+            .map(|code| code.as_str().to_owned())
+            .collect(),
     };
 
     if wants_json(json_output) {

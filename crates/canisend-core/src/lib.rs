@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-use canisend_contracts::{Capability, CapabilityStatus};
+use canisend_contracts::{Capability, CapabilityStatus, SemanticVersion};
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct CapabilityRegistry;
@@ -25,7 +25,7 @@ impl CapabilityRegistry {
 fn available(id: &str) -> Capability {
     Capability {
         id: id.to_owned(),
-        version: "2.0.0".to_owned(),
+        version: SemanticVersion::try_new("2.0.0").expect("static capability version is valid"),
         status: CapabilityStatus::Available,
     }
 }
@@ -33,7 +33,7 @@ fn available(id: &str) -> Capability {
 fn planned(id: &str) -> Capability {
     Capability {
         id: id.to_owned(),
-        version: "2.0.0".to_owned(),
+        version: SemanticVersion::try_new("2.0.0").expect("static capability version is valid"),
         status: CapabilityStatus::Planned,
     }
 }
