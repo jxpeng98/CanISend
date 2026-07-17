@@ -28,6 +28,9 @@
 - 2026-07-17: The local native dependency spike passed bundled SQLite, schema generation/validation, embedded Typst,
   PDF generation/extraction, and Rustls HTTPS on macOS. Added a native Ubuntu/macOS/Windows spike matrix; R0 remains
   open until that matrix passes.
+- 2026-07-17: Added the root Cargo workspace, six product crates, Rust `xtask`, protocol v2 envelope, truthful
+  capability registry, embedded resource manifest, and native version/doctor/capabilities commands. Seven Rust tests,
+  Clippy, schema/resource checks, and the first release build passed; Python deletion still awaits R0 native CI.
 
 ## 1. Executive Decision
 
@@ -1139,7 +1142,7 @@ shorter estimate unrealistic.
 
 #### R1.1 Repository cutover
 
-- [ ] Create the dedicated Rust rebuild branch.
+- [x] Create the dedicated `rewrite/rust-native` branch.
 - [ ] Remove `src/canisend/`, `tests/`, Python scripts, `pyproject.toml`, and Python lock files from the active branch.
 - [ ] Remove Python build, wheel, PyPI, TestPyPI, and Pytest workflows.
 - [ ] Preserve only deliberately reviewed product resources and documentation.
@@ -1147,29 +1150,29 @@ shorter estimate unrealistic.
 
 #### R1.2 Cargo workspace
 
-- [ ] Add root `Cargo.toml` with workspace dependency versions and release profiles.
-- [ ] Add `Cargo.lock`.
-- [ ] Add pinned `rust-toolchain.toml` with `rustfmt` and `clippy` components.
-- [ ] Scaffold all six crates and `xtask`.
-- [ ] Enforce crate dependency direction.
-- [ ] Add repository metadata, license, authorship, and binary name.
+- [x] Add root `Cargo.toml` with workspace dependency versions and release profiles.
+- [x] Add `Cargo.lock`.
+- [x] Add pinned `rust-toolchain.toml` with `rustfmt` and `clippy` components.
+- [x] Scaffold all six crates and `xtask`.
+- [x] Establish the accepted inward crate dependency direction in manifests.
+- [x] Add repository metadata, license, authorship, and binary name.
 
 #### R1.3 Engineering policy
 
-- [ ] Add `rustfmt.toml`.
-- [ ] Add Clippy policy and deny warnings in CI.
-- [ ] Add dependency license/advisory configuration.
+- [x] Add `rustfmt.toml`.
+- [ ] Add Clippy policy and deny warnings in Rust CI.
+- [x] Add dependency license/advisory configuration.
 - [ ] Add `CONTRIBUTING.md`, `SECURITY.md`, and Rust development commands.
 - [ ] Define unsafe-code policy; default to `#![forbid(unsafe_code)]` where dependencies and FFI boundaries allow.
 - [ ] Define minimum supported Rust version or explicitly use the pinned stable toolchain only for alpha.
 
 #### R1.4 Minimal binary
 
-- [ ] Implement `canisend version`.
-- [ ] Implement a placeholder `canisend doctor` with JSON output.
-- [ ] Add build version, Git revision, target triple, and resource version to version output.
-- [ ] Add CLI smoke tests.
-- [ ] Add release-profile compilation.
+- [x] Implement `canisend version`.
+- [x] Implement a foundation `canisend doctor` with JSON output and resource verification.
+- [x] Add build version, Git revision, target triple, Rust compiler, and resource version to version output.
+- [x] Add CLI binary contract tests.
+- [x] Add and verify release-profile compilation.
 
 **Deliverables:** Rust-only compiling repository, minimal binary, fast CI.
 

@@ -1,0 +1,25 @@
+[package]
+name = "canisend-cli"
+description = "Native CanISend command-line application"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish.workspace = true
+build = "build.rs"
+
+[[bin]]
+name = "canisend"
+path = "src/main.rs"
+
+[dependencies]
+canisend-contracts = { path = "../canisend-contracts" }
+canisend-core = { path = "../canisend-core" }
+canisend-resources = { path = "../canisend-resources" }
+clap.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

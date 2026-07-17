@@ -14,3 +14,7 @@ job_leads/
 profile/*
 !profile/.gitkeep
 .vscode/
+/target/
+/.canisend/
+*.sqlite3-shm
+*.sqlite3-wal
