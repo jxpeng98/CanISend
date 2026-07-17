@@ -7,7 +7,6 @@ from pathlib import Path
 import re
 from typing import Any
 
-from jsonschema import Draft202012Validator
 from pydantic import ValidationError
 
 from canisend.parse import criteria_section_marker
@@ -23,6 +22,10 @@ from canisend.decision_models import (
     SourceSpanV1,
 )
 from canisend.resource_files import read_resource_text
+from canisend.schema_validation import (
+    SchemaCompilationError,
+    compiled_schema_validator,
+)
 from canisend.stage_store import StageStoreError, read_json_object
 from canisend.stages.parse_stage import ParseStageValidationError, validate_parse_candidate
 from canisend.user_file_store import (
@@ -484,10 +487,12 @@ def validate_confirm_candidate(
     if not isinstance(candidate, dict):
         raise ConfirmStageValidationError("Confirm candidate must be a JSON object.")
     try:
-        schema = json.loads(_criteria_schema_text(criteria_schema_path))
-    except json.JSONDecodeError as exc:
+        validator = compiled_schema_validator(
+            _criteria_schema_text(criteria_schema_path)
+        )
+    except SchemaCompilationError as exc:
         raise ConfirmStageValidationError("The configured Criteria schema is invalid.") from exc
-    if list(Draft202012Validator(schema).iter_errors(candidate)):
+    if list(validator.iter_errors(candidate)):
         raise ConfirmStageValidationError("Confirm candidate failed schema validation.")
     try:
         validated = CriteriaCatalogV1.model_validate(candidate)

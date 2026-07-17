@@ -178,7 +178,7 @@ local_release_checks() {
   version="$(read_project_version)"
 
   run uv run python scripts/sync_workspace_skill_mirror.py --check
-  run uv run python -m pytest -v
+  run uv run python -m pytest -q
   run uv build
 
   local distributions=(dist/canisend-"$version"*)

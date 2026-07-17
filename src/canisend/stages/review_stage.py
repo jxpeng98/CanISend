@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 import unicodedata
 
-from jsonschema import Draft202012Validator
 from pydantic import ValidationError
 
 from canisend.decision_models import ApplicationBriefV1
@@ -18,6 +17,10 @@ from canisend.draft_models import (
     stable_finding_id,
 )
 from canisend.resource_files import read_resource_text
+from canisend.schema_validation import (
+    SchemaCompilationError,
+    compiled_schema_validator,
+)
 from canisend.stage_store import (
     StageStoreError,
     read_json_object,
@@ -468,13 +471,14 @@ def _validate_review_candidate(
     if not isinstance(candidate, dict):
         raise ReviewStageValidationError("Review candidate must be a JSON object.")
     try:
-        schema = json.loads(_review_findings_schema_text(review_findings_schema_path))
-        Draft202012Validator.check_schema(schema)
-    except (json.JSONDecodeError, ValueError) as exc:
+        validator = compiled_schema_validator(
+            _review_findings_schema_text(review_findings_schema_path)
+        )
+    except SchemaCompilationError as exc:
         raise ReviewStageValidationError(
             "The configured Review Findings schema is invalid."
         ) from exc
-    if list(Draft202012Validator(schema).iter_errors(candidate)):
+    if list(validator.iter_errors(candidate)):
         raise ReviewStageValidationError("Review candidate failed schema validation.")
     try:
         validated = ReviewFindingsV1.model_validate(candidate)

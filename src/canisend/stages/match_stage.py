@@ -4,8 +4,6 @@ from hashlib import sha256
 import json
 from pathlib import Path
 
-from jsonschema import Draft202012Validator
-from jsonschema.exceptions import SchemaError
 from pydantic import ValidationError
 
 from canisend.decision_models import (
@@ -21,6 +19,10 @@ from canisend.decision_models import (
 from canisend.evidence import EvidenceReference
 from canisend.match import EvidenceIndex, _direct_overlap_score
 from canisend.resource_files import read_resource_text
+from canisend.schema_validation import (
+    SchemaCompilationError,
+    compiled_schema_validator,
+)
 from canisend.stage_store import StageStoreError, read_json_object, sha256_file
 
 
@@ -179,15 +181,14 @@ def validate_match_candidate(
     if not isinstance(candidate, dict):
         raise MatchStageValidationError("Match candidate must be a JSON object.")
     try:
-        schema = json.loads(
+        validator = compiled_schema_validator(
             _criterion_matches_schema_text(criterion_matches_schema_path)
         )
-        Draft202012Validator.check_schema(schema)
-    except (json.JSONDecodeError, SchemaError) as exc:
+    except SchemaCompilationError as exc:
         raise MatchStageValidationError(
             "The configured Criterion Matches schema is invalid."
         ) from exc
-    if list(Draft202012Validator(schema).iter_errors(candidate)):
+    if list(validator.iter_errors(candidate)):
         raise MatchStageValidationError(
             "Match candidate failed schema validation."
         )

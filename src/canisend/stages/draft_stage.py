@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 from typing import Any, Literal
 
-from jsonschema import Draft202012Validator
 from pydantic import ValidationError
 
 from canisend.decision_models import (
@@ -24,6 +23,10 @@ from canisend.draft_models import (
     ResearchStatementDraftV1,
 )
 from canisend.resource_files import read_resource_text
+from canisend.schema_validation import (
+    SchemaCompilationError,
+    compiled_schema_validator,
+)
 from canisend.stage_store import (
     StageStoreError,
     read_json_object,
@@ -386,13 +389,14 @@ def _validate_draft_candidate(
         raise DraftStageValidationError("Draft input fingerprint is stale.")
 
     try:
-        schema = json.loads(_draft_schema_text(document_kind, draft_schema_path))
-        Draft202012Validator.check_schema(schema)
-    except (json.JSONDecodeError, ValueError) as exc:
+        validator = compiled_schema_validator(
+            _draft_schema_text(document_kind, draft_schema_path)
+        )
+    except SchemaCompilationError as exc:
         raise DraftStageValidationError(
             "The configured structured Draft schema is invalid."
         ) from exc
-    if list(Draft202012Validator(schema).iter_errors(candidate)):
+    if list(validator.iter_errors(candidate)):
         raise DraftStageValidationError("Draft candidate failed schema validation.")
     try:
         model_type = (
@@ -452,9 +456,10 @@ def _load_draft_inputs(
         parsed_job = read_json_object(
             resolve_job_relative_path(job_dir, PARSED_JOB_INPUT_PATH)
         )
-        parsed_schema = json.loads(_parsed_job_schema_text(parsed_job_schema_path))
-        Draft202012Validator.check_schema(parsed_schema)
-        if list(Draft202012Validator(parsed_schema).iter_errors(parsed_job)):
+        parsed_validator = compiled_schema_validator(
+            _parsed_job_schema_text(parsed_job_schema_path)
+        )
+        if list(parsed_validator.iter_errors(parsed_job)):
             raise DraftStageError("Draft Parsed Job input is invalid.")
 
         criteria = CriteriaCatalogV1.model_validate(

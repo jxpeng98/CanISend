@@ -10,7 +10,6 @@ import stat
 from typing import Any
 import unicodedata
 
-from jsonschema import Draft202012Validator
 from pydantic import ValidationError
 import yaml
 
@@ -21,6 +20,10 @@ from canisend.decision_models import (
     EvidenceSourceReceiptV1,
 )
 from canisend.resource_files import read_resource_text
+from canisend.schema_validation import (
+    SchemaCompilationError,
+    compiled_schema_validator,
+)
 from canisend.workspace import load_workspace_config
 
 
@@ -182,11 +185,12 @@ def validate_evidence_candidate(
     if not isinstance(candidate, dict):
         raise EvidenceStageValidationError("Evidence candidate must be a JSON object.")
     try:
-        schema = json.loads(_evidence_schema_text(evidence_schema_path))
-        Draft202012Validator.check_schema(schema)
-    except (json.JSONDecodeError, ValueError) as exc:
+        validator = compiled_schema_validator(
+            _evidence_schema_text(evidence_schema_path)
+        )
+    except SchemaCompilationError as exc:
         raise EvidenceStageValidationError("The configured Evidence schema is invalid.") from exc
-    if list(Draft202012Validator(schema).iter_errors(candidate)):
+    if list(validator.iter_errors(candidate)):
         raise EvidenceStageValidationError("Evidence candidate failed schema validation.")
     try:
         validated = EvidenceCatalogV1.model_validate(candidate)

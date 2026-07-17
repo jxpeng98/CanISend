@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-from jsonschema import Draft202012Validator
 from pydantic import ValidationError
 
 from canisend.decision_models import ApplicationBriefV1, RequiredDocumentPlanV1
@@ -32,6 +31,10 @@ from canisend.package_review_models import (
     stable_package_proposal_id,
 )
 from canisend.resource_files import read_resource_text
+from canisend.schema_validation import (
+    SchemaCompilationError,
+    compiled_schema_validator,
+)
 from canisend.review_readiness import ReviewDispositionsV1, derive_document_readiness
 from canisend.stage_store import (
     StageStoreError,
@@ -325,13 +328,14 @@ def validate_package_review_candidate(
             "Package Review candidate must be a JSON object."
         )
     try:
-        schema = json.loads(_package_review_schema_text(package_review_schema_path))
-        Draft202012Validator.check_schema(schema)
-    except (json.JSONDecodeError, ValueError) as exc:
+        validator = compiled_schema_validator(
+            _package_review_schema_text(package_review_schema_path)
+        )
+    except SchemaCompilationError as exc:
         raise PackageReviewStageValidationError(
             "The configured Package Review schema is invalid."
         ) from exc
-    if list(Draft202012Validator(schema).iter_errors(candidate)):
+    if list(validator.iter_errors(candidate)):
         raise PackageReviewStageValidationError(
             "Package Review candidate failed schema validation."
         )
@@ -372,14 +376,12 @@ def _load_package_review_inputs(
     try:
         parsed_path = resolve_job_relative_path(job_dir, PARSED_JOB_INPUT_PATH)
         parsed_job = read_json_object(parsed_path)
-        parsed_schema = json.loads(
+        parsed_validator = compiled_schema_validator(
             read_resource_text(
-                "schemas/parsed_job.schema.json",
-                local_path=parsed_job_schema_path,
+                "schemas/parsed_job.schema.json", local_path=parsed_job_schema_path
             )
         )
-        Draft202012Validator.check_schema(parsed_schema)
-        if list(Draft202012Validator(parsed_schema).iter_errors(parsed_job)):
+        if list(parsed_validator.iter_errors(parsed_job)):
             raise PackageReviewStageError("Package Review requires a valid Parsed Job.")
 
         brief_snapshot = read_optional_safe_bytes(job_dir, APPLICATION_BRIEF_INPUT_PATH)

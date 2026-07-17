@@ -6,8 +6,6 @@ from pathlib import Path
 import re
 from typing import Any, Literal
 
-from jsonschema import Draft202012Validator
-
 from canisend.jobs import load_job_metadata
 from canisend.parse import (
     REQUIRED_PARSED_JOB_FIELDS,
@@ -16,6 +14,10 @@ from canisend.parse import (
     validate_parsed_job,
 )
 from canisend.resource_files import read_resource_text
+from canisend.schema_validation import (
+    SchemaCompilationError,
+    compiled_schema_validator,
+)
 
 
 PARSE_CONTRACT_VERSION = "1.0.0"
@@ -107,10 +109,10 @@ def validate_parse_candidate(
 
     schema_text = _parsed_job_schema_text(schema_path)
     try:
-        schema = json.loads(schema_text)
-    except json.JSONDecodeError as exc:
+        validator = compiled_schema_validator(schema_text)
+    except SchemaCompilationError as exc:
         raise ParseStageValidationError("The configured Parsed Job schema is invalid.") from exc
-    errors = list(Draft202012Validator(schema).iter_errors(candidate))
+    errors = list(validator.iter_errors(candidate))
     try:
         validate_parsed_job(candidate)
     except ParsedJobValidationError as exc:

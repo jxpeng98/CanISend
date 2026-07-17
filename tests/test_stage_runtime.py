@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 import json
 import multiprocessing
 import os
@@ -8,6 +9,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+import canisend.stage_runtime as stage_runtime
 from canisend.stage_agent import stage_status_agent_response
 from canisend.stage_models import ArtifactFingerprint, StageRecord, WorkflowStateV1
 from canisend.stage_store import (
@@ -86,6 +88,69 @@ def _write_success_result(prepared: object, candidate: dict[str, object]) -> Pat
         candidate_bytes=candidate_bytes,
     )
     return submitted.result_path
+
+
+def test_status_inspection_reuses_each_dependency_once_per_top_level_call(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace, job_dir = _write_workspace(tmp_path)
+    calls: list[tuple[str, str | None]] = []
+    original = stage_runtime._inspect_task_stage
+
+    def counted(*args: object, **kwargs: object) -> object:
+        calls.append((str(kwargs["stage"]), kwargs["resolved_document_id"]))
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(stage_runtime, "_inspect_task_stage", counted)
+
+    inspect_stage_status(workspace, job_dir, stage="brief")
+    first = Counter(calls)
+
+    assert first
+    assert set(first.values()) == {1}
+    assert first[("confirm", None)] == 1
+    assert first[("match", None)] == 1
+
+    inspect_stage_status(workspace, job_dir, stage="brief")
+
+    assert Counter(calls) == Counter({key: 2 for key in first})
+
+
+def test_status_inspection_detects_recursive_dependency_cycles(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace, job_dir = _write_workspace(tmp_path)
+
+    def recursive(*args: object, **kwargs: object) -> object:
+        return inspect_stage_status(
+            workspace,
+            job_dir,
+            stage=kwargs["stage"],
+            document_id=kwargs["resolved_document_id"],
+        )
+
+    monkeypatch.setattr(stage_runtime, "_inspect_task_stage", recursive)
+
+    with pytest.raises(StageRuntimeError) as exc_info:
+        inspect_stage_status(workspace, job_dir, stage="parse")
+
+    assert exc_info.value.code == "stage.registry_cycle"
+
+
+def test_status_inspection_cache_does_not_survive_a_separate_filesystem_read(
+    tmp_path: Path,
+) -> None:
+    workspace, job_dir = _write_workspace(tmp_path)
+    first = inspect_stage_status(workspace, job_dir, stage="intake")
+
+    with (job_dir / "job_advert.md").open("a", encoding="utf-8") as handle:
+        handle.write("\nAdditional selection criterion.\n")
+
+    second = inspect_stage_status(workspace, job_dir, stage="intake")
+
+    assert second.input_fingerprint != first.input_fingerprint
 
 
 def _prepare_in_process(

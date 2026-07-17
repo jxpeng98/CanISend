@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from contextvars import ContextVar
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from functools import wraps
 import json
@@ -153,6 +154,21 @@ class StageStatusInspection:
     source_artifacts: tuple[ArtifactFingerprint, ...] = ()
 
 
+_InspectionKey = tuple[Path, Path, SupportedStage, str | None]
+
+
+@dataclass
+class _StageInspectionContext:
+    cache: dict[_InspectionKey, StageStatusInspection] = field(default_factory=dict)
+    active: set[_InspectionKey] = field(default_factory=set)
+
+
+_STAGE_INSPECTION_CONTEXT: ContextVar[_StageInspectionContext | None] = ContextVar(
+    "canisend_stage_inspection_context",
+    default=None,
+)
+
+
 @dataclass(frozen=True)
 class AppliedStage:
     manifest: RunManifestV1
@@ -203,6 +219,38 @@ def inspect_stage_status(
     document_id: str | None = None,
 ) -> StageStatusInspection:
     root, job = _runtime_paths(workspace, job_dir)
+    context = _STAGE_INSPECTION_CONTEXT.get()
+    if context is not None:
+        return _inspect_stage_status_cached(
+            root,
+            job,
+            stage=stage,
+            document_id=document_id,
+            context=context,
+        )
+
+    context = _StageInspectionContext()
+    token = _STAGE_INSPECTION_CONTEXT.set(context)
+    try:
+        return _inspect_stage_status_cached(
+            root,
+            job,
+            stage=stage,
+            document_id=document_id,
+            context=context,
+        )
+    finally:
+        _STAGE_INSPECTION_CONTEXT.reset(token)
+
+
+def _inspect_stage_status_cached(
+    root: Path,
+    job: Path,
+    *,
+    stage: SupportedStage,
+    document_id: str | None,
+    context: _StageInspectionContext,
+) -> StageStatusInspection:
     definition = _implemented_stage(stage)
     if definition.execution_kind == "source":
         if document_id is not None:
@@ -210,16 +258,54 @@ def inspect_stage_status(
                 "stage.document_scope_invalid",
                 "Source stages do not accept a document target.",
             )
-        return _inspect_source_stage(
-            root,
+        resolved_document_id = None
+    else:
+        resolved_document_id = _resolve_stage_document_id(
             job,
-            definition=definition,
+            stage=stage,
+            document_id=document_id,
         )
-    resolved_document_id = _resolve_stage_document_id(
-        job,
-        stage=stage,
-        document_id=document_id,
-    )
+
+    key = (root, job, stage, resolved_document_id)
+    cached = context.cache.get(key)
+    if cached is not None:
+        return cached
+    if key in context.active:
+        raise StageRuntimeError(
+            "stage.registry_cycle",
+            "The stage dependency graph contains a recursive cycle.",
+        )
+
+    context.active.add(key)
+    try:
+        if definition.execution_kind == "source":
+            inspection = _inspect_source_stage(
+                root,
+                job,
+                definition=definition,
+            )
+        else:
+            inspection = _inspect_task_stage(
+                root,
+                job,
+                definition=definition,
+                stage=stage,
+                resolved_document_id=resolved_document_id,
+            )
+        context.cache[key] = inspection
+        return inspection
+    finally:
+        context.active.discard(key)
+
+
+def _inspect_task_stage(
+    root: Path,
+    job: Path,
+    *,
+    definition: StageDefinition,
+    stage: SupportedStage,
+    resolved_document_id: str | None,
+) -> StageStatusInspection:
     resolved_document_kind = _resolve_stage_document_kind(
         job,
         stage=stage,

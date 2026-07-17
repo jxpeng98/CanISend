@@ -3,7 +3,7 @@ name = "canisend"
 version = "0.6.0b1"
 description = "Evidence-backed application prep for academic and professional jobs."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 license = "MIT"
 authors = [
     { name = "Peng Jiaxin" },
@@ -27,7 +27,6 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Topic :: Office/Business",
@@ -79,3 +78,10 @@ packages = ["src/canisend"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+addopts = "--strict-markers"
+markers = [
+    "fast: high-signal contract tests for ordinary push and pull-request feedback",
+    "integration: complete-suite tests outside the ordinary fast gate",
+    "slow: runtime-intensive integration tests tracked for performance work",
+    "release: packaging, repository, and publication contract tests",
+]

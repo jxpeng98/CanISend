@@ -229,9 +229,19 @@ def test_project_metadata_is_ready_for_public_package_index():
     assert "professional jobs" in metadata["keywords"]
     assert "Development Status :: 4 - Beta" in metadata["classifiers"]
     assert "License :: OSI Approved :: MIT License" in metadata["classifiers"]
+    assert metadata["requires-python"] == ">=3.12"
+    assert "Programming Language :: Python :: 3.11" not in metadata["classifiers"]
     assert "Programming Language :: Python :: 3.12" in metadata["classifiers"]
     assert metadata["urls"]["Repository"] == "https://github.com/jxpeng98/CanISend"
     assert metadata["urls"]["Issues"] == "https://github.com/jxpeng98/CanISend/issues"
+
+
+def test_readme_declares_the_python_312_floor():
+    readme = Path("README.md").read_text(encoding="utf-8")
+
+    assert "python-3.12%2B-blue" in readme
+    assert "requires Python 3.12 or newer" in readme
+    assert "Python 3.11 or newer" not in readme
 
 
 def test_repository_has_release_notes_and_license():
@@ -363,13 +373,14 @@ def test_ci_workflow_runs_tests_build_and_package_resource_check():
     rendered = workflow_path.read_text()
 
     assert workflow["name"] == "ci"
-    assert "uv run python -m pytest -v" in rendered
+    assert "uv run python -m pytest -q -m fast" in rendered
+    assert "uv run python -m pytest -q" in rendered
     assert "uv build" in rendered
     assert "python -m canisend.package_check dist/*.whl" in rendered
     assert "uvx twine check dist/*" in rendered
     assert "python -m venv /tmp/canisend-smoke" in rendered
-    assert rendered.count("scripts/smoke_decision_spine.py") == 2
-    assert rendered.count("scripts/smoke_discovery.py") == 2
+    assert rendered.count("scripts/smoke_decision_spine.py") == 1
+    assert rendered.count("scripts/smoke_discovery.py") == 1
     built_wheel_smoke = next(
         step["run"]
         for step in workflow["jobs"]["build-package"]["steps"]
@@ -379,25 +390,33 @@ def test_ci_workflow_runs_tests_build_and_package_resource_check():
     _assert_stage4_discovery_smoke(built_wheel_smoke)
 
 
-def test_ci_covers_supported_python_versions_and_cross_os_cli_smoke():
-    workflow = yaml.safe_load(Path(".github/workflows/ci.yml").read_text())
-    jobs = workflow["jobs"]
+def test_ci_uses_python_312_lanes_and_release_owns_cross_os_cli_smoke():
+    ci_path = Path(".github/workflows/ci.yml")
+    ci = yaml.safe_load(ci_path.read_text())
+    jobs = ci["jobs"]
 
-    assert jobs["test"]["strategy"]["matrix"]["python-version"] == ["3.11", "3.12", "3.13"]
-    assert jobs["build-package"]["needs"] == "test"
-    assert "strategy" not in jobs["build-package"]
-    assert jobs["smoke"]["strategy"]["matrix"]["os"] == [
+    assert set(jobs) == {"fast", "full", "build-package"}
+    assert "strategy" not in jobs["fast"]
+    assert jobs["build-package"]["needs"] == "full"
+    assert "github.event_name == 'workflow_dispatch'" in jobs["full"]["if"]
+    assert "github.ref == 'refs/heads/main'" in jobs["full"]["if"]
+    assert 'python-version: "3.12"' in ci_path.read_text()
+    assert "python-version: [" not in ci_path.read_text()
+
+    release_path = Path(".github/workflows/release.yml")
+    release = yaml.safe_load(release_path.read_text())
+    smoke_job = release["jobs"]["cross-os-smoke"]
+    assert smoke_job["strategy"]["matrix"]["os"] == [
         "ubuntu-latest",
         "macos-latest",
         "windows-latest",
     ]
-    smoke_job = jobs["smoke"]
     smoke = json.dumps(smoke_job)
-    assert 'python-version: "3.12"' in Path(".github/workflows/ci.yml").read_text()
+    assert 'python-version: "3.12"' in release_path.read_text()
     assert "scripts/smoke_decision_spine.py" in smoke
     assert "scripts/smoke_discovery.py" in smoke
     assert "--canisend canisend" in smoke
-    assert "--workspace .ci-smoke-stage5" in smoke
+    assert "--workspace .release-smoke-stage5" in smoke
     cross_os_smoke = next(
         step["run"]
         for step in smoke_job["steps"]
@@ -439,10 +458,14 @@ def test_release_workflow_publishes_with_trusted_publishing():
     assert "dist/*.whl" in rendered
     assert "uvx twine check dist/*" in rendered
     assert "python -m venv /tmp/canisend-smoke" in rendered
-    assert rendered.count("scripts/smoke_decision_spine.py") == 2
-    assert rendered.count("scripts/smoke_discovery.py") == 2
+    assert rendered.count("scripts/smoke_decision_spine.py") == 3
+    assert rendered.count("scripts/smoke_discovery.py") == 3
     assert "--workspace /tmp/canisend-stage5-example" in rendered
     assert "--workspace /tmp/canisend-testpypi-stage5-example" in rendered
+    assert workflow["jobs"]["publish-testpypi"]["needs"] == [
+        "build",
+        "cross-os-smoke",
+    ]
     testpypi_steps = workflow["jobs"]["smoke-test-testpypi"]["steps"]
     assert testpypi_steps[0]["uses"] == "actions/checkout@v4"
     for job_name, step_name in (
@@ -461,6 +484,7 @@ def test_release_workflow_publishes_with_trusted_publishing():
 def test_local_release_checks_use_shared_smoke_through_brief():
     rendered = Path("scripts/release.sh").read_text()
 
+    assert "uv run python -m pytest -q" in rendered
     assert "uv pip install --python" in rendered
     assert rendered.count("scripts/smoke_decision_spine.py") == 1
     assert rendered.count("scripts/smoke_discovery.py") == 1

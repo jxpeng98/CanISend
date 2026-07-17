@@ -293,7 +293,7 @@ def test_readme_has_release_page_quick_start():
 
     assert "github/actions/workflow/status/jxpeng98/CanISend/ci.yml" in readme
     assert "TestPyPI" in readme
-    assert "python-3.11%2B" in readme
+    assert "python-3.12%2B" in readme
     assert "license-MIT" in readme
     assert "## Quick Start" in readme
     assert "canisend run-example" in readme

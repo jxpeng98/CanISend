@@ -5,7 +5,7 @@
 <p align="center">
   <a href="https://github.com/jxpeng98/CanISend/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/jxpeng98/CanISend/ci.yml?branch=main&label=ci" alt="CI status"></a>
   <a href="https://test.pypi.org/project/canisend/"><img src="https://img.shields.io/badge/TestPyPI-0.6.0b1-blue" alt="TestPyPI"></a>
-  <img src="https://img.shields.io/badge/python-3.11%2B-blue" alt="Python 3.11+">
+  <img src="https://img.shields.io/badge/python-3.12%2B-blue" alt="Python 3.12+">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT license">
 </p>
 
@@ -60,7 +60,7 @@ It prepares materials only. It does not submit applications, create accounts, fi
 
 ## Quick Start
 
-Choose one installation method. CanISend requires Python 3.11 or newer.
+Choose one installation method. CanISend requires Python 3.12 or newer.
 
 ### Install as an isolated CLI with `uv`
 
@@ -1127,16 +1127,25 @@ This repository is intended to be open source. Personal application data should 
 
 Release automation lives in GitHub Actions for `jxpeng98/CanISend`.
 
-Local checks:
+The default edit loop is the maintained high-signal contract gate:
 
 ```bash
-uv run python -m pytest -v
+uv run python -m pytest -q -m fast
+```
+
+Run the complete local release checks before merging to `main` or creating a release tag:
+
+```bash
+uv run python -m pytest -q
 uv build
 uvx twine check dist/*
 uv run python -m canisend.package_check dist/*.whl
 ```
 
-CI runs the same test/build/resource-check sequence on pushes and pull requests. The release workflow uses PyPI Trusted Publishing with OIDC:
+Pull requests and non-main pushes run the fast gate on Python 3.12. Main pushes and manually dispatched CI runs add
+the complete suite, package build, metadata/resource checks, and an installed-wheel smoke. Release tags additionally
+run the complete suite and Stage 4/Stage 5 workflow smokes on Ubuntu, macOS, and Windows before publication. The
+release workflow uses PyPI Trusted Publishing with OIDC:
 
 - Pushing `test/v<version>` publishes to TestPyPI only.
 - Pushing `v<version>bN` or `v<version>rcN` publishes to TestPyPI, smoke-tests the TestPyPI package, then publishes a PyPI prerelease and creates a GitHub prerelease.
