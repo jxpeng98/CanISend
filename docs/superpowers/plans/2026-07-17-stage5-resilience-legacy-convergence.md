@@ -1,6 +1,6 @@
 # Stage 5 Resilience And Legacy Convergence Implementation Plan
 
-**Status:** In progress — Tasks 0–7 accepted; Stage 5 exit acceptance is next
+**Status:** Complete — Tasks 0–8 accepted
 
 **Date:** 2026-07-17
 
@@ -118,12 +118,12 @@ promotion path across direct CLI, host agents, and orchestration.
 
 ### Task 8: Stage 5 Exit Acceptance
 
-- [ ] Run focused concurrency, crash, retry, cancellation, projection, drift, migration, rollback, and orchestrator
+- [x] Run focused concurrency, crash, retry, cancellation, projection, drift, migration, rollback, and orchestrator
   adversarial suites.
-- [ ] Run the full supported Python 3.11–3.13 matrix plus the available development interpreter.
-- [ ] Run Linux/macOS/Windows CLI and sequence smokes.
-- [ ] Run source-tree, built-wheel, clean-install, schema/resource, Twine, mirror, and agent-host smoke gates.
-- [ ] Record immutable evidence and mark Stage 5 complete only after every exit criterion passes.
+- [x] Run the full supported Python 3.11–3.13 matrix plus the available development interpreter.
+- [x] Run Linux/macOS/Windows CLI and sequence smokes.
+- [x] Run source-tree, built-wheel, clean-install, schema/resource, Twine, mirror, and agent-host smoke gates.
+- [x] Record immutable evidence and mark Stage 5 complete only after every exit criterion passes.
 
 ## Exit Criteria
 
@@ -271,3 +271,23 @@ promotion path across direct CLI, host agents, and orchestration.
   tree.
 - Focused documentation/resource/workspace/orchestrator and Stage 4 discovery/intake compatibility evidence:
   `321 passed`. Task 8 owns the full interpreter/OS/adversarial/release-candidate exit matrix.
+
+## Task 8 Acceptance Record
+
+- Focused concurrency, crash, retry, cancellation, projection, drift, migration, rollback, and orchestrator
+  adversarial evidence: `138 passed`. The complete development-interpreter run on Python 3.14.2 passed all
+  `1322` tests in `2217.84s`; the canonical skill compatibility mirror check was clean.
+- GitHub Actions run `29557401479` is immutable green evidence for commit
+  `ad85a864f9b5c2bed08ba99aa8b46a0814b908f9`. The supported matrix passed `1322` tests on Python 3.11
+  (`4183.06s`), 3.12 (`5297.41s`), and 3.13 (`2688.83s`).
+- The same run passed the Stage 5 workflow and retained Stage 4 discovery smokes on macOS, Ubuntu, and Windows.
+  Every Stage 5 smoke completed all `13` stages with `20` mutation receipts; Verify FAIL stopped Render, preserved
+  Typst primaries generated conflict candidates, and dry-run/repair previews remained read-only.
+- Source-tree and isolated Python 3.12 clean-install smokes passed. The clean environment installed the built
+  `canisend-0.6.0b1` wheel with declared dependencies and passed both Stage 5 agent-host/provider execution and
+  Stage 4 discovery/full-advert compatibility checks outside the source checkout.
+- The CI build job passed wheel/sdist construction, Twine metadata checks, packaged-resource validation, and the
+  installed-wheel Stage 5 and discovery smokes. No release was published: Stage 5 closes on the existing
+  `0.6.0b1` beta baseline, and stable-release or Stage 6 work remains outside this plan.
+- Full run: <https://github.com/jxpeng98/CanISend/actions/runs/29557401479>. The only annotations were upstream
+  GitHub Actions Node.js 20 deprecation notices; they did not affect any Stage 5 acceptance gate.
