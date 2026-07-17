@@ -21,6 +21,8 @@
 - 2026-07-17: Approved the greenfield replacement model. Archived the final active Python implementation at
   `archive/python-v0.6.0b1-final` and created `rewrite/rust-native` from the same commit. R0 began with the roadmap as
   the execution authority.
+- 2026-07-17: Accepted eight Rust-native ADRs covering the greenfield boundary, crate graph, SQLite/blob authority,
+  generated contracts, agent protocol v2, embedded resources/rendering, privacy/consent, and native releases.
 
 ## 1. Executive Decision
 
@@ -1095,14 +1097,14 @@ shorter estimate unrealistic.
 
 #### R0.2 Write architecture decision records
 
-- [ ] ADR-001: greenfield Rust rebuild and no legacy compatibility.
-- [ ] ADR-002: Cargo workspace and crate boundaries.
-- [ ] ADR-003: SQLite plus content-addressed blobs.
-- [ ] ADR-004: Rust types as schema source of truth.
-- [ ] ADR-005: agent protocol v2 and atomic task completion.
-- [ ] ADR-006: embedded resources and Typst compiler.
-- [ ] ADR-007: privacy classifications and consent.
-- [ ] ADR-008: supported platform targets and release packaging.
+- [x] ADR-RN-0001: greenfield Rust rebuild and no legacy compatibility.
+- [x] ADR-RN-0002: Cargo workspace and crate boundaries.
+- [x] ADR-RN-0003: SQLite plus content-addressed blobs.
+- [x] ADR-RN-0004: Rust types as schema source of truth.
+- [x] ADR-RN-0005: agent protocol v2 and atomic task completion.
+- [x] ADR-RN-0006: embedded resources and Typst compiler.
+- [x] ADR-RN-0007: privacy classifications and consent.
+- [x] ADR-RN-0008: supported platform targets and release packaging.
 
 #### R0.3 Create executable examples
 
