@@ -512,6 +512,17 @@ mod tests {
         );
         server.join().expect("MIME server");
 
+        let (url, server) = serve(vec![
+            "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 100\r\nConnection: close\r\n\r\nshort"
+                .to_owned(),
+        ]);
+        assert!(
+            HttpFetcher::allowing_loopback_for_tests(Duration::from_secs(1))
+                .fetch(&url)
+                .is_err()
+        );
+        server.join().expect("truncation server");
+
         let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("timeout listener");
         let address = listener.local_addr().expect("timeout address");
         let server = thread::spawn(move || {
