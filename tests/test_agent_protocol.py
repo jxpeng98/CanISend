@@ -64,6 +64,24 @@ STAGE4_DISCOVERY_OPERATIONS = {
     "discovery.search_import",
 }
 
+STAGE5_RECOVERY_OPERATIONS = {
+    "workflow.migration_inspect",
+    "workflow.migration_apply",
+    "workflow.migration_rollback",
+    "workflow.repair_projection",
+    "workflow.repair_state",
+}
+
+STAGE5_RECOVERY_ERROR_CODES = {
+    "migration.input_changed",
+    "migration.invalid_receipt",
+    "migration.rollback_failed",
+    "repair.migration_required",
+    "repair.no_immutable_evidence",
+    "repair.projection_incomplete",
+    "projection.output_conflict",
+}
+
 TASK5_USER_INPUT_ERROR_CODES = {
     "user_input.not_initialized",
     "user_input.invalid",
@@ -145,6 +163,15 @@ def test_stage4_capabilities_add_discovery_merge_without_protocol_bump() -> None
     assert STAGE4_DISCOVERY_OPERATIONS <= set(SUPPORTED_AGENT_OPERATIONS)
     assert STAGE4_DISCOVERY_OPERATIONS <= set(capabilities.operations)
     assert capabilities.protocol_versions == [AGENT_PROTOCOL]
+
+
+def test_stage5_capabilities_add_migration_and_repair_without_protocol_bump() -> None:
+    capabilities = default_agent_capabilities("0.6.0b1")
+
+    assert STAGE5_RECOVERY_OPERATIONS <= set(SUPPORTED_AGENT_OPERATIONS)
+    assert STAGE5_RECOVERY_OPERATIONS <= set(capabilities.operations)
+    assert capabilities.protocol_versions == [AGENT_PROTOCOL]
+    assert STAGE5_RECOVERY_ERROR_CODES <= KNOWN_AGENT_ERROR_CODES
 
 
 def test_task5_user_input_failures_have_stable_dotted_codes() -> None:

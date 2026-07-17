@@ -648,7 +648,17 @@ def _safe_blocker(item: SequenceItem) -> str:
 def _next_action(item: SequenceItem) -> NextAction:
     reasons = set(item.reason_codes)
     if item.decision == "repair":
-        return NextAction(id="workflow.repair", label="Inspect and explicitly repair workflow drift")
+        if item.stage in {"package", "render"} and any(
+            reason.startswith("projection.") for reason in reasons
+        ):
+            return NextAction(
+                id="workflow.repair_projection",
+                label=f"Explicitly repair the {item.stage} bundle projection",
+            )
+        return NextAction(
+            id="workflow.stage_status",
+            label=f"Inspect and reconcile authoritative {item.stage} output drift",
+        )
     if item.stage == "intake":
         return NextAction(id="job.import_advert", label="Provide and review the full job advert")
     if item.stage == "decide":

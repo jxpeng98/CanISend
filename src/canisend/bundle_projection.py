@@ -49,6 +49,13 @@ class ProjectionInspection:
     drifted: tuple[str, ...] = ()
 
 
+@dataclass(frozen=True)
+class ProjectionRepairResult:
+    journal: ProjectionJournalV1
+    cache_hit: bool
+    before: ProjectionInspection
+
+
 def canonical_bundle_bytes(bundle: ArtifactBundleV1) -> bytes:
     return (
         json.dumps(
@@ -86,6 +93,50 @@ def project_artifact_bundle(
     try:
         with coordinate_job(job):
             return _project_locked(job, bundle, failure_injector=failure_injector)
+    except JobCoordinationError as exc:
+        raise BundleProjectionError(exc.code, str(exc)) from exc
+
+
+def repair_artifact_projection(
+    job_dir: Path,
+    bundle: ArtifactBundleV1,
+    *,
+    failure_injector: ProjectionFailureInjector | None = None,
+) -> ProjectionRepairResult:
+    """Explicitly restore bundle-derived outputs while preserving protected Typst edits."""
+
+    job = Path(job_dir).expanduser().resolve()
+    if not job.is_dir() or bundle.job_id != job.name:
+        raise BundleProjectionError(
+            "projection.job_mismatch",
+            "The artifact bundle does not belong to the selected job.",
+        )
+    try:
+        with coordinate_job(job):
+            before = inspect_artifact_projection(job, bundle)
+            if before.current:
+                journal = _load_projection_journal(job, bundle.stage)
+                if journal is None:  # pragma: no cover - guarded by current inspection
+                    raise BundleProjectionError(
+                        "projection.invalid_journal",
+                        "The current projection journal is unavailable.",
+                    )
+                return ProjectionRepairResult(
+                    journal=journal,
+                    cache_hit=True,
+                    before=before,
+                )
+            journal = _project_locked(
+                job,
+                bundle,
+                failure_injector=failure_injector,
+                allow_invalid_journal=True,
+            )
+            return ProjectionRepairResult(
+                journal=journal,
+                cache_hit=False,
+                before=before,
+            )
     except JobCoordinationError as exc:
         raise BundleProjectionError(exc.code, str(exc)) from exc
 
@@ -139,8 +190,14 @@ def _project_locked(
     bundle: ArtifactBundleV1,
     *,
     failure_injector: ProjectionFailureInjector | None,
+    allow_invalid_journal: bool = False,
 ) -> ProjectionJournalV1:
-    previous = _load_projection_journal(job, bundle.stage)
+    try:
+        previous = _load_projection_journal(job, bundle.stage)
+    except BundleProjectionError:
+        if not allow_invalid_journal:
+            raise
+        previous = None
     previous_by_source = (
         {entry.source_path: entry for entry in previous.entries}
         if previous is not None

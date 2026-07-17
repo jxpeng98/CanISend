@@ -20,7 +20,12 @@ from canisend.user_mutations import (
     initialize_package_review_dispositions,
     inspect_package_review_dispositions,
 )
-from canisend.workflow_sequence import SequenceOptions, plan_sequence, run_sequence
+from canisend.workflow_sequence import (
+    SequenceOptions,
+    plan_sequence,
+    run_sequence,
+    sequence_plan_agent_response,
+)
 from tests.test_package_review_disposition_mutations import _current_reviewable_package
 
 
@@ -232,6 +237,8 @@ def test_sequence_promotes_projects_verifies_and_never_silently_repairs_drift(
     plan = plan_sequence(workspace, job)
     package_item = next(item for item in plan.items if item.stage == "package")
     assert package_item.decision == "repair"
+    response = sequence_plan_agent_response(workspace, job, plan)
+    assert response.next_actions[0].id == "workflow.repair_projection"
     resumed = run_sequence(
         workspace,
         job,

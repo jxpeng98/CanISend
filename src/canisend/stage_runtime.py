@@ -2028,6 +2028,34 @@ def _inspect_prepared_inputs(
     return () if current else ("prepared_input_changed",)
 
 
+def load_workflow_state_view(job_dir: Path) -> WorkflowStateV1:
+    """Load the best validated state view without persisting reconstruction."""
+
+    job = Path(job_dir).expanduser().resolve(strict=True)
+    if not job.is_dir():
+        raise StageRuntimeError("job.not_found", "The requested job directory does not exist.")
+    return _load_or_reconstruct_state(job)[0]
+
+
+def reconstruct_workflow_state(job_dir: Path) -> tuple[WorkflowStateV1, bool]:
+    """Rebuild state only from immutable run/task evidence and report whether any exists."""
+
+    job = Path(job_dir).expanduser().resolve(strict=True)
+    if not job.is_dir():
+        raise StageRuntimeError("job.not_found", "The requested job directory does not exist.")
+    state = _reconstruct_state(job)
+    has_evidence = state.revision > 0 or any(
+        record.run_id is not None for record in state.stages
+    )
+    return state, has_evidence
+
+
+def workflow_state_payload(state: WorkflowStateV1) -> dict[str, object]:
+    """Return the canonical persisted payload for one validated workflow state."""
+
+    return _stage_contract_payload(state)
+
+
 def _state_path(job: Path) -> Path:
     return resolve_job_relative_path(job, "workflow/state.json")
 

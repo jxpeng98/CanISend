@@ -75,6 +75,10 @@ def test_v1_contract_files_exist():
         "schemas/artifact-bundle.schema.json",
         "schemas/projection-journal.schema.json",
         "schemas/application-gate-report.schema.json",
+        "schemas/migration-plan.schema.json",
+        "schemas/migration-receipt.schema.json",
+        "schemas/migration-rollback-receipt.schema.json",
+        "schemas/repair-receipt.schema.json",
     ]
 
     for path in expected_files:

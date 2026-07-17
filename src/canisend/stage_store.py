@@ -130,7 +130,12 @@ def atomic_write_bytes(path: Path, data: bytes) -> Path:
 
 def atomic_write_json(path: Path, value: Mapping[str, Any]) -> Path:
     """Serialize a JSON object deterministically and atomically replace its target."""
-    return atomic_write_bytes(Path(path), _json_object_bytes(value))
+    return atomic_write_bytes(Path(path), canonical_json_bytes(value))
+
+
+def canonical_json_bytes(value: Mapping[str, Any]) -> bytes:
+    """Return the exact deterministic bytes used by JSON stage records."""
+    return _json_object_bytes(value)
 
 
 def write_immutable_json(path: Path, value: Mapping[str, Any]) -> Path:

@@ -1,6 +1,6 @@
 # Stage 5 Resilience And Legacy Convergence Implementation Plan
 
-**Status:** In progress — Tasks 0–4 accepted; migration, rollback, and drift repair are next
+**Status:** In progress — Tasks 0–5 accepted; orchestrator and host convergence are next
 
 **Date:** 2026-07-17
 
@@ -94,11 +94,11 @@ promotion path across direct CLI, host agents, and orchestration.
 
 ### Task 5: Migration, Rollback, And Drift Repair
 
-- [ ] Add read-only migration inspection for legacy workspace/job shapes.
-- [ ] Add explicit migration apply with body-free receipt and exact created/replaced metadata hashes.
-- [ ] Add conflict-safe rollback that restores/removes only unchanged migration-owned files.
-- [ ] Add explicit bundle-projection and state repair commands; never repair output drift silently.
-- [ ] Add pre-workflow, prior-schema, edited-Typst, missing-output, partial-projection, and rollback-conflict fixtures.
+- [x] Add read-only migration inspection for legacy workspace/job shapes.
+- [x] Add explicit migration apply with body-free receipt and exact created/replaced metadata hashes.
+- [x] Add conflict-safe rollback that restores/removes only unchanged migration-owned files.
+- [x] Add explicit bundle-projection and state repair commands; never repair output drift silently.
+- [x] Add pre-workflow, prior-schema, edited-Typst, missing-output, partial-projection, and rollback-conflict fixtures.
 
 ### Task 6: Orchestrator And Host Convergence
 
@@ -216,3 +216,24 @@ promotion path across direct CLI, host agents, and orchestration.
   state fails closed and requires explicit repair.
 - Sequence/runtime/CLI compatibility regression evidence: `185 passed`; full Package-to-Render resume/no-op/drift
   evidence: `1 passed`; retained Package/Verify/Render integration evidence: `4 passed`.
+
+## Task 5 Acceptance Record
+
+- `migration inspect` classifies pre-workflow, prior-schema, current-unmigrated, applied, rolled-back, and blocked
+  states without creating `workflow/`, a lock, or any receipt. It inventories hashes/sizes for runtime control JSON
+  while explicitly excluding candidate and prepared-input bodies.
+- `migration apply` writes one immutable plan before mutation, exact backup bytes before replacement, a canonical
+  state view only when needed, and one plan-bound body-free receipt. Re-entry after interruption accepts only the
+  recorded before/after hash and converges without treating legacy outputs as successful stage evidence.
+- Each rollback attempt has its own immutable receipt. Created metadata is removed and replaced metadata restored
+  only while the current hash still equals the migration's after hash; changed files are preserved as conflicts.
+  Advert, profile, Decision Spine, Draft/Review, Markdown, Typst, and PDF content are outside migration ownership.
+- `repair projection` explicitly replays only a validated Package/Render bundle, replaces invalid journals, resumes
+  partial/missing outputs, and preserves edited Typst primaries through `*.generated.typ`. A current replay rewrites
+  no projection and reports truthful `unchanged` entries.
+- `repair state` reconstructs only from recoverable immutable run/task evidence. It never rewrites authoritative
+  stage outputs, so output drift remains visible after state repair. Sequence planning reports repair but never calls
+  either repair service automatically.
+- Strict schemas cover migration plan/receipt/rollback and repair receipts. Focused migration/repair, schema,
+  runtime, store, CLI, AgentResponse, and projection evidence: `149 passed`; full Package-to-Render explicit-repair
+  routing/no-silent-repair evidence: `1 passed`.

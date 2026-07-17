@@ -9,6 +9,7 @@ import typer
 from canisend import __version__
 from canisend.agent_protocol import (
     AgentResponse,
+    NextAction,
     WorkflowSnapshotReference,
     agent_response_lines,
     artifact_reference_from_path,
@@ -56,6 +57,15 @@ from canisend.examples import run_packaged_example
 from canisend.git_tracking import GitTrackingError, git_add_application_materials
 from canisend.jobs import create_job, create_job_from_lead, list_jobs as list_job_folders, slugify
 from canisend.orchestrator import OrchestrationError, run_orchestration
+from canisend.migration import (
+    MigrationApplyOutcome,
+    MigrationError,
+    MigrationInspection,
+    MigrationRollbackOutcome,
+    apply_migration,
+    inspect_migration,
+    rollback_migration,
+)
 from canisend.profile import init_profile as create_profile
 from canisend.ready_check import (
     PackageCheckIssue,
@@ -155,6 +165,15 @@ from canisend.workflow_sequence import (
     sequence_plan_agent_response,
     sequence_plan_lines,
 )
+from canisend.workflow_repair import (
+    RepairInspection,
+    WorkflowRepairError,
+    WorkflowRepairOutcome,
+    inspect_projection_repair,
+    inspect_state_repair,
+    repair_projection,
+    repair_state,
+)
 
 
 APP_HELP = """Prepare evidence-backed academic and professional job application materials from local files.
@@ -227,6 +246,16 @@ discovery_app = typer.Typer(
     no_args_is_help=True,
 )
 app.add_typer(discovery_app, name="discovery")
+migration_app = typer.Typer(
+    help="Inspect, apply, or conflict-safely roll back Stage 5 runtime metadata migration.",
+    no_args_is_help=True,
+)
+app.add_typer(migration_app, name="migration")
+repair_app = typer.Typer(
+    help="Explicitly repair derived bundle projections or reconstructible workflow state.",
+    no_args_is_help=True,
+)
+app.add_typer(repair_app, name="repair")
 
 
 def _version_callback(value: bool) -> None:
@@ -682,6 +711,331 @@ def stage_run_command(
     except StageRuntimeError as exc:
         response = stage_error_response(operation, exc)
     _emit_agent_response(response, output_format=output_format)
+
+
+@migration_app.command("inspect")
+def migration_inspect_command(
+    job: Path = typer.Option(..., "--job", help="Job folder path or workspace-relative job identifier."),
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="Initialized workspace containing the job.",
+    ),
+    output_format: str = typer.Option("text", "--format", help="Output format: text or json."),
+) -> None:
+    """Inspect migration needs without creating workflow state or a coordination lock."""
+
+    _validate_output_format(output_format)
+    operation = "workflow.migration_inspect"
+    try:
+        config = load_workspace_config(workspace)
+        job_dir = config.job_dir(job)
+        inspection = inspect_migration(config.root, job_dir)
+        response = _migration_inspection_response(
+            config.root,
+            inspection,
+            operation=operation,
+        )
+    except MigrationError as exc:
+        response = error_response(operation=operation, code=exc.code, message=str(exc))
+    _emit_agent_response(response, output_format=output_format)
+
+
+@migration_app.command("apply")
+def migration_apply_command(
+    job: Path = typer.Option(..., "--job", help="Job folder path or workspace-relative job identifier."),
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="Initialized workspace containing the job.",
+    ),
+    output_format: str = typer.Option("text", "--format", help="Output format: text or json."),
+) -> None:
+    """Explicitly apply or resume the reversible Stage 5 metadata migration."""
+
+    _validate_output_format(output_format)
+    operation = "workflow.migration_apply"
+    try:
+        config = load_workspace_config(workspace)
+        job_dir = config.job_dir(job)
+        outcome = apply_migration(config.root, job_dir)
+        response = _migration_apply_response(config.root, outcome, operation=operation)
+    except MigrationError as exc:
+        response = error_response(operation=operation, code=exc.code, message=str(exc))
+    _emit_agent_response(response, output_format=output_format)
+
+
+@migration_app.command("rollback")
+def migration_rollback_command(
+    job: Path = typer.Option(..., "--job", help="Job folder path or workspace-relative job identifier."),
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="Initialized workspace containing the job.",
+    ),
+    output_format: str = typer.Option("text", "--format", help="Output format: text or json."),
+) -> None:
+    """Restore or remove only unchanged migration-owned runtime metadata."""
+
+    _validate_output_format(output_format)
+    operation = "workflow.migration_rollback"
+    try:
+        config = load_workspace_config(workspace)
+        job_dir = config.job_dir(job)
+        outcome = rollback_migration(config.root, job_dir)
+        response = _migration_rollback_response(config.root, outcome, operation=operation)
+    except MigrationError as exc:
+        response = error_response(operation=operation, code=exc.code, message=str(exc))
+    _emit_agent_response(response, output_format=output_format)
+
+
+@repair_app.command("projection")
+def repair_projection_command(
+    job: Path = typer.Option(..., "--job", help="Job folder path or workspace-relative job identifier."),
+    stage: str = typer.Option(..., "--stage", help="Bundle projection to inspect/repair: package or render."),
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="Initialized workspace containing the job.",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Inspect only; do not replay the selected bundle projection.",
+    ),
+    output_format: str = typer.Option("text", "--format", help="Output format: text or json."),
+) -> None:
+    """Inspect or explicitly repair one Package/Render derived projection."""
+
+    _validate_output_format(output_format)
+    operation = "workflow.repair_projection"
+    if stage not in {"package", "render"}:
+        response = error_response(
+            operation=operation,
+            code="repair.invalid_stage",
+            message="Projection repair supports only package or render.",
+        )
+        _emit_agent_response(response, output_format=output_format)
+        return
+    try:
+        config = load_workspace_config(workspace)
+        job_dir = config.job_dir(job)
+        if dry_run:
+            inspection = inspect_projection_repair(
+                config.root,
+                job_dir,
+                stage=stage,  # type: ignore[arg-type]
+            )
+            response = _repair_inspection_response(inspection, operation=operation)
+        else:
+            outcome = repair_projection(
+                config.root,
+                job_dir,
+                stage=stage,  # type: ignore[arg-type]
+            )
+            response = _repair_outcome_response(config.root, outcome, operation=operation)
+    except WorkflowRepairError as exc:
+        response = error_response(operation=operation, code=exc.code, message=str(exc))
+    _emit_agent_response(response, output_format=output_format)
+
+
+@repair_app.command("state")
+def repair_state_command(
+    job: Path = typer.Option(..., "--job", help="Job folder path or workspace-relative job identifier."),
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        help="Initialized workspace containing the job.",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Inspect only; do not reconstruct workflow/state.json.",
+    ),
+    output_format: str = typer.Option("text", "--format", help="Output format: text or json."),
+) -> None:
+    """Inspect or explicitly reconstruct state.json from immutable run evidence."""
+
+    _validate_output_format(output_format)
+    operation = "workflow.repair_state"
+    try:
+        config = load_workspace_config(workspace)
+        job_dir = config.job_dir(job)
+        if dry_run:
+            response = _repair_inspection_response(
+                inspect_state_repair(config.root, job_dir),
+                operation=operation,
+            )
+        else:
+            response = _repair_outcome_response(
+                config.root,
+                repair_state(config.root, job_dir),
+                operation=operation,
+            )
+    except WorkflowRepairError as exc:
+        response = error_response(operation=operation, code=exc.code, message=str(exc))
+    _emit_agent_response(response, output_format=output_format)
+
+
+def _migration_inspection_response(
+    workspace: Path,
+    inspection: MigrationInspection,
+    *,
+    operation: str,
+) -> AgentResponse:
+    artifacts = []
+    if inspection.receipt_path is not None:
+        artifacts.append(
+            artifact_reference_from_path(
+                workspace=workspace,
+                path=inspection.receipt_path,
+                kind="migration_receipt",
+                privacy_tier=1,
+                trust_level="validated",
+                media_type="application/json",
+                include_hash=True,
+            )
+        )
+    blockers = (
+        [f"Migration is blocked: {inspection.reason_codes[0]}"]
+        if inspection.status == "blocked" and inspection.reason_codes
+        else []
+    )
+    actions = []
+    if inspection.status == "needed":
+        actions.append(NextAction(id="workflow.migration_apply", label="Apply the Stage 5 metadata migration"))
+    elif inspection.status == "applied":
+        actions.append(
+            NextAction(id="workflow.migration_rollback", label="Roll back unchanged migration-owned metadata")
+        )
+    return success_response(
+        operation=operation,
+        artifacts=artifacts,
+        blockers=blockers,
+        next_actions=actions,
+        extensions={
+            "canisend.migration.status": inspection.status,
+            "canisend.migration.source_shape": inspection.source_shape,
+            "canisend.migration.observed_count": len(inspection.observed_metadata),
+            "canisend.migration.change_count": len(inspection.planned_changes),
+            "canisend.migration.legacy_marker_count": len(inspection.legacy_markers),
+        },
+    )
+
+
+def _migration_apply_response(
+    workspace: Path,
+    outcome: MigrationApplyOutcome,
+    *,
+    operation: str,
+) -> AgentResponse:
+    response = _migration_inspection_response(
+        workspace,
+        outcome.inspection,
+        operation=operation,
+    )
+    return response.model_copy(
+        update={
+            "extensions": {
+                **response.extensions,
+                "canisend.migration.cache_hit": outcome.cache_hit,
+            }
+        }
+    )
+
+
+def _migration_rollback_response(
+    workspace: Path,
+    outcome: MigrationRollbackOutcome,
+    *,
+    operation: str,
+) -> AgentResponse:
+    conflicts = list(outcome.conflicts)
+    return success_response(
+        operation=operation,
+        artifacts=[
+            artifact_reference_from_path(
+                workspace=workspace,
+                path=outcome.receipt_path,
+                kind="migration_rollback_receipt",
+                privacy_tier=1,
+                trust_level="validated",
+                media_type="application/json",
+                include_hash=True,
+            )
+        ],
+        blockers=[f"Rollback preserved conflicting metadata: {path}" for path in conflicts],
+        next_actions=(
+            [NextAction(id="workflow.migration_inspect", label="Inspect preserved rollback conflicts")]
+            if conflicts
+            else []
+        ),
+        extensions={
+            "canisend.migration.rollback_status": outcome.receipt.status,
+            "canisend.migration.rollback_entry_count": len(outcome.receipt.entries),
+            "canisend.migration.rollback_conflict_count": len(conflicts),
+        },
+    )
+
+
+def _repair_inspection_response(
+    inspection: RepairInspection,
+    *,
+    operation: str,
+) -> AgentResponse:
+    blockers = (
+        [f"Repair is blocked: {inspection.reason_codes[0]}"]
+        if inspection.status == "blocked" and inspection.reason_codes
+        else []
+    )
+    actions = []
+    if inspection.status == "repairable":
+        actions.append(
+            NextAction(
+                id=operation,
+                label="Explicitly apply the bounded repair",
+            )
+        )
+    return success_response(
+        operation=operation,
+        blockers=blockers,
+        next_actions=actions,
+        extensions={
+            "canisend.repair.kind": inspection.kind,
+            "canisend.repair.stage": inspection.stage,
+            "canisend.repair.status": inspection.status,
+            "canisend.repair.missing_count": len(inspection.missing),
+            "canisend.repair.drifted_count": len(inspection.drifted),
+        },
+    )
+
+
+def _repair_outcome_response(
+    workspace: Path,
+    outcome: WorkflowRepairOutcome,
+    *,
+    operation: str,
+) -> AgentResponse:
+    return success_response(
+        operation=operation,
+        artifacts=[
+            artifact_reference_from_path(
+                workspace=workspace,
+                path=outcome.receipt_path,
+                kind="repair_receipt",
+                privacy_tier=1,
+                trust_level="validated",
+                media_type="application/json",
+                include_hash=True,
+            )
+        ],
+        extensions={
+            "canisend.repair.kind": outcome.receipt.kind,
+            "canisend.repair.stage": outcome.receipt.stage,
+            "canisend.repair.cache_hit": outcome.cache_hit,
+            "canisend.repair.entry_count": len(outcome.receipt.entries),
+        },
+    )
 
 
 @corrections_app.command("status")

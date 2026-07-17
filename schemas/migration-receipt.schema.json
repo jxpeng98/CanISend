@@ -1,0 +1,163 @@
+{
+  "$defs": {
+    "ArtifactFingerprint": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "sha256": {
+          "title": "Sha256",
+          "type": "string"
+        },
+        "size_bytes": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Size Bytes"
+        }
+      },
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "title": "ArtifactFingerprint",
+      "type": "object"
+    },
+    "MigrationChangeV1": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "enum": [
+            "created",
+            "replaced"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "after_sha256": {
+          "title": "After Sha256",
+          "type": "string"
+        },
+        "backup_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Backup Path"
+        },
+        "backup_sha256": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Backup Sha256"
+        },
+        "before_sha256": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Before Sha256"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "action",
+        "after_sha256"
+      ],
+      "title": "MigrationChangeV1",
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/jxpeng98/CanISend/schemas/migration-receipt.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "applied_at": {
+      "format": "date-time",
+      "title": "Applied At",
+      "type": "string"
+    },
+    "changes": {
+      "items": {
+        "$ref": "#/$defs/MigrationChangeV1"
+      },
+      "title": "Changes",
+      "type": "array"
+    },
+    "job_id": {
+      "title": "Job Id",
+      "type": "string"
+    },
+    "migration_id": {
+      "const": "stage5-v1",
+      "default": "stage5-v1",
+      "title": "Migration Id",
+      "type": "string"
+    },
+    "observed_metadata": {
+      "items": {
+        "$ref": "#/$defs/ArtifactFingerprint"
+      },
+      "title": "Observed Metadata",
+      "type": "array"
+    },
+    "plan_sha256": {
+      "title": "Plan Sha256",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source_shape": {
+      "enum": [
+        "pre_workflow",
+        "prior_schema",
+        "current_unmigrated"
+      ],
+      "title": "Source Shape",
+      "type": "string"
+    }
+  },
+  "required": [
+    "job_id",
+    "source_shape",
+    "applied_at",
+    "plan_sha256",
+    "observed_metadata",
+    "changes"
+  ],
+  "title": "MigrationReceiptV1",
+  "type": "object"
+}
