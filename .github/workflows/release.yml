@@ -24,7 +24,7 @@ jobs:
             os: windows-latest
             binary: target/release/canisend.exe
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install pinned Rust toolchain
         uses: dtolnay/rust-toolchain@1.97.0
@@ -47,7 +47,7 @@ jobs:
           "$binary" agent capabilities --json
 
       - name: Upload unsigned preview binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: canisend-${{ matrix.name }}
           path: ${{ matrix.binary }}
