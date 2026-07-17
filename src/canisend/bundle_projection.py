@@ -97,15 +97,32 @@ def inspect_artifact_projection(
     job = Path(job_dir).expanduser().resolve()
     missing: list[str] = []
     drifted: list[str] = []
+    journal_invalid = False
+    try:
+        journal = _load_projection_journal(job, bundle.stage)
+    except BundleProjectionError:
+        journal = None
+        journal_invalid = True
+        drifted.append(f"workflow/projections/{bundle.stage}.json")
+    expected_bundle_hash = sha256_bytes(canonical_bundle_bytes(bundle))
+    if journal is None:
+        if not journal_invalid:
+            missing.append(f"workflow/projections/{bundle.stage}.json")
+        journal_by_source: dict[str, ProjectionEntryV1] = {}
+    elif journal.bundle_sha256 != expected_bundle_hash:
+        drifted.append(f"workflow/projections/{bundle.stage}.json")
+        journal_by_source = {}
+    else:
+        journal_by_source = {entry.source_path: entry for entry in journal.entries}
     for entry in bundle.entries:
-        target = _entry_target(job, entry.path)
-        actual = _safe_hash_or_none(target)
-        if actual == entry.sha256:
+        receipt = journal_by_source.get(entry.path)
+        if receipt is None or receipt.source_sha256 != entry.sha256:
+            drifted.append(entry.path)
             continue
-        if entry.path in PROTECTED_TYPST_PATHS:
-            candidate = _generated_candidate(target)
-            if _safe_hash_or_none(candidate) == entry.sha256:
-                continue
+        target = _entry_target(job, receipt.target_path)
+        actual = _safe_hash_or_none(target)
+        if actual == receipt.projected_sha256 == entry.sha256:
+            continue
         if actual is None:
             missing.append(entry.path)
         else:

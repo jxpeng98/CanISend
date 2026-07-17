@@ -77,7 +77,7 @@ def test_decision_spine_stages_are_implemented_in_the_registry() -> None:
     assert evidence.execution_modes == ("deterministic",)
     assert evidence.authoritative_outputs == ("evidence_catalog.json",)
     parse = DEFAULT_STAGE_REGISTRY.get("parse")
-    assert parse.execution_modes == ("deterministic", "host_agent")
+    assert parse.execution_modes == ("deterministic", "host_agent", "configured_provider")
     assert parse.authoritative_outputs == ("parsed_job.json",)
     confirm = DEFAULT_STAGE_REGISTRY.get("confirm")
     assert confirm.execution_modes == ("deterministic",)

@@ -18,6 +18,12 @@ from canisend.draft_provider import (
     DraftProviderResponseError,
     build_configured_provider_draft_candidate,
 )
+from canisend.parse_provider import (
+    ParseProviderExecutionError,
+    ParseProviderInputChangedError,
+    ParseProviderResponseError,
+    build_configured_provider_parse_candidate,
+)
 from canisend.decision_models import RequiredDocumentPlanV1
 from canisend.jobs import job_advert_is_stub
 from canisend.stage_adapters import StageAdapter, get_stage_adapter
@@ -354,6 +360,16 @@ def inspect_stage_status(
     reasons.extend(output_reasons)
     if "output_missing" in output_reasons and record.status != "stale":
         record = record.model_copy(update={"status": "stale"})
+    if (
+        record.status == "stale"
+        and record.input_fingerprint == current_fingerprint
+        and not reasons
+        and not output_drift
+    ):
+        # A descendant invalidation may conservatively persist ``stale`` while
+        # the exact original input/output receipts later converge again. Treat
+        # that receipt-identical state as current without rewriting state.
+        record = record.model_copy(update={"status": "succeeded"})
 
     pending_task = _pending_task_for_run(job, record.run_id) if record.status == "running" else None
     if pending_task is None:
@@ -1569,27 +1585,37 @@ def run_configured_provider_stage(
                 ) from exc
         input_documents = _load_provider_input_documents(job, prepared.task_spec)
         try:
-            candidate = build_configured_provider_draft_candidate(
-                workspace=root,
-                job_dir=job,
-                input_fingerprint=prepared.task_spec.input_fingerprint,
-                input_documents=input_documents,
-                provider=selected_provider,
+            candidate = (
+                build_configured_provider_parse_candidate(
+                    workspace=root,
+                    job_dir=job,
+                    input_fingerprint=prepared.task_spec.input_fingerprint,
+                    input_documents=input_documents,
+                    provider=selected_provider,
+                )
+                if stage == "parse"
+                else build_configured_provider_draft_candidate(
+                    workspace=root,
+                    job_dir=job,
+                    input_fingerprint=prepared.task_spec.input_fingerprint,
+                    input_documents=input_documents,
+                    provider=selected_provider,
+                )
             )
-        except DraftProviderInputChangedError as exc:
+        except (DraftProviderInputChangedError, ParseProviderInputChangedError) as exc:
             raise StageRuntimeError(
                 "stage.stale_input",
-                "The Draft inputs changed during configured-provider execution.",
+                "The stage inputs changed during configured-provider execution.",
             ) from exc
-        except DraftProviderExecutionError as exc:
+        except (DraftProviderExecutionError, ParseProviderExecutionError) as exc:
             raise StageRuntimeError(
                 "stage.provider_failed",
-                "The configured provider failed before a Draft candidate was accepted.",
+                "The configured provider failed before a stage candidate was accepted.",
             ) from exc
-        except DraftProviderResponseError as exc:
+        except (DraftProviderResponseError, ParseProviderResponseError) as exc:
             raise StageRuntimeError(
                 "stage.provider_invalid_response",
-                "The configured provider returned no acceptable Draft candidate.",
+                "The configured provider returned no acceptable stage candidate.",
             ) from exc
         candidate_bytes = (
             json.dumps(candidate, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
@@ -1650,7 +1676,7 @@ def _load_provider_input_documents(
         if total_bytes > MAX_PROVIDER_DRAFT_INPUT_BYTES:
             raise StageRuntimeError(
                 "stage.provider_input_too_large",
-                "The declared private Draft context exceeds the provider input limit.",
+                "The declared private stage context exceeds the provider input limit.",
             )
         try:
             if artifact.path.endswith(".json"):
@@ -1663,6 +1689,8 @@ def _load_provider_input_documents(
                     payload,
                     max_bytes=MAX_PROVIDER_DRAFT_INPUT_BYTES,
                 )
+            elif artifact.path.endswith((".md", ".txt")):
+                document = payload.decode("utf-8")
             else:
                 raise InvalidUserFileError("Unsupported provider input format.")
         except (InvalidUserFileError, UnicodeError, ValueError) as exc:
@@ -1670,10 +1698,10 @@ def _load_provider_input_documents(
                 "stage.invalid_input",
                 "A declared provider input is not valid structured data.",
             ) from exc
-        if not isinstance(document, dict):
+        if not isinstance(document, (dict, str)):
             raise StageRuntimeError(
                 "stage.invalid_input",
-                "A declared provider input is not a structured object.",
+                "A declared provider input has an unsupported shape.",
             )
         documents[artifact.path] = document
     return documents

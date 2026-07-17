@@ -19,7 +19,7 @@ from canisend.resource_files import read_resource_text
 
 
 PARSE_CONTRACT_VERSION = "1.0.0"
-ParseExecutorMode = Literal["deterministic", "host_agent"]
+ParseExecutorMode = Literal["deterministic", "host_agent", "configured_provider"]
 PARSE_METADATA_FIELDS = (
     "title",
     "institution",

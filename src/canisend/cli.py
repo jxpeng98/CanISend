@@ -56,7 +56,6 @@ from canisend.examples import run_packaged_example
 from canisend.git_tracking import GitTrackingError, git_add_application_materials
 from canisend.jobs import create_job, create_job_from_lead, list_jobs as list_job_folders, slugify
 from canisend.orchestrator import OrchestrationError, run_orchestration
-from canisend.pipeline import run_pipeline as run_job_pipeline
 from canisend.profile import init_profile as create_profile
 from canisend.ready_check import (
     PackageCheckIssue,
@@ -145,6 +144,16 @@ from canisend.workspace import (
     update_workspace_defaults,
     workspace_report,
     workspace_report_agent_response,
+)
+from canisend.workflow_sequence import (
+    LEGACY_OUTPUT_INVENTORY,
+    SequenceOptions,
+    WorkflowSequenceError,
+    plan_sequence,
+    run_sequence,
+    sequence_agent_response,
+    sequence_plan_agent_response,
+    sequence_plan_lines,
 )
 
 
@@ -396,7 +405,7 @@ def stage_status_command(
         "--stage",
         help=(
             "Workflow stage to inspect: intake, evidence, parse, confirm, match, decide, "
-            "brief, draft, review, or package_review."
+            "brief, draft, review, package_review, package, verify, or render."
         ),
     ),
     document_id: str | None = typer.Option(
@@ -441,7 +450,7 @@ def stage_prepare_command(
         "--stage",
         help=(
             "Workflow stage to prepare: evidence, parse, confirm, match, brief, draft, "
-            "review, or package_review."
+            "review, package_review, package, verify, or render."
         ),
     ),
     mode: str = typer.Option(
@@ -572,7 +581,7 @@ def stage_cancel_command(
         "--stage",
         help=(
             "Active workflow stage to cancel: evidence, parse, confirm, match, brief, draft, "
-            "review, or package_review."
+            "review, package_review, package, verify, or render."
         ),
     ),
     document_id: str | None = typer.Option(
@@ -617,7 +626,7 @@ def stage_run_command(
         "--stage",
         help=(
             "Workflow stage to execute: evidence, parse, confirm, match, brief, draft, "
-            "review, or package_review."
+            "review, package_review, package, verify, or render."
         ),
     ),
     mode: str = typer.Option(
@@ -2750,78 +2759,133 @@ def run_pipeline(
         "--git-add-materials/--no-git-add-materials",
         help="Ask git to stage generated application materials after a successful run.",
     ),
+    typst_bin: str = typer.Option(
+        "typst",
+        "--typst-bin",
+        help="Typst executable used if the sequence reaches Render.",
+    ),
+    output_format: str = typer.Option(
+        "text",
+        "--format",
+        help="Output format: text or json.",
+    ),
 ) -> None:
-    """Run the application preparation pipeline for one job."""
-    config = load_workspace_config(workspace)
+    """Plan or resume the guarded application workflow sequence for one job."""
+    _validate_output_format(output_format)
+    workspace_root = workspace.expanduser().resolve()
+    expanded_job = job.expanduser()
+    if workspace == Path(".") and expanded_job.is_absolute():
+        resolved_job = expanded_job.resolve()
+        try:
+            resolved_job.relative_to(workspace_root)
+        except ValueError:
+            workspace_root = (
+                resolved_job.parent.parent
+                if resolved_job.parent.name == "jobs"
+                else resolved_job.parent
+            )
+    config = load_workspace_config(workspace_root)
     job_dir = config.job_dir(job)
-    if dry_run:
-        from canisend.evidence import load_generated_evidence
-        from canisend.stages.parse_stage import build_deterministic_parse_candidate
-
-        import yaml as _yaml
-
-        metadata = _yaml.safe_load((job_dir / "job.yaml").read_text(encoding="utf-8"))
-        evidence = load_generated_evidence(config.path("profile_dir", profile_dir))
-        parsed_job = build_deterministic_parse_candidate(job_dir)
-        if llm_parser:
-            typer.echo("Parser: LLM-backed (planned; not executed in dry run)")
-        else:
-            typer.echo("Parser: deterministic")
-
-        typer.echo(f"  Title: {parsed_job['title']}")
-        typer.echo(f"  Institution: {parsed_job['institution']}")
-        typer.echo(f"  Essential criteria: {len(parsed_job['essential_criteria'])}")
-        typer.echo(f"  Desirable criteria: {len(parsed_job['desirable_criteria'])}")
-        typer.echo(f"  Required documents: {len(parsed_job['required_documents'])}")
-        typer.echo(f"  Evidence items available: {len(evidence)}")
-        typer.echo(f"\nOutputs that would be generated:")
-
-        outputs = [
-            "parsed_job.json", "00_preparation_questions.md", "01_job_summary.md", "02_fit_report.md",
-            "03_cover_letter_draft.md", "04_cv_tailoring_notes.md",
-            "05_criteria_checklist.md", "06_final_application_package.md",
-            "07_material_review_checklist.md",
-            "typst/cover_letter_content.json", "typst/cover_letter.typ",
-            "typst/application_package_content.json", "typst/application_package.typ",
-        ]
-        for output in outputs:
-            typer.echo(f"  - {job_dir}/{output}")
-        draft_mode = (
-            "LLM-backed (planned; not executed in dry run)"
-            if llm_drafts
-            else "deterministic"
-        )
-        typer.echo(f"\nDraft mode: {draft_mode}")
-        return
-
-    written = run_job_pipeline(
-        job_dir,
-        profile_dir=config.path("profile_dir", profile_dir),
+    for option_name, override, configured in (
+        ("--profile-dir", profile_dir, config.path("profile_dir")),
+        ("--prompt-dir", prompt_dir, config.path("prompt_dir")),
+    ):
+        if override is None:
+            continue
+        resolved_override = override.expanduser()
+        if not resolved_override.is_absolute():
+            resolved_override = config.root / resolved_override
+        if resolved_override.resolve() != configured.resolve():
+            raise typer.BadParameter(
+                f"{option_name} must match the workspace configuration for resumable execution."
+            )
+    options = SequenceOptions(
         use_llm_parser=llm_parser,
         use_llm_drafts=llm_drafts,
-        prompt_dir=config.path("prompt_dir", prompt_dir),
-        workspace=config.root,
+        allow_provider_backed=llm_parser or llm_drafts,
+        typst_bin=typst_bin,
+        legacy_compatibility=True,
     )
-    typer.echo(f"Generated {len(written)} files for {job_dir}")
-    written_candidate_paths = {
-        path for path in written if path.name.endswith(".generated.typ")
-    }
+    if dry_run:
+        try:
+            plan = plan_sequence(config.root, job_dir, options=options)
+        except WorkflowSequenceError as exc:
+            if output_format == "json":
+                _emit_agent_response(
+                    error_response(
+                        operation="workflow.sequence_plan",
+                        code=exc.code,
+                        message=str(exc),
+                    ),
+                    output_format="json",
+                )
+                raise typer.Exit(code=1) from exc
+            typer.echo(str(exc), err=True)
+            raise typer.Exit(code=1) from exc
+        if output_format == "json":
+            _emit_agent_response(
+                sequence_plan_agent_response(config.root, job_dir, plan),
+                output_format="json",
+            )
+            return
+        typer.echo(
+            "Parser: LLM-backed (planned; not executed in dry run)"
+            if llm_parser
+            else "Parser: deterministic"
+        )
+        typer.echo(
+            "Draft mode: LLM-backed (planned; not executed in dry run)"
+            if llm_drafts
+            else "Draft mode: host-agent boundary"
+        )
+        for line in sequence_plan_lines(plan):
+            typer.echo(line)
+        typer.echo("\nOutputs retained by the compatibility contract:")
+        for output in LEGACY_OUTPUT_INVENTORY:
+            typer.echo(f"  - {job_dir}/{output}")
+        return
+
+    try:
+        sequence = run_sequence(config.root, job_dir, options=options)
+    except WorkflowSequenceError as exc:
+        if output_format == "json":
+            _emit_agent_response(
+                error_response(
+                    operation="workflow.sequence_run",
+                    code=exc.code,
+                    message=str(exc),
+                ),
+                output_format="json",
+            )
+            raise typer.Exit(code=1) from exc
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    if output_format == "json":
+        _emit_agent_response(
+            sequence_agent_response(config.root, job_dir, sequence),
+            output_format="json",
+        )
+        return
+    typer.echo(
+        f"Executed {len(sequence.executed)} stage task(s); "
+        f"projected {len(sequence.projected_paths)} file(s) for {job_dir}"
+    )
+    if sequence.legacy_compatibility and sequence.legacy_compatibility.active:
+        typer.echo(
+            "Legacy compatibility materials were projected for file-level continuity; "
+            "they do not imply Decision, Review, Package, Verify, Render, or submission readiness."
+        )
+    for line in sequence_plan_lines(sequence.plan):
+        typer.echo(line)
     candidate_paths = sorted((job_dir / "typst").glob("*.generated.typ"))
     for candidate_path in candidate_paths:
         primary_path = candidate_path.with_name(
             candidate_path.name.removesuffix(".generated.typ") + ".typ"
         )
-        if candidate_path in written_candidate_paths:
-            message = (
-                "WARNING: Preserved edited Typst source "
-                f"{primary_path}; wrote the new generated candidate to {candidate_path}. "
-                "Replace the primary file with the candidate to adopt it."
-            )
-        else:
-            message = (
-                f"WARNING: Pending Typst candidate {candidate_path} still requires reconciliation "
-                f"with {primary_path}."
-            )
+        message = (
+            f"WARNING: Pending Typst candidate {candidate_path} still requires reconciliation "
+            f"with {primary_path}."
+        )
         typer.echo(message, err=True)
     if candidate_paths:
         typer.echo(
@@ -2829,7 +2893,13 @@ def run_pipeline(
             err=True,
         )
         return
-    if _should_git_add_materials(git_add_materials):
+    package_current = any(
+        item.stage == "package" and item.decision == "current"
+        for item in sequence.plan.items
+    ) or bool(
+        sequence.legacy_compatibility and sequence.legacy_compatibility.active
+    )
+    if package_current and _should_git_add_materials(git_add_materials):
         try:
             git_result = git_add_application_materials(job_dir, repo_dir=config.root)
         except GitTrackingError as exc:

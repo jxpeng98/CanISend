@@ -55,6 +55,7 @@ from canisend.stages.draft_stage import (
     draft_precondition_reasons,
     validate_draft_candidate,
 )
+from canisend.workflow_sequence import SequenceOptions, plan_sequence, run_sequence
 
 
 NOW = "2026-07-13T10:00:00Z"
@@ -595,6 +596,37 @@ def test_configured_provider_draft_reuses_guarded_task_validation_and_promotion(
     )
     assert cached.cache_hit is True
     assert cached.manifest is None
+
+
+def test_sequence_respects_host_boundary_and_can_resume_with_explicit_provider(
+    tmp_path: Path,
+) -> None:
+    workspace, job = _workspace(tmp_path)
+    preview = plan_sequence(workspace, job)
+    cover = next(
+        item
+        for item in preview.items
+        if item.stage == "draft" and item.document_id is not None
+        and "executor.host_agent_required" in item.reason_codes
+    )
+    assert cover.decision == "blocked"
+
+    provider = RecordingProvider(_provider_content(job))
+    result = run_sequence(
+        workspace,
+        job,
+        options=SequenceOptions(
+            use_llm_drafts=True,
+            allow_provider_backed=True,
+            provider=provider,
+        ),
+    )
+
+    assert "draft" in [outcome.stage for outcome in result.executed]
+    assert "review" in [outcome.stage for outcome in result.executed]
+    assert (job / "cover_letter_draft.json").is_file()
+    assert (job / "review_findings.json").is_file()
+    assert len(provider.prompts) == 1
 
 
 def test_provider_consent_is_required_before_task_or_provider_use(

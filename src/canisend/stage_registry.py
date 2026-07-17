@@ -218,7 +218,7 @@ DEFAULT_STAGE_REGISTRY = StageRegistry(
             id="parse",
             depends_on=("intake",),
             implemented=True,
-            execution_modes=("deterministic", "host_agent"),
+            execution_modes=("deterministic", "host_agent", "configured_provider"),
             authoritative_outputs=("parsed_job.json",),
         ),
         StageDefinition(

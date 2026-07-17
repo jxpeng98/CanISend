@@ -121,6 +121,34 @@ def package_input_fingerprint(job_dir: Path) -> str:
     )
 
 
+def legacy_package_input_fingerprint(
+    job_dir: Path,
+) -> str:
+    paths = ("job.yaml", "parsed_job.json", "evidence_catalog.json")
+    receipts = []
+    for relative_path in paths:
+        path = resolve_job_relative_path(job_dir, relative_path)
+        try:
+            receipts.append(
+                {
+                    "path": relative_path,
+                    "sha256": sha256_file(path),
+                    "size_bytes": path.stat().st_size,
+                }
+            )
+        except (OSError, StageStoreError) as exc:
+            raise PackageStageError(
+                "Legacy compatibility inputs are missing or unsafe."
+            ) from exc
+    payload = {
+        "contract": "canisend.legacy-package-input/v1",
+        "receipts": receipts,
+    }
+    return sha256_bytes(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    )
+
+
 def package_precondition_reasons(workspace: Path, job_dir: Path) -> tuple[str, ...]:
     from canisend.user_mutations import inspect_package_review_dispositions
 
@@ -320,6 +348,151 @@ def build_package_bundle_candidate(
         input_fingerprint=input_fingerprint,
         mode=mode,
     )
+
+
+def build_legacy_package_bundle_candidate(
+    workspace: Path,
+    job_dir: Path,
+    *,
+    input_fingerprint: str,
+) -> ArtifactBundleV1:
+    """Build the old material inventory as an explicitly non-ready bundle."""
+
+    if legacy_package_input_fingerprint(job_dir) != input_fingerprint:
+        raise PackageStageError("Legacy compatibility inputs changed before construction.")
+
+    from canisend.decision_models import EvidenceCatalogV1
+    from canisend.evidence import EvidenceReference
+    from canisend.material_review import build_material_review_checklist
+    from canisend.pipeline import (
+        _final_package,
+        _job_summary,
+        _materials,
+        _preparation_questions,
+        _style_context,
+    )
+    from canisend.typst_mapping import (
+        build_application_package_content,
+        build_cover_letter_content,
+        render_modernpro_application_package_source,
+        render_modernpro_cover_letter_source,
+    )
+
+    try:
+        parsed_job = read_json_object(job_dir / "parsed_job.json")
+        metadata_snapshot = read_safe_bytes(job_dir, "job.yaml", max_bytes=20_000_000)
+        metadata = load_strict_yaml(metadata_snapshot.data, max_bytes=20_000_000)
+        catalog = EvidenceCatalogV1.model_validate(
+            read_json_object(job_dir / "evidence_catalog.json")
+        )
+        evidence = [
+            EvidenceReference(
+                source_file=item.path,
+                section=item.section,
+                text=item.text,
+                item_id=item.item_locator or "",
+            )
+            for item in catalog.items
+        ]
+        style_context = _style_context(metadata)
+        materials = _materials(
+            parsed_job,
+            evidence,
+            use_llm_drafts=False,
+            prompt_dir=workspace / "prompts",
+            style_context=style_context,
+        )
+        final_package = _final_package(parsed_job, materials)
+        material_review = build_material_review_checklist(parsed_job, materials)
+        cover_content = build_cover_letter_content(parsed_job, materials)
+        package_content = build_application_package_content(
+            parsed_job,
+            materials,
+            final_package,
+        )
+    except (
+        InvalidUserFileError,
+        UnsafeUserFileError,
+        StageStoreError,
+        ValidationError,
+        OSError,
+        RuntimeError,
+        UnicodeError,
+        ValueError,
+    ) as exc:
+        raise PackageStageError(
+            "Legacy compatibility materials could not be built safely."
+        ) from exc
+
+    text_entries = {
+        "00_preparation_questions.md": _preparation_questions(parsed_job, metadata),
+        "01_job_summary.md": _job_summary(parsed_job),
+        "02_fit_report.md": materials.fit_report,
+        "03_cover_letter_draft.md": materials.cover_letter_draft,
+        "04_cv_tailoring_notes.md": materials.cv_tailoring_notes,
+        "05_criteria_checklist.md": materials.criteria_checklist,
+        "06_final_application_package.md": final_package,
+        "07_material_review_checklist.md": material_review,
+        "typst/application_package.typ": render_modernpro_application_package_source(
+            package_content
+        ),
+        "typst/cover_letter.typ": render_modernpro_cover_letter_source(cover_content),
+    }
+    json_entries = {
+        "typst/application_package_content.json": package_content,
+        "typst/cover_letter_content.json": cover_content,
+    }
+    entries = [
+        BundleEntryV1.from_bytes(
+            path=path,
+            media_type="text/markdown" if path.endswith(".md") else "text/plain",
+            data=text.encode("utf-8"),
+        )
+        for path, text in text_entries.items()
+    ]
+    entries.extend(
+        BundleEntryV1.from_bytes(
+            path=path,
+            media_type="application/json",
+            data=(json.dumps(value, ensure_ascii=False, indent=2) + "\n").encode("utf-8"),
+        )
+        for path, value in json_entries.items()
+    )
+    bundle = ArtifactBundleV1(
+        job_id=job_dir.name,
+        stage="package",
+        mode="legacy_compatibility",
+        input_fingerprint=input_fingerprint,
+        entries=tuple(sorted(entries, key=lambda item: item.path)),
+    )
+    return validate_legacy_package_bundle_candidate(
+        bundle.model_dump(mode="json"),
+        job_dir=job_dir,
+        input_fingerprint=input_fingerprint,
+    )
+
+
+def validate_legacy_package_bundle_candidate(
+    candidate: object,
+    *,
+    job_dir: Path,
+    input_fingerprint: str,
+) -> ArtifactBundleV1:
+    try:
+        bundle = ArtifactBundleV1.model_validate(candidate)
+    except ValidationError as exc:
+        raise PackageStageError("Legacy Package bundle schema validation failed.") from exc
+    paths = {entry.path for entry in bundle.entries}
+    if (
+        bundle.job_id != job_dir.name
+        or bundle.stage != "package"
+        or bundle.mode != "legacy_compatibility"
+        or bundle.input_fingerprint != input_fingerprint
+        or paths != PACKAGE_REQUIRED_ENTRY_PATHS
+        or legacy_package_input_fingerprint(job_dir) != input_fingerprint
+    ):
+        raise PackageStageError("Legacy Package bundle identity or scope is invalid.")
+    return bundle
 
 
 def validate_package_bundle_candidate(

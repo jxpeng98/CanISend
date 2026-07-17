@@ -1,6 +1,6 @@
 # Stage 5 Resilience And Legacy Convergence Implementation Plan
 
-**Status:** In progress — Tasks 0–3 accepted; resumable sequence convergence is next
+**Status:** In progress — Tasks 0–4 accepted; migration, rollback, and drift repair are next
 
 **Date:** 2026-07-17
 
@@ -85,12 +85,12 @@ promotion path across direct CLI, host agents, and orchestration.
 
 ### Task 4: Resumable Sequence And `run` Convergence
 
-- [ ] Add a deterministic registry-order sequence planner with current/no-op/blocked/execute/repair decisions.
-- [ ] Execute every eligible stage through prepare, submit, validate, apply, and projection services.
-- [ ] Stop safely on user-owned or provider-required stages and return actionable body-free status.
-- [ ] Replace the direct monolithic `canisend run` call with the sequence runner.
-- [ ] Preserve dry-run, output names, Typst candidates, CLI/AgentResponse shape, and git-staging behavior.
-- [ ] Prove a second unchanged run performs no current stage work and rewrites no current projection.
+- [x] Add a deterministic registry-order sequence planner with current/no-op/blocked/execute/repair decisions.
+- [x] Execute every eligible stage through prepare, submit, validate, apply, and projection services.
+- [x] Stop safely on user-owned or provider-required stages and return actionable body-free status.
+- [x] Replace the direct monolithic `canisend run` call with the sequence runner.
+- [x] Preserve dry-run, output names, Typst candidates, CLI/AgentResponse shape, and git-staging behavior.
+- [x] Prove a second unchanged run performs no current stage work and rewrites no current projection.
 
 ### Task 5: Migration, Rollback, And Drift Repair
 
@@ -197,3 +197,22 @@ promotion path across direct CLI, host agents, and orchestration.
 - `check-package --write-report` and `render-typst` retain a no-bundle legacy compatibility path. Once a Package
   bundle exists, neither command may fall back to a direct authoritative writer. Package/Verify/Render integration
   evidence: `4 passed`; bundle/schema/CLI/legacy regression evidence: `117 passed`.
+
+## Task 4 Acceptance Record
+
+- The read-only planner walks the registered topological order and reports every stage/document instance as current,
+  execute, blocked, or repair. It exposes independent Evidence and Parse work together, prioritizes explicit repair
+  over mutation, and never creates workflow state during preview.
+- The runner resumes only eligible work through the shared guarded runtime, projects Package/Render bundles only
+  after promotion, stops at Decision/Brief/host-agent/provider boundaries, and returns the same body-free
+  AgentResponse envelope used by other agent operations.
+- Configured-provider Parse now declares tier-3 full-advert consent and submits its candidate through the same local
+  schema, source-grounding, input-currentness, terminal-claim, and promotion checks as deterministic/host execution.
+- `canisend run` is a compatibility wrapper over the sequence rather than the direct monolithic writer. Its explicit
+  legacy bundle preserves established filenames and git behavior without changing `job.yaml` to `packaged` or
+  implying Decision, Review, Package, Verify, Render, or submission readiness.
+- Projection journals replace the legacy Typst ownership manifest. Unchanged reruns rewrite neither stages nor
+  projections; edited primaries receive `*.generated.typ` candidates; missing, invalid, or locally edited projection
+  state fails closed and requires explicit repair.
+- Sequence/runtime/CLI compatibility regression evidence: `185 passed`; full Package-to-Render resume/no-op/drift
+  evidence: `1 passed`; retained Package/Verify/Render integration evidence: `4 passed`.

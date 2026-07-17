@@ -6,6 +6,9 @@ from pathlib import Path
 import pytest
 import yaml
 
+from canisend.llm import LLMProvider, LLMResponse
+from canisend.stage_runtime import run_configured_provider_stage
+from canisend.stage_store import read_json_object
 from canisend.stages.parse_stage import (
     ParseStageValidationError,
     build_deterministic_parse_candidate,
@@ -191,3 +194,51 @@ def test_parse_candidate_rejects_undeclared_nested_private_fields(tmp_path: Path
             candidate,
             advert_text=(job_dir / "job_advert.md").read_text(encoding="utf-8"),
         )
+
+
+def test_configured_provider_parse_uses_guarded_stage_contract(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    job_dir = _write_job(workspace)
+    schema_dir = workspace / "schemas"
+    prompt_dir = workspace / "prompts"
+    schema_dir.mkdir()
+    prompt_dir.mkdir()
+    (workspace / "canisend.yaml").write_text(
+        "jobs_dir: jobs\nschema_dir: schemas\nprompt_dir: prompts\n",
+        encoding="utf-8",
+    )
+    (schema_dir / "parsed_job.schema.json").write_text(
+        Path("schemas/parsed_job.schema.json").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    (prompt_dir / "job_parser.md").write_text(
+        "METADATA\n{job_metadata}\nADVERT\n{job_advert}\n",
+        encoding="utf-8",
+    )
+    candidate = build_deterministic_parse_candidate(job_dir)
+
+    class Provider(LLMProvider):
+        def __init__(self) -> None:
+            self.prompts: list[str] = []
+
+        def complete(self, prompt: str) -> LLMResponse:
+            self.prompts.append(prompt)
+            return LLMResponse(content=json.dumps(candidate), provider="test")
+
+    provider = Provider()
+    outcome = run_configured_provider_stage(
+        workspace,
+        job_dir,
+        stage="parse",
+        allow_provider_backed=True,
+        provider=provider,
+    )
+
+    assert outcome.cache_hit is False
+    assert read_json_object(job_dir / "parsed_job.json") == candidate
+    assert len(provider.prompts) == 1
+    assert "PhD in Economics" in provider.prompts[0]
+    assert outcome.manifest_path is not None
+    task = read_json_object(outcome.manifest_path.parent / "task-spec.json")
+    assert task["privacy_tier"] == 3
+    assert task["required_consents"] == ["send-full-job-advert-to-provider"]

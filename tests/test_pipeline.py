@@ -190,9 +190,11 @@ Desirable criteria:
     assert "04_cv_tailoring_notes.md" in review_checklist
     assert "Manual judgement required" in review_checklist
     updated_metadata = yaml.safe_load((job_dir / "job.yaml").read_text(encoding="utf-8"))
-    assert updated_metadata["status"] == "packaged"
-    assert updated_metadata["updated_at"] != "2026-05-03T23:00:00Z"
-    assert updated_metadata["updated_at"].endswith("Z")
+    assert updated_metadata["status"] == "advert_imported"
+    assert updated_metadata["updated_at"] == "2026-05-03T23:00:00Z"
+    bundle = json.loads((job_dir / "package_bundle.json").read_text(encoding="utf-8"))
+    assert bundle["mode"] == "legacy_compatibility"
+    assert "do not imply Decision, Review, Package" in result.output
 
 
 def test_legacy_run_preserves_equivalent_stage_parse_and_confirm_outputs(tmp_path):
@@ -246,17 +248,17 @@ def test_run_pipeline_updates_unedited_generated_typst_sources(tmp_path):
     assert primary_path.read_text(encoding="utf-8") != first_source
     assert "Senior Lecturer in Economics" in primary_path.read_text(encoding="utf-8")
     assert not (job_dir / "typst" / "cover_letter.generated.typ").exists()
-    manifest = json.loads(
-        (job_dir / "typst" / ".canisend-generated.json").read_text(encoding="utf-8")
+    journal = json.loads(
+        (job_dir / "workflow" / "projections" / "package.json").read_text(
+            encoding="utf-8"
+        )
     )
-    assert set(manifest["files"]) == {"cover_letter.typ", "application_package.typ"}
-    record = manifest["files"]["cover_letter.typ"]
-    assert record["primary_hash"] == _file_hash(primary_path)
-    assert record["candidate_hash"] is None
+    records = {entry["source_path"]: entry for entry in journal["entries"]}
+    record = records["typst/cover_letter.typ"]
+    assert record["target_path"] == "typst/cover_letter.typ"
+    assert record["projected_sha256"] == _file_hash(primary_path)
     package_path = job_dir / "typst" / "application_package.typ"
-    assert manifest["files"]["application_package.typ"]["primary_hash"] == _file_hash(
-        package_path
-    )
+    assert records["typst/application_package.typ"]["projected_sha256"] == _file_hash(package_path)
 
 
 def test_run_pipeline_marks_existing_gate_report_stale(tmp_path):
@@ -277,28 +279,29 @@ def test_run_pipeline_marks_existing_gate_report_stale(tmp_path):
     assert result.exit_code == 0
     assert report["status"] == "STALE"
     assert report["invalidated_at"].endswith("Z")
-    assert report["invalidation_reason"] == "application artifacts were regenerated"
+    assert report["invalidation_reason"] == (
+        "legacy compatibility application artifacts were regenerated"
+    )
 
 
-def test_run_pipeline_initializes_matching_legacy_typst_without_candidate(tmp_path):
+def test_run_pipeline_requires_explicit_repair_for_missing_projection_journal(tmp_path):
     job_dir = _write_basic_job(tmp_path)
     runner = CliRunner()
     first_result = runner.invoke(app, ["run", "--job", str(job_dir), "--no-git-add-materials"])
     typst_dir = job_dir / "typst"
-    manifest_path = typst_dir / ".canisend-generated.json"
+    journal_path = job_dir / "workflow" / "projections" / "package.json"
     primary_path = typst_dir / "cover_letter.typ"
     original_hash = _file_hash(primary_path)
-    manifest_path.unlink()
+    journal_path.unlink()
 
     result = runner.invoke(app, ["run", "--job", str(job_dir), "--no-git-add-materials"])
 
     assert first_result.exit_code == 0
-    assert result.exit_code == 0
+    assert result.exit_code == 1
     assert _file_hash(primary_path) == original_hash
     assert not (typst_dir / "cover_letter.generated.typ").exists()
-    assert "WARNING: Preserved edited Typst source" not in result.output
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    assert manifest["files"]["cover_letter.typ"]["primary_hash"] == original_hash
+    assert not journal_path.exists()
+    assert "explicit repair" in result.output
 
 
 def test_run_pipeline_preserves_edited_typst_and_writes_candidate(tmp_path):
@@ -319,17 +322,21 @@ def test_run_pipeline_preserves_edited_typst_and_writes_candidate(tmp_path):
     assert primary_path.read_text(encoding="utf-8") == edited_source
     assert candidate_path.exists()
     assert "Senior Lecturer in Economics" in candidate_path.read_text(encoding="utf-8")
-    assert "WARNING: Preserved edited Typst source" in result.output
+    assert "Pending Typst candidate" in result.output
     assert str(candidate_path) in result.output
-    manifest = json.loads(
-        (job_dir / "typst" / ".canisend-generated.json").read_text(encoding="utf-8")
+    journal = json.loads(
+        (job_dir / "workflow" / "projections" / "package.json").read_text(
+            encoding="utf-8"
+        )
     )
-    record = manifest["files"]["cover_letter.typ"]
-    assert record["primary_hash"] == primary_generated_hash
-    assert record["candidate_hash"] == _file_hash(candidate_path)
+    records = {entry["source_path"]: entry for entry in journal["entries"]}
+    record = records["typst/cover_letter.typ"]
+    assert record["target_path"] == "typst/cover_letter.generated.typ"
+    assert record["projected_sha256"] == _file_hash(candidate_path)
+    assert record["projected_sha256"] != primary_generated_hash
 
 
-def test_run_pipeline_updates_primary_after_generated_candidate_is_adopted(tmp_path):
+def test_run_pipeline_keeps_adopted_primary_user_owned_and_updates_candidate(tmp_path):
     job_dir = _write_basic_job(tmp_path)
     runner = CliRunner()
     first_result = runner.invoke(app, ["run", "--job", str(job_dir), "--no-git-add-materials"])
@@ -350,19 +357,21 @@ def test_run_pipeline_updates_primary_after_generated_candidate_is_adopted(tmp_p
     assert first_result.exit_code == 0
     assert conflict_result.exit_code == 0
     assert result.exit_code == 0
-    assert "Professor of Applied Economics" in primary_path.read_text(encoding="utf-8")
-    assert primary_path.read_text(encoding="utf-8") != adopted_candidate
-    assert not candidate_path.exists()
-    assert "WARNING: Preserved edited Typst source" not in result.output
-    manifest = json.loads(
-        (job_dir / "typst" / ".canisend-generated.json").read_text(encoding="utf-8")
+    assert primary_path.read_text(encoding="utf-8") == adopted_candidate
+    assert "Professor of Applied Economics" in candidate_path.read_text(encoding="utf-8")
+    assert "Pending Typst candidate" in result.output
+    journal = json.loads(
+        (job_dir / "workflow" / "projections" / "package.json").read_text(
+            encoding="utf-8"
+        )
     )
-    record = manifest["files"]["cover_letter.typ"]
-    assert record["primary_hash"] == _file_hash(primary_path)
-    assert record["candidate_hash"] is None
+    records = {entry["source_path"]: entry for entry in journal["entries"]}
+    record = records["typst/cover_letter.typ"]
+    assert record["target_path"] == "typst/cover_letter.generated.typ"
+    assert record["projected_sha256"] == _file_hash(candidate_path)
 
 
-def test_run_pipeline_preserves_separately_edited_candidate_after_adoption(tmp_path):
+def test_run_pipeline_rejects_separately_edited_candidate_after_adoption(tmp_path):
     job_dir = _write_basic_job(tmp_path)
     runner = CliRunner()
     first_result = runner.invoke(app, ["run", "--job", str(job_dir), "--no-git-add-materials"])
@@ -383,16 +392,13 @@ def test_run_pipeline_preserves_separately_edited_candidate_after_adoption(tmp_p
 
     assert first_result.exit_code == 0
     assert conflict_result.exit_code == 0
-    assert result.exit_code == 0
-    assert "Professor of Applied Economics" in primary_path.read_text(encoding="utf-8")
+    assert result.exit_code == 1
+    assert "Professor of Applied Economics" not in primary_path.read_text(encoding="utf-8")
     assert candidate_path.read_text(encoding="utf-8") == edited_candidate
-    manifest = json.loads(
-        (job_dir / "typst" / ".canisend-generated.json").read_text(encoding="utf-8")
-    )
-    assert manifest["files"]["cover_letter.typ"]["candidate_hash"] is None
+    assert "unrecognized local edits" in result.output
 
 
-def test_run_pipeline_treats_unknown_manifest_version_conservatively(tmp_path):
+def test_run_pipeline_treats_unknown_projection_version_conservatively(tmp_path):
     job_dir = _write_basic_job(tmp_path)
     runner = CliRunner()
     first_result = runner.invoke(app, ["run", "--job", str(job_dir), "--no-git-add-materials"])
@@ -400,22 +406,20 @@ def test_run_pipeline_treats_unknown_manifest_version_conservatively(tmp_path):
     primary_path = typst_dir / "cover_letter.typ"
     edited_source = primary_path.read_text(encoding="utf-8") + "\n// USER EDIT\n"
     primary_path.write_text(edited_source, encoding="utf-8")
-    manifest_path = typst_dir / ".canisend-generated.json"
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    manifest["version"] = 999
-    manifest["files"]["cover_letter.typ"]["primary_hash"] = _file_hash(primary_path)
-    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    journal_path = job_dir / "workflow" / "projections" / "package.json"
+    journal = json.loads(journal_path.read_text(encoding="utf-8"))
+    journal["schema_version"] = "999.0.0"
+    journal_path.write_text(json.dumps(journal), encoding="utf-8")
     _set_advert_title(job_dir, "Senior Lecturer in Economics")
 
     result = runner.invoke(app, ["run", "--job", str(job_dir), "--no-git-add-materials"])
 
     assert first_result.exit_code == 0
-    assert result.exit_code == 0
+    assert result.exit_code == 1
     assert primary_path.read_text(encoding="utf-8") == edited_source
-    assert (typst_dir / "cover_letter.generated.typ").exists()
-    assert "WARNING: Preserved edited Typst source" in result.output
-    rewritten_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    assert rewritten_manifest["version"] == 1
+    assert not (typst_dir / "cover_letter.generated.typ").exists()
+    assert "projection journal is invalid or unsafe" in result.output
+    assert json.loads(journal_path.read_text(encoding="utf-8"))["schema_version"] == "999.0.0"
 
 
 def test_run_git_add_materials_flag_stages_generated_application_materials(tmp_path, monkeypatch):
@@ -436,7 +440,7 @@ def test_run_git_add_materials_flag_stages_generated_application_materials(tmp_p
     assert len(calls) == 1
     command, cwd = calls[0]
     assert command[:4] == ["git", "add", "-f", "--"]
-    assert cwd == Path(".").resolve()
+    assert cwd == tmp_path.resolve()
     staged = set(command[4:])
     assert staged == {str(path) for path in application_material_paths(job_dir)}
 
@@ -649,7 +653,7 @@ def test_run_pipeline_can_use_llm_parser_with_command_provider(tmp_path, monkeyp
             sort_keys=False,
         )
     )
-    (job_dir / "job_advert.md").write_text("Raw advert text")
+    (job_dir / "job_advert.md").write_text("Raw advert text\nPhD\n")
     prompt_dir = tmp_path / "prompts"
     prompt_dir.mkdir()
     (prompt_dir / "job_parser.md").write_text("Parse this:\n{job_metadata}\n{job_advert}")
@@ -703,98 +707,29 @@ def test_run_pipeline_can_use_llm_parser_with_command_provider(tmp_path, monkeyp
     assert "University X" in prompt
 
 
-def test_run_pipeline_can_use_llm_drafts_with_command_provider(tmp_path, monkeypatch):
-    def fail_structured_view_load(*args, **kwargs):
-        raise AssertionError("LLM drafts must not load deterministic structured views")
+def test_run_pipeline_llm_drafts_waits_for_registered_stage_before_provider_use(
+    tmp_path,
+    monkeypatch,
+):
+    job_dir = _write_basic_job(tmp_path)
 
-    monkeypatch.setattr(
-        "canisend.pipeline.load_current_structured_match_views",
-        fail_structured_view_load,
-    )
-    monkeypatch.setattr(
-        "canisend.pipeline.load_current_structured_draft_views",
-        fail_structured_view_load,
-    )
-    job_dir = tmp_path / "jobs" / "2026-06-15_university-x_lecturer-in-economics"
-    job_dir.mkdir(parents=True)
-    (job_dir / "job.yaml").write_text(
-        yaml.safe_dump(
-            {
-                "id": "2026-06-15_university-x_lecturer-in-economics",
-                "title": "Lecturer in Economics",
-                "institution": "University X",
-                "department": "",
-                "location": "",
-                "deadline": "2026-06-15",
-                "source_url": "https://example.edu/jobs/123",
-                "status": "advert_imported",
-                "created_at": "2026-05-03T23:00:00Z",
-                "updated_at": "2026-05-03T23:00:00Z",
-                "notes": "",
-                "english_variant": "us",
-                "writing_style": "direct and warm",
-            },
-            sort_keys=False,
-        )
-    )
-    (job_dir / "job_advert.md").write_text(
-        "# Lecturer in Economics\n\n"
-        "Teaching fields: Econometrics\n\n"
-        "Essential criteria:\n"
-        "- Evidence of teaching excellence\n"
-    )
-    profile_dir = tmp_path / "profile"
-    generated_dir = profile_dir / "generated"
-    generated_dir.mkdir(parents=True)
-    (generated_dir / "cv.evidence.md").write_text(
-        "# Evidence: cv\n\n"
-        "## Teaching\n\n"
-        "- `job`: Teaching Assistant for Econometrics\n"
-    )
-    fake_generator = tmp_path / "fake_generator.py"
-    fake_generator.write_text(
-        "import sys\n"
-        "prompt = sys.stdin.read()\n"
-        "citation = '`profile/generated/cv.evidence.md#Teaching`'\n"
-        "if '# Profile Matcher' in prompt:\n"
-        "    print(f'# Fit Report\\n\\n- Strong teaching fit for econometrics ({citation}).')\n"
-        "elif '# Cover Letter Writer' in prompt:\n"
-        "    assert 'US English' in prompt, prompt\n"
-        "    assert 'direct and warm' in prompt, prompt\n"
-        "    print(f'# Cover Letter Draft\\n\\nI can contribute to econometrics teaching ({citation}).')\n"
-        "elif '# CV Tailor' in prompt:\n"
-        "    print(f'# CV Tailoring Notes\\n\\n- Move teaching evidence higher ({citation}).')\n"
-        "elif '# Criteria Checker' in prompt:\n"
-        "    print(f'# Criteria Coverage Checklist\\n\\n| Criterion | Coverage | Evidence Source | Risk | Suggested Improvement |\\n|---|---|---|---|---|\\n| Evidence of teaching excellence | strong | {citation} | low | Keep the evidence visible. |')\n"
-        "elif '# Package Builder' in prompt:\n"
-        "    print(f'# Final Application Package\\n\\n## Job Information\\n\\n- Title: Lecturer in Economics\\n- Institution: University X\\n- Evidence: {citation}')\n"
-        "else:\n"
-        "    raise SystemExit('unexpected prompt')\n"
-    )
-    monkeypatch.setenv("ACADEMIC_PREP_LLM_PROVIDER", "command")
-    monkeypatch.setenv("ACADEMIC_PREP_LLM_COMMAND", f"{sys.executable} {fake_generator}")
-    runner = CliRunner()
+    def fail_provider(*args, **kwargs):
+        raise AssertionError("Decision-blocked legacy output must not call a model provider")
 
-    result = runner.invoke(
+    monkeypatch.setattr("canisend.llm.load_llm_config", fail_provider)
+    monkeypatch.setattr("canisend.llm.provider_from_config", fail_provider)
+
+    result = CliRunner().invoke(
         app,
-        [
-            "run",
-            "--job",
-            str(job_dir),
-            "--profile-dir",
-            str(profile_dir),
-            "--llm-drafts",
-        ],
+        ["run", "--job", str(job_dir), "--llm-drafts", "--no-git-add-materials"],
     )
 
     assert result.exit_code == 0
-    assert "Strong teaching fit for econometrics" in (job_dir / "02_fit_report.md").read_text()
-    assert "I can contribute to econometrics teaching" in (job_dir / "03_cover_letter_draft.md").read_text()
-    assert "Move teaching evidence higher" in (job_dir / "04_cv_tailoring_notes.md").read_text()
-    assert "strong" in (job_dir / "05_criteria_checklist.md").read_text()
-    package_content = json.loads((job_dir / "typst" / "application_package_content.json").read_text())
-    assert "Strong teaching fit for econometrics" in package_content["fit_report"]
-    assert "I can contribute to econometrics teaching" in package_content["cover_letter"]
+    assert "decide: blocked" in result.output
+    assert "Legacy compatibility materials were projected" in result.output
+    assert (job_dir / "03_cover_letter_draft.md").is_file()
+    metadata = yaml.safe_load((job_dir / "job.yaml").read_text(encoding="utf-8"))
+    assert metadata["status"] == "advert_imported"
 
 
 def test_run_dry_run_with_llm_parser_does_not_construct_or_call_provider(tmp_path, monkeypatch):

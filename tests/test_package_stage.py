@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from canisend.bundle_projection import load_artifact_bundle, project_artifact_bundle
+from canisend.ready_check import PackageCheckResult
 from canisend.stage_runtime import StageRuntimeError, inspect_stage_status, run_deterministic_stage
 from canisend.stages.render_stage import (
     build_render_bundle_candidate,
@@ -19,6 +20,7 @@ from canisend.user_mutations import (
     initialize_package_review_dispositions,
     inspect_package_review_dispositions,
 )
+from canisend.workflow_sequence import SequenceOptions, plan_sequence, run_sequence
 from tests.test_package_review_disposition_mutations import _current_reviewable_package
 
 
@@ -170,3 +172,74 @@ def test_render_builder_compiles_to_bundle_before_pdf_projection(tmp_path: Path)
     assert not (job / "pdf" / "cover_letter.pdf").exists()
     project_artifact_bundle(job, validated)
     assert (job / "pdf" / "cover_letter.pdf").read_bytes().startswith(b"%PDF-")
+
+
+def test_sequence_promotes_projects_verifies_and_never_silently_repairs_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace, job, review = _current_reviewable_package(tmp_path)
+    _review_package(workspace, job, review)
+    monkeypatch.setattr(
+        "canisend.ready_check.check_application_package",
+        lambda *args, **kwargs: PackageCheckResult(job_dir=job, issues=[]),
+    )
+    fake_typst = tmp_path / "fake-typst.py"
+    fake_typst.write_text(
+        "#!/usr/bin/env python3\n"
+        "import pathlib, sys\n"
+        "pathlib.Path(sys.argv[3]).write_bytes(b'%PDF-1.7 sequence')\n"
+    )
+    fake_typst.chmod(0o755)
+
+    result = run_sequence(
+        workspace,
+        job,
+        options=SequenceOptions(typst_bin=str(fake_typst)),
+    )
+
+    assert [outcome.stage for outcome in result.executed] == [
+        "package",
+        "verify",
+        "render",
+    ]
+    assert "03_cover_letter_draft.md" in result.projected_paths
+    assert "pdf/cover_letter.pdf" in result.projected_paths
+    assert result.complete is True
+    assert result.stop_item is None
+    current_paths = (
+        job / "package_bundle.json",
+        job / "application_gate_report.json",
+        job / "render_bundle.json",
+        job / "workflow" / "projections" / "package.json",
+        job / "workflow" / "projections" / "render.json",
+        job / "03_cover_letter_draft.md",
+        job / "pdf" / "cover_letter.pdf",
+    )
+    current_mtimes = {path: path.stat().st_mtime_ns for path in current_paths}
+    unchanged = run_sequence(
+        workspace,
+        job,
+        options=SequenceOptions(typst_bin=str(fake_typst)),
+    )
+    assert unchanged.complete is True
+    assert unchanged.executed == ()
+    assert unchanged.projected_paths == ()
+    assert {path: path.stat().st_mtime_ns for path in current_paths} == current_mtimes
+    package_output = job / "03_cover_letter_draft.md"
+    package_output.unlink()
+
+    plan = plan_sequence(workspace, job)
+    package_item = next(item for item in plan.items if item.stage == "package")
+    assert package_item.decision == "repair"
+    resumed = run_sequence(
+        workspace,
+        job,
+        options=SequenceOptions(typst_bin=str(fake_typst)),
+    )
+    assert resumed.executed == ()
+    assert resumed.projected_paths == ()
+    assert resumed.stop_item is not None
+    assert resumed.stop_item.stage == "package"
+    assert resumed.stop_item.decision == "repair"
+    assert not package_output.exists()

@@ -82,6 +82,8 @@ SUPPORTED_AGENT_OPERATIONS = (
     "workflow.stage_apply",
     "workflow.stage_cancel",
     "workflow.stage_run",
+    "workflow.sequence_plan",
+    "workflow.sequence_run",
 )
 KNOWN_AGENT_ERROR_CODES = frozenset(
     {

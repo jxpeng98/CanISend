@@ -460,7 +460,14 @@ class ParseStageAdapter(StageAdapter):
         )
 
     def required_consents(self, execution_mode: AdapterExecutionMode) -> tuple[str, ...]:
-        return ("read-full-job-advert",) if execution_mode == "host_agent" else ()
+        if execution_mode == "host_agent":
+            return ("read-full-job-advert",)
+        if execution_mode == "configured_provider":
+            return ("send-full-job-advert-to-provider",)
+        return ()
+
+    def task_privacy_tier_for(self, execution_mode: AdapterExecutionMode) -> int:
+        return 3 if execution_mode == "configured_provider" else self.task_privacy_tier
 
 
 class ConfirmStageAdapter(StageAdapter):
