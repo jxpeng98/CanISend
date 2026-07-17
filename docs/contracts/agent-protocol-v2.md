@@ -74,6 +74,9 @@ Error codes are stable within protocol v2 even when human messages improve:
 | `workspace.conflict` | 4 |
 | `job.not_found` | 4 |
 | `job.archived` | 4 |
+| `discovery.source_not_found` | 4 |
+| `discovery.lead_not_found` | 4 |
+| `discovery.conflict` | 4 |
 | `pdf.encrypted` | 3 |
 | `pdf.malformed` | 3 |
 | `pdf_text_unavailable` | 3 |
@@ -114,6 +117,26 @@ Job intake is available through `job create`, `job import JOB_ID --file PATH`, `
 `job list`, `job show`, and `job archive`. Import success returns source and artifact references without returning the
 private source body. A URL flag is an explicit user-requested fetch; redirects remain subject to the same public
 address policy as the initial URL.
+
+Discovery is available through:
+
+```text
+canisend discovery adapters --json
+canisend discovery import --file BATCH.csv --source-name NAME --dry-run --json
+canisend --workspace WORKSPACE discovery import --file BATCH.json --json
+canisend --workspace WORKSPACE discovery import --file AGENT.json --host-agent --json
+canisend --workspace WORKSPACE discovery refresh --adapter ADAPTER --endpoint URL --source-name NAME --json
+canisend --workspace WORKSPACE discovery sources --json
+canisend --workspace WORKSPACE discovery list --include-history --json
+canisend --workspace WORKSPACE discovery show LEAD_ID --json
+canisend --workspace WORKSPACE discovery suggest LEAD_ID --limit 5 --json
+canisend --workspace WORKSPACE discovery promote LEAD_ID --json
+```
+
+CSV mapping requires `title`, `organization`, and `url`; it accepts explicit optional fields and bounded `meta.*`
+extensions. JSON and host-agent imports use `canisend.discovery-batch/v2`. `--dry-run` performs no workspace access.
+Network refresh is user-invoked and adapter-bound; it is not a crawler. Promotion creates a job record and returns a
+next action for `job import JOB_ID --url URL`, keeping advert retrieval inside the direct-intake consent boundary.
 
 ## Contract generation
 

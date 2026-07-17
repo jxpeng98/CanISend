@@ -1,6 +1,6 @@
 # CanISend Rust-Native Greenfield Rebuild Roadmap
 
-**Status:** In progress — R0 through R4 complete; R5 discovery ecosystem active
+**Status:** In progress — R0 through R5 complete; R6 agent collaboration active
 
 **Date:** 2026-07-17
 
@@ -53,6 +53,11 @@
   page-separated PDF extraction, and typed encrypted/malformed/image-only failures. GitHub Actions runs `29614087317`
   and `29614367500` passed 36 Rust tests, generated-contract checks, release builds, and packaged-binary job import
   smoke; the cached final run completed in 1 minute 10 seconds. R4 exit criteria are satisfied; R5 is active.
+- 2026-07-17: Completed discovery contracts, CSV/JSON/host-agent batch imports, SQLite migration 3, deterministic
+  source-scoped exact identity, bounded fuzzy suggestions, refresh receipts/cursors, retained removed/expired leads,
+  promotion into direct intake, and public RSS/Atom, jobs.ac.uk, Greenhouse, and Lever adapters. GitHub Actions run
+  `29616322777` passed 44 Rust tests, 20-schema/26-resource checks, release build, and packaged-binary discovery
+  dry-run/import/promotion/backup/restore smoke in 1 minute 55 seconds. R5 exit criteria are satisfied; R6 is active.
 
 ## 1. Executive Decision
 
@@ -647,10 +652,13 @@ canisend profile evidence import
 canisend profile evidence list
 canisend profile evidence confirm
 
-canisend discovery source add
+canisend discovery adapters
 canisend discovery refresh
 canisend discovery import
+canisend discovery sources
 canisend discovery list
+canisend discovery show
+canisend discovery suggest
 canisend discovery promote
 
 canisend job create
@@ -1360,37 +1368,39 @@ the network/parser boundaries without making CI depend on a live website.
 
 #### R5.1 Discovery domain
 
-- [ ] Define lead, source, batch, identity, freshness, and promotion contracts.
-- [ ] Define adapter capabilities and refresh policy.
-- [ ] Implement normalized organization, title, location, deadline, and URL fields.
-- [ ] Preserve source-specific metadata under bounded typed extensions.
+- [x] Define lead, source, batch, identity, freshness, and promotion contracts.
+- [x] Define adapter capabilities and refresh policy.
+- [x] Implement normalized organization, title, location, deadline, and URL fields.
+- [x] Preserve source-specific metadata under bounded typed extensions.
 
 #### R5.2 Local imports
 
-- [ ] Implement CSV mapping with explicit headers and diagnostics.
-- [ ] Implement JSON batch schema.
-- [ ] Implement normalized host-agent result import.
-- [ ] Add dry-run and row-level error reporting.
+- [x] Implement CSV mapping with explicit headers and diagnostics.
+- [x] Implement JSON batch schema.
+- [x] Implement normalized host-agent result import.
+- [x] Add dry-run and row-level error reporting.
 
 #### R5.3 Network adapters
 
-- [ ] Implement RSS/Atom.
-- [ ] Implement jobs.ac.uk.
-- [ ] Implement Greenhouse public boards.
-- [ ] Implement Lever public boards.
-- [ ] Add fixture-based adapter tests with no live-network dependency in CI.
+- [x] Implement RSS/Atom.
+- [x] Implement jobs.ac.uk.
+- [x] Implement Greenhouse public boards.
+- [x] Implement Lever public boards.
+- [x] Add fixture-based adapter tests with no live-network dependency in CI.
 
 #### R5.4 Identity and refresh
 
-- [ ] Implement deterministic exact-key matching.
-- [ ] Implement bounded fuzzy candidate suggestions without automatic destructive merges.
-- [ ] Record refresh receipts and source cursors.
-- [ ] Preserve removed/expired leads as history.
-- [ ] Implement promotion from lead to job.
+- [x] Implement deterministic exact-key matching.
+- [x] Implement bounded fuzzy candidate suggestions without automatic destructive merges.
+- [x] Record refresh receipts and source cursors.
+- [x] Preserve removed/expired leads as history.
+- [x] Implement promotion from lead to job.
 
-**Deliverables:** Local and network discovery with deduplication and promotion.
+**Deliverables:** Local and network discovery with deduplication and promotion. Complete.
 
-**Exit criteria:** Offline fixtures cover every adapter and a user can promote a discovered lead into direct intake.
+**Exit criteria:** Satisfied by GitHub Actions run `29616322777`. Offline fixtures cover RSS, Atom, jobs.ac.uk,
+Greenhouse, and Lever without live-network CI dependencies. A clean release binary dry-runs and commits a CSV batch,
+lists the resulting lead, promotes it into a job, and preserves that state through verified backup and restore.
 
 ### Phase R6 — Agent collaboration
 

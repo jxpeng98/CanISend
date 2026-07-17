@@ -19,8 +19,8 @@ the Git tag `archive/python-v0.6.0b1-final`.
 
 ## Current status
 
-The Rust rebuild has completed R4, including the durable workspace and direct job intake. R5 discovery adapters,
-batch imports, deduplication, and lead promotion are now active. The current binary provides:
+The Rust rebuild has completed R5, including durable direct intake and the discovery ecosystem. R6 agent
+collaboration is now active. The current binary provides:
 
 - Native `canisend` executable scaffolding.
 - Validated UUIDv7, SHA-256, revision, UTC timestamp, and safe relative-path contract types.
@@ -37,9 +37,12 @@ batch imports, deduplication, and lead promotion are now active. The current bin
 - Bounded UTF-8 Markdown/plain-text imports with separate original and normalized artifacts.
 - Explicit user-supplied URL imports over Rustls with redirect-by-redirect SSRF protection and HTML normalization.
 - Text-PDF imports with page limits and typed encrypted, malformed, and `pdf_text_unavailable` results.
+- CSV, JSON, and normalized host-agent discovery imports with dry-run and row-level diagnostics.
+- Public RSS/Atom, jobs.ac.uk, Greenhouse, and Lever adapters over the same bounded SSRF-safe transport.
+- Durable lead identity, freshness, refresh receipts/cursors, retained history, suggestions, and job promotion.
 
-Discovery, application workflow, and embedded PDF rendering are not yet available in the production binary. Their
-execution order and acceptance gates are defined in the
+Application workflow, evidence-backed drafting, and embedded PDF rendering are not yet available in the production
+binary. Their execution order and acceptance gates are defined in the
 [Rust-native roadmap](docs/superpowers/plans/2026-07-17-rust-native-greenfield-roadmap.md).
 
 ## Build the native foundation
@@ -62,6 +65,17 @@ cargo build --release --locked
 ./target/release/canisend --workspace ./my-workspace job import JOB_ID \
   --url https://example.edu/job-advert --json
 ./target/release/canisend --workspace ./my-workspace job show JOB_ID --json
+./target/release/canisend discovery adapters --json
+./target/release/canisend discovery import --file ./leads.csv \
+  --source-name "University export" --dry-run --json
+./target/release/canisend --workspace ./my-workspace discovery import \
+  --file ./leads.csv --source-name "University export" --json
+./target/release/canisend --workspace ./my-workspace discovery refresh \
+  --adapter greenhouse --endpoint \
+  "https://boards-api.greenhouse.io/v1/boards/BOARD/jobs" \
+  --source-name "University X" --json
+./target/release/canisend --workspace ./my-workspace discovery list --json
+./target/release/canisend --workspace ./my-workspace discovery promote LEAD_ID --json
 ./target/release/canisend --workspace ./my-workspace workspace check --json
 ./target/release/canisend --workspace ./my-workspace workspace backup ./my-backup --json
 ```
