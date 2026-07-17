@@ -80,6 +80,12 @@ job_json="$(
 job_id="$(first_uuid_id "$job_json")"
 "$binary" --workspace "$workspace" job import "$job_id" \
   --file "$repo_root/fixtures/v2-spec/job-advert.md" --json >/dev/null
+"$binary" --workspace "$workspace" workflow start --job "$job_id" --json \
+  >"$agent_work/workflow-start.json"
+"$binary" --workspace "$workspace" workflow status --job "$job_id" --json \
+  >"$agent_work/workflow-status.json"
+grep -q '"stage":"intake","status":"complete"' "$agent_work/workflow-status.json"
+grep -q '"stage":"parse","status":"ready"' "$agent_work/workflow-status.json"
 
 task_json="$(
   "$binary" --workspace "$workspace" task prepare \

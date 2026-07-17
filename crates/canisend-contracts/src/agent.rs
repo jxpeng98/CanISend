@@ -87,6 +87,10 @@ pub enum ErrorCode {
     TaskStale,
     #[serde(rename = "task.conflict")]
     TaskConflict,
+    #[serde(rename = "workflow.not_found")]
+    WorkflowNotFound,
+    #[serde(rename = "workflow.conflict")]
+    WorkflowConflict,
     #[serde(rename = "consent.required")]
     ConsentRequired,
     #[serde(rename = "external.io_failed")]
@@ -98,7 +102,7 @@ pub enum ErrorCode {
 }
 
 impl ErrorCode {
-    pub const ALL: [Self; 25] = [
+    pub const ALL: [Self; 27] = [
         Self::InputInvalid,
         Self::InputPathRejected,
         Self::WorkspaceNotFound,
@@ -120,6 +124,8 @@ impl ErrorCode {
         Self::TaskNotFound,
         Self::TaskStale,
         Self::TaskConflict,
+        Self::WorkflowNotFound,
+        Self::WorkflowConflict,
         Self::ConsentRequired,
         Self::ExternalIoFailed,
         Self::ProviderFailed,
@@ -138,7 +144,9 @@ impl ErrorCode {
             | Self::DiscoveryConflict
             | Self::TaskNotFound
             | Self::TaskStale
-            | Self::TaskConflict => ExitClass::Conflict,
+            | Self::TaskConflict
+            | Self::WorkflowNotFound
+            | Self::WorkflowConflict => ExitClass::Conflict,
             Self::ExternalIoFailed | Self::ProviderFailed => ExitClass::ExternalIo,
             Self::ResourcesIntegrityFailed | Self::InternalInvariantFailed => ExitClass::Internal,
             Self::InputInvalid
@@ -179,6 +187,8 @@ impl ErrorCode {
             Self::TaskNotFound => "task.not_found",
             Self::TaskStale => "task.stale",
             Self::TaskConflict => "task.conflict",
+            Self::WorkflowNotFound => "workflow.not_found",
+            Self::WorkflowConflict => "workflow.conflict",
             Self::ConsentRequired => "consent.required",
             Self::ExternalIoFailed => "external.io_failed",
             Self::ProviderFailed => "provider.failed",

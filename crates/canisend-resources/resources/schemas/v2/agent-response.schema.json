@@ -41,6 +41,7 @@
       "enum": [
         "source-original",
         "source-normalized-text",
+        "parsed-job",
         "evidence-catalog",
         "criteria",
         "evidence-matches",
@@ -138,6 +139,8 @@
         "task.not_found",
         "task.stale",
         "task.conflict",
+        "workflow.not_found",
+        "workflow.conflict",
         "consent.required",
         "external.io_failed",
         "provider.failed",

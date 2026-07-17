@@ -6,13 +6,13 @@ use std::{
 };
 
 use canisend_contracts::{
-    ActorKind, ArtifactKind, ArtifactReference, EntityId, ExpectedInputRevision,
+    ActorKind, ArtifactKind, ArtifactReference, EntityId, ExecutionMode, ExpectedInputRevision,
     PrivacyClassification, Revision, SafeRelativePath, Sha256Digest, SourceKind,
-    TaskCompletionRequest, TaskStatus,
+    StageExecutionStatus, TaskCompletionRequest, TaskStatus, WorkflowStage,
 };
 use canisend_store::{
     ArtifactService, DEFAULT_MAX_BLOB_BYTES, JobService, NewSource, StoreError, TaskService,
-    Workspace, WorkspacePaths, verify_backup,
+    WorkflowService, Workspace, WorkspacePaths, verify_backup,
 };
 use serde_json::json;
 
@@ -54,7 +54,7 @@ fn workspace_init_discovery_status_and_check_are_consistent() {
     assert_eq!(discovered.root, root.path());
     assert_eq!(
         workspace.status().expect("status").database_schema_version,
-        4
+        5
     );
     let check = workspace.check().expect("workspace check");
     assert!(check.ok);
@@ -297,6 +297,189 @@ fn agent_tasks_validate_commit_idempotently_and_detect_changed_jobs() {
         .cancel(&cancelled.id)
         .expect("cancel");
     assert_eq!(state.status, TaskStatus::Cancelled);
+}
+
+#[test]
+fn workflow_kernel_enforces_graph_modes_and_scoped_rerun() {
+    let root = TestDirectory::new("workflow-kernel");
+    let mut workspace = Workspace::init(root.path()).expect("workspace");
+    let job = JobService::new(&mut workspace.database, &workspace.blobs)
+        .create("Lecturer", "University X", ActorKind::User)
+        .expect("job");
+    let source = JobService::new(&mut workspace.database, &workspace.blobs)
+        .import_source(
+            &job.id,
+            NewSource {
+                kind: SourceKind::LocalFile,
+                original_bytes: b"Private sentinel: teach economics".to_vec(),
+                normalized_text: "Private sentinel: teach economics\n".to_owned(),
+                source_url: None,
+                final_url: None,
+                content_type: "text/plain; charset=utf-8".to_owned(),
+                redirect_chain: Vec::new(),
+                privacy: PrivacyClassification::PrivateLocal,
+            },
+            ActorKind::User,
+        )
+        .expect("source");
+    let started = WorkflowService::new(&mut workspace.database)
+        .start(&job.id)
+        .expect("workflow start");
+    let replay = WorkflowService::new(&mut workspace.database)
+        .start(&job.id)
+        .expect("idempotent start");
+    assert_eq!(started.run_id, replay.run_id);
+    assert_eq!(
+        workflow_stage_status(&started, WorkflowStage::Intake),
+        StageExecutionStatus::Complete
+    );
+    assert_eq!(
+        workflow_stage_status(&started, WorkflowStage::Parse),
+        StageExecutionStatus::Ready
+    );
+    assert_eq!(
+        workflow_stage_status(&started, WorkflowStage::Evidence),
+        StageExecutionStatus::Ready
+    );
+    assert!(
+        !serde_json::to_string(&started)
+            .expect("workflow JSON")
+            .contains("Private sentinel")
+    );
+
+    let running = WorkflowService::new(&mut workspace.database)
+        .begin_stage(
+            &job.id,
+            WorkflowStage::Parse,
+            ExecutionMode::HostAgent,
+            ActorKind::HostAgent,
+        )
+        .expect("begin parse");
+    assert_eq!(
+        workflow_stage_status(&running, WorkflowStage::Parse),
+        StageExecutionStatus::Running
+    );
+    let parsed = {
+        let mut artifacts = ArtifactService::new(
+            &mut workspace.database,
+            &workspace.blobs,
+            &workspace.paths.root,
+        );
+        let revision = artifacts
+            .commit(
+                None,
+                ArtifactKind::ParsedJob,
+                br#"{"title":"Lecturer"}"#,
+                &[source.normalized_text.clone().expect("normalized")],
+                ActorKind::HostAgent,
+                "workflow kernel fixture",
+            )
+            .expect("parsed artifact");
+        artifacts
+            .reference(&revision.artifact_id)
+            .expect("reference")
+    };
+    let parsed_complete = WorkflowService::new(&mut workspace.database)
+        .complete_stage(&job.id, WorkflowStage::Parse, &parsed, ActorKind::HostAgent)
+        .expect("complete parse");
+    assert_eq!(
+        workflow_stage_status(&parsed_complete, WorkflowStage::Criteria),
+        StageExecutionStatus::Ready
+    );
+    assert!(matches!(
+        WorkflowService::new(&mut workspace.database).begin_stage(
+            &job.id,
+            WorkflowStage::Criteria,
+            ExecutionMode::HostAgent,
+            ActorKind::HostAgent,
+        ),
+        Err(StoreError::WorkflowConflict(_))
+    ));
+    let awaiting = WorkflowService::new(&mut workspace.database)
+        .begin_stage(
+            &job.id,
+            WorkflowStage::Criteria,
+            ExecutionMode::UserDecision,
+            ActorKind::User,
+        )
+        .expect("await criteria decision");
+    assert_eq!(
+        workflow_stage_status(&awaiting, WorkflowStage::Criteria),
+        StageExecutionStatus::AwaitingUser
+    );
+
+    let rerun = WorkflowService::new(&mut workspace.database)
+        .rerun(&job.id, WorkflowStage::Parse, ActorKind::User)
+        .expect("scoped rerun");
+    assert_eq!(
+        workflow_stage_status(&rerun, WorkflowStage::Parse),
+        StageExecutionStatus::Ready
+    );
+    assert_eq!(
+        workflow_stage_status(&rerun, WorkflowStage::Criteria),
+        StageExecutionStatus::Stale
+    );
+    assert_eq!(
+        workflow_stage_status(&rerun, WorkflowStage::Evidence),
+        StageExecutionStatus::Ready
+    );
+    assert!(
+        workspace
+            .check()
+            .expect("workspace check")
+            .stale_artifact_ids
+            .contains(&parsed.id)
+    );
+
+    let late_job = JobService::new(&mut workspace.database, &workspace.blobs)
+        .create("Late source", "University Y", ActorKind::User)
+        .expect("late job");
+    let blocked = WorkflowService::new(&mut workspace.database)
+        .start(&late_job.id)
+        .expect("blocked workflow");
+    assert_eq!(
+        workflow_stage_status(&blocked, WorkflowStage::Intake),
+        StageExecutionStatus::Blocked
+    );
+    JobService::new(&mut workspace.database, &workspace.blobs)
+        .import_source(
+            &late_job.id,
+            NewSource {
+                kind: SourceKind::ManualText,
+                original_bytes: b"Added later".to_vec(),
+                normalized_text: "Added later\n".to_owned(),
+                source_url: None,
+                final_url: None,
+                content_type: "text/plain; charset=utf-8".to_owned(),
+                redirect_chain: Vec::new(),
+                privacy: PrivacyClassification::PrivateLocal,
+            },
+            ActorKind::User,
+        )
+        .expect("late source");
+    let reconciled = WorkflowService::new(&mut workspace.database)
+        .status(&late_job.id)
+        .expect("reconciled workflow");
+    assert_eq!(
+        workflow_stage_status(&reconciled, WorkflowStage::Intake),
+        StageExecutionStatus::Complete
+    );
+    assert_eq!(
+        workflow_stage_status(&reconciled, WorkflowStage::Parse),
+        StageExecutionStatus::Ready
+    );
+}
+
+fn workflow_stage_status(
+    workflow: &canisend_contracts::WorkflowStatusData,
+    stage: WorkflowStage,
+) -> StageExecutionStatus {
+    workflow
+        .stages
+        .iter()
+        .find(|state| state.stage == stage)
+        .expect("stage state")
+        .status
 }
 
 #[test]

@@ -1,0 +1,213 @@
+{
+  "$defs": {
+    "ArtifactKind": {
+      "enum": [
+        "source-original",
+        "source-normalized-text",
+        "parsed-job",
+        "evidence-catalog",
+        "criteria",
+        "evidence-matches",
+        "application-plan",
+        "cover-letter",
+        "research-statement",
+        "teaching-statement",
+        "cv",
+        "review-findings",
+        "package-manifest",
+        "typst-source",
+        "pdf"
+      ],
+      "type": "string"
+    },
+    "ArtifactReference": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/ArtifactKind"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sha256": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "revision",
+        "sha256"
+      ],
+      "type": "object"
+    },
+    "ExecutionMode": {
+      "enum": [
+        "deterministic",
+        "host-agent",
+        "configured-provider",
+        "user-decision",
+        "manual-import"
+      ],
+      "type": "string"
+    },
+    "NextAction": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "description"
+      ],
+      "type": "object"
+    },
+    "StageExecutionStatus": {
+      "enum": [
+        "blocked",
+        "ready",
+        "running",
+        "awaiting-user",
+        "complete",
+        "stale"
+      ],
+      "type": "string"
+    },
+    "WorkflowBlocker": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "stage": {
+          "$ref": "#/$defs/WorkflowStage"
+        }
+      },
+      "required": [
+        "code",
+        "stage",
+        "description"
+      ],
+      "type": "object"
+    },
+    "WorkflowRunStatus": {
+      "enum": [
+        "active",
+        "complete"
+      ],
+      "type": "string"
+    },
+    "WorkflowStage": {
+      "enum": [
+        "intake",
+        "parse",
+        "criteria",
+        "evidence",
+        "match",
+        "plan",
+        "draft",
+        "review",
+        "package",
+        "render"
+      ],
+      "type": "string"
+    },
+    "WorkflowStageState": {
+      "additionalProperties": false,
+      "properties": {
+        "execution_mode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExecutionMode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "output": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ArtifactReference"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "stage": {
+          "$ref": "#/$defs/WorkflowStage"
+        },
+        "status": {
+          "$ref": "#/$defs/StageExecutionStatus"
+        },
+        "updated_at": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "stage",
+        "status",
+        "updated_at"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://schemas.canisend.dev/v2/workflow-status.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "blockers": {
+      "items": {
+        "$ref": "#/$defs/WorkflowBlocker"
+      },
+      "type": "array"
+    },
+    "job_id": {
+      "type": "string"
+    },
+    "next_actions": {
+      "items": {
+        "$ref": "#/$defs/NextAction"
+      },
+      "type": "array"
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "stages": {
+      "items": {
+        "$ref": "#/$defs/WorkflowStageState"
+      },
+      "type": "array"
+    },
+    "status": {
+      "$ref": "#/$defs/WorkflowRunStatus"
+    }
+  },
+  "required": [
+    "run_id",
+    "job_id",
+    "status",
+    "stages",
+    "blockers",
+    "next_actions"
+  ],
+  "title": "WorkflowStatusData",
+  "type": "object",
+  "x-canisend-id": "canisend.workflow-status/v2",
+  "x-canisend-version": "2.0.0"
+}

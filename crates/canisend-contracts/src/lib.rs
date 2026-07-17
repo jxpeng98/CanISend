@@ -6,6 +6,7 @@ mod domain;
 mod primitives;
 mod schema;
 mod validation;
+mod workflow;
 mod workspace;
 
 pub use agent::*;
@@ -14,6 +15,7 @@ pub use domain::*;
 pub use primitives::*;
 pub use schema::*;
 pub use validation::*;
+pub use workflow::*;
 pub use workspace::*;
 
 pub const AGENT_PROTOCOL: &str = "canisend.agent/v2";

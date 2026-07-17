@@ -195,11 +195,14 @@ impl<'de> Deserialize<'de> for Revision {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
+)]
 #[serde(rename_all = "kebab-case")]
 pub enum ArtifactKind {
     SourceOriginal,
     SourceNormalizedText,
+    ParsedJob,
     EvidenceCatalog,
     Criteria,
     EvidenceMatches,

@@ -16,7 +16,7 @@
       {"id":"job.intake","status":"available","version":"2.0.0"},
       {"id":"discovery.refresh","status":"available","version":"2.0.0"},
       {"id":"task.lifecycle","status":"available","version":"2.0.0"},
-      {"id":"workflow.execute","status":"planned","version":"2.0.0"},
+      {"id":"workflow.execute","status":"available","version":"2.0.0"},
       {"id":"render.pdf","status":"planned","version":"2.0.0"}
     ],
     "discovery_adapters": [
@@ -47,6 +47,8 @@
       "task.not_found",
       "task.stale",
       "task.conflict",
+      "workflow.not_found",
+      "workflow.conflict",
       "consent.required",
       "external.io_failed",
       "provider.failed",
@@ -58,13 +60,13 @@
     "stages": [
       {"execution_modes":["manual-import"],"id":"intake","status":"available"},
       {"execution_modes":["deterministic","host-agent"],"id":"discovery","status":"available"},
-      {"execution_modes":["host-agent"],"id":"parse","status":"planned"},
+      {"execution_modes":["host-agent","configured-provider"],"id":"parse","status":"planned"},
       {"execution_modes":["user-decision"],"id":"criteria","status":"planned"},
-      {"execution_modes":["host-agent"],"id":"evidence","status":"planned"},
-      {"execution_modes":["host-agent"],"id":"match","status":"planned"},
+      {"execution_modes":["manual-import","host-agent","configured-provider"],"id":"evidence","status":"planned"},
+      {"execution_modes":["host-agent","configured-provider"],"id":"match","status":"planned"},
       {"execution_modes":["user-decision"],"id":"plan","status":"planned"},
-      {"execution_modes":["host-agent"],"id":"draft","status":"planned"},
-      {"execution_modes":["host-agent"],"id":"review","status":"planned"},
+      {"execution_modes":["host-agent","configured-provider"],"id":"draft","status":"planned"},
+      {"execution_modes":["host-agent","configured-provider","user-decision"],"id":"review","status":"planned"},
       {"execution_modes":["deterministic"],"id":"package","status":"planned"},
       {"execution_modes":["deterministic"],"id":"render","status":"planned"}
     ],

@@ -253,6 +253,7 @@ name = "canisend-core"
 version = "0.7.0-alpha.1"
 dependencies = [
  "canisend-contracts",
+ "thiserror",
 ]
 
 [[package]]
@@ -293,6 +294,7 @@ name = "canisend-store"
 version = "0.7.0-alpha.1"
 dependencies = [
  "canisend-contracts",
+ "canisend-core",
  "getrandom 0.3.4",
  "hex",
  "rusqlite",

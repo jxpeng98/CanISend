@@ -8,7 +8,7 @@ use crate::{
     AgentContextData, AgentResponse, ApplicationPlanRecord, BackupManifestData, CapabilitiesData,
     CriterionRecord, DiscoveryBatch, DiscoveryLeadRecord, DocumentRecord, EvidenceMatchRecord,
     EvidenceRecord, FindingRecord, JobRecord, ReadinessRecord, SourceRecord, TaskCompletionRequest,
-    TaskDescriptor, VersionData, WorkspaceCheckData, WorkspaceStatusData,
+    TaskDescriptor, VersionData, WorkflowStatusData, WorkspaceCheckData, WorkspaceStatusData,
 };
 
 pub const PUBLIC_SCHEMA_VERSION: &str = "2.0.0";
@@ -37,10 +37,11 @@ pub enum PublicSchemaId {
     BackupManifest,
     DiscoveryBatch,
     DiscoveryLead,
+    WorkflowStatus,
 }
 
 impl PublicSchemaId {
-    pub const ALL: [Self; 20] = [
+    pub const ALL: [Self; 21] = [
         Self::AgentResponse,
         Self::Capabilities,
         Self::AgentContext,
@@ -61,6 +62,7 @@ impl PublicSchemaId {
         Self::BackupManifest,
         Self::DiscoveryBatch,
         Self::DiscoveryLead,
+        Self::WorkflowStatus,
     ];
 
     #[must_use]
@@ -86,6 +88,7 @@ impl PublicSchemaId {
             Self::BackupManifest => "canisend.backup-manifest/v2",
             Self::DiscoveryBatch => "canisend.discovery-batch/v2",
             Self::DiscoveryLead => "canisend.discovery-lead/v2",
+            Self::WorkflowStatus => "canisend.workflow-status/v2",
         }
     }
 
@@ -112,6 +115,7 @@ impl PublicSchemaId {
             Self::BackupManifest => "backup-manifest",
             Self::DiscoveryBatch => "discovery-batch",
             Self::DiscoveryLead => "discovery-lead",
+            Self::WorkflowStatus => "workflow-status",
         }
     }
 
@@ -165,6 +169,7 @@ pub fn generate_public_schemas() -> Vec<GeneratedSchema> {
         generate::<BackupManifestData>(PublicSchemaId::BackupManifest),
         generate::<DiscoveryBatch>(PublicSchemaId::DiscoveryBatch),
         generate::<DiscoveryLeadRecord>(PublicSchemaId::DiscoveryLead),
+        generate::<WorkflowStatusData>(PublicSchemaId::WorkflowStatus),
     ]
 }
 

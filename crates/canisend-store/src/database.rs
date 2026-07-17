@@ -7,11 +7,12 @@ use rusqlite::{
 
 use crate::{StoreError, now_utc};
 
-pub const DATABASE_SCHEMA_VERSION: u32 = 4;
+pub const DATABASE_SCHEMA_VERSION: u32 = 5;
 const INITIAL_MIGRATION: &str = include_str!("../migrations/0001_initial.sql");
 const INTAKE_MIGRATION: &str = include_str!("../migrations/0002_job_intake.sql");
 const DISCOVERY_MIGRATION: &str = include_str!("../migrations/0003_discovery.sql");
 const AGENT_TASK_MIGRATION: &str = include_str!("../migrations/0004_agent_tasks.sql");
+const WORKFLOW_KERNEL_MIGRATION: &str = include_str!("../migrations/0005_workflow_kernel.sql");
 
 pub struct Database {
     connection: Connection,
@@ -65,6 +66,11 @@ impl Database {
         if version == 3 {
             let applied_at = now_utc()?;
             self.apply_migration(4, AGENT_TASK_MIGRATION, &applied_at)?;
+            version = 4;
+        }
+        if version == 4 {
+            let applied_at = now_utc()?;
+            self.apply_migration(5, WORKFLOW_KERNEL_MIGRATION, &applied_at)?;
         }
         Ok(())
     }
@@ -300,7 +306,7 @@ mod tests {
             .connection
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .expect("schema version");
-        assert_eq!(version, 4);
+        assert_eq!(version, 5);
         let revision_column: i64 = database
             .connection
             .query_row(
@@ -328,6 +334,16 @@ mod tests {
             )
             .expect("task descriptor column");
         assert_eq!(task_descriptor_column, 1);
+        let workflow_output_column: i64 = database
+            .connection
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('stage_executions')
+                 WHERE name = 'output_artifact_id'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("workflow output column");
+        assert_eq!(workflow_output_column, 1);
         drop(database);
         let _ = fs::remove_file(path);
     }

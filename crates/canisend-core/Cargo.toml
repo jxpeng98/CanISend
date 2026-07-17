@@ -11,6 +11,7 @@ publish.workspace = true
 
 [dependencies]
 canisend-contracts = { path = "../canisend-contracts" }
+thiserror.workspace = true
 
 [lints]
 workspace = true

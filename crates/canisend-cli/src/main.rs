@@ -7,7 +7,7 @@ use canisend_contracts::{
     CapabilitiesData, EntityId, ErrorCode, ExecutionMode, ExitClass, NextAction,
     PUBLIC_SCHEMA_VERSION, PrivacyClassification, PublicSchemaId, RESOURCE_FORMAT,
     ResourceCatalogData, ResourceCatalogEntry, SchemaCatalogData, SchemaCatalogEntry,
-    SemanticVersion, Sha256Digest, SourceKind, VersionData, WORKSPACE_FORMAT,
+    SemanticVersion, Sha256Digest, SourceKind, VersionData, WORKSPACE_FORMAT, WorkflowStage,
 };
 use canisend_core::{CapabilityRegistry, StageRegistry};
 use canisend_io::{
@@ -20,7 +20,7 @@ use canisend_io::{
 use canisend_resources::{AgentHost, ResourceError, ResourceId, ResourceKind, export_agent_pack};
 use canisend_store::{
     AgentContextService, ArtifactService, DiscoveryService, JobService, NewSource, StoreError,
-    TaskService, Workspace, current_utc_timestamp,
+    TaskService, WorkflowService, Workspace, current_utc_timestamp,
 };
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use serde_json::json;
@@ -79,6 +79,11 @@ enum Command {
     Task {
         #[command(subcommand)]
         command: TaskCommand,
+    },
+    /// Start, inspect, advance, or rerun the durable application workflow.
+    Workflow {
+        #[command(subcommand)]
+        command: WorkflowCommand,
     },
 }
 
@@ -177,6 +182,20 @@ enum TaskCommand {
     Complete(TaskCompleteArgs),
     /// Cancel a prepared task without deleting its audit history.
     Cancel(TaskIdArgs),
+}
+
+#[derive(Debug, Subcommand)]
+enum WorkflowCommand {
+    /// Create the durable stage graph from current job state, idempotently.
+    Start(WorkflowJobArgs),
+    /// Return body-free stage status, blockers, and next actions.
+    Status(WorkflowJobArgs),
+    /// Begin one ready stage in a mode allowed by the compiled graph.
+    Begin(WorkflowBeginArgs),
+    /// Complete a running or awaiting-user stage with a current artifact.
+    Complete(WorkflowCompleteArgs),
+    /// Reset one stage and invalidate only its transitive descendants.
+    Rerun(WorkflowRerunArgs),
 }
 
 #[derive(Debug, Args)]
@@ -423,6 +442,102 @@ struct TaskInputsArgs {
     output: OutputArgs,
 }
 
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum WorkflowStageName {
+    Intake,
+    Parse,
+    Criteria,
+    Evidence,
+    Match,
+    Plan,
+    Draft,
+    Review,
+    Package,
+    Render,
+}
+
+impl From<WorkflowStageName> for WorkflowStage {
+    fn from(value: WorkflowStageName) -> Self {
+        match value {
+            WorkflowStageName::Intake => Self::Intake,
+            WorkflowStageName::Parse => Self::Parse,
+            WorkflowStageName::Criteria => Self::Criteria,
+            WorkflowStageName::Evidence => Self::Evidence,
+            WorkflowStageName::Match => Self::Match,
+            WorkflowStageName::Plan => Self::Plan,
+            WorkflowStageName::Draft => Self::Draft,
+            WorkflowStageName::Review => Self::Review,
+            WorkflowStageName::Package => Self::Package,
+            WorkflowStageName::Render => Self::Render,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum ExecutionModeName {
+    Deterministic,
+    HostAgent,
+    ConfiguredProvider,
+    UserDecision,
+    ManualImport,
+}
+
+impl From<ExecutionModeName> for ExecutionMode {
+    fn from(value: ExecutionModeName) -> Self {
+        match value {
+            ExecutionModeName::Deterministic => Self::Deterministic,
+            ExecutionModeName::HostAgent => Self::HostAgent,
+            ExecutionModeName::ConfiguredProvider => Self::ConfiguredProvider,
+            ExecutionModeName::UserDecision => Self::UserDecision,
+            ExecutionModeName::ManualImport => Self::ManualImport,
+        }
+    }
+}
+
+#[derive(Debug, Args)]
+struct WorkflowJobArgs {
+    /// Canonical UUIDv7 job ID.
+    #[arg(long)]
+    job: String,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
+struct WorkflowBeginArgs {
+    #[arg(long)]
+    job: String,
+    #[arg(long, value_enum)]
+    stage: WorkflowStageName,
+    #[arg(long, value_enum)]
+    mode: ExecutionModeName,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
+struct WorkflowCompleteArgs {
+    #[arg(long)]
+    job: String,
+    #[arg(long, value_enum)]
+    stage: WorkflowStageName,
+    /// Current output artifact UUIDv7; kind must match the compiled stage descriptor.
+    #[arg(long)]
+    artifact: String,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
+struct WorkflowRerunArgs {
+    #[arg(long)]
+    job: String,
+    #[arg(long, value_enum)]
+    stage: WorkflowStageName,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
 impl Cli {
     fn explicit_json(&self) -> bool {
         match &self.command {
@@ -488,6 +603,14 @@ impl Cli {
                 }
                 TaskCommand::Inputs(arguments) => arguments.output.json,
                 TaskCommand::Complete(arguments) => arguments.output.json,
+            },
+            Command::Workflow { command } => match command {
+                WorkflowCommand::Start(arguments) | WorkflowCommand::Status(arguments) => {
+                    arguments.output.json
+                }
+                WorkflowCommand::Begin(arguments) => arguments.output.json,
+                WorkflowCommand::Complete(arguments) => arguments.output.json,
+                WorkflowCommand::Rerun(arguments) => arguments.output.json,
             },
         }
     }
@@ -646,6 +769,21 @@ fn execute(cli: Cli) -> CommandResult<CommandOutput> {
         Command::Task {
             command: TaskCommand::Cancel(arguments),
         } => task_cancel(workspace, &arguments.task_id),
+        Command::Workflow {
+            command: WorkflowCommand::Start(arguments),
+        } => workflow_start(workspace, &arguments.job),
+        Command::Workflow {
+            command: WorkflowCommand::Status(arguments),
+        } => workflow_status(workspace, &arguments.job),
+        Command::Workflow {
+            command: WorkflowCommand::Begin(arguments),
+        } => workflow_begin(workspace, arguments),
+        Command::Workflow {
+            command: WorkflowCommand::Complete(arguments),
+        } => workflow_complete(workspace, arguments),
+        Command::Workflow {
+            command: WorkflowCommand::Rerun(arguments),
+        } => workflow_rerun(workspace, arguments),
     }
 }
 
@@ -770,8 +908,8 @@ fn context(
                 });
             } else {
                 next_actions.push(NextAction {
-                    action: format!("canisend job show {} --json", job.id),
-                    description: "Inspect body-free source and revision metadata".to_owned(),
+                    action: format!("canisend workflow start --job {} --json", job.id),
+                    description: "Start or resume the durable application stage graph".to_owned(),
                 });
             }
             selected_job = Some(job);
@@ -1694,6 +1832,94 @@ fn task_cancel(workspace_path: Option<PathBuf>, task_id: &str) -> CommandResult<
     )
 }
 
+fn workflow_start(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<CommandOutput> {
+    let job_id = parse_entity_id("workflow.start", job_id)?;
+    let mut workspace = open_workspace(workspace_path, "workflow.start")?;
+    let status = WorkflowService::new(&mut workspace.database)
+        .start(&job_id)
+        .map_err(|error| store_failure("workflow.start", error))?;
+    workflow_command_output("workflow.start", "started", status)
+}
+
+fn workflow_status(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<CommandOutput> {
+    let job_id = parse_entity_id("workflow.status", job_id)?;
+    let mut workspace = open_workspace(workspace_path, "workflow.status")?;
+    let status = WorkflowService::new(&mut workspace.database)
+        .status(&job_id)
+        .map_err(|error| store_failure("workflow.status", error))?;
+    workflow_command_output("workflow.status", "available", status)
+}
+
+fn workflow_begin(
+    workspace_path: Option<PathBuf>,
+    arguments: WorkflowBeginArgs,
+) -> CommandResult<CommandOutput> {
+    let job_id = parse_entity_id("workflow.begin", &arguments.job)?;
+    let stage = WorkflowStage::from(arguments.stage);
+    let mode = ExecutionMode::from(arguments.mode);
+    let mut workspace = open_workspace(workspace_path, "workflow.begin")?;
+    let status = WorkflowService::new(&mut workspace.database)
+        .begin_stage(&job_id, stage, mode, ActorKind::User)
+        .map_err(|error| store_failure("workflow.begin", error))?;
+    workflow_command_output("workflow.begin", "begun", status)
+}
+
+fn workflow_complete(
+    workspace_path: Option<PathBuf>,
+    arguments: WorkflowCompleteArgs,
+) -> CommandResult<CommandOutput> {
+    let job_id = parse_entity_id("workflow.complete", &arguments.job)?;
+    let artifact_id = parse_entity_id("workflow.complete", &arguments.artifact)?;
+    let stage = WorkflowStage::from(arguments.stage);
+    let mut workspace = open_workspace(workspace_path, "workflow.complete")?;
+    let artifact = ArtifactService::new(
+        &mut workspace.database,
+        &workspace.blobs,
+        &workspace.paths.root,
+    )
+    .reference(&artifact_id)
+    .map_err(|error| store_failure("workflow.complete", error))?;
+    let status = WorkflowService::new(&mut workspace.database)
+        .complete_stage(&job_id, stage, &artifact, ActorKind::User)
+        .map_err(|error| store_failure("workflow.complete", error))?;
+    let mut output = workflow_command_output("workflow.complete", "complete", status)?;
+    output.response.artifacts.push(artifact);
+    Ok(output)
+}
+
+fn workflow_rerun(
+    workspace_path: Option<PathBuf>,
+    arguments: WorkflowRerunArgs,
+) -> CommandResult<CommandOutput> {
+    let job_id = parse_entity_id("workflow.rerun", &arguments.job)?;
+    let stage = WorkflowStage::from(arguments.stage);
+    let mut workspace = open_workspace(workspace_path, "workflow.rerun")?;
+    let status = WorkflowService::new(&mut workspace.database)
+        .rerun(&job_id, stage, ActorKind::User)
+        .map_err(|error| store_failure("workflow.rerun", error))?;
+    workflow_command_output("workflow.rerun", "ready", status)
+}
+
+fn workflow_command_output(
+    operation: &'static str,
+    status_name: &'static str,
+    status: canisend_contracts::WorkflowStatusData,
+) -> CommandResult<CommandOutput> {
+    let mut output = success(
+        operation,
+        status_name,
+        &status,
+        vec![
+            format!("Workflow: {}", status.run_id),
+            format!("Job: {}", status.job_id),
+            format!("Status: {:?}", status.status),
+            format!("Blockers: {}", status.blockers.len()),
+        ],
+    )?;
+    output.response.next_actions = status.next_actions.clone();
+    Ok(output)
+}
+
 fn parse_entity_id(operation: &'static str, value: &str) -> CommandResult<EntityId> {
     EntityId::try_new(value).map_err(|error| {
         CommandFailure::new(
@@ -1770,6 +1996,8 @@ fn store_failure(operation: &'static str, error: StoreError) -> Box<CommandFailu
         StoreError::TaskNotFound(_) => ("not-found", ErrorCode::TaskNotFound, false),
         StoreError::TaskStale(_) => ("stale", ErrorCode::TaskStale, true),
         StoreError::TaskConflict(_) => ("conflict", ErrorCode::TaskConflict, false),
+        StoreError::WorkflowNotFound(_) => ("not-found", ErrorCode::WorkflowNotFound, false),
+        StoreError::WorkflowConflict(_) => ("conflict", ErrorCode::WorkflowConflict, false),
         StoreError::CandidateStructural(_) => {
             ("validation-failed", ErrorCode::CandidateSchemaInvalid, true)
         }

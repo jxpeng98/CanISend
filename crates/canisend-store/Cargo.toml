@@ -11,6 +11,7 @@ publish.workspace = true
 
 [dependencies]
 canisend-contracts = { path = "../canisend-contracts" }
+canisend-core = { path = "../canisend-core" }
 getrandom.workspace = true
 hex.workspace = true
 rusqlite.workspace = true

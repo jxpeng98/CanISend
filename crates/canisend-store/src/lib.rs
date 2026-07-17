@@ -8,6 +8,7 @@ mod database;
 mod discovery;
 mod job;
 mod task;
+mod workflow;
 mod workspace;
 
 use std::{
@@ -23,6 +24,7 @@ pub use database::{DATABASE_SCHEMA_VERSION, Database};
 pub use discovery::DiscoveryService;
 pub use job::{JobService, NewSource};
 pub use task::TaskService;
+pub use workflow::WorkflowService;
 pub use workspace::{Workspace, WorkspaceConfig, WorkspacePaths};
 
 use canisend_contracts::{EntityId, PrimitiveError, UtcTimestamp};
@@ -92,6 +94,10 @@ pub enum StoreError {
     CandidateStructural(Vec<canisend_contracts::ContractViolation>),
     #[error("candidate violates semantic contract rules")]
     CandidateSemantic(Vec<canisend_contracts::ContractViolation>),
+    #[error("workflow was not found for job: {0}")]
+    WorkflowNotFound(String),
+    #[error("workflow operation conflicts with current state: {0}")]
+    WorkflowConflict(String),
     #[error("input is invalid: {0}")]
     InvalidInput(String),
     #[error("artifact dependency is not current: {0}")]

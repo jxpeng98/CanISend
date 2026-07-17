@@ -162,7 +162,7 @@ fn public_catalogs_are_available_without_a_workspace() {
 
     assert_eq!(
         schemas["data"]["schemas"].as_array().map(Vec::len),
-        Some(20)
+        Some(21)
     );
     assert!(
         resources["data"]["resources"]
@@ -426,6 +426,114 @@ fn native_job_commands_import_original_and_normalized_local_text() {
     ]);
     assert_eq!(all["data"]["jobs"].as_array().map(Vec::len), Some(1));
     assert_eq!(all["data"]["jobs"][0]["revision"], 4);
+}
+
+#[test]
+fn workflow_cli_exposes_body_free_graph_modes_and_rerun() {
+    let workspace = TestDirectory::new("workflow-workspace");
+    let input = TestDirectory::new("workflow-input");
+    fs::create_dir_all(input.path()).expect("input directory");
+    let advert = input.path().join("advert.md");
+    fs::write(&advert, "Private workflow sentinel\n").expect("advert");
+    run_json(&[
+        "--workspace",
+        workspace.text(),
+        "workspace",
+        "init",
+        "--json",
+    ]);
+    let job = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "job",
+        "create",
+        "--title",
+        "Lecturer",
+        "--institution",
+        "University X",
+        "--json",
+    ]);
+    let job_id = job["data"]["id"].as_str().expect("job ID");
+    run_json(&[
+        "--workspace",
+        workspace.text(),
+        "job",
+        "import",
+        job_id,
+        "--file",
+        advert.to_str().expect("advert path"),
+        "--json",
+    ]);
+    let started = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "workflow",
+        "start",
+        "--job",
+        job_id,
+        "--json",
+    ]);
+    assert_eq!(started["data"]["stages"].as_array().map(Vec::len), Some(10));
+    assert_eq!(started["data"]["stages"][0]["stage"], "intake");
+    assert_eq!(started["data"]["stages"][0]["status"], "complete");
+    assert!(
+        !serde_json::to_string(&started)
+            .expect("workflow JSON")
+            .contains("Private workflow sentinel")
+    );
+    let wrong_mode = run(&[
+        "--workspace",
+        workspace.text(),
+        "workflow",
+        "begin",
+        "--job",
+        job_id,
+        "--stage",
+        "parse",
+        "--mode",
+        "deterministic",
+        "--json",
+    ]);
+    assert_eq!(wrong_mode.status.code(), Some(4));
+    let wrong_mode: Value = serde_json::from_slice(&wrong_mode.stdout).expect("mode error JSON");
+    assert_eq!(wrong_mode["error"]["code"], "workflow.conflict");
+    let running = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "workflow",
+        "begin",
+        "--job",
+        job_id,
+        "--stage",
+        "parse",
+        "--mode",
+        "host-agent",
+        "--json",
+    ]);
+    assert_eq!(running["data"]["stages"][1]["status"], "running");
+    assert_eq!(running["data"]["stages"][1]["execution_mode"], "host-agent");
+    let rerun = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "workflow",
+        "rerun",
+        "--job",
+        job_id,
+        "--stage",
+        "parse",
+        "--json",
+    ]);
+    assert_eq!(rerun["data"]["stages"][1]["status"], "ready");
+    let shown = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "workflow",
+        "status",
+        "--job",
+        job_id,
+        "--json",
+    ]);
+    assert_eq!(shown["data"]["run_id"], started["data"]["run_id"]);
 }
 
 #[test]
