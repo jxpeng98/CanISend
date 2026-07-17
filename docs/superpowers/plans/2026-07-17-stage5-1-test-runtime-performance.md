@@ -1,6 +1,6 @@
 # Stage 5.1 Test And Runtime Performance Implementation Plan
 
-**Status:** In progress — Tasks 1–5 implemented; fixture and full-suite work remains
+**Status:** In progress — Tasks 1–6 implemented; final release acceptance remains
 
 **Date:** 2026-07-17
 
@@ -24,13 +24,22 @@ Stage 5 runtime regression.
 - Profiling one Package integration test found 4,796 `inspect_stage_status` calls, 3,134 JSON Schema
   `check_schema` calls, 652 Draft candidate validations, and about 722 million Python calls. Disabling `fsync` did
   not improve its 110-second unprofiled runtime.
-- After the first implementation slice, the final Python 3.12 fast gate (including the Stage Runtime cache contract)
-  passes 220 tests in 15.16 seconds on a warm run. The profiled Package scenario fell from about 110 seconds to
+- The final Python 3.12 fast gate (including Stage Runtime and prebuilt-fixture contracts) passes 223 tests in 15.18
+  seconds on a warm run. The profiled Package scenario fell from about 110 seconds to
   59.65 seconds after operation-scoped status reuse, then to 39.42
   seconds after content-addressed schema compilation reuse on the development interpreter; the final Python 3.12
   measurement is 51.49 seconds.
 - GitHub Actions run `29581321336` passed the cold Python 3.12 fast job in 39 seconds. The full and package jobs were
   skipped on the non-main performance branch as designed.
+- The repeated Draft/Review and dual-document Package prefixes now use byte-verified process-local templates. Every
+  test receives an independent copy, and template SHA-256 manifests are checked before and after every clone.
+- A representative 24-test slow slice fell from 168.02 seconds sequentially to 96.05 seconds with two workers. A
+  165-test concurrency, CAS, recovery, migration, and mutation audit passed with two workers in 133.48 seconds.
+- The complete Python 3.12 suite passed 1,336 tests with two workers in 588.91 seconds (9 minutes 48 seconds). The
+  slowest remaining individual end-to-end test took 89.12 seconds.
+- The updated source and wheel distributions passed Twine and packaged-resource checks. A clean Python 3.12.12
+  wheel install passed the 13-stage Decision Spine smoke with 20 mutation receipts and the complete offline Stage 4
+  discovery smoke.
 
 ## Fixed Decisions
 
@@ -89,17 +98,18 @@ Stage 5 runtime regression.
 
 ### Task 6: Integration Fixture And Parallelism Audit
 
-- [ ] Create immutable prebuilt workflow fixtures for the repeated dual-document/package prefixes.
-- [ ] Clone fixtures per test so no mutable or private test state is shared.
-- [ ] Trial two pytest workers and retain parallel execution only if adversarial/concurrency tests remain stable.
+- [x] Create immutable prebuilt workflow fixtures for the repeated Draft/Review and dual-document/package prefixes.
+- [x] Clone fixtures per test so no mutable or private test state is shared.
+- [x] Trial two pytest workers and retain parallel execution only if adversarial/concurrency tests remain stable.
 
 ### Task 7: Exit Acceptance
 
-- [x] Keep the fast gate below 30 seconds locally (15.16 seconds for 220 tests on Python 3.12).
+- [x] Keep the fast gate below 30 seconds locally (15.18 seconds for 223 tests on Python 3.12).
 - [x] Confirm the fast gate stays below two minutes in a cold GitHub Actions run (39 seconds, run `29581321336`).
-- [ ] Reduce the full single-interpreter suite to a measured target below 15 minutes.
-- [ ] Pass focused cache, runtime, mutation, projection, migration, and release-contract suites.
-- [ ] Pass one complete Python 3.12 suite plus build, Twine, resources, clean-wheel, and cross-platform release smokes.
+- [x] Reduce the full single-interpreter suite to a measured target below 15 minutes (9 minutes 48 seconds).
+- [x] Pass focused cache, runtime, mutation, projection, migration, and release-contract suites.
+- [x] Pass one complete Python 3.12 suite plus local build, Twine, resources, and clean-wheel smokes.
+- [ ] Confirm the Ubuntu/macOS/Windows release smokes on a release-candidate tag.
 - [ ] Record immutable evidence before marking Stage 5.1 complete.
 
 ## Safety And Compatibility Constraints

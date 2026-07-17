@@ -374,7 +374,7 @@ def test_ci_workflow_runs_tests_build_and_package_resource_check():
 
     assert workflow["name"] == "ci"
     assert "uv run python -m pytest -q -m fast" in rendered
-    assert "uv run python -m pytest -q" in rendered
+    assert "uv run python -m pytest -q -n 2" in rendered
     assert "uv build" in rendered
     assert "python -m canisend.package_check dist/*.whl" in rendered
     assert "uvx twine check dist/*" in rendered
@@ -484,7 +484,7 @@ def test_release_workflow_publishes_with_trusted_publishing():
 def test_local_release_checks_use_shared_smoke_through_brief():
     rendered = Path("scripts/release.sh").read_text()
 
-    assert "uv run python -m pytest -q" in rendered
+    assert "uv run python -m pytest -q -n 2" in rendered
     assert "uv pip install --python" in rendered
     assert rendered.count("scripts/smoke_decision_spine.py") == 1
     assert rendered.count("scripts/smoke_discovery.py") == 1

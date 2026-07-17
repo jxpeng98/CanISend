@@ -29,9 +29,10 @@ from tests.test_research_statement_stage import (
     _research_candidate,
 )
 from tests.test_user_mutation_cli import _artifact, _invoke_json, _job_args
+from tests.workflow_fixtures import clone_prebuilt_workspace
 
 
-def _reviewed_cover_and_research(
+def _build_reviewed_cover_and_research(
     tmp_path: Path,
 ) -> tuple[Path, Path, dict[str, object], dict[str, object]]:
     workspace, job = _workspace(tmp_path, include_research_statement=True)
@@ -52,6 +53,26 @@ def _reviewed_cover_and_research(
         document_id=str(research["document_id"]),
     )
     return workspace, job, cover, research
+
+
+def _reviewed_cover_and_research(
+    tmp_path: Path,
+) -> tuple[Path, Path, dict[str, object], dict[str, object]]:
+    def build(root: Path) -> tuple[Path, Path]:
+        workspace, job, _cover, _research = _build_reviewed_cover_and_research(root)
+        return workspace, job
+
+    workspace, job = clone_prebuilt_workspace(
+        tmp_path,
+        key="reviewed-cover-and-research",
+        builder=build,
+    )
+    return (
+        workspace,
+        job,
+        read_json_object(job / "cover_letter_draft.json"),
+        read_json_object(job / "research_statement_draft.json"),
+    )
 
 
 def test_research_dispositions_require_document_selection_and_are_independent(

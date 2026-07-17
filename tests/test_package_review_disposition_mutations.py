@@ -20,16 +20,25 @@ from canisend.user_mutations import (
     recover_user_mutation,
 )
 from tests.test_package_review_stage import _reviewed_dual_documents
+from tests.workflow_fixtures import clone_prebuilt_workspace
 
 
 def _current_reviewable_package(
     tmp_path: Path,
 ) -> tuple[Path, Path, dict[str, object]]:
-    workspace, job, _cover, _research = _reviewed_dual_documents(
+    def build(root: Path) -> tuple[Path, Path]:
+        workspace, job, _cover, _research = _reviewed_dual_documents(
+            root,
+            include_cv=False,
+        )
+        run_deterministic_stage(workspace, job, stage="package_review")
+        return workspace, job
+
+    workspace, job = clone_prebuilt_workspace(
         tmp_path,
-        include_cv=False,
+        key="current-reviewable-package-no-cv",
+        builder=build,
     )
-    run_deterministic_stage(workspace, job, stage="package_review")
     review = read_json_object(job / "package_review_findings.json")
     assert review["blocker_finding_ids"] == []
     assert review["findings"]

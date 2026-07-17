@@ -34,6 +34,7 @@ from canisend.user_mutations import (
 from canisend.workflow_sequence import SequenceOptions, run_sequence
 from tests.test_draft_stage import _candidate, _workspace
 from tests.test_review_stage import _complete_sections, _promote_draft
+from tests.workflow_fixtures import clone_prebuilt_workspace
 
 
 STRUCTURED_SENTINEL = "STRUCTURED-DRAFT-PROJECTION-SENTINEL-7319"
@@ -96,7 +97,7 @@ def _project_guarded_package(workspace: Path, job: Path) -> ProjectionJournalV1:
     return project_artifact_bundle(job, bundle)
 
 
-def _reviewed_draft(
+def _build_reviewed_draft(
     tmp_path: Path,
     *,
     text: str = STRUCTURED_SENTINEL,
@@ -130,6 +131,37 @@ def _reviewed_draft(
         document_id=str(payload["document_id"]),
     )
     return workspace, job, payload
+
+
+def _reviewed_draft(
+    tmp_path: Path,
+    *,
+    text: str = STRUCTURED_SENTINEL,
+    unsupported: bool = False,
+    include_research_statement: bool = False,
+) -> tuple[Path, Path, dict[str, object]]:
+    text_key = hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+    key = (
+        f"reviewed-draft-{text_key}"
+        f"-unsupported-{int(unsupported)}"
+        f"-research-{int(include_research_statement)}"
+    )
+
+    def build(root: Path) -> tuple[Path, Path]:
+        workspace, job, _payload = _build_reviewed_draft(
+            root,
+            text=text,
+            unsupported=unsupported,
+            include_research_statement=include_research_statement,
+        )
+        return workspace, job
+
+    workspace, job = clone_prebuilt_workspace(
+        tmp_path,
+        key=key,
+        builder=build,
+    )
+    return workspace, job, read_json_object(job / "cover_letter_draft.json")
 
 
 def test_current_structured_draft_renders_claims_once_and_builds_traceable_content(

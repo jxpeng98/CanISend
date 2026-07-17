@@ -1136,16 +1136,16 @@ uv run python -m pytest -q -m fast
 Run the complete local release checks before merging to `main` or creating a release tag:
 
 ```bash
-uv run python -m pytest -q
+uv run python -m pytest -q -n 2
 uv build
 uvx twine check dist/*
 uv run python -m canisend.package_check dist/*.whl
 ```
 
-Pull requests and non-main pushes run the fast gate on Python 3.12. Main pushes and manually dispatched CI runs add
-the complete suite, package build, metadata/resource checks, and an installed-wheel smoke. Release tags additionally
-run the complete suite and Stage 4/Stage 5 workflow smokes on Ubuntu, macOS, and Windows before publication. The
-release workflow uses PyPI Trusted Publishing with OIDC:
+Pull requests and non-main pushes run the single-worker fast gate on Python 3.12. Main pushes and manually dispatched
+CI runs add the complete two-worker suite, package build, metadata/resource checks, and an installed-wheel smoke.
+Release tags additionally run the complete suite and Stage 4/Stage 5 workflow smokes on Ubuntu, macOS, and Windows
+before publication. The release workflow uses PyPI Trusted Publishing with OIDC:
 
 - Pushing `test/v<version>` publishes to TestPyPI only.
 - Pushing `v<version>bN` or `v<version>rcN` publishes to TestPyPI, smoke-tests the TestPyPI package, then publishes a PyPI prerelease and creates a GitHub prerelease.

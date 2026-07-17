@@ -53,6 +53,7 @@ canisend = "canisend.cli:app"
 [dependency-groups]
 dev = [
     "pytest>=8.0",
+    "pytest-xdist>=3.8",
 ]
 
 [build-system]

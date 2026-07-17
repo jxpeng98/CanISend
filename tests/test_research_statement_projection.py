@@ -31,12 +31,13 @@ from canisend.workflow_sequence import SequenceOptions, run_sequence
 from tests.test_draft_stage import _candidate, _workspace
 from tests.test_research_statement_stage import _promote, _research_candidate
 from tests.test_review_stage import _complete_sections, _promote_draft
+from tests.workflow_fixtures import clone_prebuilt_workspace
 
 
 RESEARCH_PROJECTION_SENTINEL = "PRIVATE-RESEARCH-PROJECTION-SENTINEL-5291"
 
 
-def _reviewed_research_statement(
+def _build_reviewed_research_statement(
     tmp_path: Path,
     *,
     text: str = RESEARCH_PROJECTION_SENTINEL,
@@ -114,6 +115,32 @@ def _reviewed_research_statement(
             consent_confirmed=True,
         )
     return workspace, job, payload
+
+
+def _reviewed_research_statement(
+    tmp_path: Path,
+    *,
+    text: str = RESEARCH_PROJECTION_SENTINEL,
+) -> tuple[Path, Path, dict[str, object]]:
+    text_key = hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+
+    def build(root: Path) -> tuple[Path, Path]:
+        workspace, job, _payload = _build_reviewed_research_statement(
+            root,
+            text=text,
+        )
+        return workspace, job
+
+    workspace, job = clone_prebuilt_workspace(
+        tmp_path,
+        key=f"reviewed-research-statement-{text_key}",
+        builder=build,
+    )
+    return (
+        workspace,
+        job,
+        read_json_object(job / "research_statement_draft.json"),
+    )
 
 
 def _run_pipeline(workspace: Path) -> None:

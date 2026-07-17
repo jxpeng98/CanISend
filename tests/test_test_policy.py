@@ -45,14 +45,17 @@ def test_fast_gate_owns_critical_contract_surfaces():
 
 
 def test_pytest_registers_every_repository_lane():
-    pytest_config = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))[
-        "tool"
-    ]["pytest"]["ini_options"]
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    pytest_config = project["tool"]["pytest"]["ini_options"]
     markers = tuple(pytest_config["markers"])
 
     for marker in ("fast", "integration", "slow", "release"):
         assert any(entry.startswith(f"{marker}:") for entry in markers)
     assert pytest_config["addopts"] == "--strict-markers"
+    assert any(
+        dependency.startswith("pytest-xdist>=")
+        for dependency in project["dependency-groups"]["dev"]
+    )
 
 
 def test_ordinary_ci_runs_one_python_312_fast_gate():
@@ -61,6 +64,7 @@ def test_ordinary_ci_runs_one_python_312_fast_gate():
     assert 'python-version: "3.12"' in workflow
     assert 'python-version: ["3.11", "3.12", "3.13"]' not in workflow
     assert "python -m pytest -q -m fast" in workflow
+    assert "python -m pytest -q -n 2" in workflow
     assert "github.event_name == 'workflow_dispatch'" in workflow
     assert "github.ref == 'refs/heads/main'" in workflow
     assert "os: [ubuntu-latest, macos-latest, windows-latest]" not in workflow
@@ -69,7 +73,7 @@ def test_ordinary_ci_runs_one_python_312_fast_gate():
 def test_release_keeps_full_and_cross_platform_gates_before_publication():
     workflow = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
 
-    assert "python -m pytest -q\n" in workflow
+    assert "python -m pytest -q -n 2" in workflow
     assert "cross-os-smoke:" in workflow
     assert "os: [ubuntu-latest, macos-latest, windows-latest]" in workflow
     assert "Smoke test Stage 5 workflow contract" in workflow

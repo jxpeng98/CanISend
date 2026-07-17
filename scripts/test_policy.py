@@ -20,6 +20,7 @@ FAST_TEST_MODULES: tuple[str, ...] = (
     "tests/test_stage_runtime.py",
     "tests/test_stage_store.py",
     "tests/test_test_policy.py",
+    "tests/test_workflow_fixtures.py",
     "tests/test_workflow_sequence.py",
 )
 

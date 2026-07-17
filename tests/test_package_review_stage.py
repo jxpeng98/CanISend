@@ -26,6 +26,7 @@ from tests.test_research_statement_stage import (
     _research_candidate,
 )
 from tests.test_review_stage import _complete_sections
+from tests.workflow_fixtures import clone_prebuilt_workspace
 
 
 def _accept_document_findings(
@@ -66,7 +67,7 @@ def _accept_document_findings(
     assert inspection.readiness.state == "reviewed"
 
 
-def _reviewed_dual_documents(
+def _build_reviewed_dual_documents(
     tmp_path: Path,
     *,
     conflicting_receipts: bool = False,
@@ -119,6 +120,39 @@ def _reviewed_dual_documents(
         review_path="research_statement_review_findings.json",
     )
     return workspace, job, cover, research
+
+
+def _reviewed_dual_documents(
+    tmp_path: Path,
+    *,
+    conflicting_receipts: bool = False,
+    include_cv: bool = True,
+) -> tuple[Path, Path, dict[str, object], dict[str, object]]:
+    key = (
+        "reviewed-dual-documents"
+        f"-conflict-{int(conflicting_receipts)}"
+        f"-cv-{int(include_cv)}"
+    )
+
+    def build(root: Path) -> tuple[Path, Path]:
+        workspace, job, _cover, _research = _build_reviewed_dual_documents(
+            root,
+            conflicting_receipts=conflicting_receipts,
+            include_cv=include_cv,
+        )
+        return workspace, job
+
+    workspace, job = clone_prebuilt_workspace(
+        tmp_path,
+        key=key,
+        builder=build,
+    )
+    return (
+        workspace,
+        job,
+        read_json_object(job / "cover_letter_draft.json"),
+        read_json_object(job / "research_statement_draft.json"),
+    )
 
 
 def test_package_review_runs_with_missing_documents_and_records_blockers(
