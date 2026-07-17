@@ -17,7 +17,7 @@ use canisend_io::{
     parse_json_batch, read_discovery_file, read_local_pdf, read_local_text,
     read_task_completion_file, read_task_completion_stdin,
 };
-use canisend_resources::{ResourceId, ResourceKind};
+use canisend_resources::{AgentHost, ResourceError, ResourceId, ResourceKind, export_agent_pack};
 use canisend_store::{
     AgentContextService, ArtifactService, DiscoveryService, JobService, NewSource, StoreError,
     TaskService, Workspace, current_utc_timestamp,
@@ -88,6 +88,17 @@ enum AgentCommand {
     Capabilities(OutputArgs),
     /// Return the body-free public execution context.
     Context(AgentContextArgs),
+    /// Export self-contained integration assets for an agent host.
+    Assets {
+        #[command(subcommand)]
+        command: AgentAssetsCommand,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum AgentAssetsCommand {
+    /// Export a versioned host pack into a new or empty directory.
+    Export(AgentAssetsExportArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -160,6 +171,8 @@ enum TaskCommand {
     Prepare(TaskPrepareArgs),
     /// Inspect a task descriptor, state, and committed result metadata.
     Show(TaskIdArgs),
+    /// Export only the task's declared private inputs after explicit consent.
+    Inputs(TaskInputsArgs),
     /// Validate and atomically commit a host-agent completion request.
     Complete(TaskCompleteArgs),
     /// Cancel a prepared task without deleting its audit history.
@@ -178,6 +191,25 @@ struct AgentContextArgs {
     /// Select one job for body-free stage blockers and next actions.
     #[arg(long)]
     job: Option<String>,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum AgentHostName {
+    Codex,
+    Claude,
+    Generic,
+}
+
+#[derive(Debug, Args)]
+struct AgentAssetsExportArgs {
+    /// Host-specific instruction entrypoint to include.
+    #[arg(long, value_enum)]
+    host: AgentHostName,
+    /// New or empty destination directory outside .canisend internal state.
+    #[arg(long, value_name = "PATH")]
+    destination: PathBuf,
     #[command(flatten)]
     output: OutputArgs,
 }
@@ -377,6 +409,20 @@ struct TaskCompleteArgs {
     output: OutputArgs,
 }
 
+#[derive(Debug, Args)]
+struct TaskInputsArgs {
+    /// Canonical UUIDv7 task ID.
+    task_id: String,
+    /// New or empty external directory for the scoped inputs and manifest.
+    #[arg(long, value_name = "PATH")]
+    destination: PathBuf,
+    /// Confirm that the user granted the descriptor's read-private-inputs consent.
+    #[arg(long)]
+    allow_private_read: bool,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
 impl Cli {
     fn explicit_json(&self) -> bool {
         match &self.command {
@@ -392,6 +438,12 @@ impl Cli {
             } => output.json,
             Command::Agent {
                 command: AgentCommand::Context(arguments),
+            } => arguments.output.json,
+            Command::Agent {
+                command:
+                    AgentCommand::Assets {
+                        command: AgentAssetsCommand::Export(arguments),
+                    },
             } => arguments.output.json,
             Command::Schema {
                 command: SchemaCommand::Show(arguments),
@@ -434,6 +486,7 @@ impl Cli {
                 TaskCommand::Show(arguments) | TaskCommand::Cancel(arguments) => {
                     arguments.output.json
                 }
+                TaskCommand::Inputs(arguments) => arguments.output.json,
                 TaskCommand::Complete(arguments) => arguments.output.json,
             },
         }
@@ -506,6 +559,12 @@ fn execute(cli: Cli) -> CommandResult<CommandOutput> {
         Command::Agent {
             command: AgentCommand::Context(arguments),
         } => context(workspace, arguments.job.as_deref()),
+        Command::Agent {
+            command:
+                AgentCommand::Assets {
+                    command: AgentAssetsCommand::Export(arguments),
+                },
+        } => agent_assets_export(arguments),
         Command::Schema {
             command: SchemaCommand::List(_),
         } => schema_list(),
@@ -578,6 +637,9 @@ fn execute(cli: Cli) -> CommandResult<CommandOutput> {
         Command::Task {
             command: TaskCommand::Show(arguments),
         } => task_show(workspace, &arguments.task_id),
+        Command::Task {
+            command: TaskCommand::Inputs(arguments),
+        } => task_inputs(workspace, arguments),
         Command::Task {
             command: TaskCommand::Complete(arguments),
         } => task_complete(workspace, arguments),
@@ -795,6 +857,27 @@ fn context(
     )?;
     output.response.next_actions = data.next_actions.clone();
     Ok(output)
+}
+
+fn agent_assets_export(arguments: AgentAssetsExportArgs) -> CommandResult<CommandOutput> {
+    let host = match arguments.host {
+        AgentHostName::Codex => AgentHost::Codex,
+        AgentHostName::Claude => AgentHost::Claude,
+        AgentHostName::Generic => AgentHost::Generic,
+    };
+    let exported = export_agent_pack(host, &arguments.destination)
+        .map_err(|error| resource_export_failure("agent.assets.export", error))?;
+    success(
+        "agent.assets.export",
+        "exported",
+        &exported,
+        vec![
+            format!("Exported {} agent pack", host.as_str()),
+            format!("Directory: {}", exported.directory.display()),
+            format!("Manifest: {}", exported.manifest_path.display()),
+            format!("Resources: {}", exported.manifest.files.len()),
+        ],
+    )
 }
 
 fn schema_list() -> CommandResult<CommandOutput> {
@@ -1520,6 +1603,44 @@ fn task_show(workspace_path: Option<PathBuf>, task_id: &str) -> CommandResult<Co
     )
 }
 
+fn task_inputs(
+    workspace_path: Option<PathBuf>,
+    arguments: TaskInputsArgs,
+) -> CommandResult<CommandOutput> {
+    if !arguments.allow_private_read {
+        let mut failure = CommandFailure::new(
+            "task.inputs",
+            "consent-required",
+            ErrorCode::ConsentRequired,
+            "read-private-inputs consent must be explicitly confirmed",
+            false,
+        );
+        failure.error.remediation = Some(NextAction {
+            action: "obtain user approval, then repeat with --allow-private-read".to_owned(),
+            description:
+                "The command exports only artifacts declared in the task's private read scope"
+                    .to_owned(),
+        });
+        return Err(failure);
+    }
+    let task_id = parse_entity_id("task.inputs", &arguments.task_id)?;
+    let mut workspace = open_workspace(workspace_path, "task.inputs")?;
+    let exported = TaskService::new(&mut workspace.database, &workspace.blobs)
+        .export_inputs(&task_id, &arguments.destination)
+        .map_err(|error| store_failure("task.inputs", error))?;
+    success(
+        "task.inputs",
+        "exported",
+        &exported,
+        vec![
+            format!("Exported task inputs: {}", exported.task_id),
+            format!("Directory: {}", arguments.destination.display()),
+            format!("Files: {}", exported.files.len()),
+            format!("Manifest SHA-256: {}", exported.manifest_sha256),
+        ],
+    )
+}
+
 fn task_complete(
     workspace_path: Option<PathBuf>,
     arguments: TaskCompleteArgs,
@@ -1614,6 +1735,15 @@ fn io_adapter_failure(operation: &'static str, error: IoAdapterError) -> Box<Com
         | IoAdapterError::PdfTimeBudget
         | IoAdapterError::DiscoveryInput(_)
         | IoAdapterError::CandidateInput(_) => ("invalid", ErrorCode::InputInvalid, false),
+    };
+    CommandFailure::new(operation, status, code, error.to_string(), retryable)
+}
+
+fn resource_export_failure(operation: &'static str, error: ResourceError) -> Box<CommandFailure> {
+    let (status, code, retryable) = match &error {
+        ResourceError::UnknownId(_) => ("not-found", ErrorCode::ResourceNotFound, false),
+        ResourceError::UnsafeExportPath(_) => ("invalid", ErrorCode::InputPathRejected, false),
+        ResourceError::ExportIo { .. } => ("io-failed", ErrorCode::ExternalIoFailed, true),
     };
     CommandFailure::new(operation, status, code, error.to_string(), retryable)
 }

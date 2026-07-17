@@ -2,10 +2,14 @@
 
 use std::{
     fs,
+    fs::OpenOptions,
+    io::Write,
     path::{Path, PathBuf},
+    str::FromStr,
 };
 
-use serde::Serialize;
+use canisend_contracts::{AGENT_PROTOCOL, RESOURCE_FORMAT};
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
@@ -50,6 +54,54 @@ pub enum ResourceError {
         #[source]
         source: std::io::Error,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum AgentHost {
+    Codex,
+    Claude,
+    Generic,
+}
+
+impl AgentHost {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Codex => "codex",
+            Self::Claude => "claude",
+            Self::Generic => "generic",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentPackFile {
+    pub resource_id: String,
+    pub resource_version: String,
+    pub path: String,
+    pub size: usize,
+    pub sha256: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentPackManifest {
+    pub format: String,
+    pub product_version: String,
+    pub protocol: String,
+    pub resource_format: String,
+    pub host: AgentHost,
+    pub files: Vec<AgentPackFile>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentPackExportData {
+    pub directory: PathBuf,
+    pub manifest_path: PathBuf,
+    pub manifest: AgentPackManifest,
 }
 
 include!(concat!(env!("OUT_DIR"), "/resource_manifest.rs"));
@@ -118,6 +170,178 @@ pub fn export_all(root: &Path) -> Result<Vec<PathBuf>, ResourceError> {
         .into_iter()
         .map(|resource_id| export(resource_id, root))
         .collect()
+}
+
+pub fn export_agent_pack(
+    host: AgentHost,
+    root: &Path,
+) -> Result<AgentPackExportData, ResourceError> {
+    verify().map_err(|_| ResourceError::UnsafeExportPath(root.to_path_buf()))?;
+    ensure_empty_pack_root(root)?;
+    let guide = match host {
+        AgentHost::Codex => ("agent.codex.guide", "AGENTS.md"),
+        AgentHost::Claude => ("agent.claude.guide", "CLAUDE.md"),
+        AgentHost::Generic => ("agent.generic.guide", "README.md"),
+    };
+    let resources = [
+        guide,
+        ("prompt.job-criteria", "prompts/job-criteria.md"),
+        ("example.task-complete", "examples/task-complete.json"),
+        (
+            "schema.task-descriptor",
+            "schemas/v2/task-descriptor.schema.json",
+        ),
+        (
+            "schema.task-completion",
+            "schemas/v2/task-completion.schema.json",
+        ),
+        ("schema.criterion", "schemas/v2/criterion.schema.json"),
+    ];
+    let mut files = Vec::with_capacity(resources.len());
+    for (resource_id, relative_path) in resources {
+        let resource_id = ResourceId::from_str(resource_id)?;
+        let resource = get(resource_id);
+        let destination = root.join(relative_path);
+        write_new_file(root, &destination, resource.bytes)?;
+        files.push(AgentPackFile {
+            resource_id: resource.descriptor.id.to_owned(),
+            resource_version: resource.descriptor.version.to_owned(),
+            path: relative_path.to_owned(),
+            size: resource.descriptor.size,
+            sha256: resource.descriptor.sha256.to_owned(),
+        });
+    }
+    let manifest = AgentPackManifest {
+        format: "canisend.agent-pack/v2".to_owned(),
+        product_version: env!("CARGO_PKG_VERSION").to_owned(),
+        protocol: AGENT_PROTOCOL.to_owned(),
+        resource_format: RESOURCE_FORMAT.to_owned(),
+        host,
+        files,
+    };
+    let mut manifest_bytes = serde_json::to_vec_pretty(&manifest)
+        .map_err(|_| ResourceError::UnsafeExportPath(root.to_path_buf()))?;
+    manifest_bytes.push(b'\n');
+    let manifest_path = root.join("canisend-agent-pack.json");
+    write_new_file(root, &manifest_path, &manifest_bytes)?;
+    Ok(AgentPackExportData {
+        directory: root.to_path_buf(),
+        manifest_path,
+        manifest,
+    })
+}
+
+fn ensure_empty_pack_root(root: &Path) -> Result<(), ResourceError> {
+    if root
+        .components()
+        .any(|component| component.as_os_str().eq_ignore_ascii_case(".canisend"))
+    {
+        return Err(ResourceError::UnsafeExportPath(root.to_path_buf()));
+    }
+    if let Ok(metadata) = fs::symlink_metadata(root) {
+        if metadata.file_type().is_symlink() || !metadata.is_dir() {
+            return Err(ResourceError::UnsafeExportPath(root.to_path_buf()));
+        }
+        let empty = fs::read_dir(root)
+            .map_err(|source| ResourceError::ExportIo {
+                path: root.to_path_buf(),
+                source,
+            })?
+            .next()
+            .is_none();
+        if !empty {
+            return Err(ResourceError::UnsafeExportPath(root.to_path_buf()));
+        }
+    } else {
+        let parent = root
+            .parent()
+            .ok_or_else(|| ResourceError::UnsafeExportPath(root.to_path_buf()))?;
+        let parent_metadata =
+            fs::symlink_metadata(parent).map_err(|source| ResourceError::ExportIo {
+                path: parent.to_path_buf(),
+                source,
+            })?;
+        if parent_metadata.file_type().is_symlink() || !parent_metadata.is_dir() {
+            return Err(ResourceError::UnsafeExportPath(parent.to_path_buf()));
+        }
+        fs::create_dir(root).map_err(|source| ResourceError::ExportIo {
+            path: root.to_path_buf(),
+            source,
+        })?;
+    }
+    set_private_directory_permissions(root)?;
+    Ok(())
+}
+
+fn write_new_file(root: &Path, destination: &Path, bytes: &[u8]) -> Result<(), ResourceError> {
+    let parent = destination
+        .parent()
+        .ok_or_else(|| ResourceError::UnsafeExportPath(destination.to_path_buf()))?;
+    let relative = parent
+        .strip_prefix(root)
+        .map_err(|_| ResourceError::UnsafeExportPath(destination.to_path_buf()))?;
+    let mut current = root.to_path_buf();
+    for component in relative.components() {
+        current.push(component);
+        if let Ok(metadata) = fs::symlink_metadata(&current) {
+            if metadata.file_type().is_symlink() || !metadata.is_dir() {
+                return Err(ResourceError::UnsafeExportPath(current));
+            }
+        } else {
+            fs::create_dir(&current).map_err(|source| ResourceError::ExportIo {
+                path: current.clone(),
+                source,
+            })?;
+            set_private_directory_permissions(&current)?;
+        }
+    }
+    let mut file = OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(destination)
+        .map_err(|source| ResourceError::ExportIo {
+            path: destination.to_path_buf(),
+            source,
+        })?;
+    file.write_all(bytes)
+        .and_then(|()| file.sync_all())
+        .map_err(|source| ResourceError::ExportIo {
+            path: destination.to_path_buf(),
+            source,
+        })?;
+    set_private_file_permissions(destination)
+}
+
+#[cfg(unix)]
+fn set_private_directory_permissions(path: &Path) -> Result<(), ResourceError> {
+    use std::os::unix::fs::PermissionsExt;
+    fs::set_permissions(path, fs::Permissions::from_mode(0o700)).map_err(|source| {
+        ResourceError::ExportIo {
+            path: path.to_path_buf(),
+            source,
+        }
+    })
+}
+
+#[cfg(not(unix))]
+fn set_private_directory_permissions(_path: &Path) -> Result<(), ResourceError> {
+    Ok(())
+}
+
+#[cfg(unix)]
+fn set_private_file_permissions(path: &Path) -> Result<(), ResourceError> {
+    use std::os::unix::fs::PermissionsExt;
+    fs::set_permissions(path, fs::Permissions::from_mode(0o600)).map_err(|source| {
+        ResourceError::ExportIo {
+            path: path.to_path_buf(),
+            source,
+        }
+    })
+}
+
+#[cfg(not(unix))]
+fn set_private_file_permissions(_path: &Path) -> Result<(), ResourceError> {
+    Ok(())
 }
 
 fn ensure_export_root(root: &Path) -> Result<(), ResourceError> {

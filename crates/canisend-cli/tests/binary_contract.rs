@@ -184,6 +184,38 @@ fn capabilities_and_context_match_committed_json_snapshots() {
 }
 
 #[test]
+fn agent_host_pack_export_is_versioned_and_self_contained() {
+    let parent = TestDirectory::new("agent-pack-parent");
+    fs::create_dir_all(parent.path()).expect("pack parent");
+    let pack = parent.path().join("codex");
+    let exported = run_json(&[
+        "agent",
+        "assets",
+        "export",
+        "--host",
+        "codex",
+        "--destination",
+        pack.to_str().expect("pack path"),
+        "--json",
+    ]);
+    assert_eq!(exported["status"], "exported");
+    assert_eq!(exported["data"]["manifest"]["host"], "codex");
+    assert_eq!(
+        exported["data"]["manifest"]["files"]
+            .as_array()
+            .map(Vec::len),
+        Some(6)
+    );
+    assert!(pack.join("AGENTS.md").is_file());
+    assert!(pack.join("prompts/job-criteria.md").is_file());
+    assert!(
+        pack.join("schemas/v2/task-completion.schema.json")
+            .is_file()
+    );
+    assert!(pack.join("canisend-agent-pack.json").is_file());
+}
+
+#[test]
 fn known_json_error_uses_stdout_only_and_validation_exit_code() {
     let output = run(&["schema", "show", "missing", "--json"]);
 
@@ -540,6 +572,42 @@ fn leased_task_completion_is_validated_atomic_and_idempotent() {
             .contains("Teach economics")
     );
     let descriptor = &prepared["data"];
+    let task_id = descriptor["id"].as_str().expect("task ID");
+    let export_directory = input.path().join("task-work");
+    let consent_required = run(&[
+        "--workspace",
+        workspace.text(),
+        "task",
+        "inputs",
+        task_id,
+        "--destination",
+        export_directory.to_str().expect("export path"),
+        "--json",
+    ]);
+    assert_eq!(consent_required.status.code(), Some(3));
+    let consent_required: Value =
+        serde_json::from_slice(&consent_required.stdout).expect("consent failure JSON");
+    assert_eq!(consent_required["error"]["code"], "consent.required");
+    let exported = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "task",
+        "inputs",
+        task_id,
+        "--destination",
+        export_directory.to_str().expect("export path"),
+        "--allow-private-read",
+        "--json",
+    ]);
+    assert_eq!(exported["status"], "exported");
+    assert_eq!(exported["data"]["files"].as_array().map(Vec::len), Some(1));
+    let relative = exported["data"]["files"][0]["relative_path"]
+        .as_str()
+        .expect("relative input path");
+    assert_eq!(
+        fs::read_to_string(export_directory.join(relative)).expect("scoped source"),
+        "Teach economics\n"
+    );
     let expected_inputs = descriptor["input_artifacts"]
         .as_array()
         .expect("inputs")

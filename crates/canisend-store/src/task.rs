@@ -1,15 +1,22 @@
-use std::collections::BTreeMap;
+use std::{
+    collections::BTreeMap,
+    fs::{self, OpenOptions},
+    io::Write,
+    path::Path,
+};
 
 use canisend_contracts::{
     ActorKind, ArtifactKind, ArtifactReference, CandidateValidationError, ConsentRequest,
     ConsentScope, ContractViolation, CriterionRecord, EntityId, ExecutionMode,
-    PUBLIC_SCHEMA_VERSION, PublicSchemaId, Revision, SchemaReference, SemanticVersion,
-    Sha256Digest, TaskCommitData, TaskCompletionRequest, TaskDescriptor, TaskLease, TaskStateData,
-    TaskStatus, UtcTimestamp, validate_external_candidate,
+    PUBLIC_SCHEMA_VERSION, PublicSchemaId, Revision, SafeRelativePath, SchemaReference,
+    SemanticVersion, Sha256Digest, TaskCommitData, TaskCompletionRequest, TaskDescriptor,
+    TaskInputExportData, TaskInputExportFile, TaskLease, TaskStateData, TaskStatus, UtcTimestamp,
+    validate_external_candidate,
 };
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use serde::Serialize;
 use serde_json::{Map, Value};
+use sha2::{Digest, Sha256};
 use time::{Duration, OffsetDateTime, format_description::well_known::Rfc3339};
 
 use crate::{BlobStore, DEFAULT_MAX_BLOB_BYTES, Database, StoreError, generate_id, now_utc};
@@ -170,6 +177,95 @@ impl<'a> TaskService<'a> {
         }
         transaction.commit()?;
         self.get(task_id)
+    }
+
+    pub fn export_inputs(
+        &mut self,
+        task_id: &EntityId,
+        destination: &Path,
+    ) -> Result<TaskInputExportData, StoreError> {
+        let state = self.get(task_id)?;
+        if state.status != TaskStatus::Prepared {
+            return Err(StoreError::TaskConflict(format!(
+                "cannot export inputs for task {task_id} in {:?} state",
+                state.status
+            )));
+        }
+        ensure_empty_external_directory(destination)?;
+        let inputs_directory = destination.join("inputs");
+        create_private_directory(&inputs_directory)?;
+        let mut files = Vec::with_capacity(state.descriptor.private_read_scope.len());
+        for (index, artifact) in state.descriptor.private_read_scope.iter().enumerate() {
+            verify_scoped_input(self.database.connection(), task_id, artifact)?;
+            let bytes = self
+                .blobs
+                .read_verified(&artifact.sha256, DEFAULT_MAX_BLOB_BYTES)?;
+            let relative_path =
+                SafeRelativePath::try_new(format!("inputs/{:03}-{}.txt", index + 1, artifact.id))?;
+            write_private_new_file(&destination.join(relative_path.as_str()), &bytes)?;
+            files.push(TaskInputExportFile {
+                artifact: artifact.clone(),
+                relative_path,
+            });
+        }
+        let manifest_body = TaskInputManifestBody {
+            format: "canisend.task-inputs/v2".to_owned(),
+            task_id: task_id.clone(),
+            job_id: state.descriptor.job_id.clone(),
+            job_revision: state.descriptor.job_revision,
+            files: files.clone(),
+        };
+        let mut manifest_bytes = serde_json::to_vec_pretty(&manifest_body)?;
+        manifest_bytes.push(b'\n');
+        let manifest_sha256 = Sha256Digest::try_new(hex::encode(Sha256::digest(&manifest_bytes)))?;
+        write_private_new_file(
+            &destination.join("canisend-task-inputs.json"),
+            &manifest_bytes,
+        )?;
+        let exported_at = now_utc()?;
+        let consent_id = generate_id()?;
+        let event_id = generate_id()?;
+        let transaction = self.database.immediate_transaction()?;
+        let status: String = transaction
+            .query_row(
+                "SELECT status FROM tasks WHERE id = ?1",
+                params![task_id.as_str()],
+                |row| row.get(0),
+            )
+            .optional()?
+            .ok_or_else(|| StoreError::TaskNotFound(task_id.to_string()))?;
+        if status != "prepared" {
+            return Err(StoreError::TaskConflict(format!(
+                "task {task_id} changed state while exporting inputs"
+            )));
+        }
+        transaction.execute(
+            "INSERT INTO consents(id, scope, actor, manifest_sha256, granted_at)
+             VALUES (?1, 'read-private-inputs', 'user', ?2, ?3)",
+            params![
+                consent_id.as_str(),
+                manifest_sha256.as_str(),
+                exported_at.as_str()
+            ],
+        )?;
+        insert_audit(
+            &transaction,
+            &event_id,
+            "task.inputs.export",
+            task_id,
+            None,
+            "export declared private inputs after explicit consent",
+            &exported_at,
+        )?;
+        transaction.commit()?;
+        Ok(TaskInputExportData {
+            format: manifest_body.format,
+            task_id: task_id.clone(),
+            job_id: state.descriptor.job_id,
+            job_revision: state.descriptor.job_revision,
+            files,
+            manifest_sha256,
+        })
     }
 
     pub fn complete(
@@ -343,6 +439,121 @@ impl<'a> TaskService<'a> {
             idempotent: false,
         })
     }
+}
+
+#[derive(Serialize)]
+#[serde(deny_unknown_fields)]
+struct TaskInputManifestBody {
+    format: String,
+    task_id: EntityId,
+    job_id: EntityId,
+    job_revision: Revision,
+    files: Vec<TaskInputExportFile>,
+}
+
+fn verify_scoped_input(
+    connection: &Connection,
+    task_id: &EntityId,
+    artifact: &ArtifactReference,
+) -> Result<(), StoreError> {
+    let exists = connection
+        .query_row(
+            "SELECT 1 FROM task_inputs
+             WHERE task_id = ?1 AND artifact_id = ?2 AND revision = ?3 AND sha256 = ?4",
+            params![
+                task_id.as_str(),
+                artifact.id.as_str(),
+                to_i64(artifact.revision.get())?,
+                artifact.sha256.as_str()
+            ],
+            |_| Ok(true),
+        )
+        .optional()?
+        .unwrap_or(false);
+    if !exists {
+        return Err(StoreError::TaskStale(format!(
+            "declared input {} is no longer in task scope",
+            artifact.id
+        )));
+    }
+    Ok(())
+}
+
+fn ensure_empty_external_directory(path: &Path) -> Result<(), StoreError> {
+    if path.components().any(|component| {
+        component
+            .as_os_str()
+            .to_string_lossy()
+            .eq_ignore_ascii_case(".canisend")
+    }) {
+        return Err(StoreError::UnsafePath(path.to_path_buf()));
+    }
+    if let Ok(metadata) = fs::symlink_metadata(path) {
+        if metadata.file_type().is_symlink() || !metadata.is_dir() {
+            return Err(StoreError::UnsafePath(path.to_path_buf()));
+        }
+        if fs::read_dir(path)
+            .map_err(|source| crate::io_error(path, source))?
+            .next()
+            .is_some()
+        {
+            return Err(StoreError::InvalidInput(
+                "task input destination must be empty".to_owned(),
+            ));
+        }
+        set_private_directory_permissions(path)?;
+        return Ok(());
+    }
+    let parent = path
+        .parent()
+        .ok_or_else(|| StoreError::UnsafePath(path.to_path_buf()))?;
+    let parent_metadata =
+        fs::symlink_metadata(parent).map_err(|source| crate::io_error(parent, source))?;
+    if parent_metadata.file_type().is_symlink() || !parent_metadata.is_dir() {
+        return Err(StoreError::UnsafePath(parent.to_path_buf()));
+    }
+    create_private_directory(path)
+}
+
+fn create_private_directory(path: &Path) -> Result<(), StoreError> {
+    fs::create_dir(path).map_err(|source| crate::io_error(path, source))?;
+    set_private_directory_permissions(path)
+}
+
+fn write_private_new_file(path: &Path, bytes: &[u8]) -> Result<(), StoreError> {
+    let mut file = OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(path)
+        .map_err(|source| crate::io_error(path, source))?;
+    file.write_all(bytes)
+        .and_then(|()| file.sync_all())
+        .map_err(|source| crate::io_error(path, source))?;
+    set_private_file_permissions(path)
+}
+
+#[cfg(unix)]
+fn set_private_directory_permissions(path: &Path) -> Result<(), StoreError> {
+    use std::os::unix::fs::PermissionsExt;
+    fs::set_permissions(path, fs::Permissions::from_mode(0o700))
+        .map_err(|source| crate::io_error(path, source))
+}
+
+#[cfg(not(unix))]
+fn set_private_directory_permissions(_path: &Path) -> Result<(), StoreError> {
+    Ok(())
+}
+
+#[cfg(unix)]
+fn set_private_file_permissions(path: &Path) -> Result<(), StoreError> {
+    use std::os::unix::fs::PermissionsExt;
+    fs::set_permissions(path, fs::Permissions::from_mode(0o600))
+        .map_err(|source| crate::io_error(path, source))
+}
+
+#[cfg(not(unix))]
+fn set_private_file_permissions(_path: &Path) -> Result<(), StoreError> {
+    Ok(())
 }
 
 fn load_normalized_inputs(

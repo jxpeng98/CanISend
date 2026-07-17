@@ -4,7 +4,7 @@ use serde_json::Value;
 
 use crate::{
     ActorKind, ArtifactKind, ArtifactReference, ConsentScope, EntityId, ExecutionMode,
-    PrivacyClassification, Revision, SemanticVersion, Sha256Digest, UtcTimestamp,
+    PrivacyClassification, Revision, SafeRelativePath, SemanticVersion, Sha256Digest, UtcTimestamp,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -468,6 +468,24 @@ pub struct TaskCommitData {
     pub artifact: ArtifactReference,
     pub committed_at: UtcTimestamp,
     pub idempotent: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct TaskInputExportFile {
+    pub artifact: ArtifactReference,
+    pub relative_path: SafeRelativePath,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct TaskInputExportData {
+    pub format: String,
+    pub task_id: EntityId,
+    pub job_id: EntityId,
+    pub job_revision: Revision,
+    pub files: Vec<TaskInputExportFile>,
+    pub manifest_sha256: Sha256Digest,
 }
 
 #[cfg(test)]

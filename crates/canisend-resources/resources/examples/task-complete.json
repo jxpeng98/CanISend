@@ -1,6 +1,7 @@
 {
   "task_id": "019f2f55-7c00-7000-8000-000000000301",
   "lease_id": "019f2f55-7c00-7000-8000-000000000302",
+  "expected_job_revision": 1,
   "expected_inputs": [],
   "candidate": {}
 }

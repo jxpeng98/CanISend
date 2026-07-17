@@ -191,6 +191,25 @@ fn agent_tasks_validate_commit_idempotently_and_detect_changed_jobs() {
         .expect("prepared task");
     assert_eq!(descriptor.input_artifacts.len(), 1);
     assert_eq!(descriptor.private_read_scope, descriptor.input_artifacts);
+    let export_directory = workspace.paths.root.join("agent/task-inputs");
+    let exported = TaskService::new(&mut workspace.database, &workspace.blobs)
+        .export_inputs(&descriptor.id, &export_directory)
+        .expect("scoped input export");
+    assert_eq!(exported.files.len(), 1);
+    assert_eq!(
+        fs::read(export_directory.join(exported.files[0].relative_path.as_str()))
+            .expect("exported body"),
+        b"Teach economics\n"
+    );
+    assert!(export_directory.join("canisend-task-inputs.json").is_file());
+    assert!(
+        TaskService::new(&mut workspace.database, &workspace.blobs)
+            .export_inputs(
+                &descriptor.id,
+                &workspace.paths.root.join(".canisend/forbidden")
+            )
+            .is_err()
+    );
     let candidate = json!({
         "id": "019f2f55-7c00-7000-8000-000000000201",
         "job_id": job.id,
