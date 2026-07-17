@@ -1,6 +1,12 @@
 #![forbid(unsafe_code)]
 
-use std::{io::IsTerminal, path::PathBuf, process::ExitCode, str::FromStr};
+use std::{
+    fs::OpenOptions,
+    io::{IsTerminal, Write},
+    path::{Component, Path, PathBuf},
+    process::ExitCode,
+    str::FromStr,
+};
 
 use canisend_contracts::{
     AGENT_PROTOCOL, ActorKind, AgentContextBlocker, AgentContextData, AgentError, AgentResponse,
@@ -14,13 +20,13 @@ use canisend_io::{
     DiscoveryAdapter, DiscoveryFileKind, GreenhouseAdapter, HttpFetcher, IoAdapterError,
     JobsAcUkAdapter, LeverAdapter, RemoteDocumentKind, RssAtomAdapter,
     discovery_adapter_capabilities, extract_pdf_text, parse_csv_batch, parse_host_agent_batch,
-    parse_json_batch, read_discovery_file, read_local_pdf, read_local_text,
+    parse_json_batch, read_criteria_file, read_discovery_file, read_local_pdf, read_local_text,
     read_task_completion_file, read_task_completion_stdin,
 };
 use canisend_resources::{AgentHost, ResourceError, ResourceId, ResourceKind, export_agent_pack};
 use canisend_store::{
-    AgentContextService, ArtifactService, DiscoveryService, JobService, NewSource, StoreError,
-    TaskService, WorkflowService, Workspace, current_utc_timestamp,
+    AgentContextService, ArtifactService, CriteriaService, DiscoveryService, JobService, NewSource,
+    StoreError, TaskService, WorkflowService, Workspace, current_utc_timestamp,
 };
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use serde_json::json;
@@ -79,6 +85,11 @@ enum Command {
     Task {
         #[command(subcommand)]
         command: TaskCommand,
+    },
+    /// Inspect, correct, and explicitly confirm parsed job criteria.
+    Criteria {
+        #[command(subcommand)]
+        command: CriteriaCommand,
     },
     /// Start, inspect, advance, or rerun the durable application workflow.
     Workflow {
@@ -182,6 +193,18 @@ enum TaskCommand {
     Complete(TaskCompleteArgs),
     /// Cancel a prepared task without deleting its audit history.
     Cancel(TaskIdArgs),
+}
+
+#[derive(Debug, Subcommand)]
+enum CriteriaCommand {
+    /// Show the unconfirmed parsed-job proposal and its source spans.
+    Proposed(CriteriaJobArgs),
+    /// Export a new editable, pre-confirmed criteria JSON candidate.
+    Export(CriteriaExportArgs),
+    /// Validate corrections and commit an explicitly confirmed criteria artifact.
+    Confirm(CriteriaConfirmArgs),
+    /// Show the current confirmed criteria artifact.
+    Show(CriteriaJobArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -388,7 +411,13 @@ struct DiscoverySuggestArgs {
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
 enum TaskOperationName {
-    JobCriterion,
+    JobParse,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum TaskExecutionModeName {
+    HostAgent,
+    ConfiguredProvider,
 }
 
 #[derive(Debug, Args)]
@@ -399,6 +428,9 @@ struct TaskPrepareArgs {
     /// Bounded operation implemented by the compiled task registry.
     #[arg(long, value_enum)]
     operation: TaskOperationName,
+    /// Reasoning executor; both modes use the same candidate validator.
+    #[arg(long, value_enum, default_value = "host-agent")]
+    mode: TaskExecutionModeName,
     #[command(flatten)]
     output: OutputArgs,
 }
@@ -438,6 +470,42 @@ struct TaskInputsArgs {
     /// Confirm that the user granted the descriptor's read-private-inputs consent.
     #[arg(long)]
     allow_private_read: bool,
+    /// Confirm sending the exported scope to the configured provider, when required.
+    #[arg(long)]
+    allow_provider_send: bool,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
+struct CriteriaJobArgs {
+    /// Canonical UUIDv7 job ID.
+    #[arg(long)]
+    job: String,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
+struct CriteriaExportArgs {
+    /// Canonical UUIDv7 job ID.
+    #[arg(long)]
+    job: String,
+    /// New external JSON file that the user or host agent can edit.
+    #[arg(long, value_name = "PATH")]
+    destination: PathBuf,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
+struct CriteriaConfirmArgs {
+    /// Canonical UUIDv7 job ID.
+    #[arg(long)]
+    job: String,
+    /// Regular, non-symlink criteria JSON exported by `criteria export`.
+    #[arg(long, value_name = "PATH")]
+    file: PathBuf,
     #[command(flatten)]
     output: OutputArgs,
 }
@@ -604,6 +672,13 @@ impl Cli {
                 TaskCommand::Inputs(arguments) => arguments.output.json,
                 TaskCommand::Complete(arguments) => arguments.output.json,
             },
+            Command::Criteria { command } => match command {
+                CriteriaCommand::Proposed(arguments) | CriteriaCommand::Show(arguments) => {
+                    arguments.output.json
+                }
+                CriteriaCommand::Export(arguments) => arguments.output.json,
+                CriteriaCommand::Confirm(arguments) => arguments.output.json,
+            },
             Command::Workflow { command } => match command {
                 WorkflowCommand::Start(arguments) | WorkflowCommand::Status(arguments) => {
                     arguments.output.json
@@ -769,6 +844,18 @@ fn execute(cli: Cli) -> CommandResult<CommandOutput> {
         Command::Task {
             command: TaskCommand::Cancel(arguments),
         } => task_cancel(workspace, &arguments.task_id),
+        Command::Criteria {
+            command: CriteriaCommand::Proposed(arguments),
+        } => criteria_proposed(workspace, &arguments.job),
+        Command::Criteria {
+            command: CriteriaCommand::Export(arguments),
+        } => criteria_export(workspace, arguments),
+        Command::Criteria {
+            command: CriteriaCommand::Confirm(arguments),
+        } => criteria_confirm(workspace, arguments),
+        Command::Criteria {
+            command: CriteriaCommand::Show(arguments),
+        } => criteria_show(workspace, &arguments.job),
         Command::Workflow {
             command: WorkflowCommand::Start(arguments),
         } => workflow_start(workspace, &arguments.job),
@@ -1693,12 +1780,17 @@ fn task_prepare(
 ) -> CommandResult<CommandOutput> {
     let job_id = parse_entity_id("task.prepare", &arguments.job)?;
     let mut workspace = open_workspace(workspace_path, "task.prepare")?;
+    WorkflowService::new(&mut workspace.database)
+        .start(&job_id)
+        .map_err(|error| store_failure("task.prepare", error))?;
+    let mode = match arguments.mode {
+        TaskExecutionModeName::HostAgent => ExecutionMode::HostAgent,
+        TaskExecutionModeName::ConfiguredProvider => ExecutionMode::ConfiguredProvider,
+    };
     let descriptor = match arguments.operation {
-        TaskOperationName::JobCriterion => {
-            TaskService::new(&mut workspace.database, &workspace.blobs)
-                .prepare_job_criterion(&job_id)
-                .map_err(|error| store_failure("task.prepare", error))?
-        }
+        TaskOperationName::JobParse => TaskService::new(&mut workspace.database, &workspace.blobs)
+            .prepare_job_parse(&job_id, mode)
+            .map_err(|error| store_failure("task.prepare", error))?,
     };
     let mut output = success(
         "task.prepare",
@@ -1763,8 +1855,32 @@ fn task_inputs(
     }
     let task_id = parse_entity_id("task.inputs", &arguments.task_id)?;
     let mut workspace = open_workspace(workspace_path, "task.inputs")?;
+    let state = TaskService::new(&mut workspace.database, &workspace.blobs)
+        .get(&task_id)
+        .map_err(|error| store_failure("task.inputs", error))?;
+    if state.descriptor.execution_mode == ExecutionMode::ConfiguredProvider
+        && !arguments.allow_provider_send
+    {
+        let mut failure = CommandFailure::new(
+            "task.inputs",
+            "consent-required",
+            ErrorCode::ConsentRequired,
+            "send-to-configured-provider consent must be explicitly confirmed",
+            false,
+        );
+        failure.error.remediation = Some(NextAction {
+            action: "obtain user approval, then repeat with --allow-provider-send".to_owned(),
+            description: "Only the exact artifact revisions declared by the task may be sent"
+                .to_owned(),
+        });
+        return Err(failure);
+    }
     let exported = TaskService::new(&mut workspace.database, &workspace.blobs)
-        .export_inputs(&task_id, &arguments.destination)
+        .export_inputs(
+            &task_id,
+            &arguments.destination,
+            arguments.allow_provider_send,
+        )
         .map_err(|error| store_failure("task.inputs", error))?;
     success(
         "task.inputs",
@@ -1830,6 +1946,172 @@ fn task_cancel(workspace_path: Option<PathBuf>, task_id: &str) -> CommandResult<
         &state,
         vec![format!("Cancelled task: {}", state.descriptor.id)],
     )
+}
+
+fn criteria_proposed(
+    workspace_path: Option<PathBuf>,
+    job_id: &str,
+) -> CommandResult<CommandOutput> {
+    let job_id = parse_entity_id("criteria.proposed", job_id)?;
+    let mut workspace = open_workspace(workspace_path, "criteria.proposed")?;
+    let proposed = CriteriaService::new(&mut workspace.database, &workspace.blobs)
+        .proposed(&job_id)
+        .map_err(|error| store_failure("criteria.proposed", error))?;
+    success(
+        "criteria.proposed",
+        "available",
+        &proposed,
+        vec![
+            format!("Parsed job proposal: {}", proposed.id),
+            format!("Criteria proposed: {}", proposed.criteria.len()),
+            "These criteria are unconfirmed until the user runs criteria confirm".to_owned(),
+        ],
+    )
+}
+
+fn criteria_export(
+    workspace_path: Option<PathBuf>,
+    arguments: CriteriaExportArgs,
+) -> CommandResult<CommandOutput> {
+    let job_id = parse_entity_id("criteria.export", &arguments.job)?;
+    let mut workspace = open_workspace(workspace_path, "criteria.export")?;
+    let template = CriteriaService::new(&mut workspace.database, &workspace.blobs)
+        .template(&job_id)
+        .map_err(|error| store_failure("criteria.export", error))?;
+    write_private_json_new(&arguments.destination, &template)
+        .map_err(|error| io_adapter_failure("criteria.export", error))?;
+    let mut output = success(
+        "criteria.export",
+        "exported",
+        &json!({
+            "job_id": job_id,
+            "destination": arguments.destination,
+            "criterion_count": template.criteria.len(),
+            "schema": PublicSchemaId::CriteriaSet.as_str(),
+        }),
+        vec![
+            format!(
+                "Exported criteria candidate: {}",
+                arguments.destination.display()
+            ),
+            format!("Criteria: {}", template.criteria.len()),
+        ],
+    )?;
+    output.response.next_actions.push(NextAction {
+        action: format!(
+            "canisend criteria confirm --job {} --file {} --json",
+            job_id,
+            arguments.destination.display()
+        ),
+        description: "Review or correct the JSON, then explicitly confirm it".to_owned(),
+    });
+    Ok(output)
+}
+
+fn criteria_confirm(
+    workspace_path: Option<PathBuf>,
+    arguments: CriteriaConfirmArgs,
+) -> CommandResult<CommandOutput> {
+    let job_id = parse_entity_id("criteria.confirm", &arguments.job)?;
+    let candidate = read_criteria_file(&arguments.file)
+        .map_err(|error| io_adapter_failure("criteria.confirm", error))?;
+    let mut workspace = open_workspace(workspace_path, "criteria.confirm")?;
+    let artifact = CriteriaService::new(&mut workspace.database, &workspace.blobs)
+        .confirm(&job_id, &candidate)
+        .map_err(|error| store_failure("criteria.confirm", error))?;
+    let confirmed = CriteriaService::new(&mut workspace.database, &workspace.blobs)
+        .confirmed(&job_id)
+        .map_err(|error| store_failure("criteria.confirm", error))?;
+    let mut output = success(
+        "criteria.confirm",
+        "confirmed",
+        &confirmed,
+        vec![
+            format!("Confirmed criteria artifact: {}", artifact.id),
+            format!("Criteria: {}", confirmed.criteria.len()),
+        ],
+    )?;
+    output.response.artifacts.push(artifact);
+    Ok(output)
+}
+
+fn criteria_show(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<CommandOutput> {
+    let job_id = parse_entity_id("criteria.show", job_id)?;
+    let mut workspace = open_workspace(workspace_path, "criteria.show")?;
+    let confirmed = CriteriaService::new(&mut workspace.database, &workspace.blobs)
+        .confirmed(&job_id)
+        .map_err(|error| store_failure("criteria.show", error))?;
+    success(
+        "criteria.show",
+        "available",
+        &confirmed,
+        vec![
+            format!("Confirmed criteria: {}", confirmed.id),
+            format!("Criteria: {}", confirmed.criteria.len()),
+        ],
+    )
+}
+
+fn write_private_json_new<T: serde::Serialize>(
+    path: &Path,
+    value: &T,
+) -> Result<(), IoAdapterError> {
+    if path.components().any(|component| {
+        matches!(component, Component::Normal(name) if name.to_string_lossy().eq_ignore_ascii_case(".canisend"))
+    }) {
+        return Err(IoAdapterError::UnsafeLocalFile(path.to_path_buf()));
+    }
+    if !path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("json"))
+    {
+        return Err(IoAdapterError::UnsupportedLocalType(path.to_path_buf()));
+    }
+    let parent = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let parent_metadata =
+        std::fs::symlink_metadata(parent).map_err(|source| IoAdapterError::Io {
+            path: parent.to_path_buf(),
+            source,
+        })?;
+    if parent_metadata.file_type().is_symlink() || !parent_metadata.is_dir() {
+        return Err(IoAdapterError::UnsafeLocalFile(path.to_path_buf()));
+    }
+    let canonical_parent = std::fs::canonicalize(parent).map_err(|source| IoAdapterError::Io {
+        path: parent.to_path_buf(),
+        source,
+    })?;
+    if canonical_parent.components().any(|component| {
+        matches!(component, Component::Normal(name) if name.to_string_lossy().eq_ignore_ascii_case(".canisend"))
+    }) {
+        return Err(IoAdapterError::UnsafeLocalFile(path.to_path_buf()));
+    }
+    let mut options = OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let mut file = options.open(path).map_err(|source| IoAdapterError::Io {
+        path: path.to_path_buf(),
+        source,
+    })?;
+    let mut bytes = serde_json::to_vec_pretty(value)
+        .map_err(|error| IoAdapterError::CandidateInput(error.to_string()))?;
+    bytes.push(b'\n');
+    file.write_all(&bytes)
+        .map_err(|source| IoAdapterError::Io {
+            path: path.to_path_buf(),
+            source,
+        })?;
+    file.sync_all().map_err(|source| IoAdapterError::Io {
+        path: path.to_path_buf(),
+        source,
+    })
 }
 
 fn workflow_start(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<CommandOutput> {

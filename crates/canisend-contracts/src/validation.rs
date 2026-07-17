@@ -4,8 +4,8 @@ use serde_json::Value;
 use thiserror::Error;
 
 use crate::{
-    ApplicationPlanRecord, CriterionRecord, DocumentRecord, EvidenceMatchRecord, EvidenceRecord,
-    FindingRecord, JobRecord, ReadinessRecord, SourceRecord,
+    ApplicationPlanRecord, CriteriaSetRecord, CriterionRecord, DocumentRecord, EvidenceMatchRecord,
+    EvidenceRecord, FindingRecord, JobRecord, ParsedJobRecord, ReadinessRecord, SourceRecord,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
@@ -146,7 +146,102 @@ impl SemanticValidate for CriterionRecord {
         let mut violations = Vec::new();
         required_text(&self.requirement, "/requirement", &mut violations);
         required_text(&self.source_quote, "/source_quote", &mut violations);
+        if self.source_span.source.kind != crate::ArtifactKind::SourceNormalizedText {
+            violations.push(ContractViolation::new(
+                "criterion.source_kind_invalid",
+                "/source_span/source/kind",
+                "criterion spans must reference normalized source text",
+            ));
+        }
+        if self.source_span.start_byte >= self.source_span.end_byte {
+            violations.push(ContractViolation::new(
+                "criterion.span_invalid",
+                "/source_span",
+                "source span start must be less than its end",
+            ));
+        }
+        if self.confidence_milli > 1_000 {
+            violations.push(ContractViolation::new(
+                "criterion.confidence_invalid",
+                "/confidence_milli",
+                "confidence_milli must be between 0 and 1000",
+            ));
+        }
         violations
+    }
+}
+
+impl SemanticValidate for ParsedJobRecord {
+    fn validate_semantics(&self) -> Vec<ContractViolation> {
+        let mut violations = Vec::new();
+        required_text(&self.title, "/title", &mut violations);
+        required_text(&self.institution, "/institution", &mut violations);
+        required_text(&self.summary, "/summary", &mut violations);
+        if self.criteria.is_empty() || self.criteria.len() > 500 {
+            violations.push(ContractViolation::new(
+                "parsed_job.criteria_count_invalid",
+                "/criteria",
+                "parsed job must contain between 1 and 500 criterion proposals",
+            ));
+        }
+        validate_criteria(&self.criteria, &self.job_id, false, &mut violations);
+        violations
+    }
+}
+
+impl SemanticValidate for CriteriaSetRecord {
+    fn validate_semantics(&self) -> Vec<ContractViolation> {
+        let mut violations = Vec::new();
+        if self.criteria.is_empty() || self.criteria.len() > 500 {
+            violations.push(ContractViolation::new(
+                "criteria.count_invalid",
+                "/criteria",
+                "confirmed set must contain between 1 and 500 criteria",
+            ));
+        }
+        validate_criteria(&self.criteria, &self.job_id, true, &mut violations);
+        violations
+    }
+}
+
+fn validate_criteria(
+    criteria: &[CriterionRecord],
+    job_id: &crate::EntityId,
+    must_be_confirmed: bool,
+    violations: &mut Vec<ContractViolation>,
+) {
+    let mut ids = std::collections::BTreeSet::new();
+    for (index, criterion) in criteria.iter().enumerate() {
+        let pointer = format!("/criteria/{index}");
+        for mut violation in criterion.validate_semantics() {
+            violation.json_pointer = format!("{pointer}{}", violation.json_pointer);
+            violations.push(violation);
+        }
+        if criterion.job_id != *job_id {
+            violations.push(ContractViolation::new(
+                "criterion.job_mismatch",
+                format!("{pointer}/job_id"),
+                "criterion job ID must match its containing record",
+            ));
+        }
+        if !ids.insert(criterion.id.clone()) {
+            violations.push(ContractViolation::new(
+                "criterion.id_duplicate",
+                format!("{pointer}/id"),
+                "criterion IDs must be unique within the record",
+            ));
+        }
+        if criterion.confirmed != must_be_confirmed {
+            violations.push(ContractViolation::new(
+                "criterion.confirmation_invalid",
+                format!("{pointer}/confirmed"),
+                if must_be_confirmed {
+                    "every criterion must be explicitly confirmed"
+                } else {
+                    "agent-proposed criteria cannot mark themselves confirmed"
+                },
+            ));
+        }
     }
 }
 

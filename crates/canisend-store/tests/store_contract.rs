@@ -11,8 +11,8 @@ use canisend_contracts::{
     StageExecutionStatus, TaskCompletionRequest, TaskStatus, WorkflowStage,
 };
 use canisend_store::{
-    ArtifactService, DEFAULT_MAX_BLOB_BYTES, JobService, NewSource, StoreError, TaskService,
-    WorkflowService, Workspace, WorkspacePaths, verify_backup,
+    ArtifactService, CriteriaService, DEFAULT_MAX_BLOB_BYTES, JobService, NewSource, StoreError,
+    TaskService, WorkflowService, Workspace, WorkspacePaths, verify_backup,
 };
 use serde_json::json;
 
@@ -186,14 +186,17 @@ fn agent_tasks_validate_commit_idempotently_and_detect_changed_jobs() {
     JobService::new(&mut workspace.database, &workspace.blobs)
         .import_source(&job.id, source(), ActorKind::User)
         .expect("source");
+    WorkflowService::new(&mut workspace.database)
+        .start(&job.id)
+        .expect("workflow");
     let descriptor = TaskService::new(&mut workspace.database, &workspace.blobs)
-        .prepare_job_criterion(&job.id)
+        .prepare_job_parse(&job.id, ExecutionMode::HostAgent)
         .expect("prepared task");
     assert_eq!(descriptor.input_artifacts.len(), 1);
     assert_eq!(descriptor.private_read_scope, descriptor.input_artifacts);
     let export_directory = workspace.paths.root.join("agent/task-inputs");
     let exported = TaskService::new(&mut workspace.database, &workspace.blobs)
-        .export_inputs(&descriptor.id, &export_directory)
+        .export_inputs(&descriptor.id, &export_directory, false)
         .expect("scoped input export");
     assert_eq!(exported.files.len(), 1);
     assert_eq!(
@@ -206,17 +209,34 @@ fn agent_tasks_validate_commit_idempotently_and_detect_changed_jobs() {
         TaskService::new(&mut workspace.database, &workspace.blobs)
             .export_inputs(
                 &descriptor.id,
-                &workspace.paths.root.join(".canisend/forbidden")
+                &workspace.paths.root.join(".canisend/forbidden"),
+                false,
             )
             .is_err()
     );
     let candidate = json!({
         "id": "019f2f55-7c00-7000-8000-000000000201",
         "job_id": job.id,
-        "kind": "teaching",
-        "requirement": "Evidence of university-level teaching",
-        "importance": "essential",
-        "source_quote": "Teach economics",
+        "title": "Lecturer in Economics",
+        "institution": "University X",
+        "summary": "Teach economics",
+        "responsibilities": ["Teach economics"],
+        "criteria": [{
+            "id": "019f2f55-7c00-7000-8000-000000000202",
+            "job_id": job.id,
+            "kind": "teaching",
+            "requirement": "Evidence of university-level teaching",
+            "importance": "essential",
+            "source_quote": "Teach economics",
+            "source_span": {
+                "source": descriptor.input_artifacts[0],
+                "start_byte": 0,
+                "end_byte": 15
+            },
+            "confidence_milli": 950,
+            "confirmed": false,
+            "revision": 1
+        }],
         "revision": 1
     });
     let request = TaskCompletionRequest {
@@ -257,8 +277,80 @@ fn agent_tasks_validate_commit_idempotently_and_detect_changed_jobs() {
     assert!(replay.idempotent);
     assert_eq!(replay.artifact, committed.artifact);
 
+    let mut template = CriteriaService::new(&mut workspace.database, &workspace.blobs)
+        .template(&job.id)
+        .expect("editable criteria template");
+    assert!(
+        template
+            .criteria
+            .iter()
+            .all(|criterion| criterion.confirmed)
+    );
+    template.criteria[0].requirement = "Corrected evidence of economics teaching".to_owned();
+    let mut invalid_template = template.clone();
+    invalid_template.criteria[0].source_span.end_byte = 14;
+    assert!(matches!(
+        CriteriaService::new(&mut workspace.database, &workspace.blobs).confirm(
+            &job.id,
+            &serde_json::to_value(invalid_template).expect("invalid criteria JSON"),
+        ),
+        Err(StoreError::CandidateSemantic(_))
+    ));
+    let criteria_artifact = CriteriaService::new(&mut workspace.database, &workspace.blobs)
+        .confirm(
+            &job.id,
+            &serde_json::to_value(&template).expect("criteria JSON"),
+        )
+        .expect("confirm criteria");
+    assert_eq!(criteria_artifact.kind, ArtifactKind::Criteria);
+    assert_eq!(
+        CriteriaService::new(&mut workspace.database, &workspace.blobs)
+            .confirmed(&job.id)
+            .expect("confirmed criteria"),
+        template
+    );
+
+    WorkflowService::new(&mut workspace.database)
+        .rerun(&job.id, WorkflowStage::Parse, ActorKind::User)
+        .expect("rerun parse");
+    let provider_descriptor = TaskService::new(&mut workspace.database, &workspace.blobs)
+        .prepare_job_parse(&job.id, ExecutionMode::ConfiguredProvider)
+        .expect("provider task");
+    let provider_directory = workspace.paths.root.join("provider/task-inputs");
+    fs::create_dir(workspace.paths.root.join("provider")).expect("provider work directory");
+    assert!(
+        TaskService::new(&mut workspace.database, &workspace.blobs)
+            .export_inputs(&provider_descriptor.id, &provider_directory, false)
+            .is_err()
+    );
+    assert!(!provider_directory.exists());
+    TaskService::new(&mut workspace.database, &workspace.blobs)
+        .export_inputs(&provider_descriptor.id, &provider_directory, true)
+        .expect("provider-scoped export");
+    let provider_request = TaskCompletionRequest {
+        task_id: provider_descriptor.id.clone(),
+        lease_id: provider_descriptor.lease.id.clone(),
+        expected_job_revision: provider_descriptor.job_revision,
+        expected_inputs: provider_descriptor
+            .input_artifacts
+            .iter()
+            .map(|input| ExpectedInputRevision {
+                artifact_id: input.id.clone(),
+                revision: input.revision,
+                sha256: input.sha256.clone(),
+            })
+            .collect(),
+        candidate: candidate.clone(),
+    };
+    TaskService::new(&mut workspace.database, &workspace.blobs)
+        .complete(&provider_request)
+        .expect("provider candidate uses the shared validator");
+
+    WorkflowService::new(&mut workspace.database)
+        .rerun(&job.id, WorkflowStage::Parse, ActorKind::User)
+        .expect("rerun parse after provider");
     let stale_descriptor = TaskService::new(&mut workspace.database, &workspace.blobs)
-        .prepare_job_criterion(&job.id)
+        .prepare_job_parse(&job.id, ExecutionMode::HostAgent)
         .expect("second task");
     JobService::new(&mut workspace.database, &workspace.blobs)
         .import_source(&job.id, source(), ActorKind::User)
@@ -290,9 +382,17 @@ fn agent_tasks_validate_commit_idempotently_and_detect_changed_jobs() {
         TaskStatus::Stale
     );
 
+    WorkflowService::new(&mut workspace.database)
+        .status(&job.id)
+        .expect("reconcile workflow");
     let cancelled = TaskService::new(&mut workspace.database, &workspace.blobs)
-        .prepare_job_criterion(&job.id)
+        .prepare_job_parse(&job.id, ExecutionMode::ConfiguredProvider)
         .expect("third task");
+    assert_eq!(
+        cancelled.required_consents.len(),
+        2,
+        "provider parse requires read and send consent"
+    );
     let state = TaskService::new(&mut workspace.database, &workspace.blobs)
         .cancel(&cancelled.id)
         .expect("cancel");

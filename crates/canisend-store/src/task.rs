@@ -7,10 +7,10 @@ use std::{
 
 use canisend_contracts::{
     ActorKind, ArtifactKind, ArtifactReference, CandidateValidationError, ConsentRequest,
-    ConsentScope, ContractViolation, CriterionRecord, EntityId, ExecutionMode,
-    PUBLIC_SCHEMA_VERSION, PublicSchemaId, Revision, SafeRelativePath, SchemaReference,
-    SemanticVersion, Sha256Digest, TaskCommitData, TaskCompletionRequest, TaskDescriptor,
-    TaskInputExportData, TaskInputExportFile, TaskLease, TaskStateData, TaskStatus, UtcTimestamp,
+    ConsentScope, ContractViolation, EntityId, ExecutionMode, PUBLIC_SCHEMA_VERSION,
+    ParsedJobRecord, PublicSchemaId, Revision, SafeRelativePath, SchemaReference, SemanticVersion,
+    Sha256Digest, TaskCommitData, TaskCompletionRequest, TaskDescriptor, TaskInputExportData,
+    TaskInputExportFile, TaskLease, TaskStateData, TaskStatus, UtcTimestamp,
     validate_external_candidate,
 };
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
@@ -21,7 +21,7 @@ use time::{Duration, OffsetDateTime, format_description::well_known::Rfc3339};
 
 use crate::{BlobStore, DEFAULT_MAX_BLOB_BYTES, Database, StoreError, generate_id, now_utc};
 
-pub const JOB_CRITERION_OPERATION: &str = "job.criterion.extract";
+pub const JOB_PARSE_OPERATION: &str = "job.parse";
 const TASK_LEASE_MINUTES: i64 = 15;
 
 pub struct TaskService<'a> {
@@ -35,10 +35,19 @@ impl<'a> TaskService<'a> {
         Self { database, blobs }
     }
 
-    pub fn prepare_job_criterion(
+    pub fn prepare_job_parse(
         &mut self,
         job_id: &EntityId,
+        mode: ExecutionMode,
     ) -> Result<TaskDescriptor, StoreError> {
+        if !matches!(
+            mode,
+            ExecutionMode::HostAgent | ExecutionMode::ConfiguredProvider
+        ) {
+            return Err(StoreError::TaskConflict(
+                "job.parse supports only host-agent or configured-provider mode".to_owned(),
+            ));
+        }
         let task_id = generate_id()?;
         let lease_id = generate_id()?;
         let event_id = generate_id()?;
@@ -62,25 +71,61 @@ impl<'a> TaskService<'a> {
                 "job must have at least one normalized source before preparing a task".to_owned(),
             ));
         }
-        let descriptor = TaskDescriptor {
-            id: task_id.clone(),
-            operation: JOB_CRITERION_OPERATION.to_owned(),
-            job_id: job_id.clone(),
-            job_revision: Revision::try_new(to_u64(job_revision)?)?,
-            actor: ActorKind::HostAgent,
-            execution_mode: ExecutionMode::HostAgent,
-            input_artifacts: inputs.clone(),
-            allowed_output_kind: ArtifactKind::Criteria,
-            candidate_schema: SchemaReference {
-                id: PublicSchemaId::Criterion.as_str().to_owned(),
-                version: SemanticVersion::try_new(PUBLIC_SCHEMA_VERSION)?,
-            },
-            required_consents: vec![ConsentRequest {
-                scope: ConsentScope::ReadPrivateInputs,
-                description: "Read only the normalized advert artifacts declared by this task"
+        let (stage_execution_id, stage_status): (String, String) = transaction
+            .query_row(
+                "SELECT se.id, se.status
+                 FROM workflow_runs AS wr
+                 JOIN stage_executions AS se ON se.workflow_run_id = wr.id
+                 WHERE wr.job_id = ?1 AND wr.job_revision = ?2 AND se.stage = 'parse'
+                 ORDER BY wr.created_at DESC, wr.id DESC LIMIT 1",
+                params![job_id.as_str(), job_revision],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()?
+            .ok_or_else(|| {
+                StoreError::WorkflowNotFound(format!(
+                    "{}; start or reconcile the workflow first",
+                    job_id
+                ))
+            })?;
+        if stage_status != "ready" {
+            return Err(StoreError::WorkflowConflict(format!(
+                "parse stage is {stage_status}, not ready"
+            )));
+        }
+        let actor = if mode == ExecutionMode::ConfiguredProvider {
+            ActorKind::ConfiguredProvider
+        } else {
+            ActorKind::HostAgent
+        };
+        let mut required_consents = vec![ConsentRequest {
+            scope: ConsentScope::ReadPrivateInputs,
+            description: "Read only the normalized advert artifacts declared by this task"
+                .to_owned(),
+            artifacts: inputs.clone(),
+        }];
+        if mode == ExecutionMode::ConfiguredProvider {
+            required_consents.push(ConsentRequest {
+                scope: ConsentScope::SendToConfiguredProvider,
+                description: "Send only these exact source revisions to the configured provider"
                     .to_owned(),
                 artifacts: inputs.clone(),
-            }],
+            });
+        }
+        let descriptor = TaskDescriptor {
+            id: task_id.clone(),
+            operation: JOB_PARSE_OPERATION.to_owned(),
+            job_id: job_id.clone(),
+            job_revision: Revision::try_new(to_u64(job_revision)?)?,
+            actor,
+            execution_mode: mode,
+            input_artifacts: inputs.clone(),
+            allowed_output_kind: ArtifactKind::ParsedJob,
+            candidate_schema: SchemaReference {
+                id: PublicSchemaId::ParsedJob.as_str().to_owned(),
+                version: SemanticVersion::try_new(PUBLIC_SCHEMA_VERSION)?,
+            },
+            required_consents,
             private_read_scope: inputs.clone(),
             lease: TaskLease {
                 id: lease_id.clone(),
@@ -111,6 +156,21 @@ impl<'a> TaskService<'a> {
                 descriptor_json
             ],
         )?;
+        let linked = transaction.execute(
+            "UPDATE tasks SET stage_execution_id = ?2 WHERE id = ?1",
+            params![task_id.as_str(), &stage_execution_id],
+        )?;
+        let started = transaction.execute(
+            "UPDATE stage_executions
+             SET status = 'running', execution_mode = ?2, started_at = ?3, updated_at = ?3
+             WHERE id = ?1 AND status = 'ready'",
+            params![&stage_execution_id, enum_name(mode)?, created_at.as_str()],
+        )?;
+        if linked != 1 || started != 1 {
+            return Err(StoreError::Invariant(
+                "parse task could not claim exactly one ready stage".to_owned(),
+            ));
+        }
         for input in &inputs {
             transaction.execute(
                 "INSERT INTO task_inputs(task_id, artifact_id, revision, sha256)
@@ -129,7 +189,7 @@ impl<'a> TaskService<'a> {
             "task.prepare",
             &task_id,
             None,
-            "prepare host-agent task with immutable input revisions",
+            "prepare parse task with immutable input revisions",
             &created_at,
         )?;
         transaction.commit()?;
@@ -144,11 +204,11 @@ impl<'a> TaskService<'a> {
         let event_id = generate_id()?;
         let cancelled_at = now_utc()?;
         let transaction = self.database.immediate_transaction()?;
-        let status: String = transaction
+        let (status, stage_execution_id): (String, Option<String>) = transaction
             .query_row(
-                "SELECT status FROM tasks WHERE id = ?1",
+                "SELECT status, stage_execution_id FROM tasks WHERE id = ?1",
                 params![task_id.as_str()],
-                |row| row.get(0),
+                |row| Ok((row.get(0)?, row.get(1)?)),
             )
             .optional()?
             .ok_or_else(|| StoreError::TaskNotFound(task_id.to_string()))?;
@@ -158,6 +218,15 @@ impl<'a> TaskService<'a> {
                     "UPDATE tasks SET status = 'cancelled', cancelled_at = ?2 WHERE id = ?1",
                     params![task_id.as_str(), cancelled_at.as_str()],
                 )?;
+                if let Some(stage_execution_id) = &stage_execution_id {
+                    transaction.execute(
+                        "UPDATE stage_executions
+                         SET status = 'ready', execution_mode = NULL, started_at = NULL,
+                             updated_at = ?2
+                         WHERE id = ?1 AND status = 'running'",
+                        params![stage_execution_id, cancelled_at.as_str()],
+                    )?;
+                }
                 insert_audit(
                     &transaction,
                     &event_id,
@@ -183,6 +252,7 @@ impl<'a> TaskService<'a> {
         &mut self,
         task_id: &EntityId,
         destination: &Path,
+        provider_send_allowed: bool,
     ) -> Result<TaskInputExportData, StoreError> {
         let state = self.get(task_id)?;
         if state.status != TaskStatus::Prepared {
@@ -190,6 +260,13 @@ impl<'a> TaskService<'a> {
                 "cannot export inputs for task {task_id} in {:?} state",
                 state.status
             )));
+        }
+        if state.descriptor.execution_mode == ExecutionMode::ConfiguredProvider
+            && !provider_send_allowed
+        {
+            return Err(StoreError::TaskConflict(
+                "send-to-configured-provider consent must be explicitly confirmed".to_owned(),
+            ));
         }
         ensure_empty_external_directory(destination)?;
         let inputs_directory = destination.join("inputs");
@@ -248,6 +325,18 @@ impl<'a> TaskService<'a> {
                 exported_at.as_str()
             ],
         )?;
+        if state.descriptor.execution_mode == ExecutionMode::ConfiguredProvider {
+            let provider_consent_id = generate_id()?;
+            transaction.execute(
+                "INSERT INTO consents(id, scope, actor, manifest_sha256, granted_at)
+                 VALUES (?1, 'send-to-configured-provider', 'user', ?2, ?3)",
+                params![
+                    provider_consent_id.as_str(),
+                    manifest_sha256.as_str(),
+                    exported_at.as_str()
+                ],
+            )?;
+        }
         insert_audit(
             &transaction,
             &event_id,
@@ -274,21 +363,35 @@ impl<'a> TaskService<'a> {
     ) -> Result<TaskCommitData, StoreError> {
         let initial = self.get(&request.task_id)?;
         validate_request_shape(&initial.descriptor, request)?;
-        validate_candidate(&initial.descriptor, &request.candidate)?;
+        let parsed_job = validate_candidate(&initial.descriptor, &request.candidate)?;
+        validate_parsed_source_spans(
+            self.database.connection(),
+            self.blobs,
+            &initial.descriptor,
+            &parsed_job,
+        )?;
         let bytes = canonical_json_bytes(&request.candidate)?;
         let digest = self.blobs.put_bytes(&bytes)?;
         let size = self.blobs.verify(&digest, DEFAULT_MAX_BLOB_BYTES)?;
         let transaction = self.database.immediate_transaction()?;
-        let row: (String, String, String, i64) = transaction
+        let row: (String, String, String, i64, Option<String>) = transaction
             .query_row(
-                "SELECT status, lease_id, lease_expires_at, job_revision
+                "SELECT status, lease_id, lease_expires_at, job_revision, stage_execution_id
                  FROM tasks WHERE id = ?1",
                 params![request.task_id.as_str()],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                    ))
+                },
             )
             .optional()?
             .ok_or_else(|| StoreError::TaskNotFound(request.task_id.to_string()))?;
-        let (status, lease_id, lease_expires_at, prepared_job_revision) = row;
+        let (status, lease_id, lease_expires_at, prepared_job_revision, stage_execution_id) = row;
         if status == "committed" {
             let (artifact, committed_at) = load_task_result(&transaction, &request.task_id)?
                 .ok_or_else(|| {
@@ -341,6 +444,18 @@ impl<'a> TaskService<'a> {
                 "UPDATE tasks SET status = 'stale' WHERE id = ?1 AND status = 'prepared'",
                 params![request.task_id.as_str()],
             )?;
+            if let Some(stage_execution_id) = &stage_execution_id {
+                transaction.execute(
+                    "UPDATE stage_executions
+                     SET status = ?2, execution_mode = NULL, started_at = NULL, updated_at = ?3
+                     WHERE id = ?1 AND status = 'running'",
+                    params![
+                        stage_execution_id,
+                        if expired { "ready" } else { "stale" },
+                        stale_at.as_str()
+                    ],
+                )?;
+            }
             insert_audit(
                 &transaction,
                 &event_id,
@@ -376,11 +491,12 @@ impl<'a> TaskService<'a> {
         transaction.execute(
             "INSERT INTO artifact_revisions(
                 artifact_id, revision, sha256, size, actor, reason, created_at
-             ) VALUES (?1, 1, ?2, ?3, 'host-agent', 'complete declared task', ?4)",
+             ) VALUES (?1, 1, ?2, ?3, ?4, 'complete declared task', ?5)",
             params![
                 artifact_id.as_str(),
                 digest.as_str(),
                 to_i64(size)?,
+                enum_name(initial.descriptor.actor)?,
                 committed_at.as_str()
             ],
         )?;
@@ -416,13 +532,38 @@ impl<'a> TaskService<'a> {
             "UPDATE tasks SET status = 'committed', completed_at = ?2 WHERE id = ?1",
             params![request.task_id.as_str(), committed_at.as_str()],
         )?;
-        insert_audit(
+        if let Some(stage_execution_id) = &stage_execution_id {
+            let completed = transaction.execute(
+                "UPDATE stage_executions
+                 SET status = 'complete', output_artifact_id = ?2,
+                     output_artifact_revision = 1, completed_at = ?3, updated_at = ?3
+                 WHERE id = ?1 AND status = 'running'",
+                params![
+                    stage_execution_id,
+                    artifact_id.as_str(),
+                    committed_at.as_str()
+                ],
+            )?;
+            if completed != 1 {
+                return Err(StoreError::Invariant(
+                    "parse task could not complete its claimed stage".to_owned(),
+                ));
+            }
+            transaction.execute(
+                "UPDATE stage_executions SET status = 'ready', updated_at = ?2
+                 WHERE workflow_run_id = (
+                     SELECT workflow_run_id FROM stage_executions WHERE id = ?1
+                 ) AND stage = 'criteria' AND status IN ('blocked', 'stale')",
+                params![stage_execution_id, committed_at.as_str()],
+            )?;
+        }
+        insert_audit_as(
             &transaction,
             &event_id,
-            "task.complete",
+            (initial.descriptor.actor, "task.complete"),
             &request.task_id,
             Some(1),
-            "atomically commit validated host-agent candidate",
+            "atomically commit validated parse candidate",
             &committed_at,
         )?;
         transaction.commit()?;
@@ -694,9 +835,12 @@ fn validate_request_shape(
     Ok(())
 }
 
-fn validate_candidate(descriptor: &TaskDescriptor, value: &Value) -> Result<(), StoreError> {
-    if descriptor.operation != JOB_CRITERION_OPERATION
-        || descriptor.candidate_schema.id != PublicSchemaId::Criterion.as_str()
+fn validate_candidate(
+    descriptor: &TaskDescriptor,
+    value: &Value,
+) -> Result<ParsedJobRecord, StoreError> {
+    if descriptor.operation != JOB_PARSE_OPERATION
+        || descriptor.candidate_schema.id != PublicSchemaId::ParsedJob.as_str()
     {
         return Err(StoreError::Invariant(format!(
             "unsupported task contract: {}",
@@ -704,7 +848,7 @@ fn validate_candidate(descriptor: &TaskDescriptor, value: &Value) -> Result<(), 
         )));
     }
     let candidate =
-        validate_external_candidate::<CriterionRecord>(value).map_err(|error| match error {
+        validate_external_candidate::<ParsedJobRecord>(value).map_err(|error| match error {
             CandidateValidationError::Structural(violations) => {
                 StoreError::CandidateStructural(violations)
             }
@@ -719,7 +863,89 @@ fn validate_candidate(descriptor: &TaskDescriptor, value: &Value) -> Result<(), 
             "candidate job ID does not match the task subject",
         )]));
     }
-    Ok(())
+    Ok(candidate)
+}
+
+fn validate_parsed_source_spans(
+    connection: &Connection,
+    blobs: &BlobStore,
+    descriptor: &TaskDescriptor,
+    parsed_job: &ParsedJobRecord,
+) -> Result<(), StoreError> {
+    let allowed = descriptor
+        .input_artifacts
+        .iter()
+        .map(|artifact| (artifact.id.as_str(), artifact))
+        .collect::<BTreeMap<_, _>>();
+    let mut cached = BTreeMap::new();
+    let mut violations = Vec::new();
+    for (index, criterion) in parsed_job.criteria.iter().enumerate() {
+        let source = &criterion.source_span.source;
+        let Some(expected) = allowed.get(source.id.as_str()) else {
+            violations.push(ContractViolation::new(
+                "candidate.source_out_of_scope",
+                format!("/criteria/{index}/source_span/source"),
+                "criterion source is outside the task input scope",
+            ));
+            continue;
+        };
+        if *expected != source {
+            violations.push(ContractViolation::new(
+                "candidate.source_revision_mismatch",
+                format!("/criteria/{index}/source_span/source"),
+                "criterion source revision/hash does not exactly match the task input",
+            ));
+            continue;
+        }
+        verify_artifact_revision(connection, source)?;
+        let bytes = if let Some(bytes) = cached.get(source.id.as_str()) {
+            bytes
+        } else {
+            let bytes = blobs.read_verified(&source.sha256, DEFAULT_MAX_BLOB_BYTES)?;
+            cached.insert(source.id.as_str().to_owned(), bytes);
+            cached
+                .get(source.id.as_str())
+                .expect("inserted source bytes are present")
+        };
+        let start = usize::try_from(criterion.source_span.start_byte).unwrap_or(usize::MAX);
+        let end = usize::try_from(criterion.source_span.end_byte).unwrap_or(usize::MAX);
+        let exact = bytes
+            .get(start..end)
+            .is_some_and(|span| span == criterion.source_quote.as_bytes());
+        if !exact {
+            violations.push(ContractViolation::new(
+                "candidate.source_span_mismatch",
+                format!("/criteria/{index}/source_span"),
+                "source span must select bytes exactly equal to source_quote",
+            ));
+        }
+    }
+    if violations.is_empty() {
+        Ok(())
+    } else {
+        Err(StoreError::CandidateSemantic(violations))
+    }
+}
+
+fn verify_artifact_revision(
+    connection: &Connection,
+    artifact: &ArtifactReference,
+) -> Result<(), StoreError> {
+    let actual: Option<String> = connection
+        .query_row(
+            "SELECT sha256 FROM artifact_revisions WHERE artifact_id = ?1 AND revision = ?2",
+            params![artifact.id.as_str(), to_i64(artifact.revision.get())?],
+            |row| row.get(0),
+        )
+        .optional()?;
+    if actual.as_deref() == Some(artifact.sha256.as_str()) {
+        Ok(())
+    } else {
+        Err(StoreError::TaskStale(format!(
+            "source artifact {} is no longer available",
+            artifact.id
+        )))
+    }
 }
 
 fn inputs_are_current(
@@ -795,12 +1021,34 @@ fn insert_audit(
     reason: &str,
     created_at: &UtcTimestamp,
 ) -> Result<(), StoreError> {
+    insert_audit_as(
+        transaction,
+        event_id,
+        (ActorKind::HostAgent, action),
+        subject_id,
+        subject_revision,
+        reason,
+        created_at,
+    )
+}
+
+fn insert_audit_as(
+    transaction: &Transaction<'_>,
+    event_id: &EntityId,
+    actor_action: (ActorKind, &str),
+    subject_id: &EntityId,
+    subject_revision: Option<i64>,
+    reason: &str,
+    created_at: &UtcTimestamp,
+) -> Result<(), StoreError> {
+    let (actor, action) = actor_action;
     transaction.execute(
         "INSERT INTO audit_events(
             id, actor, action, subject_id, subject_revision, reason, created_at
-         ) VALUES (?1, 'host-agent', ?2, ?3, ?4, ?5, ?6)",
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
         params![
             event_id.as_str(),
+            enum_name(actor)?,
             action,
             subject_id.as_str(),
             subject_revision,
@@ -844,14 +1092,14 @@ mod tests {
     use std::fs;
 
     use canisend_contracts::{
-        ActorKind, ExpectedInputRevision, PrivacyClassification, SourceKind, TaskCompletionRequest,
-        TaskStatus,
+        ActorKind, ExecutionMode, ExpectedInputRevision, PrivacyClassification, SourceKind,
+        TaskCompletionRequest, TaskStatus,
     };
     use rusqlite::params;
     use serde_json::json;
 
     use super::TaskService;
-    use crate::{JobService, NewSource, StoreError, Workspace};
+    use crate::{JobService, NewSource, StoreError, WorkflowService, Workspace};
 
     #[test]
     fn expired_lease_is_durably_marked_stale() {
@@ -878,8 +1126,11 @@ mod tests {
                 ActorKind::User,
             )
             .expect("source");
+        WorkflowService::new(&mut workspace.database)
+            .start(&job.id)
+            .expect("workflow");
         let descriptor = TaskService::new(&mut workspace.database, &workspace.blobs)
-            .prepare_job_criterion(&job.id)
+            .prepare_job_parse(&job.id, ExecutionMode::HostAgent)
             .expect("task");
         workspace
             .database
@@ -905,10 +1156,26 @@ mod tests {
             candidate: json!({
                 "id": "019f2f55-7c00-7000-8000-000000000201",
                 "job_id": job.id,
-                "kind": "research",
-                "requirement": "Conduct research",
-                "importance": "essential",
-                "source_quote": "Conduct research",
+                "title": "Research Fellow",
+                "institution": "University X",
+                "summary": "Conduct research",
+                "responsibilities": ["Conduct research"],
+                "criteria": [{
+                    "id": "019f2f55-7c00-7000-8000-000000000202",
+                    "job_id": job.id,
+                    "kind": "research",
+                    "requirement": "Conduct research",
+                    "importance": "essential",
+                    "source_quote": "Conduct research",
+                    "source_span": {
+                        "source": descriptor.input_artifacts[0],
+                        "start_byte": 0,
+                        "end_byte": 16
+                    },
+                    "confidence_milli": 900,
+                    "confirmed": false,
+                    "revision": 1
+                }],
                 "revision": 1
             }),
         };

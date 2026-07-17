@@ -6,9 +6,10 @@ use serde_json::{Map, Value};
 
 use crate::{
     AgentContextData, AgentResponse, ApplicationPlanRecord, BackupManifestData, CapabilitiesData,
-    CriterionRecord, DiscoveryBatch, DiscoveryLeadRecord, DocumentRecord, EvidenceMatchRecord,
-    EvidenceRecord, FindingRecord, JobRecord, ReadinessRecord, SourceRecord, TaskCompletionRequest,
-    TaskDescriptor, VersionData, WorkflowStatusData, WorkspaceCheckData, WorkspaceStatusData,
+    CriteriaSetRecord, CriterionRecord, DiscoveryBatch, DiscoveryLeadRecord, DocumentRecord,
+    EvidenceMatchRecord, EvidenceRecord, FindingRecord, JobRecord, ParsedJobRecord,
+    ReadinessRecord, SourceRecord, TaskCompletionRequest, TaskDescriptor, VersionData,
+    WorkflowStatusData, WorkspaceCheckData, WorkspaceStatusData,
 };
 
 pub const PUBLIC_SCHEMA_VERSION: &str = "2.0.0";
@@ -38,10 +39,12 @@ pub enum PublicSchemaId {
     DiscoveryBatch,
     DiscoveryLead,
     WorkflowStatus,
+    ParsedJob,
+    CriteriaSet,
 }
 
 impl PublicSchemaId {
-    pub const ALL: [Self; 21] = [
+    pub const ALL: [Self; 23] = [
         Self::AgentResponse,
         Self::Capabilities,
         Self::AgentContext,
@@ -63,6 +66,8 @@ impl PublicSchemaId {
         Self::DiscoveryBatch,
         Self::DiscoveryLead,
         Self::WorkflowStatus,
+        Self::ParsedJob,
+        Self::CriteriaSet,
     ];
 
     #[must_use]
@@ -89,6 +94,8 @@ impl PublicSchemaId {
             Self::DiscoveryBatch => "canisend.discovery-batch/v2",
             Self::DiscoveryLead => "canisend.discovery-lead/v2",
             Self::WorkflowStatus => "canisend.workflow-status/v2",
+            Self::ParsedJob => "canisend.parsed-job/v2",
+            Self::CriteriaSet => "canisend.criteria/v2",
         }
     }
 
@@ -116,6 +123,8 @@ impl PublicSchemaId {
             Self::DiscoveryBatch => "discovery-batch",
             Self::DiscoveryLead => "discovery-lead",
             Self::WorkflowStatus => "workflow-status",
+            Self::ParsedJob => "parsed-job",
+            Self::CriteriaSet => "criteria",
         }
     }
 
@@ -170,6 +179,8 @@ pub fn generate_public_schemas() -> Vec<GeneratedSchema> {
         generate::<DiscoveryBatch>(PublicSchemaId::DiscoveryBatch),
         generate::<DiscoveryLeadRecord>(PublicSchemaId::DiscoveryLead),
         generate::<WorkflowStatusData>(PublicSchemaId::WorkflowStatus),
+        generate::<ParsedJobRecord>(PublicSchemaId::ParsedJob),
+        generate::<CriteriaSetRecord>(PublicSchemaId::CriteriaSet),
     ]
 }
 

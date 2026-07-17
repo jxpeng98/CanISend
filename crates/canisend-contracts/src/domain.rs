@@ -94,6 +94,39 @@ pub struct CriterionRecord {
     pub requirement: String,
     pub importance: CriterionImportance,
     pub source_quote: String,
+    pub source_span: SourceTextSpan,
+    pub confidence_milli: u16,
+    pub confirmed: bool,
+    pub revision: Revision,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SourceTextSpan {
+    pub source: ArtifactReference,
+    pub start_byte: u64,
+    pub end_byte: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ParsedJobRecord {
+    pub id: EntityId,
+    pub job_id: EntityId,
+    pub title: String,
+    pub institution: String,
+    pub summary: String,
+    pub responsibilities: Vec<String>,
+    pub criteria: Vec<CriterionRecord>,
+    pub revision: Revision,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct CriteriaSetRecord {
+    pub id: EntityId,
+    pub job_id: EntityId,
+    pub criteria: Vec<CriterionRecord>,
     pub revision: Revision,
 }
 

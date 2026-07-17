@@ -51,17 +51,23 @@ task_expected_inputs() {
     | sed -E 's/"id":/"artifact_id":/g; s/,"kind":"[^"]+"//g'
 }
 
+task_source_artifact() {
+  printf '%s' "$1" \
+    | sed -E 's/^.*"input_artifacts":\[({[^]]*})\],"job_id".*$/\1/'
+}
+
 write_completion() {
   local task_json="$1"
   local requirement="$2"
   local output="$3"
-  local task_id lease_id job_revision expected_inputs
+  local task_id lease_id job_revision expected_inputs source_artifact
   task_id="$(first_uuid_id "$task_json")"
   lease_id="$(task_lease_id "$task_json")"
   job_revision="$(task_job_revision "$task_json")"
   expected_inputs="$(task_expected_inputs "$task_json")"
+  source_artifact="$(task_source_artifact "$task_json")"
   printf '%s\n' \
-    "{\"task_id\":\"$task_id\",\"lease_id\":\"$lease_id\",\"expected_job_revision\":$job_revision,\"expected_inputs\":$expected_inputs,\"candidate\":{\"id\":\"019f2f55-7c00-7000-8000-000000000201\",\"job_id\":\"$job_id\",\"kind\":\"teaching\",\"requirement\":\"$requirement\",\"importance\":\"essential\",\"source_quote\":\"Evidence of effective university-level teaching.\",\"revision\":1}}" \
+    "{\"task_id\":\"$task_id\",\"lease_id\":\"$lease_id\",\"expected_job_revision\":$job_revision,\"expected_inputs\":$expected_inputs,\"candidate\":{\"id\":\"019f2f55-7c00-7000-8000-000000000201\",\"job_id\":\"$job_id\",\"title\":\"Lecturer in Economics\",\"institution\":\"Northbridge University\",\"summary\":\"Teaching and research role in economics.\",\"responsibilities\":[\"Teach economics\",\"Maintain an active research programme\"],\"criteria\":[{\"id\":\"019f2f55-7c00-7000-8000-000000000202\",\"job_id\":\"$job_id\",\"kind\":\"teaching\",\"requirement\":\"$requirement\",\"importance\":\"essential\",\"source_quote\":\"$source_quote\",\"source_span\":{\"source\":$source_artifact,\"start_byte\":$source_start,\"end_byte\":$source_end},\"confidence_milli\":950,\"confirmed\":false,\"revision\":1}],\"revision\":1}}" \
     > "$output"
 }
 
@@ -89,7 +95,7 @@ grep -q '"stage":"parse","status":"ready"' "$agent_work/workflow-status.json"
 
 task_json="$(
   "$binary" --workspace "$workspace" task prepare \
-    --job "$job_id" --operation job-criterion --json
+    --job "$job_id" --operation job-parse --json
 )"
 task_id="$(first_uuid_id "$task_json")"
 
@@ -107,6 +113,11 @@ test ! -e "$agent_work/inputs"
   >"$agent_work/input-export.json"
 test -f "$agent_work/inputs/canisend-task-inputs.json"
 grep -q "Lecturer in Economics" "$agent_work"/inputs/inputs/*.txt
+source_quote="Evidence of effective university-level teaching."
+input_file="$(find "$agent_work/inputs/inputs" -type f -name '*.txt' -print -quit)"
+source_start="$(LC_ALL=C grep -boF "$source_quote" "$input_file" | sed -n '1s/:.*//p')"
+test -n "$source_start"
+source_end=$((source_start + ${#source_quote}))
 
 write_completion "$task_json" " " "$agent_work/invalid-completion.json"
 set +e
@@ -128,9 +139,19 @@ grep -q '"idempotent":false' "$agent_work/committed.json"
   --file "$agent_work/completion.json" --json >"$agent_work/replayed.json"
 grep -q '"idempotent":true' "$agent_work/replayed.json"
 
+"$binary" --workspace "$workspace" criteria export --job "$job_id" \
+  --destination "$agent_work/criteria.json" --json >"$agent_work/criteria-export.json"
+"$binary" --workspace "$workspace" criteria confirm --job "$job_id" \
+  --file "$agent_work/criteria.json" --json >"$agent_work/criteria-confirm.json"
+grep -q '"status":"confirmed"' "$agent_work/criteria-confirm.json"
+grep -q '"confirmed":true' "$agent_work/criteria-confirm.json"
+
+"$binary" --workspace "$workspace" workflow rerun --job "$job_id" \
+  --stage parse --json >"$agent_work/parse-rerun.json"
+
 stale_task_json="$(
   "$binary" --workspace "$workspace" task prepare \
-    --job "$job_id" --operation job-criterion --json
+    --job "$job_id" --operation job-parse --json
 )"
 stale_task_id="$(first_uuid_id "$stale_task_json")"
 write_completion "$stale_task_json" "Evidence of effective university-level teaching" \

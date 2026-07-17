@@ -185,7 +185,7 @@ pub fn export_agent_pack(
     };
     let resources = [
         guide,
-        ("prompt.job-criteria", "prompts/job-criteria.md"),
+        ("prompt.job-parse", "prompts/job-parse.md"),
         ("example.task-complete", "examples/task-complete.json"),
         (
             "schema.task-descriptor",
@@ -195,7 +195,9 @@ pub fn export_agent_pack(
             "schema.task-completion",
             "schemas/v2/task-completion.schema.json",
         ),
+        ("schema.parsed-job", "schemas/v2/parsed-job.schema.json"),
         ("schema.criterion", "schemas/v2/criterion.schema.json"),
+        ("schema.criteria", "schemas/v2/criteria.schema.json"),
     ];
     let mut files = Vec::with_capacity(resources.len());
     for (resource_id, relative_path) in resources {

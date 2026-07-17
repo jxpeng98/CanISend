@@ -55,7 +55,7 @@ changed context becomes `task.stale`.
 The available task lifecycle is:
 
 ```text
-canisend --workspace WORKSPACE task prepare --job JOB_ID --operation job-criterion --json
+canisend --workspace WORKSPACE task prepare --job JOB_ID --operation job-parse --json
 canisend --workspace WORKSPACE task show TASK_ID --json
 canisend --workspace WORKSPACE task inputs TASK_ID --destination DIRECTORY \
   --allow-private-read --json
@@ -67,6 +67,18 @@ canisend --workspace WORKSPACE task cancel TASK_ID --json
 `task inputs` requires explicit `read-private-inputs` confirmation and exports only the descriptor's declared scope
 to a new or empty external directory. Candidate files are capped at 4 MiB; file input must be a regular, non-symlink
 `.json` file. Hosts never need filesystem access to `.canisend/`.
+
+The `job.parse` task returns an unconfirmed `canisend.parsed-job/v2` candidate. Every proposed criterion carries an
+exact normalized-source artifact reference, UTF-8 byte span, quote, and confidence. Host-agent and
+configured-provider modes share the same validator; provider mode additionally requires explicit
+`send-to-configured-provider` consent. User correction and confirmation remain a separate boundary:
+
+```text
+canisend --workspace WORKSPACE criteria proposed --job JOB_ID --json
+canisend --workspace WORKSPACE criteria export --job JOB_ID --destination criteria.json --json
+canisend --workspace WORKSPACE criteria confirm --job JOB_ID --file criteria.json --json
+canisend --workspace WORKSPACE criteria show --job JOB_ID --json
+```
 
 ## Data and consent types
 
@@ -140,7 +152,8 @@ canisend agent assets export --host claude --destination DIRECTORY --json
 canisend agent assets export --host generic --destination DIRECTORY --json
 ```
 
-Each pack contains its host entrypoint, the task prompt and example, task descriptor/completion/criterion schemas, and
+Each pack contains its host entrypoint, the task prompt and example, task descriptor/completion/parsed-job/criterion/
+criteria schemas, and
 `canisend-agent-pack.json`. The manifest records pack, product, protocol, and resource versions plus every resource
 ID, path, size, and SHA-256 digest.
 
@@ -171,7 +184,7 @@ next action for `job import JOB_ID --url URL`, keeping advert retrieval inside t
 
 ## Contract generation
 
-Rust types in `canisend-contracts` are authoritative. Twenty public schemas are generated with canonical IDs under
+Rust types in `canisend-contracts` are authoritative. Twenty-three public schemas are generated with canonical IDs under
 `https://schemas.canisend.dev/v2/`, semantic version `2.0.0`, deterministic key ordering, and a final newline.
 `cargo run -p xtask -- schemas check` rejects byte drift, missing files, and additional schema files.
 

@@ -86,11 +86,15 @@ cargo build --release --locked
   --destination ./codex-canisend-pack --json
 ./target/release/canisend --workspace ./my-workspace agent context --job JOB_ID --json
 ./target/release/canisend --workspace ./my-workspace task prepare \
-  --job JOB_ID --operation job-criterion --json
+  --job JOB_ID --operation job-parse --json
 ./target/release/canisend --workspace ./my-workspace task inputs TASK_ID \
   --destination ./agent-work --allow-private-read --json
 ./target/release/canisend --workspace ./my-workspace task complete \
   --file ./agent-work/completion.json --json
+./target/release/canisend --workspace ./my-workspace criteria export \
+  --job JOB_ID --destination ./agent-work/criteria.json --json
+./target/release/canisend --workspace ./my-workspace criteria confirm \
+  --job JOB_ID --file ./agent-work/criteria.json --json
 ./target/release/canisend --workspace ./my-workspace workspace check --json
 ./target/release/canisend --workspace ./my-workspace workspace backup ./my-backup --json
 ```

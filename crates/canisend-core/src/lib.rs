@@ -26,6 +26,7 @@ impl CapabilityRegistry {
             available("job.intake"),
             available("discovery.refresh"),
             available("task.lifecycle"),
+            available("criteria.lifecycle"),
             available("workflow.execute"),
             planned("render.pdf"),
         ]
@@ -273,7 +274,10 @@ pub struct StageRegistry;
 impl StageRegistry {
     #[must_use]
     pub const fn is_available(stage: WorkflowStage) -> bool {
-        matches!(stage, WorkflowStage::Intake)
+        matches!(
+            stage,
+            WorkflowStage::Intake | WorkflowStage::Parse | WorkflowStage::Criteria
+        )
     }
 
     #[must_use]
@@ -422,7 +426,7 @@ mod tests {
                 .iter()
                 .filter(|stage| stage.status == CapabilityStatus::Available)
                 .count(),
-            2
+            4
         );
         let mut stage_ids = stages
             .iter()

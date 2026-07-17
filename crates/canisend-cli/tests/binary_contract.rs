@@ -151,7 +151,7 @@ fn capabilities_distinguish_available_from_planned_work() {
             .iter()
             .filter(|stage| stage["status"] == "available")
             .count()),
-        Some(2)
+        Some(4)
     );
 }
 
@@ -162,7 +162,7 @@ fn public_catalogs_are_available_without_a_workspace() {
 
     assert_eq!(
         schemas["data"]["schemas"].as_array().map(Vec::len),
-        Some(21)
+        Some(23)
     );
     assert!(
         resources["data"]["resources"]
@@ -204,14 +204,16 @@ fn agent_host_pack_export_is_versioned_and_self_contained() {
         exported["data"]["manifest"]["files"]
             .as_array()
             .map(Vec::len),
-        Some(6)
+        Some(8)
     );
     assert!(pack.join("AGENTS.md").is_file());
-    assert!(pack.join("prompts/job-criteria.md").is_file());
+    assert!(pack.join("prompts/job-parse.md").is_file());
     assert!(
         pack.join("schemas/v2/task-completion.schema.json")
             .is_file()
     );
+    assert!(pack.join("schemas/v2/parsed-job.schema.json").is_file());
+    assert!(pack.join("schemas/v2/criteria.schema.json").is_file());
     assert!(pack.join("canisend-agent-pack.json").is_file());
 }
 
@@ -666,7 +668,7 @@ fn leased_task_completion_is_validated_atomic_and_idempotent() {
         "--job",
         job_id,
         "--operation",
-        "job-criterion",
+        "job-parse",
         "--json",
     ]);
     assert_eq!(prepared["status"], "prepared");
@@ -731,10 +733,26 @@ fn leased_task_completion_is_validated_atomic_and_idempotent() {
     let candidate = serde_json::json!({
         "id": "019f2f55-7c00-7000-8000-000000000201",
         "job_id": job_id,
-        "kind": "teaching",
-        "requirement": "Evidence of university-level teaching",
-        "importance": "essential",
-        "source_quote": "Teach economics",
+        "title": "Lecturer in Economics",
+        "institution": "University X",
+        "summary": "Teach economics",
+        "responsibilities": ["Teach economics"],
+        "criteria": [{
+            "id": "019f2f55-7c00-7000-8000-000000000202",
+            "job_id": job_id,
+            "kind": "teaching",
+            "requirement": "Evidence of university-level teaching",
+            "importance": "essential",
+            "source_quote": "Teach economics",
+            "source_span": {
+                "source": descriptor["input_artifacts"][0],
+                "start_byte": 0,
+                "end_byte": 15
+            },
+            "confidence_milli": 950,
+            "confirmed": false,
+            "revision": 1
+        }],
         "revision": 1
     });
     let request = serde_json::json!({
@@ -746,7 +764,7 @@ fn leased_task_completion_is_validated_atomic_and_idempotent() {
     });
     let invalid_path = input.path().join("invalid.json");
     let mut invalid = request.clone();
-    invalid["candidate"]["requirement"] = Value::String(" ".to_owned());
+    invalid["candidate"]["criteria"][0]["requirement"] = Value::String(" ".to_owned());
     fs::write(
         &invalid_path,
         serde_json::to_vec(&invalid).expect("invalid request"),
@@ -798,6 +816,54 @@ fn leased_task_completion_is_validated_atomic_and_idempotent() {
     assert_eq!(replay["data"]["idempotent"], true);
     assert_eq!(replay["data"]["artifact"], committed["data"]["artifact"]);
 
+    let criteria_path = input.path().join("criteria.json");
+    let exported_criteria = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "criteria",
+        "export",
+        "--job",
+        job_id,
+        "--destination",
+        criteria_path.to_str().expect("criteria path"),
+        "--json",
+    ]);
+    assert_eq!(exported_criteria["data"]["criterion_count"], 1);
+    let confirmed_criteria = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "criteria",
+        "confirm",
+        "--job",
+        job_id,
+        "--file",
+        criteria_path.to_str().expect("criteria path"),
+        "--json",
+    ]);
+    assert_eq!(confirmed_criteria["status"], "confirmed");
+    assert_eq!(confirmed_criteria["data"]["criteria"][0]["confirmed"], true);
+    let shown_criteria = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "criteria",
+        "show",
+        "--job",
+        job_id,
+        "--json",
+    ]);
+    assert_eq!(shown_criteria["data"], confirmed_criteria["data"]);
+
+    run_json(&[
+        "--workspace",
+        workspace.text(),
+        "workflow",
+        "rerun",
+        "--job",
+        job_id,
+        "--stage",
+        "parse",
+        "--json",
+    ]);
     let prepared_stale = run_json(&[
         "--workspace",
         workspace.text(),
@@ -806,7 +872,7 @@ fn leased_task_completion_is_validated_atomic_and_idempotent() {
         "--job",
         job_id,
         "--operation",
-        "job-criterion",
+        "job-parse",
         "--json",
     ]);
     let stale_descriptor = &prepared_stale["data"];

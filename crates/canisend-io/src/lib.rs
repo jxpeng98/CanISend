@@ -75,7 +75,8 @@ pub enum IoAdapterError {
     CandidateInput(String),
 }
 pub use candidate::{
-    MAX_TASK_COMPLETION_BYTES, read_task_completion_file, read_task_completion_stdin,
+    MAX_CRITERIA_BYTES, MAX_TASK_COMPLETION_BYTES, read_criteria_file, read_task_completion_file,
+    read_task_completion_stdin,
 };
 pub use discovery::{
     DiscoveryAdapter, DiscoveryFile, DiscoveryFileKind, GreenhouseAdapter, JobsAcUkAdapter,

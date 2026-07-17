@@ -2,6 +2,43 @@
   "task_id": "019f2f55-7c00-7000-8000-000000000301",
   "lease_id": "019f2f55-7c00-7000-8000-000000000302",
   "expected_job_revision": 1,
-  "expected_inputs": [],
-  "candidate": {}
+  "expected_inputs": [
+    {
+      "artifact_id": "019f2f55-7c00-7000-8000-000000000201",
+      "revision": 1,
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  ],
+  "candidate": {
+    "id": "019f2f55-7c00-7000-8000-000000000401",
+    "job_id": "019f2f55-7c00-7000-8000-000000000101",
+    "title": "Lecturer in Economics",
+    "institution": "University X",
+    "summary": "Teach and research economics.",
+    "responsibilities": ["Teach economics"],
+    "criteria": [
+      {
+        "id": "019f2f55-7c00-7000-8000-000000000402",
+        "job_id": "019f2f55-7c00-7000-8000-000000000101",
+        "kind": "teaching",
+        "requirement": "Evidence of university-level teaching",
+        "importance": "essential",
+        "source_quote": "Teach economics",
+        "source_span": {
+          "source": {
+            "kind": "source-normalized-text",
+            "id": "019f2f55-7c00-7000-8000-000000000201",
+            "revision": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "start_byte": 0,
+          "end_byte": 15
+        },
+        "confidence_milli": 950,
+        "confirmed": false,
+        "revision": 1
+      }
+    ],
+    "revision": 1
+  }
 }

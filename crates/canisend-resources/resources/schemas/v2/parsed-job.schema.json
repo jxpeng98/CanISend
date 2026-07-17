@@ -54,6 +54,59 @@
       ],
       "type": "string"
     },
+    "CriterionRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "confidence_milli": {
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "confirmed": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "importance": {
+          "$ref": "#/$defs/CriterionImportance"
+        },
+        "job_id": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/EvidenceKind"
+        },
+        "requirement": {
+          "type": "string"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "source_quote": {
+          "type": "string"
+        },
+        "source_span": {
+          "$ref": "#/$defs/SourceTextSpan"
+        }
+      },
+      "required": [
+        "id",
+        "job_id",
+        "kind",
+        "requirement",
+        "importance",
+        "source_quote",
+        "source_span",
+        "confidence_milli",
+        "confirmed",
+        "revision"
+      ],
+      "type": "object"
+    },
     "EvidenceKind": {
       "enum": [
         "qualification",
@@ -92,60 +145,55 @@
       "type": "object"
     }
   },
-  "$id": "https://schemas.canisend.dev/v2/criterion.schema.json",
+  "$id": "https://schemas.canisend.dev/v2/parsed-job.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
-    "confidence_milli": {
-      "format": "uint16",
-      "maximum": 65535,
-      "minimum": 0,
-      "type": "integer"
-    },
-    "confirmed": {
-      "type": "boolean"
+    "criteria": {
+      "items": {
+        "$ref": "#/$defs/CriterionRecord"
+      },
+      "type": "array"
     },
     "id": {
       "type": "string"
     },
-    "importance": {
-      "$ref": "#/$defs/CriterionImportance"
+    "institution": {
+      "type": "string"
     },
     "job_id": {
       "type": "string"
     },
-    "kind": {
-      "$ref": "#/$defs/EvidenceKind"
-    },
-    "requirement": {
-      "type": "string"
+    "responsibilities": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
     },
     "revision": {
       "format": "uint64",
       "minimum": 0,
       "type": "integer"
     },
-    "source_quote": {
+    "summary": {
       "type": "string"
     },
-    "source_span": {
-      "$ref": "#/$defs/SourceTextSpan"
+    "title": {
+      "type": "string"
     }
   },
   "required": [
     "id",
     "job_id",
-    "kind",
-    "requirement",
-    "importance",
-    "source_quote",
-    "source_span",
-    "confidence_milli",
-    "confirmed",
+    "title",
+    "institution",
+    "summary",
+    "responsibilities",
+    "criteria",
     "revision"
   ],
-  "title": "CriterionRecord",
+  "title": "ParsedJobRecord",
   "type": "object",
-  "x-canisend-id": "canisend.criterion/v2",
+  "x-canisend-id": "canisend.parsed-job/v2",
   "x-canisend-version": "2.0.0"
 }

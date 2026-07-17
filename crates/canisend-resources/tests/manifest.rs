@@ -57,7 +57,7 @@ fn host_packs_are_self_contained_versioned_and_integrity_manifested() {
         assert_eq!(manifest, exported.manifest);
         assert_eq!(manifest.format, "canisend.agent-pack/v2");
         assert_eq!(manifest.protocol, "canisend.agent/v2");
-        assert_eq!(manifest.files.len(), 6);
+        assert_eq!(manifest.files.len(), 8);
         for entry in &manifest.files {
             let bytes = fs::read(root.join(&entry.path)).expect("pack file");
             assert_eq!(bytes.len(), entry.size);

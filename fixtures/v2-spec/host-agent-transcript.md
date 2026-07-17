@@ -13,7 +13,7 @@ canisend agent assets export --host codex --destination <external>/codex-pack --
 canisend --workspace <workspace> workspace init --json
 canisend --workspace <workspace> job create ... --json
 canisend --workspace <workspace> job import JOB_ID --file job-advert.md --json
-canisend --workspace <workspace> task prepare --job JOB_ID --operation job-criterion --json
+canisend --workspace <workspace> task prepare --job JOB_ID --operation job-parse --json
   -> exact job revision, artifact revisions/hashes, consent request, lease, and candidate schema
 
 canisend --workspace <workspace> task inputs TASK_ID --destination <external>/inputs --json
@@ -33,6 +33,13 @@ canisend --workspace <workspace> task complete --file completion.json --json
 canisend --workspace <workspace> task complete --file completion.json --json
   -> same artifact, idempotent = true
 
+canisend --workspace <workspace> criteria export --job JOB_ID --destination criteria.json --json
+  -> editable source-bound proposal with `confirmed = true` as the pending user decision
+<user reviews or corrects criteria.json>
+canisend --workspace <workspace> criteria confirm --job JOB_ID --file criteria.json --json
+  -> exact source spans are revalidated and a confirmed Criteria artifact is committed
+
+canisend --workspace <workspace> workflow rerun --job JOB_ID --stage parse --json
 canisend --workspace <workspace> task prepare ... --json
 <source is re-imported through canisend, changing the job revision>
 canisend --workspace <workspace> task complete --file stale-completion.json --json
