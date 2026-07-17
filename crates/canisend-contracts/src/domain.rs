@@ -190,12 +190,59 @@ pub enum MatchStrength {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+pub struct CriterionRevisionReference {
+    pub id: EntityId,
+    pub revision: Revision,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct EvidenceRevisionReference {
+    pub id: EntityId,
+    pub revision: Revision,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct EvidenceMatchRecord {
     pub id: EntityId,
-    pub criterion_id: EntityId,
-    pub evidence_ids: Vec<EntityId>,
+    pub criterion: CriterionRevisionReference,
+    pub evidence: Vec<EvidenceRevisionReference>,
     pub strength: MatchStrength,
     pub rationale: String,
+    pub gap: Option<String>,
+    pub prohibited_claims: Vec<String>,
+    pub revision: Revision,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct EvidenceMatchProposalRecord {
+    pub criterion: CriterionRevisionReference,
+    pub evidence: Vec<EvidenceRevisionReference>,
+    pub strength: MatchStrength,
+    pub rationale: String,
+    pub gap: Option<String>,
+    pub prohibited_claims: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct EvidenceMatchProposalSet {
+    pub job_id: EntityId,
+    pub criteria_artifact: ArtifactReference,
+    pub evidence_artifact: ArtifactReference,
+    pub proposals: Vec<EvidenceMatchProposalRecord>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct EvidenceMatchSetRecord {
+    pub id: EntityId,
+    pub job_id: EntityId,
+    pub criteria_artifact: ArtifactReference,
+    pub evidence_artifact: ArtifactReference,
+    pub matches: Vec<EvidenceMatchRecord>,
     pub revision: Revision,
 }
 

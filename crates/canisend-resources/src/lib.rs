@@ -187,6 +187,7 @@ pub fn export_agent_pack(
         guide,
         ("prompt.job-parse", "prompts/job-parse.md"),
         ("prompt.evidence-normalize", "prompts/evidence-normalize.md"),
+        ("prompt.evidence-match", "prompts/evidence-match.md"),
         ("example.task-complete", "examples/task-complete.json"),
         (
             "schema.task-descriptor",
@@ -208,6 +209,14 @@ pub fn export_agent_pack(
             "schemas/v2/evidence-catalog.schema.json",
         ),
         ("schema.evidence", "schemas/v2/evidence.schema.json"),
+        (
+            "schema.evidence-match-proposals",
+            "schemas/v2/evidence-match-proposals.schema.json",
+        ),
+        (
+            "schema.evidence-matches",
+            "schemas/v2/evidence-matches.schema.json",
+        ),
     ];
     let mut files = Vec::with_capacity(resources.len());
     for (resource_id, relative_path) in resources {

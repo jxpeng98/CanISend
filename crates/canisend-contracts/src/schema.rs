@@ -7,10 +7,10 @@ use serde_json::{Map, Value};
 use crate::{
     AgentContextData, AgentResponse, ApplicationPlanRecord, BackupManifestData, CapabilitiesData,
     CriteriaSetRecord, CriterionRecord, DiscoveryBatch, DiscoveryLeadRecord, DocumentRecord,
-    EvidenceCatalogRecord, EvidenceMatchRecord, EvidenceProposalSet, EvidenceRecord, FindingRecord,
-    JobRecord, ParsedJobRecord, ProfileSourceRecord, ReadinessRecord, SourceRecord,
-    TaskCompletionRequest, TaskDescriptor, VersionData, WorkflowStatusData, WorkspaceCheckData,
-    WorkspaceStatusData,
+    EvidenceCatalogRecord, EvidenceMatchProposalSet, EvidenceMatchRecord, EvidenceMatchSetRecord,
+    EvidenceProposalSet, EvidenceRecord, FindingRecord, JobRecord, ParsedJobRecord,
+    ProfileSourceRecord, ReadinessRecord, SourceRecord, TaskCompletionRequest, TaskDescriptor,
+    VersionData, WorkflowStatusData, WorkspaceCheckData, WorkspaceStatusData,
 };
 
 pub const PUBLIC_SCHEMA_VERSION: &str = "2.0.0";
@@ -45,10 +45,12 @@ pub enum PublicSchemaId {
     ProfileSource,
     EvidenceProposals,
     EvidenceCatalog,
+    EvidenceMatchProposals,
+    EvidenceMatches,
 }
 
 impl PublicSchemaId {
-    pub const ALL: [Self; 26] = [
+    pub const ALL: [Self; 28] = [
         Self::AgentResponse,
         Self::Capabilities,
         Self::AgentContext,
@@ -75,6 +77,8 @@ impl PublicSchemaId {
         Self::ProfileSource,
         Self::EvidenceProposals,
         Self::EvidenceCatalog,
+        Self::EvidenceMatchProposals,
+        Self::EvidenceMatches,
     ];
 
     #[must_use]
@@ -106,6 +110,8 @@ impl PublicSchemaId {
             Self::ProfileSource => "canisend.profile-source/v2",
             Self::EvidenceProposals => "canisend.evidence-proposals/v2",
             Self::EvidenceCatalog => "canisend.evidence-catalog/v2",
+            Self::EvidenceMatchProposals => "canisend.evidence-match-proposals/v2",
+            Self::EvidenceMatches => "canisend.evidence-matches/v2",
         }
     }
 
@@ -138,6 +144,8 @@ impl PublicSchemaId {
             Self::ProfileSource => "profile-source",
             Self::EvidenceProposals => "evidence-proposals",
             Self::EvidenceCatalog => "evidence-catalog",
+            Self::EvidenceMatchProposals => "evidence-match-proposals",
+            Self::EvidenceMatches => "evidence-matches",
         }
     }
 
@@ -197,6 +205,8 @@ pub fn generate_public_schemas() -> Vec<GeneratedSchema> {
         generate::<ProfileSourceRecord>(PublicSchemaId::ProfileSource),
         generate::<EvidenceProposalSet>(PublicSchemaId::EvidenceProposals),
         generate::<EvidenceCatalogRecord>(PublicSchemaId::EvidenceCatalog),
+        generate::<EvidenceMatchProposalSet>(PublicSchemaId::EvidenceMatchProposals),
+        generate::<EvidenceMatchSetRecord>(PublicSchemaId::EvidenceMatches),
     ]
 }
 

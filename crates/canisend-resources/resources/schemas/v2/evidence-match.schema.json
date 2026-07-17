@@ -1,5 +1,41 @@
 {
   "$defs": {
+    "CriterionRevisionReference": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "revision"
+      ],
+      "type": "object"
+    },
+    "EvidenceRevisionReference": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "revision"
+      ],
+      "type": "object"
+    },
     "MatchStrength": {
       "enum": [
         "strong",
@@ -14,17 +50,29 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
-    "criterion_id": {
+    "criterion": {
+      "$ref": "#/$defs/CriterionRevisionReference"
+    },
+    "evidence": {
+      "items": {
+        "$ref": "#/$defs/EvidenceRevisionReference"
+      },
+      "type": "array"
+    },
+    "gap": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "id": {
       "type": "string"
     },
-    "evidence_ids": {
+    "prohibited_claims": {
       "items": {
         "type": "string"
       },
       "type": "array"
-    },
-    "id": {
-      "type": "string"
     },
     "rationale": {
       "type": "string"
@@ -40,10 +88,11 @@
   },
   "required": [
     "id",
-    "criterion_id",
-    "evidence_ids",
+    "criterion",
+    "evidence",
     "strength",
     "rationale",
+    "prohibited_claims",
     "revision"
   ],
   "title": "EvidenceMatchRecord",

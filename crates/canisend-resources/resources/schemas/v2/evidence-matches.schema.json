@@ -1,0 +1,185 @@
+{
+  "$defs": {
+    "ArtifactKind": {
+      "enum": [
+        "source-original",
+        "source-normalized-text",
+        "parsed-job",
+        "evidence-catalog",
+        "criteria",
+        "evidence-matches",
+        "application-plan",
+        "cover-letter",
+        "research-statement",
+        "teaching-statement",
+        "cv",
+        "review-findings",
+        "package-manifest",
+        "typst-source",
+        "pdf"
+      ],
+      "type": "string"
+    },
+    "ArtifactReference": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/ArtifactKind"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sha256": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "revision",
+        "sha256"
+      ],
+      "type": "object"
+    },
+    "CriterionRevisionReference": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "revision"
+      ],
+      "type": "object"
+    },
+    "EvidenceMatchRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "criterion": {
+          "$ref": "#/$defs/CriterionRevisionReference"
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/EvidenceRevisionReference"
+          },
+          "type": "array"
+        },
+        "gap": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "prohibited_claims": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "rationale": {
+          "type": "string"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "strength": {
+          "$ref": "#/$defs/MatchStrength"
+        }
+      },
+      "required": [
+        "id",
+        "criterion",
+        "evidence",
+        "strength",
+        "rationale",
+        "prohibited_claims",
+        "revision"
+      ],
+      "type": "object"
+    },
+    "EvidenceRevisionReference": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "revision"
+      ],
+      "type": "object"
+    },
+    "MatchStrength": {
+      "enum": [
+        "strong",
+        "partial",
+        "gap",
+        "unknown"
+      ],
+      "type": "string"
+    }
+  },
+  "$id": "https://schemas.canisend.dev/v2/evidence-matches.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "criteria_artifact": {
+      "$ref": "#/$defs/ArtifactReference"
+    },
+    "evidence_artifact": {
+      "$ref": "#/$defs/ArtifactReference"
+    },
+    "id": {
+      "type": "string"
+    },
+    "job_id": {
+      "type": "string"
+    },
+    "matches": {
+      "items": {
+        "$ref": "#/$defs/EvidenceMatchRecord"
+      },
+      "type": "array"
+    },
+    "revision": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "id",
+    "job_id",
+    "criteria_artifact",
+    "evidence_artifact",
+    "matches",
+    "revision"
+  ],
+  "title": "EvidenceMatchSetRecord",
+  "type": "object",
+  "x-canisend-id": "canisend.evidence-matches/v2",
+  "x-canisend-version": "2.0.0"
+}

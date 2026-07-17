@@ -5,7 +5,8 @@ use thiserror::Error;
 
 use crate::{
     ApplicationPlanRecord, CriteriaSetRecord, CriterionRecord, DocumentRecord,
-    EvidenceCatalogRecord, EvidenceMatchRecord, EvidenceProposalRecord, EvidenceProposalSet,
+    EvidenceCatalogRecord, EvidenceMatchProposalRecord, EvidenceMatchProposalSet,
+    EvidenceMatchRecord, EvidenceMatchSetRecord, EvidenceProposalRecord, EvidenceProposalSet,
     EvidenceRecord, FindingRecord, JobRecord, ParsedJobRecord, ProfileSourceRecord,
     ReadinessRecord, SourceRecord,
 };
@@ -354,21 +355,219 @@ fn validate_criteria(
 
 impl SemanticValidate for EvidenceMatchRecord {
     fn validate_semantics(&self) -> Vec<ContractViolation> {
-        let mut violations = Vec::new();
-        required_text(&self.rationale, "/rationale", &mut violations);
-        if !matches!(
+        validate_match_fields(
+            &self.evidence,
             self.strength,
-            crate::MatchStrength::Gap | crate::MatchStrength::Unknown
-        ) && self.evidence_ids.is_empty()
-        {
+            &self.rationale,
+            self.gap.as_deref(),
+            &self.prohibited_claims,
+        )
+    }
+}
+
+impl SemanticValidate for EvidenceMatchProposalRecord {
+    fn validate_semantics(&self) -> Vec<ContractViolation> {
+        validate_match_fields(
+            &self.evidence,
+            self.strength,
+            &self.rationale,
+            self.gap.as_deref(),
+            &self.prohibited_claims,
+        )
+    }
+}
+
+fn validate_match_fields(
+    evidence: &[crate::EvidenceRevisionReference],
+    strength: crate::MatchStrength,
+    rationale: &str,
+    gap: Option<&str>,
+    prohibited_claims: &[String],
+) -> Vec<ContractViolation> {
+    let mut violations = Vec::new();
+    required_text(rationale, "/rationale", &mut violations);
+    if evidence.len() > 100 {
+        violations.push(ContractViolation::new(
+            "match.evidence_count_invalid",
+            "/evidence",
+            "a match may cite at most 100 evidence revisions",
+        ));
+    }
+    let mut evidence_ids = std::collections::BTreeSet::new();
+    for (index, reference) in evidence.iter().enumerate() {
+        if !evidence_ids.insert(&reference.id) {
             violations.push(ContractViolation::new(
-                "match.evidence_required",
-                "/evidence_ids",
-                "strong and partial matches require at least one evidence ID",
+                "match.evidence_duplicate",
+                format!("/evidence/{index}/id"),
+                "a match cannot cite the same evidence identity more than once",
             ));
+        }
+    }
+    match strength {
+        crate::MatchStrength::Strong => {
+            if evidence.is_empty() {
+                violations.push(ContractViolation::new(
+                    "match.evidence_required",
+                    "/evidence",
+                    "a strong match requires at least one evidence revision",
+                ));
+            }
+            if gap.is_some() {
+                violations.push(ContractViolation::new(
+                    "match.gap_forbidden",
+                    "/gap",
+                    "a strong match cannot declare a remaining support gap",
+                ));
+            }
+        }
+        crate::MatchStrength::Partial => {
+            if evidence.is_empty() {
+                violations.push(ContractViolation::new(
+                    "match.evidence_required",
+                    "/evidence",
+                    "a partial match requires at least one evidence revision",
+                ));
+            }
+            if let Some(gap) = gap {
+                required_text(gap, "/gap", &mut violations);
+            } else {
+                violations.push(ContractViolation::new(
+                    "match.gap_required",
+                    "/gap",
+                    "a partial match must state what remains unsupported",
+                ));
+            }
+        }
+        crate::MatchStrength::Gap | crate::MatchStrength::Unknown => {
+            if !evidence.is_empty() {
+                violations.push(ContractViolation::new(
+                    "match.evidence_forbidden",
+                    "/evidence",
+                    "gap and unknown matches cannot claim supporting evidence",
+                ));
+            }
+            if let Some(gap) = gap {
+                required_text(gap, "/gap", &mut violations);
+            } else {
+                violations.push(ContractViolation::new(
+                    "match.gap_required",
+                    "/gap",
+                    "gap and unknown matches must state the unresolved support issue",
+                ));
+            }
+        }
+    }
+    if prohibited_claims.len() > 100 {
+        violations.push(ContractViolation::new(
+            "match.prohibited_claim_count_invalid",
+            "/prohibited_claims",
+            "a match may declare at most 100 prohibited claims",
+        ));
+    }
+    let mut claims = std::collections::BTreeSet::new();
+    for (index, claim) in prohibited_claims.iter().enumerate() {
+        required_text(
+            claim,
+            &format!("/prohibited_claims/{index}"),
+            &mut violations,
+        );
+        if !claims.insert(claim.trim()) {
+            violations.push(ContractViolation::new(
+                "match.prohibited_claim_duplicate",
+                format!("/prohibited_claims/{index}"),
+                "prohibited claims must be unique within a match",
+            ));
+        }
+    }
+    violations
+}
+
+impl SemanticValidate for EvidenceMatchProposalSet {
+    fn validate_semantics(&self) -> Vec<ContractViolation> {
+        let mut violations =
+            validate_match_set_artifacts(&self.criteria_artifact, &self.evidence_artifact);
+        if self.proposals.is_empty() || self.proposals.len() > 500 {
+            violations.push(ContractViolation::new(
+                "match_proposals.count_invalid",
+                "/proposals",
+                "match proposals must contain between 1 and 500 records",
+            ));
+        }
+        let mut criteria = std::collections::BTreeSet::new();
+        for (index, proposal) in self.proposals.iter().enumerate() {
+            for mut violation in proposal.validate_semantics() {
+                violation.json_pointer = format!("/proposals/{index}{}", violation.json_pointer);
+                violations.push(violation);
+            }
+            if !criteria.insert(&proposal.criterion.id) {
+                violations.push(ContractViolation::new(
+                    "match.criterion_duplicate",
+                    format!("/proposals/{index}/criterion/id"),
+                    "each criterion may appear exactly once",
+                ));
+            }
         }
         violations
     }
+}
+
+impl SemanticValidate for EvidenceMatchSetRecord {
+    fn validate_semantics(&self) -> Vec<ContractViolation> {
+        let mut violations =
+            validate_match_set_artifacts(&self.criteria_artifact, &self.evidence_artifact);
+        if self.matches.is_empty() || self.matches.len() > 500 {
+            violations.push(ContractViolation::new(
+                "matches.count_invalid",
+                "/matches",
+                "a match set must contain between 1 and 500 records",
+            ));
+        }
+        let mut ids = std::collections::BTreeSet::new();
+        let mut criteria = std::collections::BTreeSet::new();
+        for (index, record) in self.matches.iter().enumerate() {
+            for mut violation in record.validate_semantics() {
+                violation.json_pointer = format!("/matches/{index}{}", violation.json_pointer);
+                violations.push(violation);
+            }
+            if !ids.insert(&record.id) {
+                violations.push(ContractViolation::new(
+                    "match.id_duplicate",
+                    format!("/matches/{index}/id"),
+                    "core-generated match IDs must be unique",
+                ));
+            }
+            if !criteria.insert(&record.criterion.id) {
+                violations.push(ContractViolation::new(
+                    "match.criterion_duplicate",
+                    format!("/matches/{index}/criterion/id"),
+                    "each criterion may appear exactly once",
+                ));
+            }
+        }
+        violations
+    }
+}
+
+fn validate_match_set_artifacts(
+    criteria_artifact: &crate::ArtifactReference,
+    evidence_artifact: &crate::ArtifactReference,
+) -> Vec<ContractViolation> {
+    let mut violations = Vec::new();
+    if criteria_artifact.kind != crate::ArtifactKind::Criteria {
+        violations.push(ContractViolation::new(
+            "matches.criteria_kind_invalid",
+            "/criteria_artifact/kind",
+            "matches must reference a criteria artifact",
+        ));
+    }
+    if evidence_artifact.kind != crate::ArtifactKind::EvidenceCatalog {
+        violations.push(ContractViolation::new(
+            "matches.evidence_kind_invalid",
+            "/evidence_artifact/kind",
+            "matches must reference an evidence catalog artifact",
+        ));
+    }
+    violations
 }
 
 impl SemanticValidate for ApplicationPlanRecord {
