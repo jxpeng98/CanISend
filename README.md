@@ -19,8 +19,8 @@ the Git tag `archive/python-v0.6.0b1-final`.
 
 ## Current status
 
-The Rust rebuild has implemented R6, including durable direct intake, discovery, and bounded agent collaboration.
-Clean-checkout acceptance is pending before R7 becomes active. The current binary provides:
+The Rust rebuild has completed R6, including durable direct intake, discovery, and bounded agent collaboration. R7
+workflow kernel, evidence, matching, and planning is now active. The current binary provides:
 
 - Native `canisend` executable scaffolding.
 - Validated UUIDv7, SHA-256, revision, UTC timestamp, and safe relative-path contract types.

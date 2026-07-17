@@ -4,7 +4,7 @@
 
 **Phase:** R6
 
-**Local status:** Complete; remote clean-checkout acceptance pending
+**Status:** Complete
 
 ## Boundary delivered
 
@@ -79,4 +79,5 @@ returns semantic remediation for an invalid external candidate, commits and repl
 task stale by importing another source revision, and finishes with a healthy workspace. The same smoke is wired into
 normal CI and the Linux, macOS, and Windows native preview matrix.
 
-Remote workflow acceptance and its run ID will be recorded before R7 is activated.
+GitHub Actions run `29618142639` repeated the full clean-checkout gate, release build, and packaged host-agent smoke
+in 1 minute 39 seconds. R6 is accepted and R7 is active.

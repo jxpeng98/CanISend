@@ -1,6 +1,6 @@
 # CanISend Rust-Native Greenfield Rebuild Roadmap
 
-**Status:** In progress — R0 through R5 complete; R6 implementation complete and remote acceptance pending
+**Status:** In progress — R0 through R6 complete; R7 workflow kernel, evidence, match, and plan active
 
 **Date:** 2026-07-17
 
@@ -58,6 +58,11 @@
   promotion into direct intake, and public RSS/Atom, jobs.ac.uk, Greenhouse, and Lever adapters. GitHub Actions run
   `29616322777` passed 44 Rust tests, 20-schema/26-resource checks, release build, and packaged-binary discovery
   dry-run/import/promotion/backup/restore smoke in 1 minute 55 seconds. R5 exit criteria are satisfied; R6 is active.
+- 2026-07-17: Completed body-free compiled agent context, SQLite migration 4 and leased task lifecycle, exact
+  job/artifact revision binding, schema-first candidate validation, atomic/idempotent completion, explicit-consent
+  scoped input export, and self-contained Codex/Claude/generic packs. GitHub Actions run `29618142639` passed 54
+  Rust tests, 20-schema/26-resource checks, release build, and packaged external-candidate/remediation/stale-task smoke
+  in 1 minute 39 seconds. R6 exit criteria are satisfied; R7 is active.
 
 ## 1. Executive Decision
 
@@ -1441,8 +1446,10 @@ lists the resulting lead, promotes it into a job, and preserves that state throu
 
 **Deliverables:** Agent protocol v2 implementation and self-contained host asset packs. Complete.
 
-**Exit criteria:** Local acceptance passed with 54 Rust tests, Clippy, 20-schema/26-resource checks, a release build,
-and the packaged `smoke_host_agent.sh` workflow. Remote clean-checkout acceptance is pending.
+**Exit criteria:** Satisfied by GitHub Actions run `29618142639`. A clean checkout passed 54 Rust tests, Clippy,
+20-schema/26-resource checks, release compilation, and the packaged host-agent workflow in 1 minute 39 seconds. The
+smoke follows exported Codex instructions, keeps candidate work outside internal state, exercises validation
+remediation and idempotency, and detects a stale task after the job source revision changes.
 
 ### Phase R7 — Workflow kernel, evidence, match, and plan
 
