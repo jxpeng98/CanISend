@@ -72,6 +72,11 @@ Error codes are stable within protocol v2 even when human messages improve:
 | `input.path_rejected` | 3 |
 | `workspace.not_found` | 4 |
 | `workspace.conflict` | 4 |
+| `job.not_found` | 4 |
+| `job.archived` | 4 |
+| `pdf.encrypted` | 3 |
+| `pdf.malformed` | 3 |
+| `pdf_text_unavailable` | 3 |
 | `resource.not_found` | 3 |
 | `resources.integrity_failed` | 6 |
 | `schema.not_found` | 3 |
@@ -105,9 +110,14 @@ canisend resource list --json
 reports all compiled host guides, examples, prompts, schemas, and templates. The embedded Codex, Claude, and generic
 guides instruct hosts never to edit `.canisend/` state directly.
 
+Job intake is available through `job create`, `job import JOB_ID --file PATH`, `job import JOB_ID --url URL`,
+`job list`, `job show`, and `job archive`. Import success returns source and artifact references without returning the
+private source body. A URL flag is an explicit user-requested fetch; redirects remain subject to the same public
+address policy as the initial URL.
+
 ## Contract generation
 
-Rust types in `canisend-contracts` are authoritative. Fifteen public schemas are generated with canonical IDs under
+Rust types in `canisend-contracts` are authoritative. Eighteen public schemas are generated with canonical IDs under
 `https://schemas.canisend.dev/v2/`, semantic version `2.0.0`, deterministic key ordering, and a final newline.
 `cargo run -p xtask -- schemas check` rejects byte drift, missing files, and additional schema files.
 

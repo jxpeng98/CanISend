@@ -1,6 +1,6 @@
 # CanISend Rust-Native Greenfield Rebuild Roadmap
 
-**Status:** In progress — R0 through R3 complete; R4 direct file, URL, HTML, and PDF intake active
+**Status:** In progress — R0 through R4 complete; R5 discovery ecosystem active
 
 **Date:** 2026-07-17
 
@@ -48,6 +48,11 @@
   verified backup/restore. GitHub Actions run `29612319788` passed 27 Rust tests, Clippy, 18-schema/24-resource drift
   checks, release build, and packaged-binary workspace/backup/restore smoke in 1 minute 48 seconds. R3 exit criteria
   are satisfied; R4 is active.
+- 2026-07-17: Completed transactional job lifecycle plus Markdown, text, public URL, HTML, and text-PDF intake. Added
+  DNS-pinned Rustls requests, per-redirect SSRF checks, bounded MIME sniffing, structured HTML normalization,
+  page-separated PDF extraction, and typed encrypted/malformed/image-only failures. GitHub Actions runs `29614087317`
+  and `29614367500` passed 36 Rust tests, generated-contract checks, release builds, and packaged-binary job import
+  smoke; the cached final run completed in 1 minute 10 seconds. R4 exit criteria are satisfied; R5 is active.
 
 ## 1. Executive Decision
 
@@ -1310,41 +1315,44 @@ release binary completes workspace initialization, integrity check, verified bac
 
 #### R4.1 Local file intake
 
-- [ ] Implement Markdown and text import with encoding policy.
-- [ ] Implement safe regular-file reads with size limits.
-- [ ] Retain original bytes and normalized text separately.
-- [ ] Create source revisions and intake artifacts.
-- [ ] Add duplicate-content reuse without merging distinct source identities.
+- [x] Implement Markdown and text import with encoding policy.
+- [x] Implement safe regular-file reads with size limits.
+- [x] Retain original bytes and normalized text separately.
+- [x] Create source revisions and intake artifacts.
+- [x] Add duplicate-content reuse without merging distinct source identities.
 
 #### R4.2 HTTP intake
 
-- [ ] Implement bounded HTTP client and Rustls configuration.
-- [ ] Implement safe URL and redirect policy.
-- [ ] Implement timeouts, maximum sizes, and content type checks.
-- [ ] Implement HTML-to-text normalization.
-- [ ] Record final URL and retrieval metadata.
-- [ ] Add local test-server cases for redirect, timeout, truncation, misleading MIME, and private addresses.
+- [x] Implement bounded HTTP client and Rustls configuration.
+- [x] Implement safe URL and redirect policy.
+- [x] Implement timeouts, maximum sizes, and content type checks.
+- [x] Implement HTML-to-text normalization.
+- [x] Record final URL and retrieval metadata.
+- [x] Add local test-server cases for redirect, timeout, truncation, misleading MIME, and private addresses.
 
 #### R4.3 PDF intake
 
-- [ ] Select the PDF extraction implementation from R0 evidence.
-- [ ] Enforce page, byte, decode, and time budgets.
-- [ ] Extract page-separated normalized text.
-- [ ] Return typed results for encrypted, malformed, and image-only documents.
-- [ ] Preserve original PDF bytes.
-- [ ] Add the complete PDF fixture corpus and regression tests.
+- [x] Select the PDF extraction implementation from R0 evidence.
+- [x] Enforce page, byte, decode, and time budgets.
+- [x] Extract page-separated normalized text.
+- [x] Return typed results for encrypted, malformed, and image-only documents.
+- [x] Preserve original PDF bytes.
+- [x] Add the complete PDF fixture corpus and regression tests.
 
 #### R4.4 Job commands
 
-- [ ] Implement `job create`.
-- [ ] Implement `job import --file`.
-- [ ] Implement `job import --url`.
-- [ ] Implement `job list`, `job show`, and `job archive`.
-- [ ] Implement human and JSON outputs.
+- [x] Implement `job create`.
+- [x] Implement `job import --file`.
+- [x] Implement `job import --url`.
+- [x] Implement `job list`, `job show`, and `job archive`.
+- [x] Implement human and JSON outputs.
 
-**Deliverables:** Complete direct URL/file/PDF job intake.
+**Deliverables:** Complete direct URL/file/PDF job intake. Complete.
 
-**Exit criteria:** A clean packaged binary can import supported sources without Python or an external service.
+**Exit criteria:** Satisfied by GitHub Actions runs `29614087317` and `29614367500`. A clean release binary creates a
+job, imports a committed Markdown advert, reads it back through the public body-free contract, passes workspace
+integrity, and backs up/restores the result without Python or an external service. Offline HTTP and PDF fixtures cover
+the network/parser boundaries without making CI depend on a live website.
 
 ### Phase R5 — Discovery ecosystem
 

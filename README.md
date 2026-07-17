@@ -19,8 +19,8 @@ the Git tag `archive/python-v0.6.0b1-final`.
 
 ## Current status
 
-The Rust rebuild has completed R3, including the durable workspace, SQLite, blob, artifact, and recovery foundation.
-R4 direct file, URL, HTML, and PDF job intake is now active. The current binary provides:
+The Rust rebuild has completed R4, including the durable workspace and direct job intake. R5 discovery adapters,
+batch imports, deduplication, and lead promotion are now active. The current binary provides:
 
 - Native `canisend` executable scaffolding.
 - Validated UUIDv7, SHA-256, revision, UTC timestamp, and safe relative-path contract types.
@@ -33,9 +33,13 @@ R4 direct file, URL, HTML, and PDF job intake is now active. The current binary 
 - Workspace discovery, explicit `--workspace` resolution, initialization, status, integrity checks, and repair.
 - Bundled SQLite authority with immutable SHA-256 blobs, revisions, dependency invalidation, and audit events.
 - Verified workspace backup and restore with referenced-blob manifests.
+- Transactional job creation, inspection, listing, archival, and revision history.
+- Bounded UTF-8 Markdown/plain-text imports with separate original and normalized artifacts.
+- Explicit user-supplied URL imports over Rustls with redirect-by-redirect SSRF protection and HTML normalization.
+- Text-PDF imports with page limits and typed encrypted, malformed, and `pdf_text_unavailable` results.
 
-Job intake, discovery, application workflow, and embedded PDF rendering are not yet available in the production
-binary. Their execution order and acceptance gates are defined in the
+Discovery, application workflow, and embedded PDF rendering are not yet available in the production binary. Their
+execution order and acceptance gates are defined in the
 [Rust-native roadmap](docs/superpowers/plans/2026-07-17-rust-native-greenfield-roadmap.md).
 
 ## Build the native foundation
@@ -51,6 +55,13 @@ cargo build --release --locked
 ./target/release/canisend schema list --json
 ./target/release/canisend resource list --json
 ./target/release/canisend --workspace ./my-workspace workspace init --json
+./target/release/canisend --workspace ./my-workspace job create \
+  --title "Lecturer in Economics" --institution "University X" --json
+./target/release/canisend --workspace ./my-workspace job import JOB_ID \
+  --file ./job-advert.pdf --json
+./target/release/canisend --workspace ./my-workspace job import JOB_ID \
+  --url https://example.edu/job-advert --json
+./target/release/canisend --workspace ./my-workspace job show JOB_ID --json
 ./target/release/canisend --workspace ./my-workspace workspace check --json
 ./target/release/canisend --workspace ./my-workspace workspace backup ./my-backup --json
 ```
