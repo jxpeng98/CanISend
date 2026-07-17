@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+mod discovery;
 mod local;
 mod pdf;
 mod remote;
@@ -64,4 +65,10 @@ pub enum IoAdapterError {
     PdfPageLimit { limit: usize, actual: usize },
     #[error("PDF extraction exceeded the configured time budget")]
     PdfTimeBudget,
+    #[error("discovery input is invalid: {0}")]
+    DiscoveryInput(String),
 }
+pub use discovery::{
+    MAX_DISCOVERY_BATCH_BYTES, MAX_DISCOVERY_LEADS, parse_csv_batch, parse_host_agent_batch,
+    parse_json_batch,
+};

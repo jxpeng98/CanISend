@@ -1,0 +1,123 @@
+{
+  "$defs": {
+    "DiscoveryLeadCandidate": {
+      "additionalProperties": false,
+      "properties": {
+        "deadline": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "external_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "location": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "metadata": {
+          "additionalProperties": {
+            "$ref": "#/$defs/DiscoveryMetadataValue"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "organization": {
+          "type": "string"
+        },
+        "summary": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "title": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "organization",
+        "url"
+      ],
+      "type": "object"
+    },
+    "DiscoveryMetadataValue": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "format": "int64",
+          "type": "integer"
+        },
+        {
+          "type": "boolean"
+        }
+      ]
+    },
+    "DiscoverySourceKind": {
+      "enum": [
+        "csv",
+        "json",
+        "host-agent",
+        "rss-atom",
+        "jobs-ac-uk",
+        "greenhouse",
+        "lever"
+      ],
+      "type": "string"
+    }
+  },
+  "$id": "https://schemas.canisend.dev/v2/discovery-batch.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "cursor": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "leads": {
+      "items": {
+        "$ref": "#/$defs/DiscoveryLeadCandidate"
+      },
+      "type": "array"
+    },
+    "observed_at": {
+      "type": "string"
+    },
+    "source_kind": {
+      "$ref": "#/$defs/DiscoverySourceKind"
+    },
+    "source_name": {
+      "type": "string"
+    },
+    "source_url": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "source_kind",
+    "source_name",
+    "observed_at",
+    "leads"
+  ],
+  "title": "DiscoveryBatch",
+  "type": "object",
+  "x-canisend-id": "canisend.discovery-batch/v2",
+  "x-canisend-version": "2.0.0"
+}

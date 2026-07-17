@@ -117,7 +117,7 @@ address policy as the initial URL.
 
 ## Contract generation
 
-Rust types in `canisend-contracts` are authoritative. Eighteen public schemas are generated with canonical IDs under
+Rust types in `canisend-contracts` are authoritative. Twenty public schemas are generated with canonical IDs under
 `https://schemas.canisend.dev/v2/`, semantic version `2.0.0`, deterministic key ordering, and a final newline.
 `cargo run -p xtask -- schemas check` rejects byte drift, missing files, and additional schema files.
 

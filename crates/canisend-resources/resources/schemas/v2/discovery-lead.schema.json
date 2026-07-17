@@ -1,0 +1,129 @@
+{
+  "$defs": {
+    "DiscoveryFreshness": {
+      "enum": [
+        "current",
+        "stale",
+        "unknown"
+      ],
+      "type": "string"
+    },
+    "DiscoveryLeadStatus": {
+      "enum": [
+        "active",
+        "removed",
+        "expired",
+        "promoted"
+      ],
+      "type": "string"
+    },
+    "DiscoveryMetadataValue": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "format": "int64",
+          "type": "integer"
+        },
+        {
+          "type": "boolean"
+        }
+      ]
+    }
+  },
+  "$id": "https://schemas.canisend.dev/v2/discovery-lead.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "canonical_key": {
+      "type": "string"
+    },
+    "deadline": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "external_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "first_seen_at": {
+      "type": "string"
+    },
+    "freshness": {
+      "$ref": "#/$defs/DiscoveryFreshness"
+    },
+    "id": {
+      "type": "string"
+    },
+    "last_seen_at": {
+      "type": "string"
+    },
+    "location": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "metadata": {
+      "additionalProperties": {
+        "$ref": "#/$defs/DiscoveryMetadataValue"
+      },
+      "type": "object"
+    },
+    "organization": {
+      "type": "string"
+    },
+    "promoted_job_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "revision": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "source_id": {
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/DiscoveryLeadStatus"
+    },
+    "summary": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "title": {
+      "type": "string"
+    },
+    "url": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "source_id",
+    "canonical_key",
+    "title",
+    "organization",
+    "url",
+    "metadata",
+    "status",
+    "freshness",
+    "first_seen_at",
+    "last_seen_at",
+    "revision"
+  ],
+  "title": "DiscoveryLeadRecord",
+  "type": "object",
+  "x-canisend-id": "canisend.discovery-lead/v2",
+  "x-canisend-version": "2.0.0"
+}

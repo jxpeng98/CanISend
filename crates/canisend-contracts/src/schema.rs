@@ -6,9 +6,9 @@ use serde_json::{Map, Value};
 
 use crate::{
     AgentContextData, AgentResponse, ApplicationPlanRecord, BackupManifestData, CapabilitiesData,
-    CriterionRecord, DocumentRecord, EvidenceMatchRecord, EvidenceRecord, FindingRecord, JobRecord,
-    ReadinessRecord, SourceRecord, TaskCompletionRequest, TaskDescriptor, VersionData,
-    WorkspaceCheckData, WorkspaceStatusData,
+    CriterionRecord, DiscoveryBatch, DiscoveryLeadRecord, DocumentRecord, EvidenceMatchRecord,
+    EvidenceRecord, FindingRecord, JobRecord, ReadinessRecord, SourceRecord, TaskCompletionRequest,
+    TaskDescriptor, VersionData, WorkspaceCheckData, WorkspaceStatusData,
 };
 
 pub const PUBLIC_SCHEMA_VERSION: &str = "2.0.0";
@@ -35,10 +35,12 @@ pub enum PublicSchemaId {
     WorkspaceStatus,
     WorkspaceCheck,
     BackupManifest,
+    DiscoveryBatch,
+    DiscoveryLead,
 }
 
 impl PublicSchemaId {
-    pub const ALL: [Self; 18] = [
+    pub const ALL: [Self; 20] = [
         Self::AgentResponse,
         Self::Capabilities,
         Self::AgentContext,
@@ -57,6 +59,8 @@ impl PublicSchemaId {
         Self::WorkspaceStatus,
         Self::WorkspaceCheck,
         Self::BackupManifest,
+        Self::DiscoveryBatch,
+        Self::DiscoveryLead,
     ];
 
     #[must_use]
@@ -80,6 +84,8 @@ impl PublicSchemaId {
             Self::WorkspaceStatus => "canisend.workspace-status/v2",
             Self::WorkspaceCheck => "canisend.workspace-check/v2",
             Self::BackupManifest => "canisend.backup-manifest/v2",
+            Self::DiscoveryBatch => "canisend.discovery-batch/v2",
+            Self::DiscoveryLead => "canisend.discovery-lead/v2",
         }
     }
 
@@ -104,6 +110,8 @@ impl PublicSchemaId {
             Self::WorkspaceStatus => "workspace-status",
             Self::WorkspaceCheck => "workspace-check",
             Self::BackupManifest => "backup-manifest",
+            Self::DiscoveryBatch => "discovery-batch",
+            Self::DiscoveryLead => "discovery-lead",
         }
     }
 
@@ -155,6 +163,8 @@ pub fn generate_public_schemas() -> Vec<GeneratedSchema> {
         generate::<WorkspaceStatusData>(PublicSchemaId::WorkspaceStatus),
         generate::<WorkspaceCheckData>(PublicSchemaId::WorkspaceCheck),
         generate::<BackupManifestData>(PublicSchemaId::BackupManifest),
+        generate::<DiscoveryBatch>(PublicSchemaId::DiscoveryBatch),
+        generate::<DiscoveryLeadRecord>(PublicSchemaId::DiscoveryLead),
     ]
 }
 

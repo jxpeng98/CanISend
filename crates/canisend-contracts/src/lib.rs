@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 mod agent;
+mod discovery;
 mod domain;
 mod primitives;
 mod schema;
@@ -8,6 +9,7 @@ mod validation;
 mod workspace;
 
 pub use agent::*;
+pub use discovery::*;
 pub use domain::*;
 pub use primitives::*;
 pub use schema::*;

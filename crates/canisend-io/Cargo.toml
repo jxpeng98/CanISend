@@ -12,11 +12,14 @@ publish.workspace = true
 [dependencies]
 canisend-contracts = { path = "../canisend-contracts" }
 canisend-core = { path = "../canisend-core" }
+csv.workspace = true
 html2text.workspace = true
 lopdf.workspace = true
 pdf-extract.workspace = true
 reqwest.workspace = true
+serde_json.workspace = true
 thiserror.workspace = true
+time.workspace = true
 url.workspace = true
 
 [lints]

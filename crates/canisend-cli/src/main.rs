@@ -864,7 +864,8 @@ fn io_adapter_failure(operation: &'static str, error: IoAdapterError) -> Box<Com
         | IoAdapterError::InvalidRedirect(_)
         | IoAdapterError::UnsupportedContentType(_)
         | IoAdapterError::Html(_)
-        | IoAdapterError::PdfTimeBudget => ("invalid", ErrorCode::InputInvalid, false),
+        | IoAdapterError::PdfTimeBudget
+        | IoAdapterError::DiscoveryInput(_) => ("invalid", ErrorCode::InputInvalid, false),
     };
     CommandFailure::new(operation, status, code, error.to_string(), retryable)
 }

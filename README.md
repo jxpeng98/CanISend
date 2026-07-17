@@ -26,8 +26,8 @@ batch imports, deduplication, and lead promotion are now active. The current bin
 - Validated UUIDv7, SHA-256, revision, UTC timestamp, and safe relative-path contract types.
 - `canisend.agent/v2` success/error envelopes, stable error registry, and grouped exit policy.
 - Product/version/build inspection.
-- Eighteen deterministic Draft 2020-12 schemas generated from Rust types.
-- Twenty-four typed embedded schemas, prompts, templates, examples, and host assets with SHA-256 verification.
+- Twenty deterministic Draft 2020-12 schemas generated from Rust types.
+- Twenty-six typed embedded schemas, prompts, templates, examples, and host assets with SHA-256 verification.
 - A truthful capability registry that marks unfinished functions as `planned`.
 - Agent context plus schema/resource diagnostics with deterministic JSON snapshots.
 - Workspace discovery, explicit `--workspace` resolution, initialization, status, integrity checks, and repair.

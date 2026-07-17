@@ -11,6 +11,8 @@
   {"id":"schema.capabilities","kind":"schema","path":"schemas/v2/capabilities.schema.json","version":"2.0.0"},
   {"id":"schema.criterion","kind":"schema","path":"schemas/v2/criterion.schema.json","version":"2.0.0"},
   {"id":"schema.document","kind":"schema","path":"schemas/v2/document.schema.json","version":"2.0.0"},
+  {"id":"schema.discovery-batch","kind":"schema","path":"schemas/v2/discovery-batch.schema.json","version":"2.0.0"},
+  {"id":"schema.discovery-lead","kind":"schema","path":"schemas/v2/discovery-lead.schema.json","version":"2.0.0"},
   {"id":"schema.evidence-match","kind":"schema","path":"schemas/v2/evidence-match.schema.json","version":"2.0.0"},
   {"id":"schema.evidence","kind":"schema","path":"schemas/v2/evidence.schema.json","version":"2.0.0"},
   {"id":"schema.finding","kind":"schema","path":"schemas/v2/finding.schema.json","version":"2.0.0"},
