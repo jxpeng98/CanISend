@@ -29,6 +29,8 @@ Stage 5 runtime regression.
   59.65 seconds after operation-scoped status reuse, then to 39.42
   seconds after content-addressed schema compilation reuse on the development interpreter; the final Python 3.12
   measurement is 51.49 seconds.
+- GitHub Actions run `29581321336` passed the cold Python 3.12 fast job in 39 seconds. The full and package jobs were
+  skipped on the non-main performance branch as designed.
 
 ## Fixed Decisions
 
@@ -94,7 +96,7 @@ Stage 5 runtime regression.
 ### Task 7: Exit Acceptance
 
 - [x] Keep the fast gate below 30 seconds locally (15.16 seconds for 220 tests on Python 3.12).
-- [ ] Confirm the fast gate stays below two minutes in a cold GitHub Actions run.
+- [x] Confirm the fast gate stays below two minutes in a cold GitHub Actions run (39 seconds, run `29581321336`).
 - [ ] Reduce the full single-interpreter suite to a measured target below 15 minutes.
 - [ ] Pass focused cache, runtime, mutation, projection, migration, and release-contract suites.
 - [ ] Pass one complete Python 3.12 suite plus build, Twine, resources, clean-wheel, and cross-platform release smokes.
