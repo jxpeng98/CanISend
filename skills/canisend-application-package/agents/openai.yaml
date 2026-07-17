@@ -1,4 +1,0 @@
-interface:
-  display_name: "CanISend Application Package"
-  short_description: "Build a complete evidence-backed package"
-  default_prompt: "Use $canisend-application-package to build and review a complete evidence-backed application package."

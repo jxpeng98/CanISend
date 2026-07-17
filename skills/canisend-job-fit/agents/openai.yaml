@@ -1,4 +1,0 @@
-interface:
-  display_name: "CanISend Job Fit"
-  short_description: "Assess role fit and application strategy"
-  default_prompt: "Use $canisend-job-fit to map this job against my CanISend evidence and decide the application angle."

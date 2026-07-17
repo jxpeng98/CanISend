@@ -1,4 +1,0 @@
-interface:
-  display_name: "CanISend Criteria Check"
-  short_description: "Check criteria against evidence"
-  default_prompt: "Use $canisend-criteria-check to find evidence gaps against these job criteria."

@@ -4,92 +4,54 @@ on:
   push:
     branches:
       - main
-      - "feature/**"
+      - rewrite/rust-native
       - "feat/**"
-      - "perf/**"
+      - "fix/**"
   pull_request:
   workflow_dispatch:
 
 jobs:
-  fast:
+  rust-quality:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@1.97.0
         with:
-          python-version: "3.12"
+          components: clippy,rustfmt
 
-      - name: Install project
-        run: uv sync --all-extras --dev
+      - name: Cache Cargo build
+        uses: Swatinem/rust-cache@v2
 
-      - name: Check canonical skill compatibility mirror
-        run: uv run python scripts/sync_workspace_skill_mirror.py --check
-
-      - name: Run fast contract gate
-        run: uv run python -m pytest -q -m fast
-
-  full:
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install project
-        run: uv sync --all-extras --dev
-
-      - name: Check canonical skill compatibility mirror
-        run: uv run python scripts/sync_workspace_skill_mirror.py --check
-
-      - name: Run complete suite
-        run: uv run python -m pytest -q -n 2
-
-  build-package:
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
-    needs: full
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install project
-        run: uv sync --all-extras --dev
-
-      - name: Build distributions
-        run: uv build
-
-      - name: Check package metadata
-        run: uvx twine check dist/*
-
-      - name: Check packaged resources
-        run: uv run python -m canisend.package_check dist/*.whl
-
-      - name: Smoke test built wheel
+      - name: Reject active Python product files
+        shell: bash
         run: |
-          python -m venv /tmp/canisend-smoke
-          /tmp/canisend-smoke/bin/pip install dist/*.whl
-          /tmp/canisend-smoke/bin/python scripts/smoke_decision_spine.py \
-            --canisend /tmp/canisend-smoke/bin/canisend \
-            --workspace /tmp/canisend-stage5-example
-          /tmp/canisend-smoke/bin/python scripts/smoke_discovery.py \
-            --canisend /tmp/canisend-smoke/bin/canisend \
-            --workspace /tmp/canisend-stage4-discovery
+          tracked="$(git ls-files '*.py' pyproject.toml uv.lock)"
+          if [[ -n "$tracked" ]]; then
+            echo "Rust-native branch contains forbidden Python product files:" >&2
+            echo "$tracked" >&2
+            exit 1
+          fi
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run Clippy
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+      - name: Run Rust tests
+        run: cargo test --workspace --locked
+
+      - name: Check generated contracts and resources
+        run: cargo run -p xtask --locked -- release check
+
+      - name: Build release binary
+        run: cargo build --release --locked
+
+      - name: Smoke native binary
+        shell: bash
+        run: |
+          ./target/release/canisend version --json
+          ./target/release/canisend doctor --json
+          ./target/release/canisend agent capabilities --json

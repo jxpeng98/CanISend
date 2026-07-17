@@ -1,4 +1,0 @@
-interface:
-  display_name: "CanISend"
-  short_description: "Evidence-backed job applications"
-  default_prompt: "Use $canisend to coordinate a private evidence-backed job application preparation workflow."

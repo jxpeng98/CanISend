@@ -1,4 +1,0 @@
-interface:
-  display_name: "CanISend Submission Readiness"
-  short_description: "Run strict pre-submission readiness checks"
-  default_prompt: "Use $canisend-submission-readiness to run a strict readiness review before I submit manually."

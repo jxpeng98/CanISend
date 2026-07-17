@@ -1,248 +1,61 @@
-name: release
+name: native-release-preview
 
 on:
   push:
     tags:
-      - "v*"
-      - "test/v*"
+      - "v0.7.*"
+  workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.release-metadata.outputs.version }}
-      release_channel: ${{ steps.release-metadata.outputs.release_channel }}
-      prerelease: ${{ steps.release-metadata.outputs.prerelease }}
-      publish_pypi: ${{ steps.release-metadata.outputs.publish_pypi }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Resolve release metadata
-        id: release-metadata
-        shell: bash
-        run: |
-          tag="$GITHUB_REF_NAME"
-          publish_pypi=false
-          prerelease=false
-
-          if [[ "$tag" == test/v* ]]; then
-            version="${tag#test/v}"
-            release_channel=test
-          elif [[ "$tag" == v* ]]; then
-            version="${tag#v}"
-            publish_pypi=true
-            if [[ "$version" =~ (a|b|rc)[0-9]+$ ]]; then
-              release_channel=beta
-              prerelease=true
-            else
-              release_channel=stable
-            fi
-          else
-            echo "Unsupported release tag: $tag" >&2
-            exit 1
-          fi
-
-          pyproject_version="$(sed -nE 's/^version = "([^"]+)"/\1/p' pyproject.toml | head -n 1)"
-          package_version="$(sed -nE 's/^__version__ = "([^"]+)"/\1/p' src/canisend/__init__.py | head -n 1)"
-
-          if [[ "$version" != "$pyproject_version" ]]; then
-            echo "Tag version $version does not match pyproject.toml $pyproject_version" >&2
-            exit 1
-          fi
-
-          if [[ "$pyproject_version" != "$package_version" ]]; then
-            echo "pyproject.toml $pyproject_version does not match __init__.py $package_version" >&2
-            exit 1
-          fi
-
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "release_channel=$release_channel" >> "$GITHUB_OUTPUT"
-          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
-          echo "publish_pypi=$publish_pypi" >> "$GITHUB_OUTPUT"
-
-      - name: Verify release source provenance
-        shell: bash
-        run: |
-          release_channel="${{ steps.release-metadata.outputs.release_channel }}"
-          if [[ "$release_channel" == "stable" ]]; then
-            git fetch origin main
-            if ! git merge-base --is-ancestor "$GITHUB_SHA" "origin/main"; then
-              echo "Stable release commit must be reachable from origin/main." >&2
-              exit 1
-            fi
-          else
-            echo "Prerelease tags may originate from a reviewed non-main branch."
-          fi
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install project
-        run: uv sync --all-extras --dev
-
-      - name: Run tests
-        run: uv run python -m pytest -q -n 2
-
-      - name: Build distributions
-        run: uv build
-
-      - name: Check package metadata
-        run: uvx twine check dist/*
-
-      - name: Check packaged resources
-        run: uv run python -m canisend.package_check dist/*.whl
-
-      - name: Smoke test built wheel
-        run: |
-          python -m venv /tmp/canisend-smoke
-          /tmp/canisend-smoke/bin/pip install dist/*.whl
-          /tmp/canisend-smoke/bin/python scripts/smoke_decision_spine.py \
-            --canisend /tmp/canisend-smoke/bin/canisend \
-            --workspace /tmp/canisend-stage5-example
-          /tmp/canisend-smoke/bin/python scripts/smoke_discovery.py \
-            --canisend /tmp/canisend-smoke/bin/canisend \
-            --workspace /tmp/canisend-stage4-discovery
-
-      - name: Upload distributions
-        uses: actions/upload-artifact@v4
-        with:
-          name: python-distributions
-          path: |
-            dist/*.tar.gz
-            dist/*.whl
-
-  cross-os-smoke:
+  build-native-preview:
+    name: build-${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - name: linux-x86_64
+            os: ubuntu-latest
+            binary: target/release/canisend
+          - name: macos-native
+            os: macos-14
+            binary: target/release/canisend
+          - name: windows-x86_64
+            os: windows-latest
+            binary: target/release/canisend.exe
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@1.97.0
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+      - name: Cache Cargo build
+        uses: Swatinem/rust-cache@v2
 
-      - name: Install project
-        run: uv sync --all-extras --dev
+      - name: Test native workspace
+        run: cargo test --workspace --locked
 
-      - name: Smoke test Stage 5 workflow contract
-        run: uv run python scripts/smoke_decision_spine.py --canisend canisend --workspace .release-smoke-stage5
+      - name: Build native preview
+        run: cargo build --release --locked
 
-      - name: Smoke test Stage 4 discovery contract
-        run: uv run python scripts/smoke_discovery.py --canisend canisend --workspace .release-smoke-discovery
-
-  publish-testpypi:
-    needs: [build, cross-os-smoke]
-    runs-on: ubuntu-latest
-    environment:
-      name: testpypi
-      url: https://test.pypi.org/p/canisend
-    permissions:
-      id-token: write
-    steps:
-      - name: Download distributions
-        uses: actions/download-artifact@v4
-        with:
-          name: python-distributions
-          path: dist
-
-      - name: Publish package distributions to TestPyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          repository-url: https://test.pypi.org/legacy/
-
-  smoke-test-testpypi:
-    needs: [build, publish-testpypi]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Smoke test TestPyPI package
+      - name: Smoke native preview
         shell: bash
         run: |
-          version="${{ needs.build.outputs.version }}"
-          python -m venv /tmp/canisend-testpypi
-          for attempt in 1 2 3 4 5; do
-            if /tmp/canisend-testpypi/bin/pip install \
-              --index-url https://test.pypi.org/simple/ \
-              --extra-index-url https://pypi.org/simple/ \
-              "canisend==$version"; then
-              break
-            fi
-            if [[ "$attempt" == "5" ]]; then
-              exit 1
-            fi
-            sleep 20
-          done
-          /tmp/canisend-testpypi/bin/python scripts/smoke_decision_spine.py \
-            --canisend /tmp/canisend-testpypi/bin/canisend \
-            --workspace /tmp/canisend-testpypi-stage5-example
-          /tmp/canisend-testpypi/bin/python scripts/smoke_discovery.py \
-            --canisend /tmp/canisend-testpypi/bin/canisend \
-            --workspace /tmp/canisend-testpypi-stage4-discovery
+          binary="${{ matrix.binary }}"
+          "$binary" version --json
+          "$binary" doctor --json
+          "$binary" agent capabilities --json
 
-  publish-pypi:
-    if: needs.build.outputs.publish_pypi == 'true'
-    needs: [build, publish-testpypi, smoke-test-testpypi]
-    runs-on: ubuntu-latest
-    environment:
-      name: pypi
-      url: https://pypi.org/p/canisend
-    permissions:
-      id-token: write
-    steps:
-      - name: Download distributions
-        uses: actions/download-artifact@v4
+      - name: Upload unsigned preview binary
+        uses: actions/upload-artifact@v4
         with:
-          name: python-distributions
-          path: dist
+          name: canisend-${{ matrix.name }}
+          path: ${{ matrix.binary }}
+          if-no-files-found: error
 
-      - name: Publish package distributions to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-
-  create-github-release:
-    if: needs.build.outputs.publish_pypi == 'true'
-    needs: [build, publish-pypi]
+  publication-disabled:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
+    needs: build-native-preview
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Create GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ needs.build.outputs.version }}
-          RELEASE_CHANNEL: ${{ needs.build.outputs.release_channel }}
-          PRERELEASE: ${{ needs.build.outputs.prerelease }}
-        shell: bash
-        run: |
-          label="${RELEASE_CHANNEL^}"
-          args=(
-            gh release create "$GITHUB_REF_NAME"
-            --verify-tag
-            --title "CanISend $VERSION"
-            --notes "$label release $VERSION. See CHANGELOG.md and RELEASE.md for details."
-          )
-          if [[ "$PRERELEASE" == "true" ]]; then
-            args+=(--prerelease)
-          fi
-          "${args[@]}"
+      - name: Record preview boundary
+        run: echo "Native binaries were verified as CI artifacts; public release publication remains disabled until R11."

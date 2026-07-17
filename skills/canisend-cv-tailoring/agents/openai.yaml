@@ -1,4 +1,0 @@
-interface:
-  display_name: "CanISend CV Tailoring"
-  short_description: "Prioritize CV content for a role"
-  default_prompt: "Use $canisend-cv-tailoring to tailor my CV evidence to this role."

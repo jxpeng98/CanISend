@@ -1,4 +1,0 @@
-interface:
-  display_name: "CanISend Material Review"
-  short_description: "Review materials before submission"
-  default_prompt: "Use $canisend-material-review to check my application materials before I submit manually."

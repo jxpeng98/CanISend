@@ -1,4 +1,0 @@
-interface:
-  display_name: "CanISend Job Intake"
-  short_description: "Turn job leads into complete job adverts"
-  default_prompt: "Use $canisend-job-intake to turn this job lead into a complete, reviewable CanISend job workspace."
