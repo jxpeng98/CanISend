@@ -1,0 +1,16 @@
+[
+  {
+    "id": "abc",
+    "text": "Research Fellow",
+    "categories": {"location": "London", "team": "Research"},
+    "hostedUrl": "https://jobs.lever.co/example/abc",
+    "openingPlain": "Research role",
+    "workplaceType": "hybrid",
+    "country": "GB"
+  },
+  {
+    "id": "bad",
+    "text": "No URL",
+    "categories": {}
+  }
+]

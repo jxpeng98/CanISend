@@ -54,6 +54,10 @@ jobs:
           job_id="$("$binary" --workspace "$workspace" job create --title "Lecturer in Economics" --institution "University X" --json | sed -E 's/.*"id":"([^"]+)".*/\1/')"
           "$binary" --workspace "$workspace" job import "$job_id" --file fixtures/v2-spec/job-advert.md --json
           "$binary" --workspace "$workspace" job show "$job_id" --json
+          "$binary" discovery import --file fixtures/v2-spec/discovery/leads.csv --source-name "Release fixture" --dry-run --json
+          "$binary" --workspace "$workspace" discovery import --file fixtures/v2-spec/discovery/leads.csv --source-name "Release fixture" --json
+          lead_id="$("$binary" --workspace "$workspace" discovery list --json | sed -E 's/.*"id":"([^"]+)".*/\1/')"
+          "$binary" --workspace "$workspace" discovery promote "$lead_id" --json
           "$binary" --workspace "$workspace" workspace backup "$backup" --json
           "$binary" workspace restore "$backup" "$restored" --json
           "$binary" --workspace "$restored" workspace check --json

@@ -15,6 +15,12 @@ use url::Url;
 
 use crate::IoAdapterError;
 
+mod adapters;
+
+pub use adapters::{
+    DiscoveryAdapter, GreenhouseAdapter, JobsAcUkAdapter, LeverAdapter, RssAtomAdapter,
+};
+
 pub const MAX_DISCOVERY_BATCH_BYTES: usize = 4 * 1024 * 1024;
 pub const MAX_DISCOVERY_LEADS: usize = 1_000;
 const MAX_LABEL_BYTES: usize = 300;
@@ -322,6 +328,51 @@ fn normalize_candidate(
     Ok(candidate)
 }
 
+pub(super) fn normalize_adapter_candidate(
+    candidate: DiscoveryLeadCandidate,
+) -> Result<DiscoveryLeadCandidate, (&'static str, String)> {
+    normalize_candidate(candidate)
+}
+
+pub(super) struct AdapterReportInput {
+    pub source_kind: DiscoverySourceKind,
+    pub source_name: String,
+    pub source_url: String,
+    pub cursor: Option<String>,
+    pub observed_at: UtcTimestamp,
+    pub leads: Vec<DiscoveryLeadCandidate>,
+    pub diagnostics: Vec<DiscoveryImportDiagnostic>,
+}
+
+pub(super) fn adapter_report(
+    input: AdapterReportInput,
+) -> Result<DiscoveryImportReport, IoAdapterError> {
+    validate_source_label(&input.source_name)?;
+    let source_url = validate_url(&input.source_url)?;
+    if input.leads.len() > MAX_DISCOVERY_LEADS {
+        return Err(IoAdapterError::DiscoveryInput(format!(
+            "batch exceeds {MAX_DISCOVERY_LEADS} leads"
+        )));
+    }
+    let accepted = u64::try_from(input.leads.len()).expect("bounded lead count fits u64");
+    let rejected = u64::try_from(input.diagnostics.len()).expect("bounded diagnostics fit u64");
+    Ok(DiscoveryImportReport {
+        dry_run: true,
+        accepted,
+        rejected,
+        diagnostics: input.diagnostics,
+        batch: Some(DiscoveryBatch {
+            source_kind: input.source_kind,
+            source_name: input.source_name,
+            source_url: Some(source_url),
+            cursor: input.cursor,
+            observed_at: input.observed_at,
+            leads: input.leads,
+        }),
+        receipt: None,
+    })
+}
+
 fn normalize_label(name: &'static str, value: &str) -> Result<String, (&'static str, String)> {
     let normalized = value.split_whitespace().collect::<Vec<_>>().join(" ");
     if normalized.is_empty()
@@ -418,6 +469,17 @@ fn validate_metadata(
             }
             DiscoveryMetadataValue::Integer(value) => value.to_string().len(),
             DiscoveryMetadataValue::Boolean(value) => value.to_string().len(),
+            DiscoveryMetadataValue::Json(value) => {
+                if json_depth(value, 0) > 4 {
+                    return Err((
+                        "lead.metadata_invalid",
+                        format!("metadata value is nested too deeply: {key}"),
+                    ));
+                }
+                serde_json::to_vec(value)
+                    .map_err(|error| ("lead.metadata_invalid", error.to_string()))?
+                    .len()
+            }
         };
         if value_length > MAX_METADATA_VALUE_BYTES {
             return Err((
@@ -434,6 +496,22 @@ fn validate_metadata(
         ));
     }
     Ok(())
+}
+
+fn json_depth(value: &serde_json::Value, depth: usize) -> usize {
+    match value {
+        serde_json::Value::Array(values) => values
+            .iter()
+            .map(|value| json_depth(value, depth + 1))
+            .max()
+            .unwrap_or(depth + 1),
+        serde_json::Value::Object(values) => values
+            .values()
+            .map(|value| json_depth(value, depth + 1))
+            .max()
+            .unwrap_or(depth + 1),
+        _ => depth,
+    }
 }
 
 fn valid_metadata_key(value: &str) -> bool {

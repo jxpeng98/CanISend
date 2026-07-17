@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>jobs.ac.uk</title>
+    <link>https://www.jobs.ac.uk</link>
+    <description>Jobs</description>
+    <item>
+      <guid>j1</guid>
+      <title>Lecturer in Economics at University X</title>
+      <link>https://www.jobs.ac.uk/job/ABC123</link>
+    </item>
+  </channel>
+</rss>

@@ -13,7 +13,10 @@ pub use local::{
     LocalTextDocument, LocalTextKind, MAX_LOCAL_SOURCE_BYTES, normalize_utf8_text, read_local_text,
 };
 pub use pdf::{MAX_PDF_PAGES, PdfTextDocument, extract_pdf_text, read_local_pdf};
-pub use remote::{HttpFetcher, MAX_REMOTE_SOURCE_BYTES, RemoteDocument, RemoteDocumentKind};
+pub use remote::{
+    HttpFetcher, MAX_REMOTE_SOURCE_BYTES, RemoteDocument, RemoteDocumentKind, RemotePayload,
+    RemotePayloadKind,
+};
 
 #[derive(Debug, Error)]
 pub enum IoAdapterError {
@@ -69,6 +72,7 @@ pub enum IoAdapterError {
     DiscoveryInput(String),
 }
 pub use discovery::{
-    DiscoveryFile, DiscoveryFileKind, MAX_DISCOVERY_BATCH_BYTES, MAX_DISCOVERY_LEADS,
-    parse_csv_batch, parse_host_agent_batch, parse_json_batch, read_discovery_file,
+    DiscoveryAdapter, DiscoveryFile, DiscoveryFileKind, GreenhouseAdapter, JobsAcUkAdapter,
+    LeverAdapter, MAX_DISCOVERY_BATCH_BYTES, MAX_DISCOVERY_LEADS, RssAtomAdapter, parse_csv_batch,
+    parse_host_agent_batch, parse_json_batch, read_discovery_file,
 };

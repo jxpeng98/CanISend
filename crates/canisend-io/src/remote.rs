@@ -36,6 +36,22 @@ pub struct RemoteDocument {
     pub redirect_chain: Vec<String>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RemotePayloadKind {
+    Json,
+    Xml,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RemotePayload {
+    pub kind: RemotePayloadKind,
+    pub bytes: Vec<u8>,
+    pub source_url: String,
+    pub final_url: String,
+    pub content_type: String,
+    pub redirect_chain: Vec<String>,
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct HttpFetcher {
     allow_loopback_for_tests: bool,
@@ -69,6 +85,19 @@ impl HttpFetcher {
     }
 
     pub fn fetch(&self, input: &str) -> Result<RemoteDocument, IoAdapterError> {
+        let (response, source_url, final_url, redirect_chain) = self.request(input)?;
+        decode_response(response, source_url, final_url, redirect_chain)
+    }
+
+    pub fn fetch_discovery(&self, input: &str) -> Result<RemotePayload, IoAdapterError> {
+        let (response, source_url, final_url, redirect_chain) = self.request(input)?;
+        decode_discovery_response(response, source_url, final_url, redirect_chain)
+    }
+
+    fn request(
+        &self,
+        input: &str,
+    ) -> Result<(Response, String, String, Vec<String>), IoAdapterError> {
         let source_url = parse_url(input)?;
         let source_url_string = source_url.as_str().to_owned();
         let mut current = source_url;
@@ -123,12 +152,12 @@ impl HttpFetcher {
             if !response.status().is_success() {
                 return Err(IoAdapterError::HttpStatus(response.status().as_u16()));
             }
-            return decode_response(
+            return Ok((
                 response,
                 source_url_string,
                 current.as_str().to_owned(),
                 redirect_chain,
-            );
+            ));
         }
         Err(IoAdapterError::InvalidRedirect(
             "redirect state is inconsistent".to_owned(),
@@ -261,49 +290,12 @@ fn build_client(
 }
 
 fn decode_response(
-    mut response: Response,
+    response: Response,
     source_url: String,
     final_url: String,
     redirect_chain: Vec<String>,
 ) -> Result<RemoteDocument, IoAdapterError> {
-    if let Some(encoding) = response.headers().get(CONTENT_ENCODING) {
-        let encoding = encoding.to_str().unwrap_or("invalid");
-        if !encoding.eq_ignore_ascii_case("identity") {
-            return Err(IoAdapterError::UnsupportedContentType(format!(
-                "content encoding {encoding} is not enabled"
-            )));
-        }
-    }
-    if response
-        .headers()
-        .get(CONTENT_LENGTH)
-        .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.parse::<u64>().ok())
-        .is_some_and(|length| length > MAX_REMOTE_SOURCE_BYTES)
-    {
-        return Err(IoAdapterError::InputTooLarge {
-            limit: MAX_REMOTE_SOURCE_BYTES,
-        });
-    }
-    let declared = response
-        .headers()
-        .get(CONTENT_TYPE)
-        .map(|value| value.to_str().unwrap_or("invalid").to_owned())
-        .unwrap_or_else(|| "application/octet-stream".to_owned());
-    validate_charset(&declared)?;
-    let mut original_bytes = Vec::new();
-    response
-        .by_ref()
-        .take(MAX_REMOTE_SOURCE_BYTES + 1)
-        .read_to_end(&mut original_bytes)
-        .map_err(IoAdapterError::ResponseRead)?;
-    if u64::try_from(original_bytes.len()).expect("vector length fits u64")
-        > MAX_REMOTE_SOURCE_BYTES
-    {
-        return Err(IoAdapterError::InputTooLarge {
-            limit: MAX_REMOTE_SOURCE_BYTES,
-        });
-    }
+    let (original_bytes, declared) = read_response_bytes(response, MAX_REMOTE_SOURCE_BYTES)?;
     let kind = classify_content(&declared, &original_bytes)?;
     let normalized_text = match kind {
         RemoteDocumentKind::Html => Some(normalize_html(&original_bytes)?),
@@ -319,6 +311,66 @@ fn decode_response(
         content_type: canonical_content_type(kind).to_owned(),
         redirect_chain,
     })
+}
+
+fn decode_discovery_response(
+    response: Response,
+    source_url: String,
+    final_url: String,
+    redirect_chain: Vec<String>,
+) -> Result<RemotePayload, IoAdapterError> {
+    let (bytes, declared) = read_response_bytes(
+        response,
+        u64::try_from(crate::MAX_DISCOVERY_BATCH_BYTES).expect("discovery limit fits u64"),
+    )?;
+    let kind = classify_payload(&declared, &bytes)?;
+    Ok(RemotePayload {
+        kind,
+        bytes,
+        source_url,
+        final_url,
+        content_type: canonical_payload_content_type(kind).to_owned(),
+        redirect_chain,
+    })
+}
+
+fn read_response_bytes(
+    mut response: Response,
+    limit: u64,
+) -> Result<(Vec<u8>, String), IoAdapterError> {
+    if let Some(encoding) = response.headers().get(CONTENT_ENCODING) {
+        let encoding = encoding.to_str().unwrap_or("invalid");
+        if !encoding.eq_ignore_ascii_case("identity") {
+            return Err(IoAdapterError::UnsupportedContentType(format!(
+                "content encoding {encoding} is not enabled"
+            )));
+        }
+    }
+    if response
+        .headers()
+        .get(CONTENT_LENGTH)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.parse::<u64>().ok())
+        .is_some_and(|length| length > limit)
+    {
+        return Err(IoAdapterError::InputTooLarge { limit });
+    }
+    let declared = response
+        .headers()
+        .get(CONTENT_TYPE)
+        .map(|value| value.to_str().unwrap_or("invalid").to_owned())
+        .unwrap_or_else(|| "application/octet-stream".to_owned());
+    validate_charset(&declared)?;
+    let mut original_bytes = Vec::new();
+    response
+        .by_ref()
+        .take(limit + 1)
+        .read_to_end(&mut original_bytes)
+        .map_err(IoAdapterError::ResponseRead)?;
+    if u64::try_from(original_bytes.len()).expect("vector length fits u64") > limit {
+        return Err(IoAdapterError::InputTooLarge { limit });
+    }
+    Ok((original_bytes, declared))
 }
 
 fn validate_charset(content_type: &str) -> Result<(), IoAdapterError> {
@@ -381,6 +433,52 @@ fn classify_content(declared: &str, bytes: &[u8]) -> Result<RemoteDocumentKind, 
     Ok(expected.unwrap_or(sniffed))
 }
 
+fn classify_payload(declared: &str, bytes: &[u8]) -> Result<RemotePayloadKind, IoAdapterError> {
+    if bytes.is_empty() {
+        return Err(IoAdapterError::TextUnavailable);
+    }
+    let bytes = bytes.strip_prefix(&[0xef, 0xbb, 0xbf]).unwrap_or(bytes);
+    let text = std::str::from_utf8(bytes).map_err(|_| IoAdapterError::InvalidTextEncoding)?;
+    let first = text.trim_start().chars().next();
+    let sniffed = match first {
+        Some('<') => RemotePayloadKind::Xml,
+        Some('{' | '[') if serde_json::from_str::<serde_json::Value>(text).is_ok() => {
+            RemotePayloadKind::Json
+        }
+        _ => {
+            return Err(IoAdapterError::UnsupportedContentType(
+                "body is neither JSON nor XML".to_owned(),
+            ));
+        }
+    };
+    let media_type = declared
+        .split(';')
+        .next()
+        .unwrap_or_default()
+        .trim()
+        .to_ascii_lowercase();
+    let expected = if media_type == "application/json" || media_type.ends_with("+json") {
+        Some(RemotePayloadKind::Json)
+    } else if matches!(
+        media_type.as_str(),
+        "application/xml" | "text/xml" | "application/rss+xml" | "application/atom+xml"
+    ) || media_type.ends_with("+xml")
+    {
+        Some(RemotePayloadKind::Xml)
+    } else if matches!(media_type.as_str(), "application/octet-stream" | "") {
+        None
+    } else {
+        return Err(IoAdapterError::UnsupportedContentType(media_type));
+    };
+    if expected.is_some_and(|expected| expected != sniffed) {
+        return Err(IoAdapterError::UnsupportedContentType(format!(
+            "declared {media_type}, but payload sniffing found {}",
+            canonical_payload_content_type(sniffed)
+        )));
+    }
+    Ok(expected.unwrap_or(sniffed))
+}
+
 fn normalize_html(bytes: &[u8]) -> Result<String, IoAdapterError> {
     std::str::from_utf8(bytes).map_err(|_| IoAdapterError::InvalidTextEncoding)?;
     let rendered = html2text::from_read(bytes, 1000)
@@ -401,6 +499,13 @@ const fn canonical_content_type(kind: RemoteDocumentKind) -> &'static str {
     }
 }
 
+const fn canonical_payload_content_type(kind: RemotePayloadKind) -> &'static str {
+    match kind {
+        RemotePayloadKind::Json => "application/json; charset=utf-8",
+        RemotePayloadKind::Xml => "application/xml; charset=utf-8",
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::{
@@ -411,8 +516,8 @@ mod tests {
     };
 
     use super::{
-        HttpFetcher, MAX_REMOTE_SOURCE_BYTES, RemoteDocumentKind, address_allowed,
-        classify_content, normalize_html, parse_url,
+        HttpFetcher, MAX_REMOTE_SOURCE_BYTES, RemoteDocumentKind, RemotePayloadKind,
+        address_allowed, classify_content, normalize_html, parse_url,
     };
 
     #[test]
@@ -535,6 +640,45 @@ mod tests {
                 .is_err()
         );
         server.join().expect("timeout server");
+    }
+
+    #[test]
+    fn discovery_transport_accepts_only_bounded_matching_json_or_xml() {
+        let json = r#"{"jobs":[]}"#;
+        let xml = r#"<?xml version="1.0"?><rss version="2.0"></rss>"#;
+        let (url, server) = serve(vec![
+            format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{json}",
+                json.len()
+            ),
+            format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/rss+xml\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{xml}",
+                xml.len()
+            ),
+        ]);
+        let fetcher = HttpFetcher::allowing_loopback_for_tests(Duration::from_secs(1));
+        assert_eq!(
+            fetcher
+                .fetch_discovery(&format!("{url}/jobs.json"))
+                .expect("JSON payload")
+                .kind,
+            RemotePayloadKind::Json
+        );
+        assert_eq!(
+            fetcher
+                .fetch_discovery(&format!("{url}/jobs.xml"))
+                .expect("XML payload")
+                .kind,
+            RemotePayloadKind::Xml
+        );
+        server.join().expect("payload server");
+
+        let (url, server) = serve(vec![format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{xml}",
+            xml.len()
+        )]);
+        assert!(fetcher.fetch_discovery(&url).is_err());
+        server.join().expect("mismatched payload server");
     }
 
     fn serve(responses: Vec<String>) -> (String, thread::JoinHandle<()>) {

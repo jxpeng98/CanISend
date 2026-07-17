@@ -18,7 +18,7 @@ impl CapabilityRegistry {
             available("schema.list"),
             available("workspace.lifecycle"),
             available("job.intake"),
-            planned("discovery.refresh"),
+            available("discovery.refresh"),
             planned("workflow.execute"),
             planned("render.pdf"),
         ]
@@ -63,5 +63,8 @@ mod tests {
                 item.id == "job.intake" && item.status == CapabilityStatus::Available
             })
         );
+        assert!(capabilities.iter().any(|item| {
+            item.id == "discovery.refresh" && item.status == CapabilityStatus::Available
+        }));
     }
 }

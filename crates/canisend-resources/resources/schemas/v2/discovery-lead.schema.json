@@ -28,7 +28,8 @@
         },
         {
           "type": "boolean"
-        }
+        },
+        true
       ]
     }
   },

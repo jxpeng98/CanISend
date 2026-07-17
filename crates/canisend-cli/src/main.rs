@@ -11,7 +11,8 @@ use canisend_contracts::{
 };
 use canisend_core::CapabilityRegistry;
 use canisend_io::{
-    DiscoveryFileKind, HttpFetcher, IoAdapterError, RemoteDocumentKind, extract_pdf_text,
+    DiscoveryAdapter, DiscoveryFileKind, GreenhouseAdapter, HttpFetcher, IoAdapterError,
+    JobsAcUkAdapter, LeverAdapter, RemoteDocumentKind, RssAtomAdapter, extract_pdf_text,
     parse_csv_batch, parse_host_agent_batch, parse_json_batch, read_discovery_file, read_local_pdf,
     read_local_text,
 };
@@ -20,7 +21,7 @@ use canisend_store::{
     ArtifactService, DiscoveryService, JobService, NewSource, StoreError, Workspace,
     current_utc_timestamp,
 };
-use clap::{Args, Parser, Subcommand};
+use clap::{Args, Parser, Subcommand, ValueEnum};
 use serde_json::json;
 
 #[derive(Debug, Parser)]
@@ -131,6 +132,10 @@ enum JobCommand {
 enum DiscoveryCommand {
     /// Validate or commit a normalized CSV, JSON, or host-agent lead batch.
     Import(DiscoveryImportArgs),
+    /// List the compiled discovery adapter registry and its limits.
+    Adapters(OutputArgs),
+    /// Fetch and optionally commit one configured public discovery source.
+    Refresh(DiscoveryRefreshArgs),
     /// List registered discovery sources.
     Sources(OutputArgs),
     /// List active leads, or include preserved history explicitly.
@@ -247,6 +252,35 @@ struct DiscoveryImportArgs {
     output: OutputArgs,
 }
 
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum DiscoveryAdapterName {
+    RssAtom,
+    JobsAcUk,
+    Greenhouse,
+    Lever,
+}
+
+#[derive(Debug, Args)]
+struct DiscoveryRefreshArgs {
+    /// Compiled public source adapter.
+    #[arg(long, value_enum)]
+    adapter: DiscoveryAdapterName,
+    /// Public read-only RSS, Atom, Greenhouse, or Lever endpoint.
+    #[arg(long)]
+    endpoint: String,
+    /// Source label; for Greenhouse and Lever this is the hiring organization.
+    #[arg(long)]
+    source_name: String,
+    /// Explicit organization fallback for feed entries that omit an author.
+    #[arg(long)]
+    organization: Option<String>,
+    /// Fetch and validate without changing the workspace.
+    #[arg(long)]
+    dry_run: bool,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
 #[derive(Debug, Args)]
 struct DiscoveryListArgs {
     #[arg(long)]
@@ -313,7 +347,10 @@ impl Cli {
             },
             Command::Discovery { command } => match command {
                 DiscoveryCommand::Import(arguments) => arguments.output.json,
-                DiscoveryCommand::Sources(output) => output.json,
+                DiscoveryCommand::Adapters(output) | DiscoveryCommand::Sources(output) => {
+                    output.json
+                }
+                DiscoveryCommand::Refresh(arguments) => arguments.output.json,
                 DiscoveryCommand::List(arguments) => arguments.output.json,
                 DiscoveryCommand::Show(arguments) | DiscoveryCommand::Promote(arguments) => {
                     arguments.output.json
@@ -435,6 +472,12 @@ fn execute(cli: Cli) -> CommandResult<CommandOutput> {
         Command::Discovery {
             command: DiscoveryCommand::Import(arguments),
         } => discovery_import(workspace, arguments),
+        Command::Discovery {
+            command: DiscoveryCommand::Adapters(_),
+        } => discovery_adapters(),
+        Command::Discovery {
+            command: DiscoveryCommand::Refresh(arguments),
+        } => discovery_refresh(workspace, arguments),
         Command::Discovery {
             command: DiscoveryCommand::Sources(_),
         } => discovery_sources(workspace),
@@ -1003,6 +1046,81 @@ fn discovery_import(
         &report,
         vec![
             format!("Discovery batch: {status}"),
+            format!("Accepted leads: {}", report.accepted),
+            format!("Rejected rows: {}", report.rejected),
+        ],
+    )
+}
+
+fn discovery_adapters() -> CommandResult<CommandOutput> {
+    let adapters = vec![
+        RssAtomAdapter::new("RSS/Atom", None).capabilities(),
+        JobsAcUkAdapter::new(None).capabilities(),
+        GreenhouseAdapter::new("organization").capabilities(),
+        LeverAdapter::new("organization").capabilities(),
+    ];
+    let human = adapters
+        .iter()
+        .map(|adapter| {
+            format!(
+                "{:?}: network={}, cursor={}, max_items={}",
+                adapter.kind,
+                adapter.network,
+                adapter.supports_cursor,
+                adapter.max_items_per_refresh
+            )
+        })
+        .collect();
+    success(
+        "discovery.adapters",
+        "available",
+        &json!({"adapters": adapters}),
+        human,
+    )
+}
+
+fn discovery_refresh(
+    workspace_path: Option<PathBuf>,
+    arguments: DiscoveryRefreshArgs,
+) -> CommandResult<CommandOutput> {
+    let DiscoveryRefreshArgs {
+        adapter,
+        endpoint,
+        source_name,
+        organization,
+        dry_run,
+        output: _,
+    } = arguments;
+    let adapter: Box<dyn DiscoveryAdapter> = match adapter {
+        DiscoveryAdapterName::RssAtom => Box::new(RssAtomAdapter::new(source_name, organization)),
+        DiscoveryAdapterName::JobsAcUk => Box::new(JobsAcUkAdapter::new(organization)),
+        DiscoveryAdapterName::Greenhouse => Box::new(GreenhouseAdapter::new(source_name)),
+        DiscoveryAdapterName::Lever => Box::new(LeverAdapter::new(source_name)),
+    };
+    let observed_at =
+        current_utc_timestamp().map_err(|error| store_failure("discovery.refresh", error))?;
+    let report = adapter
+        .refresh(&HttpFetcher::new(), &endpoint, observed_at)
+        .map_err(|error| io_adapter_failure("discovery.refresh", error))?;
+    let report = if dry_run {
+        report
+    } else {
+        let mut workspace = open_workspace(workspace_path, "discovery.refresh")?;
+        DiscoveryService::new(&mut workspace.database)
+            .import_report(report, ActorKind::User)
+            .map_err(|error| store_failure("discovery.refresh", error))?
+    };
+    let status = if report.dry_run {
+        "validated"
+    } else {
+        "refreshed"
+    };
+    success(
+        "discovery.refresh",
+        status,
+        &report,
+        vec![
+            format!("{} source: {status}", adapter.id()),
             format!("Accepted leads: {}", report.accepted),
             format!("Rejected rows: {}", report.rejected),
         ],

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Academic jobs</title>
+    <link>https://feed.example</link>
+    <description>Jobs</description>
+    <item>
+      <guid>one</guid>
+      <title>Lecturer in Economics</title>
+      <author>University X</author>
+      <link>https://feed.example/jobs/1</link>
+      <description>Teach and research.</description>
+    </item>
+    <item>
+      <guid>two</guid>
+      <title>Missing link</title>
+      <author>University X</author>
+    </item>
+  </channel>
+</rss>

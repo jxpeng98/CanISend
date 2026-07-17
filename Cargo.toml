@@ -23,6 +23,7 @@ publish = false
 [workspace.dependencies]
 clap = { version = "4.5.54", features = ["derive"] }
 csv = "1.4.0"
+feed-rs = "2.4.0"
 hex = "0.4.3"
 getrandom = "0.3.4"
 html2text = { version = "0.17.1", default-features = false }

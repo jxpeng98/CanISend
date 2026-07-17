@@ -13,11 +13,15 @@ publish.workspace = true
 canisend-contracts = { path = "../canisend-contracts" }
 canisend-core = { path = "../canisend-core" }
 csv.workspace = true
+feed-rs.workspace = true
 html2text.workspace = true
 lopdf.workspace = true
 pdf-extract.workspace = true
 reqwest.workspace = true
+serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
+hex.workspace = true
 thiserror.workspace = true
 time.workspace = true
 url.workspace = true

@@ -357,6 +357,12 @@ fn discovery_csv_dry_run_commit_and_promotion_are_agent_callable() {
     .expect("write discovery batch");
     let batch_path = batch.to_str().expect("batch path is UTF-8");
 
+    let adapters = run_json(&["discovery", "adapters", "--json"]);
+    assert_eq!(
+        adapters["data"]["adapters"].as_array().map(Vec::len),
+        Some(4)
+    );
+
     let dry_run = run_json(&[
         "discovery",
         "import",

@@ -1,0 +1,21 @@
+{
+  "jobs": [
+    {
+      "id": 127817,
+      "title": "Vault Designer",
+      "updated_at": "2026-07-17T09:00:00Z",
+      "requisition_id": "50",
+      "location": {"name": "London"},
+      "absolute_url": "https://boards.greenhouse.io/example/jobs/127817",
+      "language": "en",
+      "metadata": {"contract": "permanent"},
+      "content": "encoded"
+    },
+    {
+      "id": 2,
+      "title": null,
+      "location": {"name": "London"},
+      "absolute_url": "https://boards.greenhouse.io/example/jobs/2"
+    }
+  ]
+}

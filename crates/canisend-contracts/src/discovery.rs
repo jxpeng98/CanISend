@@ -40,6 +40,7 @@ pub enum DiscoveryMetadataValue {
     Text(String),
     Integer(i64),
     Boolean(bool),
+    Json(serde_json::Value),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
