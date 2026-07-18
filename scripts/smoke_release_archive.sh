@@ -1,21 +1,27 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -ne 3 ]]; then
-  echo "usage: $0 ARCHIVE TARGET_TRIPLE NEW_SMOKE_DIRECTORY" >&2
+if [[ $# -ne 4 ]]; then
+  echo "usage: $0 ARCHIVE TARGET_TRIPLE NEW_SMOKE_DIRECTORY EXPECTED_BINARY" >&2
   exit 2
 fi
 
 archive="$1"
 target="$2"
 smoke_root="$3"
+expected_binary="$4"
 script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 source "$script_dir/lib/native_paths.sh"
 archive="$(canisend_absolute_path "$archive")"
 smoke_root="$(canisend_absolute_path "$smoke_root")"
+expected_binary="$(canisend_absolute_path "$expected_binary")"
 
 if [[ ! -f "$archive" || -L "$archive" ]]; then
   echo "release smoke: archive must be a regular non-symlink file: $archive" >&2
+  exit 1
+fi
+if [[ ! -f "$expected_binary" || -L "$expected_binary" ]]; then
+  echo "release smoke: expected binary must be a regular non-symlink file: $expected_binary" >&2
   exit 1
 fi
 if [[ -e "$smoke_root" ]]; then
@@ -59,6 +65,10 @@ case "$target" in
   *) executable="$bundle/canisend" ;;
 esac
 chmod +x "$executable"
+if ! cmp -s "$expected_binary" "$executable"; then
+  echo "release smoke: packaged executable differs from the expected signed binary" >&2
+  exit 1
+fi
 
 for required in \
   "$executable" \

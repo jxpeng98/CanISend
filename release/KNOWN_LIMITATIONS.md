@@ -26,11 +26,18 @@ preserve the `0.6.x` command tree, or implement `canisend.agent/v1`.
   supported. Enabling any of these surfaces requires a new security review.
 - OCR, GUI operation, portal automation, and Linux arm64 packages are outside the `0.7` release scope.
 
-## Alpha trust boundary
+## Release trust boundary
 
 `0.7.0-alpha.*` archives may be unsigned. Verify `SHA256SUMS`, the GitHub artifact attestation, the release tag, and
-the included notices. macOS notarization and Windows Authenticode signing are mandatory gates before the release
-line can graduate beyond the signing milestone defined in the release policy.
+the included notices. Beta, release-candidate, and Stable releases fail closed unless both macOS executables pass
+Developer ID signing and Apple notarization and the Windows executable passes Azure Artifact Signing Authenticode
+verification. Their canonical signing evidence is bound to the final archive hashes and included in the release
+manifest and checksum set.
+
+CanISend currently distributes a standalone macOS executable rather than an app bundle, installer, or disk image.
+Apple creates and publishes a notarization ticket for a standalone binary but does not support stapling that ticket
+to the binary. Initial Gatekeeper assessment may therefore require online ticket retrieval even though the release
+workflow proved an accepted notarization request and retained the log digest.
 
 No telemetry is enabled or sent by default. Report reproducible problems through the repository issue templates;
 remove private job or profile content before attaching diagnostics.

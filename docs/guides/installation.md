@@ -55,16 +55,42 @@ runtime-package lookup, and `Python runtime: not required`. Do not continue with
 For complete checksum, SBOM, manifest, and GitHub provenance verification, follow the
 [release verification guide](release-verification.md).
 
-## Preview signing status
+## Release signing status
 
-Alpha and preview archives may be unsigned until the R11 signing/notarization gates are complete. Verify the
-published checksum and release provenance. Do not disable operating-system security globally. Stable installation
-instructions will name the exact notarized/signed artifacts and supported package-manager channels after those
-channels pass the release matrix.
+`0.7.0-alpha.*` archives may be unsigned under the explicit Alpha policy. Verify the published checksum and release
+provenance. Beta, release-candidate, and Stable publication fails closed unless both macOS executables have a verified
+Developer ID signature, secure timestamp, and accepted Apple notarization, and the Windows executable has a verified
+Azure Artifact Signing Authenticode signature plus RFC 3161 timestamp. Each signed release also publishes canonical
+JSON evidence bound to the final archive hash.
 
 An unsigned alpha may trigger macOS Gatekeeper or Windows SmartScreen. Alpha testers should confirm the tag,
 checksum, and GitHub attestation before making a one-binary exception through the operating system's normal security
 UI. Never disable Gatekeeper, SmartScreen, antivirus, or execution policy globally to run CanISend.
+
+For Beta or later on macOS, verify the extracted executable before running it:
+
+```console
+codesign --verify --strict --verbose=4 ./canisend-VERSION-TARGET/canisend
+codesign --display --verbose=4 ./canisend-VERSION-TARGET/canisend
+spctl --assess --type execute --verbose=4 ./canisend-VERSION-TARGET/canisend
+```
+
+CanISend is a standalone command-line executable. Apple publishes its notarization ticket online but does not
+currently support stapling a ticket to a standalone binary, so `spctl` may need network access on first assessment.
+The release evidence records this boundary explicitly and never claims a stapled ticket.
+
+For Beta or later on Windows PowerShell:
+
+```powershell
+$signature = Get-AuthenticodeSignature `
+  .\canisend-VERSION-x86_64-pc-windows-msvc\canisend.exe
+$signature.Status
+$signature.SignerCertificate.Subject
+$signature.TimeStamperCertificate.Subject
+```
+
+`Status` must be `Valid`; both certificate fields must be present, and the signer must match the published signing
+evidence. Continue with the complete [release verification guide](release-verification.md) before using private data.
 
 ## Package-manager candidates
 

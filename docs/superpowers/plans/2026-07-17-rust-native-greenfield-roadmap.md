@@ -204,6 +204,13 @@
   metadata that cannot authorize publication. Repository checks reject source/output drift, unknown files, symlinks,
   or missing channel targets. Seven xtask tests, Ruby/JSON/YAML syntax checks, Homebrew 6 style, and the complete
   release check pass. Credential-backed signing and notarization is active.
+- 2026-07-18: Implemented the fail-closed R11.2 signing boundary. A machine-checked policy permits unsigned Alpha but
+  requires Apple Developer ID, hardened runtime, secure timestamps, accepted notarization logs, and Azure Artifact
+  Signing Public Trust with GitHub OIDC and RFC 3161 timestamping for every later stage. Canonical evidence is
+  verified before packaging and then bound to the exact final archive hash; non-Alpha assembly requires both macOS
+  records and the Windows record. Eleven xtask tests, Clippy, Bash syntax, YAML parsing, and actionlint pass.
+  Ordinary CI now parses the Authenticode verifier on Windows. Real credential-backed qualification remains open and
+  the roadmap completion checkbox is intentionally unchanged.
 
 ## 1. Executive Decision
 
@@ -1883,6 +1890,12 @@ and the [candidate note](../../notes/rust-native/2026-07-18-r11-beta-channel-can
 Cask, Scoop, and WinGet files to exact verified release-manifest/archive digests. All candidate source records forbid
 publication. Signed Beta assets must produce a new set and pass official native validators before any external
 channel changes.
+
+**R11.2 signing implementation:** [ADR-RN-0011](../../architecture/rust-native/decisions/0011-require-credential-backed-platform-signing-evidence.md)
+and the [signing-gate note](../../notes/rust-native/2026-07-18-r11-beta-signing-gates.md) define a fail-closed policy,
+credential readiness gate, exact Apple/Windows post-sign verification, and canonical evidence bound to final archive
+bytes. Implementation is complete, but the checklist remains open until a real Beta dry-run produces accepted
+evidence for both macOS targets and Windows without exposing signing material.
 
 #### R11.3 Release candidate
 

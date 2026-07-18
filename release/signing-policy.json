@@ -1,0 +1,64 @@
+{
+  "schema": "canisend.signing-policy/v1",
+  "stage_boundary": {
+    "alpha_may_be_unsigned": true,
+    "beta_rc_stable_require_all_configured_signers": true,
+    "missing_credentials": "fail-closed"
+  },
+  "macos": {
+    "targets": [
+      "aarch64-apple-darwin",
+      "x86_64-apple-darwin"
+    ],
+    "service": "apple-developer-id-notarytool",
+    "certificate_type": "Developer ID Application",
+    "code_identifier": "io.github.jxpeng98.canisend",
+    "hardened_runtime": true,
+    "secure_timestamp": true,
+    "notarization_submission": "zip",
+    "standalone_ticket_stapling_supported": false,
+    "required_secrets": [
+      "APPLE_DEVELOPER_ID_P12_BASE64",
+      "APPLE_DEVELOPER_ID_P12_PASSWORD",
+      "APPLE_NOTARY_KEY_P8_BASE64"
+    ],
+    "required_variables": [
+      "APPLE_SIGNING_IDENTITY",
+      "APPLE_TEAM_ID",
+      "APPLE_NOTARY_KEY_ID",
+      "APPLE_NOTARY_ISSUER_ID"
+    ]
+  },
+  "windows": {
+    "targets": [
+      "x86_64-pc-windows-msvc"
+    ],
+    "service": "azure-artifact-signing",
+    "trust_model": "public-trust",
+    "authentication": "github-oidc",
+    "file_digest": "SHA256",
+    "timestamp_digest": "SHA256",
+    "timestamp_url": "http://timestamp.acs.microsoft.com",
+    "required_secrets": [],
+    "required_variables": [
+      "AZURE_CLIENT_ID",
+      "AZURE_TENANT_ID",
+      "AZURE_SUBSCRIPTION_ID",
+      "AZURE_ARTIFACT_SIGNING_ENDPOINT",
+      "AZURE_ARTIFACT_SIGNING_ACCOUNT",
+      "AZURE_ARTIFACT_SIGNING_PROFILE",
+      "WINDOWS_SIGNING_EXPECTED_SUBJECT"
+    ]
+  },
+  "linux": {
+    "targets": [
+      "x86_64-unknown-linux-gnu",
+      "x86_64-unknown-linux-musl"
+    ],
+    "code_signing": "none",
+    "integrity": [
+      "sha256sums",
+      "github-oidc-provenance"
+    ]
+  }
+}

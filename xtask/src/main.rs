@@ -21,6 +21,8 @@ const RELEASE_MANIFEST_SCHEMA: &str = "canisend.release-manifest/v1";
 const BETA_READINESS_SCHEMA: &str = "canisend.beta-readiness/v1";
 const BETA_CONTRACT_FREEZE_SCHEMA: &str = "canisend.beta-contract-freeze/v1";
 const CHANNEL_CANDIDATE_SOURCE_SCHEMA: &str = "canisend.channel-candidate-source/v1";
+const SIGNING_POLICY_SCHEMA: &str = "canisend.signing-policy/v1";
+const CODE_SIGNING_EVIDENCE_SCHEMA: &str = "canisend.code-signing-evidence/v1";
 const WINGET_MANIFEST_VERSION: &str = "1.12.0";
 const NATIVE_ALPHA_TAG: &str = "v0.7.0-alpha.1";
 const NATIVE_ALPHA_SOURCE: &str = "4cec4ec48cc2e96f3798dde0b438d3aaa617a2f8";
@@ -50,6 +52,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
             check_beta_readiness()?;
             check_beta_contract_freeze()?;
             check_channel_candidates()?;
+            check_signing_policy()?;
             check_release_contract()
         }
         [area, command] if area == "release" && command == "freeze-candidate" => {
@@ -80,9 +83,20 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
         {
             write_channel_candidates(tag, Path::new(assets), Path::new(output))
         }
+        [area, command, tag, target, evidence, binary, archive]
+            if area == "release" && command == "bind-signing-evidence" =>
+        {
+            bind_signing_evidence(
+                tag,
+                target,
+                Path::new(evidence),
+                Path::new(binary),
+                Path::new(archive),
+            )
+        }
         _ => Err(
             "usage: cargo run -p xtask -- schemas <check|write> | <resources|docs> check | \
-             release <check|freeze-candidate|validate-tag TAG|sbom OUTPUT|assemble TAG COMMIT ARTIFACTS OUTPUT|verify TAG DIRECTORY|channels TAG ASSETS OUTPUT>"
+             release <check|freeze-candidate|validate-tag TAG|sbom OUTPUT|assemble TAG COMMIT ARTIFACTS OUTPUT|verify TAG DIRECTORY|channels TAG ASSETS OUTPUT|bind-signing-evidence TAG TARGET EVIDENCE BINARY ARCHIVE>"
                 .to_owned(),
         ),
     }
@@ -633,6 +647,158 @@ fn check_beta_contract_freeze() -> Result<(), String> {
         "beta contract freeze: ok ({} schemas, migrations frozen through {})",
         expected["agent"]["public_schema_files"], FROZEN_MIGRATIONS_THROUGH
     );
+    Ok(())
+}
+
+fn check_signing_policy() -> Result<(), String> {
+    let root = repository_root();
+    let path = root.join("release/signing-policy.json");
+    let actual: Value =
+        serde_json::from_slice(&fs::read(&path).map_err(|error| {
+            format!("signing policy is missing at {}: {error}", path.display())
+        })?)
+        .map_err(|error| format!("signing policy is invalid JSON: {error}"))?;
+    let expected = json!({
+        "schema": SIGNING_POLICY_SCHEMA,
+        "stage_boundary": {
+            "alpha_may_be_unsigned": true,
+            "beta_rc_stable_require_all_configured_signers": true,
+            "missing_credentials": "fail-closed"
+        },
+        "macos": {
+            "targets": ["aarch64-apple-darwin", "x86_64-apple-darwin"],
+            "service": "apple-developer-id-notarytool",
+            "certificate_type": "Developer ID Application",
+            "code_identifier": "io.github.jxpeng98.canisend",
+            "hardened_runtime": true,
+            "secure_timestamp": true,
+            "notarization_submission": "zip",
+            "standalone_ticket_stapling_supported": false,
+            "required_secrets": [
+                "APPLE_DEVELOPER_ID_P12_BASE64",
+                "APPLE_DEVELOPER_ID_P12_PASSWORD",
+                "APPLE_NOTARY_KEY_P8_BASE64"
+            ],
+            "required_variables": [
+                "APPLE_SIGNING_IDENTITY",
+                "APPLE_TEAM_ID",
+                "APPLE_NOTARY_KEY_ID",
+                "APPLE_NOTARY_ISSUER_ID"
+            ]
+        },
+        "windows": {
+            "targets": ["x86_64-pc-windows-msvc"],
+            "service": "azure-artifact-signing",
+            "trust_model": "public-trust",
+            "authentication": "github-oidc",
+            "file_digest": "SHA256",
+            "timestamp_digest": "SHA256",
+            "timestamp_url": "http://timestamp.acs.microsoft.com",
+            "required_secrets": [],
+            "required_variables": [
+                "AZURE_CLIENT_ID",
+                "AZURE_TENANT_ID",
+                "AZURE_SUBSCRIPTION_ID",
+                "AZURE_ARTIFACT_SIGNING_ENDPOINT",
+                "AZURE_ARTIFACT_SIGNING_ACCOUNT",
+                "AZURE_ARTIFACT_SIGNING_PROFILE",
+                "WINDOWS_SIGNING_EXPECTED_SUBJECT"
+            ]
+        },
+        "linux": {
+            "targets": ["x86_64-unknown-linux-gnu", "x86_64-unknown-linux-musl"],
+            "code_signing": "none",
+            "integrity": ["sha256sums", "github-oidc-provenance"]
+        }
+    });
+    if actual != expected {
+        return Err("release signing policy drifted from the fail-closed Beta contract".to_owned());
+    }
+    let readiness_path = root.join("scripts/check_signing_readiness.sh");
+    let macos_path = root.join("scripts/sign_and_notarize_macos.sh");
+    let windows_path = root.join("scripts/verify_windows_authenticode.ps1");
+    let readiness = fs::read_to_string(&readiness_path)
+        .map_err(|error| format!("release signing readiness script is missing: {error}"))?;
+    let macos = fs::read_to_string(&macos_path)
+        .map_err(|error| format!("macOS signing script is missing: {error}"))?;
+    let windows = fs::read_to_string(&windows_path)
+        .map_err(|error| format!("Windows signing verifier is missing: {error}"))?;
+    for required in [
+        "release/signing-policy.json",
+        "alpha|beta|rc|stable",
+        "APPLE_DEVELOPER_ID_P12_BASE64",
+        "APPLE_DEVELOPER_ID_P12_PASSWORD",
+        "APPLE_NOTARY_KEY_P8_BASE64",
+        "APPLE_SIGNING_IDENTITY",
+        "APPLE_TEAM_ID",
+        "APPLE_NOTARY_KEY_ID",
+        "APPLE_NOTARY_ISSUER_ID",
+        "AZURE_CLIENT_ID",
+        "AZURE_TENANT_ID",
+        "AZURE_SUBSCRIPTION_ID",
+        "AZURE_ARTIFACT_SIGNING_ENDPOINT",
+        "AZURE_ARTIFACT_SIGNING_ACCOUNT",
+        "AZURE_ARTIFACT_SIGNING_PROFILE",
+        "WINDOWS_SIGNING_EXPECTED_SUBJECT",
+    ] {
+        if !readiness.contains(required) {
+            return Err(format!(
+                "release signing readiness script is missing `{required}`"
+            ));
+        }
+    }
+    for required in [
+        "--identifier io.github.jxpeng98.canisend",
+        "--options runtime",
+        "--timestamp",
+        "com.apple.security.get-task-allow",
+        "notarytool submit",
+        "notarytool log",
+        "notary_error_count",
+        "canisend.code-signing-evidence/v1",
+        "stapling_supported: false",
+    ] {
+        if !macos.contains(required) {
+            return Err(format!("macOS signing script is missing `{required}`"));
+        }
+    }
+    for required in [
+        "signtool.exe",
+        "verify /pa /all /v",
+        "Get-AuthenticodeSignature",
+        "CANISEND_WINDOWS_EXPECTED_SIGNER_SUBJECT",
+        "TimeStamperCertificate",
+        "canisend.code-signing-evidence/v1",
+        "timestamp_present = $true",
+        "service = \"azure-artifact-signing\"",
+    ] {
+        if !windows.contains(required) {
+            return Err(format!("Windows signing verifier is missing `{required}`"));
+        }
+    }
+    let workflow_path = root.join(".github/workflows/release.yml");
+    let workflow = fs::read_to_string(&workflow_path)
+        .map_err(|error| format!("release workflow is missing: {error}"))?;
+    for required in [
+        "release/signing-policy.json",
+        "check_signing_readiness.sh",
+        "sign_and_notarize_macos.sh",
+        "verify_windows_authenticode.ps1",
+        "bind-signing-evidence",
+        "azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43",
+        "azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82",
+        "id-token: write",
+        "file-digest: SHA256",
+        "timestamp-rfc3161: http://timestamp.acs.microsoft.com",
+        "timestamp-digest: SHA256",
+    ] {
+        if !workflow.contains(required) {
+            return Err(format!(
+                "release workflow is missing signing gate `{required}`"
+            ));
+        }
+    }
+    println!("signing policy: ok (Apple notarization + Windows Artifact Signing)");
     Ok(())
 }
 
@@ -1331,6 +1497,318 @@ fn validate_lower_hex(context: &str, value: &str, length: usize) -> Result<(), S
     Ok(())
 }
 
+fn bind_signing_evidence(
+    tag: &str,
+    target_name: &str,
+    evidence_path: &Path,
+    binary_path: &Path,
+    archive_path: &Path,
+) -> Result<(), String> {
+    validate_release_tag(tag)?;
+    let version = env!("CARGO_PKG_VERSION");
+    let target = release_targets()?
+        .into_iter()
+        .find(|target| target.triple == target_name)
+        .ok_or_else(|| format!("unknown release signing target `{target_name}`"))?;
+    if target.signing == "none" {
+        return Err(format!(
+            "release target `{target_name}` does not use platform code signing"
+        ));
+    }
+    reject_symlink(binary_path)?;
+    if binary_path.file_name().and_then(|name| name.to_str()) != Some(&target.executable) {
+        return Err(format!(
+            "signing evidence binary must be named `{}`",
+            target.executable
+        ));
+    }
+    reject_symlink(evidence_path)?;
+    reject_symlink(archive_path)?;
+    let expected_archive = format!("canisend-{version}-{target_name}.{}", target.archive);
+    if archive_path.file_name().and_then(|name| name.to_str()) != Some(&expected_archive) {
+        return Err(format!(
+            "signing evidence archive must be named `{expected_archive}`"
+        ));
+    }
+    let actual: Value = serde_json::from_slice(&fs::read(evidence_path).map_err(|error| {
+        format!(
+            "signing evidence is missing at {}: {error}",
+            evidence_path.display()
+        )
+    })?)
+    .map_err(|error| format!("signing evidence is invalid JSON: {error}"))?;
+    let mut canonical = canonical_signing_evidence(&actual, &target, version, None)?;
+    if canonical != actual {
+        return Err("unbound signing evidence contains unknown or non-canonical fields".to_owned());
+    }
+    if canonical["binary"]["sha256"] != sha256_file(binary_path)?
+        || canonical["binary"]["size"] != file_size(binary_path)?
+    {
+        return Err(format!(
+            "signing evidence does not match signed binary `{}`",
+            binary_path.display()
+        ));
+    }
+    canonical["archive"] = json!({
+        "file": expected_archive,
+        "sha256": sha256_file(archive_path)?,
+        "size": file_size(archive_path)?,
+    });
+    let canonical = canonical_signing_evidence(&canonical, &target, version, Some(archive_path))?;
+    write_pretty_json(evidence_path, &canonical)?;
+    println!(
+        "signing evidence: bound {target_name} to {}",
+        archive_path.display()
+    );
+    Ok(())
+}
+
+fn read_bound_signing_evidence(
+    path: &Path,
+    target: &ReleaseTarget,
+    version: &str,
+    archive: &Path,
+) -> Result<Value, String> {
+    reject_symlink(path)?;
+    let actual: Value =
+        serde_json::from_slice(&fs::read(path).map_err(|error| {
+            format!("signing evidence is missing at {}: {error}", path.display())
+        })?)
+        .map_err(|error| format!("signing evidence is invalid JSON: {error}"))?;
+    let canonical = canonical_signing_evidence(&actual, target, version, Some(archive))?;
+    if actual != canonical {
+        return Err(format!(
+            "signing evidence contains unknown or non-canonical fields: {}",
+            path.display()
+        ));
+    }
+    Ok(canonical)
+}
+
+fn canonical_signing_evidence(
+    value: &Value,
+    target: &ReleaseTarget,
+    version: &str,
+    archive: Option<&Path>,
+) -> Result<Value, String> {
+    if value["schema"] != CODE_SIGNING_EVIDENCE_SCHEMA
+        || value["version"] != version
+        || value["target"] != target.triple
+        || value["status"] != "verified"
+    {
+        return Err(format!(
+            "code-signing evidence identity is invalid for `{}`",
+            target.triple
+        ));
+    }
+    let expected_kind = match target.signing.as_str() {
+        "apple" => "apple-developer-id-notarization",
+        "authenticode" => "windows-authenticode-artifact-signing",
+        other => {
+            return Err(format!(
+                "target `{}` has unsupported signing kind `{other}`",
+                target.triple
+            ));
+        }
+    };
+    if value["kind"] != expected_kind {
+        return Err(format!(
+            "code-signing evidence kind is invalid for `{}`",
+            target.triple
+        ));
+    }
+    let binary = &value["binary"];
+    if binary["file"] != target.executable {
+        return Err(format!(
+            "signed binary file is invalid for `{}`",
+            target.triple
+        ));
+    }
+    let binary_sha = required_string(binary, "sha256", "signed binary")?;
+    validate_lower_hex("signed binary SHA-256", binary_sha, 64)?;
+    let binary_size = binary["size"]
+        .as_u64()
+        .filter(|size| *size > 0)
+        .ok_or_else(|| "signed binary has no positive size".to_owned())?;
+
+    let archive_value = if let Some(archive_path) = archive {
+        reject_symlink(archive_path)?;
+        let expected_name = format!("canisend-{version}-{}.{}", target.triple, target.archive);
+        if archive_path.file_name().and_then(|name| name.to_str()) != Some(&expected_name) {
+            return Err(format!("signed archive must be named `{expected_name}`"));
+        }
+        let archive_value = &value["archive"];
+        let archive_sha = required_string(archive_value, "sha256", "signed archive")?;
+        validate_lower_hex("signed archive SHA-256", archive_sha, 64)?;
+        let archive_size = archive_value["size"]
+            .as_u64()
+            .filter(|size| *size > 0)
+            .ok_or_else(|| "signed archive has no positive size".to_owned())?;
+        if archive_value["file"] != expected_name
+            || archive_sha != sha256_file(archive_path)?
+            || archive_size != file_size(archive_path)?
+        {
+            return Err(format!(
+                "code-signing evidence is not bound to `{expected_name}`"
+            ));
+        }
+        json!({
+            "file": expected_name,
+            "sha256": archive_sha,
+            "size": archive_size,
+        })
+    } else {
+        if !value["archive"].is_null() {
+            return Err("unbound signing evidence must use a null archive".to_owned());
+        }
+        Value::Null
+    };
+
+    let signer = &value["signer"];
+    let identity = bounded_evidence_string(signer, "identity", "signer", 256)?;
+    let (canonical_signer, canonical_verification) = match target.signing.as_str() {
+        "apple" => {
+            if !identity.starts_with("Developer ID Application:") {
+                return Err("macOS signer is not a Developer ID Application identity".to_owned());
+            }
+            let team_id = bounded_evidence_string(signer, "team_id", "Apple signer", 32)?;
+            if team_id.len() != 10
+                || !team_id
+                    .bytes()
+                    .all(|byte| byte.is_ascii_uppercase() || byte.is_ascii_digit())
+            {
+                return Err(
+                    "Apple signer team ID must be 10 uppercase alphanumeric characters".to_owned(),
+                );
+            }
+            let code_identifier =
+                bounded_evidence_string(signer, "code_identifier", "Apple signer", 128)?;
+            if code_identifier != "io.github.jxpeng98.canisend" {
+                return Err("Apple code-signing identifier is invalid".to_owned());
+            }
+            let verification = &value["verification"];
+            if verification["developer_id"] != true
+                || verification["hardened_runtime"] != true
+                || verification["secure_timestamp"] != true
+                || verification["notarization_status"] != "Accepted"
+                || verification["standalone_ticket_stapled"] != false
+                || verification["stapling_supported"] != false
+                || verification["notary_error_count"] != 0
+            {
+                return Err("Apple signing/notarization evidence is incomplete".to_owned());
+            }
+            let submission_id = bounded_evidence_string(
+                verification,
+                "notary_submission_id",
+                "Apple notarization",
+                36,
+            )?;
+            validate_uuid_text("Apple notarization submission ID", submission_id)?;
+            let log_sha = required_string(verification, "notary_log_sha256", "Apple notarization")?;
+            validate_lower_hex("Apple notarization log SHA-256", log_sha, 64)?;
+            let warning_count = verification["notary_warning_count"]
+                .as_u64()
+                .ok_or_else(|| "Apple notarization warning count is missing".to_owned())?;
+            (
+                json!({
+                    "identity": identity,
+                    "team_id": team_id,
+                    "code_identifier": code_identifier,
+                }),
+                json!({
+                    "developer_id": true,
+                    "hardened_runtime": true,
+                    "secure_timestamp": true,
+                    "notarization_status": "Accepted",
+                    "notary_submission_id": submission_id,
+                    "notary_log_sha256": log_sha,
+                    "notary_error_count": 0,
+                    "notary_warning_count": warning_count,
+                    "standalone_ticket_stapled": false,
+                    "stapling_supported": false,
+                }),
+            )
+        }
+        "authenticode" => {
+            let thumbprint = required_string(signer, "thumbprint", "Windows signer")?;
+            validate_lower_hex("Windows signer thumbprint", thumbprint, 40)?;
+            let verification = &value["verification"];
+            if verification["authenticode_status"] != "Valid"
+                || verification["file_digest"] != "SHA256"
+                || verification["timestamp_digest"] != "SHA256"
+                || verification["timestamp_present"] != true
+                || verification["service"] != "azure-artifact-signing"
+            {
+                return Err("Windows Authenticode evidence is incomplete".to_owned());
+            }
+            let timestamp_identity = bounded_evidence_string(
+                verification,
+                "timestamp_identity",
+                "Windows timestamp",
+                256,
+            )?;
+            (
+                json!({
+                    "identity": identity,
+                    "thumbprint": thumbprint,
+                }),
+                json!({
+                    "authenticode_status": "Valid",
+                    "file_digest": "SHA256",
+                    "timestamp_digest": "SHA256",
+                    "timestamp_present": true,
+                    "timestamp_identity": timestamp_identity,
+                    "service": "azure-artifact-signing",
+                }),
+            )
+        }
+        _ => unreachable!("signing kind was checked above"),
+    };
+
+    Ok(json!({
+        "schema": CODE_SIGNING_EVIDENCE_SCHEMA,
+        "version": version,
+        "target": target.triple,
+        "kind": expected_kind,
+        "status": "verified",
+        "binary": {
+            "file": target.executable,
+            "sha256": binary_sha,
+            "size": binary_size,
+        },
+        "archive": archive_value,
+        "signer": canonical_signer,
+        "verification": canonical_verification,
+    }))
+}
+
+fn bounded_evidence_string<'a>(
+    value: &'a Value,
+    name: &str,
+    context: &str,
+    maximum: usize,
+) -> Result<&'a str, String> {
+    let field = required_string(value, name, context)?;
+    if field.len() > maximum || field.chars().any(char::is_control) {
+        return Err(format!(
+            "{context} field `{name}` exceeds its bound or contains control characters"
+        ));
+    }
+    Ok(field)
+}
+
+fn validate_uuid_text(context: &str, value: &str) -> Result<(), String> {
+    if value.len() != 36
+        || value.bytes().enumerate().any(|(index, byte)| match index {
+            8 | 13 | 18 | 23 => byte != b'-',
+            _ => !byte.is_ascii_hexdigit(),
+        })
+    {
+        return Err(format!("{context} must be a UUID"));
+    }
+    Ok(())
+}
+
 fn validate_release_tag(tag: &str) -> Result<ReleaseStage, String> {
     let expected = format!("v{}", env!("CARGO_PKG_VERSION"));
     if tag != expected {
@@ -1561,6 +2039,7 @@ fn assemble_release(
     let version = env!("CARGO_PKG_VERSION");
     let targets = release_targets()?;
     let mut archive_entries = Vec::with_capacity(targets.len());
+    let mut signing_evidence_paths = Vec::new();
     for target in &targets {
         let file_name = format!("canisend-{version}-{}.{}", target.triple, target.archive);
         let source = find_unique_file(artifacts_root, &file_name)?;
@@ -1573,6 +2052,24 @@ fn assemble_release(
                 destination.display()
             )
         })?;
+        let signing_evidence = if !matches!(stage, ReleaseStage::Alpha) && target.signing != "none"
+        {
+            let evidence_name = format!("canisend-{version}-{}-signing.json", target.triple);
+            let evidence_source = find_unique_file(artifacts_root, &evidence_name)?;
+            read_bound_signing_evidence(&evidence_source, target, version, &destination)?;
+            let evidence_destination = output.join(&evidence_name);
+            fs::copy(&evidence_source, &evidence_destination).map_err(|error| {
+                format!(
+                    "could not copy signing evidence {} to {}: {error}",
+                    evidence_source.display(),
+                    evidence_destination.display()
+                )
+            })?;
+            signing_evidence_paths.push(evidence_destination);
+            Value::String(evidence_name)
+        } else {
+            Value::Null
+        };
         archive_entries.push(json!({
             "archive": file_name,
             "archive_format": target.archive,
@@ -1581,6 +2078,7 @@ fn assemble_release(
             "sha256": sha256_file(&destination)?,
             "signing_kind": target.signing,
             "size": file_size(&destination)?,
+            "signing_evidence": signing_evidence,
             "target": target.triple,
         }));
     }
@@ -1594,6 +2092,9 @@ fn assemble_release(
         ("THIRD_PARTY_NOTICES.md", "THIRD_PARTY_NOTICES.md"),
     ];
     let mut supplemental_entries = vec![release_file_entry(&sbom_path)?];
+    for evidence in &signing_evidence_paths {
+        supplemental_entries.push(release_file_entry(evidence)?);
+    }
     for (name, source) in supplemental_sources {
         let source = repository_root().join(source);
         let destination = output.join(name);
@@ -1766,6 +2267,29 @@ fn verify_release_manifest_contents(
                 target.triple
             ));
         }
+        let signing_evidence_name =
+            if !matches!(stage, ReleaseStage::Alpha) && target.signing != "none" {
+                Some(format!("canisend-{version}-{}-signing.json", target.triple))
+            } else {
+                None
+            };
+        match signing_evidence_name {
+            Some(ref evidence_name) if entry["signing_evidence"] == *evidence_name => {
+                read_bound_signing_evidence(
+                    &directory.join(evidence_name),
+                    &target,
+                    version,
+                    &directory.join(&file_name),
+                )?;
+            }
+            None if entry["signing_evidence"].is_null() => {}
+            _ => {
+                return Err(format!(
+                    "release signing evidence reference is invalid for `{}`",
+                    target.triple
+                ));
+            }
+        }
         let declared_sha = required_string(entry, "sha256", "release artifact")?;
         validate_lower_hex(
             &format!("release artifact `{}` SHA-256", target.triple),
@@ -1785,13 +2309,22 @@ fn verify_release_manifest_contents(
         }
     }
 
-    let expected_supplemental = BTreeSet::from([
+    let mut expected_supplemental = BTreeSet::from([
         "ISSUE_COLLECTION.md".to_owned(),
         "KNOWN_LIMITATIONS.md".to_owned(),
         "RELEASE_NOTES.md".to_owned(),
         "THIRD_PARTY_NOTICES.md".to_owned(),
         format!("canisend-{version}-sbom.cdx.json"),
     ]);
+    if !matches!(stage, ReleaseStage::Alpha) {
+        for target in release_targets()?
+            .into_iter()
+            .filter(|target| target.signing != "none")
+        {
+            expected_supplemental
+                .insert(format!("canisend-{version}-{}-signing.json", target.triple));
+        }
+    }
     let supplemental = manifest["supplemental_files"]
         .as_array()
         .ok_or_else(|| "release manifest supplemental files are missing".to_owned())?;
@@ -1992,6 +2525,67 @@ mod tests {
         .expect("sample channel source")
     }
 
+    fn sample_apple_signing_evidence() -> Value {
+        json!({
+            "schema": CODE_SIGNING_EVIDENCE_SCHEMA,
+            "version": env!("CARGO_PKG_VERSION"),
+            "target": "aarch64-apple-darwin",
+            "kind": "apple-developer-id-notarization",
+            "status": "verified",
+            "binary": {
+                "file": "canisend",
+                "sha256": "5555555555555555555555555555555555555555555555555555555555555555",
+                "size": 42
+            },
+            "archive": null,
+            "signer": {
+                "identity": "Developer ID Application: CanISend Test (ABCDE12345)",
+                "team_id": "ABCDE12345",
+                "code_identifier": "io.github.jxpeng98.canisend"
+            },
+            "verification": {
+                "developer_id": true,
+                "hardened_runtime": true,
+                "secure_timestamp": true,
+                "notarization_status": "Accepted",
+                "notary_submission_id": "12345678-1234-1234-1234-123456789abc",
+                "notary_log_sha256": "6666666666666666666666666666666666666666666666666666666666666666",
+                "notary_error_count": 0,
+                "notary_warning_count": 0,
+                "standalone_ticket_stapled": false,
+                "stapling_supported": false
+            }
+        })
+    }
+
+    fn sample_windows_signing_evidence() -> Value {
+        json!({
+            "schema": CODE_SIGNING_EVIDENCE_SCHEMA,
+            "version": env!("CARGO_PKG_VERSION"),
+            "target": "x86_64-pc-windows-msvc",
+            "kind": "windows-authenticode-artifact-signing",
+            "status": "verified",
+            "binary": {
+                "file": "canisend.exe",
+                "sha256": "7777777777777777777777777777777777777777777777777777777777777777",
+                "size": 84
+            },
+            "archive": null,
+            "signer": {
+                "identity": "CN=CanISend Test",
+                "thumbprint": "8888888888888888888888888888888888888888"
+            },
+            "verification": {
+                "authenticode_status": "Valid",
+                "file_digest": "SHA256",
+                "timestamp_digest": "SHA256",
+                "timestamp_present": true,
+                "timestamp_identity": "CN=Microsoft Public RSA Time Stamping Authority",
+                "service": "azure-artifact-signing"
+            }
+        })
+    }
+
     #[test]
     fn workspace_version_maps_to_exact_alpha_tag() {
         assert_eq!(
@@ -2032,6 +2626,11 @@ mod tests {
     }
 
     #[test]
+    fn signing_policy_matches_fail_closed_workflow_contract() {
+        check_signing_policy().expect("signing policy");
+    }
+
+    #[test]
     fn channel_candidates_preserve_archives_and_nested_binary_paths() {
         let files = render_channel_candidates(&sample_channel_source()).expect("render candidates");
         let homebrew = &files["homebrew/Casks/canisend.rb"];
@@ -2063,5 +2662,102 @@ mod tests {
         let mut value = sample_channel_source().to_value();
         value["publication_authorized"] = Value::Bool(true);
         assert!(channel_candidate_source_from_value(&value).is_err());
+    }
+
+    #[test]
+    fn signing_evidence_binds_exact_final_archive() {
+        let root = std::env::temp_dir().join(format!(
+            "canisend-xtask-signing-evidence-{}",
+            std::process::id()
+        ));
+        if root.exists() {
+            fs::remove_dir_all(&root).expect("remove stale signing fixture");
+        }
+        fs::create_dir_all(&root).expect("create signing fixture");
+        let binary = root.join("canisend");
+        fs::write(&binary, b"signed binary fixture").expect("write signed binary fixture");
+        let evidence = root.join("evidence.json");
+        let mut signing_evidence = sample_apple_signing_evidence();
+        signing_evidence["binary"]["sha256"] =
+            Value::String(sha256_file(&binary).expect("binary fixture hash"));
+        signing_evidence["binary"]["size"] =
+            Value::Number(file_size(&binary).expect("binary fixture size").into());
+        write_pretty_json(&evidence, &signing_evidence).expect("write signing fixture");
+        let archive = root.join(format!(
+            "canisend-{}-aarch64-apple-darwin.tar.gz",
+            env!("CARGO_PKG_VERSION")
+        ));
+        fs::write(&archive, b"signed archive fixture").expect("write archive fixture");
+        bind_signing_evidence(
+            &format!("v{}", env!("CARGO_PKG_VERSION")),
+            "aarch64-apple-darwin",
+            &evidence,
+            &binary,
+            &archive,
+        )
+        .expect("bind signing evidence");
+        let bound: Value =
+            serde_json::from_slice(&fs::read(&evidence).expect("read bound evidence"))
+                .expect("parse bound evidence");
+        assert_eq!(
+            bound["archive"]["sha256"],
+            sha256_file(&archive).expect("archive hash")
+        );
+        let target = release_targets()
+            .expect("release targets")
+            .into_iter()
+            .find(|target| target.triple == "aarch64-apple-darwin")
+            .expect("Apple target");
+        read_bound_signing_evidence(&evidence, &target, env!("CARGO_PKG_VERSION"), &archive)
+            .expect("verify bound evidence");
+        fs::remove_dir_all(root).expect("remove signing fixture");
+    }
+
+    #[test]
+    fn signing_evidence_rejects_signed_binary_mismatch() {
+        let root = std::env::temp_dir().join(format!(
+            "canisend-xtask-signing-binary-mismatch-{}",
+            std::process::id()
+        ));
+        if root.exists() {
+            fs::remove_dir_all(&root).expect("remove stale signing fixture");
+        }
+        fs::create_dir_all(&root).expect("create signing fixture");
+        let binary = root.join("canisend");
+        fs::write(&binary, b"different signed binary").expect("write signed binary fixture");
+        let evidence = root.join("evidence.json");
+        write_pretty_json(&evidence, &sample_apple_signing_evidence())
+            .expect("write signing fixture");
+        let archive = root.join(format!(
+            "canisend-{}-aarch64-apple-darwin.tar.gz",
+            env!("CARGO_PKG_VERSION")
+        ));
+        fs::write(&archive, b"signed archive fixture").expect("write archive fixture");
+        assert!(
+            bind_signing_evidence(
+                &format!("v{}", env!("CARGO_PKG_VERSION")),
+                "aarch64-apple-darwin",
+                &evidence,
+                &binary,
+                &archive,
+            )
+            .is_err()
+        );
+        fs::remove_dir_all(root).expect("remove signing fixture");
+    }
+
+    #[test]
+    fn signing_evidence_rejects_missing_windows_timestamp() {
+        let target = release_targets()
+            .expect("release targets")
+            .into_iter()
+            .find(|target| target.triple == "x86_64-pc-windows-msvc")
+            .expect("Windows target");
+        let mut evidence = sample_windows_signing_evidence();
+        evidence["verification"]["timestamp_present"] = Value::Bool(false);
+        assert!(
+            canonical_signing_evidence(&evidence, &target, env!("CARGO_PKG_VERSION"), None)
+                .is_err()
+        );
     }
 }

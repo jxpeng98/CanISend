@@ -58,6 +58,33 @@ jobs:
             echo "tag=$tag"
           } >> "$GITHUB_OUTPUT"
 
+  signing-readiness:
+    name: signing-readiness
+    needs: release-identity
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Validate fail-closed signing configuration
+        env:
+          CANISEND_SIGNING_POLICY: release/signing-policy.json
+          APPLE_DEVELOPER_ID_P12_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_P12_BASE64 }}
+          APPLE_DEVELOPER_ID_P12_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_P12_PASSWORD }}
+          APPLE_NOTARY_KEY_P8_BASE64: ${{ secrets.APPLE_NOTARY_KEY_P8_BASE64 }}
+          APPLE_SIGNING_IDENTITY: ${{ vars.APPLE_SIGNING_IDENTITY }}
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+          APPLE_NOTARY_KEY_ID: ${{ vars.APPLE_NOTARY_KEY_ID }}
+          APPLE_NOTARY_ISSUER_ID: ${{ vars.APPLE_NOTARY_ISSUER_ID }}
+          AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          AZURE_ARTIFACT_SIGNING_ENDPOINT: ${{ vars.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
+          AZURE_ARTIFACT_SIGNING_ACCOUNT: ${{ vars.AZURE_ARTIFACT_SIGNING_ACCOUNT }}
+          AZURE_ARTIFACT_SIGNING_PROFILE: ${{ vars.AZURE_ARTIFACT_SIGNING_PROFILE }}
+          WINDOWS_SIGNING_EXPECTED_SUBJECT: ${{ vars.WINDOWS_SIGNING_EXPECTED_SUBJECT }}
+        shell: bash
+        run: ./scripts/check_signing_readiness.sh "${{ needs.release-identity.outputs.stage }}"
+
   source-gates:
     name: source-gates
     needs: release-identity
@@ -98,8 +125,12 @@ jobs:
     name: build-${{ matrix.target }}
     needs:
       - release-identity
+      - signing-readiness
       - source-gates
     runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
@@ -126,6 +157,22 @@ jobs:
             archive: zip
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Parse Windows release signing verifier
+        if: matrix.target == 'x86_64-pc-windows-msvc'
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $parseErrors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path -LiteralPath scripts/verify_windows_authenticode.ps1),
+            [ref]$tokens,
+            [ref]$parseErrors
+          ) | Out-Null
+          if ($parseErrors.Count -gt 0) {
+            $parseErrors | ForEach-Object { Write-Error $_ }
+            exit 1
+          }
 
       - name: Install musl linker
         if: matrix.target == 'x86_64-unknown-linux-musl'
@@ -169,12 +216,85 @@ jobs:
           evidence_and_match_tasks_enforce_stable_revision_bound_identities
           -- --exact --nocapture
 
-      - name: Enforce signing stage boundary
+      - name: Sign and notarize macOS executable
+        if: needs.release-identity.outputs.stage != 'alpha' && contains(matrix.target, 'apple-darwin')
+        env:
+          CANISEND_APPLE_DEVELOPER_ID_P12_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_P12_BASE64 }}
+          CANISEND_APPLE_DEVELOPER_ID_P12_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_P12_PASSWORD }}
+          CANISEND_APPLE_NOTARY_KEY_P8_BASE64: ${{ secrets.APPLE_NOTARY_KEY_P8_BASE64 }}
+          CANISEND_APPLE_SIGNING_IDENTITY: ${{ vars.APPLE_SIGNING_IDENTITY }}
+          CANISEND_APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+          CANISEND_APPLE_NOTARY_KEY_ID: ${{ vars.APPLE_NOTARY_KEY_ID }}
+          CANISEND_APPLE_NOTARY_ISSUER_ID: ${{ vars.APPLE_NOTARY_ISSUER_ID }}
+        shell: bash
+        run: |
+          version="${{ needs.release-identity.outputs.tag }}"
+          version="${version#v}"
+          ./scripts/sign_and_notarize_macos.sh \
+            "${{ matrix.binary }}" \
+            "${{ matrix.target }}" \
+            "$RUNNER_TEMP/signing-evidence/canisend-$version-${{ matrix.target }}-signing.json"
+
+      - name: Resolve Windows executable for Artifact Signing
+        id: windows-signing-path
+        if: needs.release-identity.outputs.stage != 'alpha' && matrix.target == 'x86_64-pc-windows-msvc'
+        shell: pwsh
+        run: |
+          $binary = (Resolve-Path -LiteralPath '${{ matrix.binary }}').Path
+          "binary=$binary" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Authenticate to Azure with GitHub OIDC
+        if: needs.release-identity.outputs.stage != 'alpha' && matrix.target == 'x86_64-pc-windows-msvc'
+        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Sign Windows executable with Azure Artifact Signing
+        if: needs.release-identity.outputs.stage != 'alpha' && matrix.target == 'x86_64-pc-windows-msvc'
+        uses: azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2
+        with:
+          endpoint: ${{ vars.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ vars.AZURE_ARTIFACT_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.AZURE_ARTIFACT_SIGNING_PROFILE }}
+          files: ${{ steps.windows-signing-path.outputs.binary }}
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+          description: CanISend native command-line application
+          description-url: https://github.com/jxpeng98/CanISend
+          correlation-id: ${{ github.run_id }}-${{ matrix.target }}
+
+      - name: Verify Windows Authenticode signature and timestamp
+        if: needs.release-identity.outputs.stage != 'alpha' && matrix.target == 'x86_64-pc-windows-msvc'
+        env:
+          CANISEND_WINDOWS_EXPECTED_SIGNER_SUBJECT: ${{ vars.WINDOWS_SIGNING_EXPECTED_SUBJECT }}
+        shell: pwsh
+        run: |
+          $version = '${{ needs.release-identity.outputs.tag }}'.Substring(1)
+          ./scripts/verify_windows_authenticode.ps1 `
+            -Binary '${{ matrix.binary }}' `
+            -Target '${{ matrix.target }}' `
+            -EvidenceJson "$env:RUNNER_TEMP/signing-evidence/canisend-$version-${{ matrix.target }}-signing.json"
+
+      - name: Enforce signed executable stage boundary
         if: needs.release-identity.outputs.stage != 'alpha'
         shell: bash
         run: |
-          echo "beta, rc, and stable require the platform signing jobs introduced by R11.2" >&2
-          exit 1
+          case "${{ matrix.target }}" in
+            *-apple-darwin|x86_64-pc-windows-msvc)
+              version="${{ needs.release-identity.outputs.tag }}"
+              version="${version#v}"
+              test -s "$RUNNER_TEMP/signing-evidence/canisend-$version-${{ matrix.target }}-signing.json"
+              ;;
+            x86_64-unknown-linux-gnu|x86_64-unknown-linux-musl)
+              ;;
+            *)
+              echo "unrecognized signing policy target: ${{ matrix.target }}" >&2
+              exit 1
+              ;;
+          esac
 
       - name: Create platform archive with notices
         shell: bash
@@ -193,13 +313,31 @@ jobs:
           ./scripts/smoke_release_archive.sh \
             "$archive" \
             "${{ matrix.target }}" \
-            "$RUNNER_TEMP/release-smoke-${{ matrix.target }}"
+            "$RUNNER_TEMP/release-smoke-${{ matrix.target }}" \
+            "${{ matrix.binary }}"
+
+      - name: Bind signing evidence to the final archive
+        if: needs.release-identity.outputs.stage != 'alpha' && (contains(matrix.target, 'apple-darwin') || matrix.target == 'x86_64-pc-windows-msvc')
+        shell: bash
+        run: |
+          version="${{ needs.release-identity.outputs.tag }}"
+          version="${version#v}"
+          evidence="$RUNNER_TEMP/signing-evidence/canisend-$version-${{ matrix.target }}-signing.json"
+          archive="$RUNNER_TEMP/release-package/canisend-$version-${{ matrix.target }}.${{ matrix.archive }}"
+          cargo run -p xtask --locked -- release bind-signing-evidence \
+            "${{ needs.release-identity.outputs.tag }}" \
+            "${{ matrix.target }}" \
+            "$evidence" \
+            "${{ matrix.binary }}" \
+            "$archive"
 
       - name: Upload verified platform archive
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: archive-${{ matrix.target }}
-          path: ${{ runner.temp }}/release-package/canisend-*.${{ matrix.archive }}
+          path: |
+            ${{ runner.temp }}/release-package/canisend-*.${{ matrix.archive }}
+            ${{ runner.temp }}/signing-evidence/*.json
           if-no-files-found: error
           retention-days: 14
 

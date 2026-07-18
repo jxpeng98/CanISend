@@ -9,7 +9,9 @@ repeated the complete source and five-target matrix, published 12 assets, and at
 Independent post-publication download verification matched every `SHA256SUMS` entry, accepted the release manifest,
 and verified all 12 attestations against the source digest and signer workflow. R11.2 Beta hardening is active.
 Homebrew Cask, Scoop, and WinGet candidates are now deterministically derived from the verified Alpha bytes and are
-explicitly non-published; signing/notarization and final native package-manager validation remain Beta/RC gates.
+explicitly non-published. Credential-backed Apple Developer ID/notarization and Azure Artifact Signing workflows now
+fail closed for every non-Alpha stage and require canonical evidence bound to the final archives. Real credential
+qualification and final native package-manager validation remain Beta/RC gates.
 
 PyPI and TestPyPI are not release channels for the Rust product.
 
@@ -40,8 +42,8 @@ Every published archive must include SHA-256 coverage, an SBOM, license notices,
 packaged-binary smoke results. The published Alpha satisfies those gates and includes embedded Typst rendering in
 the standalone executable.
 
-Stable release requirements additionally include macOS notarization and the planned Windows signing policy when
-credentials are available.
+Beta, release-candidate, and Stable requirements include macOS Developer ID signing plus accepted notarization and
+Windows Azure Artifact Signing Public Trust. Missing credentials are a release failure, not an unsigned fallback.
 
 The full release sequence is tracked in R9–R11 of the Rust-native roadmap.
 
@@ -51,8 +53,8 @@ The full release sequence is tracked in R9–R11 of the Rust-native roadmap.
   known limitations, release manifest, and GitHub artifact attestations pass. GitHub Releases must mark the build as
   a prerelease.
 - **Beta:** protocol v2 and workspace v2 migration contracts freeze. macOS archives must be signed and notarized;
-  Windows must pass the planned Authenticode policy. The workflow currently fails closed for this stage until those
-  credential-backed jobs exist and pass.
+  Windows must pass the Authenticode policy. The implemented workflow fails closed until configured credentials,
+  exact signer checks, timestamps, notarization logs, and final-archive-bound evidence all pass.
 - **Release candidate:** features freeze, beta-to-RC workspace upgrades pass, and the complete clean-tag matrix passes
   twice with release notes, uninstall, and rollback guidance.
 - **Stable:** the same signed archives, package-manager manifests, support policy, and measured next-roadmap inputs
