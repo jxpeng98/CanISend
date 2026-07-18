@@ -82,7 +82,13 @@
 - 2026-07-17: Completed R7.5 and the full R7 decision spine with core-derived essential/desirable blockers,
   apply/hold/skip decisions, revision-stable four-document plans, strategy fields, and an `apply + zero blockers`
   Draft gate. Local verification passed 62 Rust tests, Clippy, 29-schema/37-resource checks, release compilation, and
-  packaged intake-to-plan smoke. R7 exit criteria are satisfied; R8 structured drafting and review is active.
+  packaged intake-to-plan smoke. GitHub Actions run `29623026413` passed the clean-checkout release gate in 1 minute
+  55 seconds. R7 exit criteria are satisfied; R8 structured drafting and review is active.
+- 2026-07-18: Completed R8.1 structured document contracts with ID-free agent candidates, core-owned section/claim/
+  placeholder identities, exact evidence and criterion citations, explicit non-evidence classifications, generation
+  metadata, first-alpha document kinds, and document-specific semantic shape rules. Local verification passed 64
+  Rust tests, Clippy, 30-schema/38-resource checks, release compilation, and packaged intake-to-plan smoke with the
+  expanded host pack. R8.2 draft task execution is active.
 
 ## 1. Executive Decision
 
@@ -1526,10 +1532,10 @@ confirms a blocker-free apply revision and proves that only it opens Draft.
 
 #### R8.1 Structured document model
 
-- [ ] Define document section, claim, citation, placeholder, and generation metadata types.
-- [ ] Require every factual claim category to declare evidence or an allowed non-evidence classification.
-- [ ] Define supported document kinds for the first alpha.
-- [ ] Implement document-specific semantic validators.
+- [x] Define document section, claim, citation, placeholder, and generation metadata types.
+- [x] Require every factual claim category to declare evidence or an allowed non-evidence classification.
+- [x] Define supported document kinds for the first alpha.
+- [x] Implement document-specific semantic validators.
 
 #### R8.2 Draft stages
 
