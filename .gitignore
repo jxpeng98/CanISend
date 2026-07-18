@@ -6,6 +6,9 @@
 
 /target/
 /spikes/*/target/
+/fuzz/target/
+/fuzz/artifacts/
+/fuzz/corpus/
 /dist/
 /build/
 

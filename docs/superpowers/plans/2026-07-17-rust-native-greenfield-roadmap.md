@@ -1805,6 +1805,11 @@ provider/URL/path controls, and `deny.toml`. GitHub Actions run `29629132522` pa
 complete native gate. Audited Typst-transitive exceptions are restricted to embedded verified inputs; the threat
 model records explicit release blockers before any external Typst/XML/YAML/file/font surface may be introduced.
 
+**Scheduled fuzz follow-up:** The [fuzzing policy](../../testing/scheduled-fuzzing.md) and
+[implementation note](../../notes/rust-native/2026-07-18-r10-scheduled-fuzz.md) add three bounded Rust-only libFuzzer
+targets outside the fast CI path. The Definition of Done item remains open until the first manual/scheduled run has
+no unresolved reproducible crash.
+
 #### R10.2 Recovery review
 
 - [x] Execute every planned interruption point.

@@ -26,6 +26,8 @@ const SUPPORT_POLICY_SCHEMA: &str = "canisend.support-policy/v1";
 const FEEDBACK_SNAPSHOT_SCHEMA: &str = "canisend.feedback-snapshot/v1";
 const RELEASE_QUALIFICATION_SCHEMA: &str = "canisend.release-qualification/v1";
 const CODE_SIGNING_EVIDENCE_SCHEMA: &str = "canisend.code-signing-evidence/v1";
+const FUZZ_TOOLCHAIN: &str = "nightly-2026-07-01";
+const CARGO_FUZZ_VERSION: &str = "0.13.2";
 const WINGET_MANIFEST_VERSION: &str = "1.12.0";
 const NATIVE_ALPHA_TAG: &str = "v0.7.0-alpha.1";
 const NATIVE_ALPHA_SOURCE: &str = "4cec4ec48cc2e96f3798dde0b438d3aaa617a2f8";
@@ -51,6 +53,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
             check_schemas()?;
             check_resources()?;
             check_documentation()?;
+            check_fuzz_policy()?;
             check_internal_dependency_versions()?;
             check_beta_readiness()?;
             check_beta_contract_freeze()?;
@@ -236,6 +239,56 @@ fn check_documentation() -> Result<(), String> {
         ));
     }
     println!("documentation: ok ({} guides)", required.len());
+    Ok(())
+}
+
+fn check_fuzz_policy() -> Result<(), String> {
+    let root = repository_root();
+    let workflow_path = root.join(".github/workflows/fuzz.yml");
+    let workflow = fs::read_to_string(&workflow_path)
+        .map_err(|error| format!("scheduled fuzz workflow is missing: {error}"))?;
+    let manifest_path = root.join("fuzz/Cargo.toml");
+    let manifest = fs::read_to_string(&manifest_path)
+        .map_err(|error| format!("fuzz manifest is missing: {error}"))?;
+    let targets = ["structured_inputs", "intake_parsers", "pdf_extract"];
+    for required in [
+        "schedule:",
+        "workflow_dispatch:",
+        FUZZ_TOOLCHAIN,
+        CARGO_FUZZ_VERSION,
+        "-max_total_time=300",
+        "-timeout=15",
+        "upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+    ] {
+        if !workflow.contains(required) {
+            return Err(format!("scheduled fuzz workflow is missing `{required}`"));
+        }
+    }
+    for required in [
+        "cargo-fuzz = true",
+        "libfuzzer-sys = \"=0.4.13\"",
+        "canisend-contracts",
+        "canisend-io",
+    ] {
+        if !manifest.contains(required) {
+            return Err(format!("fuzz manifest is missing `{required}`"));
+        }
+    }
+    for target in targets {
+        if !workflow.contains(target)
+            || !manifest.contains(&format!("name = \"{target}\""))
+            || !root
+                .join(format!("fuzz/fuzz_targets/{target}.rs"))
+                .is_file()
+        {
+            return Err(format!("scheduled fuzz target `{target}` is incomplete"));
+        }
+    }
+    let documentation_path = root.join("docs/testing/scheduled-fuzzing.md");
+    let documentation = fs::read_to_string(&documentation_path)
+        .map_err(|error| format!("scheduled fuzz documentation is missing: {error}"))?;
+    check_local_markdown_links(&root, &documentation_path, &documentation)?;
+    println!("fuzz policy: ok ({} scheduled targets)", targets.len());
     Ok(())
 }
 
@@ -3277,6 +3330,11 @@ mod tests {
             qualification_status_for_stage(ReleaseStage::Stable),
             "qualified"
         );
+    }
+
+    #[test]
+    fn scheduled_fuzz_policy_is_pinned_and_complete() {
+        check_fuzz_policy().expect("scheduled fuzz policy");
     }
 
     #[test]

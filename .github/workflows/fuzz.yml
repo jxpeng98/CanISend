@@ -1,0 +1,50 @@
+name: scheduled-fuzz
+
+on:
+  schedule:
+    - cron: "23 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scheduled-fuzz-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  fuzz:
+    name: fuzz-${{ matrix.target }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - structured_inputs
+          - intake_parsers
+          - pdf_extract
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install pinned nightly toolchain
+        run: rustup toolchain install nightly-2026-07-01 --profile minimal
+
+      - name: Install pinned cargo-fuzz
+        run: cargo +nightly-2026-07-01 install cargo-fuzz --version 0.13.2 --locked
+
+      - name: Run bounded fuzz target
+        run: >-
+          cargo +nightly-2026-07-01 fuzz run ${{ matrix.target }} --
+          -max_total_time=300
+          -timeout=15
+          -rss_limit_mb=4096
+
+      - name: Upload reproducer on failure
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: fuzz-reproducer-${{ matrix.target }}-${{ github.run_id }}
+          path: fuzz/artifacts/${{ matrix.target }}/
+          if-no-files-found: ignore
+          retention-days: 7
