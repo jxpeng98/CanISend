@@ -1,6 +1,6 @@
 {
   "schema": "canisend.beta-readiness/v1",
-  "audited_at": "2026-07-18T06:43:48Z",
+  "audited_at": "2026-07-18T14:26:32Z",
   "alpha_release": {
     "tag": "v0.7.0-alpha.1",
     "source_commit": "4cec4ec48cc2e96f3798dde0b438d3aaa617a2f8",

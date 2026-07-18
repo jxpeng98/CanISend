@@ -338,7 +338,8 @@
   Authenticode certificate. Canonical v2 evidence records every absent public-trust property, while exact binary,
   archive, checksum, manifest, and GitHub OIDC provenance binding remain fail-closed. No Apple/Azure account,
   repository secret, or signing variable is required. [ADR-RN-0012](../../architecture/rust-native/decisions/0012-adopt-free-community-platform-signing.md)
-  supersedes ADR-RN-0011 for `0.7`; real Beta matrix qualification remains open.
+  supersedes ADR-RN-0011 for `0.7`. Exact implementation commit `f0a46ea` passed all eight ordinary CI jobs in run
+  `29647788613`, including Windows PowerShell parsing; real Beta matrix qualification remains open.
 
 ## 1. Executive Decision
 

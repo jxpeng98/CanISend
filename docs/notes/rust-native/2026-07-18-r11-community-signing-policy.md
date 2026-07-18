@@ -34,14 +34,20 @@ Unknown Publisher, and SmartScreen warnings remain possible. The Windows thumbpr
 The signature evidence proves native integrity characteristics. Repository identity comes from the tag, checksum,
 manifest, and GitHub provenance. Neither layer is documented as paid operating-system publisher trust.
 
+## Source qualification
+
+Exact implementation commit `f0a46ea8e9677eb2fb8ed700f98ea5b63a303cb0` passed all eight ordinary CI jobs in
+run `29647788613`. The Windows render job parsed `scripts/sign_windows_self_signed.ps1` successfully; Rust quality,
+dependency policy, all three recovery jobs, and the macOS/Linux/Windows render and documented-workflow jobs passed.
+A local macOS arm64 executable was ad-hoc signed, verified, packaged, and accepted by the v2 final-archive binding
+command. The next native matrix must still execute the real Windows signing path and both release macOS targets.
+
 ## Qualification path
 
-1. Run focused tests and the complete source release gate.
-2. Push the implementation and require ordinary CI to pass on the exact commit.
-3. Refresh Beta readiness, apply the guarded `0.7.0-beta.1` transition, and run a nonpublishing five-target matrix.
-4. Download and independently verify all assets, v2 signing evidence, native signatures, and GitHub attestations.
-5. Regenerate and validate package-manager candidates from those exact bytes.
-6. Publish only the qualified annotated Beta tag, verify the public assets again, and record qualification.
+1. Refresh Beta readiness, apply the guarded `0.7.0-beta.1` transition, and run a nonpublishing five-target matrix.
+2. Download and independently verify all assets, v2 signing evidence, native signatures, and GitHub attestations.
+3. Regenerate and validate package-manager candidates from those exact bytes.
+4. Publish only the qualified annotated Beta tag, verify the public assets again, and record qualification.
 
-The roadmap signing checkbox remains open until step 6 supplies public evidence. Paid publisher identity is a
+The roadmap signing checkbox remains open until step 4 supplies public evidence. Paid publisher identity is a
 separate future enhancement and is no longer a `0.7` blocker.
