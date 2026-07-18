@@ -28,10 +28,10 @@ the Git tag `archive/python-v0.6.0b1-final`.
 
 ## Current status
 
-The Rust rebuild has completed R9 plus the R10 security and recovery reviews, including the full evidence-backed
-material pipeline, restricted in-process Typst compilation, verified native rendering, an audited dependency/threat
-boundary, and cross-platform interruption/restore evidence. R10 performance work is now active. The current binary
-provides:
+The Rust rebuild has completed R9 plus the R10 security, recovery, and performance reviews, including the full
+evidence-backed material pipeline, restricted native rendering, an audited dependency/threat boundary,
+cross-platform recovery evidence, and enforced release performance budgets. R10 UX/documentation work is now
+active. The current binary provides:
 
 - Native `canisend` executable scaffolding.
 - Validated UUIDv7, SHA-256, revision, UTC timestamp, and safe relative-path contract types.
@@ -97,6 +97,8 @@ provides:
   license, and dependency-source policy gates.
 - Cross-platform recovery contracts for interruption boundaries, missing/corrupt blobs, projection reconstruction,
   stale tasks, and concurrent idempotent host-agent completion.
+- Main/release performance gates for startup, large-workspace status, HTML/PDF intake, complete workflow execution,
+  embedded rendering, and binary size, with a committed reproducible baseline.
 
 The R9 native matrix verifies embedded fonts, adversarial Unicode/layout, missing-system-font isolation, bundled
 licenses/notices, render timing, and a 64 MiB release-binary budget. Hardening gates continue in the

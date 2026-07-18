@@ -4,6 +4,18 @@
   "profile": "release",
   "reference_target": "aarch64-apple-darwin",
   "rust_toolchain": "1.97.0",
+  "ci_observed": {
+    "capabilities_startup_median_ms": 3,
+    "full_synthetic_workflow_ms": 263,
+    "github_actions_run": 29630280560,
+    "html_1_mib_intake_median_ms": 63,
+    "pdf_50_page_intake_median_ms": 15,
+    "release_binary_bytes": 58431816,
+    "status_100_jobs_median_ms": 4,
+    "target": "x86_64-unknown-linux-gnu",
+    "typst_render_median_ms": 6,
+    "version_startup_median_ms": 3
+  },
   "observed": {
     "capabilities_startup_median_ms": 7,
     "full_synthetic_workflow_ms": 831,

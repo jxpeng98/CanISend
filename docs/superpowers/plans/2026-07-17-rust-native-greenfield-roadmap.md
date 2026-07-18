@@ -1,6 +1,6 @@
 # CanISend Rust-Native Greenfield Rebuild Roadmap
 
-**Status:** In progress — R0 through R9 and R10.1–R10.2 complete; R10.3 performance active
+**Status:** In progress — R0 through R9 and R10.1–R10.3 complete; R10.4 UX and documentation active
 
 **Date:** 2026-07-17
 
@@ -159,6 +159,12 @@
   missing/corrupt referenced blobs, stale completion, and concurrent idempotent host-agent completion. GitHub Actions
   run `29629649534` passed the recovery subset on Linux x86_64, macOS arm64, and Windows x86_64 plus the complete
   quality/dependency/render matrix. R10.3 performance is active.
+- 2026-07-18: Completed R10.3 with an ignored-by-default release benchmark contract and enforced main/release
+  thresholds for command startup, a 104-job workspace, 1 MiB HTML intake excluding network, 50-page text-PDF
+  intake, embedded Typst rendering, binary size, and the complete intake-to-render/invalidation workflow. Local
+  macOS arm64 measurements were 7/7/8/73/29/5 ms, 831 ms full workflow, and 48,874,800 bytes. GitHub Actions run
+  `29630280560` passed the Linux gate at 3/3/4/63/15/6 ms, 263 ms full workflow, and 58,431,816 bytes; the quality
+  critical path remained under five minutes and the complete matrix under ten. R10.4 UX and documentation is active.
 
 ## 1. Executive Decision
 
@@ -1760,12 +1766,18 @@ unique staging directory, while authoritative corruption fails closed and requir
 
 #### R10.3 Performance
 
-- [ ] Establish command startup benchmarks.
-- [ ] Benchmark status for large workspaces.
-- [ ] Benchmark HTML and PDF intake.
-- [ ] Benchmark full synthetic workflow.
-- [ ] Benchmark Typst render and binary size.
-- [ ] Add regression thresholds to main/release gates.
+- [x] Establish command startup benchmarks.
+- [x] Benchmark status for large workspaces.
+- [x] Benchmark HTML and PDF intake.
+- [x] Benchmark full synthetic workflow.
+- [x] Benchmark Typst render and binary size.
+- [x] Add regression thresholds to main/release gates.
+
+**R10.3 exit:** Satisfied by the [benchmark policy](../../performance/benchmark-policy.md), committed v1 baseline,
+and GitHub Actions run `29630280560`. The Linux release contract passed at 3 ms version startup, 3 ms capabilities,
+4 ms status over 104 jobs, 63 ms 1 MiB HTML intake, 15 ms 50-page PDF intake, 6 ms Typst render, 263 ms full
+synthetic workflow, and 58,431,816 binary bytes. Thresholds run in main and tag-release gates without slowing the
+normal debug test suite.
 
 #### R10.4 UX and documentation
 
