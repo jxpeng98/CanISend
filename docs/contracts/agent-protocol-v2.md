@@ -165,6 +165,7 @@ conflicts, `5` for external I/O or providers, and `6` for an internal invariant 
 An agent host should begin with:
 
 ```text
+canisend doctor --json
 canisend agent capabilities --json
 canisend agent context --json
 canisend schema list --json
@@ -172,6 +173,9 @@ canisend resource list --json
 ```
 
 `agent capabilities` distinguishes `available` work from `planned` work and publishes the error-code registry.
+`doctor` performs a body-free, workspace-free render of the embedded Cover Letter template and reports whether the
+in-process Typst compiler, embedded default fonts, resource manifest, and schemas are usable. Its default renderer
+self-check does not scan system fonts or enable runtime Typst package downloads.
 `schema list` reports canonical schema IDs, versions, resource IDs, sizes, and SHA-256 digests. `resource list`
 reports all compiled host guides, examples, prompts, schemas, and templates. The embedded Codex, Claude, and generic
 guides instruct hosts never to edit `.canisend/` state directly.

@@ -1,6 +1,6 @@
 # CanISend Rust-Native Greenfield Rebuild Roadmap
 
-**Status:** In progress — R0 through R8 complete; R9.1 embedded compiler integration active
+**Status:** In progress — R0 through R8 and R9.1 complete; R9.2 Typst projection active
 
 **Date:** 2026-07-17
 
@@ -114,6 +114,14 @@
   explicit replace/copy-as-new recovery, unmanaged-collision protection, and export receipt invalidation. Local
   verification passed 68 Rust tests, Clippy with warnings denied, 38-schema/48-resource checks, release compilation,
   and packaged host-agent smoke with a 29-file host pack. R8 exit criteria are satisfied; R9.1 is active.
+- 2026-07-18: GitHub Actions run `29626595493` passed the R8.5 clean-checkout gate in 2 minutes 21 seconds, including
+  the Python-file guard, format, Clippy, 68 tests, schema/resource drift, release build, and packaged smoke.
+- 2026-07-18: Completed R9.1 by pinning `typst-as-lib 0.16.0` and `typst-pdf 0.15.1` behind `canisend-io`, using only
+  an in-memory main source plus embedded Typst assets, disabling default system-font scans and all runtime package
+  resolution, bounding source/PDF sizes, and returning body-free error categories. `doctor` now performs a real
+  embedded-template PDF self-check so LTO cannot remove the renderer. Local verification passed 70 Rust tests,
+  Clippy, release checks, release compilation, and packaged smoke. The macOS arm64 binary is 48,774,160 bytes and
+  the release `doctor` self-check completed in 0.74 seconds. R9.2 structured Typst projection is active.
 
 ## 1. Executive Decision
 
@@ -1625,11 +1633,17 @@ exports and proves package/export invalidation after an upstream profile revisio
 
 #### R9.1 Compiler spike integration
 
-- [ ] Pin the proven Typst library versions.
-- [ ] Implement the restricted compiler world.
-- [ ] Embed licensed default fonts and templates.
-- [ ] Disable runtime package downloads.
-- [ ] Add memory and time bounds where the API permits.
+- [x] Pin the proven Typst library versions.
+- [x] Implement the restricted compiler world.
+- [x] Embed licensed default fonts and templates.
+- [x] Disable runtime package downloads.
+- [x] Add memory and time bounds where the API permits.
+
+**R9.1 exit:** Satisfied locally. The production dependency graph pins the versions proven in R0 without package
+resolver features. The compiler sees only its in-memory source and embedded font assets, returns body-free error
+categories, caps source at 1 MiB and PDF output at 16 MiB, and checks a 10-second elapsed budget. The Typst API has no
+safe cancellation hook, so this budget detects rather than preempts an overrun; hard process isolation remains an
+R10 security decision. The packaged `doctor` command proves the optimized binary retains and executes the renderer.
 
 #### R9.2 Typst projection
 
