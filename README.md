@@ -19,16 +19,16 @@ the Git tag `archive/python-v0.6.0b1-final`.
 
 ## Current status
 
-The Rust rebuild has completed R7 plus R8.1–R8.4, including the full evidence-backed intake-to-plan decision spine,
-structured drafting, revision-bound review, and guarded package readiness. R8.5 editable exports are now active. The
-current binary provides:
+The Rust rebuild has completed R8, including the full evidence-backed intake-to-plan decision spine, structured
+drafting, revision-bound review, guarded package readiness, and editable exports. R9.1 embedded Typst compiler
+integration is now active. The current binary provides:
 
 - Native `canisend` executable scaffolding.
 - Validated UUIDv7, SHA-256, revision, UTC timestamp, and safe relative-path contract types.
 - `canisend.agent/v2` success/error envelopes, stable error registry, and grouped exit policy.
 - Product/version/build inspection.
-- Thirty-five deterministic Draft 2020-12 schemas generated from Rust types.
-- Forty-five typed embedded schemas, prompts, templates, examples, and host assets with SHA-256 verification.
+- Thirty-eight deterministic Draft 2020-12 schemas generated from Rust types.
+- Forty-eight typed embedded schemas, prompts, templates, examples, and host assets with SHA-256 verification.
 - A truthful capability registry that marks unfinished functions as `planned`.
 - Agent context plus schema/resource diagnostics with deterministic JSON snapshots.
 - Workspace discovery, explicit `--workspace` resolution, initialization, status, integrity checks, and repair.
@@ -65,9 +65,13 @@ current binary provides:
   binding; machine-readable readiness reasons; idempotent manifests; and a fail-closed Render gate.
 - Explicit package contracts that keep `ready-to-export` separate from submission and structurally forbid a readiness
   operation from recording an application as submitted.
+- Consent-gated `package export` projection of each current structured document into editable Markdown and JSON plus
+  a package manifest, with an exact revision-bound export receipt and generated/observed SHA-256 hashes.
+- Managed projection reconciliation with current, edited, missing, and repair-required states; implicit overwrites of
+  user edits and unmanaged files are rejected, while `replace` and `copy-as-new` provide explicit recovery choices.
 
-Editable exports and embedded PDF rendering are not yet available in the production binary. Their execution order
-and acceptance gates are defined in the
+Embedded Typst and PDF rendering are not yet available in the production binary. Their execution order and
+acceptance gates are defined in the
 [Rust-native roadmap](docs/superpowers/plans/2026-07-17-rust-native-greenfield-roadmap.md).
 
 ## Build the native foundation
@@ -126,6 +130,15 @@ cargo build --release --locked
   --job JOB_ID --file ./agent-work/application-plan.json --json
 ./target/release/canisend --workspace ./my-workspace package check --job JOB_ID --json
 ./target/release/canisend --workspace ./my-workspace package show --job JOB_ID --json
+./target/release/canisend --workspace ./my-workspace package export --job JOB_ID \
+  --destination jobs/JOB_ID/application --allow-private-export --json
+./target/release/canisend --workspace ./my-workspace package exports --job JOB_ID --json
+./target/release/canisend --workspace ./my-workspace package reconcile --job JOB_ID --json
+./target/release/canisend --workspace ./my-workspace package replace --job JOB_ID \
+  --path jobs/JOB_ID/application/cover-letter.md --json
+./target/release/canisend --workspace ./my-workspace package copy-as-new --job JOB_ID \
+  --path jobs/JOB_ID/application/cover-letter.md \
+  --destination jobs/JOB_ID/application/cover-letter-edited.md --json
 ./target/release/canisend --workspace ./my-workspace workspace check --json
 ./target/release/canisend --workspace ./my-workspace workspace backup ./my-backup --json
 ```

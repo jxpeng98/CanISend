@@ -80,6 +80,37 @@ canisend --workspace WORKSPACE criteria confirm --job JOB_ID --file criteria.jso
 canisend --workspace WORKSPACE criteria show --job JOB_ID --json
 ```
 
+## Package and projection lifecycle
+
+The deterministic Package stage freezes exact plan, match, evidence, profile, document-set, member-document, and
+review revisions. Readiness is body-free and can be `blocked`, `needs-review`, or `ready-to-export`; it is never a
+submission signal. The export lifecycle is:
+
+```text
+canisend --workspace WORKSPACE package check --job JOB_ID --json
+canisend --workspace WORKSPACE package show --job JOB_ID --json
+canisend --workspace WORKSPACE package export --job JOB_ID \
+  --destination jobs/JOB_ID/application --allow-private-export --json
+canisend --workspace WORKSPACE package exports --job JOB_ID --json
+canisend --workspace WORKSPACE package reconcile --job JOB_ID --json
+canisend --workspace WORKSPACE package replace --job JOB_ID \
+  --path jobs/JOB_ID/application/cover-letter.md --json
+canisend --workspace WORKSPACE package copy-as-new --job JOB_ID \
+  --path jobs/JOB_ID/application/cover-letter.md \
+  --destination jobs/JOB_ID/application/cover-letter-edited.md --json
+```
+
+`package export` requires explicit `export-private-artifacts` confirmation before opening a workspace. It writes
+editable Markdown and structured JSON for every current document plus `package-manifest.json`, all under the exact
+job projection tree. The export receipt binds the current package and every projection to generated and observed
+SHA-256 hashes and always records `submission_performed: false`.
+
+Structured artifact blobs remain authoritative. `package reconcile` records a managed projection as `current`,
+`edited`, `missing`, or `repair-required` without importing file edits. Re-export refuses both edited managed files
+and unmanaged destination collisions. `package replace` explicitly discards one edit; `package copy-as-new` first
+preserves edited bytes at a new unmanaged safe path and then restores the generated form. Neither operation changes
+the authoritative structured document.
+
 ## Data and consent types
 
 Data classifications are `public`, `private-local`, `provider-bound`, and `secret`. Provider-bound use is limited to
@@ -153,10 +184,9 @@ canisend agent assets export --host claude --destination DIRECTORY --json
 canisend agent assets export --host generic --destination DIRECTORY --json
 ```
 
-Each pack contains its host entrypoint, the task prompt and example, task descriptor/completion/parsed-job/criterion/
-criteria schemas, and
-`canisend-agent-pack.json`. The manifest records pack, product, protocol, and resource versions plus every resource
-ID, path, size, and SHA-256 digest.
+Each 29-file pack contains its host entrypoint, task prompts and examples, and the contracts required through package
+export, including the projection, reconciliation, and export-manifest schemas. `canisend-agent-pack.json` records
+pack, product, protocol, and resource versions plus every resource ID, path, size, and SHA-256 digest.
 
 Job intake is available through `job create`, `job import JOB_ID --file PATH`, `job import JOB_ID --url URL`,
 `job list`, `job show`, and `job archive`. Import success returns source and artifact references without returning the
@@ -185,7 +215,7 @@ next action for `job import JOB_ID --url URL`, keeping advert retrieval inside t
 
 ## Contract generation
 
-Rust types in `canisend-contracts` are authoritative. Twenty-four public schemas are generated with canonical IDs under
+Rust types in `canisend-contracts` are authoritative. Thirty-eight public schemas are generated with canonical IDs under
 `https://schemas.canisend.dev/v2/`, semantic version `2.0.0`, deterministic key ordering, and a final newline.
 `cargo run -p xtask -- schemas check` rejects byte drift, missing files, and additional schema files.
 

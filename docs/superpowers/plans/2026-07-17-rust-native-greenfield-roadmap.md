@@ -1,6 +1,6 @@
 # CanISend Rust-Native Greenfield Rebuild Roadmap
 
-**Status:** In progress — R0 through R7 and R8.1–R8.4 complete; R8.5 editable exports active
+**Status:** In progress — R0 through R8 complete; R9.1 embedded compiler integration active
 
 **Date:** 2026-07-17
 
@@ -109,6 +109,11 @@
   reasons, deterministic and human-review gates, idempotent manifests, Render gating, and an explicit no-submission
   invariant. Local verification passed 66 Rust tests, Clippy with warnings denied, 35-schema/45-resource checks,
   release compilation, and packaged host-agent smoke with a 26-file host pack. R8.5 editable exports are active.
+- 2026-07-18: Completed R8.5 and the full R8 material pipeline with consent-gated Markdown/structured-JSON/package
+  projections, SQLite schema 12 projection/export heads, exact generated and observed hashes, edit reconciliation,
+  explicit replace/copy-as-new recovery, unmanaged-collision protection, and export receipt invalidation. Local
+  verification passed 68 Rust tests, Clippy with warnings denied, 38-schema/48-resource checks, release compilation,
+  and packaged host-agent smoke with a 29-file host pack. R8 exit criteria are satisfied; R9.1 is active.
 
 ## 1. Executive Decision
 
@@ -1599,14 +1604,20 @@ upstream changes stale them, and the contract forbids readiness from recording s
 
 #### R8.5 Exports
 
-- [ ] Project structured drafts into Markdown.
-- [ ] Export structured JSON for agent inspection.
-- [ ] Record projection hashes and edit status.
-- [ ] Implement reconcile/replace/copy-as-new behavior for edited projections.
+- [x] Project structured drafts into Markdown.
+- [x] Export structured JSON for agent inspection.
+- [x] Record projection hashes and edit status.
+- [x] Implement reconcile/replace/copy-as-new behavior for edited projections.
 
-**Deliverables:** Reviewable structured materials and a guarded package.
+**R8.5 exit:** Satisfied locally. A ready package exports one Markdown and one structured JSON projection per current
+document plus the exact package manifest. The receipt binds every projection to its source revision and generated /
+observed hash. Reconciliation detects edits and missing files without mutating authority; re-export never overwrites
+edits or unmanaged collisions, and only explicit replace or copy-as-new restores a managed projection.
 
-**Exit criteria:** The synthetic workflow produces current, cited, reviewed, editable material exports.
+**Deliverables:** Reviewable structured materials and a guarded package. Complete.
+
+**Exit criteria:** Satisfied locally. The synthetic workflow produces current, cited, reviewed, editable material
+exports and proves package/export invalidation after an upstream profile revision.
 
 ### Phase R9 — Embedded Typst and PDF rendering
 
