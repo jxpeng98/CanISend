@@ -100,4 +100,27 @@ grep -q '"runtime_package_downloads":false' "$smoke_root/doctor.json"
 "$script_dir/smoke_documented_quickstart.sh" "$executable" "$smoke_root/documented-workflow"
 "$script_dir/smoke_host_agent.sh" "$executable" "$smoke_root/host-agent-workflow"
 
+install_root="$smoke_root/user-install"
+lifecycle_workspace="$smoke_root/uninstall-workspace"
+mkdir -p "$install_root"
+installed="$install_root/$(basename "$executable")"
+cp "$executable" "$installed"
+cp \
+  "$bundle/LICENSE" \
+  "$bundle/THIRD_PARTY_NOTICES.md" \
+  "$bundle/KNOWN_LIMITATIONS.md" \
+  "$bundle/INSTALL.md" \
+  "$install_root/"
+chmod +x "$installed"
+"$installed" version --json > "$smoke_root/installed-version.json"
+"$installed" doctor --json > "$smoke_root/installed-doctor.json"
+"$installed" --workspace "$lifecycle_workspace" workspace init --json \
+  > "$smoke_root/install-workspace-init.json"
+"$installed" --workspace "$lifecycle_workspace" workspace check --json \
+  > "$smoke_root/install-workspace-check.json"
+rm -rf "$install_root"
+test ! -e "$install_root"
+test -f "$lifecycle_workspace/canisend.toml"
+test -d "$lifecycle_workspace/.canisend"
+
 echo "release archive smoke: ok ($target)"

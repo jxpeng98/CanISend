@@ -1230,11 +1230,11 @@ Each target must:
 ### 18.1 Artifact naming
 
 ```text
-canisend-v0.7.0-alpha.1-aarch64-apple-darwin.tar.gz
-canisend-v0.7.0-alpha.1-x86_64-apple-darwin.tar.gz
-canisend-v0.7.0-alpha.1-x86_64-unknown-linux-gnu.tar.gz
-canisend-v0.7.0-alpha.1-x86_64-unknown-linux-musl.tar.gz
-canisend-v0.7.0-alpha.1-x86_64-pc-windows-msvc.zip
+canisend-0.7.0-alpha.1-aarch64-apple-darwin.tar.gz
+canisend-0.7.0-alpha.1-x86_64-apple-darwin.tar.gz
+canisend-0.7.0-alpha.1-x86_64-unknown-linux-gnu.tar.gz
+canisend-0.7.0-alpha.1-x86_64-unknown-linux-musl.tar.gz
+canisend-0.7.0-alpha.1-x86_64-pc-windows-msvc.zip
 ```
 
 ### 18.2 Release stages
@@ -1251,9 +1251,9 @@ canisend-v0.7.0-alpha.1-x86_64-pc-windows-msvc.zip
 - Build provenance.
 - SHA-256 checksums.
 - SBOM.
-- macOS code signing and notarization before stable.
-- Windows code signing before stable if certificates are available.
-- Signed release manifest.
+- macOS code signing and notarization for Beta, RC, and Stable.
+- Windows Artifact Signing Public Trust for Beta, RC, and Stable.
+- GitHub OIDC-attested release manifest, checksum set, SBOM, and platform signing evidence.
 - License notices for embedded fonts, SQLite, Typst, and other redistributed assets.
 
 ## 19. Roadmap Overview
@@ -1893,6 +1893,12 @@ and the [freeze note](../../notes/rust-native/2026-07-18-r11-beta-contract-freez
 surface. Agent v2 schemas/capabilities/context are immutable apart from product version; migrations 1–13 are
 immutable and only contiguous appended Rust-era migrations are permitted.
 
+**R11.2 cross-platform freeze verification:** The first post-signing Alpha matrix exposed a Windows-only CRLF false
+positive before packaging. Commit `5ad749c` canonicalizes frozen JSON/SQL text for hashing, pins checkout line endings,
+and leaves the actual freeze digest unchanged. The
+[portability note](../../notes/rust-native/2026-07-18-r11-cross-platform-contract-freeze.md) retains the failed run,
+root cause, regression test, and replacement-matrix qualification requirement.
+
 **R11.2 channel candidates:** [ADR-RN-0010](../../architecture/rust-native/decisions/0010-derive-package-channels-from-verified-release-assets.md)
 and the [candidate note](../../notes/rust-native/2026-07-18-r11-beta-channel-candidates.md) bind generated Homebrew
 Cask, Scoop, and WinGet files to exact verified release-manifest/archive digests. All candidate source records forbid
@@ -1904,6 +1910,12 @@ and the [signing-gate note](../../notes/rust-native/2026-07-18-r11-beta-signing-
 credential readiness gate, exact Apple/Windows post-sign verification, and canonical evidence bound to final archive
 bytes. Implementation is complete, but the checklist remains open until a real Beta dry-run produces accepted
 evidence for both macOS targets and Windows without exposing signing material.
+
+**R11.3 preparation:** The [upgrade, rollback, and uninstall guide](../../guides/upgrade-and-rollback.md) defines the
+backup-first binary/workspace boundary, future-schema rejection, restore-to-new-path rollback, host-pack refresh, and
+five-target RC evidence requirements. Release archive smoke now performs an isolated user-local install and proves
+that uninstall removes the binary/notice bundle without deleting the workspace. These are preparatory controls; the
+R11.3 checkboxes remain open until exact signed Beta/RC archives pass the documented version-pair and two-tag matrix.
 
 #### R11.3 Release candidate
 

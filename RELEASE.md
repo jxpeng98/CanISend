@@ -58,7 +58,7 @@ The full release sequence is tracked in R9–R11 of the Rust-native roadmap.
   Windows must pass the Authenticode policy. The implemented workflow fails closed until configured credentials,
   exact signer checks, timestamps, notarization logs, and final-archive-bound evidence all pass.
 - **Release candidate:** features freeze, beta-to-RC workspace upgrades pass, and the complete clean-tag matrix passes
-  twice with release notes, uninstall, and rollback guidance.
+  twice with release notes and the verified [upgrade, rollback, and uninstall procedure](docs/guides/upgrade-and-rollback.md).
 - **Stable:** the same signed archives, package-manager manifests, support policy, and measured next-roadmap inputs
   publish together.
 

@@ -11,7 +11,8 @@ Start here:
 4. [Connect Codex, Claude, or another agent host](agent-integration.md).
 5. [Understand privacy and consent boundaries](privacy-and-consent.md).
 6. [Back up and restore the workspace](backup-and-recovery.md).
-7. [Diagnose common failures](troubleshooting.md).
+7. [Upgrade, roll back, or uninstall safely](upgrade-and-rollback.md).
+8. [Diagnose common failures](troubleshooting.md).
 
 The machine contract is [CanISend agent protocol v2](../contracts/agent-protocol-v2.md). Security assumptions are in
 the [threat model](../security/threat-model.md).

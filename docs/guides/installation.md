@@ -119,3 +119,7 @@ only the executable and bundled notices; never copy a new binary into `.canisend
 
 To uninstall, remove the executable and its notice bundle. Workspaces are ordinary user-owned directories and are
 not deleted automatically. Delete them and their backups only after making an explicit data-retention decision.
+
+Opening a workspace with a new binary may apply an append-only Rust-era migration. Follow the complete
+[upgrade, rollback, and uninstall guide](upgrade-and-rollback.md); rolling back the executable does not downgrade an
+already migrated workspace.

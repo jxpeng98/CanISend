@@ -204,6 +204,7 @@ fn check_documentation() -> Result<(), String> {
         "agent-integration.md",
         "privacy-and-consent.md",
         "backup-and-recovery.md",
+        "upgrade-and-rollback.md",
         "troubleshooting.md",
     ];
     for file_name in required {

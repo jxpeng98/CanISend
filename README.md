@@ -25,6 +25,7 @@ the Git tag `archive/python-v0.6.0b1-final`.
 - [Agent integration](docs/guides/agent-integration.md)
 - [Privacy and consent](docs/guides/privacy-and-consent.md)
 - [Backup and recovery](docs/guides/backup-and-recovery.md)
+- [Upgrade, rollback, and uninstall](docs/guides/upgrade-and-rollback.md)
 - [Troubleshooting](docs/guides/troubleshooting.md)
 
 ## Current status
