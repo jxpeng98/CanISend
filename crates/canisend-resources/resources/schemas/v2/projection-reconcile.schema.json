@@ -61,6 +61,7 @@
       "enum": [
         "markdown",
         "structured-json",
+        "typst-source",
         "package-manifest-json"
       ],
       "type": "string"

@@ -707,6 +707,7 @@ pub struct PackageManifestRecord {
 pub enum ProjectionKind {
     Markdown,
     StructuredJson,
+    TypstSource,
     PackageManifestJson,
 }
 

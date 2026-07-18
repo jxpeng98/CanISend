@@ -1657,7 +1657,9 @@ impl SemanticValidate for ProjectionRecord {
                 | crate::ArtifactKind::Cv
         );
         let source_kind_valid = match self.kind {
-            ProjectionKind::Markdown | ProjectionKind::StructuredJson => supported_document,
+            ProjectionKind::Markdown
+            | ProjectionKind::StructuredJson
+            | ProjectionKind::TypstSource => supported_document,
             ProjectionKind::PackageManifestJson => {
                 self.source_artifact.kind == crate::ArtifactKind::PackageManifest
             }
@@ -1671,6 +1673,7 @@ impl SemanticValidate for ProjectionRecord {
         }
         let extension_valid = match self.kind {
             ProjectionKind::Markdown => self.relative_path.as_str().ends_with(".md"),
+            ProjectionKind::TypstSource => self.relative_path.as_str().ends_with(".typ"),
             ProjectionKind::StructuredJson | ProjectionKind::PackageManifestJson => {
                 self.relative_path.as_str().ends_with(".json")
             }
@@ -2169,6 +2172,12 @@ mod tests {
         });
         validate_external_candidate::<ProjectionRecord>(&projection)
             .expect("current projection receipt");
+        let mut typst_projection = projection.clone();
+        typst_projection["kind"] = json!("typst-source");
+        typst_projection["relative_path"] =
+            json!("jobs/019f2f55-7c00-7000-8000-000000000002/application/cover-letter.typ");
+        validate_external_candidate::<ProjectionRecord>(&typst_projection)
+            .expect("Typst source is an editable document projection");
 
         let export = json!({
             "id": "019f2f55-7c00-7000-8000-000000000702",
