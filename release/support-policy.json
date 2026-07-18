@@ -1,0 +1,50 @@
+{
+  "contracts": {
+    "agent_protocol": "canisend.agent/v2",
+    "beta_freeze": "release/beta-contract-freeze.json",
+    "breaking_agent_change": "new-protocol-and-schema-major",
+    "public_schema_version": "2.0.0",
+    "resource_format": "canisend.resources/v2"
+  },
+  "host_assets": {
+    "claude": "generated-by-installed-binary",
+    "codex": "generated-by-installed-binary",
+    "private_workspace_bodies_included_by_default": false,
+    "refresh_after_upgrade": true
+  },
+  "platforms": {
+    "authority": "release/targets.json",
+    "linux_arm64": "unsupported-in-0.7",
+    "runtime_requirements": {
+      "external_sqlite": false,
+      "external_typst": false,
+      "java": false,
+      "node": false,
+      "python": false
+    },
+    "target_count": 5
+  },
+  "publication_status": "pre-stable-draft",
+  "release_line": "0.7",
+  "schema": "canisend.support-policy/v1",
+  "security": {
+    "default_telemetry": false,
+    "private_issue_content": "prohibited",
+    "reporting": "SECURITY.md"
+  },
+  "version_support": {
+    "long_term_support": false,
+    "prerelease": "current-only-until-superseded",
+    "python_0_6_line": "archived-unsupported",
+    "service_level_agreement": false,
+    "stable": "current-minor-latest-patch"
+  },
+  "workspace": {
+    "current_database_schema_version": 13,
+    "downgrade": "restore-verified-pre-upgrade-backup-to-new-path",
+    "format": "canisend.workspace/v2",
+    "frozen_migrations_through": 13,
+    "future_schema": "reject-without-mutation",
+    "migration_policy": "append-only"
+  }
+}

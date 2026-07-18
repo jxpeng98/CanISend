@@ -1931,6 +1931,13 @@ R11.3 checkboxes remain open until exact signed Beta/RC archives pass the docume
 - [ ] Publish protocol, schema, and workspace support policy.
 - [ ] Create the next roadmap from measured user feedback.
 
+**R11.4 preparation:** The [support policy](../../release/support-policy.md), machine authority
+`release/support-policy.json`, and
+[preparation note](../../notes/rust-native/2026-07-18-r11-stable-support-policy-prep.md) bind version support, the five
+native targets, Agent/schema/resource v2, append-only workspace v2, generated host packs, runtime independence, and
+unsupported surfaces. The policy remains a pre-Stable draft; the release check requires an explicit `published`
+transition when the workspace version becomes Stable, so this checklist item cannot close early.
+
 **Deliverables:** Signed, documented, platform-specific native releases.
 
 **Exit criteria:** A supported user installs and completes the documented workflow without any development runtime.

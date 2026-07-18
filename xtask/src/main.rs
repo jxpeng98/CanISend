@@ -22,6 +22,7 @@ const BETA_READINESS_SCHEMA: &str = "canisend.beta-readiness/v1";
 const BETA_CONTRACT_FREEZE_SCHEMA: &str = "canisend.beta-contract-freeze/v1";
 const CHANNEL_CANDIDATE_SOURCE_SCHEMA: &str = "canisend.channel-candidate-source/v1";
 const SIGNING_POLICY_SCHEMA: &str = "canisend.signing-policy/v1";
+const SUPPORT_POLICY_SCHEMA: &str = "canisend.support-policy/v1";
 const CODE_SIGNING_EVIDENCE_SCHEMA: &str = "canisend.code-signing-evidence/v1";
 const WINGET_MANIFEST_VERSION: &str = "1.12.0";
 const NATIVE_ALPHA_TAG: &str = "v0.7.0-alpha.1";
@@ -53,6 +54,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
             check_beta_contract_freeze()?;
             check_channel_candidates()?;
             check_signing_policy()?;
+            check_support_policy()?;
             check_release_contract()
         }
         [area, command] if area == "release" && command == "freeze-candidate" => {
@@ -830,6 +832,112 @@ fn check_signing_policy() -> Result<(), String> {
     }
     println!("signing policy: ok (Apple notarization + Windows Artifact Signing)");
     Ok(())
+}
+
+fn check_support_policy() -> Result<(), String> {
+    let root = repository_root();
+    let path = root.join("release/support-policy.json");
+    let actual: Value =
+        serde_json::from_slice(&fs::read(&path).map_err(|error| {
+            format!("support policy is missing at {}: {error}", path.display())
+        })?)
+        .map_err(|error| format!("support policy is invalid JSON: {error}"))?;
+    let version = Version::parse(env!("CARGO_PKG_VERSION"))
+        .map_err(|error| format!("workspace version is invalid: {error}"))?;
+    let publication_status = support_policy_publication_status(&version);
+    let target_count = release_targets()?.len();
+    let expected = json!({
+        "schema": SUPPORT_POLICY_SCHEMA,
+        "publication_status": publication_status,
+        "release_line": format!("{}.{}", version.major, version.minor),
+        "version_support": {
+            "prerelease": "current-only-until-superseded",
+            "stable": "current-minor-latest-patch",
+            "long_term_support": false,
+            "service_level_agreement": false,
+            "python_0_6_line": "archived-unsupported"
+        },
+        "contracts": {
+            "agent_protocol": AGENT_PROTOCOL,
+            "public_schema_version": PUBLIC_SCHEMA_VERSION,
+            "resource_format": canisend_resources::RESOURCE_VERSION,
+            "beta_freeze": "release/beta-contract-freeze.json",
+            "breaking_agent_change": "new-protocol-and-schema-major"
+        },
+        "workspace": {
+            "format": WORKSPACE_FORMAT,
+            "current_database_schema_version": declared_database_schema_version()?,
+            "frozen_migrations_through": FROZEN_MIGRATIONS_THROUGH,
+            "migration_policy": "append-only",
+            "future_schema": "reject-without-mutation",
+            "downgrade": "restore-verified-pre-upgrade-backup-to-new-path"
+        },
+        "platforms": {
+            "authority": "release/targets.json",
+            "target_count": target_count,
+            "linux_arm64": "unsupported-in-0.7",
+            "runtime_requirements": {
+                "python": false,
+                "node": false,
+                "java": false,
+                "external_typst": false,
+                "external_sqlite": false
+            }
+        },
+        "host_assets": {
+            "codex": "generated-by-installed-binary",
+            "claude": "generated-by-installed-binary",
+            "refresh_after_upgrade": true,
+            "private_workspace_bodies_included_by_default": false
+        },
+        "security": {
+            "reporting": "SECURITY.md",
+            "default_telemetry": false,
+            "private_issue_content": "prohibited"
+        }
+    });
+    if actual != expected {
+        return Err(
+            "release/support-policy.json differs from the current product, contract, workspace, or platform policy"
+                .to_owned(),
+        );
+    }
+
+    let document_path = root.join("docs/release/support-policy.md");
+    let document = fs::read_to_string(&document_path).map_err(|error| {
+        format!(
+            "support policy documentation is missing at {}: {error}",
+            document_path.display()
+        )
+    })?;
+    check_local_markdown_links(&root, &document_path, &document)?;
+    for required in [
+        AGENT_PROTOCOL,
+        PUBLIC_SCHEMA_VERSION,
+        canisend_resources::RESOURCE_VERSION,
+        WORKSPACE_FORMAT,
+        "current-only-until-superseded",
+        "current-minor-latest-patch",
+        "restore into a new path",
+        "Linux arm64",
+        "No service-level agreement",
+    ] {
+        if !document.contains(required) {
+            return Err(format!(
+                "support policy documentation is missing `{required}`"
+            ));
+        }
+    }
+    println!("support policy: ok ({publication_status}, {target_count} targets)");
+    Ok(())
+}
+
+fn support_policy_publication_status(version: &Version) -> &'static str {
+    if version.pre.is_empty() {
+        "published"
+    } else {
+        "pre-stable-draft"
+    }
 }
 
 fn build_beta_contract_freeze() -> Result<Value, String> {
@@ -2689,6 +2797,22 @@ mod tests {
     #[test]
     fn signing_policy_matches_fail_closed_workflow_contract() {
         check_signing_policy().expect("signing policy");
+    }
+
+    #[test]
+    fn support_policy_matches_current_contracts_and_release_line() {
+        check_support_policy().expect("support policy");
+    }
+
+    #[test]
+    fn support_policy_cannot_remain_draft_for_stable_version() {
+        let prerelease = Version::parse("0.7.0-rc.1").expect("RC version");
+        let stable = Version::parse("0.7.0").expect("Stable version");
+        assert_eq!(
+            support_policy_publication_status(&prerelease),
+            "pre-stable-draft"
+        );
+        assert_eq!(support_policy_publication_status(&stable), "published");
     }
 
     #[test]

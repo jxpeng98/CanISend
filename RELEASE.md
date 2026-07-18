@@ -59,8 +59,8 @@ The full release sequence is tracked in R9–R11 of the Rust-native roadmap.
   exact signer checks, timestamps, notarization logs, and final-archive-bound evidence all pass.
 - **Release candidate:** features freeze, beta-to-RC workspace upgrades pass, and the complete clean-tag matrix passes
   twice with release notes and the verified [upgrade, rollback, and uninstall procedure](docs/guides/upgrade-and-rollback.md).
-- **Stable:** the same signed archives, package-manager manifests, support policy, and measured next-roadmap inputs
-  publish together.
+- **Stable:** the same signed archives, package-manager manifests, the machine-checked
+  [support policy](docs/release/support-policy.md), and measured next-roadmap inputs publish together.
 
 Publication happens only on an exact `vVERSION` tag push. Manual workflow dispatch is a non-publishing dry-run even
 when it validates the same version string.
