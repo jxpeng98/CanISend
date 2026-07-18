@@ -19,15 +19,15 @@ the Git tag `archive/python-v0.6.0b1-final`.
 
 ## Current status
 
-The Rust rebuild has completed R7 plus R8.1–R8.2, including the full evidence-backed intake-to-plan decision spine
-and structured drafting. R8.3 review is now active. The current binary provides:
+The Rust rebuild has completed R7 plus R8.1–R8.3, including the full evidence-backed intake-to-plan decision spine,
+structured drafting, and revision-bound review. R8.4 package readiness is now active. The current binary provides:
 
 - Native `canisend` executable scaffolding.
 - Validated UUIDv7, SHA-256, revision, UTC timestamp, and safe relative-path contract types.
 - `canisend.agent/v2` success/error envelopes, stable error registry, and grouped exit policy.
 - Product/version/build inspection.
-- Thirty-one deterministic Draft 2020-12 schemas generated from Rust types.
-- Forty typed embedded schemas, prompts, templates, examples, and host assets with SHA-256 verification.
+- Thirty-four deterministic Draft 2020-12 schemas generated from Rust types.
+- Forty-four typed embedded schemas, prompts, templates, examples, and host assets with SHA-256 verification.
 - A truthful capability registry that marks unfinished functions as `planned`.
 - Agent context plus schema/resource diagnostics with deterministic JSON snapshots.
 - Workspace discovery, explicit `--workspace` resolution, initialization, status, integrity checks, and repair.
@@ -56,9 +56,13 @@ and structured drafting. R8.3 review is now active. The current binary provides:
   current `document-set` assembly and upstream stale propagation.
 - Agent-callable `document list`, `document show`, and `document set` inspection with a bundled bounded drafting
   prompt for Codex, Claude, and generic hosts.
+- Exact-set Review tasks with deterministic citation, placeholder, unclaimed-content, literal prohibited-claim, and
+  repeated-claim consistency checks plus bounded semantic host findings.
+- Core-owned deterministic/human finding authority and user-only `review export/confirm/show` dispositions with
+  stable finding IDs, revision tracking, and automatic stale propagation.
 
-Structured review, package readiness, editable exports, and embedded PDF rendering are not yet available in the
-production binary. Their execution order and acceptance gates are defined in the
+Package readiness, editable exports, and embedded PDF rendering are not yet available in the production binary.
+Their execution order and acceptance gates are defined in the
 [Rust-native roadmap](docs/superpowers/plans/2026-07-17-rust-native-greenfield-roadmap.md).
 
 ## Build the native foundation

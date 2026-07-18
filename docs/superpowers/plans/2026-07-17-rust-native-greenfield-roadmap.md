@@ -1,6 +1,6 @@
 # CanISend Rust-Native Greenfield Rebuild Roadmap
 
-**Status:** In progress — R0 through R7 and R8.1–R8.2 complete; R8.3 structured review active
+**Status:** In progress — R0 through R7 and R8.1–R8.3 complete; R8.4 package readiness active
 
 **Date:** 2026-07-17
 
@@ -95,6 +95,13 @@
   capability/next actions; and the embedded `document-draft` prompt. Local verification passed 64 Rust tests,
   Clippy with warnings denied, 31-schema/40-resource drift checks, release compilation, and packaged host-agent smoke.
   R8.3 structured review is active.
+- 2026-07-18: GitHub Actions run `29624374991` passed the R8.2 clean-checkout gate in 2 minutes 2 seconds, including
+  format, Clippy, all tests, schema/resource drift, release build, and packaged smoke.
+- 2026-07-18: Completed R8.3 with exact document-set review tasks, independent deterministic citation/placeholder/
+  unclaimed-content/literal-prohibition/consistency findings, semantic host review, core-owned finding identities,
+  deterministic versus human authority, explicit user accepted-risk/dismissed dispositions, stable finding revisions,
+  and `review export/confirm/show`. Local verification passed 65 Rust tests, Clippy with warnings denied,
+  34-schema/44-resource checks, release compilation, and packaged host-agent smoke. R8.4 package readiness is active.
 
 ## 1. Executive Decision
 
@@ -1559,11 +1566,16 @@ evidence, profile, job, or workflow changes stale individual drafts and the set.
 
 #### R8.3 Review stages
 
-- [ ] Implement evidence citation validation.
-- [ ] Implement placeholder and unsupported-claim detection.
-- [ ] Implement cross-document consistency checks.
-- [ ] Define human-review findings separately from deterministic blockers.
-- [ ] Implement user dispositions and finding revision tracking.
+- [x] Implement evidence citation validation.
+- [x] Implement placeholder and unsupported-claim detection.
+- [x] Implement cross-document consistency checks.
+- [x] Define human-review findings separately from deterministic blockers.
+- [x] Implement user dispositions and finding revision tracking.
+
+**R8.3 exit:** Satisfied locally. Review tasks freeze the exact document set, each member document, and the complete
+plan/match/criteria/evidence chain. The core owns deterministic blockers and finding identities; agents propose only
+semantic human-review findings with exact targets. User dispositions create a new ReviewFindings revision without
+changing or bypassing deterministic findings, and upstream changes stale the complete review.
 
 #### R8.4 Package readiness
 
