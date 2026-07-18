@@ -1,0 +1,83 @@
+{
+  "channels": [
+    {
+      "id": "homebrew-cask",
+      "lifecycle": [
+        "install-beta",
+        "run-version-and-doctor",
+        "create-external-workspace",
+        "upgrade-to-rc",
+        "run-version-and-doctor",
+        "uninstall",
+        "prove-workspace-retained"
+      ],
+      "official_validators": [
+        "brew-style",
+        "brew-audit-strict-cask"
+      ],
+      "targets": [
+        "aarch64-apple-darwin",
+        "x86_64-apple-darwin"
+      ]
+    },
+    {
+      "id": "scoop",
+      "lifecycle": [
+        "install-beta",
+        "run-version-and-doctor",
+        "create-external-workspace",
+        "upgrade-to-rc",
+        "run-version-and-doctor",
+        "uninstall",
+        "prove-workspace-retained"
+      ],
+      "official_validators": [
+        "scoop-manifest-install"
+      ],
+      "targets": [
+        "x86_64-pc-windows-msvc"
+      ]
+    },
+    {
+      "id": "winget",
+      "lifecycle": [
+        "validate-beta-manifest",
+        "validate-rc-manifest",
+        "sandbox-install-beta",
+        "run-version-and-doctor",
+        "create-external-workspace",
+        "upgrade-to-rc",
+        "run-version-and-doctor",
+        "uninstall",
+        "prove-workspace-retained"
+      ],
+      "official_validators": [
+        "winget-validate",
+        "winget-sandbox-test"
+      ],
+      "targets": [
+        "x86_64-pc-windows-msvc"
+      ]
+    }
+  ],
+  "evidence": {
+    "all_checks_must_pass": true,
+    "bind_candidate_source_sha256": true,
+    "bind_github_run_id": true,
+    "required_records": [
+      "homebrew-aarch64-apple-darwin",
+      "homebrew-x86_64-apple-darwin",
+      "scoop-x86_64-pc-windows-msvc",
+      "winget-x86_64-pc-windows-msvc"
+    ],
+    "schema": "canisend.package-manager-qualification/v1"
+  },
+  "publication_authorized": false,
+  "release_pair": {
+    "from_stage": "beta",
+    "require_public_signed_candidates": true,
+    "same_release_line": true,
+    "to_stage": "rc"
+  },
+  "schema": "canisend.package-manager-qualification-policy/v1"
+}

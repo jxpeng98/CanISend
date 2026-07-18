@@ -1,0 +1,42 @@
+# Package-manager Qualification Policy
+
+[`release/package-manager-qualification-policy.json`](../../release/package-manager-qualification-policy.json) is
+the machine authority for proving package-manager behavior before Stable. It does not publish a Cask, Scoop bucket,
+WinGet manifest, release, or repository change.
+
+## Release pair
+
+Qualification uses a public, signed Beta as the installed version and a public, signed RC as the upgrade target.
+Both versions must belong to the same release line, and both checked-in candidate sets must remain
+`candidate_only: true` with `publication_authorized: false`. Alpha archives cannot satisfy this contract.
+
+## Required records
+
+One qualification run must produce four independently bound records:
+
+| Record | Native environment | Mandatory native validation |
+|---|---|---|
+| `homebrew-aarch64-apple-darwin` | Apple Silicon macOS | `brew style`, strict Cask audit, lifecycle |
+| `homebrew-x86_64-apple-darwin` | Intel macOS | `brew style`, strict Cask audit, lifecycle |
+| `scoop-x86_64-pc-windows-msvc` | Windows x86_64 | local-bucket lifecycle |
+| `winget-x86_64-pc-windows-msvc` | Windows x86_64 and Windows Sandbox | `winget validate`, Sandbox install, lifecycle |
+
+Every record binds the Beta and RC candidate-source SHA-256 digests, GitHub run ID, runner/architecture, tool version,
+exact version observations, and each lifecycle result. All checks must pass; skipped validators or lifecycle steps do
+not count as qualification.
+
+The lifecycle creates a workspace outside the package-manager installation root, upgrades the executable, removes
+the installed executable, and proves the user-owned workspace remains. It never publishes externally and never uses
+real application data.
+
+## Evidence boundary
+
+The qualification ledger may change `package_managers.status` from `candidates-only` to `passed` only after:
+
+1. the four records validate against the policy;
+2. their run ID and exact Beta/RC tags are independently inspected;
+3. the signed release manifests and candidate-source digests match the public assets; and
+4. the run contains no skipped or tolerated failure.
+
+The later workflow implementation will be manual-only and read-only with respect to external package repositories.
+The final Stable publication remains a separate authorized action after two clean RC release matrices.

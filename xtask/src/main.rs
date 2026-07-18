@@ -25,6 +25,8 @@ const SIGNING_POLICY_SCHEMA: &str = "canisend.signing-policy/v1";
 const SUPPORT_POLICY_SCHEMA: &str = "canisend.support-policy/v1";
 const FEEDBACK_SNAPSHOT_SCHEMA: &str = "canisend.feedback-snapshot/v1";
 const RELEASE_QUALIFICATION_SCHEMA: &str = "canisend.release-qualification/v1";
+const PACKAGE_MANAGER_QUALIFICATION_POLICY_SCHEMA: &str =
+    "canisend.package-manager-qualification-policy/v1";
 const CODE_SIGNING_EVIDENCE_SCHEMA: &str = "canisend.code-signing-evidence/v1";
 const FUZZ_TOOLCHAIN: &str = "nightly-2026-07-01";
 const CARGO_FUZZ_VERSION: &str = "0.13.2";
@@ -59,6 +61,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
             check_beta_readiness()?;
             check_beta_contract_freeze()?;
             check_channel_candidates()?;
+            check_package_manager_qualification_policy()?;
             check_signing_policy()?;
             check_support_policy()?;
             check_release_feedback()?;
@@ -2126,6 +2129,92 @@ fn check_channel_candidates() -> Result<(), String> {
     Ok(())
 }
 
+fn check_package_manager_qualification_policy() -> Result<(), String> {
+    let root = repository_root();
+    let path = root.join("release/package-manager-qualification-policy.json");
+    let actual: Value = serde_json::from_slice(&fs::read(&path).map_err(|error| {
+        format!(
+            "package-manager qualification policy is missing at {}: {error}",
+            path.display()
+        )
+    })?)
+    .map_err(|error| format!("package-manager qualification policy is invalid JSON: {error}"))?;
+    let lifecycle = [
+        "install-beta",
+        "run-version-and-doctor",
+        "create-external-workspace",
+        "upgrade-to-rc",
+        "run-version-and-doctor",
+        "uninstall",
+        "prove-workspace-retained",
+    ];
+    let expected = json!({
+        "schema": PACKAGE_MANAGER_QUALIFICATION_POLICY_SCHEMA,
+        "publication_authorized": false,
+        "release_pair": {
+            "from_stage": "beta",
+            "to_stage": "rc",
+            "same_release_line": true,
+            "require_public_signed_candidates": true
+        },
+        "channels": [
+            {
+                "id": "homebrew-cask",
+                "targets": ["aarch64-apple-darwin", "x86_64-apple-darwin"],
+                "official_validators": ["brew-style", "brew-audit-strict-cask"],
+                "lifecycle": lifecycle
+            },
+            {
+                "id": "scoop",
+                "targets": ["x86_64-pc-windows-msvc"],
+                "official_validators": ["scoop-manifest-install"],
+                "lifecycle": lifecycle
+            },
+            {
+                "id": "winget",
+                "targets": ["x86_64-pc-windows-msvc"],
+                "official_validators": ["winget-validate", "winget-sandbox-test"],
+                "lifecycle": [
+                    "validate-beta-manifest",
+                    "validate-rc-manifest",
+                    "sandbox-install-beta",
+                    "run-version-and-doctor",
+                    "create-external-workspace",
+                    "upgrade-to-rc",
+                    "run-version-and-doctor",
+                    "uninstall",
+                    "prove-workspace-retained"
+                ]
+            }
+        ],
+        "evidence": {
+            "schema": "canisend.package-manager-qualification/v1",
+            "required_records": [
+                "homebrew-aarch64-apple-darwin",
+                "homebrew-x86_64-apple-darwin",
+                "scoop-x86_64-pc-windows-msvc",
+                "winget-x86_64-pc-windows-msvc"
+            ],
+            "bind_candidate_source_sha256": true,
+            "bind_github_run_id": true,
+            "all_checks_must_pass": true
+        }
+    });
+    if actual != expected {
+        return Err(
+            "package-manager qualification policy differs from the native release contract"
+                .to_owned(),
+        );
+    }
+    let documentation_path = root.join("docs/release/package-manager-qualification.md");
+    let documentation = fs::read_to_string(&documentation_path).map_err(|error| {
+        format!("package-manager qualification documentation is missing: {error}")
+    })?;
+    check_local_markdown_links(&root, &documentation_path, &documentation)?;
+    println!("package-manager qualification policy: ok (4 native records)");
+    Ok(())
+}
+
 fn check_channel_candidate_directory(path: &Path) -> Result<ChannelCandidateSource, String> {
     let source_path = path.join("candidate-source.json");
     reject_symlink(&source_path)?;
@@ -3468,6 +3557,11 @@ mod tests {
         assert!(installer.contains("  PortableCommandAlias: canisend\n"));
         assert!(installer.contains("  InstallerUrl: https://"));
         assert!(installer.contains("canisend-0.7.0-alpha.1-x86_64-pc-windows-msvc\\canisend.exe"));
+    }
+
+    #[test]
+    fn package_manager_qualification_policy_is_native_and_nonpublishing() {
+        check_package_manager_qualification_policy().expect("package-manager qualification policy");
     }
 
     #[test]

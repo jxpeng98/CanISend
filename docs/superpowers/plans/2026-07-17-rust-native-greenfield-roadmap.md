@@ -231,6 +231,10 @@
   machine release check prevents removal of the target, policy, named properties, or workflow commands. Final
   quality qualification awaits the exact implementation commit's CI result; the
   [implementation note](../../notes/rust-native/2026-07-18-r10-property-qualification.md) preserves the boundary.
+- 2026-07-18: Froze a nonpublishing package-manager qualification policy for a signed Beta-to-RC release pair. Stable
+  evidence must contain Homebrew lifecycle records from both macOS architectures plus Scoop and WinGet records from
+  Windows, all bound to candidate-source hashes and one inspected GitHub run. This closes ambiguity between manifest
+  generation and real install/upgrade/uninstall behavior; the native manual workflow is the next active task.
 
 ## 1. Executive Decision
 
