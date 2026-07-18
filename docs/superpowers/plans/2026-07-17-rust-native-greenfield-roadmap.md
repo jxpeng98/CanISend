@@ -1,6 +1,6 @@
 # CanISend Rust-Native Greenfield Rebuild Roadmap
 
-**Status:** In progress — R0 through R7 complete; R8 structured drafting and review active
+**Status:** In progress — R0 through R7 and R8.1–R8.2 complete; R8.3 structured review active
 
 **Date:** 2026-07-17
 
@@ -89,6 +89,12 @@
   metadata, first-alpha document kinds, and document-specific semantic shape rules. Local verification passed 64
   Rust tests, Clippy, 30-schema/38-resource checks, release compilation, and packaged intake-to-plan smoke with the
   expanded host pack. R8.2 draft task execution is active.
+- 2026-07-18: Completed R8.2 with sequential Cover Letter, CV, Research Statement, and Teaching Statement draft
+  tasks; exact plan/evidence/criterion scope validation; host-agent and configured-provider execution; current
+  document heads; automatic `document-set` assembly; upstream invalidation; `document list/show/set`; truthful Draft
+  capability/next actions; and the embedded `document-draft` prompt. Local verification passed 64 Rust tests,
+  Clippy with warnings denied, 31-schema/40-resource drift checks, release compilation, and packaged host-agent smoke.
+  R8.3 structured review is active.
 
 ## 1. Executive Decision
 
@@ -1539,12 +1545,17 @@ confirms a blocker-free apply revision and proves that only it opens Draft.
 
 #### R8.2 Draft stages
 
-- [ ] Implement Cover Letter host-agent draft.
-- [ ] Implement Research Statement host-agent draft.
-- [ ] Implement Teaching Statement host-agent draft if included in alpha scope.
-- [ ] Implement CV tailoring notes.
-- [ ] Add configured-provider support through the same task validation boundary.
-- [ ] Bound provider input and output sizes.
+- [x] Implement Cover Letter host-agent draft.
+- [x] Implement Research Statement host-agent draft.
+- [x] Implement Teaching Statement host-agent draft if included in alpha scope.
+- [x] Implement CV tailoring notes.
+- [x] Add configured-provider support through the same task validation boundary.
+- [x] Bound provider input and output sizes.
+
+**R8.2 exit:** Satisfied locally. Non-omitted plan entries are drafted sequentially through revision-bound tasks; all
+five declared inputs are bounded, private, and exact-revision validated; provider mode adds separate send consent;
+the final accepted document atomically assembles a current `document-set` and unlocks Review. Upstream plan,
+evidence, profile, job, or workflow changes stale individual drafts and the set.
 
 #### R8.3 Review stages
 

@@ -19,15 +19,15 @@ the Git tag `archive/python-v0.6.0b1-final`.
 
 ## Current status
 
-The Rust rebuild has completed R7, including the full evidence-backed intake-to-plan decision spine. R8 structured
-drafting, review, and packaging is now active. The current binary provides:
+The Rust rebuild has completed R7 plus R8.1–R8.2, including the full evidence-backed intake-to-plan decision spine
+and structured drafting. R8.3 review is now active. The current binary provides:
 
 - Native `canisend` executable scaffolding.
 - Validated UUIDv7, SHA-256, revision, UTC timestamp, and safe relative-path contract types.
 - `canisend.agent/v2` success/error envelopes, stable error registry, and grouped exit policy.
 - Product/version/build inspection.
-- Thirty deterministic Draft 2020-12 schemas generated from Rust types.
-- Thirty-eight typed embedded schemas, prompts, templates, examples, and host assets with SHA-256 verification.
+- Thirty-one deterministic Draft 2020-12 schemas generated from Rust types.
+- Forty typed embedded schemas, prompts, templates, examples, and host assets with SHA-256 verification.
 - A truthful capability registry that marks unfinished functions as `planned`.
 - Agent context plus schema/resource diagnostics with deterministic JSON snapshots.
 - Workspace discovery, explicit `--workspace` resolution, initialization, status, integrity checks, and repair.
@@ -50,9 +50,15 @@ drafting, review, and packaging is now active. The current binary provides:
 - Revisioned profile evidence normalization, correction, exclusion, confirmation, and exact source spans.
 - Revision-bound criterion-to-evidence matching with strength, gaps, prohibited claims, and core-owned identities.
 - User-confirmed apply/hold/skip decisions, strategy fields, four-document plans, and derived blocker gates.
+- Sequential Cover Letter, CV, Research Statement, and Teaching Statement tasks in host-agent or configured-provider
+  mode, with exact plan, criterion, evidence, and profile revision binding.
+- Core-owned structured section, claim, citation, placeholder, generation, and document identities, plus automatic
+  current `document-set` assembly and upstream stale propagation.
+- Agent-callable `document list`, `document show`, and `document set` inspection with a bundled bounded drafting
+  prompt for Codex, Claude, and generic hosts.
 
-Evidence-backed drafting, review, packaging, and embedded PDF rendering are not yet available in the production
-binary. Their execution order and acceptance gates are defined in the
+Structured review, package readiness, editable exports, and embedded PDF rendering are not yet available in the
+production binary. Their execution order and acceptance gates are defined in the
 [Rust-native roadmap](docs/superpowers/plans/2026-07-17-rust-native-greenfield-roadmap.md).
 
 ## Build the native foundation
