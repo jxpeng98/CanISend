@@ -1,0 +1,50 @@
+{
+  "beta": {
+    "signed_matrix_run": null,
+    "signing_evidence_targets": [],
+    "source_commit": null,
+    "status": "pending",
+    "tag": null
+  },
+  "documentation_uninstall": {
+    "evidence": [
+      "local aarch64 archive lifecycle smoke passed before five-target qualification"
+    ],
+    "native_matrix_run": null,
+    "status": "prepared-local"
+  },
+  "feature_freeze": {
+    "allowed_change_classes": [
+      "documentation",
+      "release-blocker",
+      "release-evidence"
+    ],
+    "baseline_commit": null,
+    "status": "planned"
+  },
+  "package_managers": {
+    "channels": [
+      "homebrew-cask",
+      "scoop",
+      "winget"
+    ],
+    "evidence": [],
+    "status": "candidates-only"
+  },
+  "release_candidates": [],
+  "release_notes": {
+    "notes": "release/RELEASE_NOTES.md",
+    "rollback": "docs/guides/upgrade-and-rollback.md",
+    "status": "alpha-current"
+  },
+  "schema": "canisend.release-qualification/v1",
+  "stable_authorized": false,
+  "status": "pre-beta",
+  "upgrade_matrix": {
+    "beta_tag": null,
+    "evidence": [],
+    "rc_tag": null,
+    "status": "pending"
+  },
+  "workspace_stage": "alpha"
+}

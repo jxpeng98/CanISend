@@ -65,6 +65,10 @@ The full release sequence is tracked in R9–R11 of the Rust-native roadmap.
 Publication happens only on an exact `vVERSION` tag push. Manual workflow dispatch is a non-publishing dry-run even
 when it validates the same version string.
 
+The machine-readable [qualification ledger](docs/release/qualification-ledger.md) must advance with the Cargo
+workspace stage. Stable additionally requires it to retain the signed Beta, two distinct clean-tag RC matrices,
+upgrade/restore, five-target uninstall, three package-manager lifecycles, and final release-note evidence.
+
 ## Verification
 
 Release consumers should verify `SHA256SUMS` and GitHub artifact attestations before extraction. The complete

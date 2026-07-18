@@ -1917,6 +1917,13 @@ five-target RC evidence requirements. Release archive smoke now performs an isol
 that uninstall removes the binary/notice bundle without deleting the workspace. These are preparatory controls; the
 R11.3 checkboxes remain open until exact signed Beta/RC archives pass the documented version-pair and two-tag matrix.
 
+The [qualification ledger](../../release/qualification-ledger.md), machine authority
+`release/qualification-ledger.json`, and
+[implementation note](../../notes/rust-native/2026-07-18-r11-qualification-ledger.md) prevent a Stable version from
+passing source gates without a frozen baseline, signed Beta, two distinct clean-tag RC runs, upgrade/restore,
+five-target uninstall, Homebrew/Scoop/WinGet, and final release-note evidence. Its current status is intentionally
+`pre-beta`.
+
 #### R11.3 Release candidate
 
 - [ ] Freeze features.

@@ -22,6 +22,7 @@ the Git tag `archive/python-v0.6.0b1-final`.
 - [Installation](docs/guides/installation.md)
 - [Release verification](docs/guides/release-verification.md)
 - [Rust-native 0.7 support policy](docs/release/support-policy.md)
+- [Native release qualification ledger](docs/release/qualification-ledger.md)
 - [Quick start](docs/guides/quick-start.md)
 - [Agent integration](docs/guides/agent-integration.md)
 - [Privacy and consent](docs/guides/privacy-and-consent.md)

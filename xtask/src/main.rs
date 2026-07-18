@@ -24,6 +24,7 @@ const CHANNEL_CANDIDATE_SOURCE_SCHEMA: &str = "canisend.channel-candidate-source
 const SIGNING_POLICY_SCHEMA: &str = "canisend.signing-policy/v1";
 const SUPPORT_POLICY_SCHEMA: &str = "canisend.support-policy/v1";
 const FEEDBACK_SNAPSHOT_SCHEMA: &str = "canisend.feedback-snapshot/v1";
+const RELEASE_QUALIFICATION_SCHEMA: &str = "canisend.release-qualification/v1";
 const CODE_SIGNING_EVIDENCE_SCHEMA: &str = "canisend.code-signing-evidence/v1";
 const WINGET_MANIFEST_VERSION: &str = "1.12.0";
 const NATIVE_ALPHA_TAG: &str = "v0.7.0-alpha.1";
@@ -57,6 +58,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
             check_signing_policy()?;
             check_support_policy()?;
             check_release_feedback()?;
+            check_release_qualification()?;
             check_release_contract()
         }
         [area, command] if area == "release" && command == "freeze-candidate" => {
@@ -1121,6 +1123,251 @@ fn feedback_publication_requirements(version: &Version) -> (Option<&'static str>
     } else {
         (None, "draft")
     }
+}
+
+fn check_release_qualification() -> Result<(), String> {
+    let root = repository_root();
+    let path = root.join("release/qualification-ledger.json");
+    let ledger: Value = serde_json::from_slice(&fs::read(&path).map_err(|error| {
+        format!(
+            "release qualification ledger is missing at {}: {error}",
+            path.display()
+        )
+    })?)
+    .map_err(|error| format!("release qualification ledger is invalid JSON: {error}"))?;
+    if ledger["schema"] != RELEASE_QUALIFICATION_SCHEMA {
+        return Err("release qualification ledger schema is invalid".to_owned());
+    }
+    let version = Version::parse(env!("CARGO_PKG_VERSION"))
+        .map_err(|error| format!("workspace version is invalid: {error}"))?;
+    let stage = ReleaseStage::from_version(&version)?;
+    let required_status = qualification_status_for_stage(stage);
+    if ledger["workspace_stage"] != stage.as_str() || ledger["status"] != required_status {
+        return Err(format!(
+            "release qualification ledger must be `{required_status}` for {} stage",
+            stage.as_str()
+        ));
+    }
+
+    let feature_freeze = &ledger["feature_freeze"];
+    let freeze_status = required_string(feature_freeze, "status", "feature freeze")?;
+    if !matches!(freeze_status, "planned" | "frozen") {
+        return Err("release feature-freeze status is invalid".to_owned());
+    }
+    if freeze_status == "planned" && !feature_freeze["baseline_commit"].is_null() {
+        return Err("a planned feature freeze cannot claim a baseline commit".to_owned());
+    }
+    if freeze_status == "frozen" {
+        let baseline = required_string(feature_freeze, "baseline_commit", "feature freeze")?;
+        validate_lower_hex("feature-freeze baseline commit", baseline, 40)?;
+    }
+    if matches!(stage, ReleaseStage::ReleaseCandidate | ReleaseStage::Stable)
+        && freeze_status != "frozen"
+    {
+        return Err("RC and Stable stages require a frozen feature baseline".to_owned());
+    }
+    let allowed_change_classes = feature_freeze["allowed_change_classes"]
+        .as_array()
+        .ok_or_else(|| "feature freeze has no allowed change classes".to_owned())?;
+    let expected_change_classes =
+        BTreeSet::from(["release-blocker", "release-evidence", "documentation"]);
+    let actual_change_classes = allowed_change_classes
+        .iter()
+        .filter_map(Value::as_str)
+        .collect::<BTreeSet<_>>();
+    if actual_change_classes != expected_change_classes
+        || actual_change_classes.len() != allowed_change_classes.len()
+    {
+        return Err("feature-freeze allowed change classes differ".to_owned());
+    }
+
+    let package_managers = &ledger["package_managers"];
+    let channels = package_managers["channels"]
+        .as_array()
+        .ok_or_else(|| "release qualification package-manager channels are missing".to_owned())?;
+    let expected_channels = BTreeSet::from(["homebrew-cask", "scoop", "winget"]);
+    let actual_channels = channels
+        .iter()
+        .filter_map(Value::as_str)
+        .collect::<BTreeSet<_>>();
+    if actual_channels != expected_channels || actual_channels.len() != channels.len() {
+        return Err("release qualification package-manager channels differ".to_owned());
+    }
+    let beta_status = required_string(&ledger["beta"], "status", "Beta qualification")?;
+    if !matches!(beta_status, "pending" | "qualified") {
+        return Err("Beta qualification status is invalid".to_owned());
+    }
+    if matches!(stage, ReleaseStage::ReleaseCandidate | ReleaseStage::Stable)
+        && beta_status != "qualified"
+    {
+        return Err("RC and Stable stages require a qualified Beta".to_owned());
+    }
+    let release_candidates = ledger["release_candidates"]
+        .as_array()
+        .ok_or_else(|| "release candidate qualification must be an array".to_owned())?;
+    for (section, allowed) in [
+        ("upgrade_matrix", &["pending", "passed"][..]),
+        ("documentation_uninstall", &["prepared-local", "passed"][..]),
+        ("package_managers", &["candidates-only", "passed"][..]),
+    ] {
+        let status = required_string(&ledger[section], "status", section)?;
+        if !allowed.contains(&status) {
+            return Err(format!(
+                "release qualification `{section}` status is invalid"
+            ));
+        }
+    }
+
+    let release_notes = &ledger["release_notes"];
+    let release_notes_status = required_string(release_notes, "status", "release notes")?;
+    if !matches!(
+        release_notes_status,
+        "alpha-current" | "beta-current" | "rc-final" | "stable-final"
+    ) {
+        return Err("release notes qualification status is invalid".to_owned());
+    }
+    for (field, expected_path) in [
+        ("notes", "release/RELEASE_NOTES.md"),
+        ("rollback", "docs/guides/upgrade-and-rollback.md"),
+    ] {
+        if release_notes[field] != expected_path || !root.join(expected_path).is_file() {
+            return Err(format!(
+                "release qualification {field} path must be `{expected_path}`"
+            ));
+        }
+    }
+
+    if matches!(stage, ReleaseStage::Stable) {
+        validate_stable_qualification(&ledger)?;
+    } else if ledger["stable_authorized"] != false {
+        return Err("a prerelease qualification ledger cannot authorize Stable".to_owned());
+    }
+    if matches!(stage, ReleaseStage::ReleaseCandidate) && release_candidates.is_empty() {
+        println!(
+            "release qualification: RC evidence collection has not recorded a clean-tag matrix yet"
+        );
+    }
+    println!(
+        "release qualification: ok ({required_status}, stage {})",
+        stage.as_str()
+    );
+    Ok(())
+}
+
+fn qualification_status_for_stage(stage: ReleaseStage) -> &'static str {
+    match stage {
+        ReleaseStage::Alpha => "pre-beta",
+        ReleaseStage::Beta => "beta-qualifying",
+        ReleaseStage::ReleaseCandidate => "rc-qualifying",
+        ReleaseStage::Stable => "qualified",
+    }
+}
+
+fn validate_stable_qualification(ledger: &Value) -> Result<(), String> {
+    let feature_freeze = &ledger["feature_freeze"];
+    if feature_freeze["status"] != "frozen" {
+        return Err("Stable requires a frozen feature baseline".to_owned());
+    }
+    let freeze_commit = required_string(feature_freeze, "baseline_commit", "feature freeze")?;
+    validate_lower_hex("feature-freeze baseline commit", freeze_commit, 40)?;
+
+    let beta = &ledger["beta"];
+    if beta["status"] != "qualified" {
+        return Err("Stable requires a qualified signed Beta".to_owned());
+    }
+    validate_qualification_release(beta, ReleaseStage::Beta, "Beta")?;
+    let signing_targets = beta["signing_evidence_targets"]
+        .as_array()
+        .ok_or_else(|| "qualified Beta signing targets are missing".to_owned())?;
+    let expected_signing_targets = BTreeSet::from([
+        "aarch64-apple-darwin",
+        "x86_64-apple-darwin",
+        "x86_64-pc-windows-msvc",
+    ]);
+    let actual_signing_targets = signing_targets
+        .iter()
+        .filter_map(Value::as_str)
+        .collect::<BTreeSet<_>>();
+    if actual_signing_targets != expected_signing_targets
+        || actual_signing_targets.len() != signing_targets.len()
+    {
+        return Err("qualified Beta signing evidence targets differ".to_owned());
+    }
+
+    let candidates = ledger["release_candidates"]
+        .as_array()
+        .filter(|entries| entries.len() >= 2)
+        .ok_or_else(|| "Stable requires two successful clean-tag RC matrices".to_owned())?;
+    let mut tags = BTreeSet::new();
+    let mut commits = BTreeSet::new();
+    let mut runs = BTreeSet::new();
+    for candidate in candidates {
+        if candidate["status"] != "success" {
+            return Err("every Stable RC matrix must have success status".to_owned());
+        }
+        let (tag, commit, run) =
+            validate_qualification_release(candidate, ReleaseStage::ReleaseCandidate, "RC")?;
+        if !tags.insert(tag) || !commits.insert(commit) || !runs.insert(run) {
+            return Err(
+                "Stable RC matrices must use distinct tags, commits, and run IDs".to_owned(),
+            );
+        }
+    }
+
+    for (section, expected_status) in [
+        ("upgrade_matrix", "passed"),
+        ("documentation_uninstall", "passed"),
+        ("package_managers", "passed"),
+    ] {
+        let evidence = &ledger[section];
+        if evidence["status"] != expected_status
+            || evidence["evidence"].as_array().is_none_or(|items| {
+                items.is_empty()
+                    || items
+                        .iter()
+                        .any(|item| item.as_str().is_none_or(str::is_empty))
+            })
+        {
+            return Err(format!("Stable requires passed `{section}` evidence"));
+        }
+    }
+    let documentation_run = ledger["documentation_uninstall"]["native_matrix_run"]
+        .as_u64()
+        .filter(|run| *run > 0)
+        .ok_or_else(|| "Stable documentation/uninstall evidence has no native run ID".to_owned())?;
+    if !runs.contains(&documentation_run) {
+        return Err(
+            "Stable documentation/uninstall evidence must come from one qualified RC matrix"
+                .to_owned(),
+        );
+    }
+    if ledger["release_notes"]["status"] != "stable-final" || ledger["stable_authorized"] != true {
+        return Err("Stable release notes or authorization are incomplete".to_owned());
+    }
+    Ok(())
+}
+
+fn validate_qualification_release(
+    value: &Value,
+    expected_stage: ReleaseStage,
+    context: &str,
+) -> Result<(String, String, u64), String> {
+    let tag = required_string(value, "tag", context)?;
+    let version = Version::parse(
+        tag.strip_prefix('v')
+            .ok_or_else(|| format!("{context} tag must start with `v`"))?,
+    )
+    .map_err(|error| format!("{context} tag is invalid SemVer: {error}"))?;
+    if ReleaseStage::from_version(&version)? != expected_stage {
+        return Err(format!("{context} tag has the wrong release stage"));
+    }
+    let commit = required_string(value, "source_commit", context)?;
+    validate_lower_hex(&format!("{context} source commit"), commit, 40)?;
+    let run = value["signed_matrix_run"]
+        .as_u64()
+        .filter(|run| *run > 0)
+        .ok_or_else(|| format!("{context} has no signed matrix run ID"))?;
+    Ok((tag.to_owned(), commit.to_owned(), run))
 }
 
 fn build_beta_contract_freeze() -> Result<Value, String> {
@@ -3009,6 +3256,26 @@ mod tests {
         assert_eq!(
             feedback_publication_requirements(&stable),
             (Some("rc"), "published")
+        );
+    }
+
+    #[test]
+    fn release_stage_requires_progressive_qualification_status() {
+        assert_eq!(
+            qualification_status_for_stage(ReleaseStage::Alpha),
+            "pre-beta"
+        );
+        assert_eq!(
+            qualification_status_for_stage(ReleaseStage::Beta),
+            "beta-qualifying"
+        );
+        assert_eq!(
+            qualification_status_for_stage(ReleaseStage::ReleaseCandidate),
+            "rc-qualifying"
+        );
+        assert_eq!(
+            qualification_status_for_stage(ReleaseStage::Stable),
+            "qualified"
         );
     }
 
