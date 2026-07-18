@@ -35,6 +35,9 @@ const FEATURE_FREEZE_EXCEPTIONS_SCHEMA: &str = "canisend.feature-freeze-exceptio
 const PACKAGE_MANAGER_QUALIFICATION_POLICY_SCHEMA: &str =
     "canisend.package-manager-qualification-policy/v1";
 const PACKAGE_MANAGER_QUALIFICATION_SCHEMA: &str = "canisend.package-manager-qualification/v1";
+const UPGRADE_QUALIFICATION_POLICY_SCHEMA: &str = "canisend.upgrade-qualification-policy/v1";
+const UPGRADE_QUALIFICATION_SCHEMA: &str = "canisend.upgrade-qualification/v1";
+const UPGRADE_QUALIFICATION_PLAN_SCHEMA: &str = "canisend.upgrade-qualification-plan/v1";
 const CODE_SIGNING_EVIDENCE_SCHEMA: &str = "canisend.code-signing-evidence/v1";
 const FUZZ_TOOLCHAIN: &str = "nightly-2026-07-01";
 const CARGO_FUZZ_VERSION: &str = "0.13.2";
@@ -71,6 +74,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
             check_beta_contract_freeze()?;
             check_channel_candidates()?;
             check_package_manager_qualification_policy()?;
+            check_upgrade_qualification_policy()?;
             check_signing_policy()?;
             check_stage_transition_policy()?;
             check_support_policy()?;
@@ -167,6 +171,29 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
         {
             verify_package_manager_evidence(from_tag, to_tag, Path::new(evidence))
         }
+        [area, command, from_tag, to_tag, evidence]
+            if area == "release" && command == "verify-upgrade-evidence" =>
+        {
+            verify_upgrade_qualification_evidence(from_tag, to_tag, Path::new(evidence))
+                .map(|_| ())
+        }
+        [area, command, from_tag, to_tag, evidence]
+            if area == "release" && command == "record-upgrade-qualification" =>
+        {
+            record_upgrade_qualification(
+                from_tag,
+                to_tag,
+                Path::new(evidence),
+                false,
+            )
+        }
+        [area, command, from_tag, to_tag, evidence, write]
+            if area == "release"
+                && command == "record-upgrade-qualification"
+                && write == "--write" =>
+        {
+            record_upgrade_qualification(from_tag, to_tag, Path::new(evidence), true)
+        }
         [area, command, from_tag, from_assets, to_tag, to_assets]
             if area == "release" && command == "verify-package-candidates" =>
         {
@@ -179,7 +206,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
         }
         _ => Err(
             "usage: cargo run -p xtask -- schemas <check|write> | <resources|docs> check | \
-             release <check|freeze-candidate|validate-tag TAG|verify-beta-readiness FILE|prepare-stage TAG [--write]|activate-feature-freeze COMMIT [--write]|record-beta-qualification TAG RUN_ID ASSETS [--write]|record-rc-qualification TAG RUN_ID ASSETS [--write]|sbom OUTPUT|assemble TAG COMMIT ARTIFACTS OUTPUT|verify TAG DIRECTORY|channels TAG ASSETS OUTPUT|bind-signing-evidence TAG TARGET EVIDENCE BINARY ARCHIVE|verify-package-candidates FROM_TAG FROM_ASSETS TO_TAG TO_ASSETS|verify-package-evidence FROM_TAG TO_TAG DIRECTORY>"
+             release <check|freeze-candidate|validate-tag TAG|verify-beta-readiness FILE|prepare-stage TAG [--write]|activate-feature-freeze COMMIT [--write]|record-beta-qualification TAG RUN_ID ASSETS [--write]|record-rc-qualification TAG RUN_ID ASSETS [--write]|record-upgrade-qualification FROM_TAG TO_TAG EVIDENCE [--write]|sbom OUTPUT|assemble TAG COMMIT ARTIFACTS OUTPUT|verify TAG DIRECTORY|channels TAG ASSETS OUTPUT|bind-signing-evidence TAG TARGET EVIDENCE BINARY ARCHIVE|verify-package-candidates FROM_TAG FROM_ASSETS TO_TAG TO_ASSETS|verify-package-evidence FROM_TAG TO_TAG DIRECTORY|verify-upgrade-evidence FROM_TAG TO_TAG DIRECTORY>"
                 .to_owned(),
         ),
     }
@@ -486,6 +513,14 @@ struct ChannelCandidateSource {
     manifest_file: String,
     manifest_sha256: String,
     artifacts: BTreeMap<String, ChannelArtifact>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct UpgradeQualificationSummary {
+    run_id: u64,
+    from_manifest_sha256: String,
+    to_manifest_sha256: String,
+    records: usize,
 }
 
 impl ChannelCandidateSource {
@@ -815,6 +850,114 @@ fn record_rc_qualification(
             .map_err(|error| format!("could not serialize RC qualification plan: {error}"))?
     );
     Ok(())
+}
+
+fn record_upgrade_qualification(
+    from_tag: &str,
+    to_tag: &str,
+    evidence: &Path,
+    write: bool,
+) -> Result<(), String> {
+    let root = repository_root();
+    if write {
+        require_clean_worktree(&root, "upgrade qualification")?;
+    }
+    let summary = verify_upgrade_qualification_evidence(from_tag, to_tag, evidence)?;
+    let ledger_path = root.join("release/qualification-ledger.json");
+    let before = fs::read(&ledger_path)
+        .map_err(|error| format!("could not read qualification ledger: {error}"))?;
+    let ledger: Value = serde_json::from_slice(&before)
+        .map_err(|error| format!("qualification ledger is invalid JSON: {error}"))?;
+    let qualified = upgrade_qualified_ledger(&ledger, from_tag, to_tag, &summary)?;
+    let after = pretty_json_bytes(&qualified)?;
+    let report = json!({
+        "schema": UPGRADE_QUALIFICATION_PLAN_SCHEMA,
+        "mode": if write { "write" } else { "dry-run" },
+        "writes_performed": write,
+        "from_tag": from_tag,
+        "to_tag": to_tag,
+        "github_run_id": summary.run_id,
+        "records": summary.records,
+        "manifests": {
+            "from_sha256": summary.from_manifest_sha256,
+            "to_sha256": summary.to_manifest_sha256
+        },
+        "ledger": {
+            "path": "release/qualification-ledger.json",
+            "before_sha256": sha256(&before),
+            "after_sha256": sha256(&after)
+        },
+        "next": "independently inspect the public run and attestations, then commit the qualification ledger"
+    });
+    if write {
+        fs::write(&ledger_path, after)
+            .map_err(|error| format!("could not write {}: {error}", ledger_path.display()))?;
+    }
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&report)
+            .map_err(|error| format!("could not serialize upgrade qualification plan: {error}"))?
+    );
+    Ok(())
+}
+
+fn upgrade_qualified_ledger(
+    ledger: &Value,
+    from_tag: &str,
+    to_tag: &str,
+    summary: &UpgradeQualificationSummary,
+) -> Result<Value, String> {
+    let (_, from_stage) = parse_release_tag(from_tag)?;
+    let (_, to_stage) = parse_release_tag(to_tag)?;
+    let pending = json!({
+        "beta_tag": null,
+        "evidence": [],
+        "rc_tag": null,
+        "status": "pending"
+    });
+    if from_stage != ReleaseStage::Beta
+        || to_stage != ReleaseStage::ReleaseCandidate
+        || summary.run_id == 0
+        || summary.records != 5
+        || ledger["schema"] != RELEASE_QUALIFICATION_SCHEMA
+        || ledger["workspace_stage"] != "rc"
+        || ledger["status"] != "rc-qualifying"
+        || ledger["beta"]["status"] != "qualified"
+        || ledger["beta"]["tag"] != from_tag
+        || ledger["feature_freeze"]["status"] != "frozen"
+        || ledger["stable_authorized"] != false
+        || ledger["upgrade_matrix"] != pending
+    {
+        return Err("qualification ledger is not canonical pending RC upgrade state".to_owned());
+    }
+    let has_rc = ledger["release_candidates"]
+        .as_array()
+        .is_some_and(|candidates| {
+            candidates
+                .iter()
+                .any(|candidate| candidate["status"] == "success" && candidate["tag"] == to_tag)
+        });
+    if !has_rc {
+        return Err(
+            "upgrade qualification RC must already have a successful signed matrix".to_owned(),
+        );
+    }
+    let mut qualified = ledger.clone();
+    qualified["upgrade_matrix"] = json!({
+        "beta_tag": from_tag,
+        "evidence": [
+            format!(
+                "native upgrade qualification run {} passed five signed archive targets",
+                summary.run_id
+            ),
+            format!(
+                "{from_tag} to {to_tag} backup, old-binary, restore, host-pack, and uninstall lifecycle passed"
+            )
+        ],
+        "rc_tag": to_tag,
+        "status": "passed"
+    });
+    Ok(qualified)
 }
 
 fn render_beta_qualification(
@@ -3515,6 +3658,145 @@ fn check_package_manager_qualification_policy() -> Result<(), String> {
     Ok(())
 }
 
+fn check_upgrade_qualification_policy() -> Result<(), String> {
+    let root = repository_root();
+    let path = root.join("release/upgrade-qualification-policy.json");
+    let actual: Value = serde_json::from_slice(&fs::read(&path).map_err(|error| {
+        format!(
+            "upgrade qualification policy is missing at {}: {error}",
+            path.display()
+        )
+    })?)
+    .map_err(|error| format!("upgrade qualification policy is invalid JSON: {error}"))?;
+    let required_checks = [
+        "verified-release-pair",
+        "from-version-and-doctor",
+        "workspace-created-and-checked",
+        "verified-pre-upgrade-backup",
+        "to-version-and-doctor",
+        "workspace-upgraded-and-checked",
+        "old-binary-behavior-verified",
+        "backup-restored-to-new-path",
+        "restored-workspace-checked-by-old-binary",
+        "host-pack-regenerated",
+        "installed-binary-and-notices-uninstalled",
+        "workspace-backup-and-restore-retained",
+        "no-publication",
+    ];
+    let expected = json!({
+        "schema": UPGRADE_QUALIFICATION_POLICY_SCHEMA,
+        "release_pair": {
+            "from_stage": "beta",
+            "to_stage": "rc",
+            "same_release_line": true,
+            "public_signed_assets_required": true
+        },
+        "records": [
+            {
+                "record": "upgrade-aarch64-apple-darwin",
+                "target": "aarch64-apple-darwin",
+                "environment": "macos-15"
+            },
+            {
+                "record": "upgrade-x86_64-apple-darwin",
+                "target": "x86_64-apple-darwin",
+                "environment": "macos-15-intel"
+            },
+            {
+                "record": "upgrade-x86_64-unknown-linux-gnu",
+                "target": "x86_64-unknown-linux-gnu",
+                "environment": "ubuntu-24.04"
+            },
+            {
+                "record": "upgrade-x86_64-unknown-linux-musl",
+                "target": "x86_64-unknown-linux-musl",
+                "environment": "ubuntu-24.04"
+            },
+            {
+                "record": "upgrade-x86_64-pc-windows-msvc",
+                "target": "x86_64-pc-windows-msvc",
+                "environment": "windows-2025"
+            }
+        ],
+        "allowed_old_binary_behavior": [
+            "same-schema-accepted",
+            "future-schema-rejected-without-mutation"
+        ],
+        "required_checks": required_checks,
+        "evidence": {
+            "schema": UPGRADE_QUALIFICATION_SCHEMA,
+            "one_github_run": true,
+            "one_manifest_pair": true,
+            "all_checks_must_pass": true,
+            "exact_record_set": true
+        },
+        "publication_authorized": false
+    });
+    if actual != expected {
+        return Err(
+            "upgrade qualification policy differs from the native release contract".to_owned(),
+        );
+    }
+
+    let documentation_path = root.join("docs/release/upgrade-qualification.md");
+    let documentation = fs::read_to_string(&documentation_path)
+        .map_err(|error| format!("upgrade qualification documentation is missing: {error}"))?;
+    check_local_markdown_links(&root, &documentation_path, &documentation)?;
+    for required in [
+        "native-upgrade-qualification",
+        "verify-upgrade-evidence",
+        "record-upgrade-qualification",
+        "gh attestation verify",
+        "--write",
+    ] {
+        if !documentation.contains(required) {
+            return Err(format!(
+                "upgrade qualification documentation is missing `{required}`"
+            ));
+        }
+    }
+
+    let workflow_path = root.join(".github/workflows/upgrade-qualification.yml");
+    let workflow = fs::read_to_string(&workflow_path)
+        .map_err(|error| format!("upgrade qualification workflow is missing: {error}"))?;
+    for required in [
+        "name: native-upgrade-qualification",
+        "workflow_dispatch:",
+        "gh attestation verify",
+        "qualify_archive_upgrade.sh",
+        "macos-15-intel",
+        "ubuntu-24.04",
+        "windows-2025",
+        "verify-upgrade-evidence",
+        "No release or package channel was changed.",
+    ] {
+        if !workflow.contains(required) {
+            return Err(format!(
+                "upgrade qualification workflow is missing `{required}`"
+            ));
+        }
+    }
+    let script = fs::read_to_string(root.join("scripts/qualify_archive_upgrade.sh"))
+        .map_err(|error| format!("archive upgrade qualification script is missing: {error}"))?;
+    for required in [
+        ".canisend/state.sqlite3",
+        "workspace backup",
+        "workspace restore",
+        "workspace.conflict",
+        "agent assets export --host codex",
+        "installed-binary-and-notices-uninstalled",
+        "no-publication",
+    ] {
+        if !script.contains(required) {
+            return Err(format!(
+                "archive upgrade qualification script is missing `{required}`"
+            ));
+        }
+    }
+    println!("upgrade qualification policy: ok (5 native records)");
+    Ok(())
+}
+
 fn verify_package_manager_evidence(
     from_tag: &str,
     to_tag: &str,
@@ -3617,6 +3899,251 @@ fn verify_package_manager_evidence(
         run_ids.first().expect("one checked run ID")
     );
     Ok(())
+}
+
+fn verify_upgrade_qualification_evidence(
+    from_tag: &str,
+    to_tag: &str,
+    directory: &Path,
+) -> Result<UpgradeQualificationSummary, String> {
+    let (from_version, from_stage) = parse_release_tag(from_tag)?;
+    let (to_version, to_stage) = parse_release_tag(to_tag)?;
+    if from_stage != ReleaseStage::Beta || to_stage != ReleaseStage::ReleaseCandidate {
+        return Err("upgrade qualification requires a Beta-to-RC tag pair".to_owned());
+    }
+    if (from_version.major, from_version.minor, from_version.patch)
+        != (to_version.major, to_version.minor, to_version.patch)
+    {
+        return Err("upgrade qualification tags must use the same release line".to_owned());
+    }
+    let expected = BTreeMap::from([
+        (
+            "upgrade-aarch64-apple-darwin.json",
+            (
+                "upgrade-aarch64-apple-darwin",
+                "aarch64-apple-darwin",
+                "macos-15",
+            ),
+        ),
+        (
+            "upgrade-x86_64-apple-darwin.json",
+            (
+                "upgrade-x86_64-apple-darwin",
+                "x86_64-apple-darwin",
+                "macos-15-intel",
+            ),
+        ),
+        (
+            "upgrade-x86_64-unknown-linux-gnu.json",
+            (
+                "upgrade-x86_64-unknown-linux-gnu",
+                "x86_64-unknown-linux-gnu",
+                "ubuntu-24.04",
+            ),
+        ),
+        (
+            "upgrade-x86_64-unknown-linux-musl.json",
+            (
+                "upgrade-x86_64-unknown-linux-musl",
+                "x86_64-unknown-linux-musl",
+                "ubuntu-24.04",
+            ),
+        ),
+        (
+            "upgrade-x86_64-pc-windows-msvc.json",
+            (
+                "upgrade-x86_64-pc-windows-msvc",
+                "x86_64-pc-windows-msvc",
+                "windows-2025",
+            ),
+        ),
+    ]);
+    let mut actual_paths = BTreeSet::new();
+    collect_relative_files(directory, directory, &mut actual_paths)?;
+    if actual_paths != expected.keys().map(|name| (*name).to_owned()).collect() {
+        return Err(format!(
+            "upgrade evidence file set differs: expected {:?}, found {actual_paths:?}",
+            expected.keys().collect::<Vec<_>>()
+        ));
+    }
+
+    let mut run_ids = BTreeSet::new();
+    let mut from_manifests = BTreeSet::new();
+    let mut to_manifests = BTreeSet::new();
+    let mut from_archives = BTreeSet::new();
+    let mut to_archives = BTreeSet::new();
+    for (file, (record, target, environment)) in &expected {
+        let path = directory.join(file);
+        reject_symlink(&path)?;
+        let value: Value = serde_json::from_slice(&fs::read(&path).map_err(|error| {
+            format!(
+                "could not read upgrade evidence {}: {error}",
+                path.display()
+            )
+        })?)
+        .map_err(|error| format!("upgrade evidence `{file}` is invalid JSON: {error}"))?;
+        let (run, from_manifest, to_manifest, from_archive, to_archive) =
+            validate_upgrade_qualification_record(
+                &value,
+                record,
+                target,
+                environment,
+                from_tag,
+                to_tag,
+            )?;
+        run_ids.insert(run);
+        from_manifests.insert(from_manifest);
+        to_manifests.insert(to_manifest);
+        from_archives.insert(from_archive);
+        to_archives.insert(to_archive);
+    }
+    if run_ids.len() != 1 || from_manifests.len() != 1 || to_manifests.len() != 1 {
+        return Err(
+            "upgrade evidence records must bind one run and one shared release manifest pair"
+                .to_owned(),
+        );
+    }
+    if from_manifests == to_manifests {
+        return Err("Beta and RC upgrade manifest digests must differ".to_owned());
+    }
+    if from_archives.len() != expected.len()
+        || to_archives.len() != expected.len()
+        || !from_archives.is_disjoint(&to_archives)
+    {
+        return Err(
+            "upgrade evidence must bind distinct Beta and RC archives for all five targets"
+                .to_owned(),
+        );
+    }
+    let summary = UpgradeQualificationSummary {
+        run_id: *run_ids.first().expect("one checked run ID"),
+        from_manifest_sha256: from_manifests
+            .first()
+            .expect("one checked Beta manifest")
+            .to_owned(),
+        to_manifest_sha256: to_manifests
+            .first()
+            .expect("one checked RC manifest")
+            .to_owned(),
+        records: expected.len(),
+    };
+    println!(
+        "upgrade evidence: ok ({from_tag} -> {to_tag}, run {}, {} targets)",
+        summary.run_id, summary.records
+    );
+    Ok(summary)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_upgrade_qualification_record(
+    value: &Value,
+    expected_record: &str,
+    expected_target: &str,
+    expected_environment: &str,
+    from_tag: &str,
+    to_tag: &str,
+) -> Result<(u64, String, String, String, String), String> {
+    let context = format!("upgrade evidence `{expected_record}`");
+    let run_id = value["github_run_id"]
+        .as_u64()
+        .filter(|run| *run > 0)
+        .ok_or_else(|| format!("{context} has no positive GitHub run ID"))?;
+    let from_manifest = required_string(&value["manifests"], "from_sha256", &context)?.to_owned();
+    let to_manifest = required_string(&value["manifests"], "to_sha256", &context)?.to_owned();
+    let from_archive = required_string(&value["archives"], "from_sha256", &context)?.to_owned();
+    let to_archive = required_string(&value["archives"], "to_sha256", &context)?.to_owned();
+    for (name, digest) in [
+        ("Beta manifest", &from_manifest),
+        ("RC manifest", &to_manifest),
+        ("Beta archive", &from_archive),
+        ("RC archive", &to_archive),
+    ] {
+        validate_lower_hex(&format!("{context} {name} digest"), digest, 64)?;
+    }
+    if from_manifest == to_manifest || from_archive == to_archive {
+        return Err(format!("{context} must bind distinct Beta and RC bytes"));
+    }
+    let before_schema = value["database_schemas"]["before"]
+        .as_u64()
+        .filter(|schema| *schema > 0 && *schema <= u64::from(u32::MAX))
+        .ok_or_else(|| format!("{context} has an invalid pre-upgrade schema"))?;
+    let after_schema = value["database_schemas"]["after"]
+        .as_u64()
+        .filter(|schema| *schema > 0 && *schema <= u64::from(u32::MAX))
+        .ok_or_else(|| format!("{context} has an invalid post-upgrade schema"))?;
+    let old_binary_behavior = required_string(value, "old_binary_behavior", &context)?;
+    match old_binary_behavior {
+        "same-schema-accepted" if before_schema == after_schema => {}
+        "future-schema-rejected-without-mutation" if after_schema > before_schema => {}
+        _ => {
+            return Err(format!(
+                "{context} old-binary behavior does not match the observed schemas"
+            ));
+        }
+    }
+    let completed_at = required_string(value, "completed_at", &context)?;
+    if !completed_at.ends_with('Z') || OffsetDateTime::parse(completed_at, &Rfc3339).is_err() {
+        return Err(format!("{context} completion timestamp must be valid UTC"));
+    }
+    let checks = value["checks"]
+        .as_object()
+        .ok_or_else(|| format!("{context} checks are missing"))?;
+    let required_checks = [
+        "verified-release-pair",
+        "from-version-and-doctor",
+        "workspace-created-and-checked",
+        "verified-pre-upgrade-backup",
+        "to-version-and-doctor",
+        "workspace-upgraded-and-checked",
+        "old-binary-behavior-verified",
+        "backup-restored-to-new-path",
+        "restored-workspace-checked-by-old-binary",
+        "host-pack-regenerated",
+        "installed-binary-and-notices-uninstalled",
+        "workspace-backup-and-restore-retained",
+        "no-publication",
+    ];
+    if checks.len() != required_checks.len()
+        || required_checks
+            .iter()
+            .any(|check| checks.get(*check) != Some(&Value::Bool(true)))
+    {
+        return Err(format!("{context} does not pass every required check"));
+    }
+    let expected = json!({
+        "schema": UPGRADE_QUALIFICATION_SCHEMA,
+        "record": expected_record,
+        "target": expected_target,
+        "environment": expected_environment,
+        "from_tag": from_tag,
+        "to_tag": to_tag,
+        "manifests": {
+            "from_sha256": from_manifest,
+            "to_sha256": to_manifest
+        },
+        "archives": {
+            "from_sha256": from_archive,
+            "to_sha256": to_archive
+        },
+        "github_run_id": run_id,
+        "observed_versions": {
+            "from": from_tag.trim_start_matches('v'),
+            "to": to_tag.trim_start_matches('v')
+        },
+        "database_schemas": {
+            "before": before_schema,
+            "after": after_schema
+        },
+        "old_binary_behavior": old_binary_behavior,
+        "checks": checks,
+        "completed_at": completed_at
+    });
+    if *value != expected {
+        return Err(format!(
+            "{context} contains unknown, noncanonical, or mismatched fields"
+        ));
+    }
+    Ok((run_id, from_manifest, to_manifest, from_archive, to_archive))
 }
 
 fn verify_package_candidate_pair(
@@ -4961,6 +5488,48 @@ mod tests {
         })
     }
 
+    fn sample_upgrade_evidence(record: &str, target: &str, environment: &str) -> Value {
+        json!({
+            "schema": UPGRADE_QUALIFICATION_SCHEMA,
+            "record": record,
+            "target": target,
+            "environment": environment,
+            "from_tag": "v0.7.0-beta.1",
+            "to_tag": "v0.7.0-rc.1",
+            "manifests": {
+                "from_sha256": "a".repeat(64),
+                "to_sha256": "b".repeat(64)
+            },
+            "archives": {
+                "from_sha256": sha256(format!("beta-{target}").as_bytes()),
+                "to_sha256": sha256(format!("rc-{target}").as_bytes())
+            },
+            "github_run_id": 29_650_000_001_u64,
+            "observed_versions": {
+                "from": "0.7.0-beta.1",
+                "to": "0.7.0-rc.1"
+            },
+            "database_schemas": {"before": 13, "after": 13},
+            "old_binary_behavior": "same-schema-accepted",
+            "checks": {
+                "verified-release-pair": true,
+                "from-version-and-doctor": true,
+                "workspace-created-and-checked": true,
+                "verified-pre-upgrade-backup": true,
+                "to-version-and-doctor": true,
+                "workspace-upgraded-and-checked": true,
+                "old-binary-behavior-verified": true,
+                "backup-restored-to-new-path": true,
+                "restored-workspace-checked-by-old-binary": true,
+                "host-pack-regenerated": true,
+                "installed-binary-and-notices-uninstalled": true,
+                "workspace-backup-and-restore-retained": true,
+                "no-publication": true
+            },
+            "completed_at": "2026-07-18T12:00:00Z"
+        })
+    }
+
     fn sample_apple_signing_evidence() -> Value {
         json!({
             "schema": CODE_SIGNING_EVIDENCE_SCHEMA,
@@ -5698,6 +6267,152 @@ mod tests {
     #[test]
     fn package_manager_qualification_policy_is_native_and_nonpublishing() {
         check_package_manager_qualification_policy().expect("package-manager qualification policy");
+    }
+
+    #[test]
+    fn upgrade_qualification_policy_is_five_target_and_nonpublishing() {
+        check_upgrade_qualification_policy().expect("upgrade qualification policy");
+    }
+
+    #[test]
+    fn upgrade_evidence_requires_canonical_old_binary_behavior_and_checks() {
+        let mut evidence = sample_upgrade_evidence(
+            "upgrade-aarch64-apple-darwin",
+            "aarch64-apple-darwin",
+            "macos-15",
+        );
+        validate_upgrade_qualification_record(
+            &evidence,
+            "upgrade-aarch64-apple-darwin",
+            "aarch64-apple-darwin",
+            "macos-15",
+            "v0.7.0-beta.1",
+            "v0.7.0-rc.1",
+        )
+        .expect("canonical upgrade evidence");
+
+        evidence["checks"]["no-publication"] = Value::Bool(false);
+        assert!(
+            validate_upgrade_qualification_record(
+                &evidence,
+                "upgrade-aarch64-apple-darwin",
+                "aarch64-apple-darwin",
+                "macos-15",
+                "v0.7.0-beta.1",
+                "v0.7.0-rc.1",
+            )
+            .is_err()
+        );
+
+        let mut impossible = sample_upgrade_evidence(
+            "upgrade-aarch64-apple-darwin",
+            "aarch64-apple-darwin",
+            "macos-15",
+        );
+        impossible["old_binary_behavior"] =
+            Value::String("future-schema-rejected-without-mutation".to_owned());
+        assert!(
+            validate_upgrade_qualification_record(
+                &impossible,
+                "upgrade-aarch64-apple-darwin",
+                "aarch64-apple-darwin",
+                "macos-15",
+                "v0.7.0-beta.1",
+                "v0.7.0-rc.1",
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn upgrade_evidence_directory_binds_one_five_target_run() {
+        let root =
+            std::env::temp_dir().join(format!("canisend-upgrade-evidence-{}", std::process::id()));
+        if root.exists() {
+            fs::remove_dir_all(&root).expect("remove stale upgrade evidence fixture");
+        }
+        fs::create_dir_all(&root).expect("create upgrade evidence fixture");
+        for (file, record, target, environment) in [
+            (
+                "upgrade-aarch64-apple-darwin.json",
+                "upgrade-aarch64-apple-darwin",
+                "aarch64-apple-darwin",
+                "macos-15",
+            ),
+            (
+                "upgrade-x86_64-apple-darwin.json",
+                "upgrade-x86_64-apple-darwin",
+                "x86_64-apple-darwin",
+                "macos-15-intel",
+            ),
+            (
+                "upgrade-x86_64-unknown-linux-gnu.json",
+                "upgrade-x86_64-unknown-linux-gnu",
+                "x86_64-unknown-linux-gnu",
+                "ubuntu-24.04",
+            ),
+            (
+                "upgrade-x86_64-unknown-linux-musl.json",
+                "upgrade-x86_64-unknown-linux-musl",
+                "x86_64-unknown-linux-musl",
+                "ubuntu-24.04",
+            ),
+            (
+                "upgrade-x86_64-pc-windows-msvc.json",
+                "upgrade-x86_64-pc-windows-msvc",
+                "x86_64-pc-windows-msvc",
+                "windows-2025",
+            ),
+        ] {
+            write_pretty_json(
+                &root.join(file),
+                &sample_upgrade_evidence(record, target, environment),
+            )
+            .expect("write upgrade evidence fixture");
+        }
+        let summary = verify_upgrade_qualification_evidence("v0.7.0-beta.1", "v0.7.0-rc.1", &root)
+            .expect("verify five target upgrade evidence");
+        assert_eq!(summary.records, 5);
+
+        fs::write(root.join("extra.json"), b"{}\n").expect("write extra evidence fixture");
+        assert!(
+            verify_upgrade_qualification_evidence("v0.7.0-beta.1", "v0.7.0-rc.1", &root,).is_err()
+        );
+        fs::remove_dir_all(root).expect("remove upgrade evidence fixture");
+    }
+
+    #[test]
+    fn upgrade_ledger_promotion_requires_recorded_exact_rc() {
+        let ledger = json!({
+            "schema": RELEASE_QUALIFICATION_SCHEMA,
+            "workspace_stage": "rc",
+            "status": "rc-qualifying",
+            "beta": {"status": "qualified", "tag": "v0.7.0-beta.1"},
+            "feature_freeze": {"status": "frozen"},
+            "release_candidates": [
+                {"status": "success", "tag": "v0.7.0-rc.1"}
+            ],
+            "stable_authorized": false,
+            "upgrade_matrix": {
+                "beta_tag": null,
+                "evidence": [],
+                "rc_tag": null,
+                "status": "pending"
+            }
+        });
+        let summary = UpgradeQualificationSummary {
+            run_id: 29_650_000_001,
+            from_manifest_sha256: "a".repeat(64),
+            to_manifest_sha256: "b".repeat(64),
+            records: 5,
+        };
+        let qualified = upgrade_qualified_ledger(&ledger, "v0.7.0-beta.1", "v0.7.0-rc.1", &summary)
+            .expect("promote exact RC upgrade evidence");
+        assert_eq!(qualified["upgrade_matrix"]["status"], "passed");
+
+        assert!(
+            upgrade_qualified_ledger(&ledger, "v0.7.0-beta.1", "v0.7.0-rc.2", &summary,).is_err()
+        );
     }
 
     #[test]

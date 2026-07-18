@@ -275,14 +275,21 @@
   exact current Beta and canonical pending ledger, fully re-verifies downloaded manifest/checksums, five archives,
   and three archive-bound signing records, derives source identity, and previews the ledger hash. It keeps public
   GitHub attestation/run inspection as an explicit external requirement rather than overclaiming offline proof.
+  Exact commit `22cdab8` passed all eight ordinary CI jobs in run `29642038918`.
 - 2026-07-18: Closed the two-clean-RC version path gap by permitting only sequential `rc.N` to `rc.(N+1)` iteration.
   The same dry-run/write mechanism synchronizes Cargo, lock, internal dependencies, and release-note identity while
   preserving already recorded qualification evidence; RC number skipping, Beta iteration, and release-line changes
-  remain rejected.
+  remain rejected. Exact commit `c08905a` passed all eight ordinary CI jobs in run `29642151298`.
 - 2026-07-18: Added the matching dry-run-first RC matrix recorder. Every candidate reuses the complete signed-asset
   verifier, must match the current RC, and must introduce a distinct clean tag, manifest source commit, and run ID;
   explicit write appends one canonical ledger record. The two-matrix checkbox stays open until real RC.1/RC.2
-  public evidence passes.
+  public evidence passes. Exact commit `7b4cf9e` passed all eight ordinary CI jobs in run `29642280758`.
+- 2026-07-18: Implemented the nonpublishing five-target native archive upgrade workflow. One verified public signed
+  Beta/RC asset pair now drives isolated install, workspace/backup, RC open, old-binary behavior, restore-to-new-path,
+  Codex host-pack regeneration, and uninstall/retention checks on both macOS architectures, Linux GNU/musl, and
+  Windows MSVC. A strict five-record verifier and dry-run-first ledger recorder reject incomplete, mixed, invented,
+  or noncanonical evidence. R11.3 remains open until the future public signed pair passes the manual workflow and
+  its run/attestations are independently inspected.
 
 ## 1. Executive Decision
 
@@ -1998,6 +2005,11 @@ backup-first binary/workspace boundary, future-schema rejection, restore-to-new-
 five-target RC evidence requirements. Release archive smoke now performs an isolated user-local install and proves
 that uninstall removes the binary/notice bundle without deleting the workspace. These are preparatory controls; the
 R11.3 checkboxes remain open until exact signed Beta/RC archives pass the documented version-pair and two-tag matrix.
+
+The [native archive upgrade qualification](../../notes/rust-native/2026-07-18-r11-native-upgrade-qualification.md)
+adds the exact five-target manual workflow, body-free evidence schema, strict cross-record verifier, and guarded
+ledger promotion. It is deliberately nonpublishing and cannot run to qualification before public signed Beta and RC
+assets exist.
 
 The [qualification ledger](../../release/qualification-ledger.md), machine authority
 `release/qualification-ledger.json`, and

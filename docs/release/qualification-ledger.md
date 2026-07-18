@@ -50,6 +50,23 @@ recorded RC tag, manifest source commit, and signed-matrix run ID must be distin
 sequential stage tool to prepare RC.2, qualify its different clean tag/source/run, and retain both public
 attestation reviews. Stable rejects fewer than two such records.
 
+## Recording the native upgrade matrix
+
+After the exact signed Beta/RC archive pair passes the five-target `native-upgrade-qualification` workflow, download
+only its verified five-record evidence bundle and independently inspect the public run plus every release asset's
+`gh attestation verify` result. Preview the bounded ledger change:
+
+```console
+cargo run -p xtask --locked -- release record-upgrade-qualification \
+  v0.7.0-beta.1 v0.7.0-rc.1 DOWNLOADED_EVIDENCE_DIRECTORY
+```
+
+The verifier requires one GitHub run, one shared manifest pair, distinct target archives, exact platform mappings,
+all lifecycle checks, and canonical body-free fields. The recorder additionally requires that exact Beta to be
+qualified, the freeze to be active, and that exact RC tag to already have a successful signed matrix. It changes
+nothing without `--write` from a clean worktree and updates only `upgrade_matrix`; it cannot claim package-manager or
+five-target documentation/uninstall qualification.
+
 ## Stable evidence requirements
 
 Stable requires all of these in the committed ledger:

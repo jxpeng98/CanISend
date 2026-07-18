@@ -1,0 +1,158 @@
+name: native-upgrade-qualification
+
+on:
+  workflow_dispatch:
+    inputs:
+      from_tag:
+        description: "Published signed Beta tag to install first"
+        required: true
+        default: "v0.7.0-beta.1"
+      to_tag:
+        description: "Published signed RC tag to qualify"
+        required: true
+        default: "v0.7.0-rc.1"
+
+permissions:
+  contents: read
+  attestations: read
+
+concurrency:
+  group: native-upgrade-qualification-${{ inputs.from_tag }}-${{ inputs.to_tag }}
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    name: verify-public-signed-release-pair
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@1.97.0
+
+      - name: Check upgrade qualification contracts
+        run: cargo run -p xtask --locked -- release check
+
+      - name: Download both complete public releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/release-pair/from-assets" "$RUNNER_TEMP/release-pair/to-assets"
+          gh release download "${{ inputs.from_tag }}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --dir "$RUNNER_TEMP/release-pair/from-assets"
+          gh release download "${{ inputs.to_tag }}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --dir "$RUNNER_TEMP/release-pair/to-assets"
+
+      - name: Verify manifests, checksums, signing evidence, and attestations
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          cargo run -p xtask --locked -- release verify \
+            "${{ inputs.from_tag }}" "$RUNNER_TEMP/release-pair/from-assets"
+          cargo run -p xtask --locked -- release verify \
+            "${{ inputs.to_tag }}" "$RUNNER_TEMP/release-pair/to-assets"
+          while IFS= read -r -d '' asset; do
+            gh attestation verify "$asset" --repo "$GITHUB_REPOSITORY"
+          done < <(find "$RUNNER_TEMP/release-pair" -type f -print0)
+
+      - name: Share the exact verified release pair
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: verified-release-pair
+          path: ${{ runner.temp }}/release-pair
+          if-no-files-found: error
+          retention-days: 7
+
+  lifecycle:
+    name: upgrade-${{ matrix.target }}
+    needs: preflight
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            environment: macos-15
+            runner: macos-15
+          - target: x86_64-apple-darwin
+            environment: macos-15-intel
+            runner: macos-15-intel
+          - target: x86_64-unknown-linux-gnu
+            environment: ubuntu-24.04
+            runner: ubuntu-24.04
+          - target: x86_64-unknown-linux-musl
+            environment: ubuntu-24.04
+            runner: ubuntu-24.04
+          - target: x86_64-pc-windows-msvc
+            environment: windows-2025
+            runner: windows-2025
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Download the exact verified release pair
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: verified-release-pair
+          path: ${{ runner.temp }}/release-pair
+
+      - name: Qualify upgrade, rollback, host-pack, and uninstall lifecycle
+        shell: bash
+        run: |
+          ./scripts/qualify_archive_upgrade.sh \
+            "$RUNNER_TEMP/release-pair/from-assets" \
+            "$RUNNER_TEMP/release-pair/to-assets" \
+            "${{ inputs.from_tag }}" \
+            "${{ inputs.to_tag }}" \
+            "${{ matrix.target }}" \
+            "${{ matrix.environment }}" \
+            "$RUNNER_TEMP/upgrade-${{ matrix.target }}.json"
+
+      - name: Upload body-free target evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: upgrade-evidence-${{ matrix.target }}
+          path: ${{ runner.temp }}/upgrade-${{ matrix.target }}.json
+          if-no-files-found: error
+          retention-days: 30
+
+  evidence:
+    name: verify-five-target-evidence
+    needs: lifecycle
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@1.97.0
+
+      - name: Download all target evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: upgrade-evidence-*
+          path: evidence
+          merge-multiple: true
+
+      - name: Reject incomplete, mixed, or noncanonical evidence
+        run: >-
+          cargo run -p xtask --locked -- release verify-upgrade-evidence
+          "${{ inputs.from_tag }}" "${{ inputs.to_tag }}" evidence
+
+      - name: Record the nonpublishing boundary
+        shell: bash
+        run: |
+          echo "### Native archive upgrade qualification" >>"$GITHUB_STEP_SUMMARY"
+          echo "" >>"$GITHUB_STEP_SUMMARY"
+          echo "Five signed Beta-to-RC archive lifecycles passed." >>"$GITHUB_STEP_SUMMARY"
+          echo "No release or package channel was changed." >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the verified evidence bundle
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: native-upgrade-qualification-${{ github.run_id }}
+          path: evidence
+          if-no-files-found: error
+          retention-days: 90

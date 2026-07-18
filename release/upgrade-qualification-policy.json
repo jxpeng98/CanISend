@@ -1,0 +1,63 @@
+{
+  "schema": "canisend.upgrade-qualification-policy/v1",
+  "release_pair": {
+    "from_stage": "beta",
+    "to_stage": "rc",
+    "same_release_line": true,
+    "public_signed_assets_required": true
+  },
+  "records": [
+    {
+      "record": "upgrade-aarch64-apple-darwin",
+      "target": "aarch64-apple-darwin",
+      "environment": "macos-15"
+    },
+    {
+      "record": "upgrade-x86_64-apple-darwin",
+      "target": "x86_64-apple-darwin",
+      "environment": "macos-15-intel"
+    },
+    {
+      "record": "upgrade-x86_64-unknown-linux-gnu",
+      "target": "x86_64-unknown-linux-gnu",
+      "environment": "ubuntu-24.04"
+    },
+    {
+      "record": "upgrade-x86_64-unknown-linux-musl",
+      "target": "x86_64-unknown-linux-musl",
+      "environment": "ubuntu-24.04"
+    },
+    {
+      "record": "upgrade-x86_64-pc-windows-msvc",
+      "target": "x86_64-pc-windows-msvc",
+      "environment": "windows-2025"
+    }
+  ],
+  "allowed_old_binary_behavior": [
+    "same-schema-accepted",
+    "future-schema-rejected-without-mutation"
+  ],
+  "required_checks": [
+    "verified-release-pair",
+    "from-version-and-doctor",
+    "workspace-created-and-checked",
+    "verified-pre-upgrade-backup",
+    "to-version-and-doctor",
+    "workspace-upgraded-and-checked",
+    "old-binary-behavior-verified",
+    "backup-restored-to-new-path",
+    "restored-workspace-checked-by-old-binary",
+    "host-pack-regenerated",
+    "installed-binary-and-notices-uninstalled",
+    "workspace-backup-and-restore-retained",
+    "no-publication"
+  ],
+  "evidence": {
+    "schema": "canisend.upgrade-qualification/v1",
+    "one_github_run": true,
+    "one_manifest_pair": true,
+    "all_checks_must_pass": true,
+    "exact_record_set": true
+  },
+  "publication_authorized": false
+}
