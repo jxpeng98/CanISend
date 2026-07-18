@@ -41,6 +41,7 @@ const UPGRADE_QUALIFICATION_PLAN_SCHEMA: &str = "canisend.upgrade-qualification-
 const DOCUMENTATION_UNINSTALL_POLICY_SCHEMA: &str = "canisend.documentation-uninstall-policy/v1";
 const DOCUMENTATION_UNINSTALL_SCHEMA: &str = "canisend.documentation-uninstall/v1";
 const DOCUMENTATION_UNINSTALL_PLAN_SCHEMA: &str = "canisend.documentation-uninstall-plan/v1";
+const RELEASE_NOTES_POLICY_SCHEMA: &str = "canisend.release-notes-policy/v1";
 const CODE_SIGNING_EVIDENCE_SCHEMA: &str = "canisend.code-signing-evidence/v1";
 const FUZZ_TOOLCHAIN: &str = "nightly-2026-07-01";
 const CARGO_FUZZ_VERSION: &str = "0.13.2";
@@ -70,6 +71,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
             check_schemas()?;
             check_resources()?;
             check_documentation()?;
+            check_release_notes_policy()?;
             check_property_test_policy()?;
             check_fuzz_policy()?;
             check_internal_dependency_versions()?;
@@ -393,6 +395,141 @@ fn check_documentation() -> Result<(), String> {
         ));
     }
     println!("documentation: ok ({} guides)", required.len());
+    Ok(())
+}
+
+fn check_release_notes_policy() -> Result<(), String> {
+    let root = repository_root();
+    let policy_path = root.join("release/release-notes-policy.json");
+    let policy: Value = serde_json::from_slice(&fs::read(&policy_path).map_err(|error| {
+        format!(
+            "release-notes policy is missing at {}: {error}",
+            policy_path.display()
+        )
+    })?)
+    .map_err(|error| format!("release-notes policy is invalid JSON: {error}"))?;
+    let sections = [
+        "Highlights",
+        "Compatibility",
+        "Install and verify",
+        "Upgrade and rollback",
+        "Security and privacy",
+        "Known limitations",
+        "Feedback and support",
+    ];
+    let guidance = [
+        "does not require Python",
+        "canisend.workspace/v2",
+        "canisend.agent/v2",
+        "never submits an application",
+        "SHA256SUMS",
+        "GitHub build provenance",
+        "back up every important workspace",
+        "restore the pre-upgrade backup into a new directory",
+        "no in-place database downgrade",
+        "no telemetry",
+        "KNOWN_LIMITATIONS.md",
+        "Never attach a workspace",
+    ];
+    let guides = [
+        "docs/guides/release-verification.md",
+        "docs/guides/quick-start.md",
+        "docs/guides/upgrade-and-rollback.md",
+    ];
+    let expected = json!({
+        "schema": RELEASE_NOTES_POLICY_SCHEMA,
+        "stage_neutral_body": true,
+        "heading_tracks_workspace_version": true,
+        "required_sections": sections,
+        "required_guidance": guidance,
+        "required_repository_guides": guides,
+        "final_review_required_at_rc": true
+    });
+    if policy != expected {
+        return Err("release-notes policy differs from the native release contract".to_owned());
+    }
+    let workspace_body = fs::read_to_string(root.join("Cargo.toml"))
+        .map_err(|error| format!("could not read workspace manifest: {error}"))?;
+    let workspace: toml::Value = workspace_body
+        .parse()
+        .map_err(|error| format!("workspace manifest is invalid TOML: {error}"))?;
+    let version = Version::parse(
+        workspace["workspace"]["package"]["version"]
+            .as_str()
+            .ok_or_else(|| "workspace manifest has no package version".to_owned())?,
+    )
+    .map_err(|error| format!("workspace version is invalid: {error}"))?;
+    let notes_path = root.join("release/RELEASE_NOTES.md");
+    let notes = fs::read_to_string(&notes_path)
+        .map_err(|error| format!("release notes are missing: {error}"))?;
+    validate_release_notes(&root, &version, &notes, &sections, &guidance, &guides)?;
+    println!(
+        "release notes: ok ({} stage-neutral sections, RC final review required)",
+        sections.len()
+    );
+    Ok(())
+}
+
+fn validate_release_notes(
+    root: &Path,
+    version: &Version,
+    notes: &str,
+    expected_sections: &[&str],
+    required_guidance: &[&str],
+    guides: &[&str],
+) -> Result<(), String> {
+    let mut lines = notes.lines();
+    let expected_heading = format!("# CanISend {version}");
+    if lines.next() != Some(expected_heading.as_str())
+        || notes.matches(expected_heading.as_str()).count() != 1
+    {
+        return Err(
+            "release-note heading must identify the exact workspace version once".to_owned(),
+        );
+    }
+    let sections = notes
+        .lines()
+        .filter_map(|line| line.strip_prefix("## "))
+        .collect::<Vec<_>>();
+    if sections != expected_sections {
+        return Err(format!(
+            "release-note sections differ: expected {expected_sections:?}, found {sections:?}"
+        ));
+    }
+    let normalized = notes.split_whitespace().collect::<Vec<_>>().join(" ");
+    for phrase in required_guidance {
+        if !normalized.contains(phrase) {
+            return Err(format!(
+                "release notes are missing required guidance `{phrase}`"
+            ));
+        }
+    }
+    let body = notes
+        .split_once('\n')
+        .map(|(_, body)| body)
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    if body
+        .split(|character: char| !character.is_ascii_alphanumeric())
+        .any(|word| matches!(word, "alpha" | "beta" | "prerelease" | "stable"))
+        || body.contains("release candidate")
+    {
+        return Err(
+            "release-note body must remain stage-neutral; only the version heading may change"
+                .to_owned(),
+        );
+    }
+    for guide in guides {
+        if !root.join(guide).is_file() {
+            return Err(format!("release-note guide is missing: {guide}"));
+        }
+        let url = format!("https://github.com/jxpeng98/CanISend/blob/main/{guide}");
+        if !notes.contains(&url) {
+            return Err(format!(
+                "release notes do not link required guide `{guide}`"
+            ));
+        }
+    }
     Ok(())
 }
 
@@ -6119,6 +6256,70 @@ mod tests {
                 .collect::<BTreeSet<_>>()
                 .len(),
             5
+        );
+    }
+
+    #[test]
+    fn release_notes_are_stage_neutral_and_heading_only_transitions() {
+        check_release_notes_policy().expect("release notes policy");
+        let root = repository_root();
+        let notes =
+            fs::read_to_string(root.join("release/RELEASE_NOTES.md")).expect("read release notes");
+        let transitioned = replace_exact_count(
+            &notes,
+            "# CanISend 0.7.0-alpha.1",
+            "# CanISend 0.7.0-beta.1",
+            1,
+            "test release-note heading",
+        )
+        .expect("transition release-note heading");
+        assert_eq!(
+            notes.split_once('\n').expect("Alpha notes body").1,
+            transitioned.split_once('\n').expect("Beta notes body").1
+        );
+
+        let stale = notes.replace(
+            "CanISend 0.7 is a greenfield Rust-native release.",
+            "The alpha is a greenfield Rust-native release.",
+        );
+        let sections = [
+            "Highlights",
+            "Compatibility",
+            "Install and verify",
+            "Upgrade and rollback",
+            "Security and privacy",
+            "Known limitations",
+            "Feedback and support",
+        ];
+        let guidance = [
+            "does not require Python",
+            "canisend.workspace/v2",
+            "canisend.agent/v2",
+            "never submits an application",
+            "SHA256SUMS",
+            "GitHub build provenance",
+            "back up every important workspace",
+            "restore the pre-upgrade backup into a new directory",
+            "no in-place database downgrade",
+            "no telemetry",
+            "KNOWN_LIMITATIONS.md",
+            "Never attach a workspace",
+        ];
+        let guides = [
+            "docs/guides/release-verification.md",
+            "docs/guides/quick-start.md",
+            "docs/guides/upgrade-and-rollback.md",
+        ];
+        assert!(
+            validate_release_notes(
+                &root,
+                &Version::parse("0.7.0-alpha.1").expect("Alpha version"),
+                &stale,
+                &sections,
+                &guidance,
+                &guides,
+            )
+            .is_err()
         );
     }
 

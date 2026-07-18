@@ -54,6 +54,11 @@ The tool refuses RC without a qualified signed Beta and active feature freeze, a
 unless the qualification ledger already proves every other Stable evidence class. It never creates a tag, starts a
 workflow, publishes a release, or changes a package-manager repository.
 
+Only the release-note heading changes during a stage transition. The body is deliberately stage-neutral and enforced
+by `release/release-notes-policy.json`, so Alpha-only wording cannot leak into Beta, RC, or Stable. This mechanical
+guarantee does not replace the policy-required final RC content review against real issues, assets, limitations, and
+package-channel status.
+
 ## Evidence that must remain historical
 
 The following sources intentionally retain earlier version identifiers:

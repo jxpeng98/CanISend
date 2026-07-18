@@ -295,6 +295,10 @@
   assembly now binds each body-free record to its signed manifest archive; a guarded recorder can mark only the
   matching recorded RC run as passed. A real local Alpha archive proved evidence production, but it remains
   `prepared-native`; the R11.3 checkbox awaits a future signed RC matrix.
+- 2026-07-18: Removed stale-stage risk from the release notes. Because stage transitions intentionally replace only
+  the version heading, the body is now a seven-section stage-neutral release unit with machine-required install,
+  compatibility, verification, rollback, privacy, limitations, and support guidance. Final RC review remains open
+  and cannot be replaced by this structural preparation.
 
 ## 1. Executive Decision
 
@@ -2019,6 +2023,10 @@ assets exist.
 The [documentation/uninstall evidence path](../../notes/rust-native/2026-07-18-r11-documentation-uninstall-evidence.md)
 now emits its five canonical records from the release matrix's actual archive smoke and requires their run ID to
 equal the already recorded RC matrix. Alpha preparation remains visible without being misclassified as passed.
+
+The [release-notes policy](../../notes/rust-native/2026-07-18-r11-release-notes-policy.md) makes the body
+stage-neutral while preserving an exact version heading, complete verification/compatibility/privacy content, and
+the backup-first rollback guide. The checklist remains open until the real RC receives its final content review.
 
 The [qualification ledger](../../release/qualification-ledger.md), machine authority
 `release/qualification-ledger.json`, and

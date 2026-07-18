@@ -1,0 +1,34 @@
+{
+  "schema": "canisend.release-notes-policy/v1",
+  "stage_neutral_body": true,
+  "heading_tracks_workspace_version": true,
+  "required_sections": [
+    "Highlights",
+    "Compatibility",
+    "Install and verify",
+    "Upgrade and rollback",
+    "Security and privacy",
+    "Known limitations",
+    "Feedback and support"
+  ],
+  "required_guidance": [
+    "does not require Python",
+    "canisend.workspace/v2",
+    "canisend.agent/v2",
+    "never submits an application",
+    "SHA256SUMS",
+    "GitHub build provenance",
+    "back up every important workspace",
+    "restore the pre-upgrade backup into a new directory",
+    "no in-place database downgrade",
+    "no telemetry",
+    "KNOWN_LIMITATIONS.md",
+    "Never attach a workspace"
+  ],
+  "required_repository_guides": [
+    "docs/guides/release-verification.md",
+    "docs/guides/quick-start.md",
+    "docs/guides/upgrade-and-rollback.md"
+  ],
+  "final_review_required_at_rc": true
+}
