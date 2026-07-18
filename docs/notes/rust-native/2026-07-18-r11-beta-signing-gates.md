@@ -49,11 +49,17 @@ notarization ticket cannot be stapled.
   frozen contracts, channel candidates, signing policy, and five release targets.
 - A fresh macOS arm64 package passes the complete extracted-archive, documented-workflow, and host-agent smoke when
   compared with the expected release binary; substituting a different expected binary fails before execution.
+- The name-only GitHub configuration audit fails with the live repository's fourteen missing settings and succeeds
+  against an isolated fixture containing exactly the three required secret names and eleven variable names; neither
+  path requests a secret value.
 - Reassembly of the public Alpha inputs still produces an 11-file unsigned release with `signing_evidence: null` for
   all five targets, so this change does not retroactively make Alpha depend on private credentials.
 
-The ordinary Windows CI matrix now parses `scripts/verify_windows_authenticode.ps1`. A successful remote Windows run
-must be recorded before treating the implementation slice as fully qualified.
+GitHub Actions ordinary CI `29636557516` passed all eight jobs at exact signing implementation commit
+`c7d1d4c79b5b9d0ca6f6ef4f91b14f1c354e3a03`. That run includes a successful native Windows PowerShell parse of
+`scripts/verify_windows_authenticode.ps1`, the complete Rust quality and dependency gates, all three recovery jobs,
+and all three staged rendering/documentation jobs. The implementation slice is therefore qualified independently
+of the still-missing external credentials.
 
 ## Credential and service boundary
 
@@ -67,12 +73,18 @@ credential-backed Beta dry-run produces accepted and archive-bound evidence for 
 missing credential or external-service rejection is an expected fail-closed release failure, not a reason to weaken
 the policy.
 
+The [signing operations runbook](../../release/signing-operations.md) records the Apple/Azure provisioning, least-
+privilege, GitHub configuration, qualification, rotation, and incident sequence. A name-only audit of the live
+repository on 2026-07-18 found zero configured Actions secrets and zero configured Actions variables: all fourteen
+required names are currently missing. No secret value was requested or exposed. This is the concrete external
+prerequisite for the first signed Beta dry-run.
+
 ## Next work
 
-1. Commit and push this implementation, then require a green ordinary CI run including the Windows PowerShell parse.
-2. Run an Alpha release dry-run to prove the new readiness gate preserves the qualified unsigned path on all five
+1. Finish Alpha release dry-run `29636580836` to prove the new readiness gate preserves the qualified unsigned path
+   on all five
    native runners.
-3. Provision Apple and Azure identities without exposing their values, refresh the Beta blocker ledger, and advance
+2. Provision Apple and Azure identities without exposing their values, refresh the Beta blocker ledger, and advance
    the workspace version to `0.7.0-beta.1`.
-4. Run the complete non-publishing Beta matrix, inspect all three signing evidence files, regenerate package-manager
+3. Run the complete non-publishing Beta matrix, inspect all three signing evidence files, regenerate package-manager
    candidates from the signed assets, and only then authorize the Beta tag.

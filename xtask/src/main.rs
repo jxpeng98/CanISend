@@ -715,17 +715,28 @@ fn check_signing_policy() -> Result<(), String> {
         return Err("release signing policy drifted from the fail-closed Beta contract".to_owned());
     }
     let readiness_path = root.join("scripts/check_signing_readiness.sh");
+    let audit_path = root.join("scripts/audit_github_signing_configuration.sh");
     let macos_path = root.join("scripts/sign_and_notarize_macos.sh");
     let windows_path = root.join("scripts/verify_windows_authenticode.ps1");
+    let operations_path = root.join("docs/release/signing-operations.md");
     let readiness = fs::read_to_string(&readiness_path)
         .map_err(|error| format!("release signing readiness script is missing: {error}"))?;
+    let audit = fs::read_to_string(&audit_path)
+        .map_err(|error| format!("GitHub signing configuration audit is missing: {error}"))?;
     let macos = fs::read_to_string(&macos_path)
         .map_err(|error| format!("macOS signing script is missing: {error}"))?;
     let windows = fs::read_to_string(&windows_path)
         .map_err(|error| format!("Windows signing verifier is missing: {error}"))?;
-    for required in [
-        "release/signing-policy.json",
-        "alpha|beta|rc|stable",
+    let operations = fs::read_to_string(&operations_path)
+        .map_err(|error| format!("release signing operations guide is missing: {error}"))?;
+    for required in ["release/signing-policy.json", "alpha|beta|rc|stable"] {
+        if !readiness.contains(required) {
+            return Err(format!(
+                "release signing readiness script is missing `{required}`"
+            ));
+        }
+    }
+    let configuration_names = [
         "APPLE_DEVELOPER_ID_P12_BASE64",
         "APPLE_DEVELOPER_ID_P12_PASSWORD",
         "APPLE_NOTARY_KEY_P8_BASE64",
@@ -740,10 +751,21 @@ fn check_signing_policy() -> Result<(), String> {
         "AZURE_ARTIFACT_SIGNING_ACCOUNT",
         "AZURE_ARTIFACT_SIGNING_PROFILE",
         "WINDOWS_SIGNING_EXPECTED_SUBJECT",
-    ] {
-        if !readiness.contains(required) {
+    ];
+    for required in configuration_names {
+        if !readiness.contains(required)
+            || !audit.contains(required)
+            || !operations.contains(required)
+        {
             return Err(format!(
-                "release signing readiness script is missing `{required}`"
+                "release signing configuration surfaces are missing `{required}`"
+            ));
+        }
+    }
+    for required in ["gh secret list", "gh variable list", "values were not read"] {
+        if !audit.contains(required) {
+            return Err(format!(
+                "GitHub signing configuration audit is missing `{required}`"
             ));
         }
     }
@@ -779,6 +801,13 @@ fn check_signing_policy() -> Result<(), String> {
     let workflow_path = root.join(".github/workflows/release.yml");
     let workflow = fs::read_to_string(&workflow_path)
         .map_err(|error| format!("release workflow is missing: {error}"))?;
+    for required in configuration_names {
+        if !workflow.contains(required) {
+            return Err(format!(
+                "release workflow is missing signing configuration `{required}`"
+            ));
+        }
+    }
     for required in [
         "release/signing-policy.json",
         "check_signing_readiness.sh",

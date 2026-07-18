@@ -211,6 +211,14 @@
   records and the Windows record. Eleven xtask tests, Clippy, Bash syntax, YAML parsing, and actionlint pass.
   Ordinary CI now parses the Authenticode verifier on Windows. Real credential-backed qualification remains open and
   the roadmap completion checkbox is intentionally unchanged.
+- 2026-07-18: GitHub Actions ordinary CI `29636557516` passed all eight jobs at exact signing implementation commit
+  `c7d1d4c79b5b9d0ca6f6ef4f91b14f1c354e3a03`. The Windows render job successfully parsed the Authenticode verifier;
+  Rust quality, dependency policy, Linux/macOS/Windows recovery, and all three staged render/documentation jobs also
+  passed. The external Apple/Azure credential boundary remains the only unqualified part of the signing milestone.
+- 2026-07-18: Added the native signing operations runbook and a name-only GitHub configuration audit covering three
+  Apple secrets and eleven Apple/Azure variables. Positive fixture and live-repository negative paths pass without
+  reading secret values. The live repository currently has none of the fourteen required names, so a signed Beta
+  remains correctly unavailable until Apple Developer and Azure Artifact Signing provisioning is completed.
 
 ## 1. Executive Decision
 

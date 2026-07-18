@@ -52,7 +52,9 @@ code-signed; their integrity remains bound by `SHA256SUMS` and GitHub OIDC build
 
 Signing material stays in GitHub Actions secrets or external Apple/Azure services. It is never written to the
 repository, release archives, evidence JSON, or logs. Actual Beta qualification is not complete until credential-
-backed jobs produce accepted evidence for all three signed targets.
+backed jobs produce accepted evidence for all three signed targets. The
+[signing operations runbook](../../../release/signing-operations.md) defines provisioning and rotation without
+embedding credential values in repository files.
 
 ## Consequences
 

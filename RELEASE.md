@@ -44,6 +44,8 @@ the standalone executable.
 
 Beta, release-candidate, and Stable requirements include macOS Developer ID signing plus accepted notarization and
 Windows Azure Artifact Signing Public Trust. Missing credentials are a release failure, not an unsigned fallback.
+Maintainer provisioning, name-only configuration audit, qualification, rotation, and incident steps are defined in
+the [native signing operations runbook](docs/release/signing-operations.md).
 
 The full release sequence is tracked in R9–R11 of the Rust-native roadmap.
 
