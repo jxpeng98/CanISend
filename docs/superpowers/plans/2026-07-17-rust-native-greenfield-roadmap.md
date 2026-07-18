@@ -171,6 +171,15 @@
   `D:\\`/Git Bash path handling and failed closed; the normalized-path rerun in GitHub Actions `29631149914` passed
   quality, dependency, recovery, performance, rendering, and staged documentation gates on Linux x86_64, macOS
   arm64, and Windows x86_64. R10 exit criteria are satisfied; R11.1 native alpha release is active.
+- 2026-07-18: Qualified source commit `4cec4ec48cc2e96f3798dde0b438d3aaa617a2f8` as the native Alpha candidate.
+  GitHub Actions `29632388521` passed the complete ordinary CI matrix, and release dry-run `29632388573` built and
+  tested all five target archives, executed exact extracted-binary documentation and agent smokes, enforced release
+  performance budgets, assembled the CycloneDX SBOM/checksums/manifest/notices, and produced GitHub OIDC provenance.
+  Independent download verification matched all 11 entries in `SHA256SUMS`, passed the repository release verifier,
+  and verified provenance for all 12 release files against the exact source commit and release workflow. Public
+  University of Cambridge HTML and PDF URL imports were also dogfooded; a synthetic, deliberately mismatched profile
+  completed Intake through Plan and correctly held the application at Draft with six essential evidence blockers.
+  R11.1 archive, packaged-smoke, and real-job dogfood gates are satisfied; public Alpha publication remains active.
 
 ## 1. Executive Decision
 
@@ -1808,11 +1817,19 @@ normalizer now makes the exact staged workflow portable instead of weakening the
 
 #### R11.1 Alpha
 
-- [ ] Build all initial target archives.
-- [ ] Run packaged-binary smokes.
+- [x] Build all initial target archives.
+- [x] Run packaged-binary smokes.
 - [ ] Publish checksums, SBOM, notices, and known limitations.
-- [ ] Dogfood real job imports and application workflows.
+- [x] Dogfood real job imports and application workflows.
 - [ ] Collect issues without enabling default telemetry.
+
+**R11.1 qualification evidence:** GitHub Actions ordinary CI `29632388521` and native release dry-run `29632388573`
+passed at exact source commit `4cec4ec48cc2e96f3798dde0b438d3aaa617a2f8`. The dry-run covered macOS arm64 and
+x86_64, Linux GNU and musl x86_64, and Windows MSVC x86_64. Its downloaded evidence passed both independent SHA-256
+and GitHub provenance verification. The [Alpha dogfood note](../../notes/rust-native/2026-07-18-r11-alpha-dogfood.md)
+records the public HTML/PDF intake and fail-closed application-plan result. Publication and post-publication issue
+intake remain open; the release tag must reference the qualified source commit rather than a later documentation
+commit.
 
 #### R11.2 Beta
 
