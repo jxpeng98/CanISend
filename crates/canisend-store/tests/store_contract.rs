@@ -13,8 +13,9 @@ use canisend_contracts::{
 };
 use canisend_store::{
     ArtifactService, CriteriaService, DEFAULT_MAX_BLOB_BYTES, DocumentService, EvidenceService,
-    JobService, MatchService, NewProfileSource, NewSource, PlanService, ProfileService, StoreError,
-    TaskService, WorkflowService, Workspace, WorkspacePaths, verify_backup,
+    JobService, MatchService, NewProfileSource, NewSource, PlanService, ProfileService,
+    ReviewService, StoreError, TaskService, WorkflowService, Workspace, WorkspacePaths,
+    verify_backup,
 };
 use serde_json::{Value, json};
 
@@ -56,7 +57,7 @@ fn workspace_init_discovery_status_and_check_are_consistent() {
     assert_eq!(discovered.root, root.path());
     assert_eq!(
         workspace.status().expect("status").database_schema_version,
-        9
+        10
     );
     let check = workspace.check().expect("workspace check");
     assert!(check.ok);
@@ -685,6 +686,7 @@ fn evidence_and_match_tasks_enforce_stable_revision_bound_identities() {
         .filter(|document| document.requirement != canisend_contracts::DocumentRequirement::Omitted)
         .cloned()
         .collect::<Vec<_>>();
+    let mut document_artifacts = Vec::new();
     for (index, planned) in planned_documents.iter().enumerate() {
         let mode = planned.executor.expect("planned executor");
         let descriptor = TaskService::new(&mut workspace.database, &workspace.blobs)
@@ -736,6 +738,7 @@ fn evidence_and_match_tasks_enforce_stable_revision_bound_identities() {
             committed.artifact.kind,
             document_artifact_kind(planned.kind)
         );
+        document_artifacts.push(committed.artifact.clone());
         let current = DocumentService::new(&workspace.database, &workspace.blobs)
             .current(&job.id, planned.kind)
             .expect("current document");
@@ -768,6 +771,139 @@ fn evidence_and_match_tasks_enforce_stable_revision_bound_identities() {
         .expect("workflow after drafting");
     assert_eq!(
         workflow_stage_status(&status, WorkflowStage::Review),
+        StageExecutionStatus::Ready
+    );
+    let document_set_artifact = status
+        .stages
+        .iter()
+        .find(|state| state.stage == WorkflowStage::Draft)
+        .and_then(|state| state.output.clone())
+        .expect("document set artifact");
+    let cover_artifact = document_artifacts
+        .iter()
+        .find(|artifact| artifact.kind == ArtifactKind::CoverLetter)
+        .expect("cover artifact")
+        .clone();
+    let cover = documents
+        .iter()
+        .find(|document| document.kind == DocumentKind::CoverLetter)
+        .expect("cover document");
+    let review_descriptor = TaskService::new(&mut workspace.database, &workspace.blobs)
+        .prepare_document_review(&job.id, ExecutionMode::ConfiguredProvider)
+        .expect("review task");
+    assert_eq!(review_descriptor.input_artifacts.len(), 9);
+    assert_eq!(review_descriptor.required_consents.len(), 2);
+    let review_candidate = json!({
+        "job_id": job.id,
+        "document_set_artifact": document_set_artifact,
+        "findings": [{
+            "code": "review.motivation",
+            "category": "human-judgement",
+            "severity": "warning",
+            "message": "Ask the user to confirm that the closing reflects genuine intent.",
+            "target": {
+                "kind": "document",
+                "document": cover_artifact,
+                "document_id": cover.id
+            },
+            "related_targets": [],
+            "suggested_resolution": "Confirm or revise the closing with the user."
+        }]
+    });
+    let mut wrong_target = review_candidate.clone();
+    wrong_target["findings"][0]["target"]["document_id"] =
+        json!("019f2f55-7c00-7000-8000-000000000903");
+    assert!(matches!(
+        TaskService::new(&mut workspace.database, &workspace.blobs)
+            .complete(&document_request(&review_descriptor, wrong_target)),
+        Err(StoreError::CandidateSemantic(_))
+    ));
+    let committed_review = TaskService::new(&mut workspace.database, &workspace.blobs)
+        .complete(&document_request(&review_descriptor, review_candidate))
+        .expect("review findings");
+    assert_eq!(committed_review.artifact.kind, ArtifactKind::ReviewFindings);
+    let review = ReviewService::new(&mut workspace.database, &workspace.blobs)
+        .current(&job.id)
+        .expect("current review");
+    let deterministic = review
+        .findings
+        .iter()
+        .find(|finding| finding.authority == canisend_contracts::FindingAuthority::Deterministic)
+        .expect("deterministic placeholder blocker");
+    assert_eq!(deterministic.code, "review.placeholder-required");
+    assert_eq!(
+        deterministic.severity,
+        canisend_contracts::FindingSeverity::Blocker
+    );
+    let human = review
+        .findings
+        .iter()
+        .find(|finding| finding.authority == canisend_contracts::FindingAuthority::HumanReview)
+        .expect("human review finding");
+    assert_eq!(human.status, canisend_contracts::FindingStatus::Open);
+    let deterministic_disposition = json!({
+        "job_id": job.id,
+        "review_artifact": committed_review.artifact,
+        "decisions": [{
+            "finding_id": deterministic.id,
+            "expected_revision": deterministic.revision,
+            "disposition": "dismissed",
+            "rationale": "Attempt to bypass a deterministic blocker."
+        }]
+    });
+    assert!(matches!(
+        ReviewService::new(&mut workspace.database, &workspace.blobs)
+            .confirm(&job.id, &deterministic_disposition,),
+        Err(StoreError::CandidateSemantic(_))
+    ));
+    let mut disposition = ReviewService::new(&mut workspace.database, &workspace.blobs)
+        .template(&job.id)
+        .expect("review disposition template");
+    assert_eq!(disposition.decisions.len(), 1);
+    disposition.decisions[0].disposition =
+        Some(canisend_contracts::FindingDisposition::AcceptedRisk);
+    disposition.decisions[0].rationale =
+        Some("The user reviewed and accepts the motivation wording risk.".to_owned());
+    let revised_review_artifact = ReviewService::new(&mut workspace.database, &workspace.blobs)
+        .confirm(
+            &job.id,
+            &serde_json::to_value(disposition).expect("disposition JSON"),
+        )
+        .expect("confirm review disposition");
+    assert_eq!(revised_review_artifact.id, committed_review.artifact.id);
+    assert_eq!(revised_review_artifact.revision.get(), 2);
+    let revised_review = ReviewService::new(&mut workspace.database, &workspace.blobs)
+        .current(&job.id)
+        .expect("revised review");
+    let revised_human = revised_review
+        .findings
+        .iter()
+        .find(|finding| finding.id == human.id)
+        .expect("stable human finding");
+    assert_eq!(
+        revised_human.status,
+        canisend_contracts::FindingStatus::AcceptedRisk
+    );
+    assert_eq!(revised_human.revision.get(), 2);
+    let unchanged_deterministic = revised_review
+        .findings
+        .iter()
+        .find(|finding| finding.id == deterministic.id)
+        .expect("stable deterministic finding");
+    assert_eq!(unchanged_deterministic.revision.get(), 1);
+    assert_eq!(
+        unchanged_deterministic.status,
+        canisend_contracts::FindingStatus::Open
+    );
+    let status = WorkflowService::new(&mut workspace.database)
+        .status(&job.id)
+        .expect("workflow after review");
+    assert_eq!(
+        workflow_stage_status(&status, WorkflowStage::Review),
+        StageExecutionStatus::Complete
+    );
+    assert_eq!(
+        workflow_stage_status(&status, WorkflowStage::Package),
         StageExecutionStatus::Ready
     );
 
@@ -803,6 +939,10 @@ fn evidence_and_match_tasks_enforce_stable_revision_bound_identities() {
     );
     assert!(matches!(
         DocumentService::new(&workspace.database, &workspace.blobs).set(&job.id),
+        Err(StoreError::WorkflowConflict(_))
+    ));
+    assert!(matches!(
+        ReviewService::new(&mut workspace.database, &workspace.blobs).current(&job.id),
         Err(StoreError::WorkflowConflict(_))
     ));
     let status = WorkflowService::new(&mut workspace.database)
@@ -1317,7 +1457,16 @@ fn document_candidate(
         "kind": planned.kind,
         "title": format!("Lecturer application {:?}", planned.kind),
         "sections": sections,
-        "placeholders": []
+        "placeholders": if planned.kind == DocumentKind::CoverLetter {
+            json!([{
+                "key": "contact-name",
+                "instruction": "Confirm the addressee before packaging",
+                "required": true,
+                "resolution": null
+            }])
+        } else {
+            json!([])
+        }
     })
 }
 

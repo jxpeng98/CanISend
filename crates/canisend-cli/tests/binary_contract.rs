@@ -151,7 +151,7 @@ fn capabilities_distinguish_available_from_planned_work() {
             .iter()
             .filter(|stage| stage["status"] == "available")
             .count()),
-        Some(8)
+        Some(9)
     );
 }
 
@@ -204,13 +204,14 @@ fn agent_host_pack_export_is_versioned_and_self_contained() {
         exported["data"]["manifest"]["files"]
             .as_array()
             .map(Vec::len),
-        Some(21)
+        Some(25)
     );
     assert!(pack.join("AGENTS.md").is_file());
     assert!(pack.join("prompts/job-parse.md").is_file());
     assert!(pack.join("prompts/evidence-normalize.md").is_file());
     assert!(pack.join("prompts/evidence-match.md").is_file());
     assert!(pack.join("prompts/document-draft.md").is_file());
+    assert!(pack.join("prompts/document-review.md").is_file());
     assert!(
         pack.join("schemas/v2/task-completion.schema.json")
             .is_file()
@@ -219,6 +220,18 @@ fn agent_host_pack_export_is_versioned_and_self_contained() {
     assert!(pack.join("schemas/v2/criteria.schema.json").is_file());
     assert!(
         pack.join("schemas/v2/document-candidate.schema.json")
+            .is_file()
+    );
+    assert!(
+        pack.join("schemas/v2/review-candidate.schema.json")
+            .is_file()
+    );
+    assert!(
+        pack.join("schemas/v2/review-findings.schema.json")
+            .is_file()
+    );
+    assert!(
+        pack.join("schemas/v2/review-disposition-candidate.schema.json")
             .is_file()
     );
     assert!(pack.join("schemas/v2/document.schema.json").is_file());

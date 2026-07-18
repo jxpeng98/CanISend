@@ -281,6 +281,18 @@ impl<'a> WorkflowService<'a> {
         let affected = std::iter::once(stage)
             .chain(self.graph.descendants(stage))
             .collect::<Vec<_>>();
+        if affected.contains(&WorkflowStage::Review) {
+            transaction.execute(
+                "UPDATE artifacts SET stale = 1 WHERE id IN (
+                     SELECT artifact_id FROM review_heads WHERE workflow_run_id = ?1
+                 )",
+                params![run_id.as_str()],
+            )?;
+            transaction.execute(
+                "DELETE FROM review_heads WHERE workflow_run_id = ?1",
+                params![run_id.as_str()],
+            )?;
+        }
         if affected.contains(&WorkflowStage::Draft) {
             transaction.execute(
                 "UPDATE artifacts SET stale = 1 WHERE id IN (
@@ -548,6 +560,14 @@ fn load_status(
                         "Export the derived blockers and choose an application decision".to_owned(),
                     ),
                     WorkflowStage::Draft => next_document_draft_action(connection, run_id, job_id)?,
+                    WorkflowStage::Review => (
+                        format!(
+                            "canisend task prepare --job {} --operation document-review --mode host-agent --json",
+                            job_id
+                        ),
+                        "Review the exact current document set for deterministic and human findings"
+                            .to_owned(),
+                    ),
                     _ => (
                         format!(
                             "canisend workflow begin --job {} --stage {} --mode {} --json",
@@ -655,6 +675,16 @@ fn reconcile_job_revision(
     if prepared_revision == Some(current_revision) {
         return Ok(());
     }
+    transaction.execute(
+        "UPDATE artifacts SET stale = 1 WHERE id IN (
+             SELECT artifact_id FROM review_heads WHERE workflow_run_id = ?1
+         )",
+        params![run_id.as_str()],
+    )?;
+    transaction.execute(
+        "DELETE FROM review_heads WHERE workflow_run_id = ?1",
+        params![run_id.as_str()],
+    )?;
     transaction.execute(
         "UPDATE artifacts SET stale = 1 WHERE id IN (
              SELECT artifact_id FROM document_heads WHERE workflow_run_id = ?1

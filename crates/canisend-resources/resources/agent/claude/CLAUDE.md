@@ -28,6 +28,9 @@ CanISend owns durable state; Claude operates only through its versioned CLI prot
 12. Follow the Draft next action and prepare each named `*-draft` task in its assigned mode. Return one ID-free
     `document-candidate` with exact plan, planned-document, criterion, and evidence revisions. Preserve gaps and
     placeholders; use `document list/show/set` to inspect the committed structured results.
+13. Prepare `--operation document-review` for the exact set and return only semantic/human findings with exact
+    targets. Inspect with `review show`. Use `review export/confirm` only for explicit user dispositions; deterministic
+    blockers can be cleared only by current redrafted documents.
 
 Never create evidence or source identities not supplied by CanISend, send private content to a provider without a
 separate consent, write internal state directly, or treat readiness as application submission.

@@ -33,6 +33,9 @@ Then:
 12. Follow the Draft next action and prepare each named `*-draft` task in its planned mode. Use the bundled
     `document-draft` prompt to return one ID-free candidate with exact plan, planned-document, criterion, and evidence
     revisions. Inspect current drafts and the final revision-bound set with `document list/show/set`.
+13. Prepare `--operation document-review` for the exact set and return semantic/human findings with exact targets.
+    Inspect with `review show`; use `review export/confirm` only after explicit user dispositions. Deterministic
+    blockers cannot be dismissed and require redrafting.
 
 Read only capabilities marked `available`. Never inspect or edit `.canisend/`, invent source identities, or transmit
 private data without the matching consent. Readiness describes preparation status and is not evidence of submission.

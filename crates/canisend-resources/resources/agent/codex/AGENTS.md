@@ -30,6 +30,10 @@ Use CanISend as the state owner and Codex as a bounded reasoning host. Never ins
     `document-draft` prompt and return one ID-free `document-candidate` with exact plan, planned-document, criterion,
     and evidence revisions. Complete non-omitted documents sequentially; inspect them with `document list/show` and
     inspect the complete revision-bound set with `document set`.
+14. Prepare `--operation document-review` for the current set. Use the review prompt for semantic and cross-document
+    findings while CanISend adds deterministic findings. Show the result with `review show`; export dispositions and
+    run `review confirm` only after the user explicitly selects accepted-risk or dismissed. Deterministic blockers
+    require redrafting and cannot be dismissed.
 
 Do not invent source identities, bypass candidate validation, transmit private inputs to a provider without separate
 consent, or interpret readiness as permission to submit an application.

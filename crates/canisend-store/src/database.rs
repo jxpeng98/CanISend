@@ -7,7 +7,7 @@ use rusqlite::{
 
 use crate::{StoreError, now_utc};
 
-pub const DATABASE_SCHEMA_VERSION: u32 = 9;
+pub const DATABASE_SCHEMA_VERSION: u32 = 10;
 const INITIAL_MIGRATION: &str = include_str!("../migrations/0001_initial.sql");
 const INTAKE_MIGRATION: &str = include_str!("../migrations/0002_job_intake.sql");
 const DISCOVERY_MIGRATION: &str = include_str!("../migrations/0003_discovery.sql");
@@ -17,6 +17,7 @@ const PROFILE_SOURCES_MIGRATION: &str = include_str!("../migrations/0006_profile
 const EVIDENCE_WORKFLOW_MIGRATION: &str = include_str!("../migrations/0007_evidence_workflow.sql");
 const APPLICATION_PLANS_MIGRATION: &str = include_str!("../migrations/0008_application_plans.sql");
 const DOCUMENT_HEADS_MIGRATION: &str = include_str!("../migrations/0009_document_heads.sql");
+const REVIEW_HEADS_MIGRATION: &str = include_str!("../migrations/0010_review_heads.sql");
 
 pub struct Database {
     connection: Connection,
@@ -95,6 +96,11 @@ impl Database {
         if version == 8 {
             let applied_at = now_utc()?;
             self.apply_migration(9, DOCUMENT_HEADS_MIGRATION, &applied_at)?;
+            version = 9;
+        }
+        if version == 9 {
+            let applied_at = now_utc()?;
+            self.apply_migration(10, REVIEW_HEADS_MIGRATION, &applied_at)?;
         }
         Ok(())
     }
@@ -330,7 +336,7 @@ mod tests {
             .connection
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .expect("schema version");
-        assert_eq!(version, 9);
+        assert_eq!(version, 10);
         let revision_column: i64 = database
             .connection
             .query_row(
@@ -418,6 +424,16 @@ mod tests {
             )
             .expect("document heads table");
         assert_eq!(document_heads_table, 1);
+        let review_heads_table: i64 = database
+            .connection
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master
+                 WHERE type = 'table' AND name = 'review_heads'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("review heads table");
+        assert_eq!(review_heads_table, 1);
         drop(database);
         let _ = fs::remove_file(path);
     }

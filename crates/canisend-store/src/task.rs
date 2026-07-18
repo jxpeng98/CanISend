@@ -12,11 +12,12 @@ use canisend_contracts::{
     DocumentKind, DocumentPlaceholderRecord, DocumentRecord, DocumentRequirement,
     DocumentSectionRecord, DocumentSetRecord, EntityId, EvidenceCatalogRecord,
     EvidenceMatchProposalSet, EvidenceMatchRecord, EvidenceMatchSetRecord, EvidenceProposalSet,
-    EvidenceRecord, ExecutionMode, PUBLIC_SCHEMA_VERSION, ParsedJobRecord, PlanBlockerSeverity,
-    PublicSchemaId, Revision, SafeRelativePath, SchemaReference, SemanticVersion, Sha256Digest,
-    TaskCommitData, TaskCompletionRequest, TaskDescriptor, TaskInputExportData,
-    TaskInputExportFile, TaskLease, TaskStateData, TaskStatus, UtcTimestamp,
-    validate_external_candidate,
+    EvidenceRecord, ExecutionMode, FindingAuthority, FindingCategory, FindingRecord,
+    FindingSeverity, FindingStatus, FindingTarget, PUBLIC_SCHEMA_VERSION, ParsedJobRecord,
+    PlanBlockerSeverity, PublicSchemaId, ReviewCandidate, ReviewFindingsRecord, Revision,
+    SafeRelativePath, SchemaReference, SemanticVersion, Sha256Digest, TaskCommitData,
+    TaskCompletionRequest, TaskDescriptor, TaskInputExportData, TaskInputExportFile, TaskLease,
+    TaskStateData, TaskStatus, UtcTimestamp, validate_external_candidate,
 };
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use serde::Serialize;
@@ -33,6 +34,7 @@ pub const COVER_LETTER_DRAFT_OPERATION: &str = "document.draft.cover-letter";
 pub const RESEARCH_STATEMENT_DRAFT_OPERATION: &str = "document.draft.research-statement";
 pub const TEACHING_STATEMENT_DRAFT_OPERATION: &str = "document.draft.teaching-statement";
 pub const CV_DRAFT_OPERATION: &str = "document.draft.cv";
+pub const DOCUMENT_REVIEW_OPERATION: &str = "document.review";
 const TASK_LEASE_MINUTES: i64 = 15;
 
 pub struct TaskService<'a> {
@@ -827,6 +829,203 @@ impl<'a> TaskService<'a> {
         Ok(descriptor)
     }
 
+    pub fn prepare_document_review(
+        &mut self,
+        job_id: &EntityId,
+        mode: ExecutionMode,
+    ) -> Result<TaskDescriptor, StoreError> {
+        if !matches!(
+            mode,
+            ExecutionMode::HostAgent | ExecutionMode::ConfiguredProvider
+        ) {
+            return Err(StoreError::TaskConflict(
+                "document review supports only host-agent or configured-provider mode".to_owned(),
+            ));
+        }
+        let task_id = generate_id()?;
+        let lease_id = generate_id()?;
+        let event_id = generate_id()?;
+        let created_at = now_utc()?;
+        let expires_at = timestamp_after_minutes(TASK_LEASE_MINUTES)?;
+        let transaction = self.database.immediate_transaction()?;
+        let (archived, job_revision): (i64, i64) = transaction
+            .query_row(
+                "SELECT archived, revision FROM jobs WHERE id = ?1",
+                params![job_id.as_str()],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()?
+            .ok_or_else(|| StoreError::JobNotFound(job_id.to_string()))?;
+        if archived != 0 {
+            return Err(StoreError::JobArchived(job_id.to_string()));
+        }
+        type StageRow = (String, String, String);
+        let (_run_id, stage_execution_id, stage_status): StageRow = transaction
+            .query_row(
+                "SELECT run.id, review.id, review.status
+                 FROM workflow_runs AS run
+                 JOIN stage_executions AS review
+                   ON review.workflow_run_id = run.id AND review.stage = 'review'
+                 WHERE run.job_id = ?1 AND run.job_revision = ?2
+                 ORDER BY run.created_at DESC, run.id DESC LIMIT 1",
+                params![job_id.as_str(), job_revision],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .optional()?
+            .ok_or_else(|| StoreError::WorkflowNotFound(job_id.to_string()))?;
+        if stage_status != "ready" {
+            return Err(StoreError::WorkflowConflict(format!(
+                "review stage is {stage_status}, not ready"
+            )));
+        }
+        let document_set_reference = load_completed_stage_output(
+            &transaction,
+            job_id,
+            job_revision,
+            "draft",
+            ArtifactKind::DocumentSet,
+        )?;
+        let document_set = load_document_set_artifact(self.blobs, &document_set_reference)?;
+        if document_set.job_id != *job_id {
+            return Err(StoreError::Invariant(
+                "document set belongs to a different job".to_owned(),
+            ));
+        }
+        verify_artifact_revision(&transaction, &document_set.plan_artifact)?;
+        let plan = load_application_plan(self.blobs, &document_set.plan_artifact)?;
+        if plan.job_id != *job_id {
+            return Err(StoreError::Invariant(
+                "review plan belongs to a different job".to_owned(),
+            ));
+        }
+        let matches_reference = plan.matches_artifact.clone();
+        verify_artifact_revision(&transaction, &matches_reference)?;
+        let matches = load_match_artifact(self.blobs, &matches_reference)?;
+        let criteria_reference = matches.criteria_artifact.clone();
+        let evidence_reference = matches.evidence_artifact.clone();
+        verify_artifact_revision(&transaction, &criteria_reference)?;
+        verify_artifact_revision(&transaction, &evidence_reference)?;
+        let evidence = load_evidence_artifact(self.blobs, &evidence_reference)?;
+        let current_profile_revision: i64 = transaction.query_row(
+            "SELECT profile_revision FROM workspace_metadata WHERE singleton = 1",
+            [],
+            |row| row.get(0),
+        )?;
+        if to_i64(evidence.profile_revision.get())? != current_profile_revision {
+            return Err(StoreError::WorkflowConflict(
+                "review inputs do not match the current profile revision".to_owned(),
+            ));
+        }
+        let mut inputs = vec![document_set_reference.clone()];
+        for document_reference in &document_set.documents {
+            verify_artifact_revision(&transaction, document_reference)?;
+            let document = load_document_artifact(self.blobs, document_reference)?;
+            if document.job_id != *job_id
+                || document.plan_artifact != document_set.plan_artifact
+                || document_artifact_kind(document.kind) != document_reference.kind
+            {
+                return Err(StoreError::Invariant(
+                    "document set contains an inconsistent structured document".to_owned(),
+                ));
+            }
+            inputs.push(document_reference.clone());
+        }
+        inputs.extend([
+            document_set.plan_artifact.clone(),
+            matches_reference,
+            criteria_reference,
+            evidence_reference,
+        ]);
+        let actor = actor_for_mode(mode);
+        let descriptor = TaskDescriptor {
+            id: task_id.clone(),
+            operation: DOCUMENT_REVIEW_OPERATION.to_owned(),
+            job_id: job_id.clone(),
+            job_revision: Revision::try_new(to_u64(job_revision)?)?,
+            profile_revision: Some(evidence.profile_revision),
+            actor,
+            execution_mode: mode,
+            input_artifacts: inputs.clone(),
+            allowed_output_kind: ArtifactKind::ReviewFindings,
+            candidate_schema: SchemaReference {
+                id: PublicSchemaId::ReviewCandidate.as_str().to_owned(),
+                version: SemanticVersion::try_new(PUBLIC_SCHEMA_VERSION)?,
+            },
+            required_consents: task_consents(mode, &inputs),
+            private_read_scope: inputs.clone(),
+            lease: TaskLease {
+                id: lease_id.clone(),
+                expires_at: expires_at.clone(),
+            },
+        };
+        transaction.execute(
+            "INSERT INTO tasks(
+                id, stage_execution_id, status, lease_expires_at, created_at,
+                job_id, job_revision, operation, actor, execution_mode,
+                allowed_output_kind, candidate_schema_id, candidate_schema_version,
+                lease_id, descriptor_json, profile_revision
+             ) VALUES (?1, ?2, 'prepared', ?3, ?4, ?5, ?6, ?7, ?8, ?9,
+                       ?10, ?11, ?12, ?13, ?14, ?15)",
+            params![
+                task_id.as_str(),
+                &stage_execution_id,
+                expires_at.as_str(),
+                created_at.as_str(),
+                job_id.as_str(),
+                job_revision,
+                descriptor.operation,
+                enum_name(descriptor.actor)?,
+                enum_name(descriptor.execution_mode)?,
+                enum_name(descriptor.allowed_output_kind)?,
+                descriptor.candidate_schema.id,
+                descriptor.candidate_schema.version.as_str(),
+                lease_id.as_str(),
+                serde_json::to_string(&descriptor)?,
+                to_i64(evidence.profile_revision.get())?
+            ],
+        )?;
+        let started = transaction.execute(
+            "UPDATE stage_executions
+             SET status = 'running', execution_mode = ?2, input_profile_revision = ?3,
+                 started_at = ?4, updated_at = ?4
+             WHERE id = ?1 AND status = 'ready'",
+            params![
+                &stage_execution_id,
+                enum_name(mode)?,
+                to_i64(evidence.profile_revision.get())?,
+                created_at.as_str()
+            ],
+        )?;
+        if started != 1 {
+            return Err(StoreError::Invariant(
+                "review task could not claim exactly one ready stage".to_owned(),
+            ));
+        }
+        for input in &inputs {
+            transaction.execute(
+                "INSERT INTO task_inputs(task_id, artifact_id, revision, sha256)
+                 VALUES (?1, ?2, ?3, ?4)",
+                params![
+                    task_id.as_str(),
+                    input.id.as_str(),
+                    to_i64(input.revision.get())?,
+                    input.sha256.as_str()
+                ],
+            )?;
+        }
+        insert_audit_as(
+            &transaction,
+            &event_id,
+            (actor, "task.prepare"),
+            &task_id,
+            None,
+            "prepare document review task with exact structured document revisions",
+            &created_at,
+        )?;
+        transaction.commit()?;
+        Ok(descriptor)
+    }
+
     pub fn get(&self, task_id: &EntityId) -> Result<TaskStateData, StoreError> {
         load_task_state(self.database.connection(), task_id)
     }
@@ -1018,18 +1217,30 @@ impl<'a> TaskService<'a> {
             );
         }
         let committed_at = now_utc()?;
-        let (output_value, document_output) = match validated {
-            ValidatedTaskCandidate::ParsedJob(_) => (request.candidate.clone(), None),
+        let (output_value, document_output, review_output) = match validated {
+            ValidatedTaskCandidate::ParsedJob(_) => (request.candidate.clone(), None, None),
             ValidatedTaskCandidate::EvidenceProposals(proposals) => (
                 serde_json::to_value(build_evidence_catalog(proposals)?)?,
                 None,
+                None,
             ),
-            ValidatedTaskCandidate::MatchProposals(proposals) => {
-                (serde_json::to_value(build_match_set(proposals)?)?, None)
-            }
+            ValidatedTaskCandidate::MatchProposals(proposals) => (
+                serde_json::to_value(build_match_set(proposals)?)?,
+                None,
+                None,
+            ),
             ValidatedTaskCandidate::Document(candidate) => {
                 let document = build_document(candidate, &initial.descriptor, &committed_at)?;
-                (serde_json::to_value(&document)?, Some(document))
+                (serde_json::to_value(&document)?, Some(document), None)
+            }
+            ValidatedTaskCandidate::Review(candidate) => {
+                let review = build_review(
+                    self.database.connection(),
+                    self.blobs,
+                    candidate,
+                    &initial.descriptor,
+                )?;
+                (serde_json::to_value(&review)?, None, Some(review))
             }
         };
         let bytes = canonical_json_bytes(&output_value)?;
@@ -1314,6 +1525,18 @@ impl<'a> TaskService<'a> {
                     &initial.descriptor,
                     stage_execution_id,
                     document,
+                    &artifact_reference,
+                    &committed_at,
+                )?;
+            } else if initial.descriptor.operation == DOCUMENT_REVIEW_OPERATION {
+                let review = review_output.as_ref().ok_or_else(|| {
+                    StoreError::Invariant("review task produced no structured findings".to_owned())
+                })?;
+                advance_document_review(
+                    &transaction,
+                    &initial.descriptor,
+                    stage_execution_id,
+                    review,
                     &artifact_reference,
                     &committed_at,
                 )?;
@@ -1716,6 +1939,7 @@ enum ValidatedTaskCandidate {
     EvidenceProposals(EvidenceProposalSet),
     MatchProposals(EvidenceMatchProposalSet),
     Document(DocumentCandidate),
+    Review(ReviewCandidate),
 }
 
 fn validate_candidate(
@@ -1793,6 +2017,22 @@ fn validate_candidate(
                 )]));
             }
             Ok(ValidatedTaskCandidate::Document(candidate))
+        }
+        (DOCUMENT_REVIEW_OPERATION, schema)
+            if schema == PublicSchemaId::ReviewCandidate.as_str() =>
+        {
+            let candidate = validate_external_candidate::<ReviewCandidate>(value)
+                .map_err(map_candidate_error)?;
+            if candidate.job_id != descriptor.job_id
+                || descriptor.allowed_output_kind != ArtifactKind::ReviewFindings
+            {
+                return Err(StoreError::CandidateSemantic(vec![ContractViolation::new(
+                    "review.job_mismatch",
+                    "/job_id",
+                    "review candidate job ID does not match the task subject",
+                )]));
+            }
+            Ok(ValidatedTaskCandidate::Review(candidate))
         }
         _ => Err(StoreError::Invariant(format!(
             "unsupported task contract: {} -> {}",
@@ -1935,6 +2175,305 @@ fn build_document(
         .map_err(map_candidate_error)
 }
 
+fn build_review(
+    connection: &Connection,
+    blobs: &BlobStore,
+    candidate: ReviewCandidate,
+    descriptor: &TaskDescriptor,
+) -> Result<ReviewFindingsRecord, StoreError> {
+    let scope = load_review_scope(connection, blobs, descriptor)?;
+    let mut findings = deterministic_review_findings(&scope)?;
+    let mut keys = findings
+        .iter()
+        .map(|finding| {
+            Ok((
+                finding.code.clone(),
+                serde_json::to_string(&finding.target)?,
+            ))
+        })
+        .collect::<Result<std::collections::BTreeSet<_>, StoreError>>()?;
+    for proposed in candidate.findings {
+        let key = (
+            proposed.code.clone(),
+            serde_json::to_string(&proposed.target)?,
+        );
+        if !keys.insert(key) {
+            return Err(StoreError::CandidateSemantic(vec![ContractViolation::new(
+                "review.finding_conflicts_with_core",
+                "/findings",
+                "agent finding duplicates a deterministic finding or another exact target",
+            )]));
+        }
+        findings.push(FindingRecord {
+            id: generate_id()?,
+            code: proposed.code,
+            category: proposed.category,
+            severity: proposed.severity,
+            authority: FindingAuthority::HumanReview,
+            message: proposed.message,
+            target: proposed.target,
+            related_targets: proposed.related_targets,
+            suggested_resolution: proposed.suggested_resolution,
+            status: FindingStatus::Open,
+            disposition_reason: None,
+            decided_by: None,
+            decided_at: None,
+            revision: Revision::try_new(1)?,
+        });
+    }
+    if findings.len() > 1_000 {
+        return Err(StoreError::CandidateSemantic(vec![ContractViolation::new(
+            "review.merged_finding_count_invalid",
+            "/findings",
+            "agent and deterministic review findings exceed the 1000-record limit",
+        )]));
+    }
+    let review = ReviewFindingsRecord {
+        id: generate_id()?,
+        job_id: candidate.job_id,
+        document_set_artifact: scope.document_set_reference,
+        findings,
+        reviewed_by: descriptor.actor,
+        revision: Revision::try_new(1)?,
+    };
+    validate_external_candidate::<ReviewFindingsRecord>(&serde_json::to_value(&review)?)
+        .map_err(map_candidate_error)
+}
+
+fn deterministic_review_findings(scope: &ReviewScope) -> Result<Vec<FindingRecord>, StoreError> {
+    let criteria = scope
+        .criteria
+        .criteria
+        .iter()
+        .map(|criterion| (&criterion.id, criterion.revision))
+        .collect::<BTreeMap<_, _>>();
+    let evidence = scope
+        .evidence
+        .items
+        .iter()
+        .map(|item| (&item.id, item))
+        .collect::<BTreeMap<_, _>>();
+    let matched_evidence = scope
+        .matches
+        .matches
+        .iter()
+        .flat_map(|evidence_match| evidence_match.evidence.iter())
+        .map(|reference| (&reference.id, reference.revision))
+        .collect::<BTreeMap<_, _>>();
+    let prohibited = scope
+        .matches
+        .matches
+        .iter()
+        .flat_map(|evidence_match| evidence_match.prohibited_claims.iter())
+        .filter_map(|value| prohibited_phrase(value))
+        .collect::<std::collections::BTreeSet<_>>();
+    let mut findings = Vec::new();
+    let mut claim_signatures: BTreeMap<String, (String, FindingTarget)> = BTreeMap::new();
+    let mut keys = std::collections::BTreeSet::new();
+    for (reference, document) in &scope.documents {
+        for placeholder in &document.placeholders {
+            if placeholder.required && placeholder.resolution.is_none() {
+                push_deterministic_finding(
+                    &mut findings,
+                    &mut keys,
+                    FindingRecord {
+                        id: generate_id()?,
+                        code: "review.placeholder-required".to_owned(),
+                        category: FindingCategory::UnresolvedPlaceholder,
+                        severity: FindingSeverity::Blocker,
+                        authority: FindingAuthority::Deterministic,
+                        message: format!(
+                            "Resolve the required {} placeholder before packaging",
+                            placeholder.key
+                        ),
+                        target: FindingTarget::Placeholder {
+                            document: reference.clone(),
+                            document_id: document.id.clone(),
+                            placeholder_id: placeholder.id.clone(),
+                        },
+                        related_targets: Vec::new(),
+                        suggested_resolution: Some(placeholder.instruction.clone()),
+                        status: FindingStatus::Open,
+                        disposition_reason: None,
+                        decided_by: None,
+                        decided_at: None,
+                        revision: Revision::try_new(1)?,
+                    },
+                )?;
+            }
+        }
+        for section in &document.sections {
+            let section_target = FindingTarget::Section {
+                document: reference.clone(),
+                document_id: document.id.clone(),
+                section_id: section.id.clone(),
+            };
+            if section.claims.is_empty() {
+                push_deterministic_finding(
+                    &mut findings,
+                    &mut keys,
+                    deterministic_finding(
+                        "review.unclaimed-content",
+                        FindingCategory::UnclaimedContent,
+                        FindingSeverity::Blocker,
+                        "Section prose has no declared claims and cannot be evidence-reviewed",
+                        section_target.clone(),
+                        Some("Redraft the section with explicit classified claims and citations"),
+                    )?,
+                )?;
+            }
+            let body = section.body.to_lowercase();
+            if prohibited.iter().any(|phrase| body.contains(phrase)) {
+                push_deterministic_finding(
+                    &mut findings,
+                    &mut keys,
+                    deterministic_finding(
+                        "review.prohibited-claim",
+                        FindingCategory::ProhibitedClaim,
+                        FindingSeverity::Blocker,
+                        "Section appears to contain a claim prohibited by the current evidence match",
+                        section_target,
+                        Some("Remove or rewrite the unsupported prohibited claim"),
+                    )?,
+                )?;
+            }
+            for claim in &section.claims {
+                let claim_target = FindingTarget::Claim {
+                    document: reference.clone(),
+                    document_id: document.id.clone(),
+                    section_id: section.id.clone(),
+                    claim_id: claim.id.clone(),
+                };
+                let citation_invalid =
+                    claim
+                        .citations
+                        .iter()
+                        .any(|citation| match &citation.target {
+                            CitationTarget::Evidence {
+                                evidence: evidence_reference,
+                            } => {
+                                evidence.get(&evidence_reference.id).is_none_or(|item| {
+                                    item.revision != evidence_reference.revision
+                                        || !item.confirmed
+                                        || item.excluded
+                                }) || matched_evidence.get(&evidence_reference.id)
+                                    != Some(&evidence_reference.revision)
+                            }
+                            CitationTarget::Criterion {
+                                criterion: criterion_reference,
+                            } => {
+                                criteria.get(&criterion_reference.id)
+                                    != Some(&criterion_reference.revision)
+                            }
+                        });
+                if citation_invalid {
+                    push_deterministic_finding(
+                        &mut findings,
+                        &mut keys,
+                        deterministic_finding(
+                            "review.citation-invalid",
+                            FindingCategory::CitationInvalid,
+                            FindingSeverity::Blocker,
+                            "Claim citation is not current in the reviewed criteria, evidence, and match chain",
+                            claim_target.clone(),
+                            Some("Redraft the claim against current validated evidence"),
+                        )?,
+                    )?;
+                }
+                let normalized = claim
+                    .text
+                    .split_whitespace()
+                    .collect::<Vec<_>>()
+                    .join(" ")
+                    .to_lowercase();
+                let signature = serde_json::to_string(&(claim.classification, &claim.citations))?;
+                if let Some((previous_signature, previous_target)) =
+                    claim_signatures.get(&normalized)
+                {
+                    if previous_signature != &signature {
+                        let mut finding = deterministic_finding(
+                            "review.cross-document-inconsistency",
+                            FindingCategory::CrossDocumentInconsistency,
+                            FindingSeverity::Warning,
+                            "The same claim text has inconsistent classification or citations across documents",
+                            claim_target.clone(),
+                            Some(
+                                "Align the claim classification and supporting revisions across documents",
+                            ),
+                        )?;
+                        finding.related_targets.push(previous_target.clone());
+                        push_deterministic_finding(&mut findings, &mut keys, finding)?;
+                    }
+                } else {
+                    claim_signatures.insert(normalized, (signature, claim_target));
+                }
+            }
+        }
+    }
+    Ok(findings)
+}
+
+fn deterministic_finding(
+    code: &str,
+    category: FindingCategory,
+    severity: FindingSeverity,
+    message: &str,
+    target: FindingTarget,
+    suggested_resolution: Option<&str>,
+) -> Result<FindingRecord, StoreError> {
+    Ok(FindingRecord {
+        id: generate_id()?,
+        code: code.to_owned(),
+        category,
+        severity,
+        authority: FindingAuthority::Deterministic,
+        message: message.to_owned(),
+        target,
+        related_targets: Vec::new(),
+        suggested_resolution: suggested_resolution.map(ToOwned::to_owned),
+        status: FindingStatus::Open,
+        disposition_reason: None,
+        decided_by: None,
+        decided_at: None,
+        revision: Revision::try_new(1)?,
+    })
+}
+
+fn push_deterministic_finding(
+    findings: &mut Vec<FindingRecord>,
+    keys: &mut std::collections::BTreeSet<(String, String)>,
+    finding: FindingRecord,
+) -> Result<(), StoreError> {
+    let key = (
+        finding.code.clone(),
+        serde_json::to_string(&finding.target)?,
+    );
+    if keys.insert(key) {
+        findings.push(finding);
+    }
+    Ok(())
+}
+
+fn prohibited_phrase(value: &str) -> Option<String> {
+    let normalized = value.trim().to_lowercase();
+    let normalized = [
+        "do not claim ",
+        "do not state ",
+        "do not imply ",
+        "avoid claiming ",
+    ]
+    .into_iter()
+    .find_map(|prefix| normalized.strip_prefix(prefix))
+    .unwrap_or(&normalized)
+    .trim_matches(|character: char| character.is_ascii_punctuation() || character.is_whitespace())
+    .to_owned();
+    if normalized.len() >= 8 {
+        Some(normalized)
+    } else {
+        None
+    }
+}
+
 fn validate_task_source_spans(
     connection: &Connection,
     blobs: &BlobStore,
@@ -1946,6 +2485,9 @@ fn validate_task_source_spans(
     }
     if let ValidatedTaskCandidate::Document(document) = candidate {
         return validate_document_scope(connection, blobs, descriptor, document);
+    }
+    if let ValidatedTaskCandidate::Review(review) = candidate {
+        return validate_review_scope(connection, blobs, descriptor, review);
     }
     let allowed = descriptor
         .input_artifacts
@@ -1981,6 +2523,7 @@ fn validate_task_source_spans(
             .collect::<Vec<_>>(),
         ValidatedTaskCandidate::MatchProposals(_) => unreachable!("match candidates return above"),
         ValidatedTaskCandidate::Document(_) => unreachable!("document candidates return above"),
+        ValidatedTaskCandidate::Review(_) => unreachable!("review candidates return above"),
     };
     for (span, source_quote, pointer) in spans {
         let source = &span.source;
@@ -2302,6 +2845,221 @@ fn validate_document_scope(
     }
 }
 
+struct ReviewScope {
+    document_set_reference: ArtifactReference,
+    documents: Vec<(ArtifactReference, DocumentRecord)>,
+    matches: EvidenceMatchSetRecord,
+    criteria: CriteriaSetRecord,
+    evidence: EvidenceCatalogRecord,
+}
+
+fn validate_review_scope(
+    connection: &Connection,
+    blobs: &BlobStore,
+    descriptor: &TaskDescriptor,
+    candidate: &ReviewCandidate,
+) -> Result<(), StoreError> {
+    let scope = load_review_scope(connection, blobs, descriptor)?;
+    let mut violations = Vec::new();
+    if candidate.document_set_artifact != scope.document_set_reference {
+        violations.push(ContractViolation::new(
+            "review.document_set_revision_mismatch",
+            "/document_set_artifact",
+            "candidate must repeat the exact current document-set revision and hash",
+        ));
+    }
+    for (finding_index, finding) in candidate.findings.iter().enumerate() {
+        validate_review_target_scope(
+            &finding.target,
+            &scope,
+            &format!("/findings/{finding_index}/target"),
+            &mut violations,
+        );
+        for (related_index, target) in finding.related_targets.iter().enumerate() {
+            validate_review_target_scope(
+                target,
+                &scope,
+                &format!("/findings/{finding_index}/related_targets/{related_index}"),
+                &mut violations,
+            );
+        }
+    }
+    if violations.is_empty() {
+        Ok(())
+    } else {
+        Err(StoreError::CandidateSemantic(violations))
+    }
+}
+
+fn load_review_scope(
+    connection: &Connection,
+    blobs: &BlobStore,
+    descriptor: &TaskDescriptor,
+) -> Result<ReviewScope, StoreError> {
+    let document_set_reference = unique_input_kind(descriptor, ArtifactKind::DocumentSet)?.clone();
+    let plan_reference = unique_input_kind(descriptor, ArtifactKind::ApplicationPlan)?;
+    let matches_reference = unique_input_kind(descriptor, ArtifactKind::EvidenceMatches)?;
+    let criteria_reference = unique_input_kind(descriptor, ArtifactKind::Criteria)?;
+    let evidence_reference = unique_input_kind(descriptor, ArtifactKind::EvidenceCatalog)?;
+    for input in descriptor.input_artifacts.iter() {
+        verify_artifact_revision(connection, input)?;
+    }
+    let document_set = load_document_set_artifact(blobs, &document_set_reference)?;
+    let plan = load_application_plan(blobs, plan_reference)?;
+    let matches = load_match_artifact(blobs, matches_reference)?;
+    let criteria = load_criteria_artifact(blobs, criteria_reference)?;
+    let evidence = load_evidence_artifact(blobs, evidence_reference)?;
+    if document_set.job_id != descriptor.job_id
+        || plan.job_id != descriptor.job_id
+        || matches.job_id != descriptor.job_id
+        || criteria.job_id != descriptor.job_id
+        || document_set.plan_artifact != *plan_reference
+        || plan.matches_artifact != *matches_reference
+        || matches.criteria_artifact != *criteria_reference
+        || matches.evidence_artifact != *evidence_reference
+    {
+        return Err(StoreError::Invariant(
+            "review task input dependency chain is inconsistent".to_owned(),
+        ));
+    }
+    let mut documents = Vec::with_capacity(document_set.documents.len());
+    for reference in &document_set.documents {
+        if !descriptor
+            .input_artifacts
+            .iter()
+            .any(|input| input == reference)
+        {
+            return Err(StoreError::Invariant(
+                "review descriptor omits a document-set member".to_owned(),
+            ));
+        }
+        let document = load_document_artifact(blobs, reference)?;
+        if document.job_id != descriptor.job_id
+            || document.plan_artifact != *plan_reference
+            || document_artifact_kind(document.kind) != reference.kind
+        {
+            return Err(StoreError::Invariant(
+                "review document does not match its set and plan".to_owned(),
+            ));
+        }
+        documents.push((reference.clone(), document));
+    }
+    Ok(ReviewScope {
+        document_set_reference,
+        documents,
+        matches,
+        criteria,
+        evidence,
+    })
+}
+
+fn validate_review_target_scope(
+    target: &FindingTarget,
+    scope: &ReviewScope,
+    pointer: &str,
+    violations: &mut Vec<ContractViolation>,
+) {
+    if let FindingTarget::DocumentSet { document_set } = target {
+        if document_set != &scope.document_set_reference {
+            violations.push(ContractViolation::new(
+                "review.target_document_set_unknown",
+                pointer,
+                "finding target must reference the exact reviewed document set",
+            ));
+        }
+        return;
+    }
+    let (reference, document_id) = match target {
+        FindingTarget::Document {
+            document,
+            document_id,
+        }
+        | FindingTarget::Section {
+            document,
+            document_id,
+            ..
+        }
+        | FindingTarget::Claim {
+            document,
+            document_id,
+            ..
+        }
+        | FindingTarget::Placeholder {
+            document,
+            document_id,
+            ..
+        } => (document, document_id),
+        FindingTarget::DocumentSet { .. } => unreachable!("handled above"),
+    };
+    let Some((_, document)) = scope
+        .documents
+        .iter()
+        .find(|(candidate, _)| candidate == reference)
+    else {
+        violations.push(ContractViolation::new(
+            "review.target_document_unknown",
+            pointer,
+            "finding target document is outside the exact reviewed set",
+        ));
+        return;
+    };
+    if &document.id != document_id {
+        violations.push(ContractViolation::new(
+            "review.target_document_id_mismatch",
+            pointer,
+            "finding target document ID does not match the referenced artifact",
+        ));
+        return;
+    }
+    match target {
+        FindingTarget::Section { section_id, .. } => {
+            if !document
+                .sections
+                .iter()
+                .any(|section| section.id == *section_id)
+            {
+                violations.push(ContractViolation::new(
+                    "review.target_section_unknown",
+                    pointer,
+                    "finding target section is not present in the referenced document",
+                ));
+            }
+        }
+        FindingTarget::Claim {
+            section_id,
+            claim_id,
+            ..
+        } => {
+            let valid = document.sections.iter().any(|section| {
+                section.id == *section_id
+                    && section.claims.iter().any(|claim| claim.id == *claim_id)
+            });
+            if !valid {
+                violations.push(ContractViolation::new(
+                    "review.target_claim_unknown",
+                    pointer,
+                    "finding target claim is not present in the referenced section",
+                ));
+            }
+        }
+        FindingTarget::Placeholder { placeholder_id, .. } => {
+            if !document
+                .placeholders
+                .iter()
+                .any(|placeholder| placeholder.id == *placeholder_id)
+            {
+                violations.push(ContractViolation::new(
+                    "review.target_placeholder_unknown",
+                    pointer,
+                    "finding target placeholder is not present in the referenced document",
+                ));
+            }
+        }
+        FindingTarget::Document { .. } => {}
+        FindingTarget::DocumentSet { .. } => unreachable!("handled above"),
+    }
+}
+
 fn advance_document_draft(
     transaction: &Transaction<'_>,
     blobs: &BlobStore,
@@ -2463,6 +3221,101 @@ fn advance_document_draft(
         &set.id,
         Some(1),
         "assemble all current non-omitted structured documents",
+        committed_at,
+    )?;
+    Ok(())
+}
+
+fn advance_document_review(
+    transaction: &Transaction<'_>,
+    descriptor: &TaskDescriptor,
+    stage_execution_id: &str,
+    review: &ReviewFindingsRecord,
+    artifact: &ArtifactReference,
+    committed_at: &UtcTimestamp,
+) -> Result<(), StoreError> {
+    let (run_id, stage_status): (String, String) = transaction.query_row(
+        "SELECT workflow_run_id, status FROM stage_executions WHERE id = ?1 AND stage = 'review'",
+        params![stage_execution_id],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )?;
+    if stage_status != "running"
+        || review.job_id != descriptor.job_id
+        || review.document_set_artifact
+            != *unique_input_kind(descriptor, ArtifactKind::DocumentSet)?
+    {
+        return Err(StoreError::Invariant(
+            "review task could not advance its exact running stage".to_owned(),
+        ));
+    }
+    let deterministic_blockers = review
+        .findings
+        .iter()
+        .filter(|finding| {
+            finding.authority == FindingAuthority::Deterministic
+                && finding.severity == FindingSeverity::Blocker
+                && finding.status == FindingStatus::Open
+        })
+        .count();
+    let pending_human = review
+        .findings
+        .iter()
+        .filter(|finding| {
+            finding.authority == FindingAuthority::HumanReview
+                && finding.status == FindingStatus::Open
+        })
+        .count();
+    transaction.execute(
+        "INSERT INTO review_heads(
+            workflow_run_id, document_set_artifact_id, document_set_artifact_revision,
+            artifact_id, artifact_revision, deterministic_blocker_count,
+            pending_human_count, updated_at
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        params![
+            &run_id,
+            review.document_set_artifact.id.as_str(),
+            to_i64(review.document_set_artifact.revision.get())?,
+            artifact.id.as_str(),
+            to_i64(artifact.revision.get())?,
+            to_i64(u64::try_from(deterministic_blockers).map_err(|_| {
+                StoreError::Invariant("deterministic blocker count overflow".to_owned())
+            })?)?,
+            to_i64(u64::try_from(pending_human).map_err(|_| {
+                StoreError::Invariant("pending human finding count overflow".to_owned())
+            })?)?,
+            committed_at.as_str()
+        ],
+    )?;
+    let completed = transaction.execute(
+        "UPDATE stage_executions
+         SET status = 'complete', output_artifact_id = ?2, output_artifact_revision = ?3,
+             completed_at = ?4, updated_at = ?4
+         WHERE id = ?1 AND status = 'running'",
+        params![
+            stage_execution_id,
+            artifact.id.as_str(),
+            to_i64(artifact.revision.get())?,
+            committed_at.as_str()
+        ],
+    )?;
+    if completed != 1 {
+        return Err(StoreError::Invariant(
+            "review findings could not complete their stage".to_owned(),
+        ));
+    }
+    transaction.execute(
+        "UPDATE stage_executions SET status = 'ready', updated_at = ?2
+         WHERE workflow_run_id = ?1 AND stage = 'package' AND status IN ('blocked', 'stale')",
+        params![&run_id, committed_at.as_str()],
+    )?;
+    let event_id = generate_id()?;
+    insert_audit_as(
+        transaction,
+        &event_id,
+        (ActorKind::System, "review.complete"),
+        &review.id,
+        Some(to_i64(review.revision.get())?),
+        "commit deterministic and human review findings for an exact document set",
         committed_at,
     )?;
     Ok(())
@@ -2636,6 +3489,24 @@ fn load_parsed_job_artifact(
     blobs: &BlobStore,
     artifact: &ArtifactReference,
 ) -> Result<ParsedJobRecord, StoreError> {
+    let bytes = blobs.read_verified(&artifact.sha256, DEFAULT_MAX_BLOB_BYTES)?;
+    let value: Value = serde_json::from_slice(&bytes)?;
+    validate_external_candidate(&value).map_err(map_candidate_error)
+}
+
+fn load_document_artifact(
+    blobs: &BlobStore,
+    artifact: &ArtifactReference,
+) -> Result<DocumentRecord, StoreError> {
+    let bytes = blobs.read_verified(&artifact.sha256, DEFAULT_MAX_BLOB_BYTES)?;
+    let value: Value = serde_json::from_slice(&bytes)?;
+    validate_external_candidate(&value).map_err(map_candidate_error)
+}
+
+fn load_document_set_artifact(
+    blobs: &BlobStore,
+    artifact: &ArtifactReference,
+) -> Result<DocumentSetRecord, StoreError> {
     let bytes = blobs.read_verified(&artifact.sha256, DEFAULT_MAX_BLOB_BYTES)?;
     let value: Value = serde_json::from_slice(&bytes)?;
     validate_external_candidate(&value).map_err(map_candidate_error)

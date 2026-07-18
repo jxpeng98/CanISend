@@ -28,7 +28,8 @@ use canisend_resources::{AgentHost, ResourceError, ResourceId, ResourceKind, exp
 use canisend_store::{
     AgentContextService, ArtifactService, CriteriaService, DiscoveryService, DocumentService,
     EvidenceService, JobService, MatchService, NewProfileSource, NewSource, PlanService,
-    ProfileService, StoreError, TaskService, WorkflowService, Workspace, current_utc_timestamp,
+    ProfileService, ReviewService, StoreError, TaskService, WorkflowService, Workspace,
+    current_utc_timestamp,
 };
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use serde_json::json;
@@ -112,6 +113,11 @@ enum Command {
     Document {
         #[command(subcommand)]
         command: DocumentCommand,
+    },
+    /// Inspect review findings and record explicit user dispositions.
+    Review {
+        #[command(subcommand)]
+        command: ReviewCommand,
     },
     /// Start, inspect, advance, or rerun the durable application workflow.
     Workflow {
@@ -289,6 +295,16 @@ enum DocumentCommand {
     Show(DocumentShowArgs),
     /// Show the complete current document set after Draft finishes.
     Set(DocumentJobArgs),
+}
+
+#[derive(Debug, Subcommand)]
+enum ReviewCommand {
+    /// Export an editable disposition candidate for human-review findings.
+    Export(ReviewExportArgs),
+    /// Confirm selected accepted-risk or dismissed dispositions as the user.
+    Confirm(ReviewConfirmArgs),
+    /// Show the current deterministic and human review findings.
+    Show(ReviewJobArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -561,6 +577,7 @@ enum TaskOperationName {
     ResearchStatementDraft,
     TeachingStatementDraft,
     CvDraft,
+    DocumentReview,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -620,6 +637,39 @@ struct DocumentShowArgs {
     /// Structured document kind to inspect.
     #[arg(long, value_enum)]
     kind: DocumentKindName,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
+struct ReviewJobArgs {
+    /// Canonical UUIDv7 job ID.
+    #[arg(long)]
+    job: String,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
+struct ReviewExportArgs {
+    /// Canonical UUIDv7 job ID.
+    #[arg(long)]
+    job: String,
+    /// New external JSON file for explicit user dispositions.
+    #[arg(long, value_name = "PATH")]
+    destination: PathBuf,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
+struct ReviewConfirmArgs {
+    /// Canonical UUIDv7 job ID.
+    #[arg(long)]
+    job: String,
+    /// Regular, non-symlink JSON exported by `review export`.
+    #[arg(long, value_name = "PATH")]
+    file: PathBuf,
     #[command(flatten)]
     output: OutputArgs,
 }
@@ -937,6 +987,11 @@ impl Cli {
                 }
                 DocumentCommand::Show(arguments) => arguments.output.json,
             },
+            Command::Review { command } => match command {
+                ReviewCommand::Export(arguments) => arguments.output.json,
+                ReviewCommand::Confirm(arguments) => arguments.output.json,
+                ReviewCommand::Show(arguments) => arguments.output.json,
+            },
             Command::Workflow { command } => match command {
                 WorkflowCommand::Start(arguments) | WorkflowCommand::Status(arguments) => {
                     arguments.output.json
@@ -1177,6 +1232,15 @@ fn execute(cli: Cli) -> CommandResult<CommandOutput> {
         Command::Document {
             command: DocumentCommand::Set(arguments),
         } => document_set(workspace, &arguments.job),
+        Command::Review {
+            command: ReviewCommand::Export(arguments),
+        } => review_export(workspace, arguments),
+        Command::Review {
+            command: ReviewCommand::Confirm(arguments),
+        } => review_confirm(workspace, arguments),
+        Command::Review {
+            command: ReviewCommand::Show(arguments),
+        } => review_show(workspace, &arguments.job),
         Command::Workflow {
             command: WorkflowCommand::Start(arguments),
         } => workflow_start(workspace, &arguments.job),
@@ -2330,6 +2394,11 @@ fn task_prepare(
         TaskOperationName::CvDraft => TaskService::new(&mut workspace.database, &workspace.blobs)
             .prepare_document_draft(&job_id, DocumentKind::Cv, mode)
             .map_err(|error| store_failure("task.prepare", error))?,
+        TaskOperationName::DocumentReview => {
+            TaskService::new(&mut workspace.database, &workspace.blobs)
+                .prepare_document_review(&job_id, mode)
+                .map_err(|error| store_failure("task.prepare", error))?
+        }
     };
     let mut output = success(
         "task.prepare",
@@ -2756,6 +2825,108 @@ fn document_set(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<
     )?;
     output.response.artifacts.extend(set.documents.clone());
     Ok(output)
+}
+
+fn review_export(
+    workspace_path: Option<PathBuf>,
+    arguments: ReviewExportArgs,
+) -> CommandResult<CommandOutput> {
+    let job_id = parse_entity_id("review.export", &arguments.job)?;
+    let mut workspace = open_workspace(workspace_path, "review.export")?;
+    let candidate = ReviewService::new(&mut workspace.database, &workspace.blobs)
+        .template(&job_id)
+        .map_err(|error| store_failure("review.export", error))?;
+    write_private_json_new(&arguments.destination, &candidate)
+        .map_err(|error| io_adapter_failure("review.export", error))?;
+    let mut output = success(
+        "review.export",
+        "exported",
+        &json!({
+            "job_id": job_id,
+            "destination": arguments.destination,
+            "human_finding_count": candidate.decisions.len(),
+            "review_artifact": candidate.review_artifact
+        }),
+        vec![
+            format!(
+                "Exported review dispositions: {}",
+                arguments.destination.display()
+            ),
+            format!("Human-review findings: {}", candidate.decisions.len()),
+        ],
+    )?;
+    output.response.next_actions.push(NextAction {
+        action: format!(
+            "canisend review confirm --job {} --file {} --json",
+            job_id,
+            arguments.destination.display()
+        ),
+        description: "Select accepted-risk or dismissed only after explicit user review".to_owned(),
+    });
+    Ok(output)
+}
+
+fn review_confirm(
+    workspace_path: Option<PathBuf>,
+    arguments: ReviewConfirmArgs,
+) -> CommandResult<CommandOutput> {
+    let job_id = parse_entity_id("review.confirm", &arguments.job)?;
+    let candidate = read_criteria_file(&arguments.file)
+        .map_err(|error| io_adapter_failure("review.confirm", error))?;
+    let mut workspace = open_workspace(workspace_path, "review.confirm")?;
+    let artifact = ReviewService::new(&mut workspace.database, &workspace.blobs)
+        .confirm(&job_id, &candidate)
+        .map_err(|error| store_failure("review.confirm", error))?;
+    let review = ReviewService::new(&mut workspace.database, &workspace.blobs)
+        .current(&job_id)
+        .map_err(|error| store_failure("review.confirm", error))?;
+    let mut output = review_output("review.confirm", "confirmed", &review)?;
+    output.response.artifacts.push(artifact);
+    Ok(output)
+}
+
+fn review_show(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<CommandOutput> {
+    let job_id = parse_entity_id("review.show", job_id)?;
+    let mut workspace = open_workspace(workspace_path, "review.show")?;
+    let review = ReviewService::new(&mut workspace.database, &workspace.blobs)
+        .current(&job_id)
+        .map_err(|error| store_failure("review.show", error))?;
+    review_output("review.show", "available", &review)
+}
+
+fn review_output(
+    operation: &'static str,
+    status: &'static str,
+    review: &canisend_contracts::ReviewFindingsRecord,
+) -> CommandResult<CommandOutput> {
+    let deterministic_blockers = review
+        .findings
+        .iter()
+        .filter(|finding| {
+            finding.authority == canisend_contracts::FindingAuthority::Deterministic
+                && finding.severity == canisend_contracts::FindingSeverity::Blocker
+                && finding.status == canisend_contracts::FindingStatus::Open
+        })
+        .count();
+    let pending_human = review
+        .findings
+        .iter()
+        .filter(|finding| {
+            finding.authority == canisend_contracts::FindingAuthority::HumanReview
+                && finding.status == canisend_contracts::FindingStatus::Open
+        })
+        .count();
+    success(
+        operation,
+        status,
+        review,
+        vec![
+            format!("Review findings: {}", review.id),
+            format!("Total findings: {}", review.findings.len()),
+            format!("Deterministic blockers: {deterministic_blockers}"),
+            format!("Pending human findings: {pending_human}"),
+        ],
+    )
 }
 
 fn write_private_json_new<T: serde::Serialize>(
