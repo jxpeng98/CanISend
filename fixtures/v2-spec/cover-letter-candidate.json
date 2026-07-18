@@ -1,37 +1,95 @@
 {
-  "schema": "canisend.document-candidate/v2",
   "job_id": "019f2f55-7c00-7000-8000-000000000002",
-  "document_kind": "cover-letter",
+  "plan_artifact": {
+    "kind": "application-plan",
+    "id": "019f2f55-7c00-7000-8000-000000000300",
+    "revision": 1,
+    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "planned_document": {
+    "id": "019f2f55-7c00-7000-8000-000000000301",
+    "revision": 1
+  },
+  "kind": "cover-letter",
+  "title": "Lecturer in Economics cover letter",
   "sections": [
     {
       "kind": "opening",
-      "text": "I am applying for the Lecturer in Economics position at Northbridge University.",
-      "claims": []
+      "heading": null,
+      "body": "I am applying for the Lecturer in Economics position at Northbridge University.",
+      "claims": [
+        {
+          "text": "I am applying for the Lecturer in Economics position.",
+          "classification": "user-intent",
+          "citations": []
+        }
+      ]
     },
     {
       "kind": "research",
-      "text": "My applied economics research examines regional labour-market adjustment and has produced two peer-reviewed articles.",
+      "heading": "Research",
+      "body": "My applied economics research examines regional labour-market adjustment and has produced two peer-reviewed articles.",
       "claims": [
         {
           "text": "My applied economics research has produced two peer-reviewed articles.",
-          "evidence_ids": ["019f2f55-7c00-7000-8000-000000000103"]
+          "classification": "applicant-fact",
+          "citations": [
+            {
+              "target": {
+                "kind": "evidence",
+                "evidence": {
+                  "id": "019f2f55-7c00-7000-8000-000000000103",
+                  "revision": 1
+                }
+              },
+              "purpose": "Support the publication count and research field"
+            }
+          ]
         }
       ]
     },
     {
       "kind": "teaching",
-      "text": "I have designed and delivered Applied Econometrics seminars across two academic years.",
+      "heading": "Teaching",
+      "body": "I have designed and delivered Applied Econometrics seminars across two academic years.",
       "claims": [
         {
           "text": "I designed and delivered Applied Econometrics seminars for two academic years.",
-          "evidence_ids": ["019f2f55-7c00-7000-8000-000000000102"]
+          "classification": "applicant-fact",
+          "citations": [
+            {
+              "target": {
+                "kind": "evidence",
+                "evidence": {
+                  "id": "019f2f55-7c00-7000-8000-000000000102",
+                  "revision": 1
+                }
+              },
+              "purpose": "Support the teaching duration and subject"
+            }
+          ]
         }
       ]
     },
     {
       "kind": "closing",
-      "text": "I would welcome the opportunity to contribute to Northbridge University's teaching and research community.",
-      "claims": []
+      "heading": null,
+      "body": "I would welcome the opportunity to contribute to Northbridge University's teaching and research community.",
+      "claims": [
+        {
+          "text": "I would welcome the opportunity to contribute.",
+          "classification": "user-intent",
+          "citations": []
+        }
+      ]
+    }
+  ],
+  "placeholders": [
+    {
+      "key": "contact-name",
+      "instruction": "Confirm the addressee before export",
+      "required": true,
+      "resolution": null
     }
   ]
 }

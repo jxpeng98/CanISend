@@ -1,14 +1,5 @@
 {
   "$defs": {
-    "ActorKind": {
-      "enum": [
-        "user",
-        "host-agent",
-        "configured-provider",
-        "system"
-      ],
-      "type": "string"
-    },
     "ArtifactKind": {
       "enum": [
         "source-original",
@@ -136,7 +127,7 @@
       ],
       "type": "object"
     },
-    "DocumentClaimRecord": {
+    "DocumentClaimCandidateRecord": {
       "additionalProperties": false,
       "properties": {
         "citations": {
@@ -148,52 +139,14 @@
         "classification": {
           "$ref": "#/$defs/ClaimClassification"
         },
-        "id": {
-          "type": "string"
-        },
-        "revision": {
-          "format": "uint64",
-          "minimum": 0,
-          "type": "integer"
-        },
         "text": {
           "type": "string"
         }
       },
       "required": [
-        "id",
         "text",
         "classification",
-        "citations",
-        "revision"
-      ],
-      "type": "object"
-    },
-    "DocumentGenerationMetadata": {
-      "additionalProperties": false,
-      "properties": {
-        "actor": {
-          "$ref": "#/$defs/ActorKind"
-        },
-        "created_at": {
-          "type": "string"
-        },
-        "execution_mode": {
-          "$ref": "#/$defs/ExecutionMode"
-        },
-        "prompt_resource_id": {
-          "type": "string"
-        },
-        "task_id": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "actor",
-        "execution_mode",
-        "task_id",
-        "prompt_resource_id",
-        "created_at"
+        "citations"
       ],
       "type": "object"
     },
@@ -206,12 +159,9 @@
       ],
       "type": "string"
     },
-    "DocumentPlaceholderRecord": {
+    "DocumentPlaceholderCandidateRecord": {
       "additionalProperties": false,
       "properties": {
-        "id": {
-          "type": "string"
-        },
         "instruction": {
           "type": "string"
         },
@@ -226,19 +176,41 @@
             "string",
             "null"
           ]
-        },
-        "revision": {
-          "format": "uint64",
-          "minimum": 0,
-          "type": "integer"
         }
       },
       "required": [
-        "id",
         "key",
         "instruction",
-        "required",
-        "revision"
+        "required"
+      ],
+      "type": "object"
+    },
+    "DocumentSectionCandidateRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "body": {
+          "type": "string"
+        },
+        "claims": {
+          "items": {
+            "$ref": "#/$defs/DocumentClaimCandidateRecord"
+          },
+          "type": "array"
+        },
+        "heading": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "kind": {
+          "$ref": "#/$defs/DocumentSectionKind"
+        }
+      },
+      "required": [
+        "kind",
+        "body",
+        "claims"
       ],
       "type": "object"
     },
@@ -258,45 +230,6 @@
       ],
       "type": "string"
     },
-    "DocumentSectionRecord": {
-      "additionalProperties": false,
-      "properties": {
-        "body": {
-          "type": "string"
-        },
-        "claims": {
-          "items": {
-            "$ref": "#/$defs/DocumentClaimRecord"
-          },
-          "type": "array"
-        },
-        "heading": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "id": {
-          "type": "string"
-        },
-        "kind": {
-          "$ref": "#/$defs/DocumentSectionKind"
-        },
-        "revision": {
-          "format": "uint64",
-          "minimum": 0,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "id",
-        "kind",
-        "body",
-        "claims",
-        "revision"
-      ],
-      "type": "object"
-    },
     "EvidenceRevisionReference": {
       "additionalProperties": false,
       "properties": {
@@ -314,16 +247,6 @@
         "revision"
       ],
       "type": "object"
-    },
-    "ExecutionMode": {
-      "enum": [
-        "deterministic",
-        "host-agent",
-        "configured-provider",
-        "user-decision",
-        "manual-import"
-      ],
-      "type": "string"
     },
     "PlannedDocumentRevisionReference": {
       "additionalProperties": false,
@@ -344,16 +267,10 @@
       "type": "object"
     }
   },
-  "$id": "https://schemas.canisend.dev/v2/document.schema.json",
+  "$id": "https://schemas.canisend.dev/v2/document-candidate.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
-    "generation": {
-      "$ref": "#/$defs/DocumentGenerationMetadata"
-    },
-    "id": {
-      "type": "string"
-    },
     "job_id": {
       "type": "string"
     },
@@ -362,7 +279,7 @@
     },
     "placeholders": {
       "items": {
-        "$ref": "#/$defs/DocumentPlaceholderRecord"
+        "$ref": "#/$defs/DocumentPlaceholderCandidateRecord"
       },
       "type": "array"
     },
@@ -372,14 +289,9 @@
     "planned_document": {
       "$ref": "#/$defs/PlannedDocumentRevisionReference"
     },
-    "revision": {
-      "format": "uint64",
-      "minimum": 0,
-      "type": "integer"
-    },
     "sections": {
       "items": {
-        "$ref": "#/$defs/DocumentSectionRecord"
+        "$ref": "#/$defs/DocumentSectionCandidateRecord"
       },
       "type": "array"
     },
@@ -388,19 +300,16 @@
     }
   },
   "required": [
-    "id",
     "job_id",
     "plan_artifact",
     "planned_document",
     "kind",
     "title",
     "sections",
-    "placeholders",
-    "generation",
-    "revision"
+    "placeholders"
   ],
-  "title": "DocumentRecord",
+  "title": "DocumentCandidate",
   "type": "object",
-  "x-canisend-id": "canisend.document/v2",
+  "x-canisend-id": "canisend.document-candidate/v2",
   "x-canisend-version": "2.0.0"
 }

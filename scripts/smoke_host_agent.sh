@@ -130,6 +130,7 @@ test -f "$pack/prompts/evidence-match.md"
 test -f "$pack/schemas/v2/evidence-proposals.schema.json"
 test -f "$pack/schemas/v2/evidence-match-proposals.schema.json"
 test -f "$pack/schemas/v2/application-plan-candidate.schema.json"
+test -f "$pack/schemas/v2/document-candidate.schema.json"
 
 "$binary" --workspace "$workspace" workspace init --json >/dev/null
 job_json="$(

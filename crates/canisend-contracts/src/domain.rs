@@ -273,6 +273,15 @@ pub enum DocumentKind {
     Cv,
 }
 
+impl DocumentKind {
+    pub const ALL: [Self; 4] = [
+        Self::CoverLetter,
+        Self::ResearchStatement,
+        Self::TeachingStatement,
+        Self::Cv,
+    ];
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "kebab-case")]
 pub enum DocumentRequirement {
@@ -346,14 +355,132 @@ pub struct ApplicationPlanRecord {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "kebab-case")]
-pub enum DocumentStatus {
-    Planned,
-    AwaitingInput,
-    Draft,
-    Reviewed,
-    Current,
-    Stale,
-    Omitted,
+pub enum DocumentSectionKind {
+    Opening,
+    Fit,
+    Research,
+    Teaching,
+    Service,
+    Experience,
+    Education,
+    Publications,
+    Skills,
+    Closing,
+    Other,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum ClaimClassification {
+    ApplicantFact,
+    JobRequirement,
+    UserIntent,
+    NonFactual,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
+pub enum CitationTarget {
+    Evidence {
+        evidence: EvidenceRevisionReference,
+    },
+    Criterion {
+        criterion: CriterionRevisionReference,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentCitationRecord {
+    pub target: CitationTarget,
+    pub purpose: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentClaimCandidateRecord {
+    pub text: String,
+    pub classification: ClaimClassification,
+    pub citations: Vec<DocumentCitationRecord>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentClaimRecord {
+    pub id: EntityId,
+    pub text: String,
+    pub classification: ClaimClassification,
+    pub citations: Vec<DocumentCitationRecord>,
+    pub revision: Revision,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentSectionCandidateRecord {
+    pub kind: DocumentSectionKind,
+    pub heading: Option<String>,
+    pub body: String,
+    pub claims: Vec<DocumentClaimCandidateRecord>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentSectionRecord {
+    pub id: EntityId,
+    pub kind: DocumentSectionKind,
+    pub heading: Option<String>,
+    pub body: String,
+    pub claims: Vec<DocumentClaimRecord>,
+    pub revision: Revision,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentPlaceholderCandidateRecord {
+    pub key: String,
+    pub instruction: String,
+    pub required: bool,
+    pub resolution: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentPlaceholderRecord {
+    pub id: EntityId,
+    pub key: String,
+    pub instruction: String,
+    pub required: bool,
+    pub resolution: Option<String>,
+    pub revision: Revision,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PlannedDocumentRevisionReference {
+    pub id: EntityId,
+    pub revision: Revision,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentGenerationMetadata {
+    pub actor: ActorKind,
+    pub execution_mode: ExecutionMode,
+    pub task_id: EntityId,
+    pub prompt_resource_id: String,
+    pub created_at: UtcTimestamp,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentCandidate {
+    pub job_id: EntityId,
+    pub plan_artifact: ArtifactReference,
+    pub planned_document: PlannedDocumentRevisionReference,
+    pub kind: DocumentKind,
+    pub title: String,
+    pub sections: Vec<DocumentSectionCandidateRecord>,
+    pub placeholders: Vec<DocumentPlaceholderCandidateRecord>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -361,11 +488,13 @@ pub enum DocumentStatus {
 pub struct DocumentRecord {
     pub id: EntityId,
     pub job_id: EntityId,
+    pub plan_artifact: ArtifactReference,
+    pub planned_document: PlannedDocumentRevisionReference,
     pub kind: DocumentKind,
     pub title: String,
-    pub executor: Option<ExecutionMode>,
-    pub status: DocumentStatus,
-    pub artifact: Option<ArtifactReference>,
+    pub sections: Vec<DocumentSectionRecord>,
+    pub placeholders: Vec<DocumentPlaceholderRecord>,
+    pub generation: DocumentGenerationMetadata,
     pub revision: Revision,
 }
 

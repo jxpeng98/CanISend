@@ -5,10 +5,12 @@ use thiserror::Error;
 
 use crate::{
     ApplicationPlanCandidate, ApplicationPlanRecord, ApplicationStrategyRecord, CriteriaSetRecord,
-    CriterionRecord, DocumentPlanCandidateRecord, DocumentRecord, EvidenceCatalogRecord,
-    EvidenceMatchProposalRecord, EvidenceMatchProposalSet, EvidenceMatchRecord,
-    EvidenceMatchSetRecord, EvidenceProposalRecord, EvidenceProposalSet, EvidenceRecord,
-    FindingRecord, JobRecord, ParsedJobRecord, ProfileSourceRecord, ReadinessRecord, SourceRecord,
+    CriterionRecord, DocumentCandidate, DocumentClaimCandidateRecord,
+    DocumentPlaceholderCandidateRecord, DocumentPlanCandidateRecord, DocumentRecord,
+    DocumentSectionCandidateRecord, EvidenceCatalogRecord, EvidenceMatchProposalRecord,
+    EvidenceMatchProposalSet, EvidenceMatchRecord, EvidenceMatchSetRecord, EvidenceProposalRecord,
+    EvidenceProposalSet, EvidenceRecord, FindingRecord, JobRecord, ParsedJobRecord,
+    ProfileSourceRecord, ReadinessRecord, SourceRecord,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
@@ -765,19 +767,368 @@ fn validate_text_list(
     }
 }
 
+impl SemanticValidate for DocumentCandidate {
+    fn validate_semantics(&self) -> Vec<ContractViolation> {
+        validate_document(
+            self.plan_artifact.kind,
+            self.kind,
+            &self.title,
+            &self.sections,
+            &self.placeholders,
+        )
+    }
+}
+
 impl SemanticValidate for DocumentRecord {
     fn validate_semantics(&self) -> Vec<ContractViolation> {
-        let mut violations = Vec::new();
-        required_text(&self.title, "/title", &mut violations);
-        if matches!(self.status, crate::DocumentStatus::Current) && self.artifact.is_none() {
+        let sections = self
+            .sections
+            .iter()
+            .map(|section| DocumentSectionCandidateRecord {
+                kind: section.kind,
+                heading: section.heading.clone(),
+                body: section.body.clone(),
+                claims: section
+                    .claims
+                    .iter()
+                    .map(|claim| DocumentClaimCandidateRecord {
+                        text: claim.text.clone(),
+                        classification: claim.classification,
+                        citations: claim.citations.clone(),
+                    })
+                    .collect(),
+            })
+            .collect::<Vec<_>>();
+        let placeholders = self
+            .placeholders
+            .iter()
+            .map(|placeholder| DocumentPlaceholderCandidateRecord {
+                key: placeholder.key.clone(),
+                instruction: placeholder.instruction.clone(),
+                required: placeholder.required,
+                resolution: placeholder.resolution.clone(),
+            })
+            .collect::<Vec<_>>();
+        let mut violations = validate_document(
+            self.plan_artifact.kind,
+            self.kind,
+            &self.title,
+            &sections,
+            &placeholders,
+        );
+        let mut ids = std::collections::BTreeSet::new();
+        ids.insert(&self.id);
+        for (section_index, section) in self.sections.iter().enumerate() {
+            if !ids.insert(&section.id) {
+                violations.push(ContractViolation::new(
+                    "document.id_duplicate",
+                    format!("/sections/{section_index}/id"),
+                    "document, section, claim, and placeholder IDs must be globally unique",
+                ));
+            }
+            for (claim_index, claim) in section.claims.iter().enumerate() {
+                if !ids.insert(&claim.id) {
+                    violations.push(ContractViolation::new(
+                        "document.id_duplicate",
+                        format!("/sections/{section_index}/claims/{claim_index}/id"),
+                        "document, section, claim, and placeholder IDs must be globally unique",
+                    ));
+                }
+            }
+        }
+        for (index, placeholder) in self.placeholders.iter().enumerate() {
+            if !ids.insert(&placeholder.id) {
+                violations.push(ContractViolation::new(
+                    "document.id_duplicate",
+                    format!("/placeholders/{index}/id"),
+                    "document, section, claim, and placeholder IDs must be globally unique",
+                ));
+            }
+        }
+        let generation_pair_valid = matches!(
+            (self.generation.actor, self.generation.execution_mode),
+            (crate::ActorKind::HostAgent, crate::ExecutionMode::HostAgent)
+                | (
+                    crate::ActorKind::ConfiguredProvider,
+                    crate::ExecutionMode::ConfiguredProvider
+                )
+        );
+        if !generation_pair_valid {
             violations.push(ContractViolation::new(
-                "document.artifact_required",
-                "/artifact",
-                "a current document must reference an artifact",
+                "document.generation_mode_invalid",
+                "/generation/execution_mode",
+                "document generation actor and mode must identify the same bounded executor",
             ));
         }
+        required_text(
+            &self.generation.prompt_resource_id,
+            "/generation/prompt_resource_id",
+            &mut violations,
+        );
         violations
     }
+}
+
+fn validate_document(
+    plan_kind: crate::ArtifactKind,
+    kind: crate::DocumentKind,
+    title: &str,
+    sections: &[DocumentSectionCandidateRecord],
+    placeholders: &[DocumentPlaceholderCandidateRecord],
+) -> Vec<ContractViolation> {
+    let mut violations = Vec::new();
+    if plan_kind != crate::ArtifactKind::ApplicationPlan {
+        violations.push(ContractViolation::new(
+            "document.plan_kind_invalid",
+            "/plan_artifact/kind",
+            "structured document must reference an application-plan artifact",
+        ));
+    }
+    required_text(title, "/title", &mut violations);
+    if sections.is_empty() || sections.len() > 50 {
+        violations.push(ContractViolation::new(
+            "document.sections_count_invalid",
+            "/sections",
+            "document must contain between 1 and 50 sections",
+        ));
+    }
+    let mut body_bytes = 0_usize;
+    let mut claim_count = 0_usize;
+    for (section_index, section) in sections.iter().enumerate() {
+        if let Some(heading) = &section.heading {
+            required_text(
+                heading,
+                &format!("/sections/{section_index}/heading"),
+                &mut violations,
+            );
+        }
+        required_text(
+            &section.body,
+            &format!("/sections/{section_index}/body"),
+            &mut violations,
+        );
+        body_bytes = body_bytes.saturating_add(section.body.len());
+        if section.claims.len() > 200 {
+            violations.push(ContractViolation::new(
+                "document.section_claims_count_invalid",
+                format!("/sections/{section_index}/claims"),
+                "a section may contain at most 200 declared claims",
+            ));
+        }
+        claim_count = claim_count.saturating_add(section.claims.len());
+        for (claim_index, claim) in section.claims.iter().enumerate() {
+            validate_document_claim(
+                claim,
+                &format!("/sections/{section_index}/claims/{claim_index}"),
+                &mut violations,
+            );
+        }
+    }
+    if body_bytes > 262_144 {
+        violations.push(ContractViolation::new(
+            "document.body_too_large",
+            "/sections",
+            "combined section body text exceeds the 262144-byte contract limit",
+        ));
+    }
+    if claim_count > 1_000 {
+        violations.push(ContractViolation::new(
+            "document.claims_count_invalid",
+            "/sections",
+            "document may contain at most 1000 declared claims",
+        ));
+    }
+    validate_document_shape(kind, sections, &mut violations);
+    if placeholders.len() > 200 {
+        violations.push(ContractViolation::new(
+            "document.placeholders_count_invalid",
+            "/placeholders",
+            "document may contain at most 200 placeholders",
+        ));
+    }
+    let mut keys = std::collections::BTreeSet::new();
+    for (index, placeholder) in placeholders.iter().enumerate() {
+        let pointer = format!("/placeholders/{index}");
+        if !valid_placeholder_key(&placeholder.key) {
+            violations.push(ContractViolation::new(
+                    "document.placeholder_key_invalid",
+                    format!("{pointer}/key"),
+                    "placeholder key must be 1-64 lowercase ASCII letters, digits, or hyphens and start with a letter",
+                ));
+        }
+        if !keys.insert(placeholder.key.as_str()) {
+            violations.push(ContractViolation::new(
+                "document.placeholder_key_duplicate",
+                format!("{pointer}/key"),
+                "placeholder keys must be unique within a document",
+            ));
+        }
+        required_text(
+            &placeholder.instruction,
+            &format!("{pointer}/instruction"),
+            &mut violations,
+        );
+        if let Some(resolution) = &placeholder.resolution {
+            required_text(
+                resolution,
+                &format!("{pointer}/resolution"),
+                &mut violations,
+            );
+        }
+    }
+    violations
+}
+
+fn validate_document_claim(
+    claim: &DocumentClaimCandidateRecord,
+    pointer: &str,
+    violations: &mut Vec<ContractViolation>,
+) {
+    required_text(&claim.text, &format!("{pointer}/text"), violations);
+    if claim.citations.len() > 50 {
+        violations.push(ContractViolation::new(
+            "document.claim_citations_count_invalid",
+            format!("{pointer}/citations"),
+            "a claim may contain at most 50 citations",
+        ));
+    }
+    let mut unique = std::collections::BTreeSet::new();
+    for (index, citation) in claim.citations.iter().enumerate() {
+        required_text(
+            &citation.purpose,
+            &format!("{pointer}/citations/{index}/purpose"),
+            violations,
+        );
+        let key = match &citation.target {
+            crate::CitationTarget::Evidence { evidence } => {
+                format!("evidence:{}:{}", evidence.id, evidence.revision.get())
+            }
+            crate::CitationTarget::Criterion { criterion } => {
+                format!("criterion:{}:{}", criterion.id, criterion.revision.get())
+            }
+        };
+        if !unique.insert(key) {
+            violations.push(ContractViolation::new(
+                "document.claim_citation_duplicate",
+                format!("{pointer}/citations/{index}"),
+                "claim citations must reference unique target revisions",
+            ));
+        }
+    }
+    let all_evidence = claim
+        .citations
+        .iter()
+        .all(|citation| matches!(citation.target, crate::CitationTarget::Evidence { .. }));
+    let all_criteria = claim
+        .citations
+        .iter()
+        .all(|citation| matches!(citation.target, crate::CitationTarget::Criterion { .. }));
+    match claim.classification {
+        crate::ClaimClassification::ApplicantFact
+            if claim.citations.is_empty() || !all_evidence =>
+        {
+            violations.push(ContractViolation::new(
+                "document.applicant_fact_evidence_required",
+                format!("{pointer}/citations"),
+                "an applicant fact must cite one or more exact evidence revisions",
+            ));
+        }
+        crate::ClaimClassification::JobRequirement
+            if claim.citations.is_empty() || !all_criteria =>
+        {
+            violations.push(ContractViolation::new(
+                "document.job_requirement_citation_required",
+                format!("{pointer}/citations"),
+                "a job requirement claim must cite one or more exact criterion revisions",
+            ));
+        }
+        crate::ClaimClassification::UserIntent | crate::ClaimClassification::NonFactual
+            if !claim.citations.is_empty() =>
+        {
+            violations.push(ContractViolation::new(
+                "document.non_evidence_citation_forbidden",
+                format!("{pointer}/citations"),
+                "user-intent and non-factual claims must not masquerade as evidence-backed facts",
+            ));
+        }
+        _ => {}
+    }
+}
+
+fn validate_document_shape(
+    kind: crate::DocumentKind,
+    sections: &[DocumentSectionCandidateRecord],
+    violations: &mut Vec<ContractViolation>,
+) {
+    let count = |kind| {
+        sections
+            .iter()
+            .filter(|section| section.kind == kind)
+            .count()
+    };
+    match kind {
+        crate::DocumentKind::CoverLetter => {
+            if count(crate::DocumentSectionKind::Opening) != 1 {
+                violations.push(ContractViolation::new(
+                    "document.cover_letter_opening_required",
+                    "/sections",
+                    "cover letter must contain exactly one opening section",
+                ));
+            }
+            if count(crate::DocumentSectionKind::Closing) != 1 {
+                violations.push(ContractViolation::new(
+                    "document.cover_letter_closing_required",
+                    "/sections",
+                    "cover letter must contain exactly one closing section",
+                ));
+            }
+        }
+        crate::DocumentKind::ResearchStatement
+            if count(crate::DocumentSectionKind::Research) == 0 =>
+        {
+            violations.push(ContractViolation::new(
+                "document.research_section_required",
+                "/sections",
+                "research statement must contain a research section",
+            ));
+        }
+        crate::DocumentKind::TeachingStatement
+            if count(crate::DocumentSectionKind::Teaching) == 0 =>
+        {
+            violations.push(ContractViolation::new(
+                "document.teaching_section_required",
+                "/sections",
+                "teaching statement must contain a teaching section",
+            ));
+        }
+        crate::DocumentKind::Cv
+            if !sections.iter().any(|section| {
+                matches!(
+                    section.kind,
+                    crate::DocumentSectionKind::Education
+                        | crate::DocumentSectionKind::Experience
+                        | crate::DocumentSectionKind::Publications
+                )
+            }) =>
+        {
+            violations.push(ContractViolation::new(
+                "document.cv_record_section_required",
+                "/sections",
+                "CV must contain education, experience, or publications",
+            ));
+        }
+        _ => {}
+    }
+}
+
+fn valid_placeholder_key(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    !bytes.is_empty()
+        && bytes.len() <= 64
+        && bytes[0].is_ascii_lowercase()
+        && bytes
+            .iter()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || *byte == b'-')
 }
 
 impl SemanticValidate for FindingRecord {
@@ -810,7 +1161,7 @@ mod tests {
     use serde_json::json;
 
     use super::{CandidateValidationError, validate_external_candidate};
-    use crate::JobRecord;
+    use crate::{DocumentCandidate, JobRecord};
 
     #[test]
     fn validation_runs_schema_before_semantics() {
@@ -833,5 +1184,146 @@ mod tests {
             .expect_err("semantic validation must fail");
         assert!(matches!(error, CandidateValidationError::Semantic(_)));
         assert_eq!(error.violations().len(), 2);
+    }
+
+    #[test]
+    fn structured_document_claims_require_typed_support_and_document_shape() {
+        let valid = json!({
+            "job_id": "019f2f55-7c00-7000-8000-000000000002",
+            "plan_artifact": {
+                "kind": "application-plan",
+                "id": "019f2f55-7c00-7000-8000-000000000010",
+                "revision": 1,
+                "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "planned_document": {
+                "id": "019f2f55-7c00-7000-8000-000000000011",
+                "revision": 1
+            },
+            "kind": "cover-letter",
+            "title": "Lecturer in Economics cover letter",
+            "sections": [
+                {
+                    "kind": "opening",
+                    "heading": null,
+                    "body": "I am applying for the Lecturer in Economics role.",
+                    "claims": [{
+                        "text": "The role is Lecturer in Economics.",
+                        "classification": "job-requirement",
+                        "citations": [{
+                            "target": {
+                                "kind": "criterion",
+                                "criterion": {
+                                    "id": "019f2f55-7c00-7000-8000-000000000202",
+                                    "revision": 1
+                                }
+                            },
+                            "purpose": "Identify the confirmed role requirement"
+                        }]
+                    }]
+                },
+                {
+                    "kind": "research",
+                    "heading": "Research",
+                    "body": "My research has produced two peer-reviewed articles.",
+                    "claims": [{
+                        "text": "My research has produced two peer-reviewed articles.",
+                        "classification": "applicant-fact",
+                        "citations": [{
+                            "target": {
+                                "kind": "evidence",
+                                "evidence": {
+                                    "id": "019f2f55-7c00-7000-8000-000000000103",
+                                    "revision": 1
+                                }
+                            },
+                            "purpose": "Support the publication count"
+                        }]
+                    }]
+                },
+                {
+                    "kind": "closing",
+                    "heading": null,
+                    "body": "I would welcome the opportunity to contribute.",
+                    "claims": [{
+                        "text": "I would welcome the opportunity to contribute.",
+                        "classification": "user-intent",
+                        "citations": []
+                    }]
+                }
+            ],
+            "placeholders": [{
+                "key": "contact-name",
+                "instruction": "Confirm the addressee before export",
+                "required": true,
+                "resolution": null
+            }]
+        });
+        validate_external_candidate::<DocumentCandidate>(&valid).expect("valid document candidate");
+
+        let mut unsupported = valid.clone();
+        unsupported["sections"][1]["claims"][0]["citations"] = json!([]);
+        let error = validate_external_candidate::<DocumentCandidate>(&unsupported)
+            .expect_err("unsupported applicant fact");
+        assert!(
+            error
+                .violations()
+                .iter()
+                .any(|violation| { violation.code == "document.applicant_fact_evidence_required" })
+        );
+
+        let mut wrong_shape = valid.clone();
+        wrong_shape["sections"]
+            .as_array_mut()
+            .expect("sections")
+            .pop();
+        let error = validate_external_candidate::<DocumentCandidate>(&wrong_shape)
+            .expect_err("cover letter without closing");
+        assert!(
+            error
+                .violations()
+                .iter()
+                .any(|violation| { violation.code == "document.cover_letter_closing_required" })
+        );
+
+        for (kind, expected_code) in [
+            ("research-statement", "document.research_section_required"),
+            ("teaching-statement", "document.teaching_section_required"),
+            ("cv", "document.cv_record_section_required"),
+        ] {
+            let mut candidate = valid.clone();
+            candidate["kind"] = json!(kind);
+            for section in candidate["sections"]
+                .as_array_mut()
+                .expect("candidate sections")
+            {
+                section["kind"] = json!("fit");
+            }
+            let error = validate_external_candidate::<DocumentCandidate>(&candidate)
+                .expect_err("document-specific section is required");
+            assert!(
+                error
+                    .violations()
+                    .iter()
+                    .any(|violation| violation.code == expected_code)
+            );
+        }
+
+        let mut invented_identity = valid;
+        invented_identity["sections"][0]["id"] = json!("019f2f55-7c00-7000-8000-000000000099");
+        assert!(matches!(
+            validate_external_candidate::<DocumentCandidate>(&invented_identity),
+            Err(CandidateValidationError::Structural(_))
+        ));
+    }
+
+    #[test]
+    fn synthetic_cover_letter_fixture_uses_the_public_candidate_contract() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../fixtures/v2-spec/cover-letter-candidate.json"
+        ))
+        .expect("cover letter fixture JSON");
+        validate_external_candidate::<DocumentCandidate>(&fixture)
+            .expect("cover letter fixture satisfies the document candidate contract");
     }
 }
