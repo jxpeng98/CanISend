@@ -33,8 +33,9 @@ CanISend owns durable state; Claude operates only through its versioned CLI prot
     blockers can be cleared only by current redrafted documents.
 14. Run `package check --job JOB_ID --json` for deterministic readiness over exact current revisions. Inspect
     body-free reasons with `package show`; `ready-to-export` is not application submission or submission consent.
-15. Obtain explicit private-export approval before `package export --allow-private-export`. Inspect managed files
-    with `package reconcile`; resolve edits only through explicit `package replace` or `package copy-as-new`. Neither
+15. Obtain explicit private-export approval before `package export --allow-private-export`. Inspect managed Markdown,
+    structured JSON, and escaped Typst source with `package reconcile`; resolve edits only through explicit
+    `package replace` or `package copy-as-new`. Neither
     action changes authoritative structured documents.
 
 Never create evidence or source identities not supplied by CanISend, send private content to a provider without a

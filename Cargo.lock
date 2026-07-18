@@ -392,6 +392,7 @@ version = "0.7.0-alpha.1"
 dependencies = [
  "canisend-contracts",
  "canisend-core",
+ "canisend-io",
  "getrandom 0.3.4",
  "hex",
  "rusqlite",

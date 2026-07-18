@@ -318,7 +318,7 @@ enum PackageCommand {
     Check(PackageJobArgs),
     /// Show the current body-free package manifest and readiness reasons.
     Show(PackageJobArgs),
-    /// Export editable Markdown plus structured JSON after explicit private-export consent.
+    /// Export editable Markdown, structured JSON, and Typst after explicit private-export consent.
     Export(PackageExportArgs),
     /// Show the current export receipt and projection hashes.
     Exports(PackageJobArgs),
@@ -3519,6 +3519,9 @@ fn store_failure(operation: &'static str, error: StoreError) -> Box<CommandFailu
         StoreError::TaskConflict(_) => ("conflict", ErrorCode::TaskConflict, false),
         StoreError::WorkflowNotFound(_) => ("not-found", ErrorCode::WorkflowNotFound, false),
         StoreError::WorkflowConflict(_) => ("conflict", ErrorCode::WorkflowConflict, false),
+        StoreError::TemplateFieldsUnresolved { .. } => {
+            ("conflict", ErrorCode::WorkflowConflict, false)
+        }
         StoreError::CandidateStructural(_) => {
             ("validation-failed", ErrorCode::CandidateSchemaInvalid, true)
         }
@@ -3552,6 +3555,7 @@ fn store_failure(operation: &'static str, error: StoreError) -> Box<CommandFailu
         | StoreError::Contract(_)
         | StoreError::Random(_)
         | StoreError::Clock
+        | StoreError::TypstProjectionInvariant
         | StoreError::Invariant(_) => (
             "invariant-failed",
             ErrorCode::InternalInvariantFailed,

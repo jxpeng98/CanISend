@@ -46,5 +46,6 @@
   {"id":"schema.workflow-status","kind":"schema","path":"schemas/v2/workflow-status.schema.json","version":"2.0.0"},
   {"id":"schema.workspace-check","kind":"schema","path":"schemas/v2/workspace-check.schema.json","version":"2.0.0"},
   {"id":"schema.workspace-status","kind":"schema","path":"schemas/v2/workspace-status.schema.json","version":"2.0.0"},
+  {"id":"template.application-document","kind":"template","path":"templates/application-document.typ","version":"2.0.0"},
   {"id":"template.cover-letter","kind":"template","path":"templates/cover-letter.typ","version":"2.0.0"}
 ]

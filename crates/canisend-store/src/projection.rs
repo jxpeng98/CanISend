@@ -7,6 +7,7 @@ use canisend_contracts::{
     ProjectionRecord, ReadinessState, Revision, SafeRelativePath, Sha256Digest,
     validate_external_candidate,
 };
+use canisend_io::{TypstProjectionError, project_document_typst};
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::Serialize;
 use serde_json::Value;
@@ -52,7 +53,7 @@ impl<'a> ProjectionService<'a> {
             )));
         }
         let documents = load_documents(self.blobs, &package)?;
-        let mut generated = Vec::with_capacity(documents.len() * 2 + 1);
+        let mut generated = Vec::with_capacity(documents.len() * 3 + 1);
         for (reference, document) in &documents {
             let slug = document_kind_slug(document.kind);
             generated.push(GeneratedProjection::new(
@@ -66,6 +67,14 @@ impl<'a> ProjectionService<'a> {
                 join_projection_path(destination, &format!("{slug}.json"))?,
                 ProjectionKind::StructuredJson,
                 pretty_json_bytes(&serde_json::to_value(document)?)?,
+            )?);
+            generated.push(GeneratedProjection::new(
+                reference.clone(),
+                join_projection_path(destination, &format!("{slug}.typ"))?,
+                ProjectionKind::TypstSource,
+                project_document_typst(reference, document)
+                    .map_err(typst_projection_error)?
+                    .into_bytes(),
             )?);
         }
         generated.push(GeneratedProjection::new(
@@ -522,6 +531,12 @@ fn generate_from_row(blobs: &BlobStore, row: &ProjectionRow) -> Result<Vec<u8>, 
             let document = load_record::<DocumentRecord>(blobs, &row.source_artifact)?;
             pretty_json_bytes(&serde_json::to_value(document)?)
         }
+        ProjectionKind::TypstSource => {
+            let document = load_record::<DocumentRecord>(blobs, &row.source_artifact)?;
+            Ok(project_document_typst(&row.source_artifact, &document)
+                .map_err(typst_projection_error)?
+                .into_bytes())
+        }
         ProjectionKind::PackageManifestJson => {
             let package = load_record::<PackageManifestRecord>(blobs, &row.source_artifact)?;
             pretty_json_bytes(&serde_json::to_value(package)?)
@@ -921,6 +936,18 @@ fn candidate_error(error: CandidateValidationError) -> StoreError {
             StoreError::CandidateStructural(violations)
         }
         CandidateValidationError::Semantic(violations) => StoreError::CandidateSemantic(violations),
+    }
+}
+
+fn typst_projection_error(error: TypstProjectionError) -> StoreError {
+    match error {
+        TypstProjectionError::UnresolvedTemplateFields { count } => {
+            StoreError::TemplateFieldsUnresolved { count }
+        }
+        TypstProjectionError::SourceTooLarge { max_bytes } => StoreError::InvalidInput(format!(
+            "generated Typst source exceeds the {max_bytes}-byte render limit"
+        )),
+        TypstProjectionError::TemplateEncoding => StoreError::TypstProjectionInvariant,
     }
 }
 

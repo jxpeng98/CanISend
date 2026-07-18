@@ -1029,7 +1029,7 @@ fn evidence_and_match_tasks_enforce_stable_revision_bound_identities() {
     assert_eq!(export_receipt.package_artifact, ready_package_artifact);
     assert_eq!(
         export_receipt.projections.len(),
-        current_set.documents.len() * 2 + 1
+        current_set.documents.len() * 3 + 1
     );
     assert!(!export_receipt.submission_performed);
     let cover_markdown = export_receipt
@@ -1052,6 +1052,16 @@ fn evidence_and_match_tasks_enforce_stable_revision_bound_identities() {
         .expect("cover JSON projection")
         .relative_path
         .clone();
+    let cover_typst = export_receipt
+        .projections
+        .iter()
+        .find(|projection| {
+            projection.kind == canisend_contracts::ProjectionKind::TypstSource
+                && projection.source_artifact.kind == ArtifactKind::CoverLetter
+        })
+        .expect("cover Typst projection")
+        .relative_path
+        .clone();
     let markdown_path = workspace_root.join(cover_markdown.as_str());
     let markdown = fs::read_to_string(&markdown_path).expect("Markdown projection");
     assert!(markdown.contains("canisend-claim"));
@@ -1061,6 +1071,32 @@ fn evidence_and_match_tasks_enforce_stable_revision_bound_identities() {
     )
     .expect("structured JSON");
     assert_eq!(structured["kind"], "cover-letter");
+    let typst = fs::read_to_string(workspace_root.join(cover_typst.as_str()))
+        .expect("self-contained Typst projection");
+    assert!(typst.contains("canisend_render_document"));
+    assert!(typst.contains("Structured artifacts remain authoritative"));
+    let typst_path = workspace_root.join(cover_typst.as_str());
+    fs::write(&typst_path, format!("{typst}\n// user layout edit\n"))
+        .expect("edit managed Typst source");
+    let inspection =
+        ProjectionService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
+            .reconcile(&job.id)
+            .expect("detect edited Typst source");
+    assert!(inspection.iter().any(|record| {
+        record.projection.relative_path == cover_typst
+            && record.projection.edit_status == canisend_contracts::ProjectionEditStatus::Edited
+            && !record.authoritative_changed
+    }));
+    let restored =
+        ProjectionService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
+            .replace(&job.id, &cover_typst)
+            .expect("explicitly restore generated Typst source");
+    assert!(!restored.authoritative_changed);
+    assert!(
+        !fs::read_to_string(&typst_path)
+            .expect("restored Typst source")
+            .contains("user layout edit")
+    );
     let (current_export_artifact, current_export) =
         ProjectionService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
             .current(&job.id)

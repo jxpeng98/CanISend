@@ -130,6 +130,10 @@ pub enum StoreError {
     ProjectionUnmanagedConflict(String),
     #[error("managed projection was not found: {0}")]
     ProjectionNotFound(String),
+    #[error("document contains {count} unresolved template field(s)")]
+    TemplateFieldsUnresolved { count: usize },
+    #[error("embedded Typst projection invariant failed")]
+    TypstProjectionInvariant,
     #[error("backup is invalid: {0}")]
     BackupInvalid(String),
     #[error("workspace invariant failed: {0}")]
