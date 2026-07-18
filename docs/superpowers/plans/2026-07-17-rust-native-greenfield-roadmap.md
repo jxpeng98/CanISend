@@ -1,6 +1,6 @@
 # CanISend Rust-Native Greenfield Rebuild Roadmap
 
-**Status:** In progress — R0 through R8 and R9.1 complete; R9.2 Typst projection active
+**Status:** In progress — R0 through R8 and R9.1–R9.2 complete; R9.3 PDF output active
 
 **Date:** 2026-07-17
 
@@ -122,6 +122,14 @@
   embedded-template PDF self-check so LTO cannot remove the renderer. Local verification passed 70 Rust tests,
   Clippy, release checks, release compilation, and packaged smoke. The macOS arm64 binary is 48,774,160 bytes and
   the release `doctor` self-check completed in 0.74 seconds. R9.2 structured Typst projection is active.
+- 2026-07-18: GitHub Actions run `29627072260` passed the R9.1 clean-checkout gate in 8 minutes 53 seconds. The new
+  Typst graph made Clippy take 54 seconds, tests 2 minutes 6 seconds, and release compilation 5 minutes 5 seconds;
+  build caching and gate separation are retained as measured R10 optimization work.
+- 2026-07-18: Completed R9.2 with one embedded application-document template, deterministic self-contained `.typ`
+  generation for all four document kinds, defensive string escaping, unresolved-field detection, source/document
+  identity comments, and exact hash/edit/reconcile/replace integration. A synthetic ready package now exports 13
+  managed files: three projections per document plus the package manifest. Local verification passed 72 Rust tests,
+  Clippy, 38-schema/49-resource checks, release compilation, and packaged smoke. R9.3 PDF output is active.
 
 ## 1. Executive Decision
 
@@ -1647,10 +1655,15 @@ R10 security decision. The packaged `doctor` command proves the optimized binary
 
 #### R9.2 Typst projection
 
-- [ ] Project each supported structured document into Typst data and source.
-- [ ] Escape user text safely.
-- [ ] Detect unresolved template fields.
-- [ ] Preserve editable source exports separately from authoritative structured artifacts.
+- [x] Project each supported structured document into Typst data and source.
+- [x] Escape user text safely.
+- [x] Detect unresolved template fields.
+- [x] Preserve editable source exports separately from authoritative structured artifacts.
+
+**R9.2 exit:** Satisfied locally. Cover Letter, Research Statement, Teaching Statement, and CV records produce
+self-contained Typst sources from one typed embedded template. Adversarial quotes, backslashes, Typst-like commands,
+and Unicode compile as literal text; unresolved fields fail before projection. `.typ` files carry exact source
+identity, generated/observed hashes, and edit state, while reconcile/replace never mutates structured authority.
 
 #### R9.3 PDF output
 

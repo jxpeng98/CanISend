@@ -19,15 +19,16 @@ the Git tag `archive/python-v0.6.0b1-final`.
 
 ## Current status
 
-The Rust rebuild has completed R8 plus R9.1, including the full evidence-backed material pipeline and a restricted
-in-process Typst compiler. R9.2 structured Typst projection is now active. The current binary provides:
+The Rust rebuild has completed R8 plus R9.1–R9.2, including the full evidence-backed material pipeline, a restricted
+in-process Typst compiler, and safe editable Typst projections. R9.3 PDF artifact output is now active. The current
+binary provides:
 
 - Native `canisend` executable scaffolding.
 - Validated UUIDv7, SHA-256, revision, UTC timestamp, and safe relative-path contract types.
 - `canisend.agent/v2` success/error envelopes, stable error registry, and grouped exit policy.
 - Product/version/build inspection.
 - Thirty-eight deterministic Draft 2020-12 schemas generated from Rust types.
-- Forty-eight typed embedded schemas, prompts, templates, examples, and host assets with SHA-256 verification.
+- Forty-nine typed embedded schemas, prompts, templates, examples, and host assets with SHA-256 verification.
 - A truthful capability registry that marks unfinished functions as `planned`.
 - Agent context plus schema/resource diagnostics with deterministic JSON snapshots.
 - Workspace discovery, explicit `--workspace` resolution, initialization, status, integrity checks, and repair.
@@ -64,17 +65,20 @@ in-process Typst compiler. R9.2 structured Typst projection is now active. The c
   binding; machine-readable readiness reasons; idempotent manifests; and a fail-closed Render gate.
 - Explicit package contracts that keep `ready-to-export` separate from submission and structurally forbid a readiness
   operation from recording an application as submitted.
-- Consent-gated `package export` projection of each current structured document into editable Markdown and JSON plus
-  a package manifest, with an exact revision-bound export receipt and generated/observed SHA-256 hashes.
+- Consent-gated `package export` projection of each current structured document into editable Markdown, JSON, and
+  self-contained Typst plus a package manifest, with an exact revision-bound export receipt and generated/observed
+  SHA-256 hashes.
 - Managed projection reconciliation with current, edited, missing, and repair-required states; implicit overwrites of
   user edits and unmanaged files are rejected, while `replace` and `copy-as-new` provide explicit recovery choices.
 - Pinned in-process Typst compilation with embedded default fonts, no filesystem or package resolver, no default
   system-font scan, body-free diagnostics, and bounded source/PDF sizes behind the private `canisend-io` adapter.
 - A packaged `doctor` self-check that compiles the embedded Cover Letter template to PDF, proving the optimized
   standalone binary retains the renderer without requiring a Typst executable or network access.
+- One embedded application-document template shared by all four supported document kinds, with defensive Typst
+  string escaping, unresolved-field rejection, exact source metadata, and the same edit-safe reconcile lifecycle.
 
-Application-material Typst projection, PDF artifact persistence, and PDF export are not yet available through the
-production workflow. Their execution order and acceptance gates are defined in the
+PDF artifact persistence and package PDF export are not yet available through the production workflow. Their
+execution order and acceptance gates are defined in the
 [Rust-native roadmap](docs/superpowers/plans/2026-07-17-rust-native-greenfield-roadmap.md).
 
 ## Build the native foundation

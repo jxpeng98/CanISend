@@ -101,9 +101,14 @@ canisend --workspace WORKSPACE package copy-as-new --job JOB_ID \
 ```
 
 `package export` requires explicit `export-private-artifacts` confirmation before opening a workspace. It writes
-editable Markdown and structured JSON for every current document plus `package-manifest.json`, all under the exact
-job projection tree. The export receipt binds the current package and every projection to generated and observed
-SHA-256 hashes and always records `submission_performed: false`.
+editable Markdown, structured JSON, and self-contained escaped Typst source for every current document plus
+`package-manifest.json`, all under the exact job projection tree. The export receipt binds the current package and
+every projection to generated and observed SHA-256 hashes and always records `submission_performed: false`.
+
+Typst sources are generated only from validated structured documents and the embedded application-document template.
+Quotes, backslashes, line controls, Unicode, and Typst-like input text remain string data. Any unresolved document
+placeholder stops source generation. The `.typ` file is an editable projection and never becomes an authoritative
+document merely because a user or agent edits it.
 
 Structured artifact blobs remain authoritative. `package reconcile` records a managed projection as `current`,
 `edited`, `missing`, or `repair-required` without importing file edits. Re-export refuses both edited managed files
