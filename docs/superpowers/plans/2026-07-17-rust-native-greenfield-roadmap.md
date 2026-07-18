@@ -1,6 +1,6 @@
 # CanISend Rust-Native Greenfield Rebuild Roadmap
 
-**Status:** In progress — R0 through R8 and R9.1–R9.2 complete; R9.3 PDF output active
+**Status:** In progress — R0 through R8 and R9.1–R9.3 complete; R9.4 cross-platform rendering active
 
 **Date:** 2026-07-17
 
@@ -130,6 +130,15 @@
   identity comments, and exact hash/edit/reconcile/replace integration. A synthetic ready package now exports 13
   managed files: three projections per document plus the package manifest. Local verification passed 72 Rust tests,
   Clippy, 38-schema/49-resource checks, release compilation, and packaged smoke. R9.3 PDF output is active.
+- 2026-07-18: GitHub Actions run `29627425855` passed the R9.2 clean-checkout gate, including format, Clippy, all
+  tests, schema/resource drift, release compilation, and packaged smoke.
+- 2026-07-18: Completed R9.3 with an idempotent deterministic Render service, SQLite schema 13 render heads,
+  authoritative-document-to-trusted-Typst regeneration, restricted in-process compilation, structural PDF
+  validation, immutable Typst/PDF blobs, one revision-bound render manifest, transactional stage completion,
+  upstream invalidation, body-free diagnostics, and consent-gated create-new PDF/manifest export. Editable `.typ`
+  projections are explicitly excluded from trusted compilation inputs. Local verification passed 75 Rust tests,
+  Clippy with warnings denied, 40-schema/51-resource checks, release compilation, a 31-file host pack, and packaged
+  smoke. The macOS arm64 release binary is 48,874,480 bytes. R9.4 cross-platform rendering is active.
 
 ## 1. Executive Decision
 
@@ -1667,11 +1676,18 @@ identity, generated/observed hashes, and edit state, while reconcile/replace nev
 
 #### R9.3 PDF output
 
-- [ ] Compile PDFs entirely inside the process.
-- [ ] Store the PDF as an artifact blob.
-- [ ] Export PDF files and manifests.
-- [ ] Capture safe diagnostics without private source leakage in normal logs.
-- [ ] Validate generated PDFs in tests.
+- [x] Compile PDFs entirely inside the process.
+- [x] Store the PDF as an artifact blob.
+- [x] Export PDF files and manifests.
+- [x] Capture safe diagnostics without private source leakage in normal logs.
+- [x] Validate generated PDFs in tests.
+
+**R9.3 exit:** Satisfied locally. `render build` regenerates trusted Typst from exact authoritative structured
+artifacts, compiles all package documents before mutation, validates PDF structure/page bounds, and commits every
+Typst/PDF plus the typed render manifest and Render stage in one SQLite transaction. Interrupted pre-commit work can
+leave only unreferenced immutable blobs. `render export` requires explicit private-export consent, revalidates blobs,
+and refuses path escape, symlinks, non-empty destinations, and overwrite. Render manifests and both public render
+schemas forbid submission state; edited managed `.typ` projections never enter the trusted compiler path.
 
 #### R9.4 Cross-platform rendering
 

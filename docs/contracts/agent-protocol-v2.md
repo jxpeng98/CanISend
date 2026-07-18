@@ -116,6 +116,28 @@ and unmanaged destination collisions. `package replace` explicitly discards one 
 preserves edited bytes at a new unmanaged safe path and then restores the generated form. Neither operation changes
 the authoritative structured document.
 
+## Render lifecycle
+
+The deterministic Render stage accepts only a current `ready-to-export` package. It regenerates trusted Typst from
+the authoritative structured document blobs, compiles with the restricted in-process world, validates each PDF, and
+atomically commits Typst, PDF, and `render-manifest` artifacts:
+
+```text
+canisend --workspace WORKSPACE render build --job JOB_ID --json
+canisend --workspace WORKSPACE render show --job JOB_ID --json
+canisend --workspace WORKSPACE render export --job JOB_ID \
+  --destination jobs/JOB_ID/rendered --allow-private-export --json
+```
+
+`render build` is idempotent for the exact current package. Managed `.typ` projections are user-editable output and
+are never trusted build inputs. The render manifest freezes the package, structured document, regenerated Typst,
+PDF, page-count, byte-count, warning-count, and elapsed-time records and always records
+`submission_performed: false`.
+
+`render export` checks `export-private-artifacts` consent before opening the workspace, re-verifies immutable PDF
+blobs, refuses path escape, symlink components, non-empty destinations, and overwrite, then creates PDFs plus the
+exact `render-manifest.json`. It prepares local files only; it does not contact or submit to an application portal.
+
 ## Data and consent types
 
 Data classifications are `public`, `private-local`, `provider-bound`, and `secret`. Provider-bound use is limited to
@@ -193,8 +215,9 @@ canisend agent assets export --host claude --destination DIRECTORY --json
 canisend agent assets export --host generic --destination DIRECTORY --json
 ```
 
-Each 29-file pack contains its host entrypoint, task prompts and examples, and the contracts required through package
-export, including the projection, reconciliation, and export-manifest schemas. `canisend-agent-pack.json` records
+Each 31-file pack contains its host entrypoint, task prompts and examples, and the contracts required through PDF
+export, including projection, reconciliation, package-export, rendered-document, and render-manifest schemas.
+`canisend-agent-pack.json` records
 pack, product, protocol, and resource versions plus every resource ID, path, size, and SHA-256 digest.
 
 Job intake is available through `job create`, `job import JOB_ID --file PATH`, `job import JOB_ID --url URL`,
@@ -224,7 +247,7 @@ next action for `job import JOB_ID --url URL`, keeping advert retrieval inside t
 
 ## Contract generation
 
-Rust types in `canisend-contracts` are authoritative. Thirty-eight public schemas are generated with canonical IDs under
+Rust types in `canisend-contracts` are authoritative. Forty public schemas are generated with canonical IDs under
 `https://schemas.canisend.dev/v2/`, semantic version `2.0.0`, deterministic key ordering, and a final newline.
 `cargo run -p xtask -- schemas check` rejects byte drift, missing files, and additional schema files.
 

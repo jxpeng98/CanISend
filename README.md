@@ -19,16 +19,16 @@ the Git tag `archive/python-v0.6.0b1-final`.
 
 ## Current status
 
-The Rust rebuild has completed R8 plus R9.1–R9.2, including the full evidence-backed material pipeline, a restricted
-in-process Typst compiler, and safe editable Typst projections. R9.3 PDF artifact output is now active. The current
-binary provides:
+The Rust rebuild has completed R8 plus R9.1–R9.3, including the full evidence-backed material pipeline, restricted
+in-process Typst compilation, safe editable Typst projections, and revision-bound PDF artifacts/exports. R9.4
+cross-platform rendering verification is now active. The current binary provides:
 
 - Native `canisend` executable scaffolding.
 - Validated UUIDv7, SHA-256, revision, UTC timestamp, and safe relative-path contract types.
 - `canisend.agent/v2` success/error envelopes, stable error registry, and grouped exit policy.
 - Product/version/build inspection.
-- Thirty-eight deterministic Draft 2020-12 schemas generated from Rust types.
-- Forty-nine typed embedded schemas, prompts, templates, examples, and host assets with SHA-256 verification.
+- Forty deterministic Draft 2020-12 schemas generated from Rust types.
+- Fifty-one typed embedded schemas, prompts, templates, examples, and host assets with SHA-256 verification.
 - A truthful capability registry that marks unfinished functions as `planned`.
 - Agent context plus schema/resource diagnostics with deterministic JSON snapshots.
 - Workspace discovery, explicit `--workspace` resolution, initialization, status, integrity checks, and repair.
@@ -76,10 +76,15 @@ binary provides:
   standalone binary retains the renderer without requiring a Typst executable or network access.
 - One embedded application-document template shared by all four supported document kinds, with defensive Typst
   string escaping, unresolved-field rejection, exact source metadata, and the same edit-safe reconcile lifecycle.
+- Idempotent `render build/show` over exact package/document revisions, with trusted Typst and validated PDF outputs
+  stored as immutable blobs and frozen in a typed render manifest by one SQLite transaction.
+- Structural PDF validation for bounded size, parseability, encryption state, page tree, and page count before commit
+  and again before export, with body-free render diagnostics.
+- Consent-gated `render export` of create-new PDFs plus the exact render manifest under `jobs/JOB_ID/`; edited `.typ`
+  projections are never trusted compilation inputs, and rendering/exporting never submits an application.
 
-PDF artifact persistence and package PDF export are not yet available through the production workflow. Their
-execution order and acceptance gates are defined in the
-[Rust-native roadmap](docs/superpowers/plans/2026-07-17-rust-native-greenfield-roadmap.md).
+Native release-target font, Unicode/layout, license-notice, size, and timing verification continues in R9.4; its
+acceptance gates are defined in the [Rust-native roadmap](docs/superpowers/plans/2026-07-17-rust-native-greenfield-roadmap.md).
 
 ## Build the native foundation
 
@@ -146,6 +151,10 @@ cargo build --release --locked
 ./target/release/canisend --workspace ./my-workspace package copy-as-new --job JOB_ID \
   --path jobs/JOB_ID/application/cover-letter.md \
   --destination jobs/JOB_ID/application/cover-letter-edited.md --json
+./target/release/canisend --workspace ./my-workspace render build --job JOB_ID --json
+./target/release/canisend --workspace ./my-workspace render show --job JOB_ID --json
+./target/release/canisend --workspace ./my-workspace render export --job JOB_ID \
+  --destination jobs/JOB_ID/rendered --allow-private-export --json
 ./target/release/canisend --workspace ./my-workspace workspace check --json
 ./target/release/canisend --workspace ./my-workspace workspace backup ./my-backup --json
 ```
@@ -190,7 +199,7 @@ Codex / Claude / user / custom host
 
 The accepted architecture uses SQLite plus immutable content-addressed blobs for authoritative local state. User
 documents are exported projections. Rust types generate v2 schemas, agents complete bounded tasks through the CLI,
-and Typst will be embedded into the final executable.
+and Typst compilation is embedded in the standalone executable.
 
 Accepted decisions are under `docs/architecture/rust-native/decisions/`.
 The machine interface is documented in [Agent Protocol v2](docs/contracts/agent-protocol-v2.md).
