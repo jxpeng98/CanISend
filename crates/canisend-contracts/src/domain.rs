@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     ActorKind, ArtifactKind, EntityId, ExecutionMode, PrivacyClassification, Revision,
-    Sha256Digest, UtcTimestamp,
+    SafeRelativePath, Sha256Digest, UtcTimestamp,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -700,4 +700,66 @@ pub struct PackageManifestRecord {
     pub readiness: ReadinessRecord,
     pub submission_performed: bool,
     pub revision: Revision,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum ProjectionKind {
+    Markdown,
+    StructuredJson,
+    PackageManifestJson,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum ProjectionEditStatus {
+    Current,
+    Edited,
+    Missing,
+    RepairRequired,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ProjectionRecord {
+    pub source_artifact: ArtifactReference,
+    pub relative_path: SafeRelativePath,
+    pub kind: ProjectionKind,
+    pub generated_sha256: Sha256Digest,
+    pub observed_sha256: Option<Sha256Digest>,
+    pub edit_status: ProjectionEditStatus,
+    pub updated_at: UtcTimestamp,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PackageExportManifestRecord {
+    pub id: EntityId,
+    pub job_id: EntityId,
+    pub package_artifact: ArtifactReference,
+    pub projections: Vec<ProjectionRecord>,
+    pub exported_at: UtcTimestamp,
+    pub submission_performed: bool,
+    pub revision: Revision,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum ProjectionReconcileAction {
+    Inspect,
+    Replace,
+    CopyAsNew,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ProjectionReconcileRecord {
+    pub job_id: EntityId,
+    pub package_artifact: ArtifactReference,
+    pub projection: ProjectionRecord,
+    pub action: ProjectionReconcileAction,
+    pub preserved_copy_path: Option<SafeRelativePath>,
+    pub preserved_copy_sha256: Option<Sha256Digest>,
+    pub authoritative_changed: bool,
+    pub reconciled_at: UtcTimestamp,
 }

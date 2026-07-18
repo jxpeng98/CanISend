@@ -1,0 +1,162 @@
+{
+  "$defs": {
+    "ArtifactKind": {
+      "enum": [
+        "source-original",
+        "source-normalized-text",
+        "parsed-job",
+        "evidence-catalog",
+        "criteria",
+        "evidence-matches",
+        "application-plan",
+        "cover-letter",
+        "research-statement",
+        "teaching-statement",
+        "cv",
+        "document-set",
+        "review-findings",
+        "package-manifest",
+        "export-manifest",
+        "typst-source",
+        "pdf"
+      ],
+      "type": "string"
+    },
+    "ArtifactReference": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/ArtifactKind"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sha256": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "revision",
+        "sha256"
+      ],
+      "type": "object"
+    },
+    "ProjectionEditStatus": {
+      "enum": [
+        "current",
+        "edited",
+        "missing",
+        "repair-required"
+      ],
+      "type": "string"
+    },
+    "ProjectionKind": {
+      "enum": [
+        "markdown",
+        "structured-json",
+        "package-manifest-json"
+      ],
+      "type": "string"
+    },
+    "ProjectionReconcileAction": {
+      "enum": [
+        "inspect",
+        "replace",
+        "copy-as-new"
+      ],
+      "type": "string"
+    },
+    "ProjectionRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "edit_status": {
+          "$ref": "#/$defs/ProjectionEditStatus"
+        },
+        "generated_sha256": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/ProjectionKind"
+        },
+        "observed_sha256": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "relative_path": {
+          "type": "string"
+        },
+        "source_artifact": {
+          "$ref": "#/$defs/ArtifactReference"
+        },
+        "updated_at": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_artifact",
+        "relative_path",
+        "kind",
+        "generated_sha256",
+        "edit_status",
+        "updated_at"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://schemas.canisend.dev/v2/projection-reconcile.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "action": {
+      "$ref": "#/$defs/ProjectionReconcileAction"
+    },
+    "authoritative_changed": {
+      "type": "boolean"
+    },
+    "job_id": {
+      "type": "string"
+    },
+    "package_artifact": {
+      "$ref": "#/$defs/ArtifactReference"
+    },
+    "preserved_copy_path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "preserved_copy_sha256": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "projection": {
+      "$ref": "#/$defs/ProjectionRecord"
+    },
+    "reconciled_at": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "job_id",
+    "package_artifact",
+    "projection",
+    "action",
+    "authoritative_changed",
+    "reconciled_at"
+  ],
+  "title": "ProjectionReconcileRecord",
+  "type": "object",
+  "x-canisend-id": "canisend.projection-reconcile/v2",
+  "x-canisend-version": "2.0.0"
+}

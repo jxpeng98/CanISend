@@ -10,9 +10,11 @@ use crate::{
     DocumentSectionCandidateRecord, DocumentSetRecord, EvidenceCatalogRecord,
     EvidenceMatchProposalRecord, EvidenceMatchProposalSet, EvidenceMatchRecord,
     EvidenceMatchSetRecord, EvidenceProposalRecord, EvidenceProposalSet, EvidenceRecord,
-    FindingRecord, FindingTarget, JobRecord, PackageManifestRecord, ParsedJobRecord,
-    ProfileSourceRecord, ReadinessReasonCode, ReadinessRecord, ReviewCandidate,
-    ReviewDispositionCandidate, ReviewFindingCandidateRecord, ReviewFindingsRecord, SourceRecord,
+    FindingRecord, FindingTarget, JobRecord, PackageExportManifestRecord, PackageManifestRecord,
+    ParsedJobRecord, ProfileSourceRecord, ProjectionEditStatus, ProjectionKind,
+    ProjectionReconcileAction, ProjectionReconcileRecord, ProjectionRecord, ReadinessReasonCode,
+    ReadinessRecord, ReviewCandidate, ReviewDispositionCandidate, ReviewFindingCandidateRecord,
+    ReviewFindingsRecord, SourceRecord,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
@@ -1619,13 +1621,192 @@ impl SemanticValidate for PackageManifestRecord {
     }
 }
 
+impl SemanticValidate for ProjectionRecord {
+    fn validate_semantics(&self) -> Vec<ContractViolation> {
+        let mut violations = Vec::new();
+        let observed_matches = self.observed_sha256.as_ref() == Some(&self.generated_sha256);
+        match self.edit_status {
+            ProjectionEditStatus::Current if !observed_matches => {
+                violations.push(ContractViolation::new(
+                    "projection.current_digest_mismatch",
+                    "/observed_sha256",
+                    "current projection must observe its exact generated digest",
+                ))
+            }
+            ProjectionEditStatus::Edited if self.observed_sha256.is_none() || observed_matches => {
+                violations.push(ContractViolation::new(
+                    "projection.edited_digest_required",
+                    "/observed_sha256",
+                    "edited projection must observe a digest different from its generated digest",
+                ));
+            }
+            ProjectionEditStatus::Missing if self.observed_sha256.is_some() => {
+                violations.push(ContractViolation::new(
+                    "projection.missing_digest_forbidden",
+                    "/observed_sha256",
+                    "missing projection cannot have an observed digest",
+                ))
+            }
+            _ => {}
+        }
+        let supported_document = matches!(
+            self.source_artifact.kind,
+            crate::ArtifactKind::CoverLetter
+                | crate::ArtifactKind::ResearchStatement
+                | crate::ArtifactKind::TeachingStatement
+                | crate::ArtifactKind::Cv
+        );
+        let source_kind_valid = match self.kind {
+            ProjectionKind::Markdown | ProjectionKind::StructuredJson => supported_document,
+            ProjectionKind::PackageManifestJson => {
+                self.source_artifact.kind == crate::ArtifactKind::PackageManifest
+            }
+        };
+        if !source_kind_valid {
+            violations.push(ContractViolation::new(
+                "projection.source_kind_invalid",
+                "/source_artifact/kind",
+                "projection kind does not support this source artifact kind",
+            ));
+        }
+        let extension_valid = match self.kind {
+            ProjectionKind::Markdown => self.relative_path.as_str().ends_with(".md"),
+            ProjectionKind::StructuredJson | ProjectionKind::PackageManifestJson => {
+                self.relative_path.as_str().ends_with(".json")
+            }
+        };
+        if !extension_valid {
+            violations.push(ContractViolation::new(
+                "projection.extension_invalid",
+                "/relative_path",
+                "projection path extension must match its projection kind",
+            ));
+        }
+        if !self.relative_path.as_str().starts_with("jobs/") {
+            violations.push(ContractViolation::new(
+                "projection.job_path_required",
+                "/relative_path",
+                "application material projections must remain under jobs/",
+            ));
+        }
+        violations
+    }
+}
+
+impl SemanticValidate for PackageExportManifestRecord {
+    fn validate_semantics(&self) -> Vec<ContractViolation> {
+        let mut violations = Vec::new();
+        if self.package_artifact.kind != crate::ArtifactKind::PackageManifest {
+            violations.push(ContractViolation::new(
+                "export.package_kind_invalid",
+                "/package_artifact/kind",
+                "export manifest must reference package-manifest",
+            ));
+        }
+        if self.projections.is_empty() {
+            violations.push(ContractViolation::new(
+                "export.projections_required",
+                "/projections",
+                "export manifest must contain at least one projection",
+            ));
+        }
+        let mut paths = std::collections::BTreeSet::new();
+        for (index, projection) in self.projections.iter().enumerate() {
+            violations.extend(
+                projection
+                    .validate_semantics()
+                    .into_iter()
+                    .map(|violation| {
+                        ContractViolation::new(
+                            violation.code,
+                            format!("/projections/{index}{}", violation.json_pointer),
+                            violation.message,
+                        )
+                    }),
+            );
+            if projection.edit_status != ProjectionEditStatus::Current {
+                violations.push(ContractViolation::new(
+                    "export.projection_not_current",
+                    format!("/projections/{index}/edit_status"),
+                    "a completed export receipt may contain only current projections",
+                ));
+            }
+            if !paths.insert(projection.relative_path.as_str()) {
+                violations.push(ContractViolation::new(
+                    "export.projection_path_duplicate",
+                    format!("/projections/{index}/relative_path"),
+                    "export projection paths must be unique",
+                ));
+            }
+        }
+        if self.submission_performed {
+            violations.push(ContractViolation::new(
+                "export.submission_forbidden",
+                "/submission_performed",
+                "exporting application materials does not submit an application",
+            ));
+        }
+        violations
+    }
+}
+
+impl SemanticValidate for ProjectionReconcileRecord {
+    fn validate_semantics(&self) -> Vec<ContractViolation> {
+        let mut violations = self.projection.validate_semantics();
+        if self.package_artifact.kind != crate::ArtifactKind::PackageManifest {
+            violations.push(ContractViolation::new(
+                "reconcile.package_kind_invalid",
+                "/package_artifact/kind",
+                "projection reconciliation must reference package-manifest",
+            ));
+        }
+        let copy_fields_paired =
+            self.preserved_copy_path.is_some() && self.preserved_copy_sha256.is_some();
+        match self.action {
+            ProjectionReconcileAction::CopyAsNew if !copy_fields_paired => {
+                violations.push(ContractViolation::new(
+                    "reconcile.copy_receipt_required",
+                    "/preserved_copy_path",
+                    "copy-as-new must identify the preserved user edit and its digest",
+                ))
+            }
+            ProjectionReconcileAction::Inspect | ProjectionReconcileAction::Replace
+                if self.preserved_copy_path.is_some() || self.preserved_copy_sha256.is_some() =>
+            {
+                violations.push(ContractViolation::new(
+                    "reconcile.copy_receipt_forbidden",
+                    "/preserved_copy_path",
+                    "only copy-as-new may contain a preserved-copy receipt",
+                ));
+            }
+            _ => {}
+        }
+        if self.preserved_copy_path.as_ref() == Some(&self.projection.relative_path) {
+            violations.push(ContractViolation::new(
+                "reconcile.copy_path_conflict",
+                "/preserved_copy_path",
+                "preserved copy path must differ from the managed projection path",
+            ));
+        }
+        if self.authoritative_changed {
+            violations.push(ContractViolation::new(
+                "reconcile.authoritative_change_forbidden",
+                "/authoritative_changed",
+                "projection reconciliation never changes authoritative structured artifacts",
+            ));
+        }
+        violations
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use serde_json::json;
 
     use super::{CandidateValidationError, validate_external_candidate};
     use crate::{
-        DocumentCandidate, FindingRecord, JobRecord, PackageManifestRecord, ReviewCandidate,
+        DocumentCandidate, FindingRecord, JobRecord, PackageExportManifestRecord,
+        PackageManifestRecord, ProjectionReconcileRecord, ProjectionRecord, ReviewCandidate,
         ReviewDispositionCandidate,
     };
 
@@ -1962,5 +2143,77 @@ mod tests {
             validate_external_candidate::<PackageManifestRecord>(&prose_reason),
             Err(CandidateValidationError::Structural(_))
         ));
+    }
+
+    #[test]
+    fn projection_receipts_detect_edits_without_changing_authority() {
+        let package = json!({
+            "kind": "package-manifest",
+            "id": "019f2f55-7c00-7000-8000-000000000700",
+            "revision": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        });
+        let projection = json!({
+            "source_artifact": {
+                "kind": "cover-letter",
+                "id": "019f2f55-7c00-7000-8000-000000000701",
+                "revision": 1,
+                "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            },
+            "relative_path": "jobs/019f2f55-7c00-7000-8000-000000000002/application/cover-letter.md",
+            "kind": "markdown",
+            "generated_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "observed_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "edit_status": "current",
+            "updated_at": "2026-07-18T03:00:00Z"
+        });
+        validate_external_candidate::<ProjectionRecord>(&projection)
+            .expect("current projection receipt");
+
+        let export = json!({
+            "id": "019f2f55-7c00-7000-8000-000000000702",
+            "job_id": "019f2f55-7c00-7000-8000-000000000002",
+            "package_artifact": package,
+            "projections": [projection],
+            "exported_at": "2026-07-18T03:00:00Z",
+            "submission_performed": false,
+            "revision": 1
+        });
+        validate_external_candidate::<PackageExportManifestRecord>(&export)
+            .expect("valid export receipt");
+
+        let mut edited = export["projections"][0].clone();
+        edited["edit_status"] = json!("edited");
+        let error = validate_external_candidate::<ProjectionRecord>(&edited)
+            .expect_err("edited state requires a different observed digest");
+        assert!(
+            error
+                .violations()
+                .iter()
+                .any(|violation| { violation.code == "projection.edited_digest_required" })
+        );
+
+        let reconciliation = json!({
+            "job_id": "019f2f55-7c00-7000-8000-000000000002",
+            "package_artifact": export["package_artifact"],
+            "projection": export["projections"][0],
+            "action": "copy-as-new",
+            "preserved_copy_path": "jobs/019f2f55-7c00-7000-8000-000000000002/application/cover-letter.user-edit.md",
+            "preserved_copy_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "authoritative_changed": false,
+            "reconciled_at": "2026-07-18T03:05:00Z"
+        });
+        validate_external_candidate::<ProjectionReconcileRecord>(&reconciliation)
+            .expect("copy-as-new preserves the edit without changing authority");
+        let mut authoritative = reconciliation;
+        authoritative["authoritative_changed"] = json!(true);
+        let error = validate_external_candidate::<ProjectionReconcileRecord>(&authoritative)
+            .expect_err("projection reconciliation cannot rewrite structured authority");
+        assert!(
+            error
+                .violations()
+                .iter()
+                .any(|violation| { violation.code == "reconcile.authoritative_change_forbidden" })
+        );
     }
 }

@@ -59,6 +59,7 @@
         "document-set",
         "review-findings",
         "package-manifest",
+        "export-manifest",
         "typst-source",
         "pdf"
       ],

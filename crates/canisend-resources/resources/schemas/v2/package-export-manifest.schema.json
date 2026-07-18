@@ -48,100 +48,104 @@
       ],
       "type": "object"
     },
-    "EvidenceKind": {
+    "ProjectionEditStatus": {
       "enum": [
-        "qualification",
-        "teaching",
-        "research",
-        "communication",
-        "leadership",
-        "service",
-        "employment",
-        "other"
+        "current",
+        "edited",
+        "missing",
+        "repair-required"
       ],
       "type": "string"
     },
-    "PrivacyClassification": {
+    "ProjectionKind": {
       "enum": [
-        "public",
-        "private-local",
-        "provider-bound",
-        "secret"
+        "markdown",
+        "structured-json",
+        "package-manifest-json"
       ],
       "type": "string"
     },
-    "SourceTextSpan": {
+    "ProjectionRecord": {
       "additionalProperties": false,
       "properties": {
-        "end_byte": {
-          "format": "uint64",
-          "minimum": 0,
-          "type": "integer"
+        "edit_status": {
+          "$ref": "#/$defs/ProjectionEditStatus"
         },
-        "source": {
+        "generated_sha256": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/ProjectionKind"
+        },
+        "observed_sha256": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "relative_path": {
+          "type": "string"
+        },
+        "source_artifact": {
           "$ref": "#/$defs/ArtifactReference"
         },
-        "start_byte": {
-          "format": "uint64",
-          "minimum": 0,
-          "type": "integer"
+        "updated_at": {
+          "type": "string"
         }
       },
       "required": [
-        "source",
-        "start_byte",
-        "end_byte"
+        "source_artifact",
+        "relative_path",
+        "kind",
+        "generated_sha256",
+        "edit_status",
+        "updated_at"
       ],
       "type": "object"
     }
   },
-  "$id": "https://schemas.canisend.dev/v2/evidence.schema.json",
+  "$id": "https://schemas.canisend.dev/v2/package-export-manifest.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
-    "confirmed": {
-      "type": "boolean"
-    },
-    "excluded": {
-      "type": "boolean"
+    "exported_at": {
+      "type": "string"
     },
     "id": {
       "type": "string"
     },
-    "kind": {
-      "$ref": "#/$defs/EvidenceKind"
+    "job_id": {
+      "type": "string"
+    },
+    "package_artifact": {
+      "$ref": "#/$defs/ArtifactReference"
+    },
+    "projections": {
+      "items": {
+        "$ref": "#/$defs/ProjectionRecord"
+      },
+      "type": "array"
     },
     "revision": {
       "format": "uint64",
       "minimum": 0,
       "type": "integer"
     },
-    "sensitivity": {
-      "$ref": "#/$defs/PrivacyClassification"
-    },
-    "source_quote": {
-      "type": "string"
-    },
-    "source_span": {
-      "$ref": "#/$defs/SourceTextSpan"
-    },
-    "summary": {
-      "type": "string"
+    "submission_performed": {
+      "type": "boolean"
     }
   },
   "required": [
     "id",
-    "kind",
-    "summary",
-    "source_quote",
-    "source_span",
-    "confirmed",
-    "excluded",
-    "sensitivity",
+    "job_id",
+    "package_artifact",
+    "projections",
+    "exported_at",
+    "submission_performed",
     "revision"
   ],
-  "title": "EvidenceRecord",
+  "title": "PackageExportManifestRecord",
   "type": "object",
-  "x-canisend-id": "canisend.evidence/v2",
+  "x-canisend-id": "canisend.package-export-manifest/v2",
   "x-canisend-version": "2.0.0"
 }

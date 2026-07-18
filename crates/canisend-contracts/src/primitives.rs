@@ -214,6 +214,7 @@ pub enum ArtifactKind {
     DocumentSet,
     ReviewFindings,
     PackageManifest,
+    ExportManifest,
     TypstSource,
     Pdf,
 }

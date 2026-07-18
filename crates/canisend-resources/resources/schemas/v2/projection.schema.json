@@ -48,67 +48,63 @@
       ],
       "type": "object"
     },
-    "PrivacyClassification": {
+    "ProjectionEditStatus": {
       "enum": [
-        "public",
-        "private-local",
-        "provider-bound",
-        "secret"
+        "current",
+        "edited",
+        "missing",
+        "repair-required"
       ],
       "type": "string"
     },
-    "ProfileSourceKind": {
+    "ProjectionKind": {
       "enum": [
         "markdown",
-        "plain-text",
-        "json"
+        "structured-json",
+        "package-manifest-json"
       ],
       "type": "string"
     }
   },
-  "$id": "https://schemas.canisend.dev/v2/profile-source.schema.json",
+  "$id": "https://schemas.canisend.dev/v2/projection.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
-    "content_type": {
-      "type": "string"
+    "edit_status": {
+      "$ref": "#/$defs/ProjectionEditStatus"
     },
-    "created_at": {
-      "type": "string"
-    },
-    "id": {
+    "generated_sha256": {
       "type": "string"
     },
     "kind": {
-      "$ref": "#/$defs/ProfileSourceKind"
+      "$ref": "#/$defs/ProjectionKind"
     },
-    "normalized_text": {
+    "observed_sha256": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "relative_path": {
+      "type": "string"
+    },
+    "source_artifact": {
       "$ref": "#/$defs/ArtifactReference"
     },
-    "original": {
-      "$ref": "#/$defs/ArtifactReference"
-    },
-    "revision": {
-      "format": "uint64",
-      "minimum": 0,
-      "type": "integer"
-    },
-    "sensitivity": {
-      "$ref": "#/$defs/PrivacyClassification"
+    "updated_at": {
+      "type": "string"
     }
   },
   "required": [
-    "id",
+    "source_artifact",
+    "relative_path",
     "kind",
-    "original",
-    "normalized_text",
-    "content_type",
-    "sensitivity",
-    "created_at",
-    "revision"
+    "generated_sha256",
+    "edit_status",
+    "updated_at"
   ],
-  "title": "ProfileSourceRecord",
+  "title": "ProjectionRecord",
   "type": "object",
-  "x-canisend-id": "canisend.profile-source/v2",
+  "x-canisend-id": "canisend.projection/v2",
   "x-canisend-version": "2.0.0"
 }
