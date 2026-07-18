@@ -4,7 +4,7 @@
 
 **Roadmap item:** R11.2
 
-**Status:** Implemented in source; native Beta qualification pending
+**Status:** Qualified and published in `v0.7.0-beta.1`
 
 ## Decision
 
@@ -40,14 +40,31 @@ Exact implementation commit `f0a46ea8e9677eb2fb8ed700f98ea5b63a303cb0` passed al
 run `29647788613`. The Windows render job parsed `scripts/sign_windows_self_signed.ps1` successfully; Rust quality,
 dependency policy, all three recovery jobs, and the macOS/Linux/Windows render and documented-workflow jobs passed.
 A local macOS arm64 executable was ad-hoc signed, verified, packaged, and accepted by the v2 final-archive binding
-command. The next native matrix must still execute the real Windows signing path and both release macOS targets.
+command.
 
-## Qualification path
+The first native Beta attempt, run `29648128815`, passed both macOS signing paths but failed before Windows signing
+because PowerShell reports Cargo's ordinary hardlinked release binary through `LinkType`. Commit
+`24054abf40995707a6f212a890ebd87bef606476` corrected the invariant to reject Windows reparse points rather than
+hardlinks and made that exact check part of the source contract. Focused xtask tests, Clippy, and the release check
+passed before the fix was pushed.
 
-1. Refresh Beta readiness, apply the guarded `0.7.0-beta.1` transition, and run a nonpublishing five-target matrix.
-2. Download and independently verify all assets, v2 signing evidence, native signatures, and GitHub attestations.
-3. Regenerate and validate package-manager candidates from those exact bytes.
-4. Publish only the qualified annotated Beta tag, verify the public assets again, and record qualification.
+## Qualification evidence
 
-The roadmap signing checkbox remains open until step 4 supplies public evidence. Paid publisher identity is a
-separate future enhancement and is no longer a `0.7` blocker.
+1. Beta readiness was refreshed and the guarded `0.7.0-beta.1` transition was applied.
+2. Ordinary CI `29649032447` and nonpublishing release run `29649035321` passed at exact source
+   `24054abf40995707a6f212a890ebd87bef606476`.
+3. All dry-run assets passed the repository verifier; all 15 provenance attestations were checked against the exact
+   branch workflow and source; both extracted macOS binaries passed native `codesign`; and the Windows evidence
+   recorded a present, self-signed, untrusted, untimestamped SHA-256 Authenticode signature.
+4. Homebrew, Scoop, and WinGet candidates were regenerated from those bytes. The Cask passed `brew style`; all
+   candidates remained nonpublishing.
+5. Annotated tag `v0.7.0-beta.1` resolved to exact source
+   `24054abf40995707a6f212a890ebd87bef606476`. Tag run `29650151493` repeated the five-target matrix, published the
+   prerelease, and produced fresh platform evidence and GitHub OIDC provenance.
+6. Every public asset passed the verifier and tag-level provenance checks. Both public macOS archives passed native
+   `codesign` inspection, release notes matched the checked-in bytes, and the Beta qualification recorder bound the
+   public run and three signing targets in `release/qualification-ledger.json`.
+
+The R11.2 signing checkbox is complete. Paid publisher identity is a separate future enhancement and is not a `0.7`
+blocker. Gatekeeper, Unknown Publisher, and SmartScreen warnings remain documented limitations of this free trust
+tier.

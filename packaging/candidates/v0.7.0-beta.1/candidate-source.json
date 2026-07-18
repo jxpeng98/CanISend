@@ -1,0 +1,34 @@
+{
+  "artifacts": [
+    {
+      "archive": "canisend-0.7.0-beta.1-aarch64-apple-darwin.tar.gz",
+      "sha256": "f485a98bce61ab2ad929d566e10b4f196675890bc7aed1845d0888dd53a0543d",
+      "size": 23514287,
+      "target": "aarch64-apple-darwin"
+    },
+    {
+      "archive": "canisend-0.7.0-beta.1-x86_64-apple-darwin.tar.gz",
+      "sha256": "5994bf09c2f8c8fefc4e0fe228a4f70feaa2ff55e72185fdabe786249e784326",
+      "size": 25394713,
+      "target": "x86_64-apple-darwin"
+    },
+    {
+      "archive": "canisend-0.7.0-beta.1-x86_64-pc-windows-msvc.zip",
+      "sha256": "29123d946456ef2201793008a2685e7155b296a834530be2b7f9d874f44ea29c",
+      "size": 23515332,
+      "target": "x86_64-pc-windows-msvc"
+    }
+  ],
+  "candidate_only": true,
+  "publication_authorized": false,
+  "release": {
+    "manifest_file": "canisend-0.7.0-beta.1-manifest.json",
+    "manifest_sha256": "f64c83f58af74534d7d7ef4ab68d4550ba2e6d94761673d106a42411b6624826",
+    "repository": "https://github.com/jxpeng98/CanISend",
+    "source_commit": "24054abf40995707a6f212a890ebd87bef606476",
+    "stage": "beta",
+    "tag": "v0.7.0-beta.1",
+    "version": "0.7.0-beta.1"
+  },
+  "schema": "canisend.channel-candidate-source/v1"
+}

@@ -1,6 +1,6 @@
 # CanISend Rust-Native Greenfield Rebuild Roadmap
 
-**Status:** In progress — R0 through R11.1 complete; R11.2 native beta hardening active
+**Status:** In progress — R0 through R11.2 complete; R11.3 release-candidate preparation active
 
 **Date:** 2026-07-17
 
@@ -203,22 +203,25 @@
   the exact source manifest and archive digests, handles the real versioned archive layout, and emits candidate-only
   metadata that cannot authorize publication. Repository checks reject source/output drift, unknown files, symlinks,
   or missing channel targets. Seven xtask tests, Ruby/JSON/YAML syntax checks, Homebrew 6 style, and the complete
-  release check pass. Credential-backed signing and notarization is active.
+  release check pass. The credential-backed signing design that became active here was later superseded for `0.7`
+  by the free community-signing tier in ADR-RN-0012.
 - 2026-07-18: Implemented the fail-closed R11.2 signing boundary. A machine-checked policy permits unsigned Alpha but
   requires Apple Developer ID, hardened runtime, secure timestamps, accepted notarization logs, and Azure Artifact
   Signing Public Trust with GitHub OIDC and RFC 3161 timestamping for every later stage. Canonical evidence is
   verified before packaging and then bound to the exact final archive hash; non-Alpha assembly requires both macOS
   records and the Windows record. Eleven xtask tests, Clippy, Bash syntax, YAML parsing, and actionlint pass.
-  Ordinary CI now parses the Authenticode verifier on Windows. Real credential-backed qualification remains open and
-  the roadmap completion checkbox is intentionally unchanged.
+  Ordinary CI now parses the Authenticode verifier on Windows. At this point credential-backed qualification was
+  still open; ADR-RN-0012 later superseded this policy without weakening the platform-integrity boundary.
 - 2026-07-18: GitHub Actions ordinary CI `29636557516` passed all eight jobs at exact signing implementation commit
   `c7d1d4c79b5b9d0ca6f6ef4f91b14f1c354e3a03`. The Windows render job successfully parsed the Authenticode verifier;
   Rust quality, dependency policy, Linux/macOS/Windows recovery, and all three staged render/documentation jobs also
-  passed. The external Apple/Azure credential boundary remains the only unqualified part of the signing milestone.
+  passed. The external Apple/Azure credential boundary was the only unqualified part of that historical design and
+  was later removed from the `0.7` release contract by ADR-RN-0012.
 - 2026-07-18: Added the native signing operations runbook and a name-only GitHub configuration audit covering three
   Apple secrets and eleven Apple/Azure variables. Positive fixture and live-repository negative paths pass without
   reading secret values. The live repository currently has none of the fourteen required names, so a signed Beta
-  remains correctly unavailable until Apple Developer and Azure Artifact Signing provisioning is completed.
+  remained unavailable under that historical policy. The audit is retained as evidence but was later superseded by
+  the credential-free community-signing configuration audit.
 - 2026-07-18: Qualified the CRLF-safe Beta freeze at exact commit `5ad749c` in ordinary CI `29637242998` and complete
   five-target native release run `29637252504`. Qualified version-neutral isolated install/documentation/uninstall
   preparation at exact commit `43c43dc` in five-target native run `29637471699`; the ledger records
@@ -339,7 +342,16 @@
   archive, checksum, manifest, and GitHub OIDC provenance binding remain fail-closed. No Apple/Azure account,
   repository secret, or signing variable is required. [ADR-RN-0012](../../architecture/rust-native/decisions/0012-adopt-free-community-platform-signing.md)
   supersedes ADR-RN-0011 for `0.7`. Exact implementation commit `f0a46ea` passed all eight ordinary CI jobs in run
-  `29647788613`, including Windows PowerShell parsing; real Beta matrix qualification remains open.
+  `29647788613`, including Windows PowerShell parsing; real Beta matrix qualification remained open at that commit.
+- 2026-07-18: Published and independently qualified `v0.7.0-beta.1` from exact source
+  `24054abf40995707a6f212a890ebd87bef606476`. Ordinary CI `29649032447` and nonpublishing five-target release run
+  `29649035321` passed after a Windows runner exposed and verified the fix for treating Cargo hardlinks as reparse
+  points. Tag run `29650151493` repeated the complete source and native matrix, produced two hardened-runtime macOS
+  ad-hoc records plus one ephemeral self-signed Windows Authenticode record, assembled and attested all public
+  assets, and published a non-draft prerelease. Fresh public downloads passed the repository verifier, all 15
+  source/tag/workflow-bound provenance checks, native `codesign` verification on both macOS archives, and canonical
+  signing-evidence review. The ledger now records the qualified Beta, and versioned candidate-only Homebrew, Scoop,
+  and WinGet files are derived from the public manifest. R11.2 exit criteria are satisfied; R11.3 is active.
 
 ## 1. Executive Decision
 
@@ -2014,7 +2026,7 @@ introduced. R11.2 owns blocker triage, contract freezes, package-manager candida
 - [x] Freeze agent protocol v2 for the beta line.
 - [x] Freeze workspace v2 migrations inside the Rust era.
 - [x] Add Homebrew and Windows installation channel candidates.
-- [ ] Publish and verify macOS ad-hoc and Windows self-signed community signatures.
+- [x] Publish and verify macOS ad-hoc and Windows self-signed community signatures.
 
 **R11.2 blocker baseline:** The [Beta readiness note](../../notes/rust-native/2026-07-18-r11-beta-readiness.md) and
 machine-checked `release/beta-readiness.json` record the first post-publication audit. No Alpha blocker was reported;
@@ -2034,21 +2046,25 @@ root cause, regression test, and replacement-matrix qualification requirement.
 **R11.2 channel candidates:** [ADR-RN-0010](../../architecture/rust-native/decisions/0010-derive-package-channels-from-verified-release-assets.md)
 and the [candidate note](../../notes/rust-native/2026-07-18-r11-beta-channel-candidates.md) bind generated Homebrew
 Cask, Scoop, and WinGet files to exact verified release-manifest/archive digests. All candidate source records forbid
-publication. Signed Beta assets must produce a new set and pass official native validators before any external
-channel changes.
+publication. The public Beta assets produced `packaging/candidates/v0.7.0-beta.1`; its Homebrew Cask passed
+`brew style`, and its source record binds the exact public manifest and three channel archive digests. The later
+Beta-to-RC qualification must still pass all official native lifecycle validators before any external channel
+changes.
 
 **R11.2 signing implementation:** [ADR-RN-0012](../../architecture/rust-native/decisions/0012-adopt-free-community-platform-signing.md)
 and the [community-signing note](../../notes/rust-native/2026-07-18-r11-community-signing-policy.md) define the
 free, fail-closed trust tier, exact macOS/Windows post-sign verification, and canonical evidence bound to final
-archive bytes. Implementation is complete without external credentials, but the checklist remains open until a real
-Beta dry-run and published tag produce and independently verify both macOS records and the Windows record.
+archive bytes. Nonpublishing run `29649035321` and published tag run `29650151493` produced and independently
+verified both macOS records and the Windows record without external credentials. The checklist is complete; paid
+publisher identity remains an optional future trust-tier enhancement, not a `0.7` release requirement.
 
 **R11.2 stage-transition preparation:** The
 [stage-transition policy](../../../release/stage-transition-policy.json),
 [runbook](../../release/stage-transitions.md), and
 [implementation note](../../notes/rust-native/2026-07-18-r11-stage-transition-preparation.md) distinguish current
-version state from immutable Alpha evidence. Alpha-to-Beta has a reviewed dry-run; the write remains unexecuted until
-the readiness snapshot is refreshed and the community-signing source gate is qualified.
+version state from immutable Alpha evidence. The readiness snapshot was refreshed, the guarded Alpha-to-Beta write
+advanced the workspace to `0.7.0-beta.1`, and the resulting source passed ordinary CI, dry-run qualification, and
+the public tag matrix before the ledger was promoted.
 
 **R11.3 preparation:** The [upgrade, rollback, and uninstall guide](../../guides/upgrade-and-rollback.md) defines the
 backup-first binary/workspace boundary, future-schema rejection, restore-to-new-path rollback, host-pack refresh, and
@@ -2081,7 +2097,16 @@ The [qualification ledger](../../release/qualification-ledger.md), machine autho
 [implementation note](../../notes/rust-native/2026-07-18-r11-qualification-ledger.md) prevent a Stable version from
 passing source gates without a frozen baseline, signed Beta, two distinct clean-tag RC runs, upgrade/restore,
 five-target uninstall, Homebrew/Scoop/WinGet, and final release-note evidence. Its current status is intentionally
-`pre-beta`.
+`beta-qualifying`, with public Beta `v0.7.0-beta.1` recorded as qualified and every RC/Stable authorization still
+fail-closed.
+
+**R11.2 exit:** Satisfied by ordinary CI `29649032447`, nonpublishing release run `29649035321`, public tag run
+`29650151493`, and the non-draft
+[`v0.7.0-beta.1`](https://github.com/jxpeng98/CanISend/releases/tag/v0.7.0-beta.1) prerelease. Independent checks
+verified the annotated tag/source/manifest identity, all public checksums and release contracts, all 15 GitHub OIDC
+provenance attestations, both macOS ad-hoc signatures, and the Windows self-signed Authenticode evidence. The
+machine ledger records the exact public run and three signing targets. R11.3 now owns feature freeze and the two
+clean-tag RC matrices.
 
 #### R11.3 Release candidate
 
