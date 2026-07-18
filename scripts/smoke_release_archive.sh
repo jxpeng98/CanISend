@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -ne 4 ]]; then
-  echo "usage: $0 ARCHIVE TARGET_TRIPLE NEW_SMOKE_DIRECTORY EXPECTED_BINARY" >&2
+if [[ $# -ne 4 && $# -ne 7 ]]; then
+  echo "usage: $0 ARCHIVE TARGET_TRIPLE NEW_SMOKE_DIRECTORY EXPECTED_BINARY [TAG ENVIRONMENT EVIDENCE]" >&2
   exit 2
 fi
 
@@ -10,11 +10,37 @@ archive="$1"
 target="$2"
 smoke_root="$3"
 expected_binary="$4"
+qualification=false
 script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 source "$script_dir/lib/native_paths.sh"
 archive="$(canisend_absolute_path "$archive")"
 smoke_root="$(canisend_absolute_path "$smoke_root")"
 expected_binary="$(canisend_absolute_path "$expected_binary")"
+if [[ $# -eq 7 ]]; then
+  qualification=true
+  tag="$5"
+  environment="$6"
+  evidence="$(canisend_absolute_path "$7")"
+  : "${GITHUB_RUN_ID:?GITHUB_RUN_ID is required for qualification evidence}"
+  command -v jq >/dev/null
+  if [[ -e "$evidence" || -L "$evidence" ]]; then
+    echo "release smoke: evidence destination must not exist: $evidence" >&2
+    exit 1
+  fi
+  case "$target:$environment:$(uname -m)" in
+    aarch64-apple-darwin:macos-15:arm64 \
+      | x86_64-apple-darwin:macos-15-intel:x86_64 \
+      | x86_64-unknown-linux-gnu:ubuntu-24.04:x86_64 \
+      | x86_64-unknown-linux-musl:ubuntu-24.04:x86_64 \
+      | x86_64-pc-windows-msvc:windows-2025:x86_64)
+      record="documentation-uninstall-$target"
+      ;;
+    *)
+      echo "release smoke: qualification environment does not match $target/$environment" >&2
+      exit 1
+      ;;
+  esac
+fi
 
 if [[ ! -f "$archive" || -L "$archive" ]]; then
   echo "release smoke: archive must be a regular non-symlink file: $archive" >&2
@@ -122,5 +148,49 @@ rm -rf "$install_root"
 test ! -e "$install_root"
 test -f "$lifecycle_workspace/canisend.toml"
 test -d "$lifecycle_workspace/.canisend"
+
+if [[ "$qualification" == true ]]; then
+  observed_version="$(jq -er 'select(.ok == true) | .data.version' "$smoke_root/version.json")"
+  test "$observed_version" = "${tag#v}"
+  if command -v sha256sum >/dev/null 2>&1; then
+    archive_sha256="$(sha256sum "$archive" | awk '{print $1}')"
+  else
+    archive_sha256="$(shasum -a 256 "$archive" | awk '{print $1}')"
+  fi
+  completed_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+  mkdir -p "$(dirname "$evidence")"
+  jq -n \
+    --arg record "$record" \
+    --arg target "$target" \
+    --arg environment "$environment" \
+    --arg tag "$tag" \
+    --arg archive_sha256 "$archive_sha256" \
+    --arg observed_version "$observed_version" \
+    --arg completed_at "$completed_at" \
+    --argjson github_run_id "$GITHUB_RUN_ID" '
+    {
+      schema: "canisend.documentation-uninstall/v1",
+      record: $record,
+      target: $target,
+      environment: $environment,
+      tag: $tag,
+      archive_sha256: $archive_sha256,
+      github_run_id: $github_run_id,
+      observed_version: $observed_version,
+      checks: {
+        "exact-binary-match": true,
+        "complete-notice-bundle": true,
+        "version-and-doctor": true,
+        "documented-quickstart": true,
+        "host-agent-smoke": true,
+        "isolated-install": true,
+        uninstall: true,
+        "workspace-retained": true,
+        "no-publication": true
+      },
+      completed_at: $completed_at
+    }
+  ' >"$evidence"
+fi
 
 echo "release archive smoke: ok ($target)"

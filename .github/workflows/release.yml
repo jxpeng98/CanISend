@@ -140,22 +140,27 @@ jobs:
         include:
           - target: aarch64-apple-darwin
             runner: macos-15
+            environment: macos-15
             binary: target/aarch64-apple-darwin/release/canisend
             archive: tar.gz
           - target: x86_64-apple-darwin
             runner: macos-15-intel
+            environment: macos-15-intel
             binary: target/x86_64-apple-darwin/release/canisend
             archive: tar.gz
           - target: x86_64-unknown-linux-gnu
             runner: ubuntu-24.04
+            environment: ubuntu-24.04
             binary: target/x86_64-unknown-linux-gnu/release/canisend
             archive: tar.gz
           - target: x86_64-unknown-linux-musl
             runner: ubuntu-24.04
+            environment: ubuntu-24.04
             binary: target/x86_64-unknown-linux-musl/release/canisend
             archive: tar.gz
           - target: x86_64-pc-windows-msvc
             runner: windows-2025
+            environment: windows-2025
             binary: target/x86_64-pc-windows-msvc/release/canisend.exe
             archive: zip
     steps:
@@ -317,7 +322,10 @@ jobs:
             "$archive" \
             "${{ matrix.target }}" \
             "$RUNNER_TEMP/release-smoke-${{ matrix.target }}" \
-            "${{ matrix.binary }}"
+            "${{ matrix.binary }}" \
+            "${{ needs.release-identity.outputs.tag }}" \
+            "${{ matrix.environment }}" \
+            "$RUNNER_TEMP/documentation-uninstall-${{ matrix.target }}.json"
 
       - name: Bind signing evidence to the final archive
         if: needs.release-identity.outputs.stage != 'alpha' && (contains(matrix.target, 'apple-darwin') || matrix.target == 'x86_64-pc-windows-msvc')
@@ -341,6 +349,7 @@ jobs:
           path: |
             ${{ runner.temp }}/release-package/canisend-*.${{ matrix.archive }}
             ${{ runner.temp }}/signing-evidence/*.json
+            ${{ runner.temp }}/documentation-uninstall-${{ matrix.target }}.json
           if-no-files-found: error
           retention-days: 14
 
@@ -382,6 +391,28 @@ jobs:
         uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
         with:
           subject-path: ${{ runner.temp }}/release-assets/*
+
+      - name: Verify exact five-target documentation and uninstall evidence
+        if: needs.release-identity.outputs.stage == 'rc'
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/documentation-uninstall-evidence"
+          find "$RUNNER_TEMP/native-archives" \
+            -type f -name 'documentation-uninstall-*.json' \
+            -exec cp {} "$RUNNER_TEMP/documentation-uninstall-evidence/" \;
+          cargo run -p xtask --locked -- release verify-documentation-evidence \
+            "${{ needs.release-identity.outputs.tag }}" \
+            "$RUNNER_TEMP/release-assets" \
+            "$RUNNER_TEMP/documentation-uninstall-evidence"
+
+      - name: Upload verified RC documentation and uninstall evidence
+        if: needs.release-identity.outputs.stage == 'rc'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: documentation-uninstall-${{ needs.release-identity.outputs.tag }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/documentation-uninstall-evidence
+          if-no-files-found: error
+          retention-days: 90
 
       - name: Upload complete release evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

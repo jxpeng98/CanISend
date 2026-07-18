@@ -1,0 +1,51 @@
+{
+  "schema": "canisend.documentation-uninstall-policy/v1",
+  "release_stage": "rc",
+  "same_run_as_qualified_rc": true,
+  "records": [
+    {
+      "record": "documentation-uninstall-aarch64-apple-darwin",
+      "target": "aarch64-apple-darwin",
+      "environment": "macos-15"
+    },
+    {
+      "record": "documentation-uninstall-x86_64-apple-darwin",
+      "target": "x86_64-apple-darwin",
+      "environment": "macos-15-intel"
+    },
+    {
+      "record": "documentation-uninstall-x86_64-unknown-linux-gnu",
+      "target": "x86_64-unknown-linux-gnu",
+      "environment": "ubuntu-24.04"
+    },
+    {
+      "record": "documentation-uninstall-x86_64-unknown-linux-musl",
+      "target": "x86_64-unknown-linux-musl",
+      "environment": "ubuntu-24.04"
+    },
+    {
+      "record": "documentation-uninstall-x86_64-pc-windows-msvc",
+      "target": "x86_64-pc-windows-msvc",
+      "environment": "windows-2025"
+    }
+  ],
+  "required_checks": [
+    "exact-binary-match",
+    "complete-notice-bundle",
+    "version-and-doctor",
+    "documented-quickstart",
+    "host-agent-smoke",
+    "isolated-install",
+    "uninstall",
+    "workspace-retained",
+    "no-publication"
+  ],
+  "evidence": {
+    "schema": "canisend.documentation-uninstall/v1",
+    "exact_record_set": true,
+    "one_github_run": true,
+    "bind_verified_archive_sha256": true,
+    "all_checks_must_pass": true
+  },
+  "publication_authorized": false
+}

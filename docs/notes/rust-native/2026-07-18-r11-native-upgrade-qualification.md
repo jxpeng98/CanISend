@@ -56,3 +56,5 @@ remain independently qualified Stable gates.
 The archive lifecycle itself cannot run locally without the future public signed Beta and RC pair. The R11.3
 roadmap checkbox therefore remains open. After those releases exist, the manual workflow and independent public
 attestation review provide the only accepted evidence for ledger promotion.
+
+Exact implementation commit `6e4fd41` passed all eight ordinary CI jobs in GitHub Actions run `29642790518`.

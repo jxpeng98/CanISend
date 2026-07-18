@@ -289,7 +289,12 @@
   Codex host-pack regeneration, and uninstall/retention checks on both macOS architectures, Linux GNU/musl, and
   Windows MSVC. A strict five-record verifier and dry-run-first ledger recorder reject incomplete, mixed, invented,
   or noncanonical evidence. R11.3 remains open until the future public signed pair passes the manual workflow and
-  its run/attestations are independently inspected.
+  its run/attestations are independently inspected. Exact commit `6e4fd41` passed all eight ordinary CI jobs in run
+  `29642790518`.
+- 2026-07-18: Added same-run five-target documentation/uninstall evidence to the actual release archive smoke. RC
+  assembly now binds each body-free record to its signed manifest archive; a guarded recorder can mark only the
+  matching recorded RC run as passed. A real local Alpha archive proved evidence production, but it remains
+  `prepared-native`; the R11.3 checkbox awaits a future signed RC matrix.
 
 ## 1. Executive Decision
 
@@ -2010,6 +2015,10 @@ The [native archive upgrade qualification](../../notes/rust-native/2026-07-18-r1
 adds the exact five-target manual workflow, body-free evidence schema, strict cross-record verifier, and guarded
 ledger promotion. It is deliberately nonpublishing and cannot run to qualification before public signed Beta and RC
 assets exist.
+
+The [documentation/uninstall evidence path](../../notes/rust-native/2026-07-18-r11-documentation-uninstall-evidence.md)
+now emits its five canonical records from the release matrix's actual archive smoke and requires their run ID to
+equal the already recorded RC matrix. Alpha preparation remains visible without being misclassified as passed.
 
 The [qualification ledger](../../release/qualification-ledger.md), machine authority
 `release/qualification-ledger.json`, and

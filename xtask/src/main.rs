@@ -38,6 +38,9 @@ const PACKAGE_MANAGER_QUALIFICATION_SCHEMA: &str = "canisend.package-manager-qua
 const UPGRADE_QUALIFICATION_POLICY_SCHEMA: &str = "canisend.upgrade-qualification-policy/v1";
 const UPGRADE_QUALIFICATION_SCHEMA: &str = "canisend.upgrade-qualification/v1";
 const UPGRADE_QUALIFICATION_PLAN_SCHEMA: &str = "canisend.upgrade-qualification-plan/v1";
+const DOCUMENTATION_UNINSTALL_POLICY_SCHEMA: &str = "canisend.documentation-uninstall-policy/v1";
+const DOCUMENTATION_UNINSTALL_SCHEMA: &str = "canisend.documentation-uninstall/v1";
+const DOCUMENTATION_UNINSTALL_PLAN_SCHEMA: &str = "canisend.documentation-uninstall-plan/v1";
 const CODE_SIGNING_EVIDENCE_SCHEMA: &str = "canisend.code-signing-evidence/v1";
 const FUZZ_TOOLCHAIN: &str = "nightly-2026-07-01";
 const CARGO_FUZZ_VERSION: &str = "0.13.2";
@@ -75,6 +78,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
             check_channel_candidates()?;
             check_package_manager_qualification_policy()?;
             check_upgrade_qualification_policy()?;
+            check_documentation_uninstall_policy()?;
             check_signing_policy()?;
             check_stage_transition_policy()?;
             check_support_policy()?;
@@ -177,6 +181,38 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
             verify_upgrade_qualification_evidence(from_tag, to_tag, Path::new(evidence))
                 .map(|_| ())
         }
+        [area, command, tag, assets, evidence]
+            if area == "release" && command == "verify-documentation-evidence" =>
+        {
+            verify_documentation_uninstall_evidence(
+                tag,
+                Path::new(assets),
+                Path::new(evidence),
+            )
+            .map(|_| ())
+        }
+        [area, command, tag, assets, evidence]
+            if area == "release" && command == "record-documentation-qualification" =>
+        {
+            record_documentation_uninstall_qualification(
+                tag,
+                Path::new(assets),
+                Path::new(evidence),
+                false,
+            )
+        }
+        [area, command, tag, assets, evidence, write]
+            if area == "release"
+                && command == "record-documentation-qualification"
+                && write == "--write" =>
+        {
+            record_documentation_uninstall_qualification(
+                tag,
+                Path::new(assets),
+                Path::new(evidence),
+                true,
+            )
+        }
         [area, command, from_tag, to_tag, evidence]
             if area == "release" && command == "record-upgrade-qualification" =>
         {
@@ -206,7 +242,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
         }
         _ => Err(
             "usage: cargo run -p xtask -- schemas <check|write> | <resources|docs> check | \
-             release <check|freeze-candidate|validate-tag TAG|verify-beta-readiness FILE|prepare-stage TAG [--write]|activate-feature-freeze COMMIT [--write]|record-beta-qualification TAG RUN_ID ASSETS [--write]|record-rc-qualification TAG RUN_ID ASSETS [--write]|record-upgrade-qualification FROM_TAG TO_TAG EVIDENCE [--write]|sbom OUTPUT|assemble TAG COMMIT ARTIFACTS OUTPUT|verify TAG DIRECTORY|channels TAG ASSETS OUTPUT|bind-signing-evidence TAG TARGET EVIDENCE BINARY ARCHIVE|verify-package-candidates FROM_TAG FROM_ASSETS TO_TAG TO_ASSETS|verify-package-evidence FROM_TAG TO_TAG DIRECTORY|verify-upgrade-evidence FROM_TAG TO_TAG DIRECTORY>"
+             release <check|freeze-candidate|validate-tag TAG|verify-beta-readiness FILE|prepare-stage TAG [--write]|activate-feature-freeze COMMIT [--write]|record-beta-qualification TAG RUN_ID ASSETS [--write]|record-rc-qualification TAG RUN_ID ASSETS [--write]|record-upgrade-qualification FROM_TAG TO_TAG EVIDENCE [--write]|record-documentation-qualification TAG ASSETS EVIDENCE [--write]|sbom OUTPUT|assemble TAG COMMIT ARTIFACTS OUTPUT|verify TAG DIRECTORY|channels TAG ASSETS OUTPUT|bind-signing-evidence TAG TARGET EVIDENCE BINARY ARCHIVE|verify-package-candidates FROM_TAG FROM_ASSETS TO_TAG TO_ASSETS|verify-package-evidence FROM_TAG TO_TAG DIRECTORY|verify-upgrade-evidence FROM_TAG TO_TAG DIRECTORY|verify-documentation-evidence TAG ASSETS EVIDENCE>"
                 .to_owned(),
         ),
     }
@@ -520,6 +556,12 @@ struct UpgradeQualificationSummary {
     run_id: u64,
     from_manifest_sha256: String,
     to_manifest_sha256: String,
+    records: usize,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct DocumentationUninstallSummary {
+    run_id: u64,
     records: usize,
 }
 
@@ -955,6 +997,124 @@ fn upgrade_qualified_ledger(
             )
         ],
         "rc_tag": to_tag,
+        "status": "passed"
+    });
+    Ok(qualified)
+}
+
+fn record_documentation_uninstall_qualification(
+    tag: &str,
+    assets: &Path,
+    evidence: &Path,
+    write: bool,
+) -> Result<(), String> {
+    let root = repository_root();
+    if write {
+        require_clean_worktree(&root, "documentation/uninstall qualification")?;
+    }
+    let (version, stage) = parse_release_tag(tag)?;
+    if stage != ReleaseStage::ReleaseCandidate {
+        return Err("documentation/uninstall qualification requires an RC tag".to_owned());
+    }
+    let workspace_body = fs::read_to_string(root.join("Cargo.toml"))
+        .map_err(|error| format!("could not read workspace manifest: {error}"))?;
+    let workspace: toml::Value = workspace_body
+        .parse()
+        .map_err(|error| format!("workspace manifest is invalid TOML: {error}"))?;
+    if workspace["workspace"]["package"]["version"].as_str() != Some(version.to_string().as_str()) {
+        return Err(
+            "documentation/uninstall tag must match the current workspace version".to_owned(),
+        );
+    }
+    let summary = verify_documentation_uninstall_evidence(tag, assets, evidence)?;
+    let ledger_path = root.join("release/qualification-ledger.json");
+    let before = fs::read(&ledger_path)
+        .map_err(|error| format!("could not read qualification ledger: {error}"))?;
+    let ledger: Value = serde_json::from_slice(&before)
+        .map_err(|error| format!("qualification ledger is invalid JSON: {error}"))?;
+    let qualified = documentation_uninstall_qualified_ledger(&ledger, tag, summary)?;
+    let after = pretty_json_bytes(&qualified)?;
+    let report = json!({
+        "schema": DOCUMENTATION_UNINSTALL_PLAN_SCHEMA,
+        "mode": if write { "write" } else { "dry-run" },
+        "writes_performed": write,
+        "tag": tag,
+        "github_run_id": summary.run_id,
+        "records": summary.records,
+        "ledger": {
+            "path": "release/qualification-ledger.json",
+            "before_sha256": sha256(&before),
+            "after_sha256": sha256(&after)
+        },
+        "next": "independently inspect the RC run and public asset attestations, then commit the qualification ledger"
+    });
+    if write {
+        fs::write(&ledger_path, after)
+            .map_err(|error| format!("could not write {}: {error}", ledger_path.display()))?;
+    }
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&report).map_err(|error| {
+            format!("could not serialize documentation/uninstall qualification plan: {error}")
+        })?
+    );
+    Ok(())
+}
+
+fn documentation_uninstall_qualified_ledger(
+    ledger: &Value,
+    tag: &str,
+    summary: DocumentationUninstallSummary,
+) -> Result<Value, String> {
+    let (_, stage) = parse_release_tag(tag)?;
+    validate_documentation_uninstall_progress(&ledger["documentation_uninstall"])?;
+    if stage != ReleaseStage::ReleaseCandidate
+        || summary.run_id == 0
+        || summary.records != 5
+        || ledger["schema"] != RELEASE_QUALIFICATION_SCHEMA
+        || ledger["workspace_stage"] != "rc"
+        || ledger["status"] != "rc-qualifying"
+        || ledger["beta"]["status"] != "qualified"
+        || ledger["feature_freeze"]["status"] != "frozen"
+        || ledger["stable_authorized"] != false
+        || ledger["documentation_uninstall"]["status"] == "passed"
+    {
+        return Err(
+            "qualification ledger is not eligible for RC documentation/uninstall evidence"
+                .to_owned(),
+        );
+    }
+    let candidates = ledger["release_candidates"]
+        .as_array()
+        .ok_or_else(|| "qualification ledger release_candidates must be an array".to_owned())?;
+    let matching = candidates
+        .iter()
+        .find(|candidate| candidate["tag"] == tag && candidate["status"] == "success");
+    let Some(candidate) = matching else {
+        return Err(
+            "documentation/uninstall qualification tag has no recorded RC matrix".to_owned(),
+        );
+    };
+    let (_, _, recorded_run) =
+        validate_qualification_release(candidate, ReleaseStage::ReleaseCandidate, "RC")?;
+    if recorded_run != summary.run_id {
+        return Err(
+            "documentation/uninstall evidence must come from the same recorded RC matrix run"
+                .to_owned(),
+        );
+    }
+    let mut qualified = ledger.clone();
+    qualified["documentation_uninstall"] = json!({
+        "evidence": [
+            format!(
+                "native RC run {} passed exact archive documentation and uninstall smoke on five targets",
+                summary.run_id
+            ),
+            format!(
+                "{tag} retained external workspaces after installed binary and notice removal"
+            )
+        ],
+        "native_matrix_run": summary.run_id,
         "status": "passed"
     });
     Ok(qualified)
@@ -3797,6 +3957,123 @@ fn check_upgrade_qualification_policy() -> Result<(), String> {
     Ok(())
 }
 
+fn check_documentation_uninstall_policy() -> Result<(), String> {
+    let root = repository_root();
+    let path = root.join("release/documentation-uninstall-policy.json");
+    let actual: Value = serde_json::from_slice(&fs::read(&path).map_err(|error| {
+        format!(
+            "documentation/uninstall policy is missing at {}: {error}",
+            path.display()
+        )
+    })?)
+    .map_err(|error| format!("documentation/uninstall policy is invalid JSON: {error}"))?;
+    let required_checks = [
+        "exact-binary-match",
+        "complete-notice-bundle",
+        "version-and-doctor",
+        "documented-quickstart",
+        "host-agent-smoke",
+        "isolated-install",
+        "uninstall",
+        "workspace-retained",
+        "no-publication",
+    ];
+    let expected = json!({
+        "schema": DOCUMENTATION_UNINSTALL_POLICY_SCHEMA,
+        "release_stage": "rc",
+        "same_run_as_qualified_rc": true,
+        "records": [
+            {
+                "record": "documentation-uninstall-aarch64-apple-darwin",
+                "target": "aarch64-apple-darwin",
+                "environment": "macos-15"
+            },
+            {
+                "record": "documentation-uninstall-x86_64-apple-darwin",
+                "target": "x86_64-apple-darwin",
+                "environment": "macos-15-intel"
+            },
+            {
+                "record": "documentation-uninstall-x86_64-unknown-linux-gnu",
+                "target": "x86_64-unknown-linux-gnu",
+                "environment": "ubuntu-24.04"
+            },
+            {
+                "record": "documentation-uninstall-x86_64-unknown-linux-musl",
+                "target": "x86_64-unknown-linux-musl",
+                "environment": "ubuntu-24.04"
+            },
+            {
+                "record": "documentation-uninstall-x86_64-pc-windows-msvc",
+                "target": "x86_64-pc-windows-msvc",
+                "environment": "windows-2025"
+            }
+        ],
+        "required_checks": required_checks,
+        "evidence": {
+            "schema": DOCUMENTATION_UNINSTALL_SCHEMA,
+            "exact_record_set": true,
+            "one_github_run": true,
+            "bind_verified_archive_sha256": true,
+            "all_checks_must_pass": true
+        },
+        "publication_authorized": false
+    });
+    if actual != expected {
+        return Err(
+            "documentation/uninstall policy differs from the native release contract".to_owned(),
+        );
+    }
+    let documentation_path = root.join("docs/release/documentation-uninstall-qualification.md");
+    let documentation = fs::read_to_string(&documentation_path).map_err(|error| {
+        format!("documentation/uninstall qualification guide is missing: {error}")
+    })?;
+    check_local_markdown_links(&root, &documentation_path, &documentation)?;
+    for required in [
+        "verify-documentation-evidence",
+        "record-documentation-qualification",
+        "same RC run",
+        "--write",
+    ] {
+        if !documentation.contains(required) {
+            return Err(format!(
+                "documentation/uninstall qualification guide is missing `{required}`"
+            ));
+        }
+    }
+    let workflow = fs::read_to_string(root.join(".github/workflows/release.yml"))
+        .map_err(|error| format!("release workflow is missing: {error}"))?;
+    for required in [
+        "documentation-uninstall-${{ matrix.target }}.json",
+        "verify-documentation-evidence",
+        "documentation-uninstall-evidence",
+        "needs.release-identity.outputs.stage == 'rc'",
+    ] {
+        if !workflow.contains(required) {
+            return Err(format!(
+                "release workflow is missing documentation/uninstall gate `{required}`"
+            ));
+        }
+    }
+    let script = fs::read_to_string(root.join("scripts/smoke_release_archive.sh"))
+        .map_err(|error| format!("release archive smoke is missing: {error}"))?;
+    for required in [
+        "canisend.documentation-uninstall/v1",
+        "exact-binary-match",
+        "complete-notice-bundle",
+        "workspace-retained",
+        "no-publication",
+    ] {
+        if !script.contains(required) {
+            return Err(format!(
+                "release archive smoke is missing evidence field `{required}`"
+            ));
+        }
+    }
+    println!("documentation/uninstall policy: ok (5 same-RC-run records)");
+    Ok(())
+}
+
 fn verify_package_manager_evidence(
     from_tag: &str,
     to_tag: &str,
@@ -4144,6 +4421,194 @@ fn validate_upgrade_qualification_record(
         ));
     }
     Ok((run_id, from_manifest, to_manifest, from_archive, to_archive))
+}
+
+fn verify_documentation_uninstall_evidence(
+    tag: &str,
+    assets: &Path,
+    directory: &Path,
+) -> Result<DocumentationUninstallSummary, String> {
+    let (version, stage) = parse_release_tag(tag)?;
+    if stage != ReleaseStage::ReleaseCandidate {
+        return Err("documentation/uninstall evidence requires an RC tag".to_owned());
+    }
+    verify_release(tag, assets)?;
+    let manifest_path = assets.join(format!("canisend-{version}-manifest.json"));
+    let manifest: Value = serde_json::from_slice(
+        &fs::read(&manifest_path)
+            .map_err(|error| format!("could not read verified RC release manifest: {error}"))?,
+    )
+    .map_err(|error| format!("verified RC release manifest is invalid JSON: {error}"))?;
+    let artifacts = manifest["artifacts"]
+        .as_array()
+        .ok_or_else(|| "verified RC release manifest artifacts are missing".to_owned())?;
+    let expected = BTreeMap::from([
+        (
+            "documentation-uninstall-aarch64-apple-darwin.json",
+            (
+                "documentation-uninstall-aarch64-apple-darwin",
+                "aarch64-apple-darwin",
+                "macos-15",
+            ),
+        ),
+        (
+            "documentation-uninstall-x86_64-apple-darwin.json",
+            (
+                "documentation-uninstall-x86_64-apple-darwin",
+                "x86_64-apple-darwin",
+                "macos-15-intel",
+            ),
+        ),
+        (
+            "documentation-uninstall-x86_64-unknown-linux-gnu.json",
+            (
+                "documentation-uninstall-x86_64-unknown-linux-gnu",
+                "x86_64-unknown-linux-gnu",
+                "ubuntu-24.04",
+            ),
+        ),
+        (
+            "documentation-uninstall-x86_64-unknown-linux-musl.json",
+            (
+                "documentation-uninstall-x86_64-unknown-linux-musl",
+                "x86_64-unknown-linux-musl",
+                "ubuntu-24.04",
+            ),
+        ),
+        (
+            "documentation-uninstall-x86_64-pc-windows-msvc.json",
+            (
+                "documentation-uninstall-x86_64-pc-windows-msvc",
+                "x86_64-pc-windows-msvc",
+                "windows-2025",
+            ),
+        ),
+    ]);
+    let mut actual_paths = BTreeSet::new();
+    collect_relative_files(directory, directory, &mut actual_paths)?;
+    if actual_paths != expected.keys().map(|name| (*name).to_owned()).collect() {
+        return Err(format!(
+            "documentation/uninstall evidence file set differs: expected {:?}, found {actual_paths:?}",
+            expected.keys().collect::<Vec<_>>()
+        ));
+    }
+    let mut run_ids = BTreeSet::new();
+    let mut archive_digests = BTreeSet::new();
+    for (file, (record, target, environment)) in &expected {
+        let manifest_artifact = artifacts
+            .iter()
+            .find(|artifact| artifact["target"] == *target)
+            .ok_or_else(|| format!("verified RC manifest has no `{target}` archive"))?;
+        let expected_archive_sha =
+            required_string(manifest_artifact, "sha256", "verified RC archive")?;
+        let path = directory.join(file);
+        reject_symlink(&path)?;
+        let value: Value = serde_json::from_slice(&fs::read(&path).map_err(|error| {
+            format!(
+                "could not read documentation/uninstall evidence {}: {error}",
+                path.display()
+            )
+        })?)
+        .map_err(|error| {
+            format!("documentation/uninstall evidence `{file}` is invalid JSON: {error}")
+        })?;
+        let (run, archive_digest) = validate_documentation_uninstall_record(
+            &value,
+            record,
+            target,
+            environment,
+            tag,
+            expected_archive_sha,
+        )?;
+        run_ids.insert(run);
+        archive_digests.insert(archive_digest);
+    }
+    if run_ids.len() != 1 || archive_digests.len() != expected.len() {
+        return Err(
+            "documentation/uninstall evidence must bind one run and five distinct verified archives"
+                .to_owned(),
+        );
+    }
+    let summary = DocumentationUninstallSummary {
+        run_id: *run_ids.first().expect("one checked run ID"),
+        records: expected.len(),
+    };
+    println!(
+        "documentation/uninstall evidence: ok ({tag}, run {}, {} targets)",
+        summary.run_id, summary.records
+    );
+    Ok(summary)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_documentation_uninstall_record(
+    value: &Value,
+    expected_record: &str,
+    expected_target: &str,
+    expected_environment: &str,
+    tag: &str,
+    expected_archive_sha: &str,
+) -> Result<(u64, String), String> {
+    let context = format!("documentation/uninstall evidence `{expected_record}`");
+    validate_lower_hex(
+        &format!("{context} verified archive digest"),
+        expected_archive_sha,
+        64,
+    )?;
+    let archive_sha = required_string(value, "archive_sha256", &context)?.to_owned();
+    validate_lower_hex(&format!("{context} archive digest"), &archive_sha, 64)?;
+    if archive_sha != expected_archive_sha {
+        return Err(format!(
+            "{context} archive digest differs from the verified RC manifest"
+        ));
+    }
+    let run_id = value["github_run_id"]
+        .as_u64()
+        .filter(|run| *run > 0)
+        .ok_or_else(|| format!("{context} has no positive GitHub run ID"))?;
+    let completed_at = required_string(value, "completed_at", &context)?;
+    if !completed_at.ends_with('Z') || OffsetDateTime::parse(completed_at, &Rfc3339).is_err() {
+        return Err(format!("{context} completion timestamp must be valid UTC"));
+    }
+    let checks = value["checks"]
+        .as_object()
+        .ok_or_else(|| format!("{context} checks are missing"))?;
+    let required_checks = [
+        "exact-binary-match",
+        "complete-notice-bundle",
+        "version-and-doctor",
+        "documented-quickstart",
+        "host-agent-smoke",
+        "isolated-install",
+        "uninstall",
+        "workspace-retained",
+        "no-publication",
+    ];
+    if checks.len() != required_checks.len()
+        || required_checks
+            .iter()
+            .any(|check| checks.get(*check) != Some(&Value::Bool(true)))
+    {
+        return Err(format!("{context} does not pass every required check"));
+    }
+    let expected = json!({
+        "schema": DOCUMENTATION_UNINSTALL_SCHEMA,
+        "record": expected_record,
+        "target": expected_target,
+        "environment": expected_environment,
+        "tag": tag,
+        "archive_sha256": archive_sha,
+        "github_run_id": run_id,
+        "observed_version": tag.trim_start_matches('v'),
+        "checks": checks,
+        "completed_at": completed_at
+    });
+    if *value != expected {
+        return Err(format!(
+            "{context} contains unknown, noncanonical, or mismatched fields"
+        ));
+    }
+    Ok((run_id, archive_sha))
 }
 
 fn verify_package_candidate_pair(
@@ -5530,6 +5995,36 @@ mod tests {
         })
     }
 
+    fn sample_documentation_uninstall_evidence(
+        record: &str,
+        target: &str,
+        environment: &str,
+        archive_sha256: &str,
+    ) -> Value {
+        json!({
+            "schema": DOCUMENTATION_UNINSTALL_SCHEMA,
+            "record": record,
+            "target": target,
+            "environment": environment,
+            "tag": "v0.7.0-rc.1",
+            "archive_sha256": archive_sha256,
+            "github_run_id": 29_660_000_001_u64,
+            "observed_version": "0.7.0-rc.1",
+            "checks": {
+                "exact-binary-match": true,
+                "complete-notice-bundle": true,
+                "version-and-doctor": true,
+                "documented-quickstart": true,
+                "host-agent-smoke": true,
+                "isolated-install": true,
+                "uninstall": true,
+                "workspace-retained": true,
+                "no-publication": true
+            },
+            "completed_at": "2026-07-18T13:00:00Z"
+        })
+    }
+
     fn sample_apple_signing_evidence() -> Value {
         json!({
             "schema": CODE_SIGNING_EVIDENCE_SCHEMA,
@@ -6412,6 +6907,103 @@ mod tests {
 
         assert!(
             upgrade_qualified_ledger(&ledger, "v0.7.0-beta.1", "v0.7.0-rc.2", &summary,).is_err()
+        );
+    }
+
+    #[test]
+    fn documentation_uninstall_policy_is_same_rc_run_and_five_target() {
+        check_documentation_uninstall_policy().expect("documentation/uninstall policy");
+    }
+
+    #[test]
+    fn documentation_uninstall_record_binds_manifest_archive_and_checks() {
+        let digest = "d".repeat(64);
+        let mut evidence = sample_documentation_uninstall_evidence(
+            "documentation-uninstall-aarch64-apple-darwin",
+            "aarch64-apple-darwin",
+            "macos-15",
+            &digest,
+        );
+        validate_documentation_uninstall_record(
+            &evidence,
+            "documentation-uninstall-aarch64-apple-darwin",
+            "aarch64-apple-darwin",
+            "macos-15",
+            "v0.7.0-rc.1",
+            &digest,
+        )
+        .expect("canonical documentation/uninstall record");
+
+        evidence["checks"]["workspace-retained"] = Value::Bool(false);
+        assert!(
+            validate_documentation_uninstall_record(
+                &evidence,
+                "documentation-uninstall-aarch64-apple-darwin",
+                "aarch64-apple-darwin",
+                "macos-15",
+                "v0.7.0-rc.1",
+                &digest,
+            )
+            .is_err()
+        );
+        let wrong = sample_documentation_uninstall_evidence(
+            "documentation-uninstall-aarch64-apple-darwin",
+            "aarch64-apple-darwin",
+            "macos-15",
+            &digest,
+        );
+        assert!(
+            validate_documentation_uninstall_record(
+                &wrong,
+                "documentation-uninstall-aarch64-apple-darwin",
+                "aarch64-apple-darwin",
+                "macos-15",
+                "v0.7.0-rc.1",
+                &"e".repeat(64),
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn documentation_uninstall_promotion_requires_same_recorded_rc_run() {
+        let ledger = json!({
+            "schema": RELEASE_QUALIFICATION_SCHEMA,
+            "workspace_stage": "rc",
+            "status": "rc-qualifying",
+            "beta": {"status": "qualified"},
+            "feature_freeze": {"status": "frozen"},
+            "release_candidates": [{
+                "tag": "v0.7.0-rc.1",
+                "source_commit": "c".repeat(40),
+                "signed_matrix_run": 29_660_000_001_u64,
+                "status": "success"
+            }],
+            "documentation_uninstall": {
+                "evidence": ["five-target Alpha preparation"],
+                "native_matrix_run": 29_637_471_699_u64,
+                "status": "prepared-native"
+            },
+            "stable_authorized": false
+        });
+        let summary = DocumentationUninstallSummary {
+            run_id: 29_660_000_001,
+            records: 5,
+        };
+        let qualified = documentation_uninstall_qualified_ledger(&ledger, "v0.7.0-rc.1", summary)
+            .expect("qualify same RC run documentation evidence");
+        assert_eq!(qualified["documentation_uninstall"]["status"], "passed");
+        assert_eq!(
+            qualified["documentation_uninstall"]["native_matrix_run"],
+            summary.run_id
+        );
+
+        let wrong_run = DocumentationUninstallSummary {
+            run_id: summary.run_id + 1,
+            records: 5,
+        };
+        assert!(
+            documentation_uninstall_qualified_ledger(&ledger, "v0.7.0-rc.1", wrong_run,).is_err()
         );
     }
 

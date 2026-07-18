@@ -67,6 +67,22 @@ qualified, the freeze to be active, and that exact RC tag to already have a succ
 nothing without `--write` from a clean worktree and updates only `upgrade_matrix`; it cannot claim package-manager or
 five-target documentation/uninstall qualification.
 
+## Recording RC documentation and uninstall evidence
+
+The native release workflow emits a body-free record only after each target's extracted-archive quick-start,
+host-agent, isolated install, uninstall, and workspace-retention smoke passes. After one signed RC run is recorded in
+`release_candidates`, download that run's complete release assets and five-record evidence artifact, independently
+inspect the public run and attestations, then preview:
+
+```console
+cargo run -p xtask --locked -- release record-documentation-qualification \
+  v0.7.0-rc.1 DOWNLOADED_ASSET_DIRECTORY DOWNLOADED_EVIDENCE_DIRECTORY
+```
+
+The command re-verifies the complete signed release, binds every record to its manifest archive digest, and requires
+all five evidence run IDs to equal the signed matrix run already recorded for that RC tag. It changes only
+`documentation_uninstall`, only with `--write`, and cannot reuse Alpha preparation or a different RC run.
+
 ## Stable evidence requirements
 
 Stable requires all of these in the committed ledger:
