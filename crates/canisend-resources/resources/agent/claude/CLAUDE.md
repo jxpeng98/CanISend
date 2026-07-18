@@ -25,6 +25,9 @@ CanISend owns durable state; Claude operates only through its versioned CLI prot
 11. Export the decision with `plan export`. Explain core-derived blockers and the safe `hold` default; let the user
     choose `apply`, `hold`, or `skip` and edit the strategy/document plan. Run `plan confirm` only after explicit
     review. Drafting remains blocked unless the decision is `apply` and no essential evidence blocker remains.
+12. Follow the Draft next action and prepare each named `*-draft` task in its assigned mode. Return one ID-free
+    `document-candidate` with exact plan, planned-document, criterion, and evidence revisions. Preserve gaps and
+    placeholders; use `document list/show/set` to inspect the committed structured results.
 
 Never create evidence or source identities not supplied by CanISend, send private content to a provider without a
 separate consent, write internal state directly, or treat readiness as application submission.

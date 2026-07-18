@@ -627,6 +627,31 @@ impl<'a> TaskService<'a> {
                 enum_name(mode)?
             )));
         }
+        let projected: Option<i64> = transaction
+            .query_row(
+                "SELECT 1 FROM application_plan_documents
+                 WHERE workflow_run_id = ?1
+                   AND plan_artifact_id = ?2 AND plan_artifact_revision = ?3
+                   AND planned_document_id = ?4 AND planned_document_revision = ?5
+                   AND kind = ?6 AND requirement != 'omitted' AND executor = ?7",
+                params![
+                    &run_id,
+                    plan_reference.id.as_str(),
+                    to_i64(plan_reference.revision.get())?,
+                    planned.id.as_str(),
+                    to_i64(planned.revision.get())?,
+                    document_kind_name(kind)?,
+                    enum_name(mode)?
+                ],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if projected.is_none() {
+            return Err(StoreError::TaskConflict(
+                "application plan predates structured drafting; reconfirm it before preparing documents"
+                    .to_owned(),
+            ));
+        }
         let existing: Option<i64> = transaction
             .query_row(
                 "SELECT 1 FROM document_heads AS head
@@ -650,6 +675,33 @@ impl<'a> TaskService<'a> {
             return Err(StoreError::TaskConflict(format!(
                 "{} is already current for this plan",
                 document_kind_name(kind)?
+            )));
+        }
+        let next_kind: Option<String> = transaction
+            .query_row(
+                "SELECT planned.kind
+                 FROM application_plan_documents AS planned
+                 LEFT JOIN document_heads AS document
+                   ON document.workflow_run_id = planned.workflow_run_id
+                  AND document.planned_document_id = planned.planned_document_id
+                  AND document.planned_document_revision = planned.planned_document_revision
+                 WHERE planned.workflow_run_id = ?1
+                   AND planned.plan_artifact_id = ?2 AND planned.plan_artifact_revision = ?3
+                   AND planned.requirement != 'omitted' AND document.artifact_id IS NULL
+                 ORDER BY planned.position ASC LIMIT 1",
+                params![
+                    &run_id,
+                    plan_reference.id.as_str(),
+                    to_i64(plan_reference.revision.get())?
+                ],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if next_kind.as_deref() != Some(document_kind_name(kind)?.as_str()) {
+            return Err(StoreError::TaskConflict(format!(
+                "{} is not the next planned draft; prepare {} first",
+                document_kind_name(kind)?,
+                next_kind.unwrap_or_else(|| "no remaining document".to_owned())
             )));
         }
         let matches_reference = plan.matches_artifact.clone();

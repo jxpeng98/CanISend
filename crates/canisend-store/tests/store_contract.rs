@@ -6,17 +6,17 @@ use std::{
 };
 
 use canisend_contracts::{
-    ActorKind, ApplicationDecision, ArtifactKind, ArtifactReference, EntityId, ExecutionMode,
-    ExpectedInputRevision, PrivacyClassification, ProfileSourceKind, Revision, SafeRelativePath,
-    Sha256Digest, SourceKind, StageExecutionStatus, TaskCompletionRequest, TaskStatus,
-    WorkflowStage,
+    ActorKind, ApplicationDecision, ArtifactKind, ArtifactReference, DocumentKind, EntityId,
+    ExecutionMode, ExpectedInputRevision, PlannedDocumentRecord, PrivacyClassification,
+    ProfileSourceKind, Revision, SafeRelativePath, Sha256Digest, SourceKind, StageExecutionStatus,
+    TaskCompletionRequest, TaskStatus, WorkflowStage,
 };
 use canisend_store::{
-    ArtifactService, CriteriaService, DEFAULT_MAX_BLOB_BYTES, EvidenceService, JobService,
-    MatchService, NewProfileSource, NewSource, PlanService, ProfileService, StoreError,
+    ArtifactService, CriteriaService, DEFAULT_MAX_BLOB_BYTES, DocumentService, EvidenceService,
+    JobService, MatchService, NewProfileSource, NewSource, PlanService, ProfileService, StoreError,
     TaskService, WorkflowService, Workspace, WorkspacePaths, verify_backup,
 };
-use serde_json::json;
+use serde_json::{Value, json};
 
 static NEXT: AtomicU64 = AtomicU64::new(1);
 
@@ -644,6 +644,12 @@ fn evidence_and_match_tasks_enforce_stable_revision_bound_identities() {
         .template(&job.id)
         .expect("plan revision template");
     apply_candidate.decision = ApplicationDecision::Apply;
+    apply_candidate
+        .documents
+        .iter_mut()
+        .find(|document| document.kind == DocumentKind::ResearchStatement)
+        .expect("research statement plan")
+        .executor = Some(ExecutionMode::ConfiguredProvider);
     let apply_artifact = PlanService::new(&mut workspace.database, &workspace.blobs)
         .confirm(
             &job.id,
@@ -665,6 +671,103 @@ fn evidence_and_match_tasks_enforce_stable_revision_bound_identities() {
         .expect("workflow after apply decision");
     assert_eq!(
         workflow_stage_status(&status, WorkflowStage::Draft),
+        StageExecutionStatus::Ready
+    );
+    assert!(status.next_actions.iter().any(|action| {
+        action
+            .action
+            .contains("--operation cover-letter-draft --mode host-agent")
+    }));
+
+    let planned_documents = apply_plan
+        .documents
+        .iter()
+        .filter(|document| document.requirement != canisend_contracts::DocumentRequirement::Omitted)
+        .cloned()
+        .collect::<Vec<_>>();
+    for (index, planned) in planned_documents.iter().enumerate() {
+        let mode = planned.executor.expect("planned executor");
+        let descriptor = TaskService::new(&mut workspace.database, &workspace.blobs)
+            .prepare_document_draft(&job.id, planned.kind, mode)
+            .expect("document draft task");
+        assert_eq!(descriptor.input_artifacts.len(), 5);
+        assert_eq!(
+            descriptor.required_consents.len(),
+            if mode == ExecutionMode::ConfiguredProvider {
+                2
+            } else {
+                1
+            }
+        );
+        let candidate = document_candidate(
+            &job.id,
+            &apply_artifact,
+            planned,
+            &criteria.criteria[0].id,
+            criteria.criteria[0].revision,
+            &revised.items[0].id,
+            revised.items[0].revision,
+        );
+        if index == 0 {
+            let mut invented_id = candidate.clone();
+            invented_id["sections"][0]["id"] = json!("019f2f55-7c00-7000-8000-000000000901");
+            let invalid_request = document_request(&descriptor, invented_id);
+            assert!(matches!(
+                TaskService::new(&mut workspace.database, &workspace.blobs)
+                    .complete(&invalid_request),
+                Err(StoreError::CandidateStructural(_))
+            ));
+
+            let mut unknown_evidence = candidate.clone();
+            unknown_evidence["sections"][1]["claims"][0]["citations"][0]["target"]["evidence"]["id"] =
+                json!("019f2f55-7c00-7000-8000-000000000902");
+            let invalid_request = document_request(&descriptor, unknown_evidence);
+            assert!(matches!(
+                TaskService::new(&mut workspace.database, &workspace.blobs)
+                    .complete(&invalid_request),
+                Err(StoreError::CandidateSemantic(_))
+            ));
+        }
+        let request = document_request(&descriptor, candidate);
+        let committed = TaskService::new(&mut workspace.database, &workspace.blobs)
+            .complete(&request)
+            .expect("structured document");
+        assert_eq!(
+            committed.artifact.kind,
+            document_artifact_kind(planned.kind)
+        );
+        let current = DocumentService::new(&workspace.database, &workspace.blobs)
+            .current(&job.id, planned.kind)
+            .expect("current document");
+        assert_eq!(current.generation.task_id, descriptor.id);
+        assert_eq!(current.generation.execution_mode, mode);
+        assert_eq!(current.planned_document.id, planned.id);
+        let status = WorkflowService::new(&mut workspace.database)
+            .status(&job.id)
+            .expect("workflow during drafting");
+        assert_eq!(
+            workflow_stage_status(&status, WorkflowStage::Draft),
+            if index + 1 == planned_documents.len() {
+                StageExecutionStatus::Complete
+            } else {
+                StageExecutionStatus::Ready
+            }
+        );
+    }
+    let documents = DocumentService::new(&workspace.database, &workspace.blobs)
+        .list(&job.id)
+        .expect("current documents");
+    assert_eq!(documents.len(), planned_documents.len());
+    let document_set = DocumentService::new(&workspace.database, &workspace.blobs)
+        .set(&job.id)
+        .expect("complete document set");
+    assert_eq!(document_set.plan_artifact, apply_artifact);
+    assert_eq!(document_set.documents.len(), planned_documents.len());
+    let status = WorkflowService::new(&mut workspace.database)
+        .status(&job.id)
+        .expect("workflow after drafting");
+    assert_eq!(
+        workflow_stage_status(&status, WorkflowStage::Review),
         StageExecutionStatus::Ready
     );
 
@@ -690,6 +793,16 @@ fn evidence_and_match_tasks_enforce_stable_revision_bound_identities() {
     ));
     assert!(matches!(
         PlanService::new(&mut workspace.database, &workspace.blobs).current(&job.id),
+        Err(StoreError::WorkflowConflict(_))
+    ));
+    assert!(
+        DocumentService::new(&workspace.database, &workspace.blobs)
+            .list(&job.id)
+            .expect("stale documents are not current")
+            .is_empty()
+    );
+    assert!(matches!(
+        DocumentService::new(&workspace.database, &workspace.blobs).set(&job.id),
         Err(StoreError::WorkflowConflict(_))
     ));
     let status = WorkflowService::new(&mut workspace.database)
@@ -1103,6 +1216,139 @@ fn workflow_kernel_enforces_graph_modes_and_scoped_rerun() {
         workflow_stage_status(&reconciled, WorkflowStage::Parse),
         StageExecutionStatus::Ready
     );
+}
+
+fn document_candidate(
+    job_id: &EntityId,
+    plan: &ArtifactReference,
+    planned: &PlannedDocumentRecord,
+    criterion_id: &EntityId,
+    criterion_revision: Revision,
+    evidence_id: &EntityId,
+    evidence_revision: Revision,
+) -> Value {
+    let applicant_claim = || {
+        json!({
+            "text": "I hold a reviewed doctorate in economics.",
+            "classification": "applicant-fact",
+            "citations": [{
+                "target": {
+                    "kind": "evidence",
+                    "evidence": {
+                        "id": evidence_id,
+                        "revision": evidence_revision
+                    }
+                },
+                "purpose": "Support the confirmed economics qualification"
+            }]
+        })
+    };
+    let sections = match planned.kind {
+        DocumentKind::CoverLetter => vec![
+            json!({
+                "kind": "opening",
+                "heading": null,
+                "body": "I am applying for the Lecturer position at University X.",
+                "claims": [{
+                    "text": "I am applying for the Lecturer position.",
+                    "classification": "user-intent",
+                    "citations": []
+                }]
+            }),
+            json!({
+                "kind": "fit",
+                "heading": "Fit",
+                "body": "The role requires economics expertise, and I hold a reviewed doctorate in economics.",
+                "claims": [
+                    applicant_claim(),
+                    {
+                        "text": "The role requires economics expertise.",
+                        "classification": "job-requirement",
+                        "citations": [{
+                            "target": {
+                                "kind": "criterion",
+                                "criterion": {
+                                    "id": criterion_id,
+                                    "revision": criterion_revision
+                                }
+                            },
+                            "purpose": "Repeat the exact confirmed job criterion"
+                        }]
+                    }
+                ]
+            }),
+            json!({
+                "kind": "closing",
+                "heading": null,
+                "body": "I would welcome the opportunity to discuss my application.",
+                "claims": [{
+                    "text": "I would welcome a discussion.",
+                    "classification": "user-intent",
+                    "citations": []
+                }]
+            }),
+        ],
+        DocumentKind::ResearchStatement => vec![json!({
+            "kind": "research",
+            "heading": "Research foundation",
+            "body": "My research foundation includes a reviewed doctorate in economics.",
+            "claims": [applicant_claim()]
+        })],
+        DocumentKind::TeachingStatement => vec![json!({
+            "kind": "teaching",
+            "heading": "Teaching foundation",
+            "body": "My subject foundation includes a reviewed doctorate in economics.",
+            "claims": [applicant_claim()]
+        })],
+        DocumentKind::Cv => vec![json!({
+            "kind": "education",
+            "heading": "Education",
+            "body": "Reviewed doctorate in economics.",
+            "claims": [applicant_claim()]
+        })],
+    };
+    json!({
+        "job_id": job_id,
+        "plan_artifact": plan,
+        "planned_document": {
+            "id": planned.id,
+            "revision": planned.revision
+        },
+        "kind": planned.kind,
+        "title": format!("Lecturer application {:?}", planned.kind),
+        "sections": sections,
+        "placeholders": []
+    })
+}
+
+fn document_request(
+    descriptor: &canisend_contracts::TaskDescriptor,
+    candidate: Value,
+) -> TaskCompletionRequest {
+    TaskCompletionRequest {
+        task_id: descriptor.id.clone(),
+        lease_id: descriptor.lease.id.clone(),
+        expected_job_revision: descriptor.job_revision,
+        expected_inputs: descriptor
+            .input_artifacts
+            .iter()
+            .map(|input| ExpectedInputRevision {
+                artifact_id: input.id.clone(),
+                revision: input.revision,
+                sha256: input.sha256.clone(),
+            })
+            .collect(),
+        candidate,
+    }
+}
+
+fn document_artifact_kind(kind: DocumentKind) -> ArtifactKind {
+    match kind {
+        DocumentKind::CoverLetter => ArtifactKind::CoverLetter,
+        DocumentKind::ResearchStatement => ArtifactKind::ResearchStatement,
+        DocumentKind::TeachingStatement => ArtifactKind::TeachingStatement,
+        DocumentKind::Cv => ArtifactKind::Cv,
+    }
 }
 
 fn workflow_stage_status(

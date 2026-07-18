@@ -26,6 +26,10 @@ Use CanISend as the state owner and Codex as a bounded reasoning host. Never ins
 12. Run `plan export --job JOB_ID --destination FILE.json --json`. Explain the derived blockers and safe `hold`
     default. Let the user choose `apply`, `hold`, or `skip`, edit the strategy and document requirements, then run
     `plan confirm` only after that explicit decision. Drafting opens only for `apply` with no blocking evidence gaps.
+13. Follow the Draft next action and prepare the named `*-draft` task in its planned mode. Use the bundled
+    `document-draft` prompt and return one ID-free `document-candidate` with exact plan, planned-document, criterion,
+    and evidence revisions. Complete non-omitted documents sequentially; inspect them with `document list/show` and
+    inspect the complete revision-bound set with `document set`.
 
 Do not invent source identities, bypass candidate validation, transmit private inputs to a provider without separate
 consent, or interpret readiness as permission to submit an application.

@@ -10,7 +10,7 @@ use std::{
 
 use canisend_contracts::{
     AGENT_PROTOCOL, ActorKind, AgentContextBlocker, AgentContextData, AgentError, AgentResponse,
-    CapabilitiesData, EntityId, ErrorCode, ExecutionMode, ExitClass, NextAction,
+    CapabilitiesData, DocumentKind, EntityId, ErrorCode, ExecutionMode, ExitClass, NextAction,
     PUBLIC_SCHEMA_VERSION, PrivacyClassification, ProfileSourceKind, PublicSchemaId,
     RESOURCE_FORMAT, ResourceCatalogData, ResourceCatalogEntry, SchemaCatalogData,
     SchemaCatalogEntry, SemanticVersion, Sha256Digest, SourceKind, VersionData, WORKSPACE_FORMAT,
@@ -26,9 +26,9 @@ use canisend_io::{
 };
 use canisend_resources::{AgentHost, ResourceError, ResourceId, ResourceKind, export_agent_pack};
 use canisend_store::{
-    AgentContextService, ArtifactService, CriteriaService, DiscoveryService, EvidenceService,
-    JobService, MatchService, NewProfileSource, NewSource, PlanService, ProfileService, StoreError,
-    TaskService, WorkflowService, Workspace, current_utc_timestamp,
+    AgentContextService, ArtifactService, CriteriaService, DiscoveryService, DocumentService,
+    EvidenceService, JobService, MatchService, NewProfileSource, NewSource, PlanService,
+    ProfileService, StoreError, TaskService, WorkflowService, Workspace, current_utc_timestamp,
 };
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use serde_json::json;
@@ -107,6 +107,11 @@ enum Command {
     Plan {
         #[command(subcommand)]
         command: PlanCommand,
+    },
+    /// Inspect current structured drafts and their complete revision-bound set.
+    Document {
+        #[command(subcommand)]
+        command: DocumentCommand,
     },
     /// Start, inspect, advance, or rerun the durable application workflow.
     Workflow {
@@ -274,6 +279,16 @@ enum PlanCommand {
     Confirm(PlanConfirmArgs),
     /// Show the current confirmed application plan.
     Show(PlanJobArgs),
+}
+
+#[derive(Debug, Subcommand)]
+enum DocumentCommand {
+    /// List all current structured drafts already completed for one job.
+    List(DocumentJobArgs),
+    /// Show one current structured draft by document kind.
+    Show(DocumentShowArgs),
+    /// Show the complete current document set after Draft finishes.
+    Set(DocumentJobArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -542,6 +557,29 @@ enum TaskOperationName {
     JobParse,
     EvidenceNormalize,
     EvidenceMatch,
+    CoverLetterDraft,
+    ResearchStatementDraft,
+    TeachingStatementDraft,
+    CvDraft,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum DocumentKindName {
+    CoverLetter,
+    ResearchStatement,
+    TeachingStatement,
+    Cv,
+}
+
+impl From<DocumentKindName> for DocumentKind {
+    fn from(value: DocumentKindName) -> Self {
+        match value {
+            DocumentKindName::CoverLetter => Self::CoverLetter,
+            DocumentKindName::ResearchStatement => Self::ResearchStatement,
+            DocumentKindName::TeachingStatement => Self::TeachingStatement,
+            DocumentKindName::Cv => Self::Cv,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -561,6 +599,27 @@ struct TaskPrepareArgs {
     /// Reasoning executor; both modes use the same candidate validator.
     #[arg(long, value_enum, default_value = "host-agent")]
     mode: TaskExecutionModeName,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
+struct DocumentJobArgs {
+    /// Canonical UUIDv7 job ID.
+    #[arg(long)]
+    job: String,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
+struct DocumentShowArgs {
+    /// Canonical UUIDv7 job ID.
+    #[arg(long)]
+    job: String,
+    /// Structured document kind to inspect.
+    #[arg(long, value_enum)]
+    kind: DocumentKindName,
     #[command(flatten)]
     output: OutputArgs,
 }
@@ -872,6 +931,12 @@ impl Cli {
                 PlanCommand::Confirm(arguments) => arguments.output.json,
                 PlanCommand::Show(arguments) => arguments.output.json,
             },
+            Command::Document { command } => match command {
+                DocumentCommand::List(arguments) | DocumentCommand::Set(arguments) => {
+                    arguments.output.json
+                }
+                DocumentCommand::Show(arguments) => arguments.output.json,
+            },
             Command::Workflow { command } => match command {
                 WorkflowCommand::Start(arguments) | WorkflowCommand::Status(arguments) => {
                     arguments.output.json
@@ -1103,6 +1168,15 @@ fn execute(cli: Cli) -> CommandResult<CommandOutput> {
         Command::Plan {
             command: PlanCommand::Show(arguments),
         } => plan_show(workspace, &arguments.job),
+        Command::Document {
+            command: DocumentCommand::List(arguments),
+        } => document_list(workspace, &arguments.job),
+        Command::Document {
+            command: DocumentCommand::Show(arguments),
+        } => document_show(workspace, &arguments.job, arguments.kind),
+        Command::Document {
+            command: DocumentCommand::Set(arguments),
+        } => document_set(workspace, &arguments.job),
         Command::Workflow {
             command: WorkflowCommand::Start(arguments),
         } => workflow_start(workspace, &arguments.job),
@@ -2238,6 +2312,24 @@ fn task_prepare(
                 .prepare_evidence_match(&job_id, mode)
                 .map_err(|error| store_failure("task.prepare", error))?
         }
+        TaskOperationName::CoverLetterDraft => {
+            TaskService::new(&mut workspace.database, &workspace.blobs)
+                .prepare_document_draft(&job_id, DocumentKind::CoverLetter, mode)
+                .map_err(|error| store_failure("task.prepare", error))?
+        }
+        TaskOperationName::ResearchStatementDraft => {
+            TaskService::new(&mut workspace.database, &workspace.blobs)
+                .prepare_document_draft(&job_id, DocumentKind::ResearchStatement, mode)
+                .map_err(|error| store_failure("task.prepare", error))?
+        }
+        TaskOperationName::TeachingStatementDraft => {
+            TaskService::new(&mut workspace.database, &workspace.blobs)
+                .prepare_document_draft(&job_id, DocumentKind::TeachingStatement, mode)
+                .map_err(|error| store_failure("task.prepare", error))?
+        }
+        TaskOperationName::CvDraft => TaskService::new(&mut workspace.database, &workspace.blobs)
+            .prepare_document_draft(&job_id, DocumentKind::Cv, mode)
+            .map_err(|error| store_failure("task.prepare", error))?,
     };
     let mut output = success(
         "task.prepare",
@@ -2605,6 +2697,65 @@ fn plan_show(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<Com
             format!("Derived blockers: {}", plan.blockers.len()),
         ],
     )
+}
+
+fn document_list(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<CommandOutput> {
+    let job_id = parse_entity_id("document.list", job_id)?;
+    let workspace = open_workspace(workspace_path, "document.list")?;
+    let documents = DocumentService::new(&workspace.database, &workspace.blobs)
+        .list(&job_id)
+        .map_err(|error| store_failure("document.list", error))?;
+    success(
+        "document.list",
+        "available",
+        &documents,
+        vec![
+            format!("Job: {job_id}"),
+            format!("Current structured drafts: {}", documents.len()),
+        ],
+    )
+}
+
+fn document_show(
+    workspace_path: Option<PathBuf>,
+    job_id: &str,
+    kind: DocumentKindName,
+) -> CommandResult<CommandOutput> {
+    let job_id = parse_entity_id("document.show", job_id)?;
+    let workspace = open_workspace(workspace_path, "document.show")?;
+    let document = DocumentService::new(&workspace.database, &workspace.blobs)
+        .current(&job_id, DocumentKind::from(kind))
+        .map_err(|error| store_failure("document.show", error))?;
+    success(
+        "document.show",
+        "available",
+        &document,
+        vec![
+            format!("Document: {}", document.id),
+            format!("Kind: {:?}", document.kind),
+            format!("Sections: {}", document.sections.len()),
+            format!("Placeholders: {}", document.placeholders.len()),
+        ],
+    )
+}
+
+fn document_set(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<CommandOutput> {
+    let job_id = parse_entity_id("document.set", job_id)?;
+    let workspace = open_workspace(workspace_path, "document.set")?;
+    let set = DocumentService::new(&workspace.database, &workspace.blobs)
+        .set(&job_id)
+        .map_err(|error| store_failure("document.set", error))?;
+    let mut output = success(
+        "document.set",
+        "complete",
+        &set,
+        vec![
+            format!("Document set: {}", set.id),
+            format!("Current documents: {}", set.documents.len()),
+        ],
+    )?;
+    output.response.artifacts.extend(set.documents.clone());
+    Ok(output)
 }
 
 fn write_private_json_new<T: serde::Serialize>(

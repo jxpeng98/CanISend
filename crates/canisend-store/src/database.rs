@@ -398,6 +398,16 @@ mod tests {
             )
             .expect("application plan table");
         assert_eq!(application_plan_table, 1);
+        let application_plan_documents_table: i64 = database
+            .connection
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master
+                 WHERE type = 'table' AND name = 'application_plan_documents'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("application plan documents table");
+        assert_eq!(application_plan_documents_table, 1);
         let document_heads_table: i64 = database
             .connection
             .query_row(

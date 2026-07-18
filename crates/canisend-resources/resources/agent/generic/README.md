@@ -30,6 +30,9 @@ Then:
 11. Export `plan export --job JOB_ID --destination FILE.json --json`. Let the user review the core-derived blockers,
     choose `apply`, `hold`, or `skip`, and edit the strategy and four document requirements. Run `plan confirm` only
     after explicit review; only `apply` without blocking evidence gaps opens drafting.
+12. Follow the Draft next action and prepare each named `*-draft` task in its planned mode. Use the bundled
+    `document-draft` prompt to return one ID-free candidate with exact plan, planned-document, criterion, and evidence
+    revisions. Inspect current drafts and the final revision-bound set with `document list/show/set`.
 
 Read only capabilities marked `available`. Never inspect or edit `.canisend/`, invent source identities, or transmit
 private data without the matching consent. Readiness describes preparation status and is not evidence of submission.

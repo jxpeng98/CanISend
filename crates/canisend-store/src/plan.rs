@@ -322,6 +322,32 @@ impl<'a> PlanService<'a> {
             plan.decision == ApplicationDecision::Apply && blocking_count == 0,
             &committed_at,
         )?;
+        transaction.execute(
+            "DELETE FROM application_plan_documents WHERE workflow_run_id = ?1",
+            params![current.run_id.as_str()],
+        )?;
+        for (position, document) in plan.documents.iter().enumerate() {
+            transaction.execute(
+                "INSERT INTO application_plan_documents(
+                    workflow_run_id, plan_artifact_id, plan_artifact_revision,
+                    planned_document_id, planned_document_revision, kind,
+                    requirement, executor, position
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                params![
+                    current.run_id.as_str(),
+                    artifact_id.as_str(),
+                    to_i64(plan_revision)?,
+                    document.id.as_str(),
+                    to_i64(document.revision.get())?,
+                    enum_name(document.kind)?,
+                    enum_name(document.requirement)?,
+                    document.executor.map(enum_name).transpose()?,
+                    to_i64(u64::try_from(position).map_err(|_| {
+                        StoreError::Invariant("document position overflow".to_owned())
+                    })?)?
+                ],
+            )?;
+        }
         insert_audit(
             &transaction,
             &event_id,

@@ -151,7 +151,7 @@ fn capabilities_distinguish_available_from_planned_work() {
             .iter()
             .filter(|stage| stage["status"] == "available")
             .count()),
-        Some(7)
+        Some(8)
     );
 }
 
@@ -204,12 +204,13 @@ fn agent_host_pack_export_is_versioned_and_self_contained() {
         exported["data"]["manifest"]["files"]
             .as_array()
             .map(Vec::len),
-        Some(20)
+        Some(21)
     );
     assert!(pack.join("AGENTS.md").is_file());
     assert!(pack.join("prompts/job-parse.md").is_file());
     assert!(pack.join("prompts/evidence-normalize.md").is_file());
     assert!(pack.join("prompts/evidence-match.md").is_file());
+    assert!(pack.join("prompts/document-draft.md").is_file());
     assert!(
         pack.join("schemas/v2/task-completion.schema.json")
             .is_file()
@@ -430,6 +431,17 @@ fn native_job_commands_import_original_and_normalized_local_text() {
     );
     let listed = run_json(&["--workspace", workspace.text(), "job", "list", "--json"]);
     assert_eq!(listed["data"]["jobs"].as_array().map(Vec::len), Some(1));
+    let documents = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "document",
+        "list",
+        "--job",
+        job_id,
+        "--json",
+    ]);
+    assert_eq!(documents["operation"], "document.list");
+    assert_eq!(documents["data"].as_array().map(Vec::len), Some(0));
 
     let archived = run_json(&[
         "--workspace",

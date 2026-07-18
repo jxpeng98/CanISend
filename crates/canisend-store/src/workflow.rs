@@ -547,6 +547,7 @@ fn load_status(
                         ),
                         "Export the derived blockers and choose an application decision".to_owned(),
                     ),
+                    WorkflowStage::Draft => next_document_draft_action(connection, run_id, job_id)?,
                     _ => (
                         format!(
                             "canisend workflow begin --job {} --stage {} --mode {} --json",
@@ -581,6 +582,55 @@ fn load_status(
         blockers,
         next_actions,
     })
+}
+
+fn next_document_draft_action(
+    connection: &Connection,
+    run_id: &EntityId,
+    job_id: &EntityId,
+) -> Result<(String, String), StoreError> {
+    let missing: Option<(String, Option<String>)> = connection
+        .query_row(
+            "SELECT planned.kind, planned.executor
+             FROM application_plan_documents AS planned
+             JOIN application_plan_heads AS plan
+               ON plan.workflow_run_id = planned.workflow_run_id
+              AND plan.artifact_id = planned.plan_artifact_id
+              AND plan.artifact_revision = planned.plan_artifact_revision
+             LEFT JOIN document_heads AS document
+               ON document.workflow_run_id = planned.workflow_run_id
+              AND document.planned_document_id = planned.planned_document_id
+              AND document.planned_document_revision = planned.planned_document_revision
+             WHERE planned.workflow_run_id = ?1
+               AND planned.requirement != 'omitted'
+               AND document.artifact_id IS NULL
+             ORDER BY planned.position ASC LIMIT 1",
+            params![run_id.as_str()],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()?;
+    let Some((kind, executor)) = missing else {
+        return Ok((
+            format!(
+                "canisend plan export --job {} --destination application-plan.json --json",
+                job_id
+            ),
+            "Reconfirm this pre-R8 application plan before drafting structured documents"
+                .to_owned(),
+        ));
+    };
+    let executor = executor.ok_or_else(|| {
+        StoreError::Invariant(format!(
+            "non-omitted planned document {kind} has no executor"
+        ))
+    })?;
+    Ok((
+        format!(
+            "canisend task prepare --job {} --operation {}-draft --mode {} --json",
+            job_id, kind, executor
+        ),
+        format!("Prepare the next revision-bound {kind} structured document task"),
+    ))
 }
 
 fn reconcile_job_revision(

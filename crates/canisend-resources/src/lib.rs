@@ -188,6 +188,7 @@ pub fn export_agent_pack(
         ("prompt.job-parse", "prompts/job-parse.md"),
         ("prompt.evidence-normalize", "prompts/evidence-normalize.md"),
         ("prompt.evidence-match", "prompts/evidence-match.md"),
+        ("prompt.document-draft", "prompts/document-draft.md"),
         ("example.task-complete", "examples/task-complete.json"),
         (
             "schema.task-descriptor",

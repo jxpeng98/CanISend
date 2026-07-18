@@ -6,6 +6,7 @@
   {"id":"prompt.job-parse","kind":"prompt","path":"prompts/job-parse.md","version":"2.0.0"},
   {"id":"prompt.evidence-normalize","kind":"prompt","path":"prompts/evidence-normalize.md","version":"2.0.0"},
   {"id":"prompt.evidence-match","kind":"prompt","path":"prompts/evidence-match.md","version":"2.0.0"},
+  {"id":"prompt.document-draft","kind":"prompt","path":"prompts/document-draft.md","version":"2.0.0"},
   {"id":"schema.agent-context","kind":"schema","path":"schemas/v2/agent-context.schema.json","version":"2.0.0"},
   {"id":"schema.agent-response","kind":"schema","path":"schemas/v2/agent-response.schema.json","version":"2.0.0"},
   {"id":"schema.application-plan","kind":"schema","path":"schemas/v2/application-plan.schema.json","version":"2.0.0"},
