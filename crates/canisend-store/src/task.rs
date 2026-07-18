@@ -6,13 +6,17 @@ use std::{
 };
 
 use canisend_contracts::{
-    ActorKind, ArtifactKind, ArtifactReference, CandidateValidationError, ConsentRequest,
-    ConsentScope, ContractViolation, CriteriaSetRecord, EntityId, EvidenceCatalogRecord,
+    ActorKind, ApplicationDecision, ApplicationPlanRecord, ArtifactKind, ArtifactReference,
+    CandidateValidationError, CitationTarget, ConsentRequest, ConsentScope, ContractViolation,
+    CriteriaSetRecord, DocumentCandidate, DocumentClaimRecord, DocumentGenerationMetadata,
+    DocumentKind, DocumentPlaceholderRecord, DocumentRecord, DocumentRequirement,
+    DocumentSectionRecord, DocumentSetRecord, EntityId, EvidenceCatalogRecord,
     EvidenceMatchProposalSet, EvidenceMatchRecord, EvidenceMatchSetRecord, EvidenceProposalSet,
-    EvidenceRecord, ExecutionMode, PUBLIC_SCHEMA_VERSION, ParsedJobRecord, PublicSchemaId,
-    Revision, SafeRelativePath, SchemaReference, SemanticVersion, Sha256Digest, TaskCommitData,
-    TaskCompletionRequest, TaskDescriptor, TaskInputExportData, TaskInputExportFile, TaskLease,
-    TaskStateData, TaskStatus, UtcTimestamp, validate_external_candidate,
+    EvidenceRecord, ExecutionMode, PUBLIC_SCHEMA_VERSION, ParsedJobRecord, PlanBlockerSeverity,
+    PublicSchemaId, Revision, SafeRelativePath, SchemaReference, SemanticVersion, Sha256Digest,
+    TaskCommitData, TaskCompletionRequest, TaskDescriptor, TaskInputExportData,
+    TaskInputExportFile, TaskLease, TaskStateData, TaskStatus, UtcTimestamp,
+    validate_external_candidate,
 };
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use serde::Serialize;
@@ -25,6 +29,10 @@ use crate::{BlobStore, DEFAULT_MAX_BLOB_BYTES, Database, StoreError, generate_id
 pub const JOB_PARSE_OPERATION: &str = "job.parse";
 pub const EVIDENCE_NORMALIZE_OPERATION: &str = "profile.evidence.normalize";
 pub const EVIDENCE_MATCH_OPERATION: &str = "evidence.match";
+pub const COVER_LETTER_DRAFT_OPERATION: &str = "document.draft.cover-letter";
+pub const RESEARCH_STATEMENT_DRAFT_OPERATION: &str = "document.draft.research-statement";
+pub const TEACHING_STATEMENT_DRAFT_OPERATION: &str = "document.draft.teaching-statement";
+pub const CV_DRAFT_OPERATION: &str = "document.draft.cv";
 const TASK_LEASE_MINUTES: i64 = 15;
 
 pub struct TaskService<'a> {
@@ -525,6 +533,248 @@ impl<'a> TaskService<'a> {
         Ok(descriptor)
     }
 
+    pub fn prepare_document_draft(
+        &mut self,
+        job_id: &EntityId,
+        kind: DocumentKind,
+        mode: ExecutionMode,
+    ) -> Result<TaskDescriptor, StoreError> {
+        if !matches!(
+            mode,
+            ExecutionMode::HostAgent | ExecutionMode::ConfiguredProvider
+        ) {
+            return Err(StoreError::TaskConflict(
+                "document drafting supports only host-agent or configured-provider mode".to_owned(),
+            ));
+        }
+        let task_id = generate_id()?;
+        let lease_id = generate_id()?;
+        let event_id = generate_id()?;
+        let created_at = now_utc()?;
+        let expires_at = timestamp_after_minutes(TASK_LEASE_MINUTES)?;
+        let transaction = self.database.immediate_transaction()?;
+        let (archived, job_revision): (i64, i64) = transaction
+            .query_row(
+                "SELECT archived, revision FROM jobs WHERE id = ?1",
+                params![job_id.as_str()],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()?
+            .ok_or_else(|| StoreError::JobNotFound(job_id.to_string()))?;
+        if archived != 0 {
+            return Err(StoreError::JobArchived(job_id.to_string()));
+        }
+        type StageRow = (String, String, String);
+        let (run_id, stage_execution_id, stage_status): StageRow = transaction
+            .query_row(
+                "SELECT run.id, draft.id, draft.status
+                 FROM workflow_runs AS run
+                 JOIN stage_executions AS draft
+                   ON draft.workflow_run_id = run.id AND draft.stage = 'draft'
+                 WHERE run.job_id = ?1 AND run.job_revision = ?2
+                 ORDER BY run.created_at DESC, run.id DESC LIMIT 1",
+                params![job_id.as_str(), job_revision],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .optional()?
+            .ok_or_else(|| StoreError::WorkflowNotFound(job_id.to_string()))?;
+        if stage_status != "ready" {
+            return Err(StoreError::WorkflowConflict(format!(
+                "draft stage is {stage_status}, not ready"
+            )));
+        }
+        let plan_reference = load_completed_stage_output(
+            &transaction,
+            job_id,
+            job_revision,
+            "plan",
+            ArtifactKind::ApplicationPlan,
+        )?;
+        let plan = load_application_plan(self.blobs, &plan_reference)?;
+        if plan.job_id != *job_id
+            || plan.decision != ApplicationDecision::Apply
+            || plan
+                .blockers
+                .iter()
+                .any(|blocker| blocker.severity == PlanBlockerSeverity::Blocking)
+        {
+            return Err(StoreError::WorkflowConflict(
+                "drafting requires a current apply plan with no blocking evidence gaps".to_owned(),
+            ));
+        }
+        let planned = plan
+            .documents
+            .iter()
+            .find(|document| document.kind == kind)
+            .ok_or_else(|| {
+                StoreError::Invariant("plan omits a supported document kind".to_owned())
+            })?;
+        if planned.requirement == DocumentRequirement::Omitted || planned.executor.is_none() {
+            return Err(StoreError::TaskConflict(format!(
+                "{} is omitted by the current application plan",
+                document_kind_name(kind)?
+            )));
+        }
+        if planned.executor != Some(mode) {
+            return Err(StoreError::TaskConflict(format!(
+                "{} is assigned to {}, not {}",
+                document_kind_name(kind)?,
+                planned
+                    .executor
+                    .map(enum_name)
+                    .transpose()?
+                    .unwrap_or_else(|| "no executor".to_owned()),
+                enum_name(mode)?
+            )));
+        }
+        let existing: Option<i64> = transaction
+            .query_row(
+                "SELECT 1 FROM document_heads AS head
+                 JOIN artifacts AS artifact ON artifact.id = head.artifact_id
+                 WHERE head.workflow_run_id = ?1 AND head.kind = ?2
+                   AND head.plan_artifact_id = ?3 AND head.plan_artifact_revision = ?4
+                   AND head.planned_document_id = ?5 AND head.planned_document_revision = ?6
+                   AND artifact.head_revision = head.artifact_revision AND artifact.stale = 0",
+                params![
+                    &run_id,
+                    document_kind_name(kind)?,
+                    plan_reference.id.as_str(),
+                    to_i64(plan_reference.revision.get())?,
+                    planned.id.as_str(),
+                    to_i64(planned.revision.get())?
+                ],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if existing.is_some() {
+            return Err(StoreError::TaskConflict(format!(
+                "{} is already current for this plan",
+                document_kind_name(kind)?
+            )));
+        }
+        let matches_reference = plan.matches_artifact.clone();
+        verify_artifact_revision(&transaction, &matches_reference)?;
+        let matches = load_match_artifact(self.blobs, &matches_reference)?;
+        let criteria_reference = matches.criteria_artifact.clone();
+        let evidence_reference = matches.evidence_artifact.clone();
+        verify_artifact_revision(&transaction, &criteria_reference)?;
+        verify_artifact_revision(&transaction, &evidence_reference)?;
+        let parsed_reference = load_completed_stage_output(
+            &transaction,
+            job_id,
+            job_revision,
+            "parse",
+            ArtifactKind::ParsedJob,
+        )?;
+        let evidence = load_evidence_artifact(self.blobs, &evidence_reference)?;
+        let profile_revision = evidence.profile_revision;
+        let current_profile_revision: i64 = transaction.query_row(
+            "SELECT profile_revision FROM workspace_metadata WHERE singleton = 1",
+            [],
+            |row| row.get(0),
+        )?;
+        if to_i64(profile_revision.get())? != current_profile_revision {
+            return Err(StoreError::WorkflowConflict(
+                "draft inputs do not match the current profile revision".to_owned(),
+            ));
+        }
+        let inputs = vec![
+            plan_reference,
+            matches_reference,
+            criteria_reference,
+            evidence_reference,
+            parsed_reference,
+        ];
+        let actor = actor_for_mode(mode);
+        let descriptor = TaskDescriptor {
+            id: task_id.clone(),
+            operation: document_operation(kind).to_owned(),
+            job_id: job_id.clone(),
+            job_revision: Revision::try_new(to_u64(job_revision)?)?,
+            profile_revision: Some(profile_revision),
+            actor,
+            execution_mode: mode,
+            input_artifacts: inputs.clone(),
+            allowed_output_kind: document_artifact_kind(kind),
+            candidate_schema: SchemaReference {
+                id: PublicSchemaId::DocumentCandidate.as_str().to_owned(),
+                version: SemanticVersion::try_new(PUBLIC_SCHEMA_VERSION)?,
+            },
+            required_consents: task_consents(mode, &inputs),
+            private_read_scope: inputs.clone(),
+            lease: TaskLease {
+                id: lease_id.clone(),
+                expires_at: expires_at.clone(),
+            },
+        };
+        transaction.execute(
+            "INSERT INTO tasks(
+                id, stage_execution_id, status, lease_expires_at, created_at,
+                job_id, job_revision, operation, actor, execution_mode,
+                allowed_output_kind, candidate_schema_id, candidate_schema_version,
+                lease_id, descriptor_json, profile_revision
+             ) VALUES (?1, ?2, 'prepared', ?3, ?4, ?5, ?6, ?7, ?8, ?9,
+                       ?10, ?11, ?12, ?13, ?14, ?15)",
+            params![
+                task_id.as_str(),
+                &stage_execution_id,
+                expires_at.as_str(),
+                created_at.as_str(),
+                job_id.as_str(),
+                job_revision,
+                descriptor.operation,
+                enum_name(descriptor.actor)?,
+                enum_name(descriptor.execution_mode)?,
+                enum_name(descriptor.allowed_output_kind)?,
+                descriptor.candidate_schema.id,
+                descriptor.candidate_schema.version.as_str(),
+                lease_id.as_str(),
+                serde_json::to_string(&descriptor)?,
+                to_i64(profile_revision.get())?
+            ],
+        )?;
+        let started = transaction.execute(
+            "UPDATE stage_executions
+             SET status = 'running', execution_mode = ?2, input_profile_revision = ?3,
+                 started_at = ?4, updated_at = ?4
+             WHERE id = ?1 AND status = 'ready'",
+            params![
+                &stage_execution_id,
+                enum_name(mode)?,
+                to_i64(profile_revision.get())?,
+                created_at.as_str()
+            ],
+        )?;
+        if started != 1 {
+            return Err(StoreError::Invariant(
+                "document draft task could not claim exactly one ready stage".to_owned(),
+            ));
+        }
+        for input in &inputs {
+            transaction.execute(
+                "INSERT INTO task_inputs(task_id, artifact_id, revision, sha256)
+                 VALUES (?1, ?2, ?3, ?4)",
+                params![
+                    task_id.as_str(),
+                    input.id.as_str(),
+                    to_i64(input.revision.get())?,
+                    input.sha256.as_str()
+                ],
+            )?;
+        }
+        insert_audit_as(
+            &transaction,
+            &event_id,
+            (actor, "task.prepare"),
+            &task_id,
+            None,
+            "prepare structured document draft with exact plan, match, evidence, criteria, and parsed-job revisions",
+            &created_at,
+        )?;
+        transaction.commit()?;
+        Ok(descriptor)
+    }
+
     pub fn get(&self, task_id: &EntityId) -> Result<TaskStateData, StoreError> {
         load_task_state(self.database.connection(), task_id)
     }
@@ -715,13 +965,19 @@ impl<'a> TaskService<'a> {
                 &candidate_sha256,
             );
         }
-        let output_value = match validated {
-            ValidatedTaskCandidate::ParsedJob(_) => request.candidate.clone(),
-            ValidatedTaskCandidate::EvidenceProposals(proposals) => {
-                serde_json::to_value(build_evidence_catalog(proposals)?)?
-            }
+        let committed_at = now_utc()?;
+        let (output_value, document_output) = match validated {
+            ValidatedTaskCandidate::ParsedJob(_) => (request.candidate.clone(), None),
+            ValidatedTaskCandidate::EvidenceProposals(proposals) => (
+                serde_json::to_value(build_evidence_catalog(proposals)?)?,
+                None,
+            ),
             ValidatedTaskCandidate::MatchProposals(proposals) => {
-                serde_json::to_value(build_match_set(proposals)?)?
+                (serde_json::to_value(build_match_set(proposals)?)?, None)
+            }
+            ValidatedTaskCandidate::Document(candidate) => {
+                let document = build_document(candidate, &initial.descriptor, &committed_at)?;
+                (serde_json::to_value(&document)?, Some(document))
             }
         };
         let bytes = canonical_json_bytes(&output_value)?;
@@ -868,7 +1124,6 @@ impl<'a> TaskService<'a> {
 
         let artifact_id = generate_id()?;
         let event_id = generate_id()?;
-        let committed_at = now_utc()?;
         transaction.execute(
             "INSERT INTO artifacts(id, kind, head_revision, stale, created_at)
              VALUES (?1, ?2, 1, 0, ?3)",
@@ -928,6 +1183,12 @@ impl<'a> TaskService<'a> {
                 candidate_sha256.as_str()
             ],
         )?;
+        let artifact_reference = ArtifactReference {
+            kind: initial.descriptor.allowed_output_kind,
+            id: artifact_id.clone(),
+            revision: Revision::try_new(1)?,
+            sha256: digest.clone(),
+        };
         if let Some(stage_execution_id) = &stage_execution_id {
             if initial.descriptor.operation == JOB_PARSE_OPERATION {
                 let completed = transaction.execute(
@@ -989,6 +1250,21 @@ impl<'a> TaskService<'a> {
                      ) AND stage = 'plan' AND status IN ('blocked', 'stale')",
                     params![stage_execution_id, committed_at.as_str()],
                 )?;
+            } else if is_document_draft_operation(&initial.descriptor.operation) {
+                let document = document_output.as_ref().ok_or_else(|| {
+                    StoreError::Invariant(
+                        "document draft task produced no structured document".to_owned(),
+                    )
+                })?;
+                advance_document_draft(
+                    &transaction,
+                    self.blobs,
+                    &initial.descriptor,
+                    stage_execution_id,
+                    document,
+                    &artifact_reference,
+                    &committed_at,
+                )?;
             } else {
                 return Err(StoreError::Invariant(format!(
                     "task operation has no stage completion rule: {}",
@@ -1009,12 +1285,7 @@ impl<'a> TaskService<'a> {
         Ok(TaskCommitData {
             task_id: request.task_id.clone(),
             status: TaskStatus::Committed,
-            artifact: ArtifactReference {
-                kind: initial.descriptor.allowed_output_kind,
-                id: artifact_id,
-                revision: Revision::try_new(1)?,
-                sha256: digest,
-            },
+            artifact: artifact_reference,
             committed_at,
             idempotent: false,
         })
@@ -1392,6 +1663,7 @@ enum ValidatedTaskCandidate {
     ParsedJob(ParsedJobRecord),
     EvidenceProposals(EvidenceProposalSet),
     MatchProposals(EvidenceMatchProposalSet),
+    Document(DocumentCandidate),
 }
 
 fn validate_candidate(
@@ -1444,6 +1716,31 @@ fn validate_candidate(
                 )]));
             }
             Ok(ValidatedTaskCandidate::MatchProposals(candidate))
+        }
+        (operation, schema)
+            if is_document_draft_operation(operation)
+                && schema == PublicSchemaId::DocumentCandidate.as_str() =>
+        {
+            let candidate = validate_external_candidate::<DocumentCandidate>(value)
+                .map_err(map_candidate_error)?;
+            if candidate.job_id != descriptor.job_id {
+                return Err(StoreError::CandidateSemantic(vec![ContractViolation::new(
+                    "candidate.job_mismatch",
+                    "/job_id",
+                    "candidate job ID does not match the task subject",
+                )]));
+            }
+            let expected_kind = document_kind_for_operation(operation)?;
+            if candidate.kind != expected_kind
+                || descriptor.allowed_output_kind != document_artifact_kind(expected_kind)
+            {
+                return Err(StoreError::CandidateSemantic(vec![ContractViolation::new(
+                    "document.kind_mismatch",
+                    "/kind",
+                    "candidate document kind does not match the prepared draft operation",
+                )]));
+            }
+            Ok(ValidatedTaskCandidate::Document(candidate))
         }
         _ => Err(StoreError::Invariant(format!(
             "unsupported task contract: {} -> {}",
@@ -1518,6 +1815,74 @@ fn build_match_set(
     })
 }
 
+fn build_document(
+    candidate: DocumentCandidate,
+    descriptor: &TaskDescriptor,
+    created_at: &UtcTimestamp,
+) -> Result<DocumentRecord, StoreError> {
+    let sections = candidate
+        .sections
+        .into_iter()
+        .map(|section| {
+            let claims = section
+                .claims
+                .into_iter()
+                .map(|claim| {
+                    Ok(DocumentClaimRecord {
+                        id: generate_id()?,
+                        text: claim.text,
+                        classification: claim.classification,
+                        citations: claim.citations,
+                        revision: Revision::try_new(1)?,
+                    })
+                })
+                .collect::<Result<Vec<_>, StoreError>>()?;
+            Ok(DocumentSectionRecord {
+                id: generate_id()?,
+                kind: section.kind,
+                heading: section.heading,
+                body: section.body,
+                claims,
+                revision: Revision::try_new(1)?,
+            })
+        })
+        .collect::<Result<Vec<_>, StoreError>>()?;
+    let placeholders = candidate
+        .placeholders
+        .into_iter()
+        .map(|placeholder| {
+            Ok(DocumentPlaceholderRecord {
+                id: generate_id()?,
+                key: placeholder.key,
+                instruction: placeholder.instruction,
+                required: placeholder.required,
+                resolution: placeholder.resolution,
+                revision: Revision::try_new(1)?,
+            })
+        })
+        .collect::<Result<Vec<_>, StoreError>>()?;
+    let document = DocumentRecord {
+        id: generate_id()?,
+        job_id: candidate.job_id,
+        plan_artifact: candidate.plan_artifact,
+        planned_document: candidate.planned_document,
+        kind: candidate.kind,
+        title: candidate.title,
+        sections,
+        placeholders,
+        generation: DocumentGenerationMetadata {
+            actor: descriptor.actor,
+            execution_mode: descriptor.execution_mode,
+            task_id: descriptor.id.clone(),
+            prompt_resource_id: "prompt.document-draft".to_owned(),
+            created_at: created_at.clone(),
+        },
+        revision: Revision::try_new(1)?,
+    };
+    validate_external_candidate::<DocumentRecord>(&serde_json::to_value(&document)?)
+        .map_err(map_candidate_error)
+}
+
 fn validate_task_source_spans(
     connection: &Connection,
     blobs: &BlobStore,
@@ -1526,6 +1891,9 @@ fn validate_task_source_spans(
 ) -> Result<(), StoreError> {
     if let ValidatedTaskCandidate::MatchProposals(proposals) = candidate {
         return validate_match_scope(connection, blobs, descriptor, proposals);
+    }
+    if let ValidatedTaskCandidate::Document(document) = candidate {
+        return validate_document_scope(connection, blobs, descriptor, document);
     }
     let allowed = descriptor
         .input_artifacts
@@ -1560,6 +1928,7 @@ fn validate_task_source_spans(
             })
             .collect::<Vec<_>>(),
         ValidatedTaskCandidate::MatchProposals(_) => unreachable!("match candidates return above"),
+        ValidatedTaskCandidate::Document(_) => unreachable!("document candidates return above"),
     };
     for (span, source_quote, pointer) in spans {
         let source = &span.source;
@@ -1716,6 +2085,446 @@ fn validate_match_scope(
     }
 }
 
+fn validate_document_scope(
+    connection: &Connection,
+    blobs: &BlobStore,
+    descriptor: &TaskDescriptor,
+    candidate: &DocumentCandidate,
+) -> Result<(), StoreError> {
+    let plan_input = unique_input_kind(descriptor, ArtifactKind::ApplicationPlan)?;
+    let matches_input = unique_input_kind(descriptor, ArtifactKind::EvidenceMatches)?;
+    let criteria_input = unique_input_kind(descriptor, ArtifactKind::Criteria)?;
+    let evidence_input = unique_input_kind(descriptor, ArtifactKind::EvidenceCatalog)?;
+    let parsed_input = unique_input_kind(descriptor, ArtifactKind::ParsedJob)?;
+    for input in [
+        plan_input,
+        matches_input,
+        criteria_input,
+        evidence_input,
+        parsed_input,
+    ] {
+        verify_artifact_revision(connection, input)?;
+    }
+    let plan = load_application_plan(blobs, plan_input)?;
+    let matches = load_match_artifact(blobs, matches_input)?;
+    let criteria = load_criteria_artifact(blobs, criteria_input)?;
+    let evidence = load_evidence_artifact(blobs, evidence_input)?;
+    let parsed = load_parsed_job_artifact(blobs, parsed_input)?;
+    let expected_kind = document_kind_for_operation(&descriptor.operation)?;
+    let mut violations = Vec::new();
+    if candidate.plan_artifact != *plan_input {
+        violations.push(ContractViolation::new(
+            "document.plan_artifact_mismatch",
+            "/plan_artifact",
+            "document candidate must repeat the exact current application plan artifact",
+        ));
+    }
+    if plan.job_id != descriptor.job_id
+        || criteria.job_id != descriptor.job_id
+        || parsed.job_id != descriptor.job_id
+        || matches.job_id != descriptor.job_id
+    {
+        return Err(StoreError::Invariant(
+            "document task inputs do not belong to one job".to_owned(),
+        ));
+    }
+    if plan.decision != ApplicationDecision::Apply
+        || plan
+            .blockers
+            .iter()
+            .any(|blocker| blocker.severity == PlanBlockerSeverity::Blocking)
+    {
+        return Err(StoreError::TaskStale(
+            "application plan no longer authorizes drafting".to_owned(),
+        ));
+    }
+    let planned = plan
+        .documents
+        .iter()
+        .find(|document| document.kind == expected_kind)
+        .ok_or_else(|| {
+            StoreError::Invariant("plan lacks the requested document kind".to_owned())
+        })?;
+    if candidate.planned_document.id != planned.id
+        || candidate.planned_document.revision != planned.revision
+    {
+        violations.push(ContractViolation::new(
+            "document.planned_revision_mismatch",
+            "/planned_document",
+            "candidate must repeat the exact planned-document identity and revision",
+        ));
+    }
+    if planned.requirement == DocumentRequirement::Omitted
+        || planned.executor != Some(descriptor.execution_mode)
+    {
+        return Err(StoreError::TaskStale(
+            "planned document executor or requirement changed".to_owned(),
+        ));
+    }
+    if plan.matches_artifact != *matches_input
+        || matches.criteria_artifact != *criteria_input
+        || matches.evidence_artifact != *evidence_input
+    {
+        return Err(StoreError::Invariant(
+            "document task input dependency chain is inconsistent".to_owned(),
+        ));
+    }
+    let criteria_by_id = criteria
+        .criteria
+        .iter()
+        .map(|criterion| (&criterion.id, criterion.revision))
+        .collect::<BTreeMap<_, _>>();
+    let evidence_by_id = evidence
+        .items
+        .iter()
+        .map(|item| (&item.id, item))
+        .collect::<BTreeMap<_, _>>();
+    let matched_evidence = matches
+        .matches
+        .iter()
+        .flat_map(|evidence_match| evidence_match.evidence.iter())
+        .map(|reference| (&reference.id, reference.revision))
+        .collect::<BTreeMap<_, _>>();
+    for (section_index, section) in candidate.sections.iter().enumerate() {
+        for (claim_index, claim) in section.claims.iter().enumerate() {
+            for (citation_index, citation) in claim.citations.iter().enumerate() {
+                let pointer = format!(
+                    "/sections/{section_index}/claims/{claim_index}/citations/{citation_index}/target"
+                );
+                match &citation.target {
+                    CitationTarget::Evidence {
+                        evidence: reference,
+                    } => {
+                        match evidence_by_id.get(&reference.id) {
+                            None => violations.push(ContractViolation::new(
+                                "document.evidence_unknown",
+                                format!("{pointer}/evidence/id"),
+                                "claim cites evidence outside the task's exact catalog",
+                            )),
+                            Some(item)
+                                if item.revision != reference.revision
+                                    || !item.confirmed
+                                    || item.excluded =>
+                            {
+                                violations.push(ContractViolation::new(
+                                    "document.evidence_revision_invalid",
+                                    format!("{pointer}/evidence/revision"),
+                                    "claim must cite an exact confirmed non-excluded evidence revision",
+                                ));
+                            }
+                            Some(_) => {}
+                        }
+                        if matched_evidence.get(&reference.id) != Some(&reference.revision) {
+                            violations.push(ContractViolation::new(
+                                "document.evidence_unmatched",
+                                format!("{pointer}/evidence"),
+                                "claim evidence must occur in the current validated match set",
+                            ));
+                        }
+                    }
+                    CitationTarget::Criterion {
+                        criterion: reference,
+                    } => match criteria_by_id.get(&reference.id) {
+                        None => violations.push(ContractViolation::new(
+                            "document.criterion_unknown",
+                            format!("{pointer}/criterion/id"),
+                            "claim cites a criterion outside the task's exact criteria set",
+                        )),
+                        Some(revision) if *revision != reference.revision => {
+                            violations.push(ContractViolation::new(
+                                "document.criterion_revision_invalid",
+                                format!("{pointer}/criterion/revision"),
+                                "claim must cite the exact confirmed criterion revision",
+                            ));
+                        }
+                        Some(_) => {}
+                    },
+                }
+            }
+        }
+    }
+    if violations.is_empty() {
+        Ok(())
+    } else {
+        Err(StoreError::CandidateSemantic(violations))
+    }
+}
+
+fn advance_document_draft(
+    transaction: &Transaction<'_>,
+    blobs: &BlobStore,
+    descriptor: &TaskDescriptor,
+    stage_execution_id: &str,
+    document: &DocumentRecord,
+    artifact: &ArtifactReference,
+    committed_at: &UtcTimestamp,
+) -> Result<(), StoreError> {
+    let (run_id, stage_status): (String, String) = transaction.query_row(
+        "SELECT workflow_run_id, status FROM stage_executions WHERE id = ?1 AND stage = 'draft'",
+        params![stage_execution_id],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )?;
+    if stage_status != "running" {
+        return Err(StoreError::Invariant(
+            "document task could not advance a running draft stage".to_owned(),
+        ));
+    }
+    let plan_reference = unique_input_kind(descriptor, ArtifactKind::ApplicationPlan)?;
+    let plan = load_application_plan(blobs, plan_reference)?;
+    let planned = plan
+        .documents
+        .iter()
+        .find(|planned| planned.kind == document.kind)
+        .ok_or_else(|| StoreError::Invariant("plan lacks completed document kind".to_owned()))?;
+    if document.plan_artifact != *plan_reference
+        || document.planned_document.id != planned.id
+        || document.planned_document.revision != planned.revision
+    {
+        return Err(StoreError::Invariant(
+            "completed document no longer matches its plan".to_owned(),
+        ));
+    }
+    transaction.execute(
+        "INSERT INTO document_heads(
+            workflow_run_id, plan_artifact_id, plan_artifact_revision,
+            planned_document_id, planned_document_revision, kind,
+            artifact_id, artifact_revision, updated_at
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        params![
+            &run_id,
+            plan_reference.id.as_str(),
+            to_i64(plan_reference.revision.get())?,
+            planned.id.as_str(),
+            to_i64(planned.revision.get())?,
+            document_kind_name(document.kind)?,
+            artifact.id.as_str(),
+            to_i64(artifact.revision.get())?,
+            committed_at.as_str()
+        ],
+    )?;
+    let mut expected = plan
+        .documents
+        .iter()
+        .filter(|planned| planned.requirement != DocumentRequirement::Omitted)
+        .collect::<Vec<_>>();
+    expected.sort_by_key(|planned| planned.kind);
+    let mut current_documents = Vec::with_capacity(expected.len());
+    for planned in &expected {
+        let reference = load_document_head(
+            transaction,
+            &run_id,
+            plan_reference,
+            planned.id.as_str(),
+            planned.revision,
+            planned.kind,
+        )?;
+        let Some(reference) = reference else {
+            transaction.execute(
+                "UPDATE stage_executions
+                 SET status = 'ready', execution_mode = NULL, started_at = NULL,
+                     completed_at = NULL, updated_at = ?2
+                 WHERE id = ?1 AND status = 'running'",
+                params![stage_execution_id, committed_at.as_str()],
+            )?;
+            return Ok(());
+        };
+        current_documents.push(reference);
+    }
+    let set = DocumentSetRecord {
+        id: generate_id()?,
+        job_id: descriptor.job_id.clone(),
+        plan_artifact: plan_reference.clone(),
+        documents: current_documents.clone(),
+        revision: Revision::try_new(1)?,
+    };
+    validate_external_candidate::<DocumentSetRecord>(&serde_json::to_value(&set)?)
+        .map_err(map_candidate_error)?;
+    let bytes = canonical_json_bytes(&serde_json::to_value(&set)?)?;
+    let digest = blobs.put_bytes(&bytes)?;
+    let size = blobs.verify(&digest, DEFAULT_MAX_BLOB_BYTES)?;
+    let set_artifact_id = generate_id()?;
+    transaction.execute(
+        "INSERT INTO artifacts(id, kind, head_revision, stale, created_at)
+         VALUES (?1, 'document-set', 1, 0, ?2)",
+        params![set_artifact_id.as_str(), committed_at.as_str()],
+    )?;
+    transaction.execute(
+        "INSERT INTO artifact_revisions(
+            artifact_id, revision, sha256, size, actor, reason, created_at
+         ) VALUES (?1, 1, ?2, ?3, 'system', 'assemble current structured document set', ?4)",
+        params![
+            set_artifact_id.as_str(),
+            digest.as_str(),
+            to_i64(size)?,
+            committed_at.as_str()
+        ],
+    )?;
+    transaction.execute(
+        "INSERT INTO blob_references(sha256, owner_type, owner_id, owner_revision, created_at)
+         VALUES (?1, 'artifact', ?2, 1, ?3)",
+        params![
+            digest.as_str(),
+            set_artifact_id.as_str(),
+            committed_at.as_str()
+        ],
+    )?;
+    for dependency in std::iter::once(plan_reference).chain(current_documents.iter()) {
+        transaction.execute(
+            "INSERT INTO artifact_dependencies(
+                artifact_id, revision, depends_on_artifact_id, depends_on_revision,
+                depends_on_sha256
+             ) VALUES (?1, 1, ?2, ?3, ?4)",
+            params![
+                set_artifact_id.as_str(),
+                dependency.id.as_str(),
+                to_i64(dependency.revision.get())?,
+                dependency.sha256.as_str()
+            ],
+        )?;
+    }
+    let completed = transaction.execute(
+        "UPDATE stage_executions
+         SET status = 'complete', output_artifact_id = ?2, output_artifact_revision = 1,
+             completed_at = ?3, updated_at = ?3
+         WHERE id = ?1 AND status = 'running'",
+        params![
+            stage_execution_id,
+            set_artifact_id.as_str(),
+            committed_at.as_str()
+        ],
+    )?;
+    if completed != 1 {
+        return Err(StoreError::Invariant(
+            "document set could not complete its draft stage".to_owned(),
+        ));
+    }
+    transaction.execute(
+        "UPDATE stage_executions SET status = 'ready', updated_at = ?2
+         WHERE workflow_run_id = ?1 AND stage = 'review' AND status IN ('blocked', 'stale')",
+        params![&run_id, committed_at.as_str()],
+    )?;
+    let event_id = generate_id()?;
+    insert_audit_as(
+        transaction,
+        &event_id,
+        (ActorKind::System, "draft.complete"),
+        &set.id,
+        Some(1),
+        "assemble all current non-omitted structured documents",
+        committed_at,
+    )?;
+    Ok(())
+}
+
+fn load_document_head(
+    connection: &Connection,
+    run_id: &str,
+    plan: &ArtifactReference,
+    planned_document_id: &str,
+    planned_document_revision: Revision,
+    kind: DocumentKind,
+) -> Result<Option<ArtifactReference>, StoreError> {
+    type Row = (String, i64, String, String, i64, i64);
+    let row: Option<Row> = connection
+        .query_row(
+            "SELECT head.artifact_id, head.artifact_revision, artifact.kind,
+                    revision.sha256, artifact.head_revision, artifact.stale
+             FROM document_heads AS head
+             JOIN artifacts AS artifact ON artifact.id = head.artifact_id
+             JOIN artifact_revisions AS revision
+               ON revision.artifact_id = head.artifact_id
+              AND revision.revision = head.artifact_revision
+             WHERE head.workflow_run_id = ?1
+               AND head.plan_artifact_id = ?2 AND head.plan_artifact_revision = ?3
+               AND head.planned_document_id = ?4 AND head.planned_document_revision = ?5
+               AND head.kind = ?6",
+            params![
+                run_id,
+                plan.id.as_str(),
+                to_i64(plan.revision.get())?,
+                planned_document_id,
+                to_i64(planned_document_revision.get())?,
+                document_kind_name(kind)?
+            ],
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                    row.get(5)?,
+                ))
+            },
+        )
+        .optional()?;
+    row.map(
+        |(id, revision, artifact_kind, sha256, head_revision, stale)| {
+            let artifact_kind: ArtifactKind = serde_json::from_value(Value::String(artifact_kind))?;
+            if artifact_kind != document_artifact_kind(kind)
+                || revision != head_revision
+                || stale != 0
+            {
+                return Err(StoreError::TaskStale(format!(
+                    "{} draft is stale",
+                    document_kind_name(kind)?
+                )));
+            }
+            Ok(ArtifactReference {
+                kind: artifact_kind,
+                id: EntityId::try_new(id)?,
+                revision: Revision::try_new(to_u64(revision)?)?,
+                sha256: Sha256Digest::try_new(sha256)?,
+            })
+        },
+    )
+    .transpose()
+}
+
+fn document_operation(kind: DocumentKind) -> &'static str {
+    match kind {
+        DocumentKind::CoverLetter => COVER_LETTER_DRAFT_OPERATION,
+        DocumentKind::ResearchStatement => RESEARCH_STATEMENT_DRAFT_OPERATION,
+        DocumentKind::TeachingStatement => TEACHING_STATEMENT_DRAFT_OPERATION,
+        DocumentKind::Cv => CV_DRAFT_OPERATION,
+    }
+}
+
+fn document_kind_for_operation(operation: &str) -> Result<DocumentKind, StoreError> {
+    match operation {
+        COVER_LETTER_DRAFT_OPERATION => Ok(DocumentKind::CoverLetter),
+        RESEARCH_STATEMENT_DRAFT_OPERATION => Ok(DocumentKind::ResearchStatement),
+        TEACHING_STATEMENT_DRAFT_OPERATION => Ok(DocumentKind::TeachingStatement),
+        CV_DRAFT_OPERATION => Ok(DocumentKind::Cv),
+        other => Err(StoreError::Invariant(format!(
+            "unsupported document draft operation: {other}"
+        ))),
+    }
+}
+
+fn is_document_draft_operation(operation: &str) -> bool {
+    matches!(
+        operation,
+        COVER_LETTER_DRAFT_OPERATION
+            | RESEARCH_STATEMENT_DRAFT_OPERATION
+            | TEACHING_STATEMENT_DRAFT_OPERATION
+            | CV_DRAFT_OPERATION
+    )
+}
+
+fn document_artifact_kind(kind: DocumentKind) -> ArtifactKind {
+    match kind {
+        DocumentKind::CoverLetter => ArtifactKind::CoverLetter,
+        DocumentKind::ResearchStatement => ArtifactKind::ResearchStatement,
+        DocumentKind::TeachingStatement => ArtifactKind::TeachingStatement,
+        DocumentKind::Cv => ArtifactKind::Cv,
+    }
+}
+
+fn document_kind_name(kind: DocumentKind) -> Result<String, StoreError> {
+    enum_name(kind)
+}
+
 fn unique_input_kind(
     descriptor: &TaskDescriptor,
     kind: ArtifactKind,
@@ -1748,6 +2557,33 @@ fn load_evidence_artifact(
     blobs: &BlobStore,
     artifact: &ArtifactReference,
 ) -> Result<EvidenceCatalogRecord, StoreError> {
+    let bytes = blobs.read_verified(&artifact.sha256, DEFAULT_MAX_BLOB_BYTES)?;
+    let value: Value = serde_json::from_slice(&bytes)?;
+    validate_external_candidate(&value).map_err(map_candidate_error)
+}
+
+fn load_application_plan(
+    blobs: &BlobStore,
+    artifact: &ArtifactReference,
+) -> Result<ApplicationPlanRecord, StoreError> {
+    let bytes = blobs.read_verified(&artifact.sha256, DEFAULT_MAX_BLOB_BYTES)?;
+    let value: Value = serde_json::from_slice(&bytes)?;
+    validate_external_candidate(&value).map_err(map_candidate_error)
+}
+
+fn load_match_artifact(
+    blobs: &BlobStore,
+    artifact: &ArtifactReference,
+) -> Result<EvidenceMatchSetRecord, StoreError> {
+    let bytes = blobs.read_verified(&artifact.sha256, DEFAULT_MAX_BLOB_BYTES)?;
+    let value: Value = serde_json::from_slice(&bytes)?;
+    validate_external_candidate(&value).map_err(map_candidate_error)
+}
+
+fn load_parsed_job_artifact(
+    blobs: &BlobStore,
+    artifact: &ArtifactReference,
+) -> Result<ParsedJobRecord, StoreError> {
     let bytes = blobs.read_verified(&artifact.sha256, DEFAULT_MAX_BLOB_BYTES)?;
     let value: Value = serde_json::from_slice(&bytes)?;
     validate_external_candidate(&value).map_err(map_candidate_error)

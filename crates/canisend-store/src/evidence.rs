@@ -705,6 +705,16 @@ fn invalidate_downstream(
 ) -> Result<(), StoreError> {
     transaction.execute(
         "UPDATE artifacts SET stale = 1 WHERE id IN (
+             SELECT artifact_id FROM document_heads WHERE workflow_run_id = ?1
+         )",
+        params![run_id.as_str()],
+    )?;
+    transaction.execute(
+        "DELETE FROM document_heads WHERE workflow_run_id = ?1",
+        params![run_id.as_str()],
+    )?;
+    transaction.execute(
+        "UPDATE artifacts SET stale = 1 WHERE id IN (
              SELECT output_artifact_id FROM stage_executions
              WHERE workflow_run_id = ?1
                AND stage IN ('match', 'plan', 'draft', 'review', 'package', 'render')

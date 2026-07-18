@@ -56,7 +56,7 @@ fn workspace_init_discovery_status_and_check_are_consistent() {
     assert_eq!(discovered.root, root.path());
     assert_eq!(
         workspace.status().expect("status").database_schema_version,
-        8
+        9
     );
     let check = workspace.check().expect("workspace check");
     assert!(check.ok);

@@ -281,6 +281,18 @@ impl<'a> WorkflowService<'a> {
         let affected = std::iter::once(stage)
             .chain(self.graph.descendants(stage))
             .collect::<Vec<_>>();
+        if affected.contains(&WorkflowStage::Draft) {
+            transaction.execute(
+                "UPDATE artifacts SET stale = 1 WHERE id IN (
+                     SELECT artifact_id FROM document_heads WHERE workflow_run_id = ?1
+                 )",
+                params![run_id.as_str()],
+            )?;
+            transaction.execute(
+                "DELETE FROM document_heads WHERE workflow_run_id = ?1",
+                params![run_id.as_str()],
+            )?;
+        }
         for affected_stage in &affected {
             let next_status = if *affected_stage == stage {
                 target_status
@@ -593,6 +605,16 @@ fn reconcile_job_revision(
     if prepared_revision == Some(current_revision) {
         return Ok(());
     }
+    transaction.execute(
+        "UPDATE artifacts SET stale = 1 WHERE id IN (
+             SELECT artifact_id FROM document_heads WHERE workflow_run_id = ?1
+         )",
+        params![run_id.as_str()],
+    )?;
+    transaction.execute(
+        "DELETE FROM document_heads WHERE workflow_run_id = ?1",
+        params![run_id.as_str()],
+    )?;
     let intake_status = if source_count > 0 {
         StageExecutionStatus::Complete
     } else {

@@ -230,10 +230,7 @@ pub fn export_agent_pack(
             "schemas/v2/document-candidate.schema.json",
         ),
         ("schema.document", "schemas/v2/document.schema.json"),
-        (
-            "schema.document-set",
-            "schemas/v2/document-set.schema.json",
-        ),
+        ("schema.document-set", "schemas/v2/document-set.schema.json"),
     ];
     let mut files = Vec::with_capacity(resources.len());
     for (resource_id, relative_path) in resources {
