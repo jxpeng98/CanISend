@@ -518,9 +518,75 @@ pub enum FindingSeverity {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "kebab-case")]
+pub enum FindingAuthority {
+    Deterministic,
+    HumanReview,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum FindingCategory {
+    CitationInvalid,
+    UnclaimedContent,
+    ProhibitedClaim,
+    UnresolvedPlaceholder,
+    CrossDocumentInconsistency,
+    HumanJudgement,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
+pub enum FindingTarget {
+    DocumentSet {
+        document_set: ArtifactReference,
+    },
+    Document {
+        document: ArtifactReference,
+        document_id: EntityId,
+    },
+    Section {
+        document: ArtifactReference,
+        document_id: EntityId,
+        section_id: EntityId,
+    },
+    Claim {
+        document: ArtifactReference,
+        document_id: EntityId,
+        section_id: EntityId,
+        claim_id: EntityId,
+    },
+    Placeholder {
+        document: ArtifactReference,
+        document_id: EntityId,
+        placeholder_id: EntityId,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ReviewFindingCandidateRecord {
+    pub code: String,
+    pub category: FindingCategory,
+    pub severity: FindingSeverity,
+    pub message: String,
+    pub target: FindingTarget,
+    pub related_targets: Vec<FindingTarget>,
+    pub suggested_resolution: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ReviewCandidate {
+    pub job_id: EntityId,
+    pub document_set_artifact: ArtifactReference,
+    pub findings: Vec<ReviewFindingCandidateRecord>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
 pub enum FindingStatus {
     Open,
-    Accepted,
+    AcceptedRisk,
     Resolved,
     Dismissed,
 }
@@ -530,11 +596,53 @@ pub enum FindingStatus {
 pub struct FindingRecord {
     pub id: EntityId,
     pub code: String,
+    pub category: FindingCategory,
     pub severity: FindingSeverity,
+    pub authority: FindingAuthority,
     pub message: String,
-    pub related_ids: Vec<EntityId>,
+    pub target: FindingTarget,
+    pub related_targets: Vec<FindingTarget>,
+    pub suggested_resolution: Option<String>,
     pub status: FindingStatus,
+    pub disposition_reason: Option<String>,
+    pub decided_by: Option<ActorKind>,
+    pub decided_at: Option<UtcTimestamp>,
     pub revision: Revision,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ReviewFindingsRecord {
+    pub id: EntityId,
+    pub job_id: EntityId,
+    pub document_set_artifact: ArtifactReference,
+    pub findings: Vec<FindingRecord>,
+    pub reviewed_by: ActorKind,
+    pub revision: Revision,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum FindingDisposition {
+    AcceptedRisk,
+    Dismissed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct FindingDispositionCandidateRecord {
+    pub finding_id: EntityId,
+    pub expected_revision: Revision,
+    pub disposition: Option<FindingDisposition>,
+    pub rationale: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ReviewDispositionCandidate {
+    pub job_id: EntityId,
+    pub review_artifact: ArtifactReference,
+    pub decisions: Vec<FindingDispositionCandidateRecord>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

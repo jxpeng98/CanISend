@@ -10,8 +10,9 @@ use crate::{
     DiscoveryLeadRecord, DocumentCandidate, DocumentRecord, DocumentSetRecord,
     EvidenceCatalogRecord, EvidenceMatchProposalSet, EvidenceMatchRecord, EvidenceMatchSetRecord,
     EvidenceProposalSet, EvidenceRecord, FindingRecord, JobRecord, ParsedJobRecord,
-    ProfileSourceRecord, ReadinessRecord, SourceRecord, TaskCompletionRequest, TaskDescriptor,
-    VersionData, WorkflowStatusData, WorkspaceCheckData, WorkspaceStatusData,
+    ProfileSourceRecord, ReadinessRecord, ReviewCandidate, ReviewDispositionCandidate,
+    ReviewFindingsRecord, SourceRecord, TaskCompletionRequest, TaskDescriptor, VersionData,
+    WorkflowStatusData, WorkspaceCheckData, WorkspaceStatusData,
 };
 
 pub const PUBLIC_SCHEMA_VERSION: &str = "2.0.0";
@@ -35,6 +36,9 @@ pub enum PublicSchemaId {
     Document,
     DocumentCandidate,
     DocumentSet,
+    ReviewCandidate,
+    ReviewFindings,
+    ReviewDispositionCandidate,
     Finding,
     Readiness,
     WorkspaceStatus,
@@ -54,7 +58,7 @@ pub enum PublicSchemaId {
 }
 
 impl PublicSchemaId {
-    pub const ALL: [Self; 31] = [
+    pub const ALL: [Self; 34] = [
         Self::AgentResponse,
         Self::Capabilities,
         Self::AgentContext,
@@ -70,6 +74,9 @@ impl PublicSchemaId {
         Self::Document,
         Self::DocumentCandidate,
         Self::DocumentSet,
+        Self::ReviewCandidate,
+        Self::ReviewFindings,
+        Self::ReviewDispositionCandidate,
         Self::Finding,
         Self::Readiness,
         Self::WorkspaceStatus,
@@ -106,6 +113,9 @@ impl PublicSchemaId {
             Self::Document => "canisend.document/v2",
             Self::DocumentCandidate => "canisend.document-candidate/v2",
             Self::DocumentSet => "canisend.document-set/v2",
+            Self::ReviewCandidate => "canisend.review-candidate/v2",
+            Self::ReviewFindings => "canisend.review-findings/v2",
+            Self::ReviewDispositionCandidate => "canisend.review-disposition-candidate/v2",
             Self::Finding => "canisend.finding/v2",
             Self::Readiness => "canisend.readiness/v2",
             Self::WorkspaceStatus => "canisend.workspace-status/v2",
@@ -143,6 +153,9 @@ impl PublicSchemaId {
             Self::Document => "document",
             Self::DocumentCandidate => "document-candidate",
             Self::DocumentSet => "document-set",
+            Self::ReviewCandidate => "review-candidate",
+            Self::ReviewFindings => "review-findings",
+            Self::ReviewDispositionCandidate => "review-disposition-candidate",
             Self::Finding => "finding",
             Self::Readiness => "readiness",
             Self::WorkspaceStatus => "workspace-status",
@@ -207,6 +220,9 @@ pub fn generate_public_schemas() -> Vec<GeneratedSchema> {
         generate::<DocumentRecord>(PublicSchemaId::Document),
         generate::<DocumentCandidate>(PublicSchemaId::DocumentCandidate),
         generate::<DocumentSetRecord>(PublicSchemaId::DocumentSet),
+        generate::<ReviewCandidate>(PublicSchemaId::ReviewCandidate),
+        generate::<ReviewFindingsRecord>(PublicSchemaId::ReviewFindings),
+        generate::<ReviewDispositionCandidate>(PublicSchemaId::ReviewDispositionCandidate),
         generate::<FindingRecord>(PublicSchemaId::Finding),
         generate::<ReadinessRecord>(PublicSchemaId::Readiness),
         generate::<WorkspaceStatusData>(PublicSchemaId::WorkspaceStatus),

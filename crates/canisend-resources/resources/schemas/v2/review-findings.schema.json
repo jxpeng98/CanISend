@@ -74,6 +74,87 @@
       ],
       "type": "string"
     },
+    "FindingRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "authority": {
+          "$ref": "#/$defs/FindingAuthority"
+        },
+        "category": {
+          "$ref": "#/$defs/FindingCategory"
+        },
+        "code": {
+          "type": "string"
+        },
+        "decided_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "decided_by": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ActorKind"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "disposition_reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "related_targets": {
+          "items": {
+            "$ref": "#/$defs/FindingTarget"
+          },
+          "type": "array"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "severity": {
+          "$ref": "#/$defs/FindingSeverity"
+        },
+        "status": {
+          "$ref": "#/$defs/FindingStatus"
+        },
+        "suggested_resolution": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "target": {
+          "$ref": "#/$defs/FindingTarget"
+        }
+      },
+      "required": [
+        "id",
+        "code",
+        "category",
+        "severity",
+        "authority",
+        "message",
+        "target",
+        "related_targets",
+        "status",
+        "revision"
+      ],
+      "type": "object"
+    },
     "FindingSeverity": {
       "enum": [
         "info",
@@ -213,88 +294,44 @@
       ]
     }
   },
-  "$id": "https://schemas.canisend.dev/v2/finding.schema.json",
+  "$id": "https://schemas.canisend.dev/v2/review-findings.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
-    "authority": {
-      "$ref": "#/$defs/FindingAuthority"
+    "document_set_artifact": {
+      "$ref": "#/$defs/ArtifactReference"
     },
-    "category": {
-      "$ref": "#/$defs/FindingCategory"
-    },
-    "code": {
-      "type": "string"
-    },
-    "decided_at": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "decided_by": {
-      "anyOf": [
-        {
-          "$ref": "#/$defs/ActorKind"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
-    "disposition_reason": {
-      "type": [
-        "string",
-        "null"
-      ]
+    "findings": {
+      "items": {
+        "$ref": "#/$defs/FindingRecord"
+      },
+      "type": "array"
     },
     "id": {
       "type": "string"
     },
-    "message": {
+    "job_id": {
       "type": "string"
     },
-    "related_targets": {
-      "items": {
-        "$ref": "#/$defs/FindingTarget"
-      },
-      "type": "array"
+    "reviewed_by": {
+      "$ref": "#/$defs/ActorKind"
     },
     "revision": {
       "format": "uint64",
       "minimum": 0,
       "type": "integer"
-    },
-    "severity": {
-      "$ref": "#/$defs/FindingSeverity"
-    },
-    "status": {
-      "$ref": "#/$defs/FindingStatus"
-    },
-    "suggested_resolution": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "target": {
-      "$ref": "#/$defs/FindingTarget"
     }
   },
   "required": [
     "id",
-    "code",
-    "category",
-    "severity",
-    "authority",
-    "message",
-    "target",
-    "related_targets",
-    "status",
+    "job_id",
+    "document_set_artifact",
+    "findings",
+    "reviewed_by",
     "revision"
   ],
-  "title": "FindingRecord",
+  "title": "ReviewFindingsRecord",
   "type": "object",
-  "x-canisend-id": "canisend.finding/v2",
+  "x-canisend-id": "canisend.review-findings/v2",
   "x-canisend-version": "2.0.0"
 }

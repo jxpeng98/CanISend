@@ -10,7 +10,9 @@ use crate::{
     DocumentSectionCandidateRecord, DocumentSetRecord, EvidenceCatalogRecord,
     EvidenceMatchProposalRecord, EvidenceMatchProposalSet, EvidenceMatchRecord,
     EvidenceMatchSetRecord, EvidenceProposalRecord, EvidenceProposalSet, EvidenceRecord,
-    FindingRecord, JobRecord, ParsedJobRecord, ProfileSourceRecord, ReadinessRecord, SourceRecord,
+    FindingRecord, FindingTarget, JobRecord, ParsedJobRecord, ProfileSourceRecord, ReadinessRecord,
+    ReviewCandidate, ReviewDispositionCandidate, ReviewFindingCandidateRecord,
+    ReviewFindingsRecord, SourceRecord,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
@@ -1186,9 +1188,303 @@ fn valid_placeholder_key(value: &str) -> bool {
 impl SemanticValidate for FindingRecord {
     fn validate_semantics(&self) -> Vec<ContractViolation> {
         let mut violations = Vec::new();
-        required_text(&self.code, "/code", &mut violations);
-        required_text(&self.message, "/message", &mut violations);
+        validate_review_finding(
+            &self.code,
+            &self.message,
+            &self.target,
+            &self.related_targets,
+            self.suggested_resolution.as_deref(),
+            "",
+            &mut violations,
+        );
+        let has_disposition = matches!(
+            self.status,
+            crate::FindingStatus::AcceptedRisk | crate::FindingStatus::Dismissed
+        );
+        if self.authority == crate::FindingAuthority::Deterministic && has_disposition {
+            violations.push(ContractViolation::new(
+                "finding.deterministic_disposition_forbidden",
+                "/status",
+                "deterministic findings cannot be accepted as risk or dismissed",
+            ));
+        }
+        if has_disposition {
+            match &self.disposition_reason {
+                Some(reason) => required_text(reason, "/disposition_reason", &mut violations),
+                None => violations.push(ContractViolation::new(
+                    "finding.disposition_reason_required",
+                    "/disposition_reason",
+                    "accepted-risk and dismissed findings require a user rationale",
+                )),
+            }
+            if self.decided_by != Some(crate::ActorKind::User) || self.decided_at.is_none() {
+                violations.push(ContractViolation::new(
+                    "finding.user_decision_required",
+                    "/decided_by",
+                    "finding dispositions must record the user and decision time",
+                ));
+            }
+        } else if self.disposition_reason.is_some()
+            || self.decided_by.is_some()
+            || self.decided_at.is_some()
+        {
+            violations.push(ContractViolation::new(
+                "finding.disposition_metadata_forbidden",
+                "/status",
+                "open and resolved findings cannot carry disposition metadata",
+            ));
+        }
         violations
+    }
+}
+
+impl SemanticValidate for ReviewCandidate {
+    fn validate_semantics(&self) -> Vec<ContractViolation> {
+        let mut violations = Vec::new();
+        if self.document_set_artifact.kind != crate::ArtifactKind::DocumentSet {
+            violations.push(ContractViolation::new(
+                "review.document_set_kind_invalid",
+                "/document_set_artifact/kind",
+                "review candidate must reference a document-set artifact",
+            ));
+        }
+        if self.findings.len() > 1_000 {
+            violations.push(ContractViolation::new(
+                "review.finding_count_invalid",
+                "/findings",
+                "review candidate may contain at most 1000 findings",
+            ));
+        }
+        let mut unique = std::collections::BTreeSet::new();
+        for (index, finding) in self.findings.iter().enumerate() {
+            validate_review_finding_candidate(
+                finding,
+                &format!("/findings/{index}"),
+                &mut violations,
+            );
+            let target = serde_json::to_string(&finding.target).unwrap_or_default();
+            if !unique.insert((finding.code.trim(), target)) {
+                violations.push(ContractViolation::new(
+                    "review.finding_duplicate",
+                    format!("/findings/{index}"),
+                    "review findings must be unique by code and exact target",
+                ));
+            }
+        }
+        violations
+    }
+}
+
+impl SemanticValidate for ReviewFindingsRecord {
+    fn validate_semantics(&self) -> Vec<ContractViolation> {
+        let mut violations = Vec::new();
+        if self.document_set_artifact.kind != crate::ArtifactKind::DocumentSet {
+            violations.push(ContractViolation::new(
+                "review.document_set_kind_invalid",
+                "/document_set_artifact/kind",
+                "review findings must reference a document-set artifact",
+            ));
+        }
+        if !matches!(
+            self.reviewed_by,
+            crate::ActorKind::HostAgent | crate::ActorKind::ConfiguredProvider
+        ) {
+            violations.push(ContractViolation::new(
+                "review.actor_invalid",
+                "/reviewed_by",
+                "review findings must identify a host-agent or configured-provider reviewer",
+            ));
+        }
+        if self.findings.len() > 1_000 {
+            violations.push(ContractViolation::new(
+                "review.finding_count_invalid",
+                "/findings",
+                "review findings may contain at most 1000 records",
+            ));
+        }
+        let mut ids = std::collections::BTreeSet::new();
+        let mut unique = std::collections::BTreeSet::new();
+        for (index, finding) in self.findings.iter().enumerate() {
+            if !ids.insert(&finding.id) {
+                violations.push(ContractViolation::new(
+                    "review.finding_id_duplicate",
+                    format!("/findings/{index}/id"),
+                    "review finding IDs must be unique",
+                ));
+            }
+            violations.extend(finding.validate_semantics().into_iter().map(|violation| {
+                ContractViolation::new(
+                    violation.code,
+                    format!("/findings/{index}{}", violation.json_pointer),
+                    violation.message,
+                )
+            }));
+            let target = serde_json::to_string(&finding.target).unwrap_or_default();
+            if !unique.insert((finding.code.trim(), target)) {
+                violations.push(ContractViolation::new(
+                    "review.finding_duplicate",
+                    format!("/findings/{index}"),
+                    "review findings must be unique by code and exact target",
+                ));
+            }
+        }
+        violations
+    }
+}
+
+impl SemanticValidate for ReviewDispositionCandidate {
+    fn validate_semantics(&self) -> Vec<ContractViolation> {
+        let mut violations = Vec::new();
+        if self.review_artifact.kind != crate::ArtifactKind::ReviewFindings {
+            violations.push(ContractViolation::new(
+                "review_disposition.artifact_kind_invalid",
+                "/review_artifact/kind",
+                "review disposition must reference a review-findings artifact",
+            ));
+        }
+        if self.decisions.len() > 1_000 {
+            violations.push(ContractViolation::new(
+                "review_disposition.count_invalid",
+                "/decisions",
+                "review disposition may contain at most 1000 decisions",
+            ));
+        }
+        let mut ids = std::collections::BTreeSet::new();
+        for (index, decision) in self.decisions.iter().enumerate() {
+            if !ids.insert(&decision.finding_id) {
+                violations.push(ContractViolation::new(
+                    "review_disposition.finding_duplicate",
+                    format!("/decisions/{index}/finding_id"),
+                    "each finding may appear at most once",
+                ));
+            }
+            match (decision.disposition, decision.rationale.as_deref()) {
+                (Some(_), Some(rationale)) => required_text(
+                    rationale,
+                    &format!("/decisions/{index}/rationale"),
+                    &mut violations,
+                ),
+                (Some(_), None) => violations.push(ContractViolation::new(
+                    "review_disposition.rationale_required",
+                    format!("/decisions/{index}/rationale"),
+                    "a selected disposition requires a rationale",
+                )),
+                (None, Some(_)) => violations.push(ContractViolation::new(
+                    "review_disposition.rationale_without_decision",
+                    format!("/decisions/{index}/rationale"),
+                    "rationale cannot be supplied without a disposition",
+                )),
+                (None, None) => {}
+            }
+        }
+        violations
+    }
+}
+
+fn validate_review_finding_candidate(
+    finding: &ReviewFindingCandidateRecord,
+    pointer: &str,
+    violations: &mut Vec<ContractViolation>,
+) {
+    validate_review_finding(
+        &finding.code,
+        &finding.message,
+        &finding.target,
+        &finding.related_targets,
+        finding.suggested_resolution.as_deref(),
+        pointer,
+        violations,
+    );
+}
+
+fn validate_review_finding(
+    code: &str,
+    message: &str,
+    target: &FindingTarget,
+    related_targets: &[FindingTarget],
+    suggested_resolution: Option<&str>,
+    pointer: &str,
+    violations: &mut Vec<ContractViolation>,
+) {
+    required_text(code, &format!("{pointer}/code"), violations);
+    if code.len() > 128
+        || !code.bytes().all(|byte| {
+            byte.is_ascii_lowercase() || byte.is_ascii_digit() || matches!(byte, b'.' | b'-' | b'_')
+        })
+    {
+        violations.push(ContractViolation::new(
+            "review.finding_code_invalid",
+            format!("{pointer}/code"),
+            "finding code must be at most 128 portable lowercase characters",
+        ));
+    }
+    required_text(message, &format!("{pointer}/message"), violations);
+    validate_finding_target(target, &format!("{pointer}/target"), violations);
+    if related_targets.len() > 20 {
+        violations.push(ContractViolation::new(
+            "review.related_target_count_invalid",
+            format!("{pointer}/related_targets"),
+            "finding may reference at most 20 related targets",
+        ));
+    }
+    let mut unique = std::collections::BTreeSet::new();
+    for (index, related) in related_targets.iter().enumerate() {
+        validate_finding_target(
+            related,
+            &format!("{pointer}/related_targets/{index}"),
+            violations,
+        );
+        let key = serde_json::to_string(related).unwrap_or_default();
+        if !unique.insert(key) {
+            violations.push(ContractViolation::new(
+                "review.related_target_duplicate",
+                format!("{pointer}/related_targets/{index}"),
+                "related targets must be unique",
+            ));
+        }
+    }
+    if let Some(resolution) = suggested_resolution {
+        required_text(
+            resolution,
+            &format!("{pointer}/suggested_resolution"),
+            violations,
+        );
+    }
+}
+
+fn validate_finding_target(
+    target: &FindingTarget,
+    pointer: &str,
+    violations: &mut Vec<ContractViolation>,
+) {
+    let artifact = match target {
+        FindingTarget::DocumentSet { document_set } => {
+            if document_set.kind != crate::ArtifactKind::DocumentSet {
+                violations.push(ContractViolation::new(
+                    "review.target_document_set_kind_invalid",
+                    format!("{pointer}/document_set/kind"),
+                    "document-set target must reference a document-set artifact",
+                ));
+            }
+            return;
+        }
+        FindingTarget::Document { document, .. }
+        | FindingTarget::Section { document, .. }
+        | FindingTarget::Claim { document, .. }
+        | FindingTarget::Placeholder { document, .. } => document,
+    };
+    if !matches!(
+        artifact.kind,
+        crate::ArtifactKind::CoverLetter
+            | crate::ArtifactKind::ResearchStatement
+            | crate::ArtifactKind::TeachingStatement
+            | crate::ArtifactKind::Cv
+    ) {
+        violations.push(ContractViolation::new(
+            "review.target_document_kind_invalid",
+            format!("{pointer}/document/kind"),
+            "document target must reference a supported structured document artifact",
+        ));
     }
 }
 
@@ -1213,7 +1509,9 @@ mod tests {
     use serde_json::json;
 
     use super::{CandidateValidationError, validate_external_candidate};
-    use crate::{DocumentCandidate, JobRecord};
+    use crate::{
+        DocumentCandidate, FindingRecord, JobRecord, ReviewCandidate, ReviewDispositionCandidate,
+    };
 
     #[test]
     fn validation_runs_schema_before_semantics() {
@@ -1377,5 +1675,99 @@ mod tests {
         .expect("cover letter fixture JSON");
         validate_external_candidate::<DocumentCandidate>(&fixture)
             .expect("cover letter fixture satisfies the document candidate contract");
+    }
+
+    #[test]
+    fn review_contracts_separate_agent_findings_from_user_dispositions() {
+        let document = json!({
+            "kind": "cover-letter",
+            "id": "019f2f55-7c00-7000-8000-000000000501",
+            "revision": 1,
+            "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        });
+        let candidate = json!({
+            "job_id": "019f2f55-7c00-7000-8000-000000000002",
+            "document_set_artifact": {
+                "kind": "document-set",
+                "id": "019f2f55-7c00-7000-8000-000000000500",
+                "revision": 1,
+                "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "findings": [{
+                "code": "review.motivation",
+                "category": "human-judgement",
+                "severity": "warning",
+                "message": "Confirm that the motivation statement reflects user intent.",
+                "target": {
+                    "kind": "claim",
+                    "document": document,
+                    "document_id": "019f2f55-7c00-7000-8000-000000000510",
+                    "section_id": "019f2f55-7c00-7000-8000-000000000511",
+                    "claim_id": "019f2f55-7c00-7000-8000-000000000512"
+                },
+                "related_targets": [],
+                "suggested_resolution": "Ask the user to confirm or revise the sentence."
+            }]
+        });
+        validate_external_candidate::<ReviewCandidate>(&candidate).expect("valid review candidate");
+        let mut invented_id = candidate.clone();
+        invented_id["findings"][0]["id"] = json!("019f2f55-7c00-7000-8000-000000000520");
+        assert!(matches!(
+            validate_external_candidate::<ReviewCandidate>(&invented_id),
+            Err(CandidateValidationError::Structural(_))
+        ));
+
+        let deterministic_dismissal = json!({
+            "id": "019f2f55-7c00-7000-8000-000000000520",
+            "code": "review.placeholder_required",
+            "category": "unresolved-placeholder",
+            "severity": "blocker",
+            "authority": "deterministic",
+            "message": "Resolve the required addressee placeholder.",
+            "target": {
+                "kind": "placeholder",
+                "document": document,
+                "document_id": "019f2f55-7c00-7000-8000-000000000510",
+                "placeholder_id": "019f2f55-7c00-7000-8000-000000000513"
+            },
+            "related_targets": [],
+            "suggested_resolution": "Resolve the placeholder by redrafting.",
+            "status": "dismissed",
+            "disposition_reason": "Ignore it.",
+            "decided_by": "user",
+            "decided_at": "2026-07-18T01:00:00Z",
+            "revision": 1
+        });
+        let error = validate_external_candidate::<FindingRecord>(&deterministic_dismissal)
+            .expect_err("deterministic blocker cannot be dismissed");
+        assert!(
+            error.violations().iter().any(|violation| {
+                violation.code == "finding.deterministic_disposition_forbidden"
+            })
+        );
+
+        let disposition = json!({
+            "job_id": "019f2f55-7c00-7000-8000-000000000002",
+            "review_artifact": {
+                "kind": "review-findings",
+                "id": "019f2f55-7c00-7000-8000-000000000530",
+                "revision": 1,
+                "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+            },
+            "decisions": [{
+                "finding_id": "019f2f55-7c00-7000-8000-000000000520",
+                "expected_revision": 1,
+                "disposition": "accepted-risk",
+                "rationale": "The user reviewed and accepts this wording risk."
+            }]
+        });
+        validate_external_candidate::<ReviewDispositionCandidate>(&disposition)
+            .expect("valid user disposition candidate");
+        let mut rationale_without_decision = disposition;
+        rationale_without_decision["decisions"][0]["disposition"] = serde_json::Value::Null;
+        assert!(matches!(
+            validate_external_candidate::<ReviewDispositionCandidate>(&rationale_without_decision),
+            Err(CandidateValidationError::Semantic(_))
+        ));
     }
 }

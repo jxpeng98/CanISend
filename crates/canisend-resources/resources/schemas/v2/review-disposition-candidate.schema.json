@@ -1,0 +1,118 @@
+{
+  "$defs": {
+    "ArtifactKind": {
+      "enum": [
+        "source-original",
+        "source-normalized-text",
+        "parsed-job",
+        "evidence-catalog",
+        "criteria",
+        "evidence-matches",
+        "application-plan",
+        "cover-letter",
+        "research-statement",
+        "teaching-statement",
+        "cv",
+        "document-set",
+        "review-findings",
+        "package-manifest",
+        "typst-source",
+        "pdf"
+      ],
+      "type": "string"
+    },
+    "ArtifactReference": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/ArtifactKind"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sha256": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "revision",
+        "sha256"
+      ],
+      "type": "object"
+    },
+    "FindingDisposition": {
+      "enum": [
+        "accepted-risk",
+        "dismissed"
+      ],
+      "type": "string"
+    },
+    "FindingDispositionCandidateRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "disposition": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FindingDisposition"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "expected_revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "finding_id": {
+          "type": "string"
+        },
+        "rationale": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "finding_id",
+        "expected_revision"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://schemas.canisend.dev/v2/review-disposition-candidate.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "decisions": {
+      "items": {
+        "$ref": "#/$defs/FindingDispositionCandidateRecord"
+      },
+      "type": "array"
+    },
+    "job_id": {
+      "type": "string"
+    },
+    "review_artifact": {
+      "$ref": "#/$defs/ArtifactReference"
+    }
+  },
+  "required": [
+    "job_id",
+    "review_artifact",
+    "decisions"
+  ],
+  "title": "ReviewDispositionCandidate",
+  "type": "object",
+  "x-canisend-id": "canisend.review-disposition-candidate/v2",
+  "x-canisend-version": "2.0.0"
+}
