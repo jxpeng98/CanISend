@@ -117,6 +117,10 @@ fn doctor_proves_embedded_resources_and_no_python_requirement() {
 
     assert_eq!(value["status"], "healthy");
     assert_eq!(value["data"]["resource_manifest"], "verified");
+    assert_eq!(value["data"]["embedded_typst"], "verified");
+    assert_eq!(value["data"]["default_fonts"], "embedded");
+    assert_eq!(value["data"]["system_font_scan"], false);
+    assert_eq!(value["data"]["runtime_package_downloads"], false);
     assert_eq!(value["data"]["python_required"], false);
 }
 

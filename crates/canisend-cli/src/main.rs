@@ -18,11 +18,11 @@ use canisend_contracts::{
 };
 use canisend_core::{CapabilityRegistry, StageRegistry};
 use canisend_io::{
-    DiscoveryAdapter, DiscoveryFileKind, GreenhouseAdapter, HttpFetcher, IoAdapterError,
-    JobsAcUkAdapter, LeverAdapter, LocalTextKind, RemoteDocumentKind, RssAtomAdapter,
-    discovery_adapter_capabilities, extract_pdf_text, parse_csv_batch, parse_host_agent_batch,
-    parse_json_batch, read_criteria_file, read_discovery_file, read_local_pdf, read_local_text,
-    read_task_completion_file, read_task_completion_stdin,
+    DiscoveryAdapter, DiscoveryFileKind, EmbeddedTypstCompiler, GreenhouseAdapter, HttpFetcher,
+    IoAdapterError, JobsAcUkAdapter, LeverAdapter, LocalTextKind, RemoteDocumentKind,
+    RssAtomAdapter, discovery_adapter_capabilities, extract_pdf_text, parse_csv_batch,
+    parse_host_agent_batch, parse_json_batch, read_criteria_file, read_discovery_file,
+    read_local_pdf, read_local_text, read_task_completion_file, read_task_completion_stdin,
 };
 use canisend_resources::{AgentHost, ResourceError, ResourceId, ResourceKind, export_agent_pack};
 use canisend_store::{
@@ -1399,10 +1399,39 @@ fn doctor() -> CommandResult<CommandOutput> {
             false,
         )
     })?;
+    let template =
+        std::str::from_utf8(canisend_resources::get(ResourceId::TemplateCoverLetter).bytes)
+            .map_err(|_| {
+                CommandFailure::new(
+                    "product.doctor",
+                    "unhealthy",
+                    ErrorCode::ResourcesIntegrityFailed,
+                    "embedded Typst template is not UTF-8",
+                    false,
+                )
+            })?;
+    let probe_source = format!(
+        "{template}\n#application_cover_letter([CanISend], [Native self-check], [Embedded rendering verified.])"
+    );
+    EmbeddedTypstCompiler::new()
+        .compile_pdf(&probe_source)
+        .map_err(|error| {
+            CommandFailure::new(
+                "product.doctor",
+                "unhealthy",
+                ErrorCode::InternalInvariantFailed,
+                error.to_string(),
+                false,
+            )
+        })?;
     let data = json!({
         "resource_manifest": "verified",
         "resource_count": canisend_resources::manifest().len(),
         "schema_count": PublicSchemaId::ALL.len(),
+        "embedded_typst": "verified",
+        "default_fonts": "embedded",
+        "system_font_scan": false,
+        "runtime_package_downloads": false,
         "python_required": false,
     });
     Ok(CommandOutput {
@@ -1411,6 +1440,8 @@ fn doctor() -> CommandResult<CommandOutput> {
             "CanISend native foundation: healthy".to_owned(),
             "Embedded resources: verified".to_owned(),
             "Generated schemas: verified".to_owned(),
+            "Embedded Typst renderer: verified".to_owned(),
+            "System fonts and runtime packages: disabled".to_owned(),
             "Python runtime: not required".to_owned(),
         ],
     })

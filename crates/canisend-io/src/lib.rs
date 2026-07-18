@@ -5,6 +5,7 @@ mod discovery;
 mod local;
 mod pdf;
 mod remote;
+mod render;
 
 use std::path::PathBuf;
 
@@ -17,6 +18,10 @@ pub use pdf::{MAX_PDF_PAGES, PdfTextDocument, extract_pdf_text, read_local_pdf};
 pub use remote::{
     HttpFetcher, MAX_REMOTE_SOURCE_BYTES, RemoteDocument, RemoteDocumentKind, RemotePayload,
     RemotePayloadKind,
+};
+pub use render::{
+    EmbeddedRenderError, EmbeddedTypstCompiler, MAX_RENDER_MILLIS, MAX_RENDER_PDF_BYTES,
+    MAX_TYPST_SOURCE_BYTES, RenderedPdf,
 };
 
 #[derive(Debug, Error)]
