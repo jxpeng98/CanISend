@@ -332,7 +332,7 @@ fn decode_response(
     let (original_bytes, declared) = read_response_bytes(response, MAX_REMOTE_SOURCE_BYTES)?;
     let kind = classify_content(&declared, &original_bytes)?;
     let normalized_text = match kind {
-        RemoteDocumentKind::Html => Some(normalize_html(&original_bytes)?),
+        RemoteDocumentKind::Html => Some(normalize_html_document(&original_bytes)?),
         RemoteDocumentKind::PlainText => Some(normalize_utf8_text(&original_bytes)?),
         RemoteDocumentKind::Pdf => None,
     };
@@ -513,7 +513,11 @@ fn classify_payload(declared: &str, bytes: &[u8]) -> Result<RemotePayloadKind, I
     Ok(expected.unwrap_or(sniffed))
 }
 
-fn normalize_html(bytes: &[u8]) -> Result<String, IoAdapterError> {
+/// Normalize a bounded UTF-8 HTML response after transport validation.
+///
+/// This public adapter makes the network-independent intake stage measurable without weakening
+/// the URL fetcher's DNS and redirect policy.
+pub fn normalize_html_document(bytes: &[u8]) -> Result<String, IoAdapterError> {
     std::str::from_utf8(bytes).map_err(|_| IoAdapterError::InvalidTextEncoding)?;
     let rendered = html2text::from_read(bytes, 1000)
         .map_err(|error| IoAdapterError::Html(error.to_string()))?;
@@ -552,7 +556,8 @@ mod tests {
 
     use super::{
         HttpFetcher, MAX_REMOTE_SOURCE_BYTES, RemoteDocumentKind, RemotePayloadKind,
-        address_allowed, classify_content, normalize_html, parse_url, validate_allowed_host,
+        address_allowed, classify_content, normalize_html_document, parse_url,
+        validate_allowed_host,
     };
 
     #[test]
@@ -609,7 +614,7 @@ mod tests {
         );
         assert!(classify_content("application/pdf", b"plain text").is_err());
         assert!(classify_content("text/plain", b"<!doctype html><p>text</p>").is_err());
-        let text = normalize_html(
+        let text = normalize_html_document(
             b"<!doctype html><html><head><script>secret()</script></head><body><h1>Role</h1><p>Teach &amp; research.</p></body></html>",
         )
         .expect("HTML normalization");

@@ -7,6 +7,7 @@ use std::{
         atomic::{AtomicU64, Ordering},
     },
     thread,
+    time::{Duration, Instant},
 };
 
 use canisend_contracts::{
@@ -270,6 +271,7 @@ fn profile_sources_are_private_revisioned_and_invalidate_evidence_only() {
 
 #[test]
 fn evidence_and_match_tasks_enforce_stable_revision_bound_identities() {
+    let performance_started = Instant::now();
     let root = TestDirectory::new("evidence-workflow");
     let mut workspace = Workspace::init(root.path()).expect("workspace");
     let job = JobService::new(&mut workspace.database, &workspace.blobs)
@@ -1308,6 +1310,18 @@ fn evidence_and_match_tasks_enforce_stable_revision_bound_identities() {
         workflow_stage_status(&status, WorkflowStage::Evidence),
         StageExecutionStatus::Ready
     );
+    if std::env::var_os("CANISEND_PERFORMANCE_GATE").is_some() {
+        let elapsed = performance_started.elapsed();
+        println!(
+            "CANISEND_PERFORMANCE full_synthetic_workflow_millis={}",
+            elapsed.as_millis()
+        );
+        assert!(
+            elapsed <= Duration::from_secs(15),
+            "full synthetic workflow took {} ms, exceeding the 15000 ms release threshold",
+            elapsed.as_millis()
+        );
+    }
 }
 
 #[test]

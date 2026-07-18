@@ -17,7 +17,7 @@ pub use local::{
 pub use pdf::{MAX_PDF_PAGES, PdfTextDocument, extract_pdf_text, read_local_pdf};
 pub use remote::{
     HttpFetcher, MAX_REMOTE_SOURCE_BYTES, RemoteDocument, RemoteDocumentKind, RemotePayload,
-    RemotePayloadKind,
+    RemotePayloadKind, normalize_html_document,
 };
 pub use render::{
     EmbeddedRenderError, EmbeddedTypstCompiler, MAX_RENDER_MILLIS, MAX_RENDER_PDF_BYTES,

@@ -1,0 +1,27 @@
+{
+  "format": "canisend.performance-baseline/v1",
+  "recorded_at": "2026-07-18",
+  "profile": "release",
+  "reference_target": "aarch64-apple-darwin",
+  "rust_toolchain": "1.97.0",
+  "observed": {
+    "capabilities_startup_median_ms": 7,
+    "full_synthetic_workflow_ms": 831,
+    "html_1_mib_intake_median_ms": 73,
+    "pdf_50_page_intake_median_ms": 29,
+    "release_binary_bytes": 48874800,
+    "status_100_jobs_median_ms": 8,
+    "typst_render_median_ms": 5,
+    "version_startup_median_ms": 7
+  },
+  "thresholds": {
+    "capabilities_startup_median_ms": 150,
+    "full_synthetic_workflow_ms": 15000,
+    "html_1_mib_intake_median_ms": 2000,
+    "pdf_50_page_intake_median_ms": 5000,
+    "release_binary_bytes": 67108864,
+    "status_100_jobs_median_ms": 500,
+    "typst_render_median_ms": 1000,
+    "version_startup_median_ms": 100
+  }
+}

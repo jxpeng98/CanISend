@@ -38,6 +38,23 @@ jobs:
       - name: Build native preview
         run: cargo build --release --locked
 
+      - name: Check release performance budgets
+        if: matrix.name == 'linux-x86_64'
+        env:
+          CANISEND_PERFORMANCE_OUTPUT: ${{ runner.temp }}/canisend-performance.json
+        run: >-
+          cargo test --release -p canisend-cli --locked
+          --test performance_contract -- --ignored --nocapture
+
+      - name: Check full synthetic workflow budget
+        if: matrix.name == 'linux-x86_64'
+        env:
+          CANISEND_PERFORMANCE_GATE: "1"
+        run: >-
+          cargo test --release -p canisend-store --locked --test store_contract
+          evidence_and_match_tasks_enforce_stable_revision_bound_identities
+          -- --exact --nocapture
+
       - name: Smoke native preview
         shell: bash
         run: |
@@ -65,9 +82,13 @@ jobs:
 
       - name: Stage unsigned preview bundle with notices
         shell: bash
-        run: >-
-          ./scripts/stage_native_bundle.sh "${{ matrix.binary }}"
-          "$RUNNER_TEMP/canisend-${{ matrix.name }}"
+        run: |
+          ./scripts/stage_native_bundle.sh "${{ matrix.binary }}" \
+            "$RUNNER_TEMP/canisend-${{ matrix.name }}"
+          if [[ -f "$RUNNER_TEMP/canisend-performance.json" ]]; then
+            cp "$RUNNER_TEMP/canisend-performance.json" \
+              "$RUNNER_TEMP/canisend-${{ matrix.name }}/PERFORMANCE.json"
+          fi
 
       - name: Upload unsigned preview bundle
         uses: actions/upload-artifact@v7
