@@ -6,6 +6,12 @@
 
 **Status:** Version-neutral controls qualified on five targets; signed Beta/RC qualification pending
 
+The future clean-tag matrix ledger is now written through `xtask release record-rc-qualification`. Each invocation
+fully verifies the downloaded signed RC directory, derives source identity, rejects reuse of any prior tag/source/run
+tuple component, and previews the ledger digest before explicit clean-worktree write. Together with sequential
+RC.N→RC.(N+1) version preparation, this provides the two-distinct-matrix path without claiming that the external
+assets or runs exist today.
+
 ## Boundary
 
 The binary and workspace are different rollback surfaces. Replacing a standalone executable is reversible, but a

@@ -30,6 +30,7 @@ const STAGE_TRANSITION_POLICY_SCHEMA: &str = "canisend.stage-transition-policy/v
 const STAGE_TRANSITION_PLAN_SCHEMA: &str = "canisend.stage-transition-plan/v1";
 const FEATURE_FREEZE_PLAN_SCHEMA: &str = "canisend.feature-freeze-plan/v1";
 const BETA_QUALIFICATION_PLAN_SCHEMA: &str = "canisend.beta-qualification-plan/v1";
+const RC_QUALIFICATION_PLAN_SCHEMA: &str = "canisend.rc-qualification-plan/v1";
 const FEATURE_FREEZE_EXCEPTIONS_SCHEMA: &str = "canisend.feature-freeze-exceptions/v1";
 const PACKAGE_MANAGER_QUALIFICATION_POLICY_SCHEMA: &str =
     "canisend.package-manager-qualification-policy/v1";
@@ -122,6 +123,18 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
         {
             record_beta_qualification(tag, run_id, Path::new(assets), true)
         }
+        [area, command, tag, run_id, assets]
+            if area == "release" && command == "record-rc-qualification" =>
+        {
+            record_rc_qualification(tag, run_id, Path::new(assets), false)
+        }
+        [area, command, tag, run_id, assets, write]
+            if area == "release"
+                && command == "record-rc-qualification"
+                && write == "--write" =>
+        {
+            record_rc_qualification(tag, run_id, Path::new(assets), true)
+        }
         [area, command, output] if area == "release" && command == "sbom" => {
             write_release_sbom(Path::new(output))
         }
@@ -166,7 +179,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
         }
         _ => Err(
             "usage: cargo run -p xtask -- schemas <check|write> | <resources|docs> check | \
-             release <check|freeze-candidate|validate-tag TAG|verify-beta-readiness FILE|prepare-stage TAG [--write]|activate-feature-freeze COMMIT [--write]|record-beta-qualification TAG RUN_ID ASSETS [--write]|sbom OUTPUT|assemble TAG COMMIT ARTIFACTS OUTPUT|verify TAG DIRECTORY|channels TAG ASSETS OUTPUT|bind-signing-evidence TAG TARGET EVIDENCE BINARY ARCHIVE|verify-package-candidates FROM_TAG FROM_ASSETS TO_TAG TO_ASSETS|verify-package-evidence FROM_TAG TO_TAG DIRECTORY>"
+             release <check|freeze-candidate|validate-tag TAG|verify-beta-readiness FILE|prepare-stage TAG [--write]|activate-feature-freeze COMMIT [--write]|record-beta-qualification TAG RUN_ID ASSETS [--write]|record-rc-qualification TAG RUN_ID ASSETS [--write]|sbom OUTPUT|assemble TAG COMMIT ARTIFACTS OUTPUT|verify TAG DIRECTORY|channels TAG ASSETS OUTPUT|bind-signing-evidence TAG TARGET EVIDENCE BINARY ARCHIVE|verify-package-candidates FROM_TAG FROM_ASSETS TO_TAG TO_ASSETS|verify-package-evidence FROM_TAG TO_TAG DIRECTORY>"
                 .to_owned(),
         ),
     }
@@ -562,7 +575,7 @@ struct RenderedFeatureFreeze {
     files: BTreeMap<String, Vec<u8>>,
 }
 
-struct RenderedBetaQualification {
+struct RenderedReleaseQualification {
     tag: String,
     run_id: u64,
     source_commit: String,
@@ -763,12 +776,53 @@ fn record_beta_qualification(
     Ok(())
 }
 
+fn record_rc_qualification(
+    tag: &str,
+    run_id: &str,
+    assets: &Path,
+    write: bool,
+) -> Result<(), String> {
+    let root = repository_root();
+    if write {
+        require_clean_worktree(&root, "RC qualification")?;
+    }
+    let qualification = render_rc_qualification(&root, tag, run_id, assets)?;
+    let ledger_path = root.join("release/qualification-ledger.json");
+    let before = fs::read(&ledger_path)
+        .map_err(|error| format!("could not read qualification ledger: {error}"))?;
+    let report = json!({
+        "schema": RC_QUALIFICATION_PLAN_SCHEMA,
+        "mode": if write { "write" } else { "dry-run" },
+        "writes_performed": write,
+        "tag": qualification.tag,
+        "source_commit": qualification.source_commit,
+        "signed_matrix_run": qualification.run_id,
+        "release_manifest_sha256": qualification.manifest_sha256,
+        "ledger": {
+            "path": "release/qualification-ledger.json",
+            "before_sha256": sha256(&before),
+            "after_sha256": sha256(&qualification.ledger)
+        },
+        "next": "commit this clean-tag matrix; record a distinct sequential RC before Stable"
+    });
+    if write {
+        fs::write(&ledger_path, &qualification.ledger)
+            .map_err(|error| format!("could not write {}: {error}", ledger_path.display()))?;
+    }
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&report)
+            .map_err(|error| format!("could not serialize RC qualification plan: {error}"))?
+    );
+    Ok(())
+}
+
 fn render_beta_qualification(
     root: &Path,
     tag: &str,
     run_id: &str,
     assets: &Path,
-) -> Result<RenderedBetaQualification, String> {
+) -> Result<RenderedReleaseQualification, String> {
     let run_id = run_id
         .parse::<u64>()
         .ok()
@@ -803,7 +857,56 @@ fn render_beta_qualification(
     )
     .map_err(|error| format!("qualification ledger is invalid JSON: {error}"))?;
     let ledger = beta_qualified_ledger(&ledger, tag, run_id, source_commit)?;
-    Ok(RenderedBetaQualification {
+    Ok(RenderedReleaseQualification {
+        tag: tag.to_owned(),
+        run_id,
+        source_commit: source_commit.to_owned(),
+        manifest_sha256: sha256(&manifest_bytes),
+        ledger: pretty_json_bytes(&ledger)?,
+    })
+}
+
+fn render_rc_qualification(
+    root: &Path,
+    tag: &str,
+    run_id: &str,
+    assets: &Path,
+) -> Result<RenderedReleaseQualification, String> {
+    let run_id = run_id
+        .parse::<u64>()
+        .ok()
+        .filter(|run| *run > 0)
+        .ok_or_else(|| "RC qualification run ID must be a positive integer".to_owned())?;
+    let (version, stage) = parse_release_tag(tag)?;
+    if stage != ReleaseStage::ReleaseCandidate {
+        return Err("RC qualification requires an RC tag".to_owned());
+    }
+    let workspace_body = fs::read_to_string(root.join("Cargo.toml"))
+        .map_err(|error| format!("could not read workspace manifest: {error}"))?;
+    let workspace: toml::Value = workspace_body
+        .parse()
+        .map_err(|error| format!("workspace manifest is invalid TOML: {error}"))?;
+    if workspace["workspace"]["package"]["version"].as_str() != Some(version.to_string().as_str()) {
+        return Err("RC qualification tag must match the current workspace version".to_owned());
+    }
+
+    verify_release(tag, assets)?;
+    let manifest_path = assets.join(format!("canisend-{version}-manifest.json"));
+    let manifest_bytes = fs::read(&manifest_path)
+        .map_err(|error| format!("could not read verified release manifest: {error}"))?;
+    let manifest: Value = serde_json::from_slice(&manifest_bytes)
+        .map_err(|error| format!("verified release manifest is invalid JSON: {error}"))?;
+    let source_commit = required_string(&manifest["source"], "commit", "RC release source")?;
+    validate_lower_hex("RC release source commit", source_commit, 40)?;
+
+    let ledger_path = root.join("release/qualification-ledger.json");
+    let ledger: Value = serde_json::from_slice(
+        &fs::read(&ledger_path)
+            .map_err(|error| format!("could not read qualification ledger: {error}"))?,
+    )
+    .map_err(|error| format!("qualification ledger is invalid JSON: {error}"))?;
+    let ledger = rc_qualified_ledger(&ledger, tag, run_id, source_commit)?;
+    Ok(RenderedReleaseQualification {
         tag: tag.to_owned(),
         run_id,
         source_commit: source_commit.to_owned(),
@@ -851,6 +954,59 @@ fn beta_qualified_ledger(
         "status": "qualified",
         "tag": tag
     });
+    Ok(qualified)
+}
+
+fn rc_qualified_ledger(
+    ledger: &Value,
+    tag: &str,
+    run_id: u64,
+    source_commit: &str,
+) -> Result<Value, String> {
+    let (_, stage) = parse_release_tag(tag)?;
+    validate_lower_hex("RC source commit", source_commit, 40)?;
+    let baseline = required_string(
+        &ledger["feature_freeze"],
+        "baseline_commit",
+        "feature freeze",
+    )?;
+    validate_lower_hex("feature-freeze baseline commit", baseline, 40)?;
+    if stage != ReleaseStage::ReleaseCandidate
+        || run_id == 0
+        || ledger["schema"] != RELEASE_QUALIFICATION_SCHEMA
+        || ledger["workspace_stage"] != "rc"
+        || ledger["status"] != "rc-qualifying"
+        || ledger["beta"]["status"] != "qualified"
+        || ledger["feature_freeze"]["status"] != "frozen"
+        || ledger["stable_authorized"] != false
+    {
+        return Err("qualification ledger is not canonical RC-qualifying state".to_owned());
+    }
+    let candidates = ledger["release_candidates"]
+        .as_array()
+        .ok_or_else(|| "qualification ledger release_candidates must be an array".to_owned())?;
+    for candidate in candidates {
+        if candidate["status"] != "success" {
+            return Err("existing RC qualification is not successful".to_owned());
+        }
+        let (existing_tag, existing_commit, existing_run) =
+            validate_qualification_release(candidate, ReleaseStage::ReleaseCandidate, "RC")?;
+        if existing_tag == tag || existing_commit == source_commit || existing_run == run_id {
+            return Err(
+                "RC qualification tag, source commit, and run ID must all be distinct".to_owned(),
+            );
+        }
+    }
+    let mut qualified = ledger.clone();
+    qualified["release_candidates"]
+        .as_array_mut()
+        .expect("validated RC candidate array")
+        .push(json!({
+            "signed_matrix_run": run_id,
+            "source_commit": source_commit,
+            "status": "success",
+            "tag": tag
+        }));
     Ok(qualified)
 }
 
@@ -2200,6 +2356,7 @@ fn check_release_qualification() -> Result<(), String> {
     check_local_markdown_links(&root, &documentation_path, &documentation)?;
     for required in [
         "record-beta-qualification",
+        "record-rc-qualification",
         "DOWNLOADED_ASSET_DIRECTORY",
         "gh attestation verify",
         "--write",
@@ -5020,6 +5177,48 @@ mod tests {
         );
         assert!(beta_qualified_ledger(&pending, "v0.7.0-alpha.1", 1, &source).is_err());
         assert!(beta_qualified_ledger(&pending, "v0.7.0-beta.1", 0, &source).is_err());
+    }
+
+    #[test]
+    fn rc_qualification_records_two_distinct_clean_tag_matrices() {
+        let ledger = json!({
+            "schema": RELEASE_QUALIFICATION_SCHEMA,
+            "workspace_stage": "rc",
+            "status": "rc-qualifying",
+            "stable_authorized": false,
+            "beta": {"status": "qualified"},
+            "feature_freeze": {"status": "frozen", "baseline_commit": "6".repeat(40)},
+            "release_candidates": []
+        });
+        let first_source = "7".repeat(40);
+        let second_source = "8".repeat(40);
+        let first = rc_qualified_ledger(&ledger, "v0.7.0-rc.1", 29_641_000_001, &first_source)
+            .expect("record first RC matrix");
+        let second = rc_qualified_ledger(&first, "v0.7.0-rc.2", 29_641_000_002, &second_source)
+            .expect("record second RC matrix");
+        assert_eq!(
+            second["release_candidates"].as_array().map(Vec::len),
+            Some(2)
+        );
+        assert_eq!(
+            second["release_candidates"][1],
+            json!({
+                "signed_matrix_run": 29_641_000_002_u64,
+                "source_commit": second_source,
+                "status": "success",
+                "tag": "v0.7.0-rc.2"
+            })
+        );
+        assert!(
+            rc_qualified_ledger(&first, "v0.7.0-rc.1", 29_641_000_002, &second_source).is_err()
+        );
+        assert!(
+            rc_qualified_ledger(&first, "v0.7.0-rc.2", 29_641_000_001, &second_source).is_err()
+        );
+        assert!(rc_qualified_ledger(&first, "v0.7.0-rc.2", 29_641_000_002, &first_source).is_err());
+        assert!(
+            rc_qualified_ledger(&ledger, "v0.7.0-beta.1", 29_641_000_001, &first_source).is_err()
+        );
     }
 
     #[test]

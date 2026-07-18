@@ -269,7 +269,8 @@
 - 2026-07-18: Replaced manual feature-freeze activation with a HEAD-bound, dry-run-first command. After a signed
   Beta is qualified, the tool requires canonical planned state and a clean worktree, previews the two exact file
   digests, and synchronizes the qualification ledger with the exception authority. Alpha remains planned and the
-  R11.3 freeze checkbox remains open until those future preconditions are real.
+  R11.3 freeze checkbox remains open until those future preconditions are real. The implementation passed all eight
+  jobs in exact CI `29641868000` at commit `aea135b`.
 - 2026-07-18: Replaced manual Beta ledger promotion with a dry-run-first evidence recorder. It accepts only the
   exact current Beta and canonical pending ledger, fully re-verifies downloaded manifest/checksums, five archives,
   and three archive-bound signing records, derives source identity, and previews the ledger hash. It keeps public
@@ -278,6 +279,10 @@
   The same dry-run/write mechanism synchronizes Cargo, lock, internal dependencies, and release-note identity while
   preserving already recorded qualification evidence; RC number skipping, Beta iteration, and release-line changes
   remain rejected.
+- 2026-07-18: Added the matching dry-run-first RC matrix recorder. Every candidate reuses the complete signed-asset
+  verifier, must match the current RC, and must introduce a distinct clean tag, manifest source commit, and run ID;
+  explicit write appends one canonical ledger record. The two-matrix checkbox stays open until real RC.1/RC.2
+  public evidence passes.
 
 ## 1. Executive Decision
 

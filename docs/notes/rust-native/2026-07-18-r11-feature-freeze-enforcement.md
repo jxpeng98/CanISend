@@ -25,6 +25,10 @@ canonical planned state, and a full baseline equal to current `HEAD`; it then ke
 authority synchronized. A temporary Git repository test commits the automatic activation change and proves that
 post-baseline history validation accepts it without inventing an exception.
 
+The activation implementation passed all eight jobs in ordinary CI `29641868000` at exact commit
+`aea135beded20c4c40f195eae0f56004f1cd4c90`, including dependency/Rust quality, three-platform recovery, and
+three-platform native render/documentation/archive jobs. The live Alpha negative check still rejects activation.
+
 ## Boundary
 
 This preparation does not freeze the current Alpha branch and does not close the R11.3 checkbox. Activation requires

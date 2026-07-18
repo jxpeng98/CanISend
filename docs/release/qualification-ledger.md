@@ -35,6 +35,21 @@ The run ID remains an external reference, so the command cannot prove that the n
 GitHub run. Retain the run URL and public `gh attestation verify` results independently; a locally assembled or
 hand-edited directory is not sufficient public qualification evidence.
 
+## Recording clean-tag RC matrices
+
+For each public sequential RC, download and independently verify its exact assets, then preview:
+
+```console
+cargo run -p xtask --locked -- release record-rc-qualification \
+  v0.7.0-rc.1 GITHUB_RUN_ID DOWNLOADED_ASSET_DIRECTORY
+```
+
+This applies the same complete signed-asset verification and clean-worktree `--write` boundary as Beta. The current
+workspace version must match the tag, Beta must already be qualified, and the feature freeze must be active. Every
+recorded RC tag, manifest source commit, and signed-matrix run ID must be distinct. After recording RC.1, use the
+sequential stage tool to prepare RC.2, qualify its different clean tag/source/run, and retain both public
+attestation reviews. Stable rejects fewer than two such records.
+
 ## Stable evidence requirements
 
 Stable requires all of these in the committed ledger:
