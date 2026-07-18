@@ -1,6 +1,6 @@
 # CanISend Rust-Native Greenfield Rebuild Roadmap
 
-**Status:** In progress — R0 through R9 complete; R10.1 security review active
+**Status:** In progress — R0 through R9 and R10.1–R10.2 complete; R10.3 performance active
 
 **Date:** 2026-07-17
 
@@ -146,6 +146,19 @@
   render probes took 13, 11, and 5 milliseconds respectively, all within the 64 MiB budget. Native bundles contain
   the product license, dependency notices, embedded font licenses, and Typst asset notice. R9 exit criteria are
   satisfied; R10.1 security review is active.
+- 2026-07-18: Completed R10.1 security review with exact provider redirect allowlists, strengthened portable path
+  validation, a published T01–T16 threat model, audited private-log/provider/archive/resource boundaries, and a
+  pinned `cargo-deny` advisory/license/source gate. Two quick-xml advisories and five unmaintained transitive crates
+  are narrowly documented against unreachable embedded-only Typst paths; enabling user-authored Typst,
+  bibliography/XML/YAML, external packages/files, or system/user fonts remains a release blocker until those
+  dependencies are upgraded or isolated. GitHub Actions run `29629132522` passed dependency policy, quality, and all
+  native rendering jobs. R10.2 recovery review is active.
+- 2026-07-18: Completed R10.2 with failure-cleaned backup/restore staging, deterministic raw and managed projection
+  reconstruction from SQLite/blob authority, and a documented interruption matrix. Recovery contracts cover partial
+  blob writes, pre-transaction publication, transaction rollback, projection failure/repair, partial backup cleanup,
+  missing/corrupt referenced blobs, stale completion, and concurrent idempotent host-agent completion. GitHub Actions
+  run `29629649534` passed the recovery subset on Linux x86_64, macOS arm64, and Windows x86_64 plus the complete
+  quality/dependency/render matrix. R10.3 performance is active.
 
 ## 1. Executive Decision
 
@@ -1720,20 +1733,30 @@ bundles include `LICENSE`, `THIRD_PARTY_NOTICES.md`, embedded font licenses, and
 
 #### R10.1 Security review
 
-- [ ] Complete the threat model.
-- [ ] Audit URL and redirect validation.
-- [ ] Audit archive/resource/path handling.
-- [ ] Audit private logging and provider payload construction.
-- [ ] Run dependency advisory and license checks.
-- [ ] Resolve all high-severity findings or document release blockers.
+- [x] Complete the threat model.
+- [x] Audit URL and redirect validation.
+- [x] Audit archive/resource/path handling.
+- [x] Audit private logging and provider payload construction.
+- [x] Run dependency advisory and license checks.
+- [x] Resolve all high-severity findings or document release blockers.
+
+**R10.1 exit:** Satisfied by the published [threat model](../../security/threat-model.md), root `SECURITY.md`, exact
+provider/URL/path controls, and `deny.toml`. GitHub Actions run `29629132522` passed the pinned dependency policy and
+complete native gate. Audited Typst-transitive exceptions are restricted to embedded verified inputs; the threat
+model records explicit release blockers before any external Typst/XML/YAML/file/font surface may be introduced.
 
 #### R10.2 Recovery review
 
-- [ ] Execute every planned interruption point.
-- [ ] Restore from backup on every primary platform.
-- [ ] Rebuild projections from authoritative state.
-- [ ] Detect corrupt/missing blobs.
-- [ ] Test concurrent host-agent tasks and stale completion.
+- [x] Execute every planned interruption point.
+- [x] Restore from backup on every primary platform.
+- [x] Rebuild projections from authoritative state.
+- [x] Detect corrupt/missing blobs.
+- [x] Test concurrent host-agent tasks and stale completion.
+
+**R10.2 exit:** Satisfied by the [interruption matrix](../../recovery/interruption-matrix.md) and GitHub Actions run
+`29629649534`. The dedicated `recovery-native` matrix passed on Linux x86_64, macOS arm64, and Windows x86_64.
+Restore publishes only after backup verification and deterministic projection reconstruction; failure removes the
+unique staging directory, while authoritative corruption fails closed and requires a verified backup.
 
 #### R10.3 Performance
 

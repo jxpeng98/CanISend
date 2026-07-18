@@ -19,9 +19,10 @@ the Git tag `archive/python-v0.6.0b1-final`.
 
 ## Current status
 
-The Rust rebuild has completed R9, including the full evidence-backed material pipeline, restricted in-process Typst
-compilation, safe editable Typst projections, revision-bound PDF artifacts/exports, and verified native rendering on
-macOS arm64, Windows x86_64, and Linux x86_64. R10 hardening is now active. The current binary provides:
+The Rust rebuild has completed R9 plus the R10 security and recovery reviews, including the full evidence-backed
+material pipeline, restricted in-process Typst compilation, verified native rendering, an audited dependency/threat
+boundary, and cross-platform interruption/restore evidence. R10 performance work is now active. The current binary
+provides:
 
 - Native `canisend` executable scaffolding.
 - Validated UUIDv7, SHA-256, revision, UTC timestamp, and safe relative-path contract types.
@@ -33,7 +34,8 @@ macOS arm64, Windows x86_64, and Linux x86_64. R10 hardening is now active. The 
 - Agent context plus schema/resource diagnostics with deterministic JSON snapshots.
 - Workspace discovery, explicit `--workspace` resolution, initialization, status, integrity checks, and repair.
 - Bundled SQLite authority with immutable SHA-256 blobs, revisions, dependency invalidation, and audit events.
-- Verified workspace backup and restore with referenced-blob manifests.
+- Verified workspace backup and failure-cleaned restore with referenced-blob manifests and deterministic projection
+  reconstruction.
 - Transactional job creation, inspection, listing, archival, and revision history.
 - Bounded UTF-8 Markdown/plain-text imports with separate original and normalized artifacts.
 - Explicit user-supplied URL imports over Rustls with redirect-by-redirect SSRF protection and HTML normalization.
@@ -82,6 +84,10 @@ macOS arm64, Windows x86_64, and Linux x86_64. R10 hardening is now active. The 
   and again before export, with body-free render diagnostics.
 - Consent-gated `render export` of create-new PDFs plus the exact render manifest under `jobs/JOB_ID/`; edited `.typ`
   projections are never trusted compilation inputs, and rendering/exporting never submits an application.
+- Exact provider redirect allowlists, portable path hardening, a published T01–T16 threat model, and pinned advisory,
+  license, and dependency-source policy gates.
+- Cross-platform recovery contracts for interruption boundaries, missing/corrupt blobs, projection reconstruction,
+  stale tasks, and concurrent idempotent host-agent completion.
 
 The R9 native matrix verifies embedded fonts, adversarial Unicode/layout, missing-system-font isolation, bundled
 licenses/notices, render timing, and a 64 MiB release-binary budget. Hardening gates continue in the
