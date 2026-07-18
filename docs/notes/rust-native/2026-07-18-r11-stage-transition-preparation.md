@@ -47,6 +47,10 @@ public Alpha release identity matched, the privacy-minimized issue audit returne
 candidate passed `xtask release verify-beta-readiness`. The candidate was intentionally not written because the
 24-hour snapshot is reserved for the actual credential-ready transition window.
 
+The freshness gate and refresher then passed all eight jobs in ordinary CI `29641728157` at exact commit
+`e064eb6b6457f34542c1a603f48dbfb9e4f60938`, including all three recovery and all three native
+render/documentation/archive jobs.
+
 ## Boundary and next action
 
 The workspace deliberately remains `0.7.0-alpha.1`. The tool does not create tags, start workflows, publish releases,

@@ -16,6 +16,25 @@ tokens, application data, or copied private issue content.
 Changing the Cargo workspace version without changing the ledger to the corresponding state makes
 `xtask release check` fail. A prerelease ledger cannot set `stable_authorized: true`.
 
+## Recording qualified Beta evidence
+
+After the exact signed Beta assets have passed the nonpublishing matrix, been independently inspected, published by
+the authorized tag, downloaded again, and verified with GitHub artifact attestations, preview the ledger update:
+
+```console
+cargo run -p xtask --locked -- release record-beta-qualification \
+  v0.7.0-beta.1 GITHUB_RUN_ID DOWNLOADED_ASSET_DIRECTORY
+```
+
+The command re-verifies `SHA256SUMS`, the complete manifest, five archives, three canonical archive-bound signing
+evidence files, contract/trust metadata, sizes, and hashes. It derives the source commit from that verified manifest
+and renders the before/after ledger digest. It accepts only the exact current Beta version and canonical pending
+Beta state. Nothing changes unless the final `--write` flag is supplied from a clean worktree.
+
+The run ID remains an external reference, so the command cannot prove that the number identifies the inspected
+GitHub run. Retain the run URL and public `gh attestation verify` results independently; a locally assembled or
+hand-edited directory is not sufficient public qualification evidence.
+
 ## Stable evidence requirements
 
 Stable requires all of these in the committed ledger:

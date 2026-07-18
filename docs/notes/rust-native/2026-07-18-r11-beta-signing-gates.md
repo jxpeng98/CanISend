@@ -73,6 +73,12 @@ credential-backed Beta dry-run produces accepted and archive-bound evidence for 
 missing credential or external-service rejection is an expected fail-closed release failure, not a reason to weaken
 the policy.
 
+The future ledger promotion is now dry-run first. `xtask release record-beta-qualification` re-verifies the complete
+downloaded signed asset directory, derives the exact source commit from its manifest, fixes all three signing
+targets, and previews the ledger hash. Explicit write requires a clean current-Beta worktree and canonical pending
+state. It records the inspected run ID but deliberately does not claim that an offline integer proves the GitHub run
+or public attestations; those external results remain separately reviewed evidence.
+
 The [signing operations runbook](../../release/signing-operations.md) records the Apple/Azure provisioning, least-
 privilege, GitHub configuration, qualification, rotation, and incident sequence. A name-only audit of the live
 repository on 2026-07-18 found zero configured Actions secrets and zero configured Actions variables: all fourteen

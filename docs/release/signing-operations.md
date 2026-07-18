@@ -106,6 +106,9 @@ The release workflow's `signing-readiness` job performs the first value-shape ch
    validators plus clean install, upgrade, and uninstall tests.
 7. Only after all evidence passes, create the annotated Beta tag at the qualified commit. A tag push is the sole
    publication path.
+8. Download the public assets again, verify their GitHub attestations, preview then write
+   `xtask release record-beta-qualification`, and commit that ledger evidence before choosing the feature-freeze
+   baseline.
 
 Never test credential availability by weakening `release/signing-policy.json`, changing a target to `signing: none`,
 or publishing a locally signed replacement archive. A failed external service leaves the release unpublished.
