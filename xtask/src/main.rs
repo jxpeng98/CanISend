@@ -19,8 +19,10 @@ use sha2::{Digest, Sha256};
 const RELEASE_TARGET_SCHEMA: &str = "canisend.release-targets/v1";
 const RELEASE_MANIFEST_SCHEMA: &str = "canisend.release-manifest/v1";
 const BETA_READINESS_SCHEMA: &str = "canisend.beta-readiness/v1";
+const BETA_CONTRACT_FREEZE_SCHEMA: &str = "canisend.beta-contract-freeze/v1";
 const NATIVE_ALPHA_TAG: &str = "v0.7.0-alpha.1";
 const NATIVE_ALPHA_SOURCE: &str = "4cec4ec48cc2e96f3798dde0b438d3aaa617a2f8";
+const FROZEN_MIGRATIONS_THROUGH: u32 = 13;
 
 fn main() -> ExitCode {
     match run(std::env::args().skip(1).collect()) {
@@ -44,7 +46,17 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
             check_documentation()?;
             check_internal_dependency_versions()?;
             check_beta_readiness()?;
+            check_beta_contract_freeze()?;
             check_release_contract()
+        }
+        [area, command] if area == "release" && command == "freeze-candidate" => {
+            let candidate = build_beta_contract_freeze()?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&candidate)
+                    .map_err(|error| format!("could not serialize freeze candidate: {error}"))?
+            );
+            Ok(())
         }
         [area, command, tag] if area == "release" && command == "validate-tag" => {
             validate_release_tag(tag).map(|_| ())
@@ -62,7 +74,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
         }
         _ => Err(
             "usage: cargo run -p xtask -- schemas <check|write> | <resources|docs> check | \
-             release <check|validate-tag TAG|sbom OUTPUT|assemble TAG COMMIT ARTIFACTS OUTPUT|verify TAG DIRECTORY>"
+             release <check|freeze-candidate|validate-tag TAG|sbom OUTPUT|assemble TAG COMMIT ARTIFACTS OUTPUT|verify TAG DIRECTORY>"
                 .to_owned(),
         ),
     }
@@ -389,6 +401,7 @@ fn check_release_contract() -> Result<(), String> {
         "release/ISSUE_COLLECTION.md",
         "release/RELEASE_NOTES.md",
         "release/beta-readiness.json",
+        "release/beta-contract-freeze.json",
         "scripts/stage_native_bundle.sh",
         "scripts/package_native_release.sh",
         "scripts/smoke_release_archive.sh",
@@ -513,6 +526,199 @@ fn check_beta_readiness() -> Result<(), String> {
         actual_classes.len()
     );
     Ok(())
+}
+
+fn check_beta_contract_freeze() -> Result<(), String> {
+    let path = repository_root().join("release/beta-contract-freeze.json");
+    let body = fs::read_to_string(&path).map_err(|error| {
+        format!(
+            "Beta contract freeze is missing at {}: {error}",
+            path.display()
+        )
+    })?;
+    let actual: Value = serde_json::from_str(&body)
+        .map_err(|error| format!("Beta contract freeze is invalid JSON: {error}"))?;
+    let expected = build_beta_contract_freeze()?;
+    if actual != expected {
+        return Err(
+            "Beta agent/workspace contract freeze drifted; review the compatibility impact and regenerate with \
+             `cargo run -p xtask -- release freeze-candidate`"
+                .to_owned(),
+        );
+    }
+    println!(
+        "beta contract freeze: ok ({} schemas, migrations frozen through {})",
+        expected["agent"]["public_schema_files"], FROZEN_MIGRATIONS_THROUGH
+    );
+    Ok(())
+}
+
+fn build_beta_contract_freeze() -> Result<Value, String> {
+    let root = repository_root();
+    let schema_root = schema_directory();
+    let schema_names = json_files(&schema_root)?.into_iter().collect::<Vec<_>>();
+    if schema_names.len() != generate_public_schemas().len() {
+        return Err("public schema inventory is incomplete before Beta freeze".to_owned());
+    }
+    let schema_entries = schema_names
+        .iter()
+        .map(|name| {
+            fs::read(schema_root.join(name))
+                .map(|bytes| (name.clone(), bytes))
+                .map_err(|error| format!("could not read frozen schema `{name}`: {error}"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let snapshot_names = ["agent-capabilities.json", "agent-context.json"];
+    let snapshot_root = root.join("crates/canisend-cli/tests/snapshots");
+    let snapshot_entries = snapshot_names
+        .iter()
+        .map(|name| {
+            let path = snapshot_root.join(name);
+            let mut value: Value = serde_json::from_slice(&fs::read(&path).map_err(|error| {
+                format!(
+                    "could not read frozen agent snapshot {}: {error}",
+                    path.display()
+                )
+            })?)
+            .map_err(|error| format!("agent snapshot `{name}` is invalid JSON: {error}"))?;
+            normalize_product_version(&mut value);
+            serde_json::to_vec(&value)
+                .map(|bytes| ((*name).to_owned(), bytes))
+                .map_err(|error| format!("could not normalize agent snapshot `{name}`: {error}"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let migrations = migration_inventory()?;
+    let current_schema_version = migrations
+        .last()
+        .map(|(version, _, _)| *version)
+        .ok_or_else(|| "workspace migration inventory is empty".to_owned())?;
+    let declared_schema_version = declared_database_schema_version()?;
+    if current_schema_version != declared_schema_version {
+        return Err(format!(
+            "database schema constant {declared_schema_version} does not match migration inventory {current_schema_version}"
+        ));
+    }
+    let frozen_migrations = migrations
+        .iter()
+        .filter(|(version, _, _)| *version <= FROZEN_MIGRATIONS_THROUGH)
+        .map(|(_, name, path)| {
+            fs::read(path)
+                .map(|bytes| (name.clone(), bytes))
+                .map_err(|error| format!("could not read frozen migration `{name}`: {error}"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if frozen_migrations.len() != FROZEN_MIGRATIONS_THROUGH as usize {
+        return Err(format!(
+            "expected migrations 1 through {FROZEN_MIGRATIONS_THROUGH} to exist"
+        ));
+    }
+
+    Ok(json!({
+        "schema": BETA_CONTRACT_FREEZE_SCHEMA,
+        "baseline": {
+            "release": NATIVE_ALPHA_TAG,
+            "source_commit": NATIVE_ALPHA_SOURCE
+        },
+        "agent": {
+            "protocol": AGENT_PROTOCOL,
+            "public_schema_version": PUBLIC_SCHEMA_VERSION,
+            "public_schema_files": schema_entries.len(),
+            "public_schema_tree_sha256": digest_named_bytes(&schema_entries),
+            "normalized_snapshot_files": snapshot_names,
+            "normalized_snapshot_tree_sha256": digest_named_bytes(&snapshot_entries),
+            "product_version_is_excluded_from_snapshot_digest": true
+        },
+        "workspace": {
+            "format": WORKSPACE_FORMAT,
+            "current_database_schema_version": current_schema_version,
+            "frozen_migrations_through": FROZEN_MIGRATIONS_THROUGH,
+            "frozen_migration_tree_sha256": digest_named_bytes(&frozen_migrations),
+            "migration_policy": "append-only",
+            "reject_future_schema_versions": true
+        }
+    }))
+}
+
+fn migration_inventory() -> Result<Vec<(u32, String, PathBuf)>, String> {
+    let directory = repository_root().join("crates/canisend-store/migrations");
+    let mut migrations = Vec::new();
+    for entry in fs::read_dir(&directory).map_err(|error| {
+        format!(
+            "could not inspect migrations at {}: {error}",
+            directory.display()
+        )
+    })? {
+        let entry = entry.map_err(|error| format!("could not inspect migration: {error}"))?;
+        let path = entry.path();
+        if path.extension().is_none_or(|extension| extension != "sql") {
+            continue;
+        }
+        reject_symlink(&path)?;
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let prefix = name
+            .split_once('_')
+            .map(|(prefix, _)| prefix)
+            .filter(|prefix| prefix.len() == 4 && prefix.bytes().all(|byte| byte.is_ascii_digit()))
+            .ok_or_else(|| format!("migration name is not versioned: `{name}`"))?;
+        let version = prefix
+            .parse::<u32>()
+            .map_err(|error| format!("migration version is invalid in `{name}`: {error}"))?;
+        migrations.push((version, name, path));
+    }
+    migrations.sort_by_key(|(version, _, _)| *version);
+    for (index, (version, name, _)) in migrations.iter().enumerate() {
+        let expected =
+            u32::try_from(index + 1).map_err(|_| "migration inventory exceeds u32".to_owned())?;
+        if *version != expected {
+            return Err(format!(
+                "migration inventory is not contiguous at `{name}`: expected {expected}, found {version}"
+            ));
+        }
+    }
+    Ok(migrations)
+}
+
+fn declared_database_schema_version() -> Result<u32, String> {
+    let path = repository_root().join("crates/canisend-store/src/database.rs");
+    let source = fs::read_to_string(&path)
+        .map_err(|error| format!("could not read {}: {error}", path.display()))?;
+    let prefix = "pub const DATABASE_SCHEMA_VERSION: u32 = ";
+    source
+        .lines()
+        .find_map(|line| line.strip_prefix(prefix))
+        .and_then(|value| value.strip_suffix(';'))
+        .ok_or_else(|| "DATABASE_SCHEMA_VERSION declaration is missing".to_owned())?
+        .parse()
+        .map_err(|error| format!("DATABASE_SCHEMA_VERSION is invalid: {error}"))
+}
+
+fn normalize_product_version(value: &mut Value) {
+    match value {
+        Value::Array(values) => values.iter_mut().for_each(normalize_product_version),
+        Value::Object(fields) => {
+            for (name, field) in fields {
+                if name == "product_version" {
+                    *field = Value::String("<release-version>".to_owned());
+                } else {
+                    normalize_product_version(field);
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+fn digest_named_bytes(entries: &[(String, Vec<u8>)]) -> String {
+    let mut digest = Sha256::new();
+    for (name, bytes) in entries {
+        digest.update((name.len() as u64).to_be_bytes());
+        digest.update(name.as_bytes());
+        digest.update((bytes.len() as u64).to_be_bytes());
+        digest.update(bytes);
+    }
+    hex::encode(digest.finalize())
 }
 
 fn release_targets() -> Result<Vec<ReleaseTarget>, String> {
@@ -1123,5 +1329,10 @@ mod tests {
     #[test]
     fn beta_readiness_has_no_unresolved_alpha_blockers() {
         check_beta_readiness().expect("Beta readiness ledger");
+    }
+
+    #[test]
+    fn beta_agent_and_workspace_contracts_match_freeze() {
+        check_beta_contract_freeze().expect("Beta contract freeze");
     }
 }

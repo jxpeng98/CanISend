@@ -192,6 +192,12 @@
   audit to the exact Alpha tag/source/run, preserves disabled default telemetry, and records CI/dogfood evidence for
   all four classes. `xtask release check` now fails on missing classes/evidence, open issue numbers, unresolved status,
   changed Alpha identity, enabled telemetry, or any unresolved blocker. Contract and migration freeze work is active.
+- 2026-07-18: Froze the Beta `canisend.agent/v2` surface with deterministic hashes over all 40 public schemas and
+  normalized capabilities/context snapshots, excluding only the advancing product version. Froze workspace v2
+  migrations 1–13 by tree digest under an append-only policy, required contiguous numbering and source-constant
+  agreement, and strengthened every database open to reject future schema versions and incomplete/tampered migration
+  histories without mutation. Focused tests, Clippy, and the machine release freeze gate pass. Package-manager
+  candidate generation is active.
 
 ## 1. Executive Decision
 
@@ -1852,14 +1858,19 @@ introduced. R11.2 owns blocker triage, contract freezes, package-manager candida
 #### R11.2 Beta
 
 - [x] Resolve alpha data-loss, security, protocol, and rendering blockers.
-- [ ] Freeze agent protocol v2 for the beta line.
-- [ ] Freeze workspace v2 migrations inside the Rust era.
+- [x] Freeze agent protocol v2 for the beta line.
+- [x] Freeze workspace v2 migrations inside the Rust era.
 - [ ] Add Homebrew and Windows installation channel candidates.
 - [ ] Complete macOS notarization and planned Windows signing.
 
 **R11.2 blocker baseline:** The [Beta readiness note](../../notes/rust-native/2026-07-18-r11-beta-readiness.md) and
 machine-checked `release/beta-readiness.json` record the first post-publication audit. No Alpha blocker was reported;
 the snapshot must be refreshed before the Beta tag and any later blocker makes the release gate fail closed.
+
+**R11.2 contract freeze:** [ADR-RN-0009](../../architecture/rust-native/decisions/0009-freeze-beta-contracts-and-append-only-migrations.md)
+and the [freeze note](../../notes/rust-native/2026-07-18-r11-beta-contract-freeze.md) define the machine-checked Beta
+surface. Agent v2 schemas/capabilities/context are immutable apart from product version; migrations 1–13 are
+immutable and only contiguous appended Rust-era migrations are permitted.
 
 #### R11.3 Release candidate
 

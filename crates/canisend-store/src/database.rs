@@ -36,6 +36,7 @@ impl Database {
         let mut database = Self { connection };
         database.configure()?;
         database.migrate()?;
+        database.verify_migration_history()?;
         Ok(database)
     }
 
@@ -139,6 +140,22 @@ impl Database {
             params![version, applied_at.as_str()],
         )?;
         transaction.commit()?;
+        Ok(())
+    }
+
+    fn verify_migration_history(&self) -> Result<(), StoreError> {
+        let mut statement = self
+            .connection
+            .prepare("SELECT version FROM schema_migrations ORDER BY version")?;
+        let actual = statement
+            .query_map([], |row| row.get::<_, u32>(0))?
+            .collect::<Result<Vec<_>, _>>()?;
+        let expected = (1..=DATABASE_SCHEMA_VERSION).collect::<Vec<_>>();
+        if actual != expected {
+            return Err(StoreError::Invariant(format!(
+                "database migration history differs: expected {expected:?}, found {actual:?}"
+            )));
+        }
         Ok(())
     }
 
@@ -267,7 +284,7 @@ mod tests {
 
     use rusqlite::TransactionBehavior;
 
-    use super::{Database, INITIAL_MIGRATION};
+    use super::{DATABASE_SCHEMA_VERSION, Database, INITIAL_MIGRATION};
     use crate::now_utc;
 
     static NEXT: AtomicU64 = AtomicU64::new(1);
@@ -333,6 +350,35 @@ mod tests {
         fs::write(&path, b"not sqlite").expect("corrupt database");
         assert!(Database::open(&path).is_err());
         let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn future_schema_and_incomplete_history_are_rejected_without_mutation() {
+        let future_path = path("future-schema");
+        let future = rusqlite::Connection::open(&future_path).expect("future database");
+        future
+            .pragma_update(None, "user_version", DATABASE_SCHEMA_VERSION + 1)
+            .expect("future schema version");
+        drop(future);
+        assert!(Database::open(&future_path).is_err());
+        let future = rusqlite::Connection::open(&future_path).expect("reopen future database");
+        let version: u32 = future
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .expect("future version remains");
+        assert_eq!(version, DATABASE_SCHEMA_VERSION + 1);
+        drop(future);
+
+        let history_path = path("incomplete-history");
+        let database = Database::open(&history_path).expect("current database");
+        database
+            .connection
+            .execute("DELETE FROM schema_migrations WHERE version = 7", [])
+            .expect("tamper migration history");
+        drop(database);
+        assert!(Database::open(&history_path).is_err());
+
+        let _ = fs::remove_file(future_path);
+        let _ = fs::remove_file(history_path);
     }
 
     #[test]

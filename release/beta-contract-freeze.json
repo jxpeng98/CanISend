@@ -1,0 +1,27 @@
+{
+  "agent": {
+    "normalized_snapshot_files": [
+      "agent-capabilities.json",
+      "agent-context.json"
+    ],
+    "normalized_snapshot_tree_sha256": "7f02b4a80cc499131efb87b5684c456cc0d5fd2a4667a6f776f1494223298dc4",
+    "product_version_is_excluded_from_snapshot_digest": true,
+    "protocol": "canisend.agent/v2",
+    "public_schema_files": 40,
+    "public_schema_tree_sha256": "5f2f7b37209e8d7413ea0ae05b2aee967caa0f706fc9169cb72e8a0a6b5c3b78",
+    "public_schema_version": "2.0.0"
+  },
+  "baseline": {
+    "release": "v0.7.0-alpha.1",
+    "source_commit": "4cec4ec48cc2e96f3798dde0b438d3aaa617a2f8"
+  },
+  "schema": "canisend.beta-contract-freeze/v1",
+  "workspace": {
+    "current_database_schema_version": 13,
+    "format": "canisend.workspace/v2",
+    "frozen_migration_tree_sha256": "9809f29755d6ceadfc3340b00d83c8c48478e0039bf588fbdafaaf1787dfefb0",
+    "frozen_migrations_through": 13,
+    "migration_policy": "append-only",
+    "reject_future_schema_versions": true
+  }
+}
