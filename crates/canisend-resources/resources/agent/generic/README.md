@@ -38,6 +38,9 @@ Then:
     blockers cannot be dismissed and require redrafting.
 14. Run `package check --job JOB_ID --json` to freeze exact current revisions and compute deterministic readiness.
     Use `package show` to inspect body-free reason codes. `ready-to-export` never means submitted.
+15. After explicit private-export approval, use `package export --allow-private-export` for Markdown and structured
+    JSON. Detect edits with `package reconcile`; use only explicit `package replace` or `package copy-as-new` and
+    never treat edited projections as authoritative structured data.
 
 Read only capabilities marked `available`. Never inspect or edit `.canisend/`, invent source identities, or transmit
 private data without the matching consent. Readiness describes preparation status and is not evidence of submission.

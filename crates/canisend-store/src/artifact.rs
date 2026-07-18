@@ -6,6 +6,7 @@ use canisend_contracts::{
 };
 use rusqlite::{OptionalExtension, params};
 use serde::Serialize;
+use sha2::{Digest, Sha256};
 
 use crate::{
     BlobStore, DEFAULT_MAX_BLOB_BYTES, Database, StoreError, generate_id, io_error, now_utc,
@@ -228,6 +229,11 @@ impl<'a> ArtifactService<'a> {
         let bytes = self
             .blobs
             .read_verified(&parsed_digest, DEFAULT_MAX_BLOB_BYTES)?;
+        guard_projection_write(
+            self.database.connection(),
+            self.workspace_root,
+            relative_path,
+        )?;
         let result = write_projection(self.workspace_root, relative_path, &bytes);
         let (status, last_error) = match &result {
             Ok(()) => ("current", None),
@@ -237,10 +243,16 @@ impl<'a> ArtifactService<'a> {
         let transaction = self.database.immediate_transaction()?;
         transaction.execute(
             "INSERT INTO projection_manifests(
-                artifact_id, revision, relative_path, sha256, status, last_error, updated_at
-             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
-             ON CONFLICT(artifact_id, revision, relative_path) DO UPDATE SET
+                artifact_id, revision, relative_path, sha256, projection_kind,
+                generated_sha256, observed_sha256, status, last_error, updated_at
+             ) VALUES (?1, ?2, ?3, ?4, 'raw', ?4, ?8, ?5, ?6, ?7)
+             ON CONFLICT(relative_path) DO UPDATE SET
+                artifact_id = excluded.artifact_id,
+                revision = excluded.revision,
                 sha256 = excluded.sha256,
+                projection_kind = excluded.projection_kind,
+                generated_sha256 = excluded.generated_sha256,
+                observed_sha256 = excluded.observed_sha256,
                 status = excluded.status,
                 last_error = excluded.last_error,
                 updated_at = excluded.updated_at",
@@ -251,7 +263,8 @@ impl<'a> ArtifactService<'a> {
                 digest,
                 status,
                 last_error,
-                updated_at.as_str()
+                updated_at.as_str(),
+                result.as_ref().ok().map(|()| digest.as_str())
             ],
         )?;
         transaction.commit()?;
@@ -285,6 +298,70 @@ impl<'a> ArtifactService<'a> {
     }
 }
 
+fn guard_projection_write(
+    connection: &rusqlite::Connection,
+    root: &Path,
+    relative_path: &SafeRelativePath,
+) -> Result<(), StoreError> {
+    let managed: Option<String> = connection
+        .query_row(
+            "SELECT generated_sha256 FROM projection_manifests WHERE relative_path = ?1",
+            params![relative_path.as_str()],
+            |row| row.get(0),
+        )
+        .optional()?;
+    let destination = root.join(relative_path.as_str());
+    let metadata = fs::symlink_metadata(&destination);
+    match (managed, metadata) {
+        (None, Ok(_)) => Err(StoreError::ProjectionUnmanagedConflict(
+            relative_path.to_string(),
+        )),
+        (Some(generated), Ok(metadata)) => {
+            if metadata.file_type().is_symlink() || !metadata.is_file() {
+                return Err(StoreError::UnsafePath(destination));
+            }
+            let observed = digest_file(&destination)?;
+            if observed.as_str() != generated {
+                let updated_at = now_utc()?;
+                connection.execute(
+                    "UPDATE projection_manifests
+                     SET observed_sha256 = ?2, status = 'edited', last_error = NULL,
+                         updated_at = ?3
+                     WHERE relative_path = ?1",
+                    params![
+                        relative_path.as_str(),
+                        observed.as_str(),
+                        updated_at.as_str()
+                    ],
+                )?;
+                return Err(StoreError::ProjectionEdited(relative_path.to_string()));
+            }
+            Ok(())
+        }
+        (_, Err(error))
+            if matches!(
+                error.kind(),
+                std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory
+            ) =>
+        {
+            Ok(())
+        }
+        (_, Err(source)) => Err(io_error(destination, source)),
+    }
+}
+
+pub(crate) fn digest_file(path: &Path) -> Result<Sha256Digest, StoreError> {
+    let metadata = fs::metadata(path).map_err(|source| io_error(path, source))?;
+    if metadata.len() > DEFAULT_MAX_BLOB_BYTES {
+        return Err(StoreError::InvalidInput(format!(
+            "projection exceeds {} bytes",
+            DEFAULT_MAX_BLOB_BYTES
+        )));
+    }
+    let bytes = fs::read(path).map_err(|source| io_error(path, source))?;
+    Sha256Digest::try_new(hex::encode(Sha256::digest(bytes))).map_err(StoreError::from)
+}
+
 fn enum_name<T: Serialize>(value: T) -> Result<String, StoreError> {
     let value = serde_json::to_value(value)?;
     value
@@ -302,7 +379,7 @@ fn to_u64(value: i64) -> Result<u64, StoreError> {
     u64::try_from(value).map_err(|_| StoreError::Invariant("negative SQLite revision".to_owned()))
 }
 
-fn write_projection(
+pub(crate) fn write_projection(
     root: &Path,
     relative_path: &SafeRelativePath,
     bytes: &[u8],

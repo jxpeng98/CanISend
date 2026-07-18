@@ -14,6 +14,7 @@ mod matching;
 mod package;
 mod plan;
 mod profile;
+mod projection;
 mod review;
 mod task;
 mod workflow;
@@ -38,6 +39,7 @@ pub use matching::MatchService;
 pub use package::PackageService;
 pub use plan::PlanService;
 pub use profile::{NewProfileSource, ProfileService};
+pub use projection::ProjectionService;
 pub use review::ReviewService;
 pub use task::TaskService;
 pub use workflow::WorkflowService;
@@ -122,6 +124,12 @@ pub enum StoreError {
     DependencyConflict(String),
     #[error("projection path must be inside jobs/ or profile/")]
     ProjectionPathRejected,
+    #[error("managed projection contains user edits: {0}")]
+    ProjectionEdited(String),
+    #[error("projection destination is an unmanaged existing file: {0}")]
+    ProjectionUnmanagedConflict(String),
+    #[error("managed projection was not found: {0}")]
+    ProjectionNotFound(String),
     #[error("backup is invalid: {0}")]
     BackupInvalid(String),
     #[error("workspace invariant failed: {0}")]

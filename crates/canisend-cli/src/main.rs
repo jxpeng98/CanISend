@@ -12,9 +12,9 @@ use canisend_contracts::{
     AGENT_PROTOCOL, ActorKind, AgentContextBlocker, AgentContextData, AgentError, AgentResponse,
     CapabilitiesData, DocumentKind, EntityId, ErrorCode, ExecutionMode, ExitClass, NextAction,
     PUBLIC_SCHEMA_VERSION, PrivacyClassification, ProfileSourceKind, PublicSchemaId,
-    RESOURCE_FORMAT, ResourceCatalogData, ResourceCatalogEntry, SchemaCatalogData,
-    SchemaCatalogEntry, SemanticVersion, Sha256Digest, SourceKind, VersionData, WORKSPACE_FORMAT,
-    WorkflowStage,
+    RESOURCE_FORMAT, ResourceCatalogData, ResourceCatalogEntry, SafeRelativePath,
+    SchemaCatalogData, SchemaCatalogEntry, SemanticVersion, Sha256Digest, SourceKind, VersionData,
+    WORKSPACE_FORMAT, WorkflowStage,
 };
 use canisend_core::{CapabilityRegistry, StageRegistry};
 use canisend_io::{
@@ -28,8 +28,8 @@ use canisend_resources::{AgentHost, ResourceError, ResourceId, ResourceKind, exp
 use canisend_store::{
     AgentContextService, ArtifactService, CriteriaService, DiscoveryService, DocumentService,
     EvidenceService, JobService, MatchService, NewProfileSource, NewSource, PackageService,
-    PlanService, ProfileService, ReviewService, StoreError, TaskService, WorkflowService,
-    Workspace, current_utc_timestamp,
+    PlanService, ProfileService, ProjectionService, ReviewService, StoreError, TaskService,
+    WorkflowService, Workspace, current_utc_timestamp,
 };
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use serde_json::json;
@@ -318,6 +318,16 @@ enum PackageCommand {
     Check(PackageJobArgs),
     /// Show the current body-free package manifest and readiness reasons.
     Show(PackageJobArgs),
+    /// Export editable Markdown plus structured JSON after explicit private-export consent.
+    Export(PackageExportArgs),
+    /// Show the current export receipt and projection hashes.
+    Exports(PackageJobArgs),
+    /// Inspect managed projections and record current, edited, or missing state.
+    Reconcile(PackageJobArgs),
+    /// Discard one projection edit and restore the authoritative generated form.
+    Replace(PackageProjectionArgs),
+    /// Preserve an edit at a new unmanaged path, then restore the managed projection.
+    CopyAsNew(PackageCopyAsNewArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -697,6 +707,48 @@ struct PackageJobArgs {
 }
 
 #[derive(Debug, Args)]
+struct PackageExportArgs {
+    /// Canonical UUIDv7 job ID.
+    #[arg(long)]
+    job: String,
+    /// Safe workspace-relative directory under jobs/JOB_ID/.
+    #[arg(long, value_name = "RELATIVE_PATH")]
+    destination: String,
+    /// Confirm export of private application material bodies into the workspace projection tree.
+    #[arg(long)]
+    allow_private_export: bool,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
+struct PackageProjectionArgs {
+    /// Canonical UUIDv7 job ID.
+    #[arg(long)]
+    job: String,
+    /// Managed workspace-relative projection path.
+    #[arg(long, value_name = "RELATIVE_PATH")]
+    path: String,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
+struct PackageCopyAsNewArgs {
+    /// Canonical UUIDv7 job ID.
+    #[arg(long)]
+    job: String,
+    /// Edited managed workspace-relative projection path.
+    #[arg(long, value_name = "RELATIVE_PATH")]
+    path: String,
+    /// New unmanaged workspace-relative path that preserves the edited bytes.
+    #[arg(long, value_name = "RELATIVE_PATH")]
+    destination: String,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
 struct TaskIdArgs {
     /// Canonical UUIDv7 task ID.
     task_id: String,
@@ -1018,6 +1070,12 @@ impl Cli {
                 PackageCommand::Check(arguments) | PackageCommand::Show(arguments) => {
                     arguments.output.json
                 }
+                PackageCommand::Export(arguments) => arguments.output.json,
+                PackageCommand::Exports(arguments) | PackageCommand::Reconcile(arguments) => {
+                    arguments.output.json
+                }
+                PackageCommand::Replace(arguments) => arguments.output.json,
+                PackageCommand::CopyAsNew(arguments) => arguments.output.json,
             },
             Command::Workflow { command } => match command {
                 WorkflowCommand::Start(arguments) | WorkflowCommand::Status(arguments) => {
@@ -1274,6 +1332,21 @@ fn execute(cli: Cli) -> CommandResult<CommandOutput> {
         Command::Package {
             command: PackageCommand::Show(arguments),
         } => package_show(workspace, &arguments.job),
+        Command::Package {
+            command: PackageCommand::Export(arguments),
+        } => package_export(workspace, arguments),
+        Command::Package {
+            command: PackageCommand::Exports(arguments),
+        } => package_exports(workspace, &arguments.job),
+        Command::Package {
+            command: PackageCommand::Reconcile(arguments),
+        } => package_reconcile(workspace, &arguments.job),
+        Command::Package {
+            command: PackageCommand::Replace(arguments),
+        } => package_replace(workspace, arguments),
+        Command::Package {
+            command: PackageCommand::CopyAsNew(arguments),
+        } => package_copy_as_new(workspace, arguments),
         Command::Workflow {
             command: WorkflowCommand::Start(arguments),
         } => workflow_start(workspace, &arguments.job),
@@ -3018,6 +3091,157 @@ fn package_output(
     )
 }
 
+fn package_export(
+    workspace_path: Option<PathBuf>,
+    arguments: PackageExportArgs,
+) -> CommandResult<CommandOutput> {
+    if !arguments.allow_private_export {
+        let mut failure = CommandFailure::new(
+            "package.export",
+            "consent-required",
+            ErrorCode::ConsentRequired,
+            "export-private-artifacts consent must be explicitly confirmed",
+            false,
+        );
+        failure.error.remediation = Some(NextAction {
+            action: "obtain user approval, then repeat with --allow-private-export".to_owned(),
+            description:
+                "The command writes editable application material bodies under jobs/JOB_ID/"
+                    .to_owned(),
+        });
+        return Err(failure);
+    }
+    let job_id = parse_entity_id("package.export", &arguments.job)?;
+    let destination = parse_safe_relative_path("package.export", &arguments.destination)?;
+    let mut workspace = open_workspace(workspace_path, "package.export")?;
+    let root = workspace.paths.root.clone();
+    let (artifact, receipt) =
+        ProjectionService::new(&mut workspace.database, &workspace.blobs, &root)
+            .export(&job_id, &destination)
+            .map_err(|error| store_failure("package.export", error))?;
+    let mut output = success(
+        "package.export",
+        "exported",
+        &receipt,
+        vec![
+            format!("Export receipt: {}", receipt.id),
+            format!("Directory: {}", destination),
+            format!("Managed projections: {}", receipt.projections.len()),
+            "Submission performed: no".to_owned(),
+        ],
+    )?;
+    output.response.artifacts.push(artifact);
+    Ok(output)
+}
+
+fn package_exports(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<CommandOutput> {
+    let job_id = parse_entity_id("package.exports", job_id)?;
+    let mut workspace = open_workspace(workspace_path, "package.exports")?;
+    let root = workspace.paths.root.clone();
+    let (artifact, receipt) =
+        ProjectionService::new(&mut workspace.database, &workspace.blobs, &root)
+            .current(&job_id)
+            .map_err(|error| store_failure("package.exports", error))?;
+    let mut output = success(
+        "package.exports",
+        "available",
+        &receipt,
+        vec![
+            format!("Export receipt: {}", receipt.id),
+            format!("Managed projections: {}", receipt.projections.len()),
+            "Submission performed: no".to_owned(),
+        ],
+    )?;
+    output.response.artifacts.push(artifact);
+    Ok(output)
+}
+
+fn package_reconcile(
+    workspace_path: Option<PathBuf>,
+    job_id: &str,
+) -> CommandResult<CommandOutput> {
+    let job_id = parse_entity_id("package.reconcile", job_id)?;
+    let mut workspace = open_workspace(workspace_path, "package.reconcile")?;
+    let root = workspace.paths.root.clone();
+    let records = ProjectionService::new(&mut workspace.database, &workspace.blobs, &root)
+        .reconcile(&job_id)
+        .map_err(|error| store_failure("package.reconcile", error))?;
+    let edited = records
+        .iter()
+        .filter(|record| {
+            record.projection.edit_status == canisend_contracts::ProjectionEditStatus::Edited
+        })
+        .count();
+    let missing = records
+        .iter()
+        .filter(|record| {
+            record.projection.edit_status == canisend_contracts::ProjectionEditStatus::Missing
+        })
+        .count();
+    success(
+        "package.reconcile",
+        if edited == 0 && missing == 0 {
+            "current"
+        } else {
+            "attention-required"
+        },
+        &records,
+        vec![
+            format!("Managed projections: {}", records.len()),
+            format!("Edited: {edited}"),
+            format!("Missing: {missing}"),
+            "Authoritative structured artifacts changed: no".to_owned(),
+        ],
+    )
+}
+
+fn package_replace(
+    workspace_path: Option<PathBuf>,
+    arguments: PackageProjectionArgs,
+) -> CommandResult<CommandOutput> {
+    let job_id = parse_entity_id("package.replace", &arguments.job)?;
+    let path = parse_safe_relative_path("package.replace", &arguments.path)?;
+    let mut workspace = open_workspace(workspace_path, "package.replace")?;
+    let root = workspace.paths.root.clone();
+    let record = ProjectionService::new(&mut workspace.database, &workspace.blobs, &root)
+        .replace(&job_id, &path)
+        .map_err(|error| store_failure("package.replace", error))?;
+    success(
+        "package.replace",
+        "replaced",
+        &record,
+        vec![
+            format!("Restored projection: {path}"),
+            "User edit preserved: no".to_owned(),
+            "Authoritative structured artifacts changed: no".to_owned(),
+        ],
+    )
+}
+
+fn package_copy_as_new(
+    workspace_path: Option<PathBuf>,
+    arguments: PackageCopyAsNewArgs,
+) -> CommandResult<CommandOutput> {
+    let job_id = parse_entity_id("package.copy-as-new", &arguments.job)?;
+    let path = parse_safe_relative_path("package.copy-as-new", &arguments.path)?;
+    let destination = parse_safe_relative_path("package.copy-as-new", &arguments.destination)?;
+    let mut workspace = open_workspace(workspace_path, "package.copy-as-new")?;
+    let root = workspace.paths.root.clone();
+    let record = ProjectionService::new(&mut workspace.database, &workspace.blobs, &root)
+        .copy_as_new(&job_id, &path, &destination)
+        .map_err(|error| store_failure("package.copy-as-new", error))?;
+    success(
+        "package.copy-as-new",
+        "preserved-and-restored",
+        &record,
+        vec![
+            format!("Preserved user edit: {destination}"),
+            format!("Restored managed projection: {path}"),
+            "Authoritative structured artifacts changed: no".to_owned(),
+        ],
+    )
+}
+
 fn write_private_json_new<T: serde::Serialize>(
     path: &Path,
     value: &T,
@@ -3180,6 +3404,21 @@ fn parse_entity_id(operation: &'static str, value: &str) -> CommandResult<Entity
     })
 }
 
+fn parse_safe_relative_path(
+    operation: &'static str,
+    value: &str,
+) -> CommandResult<SafeRelativePath> {
+    SafeRelativePath::try_new(value).map_err(|error| {
+        CommandFailure::new(
+            operation,
+            "invalid",
+            ErrorCode::InputPathRejected,
+            error.to_string(),
+            false,
+        )
+    })
+}
+
 fn io_adapter_failure(operation: &'static str, error: IoAdapterError) -> Box<CommandFailure> {
     let (status, code, retryable) = match &error {
         IoAdapterError::PdfEncrypted => ("invalid", ErrorCode::PdfEncrypted, false),
@@ -3260,7 +3499,10 @@ fn store_failure(operation: &'static str, error: StoreError) -> Box<CommandFailu
         StoreError::WorkspaceExists(_)
         | StoreError::Sqlite(_)
         | StoreError::DependencyConflict(_)
-        | StoreError::ArtifactNotFound(_) => ("conflict", ErrorCode::WorkspaceConflict, true),
+        | StoreError::ArtifactNotFound(_)
+        | StoreError::ProjectionEdited(_)
+        | StoreError::ProjectionUnmanagedConflict(_)
+        | StoreError::ProjectionNotFound(_) => ("conflict", ErrorCode::WorkspaceConflict, false),
         StoreError::UnsafePath(_)
         | StoreError::NotDirectory(_)
         | StoreError::ProjectionPathRejected

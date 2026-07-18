@@ -14,8 +14,8 @@ use canisend_contracts::{
 use canisend_store::{
     ArtifactService, CriteriaService, DEFAULT_MAX_BLOB_BYTES, DocumentService, EvidenceService,
     JobService, MatchService, NewProfileSource, NewSource, PackageService, PlanService,
-    ProfileService, ReviewService, StoreError, TaskService, WorkflowService, Workspace,
-    WorkspacePaths, verify_backup,
+    ProfileService, ProjectionService, ReviewService, StoreError, TaskService, WorkflowService,
+    Workspace, WorkspacePaths, verify_backup,
 };
 use serde_json::{Value, json};
 
@@ -57,7 +57,7 @@ fn workspace_init_discovery_status_and_check_are_consistent() {
     assert_eq!(discovered.root, root.path());
     assert_eq!(
         workspace.status().expect("status").database_schema_version,
-        11
+        12
     );
     let check = workspace.check().expect("workspace check");
     assert!(check.ok);
@@ -705,10 +705,9 @@ fn evidence_and_match_tasks_enforce_stable_revision_bound_identities() {
             &job.id,
             &apply_artifact,
             planned,
-            &criteria.criteria[0].id,
-            criteria.criteria[0].revision,
-            &revised.items[0].id,
-            revised.items[0].revision,
+            (&criteria.criteria[0].id, criteria.criteria[0].revision),
+            (&revised.items[0].id, revised.items[0].revision),
+            false,
         );
         if index == 0 {
             let mut invented_id = candidate.clone();
@@ -960,6 +959,182 @@ fn evidence_and_match_tasks_enforce_stable_revision_bound_identities() {
             .any(|blocker| blocker.code == "workflow.package_blocked")
     );
 
+    WorkflowService::new(&mut workspace.database)
+        .rerun(&job.id, WorkflowStage::Draft, ActorKind::User)
+        .expect("rerun drafting to resolve the deterministic blocker");
+    for planned in &planned_documents {
+        let mode = planned.executor.expect("planned executor");
+        let descriptor = TaskService::new(&mut workspace.database, &workspace.blobs)
+            .prepare_document_draft(&job.id, planned.kind, mode)
+            .expect("replacement document task");
+        let candidate = document_candidate(
+            &job.id,
+            &apply_artifact,
+            planned,
+            (&criteria.criteria[0].id, criteria.criteria[0].revision),
+            (&revised.items[0].id, revised.items[0].revision),
+            true,
+        );
+        TaskService::new(&mut workspace.database, &workspace.blobs)
+            .complete(&document_request(&descriptor, candidate))
+            .expect("replacement structured document");
+    }
+    let current_set = DocumentService::new(&workspace.database, &workspace.blobs)
+        .set(&job.id)
+        .expect("replacement document set");
+    let status = WorkflowService::new(&mut workspace.database)
+        .status(&job.id)
+        .expect("workflow after replacement drafts");
+    let current_set_artifact = status
+        .stages
+        .iter()
+        .find(|state| state.stage == WorkflowStage::Draft)
+        .and_then(|state| state.output.clone())
+        .expect("replacement document-set artifact");
+    let review_descriptor = TaskService::new(&mut workspace.database, &workspace.blobs)
+        .prepare_document_review(&job.id, ExecutionMode::HostAgent)
+        .expect("replacement review task");
+    let clean_review = json!({
+        "job_id": job.id,
+        "document_set_artifact": current_set_artifact,
+        "findings": []
+    });
+    TaskService::new(&mut workspace.database, &workspace.blobs)
+        .complete(&document_request(&review_descriptor, clean_review))
+        .expect("clean replacement review");
+    let clean_findings = ReviewService::new(&mut workspace.database, &workspace.blobs)
+        .current(&job.id)
+        .expect("clean current review");
+    assert!(clean_findings.findings.is_empty());
+    let ready_package_artifact = PackageService::new(&mut workspace.database, &workspace.blobs)
+        .check(&job.id)
+        .expect("export-ready package");
+    let ready_package = PackageService::new(&mut workspace.database, &workspace.blobs)
+        .current(&job.id)
+        .expect("current export-ready package");
+    assert_eq!(
+        ready_package.readiness.state,
+        canisend_contracts::ReadinessState::ReadyToExport
+    );
+    assert!(ready_package.readiness.reasons.is_empty());
+
+    let export_directory = SafeRelativePath::try_new(format!("jobs/{}/application", job.id))
+        .expect("safe export directory");
+    let workspace_root = workspace.paths.root.clone();
+    let (export_artifact, export_receipt) =
+        ProjectionService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
+            .export(&job.id, &export_directory)
+            .expect("structured Markdown and JSON export");
+    assert_eq!(export_artifact.kind, ArtifactKind::ExportManifest);
+    assert_eq!(export_receipt.package_artifact, ready_package_artifact);
+    assert_eq!(
+        export_receipt.projections.len(),
+        current_set.documents.len() * 2 + 1
+    );
+    assert!(!export_receipt.submission_performed);
+    let cover_markdown = export_receipt
+        .projections
+        .iter()
+        .find(|projection| {
+            projection.kind == canisend_contracts::ProjectionKind::Markdown
+                && projection.source_artifact.kind == ArtifactKind::CoverLetter
+        })
+        .expect("cover Markdown projection")
+        .relative_path
+        .clone();
+    let cover_json = export_receipt
+        .projections
+        .iter()
+        .find(|projection| {
+            projection.kind == canisend_contracts::ProjectionKind::StructuredJson
+                && projection.source_artifact.kind == ArtifactKind::CoverLetter
+        })
+        .expect("cover JSON projection")
+        .relative_path
+        .clone();
+    let markdown_path = workspace_root.join(cover_markdown.as_str());
+    let markdown = fs::read_to_string(&markdown_path).expect("Markdown projection");
+    assert!(markdown.contains("canisend-claim"));
+    assert!(markdown.contains(revised.items[0].id.as_str()));
+    let structured: Value = serde_json::from_slice(
+        &fs::read(workspace_root.join(cover_json.as_str())).expect("structured JSON projection"),
+    )
+    .expect("structured JSON");
+    assert_eq!(structured["kind"], "cover-letter");
+    let (current_export_artifact, current_export) =
+        ProjectionService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
+            .current(&job.id)
+            .expect("current export receipt");
+    assert_eq!(current_export_artifact, export_artifact);
+    assert_eq!(current_export, export_receipt);
+
+    fs::write(
+        &markdown_path,
+        format!("{markdown}\nUser-edited closing.\n"),
+    )
+    .expect("edit managed Markdown");
+    let inspection =
+        ProjectionService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
+            .reconcile(&job.id)
+            .expect("detect edited projections");
+    assert!(inspection.iter().any(|record| {
+        record.projection.relative_path == cover_markdown
+            && record.projection.edit_status == canisend_contracts::ProjectionEditStatus::Edited
+            && !record.authoritative_changed
+    }));
+    assert!(matches!(
+        ProjectionService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
+            .export(&job.id, &export_directory),
+        Err(StoreError::ProjectionEdited(_))
+    ));
+    let preserved_path = SafeRelativePath::try_new(format!(
+        "jobs/{}/application/cover-letter.user-edit.md",
+        job.id
+    ))
+    .expect("preserved edit path");
+    let copied = ProjectionService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
+        .copy_as_new(&job.id, &cover_markdown, &preserved_path)
+        .expect("preserve edit and restore managed projection");
+    assert_eq!(
+        copied.action,
+        canisend_contracts::ProjectionReconcileAction::CopyAsNew
+    );
+    assert!(!copied.authoritative_changed);
+    assert!(
+        fs::read_to_string(workspace_root.join(preserved_path.as_str()))
+            .expect("preserved edit")
+            .contains("User-edited closing")
+    );
+    assert!(
+        !fs::read_to_string(&markdown_path)
+            .expect("restored managed Markdown")
+            .contains("User-edited closing")
+    );
+
+    fs::write(&markdown_path, "temporary replacement edit\n").expect("second edit");
+    let replaced =
+        ProjectionService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
+            .replace(&job.id, &cover_markdown)
+            .expect("explicitly discard edit");
+    assert_eq!(
+        replaced.action,
+        canisend_contracts::ProjectionReconcileAction::Replace
+    );
+    assert!(!replaced.authoritative_changed);
+    fs::remove_file(workspace_root.join(cover_json.as_str())).expect("remove managed JSON");
+    let inspection =
+        ProjectionService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
+            .reconcile(&job.id)
+            .expect("detect missing projection");
+    assert!(inspection.iter().any(|record| {
+        record.projection.relative_path == cover_json
+            && record.projection.edit_status == canisend_contracts::ProjectionEditStatus::Missing
+    }));
+    ProjectionService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
+        .replace(&job.id, &cover_json)
+        .expect("restore missing JSON projection");
+    assert!(workspace_root.join(cover_json.as_str()).is_file());
+
     ProfileService::new(&mut workspace.database, &workspace.blobs)
         .import_source(
             NewProfileSource {
@@ -1000,6 +1175,11 @@ fn evidence_and_match_tasks_enforce_stable_revision_bound_identities() {
     ));
     assert!(matches!(
         PackageService::new(&mut workspace.database, &workspace.blobs).current(&job.id),
+        Err(StoreError::WorkflowConflict(_))
+    ));
+    assert!(matches!(
+        ProjectionService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
+            .current(&job.id),
         Err(StoreError::WorkflowConflict(_))
     ));
     let status = WorkflowService::new(&mut workspace.database)
@@ -1419,11 +1599,12 @@ fn document_candidate(
     job_id: &EntityId,
     plan: &ArtifactReference,
     planned: &PlannedDocumentRecord,
-    criterion_id: &EntityId,
-    criterion_revision: Revision,
-    evidence_id: &EntityId,
-    evidence_revision: Revision,
+    criterion: (&EntityId, Revision),
+    evidence: (&EntityId, Revision),
+    resolve_required_placeholders: bool,
 ) -> Value {
+    let (criterion_id, criterion_revision) = criterion;
+    let (evidence_id, evidence_revision) = evidence;
     let applicant_claim = || {
         json!({
             "text": "I hold a reviewed doctorate in economics.",
@@ -1519,7 +1700,11 @@ fn document_candidate(
                 "key": "contact-name",
                 "instruction": "Confirm the addressee before packaging",
                 "required": true,
-                "resolution": null
+                "resolution": if resolve_required_placeholders {
+                    json!("Hiring Committee")
+                } else {
+                    Value::Null
+                }
             }])
         } else {
             json!([])

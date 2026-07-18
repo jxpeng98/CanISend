@@ -283,6 +283,16 @@ impl<'a> WorkflowService<'a> {
             .collect::<Vec<_>>();
         if affected.contains(&WorkflowStage::Package) {
             transaction.execute(
+                "UPDATE artifacts SET stale = 1 WHERE id IN (
+                     SELECT artifact_id FROM export_heads WHERE workflow_run_id = ?1
+                 )",
+                params![run_id.as_str()],
+            )?;
+            transaction.execute(
+                "DELETE FROM export_heads WHERE workflow_run_id = ?1",
+                params![run_id.as_str()],
+            )?;
+            transaction.execute(
                 "DELETE FROM package_heads WHERE workflow_run_id = ?1",
                 params![run_id.as_str()],
             )?;
@@ -695,6 +705,16 @@ fn reconcile_job_revision(
     if prepared_revision == Some(current_revision) {
         return Ok(());
     }
+    transaction.execute(
+        "UPDATE artifacts SET stale = 1 WHERE id IN (
+             SELECT artifact_id FROM export_heads WHERE workflow_run_id = ?1
+         )",
+        params![run_id.as_str()],
+    )?;
+    transaction.execute(
+        "DELETE FROM export_heads WHERE workflow_run_id = ?1",
+        params![run_id.as_str()],
+    )?;
     transaction.execute(
         "DELETE FROM package_heads WHERE workflow_run_id = ?1",
         params![run_id.as_str()],

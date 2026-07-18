@@ -243,6 +243,14 @@ impl<'a> PackageService<'a> {
     }
 
     pub fn current(&self, job_id: &EntityId) -> Result<PackageManifestRecord, StoreError> {
+        self.current_with_reference(job_id)
+            .map(|(_, manifest)| manifest)
+    }
+
+    pub fn current_with_reference(
+        &self,
+        job_id: &EntityId,
+    ) -> Result<(ArtifactReference, PackageManifestRecord), StoreError> {
         let context = load_context(self.database.connection(), job_id)?;
         if context.package_status != "complete" {
             return Err(StoreError::WorkflowConflict(format!(
@@ -259,7 +267,7 @@ impl<'a> PackageService<'a> {
                 "package manifest no longer freezes the current inputs".to_owned(),
             ));
         }
-        Ok(manifest)
+        Ok((output.clone(), manifest))
     }
 }
 

@@ -37,6 +37,10 @@ Use CanISend as the state owner and Codex as a bounded reasoning host. Never ins
 15. Run `package check --job JOB_ID --json` to freeze exact plan, evidence, profile, document, and review revisions.
     Inspect only its machine-readable reason codes with `package show`. Resolve `blocked` or `needs-review`; treat
     `ready-to-export` only as permission to create files, never as permission or evidence of submission.
+16. After explicit `export-private-artifacts` approval, run `package export --job JOB_ID`
+    `--destination jobs/JOB_ID/application --allow-private-export --json`. Use `package reconcile` to detect edits. Never overwrite
+    edits implicitly: use `package replace` only to discard one edit explicitly, or `package copy-as-new` to preserve
+    the edited bytes at a new unmanaged path before restoring the generated projection.
 
 Do not invent source identities, bypass candidate validation, transmit private inputs to a provider without separate
 consent, or interpret readiness as permission to submit an application.

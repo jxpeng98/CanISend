@@ -152,6 +152,11 @@ fn invalidate_evidence_workflows(
     transaction: &Transaction<'_>,
     updated_at: &UtcTimestamp,
 ) -> Result<(), StoreError> {
+    transaction.execute(
+        "UPDATE artifacts SET stale = 1 WHERE id IN (SELECT artifact_id FROM export_heads)",
+        [],
+    )?;
+    transaction.execute("DELETE FROM export_heads", [])?;
     transaction.execute("DELETE FROM package_heads", [])?;
     transaction.execute(
         "UPDATE artifacts SET stale = 1 WHERE id IN (

@@ -162,7 +162,7 @@ fn public_catalogs_are_available_without_a_workspace() {
 
     assert_eq!(
         schemas["data"]["schemas"].as_array().map(Vec::len),
-        Some(35)
+        Some(38)
     );
     assert!(
         resources["data"]["resources"]
@@ -204,7 +204,7 @@ fn agent_host_pack_export_is_versioned_and_self_contained() {
         exported["data"]["manifest"]["files"]
             .as_array()
             .map(Vec::len),
-        Some(26)
+        Some(29)
     );
     assert!(pack.join("AGENTS.md").is_file());
     assert!(pack.join("prompts/job-parse.md").is_file());
@@ -214,6 +214,11 @@ fn agent_host_pack_export_is_versioned_and_self_contained() {
         pack.join("schemas/v2/package-manifest.schema.json")
             .is_file()
     );
+    assert!(
+        pack.join("schemas/v2/package-export-manifest.schema.json")
+            .is_file()
+    );
+    assert!(pack.join("schemas/v2/projection.schema.json").is_file());
     assert!(pack.join("prompts/document-draft.md").is_file());
     assert!(pack.join("prompts/document-review.md").is_file());
     assert!(
@@ -269,6 +274,29 @@ fn known_json_error_uses_stdout_only_and_validation_exit_code() {
     assert_eq!(stdout.lines().count(), 1);
     let response: Value = serde_json::from_str(&stdout).expect("error response is JSON");
     assert_eq!(response["error"]["code"], "schema.not_found");
+    assert_eq!(response["ok"], false);
+}
+
+#[test]
+fn package_export_requires_explicit_private_export_consent() {
+    let job_id = "019f2f55-7c00-7000-8000-000000000101";
+    let destination = format!("jobs/{job_id}/application");
+    let output = run(&[
+        "package",
+        "export",
+        "--job",
+        job_id,
+        "--destination",
+        &destination,
+        "--json",
+    ]);
+
+    assert_eq!(output.status.code(), Some(3));
+    assert!(output.stderr.is_empty());
+    let response: Value = serde_json::from_slice(&output.stdout).expect("error response is JSON");
+    assert_eq!(response["operation"], "package.export");
+    assert_eq!(response["status"], "consent-required");
+    assert_eq!(response["error"]["code"], "consent.required");
     assert_eq!(response["ok"], false);
 }
 
