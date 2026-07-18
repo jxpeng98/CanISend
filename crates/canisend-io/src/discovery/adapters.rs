@@ -17,6 +17,9 @@ pub trait DiscoveryAdapter {
     fn id(&self) -> &'static str;
     fn capabilities(&self) -> DiscoveryAdapterCapabilities;
     fn payload_kind(&self) -> RemotePayloadKind;
+    fn provider_hosts(&self) -> Option<&'static [&'static str]> {
+        None
+    }
     fn parse(
         &self,
         bytes: &[u8],
@@ -31,7 +34,11 @@ pub trait DiscoveryAdapter {
         observed_at: UtcTimestamp,
     ) -> Result<DiscoveryImportReport, IoAdapterError> {
         self.validate_endpoint(source_url)?;
-        let payload = fetcher.fetch_discovery(source_url)?;
+        let payload = if let Some(hosts) = self.provider_hosts() {
+            fetcher.fetch_discovery_for_hosts(source_url, hosts)?
+        } else {
+            fetcher.fetch_discovery(source_url)?
+        };
         if payload.kind != self.payload_kind() {
             return Err(IoAdapterError::UnsupportedContentType(format!(
                 "{} expects {:?}, received {:?}",
@@ -139,6 +146,10 @@ impl DiscoveryAdapter for JobsAcUkAdapter {
         RemotePayloadKind::Xml
     }
 
+    fn provider_hosts(&self) -> Option<&'static [&'static str]> {
+        Some(&["jobs.ac.uk", "www.jobs.ac.uk"])
+    }
+
     fn parse(
         &self,
         bytes: &[u8],
@@ -189,6 +200,10 @@ impl DiscoveryAdapter for GreenhouseAdapter {
 
     fn payload_kind(&self) -> RemotePayloadKind {
         RemotePayloadKind::Json
+    }
+
+    fn provider_hosts(&self) -> Option<&'static [&'static str]> {
+        Some(&["boards-api.greenhouse.io"])
     }
 
     fn parse(
@@ -257,6 +272,10 @@ impl DiscoveryAdapter for LeverAdapter {
 
     fn payload_kind(&self) -> RemotePayloadKind {
         RemotePayloadKind::Json
+    }
+
+    fn provider_hosts(&self) -> Option<&'static [&'static str]> {
+        Some(&["api.lever.co", "api.eu.lever.co"])
     }
 
     fn parse(

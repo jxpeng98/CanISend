@@ -85,24 +85,43 @@ impl HttpFetcher {
     }
 
     pub fn fetch(&self, input: &str) -> Result<RemoteDocument, IoAdapterError> {
-        let (response, source_url, final_url, redirect_chain) = self.request(input)?;
+        let (response, source_url, final_url, redirect_chain) = self.request(input, None)?;
         decode_response(response, source_url, final_url, redirect_chain)
     }
 
     pub fn fetch_discovery(&self, input: &str) -> Result<RemotePayload, IoAdapterError> {
-        let (response, source_url, final_url, redirect_chain) = self.request(input)?;
+        let (response, source_url, final_url, redirect_chain) = self.request(input, None)?;
+        decode_discovery_response(response, source_url, final_url, redirect_chain)
+    }
+
+    pub fn fetch_discovery_for_hosts(
+        &self,
+        input: &str,
+        allowed_hosts: &[&str],
+    ) -> Result<RemotePayload, IoAdapterError> {
+        if allowed_hosts.is_empty() {
+            return Err(IoAdapterError::UrlPolicy(
+                "provider redirect host allowlist cannot be empty".to_owned(),
+            ));
+        }
+        let (response, source_url, final_url, redirect_chain) =
+            self.request(input, Some(allowed_hosts))?;
         decode_discovery_response(response, source_url, final_url, redirect_chain)
     }
 
     fn request(
         &self,
         input: &str,
+        allowed_hosts: Option<&[&str]>,
     ) -> Result<(Response, String, String, Vec<String>), IoAdapterError> {
         let source_url = parse_url(input)?;
         let source_url_string = source_url.as_str().to_owned();
         let mut current = source_url;
         let mut redirect_chain = Vec::new();
         for redirect_count in 0..=MAX_REDIRECTS {
+            if let Some(allowed_hosts) = allowed_hosts {
+                validate_allowed_host(&current, allowed_hosts)?;
+            }
             let resolved = resolve_checked(&current, self.allow_loopback_for_tests)?;
             let client = build_client(
                 &current,
@@ -163,6 +182,21 @@ impl HttpFetcher {
             "redirect state is inconsistent".to_owned(),
         ))
     }
+}
+
+fn validate_allowed_host(url: &Url, allowed_hosts: &[&str]) -> Result<(), IoAdapterError> {
+    let host = url
+        .host_str()
+        .ok_or_else(|| IoAdapterError::InvalidUrl("URL has no host".to_owned()))?;
+    if allowed_hosts
+        .iter()
+        .any(|allowed| host.eq_ignore_ascii_case(allowed))
+    {
+        return Ok(());
+    }
+    Err(IoAdapterError::InvalidRedirect(format!(
+        "provider redirect host is not allowed: {host}"
+    )))
 }
 
 fn parse_url(input: &str) -> Result<Url, IoAdapterError> {
@@ -514,10 +548,11 @@ mod tests {
         thread,
         time::Duration,
     };
+    use url::Url;
 
     use super::{
         HttpFetcher, MAX_REMOTE_SOURCE_BYTES, RemoteDocumentKind, RemotePayloadKind,
-        address_allowed, classify_content, normalize_html, parse_url,
+        address_allowed, classify_content, normalize_html, parse_url, validate_allowed_host,
     };
 
     #[test]
@@ -546,6 +581,24 @@ mod tests {
             IpAddr::V6("fc00::1".parse().expect("IPv6 fixture")),
             false
         ));
+    }
+
+    #[test]
+    fn provider_redirect_host_policy_is_exact_and_case_insensitive() {
+        let accepted =
+            Url::parse("https://API.LEVER.CO/v0/postings/example?mode=json").expect("provider URL");
+        validate_allowed_host(&accepted, &["api.lever.co", "api.eu.lever.co"])
+            .expect("case-insensitive exact host");
+        for rejected in [
+            "https://api.lever.co.example.invalid/jobs",
+            "https://evil.example/jobs",
+        ] {
+            let rejected = Url::parse(rejected).expect("rejected URL");
+            assert!(
+                validate_allowed_host(&rejected, &["api.lever.co", "api.eu.lever.co"]).is_err()
+            );
+        }
+        assert!(validate_allowed_host(&accepted, &[]).is_err());
     }
 
     #[test]

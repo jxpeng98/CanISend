@@ -137,32 +137,52 @@ fn validate_relative_path(value: &str) -> Result<(), PrimitiveError> {
             "relative path must contain between 1 and 512 bytes",
         ));
     }
-    if value.starts_with('/') || value.contains('\\') || value.contains('\0') {
+    if value.starts_with('/')
+        || value.contains('\\')
+        || value.contains(':')
+        || value.chars().any(char::is_control)
+    {
         return Err(PrimitiveError::new(
             "path.unsafe",
             "path must be a portable forward-slash relative path",
         ));
     }
-    if value
-        .split('/')
-        .any(|part| part.is_empty() || matches!(part, "." | ".."))
-    {
-        return Err(PrimitiveError::new(
-            "path.unsafe",
-            "path cannot contain empty, current-directory, or parent-directory components",
-        ));
-    }
-    let first = value
-        .split('/')
-        .next()
-        .expect("non-empty path has a component");
-    if first.eq_ignore_ascii_case(".canisend") || first.ends_with(':') {
-        return Err(PrimitiveError::new(
-            "path.reserved",
-            "path cannot target internal state or a drive prefix",
-        ));
+    for (index, part) in value.split('/').enumerate() {
+        if part.is_empty() || matches!(part, "." | "..") {
+            return Err(PrimitiveError::new(
+                "path.unsafe",
+                "path cannot contain empty, current-directory, or parent-directory components",
+            ));
+        }
+        if part.len() > 255 || part.ends_with([' ', '.']) || windows_device_name(part) {
+            return Err(PrimitiveError::new(
+                "path.reserved",
+                "path contains a non-portable or reserved component",
+            ));
+        }
+        if index == 0 && part.eq_ignore_ascii_case(".canisend") {
+            return Err(PrimitiveError::new(
+                "path.reserved",
+                "path cannot target internal state",
+            ));
+        }
     }
     Ok(())
+}
+
+fn windows_device_name(component: &str) -> bool {
+    let stem = component
+        .split('.')
+        .next()
+        .unwrap_or(component)
+        .to_ascii_uppercase();
+    matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+        || stem
+            .strip_prefix("COM")
+            .or_else(|| stem.strip_prefix("LPT"))
+            .is_some_and(|suffix| {
+                matches!(suffix, "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9")
+            })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, JsonSchema)]
@@ -278,6 +298,12 @@ mod tests {
             "/tmp/file",
             "jobs\\file",
             ".canisend/state.sqlite3",
+            "C:/Windows/system.ini",
+            "jobs/CON.txt",
+            "jobs/aux",
+            "jobs/LPT9.pdf",
+            "jobs/trailing. ",
+            "jobs/line\nbreak",
         ] {
             assert!(SafeRelativePath::try_new(path).is_err(), "accepted {path}");
         }
