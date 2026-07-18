@@ -13,8 +13,8 @@ use crate::{
     FindingRecord, FindingTarget, JobRecord, PackageExportManifestRecord, PackageManifestRecord,
     ParsedJobRecord, ProfileSourceRecord, ProjectionEditStatus, ProjectionKind,
     ProjectionReconcileAction, ProjectionReconcileRecord, ProjectionRecord, ReadinessReasonCode,
-    ReadinessRecord, ReviewCandidate, ReviewDispositionCandidate, ReviewFindingCandidateRecord,
-    ReviewFindingsRecord, SourceRecord,
+    ReadinessRecord, RenderManifestRecord, RenderedDocumentRecord, ReviewCandidate,
+    ReviewDispositionCandidate, ReviewFindingCandidateRecord, ReviewFindingsRecord, SourceRecord,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
@@ -1753,6 +1753,114 @@ impl SemanticValidate for PackageExportManifestRecord {
     }
 }
 
+impl SemanticValidate for RenderedDocumentRecord {
+    fn validate_semantics(&self) -> Vec<ContractViolation> {
+        let mut violations = Vec::new();
+        let expected_document_kind = match self.kind {
+            crate::DocumentKind::CoverLetter => crate::ArtifactKind::CoverLetter,
+            crate::DocumentKind::ResearchStatement => crate::ArtifactKind::ResearchStatement,
+            crate::DocumentKind::TeachingStatement => crate::ArtifactKind::TeachingStatement,
+            crate::DocumentKind::Cv => crate::ArtifactKind::Cv,
+        };
+        for (actual, expected, pointer, message) in [
+            (
+                self.document_artifact.kind,
+                expected_document_kind,
+                "/document_artifact/kind",
+                "rendered document kind must match its structured document artifact",
+            ),
+            (
+                self.typst_artifact.kind,
+                crate::ArtifactKind::TypstSource,
+                "/typst_artifact/kind",
+                "rendered Typst input must reference typst-source",
+            ),
+            (
+                self.pdf_artifact.kind,
+                crate::ArtifactKind::Pdf,
+                "/pdf_artifact/kind",
+                "rendered output must reference pdf",
+            ),
+        ] {
+            if actual != expected {
+                violations.push(ContractViolation::new(
+                    "render.document_artifact_kind_invalid",
+                    pointer,
+                    message,
+                ));
+            }
+        }
+        if self.page_count == 0 {
+            violations.push(ContractViolation::new(
+                "render.page_count_required",
+                "/page_count",
+                "rendered PDF must contain at least one page",
+            ));
+        }
+        if self.byte_count == 0 {
+            violations.push(ContractViolation::new(
+                "render.byte_count_required",
+                "/byte_count",
+                "rendered PDF byte count must be positive",
+            ));
+        }
+        violations
+    }
+}
+
+impl SemanticValidate for RenderManifestRecord {
+    fn validate_semantics(&self) -> Vec<ContractViolation> {
+        let mut violations = Vec::new();
+        if self.package_artifact.kind != crate::ArtifactKind::PackageManifest {
+            violations.push(ContractViolation::new(
+                "render.package_kind_invalid",
+                "/package_artifact/kind",
+                "render manifest must reference package-manifest",
+            ));
+        }
+        if self.documents.is_empty() {
+            violations.push(ContractViolation::new(
+                "render.documents_required",
+                "/documents",
+                "render manifest must contain at least one rendered document",
+            ));
+        }
+        let mut kinds = std::collections::BTreeSet::new();
+        let mut pdfs = std::collections::BTreeSet::new();
+        for (index, document) in self.documents.iter().enumerate() {
+            violations.extend(document.validate_semantics().into_iter().map(|violation| {
+                ContractViolation::new(
+                    violation.code,
+                    format!("/documents/{index}{}", violation.json_pointer),
+                    violation.message,
+                )
+            }));
+            if !kinds.insert(document.kind) {
+                violations.push(ContractViolation::new(
+                    "render.document_kind_duplicate",
+                    format!("/documents/{index}/kind"),
+                    "render manifest may contain each document kind only once",
+                ));
+            }
+            if !pdfs.insert((&document.pdf_artifact.id, document.pdf_artifact.revision)) {
+                violations.push(ContractViolation::new(
+                    "render.pdf_artifact_duplicate",
+                    format!("/documents/{index}/pdf_artifact"),
+                    "render manifest must reference a distinct PDF artifact per document",
+                ));
+            }
+        }
+        if self.submission_performed {
+            violations.push(ContractViolation::new(
+                "render.submission_forbidden",
+                "/submission_performed",
+                "rendering application materials does not submit an application",
+            ));
+        }
+        violations
+    }
+}
+
 impl SemanticValidate for ProjectionReconcileRecord {
     fn validate_semantics(&self) -> Vec<ContractViolation> {
         let mut violations = self.projection.validate_semantics();
@@ -2223,6 +2331,76 @@ mod tests {
                 .violations()
                 .iter()
                 .any(|violation| { violation.code == "reconcile.authoritative_change_forbidden" })
+        );
+    }
+
+    #[test]
+    fn render_manifest_freezes_safe_in_process_outputs_without_submitting() {
+        let artifact = |kind: &str, id: &str, digest: char| {
+            json!({
+                "kind": kind,
+                "id": id,
+                "revision": 1,
+                "sha256": digest.to_string().repeat(64)
+            })
+        };
+        let valid = json!({
+            "id": "019f2f55-7c00-7000-8000-000000000800",
+            "job_id": "019f2f55-7c00-7000-8000-000000000002",
+            "package_artifact": artifact(
+                "package-manifest",
+                "019f2f55-7c00-7000-8000-000000000801",
+                'a'
+            ),
+            "documents": [{
+                "kind": "cover-letter",
+                "document_artifact": artifact(
+                    "cover-letter",
+                    "019f2f55-7c00-7000-8000-000000000802",
+                    'b'
+                ),
+                "typst_artifact": artifact(
+                    "typst-source",
+                    "019f2f55-7c00-7000-8000-000000000803",
+                    'c'
+                ),
+                "pdf_artifact": artifact(
+                    "pdf",
+                    "019f2f55-7c00-7000-8000-000000000804",
+                    'd'
+                ),
+                "page_count": 1,
+                "byte_count": 4096,
+                "warning_count": 0,
+                "elapsed_millis": 25
+            }],
+            "rendered_at": "2026-07-18T04:00:00Z",
+            "submission_performed": false,
+            "revision": 1
+        });
+        validate_external_candidate::<crate::RenderManifestRecord>(&valid)
+            .expect("valid render manifest");
+
+        let mut submitted = valid.clone();
+        submitted["submission_performed"] = json!(true);
+        let error = validate_external_candidate::<crate::RenderManifestRecord>(&submitted)
+            .expect_err("render cannot perform submission");
+        assert!(
+            error
+                .violations()
+                .iter()
+                .any(|violation| violation.code == "render.submission_forbidden")
+        );
+
+        let mut empty_pdf = valid;
+        empty_pdf["documents"][0]["page_count"] = json!(0);
+        let error = validate_external_candidate::<crate::RenderManifestRecord>(&empty_pdf)
+            .expect_err("PDF must have a page");
+        assert!(
+            error
+                .violations()
+                .iter()
+                .any(|violation| violation.code == "render.page_count_required")
         );
     }
 }

@@ -48,42 +48,66 @@
         "sha256"
       ],
       "type": "object"
+    },
+    "DocumentKind": {
+      "enum": [
+        "cover-letter",
+        "research-statement",
+        "teaching-statement",
+        "cv"
+      ],
+      "type": "string"
     }
   },
-  "$id": "https://schemas.canisend.dev/v2/document-set.schema.json",
+  "$id": "https://schemas.canisend.dev/v2/rendered-document.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
-    "documents": {
-      "items": {
-        "$ref": "#/$defs/ArtifactReference"
-      },
-      "type": "array"
+    "byte_count": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
     },
-    "id": {
-      "type": "string"
-    },
-    "job_id": {
-      "type": "string"
-    },
-    "plan_artifact": {
+    "document_artifact": {
       "$ref": "#/$defs/ArtifactReference"
     },
-    "revision": {
+    "elapsed_millis": {
       "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "kind": {
+      "$ref": "#/$defs/DocumentKind"
+    },
+    "page_count": {
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "pdf_artifact": {
+      "$ref": "#/$defs/ArtifactReference"
+    },
+    "typst_artifact": {
+      "$ref": "#/$defs/ArtifactReference"
+    },
+    "warning_count": {
+      "format": "uint32",
       "minimum": 0,
       "type": "integer"
     }
   },
   "required": [
-    "id",
-    "job_id",
-    "plan_artifact",
-    "documents",
-    "revision"
+    "kind",
+    "document_artifact",
+    "typst_artifact",
+    "pdf_artifact",
+    "page_count",
+    "byte_count",
+    "warning_count",
+    "elapsed_millis"
   ],
-  "title": "DocumentSetRecord",
+  "title": "RenderedDocumentRecord",
   "type": "object",
-  "x-canisend-id": "canisend.document-set/v2",
+  "x-canisend-id": "canisend.rendered-document/v2",
   "x-canisend-version": "2.0.0"
 }

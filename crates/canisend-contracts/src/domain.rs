@@ -744,6 +744,31 @@ pub struct PackageExportManifestRecord {
     pub revision: Revision,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RenderedDocumentRecord {
+    pub kind: DocumentKind,
+    pub document_artifact: ArtifactReference,
+    pub typst_artifact: ArtifactReference,
+    pub pdf_artifact: ArtifactReference,
+    pub page_count: u32,
+    pub byte_count: u64,
+    pub warning_count: u32,
+    pub elapsed_millis: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RenderManifestRecord {
+    pub id: EntityId,
+    pub job_id: EntityId,
+    pub package_artifact: ArtifactReference,
+    pub documents: Vec<RenderedDocumentRecord>,
+    pub rendered_at: UtcTimestamp,
+    pub submission_performed: bool,
+    pub revision: Revision,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "kebab-case")]
 pub enum ProjectionReconcileAction {

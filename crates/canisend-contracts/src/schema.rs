@@ -11,9 +11,10 @@ use crate::{
     EvidenceCatalogRecord, EvidenceMatchProposalSet, EvidenceMatchRecord, EvidenceMatchSetRecord,
     EvidenceProposalSet, EvidenceRecord, FindingRecord, JobRecord, PackageExportManifestRecord,
     PackageManifestRecord, ParsedJobRecord, ProfileSourceRecord, ProjectionReconcileRecord,
-    ProjectionRecord, ReadinessRecord, ReviewCandidate, ReviewDispositionCandidate,
-    ReviewFindingsRecord, SourceRecord, TaskCompletionRequest, TaskDescriptor, VersionData,
-    WorkflowStatusData, WorkspaceCheckData, WorkspaceStatusData,
+    ProjectionRecord, ReadinessRecord, RenderManifestRecord, RenderedDocumentRecord,
+    ReviewCandidate, ReviewDispositionCandidate, ReviewFindingsRecord, SourceRecord,
+    TaskCompletionRequest, TaskDescriptor, VersionData, WorkflowStatusData, WorkspaceCheckData,
+    WorkspaceStatusData,
 };
 
 pub const PUBLIC_SCHEMA_VERSION: &str = "2.0.0";
@@ -46,6 +47,8 @@ pub enum PublicSchemaId {
     Projection,
     PackageExportManifest,
     ProjectionReconcile,
+    RenderedDocument,
+    RenderManifest,
     WorkspaceStatus,
     WorkspaceCheck,
     BackupManifest,
@@ -63,7 +66,7 @@ pub enum PublicSchemaId {
 }
 
 impl PublicSchemaId {
-    pub const ALL: [Self; 38] = [
+    pub const ALL: [Self; 40] = [
         Self::AgentResponse,
         Self::Capabilities,
         Self::AgentContext,
@@ -88,6 +91,8 @@ impl PublicSchemaId {
         Self::Projection,
         Self::PackageExportManifest,
         Self::ProjectionReconcile,
+        Self::RenderedDocument,
+        Self::RenderManifest,
         Self::WorkspaceStatus,
         Self::WorkspaceCheck,
         Self::BackupManifest,
@@ -131,6 +136,8 @@ impl PublicSchemaId {
             Self::Projection => "canisend.projection/v2",
             Self::PackageExportManifest => "canisend.package-export-manifest/v2",
             Self::ProjectionReconcile => "canisend.projection-reconcile/v2",
+            Self::RenderedDocument => "canisend.rendered-document/v2",
+            Self::RenderManifest => "canisend.render-manifest/v2",
             Self::WorkspaceStatus => "canisend.workspace-status/v2",
             Self::WorkspaceCheck => "canisend.workspace-check/v2",
             Self::BackupManifest => "canisend.backup-manifest/v2",
@@ -175,6 +182,8 @@ impl PublicSchemaId {
             Self::Projection => "projection",
             Self::PackageExportManifest => "package-export-manifest",
             Self::ProjectionReconcile => "projection-reconcile",
+            Self::RenderedDocument => "rendered-document",
+            Self::RenderManifest => "render-manifest",
             Self::WorkspaceStatus => "workspace-status",
             Self::WorkspaceCheck => "workspace-check",
             Self::BackupManifest => "backup-manifest",
@@ -246,6 +255,8 @@ pub fn generate_public_schemas() -> Vec<GeneratedSchema> {
         generate::<ProjectionRecord>(PublicSchemaId::Projection),
         generate::<PackageExportManifestRecord>(PublicSchemaId::PackageExportManifest),
         generate::<ProjectionReconcileRecord>(PublicSchemaId::ProjectionReconcile),
+        generate::<RenderedDocumentRecord>(PublicSchemaId::RenderedDocument),
+        generate::<RenderManifestRecord>(PublicSchemaId::RenderManifest),
         generate::<WorkspaceStatusData>(PublicSchemaId::WorkspaceStatus),
         generate::<WorkspaceCheckData>(PublicSchemaId::WorkspaceCheck),
         generate::<BackupManifestData>(PublicSchemaId::BackupManifest),

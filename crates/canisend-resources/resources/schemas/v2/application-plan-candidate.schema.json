@@ -52,7 +52,8 @@
         "package-manifest",
         "export-manifest",
         "typst-source",
-        "pdf"
+        "pdf",
+        "render-manifest"
       ],
       "type": "string"
     },

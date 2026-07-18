@@ -36,6 +36,8 @@
   {"id":"schema.projection","kind":"schema","path":"schemas/v2/projection.schema.json","version":"2.0.0"},
   {"id":"schema.projection-reconcile","kind":"schema","path":"schemas/v2/projection-reconcile.schema.json","version":"2.0.0"},
   {"id":"schema.readiness","kind":"schema","path":"schemas/v2/readiness.schema.json","version":"2.0.0"},
+  {"id":"schema.render-manifest","kind":"schema","path":"schemas/v2/render-manifest.schema.json","version":"2.0.0"},
+  {"id":"schema.rendered-document","kind":"schema","path":"schemas/v2/rendered-document.schema.json","version":"2.0.0"},
   {"id":"schema.review-candidate","kind":"schema","path":"schemas/v2/review-candidate.schema.json","version":"2.0.0"},
   {"id":"schema.review-disposition-candidate","kind":"schema","path":"schemas/v2/review-disposition-candidate.schema.json","version":"2.0.0"},
   {"id":"schema.review-findings","kind":"schema","path":"schemas/v2/review-findings.schema.json","version":"2.0.0"},

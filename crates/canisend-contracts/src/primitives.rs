@@ -217,6 +217,7 @@ pub enum ArtifactKind {
     ExportManifest,
     TypstSource,
     Pdf,
+    RenderManifest,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]

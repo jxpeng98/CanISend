@@ -49,100 +49,106 @@
       ],
       "type": "object"
     },
-    "EvidenceKind": {
+    "DocumentKind": {
       "enum": [
-        "qualification",
-        "teaching",
-        "research",
-        "communication",
-        "leadership",
-        "service",
-        "employment",
-        "other"
+        "cover-letter",
+        "research-statement",
+        "teaching-statement",
+        "cv"
       ],
       "type": "string"
     },
-    "PrivacyClassification": {
-      "enum": [
-        "public",
-        "private-local",
-        "provider-bound",
-        "secret"
-      ],
-      "type": "string"
-    },
-    "SourceTextSpan": {
+    "RenderedDocumentRecord": {
       "additionalProperties": false,
       "properties": {
-        "end_byte": {
+        "byte_count": {
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
         },
-        "source": {
+        "document_artifact": {
           "$ref": "#/$defs/ArtifactReference"
         },
-        "start_byte": {
+        "elapsed_millis": {
           "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "kind": {
+          "$ref": "#/$defs/DocumentKind"
+        },
+        "page_count": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "pdf_artifact": {
+          "$ref": "#/$defs/ArtifactReference"
+        },
+        "typst_artifact": {
+          "$ref": "#/$defs/ArtifactReference"
+        },
+        "warning_count": {
+          "format": "uint32",
           "minimum": 0,
           "type": "integer"
         }
       },
       "required": [
-        "source",
-        "start_byte",
-        "end_byte"
+        "kind",
+        "document_artifact",
+        "typst_artifact",
+        "pdf_artifact",
+        "page_count",
+        "byte_count",
+        "warning_count",
+        "elapsed_millis"
       ],
       "type": "object"
     }
   },
-  "$id": "https://schemas.canisend.dev/v2/evidence.schema.json",
+  "$id": "https://schemas.canisend.dev/v2/render-manifest.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
-    "confirmed": {
-      "type": "boolean"
-    },
-    "excluded": {
-      "type": "boolean"
+    "documents": {
+      "items": {
+        "$ref": "#/$defs/RenderedDocumentRecord"
+      },
+      "type": "array"
     },
     "id": {
       "type": "string"
     },
-    "kind": {
-      "$ref": "#/$defs/EvidenceKind"
+    "job_id": {
+      "type": "string"
+    },
+    "package_artifact": {
+      "$ref": "#/$defs/ArtifactReference"
+    },
+    "rendered_at": {
+      "type": "string"
     },
     "revision": {
       "format": "uint64",
       "minimum": 0,
       "type": "integer"
     },
-    "sensitivity": {
-      "$ref": "#/$defs/PrivacyClassification"
-    },
-    "source_quote": {
-      "type": "string"
-    },
-    "source_span": {
-      "$ref": "#/$defs/SourceTextSpan"
-    },
-    "summary": {
-      "type": "string"
+    "submission_performed": {
+      "type": "boolean"
     }
   },
   "required": [
     "id",
-    "kind",
-    "summary",
-    "source_quote",
-    "source_span",
-    "confirmed",
-    "excluded",
-    "sensitivity",
+    "job_id",
+    "package_artifact",
+    "documents",
+    "rendered_at",
+    "submission_performed",
     "revision"
   ],
-  "title": "EvidenceRecord",
+  "title": "RenderManifestRecord",
   "type": "object",
-  "x-canisend-id": "canisend.evidence/v2",
+  "x-canisend-id": "canisend.render-manifest/v2",
   "x-canisend-version": "2.0.0"
 }

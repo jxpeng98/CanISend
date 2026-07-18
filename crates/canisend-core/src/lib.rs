@@ -250,7 +250,7 @@ fn built_in_descriptors() -> Vec<StageDescriptor> {
         descriptor(
             WorkflowStage::Render,
             &[WorkflowStage::Package],
-            ArtifactKind::Pdf,
+            ArtifactKind::RenderManifest,
             &[ExecutionMode::Deterministic],
         ),
     ]
