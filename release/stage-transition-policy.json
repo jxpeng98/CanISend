@@ -42,7 +42,7 @@
     "Cargo.toml workspace version",
     "workspace Cargo.toml exact internal dependencies",
     "Cargo.lock workspace package versions",
-    "release/qualification-ledger.json stage and Stable authorization fields",
+    "release/qualification-ledger.json stage, Stable authorization, and RC notes-review reset fields",
     "release/RELEASE_NOTES.md heading",
     "release/support-policy.json Stable publication status",
     "release/feedback-snapshot.json next-roadmap publication status",

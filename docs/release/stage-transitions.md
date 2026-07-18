@@ -19,6 +19,8 @@ SHA-256 digest of every controlled file. Review the complete file set. A transit
 0.7 release line, attach build metadata, or use a target other than the first Beta/RC version. Once RC.1 evidence is
 committed, `prepare-stage v0.7.0-rc.2` is allowed; RC iteration must increase exactly by one and preserves the
 qualification ledger's earlier clean-tag records. Beta same-stage iteration and RC number skipping are rejected.
+Any explicit release-notes review is reset during sequential RC iteration: the earlier review still exists in Git
+history, but it cannot authorize a candidate whose manifest, assets, issues, or package-channel state may differ.
 
 Before the Alpha-to-Beta write, refresh [`release/beta-readiness.json`](../../release/beta-readiness.json), run the
 ordinary release source gate, and complete the name-only signing configuration audit described in

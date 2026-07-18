@@ -30,5 +30,14 @@
     "docs/guides/quick-start.md",
     "docs/guides/upgrade-and-rollback.md"
   ],
-  "final_review_required_at_rc": true
+  "final_review_required_at_rc": true,
+  "final_review_evidence": {
+    "asset": "RELEASE_NOTES.md",
+    "bind_latest_recorded_rc": true,
+    "bind_release_manifest": true,
+    "bind_release_notes_body": true,
+    "bind_rollback_guide": true,
+    "explicit_github_reviewer": true,
+    "rc_iteration_resets_review": true
+  }
 }

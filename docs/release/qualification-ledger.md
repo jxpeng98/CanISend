@@ -98,6 +98,24 @@ The dry-run-first command requires the ledger's exact qualified Beta, frozen RC 
 matrix for that RC tag. It changes only `package_managers` with `--write`; three hosted records, mixed candidate
 digests, or a WinGet record copied from another run remain insufficient.
 
+## Recording the final RC release-notes review
+
+After the final RC matrix is recorded, download that release's complete verified asset directory and conduct the
+human review of the public issue state, release manifest, archive set, limitations, package-channel state, release
+notes, and rollback guidance. Then preview the bounded evidence record with the reviewing maintainer's public GitHub
+login:
+
+```console
+cargo run -p xtask --locked -- release record-release-notes-qualification \
+  v0.7.0-rc.2 DOWNLOADED_ASSET_DIRECTORY REVIEWER
+```
+
+The command re-verifies the full release, requires the checked-in and published `RELEASE_NOTES.md` bytes to match,
+binds the manifest source and run to the latest recorded RC, and records hashes for the stage-neutral note body and
+rollback guide. It is dry-run-only without `--write`, writes only the qualification ledger from a clean worktree,
+and rejects anonymous, stale, earlier-RC, invented, or noncanonical review evidence. Preparing another sequential RC
+resets the earlier review because that evidence no longer describes the final candidate.
+
 ## Stable evidence requirements
 
 Stable requires all of these in the committed ledger:
@@ -111,7 +129,8 @@ Stable requires all of these in the committed ledger:
    evidence.
 5. Passed five-target documentation and uninstall evidence with an exact native matrix run ID.
 6. Passed Homebrew Cask, Scoop, and WinGet validation plus install/upgrade/uninstall evidence.
-7. Final Stable release notes, rollback guidance, and explicit Stable authorization.
+7. A canonical, explicit maintainer review of the latest recorded RC's published release notes and rollback
+   guidance, followed by final Stable release notes and explicit Stable authorization.
 
 The ledger is necessary but not sufficient: referenced GitHub runs, public releases, checksums, attestations,
 notarization results, Authenticode results, and package-manager validations must still be independently inspected.
@@ -123,5 +142,5 @@ The current Alpha ledger is `pre-beta`. It records five-target native archive li
 Actions run `29637471699` and deterministic package-manager candidates. `prepared-native` proves the version-neutral
 documentation/uninstall control on Alpha archives; it is deliberately weaker than `passed`, which requires the
 signed RC-stage matrix named by the Stable gate. Beta signing, clean RC tags, version-pair migration, native channel
-lifecycle, final notes, and Stable authorization remain pending. This matches the live repository signing audit and
+lifecycle, final RC notes review, and Stable authorization remain pending. This matches the live repository signing audit and
 deliberately prevents an unsigned or unevidenced Stable version bump.

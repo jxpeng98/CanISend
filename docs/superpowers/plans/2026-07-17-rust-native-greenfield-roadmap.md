@@ -315,6 +315,11 @@
   boundaries; no crash, timeout, or artifact was produced. A real branch dispatch was rejected with GitHub HTTP 404
   because the workflow does not yet exist on the default branch. The scheduled-fuzz checkbox remains correctly open
   until the reviewed Rust-native cutover registers and runs that workflow.
+- 2026-07-18: Closed the final-RC release-notes evidence gap. A dry-run-first recorder now fully verifies the latest
+  recorded RC assets, requires published and checked-in note bytes to match, and binds the signed matrix/source,
+  manifest digest, stage-neutral note body, rollback guide, and explicit public reviewer in canonical ledger
+  evidence. Stable rejects missing or stale review evidence, while sequential RC iteration resets it. The checklist
+  remains open until a real signed final RC is independently reviewed; exact CI evidence follows after this commit.
 
 ## 1. Executive Decision
 
@@ -2042,7 +2047,10 @@ equal the already recorded RC matrix. Alpha preparation remains visible without 
 
 The [release-notes policy](../../notes/rust-native/2026-07-18-r11-release-notes-policy.md) makes the body
 stage-neutral while preserving an exact version heading, complete verification/compatibility/privacy content, and
-the backup-first rollback guide. The checklist remains open until the real RC receives its final content review.
+the backup-first rollback guide. The
+[review recorder](../../notes/rust-native/2026-07-18-r11-release-notes-recorder.md) now binds that manual decision to
+the latest verified RC and invalidates it on RC iteration. The checklist remains open until the real RC receives its
+final content review.
 
 The [package-manager recorder](../../notes/rust-native/2026-07-18-r11-package-manager-recorder.md) closes the
 implementation path from four canonical lifecycle records to the ledger without relaxing the fresh-Sandbox or

@@ -35,6 +35,7 @@
   "release_candidates": [],
   "release_notes": {
     "notes": "release/RELEASE_NOTES.md",
+    "review": null,
     "rollback": "docs/guides/upgrade-and-rollback.md",
     "status": "alpha-current"
   },

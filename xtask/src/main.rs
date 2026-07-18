@@ -44,6 +44,8 @@ const DOCUMENTATION_UNINSTALL_POLICY_SCHEMA: &str = "canisend.documentation-unin
 const DOCUMENTATION_UNINSTALL_SCHEMA: &str = "canisend.documentation-uninstall/v1";
 const DOCUMENTATION_UNINSTALL_PLAN_SCHEMA: &str = "canisend.documentation-uninstall-plan/v1";
 const RELEASE_NOTES_POLICY_SCHEMA: &str = "canisend.release-notes-policy/v1";
+const RELEASE_NOTES_QUALIFICATION_PLAN_SCHEMA: &str =
+    "canisend.release-notes-qualification-plan/v1";
 const CODE_SIGNING_EVIDENCE_SCHEMA: &str = "canisend.code-signing-evidence/v1";
 const FUZZ_TOOLCHAIN: &str = "nightly-2026-07-01";
 const CARGO_FUZZ_VERSION: &str = "0.13.2";
@@ -151,6 +153,23 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
                 && write == "--write" =>
         {
             record_rc_qualification(tag, run_id, Path::new(assets), true)
+        }
+        [area, command, tag, assets, reviewer]
+            if area == "release" && command == "record-release-notes-qualification" =>
+        {
+            record_release_notes_qualification(
+                tag,
+                Path::new(assets),
+                reviewer,
+                false,
+            )
+        }
+        [area, command, tag, assets, reviewer, write]
+            if area == "release"
+                && command == "record-release-notes-qualification"
+                && write == "--write" =>
+        {
+            record_release_notes_qualification(tag, Path::new(assets), reviewer, true)
         }
         [area, command, output] if area == "release" && command == "sbom" => {
             write_release_sbom(Path::new(output))
@@ -273,7 +292,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
         }
         _ => Err(
             "usage: cargo run -p xtask -- schemas <check|write> | <resources|docs> check | \
-             release <check|freeze-candidate|validate-tag TAG|verify-beta-readiness FILE|verify-feedback-candidate SNAPSHOT ROADMAP|prepare-stage TAG [--write]|activate-feature-freeze COMMIT [--write]|record-beta-qualification TAG RUN_ID ASSETS [--write]|record-rc-qualification TAG RUN_ID ASSETS [--write]|record-upgrade-qualification FROM_TAG TO_TAG EVIDENCE [--write]|record-documentation-qualification TAG ASSETS EVIDENCE [--write]|record-package-qualification FROM_TAG TO_TAG EVIDENCE [--write]|sbom OUTPUT|assemble TAG COMMIT ARTIFACTS OUTPUT|verify TAG DIRECTORY|channels TAG ASSETS OUTPUT|bind-signing-evidence TAG TARGET EVIDENCE BINARY ARCHIVE|verify-package-candidates FROM_TAG FROM_ASSETS TO_TAG TO_ASSETS|verify-package-evidence FROM_TAG TO_TAG DIRECTORY|verify-upgrade-evidence FROM_TAG TO_TAG DIRECTORY|verify-documentation-evidence TAG ASSETS EVIDENCE>"
+             release <check|freeze-candidate|validate-tag TAG|verify-beta-readiness FILE|verify-feedback-candidate SNAPSHOT ROADMAP|prepare-stage TAG [--write]|activate-feature-freeze COMMIT [--write]|record-beta-qualification TAG RUN_ID ASSETS [--write]|record-rc-qualification TAG RUN_ID ASSETS [--write]|record-release-notes-qualification TAG ASSETS REVIEWER [--write]|record-upgrade-qualification FROM_TAG TO_TAG EVIDENCE [--write]|record-documentation-qualification TAG ASSETS EVIDENCE [--write]|record-package-qualification FROM_TAG TO_TAG EVIDENCE [--write]|sbom OUTPUT|assemble TAG COMMIT ARTIFACTS OUTPUT|verify TAG DIRECTORY|channels TAG ASSETS OUTPUT|bind-signing-evidence TAG TARGET EVIDENCE BINARY ARCHIVE|verify-package-candidates FROM_TAG FROM_ASSETS TO_TAG TO_ASSETS|verify-package-evidence FROM_TAG TO_TAG DIRECTORY|verify-upgrade-evidence FROM_TAG TO_TAG DIRECTORY|verify-documentation-evidence TAG ASSETS EVIDENCE>"
                 .to_owned(),
         ),
     }
@@ -472,7 +491,16 @@ fn check_release_notes_policy() -> Result<(), String> {
         "required_sections": sections,
         "required_guidance": guidance,
         "required_repository_guides": guides,
-        "final_review_required_at_rc": true
+        "final_review_required_at_rc": true,
+        "final_review_evidence": {
+            "asset": "RELEASE_NOTES.md",
+            "bind_latest_recorded_rc": true,
+            "bind_release_manifest": true,
+            "bind_release_notes_body": true,
+            "bind_rollback_guide": true,
+            "explicit_github_reviewer": true,
+            "rc_iteration_resets_review": true
+        }
     });
     if policy != expected {
         return Err("release-notes policy differs from the native release contract".to_owned());
@@ -886,7 +914,7 @@ fn check_stage_transition_policy() -> Result<(), String> {
             "Cargo.toml workspace version",
             "workspace Cargo.toml exact internal dependencies",
             "Cargo.lock workspace package versions",
-            "release/qualification-ledger.json stage and Stable authorization fields",
+            "release/qualification-ledger.json stage, Stable authorization, and RC notes-review reset fields",
             "release/RELEASE_NOTES.md heading",
             "release/support-policy.json Stable publication status",
             "release/feedback-snapshot.json next-roadmap publication status",
@@ -1069,6 +1097,190 @@ fn record_rc_qualification(
             .map_err(|error| format!("could not serialize RC qualification plan: {error}"))?
     );
     Ok(())
+}
+
+fn record_release_notes_qualification(
+    tag: &str,
+    assets: &Path,
+    reviewer: &str,
+    write: bool,
+) -> Result<(), String> {
+    let root = repository_root();
+    if write {
+        require_clean_worktree(&root, "release-notes qualification")?;
+    }
+    validate_github_login(reviewer)?;
+    let (version, stage) = parse_release_tag(tag)?;
+    if stage != ReleaseStage::ReleaseCandidate {
+        return Err("release-notes qualification requires an RC tag".to_owned());
+    }
+    let workspace_body = fs::read_to_string(root.join("Cargo.toml"))
+        .map_err(|error| format!("could not read workspace manifest: {error}"))?;
+    let workspace: toml::Value = workspace_body
+        .parse()
+        .map_err(|error| format!("workspace manifest is invalid TOML: {error}"))?;
+    if workspace["workspace"]["package"]["version"].as_str() != Some(version.to_string().as_str()) {
+        return Err("release-notes RC tag must match the current workspace version".to_owned());
+    }
+
+    check_release_notes_policy()?;
+    verify_release(tag, assets)?;
+    let manifest_path = assets.join(format!("canisend-{version}-manifest.json"));
+    let manifest_bytes = fs::read(&manifest_path)
+        .map_err(|error| format!("could not read verified RC manifest: {error}"))?;
+    let manifest: Value = serde_json::from_slice(&manifest_bytes)
+        .map_err(|error| format!("verified RC manifest is invalid JSON: {error}"))?;
+    let source_commit = required_string(&manifest["source"], "commit", "RC release source")?;
+    validate_lower_hex("RC release source commit", source_commit, 40)?;
+
+    let notes_path = root.join("release/RELEASE_NOTES.md");
+    let notes = fs::read(&notes_path)
+        .map_err(|error| format!("could not read checked-in release notes: {error}"))?;
+    let asset_notes = fs::read(assets.join("RELEASE_NOTES.md"))
+        .map_err(|error| format!("could not read verified release-notes asset: {error}"))?;
+    if notes != asset_notes {
+        return Err(
+            "checked-in release notes differ from the verified RC release asset".to_owned(),
+        );
+    }
+    let notes_body_sha256 = release_notes_body_sha256(&notes)?;
+    let rollback_sha256 = sha256_file(&root.join("docs/guides/upgrade-and-rollback.md"))?;
+
+    let ledger_path = root.join("release/qualification-ledger.json");
+    let before = fs::read(&ledger_path)
+        .map_err(|error| format!("could not read qualification ledger: {error}"))?;
+    let ledger: Value = serde_json::from_slice(&before)
+        .map_err(|error| format!("qualification ledger is invalid JSON: {error}"))?;
+    let qualified = release_notes_qualified_ledger(
+        &ledger,
+        tag,
+        source_commit,
+        reviewer,
+        &sha256(&manifest_bytes),
+        &notes_body_sha256,
+        &rollback_sha256,
+    )?;
+    let after = pretty_json_bytes(&qualified)?;
+    let reviewed = &qualified["release_notes"]["review"];
+    let report = json!({
+        "schema": RELEASE_NOTES_QUALIFICATION_PLAN_SCHEMA,
+        "mode": if write { "write" } else { "dry-run" },
+        "writes_performed": write,
+        "tag": tag,
+        "reviewer": reviewer,
+        "source_commit": source_commit,
+        "signed_matrix_run": reviewed["signed_matrix_run"],
+        "release_manifest_sha256": reviewed["release_manifest_sha256"],
+        "release_notes_body_sha256": notes_body_sha256,
+        "rollback_sha256": rollback_sha256,
+        "ledger": {
+            "path": "release/qualification-ledger.json",
+            "before_sha256": sha256(&before),
+            "after_sha256": sha256(&after)
+        },
+        "next": "independently inspect the final RC issue, asset, limitation, rollback, and package-channel state, then commit the ledger"
+    });
+    if write {
+        fs::write(&ledger_path, after)
+            .map_err(|error| format!("could not write {}: {error}", ledger_path.display()))?;
+    }
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&report).map_err(|error| {
+            format!("could not serialize release-notes qualification plan: {error}")
+        })?
+    );
+    Ok(())
+}
+
+fn release_notes_qualified_ledger(
+    ledger: &Value,
+    tag: &str,
+    source_commit: &str,
+    reviewer: &str,
+    manifest_sha256: &str,
+    notes_body_sha256: &str,
+    rollback_sha256: &str,
+) -> Result<Value, String> {
+    let (_, stage) = parse_release_tag(tag)?;
+    validate_github_login(reviewer)?;
+    validate_lower_hex("RC source commit", source_commit, 40)?;
+    validate_lower_hex("RC release manifest SHA-256", manifest_sha256, 64)?;
+    validate_lower_hex("release-notes body SHA-256", notes_body_sha256, 64)?;
+    validate_lower_hex("rollback guide SHA-256", rollback_sha256, 64)?;
+    if stage != ReleaseStage::ReleaseCandidate
+        || ledger["schema"] != RELEASE_QUALIFICATION_SCHEMA
+        || ledger["workspace_stage"] != "rc"
+        || ledger["status"] != "rc-qualifying"
+        || ledger["feature_freeze"]["status"] != "frozen"
+        || ledger["release_notes"]["status"] != "rc-final"
+        || !ledger["release_notes"]["review"].is_null()
+        || ledger["stable_authorized"] != false
+    {
+        return Err(
+            "qualification ledger is not canonical pending RC notes-review state".to_owned(),
+        );
+    }
+    let candidates = ledger["release_candidates"]
+        .as_array()
+        .filter(|candidates| !candidates.is_empty())
+        .ok_or_else(|| "release-notes qualification requires a recorded RC matrix".to_owned())?;
+    let candidate = candidates
+        .last()
+        .expect("non-empty release candidate array was checked");
+    let (recorded_tag, recorded_source, recorded_run) =
+        validate_qualification_release(candidate, ReleaseStage::ReleaseCandidate, "final RC")?;
+    if recorded_tag != tag || recorded_source != source_commit {
+        return Err(
+            "release-notes review must bind the latest recorded RC tag and source".to_owned(),
+        );
+    }
+    let evidence = vec![
+        format!("{tag} release notes and rollback guidance reviewed by {reviewer}"),
+        format!(
+            "signed RC matrix run {recorded_run} manifest, public issues, assets, limitations, and package-channel state reviewed"
+        ),
+    ];
+    let mut qualified = ledger.clone();
+    qualified["release_notes"]["review"] = json!({
+        "evidence": evidence,
+        "release_manifest_sha256": manifest_sha256,
+        "release_notes_body_sha256": notes_body_sha256,
+        "reviewer": reviewer,
+        "rollback_sha256": rollback_sha256,
+        "signed_matrix_run": recorded_run,
+        "source_commit": source_commit,
+        "status": "reviewed",
+        "tag": tag
+    });
+    Ok(qualified)
+}
+
+fn validate_github_login(value: &str) -> Result<(), String> {
+    if value.is_empty()
+        || value.len() > 39
+        || value.starts_with('-')
+        || value.ends_with('-')
+        || value.contains("--")
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+    {
+        return Err("release-notes reviewer must be a valid GitHub login".to_owned());
+    }
+    Ok(())
+}
+
+fn release_notes_body_sha256(notes: &[u8]) -> Result<String, String> {
+    let notes = std::str::from_utf8(notes)
+        .map_err(|_| "release notes must be UTF-8 before review".to_owned())?;
+    let (_, body) = notes
+        .split_once('\n')
+        .ok_or_else(|| "release notes must contain a heading and body".to_owned())?;
+    if body.trim().is_empty() {
+        return Err("release notes body must not be empty".to_owned());
+    }
+    Ok(sha256(body.as_bytes()))
 }
 
 fn record_upgrade_qualification(
@@ -1840,6 +2052,16 @@ fn render_stage_transition(root: &Path, tag: &str) -> Result<RenderedStageTransi
     ledger["status"] = Value::String(qualification_status_for_stage(to_stage).to_owned());
     ledger["release_notes"]["status"] =
         Value::String(release_notes_status_for_stage(to_stage).to_owned());
+    if matches!(
+        (from_stage, to_stage),
+        (
+            ReleaseStage::ReleaseCandidate,
+            ReleaseStage::ReleaseCandidate
+        )
+    ) && !ledger["release_notes"]["review"].is_null()
+    {
+        ledger["release_notes"]["review"] = Value::Null;
+    }
     if matches!(to_stage, ReleaseStage::Stable) {
         ledger["stable_authorized"] = Value::Bool(true);
     }
@@ -3036,6 +3258,7 @@ fn check_release_qualification() -> Result<(), String> {
             ));
         }
     }
+    check_release_notes_review(&root, &version, stage, release_notes, release_candidates)?;
 
     if matches!(stage, ReleaseStage::Stable) {
         validate_stable_qualification(&ledger)?;
@@ -3326,6 +3549,97 @@ fn qualification_status_for_stage(stage: ReleaseStage) -> &'static str {
     }
 }
 
+fn check_release_notes_review(
+    root: &Path,
+    version: &Version,
+    stage: ReleaseStage,
+    release_notes: &Value,
+    candidates: &[Value],
+) -> Result<(), String> {
+    let review = &release_notes["review"];
+    if review.is_null() {
+        if matches!(stage, ReleaseStage::Stable) {
+            return Err("Stable requires a reviewed final RC release-notes record".to_owned());
+        }
+        return Ok(());
+    }
+    if matches!(stage, ReleaseStage::Alpha | ReleaseStage::Beta) {
+        return Err("Alpha and Beta cannot preapprove a final RC notes review".to_owned());
+    }
+    let (tag, _, _) = validate_release_notes_review_record(review, candidates)?;
+    if matches!(stage, ReleaseStage::ReleaseCandidate) && tag != format!("v{version}") {
+        return Err("RC release-notes review must match the current workspace tag".to_owned());
+    }
+    let notes = fs::read(root.join("release/RELEASE_NOTES.md"))
+        .map_err(|error| format!("could not read reviewed release notes: {error}"))?;
+    if review["release_notes_body_sha256"] != release_notes_body_sha256(&notes)? {
+        return Err("reviewed release-notes body changed after qualification".to_owned());
+    }
+    if review["rollback_sha256"] != sha256_file(&root.join("docs/guides/upgrade-and-rollback.md"))?
+    {
+        return Err("reviewed rollback guidance changed after qualification".to_owned());
+    }
+    Ok(())
+}
+
+fn validate_release_notes_review_record(
+    review: &Value,
+    candidates: &[Value],
+) -> Result<(String, String, u64), String> {
+    if review["status"] != "reviewed" {
+        return Err("release-notes review status must be `reviewed`".to_owned());
+    }
+    let tag = required_string(review, "tag", "release-notes review")?;
+    let source_commit = required_string(review, "source_commit", "release-notes review")?;
+    let reviewer = required_string(review, "reviewer", "release-notes review")?;
+    validate_github_login(reviewer)?;
+    validate_lower_hex("release-notes RC source commit", source_commit, 40)?;
+    for (field, context) in [
+        ("release_manifest_sha256", "release-notes manifest SHA-256"),
+        ("release_notes_body_sha256", "release-notes body SHA-256"),
+        ("rollback_sha256", "release-notes rollback SHA-256"),
+    ] {
+        validate_lower_hex(
+            context,
+            required_string(review, field, "release-notes review")?,
+            64,
+        )?;
+    }
+    let run = review["signed_matrix_run"]
+        .as_u64()
+        .filter(|run| *run > 0)
+        .ok_or_else(|| "release-notes review has no signed matrix run".to_owned())?;
+    let candidate = candidates
+        .last()
+        .ok_or_else(|| "release-notes review has no final RC matrix".to_owned())?;
+    let (candidate_tag, candidate_source, candidate_run) =
+        validate_qualification_release(candidate, ReleaseStage::ReleaseCandidate, "final RC")?;
+    if tag != candidate_tag || source_commit != candidate_source || run != candidate_run {
+        return Err("release-notes review differs from the final recorded RC matrix".to_owned());
+    }
+    let evidence = json!([
+        format!("{tag} release notes and rollback guidance reviewed by {reviewer}"),
+        format!(
+            "signed RC matrix run {run} manifest, public issues, assets, limitations, and package-channel state reviewed"
+        )
+    ]);
+    let canonical = json!({
+        "evidence": evidence,
+        "release_manifest_sha256": review["release_manifest_sha256"],
+        "release_notes_body_sha256": review["release_notes_body_sha256"],
+        "reviewer": reviewer,
+        "rollback_sha256": review["rollback_sha256"],
+        "signed_matrix_run": run,
+        "source_commit": source_commit,
+        "status": "reviewed",
+        "tag": tag
+    });
+    if *review != canonical {
+        return Err("release-notes review contains unknown or non-canonical fields".to_owned());
+    }
+    Ok((tag.to_owned(), source_commit.to_owned(), run))
+}
+
 fn validate_stable_qualification(ledger: &Value) -> Result<(), String> {
     let feature_freeze = &ledger["feature_freeze"];
     if feature_freeze["status"] != "frozen" {
@@ -3404,6 +3718,7 @@ fn validate_stable_qualification(ledger: &Value) -> Result<(), String> {
                 .to_owned(),
         );
     }
+    validate_release_notes_review_record(&ledger["release_notes"]["review"], candidates)?;
     if ledger["release_notes"]["status"] != "stable-final" || ledger["stable_authorized"] != true {
         return Err("Stable release notes or authorization are incomplete".to_owned());
     }
@@ -6770,6 +7085,88 @@ mod tests {
     }
 
     #[test]
+    fn release_notes_review_binds_latest_recorded_rc_and_canonical_evidence() {
+        let latest_source = "8".repeat(40);
+        let ledger = json!({
+            "schema": RELEASE_QUALIFICATION_SCHEMA,
+            "workspace_stage": "rc",
+            "status": "rc-qualifying",
+            "stable_authorized": false,
+            "feature_freeze": {"status": "frozen", "baseline_commit": "6".repeat(40)},
+            "release_notes": {"status": "rc-final", "review": null},
+            "release_candidates": [
+                {
+                    "signed_matrix_run": 29_641_000_001_u64,
+                    "source_commit": "7".repeat(40),
+                    "status": "success",
+                    "tag": "v0.7.0-rc.1"
+                },
+                {
+                    "signed_matrix_run": 29_641_000_002_u64,
+                    "source_commit": latest_source,
+                    "status": "success",
+                    "tag": "v0.7.0-rc.2"
+                }
+            ]
+        });
+        let qualified = release_notes_qualified_ledger(
+            &ledger,
+            "v0.7.0-rc.2",
+            &latest_source,
+            "reviewer",
+            &"a".repeat(64),
+            &"b".repeat(64),
+            &"c".repeat(64),
+        )
+        .expect("record final RC release-notes review");
+        let review = &qualified["release_notes"]["review"];
+        assert_eq!(review["signed_matrix_run"], 29_641_000_002_u64);
+        validate_release_notes_review_record(
+            review,
+            ledger["release_candidates"]
+                .as_array()
+                .expect("RC candidates"),
+        )
+        .expect("validate canonical final review");
+
+        assert!(
+            release_notes_qualified_ledger(
+                &ledger,
+                "v0.7.0-rc.1",
+                &"7".repeat(40),
+                "reviewer",
+                &"a".repeat(64),
+                &"b".repeat(64),
+                &"c".repeat(64),
+            )
+            .is_err()
+        );
+        assert!(
+            release_notes_qualified_ledger(
+                &ledger,
+                "v0.7.0-rc.2",
+                &latest_source,
+                "invalid--reviewer",
+                &"a".repeat(64),
+                &"b".repeat(64),
+                &"c".repeat(64),
+            )
+            .is_err()
+        );
+        let mut noncanonical = review.clone();
+        noncanonical["approved"] = Value::Bool(true);
+        assert!(
+            validate_release_notes_review_record(
+                &noncanonical,
+                ledger["release_candidates"]
+                    .as_array()
+                    .expect("RC candidates"),
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
     fn stage_transition_policy_is_forward_only_and_dry_run_by_default() {
         check_stage_transition_policy().expect("stage-transition policy");
         let alpha = Version::parse("0.7.0-alpha.1").expect("Alpha version");
@@ -6995,7 +7392,13 @@ mod tests {
             "stable_authorized": false,
             "beta": {"status": "qualified", "tag": "v0.7.0-beta.1"},
             "feature_freeze": {"status": "frozen", "baseline_commit": "7".repeat(40)},
-            "release_notes": {"status": "rc-final"},
+            "release_notes": {
+                "status": "rc-final",
+                "review": {
+                    "status": "reviewed",
+                    "tag": "v0.7.0-rc.1"
+                }
+            },
             "release_candidates": [{"tag": "v0.7.0-rc.1", "status": "success"}]
         });
         write_pretty_json(&root.join("release/qualification-ledger.json"), &ledger)
@@ -7006,23 +7409,21 @@ mod tests {
         )
         .expect("write RC notes fixture");
 
-        let ledger_before = fs::read(root.join("release/qualification-ledger.json"))
-            .expect("read RC ledger before iteration");
+        let mut expected_ledger = ledger.clone();
+        expected_ledger["release_notes"]["review"] = Value::Null;
         let transition =
             render_stage_transition(&root, "v0.7.0-rc.2").expect("render sequential RC iteration");
-        assert!(
-            !transition
-                .files
-                .contains_key("release/qualification-ledger.json")
-        );
-        assert_eq!(transition.files.len(), 4);
+        assert_eq!(transition.files.len(), 5);
         for (relative, body) in &transition.files {
             fs::write(root.join(relative), body).expect("apply RC iteration fixture");
         }
         assert_eq!(
-            fs::read(root.join("release/qualification-ledger.json"))
-                .expect("read RC ledger after iteration"),
-            ledger_before
+            serde_json::from_slice::<Value>(
+                &fs::read(root.join("release/qualification-ledger.json"))
+                    .expect("read RC ledger after iteration")
+            )
+            .expect("parse RC ledger after iteration"),
+            expected_ledger
         );
         assert!(
             fs::read_to_string(root.join("Cargo.toml"))
@@ -7110,7 +7511,26 @@ mod tests {
                     "evidence": ["qualified"]
                 },
                 "package_managers": {"status": "passed", "evidence": ["qualified"]},
-                "release_notes": {"status": "rc-final"}
+                "release_notes": {
+                    "status": "rc-final",
+                    "review": {
+                        "evidence": [
+                            "v0.7.0-rc.2 release notes and rollback guidance reviewed by reviewer",
+                            format!(
+                                "signed RC matrix run {} manifest, public issues, assets, limitations, and package-channel state reviewed",
+                                29_641_000_002_u64
+                            )
+                        ],
+                        "release_manifest_sha256": "a".repeat(64),
+                        "release_notes_body_sha256": "b".repeat(64),
+                        "reviewer": "reviewer",
+                        "rollback_sha256": "c".repeat(64),
+                        "signed_matrix_run": 29_641_000_002_u64,
+                        "source_commit": "9".repeat(40),
+                        "status": "reviewed",
+                        "tag": "v0.7.0-rc.2"
+                    }
+                }
             }),
         )
         .expect("write Stable qualification fixture");
