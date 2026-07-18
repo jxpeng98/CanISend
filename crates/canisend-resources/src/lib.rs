@@ -258,6 +258,14 @@ pub fn export_agent_pack(
             "schema.projection-reconcile",
             "schemas/v2/projection-reconcile.schema.json",
         ),
+        (
+            "schema.rendered-document",
+            "schemas/v2/rendered-document.schema.json",
+        ),
+        (
+            "schema.render-manifest",
+            "schemas/v2/render-manifest.schema.json",
+        ),
     ];
     let mut files = Vec::with_capacity(resources.len());
     for (resource_id, relative_path) in resources {

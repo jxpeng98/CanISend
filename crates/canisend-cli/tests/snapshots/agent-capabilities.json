@@ -24,7 +24,7 @@
       {"id":"review.lifecycle","status":"available","version":"2.0.0"},
       {"id":"package.lifecycle","status":"available","version":"2.0.0"},
       {"id":"workflow.execute","status":"available","version":"2.0.0"},
-      {"id":"render.pdf","status":"planned","version":"2.0.0"}
+      {"id":"render.pdf","status":"available","version":"2.0.0"}
     ],
     "discovery_adapters": [
       {"kind":"rss-atom","max_items_per_refresh":1000,"network":true,"preserves_removed":true,"supports_cursor":true},
@@ -76,7 +76,7 @@
       {"execution_modes":["host-agent","configured-provider"],"id":"draft","status":"available"},
       {"execution_modes":["host-agent","configured-provider","user-decision"],"id":"review","status":"available"},
       {"execution_modes":["deterministic"],"id":"package","status":"available"},
-      {"execution_modes":["deterministic"],"id":"render","status":"planned"}
+      {"execution_modes":["deterministic"],"id":"render","status":"available"}
     ],
     "workspace_format": "canisend.workspace/v2"
   },

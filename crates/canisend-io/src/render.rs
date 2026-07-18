@@ -157,6 +157,7 @@ const fn document_kind(kind: DocumentKind) -> &'static str {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RenderedPdf {
     bytes: Vec<u8>,
+    page_count: u32,
     warning_count: usize,
     elapsed: Duration,
 }
@@ -170,6 +171,11 @@ impl RenderedPdf {
     #[must_use]
     pub fn into_bytes(self) -> Vec<u8> {
         self.bytes
+    }
+
+    #[must_use]
+    pub const fn page_count(&self) -> u32 {
+        self.page_count
     }
 
     #[must_use]
@@ -200,6 +206,10 @@ pub enum EmbeddedRenderError {
     TimeBudgetExceeded { max_millis: u128 },
     #[error("embedded renderer returned an invalid PDF")]
     InvalidPdf,
+    #[error("embedded renderer returned an encrypted PDF")]
+    EncryptedPdf,
+    #[error("rendered PDF page count is outside the supported range")]
+    PageCountInvalid,
 }
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -243,15 +253,29 @@ impl EmbeddedTypstCompiler {
                 max_bytes: MAX_RENDER_PDF_BYTES,
             });
         }
-        if !bytes.starts_with(b"%PDF-") {
-            return Err(EmbeddedRenderError::InvalidPdf);
-        }
+        let page_count = validate_rendered_pdf(&bytes)?;
         Ok(RenderedPdf {
             bytes,
+            page_count,
             warning_count,
             elapsed,
         })
     }
+}
+
+pub fn validate_rendered_pdf(bytes: &[u8]) -> Result<u32, EmbeddedRenderError> {
+    if bytes.len() > MAX_RENDER_PDF_BYTES || !bytes.starts_with(b"%PDF-") {
+        return Err(EmbeddedRenderError::InvalidPdf);
+    }
+    let document = lopdf::Document::load_mem(bytes).map_err(|_| EmbeddedRenderError::InvalidPdf)?;
+    if document.is_encrypted() {
+        return Err(EmbeddedRenderError::EncryptedPdf);
+    }
+    let page_count = document.get_pages().len();
+    if page_count == 0 || page_count > crate::pdf::MAX_PDF_PAGES {
+        return Err(EmbeddedRenderError::PageCountInvalid);
+    }
+    u32::try_from(page_count).map_err(|_| EmbeddedRenderError::PageCountInvalid)
 }
 
 fn safe_compile_error(error: TypstAsLibError) -> EmbeddedRenderError {
@@ -289,7 +313,7 @@ mod tests {
 
     use super::{
         EmbeddedRenderError, EmbeddedTypstCompiler, MAX_RENDER_PDF_BYTES, MAX_TYPST_SOURCE_BYTES,
-        TypstProjectionError, project_document_typst,
+        TypstProjectionError, project_document_typst, validate_rendered_pdf,
     };
 
     #[test]
@@ -305,11 +329,24 @@ mod tests {
 
         assert!(rendered.bytes().starts_with(b"%PDF-"));
         assert!(rendered.bytes().len() < MAX_RENDER_PDF_BYTES);
+        assert_eq!(rendered.page_count(), 1);
         assert_eq!(rendered.warning_count(), 0);
         assert!(!rendered.elapsed().is_zero());
         let text = pdf_extract::extract_text_from_mem(rendered.bytes()).expect("extract PDF text");
         assert!(text.contains("Ada Lovelace"));
         assert!(text.contains("Evidence-backed application"));
+    }
+
+    #[test]
+    fn rendered_pdf_validation_rejects_malformed_inputs() {
+        assert_eq!(
+            validate_rendered_pdf(b"%PDF-not-a-document"),
+            Err(EmbeddedRenderError::InvalidPdf)
+        );
+        assert_eq!(
+            validate_rendered_pdf(b"not-a-pdf"),
+            Err(EmbeddedRenderError::InvalidPdf)
+        );
     }
 
     #[test]

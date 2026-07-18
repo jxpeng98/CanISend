@@ -14,8 +14,8 @@ use canisend_contracts::{
 use canisend_store::{
     ArtifactService, CriteriaService, DEFAULT_MAX_BLOB_BYTES, DocumentService, EvidenceService,
     JobService, MatchService, NewProfileSource, NewSource, PackageService, PlanService,
-    ProfileService, ProjectionService, ReviewService, StoreError, TaskService, WorkflowService,
-    Workspace, WorkspacePaths, verify_backup,
+    ProfileService, ProjectionService, RenderService, ReviewService, StoreError, TaskService,
+    WorkflowService, Workspace, WorkspacePaths, verify_backup,
 };
 use serde_json::{Value, json};
 
@@ -57,7 +57,7 @@ fn workspace_init_discovery_status_and_check_are_consistent() {
     assert_eq!(discovered.root, root.path());
     assert_eq!(
         workspace.status().expect("status").database_schema_version,
-        12
+        13
     );
     let check = workspace.check().expect("workspace check");
     assert!(check.ok);
@@ -1171,6 +1171,78 @@ fn evidence_and_match_tasks_enforce_stable_revision_bound_identities() {
         .expect("restore missing JSON projection");
     assert!(workspace_root.join(cover_json.as_str()).is_file());
 
+    let status = WorkflowService::new(&mut workspace.database)
+        .status(&job.id)
+        .expect("workflow ready to render");
+    assert_eq!(
+        workflow_stage_status(&status, WorkflowStage::Render),
+        StageExecutionStatus::Ready
+    );
+    assert!(
+        status
+            .next_actions
+            .iter()
+            .any(|action| action.action.contains("render build --job"))
+    );
+    fs::write(
+        &typst_path,
+        "#read(\"/private/user-edited-projection-must-not-be-trusted\")\n",
+    )
+    .expect("edit the non-authoritative Typst projection");
+    let (render_artifact, render_manifest) =
+        RenderService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
+            .build(&job.id)
+            .expect("in-process revision-bound render");
+    assert_eq!(render_artifact.kind, ArtifactKind::RenderManifest);
+    assert_eq!(render_manifest.package_artifact, ready_package_artifact);
+    assert_eq!(render_manifest.documents.len(), current_set.documents.len());
+    assert!(!render_manifest.submission_performed);
+    for document in &render_manifest.documents {
+        assert_eq!(document.typst_artifact.kind, ArtifactKind::TypstSource);
+        assert_eq!(document.pdf_artifact.kind, ArtifactKind::Pdf);
+        assert!(document.page_count > 0);
+        assert!(document.byte_count > 0);
+        let pdf = workspace
+            .blobs
+            .read_verified(&document.pdf_artifact.sha256, DEFAULT_MAX_BLOB_BYTES)
+            .expect("validated PDF blob");
+        assert_eq!(
+            canisend_io::validate_rendered_pdf(&pdf).expect("parse stored PDF"),
+            document.page_count
+        );
+    }
+    assert_eq!(
+        RenderService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
+            .build(&job.id)
+            .expect("idempotent render"),
+        (render_artifact.clone(), render_manifest.clone())
+    );
+    let rendered_directory =
+        SafeRelativePath::try_new(format!("jobs/{}/rendered", job.id)).expect("render directory");
+    let (exported_artifact, exported_manifest, rendered_paths) =
+        RenderService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
+            .export(&job.id, &rendered_directory)
+            .expect("explicit PDF export service");
+    assert_eq!(exported_artifact, render_artifact);
+    assert_eq!(exported_manifest, render_manifest);
+    assert_eq!(rendered_paths.len(), current_set.documents.len() + 1);
+    assert!(rendered_paths.iter().all(|path| {
+        workspace_root.join(path.as_str()).is_file()
+            && path.as_str().starts_with(&format!("jobs/{}/rendered/", job.id))
+    }));
+    assert!(matches!(
+        RenderService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
+            .export(&job.id, &rendered_directory),
+        Err(StoreError::ProjectionUnmanagedConflict(_))
+    ));
+    let status = WorkflowService::new(&mut workspace.database)
+        .status(&job.id)
+        .expect("workflow complete after render");
+    assert_eq!(
+        workflow_stage_status(&status, WorkflowStage::Render),
+        StageExecutionStatus::Complete
+    );
+
     ProfileService::new(&mut workspace.database, &workspace.blobs)
         .import_source(
             NewProfileSource {
@@ -1215,6 +1287,11 @@ fn evidence_and_match_tasks_enforce_stable_revision_bound_identities() {
     ));
     assert!(matches!(
         ProjectionService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
+            .current(&job.id),
+        Err(StoreError::WorkflowConflict(_))
+    ));
+    assert!(matches!(
+        RenderService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
             .current(&job.id),
         Err(StoreError::WorkflowConflict(_))
     ));

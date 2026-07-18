@@ -42,6 +42,11 @@ Use CanISend as the state owner and Codex as a bounded reasoning host. Never ins
     JSON, and escaped Typst source. Use `package reconcile` to detect edits. Never overwrite
     edits implicitly: use `package replace` only to discard one edit explicitly, or `package copy-as-new` to preserve
     the edited bytes at a new unmanaged path before restoring the generated projection.
+17. Run `render build --job JOB_ID --json` to regenerate trusted Typst from the authoritative structured documents
+    and compile validated PDFs entirely in process. Never compile an edited managed `.typ` projection as trusted
+    input. Inspect the exact artifact graph with `render show`. Only after separate `export-private-artifacts`
+    approval, use `render export --destination jobs/JOB_ID/rendered --allow-private-export`; it creates PDFs and the
+    exact render manifest but never submits an application.
 
 Do not invent source identities, bypass candidate validation, transmit private inputs to a provider without separate
 consent, or interpret readiness as permission to submit an application.

@@ -42,6 +42,10 @@ Then:
     and escaped Typst source. Detect edits with `package reconcile`; use only explicit `package replace` or
     `package copy-as-new` and
     never treat edited projections as authoritative structured data.
+16. Run `render build --job JOB_ID --json` to regenerate trusted Typst from structured artifacts and compile
+    validated PDFs in process. Edited `.typ` projections are never compile inputs. Inspect with `render show`; after
+    separate private-export approval, use `render export --destination jobs/JOB_ID/rendered --allow-private-export`.
+    The exported PDFs and manifest are preparation artifacts, not an application submission.
 
 Read only capabilities marked `available`. Never inspect or edit `.canisend/`, invent source identities, or transmit
 private data without the matching consent. Readiness describes preparation status and is not evidence of submission.

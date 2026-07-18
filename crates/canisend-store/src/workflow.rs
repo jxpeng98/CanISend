@@ -281,6 +281,18 @@ impl<'a> WorkflowService<'a> {
         let affected = std::iter::once(stage)
             .chain(self.graph.descendants(stage))
             .collect::<Vec<_>>();
+        if affected.contains(&WorkflowStage::Render) {
+            transaction.execute(
+                "UPDATE artifacts SET stale = 1 WHERE id IN (
+                     SELECT artifact_id FROM render_heads WHERE workflow_run_id = ?1
+                 )",
+                params![run_id.as_str()],
+            )?;
+            transaction.execute(
+                "DELETE FROM render_heads WHERE workflow_run_id = ?1",
+                params![run_id.as_str()],
+            )?;
+        }
         if affected.contains(&WorkflowStage::Package) {
             transaction.execute(
                 "UPDATE artifacts SET stale = 1 WHERE id IN (
@@ -598,6 +610,11 @@ fn load_status(
                         "Compute deterministic readiness from exact current package inputs"
                             .to_owned(),
                     ),
+                    WorkflowStage::Render => (
+                        format!("canisend render build --job {} --json", job_id),
+                        "Compile trusted Typst sources to validated PDFs inside this process"
+                            .to_owned(),
+                    ),
                     _ => (
                         format!(
                             "canisend workflow begin --job {} --stage {} --mode {} --json",
@@ -705,6 +722,16 @@ fn reconcile_job_revision(
     if prepared_revision == Some(current_revision) {
         return Ok(());
     }
+    transaction.execute(
+        "UPDATE artifacts SET stale = 1 WHERE id IN (
+             SELECT artifact_id FROM render_heads WHERE workflow_run_id = ?1
+         )",
+        params![run_id.as_str()],
+    )?;
+    transaction.execute(
+        "DELETE FROM render_heads WHERE workflow_run_id = ?1",
+        params![run_id.as_str()],
+    )?;
     transaction.execute(
         "UPDATE artifacts SET stale = 1 WHERE id IN (
              SELECT artifact_id FROM export_heads WHERE workflow_run_id = ?1

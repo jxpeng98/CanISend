@@ -22,6 +22,7 @@ pub use remote::{
 pub use render::{
     EmbeddedRenderError, EmbeddedTypstCompiler, MAX_RENDER_MILLIS, MAX_RENDER_PDF_BYTES,
     MAX_TYPST_SOURCE_BYTES, RenderedPdf, TypstProjectionError, project_document_typst,
+    validate_rendered_pdf,
 };
 
 #[derive(Debug, Error)]

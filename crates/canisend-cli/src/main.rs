@@ -28,8 +28,8 @@ use canisend_resources::{AgentHost, ResourceError, ResourceId, ResourceKind, exp
 use canisend_store::{
     AgentContextService, ArtifactService, CriteriaService, DiscoveryService, DocumentService,
     EvidenceService, JobService, MatchService, NewProfileSource, NewSource, PackageService,
-    PlanService, ProfileService, ProjectionService, ReviewService, StoreError, TaskService,
-    WorkflowService, Workspace, current_utc_timestamp,
+    PlanService, ProfileService, ProjectionService, RenderService, ReviewService, StoreError,
+    TaskService, WorkflowService, Workspace, current_utc_timestamp,
 };
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use serde_json::json;
@@ -123,6 +123,11 @@ enum Command {
     Package {
         #[command(subcommand)]
         command: PackageCommand,
+    },
+    /// Build, inspect, or explicitly export validated PDFs without submitting.
+    Render {
+        #[command(subcommand)]
+        command: RenderCommand,
     },
     /// Start, inspect, advance, or rerun the durable application workflow.
     Workflow {
@@ -328,6 +333,16 @@ enum PackageCommand {
     Replace(PackageProjectionArgs),
     /// Preserve an edit at a new unmanaged path, then restore the managed projection.
     CopyAsNew(PackageCopyAsNewArgs),
+}
+
+#[derive(Debug, Subcommand)]
+enum RenderCommand {
+    /// Compile trusted structured documents to validated PDF artifacts in process.
+    Build(PackageJobArgs),
+    /// Show the current revision-bound render manifest.
+    Show(PackageJobArgs),
+    /// Export validated PDFs and their manifest after explicit private-export consent.
+    Export(RenderExportArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -749,6 +764,21 @@ struct PackageCopyAsNewArgs {
 }
 
 #[derive(Debug, Args)]
+struct RenderExportArgs {
+    /// Canonical UUIDv7 job ID.
+    #[arg(long)]
+    job: String,
+    /// New or empty safe workspace-relative directory under jobs/JOB_ID/.
+    #[arg(long, value_name = "RELATIVE_PATH")]
+    destination: String,
+    /// Confirm export of private PDF bodies into the workspace projection tree.
+    #[arg(long)]
+    allow_private_export: bool,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
 struct TaskIdArgs {
     /// Canonical UUIDv7 task ID.
     task_id: String,
@@ -1077,6 +1107,12 @@ impl Cli {
                 PackageCommand::Replace(arguments) => arguments.output.json,
                 PackageCommand::CopyAsNew(arguments) => arguments.output.json,
             },
+            Command::Render { command } => match command {
+                RenderCommand::Build(arguments) | RenderCommand::Show(arguments) => {
+                    arguments.output.json
+                }
+                RenderCommand::Export(arguments) => arguments.output.json,
+            },
             Command::Workflow { command } => match command {
                 WorkflowCommand::Start(arguments) | WorkflowCommand::Status(arguments) => {
                     arguments.output.json
@@ -1347,6 +1383,15 @@ fn execute(cli: Cli) -> CommandResult<CommandOutput> {
         Command::Package {
             command: PackageCommand::CopyAsNew(arguments),
         } => package_copy_as_new(workspace, arguments),
+        Command::Render {
+            command: RenderCommand::Build(arguments),
+        } => render_build(workspace, &arguments.job),
+        Command::Render {
+            command: RenderCommand::Show(arguments),
+        } => render_show(workspace, &arguments.job),
+        Command::Render {
+            command: RenderCommand::Export(arguments),
+        } => render_export(workspace, arguments),
         Command::Workflow {
             command: WorkflowCommand::Start(arguments),
         } => workflow_start(workspace, &arguments.job),
@@ -3273,6 +3318,107 @@ fn package_copy_as_new(
     )
 }
 
+fn render_build(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<CommandOutput> {
+    let job_id = parse_entity_id("render.build", job_id)?;
+    let mut workspace = open_workspace(workspace_path, "render.build")?;
+    let root = workspace.paths.root.clone();
+    let (artifact, manifest) = RenderService::new(&mut workspace.database, &workspace.blobs, &root)
+        .build(&job_id)
+        .map_err(|error| store_failure("render.build", error))?;
+    let mut output = render_output("render.build", "rendered", &manifest)?;
+    output.response.artifacts.push(artifact);
+    Ok(output)
+}
+
+fn render_show(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<CommandOutput> {
+    let job_id = parse_entity_id("render.show", job_id)?;
+    let mut workspace = open_workspace(workspace_path, "render.show")?;
+    let root = workspace.paths.root.clone();
+    let (artifact, manifest) = RenderService::new(&mut workspace.database, &workspace.blobs, &root)
+        .current(&job_id)
+        .map_err(|error| store_failure("render.show", error))?;
+    let mut output = render_output("render.show", "available", &manifest)?;
+    output.response.artifacts.push(artifact);
+    Ok(output)
+}
+
+fn render_export(
+    workspace_path: Option<PathBuf>,
+    arguments: RenderExportArgs,
+) -> CommandResult<CommandOutput> {
+    if !arguments.allow_private_export {
+        let mut failure = CommandFailure::new(
+            "render.export",
+            "consent-required",
+            ErrorCode::ConsentRequired,
+            "export-private-artifacts consent must be explicitly confirmed",
+            false,
+        );
+        failure.error.remediation = Some(NextAction {
+            action: "obtain user approval, then repeat with --allow-private-export".to_owned(),
+            description:
+                "The command writes private PDFs and their exact manifest under jobs/JOB_ID/"
+                    .to_owned(),
+        });
+        return Err(failure);
+    }
+    let job_id = parse_entity_id("render.export", &arguments.job)?;
+    let destination = parse_safe_relative_path("render.export", &arguments.destination)?;
+    let mut workspace = open_workspace(workspace_path, "render.export")?;
+    let root = workspace.paths.root.clone();
+    let (artifact, manifest, files) =
+        RenderService::new(&mut workspace.database, &workspace.blobs, &root)
+            .export(&job_id, &destination)
+            .map_err(|error| store_failure("render.export", error))?;
+    let data = json!({
+        "render_manifest": manifest,
+        "destination": destination,
+        "files": files,
+        "submission_performed": false
+    });
+    let mut output = success(
+        "render.export",
+        "exported",
+        &data,
+        vec![
+            format!("Directory: {destination}"),
+            format!("Exported files: {}", files.len()),
+            "Submission performed: no".to_owned(),
+        ],
+    )?;
+    output.response.artifacts.push(artifact);
+    Ok(output)
+}
+
+fn render_output(
+    operation: &'static str,
+    status: &'static str,
+    manifest: &canisend_contracts::RenderManifestRecord,
+) -> CommandResult<CommandOutput> {
+    let pages = manifest
+        .documents
+        .iter()
+        .map(|document| u64::from(document.page_count))
+        .sum::<u64>();
+    let bytes = manifest
+        .documents
+        .iter()
+        .map(|document| document.byte_count)
+        .sum::<u64>();
+    success(
+        operation,
+        status,
+        manifest,
+        vec![
+            format!("Render manifest: {}", manifest.id),
+            format!("Rendered documents: {}", manifest.documents.len()),
+            format!("PDF pages: {pages}"),
+            format!("PDF bytes: {bytes}"),
+            "Submission performed: no".to_owned(),
+        ],
+    )
+}
+
 fn write_private_json_new<T: serde::Serialize>(
     path: &Path,
     value: &T,
@@ -3521,6 +3667,16 @@ fn store_failure(operation: &'static str, error: StoreError) -> Box<CommandFailu
         StoreError::WorkflowConflict(_) => ("conflict", ErrorCode::WorkflowConflict, false),
         StoreError::TemplateFieldsUnresolved { .. } => {
             ("conflict", ErrorCode::WorkflowConflict, false)
+        }
+        StoreError::EmbeddedRender(canisend_io::EmbeddedRenderError::EncryptedPdf) => {
+            ("render-failed", ErrorCode::PdfEncrypted, false)
+        }
+        StoreError::EmbeddedRender(
+            canisend_io::EmbeddedRenderError::InvalidPdf
+            | canisend_io::EmbeddedRenderError::PageCountInvalid,
+        ) => ("render-failed", ErrorCode::PdfMalformed, false),
+        StoreError::EmbeddedRender(_) => {
+            ("render-failed", ErrorCode::InternalInvariantFailed, false)
         }
         StoreError::CandidateStructural(_) => {
             ("validation-failed", ErrorCode::CandidateSchemaInvalid, true)

@@ -669,6 +669,16 @@ fn invalidate_render(
 ) -> Result<(), StoreError> {
     transaction.execute(
         "UPDATE artifacts SET stale = 1 WHERE id IN (
+             SELECT artifact_id FROM render_heads WHERE workflow_run_id = ?1
+         )",
+        params![run_id.as_str()],
+    )?;
+    transaction.execute(
+        "DELETE FROM render_heads WHERE workflow_run_id = ?1",
+        params![run_id.as_str()],
+    )?;
+    transaction.execute(
+        "UPDATE artifacts SET stale = 1 WHERE id IN (
              SELECT output_artifact_id FROM stage_executions
              WHERE workflow_run_id = ?1 AND stage = 'render'
                AND output_artifact_id IS NOT NULL

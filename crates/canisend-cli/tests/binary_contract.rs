@@ -155,7 +155,7 @@ fn capabilities_distinguish_available_from_planned_work() {
             .iter()
             .filter(|stage| stage["status"] == "available")
             .count()),
-        Some(10)
+        Some(11)
     );
 }
 
@@ -166,7 +166,7 @@ fn public_catalogs_are_available_without_a_workspace() {
 
     assert_eq!(
         schemas["data"]["schemas"].as_array().map(Vec::len),
-        Some(38)
+        Some(40)
     );
     assert!(
         resources["data"]["resources"]
@@ -208,7 +208,7 @@ fn agent_host_pack_export_is_versioned_and_self_contained() {
         exported["data"]["manifest"]["files"]
             .as_array()
             .map(Vec::len),
-        Some(29)
+        Some(31)
     );
     assert!(pack.join("AGENTS.md").is_file());
     assert!(pack.join("prompts/job-parse.md").is_file());
@@ -265,6 +265,11 @@ fn agent_host_pack_export_is_versioned_and_self_contained() {
         pack.join("schemas/v2/evidence-matches.schema.json")
             .is_file()
     );
+    assert!(
+        pack.join("schemas/v2/rendered-document.schema.json")
+            .is_file()
+    );
+    assert!(pack.join("schemas/v2/render-manifest.schema.json").is_file());
     assert!(pack.join("canisend-agent-pack.json").is_file());
 }
 
@@ -299,6 +304,29 @@ fn package_export_requires_explicit_private_export_consent() {
     assert!(output.stderr.is_empty());
     let response: Value = serde_json::from_slice(&output.stdout).expect("error response is JSON");
     assert_eq!(response["operation"], "package.export");
+    assert_eq!(response["status"], "consent-required");
+    assert_eq!(response["error"]["code"], "consent.required");
+    assert_eq!(response["ok"], false);
+}
+
+#[test]
+fn render_export_requires_explicit_private_export_consent() {
+    let job_id = "019f2f55-7c00-7000-8000-000000000101";
+    let destination = format!("jobs/{job_id}/rendered");
+    let output = run(&[
+        "render",
+        "export",
+        "--job",
+        job_id,
+        "--destination",
+        &destination,
+        "--json",
+    ]);
+
+    assert_eq!(output.status.code(), Some(3));
+    assert!(output.stderr.is_empty());
+    let response: Value = serde_json::from_slice(&output.stdout).expect("error response is JSON");
+    assert_eq!(response["operation"], "render.export");
     assert_eq!(response["status"], "consent-required");
     assert_eq!(response["error"]["code"], "consent.required");
     assert_eq!(response["ok"], false);

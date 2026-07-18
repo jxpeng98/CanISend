@@ -34,7 +34,7 @@ impl CapabilityRegistry {
             available("review.lifecycle"),
             available("package.lifecycle"),
             available("workflow.execute"),
-            planned("render.pdf"),
+            available("render.pdf"),
         ]
     }
 }
@@ -287,6 +287,7 @@ impl StageRegistry {
                 | WorkflowStage::Draft
                 | WorkflowStage::Review
                 | WorkflowStage::Package
+                | WorkflowStage::Render
         )
     }
 
@@ -321,14 +322,6 @@ fn available(id: &str) -> Capability {
         id: id.to_owned(),
         version: SemanticVersion::try_new("2.0.0").expect("static capability version is valid"),
         status: CapabilityStatus::Available,
-    }
-}
-
-fn planned(id: &str) -> Capability {
-    Capability {
-        id: id.to_owned(),
-        version: SemanticVersion::try_new("2.0.0").expect("static capability version is valid"),
-        status: CapabilityStatus::Planned,
     }
 }
 
@@ -431,6 +424,7 @@ mod tests {
             "document.lifecycle",
             "review.lifecycle",
             "package.lifecycle",
+            "render.pdf",
         ] {
             assert!(capabilities.iter().any(|item| {
                 item.id == available_id && item.status == CapabilityStatus::Available
@@ -442,7 +436,7 @@ mod tests {
                 .iter()
                 .filter(|stage| stage.status == CapabilityStatus::Available)
                 .count(),
-            10
+            11
         );
         let mut stage_ids = stages
             .iter()

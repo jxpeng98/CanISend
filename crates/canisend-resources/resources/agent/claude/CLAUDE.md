@@ -37,6 +37,10 @@ CanISend owns durable state; Claude operates only through its versioned CLI prot
     structured JSON, and escaped Typst source with `package reconcile`; resolve edits only through explicit
     `package replace` or `package copy-as-new`. Neither
     action changes authoritative structured documents.
+16. Use `render build` to regenerate trusted Typst from structured artifacts and compile validated PDFs in process;
+    edited `.typ` projections are never trusted render inputs. Inspect with `render show`. Obtain separate
+    private-export approval before `render export --destination jobs/JOB_ID/rendered --allow-private-export`.
+    Rendering and exporting never submit an application.
 
 Never create evidence or source identities not supplied by CanISend, send private content to a provider without a
 separate consent, write internal state directly, or treat readiness as application submission.

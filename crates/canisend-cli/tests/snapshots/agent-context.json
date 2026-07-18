@@ -29,7 +29,7 @@
       {"execution_modes":["host-agent","configured-provider"],"id":"draft","status":"available"},
       {"execution_modes":["host-agent","configured-provider","user-decision"],"id":"review","status":"available"},
       {"execution_modes":["deterministic"],"id":"package","status":"available"},
-      {"execution_modes":["deterministic"],"id":"render","status":"planned"}
+      {"execution_modes":["deterministic"],"id":"render","status":"available"}
     ],
     "workspace": null,
     "workspace_format": "canisend.workspace/v2",
