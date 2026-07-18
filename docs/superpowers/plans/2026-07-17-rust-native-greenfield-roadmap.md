@@ -256,6 +256,12 @@
   reviewed baseline will make the release checker reconstruct every commit and changed path through `HEAD`; only a
   narrow documentation/evidence set is automatic, while every other commit needs an exact sorted path record and
   release-blocker/evidence reason. The R11.3 checkbox stays open until that future baseline is activated.
+- 2026-07-18: Qualified the package-lifecycle and feature-freeze preparations in exact eight-job CI runs
+  `29640846261` and `29641002363`. Added a forward-only stage-transition policy and guarded `prepare-stage` tool: it
+  previews exact file hashes by default, writes only from a clean worktree with `--write`, synchronizes Cargo and
+  qualification state, and preserves immutable Alpha evidence. The
+  [transition note](../../notes/rust-native/2026-07-18-r11-stage-transition-preparation.md) records the current
+  ten-file Alpha-to-Beta preview; the version remains Alpha until external signing configuration is provisioned.
 
 ## 1. Executive Decision
 
@@ -1958,6 +1964,13 @@ and the [signing-gate note](../../notes/rust-native/2026-07-18-r11-beta-signing-
 credential readiness gate, exact Apple/Windows post-sign verification, and canonical evidence bound to final archive
 bytes. Implementation is complete, but the checklist remains open until a real Beta dry-run produces accepted
 evidence for both macOS targets and Windows without exposing signing material.
+
+**R11.2 stage-transition preparation:** The
+[stage-transition policy](../../../release/stage-transition-policy.json),
+[runbook](../../release/stage-transitions.md), and
+[implementation note](../../notes/rust-native/2026-07-18-r11-stage-transition-preparation.md) distinguish current
+version state from immutable Alpha evidence. Alpha-to-Beta now has a reviewed ten-file dry-run; the write remains
+unexecuted until the readiness snapshot and external signing configuration are current.
 
 **R11.3 preparation:** The [upgrade, rollback, and uninstall guide](../../guides/upgrade-and-rollback.md) defines the
 backup-first binary/workspace boundary, future-schema rejection, restore-to-new-path rollback, host-pack refresh, and

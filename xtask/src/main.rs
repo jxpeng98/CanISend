@@ -25,6 +25,8 @@ const SIGNING_POLICY_SCHEMA: &str = "canisend.signing-policy/v1";
 const SUPPORT_POLICY_SCHEMA: &str = "canisend.support-policy/v1";
 const FEEDBACK_SNAPSHOT_SCHEMA: &str = "canisend.feedback-snapshot/v1";
 const RELEASE_QUALIFICATION_SCHEMA: &str = "canisend.release-qualification/v1";
+const STAGE_TRANSITION_POLICY_SCHEMA: &str = "canisend.stage-transition-policy/v1";
+const STAGE_TRANSITION_PLAN_SCHEMA: &str = "canisend.stage-transition-plan/v1";
 const FEATURE_FREEZE_EXCEPTIONS_SCHEMA: &str = "canisend.feature-freeze-exceptions/v1";
 const PACKAGE_MANAGER_QUALIFICATION_POLICY_SCHEMA: &str =
     "canisend.package-manager-qualification-policy/v1";
@@ -65,6 +67,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
             check_channel_candidates()?;
             check_package_manager_qualification_policy()?;
             check_signing_policy()?;
+            check_stage_transition_policy()?;
             check_support_policy()?;
             check_release_feedback()?;
             check_release_qualification()?;
@@ -81,6 +84,14 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
         }
         [area, command, tag] if area == "release" && command == "validate-tag" => {
             validate_release_tag(tag).map(|_| ())
+        }
+        [area, command, tag] if area == "release" && command == "prepare-stage" => {
+            prepare_stage_transition(tag, false)
+        }
+        [area, command, tag, write]
+            if area == "release" && command == "prepare-stage" && write == "--write" =>
+        {
+            prepare_stage_transition(tag, true)
         }
         [area, command, output] if area == "release" && command == "sbom" => {
             write_release_sbom(Path::new(output))
@@ -126,7 +137,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
         }
         _ => Err(
             "usage: cargo run -p xtask -- schemas <check|write> | <resources|docs> check | \
-             release <check|freeze-candidate|validate-tag TAG|sbom OUTPUT|assemble TAG COMMIT ARTIFACTS OUTPUT|verify TAG DIRECTORY|channels TAG ASSETS OUTPUT|bind-signing-evidence TAG TARGET EVIDENCE BINARY ARCHIVE|verify-package-candidates FROM_TAG FROM_ASSETS TO_TAG TO_ASSETS|verify-package-evidence FROM_TAG TO_TAG DIRECTORY>"
+             release <check|freeze-candidate|validate-tag TAG|prepare-stage TAG [--write]|sbom OUTPUT|assemble TAG COMMIT ARTIFACTS OUTPUT|verify TAG DIRECTORY|channels TAG ASSETS OUTPUT|bind-signing-evidence TAG TARGET EVIDENCE BINARY ARCHIVE|verify-package-candidates FROM_TAG FROM_ASSETS TO_TAG TO_ASSETS|verify-package-evidence FROM_TAG TO_TAG DIRECTORY>"
                 .to_owned(),
         ),
     }
@@ -509,6 +520,414 @@ impl ReleaseStage {
     }
 }
 
+struct RenderedStageTransition {
+    from_version: Version,
+    to_version: Version,
+    from_stage: ReleaseStage,
+    to_stage: ReleaseStage,
+    files: BTreeMap<String, Vec<u8>>,
+}
+
+fn check_stage_transition_policy() -> Result<(), String> {
+    let root = repository_root();
+    let path = root.join("release/stage-transition-policy.json");
+    let policy: Value = serde_json::from_slice(&fs::read(&path).map_err(|error| {
+        format!(
+            "stage-transition policy is missing at {}: {error}",
+            path.display()
+        )
+    })?)
+    .map_err(|error| format!("stage-transition policy is invalid JSON: {error}"))?;
+    let expected = json!({
+        "schema": STAGE_TRANSITION_POLICY_SCHEMA,
+        "command": {
+            "name": "cargo run -p xtask --locked -- release prepare-stage",
+            "dry_run_default": true,
+            "write_flag": "--write",
+            "clean_worktree_required_for_write": true
+        },
+        "allowed_transitions": [
+            {
+                "from": "alpha",
+                "to": "beta",
+                "target_prerelease": "beta.1",
+                "ledger_status": "beta-qualifying",
+                "release_notes_status": "beta-current"
+            },
+            {
+                "from": "beta",
+                "to": "rc",
+                "target_prerelease": "rc.1",
+                "ledger_status": "rc-qualifying",
+                "release_notes_status": "rc-final"
+            },
+            {
+                "from": "rc",
+                "to": "stable",
+                "target_prerelease": "",
+                "ledger_status": "qualified",
+                "release_notes_status": "stable-final"
+            }
+        ],
+        "controlled_surfaces": [
+            "Cargo.toml workspace version",
+            "workspace Cargo.toml exact internal dependencies",
+            "Cargo.lock workspace package versions",
+            "release/qualification-ledger.json stage and Stable authorization fields",
+            "release/RELEASE_NOTES.md heading",
+            "release/support-policy.json Stable publication status"
+        ],
+        "preserved_history": [
+            "release/beta-readiness.json",
+            "release/beta-contract-freeze.json",
+            "release/feedback-snapshot.json",
+            "packaging/candidates/alpha"
+        ]
+    });
+    if policy != expected {
+        return Err(
+            "stage-transition policy differs from the fail-closed release contract".to_owned(),
+        );
+    }
+    let documentation_path = root.join("docs/release/stage-transitions.md");
+    let documentation = fs::read_to_string(&documentation_path)
+        .map_err(|error| format!("stage-transition runbook is missing: {error}"))?;
+    check_local_markdown_links(&root, &documentation_path, &documentation)?;
+    for required in [
+        "release/stage-transition-policy.json",
+        "prepare-stage v0.7.0-beta.1",
+        "--write",
+        "release/beta-readiness.json",
+    ] {
+        if !documentation.contains(required) {
+            return Err(format!("stage-transition runbook is missing `{required}`"));
+        }
+    }
+    println!("stage-transition policy: ok (3 forward-only transitions)");
+    Ok(())
+}
+
+fn prepare_stage_transition(tag: &str, write: bool) -> Result<(), String> {
+    let root = repository_root();
+    if write {
+        let changes = run_git_lines(&root, &["status", "--porcelain", "--untracked-files=all"])?;
+        if !changes.is_empty() {
+            return Err(
+                "stage transition write requires a clean worktree; commit or stash owned changes first"
+                    .to_owned(),
+            );
+        }
+    }
+    let transition = render_stage_transition(&root, tag)?;
+    let report = stage_transition_report(&root, &transition, write)?;
+    if write {
+        for (relative, body) in &transition.files {
+            let path = root.join(relative);
+            fs::write(&path, body)
+                .map_err(|error| format!("could not write {}: {error}", path.display()))?;
+        }
+    }
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&report)
+            .map_err(|error| format!("could not serialize stage-transition plan: {error}"))?
+    );
+    Ok(())
+}
+
+fn render_stage_transition(root: &Path, tag: &str) -> Result<RenderedStageTransition, String> {
+    let workspace_path = root.join("Cargo.toml");
+    let workspace_body = fs::read_to_string(&workspace_path)
+        .map_err(|error| format!("could not read workspace manifest: {error}"))?;
+    let workspace: toml::Value = workspace_body
+        .parse()
+        .map_err(|error| format!("workspace manifest is invalid TOML: {error}"))?;
+    let from_version = Version::parse(
+        workspace["workspace"]["package"]["version"]
+            .as_str()
+            .ok_or_else(|| "workspace manifest has no package version".to_owned())?,
+    )
+    .map_err(|error| format!("workspace version is invalid: {error}"))?;
+    let from_stage = ReleaseStage::from_version(&from_version)?;
+    let (to_version, to_stage) = parse_release_tag(tag)?;
+    validate_stage_transition(&from_version, from_stage, &to_version, to_stage)?;
+
+    let members = workspace["workspace"]["members"]
+        .as_array()
+        .ok_or_else(|| "workspace manifest has no members array".to_owned())?
+        .iter()
+        .map(|member| {
+            member
+                .as_str()
+                .map(str::to_owned)
+                .ok_or_else(|| "workspace member must be a string".to_owned())
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut package_names = BTreeSet::new();
+    for member in &members {
+        let body = fs::read_to_string(root.join(member).join("Cargo.toml"))
+            .map_err(|error| format!("could not read {member}/Cargo.toml: {error}"))?;
+        let manifest: toml::Value = body
+            .parse()
+            .map_err(|error| format!("{member}/Cargo.toml is invalid TOML: {error}"))?;
+        package_names.insert(
+            manifest["package"]["name"]
+                .as_str()
+                .ok_or_else(|| format!("{member}/Cargo.toml has no package name"))?
+                .to_owned(),
+        );
+    }
+
+    let from = from_version.to_string();
+    let to = to_version.to_string();
+    let mut files = BTreeMap::new();
+    let workspace_after = replace_exact_count(
+        &workspace_body,
+        &format!("version = \"{from}\""),
+        &format!("version = \"{to}\""),
+        1,
+        "workspace version",
+    )?;
+    files.insert("Cargo.toml".to_owned(), workspace_after.into_bytes());
+
+    for member in &members {
+        let relative = format!("{member}/Cargo.toml");
+        let body = fs::read_to_string(root.join(&relative))
+            .map_err(|error| format!("could not read {relative}: {error}"))?;
+        let needle = format!("version = \"={from}\"");
+        let occurrences = body.matches(&needle).count();
+        if occurrences > 0 {
+            let updated = replace_exact_count(
+                &body,
+                &needle,
+                &format!("version = \"={to}\""),
+                occurrences,
+                &format!("internal dependency versions in {relative}"),
+            )?;
+            files.insert(relative, updated.into_bytes());
+        }
+    }
+
+    let lock_path = root.join("Cargo.lock");
+    let mut lock = fs::read_to_string(&lock_path)
+        .map_err(|error| format!("could not read Cargo.lock: {error}"))?;
+    for package in &package_names {
+        lock = replace_exact_count(
+            &lock,
+            &format!("name = \"{package}\"\nversion = \"{from}\""),
+            &format!("name = \"{package}\"\nversion = \"{to}\""),
+            1,
+            &format!("Cargo.lock package `{package}`"),
+        )?;
+    }
+    files.insert("Cargo.lock".to_owned(), lock.into_bytes());
+
+    let ledger_path = root.join("release/qualification-ledger.json");
+    let mut ledger: Value = serde_json::from_slice(
+        &fs::read(&ledger_path)
+            .map_err(|error| format!("could not read qualification ledger: {error}"))?,
+    )
+    .map_err(|error| format!("qualification ledger is invalid JSON: {error}"))?;
+    validate_transition_ledger_preconditions(&ledger, from_stage, to_stage)?;
+    ledger["workspace_stage"] = Value::String(to_stage.as_str().to_owned());
+    ledger["status"] = Value::String(qualification_status_for_stage(to_stage).to_owned());
+    ledger["release_notes"]["status"] =
+        Value::String(release_notes_status_for_stage(to_stage).to_owned());
+    if matches!(to_stage, ReleaseStage::Stable) {
+        ledger["stable_authorized"] = Value::Bool(true);
+    }
+    files.insert(
+        "release/qualification-ledger.json".to_owned(),
+        pretty_json_bytes(&ledger)?,
+    );
+
+    let notes_path = root.join("release/RELEASE_NOTES.md");
+    let notes = fs::read_to_string(&notes_path)
+        .map_err(|error| format!("could not read release notes: {error}"))?;
+    files.insert(
+        "release/RELEASE_NOTES.md".to_owned(),
+        replace_exact_count(
+            &notes,
+            &format!("# CanISend {from}"),
+            &format!("# CanISend {to}"),
+            1,
+            "release-note version heading",
+        )?
+        .into_bytes(),
+    );
+
+    if matches!(to_stage, ReleaseStage::Stable) {
+        let support_path = root.join("release/support-policy.json");
+        let mut support: Value = serde_json::from_slice(
+            &fs::read(&support_path)
+                .map_err(|error| format!("could not read support policy: {error}"))?,
+        )
+        .map_err(|error| format!("support policy is invalid JSON: {error}"))?;
+        if support["publication_status"] != "pre-stable-draft" {
+            return Err("Stable transition requires a pre-stable support-policy draft".to_owned());
+        }
+        support["publication_status"] = Value::String("published".to_owned());
+        files.insert(
+            "release/support-policy.json".to_owned(),
+            pretty_json_bytes(&support)?,
+        );
+    }
+
+    for (relative, body) in &files {
+        let current = fs::read(root.join(relative))
+            .map_err(|error| format!("could not read {relative}: {error}"))?;
+        if current == *body {
+            return Err(format!(
+                "stage transition would not change controlled file `{relative}`"
+            ));
+        }
+    }
+    Ok(RenderedStageTransition {
+        from_version,
+        to_version,
+        from_stage,
+        to_stage,
+        files,
+    })
+}
+
+fn validate_stage_transition(
+    from: &Version,
+    from_stage: ReleaseStage,
+    to: &Version,
+    to_stage: ReleaseStage,
+) -> Result<(), String> {
+    if (from.major, from.minor, from.patch) != (to.major, to.minor, to.patch)
+        || !from.build.is_empty()
+        || !to.build.is_empty()
+    {
+        return Err(
+            "stage transitions must preserve the release line and omit build metadata".to_owned(),
+        );
+    }
+    let expected_prerelease = match (from_stage, to_stage) {
+        (ReleaseStage::Alpha, ReleaseStage::Beta) => "beta.1",
+        (ReleaseStage::Beta, ReleaseStage::ReleaseCandidate) => "rc.1",
+        (ReleaseStage::ReleaseCandidate, ReleaseStage::Stable) => "",
+        _ => {
+            return Err(format!(
+                "unsupported stage transition {} -> {}; only the next release stage is allowed",
+                from_stage.as_str(),
+                to_stage.as_str()
+            ));
+        }
+    };
+    if to.pre.as_str() != expected_prerelease {
+        return Err(format!(
+            "{} -> {} transition target must use prerelease `{expected_prerelease}`",
+            from_stage.as_str(),
+            to_stage.as_str()
+        ));
+    }
+    Ok(())
+}
+
+fn validate_transition_ledger_preconditions(
+    ledger: &Value,
+    from_stage: ReleaseStage,
+    to_stage: ReleaseStage,
+) -> Result<(), String> {
+    if ledger["schema"] != RELEASE_QUALIFICATION_SCHEMA
+        || ledger["workspace_stage"] != from_stage.as_str()
+        || ledger["status"] != qualification_status_for_stage(from_stage)
+        || ledger["stable_authorized"] != false
+    {
+        return Err("qualification ledger does not match the current workspace stage".to_owned());
+    }
+    if matches!(to_stage, ReleaseStage::ReleaseCandidate)
+        && (ledger["beta"]["status"] != "qualified"
+            || ledger["feature_freeze"]["status"] != "frozen")
+    {
+        return Err(
+            "RC transition requires a qualified signed Beta and active feature freeze".to_owned(),
+        );
+    }
+    if matches!(to_stage, ReleaseStage::Stable) {
+        let mut candidate = ledger.clone();
+        candidate["release_notes"]["status"] = Value::String("stable-final".to_owned());
+        candidate["stable_authorized"] = Value::Bool(true);
+        validate_stable_qualification(&candidate)?;
+    }
+    Ok(())
+}
+
+fn release_notes_status_for_stage(stage: ReleaseStage) -> &'static str {
+    match stage {
+        ReleaseStage::Alpha => "alpha-current",
+        ReleaseStage::Beta => "beta-current",
+        ReleaseStage::ReleaseCandidate => "rc-final",
+        ReleaseStage::Stable => "stable-final",
+    }
+}
+
+fn replace_exact_count(
+    body: &str,
+    from: &str,
+    to: &str,
+    expected: usize,
+    context: &str,
+) -> Result<String, String> {
+    let actual = body.matches(from).count();
+    if actual != expected {
+        return Err(format!(
+            "{context} expected {expected} exact source values, found {actual}"
+        ));
+    }
+    Ok(body.replace(from, to))
+}
+
+fn pretty_json_bytes(value: &Value) -> Result<Vec<u8>, String> {
+    let mut bytes = serde_json::to_vec_pretty(value)
+        .map_err(|error| format!("could not serialize stage-transition JSON: {error}"))?;
+    bytes.push(b'\n');
+    Ok(bytes)
+}
+
+fn stage_transition_report(
+    root: &Path,
+    transition: &RenderedStageTransition,
+    write: bool,
+) -> Result<Value, String> {
+    let files = transition
+        .files
+        .iter()
+        .map(|(relative, after)| {
+            let before = fs::read(root.join(relative))
+                .map_err(|error| format!("could not read {relative}: {error}"))?;
+            Ok(json!({
+                "path": relative,
+                "before_sha256": sha256(&before),
+                "after_sha256": sha256(after)
+            }))
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    Ok(json!({
+        "schema": STAGE_TRANSITION_PLAN_SCHEMA,
+        "mode": if write { "write" } else { "dry-run" },
+        "writes_performed": write,
+        "from": {
+            "version": transition.from_version.to_string(),
+            "stage": transition.from_stage.as_str()
+        },
+        "to": {
+            "version": transition.to_version.to_string(),
+            "stage": transition.to_stage.as_str()
+        },
+        "files": files,
+        "preserved_history": [
+            "release/beta-readiness.json",
+            "release/beta-contract-freeze.json",
+            "release/feedback-snapshot.json",
+            "packaging/candidates/alpha"
+        ]
+    }))
+}
+
 fn check_internal_dependency_versions() -> Result<(), String> {
     let root = repository_root();
     let workspace_path = root.join("Cargo.toml");
@@ -634,6 +1053,7 @@ fn check_release_contract() -> Result<(), String> {
         "release/RELEASE_NOTES.md",
         "release/beta-readiness.json",
         "release/beta-contract-freeze.json",
+        "release/stage-transition-policy.json",
         "scripts/stage_native_bundle.sh",
         "scripts/package_native_release.sh",
         "scripts/smoke_release_archive.sh",
@@ -1358,6 +1778,13 @@ fn check_release_qualification() -> Result<(), String> {
         "alpha-current" | "beta-current" | "rc-final" | "stable-final"
     ) {
         return Err("release notes qualification status is invalid".to_owned());
+    }
+    let expected_release_notes_status = release_notes_status_for_stage(stage);
+    if release_notes_status != expected_release_notes_status {
+        return Err(format!(
+            "release notes status must be `{expected_release_notes_status}` for {} stage",
+            stage.as_str()
+        ));
     }
     for (field, expected_path) in [
         ("notes", "release/RELEASE_NOTES.md"),
@@ -4146,6 +4573,140 @@ mod tests {
             qualification_status_for_stage(ReleaseStage::Stable),
             "qualified"
         );
+    }
+
+    #[test]
+    fn stage_transition_policy_is_forward_only_and_dry_run_by_default() {
+        check_stage_transition_policy().expect("stage-transition policy");
+        let alpha = Version::parse("0.7.0-alpha.1").expect("Alpha version");
+        let beta = Version::parse("0.7.0-beta.1").expect("Beta version");
+        let beta_two = Version::parse("0.7.0-beta.2").expect("second Beta version");
+        let rc = Version::parse("0.7.0-rc.1").expect("RC version");
+        validate_stage_transition(&alpha, ReleaseStage::Alpha, &beta, ReleaseStage::Beta)
+            .expect("Alpha to first Beta");
+        assert!(
+            validate_stage_transition(&alpha, ReleaseStage::Alpha, &beta_two, ReleaseStage::Beta)
+                .is_err()
+        );
+        assert!(
+            validate_stage_transition(
+                &alpha,
+                ReleaseStage::Alpha,
+                &rc,
+                ReleaseStage::ReleaseCandidate
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn stage_transition_changes_only_controlled_current_state() {
+        let root =
+            std::env::temp_dir().join(format!("canisend-stage-transition-{}", std::process::id()));
+        if root.exists() {
+            fs::remove_dir_all(&root).expect("remove stale transition fixture");
+        }
+        fs::create_dir_all(root.join("crates/app")).expect("create app fixture");
+        fs::create_dir_all(root.join("crates/contracts")).expect("create contracts fixture");
+        fs::create_dir_all(root.join("release")).expect("create release fixture");
+        fs::create_dir_all(root.join("packaging/candidates/alpha"))
+            .expect("create historical candidate fixture");
+        fs::write(
+            root.join("Cargo.toml"),
+            "[workspace]\nmembers = [\"crates/app\", \"crates/contracts\"]\n\
+             [workspace.package]\nversion = \"0.7.0-alpha.1\"\n",
+        )
+        .expect("write workspace fixture");
+        fs::write(
+            root.join("crates/app/Cargo.toml"),
+            "[package]\nname = \"app\"\nversion.workspace = true\n\
+             [dependencies]\ncontracts = { package = \"contracts\", path = \"../contracts\", version = \"=0.7.0-alpha.1\" }\n",
+        )
+        .expect("write app fixture");
+        fs::write(
+            root.join("crates/contracts/Cargo.toml"),
+            "[package]\nname = \"contracts\"\nversion.workspace = true\n",
+        )
+        .expect("write contracts fixture");
+        fs::write(
+            root.join("Cargo.lock"),
+            "version = 4\n\n[[package]]\nname = \"app\"\nversion = \"0.7.0-alpha.1\"\n\
+             dependencies = [\"contracts\"]\n\n[[package]]\nname = \"contracts\"\nversion = \"0.7.0-alpha.1\"\n",
+        )
+        .expect("write lock fixture");
+        write_pretty_json(
+            &root.join("release/qualification-ledger.json"),
+            &json!({
+                "schema": RELEASE_QUALIFICATION_SCHEMA,
+                "workspace_stage": "alpha",
+                "status": "pre-beta",
+                "stable_authorized": false,
+                "beta": {"status": "pending"},
+                "feature_freeze": {"status": "planned"},
+                "release_notes": {"status": "alpha-current"}
+            }),
+        )
+        .expect("write qualification fixture");
+        fs::write(
+            root.join("release/RELEASE_NOTES.md"),
+            "# CanISend 0.7.0-alpha.1\n\nFixture notes.\n",
+        )
+        .expect("write notes fixture");
+        for relative in [
+            "release/beta-readiness.json",
+            "release/beta-contract-freeze.json",
+            "release/feedback-snapshot.json",
+            "packaging/candidates/alpha/candidate-source.json",
+        ] {
+            fs::write(root.join(relative), b"historical 0.7.0-alpha.1\n")
+                .expect("write historical fixture");
+        }
+
+        let workspace_before = fs::read(root.join("Cargo.toml")).expect("read workspace before");
+        let transition = render_stage_transition(&root, "v0.7.0-beta.1")
+            .expect("render Alpha to Beta transition");
+        assert_eq!(
+            stage_transition_report(&root, &transition, false).expect("dry-run report")["writes_performed"],
+            false
+        );
+        assert_eq!(
+            fs::read(root.join("Cargo.toml")).expect("read workspace after dry run"),
+            workspace_before
+        );
+        assert_eq!(transition.files.len(), 5);
+        for (relative, body) in &transition.files {
+            fs::write(root.join(relative), body).expect("apply rendered transition fixture");
+        }
+        assert!(
+            fs::read_to_string(root.join("Cargo.toml"))
+                .expect("read transitioned workspace")
+                .contains("version = \"0.7.0-beta.1\"")
+        );
+        assert!(
+            fs::read_to_string(root.join("crates/app/Cargo.toml"))
+                .expect("read transitioned app")
+                .contains("version = \"=0.7.0-beta.1\"")
+        );
+        let ledger: Value = serde_json::from_slice(
+            &fs::read(root.join("release/qualification-ledger.json"))
+                .expect("read transitioned ledger"),
+        )
+        .expect("parse transitioned ledger");
+        assert_eq!(ledger["workspace_stage"], "beta");
+        assert_eq!(ledger["status"], "beta-qualifying");
+        assert_eq!(ledger["release_notes"]["status"], "beta-current");
+        for relative in [
+            "release/beta-readiness.json",
+            "release/beta-contract-freeze.json",
+            "release/feedback-snapshot.json",
+            "packaging/candidates/alpha/candidate-source.json",
+        ] {
+            assert_eq!(
+                fs::read_to_string(root.join(relative)).expect("read historical fixture"),
+                "historical 0.7.0-alpha.1\n"
+            );
+        }
+        fs::remove_dir_all(root).expect("remove transition fixture");
     }
 
     #[test]

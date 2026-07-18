@@ -24,3 +24,11 @@ other changes. Exception commits, reasons, classes, paths, ordering, and canonic
 This preparation does not freeze the current Alpha branch and does not close the R11.3 checkbox. Activation requires
 a credential-qualified signed Beta and a separately reviewed baseline commit. Subsequent exception entries record
 scope but do not replace tests or code review.
+
+## Exact verification
+
+Ordinary CI run `29641002363` passed all eight jobs at exact commit
+`79afb488eb1f994ddb32a562b2e51d5ff47c9eb6`. This included the temporary Git-history regression fixture, complete
+Rust and generated-property suites, release source gate, dependency policy, three operating-system recovery jobs,
+and native render/documentation jobs. Windows also parsed both release-signing and package-lifecycle PowerShell
+verifiers. This proves planned-mode enforcement is portable; it does not supply the future signed-Beta baseline.

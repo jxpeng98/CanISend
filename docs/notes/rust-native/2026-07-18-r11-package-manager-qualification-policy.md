@@ -40,3 +40,8 @@ after binding checked-in candidates to both complete public signed releases. It 
 validation and packages the exact candidates, run identity, nonpublishing lifecycle script, and guide for a fresh
 Windows Sandbox. The hosted workflow intentionally produces only three evidence records; it cannot claim the fourth
 until the Sandbox lifecycle result is returned and the four-record verifier passes.
+
+Ordinary CI run `29640846261` passed all eight jobs at exact commit
+`9da2507856ab2de955e224d8685ee9c3fbaac933`. In particular, the Windows job parsed the release-signing verifier and
+the new Scoop/WinGet lifecycle verifier successfully before running the native build and render gates. This
+qualifies workflow/script portability, not the still-missing signed Beta/RC lifecycle evidence.

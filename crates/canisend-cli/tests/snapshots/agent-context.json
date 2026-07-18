@@ -14,7 +14,7 @@
       {"action":"canisend --workspace PATH workspace init --json","description":"Initialize or explicitly select a workspace"}
     ],
     "privacy": "public",
-    "product_version": "0.7.0-alpha.1",
+    "product_version": "<workspace-version>",
     "protocol": "canisend.agent/v2",
     "resource_format": "canisend.resources/v2",
     "selected_job": null,

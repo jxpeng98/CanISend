@@ -62,7 +62,7 @@
       "provider.failed",
       "internal.invariant_failed"
     ],
-    "product_version": "0.7.0-alpha.1",
+    "product_version": "<workspace-version>",
     "protocol": "canisend.agent/v2",
     "resource_format": "canisend.resources/v2",
     "stages": [

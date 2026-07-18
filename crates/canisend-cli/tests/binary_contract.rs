@@ -97,8 +97,20 @@ fn assert_json_snapshot(arguments: &[&str], snapshot: &str) {
         "JSON output is not deterministic"
     );
     let actual: Value = serde_json::from_slice(&first.stdout).expect("actual snapshot is JSON");
-    let expected: Value = serde_json::from_str(snapshot).expect("committed snapshot is JSON");
+    let mut expected: Value = serde_json::from_str(snapshot).expect("committed snapshot is JSON");
+    materialize_workspace_version(&mut expected);
     assert_eq!(actual, expected);
+}
+
+fn materialize_workspace_version(value: &mut Value) {
+    match value {
+        Value::String(text) if text == "<workspace-version>" => {
+            *text = env!("CARGO_PKG_VERSION").to_owned();
+        }
+        Value::Array(values) => values.iter_mut().for_each(materialize_workspace_version),
+        Value::Object(values) => values.values_mut().for_each(materialize_workspace_version),
+        _ => {}
+    }
 }
 
 #[test]
@@ -108,7 +120,7 @@ fn version_reports_native_v2_contract() {
     assert_eq!(value["protocol"], "canisend.agent/v2");
     assert_eq!(value["operation"], "product.version");
     assert_eq!(value["data"]["workspace_format"], "canisend.workspace/v2");
-    assert_eq!(value["data"]["version"], "0.7.0-alpha.1");
+    assert_eq!(value["data"]["version"], env!("CARGO_PKG_VERSION"));
 }
 
 #[test]
