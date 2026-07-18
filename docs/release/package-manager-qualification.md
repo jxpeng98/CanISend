@@ -38,8 +38,12 @@ The qualification ledger may change `package_managers.status` from `candidates-o
 3. the signed release manifests and candidate-source digests match the public assets; and
 4. the run contains no skipped or tolerated failure.
 
-The later workflow implementation will be manual-only and read-only with respect to external package repositories.
-The final Stable publication remains a separate authorized action after two clean RC release matrices.
+The manual `package-manager-prequalification` workflow is read-only with respect to external package repositories.
+It verifies both public releases, runs Homebrew on both macOS architectures, runs Scoop on Windows 2025, validates
+both WinGet manifests, and produces a Windows Sandbox kit. The workflow intentionally stops with three records;
+WinGet becomes the fourth only after the bundled lifecycle runs in a fresh Sandbox according to the
+[Sandbox guide](winget-sandbox-qualification.md). The final Stable publication remains a separate authorized action
+after two clean RC release matrices.
 
 Before running a package lifecycle, download both complete public release asset sets and verify the candidate pair:
 

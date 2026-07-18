@@ -2241,6 +2241,66 @@ fn check_package_manager_qualification_policy() -> Result<(), String> {
         format!("package-manager qualification documentation is missing: {error}")
     })?;
     check_local_markdown_links(&root, &documentation_path, &documentation)?;
+
+    let workflow_path = root.join(".github/workflows/package-manager-qualification.yml");
+    let workflow = fs::read_to_string(&workflow_path)
+        .map_err(|error| format!("package-manager qualification workflow is missing: {error}"))?;
+    for required in [
+        "name: package-manager-prequalification",
+        "workflow_dispatch:",
+        "verify-package-candidates",
+        "macos-15-intel",
+        "windows-2025",
+        "b0ee913725139b816f9178163af0aecdba07a7ed",
+        "48f6ea398b3a3fa26fae0093d37bd85b13e7eaa5d1d4a3e208408768408e35ae",
+        "winget-sandbox-kit",
+        "No external package repository was changed.",
+    ] {
+        if !workflow.contains(required) {
+            return Err(format!(
+                "package-manager qualification workflow is missing `{required}`"
+            ));
+        }
+    }
+    let homebrew = fs::read_to_string(root.join("scripts/qualify_homebrew_packages.sh"))
+        .map_err(|error| format!("Homebrew qualification script is missing: {error}"))?;
+    for required in [
+        "brew audit --strict --cask",
+        "brew install --cask",
+        "brew upgrade --cask",
+        "brew uninstall --cask",
+        "workspace-retained",
+        "no-publication",
+    ] {
+        if !homebrew.contains(required) {
+            return Err(format!(
+                "Homebrew qualification script is missing `{required}`"
+            ));
+        }
+    }
+    let windows = fs::read_to_string(root.join("scripts/qualify_windows_packages.ps1"))
+        .map_err(|error| format!("Windows package qualification script is missing: {error}"))?;
+    for required in [
+        "scoop update canisend",
+        "winget validate --manifest",
+        "winget install --manifest",
+        "winget upgrade --manifest",
+        "winget uninstall --id PengJiaxin.CanISend",
+        "winget settings --enable LocalManifestFiles",
+        "winget settings --disable LocalManifestFiles",
+        "workspace-retained",
+        "no-publication",
+    ] {
+        if !windows.contains(required) {
+            return Err(format!(
+                "Windows qualification script is missing `{required}`"
+            ));
+        }
+    }
+    let sandbox_path = root.join("docs/release/winget-sandbox-qualification.md");
+    let sandbox = fs::read_to_string(&sandbox_path)
+        .map_err(|error| format!("WinGet Sandbox qualification guide is missing: {error}"))?;
+    check_local_markdown_links(&root, &sandbox_path, &sandbox)?;
     println!("package-manager qualification policy: ok (4 native records)");
     Ok(())
 }

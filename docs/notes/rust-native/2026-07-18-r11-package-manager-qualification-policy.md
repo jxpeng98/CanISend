@@ -4,7 +4,7 @@
 
 **Roadmap items:** R11.3 and R11.4 preparation
 
-**Status:** Machine policy and evidence verifier implemented; native lifecycle workflow active next
+**Status:** Policy, verifier, native prequalification workflow, and Sandbox kit implemented
 
 ## Decision
 
@@ -34,3 +34,9 @@ The read-only release verifier now derives identity from the supplied tag, so RC
 both historical Beta assets and current RC assets. `verify-package-candidates` then requires the same release line,
 signed non-Alpha manifests, exact candidate manifest hashes, source commits, and all three package archive records.
 Build, assembly, signing, and publication commands remain bound to the current workspace version.
+
+The manual prequalification workflow now executes Homebrew on both release architectures and Scoop on Windows 2025,
+after binding checked-in candidates to both complete public signed releases. It also runs official WinGet manifest
+validation and packages the exact candidates, run identity, nonpublishing lifecycle script, and guide for a fresh
+Windows Sandbox. The hosted workflow intentionally produces only three evidence records; it cannot claim the fourth
+until the Sandbox lifecycle result is returned and the four-record verifier passes.

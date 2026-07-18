@@ -247,6 +247,11 @@
   a Beta/RC package-candidate pair gate. RC source can now re-verify both complete public asset sets and require that
   checked-in Homebrew, Scoop, and WinGet candidates bind their exact signed manifests, source commits, archives,
   sizes, and hashes. Assembly and publication remain locked to the current workspace version.
+- 2026-07-18: Implemented the manual, nonpublishing package-manager prequalification workflow. It runs strict
+  Homebrew validation and Beta-to-RC lifecycle tests on Apple Silicon and Intel, runs a pinned Scoop setup and the
+  same lifecycle on Windows 2025, validates WinGet manifests, and emits a run-bound Windows Sandbox kit. Hosted CI
+  deliberately stops at three records; the fourth must come from the fresh-Sandbox lifecycle before machine
+  verification or ledger promotion.
 
 ## 1. Executive Decision
 

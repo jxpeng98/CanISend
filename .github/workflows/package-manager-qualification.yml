@@ -1,0 +1,235 @@
+name: package-manager-prequalification
+
+on:
+  workflow_dispatch:
+    inputs:
+      from_tag:
+        description: "Published signed Beta tag to install first"
+        required: true
+        default: "v0.7.0-beta.1"
+      to_tag:
+        description: "Published signed RC tag to upgrade to"
+        required: true
+        default: "v0.7.0-rc.1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: package-manager-prequalification-${{ inputs.from_tag }}-${{ inputs.to_tag }}
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    name: verify-public-candidate-pair
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@1.97.0
+
+      - name: Check release and package qualification contracts
+        run: cargo run -p xtask --locked -- release check
+
+      - name: Download complete public Beta and RC assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/from-assets" "$RUNNER_TEMP/to-assets"
+          gh release download "${{ inputs.from_tag }}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --dir "$RUNNER_TEMP/from-assets"
+          gh release download "${{ inputs.to_tag }}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --dir "$RUNNER_TEMP/to-assets"
+
+      - name: Bind checked-in candidates to both signed releases
+        run: >-
+          cargo run -p xtask --locked -- release verify-package-candidates
+          "${{ inputs.from_tag }}" "$RUNNER_TEMP/from-assets"
+          "${{ inputs.to_tag }}" "$RUNNER_TEMP/to-assets"
+
+  homebrew:
+    name: homebrew-${{ matrix.target }}
+    needs: preflight
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            environment: macos-15
+            runner: macos-15
+          - target: x86_64-apple-darwin
+            environment: macos-15-intel
+            runner: macos-15-intel
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install, inspect, upgrade, uninstall, and retain workspace
+        shell: bash
+        run: |
+          ./scripts/qualify_homebrew_packages.sh \
+            "packaging/candidates/${{ inputs.from_tag }}" \
+            "packaging/candidates/${{ inputs.to_tag }}" \
+            "${{ inputs.from_tag }}" \
+            "${{ inputs.to_tag }}" \
+            "${{ matrix.target }}" \
+            "${{ matrix.environment }}" \
+            "$RUNNER_TEMP/homebrew-${{ matrix.target }}.json"
+
+      - name: Upload Homebrew evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: package-evidence-homebrew-${{ matrix.target }}
+          path: ${{ runner.temp }}/homebrew-${{ matrix.target }}.json
+          if-no-files-found: error
+          retention-days: 30
+
+  scoop:
+    name: scoop-x86_64-pc-windows-msvc
+    needs: preflight
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install pinned official Scoop bootstrap
+        shell: pwsh
+        run: |
+          $installer = Join-Path $env:RUNNER_TEMP "install-scoop.ps1"
+          Invoke-WebRequest `
+            -Uri "https://raw.githubusercontent.com/ScoopInstaller/Install/b0ee913725139b816f9178163af0aecdba07a7ed/install.ps1" `
+            -OutFile $installer
+          $actual = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+          $expected = "48f6ea398b3a3fa26fae0093d37bd85b13e7eaa5d1d4a3e208408768408e35ae"
+          if ($actual -ne $expected) { throw "Pinned Scoop installer hash mismatch" }
+          & $installer -RunAsAdmin
+          $env:PATH = "$env:USERPROFILE\scoop\shims;$env:PATH"
+          "SCOOP_PATH=$env:USERPROFILE\scoop\shims" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Install, inspect, upgrade, uninstall, and retain workspace
+        shell: pwsh
+        run: |
+          $env:PATH = "$env:SCOOP_PATH;$env:PATH"
+          ./scripts/qualify_windows_packages.ps1 `
+            -Channel scoop `
+            -FromCandidate "packaging/candidates/${{ inputs.from_tag }}" `
+            -ToCandidate "packaging/candidates/${{ inputs.to_tag }}" `
+            -FromTag "${{ inputs.from_tag }}" `
+            -ToTag "${{ inputs.to_tag }}" `
+            -Environment windows-2025 `
+            -GitHubRunId $env:GITHUB_RUN_ID `
+            -Output "$env:RUNNER_TEMP/scoop-x86_64-pc-windows-msvc.json"
+
+      - name: Upload Scoop evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: package-evidence-scoop-x86_64-pc-windows-msvc
+          path: ${{ runner.temp }}/scoop-x86_64-pc-windows-msvc.json
+          if-no-files-found: error
+          retention-days: 30
+
+  winget-sandbox-kit:
+    name: prepare-winget-windows-sandbox-kit
+    needs: preflight
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Parse the Windows lifecycle script
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $parseErrors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path -LiteralPath scripts/qualify_windows_packages.ps1),
+            [ref]$tokens,
+            [ref]$parseErrors
+          ) | Out-Null
+          if ($parseErrors.Count -gt 0) {
+            $parseErrors | ForEach-Object { Write-Error $_ }
+            exit 1
+          }
+
+      - name: Run official WinGet manifest validation
+        shell: pwsh
+        run: |
+          $fromVersion = "${{ inputs.from_tag }}".Substring(1)
+          $toVersion = "${{ inputs.to_tag }}".Substring(1)
+          winget validate --manifest `
+            "packaging/candidates/${{ inputs.from_tag }}/winget/manifests/p/PengJiaxin/CanISend/$fromVersion" `
+            --disable-interactivity
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          winget validate --manifest `
+            "packaging/candidates/${{ inputs.to_tag }}/winget/manifests/p/PengJiaxin/CanISend/$toVersion" `
+            --disable-interactivity
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Assemble Windows Sandbox kit
+        shell: pwsh
+        run: |
+          $kit = Join-Path $env:RUNNER_TEMP "winget-sandbox-kit"
+          New-Item -ItemType Directory -Force -Path "$kit/candidates" | Out-Null
+          Copy-Item -LiteralPath scripts/qualify_windows_packages.ps1 -Destination $kit
+          Copy-Item -LiteralPath docs/release/winget-sandbox-qualification.md -Destination $kit
+          Copy-Item -LiteralPath "packaging/candidates/${{ inputs.from_tag }}" `
+            -Destination "$kit/candidates/${{ inputs.from_tag }}" -Recurse
+          Copy-Item -LiteralPath "packaging/candidates/${{ inputs.to_tag }}" `
+            -Destination "$kit/candidates/${{ inputs.to_tag }}" -Recurse
+          [ordered]@{
+            schema = "canisend.winget-sandbox-kit/v1"
+            from_tag = "${{ inputs.from_tag }}"
+            to_tag = "${{ inputs.to_tag }}"
+            github_run_id = [long]$env:GITHUB_RUN_ID
+            publication_authorized = $false
+          } | ConvertTo-Json | Set-Content -LiteralPath "$kit/qualification-inputs.json" -Encoding utf8NoBOM
+
+      - name: Upload Windows Sandbox kit
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: winget-sandbox-kit
+          path: ${{ runner.temp }}/winget-sandbox-kit
+          if-no-files-found: error
+          retention-days: 30
+
+  preparation-bundle:
+    name: assemble-nonpublishing-preparation
+    needs:
+      - homebrew
+      - scoop
+      - winget-sandbox-kit
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download completed native evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: package-evidence-*
+          path: preparation/evidence
+          merge-multiple: true
+
+      - name: Download Windows Sandbox kit
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: winget-sandbox-kit
+          path: preparation/winget-sandbox-kit
+
+      - name: Enforce the preparation boundary
+        shell: bash
+        run: |
+          test "$(find preparation/evidence -maxdepth 1 -type f -name '*.json' | wc -l | tr -d ' ')" = 3
+          test -f preparation/winget-sandbox-kit/qualification-inputs.json
+          echo "### Package-manager prequalification" >>"$GITHUB_STEP_SUMMARY"
+          echo "" >>"$GITHUB_STEP_SUMMARY"
+          echo "Homebrew (2) and Scoop (1) records passed." >>"$GITHUB_STEP_SUMMARY"
+          echo "WinGet remains unqualified until the bundled lifecycle runs inside Windows Sandbox." >>"$GITHUB_STEP_SUMMARY"
+          echo "No external package repository was changed." >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Upload nonpublishing preparation bundle
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: package-manager-prequalification-${{ github.run_id }}
+          path: preparation
+          if-no-files-found: error
+          retention-days: 30

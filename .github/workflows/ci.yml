@@ -146,6 +146,22 @@ jobs:
             exit 1
           }
 
+      - name: Parse Windows package lifecycle verifier
+        if: matrix.name == 'windows-x86_64'
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $parseErrors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path -LiteralPath scripts/qualify_windows_packages.ps1),
+            [ref]$tokens,
+            [ref]$parseErrors
+          ) | Out-Null
+          if ($parseErrors.Count -gt 0) {
+            $parseErrors | ForEach-Object { Write-Error $_ }
+            exit 1
+          }
+
       - name: Install pinned Rust toolchain
         uses: dtolnay/rust-toolchain@1.97.0
 
