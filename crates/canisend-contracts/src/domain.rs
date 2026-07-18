@@ -654,11 +654,50 @@ pub enum ReadinessState {
     Exported,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum ReadinessReasonCode {
+    MissingRequiredDocument,
+    StaleRequiredDocument,
+    DocumentPlanMismatch,
+    ReviewDocumentSetMismatch,
+    OpenDeterministicFinding,
+    PendingHumanFinding,
+    MixedPlanRevision,
+    MixedEvidenceRevision,
+    MixedProfileRevision,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ReadinessReasonRecord {
+    pub code: ReadinessReasonCode,
+    pub document_kind: Option<DocumentKind>,
+    pub artifact: Option<ArtifactReference>,
+    pub finding_id: Option<EntityId>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ReadinessRecord {
     pub job_id: EntityId,
     pub state: ReadinessState,
-    pub blocker_finding_ids: Vec<EntityId>,
+    pub reasons: Vec<ReadinessReasonRecord>,
     pub checked_at: UtcTimestamp,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PackageManifestRecord {
+    pub id: EntityId,
+    pub job_id: EntityId,
+    pub plan_artifact: ArtifactReference,
+    pub evidence_artifact: ArtifactReference,
+    pub profile_revision: Revision,
+    pub document_set_artifact: ArtifactReference,
+    pub documents: Vec<ArtifactReference>,
+    pub review_artifact: ArtifactReference,
+    pub readiness: ReadinessRecord,
+    pub submission_performed: bool,
+    pub revision: Revision,
 }

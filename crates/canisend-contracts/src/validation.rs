@@ -10,9 +10,9 @@ use crate::{
     DocumentSectionCandidateRecord, DocumentSetRecord, EvidenceCatalogRecord,
     EvidenceMatchProposalRecord, EvidenceMatchProposalSet, EvidenceMatchRecord,
     EvidenceMatchSetRecord, EvidenceProposalRecord, EvidenceProposalSet, EvidenceRecord,
-    FindingRecord, FindingTarget, JobRecord, ParsedJobRecord, ProfileSourceRecord, ReadinessRecord,
-    ReviewCandidate, ReviewDispositionCandidate, ReviewFindingCandidateRecord,
-    ReviewFindingsRecord, SourceRecord,
+    FindingRecord, FindingTarget, JobRecord, PackageManifestRecord, ParsedJobRecord,
+    ProfileSourceRecord, ReadinessReasonCode, ReadinessRecord, ReviewCandidate,
+    ReviewDispositionCandidate, ReviewFindingCandidateRecord, ReviewFindingsRecord, SourceRecord,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
@@ -1490,17 +1490,132 @@ fn validate_finding_target(
 
 impl SemanticValidate for ReadinessRecord {
     fn validate_semantics(&self) -> Vec<ContractViolation> {
-        if matches!(self.state, crate::ReadinessState::Blocked)
-            && self.blocker_finding_ids.is_empty()
-        {
-            vec![ContractViolation::new(
-                "readiness.blocker_required",
-                "/blocker_finding_ids",
-                "blocked readiness must reference at least one blocker finding",
-            )]
-        } else {
-            Vec::new()
+        let mut violations = Vec::new();
+        let has_blocking_reason = self
+            .reasons
+            .iter()
+            .any(|reason| !matches!(reason.code, ReadinessReasonCode::PendingHumanFinding));
+        let has_pending_human = self
+            .reasons
+            .iter()
+            .any(|reason| reason.code == ReadinessReasonCode::PendingHumanFinding);
+        match self.state {
+            crate::ReadinessState::Blocked if !has_blocking_reason => {
+                violations.push(ContractViolation::new(
+                    "readiness.blocking_reason_required",
+                    "/reasons",
+                    "blocked readiness must contain a machine-readable blocking reason",
+                ));
+            }
+            crate::ReadinessState::NeedsReview if has_blocking_reason || !has_pending_human => {
+                violations.push(ContractViolation::new(
+                    "readiness.pending_human_reason_required",
+                    "/reasons",
+                    "needs-review readiness may contain only pending-human-finding reasons",
+                ));
+            }
+            crate::ReadinessState::ReadyToExport | crate::ReadinessState::Exported
+                if !self.reasons.is_empty() =>
+            {
+                violations.push(ContractViolation::new(
+                    "readiness.ready_reasons_forbidden",
+                    "/reasons",
+                    "export-ready readiness cannot contain unresolved reasons",
+                ));
+            }
+            _ => {}
         }
+        for (index, reason) in self.reasons.iter().enumerate() {
+            let pointer = format!("/reasons/{index}");
+            let expects_document = matches!(
+                reason.code,
+                ReadinessReasonCode::MissingRequiredDocument
+                    | ReadinessReasonCode::StaleRequiredDocument
+                    | ReadinessReasonCode::DocumentPlanMismatch
+            );
+            let expects_finding = matches!(
+                reason.code,
+                ReadinessReasonCode::OpenDeterministicFinding
+                    | ReadinessReasonCode::PendingHumanFinding
+            );
+            if expects_document != reason.document_kind.is_some() {
+                violations.push(ContractViolation::new(
+                    "readiness.reason_document_shape_invalid",
+                    format!("{pointer}/document_kind"),
+                    "document readiness reasons must identify a document kind and other reasons must not",
+                ));
+            }
+            if expects_finding != reason.finding_id.is_some() {
+                violations.push(ContractViolation::new(
+                    "readiness.reason_finding_shape_invalid",
+                    format!("{pointer}/finding_id"),
+                    "finding readiness reasons must identify a finding and other reasons must not",
+                ));
+            }
+        }
+        violations
+    }
+}
+
+impl SemanticValidate for PackageManifestRecord {
+    fn validate_semantics(&self) -> Vec<ContractViolation> {
+        let mut violations = self.readiness.validate_semantics();
+        for (actual, expected, pointer, message) in [
+            (
+                self.plan_artifact.kind,
+                crate::ArtifactKind::ApplicationPlan,
+                "/plan_artifact/kind",
+                "package plan must reference application-plan",
+            ),
+            (
+                self.evidence_artifact.kind,
+                crate::ArtifactKind::EvidenceCatalog,
+                "/evidence_artifact/kind",
+                "package evidence must reference evidence-catalog",
+            ),
+            (
+                self.document_set_artifact.kind,
+                crate::ArtifactKind::DocumentSet,
+                "/document_set_artifact/kind",
+                "package documents must reference document-set",
+            ),
+            (
+                self.review_artifact.kind,
+                crate::ArtifactKind::ReviewFindings,
+                "/review_artifact/kind",
+                "package review must reference review-findings",
+            ),
+        ] {
+            if actual != expected {
+                violations.push(ContractViolation::new(
+                    "package.artifact_kind_invalid",
+                    pointer,
+                    message,
+                ));
+            }
+        }
+        if self.job_id != self.readiness.job_id {
+            violations.push(ContractViolation::new(
+                "package.readiness_job_mismatch",
+                "/readiness/job_id",
+                "package and readiness job IDs must match",
+            ));
+        }
+        if self.submission_performed {
+            violations.push(ContractViolation::new(
+                "package.submission_forbidden",
+                "/submission_performed",
+                "package readiness and export do not perform an application submission",
+            ));
+        }
+        if self.documents.is_empty() {
+            violations.push(ContractViolation::new(
+                "package.documents_required",
+                "/documents",
+                "package manifest must freeze at least one document revision",
+            ));
+        }
+        violations
     }
 }
 
@@ -1510,7 +1625,8 @@ mod tests {
 
     use super::{CandidateValidationError, validate_external_candidate};
     use crate::{
-        DocumentCandidate, FindingRecord, JobRecord, ReviewCandidate, ReviewDispositionCandidate,
+        DocumentCandidate, FindingRecord, JobRecord, PackageManifestRecord, ReviewCandidate,
+        ReviewDispositionCandidate,
     };
 
     #[test]
@@ -1768,6 +1884,83 @@ mod tests {
         assert!(matches!(
             validate_external_candidate::<ReviewDispositionCandidate>(&rationale_without_decision),
             Err(CandidateValidationError::Semantic(_))
+        ));
+    }
+
+    #[test]
+    fn package_manifest_is_revision_bound_body_free_and_never_submits() {
+        let artifact = |kind: &str, id: &str, digest: char| {
+            json!({
+                "kind": kind,
+                "id": id,
+                "revision": 1,
+                "sha256": digest.to_string().repeat(64)
+            })
+        };
+        let valid = json!({
+            "id": "019f2f55-7c00-7000-8000-000000000600",
+            "job_id": "019f2f55-7c00-7000-8000-000000000002",
+            "plan_artifact": artifact(
+                "application-plan",
+                "019f2f55-7c00-7000-8000-000000000601",
+                'a'
+            ),
+            "evidence_artifact": artifact(
+                "evidence-catalog",
+                "019f2f55-7c00-7000-8000-000000000602",
+                'b'
+            ),
+            "profile_revision": 3,
+            "document_set_artifact": artifact(
+                "document-set",
+                "019f2f55-7c00-7000-8000-000000000603",
+                'c'
+            ),
+            "documents": [artifact(
+                "cover-letter",
+                "019f2f55-7c00-7000-8000-000000000604",
+                'd'
+            )],
+            "review_artifact": artifact(
+                "review-findings",
+                "019f2f55-7c00-7000-8000-000000000605",
+                'e'
+            ),
+            "readiness": {
+                "job_id": "019f2f55-7c00-7000-8000-000000000002",
+                "state": "ready-to-export",
+                "reasons": [],
+                "checked_at": "2026-07-18T02:00:00Z"
+            },
+            "submission_performed": false,
+            "revision": 1
+        });
+        validate_external_candidate::<PackageManifestRecord>(&valid)
+            .expect("valid revision-bound package manifest");
+
+        let mut submitted = valid.clone();
+        submitted["submission_performed"] = json!(true);
+        let error = validate_external_candidate::<PackageManifestRecord>(&submitted)
+            .expect_err("readiness cannot perform submission");
+        assert!(
+            error
+                .violations()
+                .iter()
+                .any(|violation| violation.code == "package.submission_forbidden")
+        );
+
+        let mut prose_reason = valid;
+        prose_reason["readiness"]["state"] = json!("blocked");
+        prose_reason["readiness"]["reasons"] = json!([{
+            "code": "mixed-profile-revision",
+            "document_kind": null,
+            "artifact": null,
+            "finding_id": null,
+            "message": "This free-form field is deliberately forbidden."
+        }]);
+        assert!(matches!(
+            validate_external_candidate::<PackageManifestRecord>(&prose_reason),
+            Err(CandidateValidationError::Structural(_))
         ));
     }
 }

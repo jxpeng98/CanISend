@@ -108,6 +108,33 @@
       ],
       "type": "object"
     },
+    "ReadinessRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "checked_at": {
+          "type": "string"
+        },
+        "job_id": {
+          "type": "string"
+        },
+        "reasons": {
+          "items": {
+            "$ref": "#/$defs/ReadinessReasonRecord"
+          },
+          "type": "array"
+        },
+        "state": {
+          "$ref": "#/$defs/ReadinessState"
+        }
+      },
+      "required": [
+        "job_id",
+        "state",
+        "reasons",
+        "checked_at"
+      ],
+      "type": "object"
+    },
     "ReadinessState": {
       "enum": [
         "blocked",
@@ -118,34 +145,66 @@
       "type": "string"
     }
   },
-  "$id": "https://schemas.canisend.dev/v2/readiness.schema.json",
+  "$id": "https://schemas.canisend.dev/v2/package-manifest.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
-    "checked_at": {
+    "document_set_artifact": {
+      "$ref": "#/$defs/ArtifactReference"
+    },
+    "documents": {
+      "items": {
+        "$ref": "#/$defs/ArtifactReference"
+      },
+      "type": "array"
+    },
+    "evidence_artifact": {
+      "$ref": "#/$defs/ArtifactReference"
+    },
+    "id": {
       "type": "string"
     },
     "job_id": {
       "type": "string"
     },
-    "reasons": {
-      "items": {
-        "$ref": "#/$defs/ReadinessReasonRecord"
-      },
-      "type": "array"
+    "plan_artifact": {
+      "$ref": "#/$defs/ArtifactReference"
     },
-    "state": {
-      "$ref": "#/$defs/ReadinessState"
+    "profile_revision": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "readiness": {
+      "$ref": "#/$defs/ReadinessRecord"
+    },
+    "review_artifact": {
+      "$ref": "#/$defs/ArtifactReference"
+    },
+    "revision": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "submission_performed": {
+      "type": "boolean"
     }
   },
   "required": [
+    "id",
     "job_id",
-    "state",
-    "reasons",
-    "checked_at"
+    "plan_artifact",
+    "evidence_artifact",
+    "profile_revision",
+    "document_set_artifact",
+    "documents",
+    "review_artifact",
+    "readiness",
+    "submission_performed",
+    "revision"
   ],
-  "title": "ReadinessRecord",
+  "title": "PackageManifestRecord",
   "type": "object",
-  "x-canisend-id": "canisend.readiness/v2",
+  "x-canisend-id": "canisend.package-manifest/v2",
   "x-canisend-version": "2.0.0"
 }

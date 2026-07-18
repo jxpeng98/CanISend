@@ -9,10 +9,10 @@ use crate::{
     BackupManifestData, CapabilitiesData, CriteriaSetRecord, CriterionRecord, DiscoveryBatch,
     DiscoveryLeadRecord, DocumentCandidate, DocumentRecord, DocumentSetRecord,
     EvidenceCatalogRecord, EvidenceMatchProposalSet, EvidenceMatchRecord, EvidenceMatchSetRecord,
-    EvidenceProposalSet, EvidenceRecord, FindingRecord, JobRecord, ParsedJobRecord,
-    ProfileSourceRecord, ReadinessRecord, ReviewCandidate, ReviewDispositionCandidate,
-    ReviewFindingsRecord, SourceRecord, TaskCompletionRequest, TaskDescriptor, VersionData,
-    WorkflowStatusData, WorkspaceCheckData, WorkspaceStatusData,
+    EvidenceProposalSet, EvidenceRecord, FindingRecord, JobRecord, PackageManifestRecord,
+    ParsedJobRecord, ProfileSourceRecord, ReadinessRecord, ReviewCandidate,
+    ReviewDispositionCandidate, ReviewFindingsRecord, SourceRecord, TaskCompletionRequest,
+    TaskDescriptor, VersionData, WorkflowStatusData, WorkspaceCheckData, WorkspaceStatusData,
 };
 
 pub const PUBLIC_SCHEMA_VERSION: &str = "2.0.0";
@@ -41,6 +41,7 @@ pub enum PublicSchemaId {
     ReviewDispositionCandidate,
     Finding,
     Readiness,
+    PackageManifest,
     WorkspaceStatus,
     WorkspaceCheck,
     BackupManifest,
@@ -58,7 +59,7 @@ pub enum PublicSchemaId {
 }
 
 impl PublicSchemaId {
-    pub const ALL: [Self; 34] = [
+    pub const ALL: [Self; 35] = [
         Self::AgentResponse,
         Self::Capabilities,
         Self::AgentContext,
@@ -79,6 +80,7 @@ impl PublicSchemaId {
         Self::ReviewDispositionCandidate,
         Self::Finding,
         Self::Readiness,
+        Self::PackageManifest,
         Self::WorkspaceStatus,
         Self::WorkspaceCheck,
         Self::BackupManifest,
@@ -118,6 +120,7 @@ impl PublicSchemaId {
             Self::ReviewDispositionCandidate => "canisend.review-disposition-candidate/v2",
             Self::Finding => "canisend.finding/v2",
             Self::Readiness => "canisend.readiness/v2",
+            Self::PackageManifest => "canisend.package-manifest/v2",
             Self::WorkspaceStatus => "canisend.workspace-status/v2",
             Self::WorkspaceCheck => "canisend.workspace-check/v2",
             Self::BackupManifest => "canisend.backup-manifest/v2",
@@ -158,6 +161,7 @@ impl PublicSchemaId {
             Self::ReviewDispositionCandidate => "review-disposition-candidate",
             Self::Finding => "finding",
             Self::Readiness => "readiness",
+            Self::PackageManifest => "package-manifest",
             Self::WorkspaceStatus => "workspace-status",
             Self::WorkspaceCheck => "workspace-check",
             Self::BackupManifest => "backup-manifest",
@@ -225,6 +229,7 @@ pub fn generate_public_schemas() -> Vec<GeneratedSchema> {
         generate::<ReviewDispositionCandidate>(PublicSchemaId::ReviewDispositionCandidate),
         generate::<FindingRecord>(PublicSchemaId::Finding),
         generate::<ReadinessRecord>(PublicSchemaId::Readiness),
+        generate::<PackageManifestRecord>(PublicSchemaId::PackageManifest),
         generate::<WorkspaceStatusData>(PublicSchemaId::WorkspaceStatus),
         generate::<WorkspaceCheckData>(PublicSchemaId::WorkspaceCheck),
         generate::<BackupManifestData>(PublicSchemaId::BackupManifest),
