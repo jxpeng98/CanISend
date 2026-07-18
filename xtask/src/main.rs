@@ -24,12 +24,14 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
         [area, command] if area == "schemas" && command == "check" => check_schemas(),
         [area, command] if area == "schemas" && command == "write" => write_schemas(),
         [area, command] if area == "resources" && command == "check" => check_resources(),
+        [area, command] if area == "docs" && command == "check" => check_documentation(),
         [area, command] if area == "release" && command == "check" => {
             check_schemas()?;
-            check_resources()
+            check_resources()?;
+            check_documentation()
         }
         _ => Err(
-            "usage: cargo run -p xtask -- schemas <check|write> | <resources|release> check"
+            "usage: cargo run -p xtask -- schemas <check|write> | <resources|docs|release> check"
                 .to_owned(),
         ),
     }
@@ -124,5 +126,81 @@ fn check_resources() -> Result<(), String> {
         return Err("embedded resource manifest is empty".to_owned());
     }
     println!("resources: ok");
+    Ok(())
+}
+
+fn check_documentation() -> Result<(), String> {
+    let root = repository_root();
+    let guide_root = root.join("docs/guides");
+    let required = [
+        "installation.md",
+        "quick-start.md",
+        "agent-integration.md",
+        "privacy-and-consent.md",
+        "backup-and-recovery.md",
+        "troubleshooting.md",
+    ];
+    for file_name in required {
+        let path = guide_root.join(file_name);
+        let body = fs::read_to_string(&path)
+            .map_err(|error| format!("required guide is missing at {}: {error}", path.display()))?;
+        check_local_markdown_links(&root, &path, &body)?;
+    }
+    for path in [root.join("README.md"), guide_root.join("README.md")] {
+        let body = fs::read_to_string(&path).map_err(|error| {
+            format!(
+                "documentation index is missing at {}: {error}",
+                path.display()
+            )
+        })?;
+        check_local_markdown_links(&root, &path, &body)?;
+    }
+    let smoke = root.join("scripts/smoke_documented_quickstart.sh");
+    if !smoke.is_file() {
+        return Err(format!(
+            "documented quick-start smoke is missing at {}",
+            smoke.display()
+        ));
+    }
+    println!("documentation: ok ({} guides)", required.len());
+    Ok(())
+}
+
+fn check_local_markdown_links(root: &Path, source: &Path, body: &str) -> Result<(), String> {
+    let parent = source
+        .parent()
+        .ok_or_else(|| format!("documentation path has no parent: {}", source.display()))?;
+    let mut remaining = body;
+    while let Some(start) = remaining.find("](") {
+        let target_start = start + 2;
+        remaining = &remaining[target_start..];
+        let Some(end) = remaining.find(')') else {
+            return Err(format!(
+                "unterminated Markdown link in {}",
+                source.display()
+            ));
+        };
+        let destination = remaining[..end].trim();
+        remaining = &remaining[end + 1..];
+        if destination.is_empty()
+            || destination.starts_with('#')
+            || destination.starts_with("http://")
+            || destination.starts_with("https://")
+            || destination.starts_with("mailto:")
+        {
+            continue;
+        }
+        let relative = destination
+            .split('#')
+            .next()
+            .expect("split always returns one element");
+        let candidate = parent.join(relative);
+        if !candidate.exists() {
+            return Err(format!(
+                "broken local link `{destination}` in {}",
+                source.strip_prefix(root).unwrap_or(source).display()
+            ));
+        }
+    }
     Ok(())
 }

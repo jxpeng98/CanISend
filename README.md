@@ -17,6 +17,15 @@ preparation.
 The active product no longer uses Python or Pytest. The final Python implementation remains available only through
 the Git tag `archive/python-v0.6.0b1-final`.
 
+## User guides
+
+- [Installation](docs/guides/installation.md)
+- [Quick start](docs/guides/quick-start.md)
+- [Agent integration](docs/guides/agent-integration.md)
+- [Privacy and consent](docs/guides/privacy-and-consent.md)
+- [Backup and recovery](docs/guides/backup-and-recovery.md)
+- [Troubleshooting](docs/guides/troubleshooting.md)
+
 ## Current status
 
 The Rust rebuild has completed R9 plus the R10 security and recovery reviews, including the full evidence-backed

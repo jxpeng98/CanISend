@@ -187,6 +187,13 @@ jobs:
               "$RUNNER_TEMP/canisend-${{ matrix.name }}/PERFORMANCE.json"
           fi
 
+      - name: Smoke documented workflow from the staged bundle
+        shell: bash
+        run: |
+          staged_binary="$RUNNER_TEMP/canisend-${{ matrix.name }}/$(basename "${{ matrix.binary }}")"
+          ./scripts/smoke_documented_quickstart.sh "$staged_binary" \
+            "$RUNNER_TEMP/canisend-documentation-${{ matrix.name }}"
+
       - name: Upload native render evidence
         uses: actions/upload-artifact@v7
         with:
