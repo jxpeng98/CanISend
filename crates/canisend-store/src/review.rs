@@ -371,6 +371,10 @@ fn invalidate_package_descendants(
     updated_at: &canisend_contracts::UtcTimestamp,
 ) -> Result<(), StoreError> {
     transaction.execute(
+        "DELETE FROM package_heads WHERE workflow_run_id = ?1",
+        params![run_id.as_str()],
+    )?;
+    transaction.execute(
         "UPDATE artifacts SET stale = 1 WHERE id IN (
              SELECT output_artifact_id FROM stage_executions
              WHERE workflow_run_id = ?1 AND stage IN ('package', 'render')

@@ -22,6 +22,7 @@
       {"id":"plan.lifecycle","status":"available","version":"2.0.0"},
       {"id":"document.lifecycle","status":"available","version":"2.0.0"},
       {"id":"review.lifecycle","status":"available","version":"2.0.0"},
+      {"id":"package.lifecycle","status":"available","version":"2.0.0"},
       {"id":"workflow.execute","status":"available","version":"2.0.0"},
       {"id":"render.pdf","status":"planned","version":"2.0.0"}
     ],
@@ -74,7 +75,7 @@
       {"execution_modes":["user-decision"],"id":"plan","status":"available"},
       {"execution_modes":["host-agent","configured-provider"],"id":"draft","status":"available"},
       {"execution_modes":["host-agent","configured-provider","user-decision"],"id":"review","status":"available"},
-      {"execution_modes":["deterministic"],"id":"package","status":"planned"},
+      {"execution_modes":["deterministic"],"id":"package","status":"available"},
       {"execution_modes":["deterministic"],"id":"render","status":"planned"}
     ],
     "workspace_format": "canisend.workspace/v2"

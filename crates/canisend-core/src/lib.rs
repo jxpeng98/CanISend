@@ -32,6 +32,7 @@ impl CapabilityRegistry {
             available("plan.lifecycle"),
             available("document.lifecycle"),
             available("review.lifecycle"),
+            available("package.lifecycle"),
             available("workflow.execute"),
             planned("render.pdf"),
         ]
@@ -285,6 +286,7 @@ impl StageRegistry {
                 | WorkflowStage::Plan
                 | WorkflowStage::Draft
                 | WorkflowStage::Review
+                | WorkflowStage::Package
         )
     }
 
@@ -428,6 +430,7 @@ mod tests {
             "plan.lifecycle",
             "document.lifecycle",
             "review.lifecycle",
+            "package.lifecycle",
         ] {
             assert!(capabilities.iter().any(|item| {
                 item.id == available_id && item.status == CapabilityStatus::Available
@@ -439,7 +442,7 @@ mod tests {
                 .iter()
                 .filter(|stage| stage.status == CapabilityStatus::Available)
                 .count(),
-            9
+            10
         );
         let mut stage_ids = stages
             .iter()

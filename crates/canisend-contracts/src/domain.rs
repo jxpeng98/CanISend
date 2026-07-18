@@ -658,7 +658,7 @@ pub enum ReadinessState {
 #[serde(rename_all = "kebab-case")]
 pub enum ReadinessReasonCode {
     MissingRequiredDocument,
-    StaleRequiredDocument,
+    StaleDocument,
     DocumentPlanMismatch,
     ReviewDocumentSetMismatch,
     OpenDeterministicFinding,

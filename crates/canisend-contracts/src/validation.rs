@@ -1530,7 +1530,7 @@ impl SemanticValidate for ReadinessRecord {
             let expects_document = matches!(
                 reason.code,
                 ReadinessReasonCode::MissingRequiredDocument
-                    | ReadinessReasonCode::StaleRequiredDocument
+                    | ReadinessReasonCode::StaleDocument
                     | ReadinessReasonCode::DocumentPlanMismatch
             );
             let expects_finding = matches!(

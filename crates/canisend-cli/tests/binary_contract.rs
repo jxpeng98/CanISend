@@ -151,7 +151,7 @@ fn capabilities_distinguish_available_from_planned_work() {
             .iter()
             .filter(|stage| stage["status"] == "available")
             .count()),
-        Some(9)
+        Some(10)
     );
 }
 
@@ -162,7 +162,7 @@ fn public_catalogs_are_available_without_a_workspace() {
 
     assert_eq!(
         schemas["data"]["schemas"].as_array().map(Vec::len),
-        Some(34)
+        Some(35)
     );
     assert!(
         resources["data"]["resources"]
@@ -204,12 +204,16 @@ fn agent_host_pack_export_is_versioned_and_self_contained() {
         exported["data"]["manifest"]["files"]
             .as_array()
             .map(Vec::len),
-        Some(25)
+        Some(26)
     );
     assert!(pack.join("AGENTS.md").is_file());
     assert!(pack.join("prompts/job-parse.md").is_file());
     assert!(pack.join("prompts/evidence-normalize.md").is_file());
     assert!(pack.join("prompts/evidence-match.md").is_file());
+    assert!(
+        pack.join("schemas/v2/package-manifest.schema.json")
+            .is_file()
+    );
     assert!(pack.join("prompts/document-draft.md").is_file());
     assert!(pack.join("prompts/document-review.md").is_file());
     assert!(

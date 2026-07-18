@@ -27,9 +27,9 @@ use canisend_io::{
 use canisend_resources::{AgentHost, ResourceError, ResourceId, ResourceKind, export_agent_pack};
 use canisend_store::{
     AgentContextService, ArtifactService, CriteriaService, DiscoveryService, DocumentService,
-    EvidenceService, JobService, MatchService, NewProfileSource, NewSource, PlanService,
-    ProfileService, ReviewService, StoreError, TaskService, WorkflowService, Workspace,
-    current_utc_timestamp,
+    EvidenceService, JobService, MatchService, NewProfileSource, NewSource, PackageService,
+    PlanService, ProfileService, ReviewService, StoreError, TaskService, WorkflowService,
+    Workspace, current_utc_timestamp,
 };
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use serde_json::json;
@@ -118,6 +118,11 @@ enum Command {
     Review {
         #[command(subcommand)]
         command: ReviewCommand,
+    },
+    /// Compute and inspect deterministic package readiness without submitting.
+    Package {
+        #[command(subcommand)]
+        command: PackageCommand,
     },
     /// Start, inspect, advance, or rerun the durable application workflow.
     Workflow {
@@ -305,6 +310,14 @@ enum ReviewCommand {
     Confirm(ReviewConfirmArgs),
     /// Show the current deterministic and human review findings.
     Show(ReviewJobArgs),
+}
+
+#[derive(Debug, Subcommand)]
+enum PackageCommand {
+    /// Freeze exact current inputs and compute machine-readable readiness.
+    Check(PackageJobArgs),
+    /// Show the current body-free package manifest and readiness reasons.
+    Show(PackageJobArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -675,6 +688,15 @@ struct ReviewConfirmArgs {
 }
 
 #[derive(Debug, Args)]
+struct PackageJobArgs {
+    /// Canonical UUIDv7 job ID.
+    #[arg(long)]
+    job: String,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
 struct TaskIdArgs {
     /// Canonical UUIDv7 task ID.
     task_id: String,
@@ -992,6 +1014,11 @@ impl Cli {
                 ReviewCommand::Confirm(arguments) => arguments.output.json,
                 ReviewCommand::Show(arguments) => arguments.output.json,
             },
+            Command::Package { command } => match command {
+                PackageCommand::Check(arguments) | PackageCommand::Show(arguments) => {
+                    arguments.output.json
+                }
+            },
             Command::Workflow { command } => match command {
                 WorkflowCommand::Start(arguments) | WorkflowCommand::Status(arguments) => {
                     arguments.output.json
@@ -1241,6 +1268,12 @@ fn execute(cli: Cli) -> CommandResult<CommandOutput> {
         Command::Review {
             command: ReviewCommand::Show(arguments),
         } => review_show(workspace, &arguments.job),
+        Command::Package {
+            command: PackageCommand::Check(arguments),
+        } => package_check(workspace, &arguments.job),
+        Command::Package {
+            command: PackageCommand::Show(arguments),
+        } => package_show(workspace, &arguments.job),
         Command::Workflow {
             command: WorkflowCommand::Start(arguments),
         } => workflow_start(workspace, &arguments.job),
@@ -2925,6 +2958,62 @@ fn review_output(
             format!("Total findings: {}", review.findings.len()),
             format!("Deterministic blockers: {deterministic_blockers}"),
             format!("Pending human findings: {pending_human}"),
+        ],
+    )
+}
+
+fn package_check(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<CommandOutput> {
+    let job_id = parse_entity_id("package.check", job_id)?;
+    let mut workspace = open_workspace(workspace_path, "package.check")?;
+    let artifact = PackageService::new(&mut workspace.database, &workspace.blobs)
+        .check(&job_id)
+        .map_err(|error| store_failure("package.check", error))?;
+    let manifest = PackageService::new(&mut workspace.database, &workspace.blobs)
+        .current(&job_id)
+        .map_err(|error| store_failure("package.check", error))?;
+    let mut output = package_output("package.check", &manifest)?;
+    output.response.artifacts.push(artifact);
+    Ok(output)
+}
+
+fn package_show(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<CommandOutput> {
+    let job_id = parse_entity_id("package.show", job_id)?;
+    let mut workspace = open_workspace(workspace_path, "package.show")?;
+    let manifest = PackageService::new(&mut workspace.database, &workspace.blobs)
+        .current(&job_id)
+        .map_err(|error| store_failure("package.show", error))?;
+    package_output("package.show", &manifest)
+}
+
+fn package_output(
+    operation: &'static str,
+    manifest: &canisend_contracts::PackageManifestRecord,
+) -> CommandResult<CommandOutput> {
+    let state = match manifest.readiness.state {
+        canisend_contracts::ReadinessState::Blocked => "blocked",
+        canisend_contracts::ReadinessState::NeedsReview => "needs-review",
+        canisend_contracts::ReadinessState::ReadyToExport => "ready-to-export",
+        canisend_contracts::ReadinessState::Exported => "exported",
+    };
+    let reason_codes = manifest
+        .readiness
+        .reasons
+        .iter()
+        .filter_map(|reason| {
+            serde_json::to_value(reason.code)
+                .ok()
+                .and_then(|value| value.as_str().map(ToOwned::to_owned))
+        })
+        .collect::<Vec<_>>();
+    success(
+        operation,
+        state,
+        manifest,
+        vec![
+            format!("Package manifest: {}", manifest.id),
+            format!("Readiness: {state}"),
+            format!("Reasons: {}", reason_codes.join(", ")),
+            "Submission performed: no".to_owned(),
         ],
     )
 }

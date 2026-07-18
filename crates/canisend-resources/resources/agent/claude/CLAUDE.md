@@ -31,6 +31,8 @@ CanISend owns durable state; Claude operates only through its versioned CLI prot
 13. Prepare `--operation document-review` for the exact set and return only semantic/human findings with exact
     targets. Inspect with `review show`. Use `review export/confirm` only for explicit user dispositions; deterministic
     blockers can be cleared only by current redrafted documents.
+14. Run `package check --job JOB_ID --json` for deterministic readiness over exact current revisions. Inspect
+    body-free reasons with `package show`; `ready-to-export` is not application submission or submission consent.
 
 Never create evidence or source identities not supplied by CanISend, send private content to a provider without a
 separate consent, write internal state directly, or treat readiness as application submission.

@@ -36,6 +36,8 @@ Then:
 13. Prepare `--operation document-review` for the exact set and return semantic/human findings with exact targets.
     Inspect with `review show`; use `review export/confirm` only after explicit user dispositions. Deterministic
     blockers cannot be dismissed and require redrafting.
+14. Run `package check --job JOB_ID --json` to freeze exact current revisions and compute deterministic readiness.
+    Use `package show` to inspect body-free reason codes. `ready-to-export` never means submitted.
 
 Read only capabilities marked `available`. Never inspect or edit `.canisend/`, invent source identities, or transmit
 private data without the matching consent. Readiness describes preparation status and is not evidence of submission.

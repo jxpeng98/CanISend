@@ -28,7 +28,7 @@
       {"execution_modes":["user-decision"],"id":"plan","status":"available"},
       {"execution_modes":["host-agent","configured-provider"],"id":"draft","status":"available"},
       {"execution_modes":["host-agent","configured-provider","user-decision"],"id":"review","status":"available"},
-      {"execution_modes":["deterministic"],"id":"package","status":"planned"},
+      {"execution_modes":["deterministic"],"id":"package","status":"available"},
       {"execution_modes":["deterministic"],"id":"render","status":"planned"}
     ],
     "workspace": null,

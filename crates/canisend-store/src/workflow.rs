@@ -281,6 +281,12 @@ impl<'a> WorkflowService<'a> {
         let affected = std::iter::once(stage)
             .chain(self.graph.descendants(stage))
             .collect::<Vec<_>>();
+        if affected.contains(&WorkflowStage::Package) {
+            transaction.execute(
+                "DELETE FROM package_heads WHERE workflow_run_id = ?1",
+                params![run_id.as_str()],
+            )?;
+        }
         if affected.contains(&WorkflowStage::Review) {
             transaction.execute(
                 "UPDATE artifacts SET stale = 1 WHERE id IN (
@@ -465,6 +471,15 @@ fn load_status(
                     });
                     continue;
                 }
+                if state.stage == WorkflowStage::Render && missing.is_empty() {
+                    let (code, description) = render_gate_blocker(connection, run_id)?;
+                    blockers.push(WorkflowBlocker {
+                        code,
+                        stage: state.stage,
+                        description,
+                    });
+                    continue;
+                }
                 blockers.push(WorkflowBlocker {
                     code: if state.stage == WorkflowStage::Intake {
                         "workflow.source_required".to_owned()
@@ -566,6 +581,11 @@ fn load_status(
                             job_id
                         ),
                         "Review the exact current document set for deterministic and human findings"
+                            .to_owned(),
+                    ),
+                    WorkflowStage::Package => (
+                        format!("canisend package check --job {} --json", job_id),
+                        "Compute deterministic readiness from exact current package inputs"
                             .to_owned(),
                     ),
                     _ => (
@@ -675,6 +695,10 @@ fn reconcile_job_revision(
     if prepared_revision == Some(current_revision) {
         return Ok(());
     }
+    transaction.execute(
+        "DELETE FROM package_heads WHERE workflow_run_id = ?1",
+        params![run_id.as_str()],
+    )?;
     transaction.execute(
         "UPDATE artifacts SET stale = 1 WHERE id IN (
              SELECT artifact_id FROM review_heads WHERE workflow_run_id = ?1
@@ -818,11 +842,73 @@ fn stage_gate_allows(
     run_id: &EntityId,
     stage: WorkflowStage,
 ) -> Result<bool, StoreError> {
-    if stage != WorkflowStage::Draft {
-        return Ok(true);
+    match stage {
+        WorkflowStage::Draft => Ok(current_plan_gate(connection, run_id)?
+            .is_some_and(|(decision, blockers)| decision == "apply" && blockers == 0)),
+        WorkflowStage::Render => package_allows_render(connection, run_id),
+        _ => Ok(true),
     }
-    Ok(current_plan_gate(connection, run_id)?
-        .is_some_and(|(decision, blockers)| decision == "apply" && blockers == 0))
+}
+
+fn package_allows_render(connection: &Connection, run_id: &EntityId) -> Result<bool, StoreError> {
+    connection
+        .query_row(
+            "SELECT head.readiness_state
+             FROM package_heads AS head
+             JOIN stage_executions AS package
+               ON package.workflow_run_id = head.workflow_run_id AND package.stage = 'package'
+              AND package.status = 'complete'
+              AND package.output_artifact_id = head.artifact_id
+              AND package.output_artifact_revision = head.artifact_revision
+             WHERE head.workflow_run_id = ?1",
+            params![run_id.as_str()],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()
+        .map(|state| {
+            state.is_some_and(|state| matches!(state.as_str(), "ready-to-export" | "exported"))
+        })
+        .map_err(StoreError::from)
+}
+
+fn render_gate_blocker(
+    connection: &Connection,
+    run_id: &EntityId,
+) -> Result<(String, String), StoreError> {
+    let state: Option<String> = connection
+        .query_row(
+            "SELECT head.readiness_state
+             FROM package_heads AS head
+             JOIN stage_executions AS package
+               ON package.workflow_run_id = head.workflow_run_id AND package.stage = 'package'
+              AND package.status = 'complete'
+              AND package.output_artifact_id = head.artifact_id
+              AND package.output_artifact_revision = head.artifact_revision
+             WHERE head.workflow_run_id = ?1",
+            params![run_id.as_str()],
+            |row| row.get(0),
+        )
+        .optional()?;
+    Ok(match state.as_deref() {
+        Some("blocked") => (
+            "workflow.package_blocked".to_owned(),
+            "Package readiness has deterministic blockers; inspect `canisend package show`"
+                .to_owned(),
+        ),
+        Some("needs-review") => (
+            "workflow.package_needs_review".to_owned(),
+            "Package readiness requires explicit human finding dispositions".to_owned(),
+        ),
+        Some(other) => {
+            return Err(StoreError::Invariant(format!(
+                "render is blocked by unexpected package readiness {other}"
+            )));
+        }
+        None => (
+            "workflow.package_check_required".to_owned(),
+            "Compute deterministic package readiness before rendering".to_owned(),
+        ),
+    })
 }
 
 fn current_plan_gate(

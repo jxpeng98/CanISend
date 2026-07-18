@@ -59,7 +59,7 @@
     "ReadinessReasonCode": {
       "enum": [
         "missing-required-document",
-        "stale-required-document",
+        "stale-document",
         "document-plan-mismatch",
         "review-document-set-mismatch",
         "open-deterministic-finding",

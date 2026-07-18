@@ -245,6 +245,10 @@ pub fn export_agent_pack(
             "schema.review-disposition-candidate",
             "schemas/v2/review-disposition-candidate.schema.json",
         ),
+        (
+            "schema.package-manifest",
+            "schemas/v2/package-manifest.schema.json",
+        ),
     ];
     let mut files = Vec::with_capacity(resources.len());
     for (resource_id, relative_path) in resources {

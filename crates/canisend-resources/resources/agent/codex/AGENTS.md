@@ -34,6 +34,9 @@ Use CanISend as the state owner and Codex as a bounded reasoning host. Never ins
     findings while CanISend adds deterministic findings. Show the result with `review show`; export dispositions and
     run `review confirm` only after the user explicitly selects accepted-risk or dismissed. Deterministic blockers
     require redrafting and cannot be dismissed.
+15. Run `package check --job JOB_ID --json` to freeze exact plan, evidence, profile, document, and review revisions.
+    Inspect only its machine-readable reason codes with `package show`. Resolve `blocked` or `needs-review`; treat
+    `ready-to-export` only as permission to create files, never as permission or evidence of submission.
 
 Do not invent source identities, bypass candidate validation, transmit private inputs to a provider without separate
 consent, or interpret readiness as permission to submit an application.

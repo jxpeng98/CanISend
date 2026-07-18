@@ -13,9 +13,9 @@ use canisend_contracts::{
 };
 use canisend_store::{
     ArtifactService, CriteriaService, DEFAULT_MAX_BLOB_BYTES, DocumentService, EvidenceService,
-    JobService, MatchService, NewProfileSource, NewSource, PlanService, ProfileService,
-    ReviewService, StoreError, TaskService, WorkflowService, Workspace, WorkspacePaths,
-    verify_backup,
+    JobService, MatchService, NewProfileSource, NewSource, PackageService, PlanService,
+    ProfileService, ReviewService, StoreError, TaskService, WorkflowService, Workspace,
+    WorkspacePaths, verify_backup,
 };
 use serde_json::{Value, json};
 
@@ -57,7 +57,7 @@ fn workspace_init_discovery_status_and_check_are_consistent() {
     assert_eq!(discovered.root, root.path());
     assert_eq!(
         workspace.status().expect("status").database_schema_version,
-        10
+        11
     );
     let check = workspace.check().expect("workspace check");
     assert!(check.ok);
@@ -906,6 +906,59 @@ fn evidence_and_match_tasks_enforce_stable_revision_bound_identities() {
         workflow_stage_status(&status, WorkflowStage::Package),
         StageExecutionStatus::Ready
     );
+    assert!(
+        status
+            .next_actions
+            .iter()
+            .any(|action| action.action.contains("package check --job"))
+    );
+    let package_artifact = PackageService::new(&mut workspace.database, &workspace.blobs)
+        .check(&job.id)
+        .expect("deterministic package readiness");
+    assert_eq!(package_artifact.kind, ArtifactKind::PackageManifest);
+    let package = PackageService::new(&mut workspace.database, &workspace.blobs)
+        .current(&job.id)
+        .expect("current package manifest");
+    assert_eq!(
+        package.readiness.state,
+        canisend_contracts::ReadinessState::Blocked
+    );
+    assert_eq!(package.plan_artifact, apply_artifact);
+    assert_eq!(package.evidence_artifact, revised_artifact);
+    assert_eq!(package.document_set_artifact, document_set_artifact);
+    assert_eq!(package.review_artifact, revised_review_artifact);
+    assert_eq!(package.documents, document_set.documents);
+    assert!(!package.submission_performed);
+    assert!(package.readiness.reasons.iter().any(|reason| {
+        reason.code == canisend_contracts::ReadinessReasonCode::OpenDeterministicFinding
+            && reason.finding_id.as_ref() == Some(&deterministic.id)
+    }));
+    assert!(!package.readiness.reasons.iter().any(|reason| {
+        reason.code == canisend_contracts::ReadinessReasonCode::PendingHumanFinding
+    }));
+    assert_eq!(
+        PackageService::new(&mut workspace.database, &workspace.blobs)
+            .check(&job.id)
+            .expect("idempotent readiness check"),
+        package_artifact
+    );
+    let status = WorkflowService::new(&mut workspace.database)
+        .status(&job.id)
+        .expect("workflow after package readiness");
+    assert_eq!(
+        workflow_stage_status(&status, WorkflowStage::Package),
+        StageExecutionStatus::Complete
+    );
+    assert_eq!(
+        workflow_stage_status(&status, WorkflowStage::Render),
+        StageExecutionStatus::Blocked
+    );
+    assert!(
+        status
+            .blockers
+            .iter()
+            .any(|blocker| blocker.code == "workflow.package_blocked")
+    );
 
     ProfileService::new(&mut workspace.database, &workspace.blobs)
         .import_source(
@@ -943,6 +996,10 @@ fn evidence_and_match_tasks_enforce_stable_revision_bound_identities() {
     ));
     assert!(matches!(
         ReviewService::new(&mut workspace.database, &workspace.blobs).current(&job.id),
+        Err(StoreError::WorkflowConflict(_))
+    ));
+    assert!(matches!(
+        PackageService::new(&mut workspace.database, &workspace.blobs).current(&job.id),
         Err(StoreError::WorkflowConflict(_))
     ));
     let status = WorkflowService::new(&mut workspace.database)

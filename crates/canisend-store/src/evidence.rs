@@ -704,6 +704,10 @@ fn invalidate_downstream(
     updated_at: &UtcTimestamp,
 ) -> Result<(), StoreError> {
     transaction.execute(
+        "DELETE FROM package_heads WHERE workflow_run_id = ?1",
+        params![run_id.as_str()],
+    )?;
+    transaction.execute(
         "UPDATE artifacts SET stale = 1 WHERE id IN (
              SELECT artifact_id FROM review_heads WHERE workflow_run_id = ?1
          )",
