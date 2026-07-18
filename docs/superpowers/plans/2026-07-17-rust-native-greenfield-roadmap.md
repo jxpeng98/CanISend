@@ -1,6 +1,6 @@
 # CanISend Rust-Native Greenfield Rebuild Roadmap
 
-**Status:** In progress — R0 through R6 complete; R7 workflow kernel, evidence, match, and plan active
+**Status:** In progress — R0 through R7 complete; R8 structured drafting and review active
 
 **Date:** 2026-07-17
 
@@ -79,6 +79,10 @@
   task/output invalidation after criteria or evidence changes. Local verification passed 62 Rust tests, Clippy,
   28-schema/36-resource checks, release compilation, and packaged intake-to-match smoke. R7.5 decision and document
   planning is active.
+- 2026-07-17: Completed R7.5 and the full R7 decision spine with core-derived essential/desirable blockers,
+  apply/hold/skip decisions, revision-stable four-document plans, strategy fields, and an `apply + zero blockers`
+  Draft gate. Local verification passed 62 Rust tests, Clippy, 29-schema/37-resource checks, release compilation, and
+  packaged intake-to-plan smoke. R7 exit criteria are satisfied; R8 structured drafting and review is active.
 
 ## 1. Executive Decision
 
@@ -1504,15 +1508,17 @@ remediation and idempotency, and detects a stale task after the job source revis
 
 #### R7.5 Decision and document plan
 
-- [ ] Implement apply/hold/skip decision.
-- [ ] Implement application strategy fields.
-- [ ] Implement required/optional/omitted document plan.
-- [ ] Derive unresolved blockers.
-- [ ] Expose body-free workflow context.
+- [x] Implement apply/hold/skip decision.
+- [x] Implement application strategy fields.
+- [x] Implement required/optional/omitted document plan.
+- [x] Derive unresolved blockers.
+- [x] Expose body-free workflow context.
 
-**Deliverables:** Resumable intake-to-plan workflow.
+**Deliverables:** Resumable intake-to-plan workflow. Complete.
 
-**Exit criteria:** A synthetic job and profile produce confirmed criteria, evidence matches, decision, and document plan.
+**Exit criteria:** Satisfied locally. The synthetic release-binary smoke produces confirmed criteria, evidence,
+revision-bound matches, a derived blocking gap, and a confirmed hold/document plan; the store integration path also
+confirms a blocker-free apply revision and proves that only it opens Draft.
 
 ### Phase R8 — Draft, review, and package
 
@@ -1752,27 +1758,27 @@ The Rust-native rebuild is complete only when all conditions below are true.
 
 ### 23.2 Product workflow
 
-- [ ] Initialize workspace.
-- [ ] Import a local text advert.
-- [ ] Import a text PDF advert.
-- [ ] Import a supplied URL.
-- [ ] Import and promote discovery leads.
-- [ ] Build profile evidence.
-- [ ] Parse and confirm criteria.
-- [ ] Match evidence.
-- [ ] Plan documents.
+- [x] Initialize workspace.
+- [x] Import a local text advert.
+- [x] Import a text PDF advert.
+- [x] Import a supplied URL.
+- [x] Import and promote discovery leads.
+- [x] Build profile evidence.
+- [x] Parse and confirm criteria.
+- [x] Match evidence.
+- [x] Plan documents.
 - [ ] Draft and review supported materials.
 - [ ] Produce package readiness.
 - [ ] Export Markdown, Typst, JSON, and PDF.
 
 ### 23.3 Agent workflow
 
-- [ ] Export Codex assets.
-- [ ] Export Claude assets.
-- [ ] Discover capabilities and context.
-- [ ] Prepare and complete a task through JSON/stdin.
-- [ ] Reject invalid and stale candidates without mutation.
-- [ ] Keep private bodies out of body-free responses.
+- [x] Export Codex assets.
+- [x] Export Claude assets.
+- [x] Discover capabilities and context.
+- [x] Prepare and complete a task through JSON/stdin.
+- [x] Reject invalid and stale candidates without mutation.
+- [x] Keep private bodies out of body-free responses.
 
 ### 23.4 Reliability
 

@@ -19,15 +19,15 @@ the Git tag `archive/python-v0.6.0b1-final`.
 
 ## Current status
 
-The Rust rebuild has completed R6, including durable direct intake, discovery, and bounded agent collaboration. R7
-workflow kernel, evidence, matching, and planning is now active. The current binary provides:
+The Rust rebuild has completed R7, including the full evidence-backed intake-to-plan decision spine. R8 structured
+drafting, review, and packaging is now active. The current binary provides:
 
 - Native `canisend` executable scaffolding.
 - Validated UUIDv7, SHA-256, revision, UTC timestamp, and safe relative-path contract types.
 - `canisend.agent/v2` success/error envelopes, stable error registry, and grouped exit policy.
 - Product/version/build inspection.
-- Twenty deterministic Draft 2020-12 schemas generated from Rust types.
-- Twenty-six typed embedded schemas, prompts, templates, examples, and host assets with SHA-256 verification.
+- Twenty-nine deterministic Draft 2020-12 schemas generated from Rust types.
+- Thirty-seven typed embedded schemas, prompts, templates, examples, and host assets with SHA-256 verification.
 - A truthful capability registry that marks unfinished functions as `planned`.
 - Agent context plus schema/resource diagnostics with deterministic JSON snapshots.
 - Workspace discovery, explicit `--workspace` resolution, initialization, status, integrity checks, and repair.
@@ -46,8 +46,12 @@ workflow kernel, evidence, matching, and planning is now active. The current bin
 - Explicit-consent export of only declared private inputs into an external task directory.
 - Self-contained versioned Codex, Claude, and generic host packs with prompts, examples, schemas, and SHA-256
   manifests.
+- A durable ten-stage workflow DAG with body-free blockers, next actions, scoped rerun, and stale propagation.
+- Revisioned profile evidence normalization, correction, exclusion, confirmation, and exact source spans.
+- Revision-bound criterion-to-evidence matching with strength, gaps, prohibited claims, and core-owned identities.
+- User-confirmed apply/hold/skip decisions, strategy fields, four-document plans, and derived blocker gates.
 
-Application workflow, evidence-backed drafting, and embedded PDF rendering are not yet available in the production
+Evidence-backed drafting, review, packaging, and embedded PDF rendering are not yet available in the production
 binary. Their execution order and acceptance gates are defined in the
 [Rust-native roadmap](docs/superpowers/plans/2026-07-17-rust-native-greenfield-roadmap.md).
 
@@ -98,6 +102,13 @@ cargo build --release --locked
   --job JOB_ID --destination ./agent-work/criteria.json --json
 ./target/release/canisend --workspace ./my-workspace criteria confirm \
   --job JOB_ID --file ./agent-work/criteria.json --json
+./target/release/canisend --workspace ./my-workspace profile evidence export \
+  --job JOB_ID --destination ./agent-work/evidence.json --json
+./target/release/canisend --workspace ./my-workspace match show --job JOB_ID --json
+./target/release/canisend --workspace ./my-workspace plan export \
+  --job JOB_ID --destination ./agent-work/application-plan.json --json
+./target/release/canisend --workspace ./my-workspace plan confirm \
+  --job JOB_ID --file ./agent-work/application-plan.json --json
 ./target/release/canisend --workspace ./my-workspace workspace check --json
 ./target/release/canisend --workspace ./my-workspace workspace backup ./my-backup --json
 ```
