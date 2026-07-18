@@ -4,7 +4,7 @@
 
 **Roadmap items:** R11.2 through R11.4 transition control
 
-**Status:** Dry-run and guarded write implementation complete; Alpha remains current
+**Status:** Guarded Alpha-to-Beta transition executed
 
 ## Problem
 
@@ -31,19 +31,24 @@ ledger.
 Product-version assertions and agent snapshots now resolve the Cargo package version dynamically. They continue to
 verify the public JSON field but no longer create unrelated snapshot churn at each release stage.
 
-## Current preview
+## Executed Beta transition
 
-The Alpha→Beta dry run succeeds and identifies exactly ten changed files: workspace/lock manifests, five manifests
-with internal exact dependencies, the `xtask` manifest, qualification ledger, and release-note heading. It performs
-no writes. The policy and temporary-repository tests prove stage skipping and Beta.2 are rejected, dry-run is
-nonmutating, controlled files reach Beta state, and all four Alpha history surfaces remain byte-identical.
+The final Alpha→Beta dry run identified exactly ten controlled files: workspace/lock manifests, five manifests with
+internal exact dependencies, the `xtask` manifest, qualification ledger, and release-note heading. After the public
+issue snapshot was refreshed at `2026-07-18T14:26:32Z` with zero total/open issues, the guarded write advanced those
+files to `0.7.0-beta.1`. All four immutable Alpha history surfaces remained byte-identical.
+
+The first Beta test run exposed two test-only assumptions that the current workspace would always be Alpha. Their
+assertions now derive the exact current SemVer and release-note heading while retaining fixed historical Alpha,
+Beta, and RC parsing coverage. Focused tests, Clippy, property contracts, and the complete source release check pass
+in Beta state.
 
 Ordinary CI run `29641475661` passed all eight jobs at exact implementation commit
 `f81a262b763e8866f56a543d42d42fbae4683d94`. The run covered dependency policy, complete Rust/property/source gates,
 three-platform recovery, and three-platform native render/documentation/archive smokes. Windows also parsed the
 release-signing and package-lifecycle PowerShell verifiers before completing its native job.
 
-At `2026-07-18T10:54:05Z`, the new readiness refresher completed a live dry run against `jxpeng98/CanISend`: the
+At `2026-07-18T10:54:05Z`, the new readiness refresher completed its earlier live dry run against `jxpeng98/CanISend`: the
 public Alpha release identity matched, the privacy-minimized issue audit returned zero total/open issues, and the
 candidate passed `xtask release verify-beta-readiness`. The candidate was intentionally not written because the
 24-hour snapshot is reserved for the actual credential-ready transition window.
@@ -54,7 +59,7 @@ render/documentation/archive jobs.
 
 ## Boundary and next action
 
-The workspace deliberately remains `0.7.0-alpha.1`. The tool does not create tags, start workflows, publish releases,
-or manufacture signing evidence. Before using `--write`, refresh `release/beta-readiness.json`, provision the named
-Apple and Azure signing configuration from the signing runbook, review the dry-run file set, and pass the Alpha
-source gate from a clean worktree.
+The workspace is now `0.7.0-beta.1` with the ledger at `beta-qualifying`; no tag or release was created by the
+transition. The next step is a clean nonpublishing native release matrix using the Community signing policy. Its two
+macOS ad-hoc records and one Windows self-signed record must be independently verified before any Beta tag is
+created.

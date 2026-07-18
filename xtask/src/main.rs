@@ -7363,13 +7363,13 @@ mod tests {
     }
 
     #[test]
-    fn workspace_version_maps_to_exact_alpha_tag() {
-        assert_eq!(
-            validate_release_tag("v0.7.0-alpha.1"),
-            Ok(ReleaseStage::Alpha)
-        );
-        assert!(validate_release_tag("v0.7.0-alpha.2").is_err());
-        assert!(validate_release_tag("0.7.0-alpha.1").is_err());
+    fn workspace_version_maps_to_exact_current_tag() {
+        let version = Version::parse(env!("CARGO_PKG_VERSION")).expect("workspace version");
+        let stage = ReleaseStage::from_version(&version).expect("workspace release stage");
+        let tag = format!("v{version}");
+        assert_eq!(validate_release_tag(&tag), Ok(stage));
+        assert!(validate_release_tag(version.to_string().as_str()).is_err());
+        assert!(validate_release_tag("v0.7.0-alpha.999").is_err());
         assert_eq!(
             parse_release_tag("v0.7.0-beta.1")
                 .expect("historical Beta tag")
@@ -7404,17 +7404,21 @@ mod tests {
         let root = repository_root();
         let notes =
             fs::read_to_string(root.join("release/RELEASE_NOTES.md")).expect("read release notes");
+        let current_heading = format!("# CanISend {}", env!("CARGO_PKG_VERSION"));
         let transitioned = replace_exact_count(
             &notes,
-            "# CanISend 0.7.0-alpha.1",
-            "# CanISend 0.7.0-beta.1",
+            &current_heading,
+            "# CanISend 0.7.0-rc.999",
             1,
             "test release-note heading",
         )
         .expect("transition release-note heading");
         assert_eq!(
-            notes.split_once('\n').expect("Alpha notes body").1,
-            transitioned.split_once('\n').expect("Beta notes body").1
+            notes.split_once('\n').expect("current notes body").1,
+            transitioned
+                .split_once('\n')
+                .expect("transitioned notes body")
+                .1
         );
 
         let stale = notes.replace(
