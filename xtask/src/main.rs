@@ -25,6 +25,7 @@ const SIGNING_POLICY_SCHEMA: &str = "canisend.signing-policy/v1";
 const SUPPORT_POLICY_SCHEMA: &str = "canisend.support-policy/v1";
 const FEEDBACK_SNAPSHOT_SCHEMA: &str = "canisend.feedback-snapshot/v1";
 const RELEASE_QUALIFICATION_SCHEMA: &str = "canisend.release-qualification/v1";
+const FEATURE_FREEZE_EXCEPTIONS_SCHEMA: &str = "canisend.feature-freeze-exceptions/v1";
 const PACKAGE_MANAGER_QUALIFICATION_POLICY_SCHEMA: &str =
     "canisend.package-manager-qualification-policy/v1";
 const PACKAGE_MANAGER_QUALIFICATION_SCHEMA: &str = "canisend.package-manager-qualification/v1";
@@ -1307,6 +1308,7 @@ fn check_release_qualification() -> Result<(), String> {
     {
         return Err("feature-freeze allowed change classes differ".to_owned());
     }
+    check_feature_freeze_exceptions(feature_freeze)?;
 
     let package_managers = &ledger["package_managers"];
     let channels = package_managers["channels"]
@@ -1408,6 +1410,220 @@ fn validate_documentation_uninstall_progress(value: &Value) -> Result<(), String
         "prepared-native" | "passed" => Ok(()),
         _ => Err("documentation/uninstall qualification status is invalid".to_owned()),
     }
+}
+
+fn check_feature_freeze_exceptions(feature_freeze: &Value) -> Result<(), String> {
+    let root = repository_root();
+    let path = root.join("release/feature-freeze-exceptions.json");
+    let record: Value = serde_json::from_slice(&fs::read(&path).map_err(|error| {
+        format!(
+            "feature-freeze exception record is missing at {}: {error}",
+            path.display()
+        )
+    })?)
+    .map_err(|error| format!("feature-freeze exception record is invalid JSON: {error}"))?;
+    if record["schema"] != FEATURE_FREEZE_EXCEPTIONS_SCHEMA {
+        return Err("feature-freeze exception schema is invalid".to_owned());
+    }
+    let status = required_string(feature_freeze, "status", "feature freeze")?;
+    if record["status"] != status || record["baseline_commit"] != feature_freeze["baseline_commit"]
+    {
+        return Err(
+            "feature-freeze exception record differs from the qualification ledger".to_owned(),
+        );
+    }
+    let exceptions = record["exceptions"]
+        .as_array()
+        .ok_or_else(|| "feature-freeze exceptions must be an array".to_owned())?;
+    let documentation_path = root.join("docs/release/feature-freeze.md");
+    let documentation = fs::read_to_string(&documentation_path)
+        .map_err(|error| format!("feature-freeze documentation is missing: {error}"))?;
+    check_local_markdown_links(&root, &documentation_path, &documentation)?;
+    if status == "planned" {
+        let expected = json!({
+            "schema": FEATURE_FREEZE_EXCEPTIONS_SCHEMA,
+            "status": "planned",
+            "baseline_commit": null,
+            "exceptions": []
+        });
+        if record != expected {
+            return Err("planned feature freeze cannot pre-authorize exceptions".to_owned());
+        }
+        println!("feature freeze: ok (planned, no preauthorized exceptions)");
+        return Ok(());
+    }
+
+    let baseline = required_string(feature_freeze, "baseline_commit", "feature freeze")?;
+    validate_lower_hex("feature-freeze baseline commit", baseline, 40)?;
+    validate_feature_freeze_history(&root, baseline, exceptions)?;
+    println!(
+        "feature freeze: ok (frozen at {baseline}, {} exceptions)",
+        exceptions.len()
+    );
+    Ok(())
+}
+
+fn validate_feature_freeze_history(
+    root: &Path,
+    baseline: &str,
+    exceptions: &[Value],
+) -> Result<(), String> {
+    run_git(root, &["cat-file", "-e", &format!("{baseline}^{{commit}}")])?;
+    run_git(root, &["merge-base", "--is-ancestor", baseline, "HEAD"])?;
+    let range = format!("{baseline}..HEAD");
+    let commits = run_git_lines(root, &["rev-list", "--reverse", &range])?;
+    let mut changed_by_commit = BTreeMap::new();
+    for commit in &commits {
+        let paths = run_git_lines(
+            root,
+            &[
+                "diff-tree",
+                "--first-parent",
+                "-m",
+                "--no-commit-id",
+                "--name-only",
+                "-r",
+                commit,
+            ],
+        )?;
+        let nonautomatic = paths
+            .into_iter()
+            .filter(|path| !is_automatic_feature_freeze_path(path))
+            .collect::<BTreeSet<_>>();
+        if !nonautomatic.is_empty() {
+            changed_by_commit.insert(commit.clone(), nonautomatic);
+        }
+    }
+
+    let mut recorded_commits = Vec::new();
+    for entry in exceptions {
+        let commit = required_string(entry, "commit", "feature-freeze exception")?;
+        validate_lower_hex("feature-freeze exception commit", commit, 40)?;
+        let class = required_string(entry, "class", "feature-freeze exception")?;
+        if !matches!(class, "release-blocker" | "release-evidence") {
+            return Err("feature-freeze exception class is invalid".to_owned());
+        }
+        let reason = required_string(entry, "reason", "feature-freeze exception")?;
+        if reason.len() > 500 || reason.chars().any(char::is_control) {
+            return Err("feature-freeze exception reason is invalid".to_owned());
+        }
+        let paths = entry["paths"]
+            .as_array()
+            .ok_or_else(|| "feature-freeze exception paths are missing".to_owned())?
+            .iter()
+            .map(|path| {
+                path.as_str()
+                    .filter(|path| !path.is_empty())
+                    .map(str::to_owned)
+                    .ok_or_else(|| "feature-freeze exception path is invalid".to_owned())
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let path_set = paths.iter().cloned().collect::<BTreeSet<_>>();
+        if path_set.len() != paths.len()
+            || paths.iter().ne(path_set.iter())
+            || paths.iter().any(|path| {
+                path.starts_with('/')
+                    || path.contains('\\')
+                    || path.split('/').any(|part| matches!(part, "" | "." | ".."))
+                    || path.chars().any(char::is_control)
+            })
+        {
+            return Err(
+                "feature-freeze exception paths must be unique sorted repository paths".to_owned(),
+            );
+        }
+        let actual = changed_by_commit.get(commit).ok_or_else(|| {
+            format!("feature-freeze exception commit `{commit}` has no exceptional changed paths")
+        })?;
+        if &path_set != actual {
+            return Err(format!(
+                "feature-freeze exception paths differ for commit `{commit}`"
+            ));
+        }
+        let canonical = json!({
+            "commit": commit,
+            "class": class,
+            "reason": reason,
+            "paths": paths
+        });
+        if *entry != canonical {
+            return Err(
+                "feature-freeze exception contains unknown or noncanonical fields".to_owned(),
+            );
+        }
+        recorded_commits.push(commit.to_owned());
+    }
+    let expected_commits = commits
+        .into_iter()
+        .filter(|commit| changed_by_commit.contains_key(commit))
+        .collect::<Vec<_>>();
+    if recorded_commits != expected_commits {
+        return Err(
+            "feature-freeze exceptions do not cover the exact post-baseline commit order"
+                .to_owned(),
+        );
+    }
+    Ok(())
+}
+
+fn is_automatic_feature_freeze_path(path: &str) -> bool {
+    path.starts_with("docs/")
+        || path.starts_with("packaging/candidates/")
+        || path.starts_with("release/evidence/")
+        || matches!(
+            path,
+            "README.md"
+                | "CONTRIBUTING.md"
+                | "SECURITY.md"
+                | "CHANGELOG.md"
+                | "release/RELEASE_NOTES.md"
+                | "release/qualification-ledger.json"
+                | "release/feedback-snapshot.json"
+                | "release/support-policy.json"
+                | "release/feature-freeze-exceptions.json"
+        )
+}
+
+fn run_git(root: &Path, arguments: &[&str]) -> Result<(), String> {
+    let output = Command::new("git")
+        .current_dir(root)
+        .args(arguments)
+        .output()
+        .map_err(|error| {
+            format!("could not execute Git for feature-freeze verification: {error}")
+        })?;
+    if !output.status.success() {
+        return Err(format!(
+            "feature-freeze Git command `git {}` failed: {}",
+            arguments.join(" "),
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    Ok(())
+}
+
+fn run_git_lines(root: &Path, arguments: &[&str]) -> Result<Vec<String>, String> {
+    let output = Command::new("git")
+        .current_dir(root)
+        .args(arguments)
+        .output()
+        .map_err(|error| {
+            format!("could not execute Git for feature-freeze verification: {error}")
+        })?;
+    if !output.status.success() {
+        return Err(format!(
+            "feature-freeze Git command `git {}` failed: {}",
+            arguments.join(" "),
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    let stdout = String::from_utf8(output.stdout)
+        .map_err(|_| "feature-freeze Git output is not UTF-8".to_owned())?;
+    Ok(stdout
+        .lines()
+        .filter(|line| !line.is_empty())
+        .map(str::to_owned)
+        .collect())
 }
 
 fn qualification_status_for_stage(stage: ReleaseStage) -> &'static str {
@@ -3947,6 +4163,81 @@ mod tests {
             "evidence": ["five-target lifecycle smoke passed"]
         });
         validate_documentation_uninstall_progress(&qualified).expect("native preparation evidence");
+    }
+
+    #[test]
+    fn planned_feature_freeze_cannot_preapprove_source_changes() {
+        let freeze = json!({"status": "planned", "baseline_commit": null});
+        check_feature_freeze_exceptions(&freeze).expect("planned feature freeze");
+        assert!(is_automatic_feature_freeze_path(
+            "docs/release/feature-freeze.md"
+        ));
+        assert!(is_automatic_feature_freeze_path(
+            "release/qualification-ledger.json"
+        ));
+        assert!(!is_automatic_feature_freeze_path(
+            "crates/canisend-store/src/lib.rs"
+        ));
+        assert!(!is_automatic_feature_freeze_path(
+            ".github/workflows/release.yml"
+        ));
+    }
+
+    #[test]
+    fn frozen_feature_history_requires_exact_commit_paths() {
+        let root = std::env::temp_dir().join(format!(
+            "canisend-feature-freeze-history-{}",
+            std::process::id()
+        ));
+        if root.exists() {
+            fs::remove_dir_all(&root).expect("remove stale feature-freeze fixture");
+        }
+        fs::create_dir_all(root.join("crates")).expect("create source fixture directory");
+        run_git(&root, &["init", "--initial-branch=main"]).expect("initialize fixture repository");
+        run_git(&root, &["config", "user.name", "CanISend qualification"])
+            .expect("configure fixture name");
+        run_git(
+            &root,
+            &["config", "user.email", "qualification@canisend.invalid"],
+        )
+        .expect("configure fixture email");
+        fs::write(root.join("crates/core.txt"), "baseline\n").expect("write baseline source");
+        run_git(&root, &["add", "crates/core.txt"]).expect("stage baseline source");
+        run_git(&root, &["commit", "-m", "baseline"]).expect("commit baseline source");
+        let baseline = run_git_lines(&root, &["rev-parse", "HEAD"])
+            .expect("read baseline commit")
+            .pop()
+            .expect("baseline commit");
+
+        fs::create_dir_all(root.join("docs")).expect("create docs fixture directory");
+        fs::write(root.join("docs/note.md"), "automatic documentation\n")
+            .expect("write documentation fixture");
+        run_git(&root, &["add", "docs/note.md"]).expect("stage documentation fixture");
+        run_git(&root, &["commit", "-m", "document release"])
+            .expect("commit documentation fixture");
+
+        fs::write(root.join("crates/core.txt"), "release blocker fix\n")
+            .expect("write blocker fixture");
+        run_git(&root, &["add", "crates/core.txt"]).expect("stage blocker fixture");
+        run_git(&root, &["commit", "-m", "fix release blocker"]).expect("commit blocker fixture");
+        let blocker = run_git_lines(&root, &["rev-parse", "HEAD"])
+            .expect("read blocker commit")
+            .pop()
+            .expect("blocker commit");
+
+        let exceptions = vec![json!({
+            "commit": blocker,
+            "class": "release-blocker",
+            "reason": "Correct the owned release implementation before RC qualification.",
+            "paths": ["crates/core.txt"]
+        })];
+        validate_feature_freeze_history(&root, &baseline, &exceptions)
+            .expect("exact feature-freeze history");
+
+        let mut wrong = exceptions;
+        wrong[0]["paths"] = json!(["crates/other.txt"]);
+        assert!(validate_feature_freeze_history(&root, &baseline, &wrong).is_err());
+        fs::remove_dir_all(root).expect("remove feature-freeze fixture");
     }
 
     #[test]

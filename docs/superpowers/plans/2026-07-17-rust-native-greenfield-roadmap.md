@@ -252,6 +252,10 @@
   same lifecycle on Windows 2025, validates WinGet manifests, and emits a run-bound Windows Sandbox kit. Hosted CI
   deliberately stops at three records; the fourth must come from the fresh-Sandbox lifecycle before machine
   verification or ledger promotion.
+- 2026-07-18: Added Git-backed RC feature-freeze enforcement in non-authorizing planned mode. After signed Beta, a
+  reviewed baseline will make the release checker reconstruct every commit and changed path through `HEAD`; only a
+  narrow documentation/evidence set is automatic, while every other commit needs an exact sorted path record and
+  release-blocker/evidence reason. The R11.3 checkbox stays open until that future baseline is activated.
 
 ## 1. Executive Decision
 
