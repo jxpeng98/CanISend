@@ -7,11 +7,15 @@ Java, SQLite, Typst, fonts, or a package manager runtime.
 
 The initial release line verifies these archives natively:
 
-- macOS arm64;
-- Linux x86_64 GNU;
-- Windows x86_64 MSVC.
+- macOS arm64: `aarch64-apple-darwin` (`.tar.gz`);
+- macOS Intel: `x86_64-apple-darwin` (`.tar.gz`);
+- Linux x86_64 with glibc: `x86_64-unknown-linux-gnu` (`.tar.gz`);
+- Linux x86_64 static musl: `x86_64-unknown-linux-musl` (`.tar.gz`);
+- Windows x86_64: `x86_64-pc-windows-msvc` (`.zip`).
 
-Additional targets listed in the release roadmap are not supported until their packaged-binary matrix passes.
+Linux arm64 is not supported in the `0.7` line. Choose the archive by operating system, CPU architecture, and—on
+Linux—the available C library. `ldd --version` normally identifies a glibc system; use the musl archive for a musl
+distribution or when the glibc archive cannot start because its loader is unavailable.
 
 ## Install from a release archive
 
@@ -21,6 +25,9 @@ Additional targets listed in the release roadmap are not supported until their p
    with the binary when redistributing it.
 4. Move `canisend` (`canisend.exe` on Windows) to a directory on `PATH`, or invoke it by absolute path.
 5. Run the native self-check.
+
+Every archive has exactly one top-level directory named `canisend-VERSION-TARGET`. Keep that directory intact while
+testing the release; moving only the executable is appropriate after verification.
 
 macOS or Linux checksum verification:
 
@@ -45,12 +52,19 @@ canisend agent capabilities
 `doctor` must report verified embedded resources and schemas, an embedded Typst renderer, disabled system-font and
 runtime-package lookup, and `Python runtime: not required`. Do not continue with a binary that fails this check.
 
+For complete checksum, SBOM, manifest, and GitHub provenance verification, follow the
+[release verification guide](release-verification.md).
+
 ## Preview signing status
 
 Alpha and preview archives may be unsigned until the R11 signing/notarization gates are complete. Verify the
 published checksum and release provenance. Do not disable operating-system security globally. Stable installation
 instructions will name the exact notarized/signed artifacts and supported package-manager channels after those
 channels pass the release matrix.
+
+An unsigned alpha may trigger macOS Gatekeeper or Windows SmartScreen. Alpha testers should confirm the tag,
+checksum, and GitHub attestation before making a one-binary exception through the operating system's normal security
+UI. Never disable Gatekeeper, SmartScreen, antivirus, or execution policy globally to run CanISend.
 
 ## Build from source for development
 

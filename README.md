@@ -20,6 +20,7 @@ the Git tag `archive/python-v0.6.0b1-final`.
 ## User guides
 
 - [Installation](docs/guides/installation.md)
+- [Release verification](docs/guides/release-verification.md)
 - [Quick start](docs/guides/quick-start.md)
 - [Agent integration](docs/guides/agent-integration.md)
 - [Privacy and consent](docs/guides/privacy-and-consent.md)

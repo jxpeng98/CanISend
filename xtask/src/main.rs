@@ -160,6 +160,7 @@ fn check_documentation() -> Result<(), String> {
     let guide_root = root.join("docs/guides");
     let required = [
         "installation.md",
+        "release-verification.md",
         "quick-start.md",
         "agent-integration.md",
         "privacy-and-consent.md",
@@ -280,6 +281,7 @@ fn check_release_contract() -> Result<(), String> {
     }
     for required in [
         "release/KNOWN_LIMITATIONS.md",
+        "release/ISSUE_COLLECTION.md",
         "release/RELEASE_NOTES.md",
         "scripts/stage_native_bundle.sh",
         "scripts/package_native_release.sh",
@@ -644,6 +646,7 @@ fn assemble_release(
     write_release_sbom(&sbom_path)?;
     let supplemental_sources = [
         ("KNOWN_LIMITATIONS.md", "release/KNOWN_LIMITATIONS.md"),
+        ("ISSUE_COLLECTION.md", "release/ISSUE_COLLECTION.md"),
         ("RELEASE_NOTES.md", "release/RELEASE_NOTES.md"),
         ("THIRD_PARTY_NOTICES.md", "THIRD_PARTY_NOTICES.md"),
     ];

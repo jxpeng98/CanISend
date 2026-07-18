@@ -67,6 +67,7 @@ for required in \
   "$bundle/TYPST-ASSETS-LICENSE" \
   "$bundle/TYPST-ASSETS-NOTICE" \
   "$bundle/KNOWN_LIMITATIONS.md" \
+  "$bundle/FEEDBACK.md" \
   "$bundle/INSTALL.md" \
   "$bundle/PRIVACY.md" \
   "$bundle/SECURITY.md" \
