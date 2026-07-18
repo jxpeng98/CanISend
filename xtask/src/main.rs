@@ -23,6 +23,7 @@ const BETA_CONTRACT_FREEZE_SCHEMA: &str = "canisend.beta-contract-freeze/v1";
 const CHANNEL_CANDIDATE_SOURCE_SCHEMA: &str = "canisend.channel-candidate-source/v1";
 const SIGNING_POLICY_SCHEMA: &str = "canisend.signing-policy/v1";
 const SUPPORT_POLICY_SCHEMA: &str = "canisend.support-policy/v1";
+const FEEDBACK_SNAPSHOT_SCHEMA: &str = "canisend.feedback-snapshot/v1";
 const CODE_SIGNING_EVIDENCE_SCHEMA: &str = "canisend.code-signing-evidence/v1";
 const WINGET_MANIFEST_VERSION: &str = "1.12.0";
 const NATIVE_ALPHA_TAG: &str = "v0.7.0-alpha.1";
@@ -55,6 +56,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
             check_channel_candidates()?;
             check_signing_policy()?;
             check_support_policy()?;
+            check_release_feedback()?;
             check_release_contract()
         }
         [area, command] if area == "release" && command == "freeze-candidate" => {
@@ -937,6 +939,187 @@ fn support_policy_publication_status(version: &Version) -> &'static str {
         "published"
     } else {
         "pre-stable-draft"
+    }
+}
+
+fn check_release_feedback() -> Result<(), String> {
+    let root = repository_root();
+    let path = root.join("release/feedback-snapshot.json");
+    let snapshot: Value = serde_json::from_slice(&fs::read(&path).map_err(|error| {
+        format!(
+            "release feedback snapshot is missing at {}: {error}",
+            path.display()
+        )
+    })?)
+    .map_err(|error| format!("release feedback snapshot is invalid JSON: {error}"))?;
+    if snapshot["schema"] != FEEDBACK_SNAPSHOT_SCHEMA
+        || snapshot["default_telemetry"] != false
+        || snapshot["privacy_boundary"] != "public-metadata-only"
+    {
+        return Err("release feedback snapshot identity or privacy boundary is invalid".to_owned());
+    }
+    let captured_at = snapshot["captured_at"]
+        .as_str()
+        .filter(|value| value.contains('T') && value.ends_with('Z'))
+        .ok_or_else(|| "release feedback snapshot has no UTC captured_at".to_owned())?;
+    let snapshot_stage = snapshot["snapshot_stage"]
+        .as_str()
+        .ok_or_else(|| "release feedback snapshot has no stage".to_owned())?;
+    if !matches!(snapshot_stage, "alpha-baseline" | "beta" | "rc") {
+        return Err(format!(
+            "unsupported release feedback snapshot stage `{snapshot_stage}`"
+        ));
+    }
+    let release = &snapshot["release"];
+    let repository = env!("CARGO_PKG_REPOSITORY").trim_start_matches("https://github.com/");
+    let published_at = release["published_at"]
+        .as_str()
+        .filter(|value| value.contains('T') && value.ends_with('Z'))
+        .ok_or_else(|| "release feedback snapshot has no release publication time".to_owned())?;
+    let release_tag = release["tag"]
+        .as_str()
+        .and_then(|value| value.strip_prefix('v'))
+        .ok_or_else(|| "release feedback snapshot has no valid release tag".to_owned())?;
+    let release_version = Version::parse(release_tag)
+        .map_err(|error| format!("release feedback tag is invalid SemVer: {error}"))?;
+    let expected_prerelease_prefix = match snapshot_stage {
+        "alpha-baseline" => "alpha.",
+        "beta" => "beta.",
+        "rc" => "rc.",
+        _ => unreachable!("snapshot stage was validated"),
+    };
+    if release["repository"] != repository
+        || !release_version
+            .pre
+            .as_str()
+            .starts_with(expected_prerelease_prefix)
+        || published_at > captured_at
+    {
+        return Err("release feedback snapshot does not match its public release stage".to_owned());
+    }
+
+    let feedback = &snapshot["public_feedback"];
+    let open = feedback["open_issue_count"]
+        .as_u64()
+        .ok_or_else(|| "release feedback open issue count is invalid".to_owned())?;
+    let closed = feedback["closed_issue_count"]
+        .as_u64()
+        .ok_or_else(|| "release feedback closed issue count is invalid".to_owned())?;
+    let total = feedback["total_issue_count"]
+        .as_u64()
+        .ok_or_else(|| "release feedback total issue count is invalid".to_owned())?;
+    let issue_numbers = feedback["issue_numbers"]
+        .as_array()
+        .ok_or_else(|| "release feedback issue_numbers must be an array".to_owned())?;
+    let unique_issue_numbers = issue_numbers
+        .iter()
+        .filter_map(Value::as_u64)
+        .collect::<BTreeSet<_>>();
+    if open + closed != total
+        || usize::try_from(total).ok() != Some(issue_numbers.len())
+        || unique_issue_numbers.len() != issue_numbers.len()
+        || unique_issue_numbers.contains(&0)
+    {
+        return Err("release feedback issue counts are inconsistent".to_owned());
+    }
+
+    let downloads = &snapshot["release_downloads"];
+    let asset_count = downloads["asset_count"]
+        .as_u64()
+        .ok_or_else(|| "release feedback asset count is invalid".to_owned())?;
+    let total_downloads = downloads["total_downloads"]
+        .as_u64()
+        .ok_or_else(|| "release feedback total downloads are invalid".to_owned())?;
+    let native_archive_count = downloads["native_archive_count"]
+        .as_u64()
+        .ok_or_else(|| "release feedback native archive count is invalid".to_owned())?;
+    let native_archive_downloads = downloads["native_archive_downloads"]
+        .as_u64()
+        .ok_or_else(|| "release feedback native archive downloads are invalid".to_owned())?;
+    if native_archive_count > asset_count
+        || native_archive_downloads > total_downloads
+        || downloads["maintainer_verification_included"] != true
+    {
+        return Err("release download evidence overclaims independent adoption".to_owned());
+    }
+
+    let findings = snapshot["qualification_findings"]
+        .as_array()
+        .filter(|findings| !findings.is_empty())
+        .ok_or_else(|| "release feedback snapshot has no qualification findings".to_owned())?;
+    for finding in findings {
+        for field in ["id", "evidence", "resolution"] {
+            if finding[field]
+                .as_str()
+                .is_none_or(|value| value.trim().is_empty())
+            {
+                return Err(format!(
+                    "release qualification finding is missing `{field}`"
+                ));
+            }
+        }
+    }
+
+    let roadmap = &snapshot["next_roadmap"];
+    let roadmap_path = roadmap["path"]
+        .as_str()
+        .ok_or_else(|| "release feedback snapshot has no next-roadmap path".to_owned())?;
+    if roadmap_path != "docs/superpowers/plans/2026-07-18-post-0.7-roadmap.md" {
+        return Err("release feedback snapshot references an unexpected next roadmap".to_owned());
+    }
+    let roadmap_status = roadmap["status"]
+        .as_str()
+        .ok_or_else(|| "release feedback snapshot has no next-roadmap status".to_owned())?;
+    let version = Version::parse(env!("CARGO_PKG_VERSION"))
+        .map_err(|error| format!("workspace version is invalid: {error}"))?;
+    let (required_stage, required_status) = feedback_publication_requirements(&version);
+    if required_stage.is_some_and(|required| snapshot_stage != required)
+        || roadmap_status != required_status
+    {
+        return Err(format!(
+            "release feedback snapshot must be stage {} with roadmap status `{required_status}` for version {version}",
+            required_stage.unwrap_or("alpha, beta, or rc")
+        ));
+    }
+    let roadmap_file = root.join(roadmap_path);
+    let roadmap_body = fs::read_to_string(&roadmap_file).map_err(|error| {
+        format!(
+            "next roadmap is missing at {}: {error}",
+            roadmap_file.display()
+        )
+    })?;
+    check_local_markdown_links(&root, &roadmap_file, &roadmap_body)?;
+    let required_status_marker = if required_status == "published" {
+        "**Status:** Published"
+    } else {
+        "**Status:** Draft"
+    };
+    if !roadmap_body.contains(required_status_marker) {
+        return Err(format!(
+            "next roadmap is missing status marker `{required_status_marker}`"
+        ));
+    }
+    for required in [
+        "Measured baseline",
+        "No public user issue",
+        "maintainer verification",
+        "Beta/RC refresh gate",
+    ] {
+        if !roadmap_body.contains(required) {
+            return Err(format!("next roadmap is missing `{required}`"));
+        }
+    }
+    println!(
+        "release feedback: ok ({snapshot_stage}, {total} public issues, {total_downloads} downloads, captured {captured_at})"
+    );
+    Ok(())
+}
+
+fn feedback_publication_requirements(version: &Version) -> (Option<&'static str>, &'static str) {
+    if version.pre.is_empty() {
+        (Some("rc"), "published")
+    } else {
+        (None, "draft")
     }
 }
 
@@ -2813,6 +2996,20 @@ mod tests {
             "pre-stable-draft"
         );
         assert_eq!(support_policy_publication_status(&stable), "published");
+    }
+
+    #[test]
+    fn stable_requires_rc_feedback_and_published_next_roadmap() {
+        let prerelease = Version::parse("0.7.0-rc.1").expect("RC version");
+        let stable = Version::parse("0.7.0").expect("Stable version");
+        assert_eq!(
+            feedback_publication_requirements(&prerelease),
+            (None, "draft")
+        );
+        assert_eq!(
+            feedback_publication_requirements(&stable),
+            (Some("rc"), "published")
+        );
     }
 
     #[test]

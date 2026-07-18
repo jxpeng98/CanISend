@@ -1938,6 +1938,11 @@ native targets, Agent/schema/resource v2, append-only workspace v2, generated ho
 unsupported surfaces. The policy remains a pre-Stable draft; the release check requires an explicit `published`
 transition when the workspace version becomes Stable, so this checklist item cannot close early.
 
+The [measured Alpha baseline](../../notes/rust-native/2026-07-18-r11-feedback-baseline.md), machine snapshot
+`release/feedback-snapshot.json`, and [post-0.7 draft](2026-07-18-post-0.7-roadmap.md) distinguish zero public issues
+and maintainer-included download counts from two internal cross-platform qualification findings. Stable requires an
+RC-stage refresh and published roadmap status, so the feedback checklist remains open.
+
 **Deliverables:** Signed, documented, platform-specific native releases.
 
 **Exit criteria:** A supported user installs and completes the documented workflow without any development runtime.
