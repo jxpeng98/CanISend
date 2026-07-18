@@ -24,4 +24,6 @@ The pinned nightly toolchain and cargo-fuzz 0.13.2 compiled all three harnesses 
 artifact, and build directories are ignored and contain no project/user data.
 
 Dispatch the full five-minute-per-target workflow and require all three jobs to finish successfully. The Definition
-of Done fuzz checkbox remains open until that exact GitHub Actions run is recorded.
+of Done fuzz checkbox remains open until that exact GitHub Actions run is recorded. GitHub does not allow a newly
+introduced workflow to be manually dispatched until the workflow path exists on the default branch; the first full
+run therefore belongs to the reviewed Rust-native main/RC cutover, not an unevidenced branch-only claim.

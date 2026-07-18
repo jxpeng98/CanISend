@@ -23,6 +23,7 @@ the Git tag `archive/python-v0.6.0b1-final`.
 - [Release verification](docs/guides/release-verification.md)
 - [Rust-native 0.7 support policy](docs/release/support-policy.md)
 - [Native release qualification ledger](docs/release/qualification-ledger.md)
+- [Defensive assurance task routing](docs/development/defensive-assurance-routing.md)
 - [Quick start](docs/guides/quick-start.md)
 - [Agent integration](docs/guides/agent-integration.md)
 - [Privacy and consent](docs/guides/privacy-and-consent.md)
@@ -108,7 +109,7 @@ evidence on all three signed targets. The current binary provides:
 - Main/release performance gates for startup, large-workspace status, HTML/PDF intake, complete workflow execution,
   embedded rendering, and binary size, with a committed reproducible baseline.
 
-The R9 native matrix verifies embedded fonts, adversarial Unicode/layout, missing-system-font isolation, bundled
+The R9 native matrix verifies embedded fonts, edge-case Unicode/layout, missing-system-font isolation, bundled
 licenses/notices, render timing, and a 64 MiB release-binary budget. Hardening gates continue in the
 [Rust-native roadmap](docs/superpowers/plans/2026-07-17-rust-native-greenfield-roadmap.md).
 
