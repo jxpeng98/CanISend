@@ -29,3 +29,8 @@ uninstall. Until that evidence exists, the qualification ledger and R11.3/R11.4 
 records, mixed run IDs, mixed candidate pairs, unchanged Beta/RC candidate hashes, false/unknown checks, wrong native
 environments, observed-version drift, and noncanonical fields. This makes the future workflow evidence reviewable
 without allowing a hand-written `passed` assertion to qualify Stable.
+
+The read-only release verifier now derives identity from the supplied tag, so RC source can independently re-verify
+both historical Beta assets and current RC assets. `verify-package-candidates` then requires the same release line,
+signed non-Alpha manifests, exact candidate manifest hashes, source commits, and all three package archive records.
+Build, assembly, signing, and publication commands remain bound to the current workspace version.

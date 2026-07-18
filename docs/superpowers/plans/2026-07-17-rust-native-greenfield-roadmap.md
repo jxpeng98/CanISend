@@ -243,6 +243,10 @@
   `29640222233`. All eight ordinary CI jobs passed, including the named property step, full Rust suite, formatting,
   Clippy, release check/build/smoke, dependency policy, three-OS recovery, and three-OS render/documentation gates.
   The combined quality Definition of Done item is complete; scheduled fuzz and signed publication remain separate.
+- 2026-07-18: Extended only the read-only release verifier to validate historical version-tagged assets, then added
+  a Beta/RC package-candidate pair gate. RC source can now re-verify both complete public asset sets and require that
+  checked-in Homebrew, Scoop, and WinGet candidates bind their exact signed manifests, source commits, archives,
+  sizes, and hashes. Assembly and publication remain locked to the current workspace version.
 
 ## 1. Executive Decision
 

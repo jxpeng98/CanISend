@@ -41,6 +41,18 @@ The qualification ledger may change `package_managers.status` from `candidates-o
 The later workflow implementation will be manual-only and read-only with respect to external package repositories.
 The final Stable publication remains a separate authorized action after two clean RC release matrices.
 
+Before running a package lifecycle, download both complete public release asset sets and verify the candidate pair:
+
+```bash
+cargo run -p xtask --locked -- release verify-package-candidates \
+  v0.7.0-beta.1 BETA_ASSETS v0.7.0-rc.1 RC_ASSETS
+```
+
+This command re-verifies every checksum and manifest field in both historical releases, including mandatory
+non-Alpha signing records, then binds each checked-in candidate source and channel artifact to the corresponding
+public manifest bytes. Release assembly and tag publication remain restricted to the current workspace version;
+only the read-only verifier accepts historical tags.
+
 After collecting the four JSON records, verify them with:
 
 ```bash

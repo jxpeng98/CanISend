@@ -113,9 +113,19 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
         {
             verify_package_manager_evidence(from_tag, to_tag, Path::new(evidence))
         }
+        [area, command, from_tag, from_assets, to_tag, to_assets]
+            if area == "release" && command == "verify-package-candidates" =>
+        {
+            verify_package_candidate_pair(
+                from_tag,
+                Path::new(from_assets),
+                to_tag,
+                Path::new(to_assets),
+            )
+        }
         _ => Err(
             "usage: cargo run -p xtask -- schemas <check|write> | <resources|docs> check | \
-             release <check|freeze-candidate|validate-tag TAG|sbom OUTPUT|assemble TAG COMMIT ARTIFACTS OUTPUT|verify TAG DIRECTORY|channels TAG ASSETS OUTPUT|bind-signing-evidence TAG TARGET EVIDENCE BINARY ARCHIVE|verify-package-evidence FROM_TAG TO_TAG DIRECTORY>"
+             release <check|freeze-candidate|validate-tag TAG|sbom OUTPUT|assemble TAG COMMIT ARTIFACTS OUTPUT|verify TAG DIRECTORY|channels TAG ASSETS OUTPUT|bind-signing-evidence TAG TARGET EVIDENCE BINARY ARCHIVE|verify-package-candidates FROM_TAG FROM_ASSETS TO_TAG TO_ASSETS|verify-package-evidence FROM_TAG TO_TAG DIRECTORY>"
                 .to_owned(),
         ),
     }
@@ -2339,6 +2349,97 @@ fn verify_package_manager_evidence(
     Ok(())
 }
 
+fn verify_package_candidate_pair(
+    from_tag: &str,
+    from_assets: &Path,
+    to_tag: &str,
+    to_assets: &Path,
+) -> Result<(), String> {
+    let (from_version, from_stage) = parse_release_tag(from_tag)?;
+    let (to_version, to_stage) = parse_release_tag(to_tag)?;
+    if from_stage != ReleaseStage::Beta || to_stage != ReleaseStage::ReleaseCandidate {
+        return Err("package-manager candidates require a Beta-to-RC tag pair".to_owned());
+    }
+    if (from_version.major, from_version.minor, from_version.patch)
+        != (to_version.major, to_version.minor, to_version.patch)
+    {
+        return Err("package-manager candidate tags must use the same release line".to_owned());
+    }
+    verify_release(from_tag, from_assets)?;
+    verify_release(to_tag, to_assets)?;
+
+    let root = repository_root().join("packaging/candidates");
+    let from_source = check_channel_candidate_directory(&root.join(from_tag))?;
+    let to_source = check_channel_candidate_directory(&root.join(to_tag))?;
+    validate_package_candidate_source_against_assets(
+        &from_source,
+        from_tag,
+        from_stage,
+        from_assets,
+    )?;
+    validate_package_candidate_source_against_assets(&to_source, to_tag, to_stage, to_assets)?;
+    if from_source.source_commit == to_source.source_commit
+        || from_source.manifest_sha256 == to_source.manifest_sha256
+    {
+        return Err("Beta and RC candidates must bind distinct release sources".to_owned());
+    }
+    println!("package-manager candidates: ok ({from_tag} -> {to_tag})");
+    Ok(())
+}
+
+fn validate_package_candidate_source_against_assets(
+    source: &ChannelCandidateSource,
+    expected_tag: &str,
+    expected_stage: ReleaseStage,
+    assets: &Path,
+) -> Result<(), String> {
+    if source.tag != expected_tag || source.stage != expected_stage {
+        return Err(format!(
+            "package-manager candidate `{expected_tag}` has the wrong release identity"
+        ));
+    }
+    let manifest_path = assets.join(&source.manifest_file);
+    if sha256_file(&manifest_path)? != source.manifest_sha256 {
+        return Err(format!(
+            "package-manager candidate `{expected_tag}` does not bind the verified public manifest"
+        ));
+    }
+    let manifest: Value = serde_json::from_slice(&fs::read(&manifest_path).map_err(|error| {
+        format!(
+            "could not read package-manager source manifest {}: {error}",
+            manifest_path.display()
+        )
+    })?)
+    .map_err(|error| format!("package-manager source manifest is invalid JSON: {error}"))?;
+    if manifest["tag"] != expected_tag
+        || manifest["version"] != source.version
+        || manifest["stage"] != expected_stage.as_str()
+        || manifest["source"]["commit"] != source.source_commit
+    {
+        return Err(format!(
+            "package-manager candidate `{expected_tag}` differs from its verified release manifest"
+        ));
+    }
+    let manifest_artifacts = manifest["artifacts"]
+        .as_array()
+        .ok_or_else(|| "verified release manifest artifacts are missing".to_owned())?;
+    for (target, source_artifact) in &source.artifacts {
+        let manifest_artifact = manifest_artifacts
+            .iter()
+            .find(|artifact| artifact["target"] == target.as_str())
+            .ok_or_else(|| format!("verified release manifest has no `{target}` artifact"))?;
+        if manifest_artifact["archive"] != source_artifact.archive
+            || manifest_artifact["sha256"] != source_artifact.sha256
+            || manifest_artifact["size"] != source_artifact.size
+        {
+            return Err(format!(
+                "package-manager candidate artifact `{target}` differs from the verified release"
+            ));
+        }
+    }
+    Ok(())
+}
+
 #[allow(clippy::too_many_arguments)]
 fn validate_package_manager_evidence_record(
     value: &Value,
@@ -3170,8 +3271,9 @@ fn assemble_release(
 }
 
 fn verify_release(tag: &str, directory: &Path) -> Result<(), String> {
-    let stage = validate_release_tag(tag)?;
-    let version = env!("CARGO_PKG_VERSION");
+    let (parsed_version, stage) = parse_release_tag(tag)?;
+    let version = parsed_version.to_string();
+    println!("release tag: ok ({tag}, stage {})", stage.as_str());
     let manifest_path = directory.join(format!("canisend-{version}-manifest.json"));
     let manifest: Value = serde_json::from_slice(&fs::read(&manifest_path).map_err(|error| {
         format!(
@@ -3187,7 +3289,7 @@ fn verify_release(tag: &str, directory: &Path) -> Result<(), String> {
     {
         return Err("release manifest identity does not match this build".to_owned());
     }
-    verify_release_manifest_contents(stage, version, directory, &manifest)?;
+    verify_release_manifest_contents(stage, &version, directory, &manifest)?;
     let checksums_path = directory.join("SHA256SUMS");
     let checksums = fs::read_to_string(&checksums_path).map_err(|error| {
         format!(
@@ -3658,6 +3760,18 @@ mod tests {
         );
         assert!(validate_release_tag("v0.7.0-alpha.2").is_err());
         assert!(validate_release_tag("0.7.0-alpha.1").is_err());
+        assert_eq!(
+            parse_release_tag("v0.7.0-beta.1")
+                .expect("historical Beta tag")
+                .1,
+            ReleaseStage::Beta
+        );
+        assert_eq!(
+            parse_release_tag("v0.7.0-rc.1")
+                .expect("historical RC tag")
+                .1,
+            ReleaseStage::ReleaseCandidate
+        );
     }
 
     #[test]
@@ -3901,6 +4015,60 @@ mod tests {
             .expect("verify complete package evidence");
         assert!(verify_package_manager_evidence("v0.7.0-alpha.1", "v0.7.0-rc.1", &root).is_err());
         fs::remove_dir_all(root).expect("remove package evidence fixture");
+    }
+
+    #[test]
+    fn package_candidate_source_binds_verified_manifest_bytes() {
+        let root = std::env::temp_dir().join(format!(
+            "canisend-package-candidate-source-{}",
+            std::process::id()
+        ));
+        if root.exists() {
+            fs::remove_dir_all(&root).expect("remove stale package source fixture");
+        }
+        fs::create_dir_all(&root).expect("create package source fixture");
+        let mut source = sample_channel_source();
+        let artifacts = source
+            .artifacts
+            .values()
+            .map(|artifact| {
+                json!({
+                    "target": artifact.target,
+                    "archive": artifact.archive,
+                    "sha256": artifact.sha256,
+                    "size": artifact.size
+                })
+            })
+            .collect::<Vec<_>>();
+        let manifest = json!({
+            "tag": source.tag,
+            "version": source.version,
+            "stage": source.stage.as_str(),
+            "source": {"commit": source.source_commit},
+            "artifacts": artifacts
+        });
+        let manifest_path = root.join(&source.manifest_file);
+        write_pretty_json(&manifest_path, &manifest).expect("write package source manifest");
+        source.manifest_sha256 = sha256_file(&manifest_path).expect("manifest fixture hash");
+        validate_package_candidate_source_against_assets(
+            &source,
+            NATIVE_ALPHA_TAG,
+            ReleaseStage::Alpha,
+            &root,
+        )
+        .expect("candidate source binding");
+
+        source.manifest_sha256 = "0".repeat(64);
+        assert!(
+            validate_package_candidate_source_against_assets(
+                &source,
+                NATIVE_ALPHA_TAG,
+                ReleaseStage::Alpha,
+                &root,
+            )
+            .is_err()
+        );
+        fs::remove_dir_all(root).expect("remove package source fixture");
     }
 
     #[test]
