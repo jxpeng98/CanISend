@@ -1,14 +1,5 @@
 {
   "$defs": {
-    "ActorKind": {
-      "enum": [
-        "user",
-        "host-agent",
-        "configured-provider",
-        "system"
-      ],
-      "type": "string"
-    },
     "ApplicationDecision": {
       "enum": [
         "apply",
@@ -116,6 +107,43 @@
       ],
       "type": "string"
     },
+    "DocumentPlanCandidateRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "constraints": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "executor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExecutionMode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "$ref": "#/$defs/DocumentKind"
+        },
+        "rationale": {
+          "type": "string"
+        },
+        "requirement": {
+          "$ref": "#/$defs/DocumentRequirement"
+        }
+      },
+      "required": [
+        "kind",
+        "requirement",
+        "rationale",
+        "constraints"
+      ],
+      "type": "object"
+    },
     "DocumentRequirement": {
       "enum": [
         "required",
@@ -164,56 +192,9 @@
         "warning"
       ],
       "type": "string"
-    },
-    "PlannedDocumentRecord": {
-      "additionalProperties": false,
-      "properties": {
-        "constraints": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "executor": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ExecutionMode"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "id": {
-          "type": "string"
-        },
-        "kind": {
-          "$ref": "#/$defs/DocumentKind"
-        },
-        "rationale": {
-          "type": "string"
-        },
-        "requirement": {
-          "$ref": "#/$defs/DocumentRequirement"
-        },
-        "revision": {
-          "format": "uint64",
-          "minimum": 0,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "id",
-        "kind",
-        "requirement",
-        "rationale",
-        "constraints",
-        "revision"
-      ],
-      "type": "object"
     }
   },
-  "$id": "https://schemas.canisend.dev/v2/application-plan.schema.json",
+  "$id": "https://schemas.canisend.dev/v2/application-plan-candidate.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
@@ -223,20 +204,14 @@
       },
       "type": "array"
     },
-    "decided_by": {
-      "$ref": "#/$defs/ActorKind"
-    },
     "decision": {
       "$ref": "#/$defs/ApplicationDecision"
     },
     "documents": {
       "items": {
-        "$ref": "#/$defs/PlannedDocumentRecord"
+        "$ref": "#/$defs/DocumentPlanCandidateRecord"
       },
       "type": "array"
-    },
-    "id": {
-      "type": "string"
     },
     "job_id": {
       "type": "string"
@@ -244,28 +219,20 @@
     "matches_artifact": {
       "$ref": "#/$defs/ArtifactReference"
     },
-    "revision": {
-      "format": "uint64",
-      "minimum": 0,
-      "type": "integer"
-    },
     "strategy": {
       "$ref": "#/$defs/ApplicationStrategyRecord"
     }
   },
   "required": [
-    "id",
     "job_id",
     "matches_artifact",
     "decision",
     "strategy",
     "documents",
-    "blockers",
-    "decided_by",
-    "revision"
+    "blockers"
   ],
-  "title": "ApplicationPlanRecord",
+  "title": "ApplicationPlanCandidate",
   "type": "object",
-  "x-canisend-id": "canisend.application-plan/v2",
+  "x-canisend-id": "canisend.application-plan-candidate/v2",
   "x-canisend-version": "2.0.0"
 }

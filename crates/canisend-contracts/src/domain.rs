@@ -250,8 +250,84 @@ pub struct EvidenceMatchSetRecord {
 #[serde(rename_all = "kebab-case")]
 pub enum ApplicationDecision {
     Apply,
-    DoNotApply,
-    Undecided,
+    Hold,
+    Skip,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ApplicationStrategyRecord {
+    pub positioning: String,
+    pub priorities: Vec<String>,
+    pub risks: Vec<String>,
+}
+
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
+)]
+#[serde(rename_all = "kebab-case")]
+pub enum DocumentKind {
+    CoverLetter,
+    ResearchStatement,
+    TeachingStatement,
+    Cv,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum DocumentRequirement {
+    Required,
+    Optional,
+    Omitted,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentPlanCandidateRecord {
+    pub kind: DocumentKind,
+    pub requirement: DocumentRequirement,
+    pub rationale: String,
+    pub constraints: Vec<String>,
+    pub executor: Option<ExecutionMode>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PlannedDocumentRecord {
+    pub id: EntityId,
+    pub kind: DocumentKind,
+    pub requirement: DocumentRequirement,
+    pub rationale: String,
+    pub constraints: Vec<String>,
+    pub executor: Option<ExecutionMode>,
+    pub revision: Revision,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum PlanBlockerSeverity {
+    Blocking,
+    Warning,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PlanBlockerRecord {
+    pub code: String,
+    pub criterion: CriterionRevisionReference,
+    pub severity: PlanBlockerSeverity,
+    pub description: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ApplicationPlanCandidate {
+    pub job_id: EntityId,
+    pub matches_artifact: ArtifactReference,
+    pub decision: ApplicationDecision,
+    pub strategy: ApplicationStrategyRecord,
+    pub documents: Vec<DocumentPlanCandidateRecord>,
+    pub blockers: Vec<PlanBlockerRecord>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -259,20 +335,13 @@ pub enum ApplicationDecision {
 pub struct ApplicationPlanRecord {
     pub id: EntityId,
     pub job_id: EntityId,
+    pub matches_artifact: ArtifactReference,
     pub decision: ApplicationDecision,
-    pub strategy: String,
-    pub document_ids: Vec<EntityId>,
+    pub strategy: ApplicationStrategyRecord,
+    pub documents: Vec<PlannedDocumentRecord>,
+    pub blockers: Vec<PlanBlockerRecord>,
     pub decided_by: ActorKind,
     pub revision: Revision,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "kebab-case")]
-pub enum DocumentKind {
-    CoverLetter,
-    ResearchStatement,
-    TeachingStatement,
-    Cv,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

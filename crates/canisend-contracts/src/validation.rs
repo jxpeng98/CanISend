@@ -4,11 +4,11 @@ use serde_json::Value;
 use thiserror::Error;
 
 use crate::{
-    ApplicationPlanRecord, CriteriaSetRecord, CriterionRecord, DocumentRecord,
-    EvidenceCatalogRecord, EvidenceMatchProposalRecord, EvidenceMatchProposalSet,
-    EvidenceMatchRecord, EvidenceMatchSetRecord, EvidenceProposalRecord, EvidenceProposalSet,
-    EvidenceRecord, FindingRecord, JobRecord, ParsedJobRecord, ProfileSourceRecord,
-    ReadinessRecord, SourceRecord,
+    ApplicationPlanCandidate, ApplicationPlanRecord, ApplicationStrategyRecord, CriteriaSetRecord,
+    CriterionRecord, DocumentPlanCandidateRecord, DocumentRecord, EvidenceCatalogRecord,
+    EvidenceMatchProposalRecord, EvidenceMatchProposalSet, EvidenceMatchRecord,
+    EvidenceMatchSetRecord, EvidenceProposalRecord, EvidenceProposalSet, EvidenceRecord,
+    FindingRecord, JobRecord, ParsedJobRecord, ProfileSourceRecord, ReadinessRecord, SourceRecord,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
@@ -572,9 +572,196 @@ fn validate_match_set_artifacts(
 
 impl SemanticValidate for ApplicationPlanRecord {
     fn validate_semantics(&self) -> Vec<ContractViolation> {
-        let mut violations = Vec::new();
-        required_text(&self.strategy, "/strategy", &mut violations);
-        violations
+        let documents = self
+            .documents
+            .iter()
+            .map(|document| DocumentPlanCandidateRecord {
+                kind: document.kind,
+                requirement: document.requirement,
+                rationale: document.rationale.clone(),
+                constraints: document.constraints.clone(),
+                executor: document.executor,
+            })
+            .collect::<Vec<_>>();
+        validate_plan(
+            self.matches_artifact.kind,
+            self.decision,
+            &self.strategy,
+            &documents,
+            &self.blockers,
+        )
+    }
+}
+
+impl SemanticValidate for ApplicationPlanCandidate {
+    fn validate_semantics(&self) -> Vec<ContractViolation> {
+        validate_plan(
+            self.matches_artifact.kind,
+            self.decision,
+            &self.strategy,
+            &self.documents,
+            &self.blockers,
+        )
+    }
+}
+
+fn validate_plan(
+    matches_kind: crate::ArtifactKind,
+    decision: crate::ApplicationDecision,
+    strategy: &ApplicationStrategyRecord,
+    documents: &[DocumentPlanCandidateRecord],
+    blockers: &[crate::PlanBlockerRecord],
+) -> Vec<ContractViolation> {
+    let mut violations = Vec::new();
+    if matches_kind != crate::ArtifactKind::EvidenceMatches {
+        violations.push(ContractViolation::new(
+            "plan.matches_kind_invalid",
+            "/matches_artifact/kind",
+            "application plan must reference an evidence-matches artifact",
+        ));
+    }
+    required_text(
+        &strategy.positioning,
+        "/strategy/positioning",
+        &mut violations,
+    );
+    validate_text_list(
+        &strategy.priorities,
+        "/strategy/priorities",
+        1,
+        50,
+        &mut violations,
+    );
+    validate_text_list(&strategy.risks, "/strategy/risks", 0, 100, &mut violations);
+    if documents.len() != 4 {
+        violations.push(ContractViolation::new(
+            "plan.documents_count_invalid",
+            "/documents",
+            "plan must contain exactly one entry for every supported document kind",
+        ));
+    }
+    let mut kinds = std::collections::BTreeSet::new();
+    for (index, document) in documents.iter().enumerate() {
+        if !kinds.insert(document.kind) {
+            violations.push(ContractViolation::new(
+                "plan.document_kind_duplicate",
+                format!("/documents/{index}/kind"),
+                "each supported document kind must appear exactly once",
+            ));
+        }
+        required_text(
+            &document.rationale,
+            &format!("/documents/{index}/rationale"),
+            &mut violations,
+        );
+        validate_text_list(
+            &document.constraints,
+            &format!("/documents/{index}/constraints"),
+            0,
+            50,
+            &mut violations,
+        );
+        match (document.requirement, document.executor) {
+            (crate::DocumentRequirement::Omitted, None) => {}
+            (crate::DocumentRequirement::Omitted, Some(_)) => {
+                violations.push(ContractViolation::new(
+                    "plan.omitted_executor_forbidden",
+                    format!("/documents/{index}/executor"),
+                    "an omitted document cannot have an executor",
+                ))
+            }
+            (
+                _,
+                Some(crate::ExecutionMode::HostAgent | crate::ExecutionMode::ConfiguredProvider),
+            ) => {}
+            (_, Some(_)) => violations.push(ContractViolation::new(
+                "plan.executor_invalid",
+                format!("/documents/{index}/executor"),
+                "planned documents support host-agent or configured-provider execution",
+            )),
+            (_, None) => violations.push(ContractViolation::new(
+                "plan.executor_required",
+                format!("/documents/{index}/executor"),
+                "a required or optional document needs an executor",
+            )),
+        }
+    }
+    if decision == crate::ApplicationDecision::Skip
+        && documents
+            .iter()
+            .any(|document| document.requirement != crate::DocumentRequirement::Omitted)
+    {
+        violations.push(ContractViolation::new(
+            "plan.skip_documents_forbidden",
+            "/documents",
+            "a skipped application must omit every document",
+        ));
+    }
+    if blockers.len() > 500 {
+        violations.push(ContractViolation::new(
+            "plan.blocker_count_invalid",
+            "/blockers",
+            "a plan may contain at most 500 derived blockers",
+        ));
+    }
+    let mut blocker_keys = std::collections::BTreeSet::new();
+    for (index, blocker) in blockers.iter().enumerate() {
+        required_text(
+            &blocker.code,
+            &format!("/blockers/{index}/code"),
+            &mut violations,
+        );
+        required_text(
+            &blocker.description,
+            &format!("/blockers/{index}/description"),
+            &mut violations,
+        );
+        if !blocker_keys.insert((&blocker.criterion.id, blocker.code.trim())) {
+            violations.push(ContractViolation::new(
+                "plan.blocker_duplicate",
+                format!("/blockers/{index}"),
+                "derived blockers must be unique per criterion and code",
+            ));
+        }
+    }
+    if decision == crate::ApplicationDecision::Apply
+        && blockers
+            .iter()
+            .any(|blocker| blocker.severity == crate::PlanBlockerSeverity::Blocking)
+    {
+        violations.push(ContractViolation::new(
+            "plan.apply_blocked",
+            "/decision",
+            "apply cannot be confirmed while essential evidence blockers remain",
+        ));
+    }
+    violations
+}
+
+fn validate_text_list(
+    values: &[String],
+    pointer: &str,
+    minimum: usize,
+    maximum: usize,
+    violations: &mut Vec<ContractViolation>,
+) {
+    if values.len() < minimum || values.len() > maximum {
+        violations.push(ContractViolation::new(
+            "value.count_invalid",
+            pointer,
+            format!("list must contain between {minimum} and {maximum} items"),
+        ));
+    }
+    let mut unique = std::collections::BTreeSet::new();
+    for (index, value) in values.iter().enumerate() {
+        required_text(value, &format!("{pointer}/{index}"), violations);
+        if !unique.insert(value.trim()) {
+            violations.push(ContractViolation::new(
+                "value.duplicate",
+                format!("{pointer}/{index}"),
+                "list items must be unique",
+            ));
+        }
     }
 }
 

@@ -5,12 +5,13 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
 use crate::{
-    AgentContextData, AgentResponse, ApplicationPlanRecord, BackupManifestData, CapabilitiesData,
-    CriteriaSetRecord, CriterionRecord, DiscoveryBatch, DiscoveryLeadRecord, DocumentRecord,
-    EvidenceCatalogRecord, EvidenceMatchProposalSet, EvidenceMatchRecord, EvidenceMatchSetRecord,
-    EvidenceProposalSet, EvidenceRecord, FindingRecord, JobRecord, ParsedJobRecord,
-    ProfileSourceRecord, ReadinessRecord, SourceRecord, TaskCompletionRequest, TaskDescriptor,
-    VersionData, WorkflowStatusData, WorkspaceCheckData, WorkspaceStatusData,
+    AgentContextData, AgentResponse, ApplicationPlanCandidate, ApplicationPlanRecord,
+    BackupManifestData, CapabilitiesData, CriteriaSetRecord, CriterionRecord, DiscoveryBatch,
+    DiscoveryLeadRecord, DocumentRecord, EvidenceCatalogRecord, EvidenceMatchProposalSet,
+    EvidenceMatchRecord, EvidenceMatchSetRecord, EvidenceProposalSet, EvidenceRecord,
+    FindingRecord, JobRecord, ParsedJobRecord, ProfileSourceRecord, ReadinessRecord, SourceRecord,
+    TaskCompletionRequest, TaskDescriptor, VersionData, WorkflowStatusData, WorkspaceCheckData,
+    WorkspaceStatusData,
 };
 
 pub const PUBLIC_SCHEMA_VERSION: &str = "2.0.0";
@@ -47,10 +48,11 @@ pub enum PublicSchemaId {
     EvidenceCatalog,
     EvidenceMatchProposals,
     EvidenceMatches,
+    ApplicationPlanCandidate,
 }
 
 impl PublicSchemaId {
-    pub const ALL: [Self; 28] = [
+    pub const ALL: [Self; 29] = [
         Self::AgentResponse,
         Self::Capabilities,
         Self::AgentContext,
@@ -79,6 +81,7 @@ impl PublicSchemaId {
         Self::EvidenceCatalog,
         Self::EvidenceMatchProposals,
         Self::EvidenceMatches,
+        Self::ApplicationPlanCandidate,
     ];
 
     #[must_use]
@@ -112,6 +115,7 @@ impl PublicSchemaId {
             Self::EvidenceCatalog => "canisend.evidence-catalog/v2",
             Self::EvidenceMatchProposals => "canisend.evidence-match-proposals/v2",
             Self::EvidenceMatches => "canisend.evidence-matches/v2",
+            Self::ApplicationPlanCandidate => "canisend.application-plan-candidate/v2",
         }
     }
 
@@ -146,6 +150,7 @@ impl PublicSchemaId {
             Self::EvidenceCatalog => "evidence-catalog",
             Self::EvidenceMatchProposals => "evidence-match-proposals",
             Self::EvidenceMatches => "evidence-matches",
+            Self::ApplicationPlanCandidate => "application-plan-candidate",
         }
     }
 
@@ -207,6 +212,7 @@ pub fn generate_public_schemas() -> Vec<GeneratedSchema> {
         generate::<EvidenceCatalogRecord>(PublicSchemaId::EvidenceCatalog),
         generate::<EvidenceMatchProposalSet>(PublicSchemaId::EvidenceMatchProposals),
         generate::<EvidenceMatchSetRecord>(PublicSchemaId::EvidenceMatches),
+        generate::<ApplicationPlanCandidate>(PublicSchemaId::ApplicationPlanCandidate),
     ]
 }
 

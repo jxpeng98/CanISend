@@ -9,6 +9,7 @@
   {"id":"schema.agent-context","kind":"schema","path":"schemas/v2/agent-context.schema.json","version":"2.0.0"},
   {"id":"schema.agent-response","kind":"schema","path":"schemas/v2/agent-response.schema.json","version":"2.0.0"},
   {"id":"schema.application-plan","kind":"schema","path":"schemas/v2/application-plan.schema.json","version":"2.0.0"},
+  {"id":"schema.application-plan-candidate","kind":"schema","path":"schemas/v2/application-plan-candidate.schema.json","version":"2.0.0"},
   {"id":"schema.backup-manifest","kind":"schema","path":"schemas/v2/backup-manifest.schema.json","version":"2.0.0"},
   {"id":"schema.capabilities","kind":"schema","path":"schemas/v2/capabilities.schema.json","version":"2.0.0"},
   {"id":"schema.criterion","kind":"schema","path":"schemas/v2/criterion.schema.json","version":"2.0.0"},

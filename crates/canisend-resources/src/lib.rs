@@ -217,6 +217,14 @@ pub fn export_agent_pack(
             "schema.evidence-matches",
             "schemas/v2/evidence-matches.schema.json",
         ),
+        (
+            "schema.application-plan-candidate",
+            "schemas/v2/application-plan-candidate.schema.json",
+        ),
+        (
+            "schema.application-plan",
+            "schemas/v2/application-plan.schema.json",
+        ),
     ];
     let mut files = Vec::with_capacity(resources.len());
     for (resource_id, relative_path) in resources {
