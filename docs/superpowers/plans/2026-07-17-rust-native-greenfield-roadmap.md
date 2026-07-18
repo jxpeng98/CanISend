@@ -219,6 +219,13 @@
   Apple secrets and eleven Apple/Azure variables. Positive fixture and live-repository negative paths pass without
   reading secret values. The live repository currently has none of the fourteen required names, so a signed Beta
   remains correctly unavailable until Apple Developer and Azure Artifact Signing provisioning is completed.
+- 2026-07-18: Qualified the CRLF-safe Beta freeze at exact commit `5ad749c` in ordinary CI `29637242998` and complete
+  five-target native release run `29637252504`. Qualified version-neutral isolated install/documentation/uninstall
+  preparation at exact commit `43c43dc` in five-target native run `29637471699`; the ledger records
+  `prepared-native` without claiming signed RC evidence. Reconciled the final Definition of Done against exact phase,
+  package, and CI evidence. Runtime independence, the complete product workflow, reliability, dependency policy,
+  packaged smokes, and installation documentation are proven; property-test, scheduled fuzz, and signed-publication
+  gates remain explicitly open.
 
 ## 1. Executive Decision
 
@@ -2029,11 +2036,16 @@ The Rust-native rebuild is complete only when all conditions below are true.
 
 ### 23.1 Runtime independence
 
-- [ ] Packaged binary runs on every supported clean OS image.
-- [ ] No Python executable, Python library, virtual environment, or PyPI install is required.
-- [ ] No external Typst command is required.
-- [ ] No Node.js or Java runtime is required.
-- [ ] SQLite and required resources are bundled appropriately.
+- [x] Packaged binary runs on every supported clean OS image.
+- [x] No Python executable, Python library, virtual environment, or PyPI install is required.
+- [x] No external Typst command is required.
+- [x] No Node.js or Java runtime is required.
+- [x] SQLite and required resources are bundled appropriately.
+
+**Runtime evidence:** Public Alpha run `29633386835` and replacement native runs `29637252504` and `29637471699`
+passed exact extracted-archive smokes across all five release targets. The staged binary reports no Python
+requirement, embedded Typst, disabled runtime package downloads, and verified embedded resources; SQLite uses the
+bundled feature. See the [Definition of Done audit](../../notes/rust-native/2026-07-18-definition-of-done-evidence-audit.md).
 
 ### 23.2 Product workflow
 
@@ -2046,9 +2058,13 @@ The Rust-native rebuild is complete only when all conditions below are true.
 - [x] Parse and confirm criteria.
 - [x] Match evidence.
 - [x] Plan documents.
-- [ ] Draft and review supported materials.
-- [ ] Produce package readiness.
-- [ ] Export Markdown, Typst, JSON, and PDF.
+- [x] Draft and review supported materials.
+- [x] Produce package readiness.
+- [x] Export Markdown, Typst, JSON, and PDF.
+
+**Product evidence:** R8.2–R8.5 and R9.3 bind draft, review, readiness, Markdown/JSON/Typst projections, and embedded
+PDF rendering to exact revisions. Native render run `29628602007` passed the complete revision-bound package on all
+three primary operating systems; the final audit records the evidence boundary.
 
 ### 23.3 Agent workflow
 
@@ -2061,20 +2077,30 @@ The Rust-native rebuild is complete only when all conditions below are true.
 
 ### 23.4 Reliability
 
-- [ ] Recovery tests cover every commit/projection interruption boundary.
-- [ ] Backup and restore are verified.
-- [ ] Concurrent writer behavior is documented and tested.
-- [ ] Corrupt state is detected rather than silently accepted.
-- [ ] Projections can be repaired from authoritative state.
+- [x] Recovery tests cover every commit/projection interruption boundary.
+- [x] Backup and restore are verified.
+- [x] Concurrent writer behavior is documented and tested.
+- [x] Corrupt state is detected rather than silently accepted.
+- [x] Projections can be repaired from authoritative state.
+
+**Reliability evidence:** The R10.2 interruption matrix and GitHub Actions run `29629649534` passed backup, restore,
+projection repair, corruption, stale completion, idempotency, and concurrent-task contracts on Linux, macOS, and
+Windows.
 
 ### 23.5 Release evidence
 
 - [ ] Formatting, Clippy, unit, integration, property, E2E, schema, resource, and release tests pass.
 - [ ] Scheduled fuzz targets have no unresolved reproducible crash.
-- [ ] Security and license checks pass.
-- [ ] Cross-platform packaged-binary smokes pass.
+- [x] Security and license checks pass.
+- [x] Cross-platform packaged-binary smokes pass.
 - [ ] Checksums, SBOM, provenance, notices, and signatures are published.
-- [ ] Installation and quick-start instructions are verified from clean machines.
+- [x] Installation and quick-start instructions are verified from clean machines.
+
+**Release evidence audit:** Dependency policy passed in ordinary CI `29639651903`; exact five-target package and
+installation smokes passed in native run `29637471699`. The combined quality checkbox remains open only because an
+identifiable property-test suite is still absent. Scheduled fuzz awaits a default-branch run. Alpha publishes
+checksums, SBOM, provenance, and notices, but the combined publication checkbox remains open until credential-backed
+macOS and Windows signatures are published.
 
 ## 24. Principal Risks and Mitigations
 

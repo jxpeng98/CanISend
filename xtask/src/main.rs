@@ -1277,7 +1277,10 @@ fn check_release_qualification() -> Result<(), String> {
         .ok_or_else(|| "release candidate qualification must be an array".to_owned())?;
     for (section, allowed) in [
         ("upgrade_matrix", &["pending", "passed"][..]),
-        ("documentation_uninstall", &["prepared-local", "passed"][..]),
+        (
+            "documentation_uninstall",
+            &["prepared-local", "prepared-native", "passed"][..],
+        ),
         ("package_managers", &["candidates-only", "passed"][..]),
     ] {
         let status = required_string(&ledger[section], "status", section)?;
@@ -1287,6 +1290,7 @@ fn check_release_qualification() -> Result<(), String> {
             ));
         }
     }
+    validate_documentation_uninstall_progress(&ledger["documentation_uninstall"])?;
 
     let release_notes = &ledger["release_notes"];
     let release_notes_status = required_string(release_notes, "status", "release notes")?;
@@ -1322,6 +1326,31 @@ fn check_release_qualification() -> Result<(), String> {
         stage.as_str()
     );
     Ok(())
+}
+
+fn validate_documentation_uninstall_progress(value: &Value) -> Result<(), String> {
+    let status = required_string(value, "status", "documentation/uninstall qualification")?;
+    let run = value["native_matrix_run"].as_u64().filter(|run| *run > 0);
+    let evidence_is_complete = value["evidence"].as_array().is_some_and(|items| {
+        !items.is_empty()
+            && items
+                .iter()
+                .all(|item| item.as_str().is_some_and(|item| !item.is_empty()))
+    });
+    match status {
+        "prepared-local" if run.is_some() => Err(
+            "local documentation/uninstall preparation cannot claim a native matrix run".to_owned(),
+        ),
+        "prepared-local" => Ok(()),
+        "prepared-native" | "passed" if run.is_none() => Err(format!(
+            "`{status}` documentation/uninstall evidence requires a native matrix run"
+        )),
+        "prepared-native" | "passed" if !evidence_is_complete => Err(format!(
+            "`{status}` documentation/uninstall evidence requires non-empty evidence"
+        )),
+        "prepared-native" | "passed" => Ok(()),
+        _ => Err("documentation/uninstall qualification status is invalid".to_owned()),
+    }
 }
 
 fn qualification_status_for_stage(stage: ReleaseStage) -> &'static str {
@@ -3347,6 +3376,23 @@ mod tests {
             qualification_status_for_stage(ReleaseStage::Stable),
             "qualified"
         );
+    }
+
+    #[test]
+    fn native_documentation_preparation_requires_exact_run_evidence() {
+        let missing_run = json!({
+            "status": "prepared-native",
+            "native_matrix_run": null,
+            "evidence": ["five-target lifecycle smoke passed"]
+        });
+        assert!(validate_documentation_uninstall_progress(&missing_run).is_err());
+
+        let qualified = json!({
+            "status": "prepared-native",
+            "native_matrix_run": 29_637_471_699_u64,
+            "evidence": ["five-target lifecycle smoke passed"]
+        });
+        validate_documentation_uninstall_progress(&qualified).expect("native preparation evidence");
     }
 
     #[test]

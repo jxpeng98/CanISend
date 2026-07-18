@@ -4,7 +4,7 @@
 
 **Roadmap item:** R11.3 preparation
 
-**Status:** Version-neutral controls implemented; signed Beta/RC qualification pending
+**Status:** Version-neutral controls qualified on five targets; signed Beta/RC qualification pending
 
 ## Boundary
 
@@ -42,9 +42,18 @@ manager lifecycle or a Beta-to-RC migration by itself.
 - The existing documented quick-start, host-agent workflow, renderer health, bundle inventory, and expected-binary
   equality checks still run before the new lifecycle assertions.
 
+## Native preparation evidence
+
+GitHub Actions native release run `29637471699` passed at exact source commit
+`43c43dc502a0be09eb84b70a025255bebbc3f589`. All five target jobs passed target tests and the exact extracted-archive
+smoke, including isolated install, installed-copy `version`/`doctor`, external workspace creation, removal of the
+installation directory, and retained workspace assertions. Source gates, assembly, and attestation also passed.
+
+The qualification ledger records this as `prepared-native`, not `passed`: the run used Alpha archives and cannot
+substitute for the signed RC-stage documentation/uninstall matrix required by Stable.
+
 ## Remaining qualification
 
-- Run the new lifecycle smoke on all five native runners from an exact release source.
 - After signed Beta and RC archives exist, build a representative workspace with the Beta binary, back it up, open it
   with RC, and check the expected same-schema or advanced-schema behavior with both versions.
 - Restore the pre-upgrade backup into a new directory with Beta and retain exact version/run evidence.

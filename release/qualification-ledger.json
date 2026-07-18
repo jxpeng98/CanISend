@@ -8,10 +8,11 @@
   },
   "documentation_uninstall": {
     "evidence": [
-      "local aarch64 archive lifecycle smoke passed before five-target qualification"
+      "local aarch64 archive lifecycle smoke passed before five-target qualification",
+      "native release run 29637471699 passed the archive lifecycle smoke on all five targets at 43c43dc502a0be09eb84b70a025255bebbc3f589"
     ],
-    "native_matrix_run": null,
-    "status": "prepared-local"
+    "native_matrix_run": 29637471699,
+    "status": "prepared-native"
   },
   "feature_freeze": {
     "allowed_change_classes": [

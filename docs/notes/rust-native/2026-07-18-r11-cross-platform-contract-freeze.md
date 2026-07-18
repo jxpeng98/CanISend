@@ -4,7 +4,7 @@
 
 **Roadmap item:** R11.2 Beta qualification
 
-**Status:** Portability defect reproduced and fixed locally; fixed-source CI qualification pending
+**Status:** Qualified on ordinary CI and the complete five-target native release matrix
 
 ## Failure evidence
 
@@ -36,8 +36,12 @@ or migration changes therefore still alter the digest and fail the gate.
 - `cargo run -p xtask --locked -- release check` still reports 40 schemas, migrations frozen through 13, and an
   unchanged Beta contract freeze.
 
-## Remaining qualification
+## Replacement qualification
 
-Push the fix, require ordinary CI to pass at the exact commit, and run a new non-publishing Alpha release matrix.
-The replacement matrix must pass the target workspace test and packaged-archive smoke on all five native runners.
-The failed run remains retained as root-cause evidence and cannot qualify a release.
+Ordinary CI run `29637242998` passed at exact fix commit
+`5ad749cf0f695616aef936e6be811f9548d0e3c2`. Non-publishing native release run `29637252504` then passed source gates,
+target workspace tests, exact extracted-archive smokes, assembly, and attestation across macOS arm64 and x86_64,
+Linux GNU and musl x86_64, and Windows MSVC x86_64.
+
+The failed run remains retained as root-cause evidence and does not qualify a release. The replacement run is the
+authoritative portability evidence; it does not satisfy the separate credential-backed Beta signing gate.

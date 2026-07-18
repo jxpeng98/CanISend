@@ -37,7 +37,9 @@ An invented run ID or status string is not qualification evidence.
 
 ## Current boundary
 
-The current Alpha ledger is `pre-beta`. It records only local lifecycle preparation and deterministic package-manager
-candidates. Beta signing, clean RC tags, version-pair migration, native channel lifecycle, final notes, and Stable
-authorization remain pending. This matches the live repository signing audit and deliberately prevents an unsigned
-or unevidenced Stable version bump.
+The current Alpha ledger is `pre-beta`. It records five-target native archive lifecycle preparation from GitHub
+Actions run `29637471699` and deterministic package-manager candidates. `prepared-native` proves the version-neutral
+documentation/uninstall control on Alpha archives; it is deliberately weaker than `passed`, which requires the
+signed RC-stage matrix named by the Stable gate. Beta signing, clean RC tags, version-pair migration, native channel
+lifecycle, final notes, and Stable authorization remain pending. This matches the live repository signing audit and
+deliberately prevents an unsigned or unevidenced Stable version bump.
