@@ -325,7 +325,14 @@
   derives five canonical Homebrew/Scoop/WinGet files from the final signed archive hashes and publishes them with a
   scoped JSON record, release-manifest entries, checksums, and OIDC provenance. Verification regenerates every byte;
   external package-index submission remains an explicitly separate action. The R11.4 checkbox remains open until a
-  real qualified Stable tag publishes the assets; exact CI evidence follows after this commit.
+  real qualified Stable tag publishes the assets. Exact commit `f46f45c` passed all eight ordinary CI jobs in run
+  `29644993877`.
+- 2026-07-18: Reconciled all 11 remaining checkboxes against live GitHub state in the
+  [completion audit](../../notes/rust-native/2026-07-18-rust-native-completion-audit.md). The repository has zero
+  configured Actions secret names, zero Actions variable names, no 0.7 Beta/RC/Stable release, and no registered
+  default-branch scheduled-fuzz workflow. The current ten-file Beta transition preview remains read-only. Remaining
+  work is one external evidence chain beginning with the 14 signing configuration names; no gate was weakened or
+  prematurely checked.
 
 ## 1. Executive Decision
 

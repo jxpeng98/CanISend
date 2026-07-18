@@ -37,3 +37,5 @@ claiming that those external indexes have accepted them.
 
 The R11.4 checkbox remains open until the repository reaches a genuinely qualified Stable ledger and the Stable tag
 publishes the signed archives and these six assets. The current Alpha build cannot generate or preauthorize them.
+
+Exact implementation commit `f46f45c` passed all eight ordinary CI jobs in GitHub Actions run `29644993877`.

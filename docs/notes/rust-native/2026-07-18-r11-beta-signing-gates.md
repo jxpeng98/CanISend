@@ -87,10 +87,11 @@ prerequisite for the first signed Beta dry-run.
 
 ## Next work
 
-1. Finish Alpha release dry-run `29636580836` to prove the new readiness gate preserves the qualified unsigned path
-   on all five
-   native runners.
-2. Provision Apple and Azure identities without exposing their values, refresh the Beta blocker ledger, and advance
+The initial Alpha dry-run `29636580836` exposed a Windows packaging defect and is not positive evidence. Replacement
+run `29637252504`, followed by the complete lifecycle run `29637471699`, passed all five native build/archive jobs,
+assembly, source gates, and unsigned-Alpha signing readiness. The remaining sequence is:
+
+1. Provision Apple and Azure identities without exposing their values, refresh the Beta blocker ledger, and advance
    the workspace version to `0.7.0-beta.1`.
-3. Run the complete non-publishing Beta matrix, inspect all three signing evidence files, regenerate package-manager
+2. Run the complete non-publishing Beta matrix, inspect all three signing evidence files, regenerate package-manager
    candidates from the signed assets, and only then authorize the Beta tag.
