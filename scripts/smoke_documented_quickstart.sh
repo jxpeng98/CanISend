@@ -5,11 +5,9 @@ binary="${1:-target/release/canisend}"
 smoke_root="${2:-${TMPDIR:-/tmp}/canisend-documentation-smoke}"
 script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 repo_root="$(CDPATH= cd -- "$script_dir/.." && pwd)"
-
-case "$binary" in
-  /*) ;;
-  *) binary="$PWD/$binary" ;;
-esac
+source "$script_dir/lib/native_paths.sh"
+binary="$(canisend_absolute_path "$binary")"
+smoke_root="$(canisend_absolute_path "$smoke_root")"
 
 if [[ ! -x "$binary" ]]; then
   echo "documentation smoke: binary is not executable: $binary" >&2

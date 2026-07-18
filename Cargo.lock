@@ -4943,8 +4943,11 @@ version = "0.7.0-alpha.1"
 dependencies = [
  "canisend-contracts",
  "canisend-resources",
+ "hex",
  "schemars",
+ "semver",
  "serde_json",
+ "sha2",
 ]
 
 [[package]]

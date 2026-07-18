@@ -1,0 +1,40 @@
+{
+  "schema": "canisend.release-targets/v1",
+  "targets": [
+    {
+      "archive": "tar.gz",
+      "executable": "canisend",
+      "runner": "macos-15",
+      "signing": "apple",
+      "triple": "aarch64-apple-darwin"
+    },
+    {
+      "archive": "tar.gz",
+      "executable": "canisend",
+      "runner": "macos-15-intel",
+      "signing": "apple",
+      "triple": "x86_64-apple-darwin"
+    },
+    {
+      "archive": "tar.gz",
+      "executable": "canisend",
+      "runner": "ubuntu-24.04",
+      "signing": "none",
+      "triple": "x86_64-unknown-linux-gnu"
+    },
+    {
+      "archive": "tar.gz",
+      "executable": "canisend",
+      "runner": "ubuntu-24.04",
+      "signing": "none",
+      "triple": "x86_64-unknown-linux-musl"
+    },
+    {
+      "archive": "zip",
+      "executable": "canisend.exe",
+      "runner": "windows-2025",
+      "signing": "authenticode",
+      "triple": "x86_64-pc-windows-msvc"
+    }
+  ]
+}
