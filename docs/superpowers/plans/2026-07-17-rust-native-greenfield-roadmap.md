@@ -1,6 +1,6 @@
 # CanISend Rust-Native Greenfield Rebuild Roadmap
 
-**Status:** In progress — R0 through R7 and R8.1–R8.3 complete; R8.4 package readiness active
+**Status:** In progress — R0 through R7 and R8.1–R8.4 complete; R8.5 editable exports active
 
 **Date:** 2026-07-17
 
@@ -102,6 +102,13 @@
   deterministic versus human authority, explicit user accepted-risk/dismissed dispositions, stable finding revisions,
   and `review export/confirm/show`. Local verification passed 65 Rust tests, Clippy with warnings denied,
   34-schema/44-resource checks, release compilation, and packaged host-agent smoke. R8.4 package readiness is active.
+- 2026-07-18: GitHub Actions run `29625243713` passed the R8.3 clean-checkout gate in 2 minutes 11 seconds, including
+  format, Clippy, all tests, schema/resource drift, release build, and packaged smoke.
+- 2026-07-18: Completed R8.4 with deterministic `package check/show`, SQLite schema 11 package heads, exact
+  plan/match/evidence/profile/document-set/document/review revision freezing, machine-readable body-free readiness
+  reasons, deterministic and human-review gates, idempotent manifests, Render gating, and an explicit no-submission
+  invariant. Local verification passed 66 Rust tests, Clippy with warnings denied, 35-schema/45-resource checks,
+  release compilation, and packaged host-agent smoke with a 26-file host pack. R8.5 editable exports are active.
 
 ## 1. Executive Decision
 
@@ -1579,11 +1586,16 @@ changing or bypassing deterministic findings, and upstream changes stale the com
 
 #### R8.4 Package readiness
 
-- [ ] Verify required documents exist and are current.
-- [ ] Verify reviews and dispositions reference exact document revisions.
-- [ ] Detect mixed evidence/profile revisions.
-- [ ] Produce body-free readiness reasons.
-- [ ] Preserve the rule that readiness is not submission.
+- [x] Verify required documents exist and are current.
+- [x] Verify reviews and dispositions reference exact document revisions.
+- [x] Detect mixed evidence/profile revisions.
+- [x] Produce body-free readiness reasons.
+- [x] Preserve the rule that readiness is not submission.
+
+**R8.4 exit:** Satisfied locally. The deterministic package service freezes exact authoritative revisions in both the
+manifest and artifact dependency graph, emits only typed reason codes, and classifies the result as `blocked`,
+`needs-review`, or `ready-to-export`. Only an export-ready manifest opens Render; package checks are idempotent,
+upstream changes stale them, and the contract forbids readiness from recording submission.
 
 #### R8.5 Exports
 

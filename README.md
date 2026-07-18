@@ -19,15 +19,16 @@ the Git tag `archive/python-v0.6.0b1-final`.
 
 ## Current status
 
-The Rust rebuild has completed R7 plus R8.1–R8.3, including the full evidence-backed intake-to-plan decision spine,
-structured drafting, and revision-bound review. R8.4 package readiness is now active. The current binary provides:
+The Rust rebuild has completed R7 plus R8.1–R8.4, including the full evidence-backed intake-to-plan decision spine,
+structured drafting, revision-bound review, and guarded package readiness. R8.5 editable exports are now active. The
+current binary provides:
 
 - Native `canisend` executable scaffolding.
 - Validated UUIDv7, SHA-256, revision, UTC timestamp, and safe relative-path contract types.
 - `canisend.agent/v2` success/error envelopes, stable error registry, and grouped exit policy.
 - Product/version/build inspection.
-- Thirty-four deterministic Draft 2020-12 schemas generated from Rust types.
-- Forty-four typed embedded schemas, prompts, templates, examples, and host assets with SHA-256 verification.
+- Thirty-five deterministic Draft 2020-12 schemas generated from Rust types.
+- Forty-five typed embedded schemas, prompts, templates, examples, and host assets with SHA-256 verification.
 - A truthful capability registry that marks unfinished functions as `planned`.
 - Agent context plus schema/resource diagnostics with deterministic JSON snapshots.
 - Workspace discovery, explicit `--workspace` resolution, initialization, status, integrity checks, and repair.
@@ -60,9 +61,13 @@ structured drafting, and revision-bound review. R8.4 package readiness is now ac
   repeated-claim consistency checks plus bounded semantic host findings.
 - Core-owned deterministic/human finding authority and user-only `review export/confirm/show` dispositions with
   stable finding IDs, revision tracking, and automatic stale propagation.
+- Deterministic `package check/show` with exact plan, evidence, profile, document-set, document, and review revision
+  binding; machine-readable readiness reasons; idempotent manifests; and a fail-closed Render gate.
+- Explicit package contracts that keep `ready-to-export` separate from submission and structurally forbid a readiness
+  operation from recording an application as submitted.
 
-Package readiness, editable exports, and embedded PDF rendering are not yet available in the production binary.
-Their execution order and acceptance gates are defined in the
+Editable exports and embedded PDF rendering are not yet available in the production binary. Their execution order
+and acceptance gates are defined in the
 [Rust-native roadmap](docs/superpowers/plans/2026-07-17-rust-native-greenfield-roadmap.md).
 
 ## Build the native foundation
@@ -119,6 +124,8 @@ cargo build --release --locked
   --job JOB_ID --destination ./agent-work/application-plan.json --json
 ./target/release/canisend --workspace ./my-workspace plan confirm \
   --job JOB_ID --file ./agent-work/application-plan.json --json
+./target/release/canisend --workspace ./my-workspace package check --job JOB_ID --json
+./target/release/canisend --workspace ./my-workspace package show --job JOB_ID --json
 ./target/release/canisend --workspace ./my-workspace workspace check --json
 ./target/release/canisend --workspace ./my-workspace workspace backup ./my-backup --json
 ```
