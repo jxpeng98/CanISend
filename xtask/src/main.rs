@@ -18,6 +18,9 @@ use sha2::{Digest, Sha256};
 
 const RELEASE_TARGET_SCHEMA: &str = "canisend.release-targets/v1";
 const RELEASE_MANIFEST_SCHEMA: &str = "canisend.release-manifest/v1";
+const BETA_READINESS_SCHEMA: &str = "canisend.beta-readiness/v1";
+const NATIVE_ALPHA_TAG: &str = "v0.7.0-alpha.1";
+const NATIVE_ALPHA_SOURCE: &str = "4cec4ec48cc2e96f3798dde0b438d3aaa617a2f8";
 
 fn main() -> ExitCode {
     match run(std::env::args().skip(1).collect()) {
@@ -40,6 +43,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
             check_resources()?;
             check_documentation()?;
             check_internal_dependency_versions()?;
+            check_beta_readiness()?;
             check_release_contract()
         }
         [area, command, tag] if area == "release" && command == "validate-tag" => {
@@ -384,6 +388,7 @@ fn check_release_contract() -> Result<(), String> {
         "release/KNOWN_LIMITATIONS.md",
         "release/ISSUE_COLLECTION.md",
         "release/RELEASE_NOTES.md",
+        "release/beta-readiness.json",
         "scripts/stage_native_bundle.sh",
         "scripts/package_native_release.sh",
         "scripts/smoke_release_archive.sh",
@@ -425,6 +430,88 @@ fn check_release_contract() -> Result<(), String> {
         }
     }
     println!("release contract: ok ({} targets)", targets.len());
+    Ok(())
+}
+
+fn check_beta_readiness() -> Result<(), String> {
+    let path = repository_root().join("release/beta-readiness.json");
+    let body = fs::read_to_string(&path).map_err(|error| {
+        format!(
+            "Beta readiness ledger is missing at {}: {error}",
+            path.display()
+        )
+    })?;
+    let ledger: Value = serde_json::from_str(&body)
+        .map_err(|error| format!("Beta readiness ledger is invalid JSON: {error}"))?;
+    if ledger["schema"] != BETA_READINESS_SCHEMA
+        || ledger["alpha_release"]["tag"] != NATIVE_ALPHA_TAG
+        || ledger["alpha_release"]["source_commit"] != NATIVE_ALPHA_SOURCE
+    {
+        return Err(
+            "Beta readiness ledger does not identify the qualified native Alpha".to_owned(),
+        );
+    }
+    let audited_at = ledger["audited_at"]
+        .as_str()
+        .filter(|value| value.ends_with('Z') && value.contains('T'))
+        .ok_or_else(|| "Beta readiness ledger has no UTC audit timestamp".to_owned())?;
+    if ledger["default_telemetry"] != false {
+        return Err("Beta readiness ledger must preserve disabled default telemetry".to_owned());
+    }
+    if ledger["github_issue_snapshot"]["open_issue_count"] != 0
+        || ledger["unresolved_release_blockers"]
+            .as_array()
+            .is_none_or(|entries| !entries.is_empty())
+    {
+        return Err("Beta readiness ledger contains unresolved Alpha blockers".to_owned());
+    }
+    let expected_classes = BTreeSet::from([
+        "data-loss",
+        "protocol-compatibility",
+        "rendering-corruption",
+        "security-privacy",
+    ]);
+    let entries = ledger["blocker_classes"]
+        .as_array()
+        .ok_or_else(|| "Beta readiness blocker_classes must be an array".to_owned())?;
+    let mut actual_classes = BTreeSet::new();
+    for entry in entries {
+        let class = entry["class"]
+            .as_str()
+            .ok_or_else(|| "Beta readiness blocker class is missing".to_owned())?;
+        if !actual_classes.insert(class) {
+            return Err(format!("duplicate Beta readiness blocker class `{class}`"));
+        }
+        if !matches!(entry["status"].as_str(), Some("clear" | "resolved")) {
+            return Err(format!(
+                "Beta readiness blocker class `{class}` is not clear"
+            ));
+        }
+        if entry["open_issue_numbers"]
+            .as_array()
+            .is_none_or(|issues| !issues.is_empty())
+        {
+            return Err(format!(
+                "Beta readiness blocker class `{class}` contains open issues"
+            ));
+        }
+        if entry["evidence"].as_array().is_none_or(|evidence| {
+            evidence.is_empty() || evidence.iter().any(|item| !item.is_string())
+        }) {
+            return Err(format!(
+                "Beta readiness blocker class `{class}` has no evidence"
+            ));
+        }
+    }
+    if actual_classes != expected_classes {
+        return Err(format!(
+            "Beta readiness blocker classes differ: expected {expected_classes:?}, found {actual_classes:?}"
+        ));
+    }
+    println!(
+        "beta readiness: ok ({} blocker classes, audited {audited_at})",
+        actual_classes.len()
+    );
     Ok(())
 }
 
@@ -1031,5 +1118,10 @@ mod tests {
     #[test]
     fn internal_path_dependencies_are_exactly_versioned() {
         check_internal_dependency_versions().expect("internal dependency versions");
+    }
+
+    #[test]
+    fn beta_readiness_has_no_unresolved_alpha_blockers() {
+        check_beta_readiness().expect("Beta readiness ledger");
     }
 }

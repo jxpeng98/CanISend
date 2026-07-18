@@ -1,0 +1,60 @@
+{
+  "schema": "canisend.beta-readiness/v1",
+  "audited_at": "2026-07-18T06:43:48Z",
+  "alpha_release": {
+    "tag": "v0.7.0-alpha.1",
+    "source_commit": "4cec4ec48cc2e96f3798dde0b438d3aaa617a2f8",
+    "release_run": 29633386835,
+    "release_url": "https://github.com/jxpeng98/CanISend/releases/tag/v0.7.0-alpha.1"
+  },
+  "github_issue_snapshot": {
+    "query": "https://github.com/jxpeng98/CanISend/issues?q=is%3Aissue",
+    "all_issue_count": 0,
+    "open_issue_count": 0
+  },
+  "default_telemetry": false,
+  "known_limitations_reviewed": true,
+  "blocker_classes": [
+    {
+      "class": "data-loss",
+      "status": "clear",
+      "open_issue_numbers": [],
+      "evidence": [
+        "GitHub issue snapshot contains no reported issue",
+        "CI run 29632388521 passed cross-platform recovery and integrity gates",
+        "Alpha public-job dogfood workspace check reported no integrity issue"
+      ]
+    },
+    {
+      "class": "security-privacy",
+      "status": "clear",
+      "open_issue_numbers": [],
+      "evidence": [
+        "GitHub issue snapshot contains no reported issue",
+        "Tag run 29633386835 passed cargo-deny and release trust gates",
+        "Alpha manifest and issue intake preserve disabled default telemetry"
+      ]
+    },
+    {
+      "class": "protocol-compatibility",
+      "status": "clear",
+      "open_issue_numbers": [],
+      "evidence": [
+        "GitHub issue snapshot contains no reported issue",
+        "Tag run 29633386835 passed all protocol, schema, resource, and host-pack tests",
+        "Alpha manifest declares canisend.agent/v2 and canisend.workspace/v2"
+      ]
+    },
+    {
+      "class": "rendering-corruption",
+      "status": "clear",
+      "open_issue_numbers": [],
+      "evidence": [
+        "GitHub issue snapshot contains no reported issue",
+        "CI run 29632388521 passed native rendering on macOS, Linux, and Windows",
+        "Tag run 29633386835 passed exact archive doctor and embedded-renderer smokes"
+      ]
+    }
+  ],
+  "unresolved_release_blockers": []
+}

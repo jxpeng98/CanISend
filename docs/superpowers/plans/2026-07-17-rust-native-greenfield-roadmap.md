@@ -187,6 +187,11 @@
   provenance verification for every asset against the exact source digest and signer workflow. The tagged public
   issue form and release issue-intake asset require synthetic reproductions and state that no telemetry, analytics,
   crash upload, or background reporting is enabled. R11.1 exit criteria are satisfied; R11.2 Beta is active.
+- 2026-07-18: Established the R11.2 Beta readiness ledger after a post-publication Alpha audit found zero GitHub
+  issues and zero open data-loss, security/privacy, protocol/workspace, or rendering blockers. The ledger binds the
+  audit to the exact Alpha tag/source/run, preserves disabled default telemetry, and records CI/dogfood evidence for
+  all four classes. `xtask release check` now fails on missing classes/evidence, open issue numbers, unresolved status,
+  changed Alpha identity, enabled telemetry, or any unresolved blocker. Contract and migration freeze work is active.
 
 ## 1. Executive Decision
 
@@ -1846,11 +1851,15 @@ introduced. R11.2 owns blocker triage, contract freezes, package-manager candida
 
 #### R11.2 Beta
 
-- [ ] Resolve alpha data-loss, security, protocol, and rendering blockers.
+- [x] Resolve alpha data-loss, security, protocol, and rendering blockers.
 - [ ] Freeze agent protocol v2 for the beta line.
 - [ ] Freeze workspace v2 migrations inside the Rust era.
 - [ ] Add Homebrew and Windows installation channel candidates.
 - [ ] Complete macOS notarization and planned Windows signing.
+
+**R11.2 blocker baseline:** The [Beta readiness note](../../notes/rust-native/2026-07-18-r11-beta-readiness.md) and
+machine-checked `release/beta-readiness.json` record the first post-publication audit. No Alpha blocker was reported;
+the snapshot must be refreshed before the Beta tag and any later blocker makes the release gate fail closed.
 
 #### R11.3 Release candidate
 
