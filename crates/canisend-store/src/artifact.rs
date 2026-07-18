@@ -272,29 +272,7 @@ impl<'a> ArtifactService<'a> {
     }
 
     pub fn repair_projections(&mut self) -> Result<usize, StoreError> {
-        let repairs = {
-            let mut statement = self.database.connection().prepare(
-                "SELECT artifact_id, revision, relative_path FROM projection_manifests
-                 WHERE status = 'repair-required' ORDER BY artifact_id, revision, relative_path",
-            )?;
-            statement
-                .query_map([], |row| {
-                    Ok((
-                        row.get::<_, String>(0)?,
-                        row.get::<_, i64>(1)?,
-                        row.get::<_, String>(2)?,
-                    ))
-                })?
-                .collect::<Result<Vec<_>, _>>()?
-        };
-        for (artifact_id, revision, relative_path) in &repairs {
-            self.project(
-                &EntityId::try_new(artifact_id)?,
-                Revision::try_new(to_u64(*revision)?)?,
-                &SafeRelativePath::try_new(relative_path)?,
-            )?;
-        }
-        Ok(repairs.len())
+        crate::ProjectionService::new(self.database, self.blobs, self.workspace_root).repair_all()
     }
 }
 

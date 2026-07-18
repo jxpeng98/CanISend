@@ -255,6 +255,32 @@ impl<'a> ProjectionService<'a> {
         Ok((reference, receipt))
     }
 
+    pub fn repair_all(&mut self) -> Result<usize, StoreError> {
+        let raw = load_raw_projection_rows(self.database.connection())?;
+        let managed = load_managed_projection_rows(self.database.connection())?;
+        let mut repaired = 0;
+        for row in raw {
+            let digest = row.source_sha256.clone();
+            repaired += usize::from(repair_projection(
+                self.database.connection(),
+                self.workspace_root,
+                &row.relative_path,
+                &row.generated_sha256,
+                || self.blobs.read_verified(&digest, DEFAULT_MAX_BLOB_BYTES),
+            )?);
+        }
+        for row in managed {
+            repaired += usize::from(repair_projection(
+                self.database.connection(),
+                self.workspace_root,
+                &row.relative_path,
+                &row.generated_sha256,
+                || generate_from_row(self.blobs, &row),
+            )?);
+        }
+        Ok(repaired)
+    }
+
     pub fn reconcile(
         &mut self,
         job_id: &EntityId,
@@ -429,6 +455,12 @@ struct ProjectionRow {
     generated_sha256: Sha256Digest,
 }
 
+struct RawProjectionRow {
+    relative_path: SafeRelativePath,
+    source_sha256: Sha256Digest,
+    generated_sha256: Sha256Digest,
+}
+
 impl ProjectionRow {
     fn into_record(
         self,
@@ -544,6 +576,85 @@ fn generate_from_row(blobs: &BlobStore, row: &ProjectionRow) -> Result<Vec<u8>, 
     }
 }
 
+fn repair_projection<F>(
+    connection: &Connection,
+    workspace_root: &Path,
+    relative_path: &SafeRelativePath,
+    expected: &Sha256Digest,
+    generate: F,
+) -> Result<bool, StoreError>
+where
+    F: FnOnce() -> Result<Vec<u8>, StoreError>,
+{
+    let repaired_at = now_utc()?;
+    let (status, observed, last_error) =
+        observe_projection(workspace_root, relative_path, expected);
+    update_observation(
+        connection,
+        relative_path,
+        status,
+        observed.as_ref(),
+        last_error.as_deref(),
+        &repaired_at,
+    )?;
+    if matches!(
+        status,
+        ProjectionEditStatus::Current | ProjectionEditStatus::Edited
+    ) {
+        return Ok(false);
+    }
+
+    let bytes = match generate() {
+        Ok(bytes) => bytes,
+        Err(error) => {
+            update_observation(
+                connection,
+                relative_path,
+                ProjectionEditStatus::RepairRequired,
+                None,
+                Some(&error.to_string()),
+                &repaired_at,
+            )?;
+            return Err(error);
+        }
+    };
+    let generated = digest_bytes(&bytes)?;
+    if generated != *expected {
+        let error = StoreError::DependencyConflict(format!(
+            "projection recipe changed for {relative_path}"
+        ));
+        update_observation(
+            connection,
+            relative_path,
+            ProjectionEditStatus::RepairRequired,
+            None,
+            Some(&error.to_string()),
+            &repaired_at,
+        )?;
+        return Err(error);
+    }
+    if let Err(error) = write_projection(workspace_root, relative_path, &bytes) {
+        update_observation(
+            connection,
+            relative_path,
+            ProjectionEditStatus::RepairRequired,
+            None,
+            Some(&error.to_string()),
+            &repaired_at,
+        )?;
+        return Err(error);
+    }
+    update_observation(
+        connection,
+        relative_path,
+        ProjectionEditStatus::Current,
+        Some(&generated),
+        None,
+        &repaired_at,
+    )?;
+    Ok(true)
+}
+
 fn record_projection(
     connection: &Connection,
     projection: &GeneratedProjection,
@@ -622,6 +733,16 @@ fn load_projection_rows(
     connection: &Connection,
     allowed: &BTreeSet<(EntityId, Revision)>,
 ) -> Result<Vec<ProjectionRow>, StoreError> {
+    load_managed_projection_rows(connection)?
+        .into_iter()
+        .filter(|row| {
+            allowed.contains(&(row.source_artifact.id.clone(), row.source_artifact.revision))
+        })
+        .map(Ok)
+        .collect()
+}
+
+fn load_managed_projection_rows(connection: &Connection) -> Result<Vec<ProjectionRow>, StoreError> {
     let mut statement = connection.prepare(
         "SELECT manifest.artifact_id, manifest.revision, artifact.kind, manifest.sha256,
                 manifest.relative_path, manifest.projection_kind, manifest.generated_sha256
@@ -643,17 +764,31 @@ fn load_projection_rows(
             ))
         })?
         .collect::<Result<Vec<_>, _>>()?;
+    rows.into_iter().map(parse_projection_row).collect()
+}
+
+fn load_raw_projection_rows(connection: &Connection) -> Result<Vec<RawProjectionRow>, StoreError> {
+    let mut statement = connection.prepare(
+        "SELECT relative_path, sha256, generated_sha256
+         FROM projection_manifests WHERE projection_kind = 'raw'
+         ORDER BY relative_path",
+    )?;
+    let rows = statement
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+            ))
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
     rows.into_iter()
-        .map(parse_projection_row)
-        .filter_map(|result| match result {
-            Ok(row)
-                if allowed
-                    .contains(&(row.source_artifact.id.clone(), row.source_artifact.revision)) =>
-            {
-                Some(Ok(row))
-            }
-            Ok(_) => None,
-            Err(error) => Some(Err(error)),
+        .map(|(path, source_sha, generated_sha)| {
+            Ok(RawProjectionRow {
+                relative_path: SafeRelativePath::try_new(path)?,
+                source_sha256: Sha256Digest::try_new(source_sha)?,
+                generated_sha256: Sha256Digest::try_new(generated_sha)?,
+            })
         })
         .collect()
 }
@@ -978,4 +1113,193 @@ fn to_i64(value: u64) -> Result<i64, StoreError> {
 
 fn to_u64(value: i64) -> Result<u64, StoreError> {
     u64::try_from(value).map_err(|_| StoreError::Invariant("negative SQLite value".to_owned()))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{
+        fs,
+        path::{Path, PathBuf},
+        sync::atomic::{AtomicU64, Ordering},
+    };
+
+    use canisend_contracts::{
+        ActorKind, ArtifactKind, ArtifactReference, DocumentRecord, ProjectionEditStatus,
+        ProjectionKind, SafeRelativePath,
+    };
+    use serde_json::json;
+
+    use super::{
+        GeneratedProjection, ProjectionService, canonical_json_bytes, markdown_projection,
+        pretty_json_bytes, record_projection,
+    };
+    use crate::{ArtifactService, Workspace, now_utc};
+
+    static NEXT: AtomicU64 = AtomicU64::new(1);
+
+    struct TestDirectory(PathBuf);
+
+    impl TestDirectory {
+        fn new(label: &str) -> Self {
+            let path = std::env::temp_dir().join(format!(
+                "canisend-projection-{label}-{}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed)
+            ));
+            let _ = fs::remove_dir_all(&path);
+            Self(path)
+        }
+
+        fn path(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    impl Drop for TestDirectory {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn recovery_restore_rebuilds_managed_projections_from_authoritative_blobs() {
+        let source = TestDirectory::new("restore-source");
+        let backup_parent = TestDirectory::new("restore-backup");
+        let restored_parent = TestDirectory::new("restore-destination");
+        let backup = backup_parent.path().join("snapshot");
+        let destination = restored_parent.path().join("workspace");
+        let mut workspace = Workspace::init(source.path()).expect("workspace");
+        let document: DocumentRecord = serde_json::from_value(json!({
+            "id": "019f2f55-7c00-7000-8000-000000000710",
+            "job_id": "019f2f55-7c00-7000-8000-000000000700",
+            "plan_artifact": {
+                "kind": "application-plan",
+                "id": "019f2f55-7c00-7000-8000-000000000701",
+                "revision": 1,
+                "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "planned_document": {
+                "id": "019f2f55-7c00-7000-8000-000000000702",
+                "revision": 1
+            },
+            "kind": "cover-letter",
+            "title": "Application for Lecturer in Economics",
+            "sections": [
+                {
+                    "id": "019f2f55-7c00-7000-8000-000000000711",
+                    "kind": "opening",
+                    "heading": "Purpose",
+                    "body": "I am applying for the role.",
+                    "claims": [],
+                    "revision": 1
+                },
+                {
+                    "id": "019f2f55-7c00-7000-8000-000000000713",
+                    "kind": "closing",
+                    "heading": null,
+                    "body": "I would welcome the opportunity to discuss my application.",
+                    "claims": [],
+                    "revision": 1
+                }
+            ],
+            "placeholders": [],
+            "generation": {
+                "actor": "host-agent",
+                "execution_mode": "host-agent",
+                "task_id": "019f2f55-7c00-7000-8000-000000000712",
+                "prompt_resource_id": "prompt.document-draft",
+                "created_at": "2026-07-18T04:00:00Z"
+            },
+            "revision": 1
+        }))
+        .expect("document fixture");
+        let document_bytes =
+            canonical_json_bytes(&serde_json::to_value(&document).expect("document JSON"))
+                .expect("canonical document");
+        let committed = ArtifactService::new(
+            &mut workspace.database,
+            &workspace.blobs,
+            &workspace.paths.root,
+        )
+        .commit(
+            None,
+            ArtifactKind::CoverLetter,
+            &document_bytes,
+            &[],
+            ActorKind::HostAgent,
+            "managed projection recovery fixture",
+        )
+        .expect("document artifact");
+        let reference = ArtifactReference {
+            kind: ArtifactKind::CoverLetter,
+            id: committed.artifact_id,
+            revision: committed.revision,
+            sha256: committed.sha256,
+        };
+        let base = format!("jobs/{}/managed", document.job_id);
+        let projections = [
+            GeneratedProjection::new(
+                reference.clone(),
+                SafeRelativePath::try_new(format!("{base}/cover-letter.md"))
+                    .expect("Markdown path"),
+                ProjectionKind::Markdown,
+                markdown_projection(&reference, &document)
+                    .expect("Markdown")
+                    .into_bytes(),
+            )
+            .expect("Markdown projection"),
+            GeneratedProjection::new(
+                reference.clone(),
+                SafeRelativePath::try_new(format!("{base}/cover-letter.json")).expect("JSON path"),
+                ProjectionKind::StructuredJson,
+                pretty_json_bytes(&serde_json::to_value(&document).expect("document JSON"))
+                    .expect("pretty JSON"),
+            )
+            .expect("JSON projection"),
+            GeneratedProjection::new(
+                reference.clone(),
+                SafeRelativePath::try_new(format!("{base}/cover-letter.typ")).expect("Typst path"),
+                ProjectionKind::TypstSource,
+                canisend_io::project_document_typst(&reference, &document)
+                    .expect("Typst")
+                    .into_bytes(),
+            )
+            .expect("Typst projection"),
+        ];
+        let recorded_at = now_utc().expect("timestamp");
+        for projection in &projections {
+            super::write_projection(
+                &workspace.paths.root,
+                &projection.relative_path,
+                &projection.bytes,
+            )
+            .expect("source projection");
+            record_projection(
+                workspace.database.connection(),
+                projection,
+                ProjectionEditStatus::Current,
+                Some(&projection.generated_sha256),
+                None,
+                &recorded_at,
+            )
+            .expect("projection manifest");
+        }
+
+        workspace.backup(&backup).expect("backup");
+        let mut restored = Workspace::restore(&backup, &destination).expect("restore");
+        for projection in &projections {
+            assert_eq!(
+                fs::read(destination.join(projection.relative_path.as_str()))
+                    .expect("rebuilt projection"),
+                projection.bytes
+            );
+        }
+        let restored_root = restored.paths.root.clone();
+        assert_eq!(
+            ProjectionService::new(&mut restored.database, &restored.blobs, &restored_root,)
+                .repair_all()
+                .expect("idempotent repair"),
+            0
+        );
+    }
 }

@@ -83,6 +83,31 @@ jobs:
           ./target/release/canisend --workspace "$restored" workspace check --json
           ./scripts/smoke_host_agent.sh ./target/release/canisend "$RUNNER_TEMP/canisend-host-agent-smoke"
 
+  recovery-native:
+    name: recovery-${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            os: ubuntu-latest
+          - name: macos-arm64
+            os: macos-14
+          - name: windows-x86_64
+            os: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@1.97.0
+
+      - name: Cache Cargo build
+        uses: Swatinem/rust-cache@v2
+
+      - name: Exercise interruption, restore, corruption, and concurrency contracts
+        run: cargo test -p canisend-store --locked recovery_
+
   render-native:
     name: render-${{ matrix.name }}
     runs-on: ${{ matrix.os }}

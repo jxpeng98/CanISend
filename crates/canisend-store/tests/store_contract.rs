@@ -2,7 +2,11 @@ use std::{
     fs,
     io::{self, Read},
     path::{Path, PathBuf},
-    sync::atomic::{AtomicU64, Ordering},
+    sync::{
+        Arc, Barrier,
+        atomic::{AtomicU64, Ordering},
+    },
+    thread,
 };
 
 use canisend_contracts::{
@@ -1540,6 +1544,100 @@ fn agent_tasks_validate_commit_idempotently_and_detect_changed_jobs() {
 }
 
 #[test]
+fn recovery_concurrent_host_agents_commit_one_idempotent_result() {
+    let root = TestDirectory::new("concurrent-agent-task");
+    let request = {
+        let mut workspace = Workspace::init(root.path()).expect("workspace");
+        let job = JobService::new(&mut workspace.database, &workspace.blobs)
+            .create("Lecturer in Economics", "University X", ActorKind::User)
+            .expect("job");
+        JobService::new(&mut workspace.database, &workspace.blobs)
+            .import_source(
+                &job.id,
+                NewSource {
+                    kind: SourceKind::LocalFile,
+                    original_bytes: b"Teach economics".to_vec(),
+                    normalized_text: "Teach economics\n".to_owned(),
+                    source_url: None,
+                    final_url: None,
+                    content_type: "text/plain; charset=utf-8".to_owned(),
+                    redirect_chain: Vec::new(),
+                    privacy: PrivacyClassification::PrivateLocal,
+                },
+                ActorKind::User,
+            )
+            .expect("source");
+        WorkflowService::new(&mut workspace.database)
+            .start(&job.id)
+            .expect("workflow");
+        let descriptor = TaskService::new(&mut workspace.database, &workspace.blobs)
+            .prepare_job_parse(&job.id, ExecutionMode::HostAgent)
+            .expect("prepared task");
+        let candidate = json!({
+            "id": "019f2f55-7c00-7000-8000-000000000801",
+            "job_id": job.id,
+            "title": "Lecturer in Economics",
+            "institution": "University X",
+            "summary": "Teach economics",
+            "responsibilities": ["Teach economics"],
+            "criteria": [{
+                "id": "019f2f55-7c00-7000-8000-000000000802",
+                "job_id": job.id,
+                "kind": "teaching",
+                "requirement": "Evidence of university-level teaching",
+                "importance": "essential",
+                "source_quote": "Teach economics",
+                "source_span": {
+                    "source": descriptor.input_artifacts[0],
+                    "start_byte": 0,
+                    "end_byte": 15
+                },
+                "confidence_milli": 950,
+                "confirmed": false,
+                "revision": 1
+            }],
+            "revision": 1
+        });
+        document_request(&descriptor, candidate)
+    };
+
+    let barrier = Arc::new(Barrier::new(3));
+    let mut handles = Vec::new();
+    for _ in 0..2 {
+        let root = root.path().to_path_buf();
+        let request = request.clone();
+        let barrier = Arc::clone(&barrier);
+        handles.push(thread::spawn(move || {
+            let mut workspace =
+                Workspace::open_from(Some(&root), &root).map_err(|error| error.to_string())?;
+            barrier.wait();
+            TaskService::new(&mut workspace.database, &workspace.blobs)
+                .complete(&request)
+                .map_err(|error| error.to_string())
+        }));
+    }
+    barrier.wait();
+    let commits = handles
+        .into_iter()
+        .map(|handle| {
+            handle
+                .join()
+                .expect("host-agent thread")
+                .expect("concurrent completion")
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        commits.iter().filter(|commit| !commit.idempotent).count(),
+        1
+    );
+    assert_eq!(commits.iter().filter(|commit| commit.idempotent).count(), 1);
+    assert_eq!(commits[0].artifact, commits[1].artifact);
+    let workspace = Workspace::open_from(Some(root.path()), root.path()).expect("reopen workspace");
+    assert!(workspace.check().expect("post-concurrency check").ok);
+}
+
+#[test]
 fn workflow_kernel_enforces_graph_modes_and_scoped_rerun() {
     let root = TestDirectory::new("workflow-kernel");
     let mut workspace = Workspace::init(root.path()).expect("workspace");
@@ -2054,7 +2152,7 @@ fn artifact_commit_stales_dependents_and_projection_repairs() {
 }
 
 #[test]
-fn verified_backup_restores_into_new_workspace() {
+fn recovery_verified_backup_restores_into_new_workspace() {
     let root = TestDirectory::new("backup-source");
     let backup = TestDirectory::new("backup-destination");
     let restore = TestDirectory::new("restore-destination");
@@ -2067,7 +2165,7 @@ fn verified_backup_restores_into_new_workspace() {
             &workspace.blobs,
             &workspace.paths.root,
         );
-        service
+        let artifact = service
             .commit(
                 None,
                 ArtifactKind::EvidenceCatalog,
@@ -2077,6 +2175,13 @@ fn verified_backup_restores_into_new_workspace() {
                 "import evidence",
             )
             .expect("artifact commit");
+        service
+            .project(
+                &artifact.artifact_id,
+                artifact.revision,
+                &SafeRelativePath::try_new("jobs/example/evidence.json").expect("projection path"),
+            )
+            .expect("raw projection");
     }
     let result = workspace.backup(&backup_path).expect("backup");
     assert_eq!(result.manifest.blobs.len(), 1);
@@ -2084,6 +2189,92 @@ fn verified_backup_restores_into_new_workspace() {
     let restored = Workspace::restore(&backup_path, &restore_path).expect("restore");
     assert_eq!(restored.config.workspace_id, workspace.config.workspace_id);
     assert!(restored.check().expect("restored check").ok);
+    assert_eq!(
+        fs::read(restore_path.join("jobs/example/evidence.json"))
+            .expect("projection rebuilt during restore"),
+        b"private evidence"
+    );
+}
+
+#[test]
+fn recovery_interrupted_backup_removes_partial_destination() {
+    let root = TestDirectory::new("backup-interrupted-source");
+    let backup = TestDirectory::new("backup-interrupted-destination");
+    let destination = backup.path().join("snapshot");
+    let mut workspace = Workspace::init(root.path()).expect("workspace");
+    let artifact = ArtifactService::new(
+        &mut workspace.database,
+        &workspace.blobs,
+        &workspace.paths.root,
+    )
+    .commit(
+        None,
+        ArtifactKind::EvidenceCatalog,
+        b"private evidence",
+        &[],
+        ActorKind::User,
+        "backup interruption fixture",
+    )
+    .expect("artifact commit");
+    fs::remove_file(workspace.blobs.path_for(&artifact.sha256)).expect("remove referenced blob");
+    assert!(workspace.backup(&destination).is_err());
+    assert!(!destination.exists());
+    if backup.path().exists() {
+        assert_eq!(
+            fs::read_dir(backup.path()).expect("backup parent").count(),
+            0,
+            "failed backup must not leave a partial staging directory"
+        );
+    }
+}
+
+#[test]
+fn recovery_check_detects_missing_and_corrupted_referenced_blobs() {
+    let root = TestDirectory::new("referenced-blob-damage");
+    let mut workspace = Workspace::init(root.path()).expect("workspace");
+    let missing = ArtifactService::new(
+        &mut workspace.database,
+        &workspace.blobs,
+        &workspace.paths.root,
+    )
+    .commit(
+        None,
+        ArtifactKind::SourceOriginal,
+        b"missing referenced body",
+        &[],
+        ActorKind::User,
+        "missing recovery fixture",
+    )
+    .expect("missing artifact");
+    let corrupted = ArtifactService::new(
+        &mut workspace.database,
+        &workspace.blobs,
+        &workspace.paths.root,
+    )
+    .commit(
+        None,
+        ArtifactKind::SourceNormalizedText,
+        b"corrupted referenced body",
+        &[],
+        ActorKind::User,
+        "corrupt recovery fixture",
+    )
+    .expect("corrupted artifact");
+    fs::remove_file(workspace.blobs.path_for(&missing.sha256)).expect("remove referenced blob");
+    let corrupt_path = workspace.blobs.path_for(&corrupted.sha256);
+    fs::remove_file(&corrupt_path).expect("remove immutable blob before corruption");
+    fs::write(&corrupt_path, b"tampered").expect("replace blob with corrupt bytes");
+
+    let check = workspace.check().expect("workspace damage report");
+    assert!(!check.ok);
+    let invalid_subjects = check
+        .issues
+        .iter()
+        .filter(|issue| issue.code == "blob.reference_invalid")
+        .map(|issue| issue.subject.as_str())
+        .collect::<Vec<_>>();
+    assert!(invalid_subjects.contains(&missing.sha256.as_str()));
+    assert!(invalid_subjects.contains(&corrupted.sha256.as_str()));
 }
 
 struct FailingReader {

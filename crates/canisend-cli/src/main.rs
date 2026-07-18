@@ -1894,13 +1894,13 @@ fn workspace_restore(backup: PathBuf, destination: PathBuf) -> CommandResult<Com
 fn workspace_repair(workspace_path: Option<PathBuf>) -> CommandResult<CommandOutput> {
     let mut workspace = open_workspace(workspace_path, "workspace.repair")?;
     let repaired = {
-        let mut service = ArtifactService::new(
+        let mut service = ProjectionService::new(
             &mut workspace.database,
             &workspace.blobs,
             &workspace.paths.root,
         );
         service
-            .repair_projections()
+            .repair_all()
             .map_err(|error| store_failure("workspace.repair", error))?
     };
     success(

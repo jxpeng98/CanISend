@@ -33,7 +33,8 @@ impl Workspace {
                 staging.display()
             )));
         }
-        create_private_directory(&staging)?;
+        let mut staging_guard = TemporaryDirectory::create(staging)?;
+        let staging = staging_guard.path();
         let staging_internal = staging.join(".canisend");
         let staging_blobs = staging_internal.join("blobs/sha256");
         create_private_directory(&staging_internal)?;
@@ -86,8 +87,9 @@ impl Workspace {
         let mut manifest_json = serde_json::to_string_pretty(&manifest)?;
         manifest_json.push('\n');
         write_private_file(&staging.join(MANIFEST_FILE), manifest_json.as_bytes())?;
-        verify_backup(&staging)?;
-        fs::rename(&staging, destination).map_err(|source| io_error(destination, source))?;
+        verify_backup(staging)?;
+        fs::rename(staging, destination).map_err(|source| io_error(destination, source))?;
+        staging_guard.persist();
         Ok(BackupResult {
             directory: destination.to_path_buf(),
             manifest,
@@ -98,7 +100,9 @@ impl Workspace {
         verify_backup(backup)?;
         ensure_destination_available(destination)?;
         let staging = destination.with_extension(format!("partial-{}", generate_id()?));
-        copy_tree(backup, &staging)?;
+        let mut staging_guard = TemporaryDirectory::create(staging)?;
+        let staging = staging_guard.path();
+        copy_tree(backup, staging)?;
         let manifest_path = staging.join(MANIFEST_FILE);
         fs::remove_file(&manifest_path).map_err(|source| io_error(&manifest_path, source))?;
         for directory in [
@@ -110,8 +114,55 @@ impl Workspace {
         ] {
             create_private_directory(&directory)?;
         }
-        fs::rename(&staging, destination).map_err(|source| io_error(destination, source))?;
+        let mut staged_workspace = Self::open_from(Some(staging), staging)?;
+        let staged_root = staged_workspace.paths.root.clone();
+        crate::ProjectionService::new(
+            &mut staged_workspace.database,
+            &staged_workspace.blobs,
+            &staged_root,
+        )
+        .repair_all()?;
+        drop(staged_workspace);
+        fs::rename(staging, destination).map_err(|source| io_error(destination, source))?;
+        staging_guard.persist();
         Self::open_from(Some(destination), destination)
+    }
+}
+
+struct TemporaryDirectory {
+    path: PathBuf,
+    persisted: bool,
+}
+
+impl TemporaryDirectory {
+    fn create(path: PathBuf) -> Result<Self, StoreError> {
+        if path.exists() {
+            return Err(StoreError::BackupInvalid(format!(
+                "staging path already exists: {}",
+                path.display()
+            )));
+        }
+        create_private_directory(&path)?;
+        Ok(Self {
+            path,
+            persisted: false,
+        })
+    }
+
+    fn path(&self) -> &Path {
+        &self.path
+    }
+
+    fn persist(&mut self) {
+        self.persisted = true;
+    }
+}
+
+impl Drop for TemporaryDirectory {
+    fn drop(&mut self) {
+        if !self.persisted {
+            let _ = fs::remove_dir_all(&self.path);
+        }
     }
 }
 
