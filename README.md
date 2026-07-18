@@ -29,12 +29,13 @@ the Git tag `archive/python-v0.6.0b1-final`.
 
 ## Current status
 
-The Rust rebuild has completed R0–R10, including the full evidence-backed material pipeline, restricted native
+The Rust rebuild has completed R0–R11.1, including the full evidence-backed material pipeline, restricted native
 rendering, audited security/privacy/dependency boundaries, cross-platform recovery evidence, enforced performance
-budgets, human remediation output, and staged-binary user documentation. R11 native alpha release work is now
-active. The current binary provides:
+budgets, human remediation output, staged-binary user documentation, and the verified five-platform
+[`v0.7.0-alpha.1` native prerelease](https://github.com/jxpeng98/CanISend/releases/tag/v0.7.0-alpha.1). R11.2 Beta
+hardening is active. The current binary provides:
 
-- Native `canisend` executable scaffolding.
+- Standalone `canisend` executable archives for five native targets.
 - Validated UUIDv7, SHA-256, revision, UTC timestamp, and safe relative-path contract types.
 - `canisend.agent/v2` success/error envelopes, stable error registry, and grouped exit policy.
 - Product/version/build inspection.

@@ -72,6 +72,6 @@ fabricate evidence or generate misleading application material.
 ## Transition
 
 The five target builds, exact packaged-binary smokes, independently verified release evidence, and real-job dogfood
-satisfy the pre-publication R11.1 qualification gates. The remaining Alpha work is to publish the exact qualified
-commit, download and verify the public GitHub Release assets, confirm the explicit no-telemetry issue-intake path,
-and then record the R11.1 exit before beginning Beta.
+satisfied the pre-publication R11.1 qualification gates. Publication and public-asset verification are recorded in
+the [Alpha release closeout note](2026-07-18-r11-alpha-release.md). R11.1 is complete and R11.2 Beta hardening is
+active.

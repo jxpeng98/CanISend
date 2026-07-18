@@ -2,17 +2,19 @@
 
 ## Current state
 
-No Rust-native CanISend release has been published yet. Version `0.7.0-alpha.1` is the first native release candidate
-under active R11 verification. The repository now has a fail-closed five-target archive, packaged-smoke, checksum,
-CycloneDX SBOM, release-manifest, and GitHub OIDC provenance pipeline. A tag is not created until its branch dry-run
-passes.
+[`v0.7.0-alpha.1`](https://github.com/jxpeng98/CanISend/releases/tag/v0.7.0-alpha.1) is the first published
+Rust-native CanISend release. It is an unsigned GitHub prerelease built from exact source commit
+`4cec4ec48cc2e96f3798dde0b438d3aaa617a2f8` after a successful branch dry-run. Tag release run `29633386835`
+repeated the complete source and five-target matrix, published 12 assets, and attached GitHub OIDC provenance.
+Independent post-publication download verification matched every `SHA256SUMS` entry, accepted the release manifest,
+and verified all 12 attestations against the source digest and signer workflow. R11.2 Beta hardening is active.
 
 PyPI and TestPyPI are not release channels for the Rust product.
 
-## Planned native targets
+## Published Alpha targets
 
 - `aarch64-apple-darwin`.
-- `x86_64-apple-darwin` or a validated universal macOS archive.
+- `x86_64-apple-darwin`.
 - `x86_64-unknown-linux-gnu`.
 - `x86_64-unknown-linux-musl`.
 - `x86_64-pc-windows-msvc`.
@@ -32,10 +34,9 @@ cargo build --release --locked
 
 ## Publication requirements
 
-Before the first alpha archive is published, the release workflow must produce platform archives, SHA-256
-checksums, an SBOM, license notices, build provenance, and packaged-binary smoke results. Embedded Typst rendering is
-a release requirement for the complete product but is not falsely advertised as available in the current foundation
-binary.
+Every published archive must include SHA-256 coverage, an SBOM, license notices, build provenance, and
+packaged-binary smoke results. The published Alpha satisfies those gates and includes embedded Typst rendering in
+the standalone executable.
 
 Stable release requirements additionally include macOS notarization and the planned Windows signing policy when
 credentials are available.

@@ -1,6 +1,6 @@
 # CanISend Rust-Native Greenfield Rebuild Roadmap
 
-**Status:** In progress — R0 through R10 complete; R11.1 native alpha release active
+**Status:** In progress — R0 through R11.1 complete; R11.2 native beta hardening active
 
 **Date:** 2026-07-17
 
@@ -180,6 +180,13 @@
   University of Cambridge HTML and PDF URL imports were also dogfooded; a synthetic, deliberately mismatched profile
   completed Intake through Plan and correctly held the application at Draft with six essential evidence blockers.
   R11.1 archive, packaged-smoke, and real-job dogfood gates are satisfied; public Alpha publication remains active.
+- 2026-07-18: Published `v0.7.0-alpha.1` as a non-draft GitHub prerelease from the exact qualified source commit.
+  Tag release run `29633386835` repeated the complete source gate and five-target native matrix, with exact archive
+  smokes and mandatory GNU performance/full-workflow budgets, then assembled and attested 12 release assets. A fresh
+  public Release download passed all 11 `SHA256SUMS` entries, the repository verifier, manifest/SBOM inspection, and
+  provenance verification for every asset against the exact source digest and signer workflow. The tagged public
+  issue form and release issue-intake asset require synthetic reproductions and state that no telemetry, analytics,
+  crash upload, or background reporting is enabled. R11.1 exit criteria are satisfied; R11.2 Beta is active.
 
 ## 1. Executive Decision
 
@@ -1819,17 +1826,23 @@ normalizer now makes the exact staged workflow portable instead of weakening the
 
 - [x] Build all initial target archives.
 - [x] Run packaged-binary smokes.
-- [ ] Publish checksums, SBOM, notices, and known limitations.
+- [x] Publish checksums, SBOM, notices, and known limitations.
 - [x] Dogfood real job imports and application workflows.
-- [ ] Collect issues without enabling default telemetry.
+- [x] Collect issues without enabling default telemetry.
 
 **R11.1 qualification evidence:** GitHub Actions ordinary CI `29632388521` and native release dry-run `29632388573`
 passed at exact source commit `4cec4ec48cc2e96f3798dde0b438d3aaa617a2f8`. The dry-run covered macOS arm64 and
 x86_64, Linux GNU and musl x86_64, and Windows MSVC x86_64. Its downloaded evidence passed both independent SHA-256
 and GitHub provenance verification. The [Alpha dogfood note](../../notes/rust-native/2026-07-18-r11-alpha-dogfood.md)
-records the public HTML/PDF intake and fail-closed application-plan result. Publication and post-publication issue
-intake remain open; the release tag must reference the qualified source commit rather than a later documentation
-commit.
+records the public HTML/PDF intake and fail-closed application-plan result. The tag resolves to that qualified source
+commit rather than the later documentation commit.
+
+**R11.1 exit:** Satisfied by tag-release run `29633386835`, the public
+[`v0.7.0-alpha.1`](https://github.com/jxpeng98/CanISend/releases/tag/v0.7.0-alpha.1) prerelease, independent public
+asset verification, and the [Alpha release closeout note](../../notes/rust-native/2026-07-18-r11-alpha-release.md).
+Five native archives plus checksums, CycloneDX SBOM, release manifest, notices, known limitations, release notes, and
+privacy-scoped issue intake are public. All 12 assets have source-bound GitHub provenance; no default telemetry was
+introduced. R11.2 owns blocker triage, contract freezes, package-manager candidates, and credential-backed signing.
 
 #### R11.2 Beta
 
