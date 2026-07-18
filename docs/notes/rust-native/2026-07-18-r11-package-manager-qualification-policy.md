@@ -4,7 +4,7 @@
 
 **Roadmap items:** R11.3 and R11.4 preparation
 
-**Status:** Machine policy implemented; native lifecycle workflow active next
+**Status:** Machine policy and evidence verifier implemented; native lifecycle workflow active next
 
 ## Decision
 
@@ -24,3 +24,8 @@ qualification for an owned project, not third-party system testing.
 The current Alpha candidate remains `candidates-only`. A valid run requires a same-line signed Beta/RC pair, four
 candidate-source-bound records, every official validator, exact observed versions, and workspace retention after
 uninstall. Until that evidence exists, the qualification ledger and R11.3/R11.4 checkboxes remain unchanged.
+
+`xtask release verify-package-evidence` now rejects the wrong stage pair, cross-line versions, missing or extra
+records, mixed run IDs, mixed candidate pairs, unchanged Beta/RC candidate hashes, false/unknown checks, wrong native
+environments, observed-version drift, and noncanonical fields. This makes the future workflow evidence reviewable
+without allowing a hand-written `passed` assertion to qualify Stable.

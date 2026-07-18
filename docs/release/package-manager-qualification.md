@@ -22,8 +22,8 @@ One qualification run must produce four independently bound records:
 | `winget-x86_64-pc-windows-msvc` | Windows x86_64 and Windows Sandbox | `winget validate`, Sandbox install, lifecycle |
 
 Every record binds the Beta and RC candidate-source SHA-256 digests, GitHub run ID, runner/architecture, tool version,
-exact version observations, and each lifecycle result. All checks must pass; skipped validators or lifecycle steps do
-not count as qualification.
+exact version observations, and each lifecycle result. All 12 named checks must be exactly `true`; unknown fields,
+skipped validators, tolerated failures, mixed run IDs, mixed candidate digests, or a noncanonical file set fail.
 
 The lifecycle creates a workspace outside the package-manager installation root, upgrades the executable, removes
 the installed executable, and proves the user-owned workspace remains. It never publishes externally and never uses
@@ -40,3 +40,13 @@ The qualification ledger may change `package_managers.status` from `candidates-o
 
 The later workflow implementation will be manual-only and read-only with respect to external package repositories.
 The final Stable publication remains a separate authorized action after two clean RC release matrices.
+
+After collecting the four JSON records, verify them with:
+
+```bash
+cargo run -p xtask --locked -- release verify-package-evidence \
+  v0.7.0-beta.1 v0.7.0-rc.1 EVIDENCE_DIRECTORY
+```
+
+The verifier independently enforces the Beta-to-RC stage pair, same release line, exact record environments, shared
+run ID, shared but distinct candidate-source digests, exact observed versions, and all policy checks.

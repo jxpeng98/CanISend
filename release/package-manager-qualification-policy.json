@@ -64,6 +64,20 @@
     "all_checks_must_pass": true,
     "bind_candidate_source_sha256": true,
     "bind_github_run_id": true,
+    "required_checks": [
+      "candidate-sources-verified",
+      "official-validation",
+      "install",
+      "from-version",
+      "from-doctor",
+      "workspace-created",
+      "upgrade",
+      "to-version",
+      "to-doctor",
+      "uninstall",
+      "workspace-retained",
+      "no-publication"
+    ],
     "required_records": [
       "homebrew-aarch64-apple-darwin",
       "homebrew-x86_64-apple-darwin",

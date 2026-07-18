@@ -27,6 +27,7 @@ const FEEDBACK_SNAPSHOT_SCHEMA: &str = "canisend.feedback-snapshot/v1";
 const RELEASE_QUALIFICATION_SCHEMA: &str = "canisend.release-qualification/v1";
 const PACKAGE_MANAGER_QUALIFICATION_POLICY_SCHEMA: &str =
     "canisend.package-manager-qualification-policy/v1";
+const PACKAGE_MANAGER_QUALIFICATION_SCHEMA: &str = "canisend.package-manager-qualification/v1";
 const CODE_SIGNING_EVIDENCE_SCHEMA: &str = "canisend.code-signing-evidence/v1";
 const FUZZ_TOOLCHAIN: &str = "nightly-2026-07-01";
 const CARGO_FUZZ_VERSION: &str = "0.13.2";
@@ -107,9 +108,14 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
                 Path::new(archive),
             )
         }
+        [area, command, from_tag, to_tag, evidence]
+            if area == "release" && command == "verify-package-evidence" =>
+        {
+            verify_package_manager_evidence(from_tag, to_tag, Path::new(evidence))
+        }
         _ => Err(
             "usage: cargo run -p xtask -- schemas <check|write> | <resources|docs> check | \
-             release <check|freeze-candidate|validate-tag TAG|sbom OUTPUT|assemble TAG COMMIT ARTIFACTS OUTPUT|verify TAG DIRECTORY|channels TAG ASSETS OUTPUT|bind-signing-evidence TAG TARGET EVIDENCE BINARY ARCHIVE>"
+             release <check|freeze-candidate|validate-tag TAG|sbom OUTPUT|assemble TAG COMMIT ARTIFACTS OUTPUT|verify TAG DIRECTORY|channels TAG ASSETS OUTPUT|bind-signing-evidence TAG TARGET EVIDENCE BINARY ARCHIVE|verify-package-evidence FROM_TAG TO_TAG DIRECTORY>"
                 .to_owned(),
         ),
     }
@@ -2197,6 +2203,20 @@ fn check_package_manager_qualification_policy() -> Result<(), String> {
             ],
             "bind_candidate_source_sha256": true,
             "bind_github_run_id": true,
+            "required_checks": [
+                "candidate-sources-verified",
+                "official-validation",
+                "install",
+                "from-version",
+                "from-doctor",
+                "workspace-created",
+                "upgrade",
+                "to-version",
+                "to-doctor",
+                "uninstall",
+                "workspace-retained",
+                "no-publication"
+            ],
             "all_checks_must_pass": true
         }
     });
@@ -2213,6 +2233,199 @@ fn check_package_manager_qualification_policy() -> Result<(), String> {
     check_local_markdown_links(&root, &documentation_path, &documentation)?;
     println!("package-manager qualification policy: ok (4 native records)");
     Ok(())
+}
+
+fn verify_package_manager_evidence(
+    from_tag: &str,
+    to_tag: &str,
+    directory: &Path,
+) -> Result<(), String> {
+    let (from_version, from_stage) = parse_release_tag(from_tag)?;
+    let (to_version, to_stage) = parse_release_tag(to_tag)?;
+    if from_stage != ReleaseStage::Beta || to_stage != ReleaseStage::ReleaseCandidate {
+        return Err("package-manager qualification requires a Beta-to-RC tag pair".to_owned());
+    }
+    if (from_version.major, from_version.minor, from_version.patch)
+        != (to_version.major, to_version.minor, to_version.patch)
+    {
+        return Err("package-manager qualification tags must use the same release line".to_owned());
+    }
+    let expected = BTreeMap::from([
+        (
+            "homebrew-aarch64-apple-darwin.json",
+            (
+                "homebrew-aarch64-apple-darwin",
+                "homebrew-cask",
+                "aarch64-apple-darwin",
+                "macos-15",
+            ),
+        ),
+        (
+            "homebrew-x86_64-apple-darwin.json",
+            (
+                "homebrew-x86_64-apple-darwin",
+                "homebrew-cask",
+                "x86_64-apple-darwin",
+                "macos-15-intel",
+            ),
+        ),
+        (
+            "scoop-x86_64-pc-windows-msvc.json",
+            (
+                "scoop-x86_64-pc-windows-msvc",
+                "scoop",
+                "x86_64-pc-windows-msvc",
+                "windows-2025",
+            ),
+        ),
+        (
+            "winget-x86_64-pc-windows-msvc.json",
+            (
+                "winget-x86_64-pc-windows-msvc",
+                "winget",
+                "x86_64-pc-windows-msvc",
+                "windows-sandbox",
+            ),
+        ),
+    ]);
+    let mut actual_paths = BTreeSet::new();
+    collect_relative_files(directory, directory, &mut actual_paths)?;
+    if actual_paths != expected.keys().map(|name| (*name).to_owned()).collect() {
+        return Err(format!(
+            "package-manager evidence file set differs: expected {:?}, found {actual_paths:?}",
+            expected.keys().collect::<Vec<_>>()
+        ));
+    }
+
+    let mut run_ids = BTreeSet::new();
+    let mut from_digests = BTreeSet::new();
+    let mut to_digests = BTreeSet::new();
+    for (file, (record, channel, target, environment)) in expected {
+        let path = directory.join(file);
+        reject_symlink(&path)?;
+        let value: Value = serde_json::from_slice(&fs::read(&path).map_err(|error| {
+            format!(
+                "could not read package-manager evidence {}: {error}",
+                path.display()
+            )
+        })?)
+        .map_err(|error| format!("package-manager evidence `{file}` is invalid JSON: {error}"))?;
+        let (run_id, from_digest, to_digest) = validate_package_manager_evidence_record(
+            &value,
+            record,
+            channel,
+            target,
+            environment,
+            from_tag,
+            to_tag,
+        )?;
+        run_ids.insert(run_id);
+        from_digests.insert(from_digest);
+        to_digests.insert(to_digest);
+    }
+    if run_ids.len() != 1 || from_digests.len() != 1 || to_digests.len() != 1 {
+        return Err(
+            "package-manager evidence records must bind one run and one shared candidate pair"
+                .to_owned(),
+        );
+    }
+    if from_digests == to_digests {
+        return Err("Beta and RC candidate-source digests must differ".to_owned());
+    }
+    println!(
+        "package-manager evidence: ok ({from_tag} -> {to_tag}, run {})",
+        run_ids.first().expect("one checked run ID")
+    );
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_package_manager_evidence_record(
+    value: &Value,
+    expected_record: &str,
+    expected_channel: &str,
+    expected_target: &str,
+    expected_environment: &str,
+    from_tag: &str,
+    to_tag: &str,
+) -> Result<(u64, String, String), String> {
+    let context = format!("package-manager evidence `{expected_record}`");
+    let run_id = value["github_run_id"]
+        .as_u64()
+        .filter(|run| *run > 0)
+        .ok_or_else(|| format!("{context} has no positive GitHub run ID"))?;
+    let from_digest = required_string(value, "from_candidate_source_sha256", &context)?.to_owned();
+    let to_digest = required_string(value, "to_candidate_source_sha256", &context)?.to_owned();
+    validate_lower_hex(
+        &format!("{context} Beta candidate digest"),
+        &from_digest,
+        64,
+    )?;
+    validate_lower_hex(&format!("{context} RC candidate digest"), &to_digest, 64)?;
+    let tool_version = required_string(value, "tool_version", &context)?;
+    let completed_at = required_string(value, "completed_at", &context)?;
+    if !completed_at.ends_with('Z') {
+        return Err(format!("{context} completion timestamp must be UTC"));
+    }
+    let checks = value["checks"]
+        .as_object()
+        .ok_or_else(|| format!("{context} checks are missing"))?;
+    let required_checks = [
+        "candidate-sources-verified",
+        "official-validation",
+        "install",
+        "from-version",
+        "from-doctor",
+        "workspace-created",
+        "upgrade",
+        "to-version",
+        "to-doctor",
+        "uninstall",
+        "workspace-retained",
+        "no-publication",
+    ];
+    if checks.len() != required_checks.len()
+        || required_checks
+            .iter()
+            .any(|check| checks.get(*check) != Some(&Value::Bool(true)))
+    {
+        return Err(format!("{context} does not pass every required check"));
+    }
+    let expected = json!({
+        "schema": PACKAGE_MANAGER_QUALIFICATION_SCHEMA,
+        "record": expected_record,
+        "channel": expected_channel,
+        "target": expected_target,
+        "environment": expected_environment,
+        "from_tag": from_tag,
+        "to_tag": to_tag,
+        "from_candidate_source_sha256": from_digest,
+        "to_candidate_source_sha256": to_digest,
+        "github_run_id": run_id,
+        "tool_version": tool_version,
+        "observed_versions": {
+            "from": from_tag.trim_start_matches('v'),
+            "to": to_tag.trim_start_matches('v')
+        },
+        "checks": checks,
+        "completed_at": completed_at
+    });
+    if *value != expected {
+        return Err(format!(
+            "{context} contains unknown, noncanonical, or mismatched fields"
+        ));
+    }
+    Ok((run_id, from_digest, to_digest))
+}
+
+fn parse_release_tag(tag: &str) -> Result<(Version, ReleaseStage), String> {
+    let version = Version::parse(
+        tag.strip_prefix('v')
+            .ok_or_else(|| format!("release tag `{tag}` must start with `v`"))?,
+    )
+    .map_err(|error| format!("release tag `{tag}` is invalid SemVer: {error}"))?;
+    let stage = ReleaseStage::from_version(&version)?;
+    Ok((version, stage))
 }
 
 fn check_channel_candidate_directory(path: &Path) -> Result<ChannelCandidateSource, String> {
@@ -3336,6 +3549,46 @@ mod tests {
         .expect("sample channel source")
     }
 
+    fn sample_package_manager_evidence(
+        record: &str,
+        channel: &str,
+        target: &str,
+        environment: &str,
+    ) -> Value {
+        json!({
+            "schema": PACKAGE_MANAGER_QUALIFICATION_SCHEMA,
+            "record": record,
+            "channel": channel,
+            "target": target,
+            "environment": environment,
+            "from_tag": "v0.7.0-beta.1",
+            "to_tag": "v0.7.0-rc.1",
+            "from_candidate_source_sha256": "a".repeat(64),
+            "to_candidate_source_sha256": "b".repeat(64),
+            "github_run_id": 29_640_000_001_u64,
+            "tool_version": "native package tool 1.0.0",
+            "observed_versions": {
+                "from": "0.7.0-beta.1",
+                "to": "0.7.0-rc.1"
+            },
+            "checks": {
+                "candidate-sources-verified": true,
+                "official-validation": true,
+                "install": true,
+                "from-version": true,
+                "from-doctor": true,
+                "workspace-created": true,
+                "upgrade": true,
+                "to-version": true,
+                "to-doctor": true,
+                "uninstall": true,
+                "workspace-retained": true,
+                "no-publication": true
+            },
+            "completed_at": "2026-07-18T10:00:00Z"
+        })
+    }
+
     fn sample_apple_signing_evidence() -> Value {
         json!({
             "schema": CODE_SIGNING_EVIDENCE_SCHEMA,
@@ -3562,6 +3815,92 @@ mod tests {
     #[test]
     fn package_manager_qualification_policy_is_native_and_nonpublishing() {
         check_package_manager_qualification_policy().expect("package-manager qualification policy");
+    }
+
+    #[test]
+    fn package_manager_evidence_requires_all_true_canonical_checks() {
+        let mut evidence = sample_package_manager_evidence(
+            "homebrew-aarch64-apple-darwin",
+            "homebrew-cask",
+            "aarch64-apple-darwin",
+            "macos-15",
+        );
+        validate_package_manager_evidence_record(
+            &evidence,
+            "homebrew-aarch64-apple-darwin",
+            "homebrew-cask",
+            "aarch64-apple-darwin",
+            "macos-15",
+            "v0.7.0-beta.1",
+            "v0.7.0-rc.1",
+        )
+        .expect("canonical package-manager evidence");
+
+        evidence["checks"]["upgrade"] = Value::Bool(false);
+        assert!(
+            validate_package_manager_evidence_record(
+                &evidence,
+                "homebrew-aarch64-apple-darwin",
+                "homebrew-cask",
+                "aarch64-apple-darwin",
+                "macos-15",
+                "v0.7.0-beta.1",
+                "v0.7.0-rc.1",
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn package_manager_evidence_directory_binds_one_native_run() {
+        let root = std::env::temp_dir().join(format!(
+            "canisend-package-manager-evidence-{}",
+            std::process::id()
+        ));
+        if root.exists() {
+            fs::remove_dir_all(&root).expect("remove stale package evidence fixture");
+        }
+        fs::create_dir_all(&root).expect("create package evidence fixture");
+        for (file, record, channel, target, environment) in [
+            (
+                "homebrew-aarch64-apple-darwin.json",
+                "homebrew-aarch64-apple-darwin",
+                "homebrew-cask",
+                "aarch64-apple-darwin",
+                "macos-15",
+            ),
+            (
+                "homebrew-x86_64-apple-darwin.json",
+                "homebrew-x86_64-apple-darwin",
+                "homebrew-cask",
+                "x86_64-apple-darwin",
+                "macos-15-intel",
+            ),
+            (
+                "scoop-x86_64-pc-windows-msvc.json",
+                "scoop-x86_64-pc-windows-msvc",
+                "scoop",
+                "x86_64-pc-windows-msvc",
+                "windows-2025",
+            ),
+            (
+                "winget-x86_64-pc-windows-msvc.json",
+                "winget-x86_64-pc-windows-msvc",
+                "winget",
+                "x86_64-pc-windows-msvc",
+                "windows-sandbox",
+            ),
+        ] {
+            write_pretty_json(
+                &root.join(file),
+                &sample_package_manager_evidence(record, channel, target, environment),
+            )
+            .expect("write package evidence fixture");
+        }
+        verify_package_manager_evidence("v0.7.0-beta.1", "v0.7.0-rc.1", &root)
+            .expect("verify complete package evidence");
+        assert!(verify_package_manager_evidence("v0.7.0-alpha.1", "v0.7.0-rc.1", &root).is_err());
+        fs::remove_dir_all(root).expect("remove package evidence fixture");
     }
 
     #[test]

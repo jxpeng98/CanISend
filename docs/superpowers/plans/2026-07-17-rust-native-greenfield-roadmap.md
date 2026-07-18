@@ -235,6 +235,10 @@
   evidence must contain Homebrew lifecycle records from both macOS architectures plus Scoop and WinGet records from
   Windows, all bound to candidate-source hashes and one inspected GitHub run. This closes ambiguity between manifest
   generation and real install/upgrade/uninstall behavior; the native manual workflow is the next active task.
+- 2026-07-18: Added a strict four-record package evidence verifier. It enforces the Beta-to-RC stage pair and release
+  line, exact native environments, one GitHub run and candidate pair, distinct Beta/RC source hashes, observed
+  versions, canonical fields, and 12 all-true validation/lifecycle/publication-boundary checks. No evidence exists
+  yet, so the ledger correctly remains `candidates-only`.
 
 ## 1. Executive Decision
 
