@@ -29,9 +29,9 @@ the Git tag `archive/python-v0.6.0b1-final`.
 
 ## Current status
 
-The Rust rebuild has completed R9 plus the R10 security, recovery, and performance reviews, including the full
-evidence-backed material pipeline, restricted native rendering, an audited dependency/threat boundary,
-cross-platform recovery evidence, and enforced release performance budgets. R10 UX/documentation work is now
+The Rust rebuild has completed R0–R10, including the full evidence-backed material pipeline, restricted native
+rendering, audited security/privacy/dependency boundaries, cross-platform recovery evidence, enforced performance
+budgets, human remediation output, and staged-binary user documentation. R11 native alpha release work is now
 active. The current binary provides:
 
 - Native `canisend` executable scaffolding.

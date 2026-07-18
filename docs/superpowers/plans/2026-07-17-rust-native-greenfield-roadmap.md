@@ -1,6 +1,6 @@
 # CanISend Rust-Native Greenfield Rebuild Roadmap
 
-**Status:** In progress — R0 through R9 and R10.1–R10.3 complete; R10.4 UX and documentation active
+**Status:** In progress — R0 through R10 complete; R11.1 native alpha release active
 
 **Date:** 2026-07-17
 
@@ -165,6 +165,12 @@
   macOS arm64 measurements were 7/7/8/73/29/5 ms, 831 ms full workflow, and 48,874,800 bytes. GitHub Actions run
   `29630280560` passed the Linux gate at 3/3/4/63/15/6 ms, 263 ms full workflow, and 58,431,816 bytes; the quality
   critical path remained under five minutes and the complete matrix under ten. R10.4 UX and documentation is active.
+- 2026-07-18: Completed R10.4 and the full hardening phase with human-mode stable error codes, remediation, retry
+  status, warnings, and next actions; six required user guides; explicit scanned-PDF and provider-consent boundaries;
+  and a documented workflow smoke executed from staged release binaries. The first Windows smoke exposed mixed
+  `D:\\`/Git Bash path handling and failed closed; the normalized-path rerun in GitHub Actions `29631149914` passed
+  quality, dependency, recovery, performance, rendering, and staged documentation gates on Linux x86_64, macOS
+  arm64, and Windows x86_64. R10 exit criteria are satisfied; R11.1 native alpha release is active.
 
 ## 1. Executive Decision
 
@@ -1781,11 +1787,16 @@ normal debug test suite.
 
 #### R10.4 UX and documentation
 
-- [ ] Review human command output and remediation messages.
-- [ ] Complete installation, quick-start, privacy, agent, backup, and troubleshooting guides.
-- [ ] Document unsupported scanned PDFs.
-- [ ] Document provider consent and data boundaries.
-- [ ] Test documentation from a clean machine.
+- [x] Review human command output and remediation messages.
+- [x] Complete installation, quick-start, privacy, agent, backup, and troubleshooting guides.
+- [x] Document unsupported scanned PDFs.
+- [x] Document provider consent and data boundaries.
+- [x] Test documentation from a clean machine.
+
+**R10.4 exit:** Satisfied by the seven-guide documentation set (the six R10 user guides plus R11 release
+verification), human-output/error remediation tests, the staged-bundle quick-start contract, and GitHub Actions run
+`29631149914`. The Windows runner initially exposed a mixed native/Git Bash `RUNNER_TEMP` path; the shared path
+normalizer now makes the exact staged workflow portable instead of weakening the executable check.
 
 **Deliverables:** Threat model, recovery evidence, benchmark baseline, complete user documentation.
 
