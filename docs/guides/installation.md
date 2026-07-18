@@ -66,6 +66,17 @@ An unsigned alpha may trigger macOS Gatekeeper or Windows SmartScreen. Alpha tes
 checksum, and GitHub attestation before making a one-binary exception through the operating system's normal security
 UI. Never disable Gatekeeper, SmartScreen, antivirus, or execution policy globally to run CanISend.
 
+## Package-manager candidates
+
+The repository contains review candidates for Homebrew Cask, Scoop, and WinGet, but none is currently a supported or
+published installation channel. Do not infer that `brew install`, `scoop install`, or `winget install` will find
+CanISend from their public repositories. The candidates are generated from verified Alpha release bytes to exercise
+URL, SHA-256, architecture, and nested-archive behavior before signed Beta/RC validation.
+
+See the [package-manager candidate guide](../../packaging/README.md) for the source-binding model and the remaining
+native validation gates. Stable installation commands will be documented here only after final signed artifacts pass
+Homebrew, Scoop, and WinGet install, upgrade, and uninstall tests.
+
 ## Build from source for development
 
 Building is not the end-user installation path. Developers need the pinned Rust toolchain:

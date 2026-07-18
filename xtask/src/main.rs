@@ -20,6 +20,8 @@ const RELEASE_TARGET_SCHEMA: &str = "canisend.release-targets/v1";
 const RELEASE_MANIFEST_SCHEMA: &str = "canisend.release-manifest/v1";
 const BETA_READINESS_SCHEMA: &str = "canisend.beta-readiness/v1";
 const BETA_CONTRACT_FREEZE_SCHEMA: &str = "canisend.beta-contract-freeze/v1";
+const CHANNEL_CANDIDATE_SOURCE_SCHEMA: &str = "canisend.channel-candidate-source/v1";
+const WINGET_MANIFEST_VERSION: &str = "1.12.0";
 const NATIVE_ALPHA_TAG: &str = "v0.7.0-alpha.1";
 const NATIVE_ALPHA_SOURCE: &str = "4cec4ec48cc2e96f3798dde0b438d3aaa617a2f8";
 const FROZEN_MIGRATIONS_THROUGH: u32 = 13;
@@ -47,6 +49,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
             check_internal_dependency_versions()?;
             check_beta_readiness()?;
             check_beta_contract_freeze()?;
+            check_channel_candidates()?;
             check_release_contract()
         }
         [area, command] if area == "release" && command == "freeze-candidate" => {
@@ -72,9 +75,14 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
         [area, command, tag, directory] if area == "release" && command == "verify" => {
             verify_release(tag, Path::new(directory))
         }
+        [area, command, tag, assets, output]
+            if area == "release" && command == "channels" =>
+        {
+            write_channel_candidates(tag, Path::new(assets), Path::new(output))
+        }
         _ => Err(
             "usage: cargo run -p xtask -- schemas <check|write> | <resources|docs> check | \
-             release <check|freeze-candidate|validate-tag TAG|sbom OUTPUT|assemble TAG COMMIT ARTIFACTS OUTPUT|verify TAG DIRECTORY>"
+             release <check|freeze-candidate|validate-tag TAG|sbom OUTPUT|assemble TAG COMMIT ARTIFACTS OUTPUT|verify TAG DIRECTORY|channels TAG ASSETS OUTPUT>"
                 .to_owned(),
         ),
     }
@@ -258,6 +266,64 @@ struct ReleaseTarget {
     signing: String,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct ChannelArtifact {
+    target: String,
+    archive: String,
+    sha256: String,
+    size: u64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct ChannelCandidateSource {
+    tag: String,
+    version: String,
+    stage: ReleaseStage,
+    source_commit: String,
+    repository: String,
+    manifest_file: String,
+    manifest_sha256: String,
+    artifacts: BTreeMap<String, ChannelArtifact>,
+}
+
+impl ChannelCandidateSource {
+    fn artifact(&self, target: &str) -> Result<&ChannelArtifact, String> {
+        self.artifacts
+            .get(target)
+            .ok_or_else(|| format!("channel candidate source has no `{target}` artifact"))
+    }
+
+    fn to_value(&self) -> Value {
+        let artifacts = self
+            .artifacts
+            .values()
+            .map(|artifact| {
+                json!({
+                    "target": artifact.target,
+                    "archive": artifact.archive,
+                    "sha256": artifact.sha256,
+                    "size": artifact.size,
+                })
+            })
+            .collect::<Vec<_>>();
+        json!({
+            "schema": CHANNEL_CANDIDATE_SOURCE_SCHEMA,
+            "candidate_only": true,
+            "publication_authorized": false,
+            "release": {
+                "tag": self.tag,
+                "version": self.version,
+                "stage": self.stage.as_str(),
+                "source_commit": self.source_commit,
+                "repository": self.repository,
+                "manifest_file": self.manifest_file,
+                "manifest_sha256": self.manifest_sha256,
+            },
+            "artifacts": artifacts,
+        })
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum ReleaseStage {
     Alpha,
@@ -273,6 +339,23 @@ impl ReleaseStage {
             Self::Beta => "beta",
             Self::ReleaseCandidate => "rc",
             Self::Stable => "stable",
+        }
+    }
+
+    fn from_version(version: &Version) -> Result<Self, String> {
+        let prerelease = version.pre.as_str();
+        if prerelease.starts_with("alpha.") {
+            Ok(Self::Alpha)
+        } else if prerelease.starts_with("beta.") {
+            Ok(Self::Beta)
+        } else if prerelease.starts_with("rc.") {
+            Ok(Self::ReleaseCandidate)
+        } else if prerelease.is_empty() {
+            Ok(Self::Stable)
+        } else {
+            Err(format!(
+                "release tag prerelease `{prerelease}` is not alpha, beta, or rc"
+            ))
         }
     }
 }
@@ -769,6 +852,485 @@ fn release_targets() -> Result<Vec<ReleaseTarget>, String> {
     Ok(targets)
 }
 
+fn write_channel_candidates(tag: &str, assets: &Path, output: &Path) -> Result<(), String> {
+    verify_release(tag, assets)?;
+    if output.exists() {
+        return Err(format!(
+            "channel candidate output must not already exist: {}",
+            output.display()
+        ));
+    }
+    let version = env!("CARGO_PKG_VERSION");
+    let manifest_path = assets.join(format!("canisend-{version}-manifest.json"));
+    let manifest: Value = serde_json::from_slice(&fs::read(&manifest_path).map_err(|error| {
+        format!(
+            "release manifest is missing at {}: {error}",
+            manifest_path.display()
+        )
+    })?)
+    .map_err(|error| format!("release manifest is invalid JSON: {error}"))?;
+    let source = build_channel_candidate_source(tag, &manifest_path, &manifest)?;
+    let files = render_channel_candidates(&source)?;
+
+    fs::create_dir_all(output).map_err(|error| {
+        format!(
+            "could not create channel candidate output {}: {error}",
+            output.display()
+        )
+    })?;
+    write_pretty_json(&output.join("candidate-source.json"), &source.to_value())?;
+    for (relative, body) in files {
+        let path = output.join(&relative);
+        let parent = path
+            .parent()
+            .ok_or_else(|| format!("candidate file has no parent: {relative}"))?;
+        fs::create_dir_all(parent)
+            .map_err(|error| format!("could not create {}: {error}", parent.display()))?;
+        fs::write(&path, body)
+            .map_err(|error| format!("could not write {}: {error}", path.display()))?;
+    }
+    check_channel_candidate_directory(output)?;
+    println!(
+        "channel candidates: wrote Homebrew, Scoop, and WinGet candidates to {}",
+        output.display()
+    );
+    Ok(())
+}
+
+fn build_channel_candidate_source(
+    tag: &str,
+    manifest_path: &Path,
+    manifest: &Value,
+) -> Result<ChannelCandidateSource, String> {
+    let version = required_string(manifest, "version", "release manifest")?.to_owned();
+    let parsed = Version::parse(&version)
+        .map_err(|error| format!("release manifest version is invalid SemVer: {error}"))?;
+    let stage = ReleaseStage::from_version(&parsed)?;
+    if manifest["tag"] != tag || manifest["stage"] != stage.as_str() {
+        return Err("release manifest stage does not match the channel candidate tag".to_owned());
+    }
+    let source_commit = required_string(&manifest["source"], "commit", "release source")?;
+    let repository = required_string(&manifest["source"], "repository", "release source")?;
+    let entries = manifest["artifacts"]
+        .as_array()
+        .ok_or_else(|| "release manifest artifacts are missing".to_owned())?;
+    let required_targets = BTreeSet::from([
+        "aarch64-apple-darwin",
+        "x86_64-apple-darwin",
+        "x86_64-pc-windows-msvc",
+    ]);
+    let mut artifacts = BTreeMap::new();
+    for entry in entries {
+        let target = required_string(entry, "target", "release artifact")?;
+        if !required_targets.contains(target) {
+            continue;
+        }
+        let artifact = ChannelArtifact {
+            target: target.to_owned(),
+            archive: required_string(entry, "archive", "release artifact")?.to_owned(),
+            sha256: required_string(entry, "sha256", "release artifact")?.to_owned(),
+            size: entry["size"]
+                .as_u64()
+                .ok_or_else(|| format!("release artifact `{target}` has no size"))?,
+        };
+        if artifacts.insert(target.to_owned(), artifact).is_some() {
+            return Err(format!("duplicate channel artifact `{target}`"));
+        }
+    }
+    if artifacts
+        .keys()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>()
+        != required_targets
+    {
+        return Err("release manifest does not contain all channel candidate artifacts".to_owned());
+    }
+    let manifest_file = manifest_path
+        .file_name()
+        .ok_or_else(|| "release manifest has no file name".to_owned())?
+        .to_string_lossy()
+        .into_owned();
+    let candidate = ChannelCandidateSource {
+        tag: tag.to_owned(),
+        version,
+        stage,
+        source_commit: source_commit.to_owned(),
+        repository: repository.to_owned(),
+        manifest_file,
+        manifest_sha256: sha256_file(manifest_path)?,
+        artifacts,
+    };
+    channel_candidate_source_from_value(&candidate.to_value())
+}
+
+fn channel_candidate_source_from_value(value: &Value) -> Result<ChannelCandidateSource, String> {
+    if value["schema"] != CHANNEL_CANDIDATE_SOURCE_SCHEMA
+        || value["candidate_only"] != true
+        || value["publication_authorized"] != false
+    {
+        return Err(
+            "channel candidate source must be candidate-only and must not authorize publication"
+                .to_owned(),
+        );
+    }
+    let release = &value["release"];
+    let tag = required_string(release, "tag", "channel release")?.to_owned();
+    let version = required_string(release, "version", "channel release")?.to_owned();
+    let parsed = Version::parse(&version)
+        .map_err(|error| format!("channel candidate version is invalid SemVer: {error}"))?;
+    if tag != format!("v{version}") {
+        return Err(format!(
+            "channel candidate tag `{tag}` does not match version `{version}`"
+        ));
+    }
+    let stage = ReleaseStage::from_version(&parsed)?;
+    if release["stage"] != stage.as_str() {
+        return Err("channel candidate stage does not match its version".to_owned());
+    }
+    let source_commit = required_string(release, "source_commit", "channel release")?.to_owned();
+    validate_lower_hex("channel source commit", &source_commit, 40)?;
+    let repository = required_string(release, "repository", "channel release")?.to_owned();
+    if repository != env!("CARGO_PKG_REPOSITORY") {
+        return Err(format!(
+            "channel candidate repository must be `{}`",
+            env!("CARGO_PKG_REPOSITORY")
+        ));
+    }
+    let manifest_file = required_string(release, "manifest_file", "channel release")?.to_owned();
+    if manifest_file != format!("canisend-{version}-manifest.json") {
+        return Err("channel candidate manifest file does not match its version".to_owned());
+    }
+    let manifest_sha256 =
+        required_string(release, "manifest_sha256", "channel release")?.to_owned();
+    validate_lower_hex("channel release manifest SHA-256", &manifest_sha256, 64)?;
+
+    let entries = value["artifacts"]
+        .as_array()
+        .ok_or_else(|| "channel candidate artifacts must be an array".to_owned())?;
+    let expected = BTreeMap::from([
+        ("aarch64-apple-darwin", "tar.gz"),
+        ("x86_64-apple-darwin", "tar.gz"),
+        ("x86_64-pc-windows-msvc", "zip"),
+    ]);
+    let mut artifacts = BTreeMap::new();
+    for entry in entries {
+        let target = required_string(entry, "target", "channel artifact")?.to_owned();
+        let archive = required_string(entry, "archive", "channel artifact")?.to_owned();
+        let sha256 = required_string(entry, "sha256", "channel artifact")?.to_owned();
+        let size = entry["size"]
+            .as_u64()
+            .filter(|size| *size > 0)
+            .ok_or_else(|| format!("channel artifact `{target}` has no positive size"))?;
+        let extension = expected
+            .get(target.as_str())
+            .ok_or_else(|| format!("unsupported channel artifact target `{target}`"))?;
+        let expected_archive = format!("canisend-{version}-{target}.{extension}");
+        if archive != expected_archive {
+            return Err(format!(
+                "channel artifact `{target}` must be named `{expected_archive}`"
+            ));
+        }
+        validate_lower_hex(&format!("channel artifact `{target}` SHA-256"), &sha256, 64)?;
+        let artifact = ChannelArtifact {
+            target: target.clone(),
+            archive,
+            sha256,
+            size,
+        };
+        if artifacts.insert(target.clone(), artifact).is_some() {
+            return Err(format!("duplicate channel artifact `{target}`"));
+        }
+    }
+    if artifacts
+        .keys()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>()
+        != expected.keys().copied().collect()
+    {
+        return Err("channel candidate source has an incomplete artifact set".to_owned());
+    }
+    let source = ChannelCandidateSource {
+        tag,
+        version,
+        stage,
+        source_commit,
+        repository,
+        manifest_file,
+        manifest_sha256,
+        artifacts,
+    };
+    if source.to_value() != *value {
+        return Err("channel candidate source contains unknown or non-canonical fields".to_owned());
+    }
+    Ok(source)
+}
+
+fn render_channel_candidates(
+    source: &ChannelCandidateSource,
+) -> Result<BTreeMap<String, String>, String> {
+    let arm = source.artifact("aarch64-apple-darwin")?;
+    let intel = source.artifact("x86_64-apple-darwin")?;
+    let windows = source.artifact("x86_64-pc-windows-msvc")?;
+    let download = |archive: &str| {
+        format!(
+            "{}/releases/download/{}/{}",
+            source.repository, source.tag, archive
+        )
+    };
+    let homebrew = format!(
+        r##"cask "canisend" do
+  arch arm: "aarch64", intel: "x86_64"
+
+  version "{version}"
+  sha256 arm:   "{arm_sha256}",
+         intel: "{intel_sha256}"
+
+  url "{repository}/releases/download/v#{{version}}/canisend-#{{version}}-#{{arch}}-apple-darwin.tar.gz"
+  name "CanISend"
+  desc "Prepare evidence-backed academic job applications with agent hosts"
+  homepage "{repository}"
+
+  binary "canisend-#{{version}}-#{{arch}}-apple-darwin/canisend"
+end
+"##,
+        repository = source.repository,
+        version = source.version,
+        arm_sha256 = arm.sha256,
+        intel_sha256 = intel.sha256,
+    );
+    let scoop = serde_json::to_string_pretty(&json!({
+        "version": source.version,
+        "description": "Prepare evidence-backed academic job applications with agent hosts",
+        "homepage": source.repository,
+        "license": "MIT",
+        "architecture": {
+            "64bit": {
+                "url": download(&windows.archive),
+                "hash": windows.sha256,
+            }
+        },
+        "extract_dir": format!("canisend-{}-x86_64-pc-windows-msvc", source.version),
+        "bin": "canisend.exe",
+    }))
+    .map_err(|error| format!("could not render Scoop candidate: {error}"))?
+        + "\n";
+
+    let identifier = "PengJiaxin.CanISend";
+    let winget_base = format!("winget/manifests/p/PengJiaxin/CanISend/{}/", source.version);
+    let winget_version = format!(
+        r#"# yaml-language-server: $schema=https://aka.ms/winget-manifest.version.{schema}.schema.json
+
+PackageIdentifier: {identifier}
+PackageVersion: {version}
+DefaultLocale: en-US
+ManifestType: version
+ManifestVersion: {schema}
+"#,
+        schema = WINGET_MANIFEST_VERSION,
+        version = source.version,
+    );
+    let winget_locale = format!(
+        r#"# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.{schema}.schema.json
+
+PackageIdentifier: {identifier}
+PackageVersion: {version}
+PackageLocale: en-US
+Publisher: Peng Jiaxin
+PublisherUrl: https://github.com/jxpeng98
+PublisherSupportUrl: {repository}/issues
+PackageName: CanISend
+PackageUrl: {repository}
+License: MIT
+LicenseUrl: {repository}/blob/{tag}/LICENSE
+ShortDescription: Prepare evidence-backed academic job applications with agent hosts
+Moniker: canisend
+Tags:
+- academic-jobs
+- agent
+- cli
+ReleaseNotesUrl: {repository}/releases/tag/{tag}
+ManifestType: defaultLocale
+ManifestVersion: {schema}
+"#,
+        schema = WINGET_MANIFEST_VERSION,
+        version = source.version,
+        repository = source.repository,
+        tag = source.tag,
+    );
+    let winget_installer = format!(
+        r#"# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.{schema}.schema.json
+
+PackageIdentifier: {identifier}
+PackageVersion: {version}
+InstallerType: zip
+NestedInstallerType: portable
+NestedInstallerFiles:
+- RelativeFilePath: canisend-{version}-x86_64-pc-windows-msvc\canisend.exe
+  PortableCommandAlias: canisend
+UpgradeBehavior: install
+Installers:
+- Architecture: x64
+  InstallerUrl: {url}
+  InstallerSha256: {sha256}
+ManifestType: installer
+ManifestVersion: {schema}
+"#,
+        schema = WINGET_MANIFEST_VERSION,
+        version = source.version,
+        url = download(&windows.archive),
+        sha256 = windows.sha256,
+    );
+
+    Ok(BTreeMap::from([
+        ("homebrew/Casks/canisend.rb".to_owned(), homebrew),
+        ("scoop/bucket/canisend.json".to_owned(), scoop),
+        (format!("{winget_base}{identifier}.yaml"), winget_version),
+        (
+            format!("{winget_base}{identifier}.locale.en-US.yaml"),
+            winget_locale,
+        ),
+        (
+            format!("{winget_base}{identifier}.installer.yaml"),
+            winget_installer,
+        ),
+    ]))
+}
+
+fn check_channel_candidates() -> Result<(), String> {
+    let root = repository_root().join("packaging/candidates");
+    let mut entries = fs::read_dir(&root)
+        .map_err(|error| format!("channel candidate directory is missing: {error}"))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("could not inspect channel candidates: {error}"))?;
+    entries.sort_by_key(fs::DirEntry::file_name);
+    if entries.is_empty() {
+        return Err("no package-manager channel candidates exist".to_owned());
+    }
+    let mut has_alpha_baseline = false;
+    for entry in entries {
+        let path = entry.path();
+        let metadata = fs::symlink_metadata(&path)
+            .map_err(|error| format!("could not inspect {}: {error}", path.display()))?;
+        if metadata.file_type().is_symlink() || !metadata.is_dir() {
+            return Err(format!(
+                "channel candidate entry must be a regular directory: {}",
+                path.display()
+            ));
+        }
+        let source = check_channel_candidate_directory(&path)?;
+        if path.file_name().and_then(|name| name.to_str()) != Some(source.tag.as_str()) {
+            return Err(format!(
+                "channel candidate directory {} must be named `{}`",
+                path.display(),
+                source.tag
+            ));
+        }
+        if source.tag == NATIVE_ALPHA_TAG && source.source_commit == NATIVE_ALPHA_SOURCE {
+            has_alpha_baseline = true;
+        }
+    }
+    if !has_alpha_baseline {
+        return Err(
+            "channel candidates do not retain the qualified native Alpha baseline".to_owned(),
+        );
+    }
+    println!("channel candidates: ok");
+    Ok(())
+}
+
+fn check_channel_candidate_directory(path: &Path) -> Result<ChannelCandidateSource, String> {
+    let source_path = path.join("candidate-source.json");
+    reject_symlink(&source_path)?;
+    let source_value: Value = serde_json::from_slice(&fs::read(&source_path).map_err(|error| {
+        format!(
+            "candidate source is missing at {}: {error}",
+            source_path.display()
+        )
+    })?)
+    .map_err(|error| format!("candidate source is invalid JSON: {error}"))?;
+    let source = channel_candidate_source_from_value(&source_value)?;
+    let expected = render_channel_candidates(&source)?;
+    let mut actual_paths = BTreeSet::new();
+    collect_relative_files(path, path, &mut actual_paths)?;
+    actual_paths.remove("candidate-source.json");
+    if actual_paths != expected.keys().cloned().collect() {
+        return Err(format!(
+            "channel candidate file set differs at {}: expected {:?}, found {actual_paths:?}",
+            path.display(),
+            expected.keys().collect::<Vec<_>>()
+        ));
+    }
+    for (relative, expected_body) in expected {
+        let actual = fs::read_to_string(path.join(&relative))
+            .map_err(|error| format!("could not read channel candidate `{relative}`: {error}"))?;
+        if actual != expected_body {
+            return Err(format!(
+                "channel candidate `{relative}` drifted from its verified release source"
+            ));
+        }
+    }
+    Ok(source)
+}
+
+fn collect_relative_files(
+    root: &Path,
+    directory: &Path,
+    files: &mut BTreeSet<String>,
+) -> Result<(), String> {
+    for entry in fs::read_dir(directory)
+        .map_err(|error| format!("could not inspect {}: {error}", directory.display()))?
+    {
+        let entry = entry.map_err(|error| format!("could not inspect candidate file: {error}"))?;
+        let path = entry.path();
+        let metadata = fs::symlink_metadata(&path)
+            .map_err(|error| format!("could not inspect {}: {error}", path.display()))?;
+        if metadata.file_type().is_symlink() {
+            return Err(format!(
+                "channel candidate tree contains a symlink: {}",
+                path.display()
+            ));
+        }
+        if metadata.is_dir() {
+            collect_relative_files(root, &path, files)?;
+        } else if metadata.is_file() {
+            let relative = path
+                .strip_prefix(root)
+                .map_err(|error| format!("could not relativize candidate path: {error}"))?
+                .to_string_lossy()
+                .replace('\\', "/");
+            if !files.insert(relative.clone()) {
+                return Err(format!("duplicate channel candidate file `{relative}`"));
+            }
+        } else {
+            return Err(format!(
+                "channel candidate is not a regular file: {}",
+                path.display()
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn required_string<'a>(value: &'a Value, name: &str, context: &str) -> Result<&'a str, String> {
+    value[name]
+        .as_str()
+        .filter(|field| !field.is_empty())
+        .ok_or_else(|| format!("{context} field `{name}` is missing"))
+}
+
+fn validate_lower_hex(context: &str, value: &str, length: usize) -> Result<(), String> {
+    if value.len() != length
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
+        return Err(format!(
+            "{context} must be exactly {length} lowercase hexadecimal characters"
+        ));
+    }
+    Ok(())
+}
+
 fn validate_release_tag(tag: &str) -> Result<ReleaseStage, String> {
     let expected = format!("v{}", env!("CARGO_PKG_VERSION"));
     if tag != expected {
@@ -778,20 +1340,7 @@ fn validate_release_tag(tag: &str) -> Result<ReleaseStage, String> {
     }
     let version = Version::parse(tag.trim_start_matches('v'))
         .map_err(|error| format!("release tag is not valid SemVer: {error}"))?;
-    let prerelease = version.pre.as_str();
-    let stage = if prerelease.starts_with("alpha.") {
-        ReleaseStage::Alpha
-    } else if prerelease.starts_with("beta.") {
-        ReleaseStage::Beta
-    } else if prerelease.starts_with("rc.") {
-        ReleaseStage::ReleaseCandidate
-    } else if prerelease.is_empty() {
-        ReleaseStage::Stable
-    } else {
-        return Err(format!(
-            "release tag prerelease `{prerelease}` is not alpha, beta, or rc"
-        ));
-    };
+    let stage = ReleaseStage::from_version(&version)?;
     println!("release tag: ok ({tag}, stage {})", stage.as_str());
     Ok(stage)
 }
@@ -1113,19 +1662,7 @@ fn verify_release(tag: &str, directory: &Path) -> Result<(), String> {
     {
         return Err("release manifest identity does not match this build".to_owned());
     }
-    let manifest_targets = manifest["artifacts"]
-        .as_array()
-        .ok_or_else(|| "release manifest artifacts are missing".to_owned())?
-        .iter()
-        .filter_map(|entry| entry["target"].as_str())
-        .collect::<BTreeSet<_>>();
-    let expected_targets = release_targets()?
-        .into_iter()
-        .map(|target| target.triple)
-        .collect::<BTreeSet<_>>();
-    if manifest_targets != expected_targets.iter().map(String::as_str).collect() {
-        return Err("release manifest does not cover the complete target matrix".to_owned());
-    }
+    verify_release_manifest_contents(stage, version, directory, &manifest)?;
     let checksums_path = directory.join("SHA256SUMS");
     let checksums = fs::read_to_string(&checksums_path).map_err(|error| {
         format!(
@@ -1171,6 +1708,126 @@ fn verify_release(tag: &str, directory: &Path) -> Result<(), String> {
         ));
     }
     println!("release assets: verified {} files", verified.len());
+    Ok(())
+}
+
+fn verify_release_manifest_contents(
+    stage: ReleaseStage,
+    version: &str,
+    directory: &Path,
+    manifest: &Value,
+) -> Result<(), String> {
+    if manifest["product"] != "canisend"
+        || manifest["source"]["locked_dependencies"] != true
+        || manifest["source"]["repository"] != env!("CARGO_PKG_REPOSITORY")
+        || manifest["contracts"]["agent_protocol"] != AGENT_PROTOCOL
+        || manifest["contracts"]["public_schema_version"] != PUBLIC_SCHEMA_VERSION
+        || manifest["contracts"]["resource_format"] != canisend_resources::RESOURCE_VERSION
+        || manifest["contracts"]["workspace_format"] != WORKSPACE_FORMAT
+        || manifest["trust"]["default_telemetry"] != false
+        || manifest["trust"]["archive_code_signing_required"]
+            != !matches!(stage, ReleaseStage::Alpha)
+    {
+        return Err("release manifest policy or contract metadata is invalid".to_owned());
+    }
+    let commit = required_string(&manifest["source"], "commit", "release source")?;
+    validate_lower_hex("release source commit", commit, 40)?;
+
+    let targets = release_targets()?;
+    let entries = manifest["artifacts"]
+        .as_array()
+        .ok_or_else(|| "release manifest artifacts are missing".to_owned())?;
+    if entries.len() != targets.len() {
+        return Err(format!(
+            "release manifest must contain exactly {} artifacts",
+            targets.len()
+        ));
+    }
+    let mut by_target = BTreeMap::new();
+    for entry in entries {
+        let target = required_string(entry, "target", "release artifact")?;
+        if by_target.insert(target, entry).is_some() {
+            return Err(format!("duplicate release manifest target `{target}`"));
+        }
+    }
+    for target in targets {
+        let entry = by_target
+            .get(target.triple.as_str())
+            .ok_or_else(|| format!("release manifest target `{}` is missing", target.triple))?;
+        let file_name = format!("canisend-{version}-{}.{}", target.triple, target.archive);
+        if entry["archive"] != file_name
+            || entry["archive_format"] != target.archive
+            || entry["executable"] != target.executable
+            || entry["runner"] != target.runner
+            || entry["signing_kind"] != target.signing
+        {
+            return Err(format!(
+                "release manifest metadata is invalid for target `{}`",
+                target.triple
+            ));
+        }
+        let declared_sha = required_string(entry, "sha256", "release artifact")?;
+        validate_lower_hex(
+            &format!("release artifact `{}` SHA-256", target.triple),
+            declared_sha,
+            64,
+        )?;
+        let declared_size = entry["size"]
+            .as_u64()
+            .filter(|size| *size > 0)
+            .ok_or_else(|| format!("release artifact `{}` has no positive size", target.triple))?;
+        let path = directory.join(&file_name);
+        reject_symlink(&path)?;
+        if sha256_file(&path)? != declared_sha || file_size(&path)? != declared_size {
+            return Err(format!(
+                "release manifest digest or size does not match `{file_name}`"
+            ));
+        }
+    }
+
+    let expected_supplemental = BTreeSet::from([
+        "ISSUE_COLLECTION.md".to_owned(),
+        "KNOWN_LIMITATIONS.md".to_owned(),
+        "RELEASE_NOTES.md".to_owned(),
+        "THIRD_PARTY_NOTICES.md".to_owned(),
+        format!("canisend-{version}-sbom.cdx.json"),
+    ]);
+    let supplemental = manifest["supplemental_files"]
+        .as_array()
+        .ok_or_else(|| "release manifest supplemental files are missing".to_owned())?;
+    if supplemental.len() != expected_supplemental.len() {
+        return Err("release manifest supplemental file count is invalid".to_owned());
+    }
+    let mut actual_supplemental = BTreeSet::new();
+    for entry in supplemental {
+        let file = required_string(entry, "file", "supplemental release file")?;
+        if file.contains('/') || file.contains('\\') || !actual_supplemental.insert(file.to_owned())
+        {
+            return Err(format!(
+                "unsafe or duplicate supplemental release file `{file}`"
+            ));
+        }
+        let declared_sha = required_string(entry, "sha256", "supplemental release file")?;
+        validate_lower_hex(
+            &format!("supplemental release file `{file}` SHA-256"),
+            declared_sha,
+            64,
+        )?;
+        let declared_size = entry["size"]
+            .as_u64()
+            .filter(|size| *size > 0)
+            .ok_or_else(|| format!("supplemental release file `{file}` has no positive size"))?;
+        let path = directory.join(file);
+        reject_symlink(&path)?;
+        if sha256_file(&path)? != declared_sha || file_size(&path)? != declared_size {
+            return Err(format!(
+                "release manifest digest or size does not match supplemental file `{file}`"
+            ));
+        }
+    }
+    if actual_supplemental != expected_supplemental {
+        return Err("release manifest supplemental file set is invalid".to_owned());
+    }
     Ok(())
 }
 
@@ -1297,6 +1954,44 @@ fn write_pretty_json(path: &Path, value: &Value) -> Result<(), String> {
 mod tests {
     use super::*;
 
+    fn sample_channel_source() -> ChannelCandidateSource {
+        channel_candidate_source_from_value(&json!({
+            "schema": CHANNEL_CANDIDATE_SOURCE_SCHEMA,
+            "candidate_only": true,
+            "publication_authorized": false,
+            "release": {
+                "tag": NATIVE_ALPHA_TAG,
+                "version": "0.7.0-alpha.1",
+                "stage": "alpha",
+                "source_commit": NATIVE_ALPHA_SOURCE,
+                "repository": env!("CARGO_PKG_REPOSITORY"),
+                "manifest_file": "canisend-0.7.0-alpha.1-manifest.json",
+                "manifest_sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+            },
+            "artifacts": [
+                {
+                    "target": "aarch64-apple-darwin",
+                    "archive": "canisend-0.7.0-alpha.1-aarch64-apple-darwin.tar.gz",
+                    "sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+                    "size": 1
+                },
+                {
+                    "target": "x86_64-apple-darwin",
+                    "archive": "canisend-0.7.0-alpha.1-x86_64-apple-darwin.tar.gz",
+                    "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+                    "size": 2
+                },
+                {
+                    "target": "x86_64-pc-windows-msvc",
+                    "archive": "canisend-0.7.0-alpha.1-x86_64-pc-windows-msvc.zip",
+                    "sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+                    "size": 3
+                }
+            ]
+        }))
+        .expect("sample channel source")
+    }
+
     #[test]
     fn workspace_version_maps_to_exact_alpha_tag() {
         assert_eq!(
@@ -1334,5 +2029,39 @@ mod tests {
     #[test]
     fn beta_agent_and_workspace_contracts_match_freeze() {
         check_beta_contract_freeze().expect("Beta contract freeze");
+    }
+
+    #[test]
+    fn channel_candidates_preserve_archives_and_nested_binary_paths() {
+        let files = render_channel_candidates(&sample_channel_source()).expect("render candidates");
+        let homebrew = &files["homebrew/Casks/canisend.rb"];
+        assert!(homebrew.contains("arch arm: \"aarch64\", intel: \"x86_64\""));
+        assert!(homebrew.contains("sha256 arm:"));
+        assert!(homebrew.contains("binary \"canisend-#{version}-#{arch}-apple-darwin/canisend\""));
+        let scoop: Value =
+            serde_json::from_str(&files["scoop/bucket/canisend.json"]).expect("valid Scoop JSON");
+        assert_eq!(
+            scoop["architecture"]["64bit"]["hash"],
+            "4444444444444444444444444444444444444444444444444444444444444444"
+        );
+        assert_eq!(
+            scoop["extract_dir"],
+            "canisend-0.7.0-alpha.1-x86_64-pc-windows-msvc"
+        );
+        let installer = files
+            .iter()
+            .find(|(path, _)| path.ends_with(".installer.yaml"))
+            .map(|(_, body)| body)
+            .expect("WinGet installer candidate");
+        assert!(installer.contains("  PortableCommandAlias: canisend\n"));
+        assert!(installer.contains("  InstallerUrl: https://"));
+        assert!(installer.contains("canisend-0.7.0-alpha.1-x86_64-pc-windows-msvc\\canisend.exe"));
+    }
+
+    #[test]
+    fn channel_candidate_source_cannot_authorize_publication() {
+        let mut value = sample_channel_source().to_value();
+        value["publication_authorized"] = Value::Bool(true);
+        assert!(channel_candidate_source_from_value(&value).is_err());
     }
 }

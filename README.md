@@ -33,7 +33,8 @@ The Rust rebuild has completed R0–R11.1, including the full evidence-backed ma
 rendering, audited security/privacy/dependency boundaries, cross-platform recovery evidence, enforced performance
 budgets, human remediation output, staged-binary user documentation, and the verified five-platform
 [`v0.7.0-alpha.1` native prerelease](https://github.com/jxpeng98/CanISend/releases/tag/v0.7.0-alpha.1). R11.2 Beta
-hardening is active. The current binary provides:
+hardening is active. Verified-byte-derived [package-manager candidates](packaging/README.md) now cover Homebrew Cask,
+Scoop, and WinGet without claiming a live external channel. The current binary provides:
 
 - Standalone `canisend` executable archives for five native targets.
 - Validated UUIDv7, SHA-256, revision, UTC timestamp, and safe relative-path contract types.

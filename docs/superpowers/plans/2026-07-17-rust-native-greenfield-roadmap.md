@@ -198,6 +198,12 @@
   agreement, and strengthened every database open to reject future schema versions and incomplete/tampered migration
   histories without mutation. Focused tests, Clippy, and the machine release freeze gate pass. Package-manager
   candidate generation is active.
+- 2026-07-18: Added deterministic Homebrew Cask, Scoop, and WinGet 1.12 candidates derived from the independently
+  verified public Alpha archives. The Rust generator re-runs strengthened manifest/checksum/size validation, records
+  the exact source manifest and archive digests, handles the real versioned archive layout, and emits candidate-only
+  metadata that cannot authorize publication. Repository checks reject source/output drift, unknown files, symlinks,
+  or missing channel targets. Seven xtask tests, Ruby/JSON/YAML syntax checks, Homebrew 6 style, and the complete
+  release check pass. Credential-backed signing and notarization is active.
 
 ## 1. Executive Decision
 
@@ -1860,7 +1866,7 @@ introduced. R11.2 owns blocker triage, contract freezes, package-manager candida
 - [x] Resolve alpha data-loss, security, protocol, and rendering blockers.
 - [x] Freeze agent protocol v2 for the beta line.
 - [x] Freeze workspace v2 migrations inside the Rust era.
-- [ ] Add Homebrew and Windows installation channel candidates.
+- [x] Add Homebrew and Windows installation channel candidates.
 - [ ] Complete macOS notarization and planned Windows signing.
 
 **R11.2 blocker baseline:** The [Beta readiness note](../../notes/rust-native/2026-07-18-r11-beta-readiness.md) and
@@ -1871,6 +1877,12 @@ the snapshot must be refreshed before the Beta tag and any later blocker makes t
 and the [freeze note](../../notes/rust-native/2026-07-18-r11-beta-contract-freeze.md) define the machine-checked Beta
 surface. Agent v2 schemas/capabilities/context are immutable apart from product version; migrations 1–13 are
 immutable and only contiguous appended Rust-era migrations are permitted.
+
+**R11.2 channel candidates:** [ADR-RN-0010](../../architecture/rust-native/decisions/0010-derive-package-channels-from-verified-release-assets.md)
+and the [candidate note](../../notes/rust-native/2026-07-18-r11-beta-channel-candidates.md) bind generated Homebrew
+Cask, Scoop, and WinGet files to exact verified release-manifest/archive digests. All candidate source records forbid
+publication. Signed Beta assets must produce a new set and pass official native validators before any external
+channel changes.
 
 #### R11.3 Release candidate
 

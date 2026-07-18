@@ -8,6 +8,8 @@ Rust-native CanISend release. It is an unsigned GitHub prerelease built from exa
 repeated the complete source and five-target matrix, published 12 assets, and attached GitHub OIDC provenance.
 Independent post-publication download verification matched every `SHA256SUMS` entry, accepted the release manifest,
 and verified all 12 attestations against the source digest and signer workflow. R11.2 Beta hardening is active.
+Homebrew Cask, Scoop, and WinGet candidates are now deterministically derived from the verified Alpha bytes and are
+explicitly non-published; signing/notarization and final native package-manager validation remain Beta/RC gates.
 
 PyPI and TestPyPI are not release channels for the Rust product.
 
