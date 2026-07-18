@@ -7,11 +7,11 @@ use serde_json::{Map, Value};
 use crate::{
     AgentContextData, AgentResponse, ApplicationPlanCandidate, ApplicationPlanRecord,
     BackupManifestData, CapabilitiesData, CriteriaSetRecord, CriterionRecord, DiscoveryBatch,
-    DiscoveryLeadRecord, DocumentCandidate, DocumentRecord, EvidenceCatalogRecord,
-    EvidenceMatchProposalSet, EvidenceMatchRecord, EvidenceMatchSetRecord, EvidenceProposalSet,
-    EvidenceRecord, FindingRecord, JobRecord, ParsedJobRecord, ProfileSourceRecord,
-    ReadinessRecord, SourceRecord, TaskCompletionRequest, TaskDescriptor, VersionData,
-    WorkflowStatusData, WorkspaceCheckData, WorkspaceStatusData,
+    DiscoveryLeadRecord, DocumentCandidate, DocumentRecord, DocumentSetRecord,
+    EvidenceCatalogRecord, EvidenceMatchProposalSet, EvidenceMatchRecord, EvidenceMatchSetRecord,
+    EvidenceProposalSet, EvidenceRecord, FindingRecord, JobRecord, ParsedJobRecord,
+    ProfileSourceRecord, ReadinessRecord, SourceRecord, TaskCompletionRequest, TaskDescriptor,
+    VersionData, WorkflowStatusData, WorkspaceCheckData, WorkspaceStatusData,
 };
 
 pub const PUBLIC_SCHEMA_VERSION: &str = "2.0.0";
@@ -34,6 +34,7 @@ pub enum PublicSchemaId {
     ApplicationPlan,
     Document,
     DocumentCandidate,
+    DocumentSet,
     Finding,
     Readiness,
     WorkspaceStatus,
@@ -53,7 +54,7 @@ pub enum PublicSchemaId {
 }
 
 impl PublicSchemaId {
-    pub const ALL: [Self; 30] = [
+    pub const ALL: [Self; 31] = [
         Self::AgentResponse,
         Self::Capabilities,
         Self::AgentContext,
@@ -68,6 +69,7 @@ impl PublicSchemaId {
         Self::ApplicationPlan,
         Self::Document,
         Self::DocumentCandidate,
+        Self::DocumentSet,
         Self::Finding,
         Self::Readiness,
         Self::WorkspaceStatus,
@@ -103,6 +105,7 @@ impl PublicSchemaId {
             Self::ApplicationPlan => "canisend.application-plan/v2",
             Self::Document => "canisend.document/v2",
             Self::DocumentCandidate => "canisend.document-candidate/v2",
+            Self::DocumentSet => "canisend.document-set/v2",
             Self::Finding => "canisend.finding/v2",
             Self::Readiness => "canisend.readiness/v2",
             Self::WorkspaceStatus => "canisend.workspace-status/v2",
@@ -139,6 +142,7 @@ impl PublicSchemaId {
             Self::ApplicationPlan => "application-plan",
             Self::Document => "document",
             Self::DocumentCandidate => "document-candidate",
+            Self::DocumentSet => "document-set",
             Self::Finding => "finding",
             Self::Readiness => "readiness",
             Self::WorkspaceStatus => "workspace-status",
@@ -202,6 +206,7 @@ pub fn generate_public_schemas() -> Vec<GeneratedSchema> {
         generate::<ApplicationPlanRecord>(PublicSchemaId::ApplicationPlan),
         generate::<DocumentRecord>(PublicSchemaId::Document),
         generate::<DocumentCandidate>(PublicSchemaId::DocumentCandidate),
+        generate::<DocumentSetRecord>(PublicSchemaId::DocumentSet),
         generate::<FindingRecord>(PublicSchemaId::Finding),
         generate::<ReadinessRecord>(PublicSchemaId::Readiness),
         generate::<WorkspaceStatusData>(PublicSchemaId::WorkspaceStatus),

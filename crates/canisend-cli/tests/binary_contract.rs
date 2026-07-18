@@ -162,7 +162,7 @@ fn public_catalogs_are_available_without_a_workspace() {
 
     assert_eq!(
         schemas["data"]["schemas"].as_array().map(Vec::len),
-        Some(30)
+        Some(31)
     );
     assert!(
         resources["data"]["resources"]
@@ -204,7 +204,7 @@ fn agent_host_pack_export_is_versioned_and_self_contained() {
         exported["data"]["manifest"]["files"]
             .as_array()
             .map(Vec::len),
-        Some(18)
+        Some(20)
     );
     assert!(pack.join("AGENTS.md").is_file());
     assert!(pack.join("prompts/job-parse.md").is_file());
@@ -220,6 +220,8 @@ fn agent_host_pack_export_is_versioned_and_self_contained() {
         pack.join("schemas/v2/document-candidate.schema.json")
             .is_file()
     );
+    assert!(pack.join("schemas/v2/document.schema.json").is_file());
+    assert!(pack.join("schemas/v2/document-set.schema.json").is_file());
     assert!(
         pack.join("schemas/v2/evidence-proposals.schema.json")
             .is_file()

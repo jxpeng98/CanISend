@@ -46,38 +46,17 @@
         "sha256"
       ],
       "type": "object"
-    },
-    "PrivacyClassification": {
-      "enum": [
-        "public",
-        "private-local",
-        "provider-bound",
-        "secret"
-      ],
-      "type": "string"
-    },
-    "SourceKind": {
-      "enum": [
-        "local-file",
-        "user-url",
-        "discovery-lead",
-        "manual-text"
-      ],
-      "type": "string"
     }
   },
-  "$id": "https://schemas.canisend.dev/v2/source.schema.json",
+  "$id": "https://schemas.canisend.dev/v2/document-set.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
-    "content_type": {
-      "type": "string"
-    },
-    "final_url": {
-      "type": [
-        "string",
-        "null"
-      ]
+    "documents": {
+      "items": {
+        "$ref": "#/$defs/ArtifactReference"
+      },
+      "type": "array"
     },
     "id": {
       "type": "string"
@@ -85,53 +64,24 @@
     "job_id": {
       "type": "string"
     },
-    "kind": {
-      "$ref": "#/$defs/SourceKind"
-    },
-    "normalized_text": {
-      "anyOf": [
-        {
-          "$ref": "#/$defs/ArtifactReference"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
-    "original": {
+    "plan_artifact": {
       "$ref": "#/$defs/ArtifactReference"
     },
-    "privacy": {
-      "$ref": "#/$defs/PrivacyClassification"
-    },
-    "redirect_chain": {
-      "items": {
-        "type": "string"
-      },
-      "type": "array"
-    },
-    "retrieved_at": {
-      "type": "string"
-    },
-    "source_url": {
-      "type": [
-        "string",
-        "null"
-      ]
+    "revision": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
     }
   },
   "required": [
     "id",
     "job_id",
-    "kind",
-    "original",
-    "content_type",
-    "redirect_chain",
-    "retrieved_at",
-    "privacy"
+    "plan_artifact",
+    "documents",
+    "revision"
   ],
-  "title": "SourceRecord",
+  "title": "DocumentSetRecord",
   "type": "object",
-  "x-canisend-id": "canisend.source/v2",
+  "x-canisend-id": "canisend.document-set/v2",
   "x-canisend-version": "2.0.0"
 }

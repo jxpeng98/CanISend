@@ -225,7 +225,7 @@ fn built_in_descriptors() -> Vec<StageDescriptor> {
         descriptor(
             WorkflowStage::Draft,
             &[WorkflowStage::Plan],
-            ArtifactKind::CoverLetter,
+            ArtifactKind::DocumentSet,
             &[ExecutionMode::HostAgent, ExecutionMode::ConfiguredProvider],
         ),
         descriptor(

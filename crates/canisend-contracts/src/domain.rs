@@ -498,6 +498,16 @@ pub struct DocumentRecord {
     pub revision: Revision,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentSetRecord {
+    pub id: EntityId,
+    pub job_id: EntityId,
+    pub plan_artifact: ArtifactReference,
+    pub documents: Vec<ArtifactReference>,
+    pub revision: Revision,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "kebab-case")]
 pub enum FindingSeverity {

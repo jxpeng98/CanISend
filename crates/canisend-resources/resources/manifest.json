@@ -16,6 +16,7 @@
   {"id":"schema.criteria","kind":"schema","path":"schemas/v2/criteria.schema.json","version":"2.0.0"},
   {"id":"schema.document","kind":"schema","path":"schemas/v2/document.schema.json","version":"2.0.0"},
   {"id":"schema.document-candidate","kind":"schema","path":"schemas/v2/document-candidate.schema.json","version":"2.0.0"},
+  {"id":"schema.document-set","kind":"schema","path":"schemas/v2/document-set.schema.json","version":"2.0.0"},
   {"id":"schema.discovery-batch","kind":"schema","path":"schemas/v2/discovery-batch.schema.json","version":"2.0.0"},
   {"id":"schema.discovery-lead","kind":"schema","path":"schemas/v2/discovery-lead.schema.json","version":"2.0.0"},
   {"id":"schema.evidence-match","kind":"schema","path":"schemas/v2/evidence-match.schema.json","version":"2.0.0"},

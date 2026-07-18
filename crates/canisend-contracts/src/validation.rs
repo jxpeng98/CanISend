@@ -7,10 +7,10 @@ use crate::{
     ApplicationPlanCandidate, ApplicationPlanRecord, ApplicationStrategyRecord, CriteriaSetRecord,
     CriterionRecord, DocumentCandidate, DocumentClaimCandidateRecord,
     DocumentPlaceholderCandidateRecord, DocumentPlanCandidateRecord, DocumentRecord,
-    DocumentSectionCandidateRecord, EvidenceCatalogRecord, EvidenceMatchProposalRecord,
-    EvidenceMatchProposalSet, EvidenceMatchRecord, EvidenceMatchSetRecord, EvidenceProposalRecord,
-    EvidenceProposalSet, EvidenceRecord, FindingRecord, JobRecord, ParsedJobRecord,
-    ProfileSourceRecord, ReadinessRecord, SourceRecord,
+    DocumentSectionCandidateRecord, DocumentSetRecord, EvidenceCatalogRecord,
+    EvidenceMatchProposalRecord, EvidenceMatchProposalSet, EvidenceMatchRecord,
+    EvidenceMatchSetRecord, EvidenceProposalRecord, EvidenceProposalSet, EvidenceRecord,
+    FindingRecord, JobRecord, ParsedJobRecord, ProfileSourceRecord, ReadinessRecord, SourceRecord,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
@@ -865,6 +865,58 @@ impl SemanticValidate for DocumentRecord {
             "/generation/prompt_resource_id",
             &mut violations,
         );
+        violations
+    }
+}
+
+impl SemanticValidate for DocumentSetRecord {
+    fn validate_semantics(&self) -> Vec<ContractViolation> {
+        let mut violations = Vec::new();
+        if self.plan_artifact.kind != crate::ArtifactKind::ApplicationPlan {
+            violations.push(ContractViolation::new(
+                "document_set.plan_kind_invalid",
+                "/plan_artifact/kind",
+                "document set must reference an application-plan artifact",
+            ));
+        }
+        if self.documents.is_empty() || self.documents.len() > crate::DocumentKind::ALL.len() {
+            violations.push(ContractViolation::new(
+                "document_set.count_invalid",
+                "/documents",
+                "document set must contain between one and four structured documents",
+            ));
+        }
+        let mut kinds = std::collections::BTreeSet::new();
+        let mut ids = std::collections::BTreeSet::new();
+        for (index, document) in self.documents.iter().enumerate() {
+            if !matches!(
+                document.kind,
+                crate::ArtifactKind::CoverLetter
+                    | crate::ArtifactKind::ResearchStatement
+                    | crate::ArtifactKind::TeachingStatement
+                    | crate::ArtifactKind::Cv
+            ) {
+                violations.push(ContractViolation::new(
+                    "document_set.kind_invalid",
+                    format!("/documents/{index}/kind"),
+                    "document set may reference only supported structured document artifacts",
+                ));
+            }
+            if !kinds.insert(document.kind) {
+                violations.push(ContractViolation::new(
+                    "document_set.kind_duplicate",
+                    format!("/documents/{index}/kind"),
+                    "document set may contain each document kind at most once",
+                ));
+            }
+            if !ids.insert(&document.id) {
+                violations.push(ContractViolation::new(
+                    "document_set.id_duplicate",
+                    format!("/documents/{index}/id"),
+                    "document set artifact identities must be unique",
+                ));
+            }
+        }
         violations
     }
 }

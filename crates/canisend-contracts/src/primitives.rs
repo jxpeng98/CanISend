@@ -211,6 +211,7 @@ pub enum ArtifactKind {
     ResearchStatement,
     TeachingStatement,
     Cv,
+    DocumentSet,
     ReviewFindings,
     PackageManifest,
     TypstSource,
