@@ -19,9 +19,9 @@ the Git tag `archive/python-v0.6.0b1-final`.
 
 ## Current status
 
-The Rust rebuild has completed R8 plus R9.1–R9.3, including the full evidence-backed material pipeline, restricted
-in-process Typst compilation, safe editable Typst projections, and revision-bound PDF artifacts/exports. R9.4
-cross-platform rendering verification is now active. The current binary provides:
+The Rust rebuild has completed R9, including the full evidence-backed material pipeline, restricted in-process Typst
+compilation, safe editable Typst projections, revision-bound PDF artifacts/exports, and verified native rendering on
+macOS arm64, Windows x86_64, and Linux x86_64. R10 hardening is now active. The current binary provides:
 
 - Native `canisend` executable scaffolding.
 - Validated UUIDv7, SHA-256, revision, UTC timestamp, and safe relative-path contract types.
@@ -83,8 +83,9 @@ cross-platform rendering verification is now active. The current binary provides
 - Consent-gated `render export` of create-new PDFs plus the exact render manifest under `jobs/JOB_ID/`; edited `.typ`
   projections are never trusted compilation inputs, and rendering/exporting never submits an application.
 
-Native release-target font, Unicode/layout, license-notice, size, and timing verification continues in R9.4; its
-acceptance gates are defined in the [Rust-native roadmap](docs/superpowers/plans/2026-07-17-rust-native-greenfield-roadmap.md).
+The R9 native matrix verifies embedded fonts, adversarial Unicode/layout, missing-system-font isolation, bundled
+licenses/notices, render timing, and a 64 MiB release-binary budget. Hardening gates continue in the
+[Rust-native roadmap](docs/superpowers/plans/2026-07-17-rust-native-greenfield-roadmap.md).
 
 ## Build the native foundation
 

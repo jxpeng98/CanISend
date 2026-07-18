@@ -1,6 +1,6 @@
 # CanISend Rust-Native Greenfield Rebuild Roadmap
 
-**Status:** In progress — R0 through R8 and R9.1–R9.3 complete; R9.4 cross-platform rendering active
+**Status:** In progress — R0 through R9 complete; R10.1 security review active
 
 **Date:** 2026-07-17
 
@@ -139,6 +139,13 @@
   projections are explicitly excluded from trusted compilation inputs. Local verification passed 75 Rust tests,
   Clippy with warnings denied, 40-schema/51-resource checks, release compilation, a 31-file host pack, and packaged
   smoke. The macOS arm64 release binary is 48,874,480 bytes. R9.4 cross-platform rendering is active.
+- 2026-07-18: Completed R9.4 and the full R9 rendering phase. GitHub Actions run `29628602007` passed the quality
+  gate plus native full-package render probes on macOS arm64, Windows x86_64, and Linux x86_64. All targets rendered
+  the same two-page 26,678-byte PDF with zero warnings using embedded fonts and no network, runtime package, system
+  font, or external Typst dependency. Release binaries measured 48,792,144, 51,936,256, and 58,421,672 bytes;
+  render probes took 13, 11, and 5 milliseconds respectively, all within the 64 MiB budget. Native bundles contain
+  the product license, dependency notices, embedded font licenses, and Typst asset notice. R9 exit criteria are
+  satisfied; R10.1 security review is active.
 
 ## 1. Executive Decision
 
@@ -1691,11 +1698,17 @@ schemas forbid submission state; edited managed `.typ` projections never enter t
 
 #### R9.4 Cross-platform rendering
 
-- [ ] Test default fonts on all release targets.
-- [ ] Test Unicode, mathematical text, URLs, lists, and page breaks.
-- [ ] Test missing user font behavior.
-- [ ] Measure binary size and render time.
-- [ ] Include licenses and notices.
+- [x] Test default fonts on all release targets.
+- [x] Test Unicode, mathematical text, URLs, lists, and page breaks.
+- [x] Test missing user font behavior.
+- [x] Measure binary size and render time.
+- [x] Include licenses and notices.
+
+**R9.4 exit:** Satisfied by GitHub Actions run `29628602007`. The native matrix compiled the embedded-font complex
+layout corpus and full revision-bound package on macOS arm64, Windows x86_64, and Linux x86_64. Each release probe
+produced the same two-page 26,678-byte PDF with zero warnings. Per-target binary/time results were 48,792,144 bytes /
+13 ms, 51,936,256 bytes / 11 ms, and 58,421,672 bytes / 5 ms, all below the 67,108,864-byte release budget. Staged
+bundles include `LICENSE`, `THIRD_PARTY_NOTICES.md`, embedded font licenses, and the Typst assets notice.
 
 **Deliverables:** Offline embedded rendering and PDF exports.
 
