@@ -23,6 +23,7 @@ use canisend_io::{
     RssAtomAdapter, discovery_adapter_capabilities, extract_pdf_text, parse_csv_batch,
     parse_host_agent_batch, parse_json_batch, read_criteria_file, read_discovery_file,
     read_local_pdf, read_local_text, read_task_completion_file, read_task_completion_stdin,
+    render_acceptance_probe,
 };
 use canisend_resources::{AgentHost, ResourceError, ResourceId, ResourceKind, export_agent_pack};
 use canisend_store::{
@@ -1469,6 +1470,26 @@ fn doctor() -> CommandResult<CommandOutput> {
                 false,
             )
         })?;
+    let render_probe = render_acceptance_probe().map_err(|error| {
+        CommandFailure::new(
+            "product.doctor",
+            "unhealthy",
+            ErrorCode::InternalInvariantFailed,
+            error.to_string(),
+            false,
+        )
+    })?;
+    let binary_size_bytes = std::env::current_exe()
+        .and_then(|path| std::fs::metadata(path).map(|metadata| metadata.len()))
+        .map_err(|error| {
+            CommandFailure::new(
+                "product.doctor",
+                "unhealthy",
+                ErrorCode::InternalInvariantFailed,
+                format!("cannot measure current executable: {error}"),
+                false,
+            )
+        })?;
     let data = json!({
         "resource_manifest": "verified",
         "resource_count": canisend_resources::manifest().len(),
@@ -1478,6 +1499,15 @@ fn doctor() -> CommandResult<CommandOutput> {
         "system_font_scan": false,
         "runtime_package_downloads": false,
         "python_required": false,
+        "render_probe": {
+            "target": env!("CANISEND_BUILD_TARGET"),
+            "page_count": render_probe.page_count(),
+            "pdf_bytes": render_probe.bytes().len(),
+            "warning_count": render_probe.warning_count(),
+            "elapsed_millis": render_probe.elapsed().as_millis(),
+            "binary_size_bytes": binary_size_bytes,
+            "release_binary_budget_bytes": 67_108_864_u64,
+        },
     });
     Ok(CommandOutput {
         response: AgentResponse::success("product.doctor", "healthy", data),
@@ -1486,6 +1516,12 @@ fn doctor() -> CommandResult<CommandOutput> {
             "Embedded resources: verified".to_owned(),
             "Generated schemas: verified".to_owned(),
             "Embedded Typst renderer: verified".to_owned(),
+            format!(
+                "Cross-platform probe: {} pages, {} bytes, {} ms",
+                render_probe.page_count(),
+                render_probe.bytes().len(),
+                render_probe.elapsed().as_millis()
+            ),
             "System fonts and runtime packages: disabled".to_owned(),
             "Python runtime: not required".to_owned(),
         ],

@@ -122,6 +122,18 @@ fn doctor_proves_embedded_resources_and_no_python_requirement() {
     assert_eq!(value["data"]["system_font_scan"], false);
     assert_eq!(value["data"]["runtime_package_downloads"], false);
     assert_eq!(value["data"]["python_required"], false);
+    assert_eq!(value["data"]["render_probe"]["page_count"], 2);
+    assert_eq!(value["data"]["render_probe"]["warning_count"], 0);
+    assert!(
+        value["data"]["render_probe"]["pdf_bytes"]
+            .as_u64()
+            .is_some_and(|bytes| bytes > 0)
+    );
+    assert!(
+        value["data"]["render_probe"]["binary_size_bytes"]
+            .as_u64()
+            .is_some_and(|bytes| bytes > 0)
+    );
 }
 
 #[test]
@@ -269,7 +281,10 @@ fn agent_host_pack_export_is_versioned_and_self_contained() {
         pack.join("schemas/v2/rendered-document.schema.json")
             .is_file()
     );
-    assert!(pack.join("schemas/v2/render-manifest.schema.json").is_file());
+    assert!(
+        pack.join("schemas/v2/render-manifest.schema.json")
+            .is_file()
+    );
     assert!(pack.join("canisend-agent-pack.json").is_file());
 }
 

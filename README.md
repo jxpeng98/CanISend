@@ -225,4 +225,5 @@ archived implementation as a dependency.
 
 ## License
 
-MIT. Embedded third-party resources and fonts will be listed in native release notices before distribution.
+MIT. Native bundles include [third-party renderer and font notices](THIRD_PARTY_NOTICES.md) plus the exact upstream
+`typst-assets` license and notice files; dependency-wide SBOM and license evidence remains scheduled for R10.

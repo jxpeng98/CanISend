@@ -1228,7 +1228,9 @@ fn evidence_and_match_tasks_enforce_stable_revision_bound_identities() {
     assert_eq!(rendered_paths.len(), current_set.documents.len() + 1);
     assert!(rendered_paths.iter().all(|path| {
         workspace_root.join(path.as_str()).is_file()
-            && path.as_str().starts_with(&format!("jobs/{}/rendered/", job.id))
+            && path
+                .as_str()
+                .starts_with(&format!("jobs/{}/rendered/", job.id))
     }));
     assert!(matches!(
         RenderService::new(&mut workspace.database, &workspace.blobs, &workspace_root)

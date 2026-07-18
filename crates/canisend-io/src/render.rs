@@ -12,6 +12,34 @@ pub const MAX_TYPST_SOURCE_BYTES: usize = 1024 * 1024;
 pub const MAX_RENDER_PDF_BYTES: usize = 16 * 1024 * 1024;
 pub const MAX_RENDER_MILLIS: u128 = 10_000;
 
+const CROSS_PLATFORM_RENDER_PROBE: &str = r#"
+#set page(paper: "a4", margin: 22mm)
+#set text(font: "Libertinus Serif", size: 10.5pt)
+
+= CanISend cross-platform acceptance
+
+Unicode: résumé — Ελληνικά — Кириллица — naïve façade.
+
+Mathematics: $ sum_(i=1)^n i = (n(n+1))/2 $ and $ integral_0^1 x^2 dif x = 1/3 $.
+
+#link("https://example.edu/jobs?id=42&lang=en")[https://example.edu/jobs?id=42&lang=en]
+
+- Evidence-backed claim
+- Revision-bound citation
+  - Nested application detail
+
+#pagebreak()
+
+= Explicit second page
+
+#table(
+  columns: (1fr, 1fr),
+  [Field], [Value],
+  [Runtime], [Rust-native],
+  [Renderer], [Embedded Typst],
+)
+"#;
+
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 pub enum TypstProjectionError {
     #[error("embedded application document template is not UTF-8")]
@@ -263,6 +291,10 @@ impl EmbeddedTypstCompiler {
     }
 }
 
+pub fn render_acceptance_probe() -> Result<RenderedPdf, EmbeddedRenderError> {
+    EmbeddedTypstCompiler::new().compile_pdf(CROSS_PLATFORM_RENDER_PROBE)
+}
+
 pub fn validate_rendered_pdf(bytes: &[u8]) -> Result<u32, EmbeddedRenderError> {
     if bytes.len() > MAX_RENDER_PDF_BYTES || !bytes.starts_with(b"%PDF-") {
         return Err(EmbeddedRenderError::InvalidPdf);
@@ -313,7 +345,8 @@ mod tests {
 
     use super::{
         EmbeddedRenderError, EmbeddedTypstCompiler, MAX_RENDER_PDF_BYTES, MAX_TYPST_SOURCE_BYTES,
-        TypstProjectionError, project_document_typst, validate_rendered_pdf,
+        TypstProjectionError, project_document_typst, render_acceptance_probe,
+        validate_rendered_pdf,
     };
 
     #[test]
@@ -347,6 +380,34 @@ mod tests {
             validate_rendered_pdf(b"not-a-pdf"),
             Err(EmbeddedRenderError::InvalidPdf)
         );
+    }
+
+    #[test]
+    fn cross_platform_probe_covers_unicode_math_urls_lists_and_page_breaks() {
+        let rendered = render_acceptance_probe().expect("cross-platform render probe");
+        assert_eq!(rendered.page_count(), 2);
+        assert_eq!(rendered.warning_count(), 0);
+        let text = pdf_extract::extract_text_from_mem(rendered.bytes()).expect("probe PDF text");
+        assert!(text.contains("CanISend cross-platform acceptance"));
+        assert!(text.contains("résumé"));
+        assert!(text.contains("Ελληνικά"));
+        assert!(text.contains("Кириллица"));
+        assert!(text.contains("example.edu/jobs"));
+        assert!(text.contains("Explicit second page"));
+    }
+
+    #[test]
+    fn missing_user_font_is_a_bounded_warning_with_embedded_fallback() {
+        let rendered = EmbeddedTypstCompiler::new()
+            .compile_pdf(
+                r#"#set text(font: ("CanISend Missing User Font", "Libertinus Serif"))
+Missing user font behavior remains deterministic."#,
+            )
+            .expect("embedded fallback renders without system-font access");
+        assert!(rendered.warning_count() > 0);
+        assert_eq!(rendered.page_count(), 1);
+        let text = pdf_extract::extract_text_from_mem(rendered.bytes()).expect("fallback PDF text");
+        assert!(text.contains("Missing user font behavior"));
     }
 
     #[test]

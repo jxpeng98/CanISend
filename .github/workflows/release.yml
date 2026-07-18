@@ -63,11 +63,17 @@ jobs:
           "$binary" --workspace "$restored" workspace check --json
           ./scripts/smoke_host_agent.sh "$binary" "$RUNNER_TEMP/canisend-host-agent-smoke"
 
-      - name: Upload unsigned preview binary
+      - name: Stage unsigned preview bundle with notices
+        shell: bash
+        run: >-
+          ./scripts/stage_native_bundle.sh "${{ matrix.binary }}"
+          "$RUNNER_TEMP/canisend-${{ matrix.name }}"
+
+      - name: Upload unsigned preview bundle
         uses: actions/upload-artifact@v7
         with:
           name: canisend-${{ matrix.name }}
-          path: ${{ matrix.binary }}
+          path: ${{ runner.temp }}/canisend-${{ matrix.name }}
           if-no-files-found: error
 
   publication-disabled:
