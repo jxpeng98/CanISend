@@ -96,12 +96,39 @@ write_evidence_completion() {
     > "$output"
 }
 
+task_input_artifact() {
+  local task_json="$1"
+  local kind="$2"
+  printf '%s' "$task_json" \
+    | grep -oE "\\{\"id\":\"[0-9a-fA-F-]{36}\",\"kind\":\"$kind\",\"revision\":[0-9]+,\"sha256\":\"[0-9a-f]+\"\\}" \
+    | sed -n '1p'
+}
+
+write_match_completion() {
+  local task_json="$1"
+  local output="$2"
+  local task_id lease_id job_revision expected_inputs criteria_artifact evidence_artifact
+  task_id="$(first_uuid_id "$task_json")"
+  lease_id="$(task_lease_id "$task_json")"
+  job_revision="$(task_job_revision "$task_json")"
+  expected_inputs="$(task_expected_inputs "$task_json")"
+  criteria_artifact="$(task_input_artifact "$task_json" criteria)"
+  evidence_artifact="$(task_input_artifact "$task_json" evidence-catalog)"
+  test -n "$criteria_artifact"
+  test -n "$evidence_artifact"
+  printf '%s\n' \
+    "{\"task_id\":\"$task_id\",\"lease_id\":\"$lease_id\",\"expected_job_revision\":$job_revision,\"expected_inputs\":$expected_inputs,\"candidate\":{\"job_id\":\"$job_id\",\"criteria_artifact\":$criteria_artifact,\"evidence_artifact\":$evidence_artifact,\"proposals\":[{\"criterion\":{\"id\":\"019f2f55-7c00-7000-8000-000000000202\",\"revision\":1},\"evidence\":[{\"id\":\"$evidence_item_id\",\"revision\":1}],\"strength\":\"partial\",\"rationale\":\"The doctorate supports subject expertise but does not establish teaching effectiveness.\",\"gap\":\"No confirmed evidence of effective university-level teaching.\",\"prohibited_claims\":[\"Do not claim the doctorate proves teaching effectiveness.\"]}]}}" \
+    > "$output"
+}
+
 "$binary" agent capabilities --json >/dev/null
 "$binary" agent assets export --host codex --destination "$pack" --json >/dev/null
 test -f "$pack/AGENTS.md"
 test -f "$pack/canisend-agent-pack.json"
 test -f "$pack/prompts/evidence-normalize.md"
+test -f "$pack/prompts/evidence-match.md"
 test -f "$pack/schemas/v2/evidence-proposals.schema.json"
+test -f "$pack/schemas/v2/evidence-match-proposals.schema.json"
 
 "$binary" --workspace "$workspace" workspace init --json >/dev/null
 job_json="$(
@@ -206,6 +233,31 @@ grep -q '"status":"confirmed"' "$agent_work/evidence-confirm.json"
 grep -q '"confirmed":true' "$agent_work/evidence-confirm.json"
 "$binary" --workspace "$workspace" profile evidence show --job "$job_id" --json \
   >"$agent_work/evidence-show.json"
+evidence_item_id="$(
+  grep -oE '"items":\[\{"confirmed":true,"excluded":false,"id":"[0-9a-fA-F-]{36}"' \
+    "$agent_work/evidence-confirm.json" | cut -d'"' -f10
+)"
+test -n "$evidence_item_id"
+
+match_task_json="$(
+  "$binary" --workspace "$workspace" task prepare \
+    --job "$job_id" --operation evidence-match --json
+)"
+match_task_id="$(first_uuid_id "$match_task_json")"
+"$binary" --workspace "$workspace" task inputs "$match_task_id" \
+  --destination "$agent_work/match-inputs" --allow-private-read --json \
+  >"$agent_work/match-input-export.json"
+write_match_completion "$match_task_json" "$agent_work/match-completion.json"
+"$binary" --workspace "$workspace" task complete \
+  --file "$agent_work/match-completion.json" --json \
+  >"$agent_work/match-committed.json"
+"$binary" --workspace "$workspace" match show --job "$job_id" --json \
+  >"$agent_work/match-show.json"
+grep -q '"strength":"partial"' "$agent_work/match-show.json"
+grep -q '"prohibited_claims":\[' "$agent_work/match-show.json"
+"$binary" --workspace "$workspace" workflow status --job "$job_id" --json \
+  >"$agent_work/workflow-after-match.json"
+grep -q '"stage":"plan","status":"ready"' "$agent_work/workflow-after-match.json"
 
 "$binary" --workspace "$workspace" workflow rerun --job "$job_id" \
   --stage parse --json >"$agent_work/parse-rerun.json"

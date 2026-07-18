@@ -12,8 +12,8 @@ use canisend_contracts::{
 };
 use canisend_store::{
     ArtifactService, CriteriaService, DEFAULT_MAX_BLOB_BYTES, EvidenceService, JobService,
-    NewProfileSource, NewSource, ProfileService, StoreError, TaskService, WorkflowService,
-    Workspace, WorkspacePaths, verify_backup,
+    MatchService, NewProfileSource, NewSource, ProfileService, StoreError, TaskService,
+    WorkflowService, Workspace, WorkspacePaths, verify_backup,
 };
 use serde_json::json;
 
@@ -263,7 +263,7 @@ fn profile_sources_are_private_revisioned_and_invalidate_evidence_only() {
 }
 
 #[test]
-fn evidence_tasks_generate_stable_ids_and_require_source_bound_user_revisions() {
+fn evidence_and_match_tasks_enforce_stable_revision_bound_identities() {
     let root = TestDirectory::new("evidence-workflow");
     let mut workspace = Workspace::init(root.path()).expect("workspace");
     let job = JobService::new(&mut workspace.database, &workspace.blobs)
@@ -393,6 +393,103 @@ fn evidence_tasks_generate_stable_ids_and_require_source_bound_user_revisions() 
     assert_eq!(confirmed.items[0].id, generated_item_id);
     assert!(confirmed.items[0].excluded);
 
+    let parse_descriptor = TaskService::new(&mut workspace.database, &workspace.blobs)
+        .prepare_job_parse(&job.id, ExecutionMode::HostAgent)
+        .expect("parse task");
+    let parse_request = TaskCompletionRequest {
+        task_id: parse_descriptor.id.clone(),
+        lease_id: parse_descriptor.lease.id.clone(),
+        expected_job_revision: parse_descriptor.job_revision,
+        expected_inputs: parse_descriptor
+            .input_artifacts
+            .iter()
+            .map(|input| ExpectedInputRevision {
+                artifact_id: input.id.clone(),
+                revision: input.revision,
+                sha256: input.sha256.clone(),
+            })
+            .collect(),
+        candidate: json!({
+            "id": "019f2f55-7c00-7000-8000-000000000501",
+            "job_id": job.id,
+            "title": "Lecturer",
+            "institution": "University X",
+            "summary": "Teach economics",
+            "responsibilities": ["Teach economics"],
+            "criteria": [{
+                "id": "019f2f55-7c00-7000-8000-000000000502",
+                "job_id": job.id,
+                "kind": "qualification",
+                "requirement": "Demonstrate economics expertise",
+                "importance": "essential",
+                "source_quote": "Teach economics",
+                "source_span": {
+                    "source": parse_descriptor.input_artifacts[0],
+                    "start_byte": 0,
+                    "end_byte": 15
+                },
+                "confidence_milli": 800,
+                "confirmed": false,
+                "revision": 1
+            }],
+            "revision": 1
+        }),
+    };
+    TaskService::new(&mut workspace.database, &workspace.blobs)
+        .complete(&parse_request)
+        .expect("parsed job");
+    let criteria = CriteriaService::new(&mut workspace.database, &workspace.blobs)
+        .template(&job.id)
+        .expect("criteria template");
+    let criteria_artifact = CriteriaService::new(&mut workspace.database, &workspace.blobs)
+        .confirm(
+            &job.id,
+            &serde_json::to_value(&criteria).expect("criteria JSON"),
+        )
+        .expect("criteria confirmation");
+    let excluded_match_descriptor = TaskService::new(&mut workspace.database, &workspace.blobs)
+        .prepare_evidence_match(&job.id, ExecutionMode::HostAgent)
+        .expect("match task");
+    assert_eq!(excluded_match_descriptor.input_artifacts.len(), 2);
+    let excluded_match_request = TaskCompletionRequest {
+        task_id: excluded_match_descriptor.id.clone(),
+        lease_id: excluded_match_descriptor.lease.id.clone(),
+        expected_job_revision: excluded_match_descriptor.job_revision,
+        expected_inputs: excluded_match_descriptor
+            .input_artifacts
+            .iter()
+            .map(|input| ExpectedInputRevision {
+                artifact_id: input.id.clone(),
+                revision: input.revision,
+                sha256: input.sha256.clone(),
+            })
+            .collect(),
+        candidate: json!({
+            "job_id": job.id,
+            "criteria_artifact": criteria_artifact,
+            "evidence_artifact": confirmed_artifact,
+            "proposals": [{
+                "criterion": {
+                    "id": criteria.criteria[0].id,
+                    "revision": criteria.criteria[0].revision
+                },
+                "evidence": [{
+                    "id": confirmed.items[0].id,
+                    "revision": confirmed.items[0].revision
+                }],
+                "strength": "strong",
+                "rationale": "The doctorate demonstrates economics expertise.",
+                "gap": null,
+                "prohibited_claims": ["Do not claim a teaching qualification."]
+            }]
+        }),
+    };
+    assert!(matches!(
+        TaskService::new(&mut workspace.database, &workspace.blobs)
+            .complete(&excluded_match_request),
+        Err(StoreError::CandidateSemantic(_))
+    ));
+
     let mut revision = EvidenceService::new(&mut workspace.database, &workspace.blobs)
         .template(&job.id)
         .expect("revision template");
@@ -413,6 +510,80 @@ fn evidence_tasks_generate_stable_ids_and_require_source_bound_user_revisions() 
     assert_eq!(revised.items[0].revision.get(), 2);
     assert_eq!(revised.items[0].id, generated_item_id);
     assert!(!revised.items[0].excluded);
+    assert_eq!(
+        TaskService::new(&mut workspace.database, &workspace.blobs)
+            .get(&excluded_match_descriptor.id)
+            .expect("stale match task")
+            .status,
+        TaskStatus::Stale
+    );
+    assert!(matches!(
+        TaskService::new(&mut workspace.database, &workspace.blobs)
+            .complete(&excluded_match_request),
+        Err(StoreError::TaskStale(_))
+    ));
+
+    let match_descriptor = TaskService::new(&mut workspace.database, &workspace.blobs)
+        .prepare_evidence_match(&job.id, ExecutionMode::ConfiguredProvider)
+        .expect("recomputed match task");
+    assert_eq!(match_descriptor.required_consents.len(), 2);
+    let match_request = TaskCompletionRequest {
+        task_id: match_descriptor.id.clone(),
+        lease_id: match_descriptor.lease.id.clone(),
+        expected_job_revision: match_descriptor.job_revision,
+        expected_inputs: match_descriptor
+            .input_artifacts
+            .iter()
+            .map(|input| ExpectedInputRevision {
+                artifact_id: input.id.clone(),
+                revision: input.revision,
+                sha256: input.sha256.clone(),
+            })
+            .collect(),
+        candidate: json!({
+            "job_id": job.id,
+            "criteria_artifact": criteria_artifact,
+            "evidence_artifact": revised_artifact,
+            "proposals": [{
+                "criterion": {
+                    "id": criteria.criteria[0].id,
+                    "revision": criteria.criteria[0].revision
+                },
+                "evidence": [{
+                    "id": revised.items[0].id,
+                    "revision": revised.items[0].revision
+                }],
+                "strength": "strong",
+                "rationale": "The doctorate demonstrates economics expertise.",
+                "gap": null,
+                "prohibited_claims": ["Do not claim a teaching qualification."]
+            }]
+        }),
+    };
+    let match_artifact = TaskService::new(&mut workspace.database, &workspace.blobs)
+        .complete(&match_request)
+        .expect("validated matches");
+    assert_eq!(match_artifact.artifact.kind, ArtifactKind::EvidenceMatches);
+    assert!(
+        TaskService::new(&mut workspace.database, &workspace.blobs)
+            .complete(&match_request)
+            .expect("match replay")
+            .idempotent
+    );
+    let matches = MatchService::new(&mut workspace.database, &workspace.blobs)
+        .current(&job.id)
+        .expect("current matches");
+    assert_eq!(matches.matches.len(), 1);
+    assert_ne!(matches.matches[0].id, revised.items[0].id);
+    assert_eq!(matches.matches[0].criterion.id, criteria.criteria[0].id);
+    assert_eq!(matches.matches[0].evidence[0].id, revised.items[0].id);
+    let status = WorkflowService::new(&mut workspace.database)
+        .status(&job.id)
+        .expect("workflow after matching");
+    assert_eq!(
+        workflow_stage_status(&status, WorkflowStage::Plan),
+        StageExecutionStatus::Ready
+    );
 
     ProfileService::new(&mut workspace.database, &workspace.blobs)
         .import_source(
@@ -428,6 +599,10 @@ fn evidence_tasks_generate_stable_ids_and_require_source_bound_user_revisions() 
         .expect("profile revision");
     assert!(matches!(
         EvidenceService::new(&mut workspace.database, &workspace.blobs).confirmed(&job.id),
+        Err(StoreError::WorkflowConflict(_))
+    ));
+    assert!(matches!(
+        MatchService::new(&mut workspace.database, &workspace.blobs).current(&job.id),
         Err(StoreError::WorkflowConflict(_))
     ));
     let status = WorkflowService::new(&mut workspace.database)

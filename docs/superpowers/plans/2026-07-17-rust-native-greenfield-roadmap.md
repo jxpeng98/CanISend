@@ -72,7 +72,13 @@
   exact profile revisions, core-generated stable evidence IDs, exact source quotes/spans, sensitivity labels, and
   user-only correction, exclusion, confirmation, and revision. Local verification passed 62 Rust tests, Clippy,
   26-schema/33-resource checks, release compilation, and packaged parse/criteria/evidence host-agent smoke. R7.4
-  criterion-to-evidence matching is active.
+  criterion-to-evidence matching is active. GitHub Actions run `29621820503` independently passed the same clean
+  checkout release gate in 1 minute 48 seconds.
+- 2026-07-17: Completed R7.4 with ID-free match proposals, core-owned MatchSet identities, exact criterion/evidence
+  item revisions, strong/partial/gap/unknown semantics, prohibited claims, excluded-evidence rejection, and automatic
+  task/output invalidation after criteria or evidence changes. Local verification passed 62 Rust tests, Clippy,
+  28-schema/36-resource checks, release compilation, and packaged intake-to-match smoke. R7.5 decision and document
+  planning is active.
 
 ## 1. Executive Decision
 
@@ -1491,10 +1497,10 @@ remediation and idempotency, and detects a stale task after the job source revis
 
 #### R7.4 Match
 
-- [ ] Implement typed criterion-to-evidence match proposals.
-- [ ] Record support strength, gaps, and prohibited claims.
-- [ ] Require cited evidence revision IDs.
-- [ ] Recompute stale matches after criterion or evidence change.
+- [x] Implement typed criterion-to-evidence match proposals.
+- [x] Record support strength, gaps, and prohibited claims.
+- [x] Require cited evidence revision IDs.
+- [x] Recompute stale matches after criterion or evidence change.
 
 #### R7.5 Decision and document plan
 

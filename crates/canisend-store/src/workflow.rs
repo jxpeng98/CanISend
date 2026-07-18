@@ -506,6 +506,13 @@ fn load_status(
                             )
                         }
                     }
+                    WorkflowStage::Match => (
+                        format!(
+                            "canisend task prepare --job {} --operation evidence-match --mode host-agent --json",
+                            job_id
+                        ),
+                        "Prepare revision-bound criterion-to-evidence matching".to_owned(),
+                    ),
                     _ => (
                         format!(
                             "canisend workflow begin --job {} --stage {} --mode {} --json",

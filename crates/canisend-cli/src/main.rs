@@ -27,7 +27,7 @@ use canisend_io::{
 use canisend_resources::{AgentHost, ResourceError, ResourceId, ResourceKind, export_agent_pack};
 use canisend_store::{
     AgentContextService, ArtifactService, CriteriaService, DiscoveryService, EvidenceService,
-    JobService, NewProfileSource, NewSource, ProfileService, StoreError, TaskService,
+    JobService, MatchService, NewProfileSource, NewSource, ProfileService, StoreError, TaskService,
     WorkflowService, Workspace, current_utc_timestamp,
 };
 use clap::{Args, Parser, Subcommand, ValueEnum};
@@ -97,6 +97,11 @@ enum Command {
     Criteria {
         #[command(subcommand)]
         command: CriteriaCommand,
+    },
+    /// Inspect validated criterion-to-evidence matches.
+    Match {
+        #[command(subcommand)]
+        command: MatchCommand,
     },
     /// Start, inspect, advance, or rerun the durable application workflow.
     Workflow {
@@ -248,6 +253,12 @@ enum CriteriaCommand {
     Confirm(CriteriaConfirmArgs),
     /// Show the current confirmed criteria artifact.
     Show(CriteriaJobArgs),
+}
+
+#[derive(Debug, Subcommand)]
+enum MatchCommand {
+    /// Show the current validated match set for one job.
+    Show(MatchJobArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -515,6 +526,7 @@ struct DiscoverySuggestArgs {
 enum TaskOperationName {
     JobParse,
     EvidenceNormalize,
+    EvidenceMatch,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -609,6 +621,15 @@ struct CriteriaConfirmArgs {
     /// Regular, non-symlink criteria JSON exported by `criteria export`.
     #[arg(long, value_name = "PATH")]
     file: PathBuf,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
+struct MatchJobArgs {
+    /// Canonical UUIDv7 job ID.
+    #[arg(long)]
+    job: String,
     #[command(flatten)]
     output: OutputArgs,
 }
@@ -794,6 +815,9 @@ impl Cli {
                 }
                 CriteriaCommand::Export(arguments) => arguments.output.json,
                 CriteriaCommand::Confirm(arguments) => arguments.output.json,
+            },
+            Command::Match { command } => match command {
+                MatchCommand::Show(arguments) => arguments.output.json,
             },
             Command::Workflow { command } => match command {
                 WorkflowCommand::Start(arguments) | WorkflowCommand::Status(arguments) => {
@@ -1014,6 +1038,9 @@ fn execute(cli: Cli) -> CommandResult<CommandOutput> {
         Command::Criteria {
             command: CriteriaCommand::Show(arguments),
         } => criteria_show(workspace, &arguments.job),
+        Command::Match {
+            command: MatchCommand::Show(arguments),
+        } => match_show(workspace, &arguments.job),
         Command::Workflow {
             command: WorkflowCommand::Start(arguments),
         } => workflow_start(workspace, &arguments.job),
@@ -2144,6 +2171,11 @@ fn task_prepare(
                 .prepare_evidence_normalization(&job_id, mode)
                 .map_err(|error| store_failure("task.prepare", error))?
         }
+        TaskOperationName::EvidenceMatch => {
+            TaskService::new(&mut workspace.database, &workspace.blobs)
+                .prepare_evidence_match(&job_id, mode)
+                .map_err(|error| store_failure("task.prepare", error))?
+        }
     };
     let mut output = success(
         "task.prepare",
@@ -2401,6 +2433,23 @@ fn criteria_show(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult
         vec![
             format!("Confirmed criteria: {}", confirmed.id),
             format!("Criteria: {}", confirmed.criteria.len()),
+        ],
+    )
+}
+
+fn match_show(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<CommandOutput> {
+    let job_id = parse_entity_id("match.show", job_id)?;
+    let mut workspace = open_workspace(workspace_path, "match.show")?;
+    let matches = MatchService::new(&mut workspace.database, &workspace.blobs)
+        .current(&job_id)
+        .map_err(|error| store_failure("match.show", error))?;
+    success(
+        "match.show",
+        "available",
+        &matches,
+        vec![
+            format!("Evidence matches: {}", matches.id),
+            format!("Matches: {}", matches.matches.len()),
         ],
     )
 }

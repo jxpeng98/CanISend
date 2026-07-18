@@ -7,7 +7,8 @@ use std::{
 
 use canisend_contracts::{
     ActorKind, ArtifactKind, ArtifactReference, CandidateValidationError, ConsentRequest,
-    ConsentScope, ContractViolation, EntityId, EvidenceCatalogRecord, EvidenceProposalSet,
+    ConsentScope, ContractViolation, CriteriaSetRecord, EntityId, EvidenceCatalogRecord,
+    EvidenceMatchProposalSet, EvidenceMatchRecord, EvidenceMatchSetRecord, EvidenceProposalSet,
     EvidenceRecord, ExecutionMode, PUBLIC_SCHEMA_VERSION, ParsedJobRecord, PublicSchemaId,
     Revision, SafeRelativePath, SchemaReference, SemanticVersion, Sha256Digest, TaskCommitData,
     TaskCompletionRequest, TaskDescriptor, TaskInputExportData, TaskInputExportFile, TaskLease,
@@ -23,6 +24,7 @@ use crate::{BlobStore, DEFAULT_MAX_BLOB_BYTES, Database, StoreError, generate_id
 
 pub const JOB_PARSE_OPERATION: &str = "job.parse";
 pub const EVIDENCE_NORMALIZE_OPERATION: &str = "profile.evidence.normalize";
+pub const EVIDENCE_MATCH_OPERATION: &str = "evidence.match";
 const TASK_LEASE_MINUTES: i64 = 15;
 
 pub struct TaskService<'a> {
@@ -353,6 +355,176 @@ impl<'a> TaskService<'a> {
         Ok(descriptor)
     }
 
+    pub fn prepare_evidence_match(
+        &mut self,
+        job_id: &EntityId,
+        mode: ExecutionMode,
+    ) -> Result<TaskDescriptor, StoreError> {
+        if !matches!(
+            mode,
+            ExecutionMode::HostAgent | ExecutionMode::ConfiguredProvider
+        ) {
+            return Err(StoreError::TaskConflict(
+                "evidence.match supports only host-agent or configured-provider mode".to_owned(),
+            ));
+        }
+        let task_id = generate_id()?;
+        let lease_id = generate_id()?;
+        let event_id = generate_id()?;
+        let created_at = now_utc()?;
+        let expires_at = timestamp_after_minutes(TASK_LEASE_MINUTES)?;
+        let transaction = self.database.immediate_transaction()?;
+        let (archived, job_revision): (i64, i64) = transaction
+            .query_row(
+                "SELECT archived, revision FROM jobs WHERE id = ?1",
+                params![job_id.as_str()],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()?
+            .ok_or_else(|| StoreError::JobNotFound(job_id.to_string()))?;
+        if archived != 0 {
+            return Err(StoreError::JobArchived(job_id.to_string()));
+        }
+        type StageRow = (String, String, Option<i64>);
+        let (stage_execution_id, stage_status, evidence_profile_revision): StageRow = transaction
+            .query_row(
+                "SELECT matching.id, matching.status, evidence.input_profile_revision
+                 FROM workflow_runs AS run
+                 JOIN stage_executions AS matching
+                   ON matching.workflow_run_id = run.id AND matching.stage = 'match'
+                 JOIN stage_executions AS evidence
+                   ON evidence.workflow_run_id = run.id AND evidence.stage = 'evidence'
+                 WHERE run.job_id = ?1 AND run.job_revision = ?2
+                 ORDER BY run.created_at DESC, run.id DESC LIMIT 1",
+                params![job_id.as_str(), job_revision],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .optional()?
+            .ok_or_else(|| StoreError::WorkflowNotFound(job_id.to_string()))?;
+        if stage_status != "ready" {
+            return Err(StoreError::WorkflowConflict(format!(
+                "match stage is {stage_status}, not ready"
+            )));
+        }
+        let profile_revision = evidence_profile_revision.ok_or_else(|| {
+            StoreError::Invariant("confirmed evidence has no profile revision".to_owned())
+        })?;
+        let current_profile_revision: i64 = transaction.query_row(
+            "SELECT profile_revision FROM workspace_metadata WHERE singleton = 1",
+            [],
+            |row| row.get(0),
+        )?;
+        if profile_revision != current_profile_revision {
+            return Err(StoreError::WorkflowConflict(
+                "confirmed evidence does not match the current profile revision".to_owned(),
+            ));
+        }
+        let criteria = load_completed_stage_output(
+            &transaction,
+            job_id,
+            job_revision,
+            "criteria",
+            ArtifactKind::Criteria,
+        )?;
+        let evidence = load_completed_stage_output(
+            &transaction,
+            job_id,
+            job_revision,
+            "evidence",
+            ArtifactKind::EvidenceCatalog,
+        )?;
+        let inputs = vec![criteria, evidence];
+        let actor = actor_for_mode(mode);
+        let required_consents = task_consents(mode, &inputs);
+        let descriptor = TaskDescriptor {
+            id: task_id.clone(),
+            operation: EVIDENCE_MATCH_OPERATION.to_owned(),
+            job_id: job_id.clone(),
+            job_revision: Revision::try_new(to_u64(job_revision)?)?,
+            profile_revision: Some(Revision::try_new(to_u64(profile_revision)?)?),
+            actor,
+            execution_mode: mode,
+            input_artifacts: inputs.clone(),
+            allowed_output_kind: ArtifactKind::EvidenceMatches,
+            candidate_schema: SchemaReference {
+                id: PublicSchemaId::EvidenceMatchProposals.as_str().to_owned(),
+                version: SemanticVersion::try_new(PUBLIC_SCHEMA_VERSION)?,
+            },
+            required_consents,
+            private_read_scope: inputs.clone(),
+            lease: TaskLease {
+                id: lease_id.clone(),
+                expires_at: expires_at.clone(),
+            },
+        };
+        transaction.execute(
+            "INSERT INTO tasks(
+                id, stage_execution_id, status, lease_expires_at, created_at,
+                job_id, job_revision, operation, actor, execution_mode,
+                allowed_output_kind, candidate_schema_id, candidate_schema_version,
+                lease_id, descriptor_json, profile_revision
+             ) VALUES (?1, ?2, 'prepared', ?3, ?4, ?5, ?6, ?7, ?8, ?9,
+                       ?10, ?11, ?12, ?13, ?14, ?15)",
+            params![
+                task_id.as_str(),
+                &stage_execution_id,
+                expires_at.as_str(),
+                created_at.as_str(),
+                job_id.as_str(),
+                job_revision,
+                descriptor.operation,
+                enum_name(descriptor.actor)?,
+                enum_name(descriptor.execution_mode)?,
+                enum_name(descriptor.allowed_output_kind)?,
+                descriptor.candidate_schema.id,
+                descriptor.candidate_schema.version.as_str(),
+                lease_id.as_str(),
+                serde_json::to_string(&descriptor)?,
+                profile_revision
+            ],
+        )?;
+        let started = transaction.execute(
+            "UPDATE stage_executions
+             SET status = 'running', execution_mode = ?2, input_profile_revision = ?3,
+                 started_at = ?4, updated_at = ?4
+             WHERE id = ?1 AND status = 'ready'",
+            params![
+                &stage_execution_id,
+                enum_name(mode)?,
+                profile_revision,
+                created_at.as_str()
+            ],
+        )?;
+        if started != 1 {
+            return Err(StoreError::Invariant(
+                "match task could not claim exactly one ready stage".to_owned(),
+            ));
+        }
+        for input in &inputs {
+            transaction.execute(
+                "INSERT INTO task_inputs(task_id, artifact_id, revision, sha256)
+                 VALUES (?1, ?2, ?3, ?4)",
+                params![
+                    task_id.as_str(),
+                    input.id.as_str(),
+                    to_i64(input.revision.get())?,
+                    input.sha256.as_str()
+                ],
+            )?;
+        }
+        insert_audit_as(
+            &transaction,
+            &event_id,
+            (actor, "task.prepare"),
+            &task_id,
+            None,
+            "prepare evidence match task with exact criteria and evidence revisions",
+            &created_at,
+        )?;
+        transaction.commit()?;
+        Ok(descriptor)
+    }
+
     pub fn get(&self, task_id: &EntityId) -> Result<TaskStateData, StoreError> {
         load_task_state(self.database.connection(), task_id)
     }
@@ -519,6 +691,12 @@ impl<'a> TaskService<'a> {
         request: &TaskCompletionRequest,
     ) -> Result<TaskCommitData, StoreError> {
         let initial = self.get(&request.task_id)?;
+        if initial.status == TaskStatus::Stale {
+            return Err(StoreError::TaskStale(format!(
+                "task {} must be prepared again",
+                request.task_id
+            )));
+        }
         validate_request_shape(&initial.descriptor, request)?;
         let validated = validate_candidate(&initial.descriptor, &request.candidate)?;
         validate_task_source_spans(
@@ -541,6 +719,9 @@ impl<'a> TaskService<'a> {
             ValidatedTaskCandidate::ParsedJob(_) => request.candidate.clone(),
             ValidatedTaskCandidate::EvidenceProposals(proposals) => {
                 serde_json::to_value(build_evidence_catalog(proposals)?)?
+            }
+            ValidatedTaskCandidate::MatchProposals(proposals) => {
+                serde_json::to_value(build_match_set(proposals)?)?
             }
         };
         let bytes = canonical_json_bytes(&output_value)?;
@@ -772,7 +953,7 @@ impl<'a> TaskService<'a> {
                      ) AND stage = 'criteria' AND status IN ('blocked', 'stale')",
                     params![stage_execution_id, committed_at.as_str()],
                 )?;
-            } else {
+            } else if initial.descriptor.operation == EVIDENCE_NORMALIZE_OPERATION {
                 let awaiting = transaction.execute(
                     "UPDATE stage_executions
                      SET status = 'awaiting-user', updated_at = ?2
@@ -784,6 +965,35 @@ impl<'a> TaskService<'a> {
                         "evidence task could not enter user confirmation".to_owned(),
                     ));
                 }
+            } else if initial.descriptor.operation == EVIDENCE_MATCH_OPERATION {
+                let completed = transaction.execute(
+                    "UPDATE stage_executions
+                     SET status = 'complete', output_artifact_id = ?2,
+                         output_artifact_revision = 1, completed_at = ?3, updated_at = ?3
+                     WHERE id = ?1 AND status = 'running'",
+                    params![
+                        stage_execution_id,
+                        artifact_id.as_str(),
+                        committed_at.as_str()
+                    ],
+                )?;
+                if completed != 1 {
+                    return Err(StoreError::Invariant(
+                        "match task could not complete its claimed stage".to_owned(),
+                    ));
+                }
+                transaction.execute(
+                    "UPDATE stage_executions SET status = 'ready', updated_at = ?2
+                     WHERE workflow_run_id = (
+                         SELECT workflow_run_id FROM stage_executions WHERE id = ?1
+                     ) AND stage = 'plan' AND status IN ('blocked', 'stale')",
+                    params![stage_execution_id, committed_at.as_str()],
+                )?;
+            } else {
+                return Err(StoreError::Invariant(format!(
+                    "task operation has no stage completion rule: {}",
+                    initial.descriptor.operation
+                )));
             }
         }
         insert_audit_as(
@@ -902,6 +1112,58 @@ fn write_private_new_file(path: &Path, bytes: &[u8]) -> Result<(), StoreError> {
     set_private_file_permissions(path)
 }
 
+fn load_completed_stage_output(
+    transaction: &Transaction<'_>,
+    job_id: &EntityId,
+    job_revision: i64,
+    stage: &str,
+    expected_kind: ArtifactKind,
+) -> Result<ArtifactReference, StoreError> {
+    type Row = (String, i64, String, String, i64, i64);
+    let row: Row = transaction
+        .query_row(
+            "SELECT execution.output_artifact_id, execution.output_artifact_revision,
+                    artifact.kind, revision.sha256, artifact.head_revision, artifact.stale
+             FROM workflow_runs AS run
+             JOIN stage_executions AS execution ON execution.workflow_run_id = run.id
+             JOIN artifacts AS artifact ON artifact.id = execution.output_artifact_id
+             JOIN artifact_revisions AS revision
+               ON revision.artifact_id = artifact.id
+              AND revision.revision = execution.output_artifact_revision
+             WHERE run.job_id = ?1 AND run.job_revision = ?2
+               AND execution.stage = ?3 AND execution.status = 'complete'
+             ORDER BY run.created_at DESC, run.id DESC LIMIT 1",
+            params![job_id.as_str(), job_revision, stage],
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                    row.get(5)?,
+                ))
+            },
+        )
+        .optional()?
+        .ok_or_else(|| {
+            StoreError::WorkflowConflict(format!("{stage} stage has no current completed output"))
+        })?;
+    let (id, revision, kind, sha256, head_revision, stale) = row;
+    let kind: ArtifactKind = serde_json::from_value(Value::String(kind))?;
+    if kind != expected_kind || revision != head_revision || stale != 0 {
+        return Err(StoreError::WorkflowConflict(format!(
+            "{stage} output is stale or has the wrong artifact kind"
+        )));
+    }
+    Ok(ArtifactReference {
+        kind,
+        id: EntityId::try_new(id)?,
+        revision: Revision::try_new(to_u64(revision)?)?,
+        sha256: Sha256Digest::try_new(sha256)?,
+    })
+}
+
 #[cfg(unix)]
 fn set_private_directory_permissions(path: &Path) -> Result<(), StoreError> {
     use std::os::unix::fs::PermissionsExt;
@@ -1010,13 +1272,13 @@ fn actor_for_mode(mode: ExecutionMode) -> ActorKind {
 fn task_consents(mode: ExecutionMode, inputs: &[ArtifactReference]) -> Vec<ConsentRequest> {
     let mut consents = vec![ConsentRequest {
         scope: ConsentScope::ReadPrivateInputs,
-        description: "Read only the normalized artifacts declared by this task".to_owned(),
+        description: "Read only the exact private artifacts declared by this task".to_owned(),
         artifacts: inputs.to_vec(),
     }];
     if mode == ExecutionMode::ConfiguredProvider {
         consents.push(ConsentRequest {
             scope: ConsentScope::SendToConfiguredProvider,
-            description: "Send only these exact source revisions to the configured provider"
+            description: "Send only these exact artifact revisions to the configured provider"
                 .to_owned(),
             artifacts: inputs.to_vec(),
         });
@@ -1129,6 +1391,7 @@ fn validate_request_shape(
 enum ValidatedTaskCandidate {
     ParsedJob(ParsedJobRecord),
     EvidenceProposals(EvidenceProposalSet),
+    MatchProposals(EvidenceMatchProposalSet),
 }
 
 fn validate_candidate(
@@ -1167,6 +1430,20 @@ fn validate_candidate(
                 )]));
             }
             Ok(ValidatedTaskCandidate::EvidenceProposals(candidate))
+        }
+        (EVIDENCE_MATCH_OPERATION, schema)
+            if schema == PublicSchemaId::EvidenceMatchProposals.as_str() =>
+        {
+            let candidate = validate_external_candidate::<EvidenceMatchProposalSet>(value)
+                .map_err(map_candidate_error)?;
+            if candidate.job_id != descriptor.job_id {
+                return Err(StoreError::CandidateSemantic(vec![ContractViolation::new(
+                    "candidate.job_mismatch",
+                    "/job_id",
+                    "candidate job ID does not match the task subject",
+                )]));
+            }
+            Ok(ValidatedTaskCandidate::MatchProposals(candidate))
         }
         _ => Err(StoreError::Invariant(format!(
             "unsupported task contract: {} -> {}",
@@ -1212,12 +1489,44 @@ fn build_evidence_catalog(
     })
 }
 
+fn build_match_set(
+    proposals: EvidenceMatchProposalSet,
+) -> Result<EvidenceMatchSetRecord, StoreError> {
+    let matches = proposals
+        .proposals
+        .into_iter()
+        .map(|proposal| {
+            Ok(EvidenceMatchRecord {
+                id: generate_id()?,
+                criterion: proposal.criterion,
+                evidence: proposal.evidence,
+                strength: proposal.strength,
+                rationale: proposal.rationale,
+                gap: proposal.gap,
+                prohibited_claims: proposal.prohibited_claims,
+                revision: Revision::try_new(1)?,
+            })
+        })
+        .collect::<Result<Vec<_>, StoreError>>()?;
+    Ok(EvidenceMatchSetRecord {
+        id: generate_id()?,
+        job_id: proposals.job_id,
+        criteria_artifact: proposals.criteria_artifact,
+        evidence_artifact: proposals.evidence_artifact,
+        matches,
+        revision: Revision::try_new(1)?,
+    })
+}
+
 fn validate_task_source_spans(
     connection: &Connection,
     blobs: &BlobStore,
     descriptor: &TaskDescriptor,
     candidate: &ValidatedTaskCandidate,
 ) -> Result<(), StoreError> {
+    if let ValidatedTaskCandidate::MatchProposals(proposals) = candidate {
+        return validate_match_scope(connection, blobs, descriptor, proposals);
+    }
     let allowed = descriptor
         .input_artifacts
         .iter()
@@ -1250,6 +1559,7 @@ fn validate_task_source_spans(
                 )
             })
             .collect::<Vec<_>>(),
+        ValidatedTaskCandidate::MatchProposals(_) => unreachable!("match candidates return above"),
     };
     for (span, source_quote, pointer) in spans {
         let source = &span.source;
@@ -1297,6 +1607,150 @@ fn validate_task_source_spans(
     } else {
         Err(StoreError::CandidateSemantic(violations))
     }
+}
+
+fn validate_match_scope(
+    connection: &Connection,
+    blobs: &BlobStore,
+    descriptor: &TaskDescriptor,
+    candidate: &EvidenceMatchProposalSet,
+) -> Result<(), StoreError> {
+    let criteria_input = unique_input_kind(descriptor, ArtifactKind::Criteria)?;
+    let evidence_input = unique_input_kind(descriptor, ArtifactKind::EvidenceCatalog)?;
+    let mut violations = Vec::new();
+    if candidate.criteria_artifact != *criteria_input {
+        violations.push(ContractViolation::new(
+            "match.criteria_artifact_mismatch",
+            "/criteria_artifact",
+            "candidate must repeat the exact declared criteria artifact revision and hash",
+        ));
+    }
+    if candidate.evidence_artifact != *evidence_input {
+        violations.push(ContractViolation::new(
+            "match.evidence_artifact_mismatch",
+            "/evidence_artifact",
+            "candidate must repeat the exact declared evidence artifact revision and hash",
+        ));
+    }
+    verify_artifact_revision(connection, criteria_input)?;
+    verify_artifact_revision(connection, evidence_input)?;
+    let criteria = load_criteria_artifact(blobs, criteria_input)?;
+    let evidence = load_evidence_artifact(blobs, evidence_input)?;
+    if criteria.job_id != descriptor.job_id {
+        return Err(StoreError::Invariant(
+            "criteria artifact belongs to a different job".to_owned(),
+        ));
+    }
+    if evidence.items.iter().any(|item| !item.confirmed) {
+        return Err(StoreError::Invariant(
+            "match task received an unconfirmed evidence catalog".to_owned(),
+        ));
+    }
+    let expected_criteria = criteria
+        .criteria
+        .iter()
+        .map(|criterion| (&criterion.id, criterion.revision))
+        .collect::<BTreeMap<_, _>>();
+    let available_evidence = evidence
+        .items
+        .iter()
+        .map(|item| (&item.id, item))
+        .collect::<BTreeMap<_, _>>();
+    let mut proposed_criteria = BTreeMap::new();
+    for (index, proposal) in candidate.proposals.iter().enumerate() {
+        proposed_criteria.insert(&proposal.criterion.id, proposal.criterion.revision);
+        match expected_criteria.get(&proposal.criterion.id) {
+            None => violations.push(ContractViolation::new(
+                "match.criterion_unknown",
+                format!("/proposals/{index}/criterion/id"),
+                "proposal references a criterion outside the declared criteria artifact",
+            )),
+            Some(revision) if *revision != proposal.criterion.revision => {
+                violations.push(ContractViolation::new(
+                    "match.criterion_revision_mismatch",
+                    format!("/proposals/{index}/criterion/revision"),
+                    "proposal must cite the exact confirmed criterion revision",
+                ));
+            }
+            Some(_) => {}
+        }
+        for (evidence_index, reference) in proposal.evidence.iter().enumerate() {
+            let pointer = format!("/proposals/{index}/evidence/{evidence_index}");
+            match available_evidence.get(&reference.id) {
+                None => violations.push(ContractViolation::new(
+                    "match.evidence_unknown",
+                    format!("{pointer}/id"),
+                    "proposal references evidence outside the declared catalog",
+                )),
+                Some(item) if item.revision != reference.revision => {
+                    violations.push(ContractViolation::new(
+                        "match.evidence_revision_mismatch",
+                        format!("{pointer}/revision"),
+                        "proposal must cite the exact confirmed evidence revision",
+                    ));
+                }
+                Some(item) if item.excluded => violations.push(ContractViolation::new(
+                    "match.evidence_excluded",
+                    format!("{pointer}/id"),
+                    "excluded evidence cannot support a criterion",
+                )),
+                Some(_) => {}
+            }
+        }
+    }
+    let expected_references = expected_criteria
+        .iter()
+        .map(|(id, revision)| (*id, *revision))
+        .collect::<BTreeMap<_, _>>();
+    if proposed_criteria != expected_references {
+        violations.push(ContractViolation::new(
+            "match.criteria_coverage_invalid",
+            "/proposals",
+            "candidate must contain exactly one exact-revision proposal for every criterion",
+        ));
+    }
+    if violations.is_empty() {
+        Ok(())
+    } else {
+        Err(StoreError::CandidateSemantic(violations))
+    }
+}
+
+fn unique_input_kind(
+    descriptor: &TaskDescriptor,
+    kind: ArtifactKind,
+) -> Result<&ArtifactReference, StoreError> {
+    let matching = descriptor
+        .input_artifacts
+        .iter()
+        .filter(|artifact| artifact.kind == kind)
+        .collect::<Vec<_>>();
+    if matching.len() == 1 {
+        Ok(matching[0])
+    } else {
+        Err(StoreError::Invariant(format!(
+            "task {} requires exactly one {kind:?} input",
+            descriptor.id
+        )))
+    }
+}
+
+fn load_criteria_artifact(
+    blobs: &BlobStore,
+    artifact: &ArtifactReference,
+) -> Result<CriteriaSetRecord, StoreError> {
+    let bytes = blobs.read_verified(&artifact.sha256, DEFAULT_MAX_BLOB_BYTES)?;
+    let value: Value = serde_json::from_slice(&bytes)?;
+    validate_external_candidate(&value).map_err(map_candidate_error)
+}
+
+fn load_evidence_artifact(
+    blobs: &BlobStore,
+    artifact: &ArtifactReference,
+) -> Result<EvidenceCatalogRecord, StoreError> {
+    let bytes = blobs.read_verified(&artifact.sha256, DEFAULT_MAX_BLOB_BYTES)?;
+    let value: Value = serde_json::from_slice(&bytes)?;
+    validate_external_candidate(&value).map_err(map_candidate_error)
 }
 
 fn replay_task(

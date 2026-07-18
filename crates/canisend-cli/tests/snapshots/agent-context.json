@@ -24,7 +24,7 @@
       {"execution_modes":["host-agent","configured-provider"],"id":"parse","status":"available"},
       {"execution_modes":["user-decision"],"id":"criteria","status":"available"},
       {"execution_modes":["host-agent","configured-provider"],"id":"evidence","status":"available"},
-      {"execution_modes":["host-agent","configured-provider"],"id":"match","status":"planned"},
+      {"execution_modes":["host-agent","configured-provider"],"id":"match","status":"available"},
       {"execution_modes":["user-decision"],"id":"plan","status":"planned"},
       {"execution_modes":["host-agent","configured-provider"],"id":"draft","status":"planned"},
       {"execution_modes":["host-agent","configured-provider","user-decision"],"id":"review","status":"planned"},

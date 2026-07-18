@@ -151,7 +151,7 @@ fn capabilities_distinguish_available_from_planned_work() {
             .iter()
             .filter(|stage| stage["status"] == "available")
             .count()),
-        Some(5)
+        Some(6)
     );
 }
 
@@ -209,6 +209,7 @@ fn agent_host_pack_export_is_versioned_and_self_contained() {
     assert!(pack.join("AGENTS.md").is_file());
     assert!(pack.join("prompts/job-parse.md").is_file());
     assert!(pack.join("prompts/evidence-normalize.md").is_file());
+    assert!(pack.join("prompts/evidence-match.md").is_file());
     assert!(
         pack.join("schemas/v2/task-completion.schema.json")
             .is_file()
@@ -221,6 +222,14 @@ fn agent_host_pack_export_is_versioned_and_self_contained() {
     );
     assert!(
         pack.join("schemas/v2/evidence-catalog.schema.json")
+            .is_file()
+    );
+    assert!(
+        pack.join("schemas/v2/evidence-match-proposals.schema.json")
+            .is_file()
+    );
+    assert!(
+        pack.join("schemas/v2/evidence-matches.schema.json")
             .is_file()
     );
     assert!(pack.join("canisend-agent-pack.json").is_file());

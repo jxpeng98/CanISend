@@ -24,6 +24,9 @@ Then:
    Submit only `canisend.evidence-proposals/v2`; CanISend assigns stable catalog and evidence IDs.
 9. Use `profile evidence export` for correction, sensitivity, and exclusion decisions. Run
    `profile evidence confirm` only after explicit user review; the same export/confirm path creates later revisions.
+10. When criteria and evidence are confirmed, prepare `--operation evidence-match`. Return exactly one proposal per
+    criterion with exact criterion/evidence revisions, gaps, and prohibited downstream claims. Inspect the validated
+    result with `match show --job JOB_ID --json`.
 
 Read only capabilities marked `available`. Never inspect or edit `.canisend/`, invent source identities, or transmit
 private data without the matching consent. Readiness describes preparation status and is not evidence of submission.

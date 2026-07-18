@@ -19,6 +19,9 @@ CanISend owns durable state; Claude operates only through its versioned CLI prot
    `evidence-proposals`; CanISend, not Claude, assigns catalog and evidence IDs.
 9. Export with `profile evidence export`, let the user correct, classify, or exclude items, and run
    `profile evidence confirm` only after explicit user review. Use the same path for later revisions.
+10. Prepare `--operation evidence-match` only after criteria and evidence are complete. Return one proposal for each
+    exact criterion revision, cite only confirmed non-excluded evidence revisions, and state gaps plus prohibited
+    downstream claims. CanISend assigns match IDs; inspect the result with `match show`.
 
 Never create evidence or source identities not supplied by CanISend, send private content to a provider without a
 separate consent, write internal state directly, or treat readiness as application submission.

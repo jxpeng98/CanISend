@@ -20,6 +20,9 @@ Use CanISend as the state owner and Codex as a bounded reasoning host. Never ins
 10. Run `profile evidence export --job JOB_ID --destination FILE.json --json`. Let the user correct summaries,
     source spans, sensitivity, or `excluded`, then run `profile evidence confirm` only after explicit approval.
     Re-exporting a confirmed catalog is the supported revision path.
+11. Once criteria and evidence are complete, prepare `--operation evidence-match`. Produce one proposal per exact
+    criterion revision, cite only confirmed non-excluded evidence revisions, and preserve gaps and prohibited claims.
+    CanISend assigns match IDs; inspect the validated set with `match show`.
 
 Do not invent source identities, bypass candidate validation, transmit private inputs to a provider without separate
 consent, or interpret readiness as permission to submit an application.
