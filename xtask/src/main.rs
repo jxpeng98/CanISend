@@ -841,9 +841,8 @@ fn build_beta_contract_freeze() -> Result<Value, String> {
     let schema_entries = schema_names
         .iter()
         .map(|name| {
-            fs::read(schema_root.join(name))
+            read_frozen_contract_text(&schema_root.join(name), "schema")
                 .map(|bytes| (name.clone(), bytes))
-                .map_err(|error| format!("could not read frozen schema `{name}`: {error}"))
         })
         .collect::<Result<Vec<_>, _>>()?;
 
@@ -882,9 +881,7 @@ fn build_beta_contract_freeze() -> Result<Value, String> {
         .iter()
         .filter(|(version, _, _)| *version <= FROZEN_MIGRATIONS_THROUGH)
         .map(|(_, name, path)| {
-            fs::read(path)
-                .map(|bytes| (name.clone(), bytes))
-                .map_err(|error| format!("could not read frozen migration `{name}`: {error}"))
+            read_frozen_contract_text(path, "migration").map(|bytes| (name.clone(), bytes))
         })
         .collect::<Result<Vec<_>, _>>()?;
     if frozen_migrations.len() != FROZEN_MIGRATIONS_THROUGH as usize {
@@ -917,6 +914,26 @@ fn build_beta_contract_freeze() -> Result<Value, String> {
             "reject_future_schema_versions": true
         }
     }))
+}
+
+fn read_frozen_contract_text(path: &Path, kind: &str) -> Result<Vec<u8>, String> {
+    let bytes = fs::read(path)
+        .map_err(|error| format!("could not read frozen {kind} `{}`: {error}", path.display()))?;
+    canonicalize_frozen_contract_text(&bytes).map_err(|error| {
+        format!(
+            "frozen {kind} `{}` is not canonical text: {error}",
+            path.display()
+        )
+    })
+}
+
+fn canonicalize_frozen_contract_text(bytes: &[u8]) -> Result<Vec<u8>, String> {
+    let text = std::str::from_utf8(bytes).map_err(|error| format!("invalid UTF-8: {error}"))?;
+    let normalized = text.replace("\r\n", "\n");
+    if normalized.contains('\r') {
+        return Err("bare carriage returns are not supported".to_owned());
+    }
+    Ok(normalized.into_bytes())
 }
 
 fn migration_inventory() -> Result<Vec<(u32, String, PathBuf)>, String> {
@@ -2637,6 +2654,20 @@ mod tests {
                 .len(),
             5
         );
+    }
+
+    #[test]
+    fn frozen_contract_digest_is_checkout_line_ending_independent() {
+        let lf = canonicalize_frozen_contract_text(b"{\n  \"schema\": 2\n}\n")
+            .expect("LF contract text");
+        let crlf = canonicalize_frozen_contract_text(b"{\r\n  \"schema\": 2\r\n}\r\n")
+            .expect("CRLF contract text");
+        assert_eq!(lf, crlf);
+        assert_eq!(
+            digest_named_bytes(&[("schema.json".to_owned(), lf)]),
+            digest_named_bytes(&[("schema.json".to_owned(), crlf)])
+        );
+        assert!(canonicalize_frozen_contract_text(b"invalid\rtext").is_err());
     }
 
     #[test]
