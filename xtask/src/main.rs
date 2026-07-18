@@ -105,6 +105,11 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
         [area, command, path] if area == "release" && command == "verify-beta-readiness" => {
             check_beta_readiness_file(Path::new(path))
         }
+        [area, command, snapshot, roadmap]
+            if area == "release" && command == "verify-feedback-candidate" =>
+        {
+            check_release_feedback_files(Path::new(snapshot), Path::new(roadmap))
+        }
         [area, command, tag] if area == "release" && command == "prepare-stage" => {
             prepare_stage_transition(tag, false)
         }
@@ -268,7 +273,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
         }
         _ => Err(
             "usage: cargo run -p xtask -- schemas <check|write> | <resources|docs> check | \
-             release <check|freeze-candidate|validate-tag TAG|verify-beta-readiness FILE|prepare-stage TAG [--write]|activate-feature-freeze COMMIT [--write]|record-beta-qualification TAG RUN_ID ASSETS [--write]|record-rc-qualification TAG RUN_ID ASSETS [--write]|record-upgrade-qualification FROM_TAG TO_TAG EVIDENCE [--write]|record-documentation-qualification TAG ASSETS EVIDENCE [--write]|record-package-qualification FROM_TAG TO_TAG EVIDENCE [--write]|sbom OUTPUT|assemble TAG COMMIT ARTIFACTS OUTPUT|verify TAG DIRECTORY|channels TAG ASSETS OUTPUT|bind-signing-evidence TAG TARGET EVIDENCE BINARY ARCHIVE|verify-package-candidates FROM_TAG FROM_ASSETS TO_TAG TO_ASSETS|verify-package-evidence FROM_TAG TO_TAG DIRECTORY|verify-upgrade-evidence FROM_TAG TO_TAG DIRECTORY|verify-documentation-evidence TAG ASSETS EVIDENCE>"
+             release <check|freeze-candidate|validate-tag TAG|verify-beta-readiness FILE|verify-feedback-candidate SNAPSHOT ROADMAP|prepare-stage TAG [--write]|activate-feature-freeze COMMIT [--write]|record-beta-qualification TAG RUN_ID ASSETS [--write]|record-rc-qualification TAG RUN_ID ASSETS [--write]|record-upgrade-qualification FROM_TAG TO_TAG EVIDENCE [--write]|record-documentation-qualification TAG ASSETS EVIDENCE [--write]|record-package-qualification FROM_TAG TO_TAG EVIDENCE [--write]|sbom OUTPUT|assemble TAG COMMIT ARTIFACTS OUTPUT|verify TAG DIRECTORY|channels TAG ASSETS OUTPUT|bind-signing-evidence TAG TARGET EVIDENCE BINARY ARCHIVE|verify-package-candidates FROM_TAG FROM_ASSETS TO_TAG TO_ASSETS|verify-package-evidence FROM_TAG TO_TAG DIRECTORY|verify-upgrade-evidence FROM_TAG TO_TAG DIRECTORY|verify-documentation-evidence TAG ASSETS EVIDENCE>"
                 .to_owned(),
         ),
     }
@@ -883,12 +888,14 @@ fn check_stage_transition_policy() -> Result<(), String> {
             "Cargo.lock workspace package versions",
             "release/qualification-ledger.json stage and Stable authorization fields",
             "release/RELEASE_NOTES.md heading",
-            "release/support-policy.json Stable publication status"
+            "release/support-policy.json Stable publication status",
+            "release/feedback-snapshot.json next-roadmap publication status",
+            "post-0.7 roadmap publication marker"
         ],
         "preserved_history": [
             "release/beta-readiness.json",
             "release/beta-contract-freeze.json",
-            "release/feedback-snapshot.json",
+            "release/feedback-snapshot.json measured public metadata",
             "packaging/candidates/alpha"
         ]
     });
@@ -907,6 +914,9 @@ fn check_stage_transition_policy() -> Result<(), String> {
         "--write",
         "release/beta-readiness.json",
         "refresh_beta_readiness.sh",
+        "refresh_release_feedback.sh",
+        "Reviewed",
+        "Published",
     ] {
         if !documentation.contains(required) {
             return Err(format!("stage-transition runbook is missing `{required}`"));
@@ -1857,6 +1867,46 @@ fn render_stage_transition(root: &Path, tag: &str) -> Result<RenderedStageTransi
     );
 
     if matches!(to_stage, ReleaseStage::Stable) {
+        let feedback_path = root.join("release/feedback-snapshot.json");
+        let feedback_body = fs::read_to_string(&feedback_path)
+            .map_err(|error| format!("could not read release feedback: {error}"))?;
+        let feedback: Value = serde_json::from_str(&feedback_body)
+            .map_err(|error| format!("release feedback is invalid JSON: {error}"))?;
+        if feedback["schema"] != FEEDBACK_SNAPSHOT_SCHEMA
+            || feedback["snapshot_stage"] != "rc"
+            || feedback["next_roadmap"]["status"] != "reviewed"
+        {
+            return Err(
+                "Stable transition requires reviewed RC feedback and next-roadmap state".to_owned(),
+            );
+        }
+        files.insert(
+            "release/feedback-snapshot.json".to_owned(),
+            replace_exact_count(
+                &feedback_body,
+                "\"status\": \"reviewed\"",
+                "\"status\": \"published\"",
+                1,
+                "next-roadmap feedback publication marker",
+            )?
+            .into_bytes(),
+        );
+
+        let roadmap_relative = "docs/superpowers/plans/2026-07-18-post-0.7-roadmap.md";
+        let roadmap = fs::read_to_string(root.join(roadmap_relative))
+            .map_err(|error| format!("could not read next roadmap: {error}"))?;
+        files.insert(
+            roadmap_relative.to_owned(),
+            replace_exact_count(
+                &roadmap,
+                "**Status:** Reviewed",
+                "**Status:** Published",
+                1,
+                "next-roadmap publication marker",
+            )?
+            .into_bytes(),
+        );
+
         let support_path = root.join("release/support-policy.json");
         let mut support: Value = serde_json::from_slice(
             &fs::read(&support_path)
@@ -2032,6 +2082,15 @@ fn stage_transition_report(
             }))
         })
         .collect::<Result<Vec<_>, String>>()?;
+    let preserved_history = [
+        "release/beta-readiness.json",
+        "release/beta-contract-freeze.json",
+        "release/feedback-snapshot.json",
+        "packaging/candidates/alpha",
+    ]
+    .into_iter()
+    .filter(|relative| !transition.files.contains_key(*relative))
+    .collect::<Vec<_>>();
     Ok(json!({
         "schema": STAGE_TRANSITION_PLAN_SCHEMA,
         "mode": if write { "write" } else { "dry-run" },
@@ -2045,12 +2104,7 @@ fn stage_transition_report(
             "stage": transition.to_stage.as_str()
         },
         "files": files,
-        "preserved_history": [
-            "release/beta-readiness.json",
-            "release/beta-contract-freeze.json",
-            "release/feedback-snapshot.json",
-            "packaging/candidates/alpha"
-        ]
+        "preserved_history": preserved_history
     }))
 }
 
@@ -2624,11 +2678,21 @@ fn support_policy_publication_status(version: &Version) -> &'static str {
 
 fn check_release_feedback() -> Result<(), String> {
     let root = repository_root();
-    let path = root.join("release/feedback-snapshot.json");
-    let snapshot: Value = serde_json::from_slice(&fs::read(&path).map_err(|error| {
+    check_release_feedback_files(
+        &root.join("release/feedback-snapshot.json"),
+        &root.join("docs/superpowers/plans/2026-07-18-post-0.7-roadmap.md"),
+    )
+}
+
+fn check_release_feedback_files(
+    snapshot_path: &Path,
+    roadmap_candidate: &Path,
+) -> Result<(), String> {
+    let root = repository_root();
+    let snapshot: Value = serde_json::from_slice(&fs::read(snapshot_path).map_err(|error| {
         format!(
             "release feedback snapshot is missing at {}: {error}",
-            path.display()
+            snapshot_path.display()
         )
     })?)
     .map_err(|error| format!("release feedback snapshot is invalid JSON: {error}"))?;
@@ -2752,7 +2816,8 @@ fn check_release_feedback() -> Result<(), String> {
         .ok_or_else(|| "release feedback snapshot has no next-roadmap status".to_owned())?;
     let version = Version::parse(env!("CARGO_PKG_VERSION"))
         .map_err(|error| format!("workspace version is invalid: {error}"))?;
-    let (required_stage, required_status) = feedback_publication_requirements(&version);
+    let (required_stage, required_status) =
+        feedback_publication_requirements(&version, snapshot_stage);
     if required_stage.is_some_and(|required| snapshot_stage != required)
         || roadmap_status != required_status
     {
@@ -2762,31 +2827,69 @@ fn check_release_feedback() -> Result<(), String> {
         ));
     }
     let roadmap_file = root.join(roadmap_path);
-    let roadmap_body = fs::read_to_string(&roadmap_file).map_err(|error| {
+    let roadmap_body = fs::read_to_string(roadmap_candidate).map_err(|error| {
         format!(
-            "next roadmap is missing at {}: {error}",
-            roadmap_file.display()
+            "next roadmap candidate is missing at {}: {error}",
+            roadmap_candidate.display()
         )
     })?;
     check_local_markdown_links(&root, &roadmap_file, &roadmap_body)?;
-    let required_status_marker = if required_status == "published" {
-        "**Status:** Published"
-    } else {
-        "**Status:** Draft"
+    let required_status_marker = match required_status {
+        "published" => "**Status:** Published",
+        "reviewed" => "**Status:** Reviewed",
+        _ => "**Status:** Draft",
     };
     if !roadmap_body.contains(required_status_marker) {
         return Err(format!(
             "next roadmap is missing status marker `{required_status_marker}`"
         ));
     }
+    let normalized_roadmap = roadmap_body
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    for expected in [
+        format!(
+            "Snapshot stage: `{snapshot_stage}`; captured at `{captured_at}`; public GitHub issues: **{open}** open, **{closed}** closed, **{total}** total."
+        ),
+        format!(
+            "Release: `v{release_tag}`; public assets: **{asset_count}**; downloads: **{total_downloads}** total, **{native_archive_downloads}** across **{native_archive_count}** native archives."
+        ),
+    ] {
+        if !normalized_roadmap.contains(&expected) {
+            return Err(format!(
+                "next roadmap measured baseline is inconsistent with feedback snapshot: missing `{expected}`"
+            ));
+        }
+    }
     for required in [
         "Measured baseline",
-        "No public user issue",
+        "<!-- release-feedback-measured:start -->",
+        "<!-- release-feedback-measured:end -->",
         "maintainer verification",
         "Beta/RC refresh gate",
     ] {
         if !roadmap_body.contains(required) {
             return Err(format!("next roadmap is missing `{required}`"));
+        }
+    }
+    if total == 0 && !roadmap_body.contains("No public user issue") {
+        return Err("zero-issue roadmap baseline must state `No public user issue`".to_owned());
+    }
+    let refresh = fs::read_to_string(root.join("scripts/refresh_release_feedback.sh"))
+        .map_err(|error| format!("release feedback refresh script is missing: {error}"))?;
+    for required in [
+        "gh api --paginate --slurp",
+        "{number, state}",
+        "gh release view",
+        "verify-feedback-candidate",
+        "privacy_boundary",
+        "--write",
+    ] {
+        if !refresh.contains(required) {
+            return Err(format!(
+                "release feedback refresh script is missing `{required}`"
+            ));
         }
     }
     println!(
@@ -2795,9 +2898,16 @@ fn check_release_feedback() -> Result<(), String> {
     Ok(())
 }
 
-fn feedback_publication_requirements(version: &Version) -> (Option<&'static str>, &'static str) {
+fn feedback_publication_requirements(
+    version: &Version,
+    snapshot_stage: &str,
+) -> (Option<&'static str>, &'static str) {
     if version.pre.is_empty() {
         (Some("rc"), "published")
+    } else if ReleaseStage::from_version(version) == Ok(ReleaseStage::ReleaseCandidate)
+        && snapshot_stage == "rc"
+    {
+        (Some("rc"), "reviewed")
     } else {
         (None, "draft")
     }
@@ -6539,14 +6649,23 @@ mod tests {
 
     #[test]
     fn stable_requires_rc_feedback_and_published_next_roadmap() {
+        let alpha = Version::parse("0.7.0-alpha.1").expect("Alpha version");
         let prerelease = Version::parse("0.7.0-rc.1").expect("RC version");
         let stable = Version::parse("0.7.0").expect("Stable version");
         assert_eq!(
-            feedback_publication_requirements(&prerelease),
+            feedback_publication_requirements(&alpha, "alpha-baseline"),
             (None, "draft")
         );
         assert_eq!(
-            feedback_publication_requirements(&stable),
+            feedback_publication_requirements(&prerelease, "alpha-baseline"),
+            (None, "draft")
+        );
+        assert_eq!(
+            feedback_publication_requirements(&prerelease, "rc"),
+            (Some("rc"), "reviewed")
+        );
+        assert_eq!(
+            feedback_publication_requirements(&stable, "rc"),
             (Some("rc"), "published")
         );
     }
@@ -6911,6 +7030,159 @@ mod tests {
                 .contains("version = \"0.7.0-rc.2\"")
         );
         fs::remove_dir_all(root).expect("remove RC fixture");
+    }
+
+    #[test]
+    fn stable_transition_publishes_reviewed_feedback_without_remeasuring_it() {
+        let root = std::env::temp_dir().join(format!(
+            "canisend-stable-feedback-transition-{}",
+            std::process::id()
+        ));
+        if root.exists() {
+            fs::remove_dir_all(&root).expect("remove stale Stable fixture");
+        }
+        fs::create_dir_all(root.join("crates/app")).expect("create Stable app fixture");
+        fs::create_dir_all(root.join("crates/contracts")).expect("create Stable contracts fixture");
+        fs::create_dir_all(root.join("release")).expect("create Stable release fixture");
+        fs::create_dir_all(root.join("docs/superpowers/plans"))
+            .expect("create Stable roadmap fixture");
+        fs::write(
+            root.join("Cargo.toml"),
+            "[workspace]\nmembers = [\"crates/app\", \"crates/contracts\"]\n\
+             [workspace.package]\nversion = \"0.7.0-rc.2\"\n",
+        )
+        .expect("write Stable workspace fixture");
+        fs::write(
+            root.join("crates/app/Cargo.toml"),
+            "[package]\nname = \"app\"\nversion.workspace = true\n\
+             [dependencies]\ncontracts = { package = \"contracts\", path = \"../contracts\", version = \"=0.7.0-rc.2\" }\n",
+        )
+        .expect("write Stable app fixture");
+        fs::write(
+            root.join("crates/contracts/Cargo.toml"),
+            "[package]\nname = \"contracts\"\nversion.workspace = true\n",
+        )
+        .expect("write Stable contracts fixture");
+        fs::write(
+            root.join("Cargo.lock"),
+            "version = 4\n\n[[package]]\nname = \"app\"\nversion = \"0.7.0-rc.2\"\n\
+             dependencies = [\"contracts\"]\n\n[[package]]\nname = \"contracts\"\nversion = \"0.7.0-rc.2\"\n",
+        )
+        .expect("write Stable lock fixture");
+        let first_rc_run = 29_641_000_001_u64;
+        write_pretty_json(
+            &root.join("release/qualification-ledger.json"),
+            &json!({
+                "schema": RELEASE_QUALIFICATION_SCHEMA,
+                "workspace_stage": "rc",
+                "status": "rc-qualifying",
+                "stable_authorized": false,
+                "beta": {
+                    "status": "qualified",
+                    "tag": "v0.7.0-beta.1",
+                    "source_commit": "6".repeat(40),
+                    "signed_matrix_run": 29_640_000_001_u64,
+                    "signing_evidence_targets": [
+                        "aarch64-apple-darwin",
+                        "x86_64-apple-darwin",
+                        "x86_64-pc-windows-msvc"
+                    ]
+                },
+                "feature_freeze": {"status": "frozen", "baseline_commit": "7".repeat(40)},
+                "release_candidates": [
+                    {
+                        "tag": "v0.7.0-rc.1",
+                        "status": "success",
+                        "source_commit": "8".repeat(40),
+                        "signed_matrix_run": first_rc_run
+                    },
+                    {
+                        "tag": "v0.7.0-rc.2",
+                        "status": "success",
+                        "source_commit": "9".repeat(40),
+                        "signed_matrix_run": 29_641_000_002_u64
+                    }
+                ],
+                "upgrade_matrix": {"status": "passed", "evidence": ["qualified"]},
+                "documentation_uninstall": {
+                    "status": "passed",
+                    "native_matrix_run": first_rc_run,
+                    "evidence": ["qualified"]
+                },
+                "package_managers": {"status": "passed", "evidence": ["qualified"]},
+                "release_notes": {"status": "rc-final"}
+            }),
+        )
+        .expect("write Stable qualification fixture");
+        fs::write(
+            root.join("release/RELEASE_NOTES.md"),
+            "# CanISend 0.7.0-rc.2\n\nFixture notes.\n",
+        )
+        .expect("write Stable notes fixture");
+        let feedback = json!({
+            "schema": FEEDBACK_SNAPSHOT_SCHEMA,
+            "snapshot_stage": "rc",
+            "public_issues": {"open": 2, "closed": 3, "total": 5},
+            "release_downloads": {"total": 17},
+            "next_roadmap": {
+                "path": "docs/superpowers/plans/2026-07-18-post-0.7-roadmap.md",
+                "status": "reviewed"
+            }
+        });
+        write_pretty_json(&root.join("release/feedback-snapshot.json"), &feedback)
+            .expect("write Stable feedback fixture");
+        let feedback_before = fs::read_to_string(root.join("release/feedback-snapshot.json"))
+            .expect("read Stable feedback fixture");
+        fs::write(
+            root.join("docs/superpowers/plans/2026-07-18-post-0.7-roadmap.md"),
+            "# Next roadmap\n\n**Status:** Reviewed\n",
+        )
+        .expect("write Stable roadmap fixture");
+        write_pretty_json(
+            &root.join("release/support-policy.json"),
+            &json!({"publication_status": "pre-stable-draft"}),
+        )
+        .expect("write Stable support fixture");
+
+        let transition =
+            render_stage_transition(&root, "v0.7.0").expect("render Stable transition");
+        let published_feedback: Value = serde_json::from_slice(
+            transition
+                .files
+                .get("release/feedback-snapshot.json")
+                .expect("feedback transition output"),
+        )
+        .expect("parse published feedback");
+        assert_eq!(published_feedback["next_roadmap"]["status"], "published");
+        assert_eq!(
+            published_feedback["public_issues"],
+            feedback["public_issues"]
+        );
+        assert_eq!(
+            published_feedback["release_downloads"],
+            feedback["release_downloads"]
+        );
+        assert_eq!(
+            transition
+                .files
+                .get("release/feedback-snapshot.json")
+                .expect("feedback transition bytes"),
+            &feedback_before
+                .replacen("\"status\": \"reviewed\"", "\"status\": \"published\"", 1)
+                .into_bytes()
+        );
+        assert!(
+            String::from_utf8(
+                transition
+                    .files
+                    .get("docs/superpowers/plans/2026-07-18-post-0.7-roadmap.md")
+                    .expect("roadmap transition output")
+                    .clone()
+            )
+            .expect("UTF-8 roadmap")
+            .contains("**Status:** Published")
+        );
+        fs::remove_dir_all(root).expect("remove Stable fixture");
     }
 
     #[test]

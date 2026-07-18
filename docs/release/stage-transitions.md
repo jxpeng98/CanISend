@@ -59,6 +59,22 @@ by `release/release-notes-policy.json`, so Alpha-only wording cannot leak into B
 guarantee does not replace the policy-required final RC content review against real issues, assets, limitations, and
 package-channel status.
 
+## Review RC feedback before Stable
+
+After the final public RC, capture only public issue number/state and release asset/download metadata. The refresher
+is dry-run-first and never reads issue titles, bodies, comments, attachments, or private product data:
+
+```console
+./scripts/refresh_release_feedback.sh jxpeng98/CanISend v0.7.0-rc.2
+./scripts/refresh_release_feedback.sh jxpeng98/CanISend v0.7.0-rc.2 --write
+```
+
+The reviewed write changes the feedback snapshot stage to `rc`, generates the measured roadmap block from the same
+counts, and changes the next roadmap from `Draft` to `Reviewed`. Maintainers must review candidate priorities and
+qualification findings before commit. Only the qualified RC-to-Stable `prepare-stage` transition may atomically
+change the snapshot and roadmap markers from `Reviewed` to `Published`; it preserves all issue, download, release,
+and engineering-finding evidence bytes.
+
 ## Evidence that must remain historical
 
 The following sources intentionally retain earlier version identifiers:

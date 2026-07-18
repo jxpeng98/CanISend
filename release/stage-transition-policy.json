@@ -44,12 +44,14 @@
     "Cargo.lock workspace package versions",
     "release/qualification-ledger.json stage and Stable authorization fields",
     "release/RELEASE_NOTES.md heading",
-    "release/support-policy.json Stable publication status"
+    "release/support-policy.json Stable publication status",
+    "release/feedback-snapshot.json next-roadmap publication status",
+    "post-0.7 roadmap publication marker"
   ],
   "preserved_history": [
     "release/beta-readiness.json",
     "release/beta-contract-freeze.json",
-    "release/feedback-snapshot.json",
+    "release/feedback-snapshot.json measured public metadata",
     "packaging/candidates/alpha"
   ]
 }

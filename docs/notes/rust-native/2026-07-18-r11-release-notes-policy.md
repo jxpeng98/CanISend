@@ -36,3 +36,5 @@ package-channel state. Stage transition and checked-in policy cannot substitute 
 - `cargo test -p xtask --locked`: 40 passed
 - `cargo run -p xtask --locked -- release check`: seven stage-neutral sections passed
 - `git diff --check`
+
+Exact implementation commit `19577a6` passed all eight ordinary CI jobs in GitHub Actions run `29643209061`.

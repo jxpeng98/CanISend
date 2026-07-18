@@ -32,3 +32,5 @@ or tolerated failures before ledger write. A locally constructed four-file direc
 
 No package repository or public manifest was changed. Stable package publication remains blocked on the future real
 four-record lifecycle and all other Stable gates.
+
+Exact implementation commit `3bda1ba` passed all eight ordinary CI jobs in GitHub Actions run `29643318078`.

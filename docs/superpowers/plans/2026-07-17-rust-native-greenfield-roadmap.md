@@ -299,11 +299,18 @@
 - 2026-07-18: Removed stale-stage risk from the release notes. Because stage transitions intentionally replace only
   the version heading, the body is now a seven-section stage-neutral release unit with machine-required install,
   compatibility, verification, rollback, privacy, limitations, and support guidance. Final RC review remains open
-  and cannot be replaced by this structural preparation.
+  and cannot be replaced by this structural preparation. Exact commit `19577a6` passed all eight ordinary CI jobs
+  in run `29643209061`.
 - 2026-07-18: Completed the package-manager ledger path. The existing strict four-record verifier now feeds a
   dry-run-first recorder that requires the exact qualified Beta, current recorded RC, frozen baseline, and canonical
   candidate-only state. It cannot qualify the hosted three-record preparation: a same-run fresh Windows Sandbox
-  WinGet lifecycle and independent inspection remain mandatory.
+  WinGet lifecycle and independent inspection remain mandatory. Exact commit `3bda1ba` passed all eight ordinary CI
+  jobs in run `29643318078`.
+- 2026-07-18: Closed the feedback-publication state gap with a machine-checked `Draft` → `Reviewed` → `Published`
+  progression. A dry-run-first RC refresher reads only public issue number/state and release asset counts, generates
+  JSON and measured roadmap text from the same values, and rejects inconsistent candidates. The qualified Stable
+  transition publishes both markers atomically while preserving all measured issue, download, release, and
+  engineering-finding evidence.
 
 ## 1. Executive Decision
 
@@ -2067,8 +2074,9 @@ transition when the workspace version becomes Stable, so this checklist item can
 
 The [measured Alpha baseline](../../notes/rust-native/2026-07-18-r11-feedback-baseline.md), machine snapshot
 `release/feedback-snapshot.json`, and [post-0.7 draft](2026-07-18-post-0.7-roadmap.md) distinguish zero public issues
-and maintainer-included download counts from two internal cross-platform qualification findings. Stable requires an
-RC-stage refresh and published roadmap status, so the feedback checklist remains open.
+and maintainer-included download counts from two internal cross-platform qualification findings. The guarded RC
+refresher must advance the snapshot and data-bound roadmap to `Reviewed`; only a qualified Stable transition may
+advance the unchanged measurements to `Published`. The checklist remains open until that real RC evidence exists.
 
 **Deliverables:** Signed, documented, platform-specific native releases.
 
