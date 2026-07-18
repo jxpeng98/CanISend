@@ -17,8 +17,11 @@ $subject = "CN=CanISend Community Build"
 $binaryPath = (Resolve-Path -LiteralPath $Binary).Path
 $evidencePath = [System.IO.Path]::GetFullPath($EvidenceJson)
 $binaryItem = Get-Item -LiteralPath $binaryPath
-if ($binaryItem.LinkType) {
-    throw "Windows self-signed signing: binary must not be a symlink"
+if ($binaryItem.PSIsContainer) {
+    throw "Windows self-signed signing: binary must be a regular file"
+}
+if (($binaryItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+    throw "Windows self-signed signing: binary must not be a reparse point"
 }
 if (Test-Path -LiteralPath $evidencePath) {
     throw "Windows self-signed signing: evidence destination must not exist: $evidencePath"

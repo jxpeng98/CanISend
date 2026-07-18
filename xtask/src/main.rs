@@ -2787,6 +2787,7 @@ fn check_signing_policy() -> Result<(), String> {
         "New-SelfSignedCertificate",
         "Set-AuthenticodeSignature",
         "KeyExportPolicy NonExportable",
+        "[System.IO.FileAttributes]::ReparsePoint",
         "Remove-Item",
         "NotTrusted",
         "UnknownError",
