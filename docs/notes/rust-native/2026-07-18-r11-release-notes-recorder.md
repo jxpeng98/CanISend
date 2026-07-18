@@ -33,3 +33,5 @@ The xtask suite includes negative coverage for earlier-RC reuse, invalid reviewe
 and RC review invalidation. The current Alpha ledger explicitly records `review: null` and still passes the source
 gate. The R11.3 checkbox remains open: a future signed final RC must be published and independently reviewed before
 the recorder can truthfully write evidence. A local fixture or invented reviewer cannot close the gate.
+
+Exact implementation commit `0e6a00d` passed all eight ordinary CI jobs in GitHub Actions run `29644637778`.

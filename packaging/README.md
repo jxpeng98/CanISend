@@ -55,5 +55,11 @@ external package repository. For the version that will be published:
    telemetry.
 6. Publish only when the roadmap's release-stage authorization and rollback evidence are both complete.
 
-Historical candidate sets remain checked in as auditable derivations. Stable channel manifests will be published
-separately only after the two clean release-candidate matrices pass.
+Historical candidate sets remain checked in as auditable derivations. After the two clean release-candidate
+matrices and every Stable ledger gate pass, release assembly generates canonical Homebrew, Scoop, and WinGet files
+from the final signed archives. Those files, their scoped publication record, release-manifest entries,
+`SHA256SUMS`, and GitHub build provenance are published as one Stable GitHub release unit.
+
+The publication record authorizes only `github-release-assets` and explicitly leaves `external_index_submission`
+false. Submitting the recorded repository paths to a Homebrew tap, Scoop bucket, or `winget-pkgs` remains a separate
+maintainer action because it changes another repository and may require its own review or credentials.

@@ -96,7 +96,8 @@ cargo run -p xtask --locked -- release record-package-qualification \
 
 The dry-run-first command requires the ledger's exact qualified Beta, frozen RC state, and a successful recorded
 matrix for that RC tag. It changes only `package_managers` with `--write`; three hosted records, mixed candidate
-digests, or a WinGet record copied from another run remain insufficient.
+digests, or a WinGet record copied from another run remain insufficient. A successful write retains canonical
+Beta/RC tags, run ID, and exact four-record count so Stable channel assets cannot rely on prose-only evidence.
 
 ## Recording the final RC release-notes review
 

@@ -44,4 +44,4 @@ archive set, and package-channel state. The command records that review; it cann
 - `git diff --check`
 
 The structural policy implementation commit `19577a6` passed all eight ordinary CI jobs in GitHub Actions run
-`29643209061`. The recorder implementation and its exact CI evidence are recorded in the roadmap progress log.
+`29643209061`. The recorder implementation commit `0e6a00d` passed all eight jobs in exact run `29644637778`.

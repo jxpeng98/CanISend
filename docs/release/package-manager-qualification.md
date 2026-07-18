@@ -79,3 +79,24 @@ The command reruns the strict four-record verifier, requires the ledger's qualif
 successful matrix for the exact RC tag, and prints before/after ledger hashes. Nothing changes without `--write`.
 It updates only `package_managers`; the preparation workflow's three hosted records or a WinGet record from another
 run cannot qualify the release.
+
+The successful record also retains canonical `beta_tag`, `rc_tag`, `run_id`, and four-record count fields. Stable
+assembly refuses prose-only or hand-extended evidence, so its published channel assets can name the exact native
+qualification they depend on.
+
+## Stable GitHub release publication
+
+Only a fully qualified Stable ledger causes `release assemble` to add these six supplemental assets:
+
+- `canisend-VERSION-channel-publication.json`;
+- one Homebrew Cask and one Scoop manifest;
+- WinGet version, locale, and installer manifests.
+
+The publication record binds the final archive hashes, exact package qualification, final RC matrix, canonical
+external repository paths, and each manifest digest. All six files are listed in the release manifest, covered by
+`SHA256SUMS`, attested by the release workflow, and uploaded with the Stable GitHub release. `release verify`
+regenerates every byte and rejects missing, renamed, unknown, or modified channel assets.
+
+This authorization is deliberately scoped to GitHub release assets. The record sets
+`external_index_submission: false`; opening a pull request or pushing to a Homebrew tap, Scoop bucket, or
+`winget-pkgs` requires a separate explicit maintainer action and the target repository's review.

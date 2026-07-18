@@ -319,7 +319,13 @@
   recorded RC assets, requires published and checked-in note bytes to match, and binds the signed matrix/source,
   manifest digest, stage-neutral note body, rollback guide, and explicit public reviewer in canonical ledger
   evidence. Stable rejects missing or stale review evidence, while sequential RC iteration resets it. The checklist
-  remains open until a real signed final RC is independently reviewed; exact CI evidence follows after this commit.
+  remains open until a real signed final RC is independently reviewed. Exact commit `0e6a00d` passed all eight jobs
+  in GitHub Actions run `29644637778`.
+- 2026-07-18: Implemented the missing Stable package-manifest release path. Fully qualified Stable assembly now
+  derives five canonical Homebrew/Scoop/WinGet files from the final signed archive hashes and publishes them with a
+  scoped JSON record, release-manifest entries, checksums, and OIDC provenance. Verification regenerates every byte;
+  external package-index submission remains an explicitly separate action. The R11.4 checkbox remains open until a
+  real qualified Stable tag publishes the assets; exact CI evidence follows after this commit.
 
 ## 1. Executive Decision
 
@@ -2083,6 +2089,11 @@ five-target uninstall, Homebrew/Scoop/WinGet, and final release-note evidence. I
 native targets, Agent/schema/resource v2, append-only workspace v2, generated host packs, runtime independence, and
 unsupported surfaces. The policy remains a pre-Stable draft; the release check requires an explicit `published`
 transition when the workspace version becomes Stable, so this checklist item cannot close early.
+
+The [Stable channel publication path](../../notes/rust-native/2026-07-18-r11-stable-channel-publication.md) adds the
+five canonical package-manager manifests and a scoped publication record to the same checksummed, attested GitHub
+release unit as the final archives. It does not preauthorize changes to external package-index repositories. The
+checkbox remains open until the real qualified Stable tag publishes those assets.
 
 The [measured Alpha baseline](../../notes/rust-native/2026-07-18-r11-feedback-baseline.md), machine snapshot
 `release/feedback-snapshot.json`, and [post-0.7 draft](2026-07-18-post-0.7-roadmap.md) distinguish zero public issues

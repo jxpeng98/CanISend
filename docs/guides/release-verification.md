@@ -19,9 +19,15 @@ Beta, release-candidate, and Stable releases additionally contain:
 - `canisend-VERSION-x86_64-apple-darwin-signing.json`;
 - `canisend-VERSION-x86_64-pc-windows-msvc-signing.json`.
 
+Stable additionally contains one `canisend-VERSION-channel-publication.json` record and five canonical Homebrew,
+Scoop, and WinGet manifest assets. The record must scope authorization to `github-release-assets` and keep
+`external_index_submission: false`; a release asset is not proof that a third-party package index accepted it.
+
 The manifest binds the product version, exact Git commit, stage, protocol, schema, workspace format, all targets, and
 each archive digest. For non-Alpha signed targets, its `signing_evidence` field names the exact evidence file.
 `SHA256SUMS` covers every downloadable release file except itself.
+For Stable, the repository verifier also regenerates every package-manager manifest from the three referenced final
+archive hashes and checks its recorded external repository path.
 
 ## Verify the release tag
 

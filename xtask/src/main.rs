@@ -22,6 +22,7 @@ const RELEASE_MANIFEST_SCHEMA: &str = "canisend.release-manifest/v1";
 const BETA_READINESS_SCHEMA: &str = "canisend.beta-readiness/v1";
 const BETA_CONTRACT_FREEZE_SCHEMA: &str = "canisend.beta-contract-freeze/v1";
 const CHANNEL_CANDIDATE_SOURCE_SCHEMA: &str = "canisend.channel-candidate-source/v1";
+const STABLE_CHANNEL_PUBLICATION_SCHEMA: &str = "canisend.stable-channel-publication/v1";
 const SIGNING_POLICY_SCHEMA: &str = "canisend.signing-policy/v1";
 const SUPPORT_POLICY_SCHEMA: &str = "canisend.support-policy/v1";
 const FEEDBACK_SNAPSHOT_SCHEMA: &str = "canisend.feedback-snapshot/v1";
@@ -766,12 +767,6 @@ struct PackageManagerQualificationSummary {
 }
 
 impl ChannelCandidateSource {
-    fn artifact(&self, target: &str) -> Result<&ChannelArtifact, String> {
-        self.artifacts
-            .get(target)
-            .ok_or_else(|| format!("channel candidate source has no `{target}` artifact"))
-    }
-
     fn to_value(&self) -> Value {
         let artifacts = self
             .artifacts
@@ -1621,9 +1616,76 @@ fn package_manager_qualified_ledger(
                 "{from_tag} to {to_tag} install, version, doctor, workspace, upgrade, uninstall, and retention passed"
             )
         ],
+        "qualification": {
+            "beta_tag": from_tag,
+            "rc_tag": to_tag,
+            "records": summary.records,
+            "run_id": summary.run_id
+        },
         "status": "passed"
     });
     Ok(qualified)
+}
+
+fn validate_package_manager_qualification_record(
+    package_managers: &Value,
+    beta: &Value,
+    candidates: &[Value],
+) -> Result<(String, String, u64), String> {
+    if package_managers["status"] != "passed" {
+        return Err("package-manager qualification status must be `passed`".to_owned());
+    }
+    let qualification = &package_managers["qualification"];
+    let beta_tag = required_string(qualification, "beta_tag", "package-manager qualification")?;
+    let rc_tag = required_string(qualification, "rc_tag", "package-manager qualification")?;
+    let run_id = qualification["run_id"]
+        .as_u64()
+        .filter(|run| *run > 0)
+        .ok_or_else(|| "package-manager qualification has no run ID".to_owned())?;
+    if qualification["records"] != 4 {
+        return Err("package-manager qualification must bind four native records".to_owned());
+    }
+    let (_, beta_stage) = parse_release_tag(beta_tag)?;
+    let (_, rc_stage) = parse_release_tag(rc_tag)?;
+    if beta_stage != ReleaseStage::Beta
+        || rc_stage != ReleaseStage::ReleaseCandidate
+        || beta["status"] != "qualified"
+        || beta["tag"] != beta_tag
+    {
+        return Err("package-manager qualification release pair is invalid".to_owned());
+    }
+    let has_rc = candidates
+        .iter()
+        .any(|candidate| candidate["tag"] == rc_tag && candidate["status"] == "success");
+    if !has_rc {
+        return Err(
+            "package-manager qualification does not bind a successful RC matrix".to_owned(),
+        );
+    }
+    let canonical = json!({
+        "channels": ["homebrew-cask", "scoop", "winget"],
+        "evidence": [
+            format!(
+                "package-manager qualification run {run_id} passed Homebrew arm64/Intel, Scoop, and WinGet records"
+            ),
+            format!(
+                "{beta_tag} to {rc_tag} install, version, doctor, workspace, upgrade, uninstall, and retention passed"
+            )
+        ],
+        "qualification": {
+            "beta_tag": beta_tag,
+            "rc_tag": rc_tag,
+            "records": 4,
+            "run_id": run_id
+        },
+        "status": "passed"
+    });
+    if *package_managers != canonical {
+        return Err(
+            "package-manager qualification contains unknown or non-canonical fields".to_owned(),
+        );
+    }
+    Ok((beta_tag.to_owned(), rc_tag.to_owned(), run_id))
 }
 
 fn render_beta_qualification(
@@ -3231,6 +3293,23 @@ fn check_release_qualification() -> Result<(), String> {
             ));
         }
     }
+    if package_managers["status"] == "passed" {
+        validate_package_manager_qualification_record(
+            package_managers,
+            &ledger["beta"],
+            release_candidates,
+        )?;
+    } else if *package_managers
+        != json!({
+            "channels": ["homebrew-cask", "scoop", "winget"],
+            "evidence": [],
+            "status": "candidates-only"
+        })
+    {
+        return Err(
+            "pending package-manager qualification contains preauthorized evidence".to_owned(),
+        );
+    }
     validate_documentation_uninstall_progress(&ledger["documentation_uninstall"])?;
 
     let release_notes = &ledger["release_notes"];
@@ -3690,6 +3769,7 @@ fn validate_stable_qualification(ledger: &Value) -> Result<(), String> {
             );
         }
     }
+    validate_package_manager_qualification_record(&ledger["package_managers"], beta, candidates)?;
 
     for (section, expected_status) in [
         ("upgrade_matrix", "passed"),
@@ -4197,15 +4277,29 @@ fn channel_candidate_source_from_value(value: &Value) -> Result<ChannelCandidate
 fn render_channel_candidates(
     source: &ChannelCandidateSource,
 ) -> Result<BTreeMap<String, String>, String> {
-    let arm = source.artifact("aarch64-apple-darwin")?;
-    let intel = source.artifact("x86_64-apple-darwin")?;
-    let windows = source.artifact("x86_64-pc-windows-msvc")?;
-    let download = |archive: &str| {
-        format!(
-            "{}/releases/download/{}/{}",
-            source.repository, source.tag, archive
-        )
+    render_channel_manifest_files(
+        &source.version,
+        &source.tag,
+        &source.repository,
+        &source.artifacts,
+    )
+}
+
+fn render_channel_manifest_files(
+    version: &str,
+    tag: &str,
+    repository: &str,
+    artifacts: &BTreeMap<String, ChannelArtifact>,
+) -> Result<BTreeMap<String, String>, String> {
+    let artifact = |target: &str| {
+        artifacts
+            .get(target)
+            .ok_or_else(|| format!("channel manifest source has no `{target}` artifact"))
     };
+    let arm = artifact("aarch64-apple-darwin")?;
+    let intel = artifact("x86_64-apple-darwin")?;
+    let windows = artifact("x86_64-pc-windows-msvc")?;
+    let download = |archive: &str| format!("{repository}/releases/download/{tag}/{archive}");
     let homebrew = format!(
         r##"cask "canisend" do
   arch arm: "aarch64", intel: "x86_64"
@@ -4222,15 +4316,15 @@ fn render_channel_candidates(
   binary "canisend-#{{version}}-#{{arch}}-apple-darwin/canisend"
 end
 "##,
-        repository = source.repository,
-        version = source.version,
+        repository = repository,
+        version = version,
         arm_sha256 = arm.sha256,
         intel_sha256 = intel.sha256,
     );
     let scoop = serde_json::to_string_pretty(&json!({
-        "version": source.version,
+        "version": version,
         "description": "Prepare evidence-backed academic job applications with agent hosts",
-        "homepage": source.repository,
+        "homepage": repository,
         "license": "MIT",
         "architecture": {
             "64bit": {
@@ -4238,14 +4332,14 @@ end
                 "hash": windows.sha256,
             }
         },
-        "extract_dir": format!("canisend-{}-x86_64-pc-windows-msvc", source.version),
+        "extract_dir": format!("canisend-{version}-x86_64-pc-windows-msvc"),
         "bin": "canisend.exe",
     }))
     .map_err(|error| format!("could not render Scoop candidate: {error}"))?
         + "\n";
 
     let identifier = "PengJiaxin.CanISend";
-    let winget_base = format!("winget/manifests/p/PengJiaxin/CanISend/{}/", source.version);
+    let winget_base = format!("winget/manifests/p/PengJiaxin/CanISend/{version}/");
     let winget_version = format!(
         r#"# yaml-language-server: $schema=https://aka.ms/winget-manifest.version.{schema}.schema.json
 
@@ -4256,7 +4350,7 @@ ManifestType: version
 ManifestVersion: {schema}
 "#,
         schema = WINGET_MANIFEST_VERSION,
-        version = source.version,
+        version = version,
     );
     let winget_locale = format!(
         r#"# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.{schema}.schema.json
@@ -4282,9 +4376,9 @@ ManifestType: defaultLocale
 ManifestVersion: {schema}
 "#,
         schema = WINGET_MANIFEST_VERSION,
-        version = source.version,
-        repository = source.repository,
-        tag = source.tag,
+        version = version,
+        repository = repository,
+        tag = tag,
     );
     let winget_installer = format!(
         r#"# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.{schema}.schema.json
@@ -4305,7 +4399,7 @@ ManifestType: installer
 ManifestVersion: {schema}
 "#,
         schema = WINGET_MANIFEST_VERSION,
-        version = source.version,
+        version = version,
         url = download(&windows.archive),
         sha256 = windows.sha256,
     );
@@ -4323,6 +4417,378 @@ ManifestVersion: {schema}
             winget_installer,
         ),
     ]))
+}
+
+fn stable_channel_asset_names(version: &str) -> BTreeSet<String> {
+    BTreeSet::from([
+        format!("canisend-{version}-channel-publication.json"),
+        format!("canisend-{version}-homebrew-cask.rb"),
+        format!("canisend-{version}-scoop.json"),
+        format!("canisend-{version}-winget-installer.yaml"),
+        format!("canisend-{version}-winget-locale.yaml"),
+        format!("canisend-{version}-winget-version.yaml"),
+    ])
+}
+
+fn stable_channel_asset_identity(
+    version: &str,
+    relative: &str,
+) -> Result<(String, &'static str, String), String> {
+    match relative {
+        "homebrew/Casks/canisend.rb" => Ok((
+            format!("canisend-{version}-homebrew-cask.rb"),
+            "homebrew-cask",
+            "Casks/canisend.rb".to_owned(),
+        )),
+        "scoop/bucket/canisend.json" => Ok((
+            format!("canisend-{version}-scoop.json"),
+            "scoop",
+            "bucket/canisend.json".to_owned(),
+        )),
+        path if path.ends_with("PengJiaxin.CanISend.installer.yaml") => Ok((
+            format!("canisend-{version}-winget-installer.yaml"),
+            "winget",
+            path.strip_prefix("winget/")
+                .ok_or_else(|| "WinGet publication path has no channel prefix".to_owned())?
+                .to_owned(),
+        )),
+        path if path.ends_with("PengJiaxin.CanISend.locale.en-US.yaml") => Ok((
+            format!("canisend-{version}-winget-locale.yaml"),
+            "winget",
+            path.strip_prefix("winget/")
+                .ok_or_else(|| "WinGet publication path has no channel prefix".to_owned())?
+                .to_owned(),
+        )),
+        path if path.ends_with("PengJiaxin.CanISend.yaml") => Ok((
+            format!("canisend-{version}-winget-version.yaml"),
+            "winget",
+            path.strip_prefix("winget/")
+                .ok_or_else(|| "WinGet publication path has no channel prefix".to_owned())?
+                .to_owned(),
+        )),
+        _ => Err(format!(
+            "unknown stable package-manager manifest path `{relative}`"
+        )),
+    }
+}
+
+fn channel_artifacts_from_release_entries(
+    version: &str,
+    entries: &[Value],
+) -> Result<BTreeMap<String, ChannelArtifact>, String> {
+    let required = BTreeSet::from([
+        "aarch64-apple-darwin",
+        "x86_64-apple-darwin",
+        "x86_64-pc-windows-msvc",
+    ]);
+    let mut artifacts = BTreeMap::new();
+    for entry in entries {
+        let target = required_string(entry, "target", "stable channel artifact")?;
+        if !required.contains(target) {
+            continue;
+        }
+        let archive = required_string(entry, "archive", "stable channel artifact")?.to_owned();
+        let sha256 = required_string(entry, "sha256", "stable channel artifact")?.to_owned();
+        validate_lower_hex(&format!("stable channel `{target}` SHA-256"), &sha256, 64)?;
+        let size = entry["size"]
+            .as_u64()
+            .filter(|size| *size > 0)
+            .ok_or_else(|| format!("stable channel artifact `{target}` has no size"))?;
+        let extension = if target == "x86_64-pc-windows-msvc" {
+            "zip"
+        } else {
+            "tar.gz"
+        };
+        let expected_archive = format!("canisend-{version}-{target}.{extension}");
+        if archive != expected_archive {
+            return Err(format!(
+                "stable channel artifact `{target}` must be `{expected_archive}`"
+            ));
+        }
+        let artifact = ChannelArtifact {
+            target: target.to_owned(),
+            archive,
+            sha256,
+            size,
+        };
+        if artifacts.insert(target.to_owned(), artifact).is_some() {
+            return Err(format!("duplicate stable channel artifact `{target}`"));
+        }
+    }
+    if artifacts
+        .keys()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>()
+        != required
+    {
+        return Err("stable release lacks a complete package-manager artifact set".to_owned());
+    }
+    Ok(artifacts)
+}
+
+fn render_stable_channel_publication(
+    tag: &str,
+    commit: &str,
+    archive_entries: &[Value],
+    ledger: &Value,
+) -> Result<BTreeMap<String, Vec<u8>>, String> {
+    let (version, stage) = parse_release_tag(tag)?;
+    if stage != ReleaseStage::Stable
+        || ledger["schema"] != RELEASE_QUALIFICATION_SCHEMA
+        || ledger["workspace_stage"] != "stable"
+        || ledger["status"] != "qualified"
+        || ledger["stable_authorized"] != true
+    {
+        return Err(
+            "stable channel publication requires the canonical qualified Stable ledger".to_owned(),
+        );
+    }
+    validate_lower_hex("stable channel source commit", commit, 40)?;
+    validate_stable_qualification(ledger)?;
+    let candidates = ledger["release_candidates"]
+        .as_array()
+        .ok_or_else(|| "stable channel publication has no RC matrices".to_owned())?;
+    let (beta_tag, package_rc_tag, package_run) = validate_package_manager_qualification_record(
+        &ledger["package_managers"],
+        &ledger["beta"],
+        candidates,
+    )?;
+    let final_rc = candidates
+        .last()
+        .ok_or_else(|| "stable channel publication has no final RC".to_owned())?;
+    let (final_rc_tag, final_rc_source, final_rc_run) =
+        validate_qualification_release(final_rc, ReleaseStage::ReleaseCandidate, "final RC")?;
+    let version = version.to_string();
+    let artifacts = channel_artifacts_from_release_entries(&version, archive_entries)?;
+    let rendered =
+        render_channel_manifest_files(&version, tag, env!("CARGO_PKG_REPOSITORY"), &artifacts)?;
+    let mut files = BTreeMap::new();
+    let mut manifest_entries = Vec::new();
+    for (relative, body) in rendered {
+        let (asset, channel, repository_path) = stable_channel_asset_identity(&version, &relative)?;
+        manifest_entries.push(json!({
+            "asset": asset,
+            "channel": channel,
+            "repository_path": repository_path,
+            "sha256": sha256(body.as_bytes()),
+            "size": body.len()
+        }));
+        files.insert(asset, body.into_bytes());
+    }
+    manifest_entries.sort_by(|left, right| left["asset"].as_str().cmp(&right["asset"].as_str()));
+    let artifact_entries = artifacts
+        .values()
+        .map(|artifact| {
+            json!({
+                "archive": artifact.archive,
+                "sha256": artifact.sha256,
+                "size": artifact.size,
+                "target": artifact.target
+            })
+        })
+        .collect::<Vec<_>>();
+    let source = json!({
+        "schema": STABLE_CHANNEL_PUBLICATION_SCHEMA,
+        "publication": {
+            "authorized": true,
+            "external_index_submission": false,
+            "scope": "github-release-assets"
+        },
+        "release": {
+            "repository": env!("CARGO_PKG_REPOSITORY"),
+            "source_commit": commit,
+            "stage": "stable",
+            "tag": tag,
+            "version": version
+        },
+        "qualification": {
+            "final_rc_run": final_rc_run,
+            "final_rc_source_commit": final_rc_source,
+            "final_rc_tag": final_rc_tag,
+            "package_manager_beta_tag": beta_tag,
+            "package_manager_rc_tag": package_rc_tag,
+            "package_manager_records": 4,
+            "package_manager_run": package_run
+        },
+        "artifacts": artifact_entries,
+        "manifests": manifest_entries
+    });
+    let source_name = format!("canisend-{version}-channel-publication.json");
+    files.insert(source_name, pretty_json_bytes(&source)?);
+    Ok(files)
+}
+
+fn verify_stable_channel_publication(
+    directory: &Path,
+    tag: &str,
+    release_manifest: &Value,
+) -> Result<(), String> {
+    let (version, stage) = parse_release_tag(tag)?;
+    if stage != ReleaseStage::Stable {
+        return Err("stable channel publication cannot verify a prerelease".to_owned());
+    }
+    let version = version.to_string();
+    let source_name = format!("canisend-{version}-channel-publication.json");
+    let source_path = directory.join(&source_name);
+    reject_symlink(&source_path)?;
+    let source: Value = serde_json::from_slice(
+        &fs::read(&source_path)
+            .map_err(|error| format!("stable channel publication source is missing: {error}"))?,
+    )
+    .map_err(|error| format!("stable channel publication source is invalid JSON: {error}"))?;
+    if source["schema"] != STABLE_CHANNEL_PUBLICATION_SCHEMA
+        || source["publication"]
+            != json!({
+                "authorized": true,
+                "external_index_submission": false,
+                "scope": "github-release-assets"
+            })
+        || source["release"]["repository"] != env!("CARGO_PKG_REPOSITORY")
+        || source["release"]["source_commit"] != release_manifest["source"]["commit"]
+        || source["release"]["stage"] != "stable"
+        || source["release"]["tag"] != tag
+        || source["release"]["version"] != version
+    {
+        return Err("stable channel publication identity is invalid".to_owned());
+    }
+    let qualification = &source["qualification"];
+    let final_rc_tag = required_string(
+        qualification,
+        "final_rc_tag",
+        "stable channel qualification",
+    )?;
+    let final_rc_source = required_string(
+        qualification,
+        "final_rc_source_commit",
+        "stable channel qualification",
+    )?;
+    let beta_tag = required_string(
+        qualification,
+        "package_manager_beta_tag",
+        "stable channel qualification",
+    )?;
+    let package_rc_tag = required_string(
+        qualification,
+        "package_manager_rc_tag",
+        "stable channel qualification",
+    )?;
+    let (final_rc_version, final_rc_stage) = parse_release_tag(final_rc_tag)?;
+    let (beta_version, beta_stage) = parse_release_tag(beta_tag)?;
+    let (package_rc_version, package_rc_stage) = parse_release_tag(package_rc_tag)?;
+    if final_rc_stage != ReleaseStage::ReleaseCandidate
+        || beta_stage != ReleaseStage::Beta
+        || package_rc_stage != ReleaseStage::ReleaseCandidate
+        || (
+            final_rc_version.major,
+            final_rc_version.minor,
+            final_rc_version.patch,
+        ) != (version_major_minor_patch(&version)?)
+        || (beta_version.major, beta_version.minor, beta_version.patch)
+            != version_major_minor_patch(&version)?
+        || (
+            package_rc_version.major,
+            package_rc_version.minor,
+            package_rc_version.patch,
+        ) != version_major_minor_patch(&version)?
+    {
+        return Err("stable channel qualification tags differ from the release line".to_owned());
+    }
+    validate_lower_hex("stable channel final RC source", final_rc_source, 40)?;
+    let final_rc_run = qualification["final_rc_run"]
+        .as_u64()
+        .filter(|run| *run > 0)
+        .ok_or_else(|| "stable channel qualification has no final RC run".to_owned())?;
+    let package_run = qualification["package_manager_run"]
+        .as_u64()
+        .filter(|run| *run > 0)
+        .ok_or_else(|| "stable channel qualification has no package-manager run".to_owned())?;
+    if qualification["package_manager_records"] != 4 {
+        return Err("stable channel qualification must bind four package records".to_owned());
+    }
+
+    let release_entries = release_manifest["artifacts"]
+        .as_array()
+        .ok_or_else(|| "stable release manifest has no artifacts".to_owned())?;
+    let artifacts = channel_artifacts_from_release_entries(&version, release_entries)?;
+    let artifact_entries = artifacts
+        .values()
+        .map(|artifact| {
+            json!({
+                "archive": artifact.archive,
+                "sha256": artifact.sha256,
+                "size": artifact.size,
+                "target": artifact.target
+            })
+        })
+        .collect::<Vec<_>>();
+    if source["artifacts"].as_array() != Some(&artifact_entries) {
+        return Err("stable channel artifacts differ from the release manifest".to_owned());
+    }
+    let rendered =
+        render_channel_manifest_files(&version, tag, env!("CARGO_PKG_REPOSITORY"), &artifacts)?;
+    let mut manifest_entries = Vec::new();
+    for (relative, body) in rendered {
+        let (asset, channel, repository_path) = stable_channel_asset_identity(&version, &relative)?;
+        let path = directory.join(&asset);
+        reject_symlink(&path)?;
+        if fs::read(&path)
+            .map_err(|error| format!("stable channel manifest `{asset}` is missing: {error}"))?
+            != body.as_bytes()
+        {
+            return Err(format!(
+                "stable channel manifest `{asset}` differs from canonical rendering"
+            ));
+        }
+        manifest_entries.push(json!({
+            "asset": asset,
+            "channel": channel,
+            "repository_path": repository_path,
+            "sha256": sha256(body.as_bytes()),
+            "size": body.len()
+        }));
+    }
+    manifest_entries.sort_by(|left, right| left["asset"].as_str().cmp(&right["asset"].as_str()));
+    if source["manifests"].as_array() != Some(&manifest_entries) {
+        return Err("stable channel manifest inventory is not canonical".to_owned());
+    }
+    let canonical = json!({
+        "schema": STABLE_CHANNEL_PUBLICATION_SCHEMA,
+        "publication": {
+            "authorized": true,
+            "external_index_submission": false,
+            "scope": "github-release-assets"
+        },
+        "release": {
+            "repository": env!("CARGO_PKG_REPOSITORY"),
+            "source_commit": release_manifest["source"]["commit"],
+            "stage": "stable",
+            "tag": tag,
+            "version": version
+        },
+        "qualification": {
+            "final_rc_run": final_rc_run,
+            "final_rc_source_commit": final_rc_source,
+            "final_rc_tag": final_rc_tag,
+            "package_manager_beta_tag": beta_tag,
+            "package_manager_rc_tag": package_rc_tag,
+            "package_manager_records": 4,
+            "package_manager_run": package_run
+        },
+        "artifacts": artifact_entries,
+        "manifests": manifest_entries
+    });
+    if source != canonical {
+        return Err(
+            "stable channel publication contains unknown or non-canonical fields".to_owned(),
+        );
+    }
+    Ok(())
+}
+
+fn version_major_minor_patch(version: &str) -> Result<(u64, u64, u64), String> {
+    let version = Version::parse(version)
+        .map_err(|error| format!("stable channel version is invalid: {error}"))?;
+    Ok((version.major, version.minor, version.patch))
 }
 
 fn check_channel_candidates() -> Result<(), String> {
@@ -6208,6 +6674,29 @@ fn assemble_release(
     for evidence in &signing_evidence_paths {
         supplemental_entries.push(release_file_entry(evidence)?);
     }
+    if matches!(stage, ReleaseStage::Stable) {
+        let ledger_path = repository_root().join("release/qualification-ledger.json");
+        let ledger: Value = serde_json::from_slice(
+            &fs::read(&ledger_path)
+                .map_err(|error| format!("could not read Stable qualification ledger: {error}"))?,
+        )
+        .map_err(|error| format!("Stable qualification ledger is invalid JSON: {error}"))?;
+        for (name, body) in render_stable_channel_publication(
+            tag,
+            &commit.to_ascii_lowercase(),
+            &archive_entries,
+            &ledger,
+        )? {
+            let destination = output.join(name);
+            fs::write(&destination, body).map_err(|error| {
+                format!(
+                    "could not write stable channel asset {}: {error}",
+                    destination.display()
+                )
+            })?;
+            supplemental_entries.push(release_file_entry(&destination)?);
+        }
+    }
     for (name, source) in supplemental_sources {
         let source = repository_root().join(source);
         let destination = output.join(name);
@@ -6439,6 +6928,9 @@ fn verify_release_manifest_contents(
                 .insert(format!("canisend-{version}-{}-signing.json", target.triple));
         }
     }
+    if matches!(stage, ReleaseStage::Stable) {
+        expected_supplemental.extend(stable_channel_asset_names(version));
+    }
     let supplemental = manifest["supplemental_files"]
         .as_array()
         .ok_or_else(|| "release manifest supplemental files are missing".to_owned())?;
@@ -6474,6 +6966,9 @@ fn verify_release_manifest_contents(
     }
     if actual_supplemental != expected_supplemental {
         return Err("release manifest supplemental file set is invalid".to_owned());
+    }
+    if matches!(stage, ReleaseStage::Stable) {
+        verify_stable_channel_publication(directory, &format!("v{version}"), manifest)?;
     }
     Ok(())
 }
@@ -6637,6 +7132,84 @@ mod tests {
             ]
         }))
         .expect("sample channel source")
+    }
+
+    fn sample_stable_publication_ledger() -> Value {
+        let first_run = 29_641_000_001_u64;
+        let final_run = 29_641_000_002_u64;
+        json!({
+            "schema": RELEASE_QUALIFICATION_SCHEMA,
+            "workspace_stage": "stable",
+            "status": "qualified",
+            "stable_authorized": true,
+            "beta": {
+                "status": "qualified",
+                "tag": "v0.7.0-beta.1",
+                "source_commit": "6".repeat(40),
+                "signed_matrix_run": 29_640_000_001_u64,
+                "signing_evidence_targets": [
+                    "aarch64-apple-darwin",
+                    "x86_64-apple-darwin",
+                    "x86_64-pc-windows-msvc"
+                ]
+            },
+            "feature_freeze": {"status": "frozen", "baseline_commit": "7".repeat(40)},
+            "release_candidates": [
+                {
+                    "tag": "v0.7.0-rc.1",
+                    "status": "success",
+                    "source_commit": "8".repeat(40),
+                    "signed_matrix_run": first_run
+                },
+                {
+                    "tag": "v0.7.0-rc.2",
+                    "status": "success",
+                    "source_commit": "9".repeat(40),
+                    "signed_matrix_run": final_run
+                }
+            ],
+            "upgrade_matrix": {"status": "passed", "evidence": ["qualified"]},
+            "documentation_uninstall": {
+                "status": "passed",
+                "native_matrix_run": first_run,
+                "evidence": ["qualified"]
+            },
+            "package_managers": {
+                "channels": ["homebrew-cask", "scoop", "winget"],
+                "evidence": [
+                    format!(
+                        "package-manager qualification run {first_run} passed Homebrew arm64/Intel, Scoop, and WinGet records"
+                    ),
+                    "v0.7.0-beta.1 to v0.7.0-rc.1 install, version, doctor, workspace, upgrade, uninstall, and retention passed"
+                ],
+                "qualification": {
+                    "beta_tag": "v0.7.0-beta.1",
+                    "rc_tag": "v0.7.0-rc.1",
+                    "records": 4,
+                    "run_id": first_run
+                },
+                "status": "passed"
+            },
+            "release_notes": {
+                "status": "stable-final",
+                "review": {
+                    "evidence": [
+                        "v0.7.0-rc.2 release notes and rollback guidance reviewed by reviewer",
+                        format!(
+                            "signed RC matrix run {final_run} manifest, public issues, assets, limitations, and package-channel state reviewed"
+                        )
+                    ],
+                    "release_manifest_sha256": "a".repeat(64),
+                    "release_notes_body_sha256": "b".repeat(64),
+                    "reviewer": "reviewer",
+                    "rollback_sha256": "c".repeat(64),
+                    "signed_matrix_run": final_run,
+                    "source_commit": "9".repeat(40),
+                    "status": "reviewed",
+                    "tag": "v0.7.0-rc.2"
+                }
+            }
+        })
     }
 
     fn sample_package_manager_evidence(
@@ -7510,7 +8083,23 @@ mod tests {
                     "native_matrix_run": first_rc_run,
                     "evidence": ["qualified"]
                 },
-                "package_managers": {"status": "passed", "evidence": ["qualified"]},
+                "package_managers": {
+                    "channels": ["homebrew-cask", "scoop", "winget"],
+                    "evidence": [
+                        format!(
+                            "package-manager qualification run {} passed Homebrew arm64/Intel, Scoop, and WinGet records",
+                            first_rc_run
+                        ),
+                        "v0.7.0-beta.1 to v0.7.0-rc.1 install, version, doctor, workspace, upgrade, uninstall, and retention passed"
+                    ],
+                    "qualification": {
+                        "beta_tag": "v0.7.0-beta.1",
+                        "rc_tag": "v0.7.0-rc.1",
+                        "records": 4,
+                        "run_id": first_rc_run
+                    },
+                    "status": "passed"
+                },
                 "release_notes": {
                     "status": "rc-final",
                     "review": {
@@ -7814,6 +8403,71 @@ mod tests {
         assert!(installer.contains("  PortableCommandAlias: canisend\n"));
         assert!(installer.contains("  InstallerUrl: https://"));
         assert!(installer.contains("canisend-0.7.0-alpha.1-x86_64-pc-windows-msvc\\canisend.exe"));
+    }
+
+    #[test]
+    fn stable_release_embeds_canonical_scoped_channel_manifests() {
+        let artifacts = vec![
+            json!({
+                "target": "aarch64-apple-darwin",
+                "archive": "canisend-0.7.0-aarch64-apple-darwin.tar.gz",
+                "sha256": "1".repeat(64),
+                "size": 11
+            }),
+            json!({
+                "target": "x86_64-apple-darwin",
+                "archive": "canisend-0.7.0-x86_64-apple-darwin.tar.gz",
+                "sha256": "2".repeat(64),
+                "size": 12
+            }),
+            json!({
+                "target": "x86_64-pc-windows-msvc",
+                "archive": "canisend-0.7.0-x86_64-pc-windows-msvc.zip",
+                "sha256": "3".repeat(64),
+                "size": 13
+            }),
+        ];
+        let commit = "d".repeat(40);
+        let files = render_stable_channel_publication(
+            "v0.7.0",
+            &commit,
+            &artifacts,
+            &sample_stable_publication_ledger(),
+        )
+        .expect("render qualified Stable channel assets");
+        assert_eq!(
+            files.keys().cloned().collect::<BTreeSet<_>>(),
+            stable_channel_asset_names("0.7.0")
+        );
+        let source: Value =
+            serde_json::from_slice(&files["canisend-0.7.0-channel-publication.json"])
+                .expect("parse Stable channel source");
+        assert_eq!(source["publication"]["scope"], "github-release-assets");
+        assert_eq!(source["publication"]["authorized"], true);
+        assert_eq!(source["publication"]["external_index_submission"], false);
+        assert_eq!(source["manifests"].as_array().map(Vec::len), Some(5));
+
+        let root = std::env::temp_dir().join(format!(
+            "canisend-stable-channel-publication-{}",
+            std::process::id()
+        ));
+        if root.exists() {
+            fs::remove_dir_all(&root).expect("remove stale Stable channel fixture");
+        }
+        fs::create_dir_all(&root).expect("create Stable channel fixture");
+        for (name, body) in &files {
+            fs::write(root.join(name), body).expect("write Stable channel fixture");
+        }
+        let release_manifest = json!({
+            "source": {"commit": commit},
+            "artifacts": artifacts
+        });
+        verify_stable_channel_publication(&root, "v0.7.0", &release_manifest)
+            .expect("verify Stable channel assets");
+        fs::write(root.join("canisend-0.7.0-homebrew-cask.rb"), b"tampered\n")
+            .expect("tamper Stable channel fixture");
+        assert!(verify_stable_channel_publication(&root, "v0.7.0", &release_manifest).is_err());
+        fs::remove_dir_all(root).expect("remove Stable channel fixture");
     }
 
     #[test]
@@ -8177,6 +8831,14 @@ mod tests {
             package_manager_qualified_ledger(&ledger, "v0.7.0-beta.1", "v0.7.0-rc.1", summary)
                 .expect("qualify exact package-manager pair");
         assert_eq!(qualified["package_managers"]["status"], "passed");
+        validate_package_manager_qualification_record(
+            &qualified["package_managers"],
+            &ledger["beta"],
+            ledger["release_candidates"]
+                .as_array()
+                .expect("package RC candidates"),
+        )
+        .expect("validate canonical package-manager ledger record");
         assert!(
             package_manager_qualified_ledger(&ledger, "v0.7.0-beta.1", "v0.7.0-rc.2", summary,)
                 .is_err()
