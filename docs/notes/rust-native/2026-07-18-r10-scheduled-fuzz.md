@@ -23,7 +23,12 @@ The pinned nightly toolchain and cargo-fuzz 0.13.2 compiled all three harnesses 
 100-run AddressSanitizer/libFuzzer smoke campaign without a crash, panic, timeout, or reproducer. Generated corpus,
 artifact, and build directories are ignored and contain no project/user data.
 
+After release-gate implementation completed, all three targets also ran concurrent 60-second campaigns with the
+workflow's pinned `nightly-2026-07-01`, 15-second per-input timeout, and 4096 MiB RSS limit. No target produced a
+crash, timeout, or artifact. This is stronger local prequalification, but it is not the required scheduled run.
+
 Dispatch the full five-minute-per-target workflow and require all three jobs to finish successfully. The Definition
 of Done fuzz checkbox remains open until that exact GitHub Actions run is recorded. GitHub does not allow a newly
 introduced workflow to be manually dispatched until the workflow path exists on the default branch; the first full
 run therefore belongs to the reviewed Rust-native main/RC cutover, not an unevidenced branch-only claim.
+An attempted branch dispatch returned GitHub HTTP 404 for this exact default-branch registration rule.

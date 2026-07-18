@@ -310,7 +310,11 @@
   progression. A dry-run-first RC refresher reads only public issue number/state and release asset counts, generates
   JSON and measured roadmap text from the same values, and rejects inconsistent candidates. The qualified Stable
   transition publishes both markers atomically while preserving all measured issue, download, release, and
-  engineering-finding evidence.
+  engineering-finding evidence. Exact commit `7d6fe27` passed all eight ordinary CI jobs in run `29643744866`.
+- 2026-07-18: Re-ran all three pinned fuzz targets locally for 60 seconds each with the workflow timeout and memory
+  boundaries; no crash, timeout, or artifact was produced. A real branch dispatch was rejected with GitHub HTTP 404
+  because the workflow does not yet exist on the default branch. The scheduled-fuzz checkbox remains correctly open
+  until the reviewed Rust-native cutover registers and runs that workflow.
 
 ## 1. Executive Decision
 

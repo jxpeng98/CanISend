@@ -37,3 +37,7 @@ it does not rewrite measured feedback.
 
 Local verification passed 42 `xtask` tests, Clippy with warnings denied, the complete release check, Bash syntax,
 JSON selection arithmetic, formatting, and diff checks.
+
+Exact implementation commit `7d6fe27` passed all eight ordinary CI jobs in GitHub Actions run `29643744866`,
+including Linux/macOS/Windows recovery and rendering, complete Rust quality, dependency policy, release build, and
+packaged smoke.
