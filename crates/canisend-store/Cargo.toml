@@ -10,9 +10,9 @@ repository.workspace = true
 publish.workspace = true
 
 [dependencies]
-canisend-contracts = { path = "../canisend-contracts" }
-canisend-core = { path = "../canisend-core" }
-canisend-io = { path = "../canisend-io" }
+canisend-contracts = { path = "../canisend-contracts", version = "=0.7.0-alpha.1" }
+canisend-core = { path = "../canisend-core", version = "=0.7.0-alpha.1" }
+canisend-io = { path = "../canisend-io", version = "=0.7.0-alpha.1" }
 getrandom.workspace = true
 hex.workspace = true
 rusqlite.workspace = true

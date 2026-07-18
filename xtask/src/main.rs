@@ -39,6 +39,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
             check_schemas()?;
             check_resources()?;
             check_documentation()?;
+            check_internal_dependency_versions()?;
             check_release_contract()
         }
         [area, command, tag] if area == "release" && command == "validate-tag" => {
@@ -258,6 +259,106 @@ impl ReleaseStage {
             Self::Stable => "stable",
         }
     }
+}
+
+fn check_internal_dependency_versions() -> Result<(), String> {
+    let root = repository_root();
+    let workspace_path = root.join("Cargo.toml");
+    let workspace_body = fs::read_to_string(&workspace_path)
+        .map_err(|error| format!("could not read workspace manifest: {error}"))?;
+    let workspace: toml::Value = workspace_body
+        .parse()
+        .map_err(|error| format!("workspace manifest is invalid TOML: {error}"))?;
+    let members = workspace["workspace"]["members"]
+        .as_array()
+        .ok_or_else(|| "workspace manifest has no members array".to_owned())?;
+    let expected = format!("={}", env!("CARGO_PKG_VERSION"));
+    let mut manifests = Vec::with_capacity(members.len());
+    let mut internal_packages = BTreeSet::new();
+
+    for member in members {
+        let member = member
+            .as_str()
+            .ok_or_else(|| "workspace member must be a string".to_owned())?;
+        let path = root.join(member).join("Cargo.toml");
+        let body = fs::read_to_string(&path)
+            .map_err(|error| format!("could not read {}: {error}", path.display()))?;
+        let manifest: toml::Value = body
+            .parse()
+            .map_err(|error| format!("{} is invalid TOML: {error}", path.display()))?;
+        let package = manifest["package"]["name"]
+            .as_str()
+            .ok_or_else(|| format!("{} has no package name", path.display()))?
+            .to_owned();
+        internal_packages.insert(package);
+        manifests.push((member.to_owned(), manifest));
+    }
+
+    for (member, manifest) in &manifests {
+        for section in ["dependencies", "dev-dependencies", "build-dependencies"] {
+            check_dependency_table(
+                member,
+                section,
+                manifest.get(section),
+                &internal_packages,
+                &expected,
+            )?;
+        }
+        if let Some(targets) = manifest.get("target").and_then(toml::Value::as_table) {
+            for (target, target_manifest) in targets {
+                for section in ["dependencies", "dev-dependencies", "build-dependencies"] {
+                    check_dependency_table(
+                        member,
+                        &format!("target.{target}.{section}"),
+                        target_manifest.get(section),
+                        &internal_packages,
+                        &expected,
+                    )?;
+                }
+            }
+        }
+    }
+
+    println!(
+        "internal dependency versions: ok ({} packages, {expected})",
+        internal_packages.len()
+    );
+    Ok(())
+}
+
+fn check_dependency_table(
+    member: &str,
+    section: &str,
+    dependencies: Option<&toml::Value>,
+    internal_packages: &BTreeSet<String>,
+    expected: &str,
+) -> Result<(), String> {
+    let Some(dependencies) = dependencies.and_then(toml::Value::as_table) else {
+        return Ok(());
+    };
+    for (alias, dependency) in dependencies {
+        let Some(detail) = dependency.as_table() else {
+            continue;
+        };
+        if !detail.contains_key("path") {
+            continue;
+        }
+        let package = detail
+            .get("package")
+            .and_then(toml::Value::as_str)
+            .unwrap_or(alias);
+        if !internal_packages.contains(package) {
+            continue;
+        }
+        let actual = detail.get("version").and_then(toml::Value::as_str);
+        if actual != Some(expected) {
+            return Err(format!(
+                "internal dependency `{alias}` in {member}/Cargo.toml [{section}] must use exact version `{expected}`, found {}",
+                actual.unwrap_or("<missing>")
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn check_release_contract() -> Result<(), String> {
@@ -925,5 +1026,10 @@ mod tests {
                 .len(),
             5
         );
+    }
+
+    #[test]
+    fn internal_path_dependencies_are_exactly_versioned() {
+        check_internal_dependency_versions().expect("internal dependency versions");
     }
 }
