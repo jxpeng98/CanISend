@@ -612,6 +612,14 @@ fn check_stage_transition_policy() -> Result<(), String> {
                 "release_notes_status": "stable-final"
             }
         ],
+        "allowed_iterations": [
+            {
+                "stage": "rc",
+                "target_prerelease": "next-sequential-rc",
+                "ledger_status": "rc-qualifying",
+                "release_notes_status": "rc-final"
+            }
+        ],
         "controlled_surfaces": [
             "Cargo.toml workspace version",
             "workspace Cargo.toml exact internal dependencies",
@@ -663,7 +671,7 @@ fn check_stage_transition_policy() -> Result<(), String> {
             ));
         }
     }
-    println!("stage-transition policy: ok (3 forward-only transitions)");
+    println!("stage-transition policy: ok (3 stage transitions + sequential RC iteration)");
     Ok(())
 }
 
@@ -1082,10 +1090,13 @@ fn render_stage_transition(root: &Path, tag: &str) -> Result<RenderedStageTransi
     if matches!(to_stage, ReleaseStage::Stable) {
         ledger["stable_authorized"] = Value::Bool(true);
     }
-    files.insert(
-        "release/qualification-ledger.json".to_owned(),
-        pretty_json_bytes(&ledger)?,
-    );
+    let ledger_bytes = pretty_json_bytes(&ledger)?;
+    if fs::read(&ledger_path)
+        .map_err(|error| format!("could not reread qualification ledger: {error}"))?
+        != ledger_bytes
+    {
+        files.insert("release/qualification-ledger.json".to_owned(), ledger_bytes);
+    }
 
     let notes_path = root.join("release/RELEASE_NOTES.md");
     let notes = fs::read_to_string(&notes_path)
@@ -1152,6 +1163,16 @@ fn validate_stage_transition(
         );
     }
     let expected_prerelease = match (from_stage, to_stage) {
+        (ReleaseStage::ReleaseCandidate, ReleaseStage::ReleaseCandidate) => {
+            let from_iteration = prerelease_iteration(from, "rc")?;
+            let to_iteration = prerelease_iteration(to, "rc")?;
+            if to_iteration != from_iteration + 1 {
+                return Err(
+                    "RC iteration target must increment the prerelease number by one".to_owned(),
+                );
+            }
+            return Ok(());
+        }
         (ReleaseStage::Alpha, ReleaseStage::Beta) => "beta.1",
         (ReleaseStage::Beta, ReleaseStage::ReleaseCandidate) => "rc.1",
         (ReleaseStage::ReleaseCandidate, ReleaseStage::Stable) => "",
@@ -1171,6 +1192,22 @@ fn validate_stage_transition(
         ));
     }
     Ok(())
+}
+
+fn prerelease_iteration(version: &Version, prefix: &str) -> Result<u64, String> {
+    let (actual_prefix, iteration) = version
+        .pre
+        .as_str()
+        .split_once('.')
+        .ok_or_else(|| format!("{prefix} version has no numeric prerelease iteration"))?;
+    if actual_prefix != prefix || iteration.contains('.') {
+        return Err(format!("version prerelease must use `{prefix}.N`"));
+    }
+    iteration
+        .parse::<u64>()
+        .ok()
+        .filter(|iteration| *iteration > 0)
+        .ok_or_else(|| format!("{prefix} prerelease iteration must be a positive integer"))
 }
 
 fn validate_transition_ledger_preconditions(
@@ -4992,6 +5029,8 @@ mod tests {
         let beta = Version::parse("0.7.0-beta.1").expect("Beta version");
         let beta_two = Version::parse("0.7.0-beta.2").expect("second Beta version");
         let rc = Version::parse("0.7.0-rc.1").expect("RC version");
+        let rc_two = Version::parse("0.7.0-rc.2").expect("second RC version");
+        let rc_three = Version::parse("0.7.0-rc.3").expect("third RC version");
         validate_stage_transition(&alpha, ReleaseStage::Alpha, &beta, ReleaseStage::Beta)
             .expect("Alpha to first Beta");
         assert!(
@@ -5006,6 +5045,26 @@ mod tests {
                 ReleaseStage::ReleaseCandidate
             )
             .is_err()
+        );
+        validate_stage_transition(
+            &rc,
+            ReleaseStage::ReleaseCandidate,
+            &rc_two,
+            ReleaseStage::ReleaseCandidate,
+        )
+        .expect("sequential RC iteration");
+        assert!(
+            validate_stage_transition(
+                &rc,
+                ReleaseStage::ReleaseCandidate,
+                &rc_three,
+                ReleaseStage::ReleaseCandidate
+            )
+            .is_err()
+        );
+        assert!(
+            validate_stage_transition(&beta, ReleaseStage::Beta, &beta_two, ReleaseStage::Beta)
+                .is_err()
         );
     }
 
@@ -5147,6 +5206,83 @@ mod tests {
             );
         }
         fs::remove_dir_all(root).expect("remove transition fixture");
+    }
+
+    #[test]
+    fn rc_iteration_preserves_existing_qualification_evidence() {
+        let root =
+            std::env::temp_dir().join(format!("canisend-rc-iteration-{}", std::process::id()));
+        if root.exists() {
+            fs::remove_dir_all(&root).expect("remove stale RC fixture");
+        }
+        fs::create_dir_all(root.join("crates/app")).expect("create RC app fixture");
+        fs::create_dir_all(root.join("crates/contracts")).expect("create RC contracts fixture");
+        fs::create_dir_all(root.join("release")).expect("create RC release fixture");
+        fs::write(
+            root.join("Cargo.toml"),
+            "[workspace]\nmembers = [\"crates/app\", \"crates/contracts\"]\n\
+             [workspace.package]\nversion = \"0.7.0-rc.1\"\n",
+        )
+        .expect("write RC workspace fixture");
+        fs::write(
+            root.join("crates/app/Cargo.toml"),
+            "[package]\nname = \"app\"\nversion.workspace = true\n\
+             [dependencies]\ncontracts = { package = \"contracts\", path = \"../contracts\", version = \"=0.7.0-rc.1\" }\n",
+        )
+        .expect("write RC app fixture");
+        fs::write(
+            root.join("crates/contracts/Cargo.toml"),
+            "[package]\nname = \"contracts\"\nversion.workspace = true\n",
+        )
+        .expect("write RC contracts fixture");
+        fs::write(
+            root.join("Cargo.lock"),
+            "version = 4\n\n[[package]]\nname = \"app\"\nversion = \"0.7.0-rc.1\"\n\
+             dependencies = [\"contracts\"]\n\n[[package]]\nname = \"contracts\"\nversion = \"0.7.0-rc.1\"\n",
+        )
+        .expect("write RC lock fixture");
+        let ledger = json!({
+            "schema": RELEASE_QUALIFICATION_SCHEMA,
+            "workspace_stage": "rc",
+            "status": "rc-qualifying",
+            "stable_authorized": false,
+            "beta": {"status": "qualified", "tag": "v0.7.0-beta.1"},
+            "feature_freeze": {"status": "frozen", "baseline_commit": "7".repeat(40)},
+            "release_notes": {"status": "rc-final"},
+            "release_candidates": [{"tag": "v0.7.0-rc.1", "status": "success"}]
+        });
+        write_pretty_json(&root.join("release/qualification-ledger.json"), &ledger)
+            .expect("write RC ledger fixture");
+        fs::write(
+            root.join("release/RELEASE_NOTES.md"),
+            "# CanISend 0.7.0-rc.1\n\nFixture notes.\n",
+        )
+        .expect("write RC notes fixture");
+
+        let ledger_before = fs::read(root.join("release/qualification-ledger.json"))
+            .expect("read RC ledger before iteration");
+        let transition =
+            render_stage_transition(&root, "v0.7.0-rc.2").expect("render sequential RC iteration");
+        assert!(
+            !transition
+                .files
+                .contains_key("release/qualification-ledger.json")
+        );
+        assert_eq!(transition.files.len(), 4);
+        for (relative, body) in &transition.files {
+            fs::write(root.join(relative), body).expect("apply RC iteration fixture");
+        }
+        assert_eq!(
+            fs::read(root.join("release/qualification-ledger.json"))
+                .expect("read RC ledger after iteration"),
+            ledger_before
+        );
+        assert!(
+            fs::read_to_string(root.join("Cargo.toml"))
+                .expect("read iterated RC workspace")
+                .contains("version = \"0.7.0-rc.2\"")
+        );
+        fs::remove_dir_all(root).expect("remove RC fixture");
     }
 
     #[test]

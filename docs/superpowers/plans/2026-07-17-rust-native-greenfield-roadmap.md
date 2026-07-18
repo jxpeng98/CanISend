@@ -274,6 +274,10 @@
   exact current Beta and canonical pending ledger, fully re-verifies downloaded manifest/checksums, five archives,
   and three archive-bound signing records, derives source identity, and previews the ledger hash. It keeps public
   GitHub attestation/run inspection as an explicit external requirement rather than overclaiming offline proof.
+- 2026-07-18: Closed the two-clean-RC version path gap by permitting only sequential `rc.N` to `rc.(N+1)` iteration.
+  The same dry-run/write mechanism synchronizes Cargo, lock, internal dependencies, and release-note identity while
+  preserving already recorded qualification evidence; RC number skipping, Beta iteration, and release-line changes
+  remain rejected.
 
 ## 1. Executive Decision
 

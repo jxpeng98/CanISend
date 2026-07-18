@@ -1,7 +1,8 @@
 # Native release stage transitions
 
 [`release/stage-transition-policy.json`](../../release/stage-transition-policy.json) defines the only supported
-forward transitions for the 0.7 Rust-native line: Alpha to Beta, Beta to RC, and RC to Stable. The transition tool
+forward transitions for the 0.7 Rust-native line: Alpha to Beta, Beta to RC, sequential RC iteration, and RC to
+Stable. The transition tool
 changes current product state without rewriting the immutable Alpha readiness, contract-freeze, feedback, or
 package-candidate evidence that explains how the release reached that state.
 
@@ -15,7 +16,9 @@ cargo run -p xtask --locked -- release prepare-stage v0.7.0-beta.1
 
 It prints `canisend.stage-transition-plan/v1` JSON containing the source and target stages plus the before/after
 SHA-256 digest of every controlled file. Review the complete file set. A transition cannot skip a stage, change the
-0.7 release line, attach build metadata, or use a target other than the first Beta/RC version.
+0.7 release line, attach build metadata, or use a target other than the first Beta/RC version. Once RC.1 evidence is
+committed, `prepare-stage v0.7.0-rc.2` is allowed; RC iteration must increase exactly by one and preserves the
+qualification ledger's earlier clean-tag records. Beta same-stage iteration and RC number skipping are rejected.
 
 Before the Alpha-to-Beta write, refresh [`release/beta-readiness.json`](../../release/beta-readiness.json), run the
 ordinary release source gate, and complete the name-only signing configuration audit described in

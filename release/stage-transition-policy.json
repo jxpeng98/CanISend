@@ -30,6 +30,14 @@
       "release_notes_status": "stable-final"
     }
   ],
+  "allowed_iterations": [
+    {
+      "stage": "rc",
+      "target_prerelease": "next-sequential-rc",
+      "ledger_status": "rc-qualifying",
+      "release_notes_status": "rc-final"
+    }
+  ],
   "controlled_surfaces": [
     "Cargo.toml workspace version",
     "workspace Cargo.toml exact internal dependencies",

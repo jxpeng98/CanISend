@@ -18,9 +18,10 @@ notes, and qualification ledger on different stages.
 `xtask release prepare-stage TAG` now renders a read-only, digest-bound plan by default. It discovers workspace
 packages, changes only the explicit current-state surfaces, reports every before/after SHA-256, and preserves the
 historical records. `--write` is explicit and refuses a dirty worktree. Forward motion is limited to Alpha→Beta.1,
-Beta→RC.1, and RC→Stable on the same release line; RC also requires qualified signed Beta evidence plus an active
-feature freeze, while Stable requires the complete qualification ledger. An Alpha→Beta write also rejects a
-readiness audit older than 24 hours or unreasonably dated in the future.
+Beta→RC.1, sequential RC iteration, and RC→Stable on the same release line; RC also requires qualified signed Beta
+evidence plus an active feature freeze, while Stable requires the complete qualification ledger. RC.N may advance
+only to RC.(N+1), preserving recorded clean-tag evidence; number skipping and Beta iteration are rejected. An
+Alpha→Beta write also rejects a readiness audit older than 24 hours or unreasonably dated in the future.
 
 The companion refresh script is also dry-run first. Its GitHub query deliberately retains only public issue
 number/state and public Alpha release identity. Any open issue stops automation for maintainer triage; when none are
