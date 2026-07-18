@@ -23,6 +23,9 @@ Use CanISend as the state owner and Codex as a bounded reasoning host. Never ins
 11. Once criteria and evidence are complete, prepare `--operation evidence-match`. Produce one proposal per exact
     criterion revision, cite only confirmed non-excluded evidence revisions, and preserve gaps and prohibited claims.
     CanISend assigns match IDs; inspect the validated set with `match show`.
+12. Run `plan export --job JOB_ID --destination FILE.json --json`. Explain the derived blockers and safe `hold`
+    default. Let the user choose `apply`, `hold`, or `skip`, edit the strategy and document requirements, then run
+    `plan confirm` only after that explicit decision. Drafting opens only for `apply` with no blocking evidence gaps.
 
 Do not invent source identities, bypass candidate validation, transmit private inputs to a provider without separate
 consent, or interpret readiness as permission to submit an application.

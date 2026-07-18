@@ -22,6 +22,9 @@ CanISend owns durable state; Claude operates only through its versioned CLI prot
 10. Prepare `--operation evidence-match` only after criteria and evidence are complete. Return one proposal for each
     exact criterion revision, cite only confirmed non-excluded evidence revisions, and state gaps plus prohibited
     downstream claims. CanISend assigns match IDs; inspect the result with `match show`.
+11. Export the decision with `plan export`. Explain core-derived blockers and the safe `hold` default; let the user
+    choose `apply`, `hold`, or `skip` and edit the strategy/document plan. Run `plan confirm` only after explicit
+    review. Drafting remains blocked unless the decision is `apply` and no essential evidence blocker remains.
 
 Never create evidence or source identities not supplied by CanISend, send private content to a provider without a
 separate consent, write internal state directly, or treat readiness as application submission.

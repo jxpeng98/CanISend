@@ -27,6 +27,9 @@ Then:
 10. When criteria and evidence are confirmed, prepare `--operation evidence-match`. Return exactly one proposal per
     criterion with exact criterion/evidence revisions, gaps, and prohibited downstream claims. Inspect the validated
     result with `match show --job JOB_ID --json`.
+11. Export `plan export --job JOB_ID --destination FILE.json --json`. Let the user review the core-derived blockers,
+    choose `apply`, `hold`, or `skip`, and edit the strategy and four document requirements. Run `plan confirm` only
+    after explicit review; only `apply` without blocking evidence gaps opens drafting.
 
 Read only capabilities marked `available`. Never inspect or edit `.canisend/`, invent source identities, or transmit
 private data without the matching consent. Readiness describes preparation status and is not evidence of submission.

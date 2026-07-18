@@ -129,6 +129,7 @@ test -f "$pack/prompts/evidence-normalize.md"
 test -f "$pack/prompts/evidence-match.md"
 test -f "$pack/schemas/v2/evidence-proposals.schema.json"
 test -f "$pack/schemas/v2/evidence-match-proposals.schema.json"
+test -f "$pack/schemas/v2/application-plan-candidate.schema.json"
 
 "$binary" --workspace "$workspace" workspace init --json >/dev/null
 job_json="$(
@@ -258,6 +259,23 @@ grep -q '"prohibited_claims":\[' "$agent_work/match-show.json"
 "$binary" --workspace "$workspace" workflow status --job "$job_id" --json \
   >"$agent_work/workflow-after-match.json"
 grep -q '"stage":"plan","status":"ready"' "$agent_work/workflow-after-match.json"
+
+"$binary" --workspace "$workspace" plan export --job "$job_id" \
+  --destination "$agent_work/application-plan.json" --json \
+  >"$agent_work/plan-export.json"
+grep -q '"decision": "hold"' "$agent_work/application-plan.json"
+grep -q '"severity": "blocking"' "$agent_work/application-plan.json"
+"$binary" --workspace "$workspace" plan confirm --job "$job_id" \
+  --file "$agent_work/application-plan.json" --json >"$agent_work/plan-confirm.json"
+grep -q '"status":"confirmed"' "$agent_work/plan-confirm.json"
+"$binary" --workspace "$workspace" plan show --job "$job_id" --json \
+  >"$agent_work/plan-show.json"
+grep -q '"decision":"hold"' "$agent_work/plan-show.json"
+"$binary" --workspace "$workspace" workflow status --job "$job_id" --json \
+  >"$agent_work/workflow-after-plan.json"
+grep -q '"stage":"plan","status":"complete"' "$agent_work/workflow-after-plan.json"
+grep -q '"stage":"draft","status":"blocked"' "$agent_work/workflow-after-plan.json"
+grep -q '"code":"workflow.plan_blocked"' "$agent_work/workflow-after-plan.json"
 
 "$binary" --workspace "$workspace" workflow rerun --job "$job_id" \
   --stage parse --json >"$agent_work/parse-rerun.json"

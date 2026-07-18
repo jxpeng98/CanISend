@@ -27,8 +27,8 @@ use canisend_io::{
 use canisend_resources::{AgentHost, ResourceError, ResourceId, ResourceKind, export_agent_pack};
 use canisend_store::{
     AgentContextService, ArtifactService, CriteriaService, DiscoveryService, EvidenceService,
-    JobService, MatchService, NewProfileSource, NewSource, ProfileService, StoreError, TaskService,
-    WorkflowService, Workspace, current_utc_timestamp,
+    JobService, MatchService, NewProfileSource, NewSource, PlanService, ProfileService, StoreError,
+    TaskService, WorkflowService, Workspace, current_utc_timestamp,
 };
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use serde_json::json;
@@ -102,6 +102,11 @@ enum Command {
     Match {
         #[command(subcommand)]
         command: MatchCommand,
+    },
+    /// Choose whether to apply and confirm the revision-bound document plan.
+    Plan {
+        #[command(subcommand)]
+        command: PlanCommand,
     },
     /// Start, inspect, advance, or rerun the durable application workflow.
     Workflow {
@@ -259,6 +264,16 @@ enum CriteriaCommand {
 enum MatchCommand {
     /// Show the current validated match set for one job.
     Show(MatchJobArgs),
+}
+
+#[derive(Debug, Subcommand)]
+enum PlanCommand {
+    /// Export a new editable decision and document-plan candidate.
+    Export(PlanExportArgs),
+    /// Validate and commit an explicit application decision.
+    Confirm(PlanConfirmArgs),
+    /// Show the current confirmed application plan.
+    Show(PlanJobArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -634,6 +649,39 @@ struct MatchJobArgs {
     output: OutputArgs,
 }
 
+#[derive(Debug, Args)]
+struct PlanJobArgs {
+    /// Canonical UUIDv7 job ID.
+    #[arg(long)]
+    job: String,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
+struct PlanExportArgs {
+    /// Canonical UUIDv7 job ID.
+    #[arg(long)]
+    job: String,
+    /// New external JSON file that the user or host agent can edit.
+    #[arg(long, value_name = "PATH")]
+    destination: PathBuf,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
+struct PlanConfirmArgs {
+    /// Canonical UUIDv7 job ID.
+    #[arg(long)]
+    job: String,
+    /// Regular, non-symlink JSON exported by `plan export`.
+    #[arg(long, value_name = "PATH")]
+    file: PathBuf,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
 #[derive(Debug, Clone, Copy, ValueEnum)]
 enum WorkflowStageName {
     Intake,
@@ -818,6 +866,11 @@ impl Cli {
             },
             Command::Match { command } => match command {
                 MatchCommand::Show(arguments) => arguments.output.json,
+            },
+            Command::Plan { command } => match command {
+                PlanCommand::Export(arguments) => arguments.output.json,
+                PlanCommand::Confirm(arguments) => arguments.output.json,
+                PlanCommand::Show(arguments) => arguments.output.json,
             },
             Command::Workflow { command } => match command {
                 WorkflowCommand::Start(arguments) | WorkflowCommand::Status(arguments) => {
@@ -1041,6 +1094,15 @@ fn execute(cli: Cli) -> CommandResult<CommandOutput> {
         Command::Match {
             command: MatchCommand::Show(arguments),
         } => match_show(workspace, &arguments.job),
+        Command::Plan {
+            command: PlanCommand::Export(arguments),
+        } => plan_export(workspace, arguments),
+        Command::Plan {
+            command: PlanCommand::Confirm(arguments),
+        } => plan_confirm(workspace, arguments),
+        Command::Plan {
+            command: PlanCommand::Show(arguments),
+        } => plan_show(workspace, &arguments.job),
         Command::Workflow {
             command: WorkflowCommand::Start(arguments),
         } => workflow_start(workspace, &arguments.job),
@@ -2450,6 +2512,97 @@ fn match_show(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<Co
         vec![
             format!("Evidence matches: {}", matches.id),
             format!("Matches: {}", matches.matches.len()),
+        ],
+    )
+}
+
+fn plan_export(
+    workspace_path: Option<PathBuf>,
+    arguments: PlanExportArgs,
+) -> CommandResult<CommandOutput> {
+    let job_id = parse_entity_id("plan.export", &arguments.job)?;
+    let mut workspace = open_workspace(workspace_path, "plan.export")?;
+    let template = PlanService::new(&mut workspace.database, &workspace.blobs)
+        .template(&job_id)
+        .map_err(|error| store_failure("plan.export", error))?;
+    write_private_json_new(&arguments.destination, &template)
+        .map_err(|error| io_adapter_failure("plan.export", error))?;
+    let mut output = success(
+        "plan.export",
+        "exported",
+        &json!({
+            "job_id": job_id,
+            "destination": arguments.destination,
+            "decision": template.decision,
+            "document_count": template.documents.len(),
+            "blocker_count": template.blockers.len(),
+            "schema": PublicSchemaId::ApplicationPlanCandidate.as_str(),
+        }),
+        vec![
+            format!(
+                "Exported application plan candidate: {}",
+                arguments.destination.display()
+            ),
+            format!("Derived blockers: {}", template.blockers.len()),
+            "The safe default decision is hold; review it before confirmation".to_owned(),
+        ],
+    )?;
+    output.response.next_actions.push(NextAction {
+        action: format!(
+            "canisend plan confirm --job {} --file {} --json",
+            job_id,
+            arguments.destination.display()
+        ),
+        description: "Review the decision, strategy, and document requirements, then confirm"
+            .to_owned(),
+    });
+    Ok(output)
+}
+
+fn plan_confirm(
+    workspace_path: Option<PathBuf>,
+    arguments: PlanConfirmArgs,
+) -> CommandResult<CommandOutput> {
+    let job_id = parse_entity_id("plan.confirm", &arguments.job)?;
+    let candidate = read_criteria_file(&arguments.file)
+        .map_err(|error| io_adapter_failure("plan.confirm", error))?;
+    let mut workspace = open_workspace(workspace_path, "plan.confirm")?;
+    let artifact = PlanService::new(&mut workspace.database, &workspace.blobs)
+        .confirm(&job_id, &candidate)
+        .map_err(|error| store_failure("plan.confirm", error))?;
+    let confirmed = PlanService::new(&mut workspace.database, &workspace.blobs)
+        .current(&job_id)
+        .map_err(|error| store_failure("plan.confirm", error))?;
+    let mut output = success(
+        "plan.confirm",
+        "confirmed",
+        &confirmed,
+        vec![
+            format!("Confirmed application plan: {}", confirmed.id),
+            format!("Decision: {:?}", confirmed.decision),
+            format!("Documents: {}", confirmed.documents.len()),
+            format!("Derived blockers: {}", confirmed.blockers.len()),
+        ],
+    )?;
+    output.response.artifacts.push(artifact);
+    Ok(output)
+}
+
+fn plan_show(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<CommandOutput> {
+    let job_id = parse_entity_id("plan.show", job_id)?;
+    let mut workspace = open_workspace(workspace_path, "plan.show")?;
+    let plan = PlanService::new(&mut workspace.database, &workspace.blobs)
+        .current(&job_id)
+        .map_err(|error| store_failure("plan.show", error))?;
+    success(
+        "plan.show",
+        "available",
+        &plan,
+        vec![
+            format!("Application plan: {}", plan.id),
+            format!("Decision: {:?}", plan.decision),
+            format!("Documents: {}", plan.documents.len()),
+            format!("Derived blockers: {}", plan.blockers.len()),
         ],
     )
 }

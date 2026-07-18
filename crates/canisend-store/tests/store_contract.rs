@@ -6,14 +6,15 @@ use std::{
 };
 
 use canisend_contracts::{
-    ActorKind, ArtifactKind, ArtifactReference, EntityId, ExecutionMode, ExpectedInputRevision,
-    PrivacyClassification, ProfileSourceKind, Revision, SafeRelativePath, Sha256Digest, SourceKind,
-    StageExecutionStatus, TaskCompletionRequest, TaskStatus, WorkflowStage,
+    ActorKind, ApplicationDecision, ArtifactKind, ArtifactReference, EntityId, ExecutionMode,
+    ExpectedInputRevision, PrivacyClassification, ProfileSourceKind, Revision, SafeRelativePath,
+    Sha256Digest, SourceKind, StageExecutionStatus, TaskCompletionRequest, TaskStatus,
+    WorkflowStage,
 };
 use canisend_store::{
     ArtifactService, CriteriaService, DEFAULT_MAX_BLOB_BYTES, EvidenceService, JobService,
-    MatchService, NewProfileSource, NewSource, ProfileService, StoreError, TaskService,
-    WorkflowService, Workspace, WorkspacePaths, verify_backup,
+    MatchService, NewProfileSource, NewSource, PlanService, ProfileService, StoreError,
+    TaskService, WorkflowService, Workspace, WorkspacePaths, verify_backup,
 };
 use serde_json::json;
 
@@ -55,7 +56,7 @@ fn workspace_init_discovery_status_and_check_are_consistent() {
     assert_eq!(discovered.root, root.path());
     assert_eq!(
         workspace.status().expect("status").database_schema_version,
-        7
+        8
     );
     let check = workspace.check().expect("workspace check");
     assert!(check.ok);
@@ -585,6 +586,88 @@ fn evidence_and_match_tasks_enforce_stable_revision_bound_identities() {
         StageExecutionStatus::Ready
     );
 
+    let hold_candidate = PlanService::new(&mut workspace.database, &workspace.blobs)
+        .template(&job.id)
+        .expect("application plan template");
+    assert_eq!(hold_candidate.decision, ApplicationDecision::Hold);
+    assert!(hold_candidate.blockers.is_empty());
+    let mut invented_blocker = hold_candidate.clone();
+    invented_blocker
+        .blockers
+        .push(canisend_contracts::PlanBlockerRecord {
+            code: "plan.invented".to_owned(),
+            criterion: canisend_contracts::CriterionRevisionReference {
+                id: criteria.criteria[0].id.clone(),
+                revision: criteria.criteria[0].revision,
+            },
+            severity: canisend_contracts::PlanBlockerSeverity::Warning,
+            description: "Invented blocker".to_owned(),
+        });
+    assert!(matches!(
+        PlanService::new(&mut workspace.database, &workspace.blobs).confirm(
+            &job.id,
+            &serde_json::to_value(invented_blocker).expect("invented blocker JSON"),
+        ),
+        Err(StoreError::CandidateSemantic(_))
+    ));
+    let hold_artifact = PlanService::new(&mut workspace.database, &workspace.blobs)
+        .confirm(
+            &job.id,
+            &serde_json::to_value(&hold_candidate).expect("hold plan JSON"),
+        )
+        .expect("confirm hold plan");
+    let hold_plan = PlanService::new(&mut workspace.database, &workspace.blobs)
+        .current(&job.id)
+        .expect("current hold plan");
+    assert_eq!(hold_plan.decision, ApplicationDecision::Hold);
+    assert_eq!(hold_plan.revision.get(), 1);
+    let hold_document_ids = hold_plan
+        .documents
+        .iter()
+        .map(|document| (document.kind, document.id.clone()))
+        .collect::<std::collections::BTreeMap<_, _>>();
+    let status = WorkflowService::new(&mut workspace.database)
+        .status(&job.id)
+        .expect("workflow after hold decision");
+    assert_eq!(
+        workflow_stage_status(&status, WorkflowStage::Draft),
+        StageExecutionStatus::Blocked
+    );
+    assert!(
+        status
+            .blockers
+            .iter()
+            .any(|blocker| blocker.code == "workflow.decision_not_apply")
+    );
+
+    let mut apply_candidate = PlanService::new(&mut workspace.database, &workspace.blobs)
+        .template(&job.id)
+        .expect("plan revision template");
+    apply_candidate.decision = ApplicationDecision::Apply;
+    let apply_artifact = PlanService::new(&mut workspace.database, &workspace.blobs)
+        .confirm(
+            &job.id,
+            &serde_json::to_value(apply_candidate).expect("apply plan JSON"),
+        )
+        .expect("confirm apply plan");
+    assert_eq!(apply_artifact.id, hold_artifact.id);
+    assert_eq!(apply_artifact.revision.get(), 2);
+    let apply_plan = PlanService::new(&mut workspace.database, &workspace.blobs)
+        .current(&job.id)
+        .expect("current apply plan");
+    assert_eq!(apply_plan.id, hold_plan.id);
+    assert_eq!(apply_plan.revision.get(), 2);
+    assert!(apply_plan.documents.iter().all(|document| {
+        hold_document_ids.get(&document.kind) == Some(&document.id) && document.revision.get() == 2
+    }));
+    let status = WorkflowService::new(&mut workspace.database)
+        .status(&job.id)
+        .expect("workflow after apply decision");
+    assert_eq!(
+        workflow_stage_status(&status, WorkflowStage::Draft),
+        StageExecutionStatus::Ready
+    );
+
     ProfileService::new(&mut workspace.database, &workspace.blobs)
         .import_source(
             NewProfileSource {
@@ -603,6 +686,10 @@ fn evidence_and_match_tasks_enforce_stable_revision_bound_identities() {
     ));
     assert!(matches!(
         MatchService::new(&mut workspace.database, &workspace.blobs).current(&job.id),
+        Err(StoreError::WorkflowConflict(_))
+    ));
+    assert!(matches!(
+        PlanService::new(&mut workspace.database, &workspace.blobs).current(&job.id),
         Err(StoreError::WorkflowConflict(_))
     ));
     let status = WorkflowService::new(&mut workspace.database)

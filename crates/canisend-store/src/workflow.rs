@@ -178,6 +178,11 @@ impl<'a> WorkflowService<'a> {
         output: &ArtifactReference,
         actor: ActorKind,
     ) -> Result<WorkflowStatusData, StoreError> {
+        if stage == WorkflowStage::Plan {
+            return Err(StoreError::WorkflowConflict(
+                "plan must be completed through plan confirm".to_owned(),
+            ));
+        }
         let descriptor = self.graph.descriptor(stage);
         if output.kind != descriptor.output_kind {
             return Err(StoreError::WorkflowConflict(format!(
@@ -267,6 +272,7 @@ impl<'a> WorkflowService<'a> {
             .depends_on
             .iter()
             .all(|dependency| statuses.get(dependency) == Some(&StageExecutionStatus::Complete))
+            && stage_gate_allows(&transaction, &run_id, stage)?
         {
             StageExecutionStatus::Ready
         } else {
@@ -426,6 +432,15 @@ fn load_status(
                     })
                     .map(|stage| stage.as_str())
                     .collect::<Vec<_>>();
+                if state.stage == WorkflowStage::Draft && missing.is_empty() {
+                    let (code, description) = draft_gate_blocker(connection, run_id)?;
+                    blockers.push(WorkflowBlocker {
+                        code,
+                        stage: state.stage,
+                        description,
+                    });
+                    continue;
+                }
                 blockers.push(WorkflowBlocker {
                     code: if state.stage == WorkflowStage::Intake {
                         "workflow.source_required".to_owned()
@@ -512,6 +527,13 @@ fn load_status(
                             job_id
                         ),
                         "Prepare revision-bound criterion-to-evidence matching".to_owned(),
+                    ),
+                    WorkflowStage::Plan => (
+                        format!(
+                            "canisend plan export --job {} --destination application-plan.json --json",
+                            job_id
+                        ),
+                        "Export the derived blockers and choose an application decision".to_owned(),
                     ),
                     _ => (
                         format!(
@@ -676,6 +698,7 @@ fn refresh_ready_states(
             .depends_on
             .iter()
             .all(|dependency| statuses.get(dependency) == Some(&StageExecutionStatus::Complete))
+            && stage_gate_allows(transaction, run_id, *stage)?
         {
             transaction.execute(
                 "UPDATE stage_executions SET status = 'ready', updated_at = ?3
@@ -686,6 +709,62 @@ fn refresh_ready_states(
         }
     }
     Ok(())
+}
+
+fn stage_gate_allows(
+    connection: &Connection,
+    run_id: &EntityId,
+    stage: WorkflowStage,
+) -> Result<bool, StoreError> {
+    if stage != WorkflowStage::Draft {
+        return Ok(true);
+    }
+    Ok(current_plan_gate(connection, run_id)?
+        .is_some_and(|(decision, blockers)| decision == "apply" && blockers == 0))
+}
+
+fn current_plan_gate(
+    connection: &Connection,
+    run_id: &EntityId,
+) -> Result<Option<(String, i64)>, StoreError> {
+    connection
+        .query_row(
+            "SELECT head.decision, head.blocking_count
+             FROM application_plan_heads AS head
+             JOIN stage_executions AS plan
+               ON plan.workflow_run_id = head.workflow_run_id AND plan.stage = 'plan'
+              AND plan.status = 'complete'
+              AND plan.output_artifact_id = head.artifact_id
+              AND plan.output_artifact_revision = head.artifact_revision
+             WHERE head.workflow_run_id = ?1",
+            params![run_id.as_str()],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()
+        .map_err(StoreError::from)
+}
+
+fn draft_gate_blocker(
+    connection: &Connection,
+    run_id: &EntityId,
+) -> Result<(String, String), StoreError> {
+    match current_plan_gate(connection, run_id)? {
+        Some((decision, 0)) if decision != "apply" => Ok((
+            "workflow.decision_not_apply".to_owned(),
+            format!("Application decision is {decision}; revise the plan to continue"),
+        )),
+        Some((_, blockers)) if blockers > 0 => Ok((
+            "workflow.plan_blocked".to_owned(),
+            format!("Application plan has {blockers} unresolved essential evidence blocker(s)"),
+        )),
+        Some((decision, blockers)) => Err(StoreError::Invariant(format!(
+            "invalid application plan gate state: {decision}/{blockers}"
+        ))),
+        None => Ok((
+            "workflow.plan_decision_required".to_owned(),
+            "Confirm a current application decision before drafting".to_owned(),
+        )),
+    }
 }
 
 fn load_stage_statuses(

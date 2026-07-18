@@ -151,7 +151,7 @@ fn capabilities_distinguish_available_from_planned_work() {
             .iter()
             .filter(|stage| stage["status"] == "available")
             .count()),
-        Some(6)
+        Some(7)
     );
 }
 
