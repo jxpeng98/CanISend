@@ -182,7 +182,7 @@ enum WorkspaceCommand {
     Backup(WorkspaceBackupArgs),
     /// Restore a verified backup into a new empty directory.
     Restore(WorkspaceRestoreArgs),
-    /// Repair derived projections marked repair-required.
+    /// Rebuild missing or repair-required projections while preserving user edits.
     Repair(OutputArgs),
 }
 
@@ -190,7 +190,7 @@ enum WorkspaceCommand {
 enum JobCommand {
     /// Create an empty job record ready for one or more sources.
     Create(JobCreateArgs),
-    /// Import a supported local source into an active job.
+    /// Import a supported local file or user-supplied public URL into an active job.
     Import(JobImportArgs),
     /// List active jobs, or include archived jobs explicitly.
     List(JobListArgs),
@@ -258,7 +258,7 @@ enum DiscoveryCommand {
 
 #[derive(Debug, Subcommand)]
 enum TaskCommand {
-    /// Freeze exact source revisions and create a leased host-agent task.
+    /// Freeze exact source revisions and create a leased agent task.
     Prepare(TaskPrepareArgs),
     /// Inspect a task descriptor, state, and committed result metadata.
     Show(TaskIdArgs),
@@ -3662,7 +3662,26 @@ fn io_adapter_failure(operation: &'static str, error: IoAdapterError) -> Box<Com
         | IoAdapterError::DiscoveryInput(_)
         | IoAdapterError::CandidateInput(_) => ("invalid", ErrorCode::InputInvalid, false),
     };
-    CommandFailure::new(operation, status, code, error.to_string(), retryable)
+    let mut failure = CommandFailure::new(operation, status, code, error.to_string(), retryable);
+    match error {
+        IoAdapterError::PdfTextUnavailable => {
+            failure.error.remediation = Some(NextAction {
+                action: "provide a text-based PDF, Markdown, or plain-text advert".to_owned(),
+                description:
+                    "CanISend does not run OCR; extract and review scanned text with a trusted tool before importing"
+                        .to_owned(),
+            });
+        }
+        IoAdapterError::PdfEncrypted => {
+            failure.error.remediation = Some(NextAction {
+                action: "decrypt the PDF or request an unencrypted advert".to_owned(),
+                description: "CanISend never guesses, stores, or transmits PDF passwords"
+                    .to_owned(),
+            });
+        }
+        _ => {}
+    }
+    failure
 }
 
 fn resource_export_failure(operation: &'static str, error: ResourceError) -> Box<CommandFailure> {
@@ -3772,6 +3791,13 @@ fn store_failure(operation: &'static str, error: StoreError) -> Box<CommandFailu
                 "A lease expired or a declared input changed; do not reuse the old candidate"
                     .to_owned(),
         });
+    } else if matches!(error, StoreError::WorkspaceNotFound(_)) {
+        failure.error.remediation = Some(NextAction {
+            action: "run canisend --workspace PATH workspace init".to_owned(),
+            description:
+                "Choose a new workspace directory, or pass --workspace for an existing canisend.toml"
+                    .to_owned(),
+        });
     }
     failure
 }
@@ -3829,7 +3855,7 @@ fn render_success(output: CommandOutput, json_output: bool) -> ExitCode {
     if json_output {
         render_json(&output.response)
     } else {
-        for line in output.human {
+        for line in human_success_lines(&output) {
             println!("{line}");
         }
         ExitCode::SUCCESS
@@ -3843,9 +3869,48 @@ fn render_failure(failure: CommandFailure, json_output: bool) -> ExitCode {
             return ExitCode::from(ExitClass::Internal.code());
         }
     } else {
-        eprintln!("canisend: {}", failure.human);
+        for line in human_failure_lines(&failure) {
+            eprintln!("{line}");
+        }
     }
     ExitCode::from(exit_class.code())
+}
+
+fn human_success_lines(output: &CommandOutput) -> Vec<String> {
+    let mut lines = output.human.clone();
+    lines.extend(
+        output
+            .response
+            .warnings
+            .iter()
+            .map(|warning| format!("Warning: {warning}")),
+    );
+    lines.extend(
+        output
+            .response
+            .next_actions
+            .iter()
+            .map(|action| format!("Next: {} — {}", action.action, action.description)),
+    );
+    lines
+}
+
+fn human_failure_lines(failure: &CommandFailure) -> Vec<String> {
+    let mut lines = vec![format!(
+        "canisend [{}]: {}",
+        failure.error.code.as_str(),
+        failure.human
+    )];
+    if let Some(remediation) = &failure.error.remediation {
+        lines.push(format!(
+            "Next: {} — {}",
+            remediation.action, remediation.description
+        ));
+    }
+    if failure.error.retryable {
+        lines.push("Retryable: yes".to_owned());
+    }
+    lines
 }
 
 fn render_json(response: &AgentResponse) -> ExitCode {
@@ -3863,12 +3928,37 @@ fn render_json(response: &AgentResponse) -> ExitCode {
 
 #[cfg(test)]
 mod tests {
-    use super::{Cli, ExitClass};
+    use canisend_contracts::{ErrorCode, NextAction};
     use clap::Parser;
+
+    use super::{Cli, CommandFailure, ExitClass, human_failure_lines};
 
     #[test]
     fn clap_usage_errors_are_reserved_for_exit_two() {
         let error = Cli::try_parse_from(["canisend", "unknown"]).expect_err("unknown command");
         assert_eq!(error.exit_code(), i32::from(ExitClass::CliUsage.code()));
+    }
+
+    #[test]
+    fn human_failures_include_stable_code_remediation_and_retry_hint() {
+        let mut failure = CommandFailure::new(
+            "task.complete",
+            "stale",
+            ErrorCode::TaskStale,
+            "task input changed",
+            true,
+        );
+        failure.error.remediation = Some(NextAction {
+            action: "prepare the task again".to_owned(),
+            description: "do not reuse the old candidate".to_owned(),
+        });
+        assert_eq!(
+            human_failure_lines(&failure),
+            [
+                "canisend [task.stale]: task input changed",
+                "Next: prepare the task again — do not reuse the old candidate",
+                "Retryable: yes",
+            ]
+        );
     }
 }
