@@ -1,23 +1,15 @@
 # Security Policy
 
-## Supported code
+CanISend is currently a pre-release Rust-native rebuild. Security fixes are applied to the latest published pre-release
+and the active development branch; older development snapshots are not supported.
 
-The active `rewrite/rust-native` line is pre-release software. The archived Python implementation is retained for
-history and does not receive security fixes through the Rust rebuild branch.
+Please report a suspected vulnerability through GitHub's private **Security advisories → Report a vulnerability**
+workflow for this repository. Do not include private application material, credentials, or a working exploit in a
+public issue.
 
-## Reporting
+Include the affected version/commit, platform, command or data flow, expected impact, and the smallest non-sensitive
+reproduction you can provide. The project will acknowledge the report, reproduce and classify it, coordinate a fix and
+release, and publish a minimally necessary advisory after affected users can update.
 
-Do not open a public issue containing private job adverts, profile evidence, drafts, API tokens, workspace databases,
-or provider payloads. Report a vulnerability privately through the repository's GitHub security advisory feature.
-
-## Current security boundaries
-
-- CanISend prepares materials and does not submit applications.
-- Secrets must not be stored in workspace configuration or committed files.
-- Normal JSON responses and logs must not include private document bodies.
-- Host agents must not edit `.canisend/` internal state.
-- URL fetching, PDF parsing, provider transmission, SQLite state, and embedded rendering remain security-sensitive
-  implementation areas and must satisfy their roadmap gates before release.
-- No telemetry or crash upload is enabled by default.
-
-The complete Rust-native threat model is a required R10 deliverable.
+The current trust boundaries, reviewed controls, dependency exceptions, and release blockers are maintained in the
+[Rust-native threat model](docs/security/threat-model.md).
