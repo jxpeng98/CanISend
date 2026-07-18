@@ -19,7 +19,20 @@ SHA-256 digest of every controlled file. Review the complete file set. A transit
 
 Before the Alpha-to-Beta write, refresh [`release/beta-readiness.json`](../../release/beta-readiness.json), run the
 ordinary release source gate, and complete the name-only signing configuration audit described in
-[the signing runbook](signing-operations.md). Do not put any credential value in the repository or transition plan.
+[the signing runbook](signing-operations.md). Write mode rejects a readiness snapshot older than 24 hours or more
+than five minutes in the future. Do not put any credential value in the repository or transition plan.
+
+Refresh is also dry-run first:
+
+```console
+./scripts/refresh_beta_readiness.sh jxpeng98/CanISend
+./scripts/refresh_beta_readiness.sh jxpeng98/CanISend --write
+```
+
+The script queries only public issue number/state and public release identity; it never downloads issue titles,
+bodies, comments, attachments, or private application data. Any open issue stops the refresh for manual blocker
+triage. With none open, the candidate preserves reviewed per-class evidence, updates only audit time/counts, and must
+pass `xtask release verify-beta-readiness` before an explicitly requested clean-worktree write.
 
 ## Apply intentionally
 

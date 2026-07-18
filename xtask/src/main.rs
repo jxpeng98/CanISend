@@ -15,6 +15,7 @@ use canisend_contracts::{
 use semver::Version;
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
+use time::{Duration, OffsetDateTime, format_description::well_known::Rfc3339};
 
 const RELEASE_TARGET_SCHEMA: &str = "canisend.release-targets/v1";
 const RELEASE_MANIFEST_SCHEMA: &str = "canisend.release-manifest/v1";
@@ -35,6 +36,7 @@ const CODE_SIGNING_EVIDENCE_SCHEMA: &str = "canisend.code-signing-evidence/v1";
 const FUZZ_TOOLCHAIN: &str = "nightly-2026-07-01";
 const CARGO_FUZZ_VERSION: &str = "0.13.2";
 const WINGET_MANIFEST_VERSION: &str = "1.12.0";
+const BETA_READINESS_MAX_AGE_HOURS: i64 = 24;
 const NATIVE_ALPHA_TAG: &str = "v0.7.0-alpha.1";
 const NATIVE_ALPHA_SOURCE: &str = "4cec4ec48cc2e96f3798dde0b438d3aaa617a2f8";
 const FROZEN_MIGRATIONS_THROUGH: u32 = 13;
@@ -84,6 +86,9 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
         }
         [area, command, tag] if area == "release" && command == "validate-tag" => {
             validate_release_tag(tag).map(|_| ())
+        }
+        [area, command, path] if area == "release" && command == "verify-beta-readiness" => {
+            check_beta_readiness_file(Path::new(path))
         }
         [area, command, tag] if area == "release" && command == "prepare-stage" => {
             prepare_stage_transition(tag, false)
@@ -137,7 +142,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
         }
         _ => Err(
             "usage: cargo run -p xtask -- schemas <check|write> | <resources|docs> check | \
-             release <check|freeze-candidate|validate-tag TAG|prepare-stage TAG [--write]|sbom OUTPUT|assemble TAG COMMIT ARTIFACTS OUTPUT|verify TAG DIRECTORY|channels TAG ASSETS OUTPUT|bind-signing-evidence TAG TARGET EVIDENCE BINARY ARCHIVE|verify-package-candidates FROM_TAG FROM_ASSETS TO_TAG TO_ASSETS|verify-package-evidence FROM_TAG TO_TAG DIRECTORY>"
+             release <check|freeze-candidate|validate-tag TAG|verify-beta-readiness FILE|prepare-stage TAG [--write]|sbom OUTPUT|assemble TAG COMMIT ARTIFACTS OUTPUT|verify TAG DIRECTORY|channels TAG ASSETS OUTPUT|bind-signing-evidence TAG TARGET EVIDENCE BINARY ARCHIVE|verify-package-candidates FROM_TAG FROM_ASSETS TO_TAG TO_ASSETS|verify-package-evidence FROM_TAG TO_TAG DIRECTORY>"
                 .to_owned(),
         ),
     }
@@ -544,7 +549,8 @@ fn check_stage_transition_policy() -> Result<(), String> {
             "name": "cargo run -p xtask --locked -- release prepare-stage",
             "dry_run_default": true,
             "write_flag": "--write",
-            "clean_worktree_required_for_write": true
+            "clean_worktree_required_for_write": true,
+            "beta_readiness_max_age_hours": BETA_READINESS_MAX_AGE_HOURS
         },
         "allowed_transitions": [
             {
@@ -598,9 +604,26 @@ fn check_stage_transition_policy() -> Result<(), String> {
         "prepare-stage v0.7.0-beta.1",
         "--write",
         "release/beta-readiness.json",
+        "refresh_beta_readiness.sh",
     ] {
         if !documentation.contains(required) {
             return Err(format!("stage-transition runbook is missing `{required}`"));
+        }
+    }
+    let refresh_path = root.join("scripts/refresh_beta_readiness.sh");
+    let refresh = fs::read_to_string(&refresh_path)
+        .map_err(|error| format!("Beta-readiness refresh script is missing: {error}"))?;
+    for required in [
+        "gh api --paginate --slurp",
+        "select(has(\"pull_request\") | not)",
+        "verify-beta-readiness",
+        "open_issue_count",
+        "--write",
+    ] {
+        if !refresh.contains(required) {
+            return Err(format!(
+                "Beta-readiness refresh script is missing `{required}`"
+            ));
         }
     }
     println!("stage-transition policy: ok (3 forward-only transitions)");
@@ -619,6 +642,9 @@ fn prepare_stage_transition(tag: &str, write: bool) -> Result<(), String> {
         }
     }
     let transition = render_stage_transition(&root, tag)?;
+    if write && matches!(transition.to_stage, ReleaseStage::Beta) {
+        check_beta_readiness_freshness(&root, OffsetDateTime::now_utc())?;
+    }
     let report = stage_transition_report(&root, &transition, write)?;
     if write {
         for (relative, body) in &transition.files {
@@ -632,6 +658,28 @@ fn prepare_stage_transition(tag: &str, write: bool) -> Result<(), String> {
         serde_json::to_string_pretty(&report)
             .map_err(|error| format!("could not serialize stage-transition plan: {error}"))?
     );
+    Ok(())
+}
+
+fn check_beta_readiness_freshness(root: &Path, now: OffsetDateTime) -> Result<(), String> {
+    let path = root.join("release/beta-readiness.json");
+    let readiness: Value =
+        serde_json::from_slice(&fs::read(&path).map_err(|error| {
+            format!("could not read Beta readiness for stage transition: {error}")
+        })?)
+        .map_err(|error| format!("Beta readiness is invalid JSON: {error}"))?;
+    let audited_at = required_string(&readiness, "audited_at", "Beta readiness")?;
+    let audited_at = OffsetDateTime::parse(audited_at, &Rfc3339)
+        .map_err(|error| format!("Beta readiness audit timestamp is invalid: {error}"))?;
+    if audited_at > now + Duration::minutes(5) {
+        return Err("Beta readiness audit timestamp is unreasonably in the future".to_owned());
+    }
+    let age = now - audited_at;
+    if age > Duration::hours(BETA_READINESS_MAX_AGE_HOURS) {
+        return Err(format!(
+            "Beta readiness audit is older than {BETA_READINESS_MAX_AGE_HOURS} hours; refresh it before --write"
+        ));
+    }
     Ok(())
 }
 
@@ -1100,7 +1148,11 @@ fn check_release_contract() -> Result<(), String> {
 
 fn check_beta_readiness() -> Result<(), String> {
     let path = repository_root().join("release/beta-readiness.json");
-    let body = fs::read_to_string(&path).map_err(|error| {
+    check_beta_readiness_file(&path)
+}
+
+fn check_beta_readiness_file(path: &Path) -> Result<(), String> {
+    let body = fs::read_to_string(path).map_err(|error| {
         format!(
             "Beta readiness ledger is missing at {}: {error}",
             path.display()
@@ -4597,6 +4649,36 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn beta_transition_requires_a_recent_nonfuture_readiness_audit() {
+        let root = std::env::temp_dir().join(format!(
+            "canisend-beta-readiness-age-{}",
+            std::process::id()
+        ));
+        if root.exists() {
+            fs::remove_dir_all(&root).expect("remove stale readiness-age fixture");
+        }
+        fs::create_dir_all(root.join("release")).expect("create readiness-age fixture");
+        let now = OffsetDateTime::parse("2026-07-18T12:00:00Z", &Rfc3339).expect("fixture time");
+        for (audited_at, accepted) in [
+            ("2026-07-17T13:00:00Z", true),
+            ("2026-07-17T11:00:00Z", false),
+            ("2026-07-18T12:06:00Z", false),
+        ] {
+            write_pretty_json(
+                &root.join("release/beta-readiness.json"),
+                &json!({"audited_at": audited_at}),
+            )
+            .expect("write readiness-age fixture");
+            assert_eq!(
+                check_beta_readiness_freshness(&root, now).is_ok(),
+                accepted,
+                "unexpected freshness result for {audited_at}"
+            );
+        }
+        fs::remove_dir_all(root).expect("remove readiness-age fixture");
     }
 
     #[test]

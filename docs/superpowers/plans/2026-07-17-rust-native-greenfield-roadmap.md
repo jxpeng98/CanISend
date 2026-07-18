@@ -261,7 +261,10 @@
   previews exact file hashes by default, writes only from a clean worktree with `--write`, synchronizes Cargo and
   qualification state, and preserves immutable Alpha evidence. The
   [transition note](../../notes/rust-native/2026-07-18-r11-stage-transition-preparation.md) records the current
-  ten-file Alpha-to-Beta preview; the version remains Alpha until external signing configuration is provisioned.
+  ten-file Alpha-to-Beta preview. Beta writes now require a readiness audit no more than 24 hours old; a
+  privacy-minimized, dry-run-first refresh reads only public issue number/state and stops on any open issue. The
+  implementation commit `f81a262` passed all eight jobs in exact CI `29641475661`; the version remains Alpha until
+  external signing configuration is provisioned.
 
 ## 1. Executive Decision
 

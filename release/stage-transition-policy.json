@@ -4,7 +4,8 @@
     "name": "cargo run -p xtask --locked -- release prepare-stage",
     "dry_run_default": true,
     "write_flag": "--write",
-    "clean_worktree_required_for_write": true
+    "clean_worktree_required_for_write": true,
+    "beta_readiness_max_age_hours": 24
   },
   "allowed_transitions": [
     {
