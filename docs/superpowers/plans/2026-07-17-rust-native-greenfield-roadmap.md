@@ -333,6 +333,12 @@
   default-branch scheduled-fuzz workflow. The current ten-file Beta transition preview remains read-only. Remaining
   work is one external evidence chain beginning with the 14 signing configuration names; no gate was weakened or
   prematurely checked.
+- 2026-07-18: Replaced the unprovisioned paid signing plan with an explicit free `community-build` trust tier.
+  macOS now uses hardened-runtime ad-hoc signatures and Windows uses an ephemeral non-exportable self-signed
+  Authenticode certificate. Canonical v2 evidence records every absent public-trust property, while exact binary,
+  archive, checksum, manifest, and GitHub OIDC provenance binding remain fail-closed. No Apple/Azure account,
+  repository secret, or signing variable is required. [ADR-RN-0012](../../architecture/rust-native/decisions/0012-adopt-free-community-platform-signing.md)
+  supersedes ADR-RN-0011 for `0.7`; real Beta matrix qualification remains open.
 
 ## 1. Executive Decision
 
@@ -1365,8 +1371,8 @@ canisend-0.7.0-alpha.1-x86_64-pc-windows-msvc.zip
 - Build provenance.
 - SHA-256 checksums.
 - SBOM.
-- macOS code signing and notarization for Beta, RC, and Stable.
-- Windows Artifact Signing Public Trust for Beta, RC, and Stable.
+- macOS hardened-runtime ad-hoc signing for Beta, RC, and Stable, with no Developer ID/notarization claim.
+- Windows ephemeral self-signed Authenticode for Beta, RC, and Stable, with no public-trust/timestamp claim.
 - GitHub OIDC-attested release manifest, checksum set, SBOM, and platform signing evidence.
 - License notices for embedded fonts, SQLite, Typst, and other redistributed assets.
 
@@ -1999,7 +2005,7 @@ commit rather than the later documentation commit.
 asset verification, and the [Alpha release closeout note](../../notes/rust-native/2026-07-18-r11-alpha-release.md).
 Five native archives plus checksums, CycloneDX SBOM, release manifest, notices, known limitations, release notes, and
 privacy-scoped issue intake are public. All 12 assets have source-bound GitHub provenance; no default telemetry was
-introduced. R11.2 owns blocker triage, contract freezes, package-manager candidates, and credential-backed signing.
+introduced. R11.2 owns blocker triage, contract freezes, package-manager candidates, and community signing.
 
 #### R11.2 Beta
 
@@ -2007,7 +2013,7 @@ introduced. R11.2 owns blocker triage, contract freezes, package-manager candida
 - [x] Freeze agent protocol v2 for the beta line.
 - [x] Freeze workspace v2 migrations inside the Rust era.
 - [x] Add Homebrew and Windows installation channel candidates.
-- [ ] Complete macOS notarization and planned Windows signing.
+- [ ] Publish and verify macOS ad-hoc and Windows self-signed community signatures.
 
 **R11.2 blocker baseline:** The [Beta readiness note](../../notes/rust-native/2026-07-18-r11-beta-readiness.md) and
 machine-checked `release/beta-readiness.json` record the first post-publication audit. No Alpha blocker was reported;
@@ -2030,18 +2036,18 @@ Cask, Scoop, and WinGet files to exact verified release-manifest/archive digests
 publication. Signed Beta assets must produce a new set and pass official native validators before any external
 channel changes.
 
-**R11.2 signing implementation:** [ADR-RN-0011](../../architecture/rust-native/decisions/0011-require-credential-backed-platform-signing-evidence.md)
-and the [signing-gate note](../../notes/rust-native/2026-07-18-r11-beta-signing-gates.md) define a fail-closed policy,
-credential readiness gate, exact Apple/Windows post-sign verification, and canonical evidence bound to final archive
-bytes. Implementation is complete, but the checklist remains open until a real Beta dry-run produces accepted
-evidence for both macOS targets and Windows without exposing signing material.
+**R11.2 signing implementation:** [ADR-RN-0012](../../architecture/rust-native/decisions/0012-adopt-free-community-platform-signing.md)
+and the [community-signing note](../../notes/rust-native/2026-07-18-r11-community-signing-policy.md) define the
+free, fail-closed trust tier, exact macOS/Windows post-sign verification, and canonical evidence bound to final
+archive bytes. Implementation is complete without external credentials, but the checklist remains open until a real
+Beta dry-run and published tag produce and independently verify both macOS records and the Windows record.
 
 **R11.2 stage-transition preparation:** The
 [stage-transition policy](../../../release/stage-transition-policy.json),
 [runbook](../../release/stage-transitions.md), and
 [implementation note](../../notes/rust-native/2026-07-18-r11-stage-transition-preparation.md) distinguish current
-version state from immutable Alpha evidence. Alpha-to-Beta now has a reviewed ten-file dry-run; the write remains
-unexecuted until the readiness snapshot and external signing configuration are current.
+version state from immutable Alpha evidence. Alpha-to-Beta has a reviewed dry-run; the write remains unexecuted until
+the readiness snapshot is refreshed and the community-signing source gate is qualified.
 
 **R11.3 preparation:** The [upgrade, rollback, and uninstall guide](../../guides/upgrade-and-rollback.md) defines the
 backup-first binary/workspace boundary, future-schema rejection, restore-to-new-path rollback, host-pack refresh, and
@@ -2239,8 +2245,8 @@ Windows.
 **Release evidence audit:** The complete combined quality gate, including its distinct generated property step,
 passed in ordinary CI `29640222233`; dependency policy also passed. Exact five-target package and installation smokes
 passed in native run `29637471699`. Scheduled fuzz awaits a default-branch run. Alpha publishes checksums, SBOM,
-provenance, and notices, but the combined publication checkbox remains open until credential-backed macOS and
-Windows signatures are published.
+provenance, and notices, but the combined publication checkbox remains open until community macOS and Windows
+signatures are published with v2 evidence.
 
 ## 24. Principal Risks and Mitigations
 

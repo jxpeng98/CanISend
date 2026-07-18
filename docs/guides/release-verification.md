@@ -79,18 +79,19 @@ proves which GitHub Actions identity built the bytes; it does not replace operat
 ## Verify platform signing evidence
 
 For Beta or later, inspect the signing JSON named by the selected artifact's manifest entry. It must use schema
-`canisend.code-signing-evidence/v1`, report `status: verified`, match the release version and target, and bind its
+`canisend.code-signing-evidence/v2`, report `status: verified`, match the release version and target, and bind its
 `archive.file`, `archive.size`, and `archive.sha256` to the downloaded archive. The evidence file itself must also
 match both its manifest supplemental-file entry and `SHA256SUMS`.
 
-Apple evidence must identify `kind: apple-developer-id-notarization`, the fixed code identifier
-`io.github.jxpeng98.canisend`, hardened runtime, secure timestamp, `notarization_status: Accepted`, an error-free
-notarization log digest, and the expected Developer ID identity and Team ID. `stapling_supported: false` is correct
-for the distributed standalone executable; Gatekeeper retrieves Apple's notarization ticket online.
+macOS evidence must identify `kind: apple-adhoc`, identity `adhoc`, the fixed code identifier
+`io.github.jxpeng98.canisend`, a valid hardened-runtime signature, and no `get-task-allow`. It must explicitly report
+`developer_id: false`, `secure_timestamp: false`, `notarized: false`, and
+`gatekeeper_trusted_publisher: false`.
 
-Windows evidence must identify `kind: windows-authenticode-artifact-signing`, the exact signer subject and
-thumbprint, `authenticode_status: Valid`, SHA-256 file and timestamp digests, a timestamp identity, and service
-`azure-artifact-signing`.
+Windows evidence must identify `kind: windows-authenticode-self-signed`, exact subject
+`CN=CanISend Community Build`, and the artifact-specific thumbprint. It must report an intact but untrusted status,
+`self_signed: true`, `certificate_trusted: false`, SHA-256 file digest, `timestamp_present: false`, and service
+`powershell-self-signed-authenticode`.
 
 A source checkout at the same version can repeat every structural, checksum, and evidence-binding check:
 
@@ -99,8 +100,9 @@ cargo run -p xtask --locked -- release verify vVERSION /path/to/release-assets
 ```
 
 Also run the native operating-system checks in the [installation guide](installation.md). Reject a non-Alpha release
-that omits any required signing evidence, reports a different signer, lacks a timestamp, or cannot pass the platform
-signature check.
+that omits any required evidence, reports a different signer or trust tier, does not match the final archive, or
+cannot pass the native integrity check. Do not reject the documented absence of public trust as if it were drift;
+instead, reject evidence that falsely claims public trust.
 
 ## Inspect the SBOM and notices
 

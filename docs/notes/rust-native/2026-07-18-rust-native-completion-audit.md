@@ -4,7 +4,11 @@
 
 **Roadmap scope:** Remaining R11 and Definition of Done items
 
-**Status:** Repository implementation prepared; external signed-release sequence blocked on identity provisioning
+**Status:** Superseded after the project adopted free community signing
+
+> This audit accurately records the former paid-signing blocker at its timestamp. ADR-RN-0012 removed that external
+> prerequisite; the remaining release sequence now begins with community-signing source and native-matrix
+> qualification.
 
 ## Repository state audited
 

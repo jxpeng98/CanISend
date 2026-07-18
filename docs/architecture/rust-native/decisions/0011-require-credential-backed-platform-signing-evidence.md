@@ -1,6 +1,6 @@
 # ADR-RN-0011: Require Credential-Backed Platform Signing Evidence
 
-**Status:** Accepted
+**Status:** Superseded by ADR-RN-0012 for the `0.7` community release tier
 
 **Date:** 2026-07-18
 

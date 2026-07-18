@@ -38,9 +38,10 @@ rendering, audited security/privacy/dependency boundaries, cross-platform recove
 budgets, human remediation output, staged-binary user documentation, and the verified five-platform
 [`v0.7.0-alpha.1` native prerelease](https://github.com/jxpeng98/CanISend/releases/tag/v0.7.0-alpha.1). R11.2 Beta
 hardening is active. Verified-byte-derived [package-manager candidates](packaging/README.md) now cover Homebrew Cask,
-Scoop, and WinGet without claiming a live external channel. Fail-closed Developer ID/notarization and Azure Artifact
-Signing gates are implemented; the signing milestone remains open until real credentials produce archive-bound
-evidence on all three signed targets. The current binary provides:
+Scoop, and WinGet without claiming a live external channel. The free `community-build` tier uses fail-closed macOS
+ad-hoc and Windows self-signed Authenticode integrity gates without claiming operating-system publisher trust; the
+signing milestone remains open until a native Beta publishes archive-bound v2 evidence on all three signed targets.
+The current binary provides:
 
 - Standalone `canisend` executable archives for five native targets.
 - Validated UUIDv7, SHA-256, revision, UTC timestamp, and safe relative-path contract types.

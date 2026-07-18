@@ -134,8 +134,8 @@ Stable requires all of these in the committed ledger:
    guidance, followed by final Stable release notes and explicit Stable authorization.
 
 The ledger is necessary but not sufficient: referenced GitHub runs, public releases, checksums, attestations,
-notarization results, Authenticode results, and package-manager validations must still be independently inspected.
-An invented run ID or status string is not qualification evidence.
+community platform-signing evidence, native signature results, and package-manager validations must still be
+independently inspected. An invented run ID or status string is not qualification evidence.
 
 ## Current boundary
 

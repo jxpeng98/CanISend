@@ -58,26 +58,26 @@ For complete checksum, SBOM, manifest, and GitHub provenance verification, follo
 ## Release signing status
 
 `0.7.0-alpha.*` archives may be unsigned under the explicit Alpha policy. Verify the published checksum and release
-provenance. Beta, release-candidate, and Stable publication fails closed unless both macOS executables have a verified
-Developer ID signature, secure timestamp, and accepted Apple notarization, and the Windows executable has a verified
-Azure Artifact Signing Authenticode signature plus RFC 3161 timestamp. Each signed release also publishes canonical
-JSON evidence bound to the final archive hash.
+provenance. Beta, release-candidate, and Stable community builds fail closed unless both macOS executables have a
+verified ad-hoc integrity signature and the Windows executable has a verified self-signed Authenticode signature.
+Each release publishes canonical JSON evidence bound to the final archive hash.
 
-An unsigned alpha may trigger macOS Gatekeeper or Windows SmartScreen. Alpha testers should confirm the tag,
-checksum, and GitHub attestation before making a one-binary exception through the operating system's normal security
-UI. Never disable Gatekeeper, SmartScreen, antivirus, or execution policy globally to run CanISend.
+These free signatures are not publisher identities. macOS builds are not Developer-ID signed or notarized; Windows
+builds are not signed by a publicly trusted certificate and have no public timestamp. Gatekeeper, Unknown Publisher,
+or SmartScreen warnings can therefore occur. Confirm the tag, checksum, and GitHub attestation before making a
+one-binary exception through the operating system's normal security UI. Never disable Gatekeeper, SmartScreen,
+antivirus, or execution policy globally to run CanISend.
 
 For Beta or later on macOS, verify the extracted executable before running it:
 
 ```console
 codesign --verify --strict --verbose=4 ./canisend-VERSION-TARGET/canisend
 codesign --display --verbose=4 ./canisend-VERSION-TARGET/canisend
-spctl --assess --type execute --verbose=4 ./canisend-VERSION-TARGET/canisend
 ```
 
-CanISend is a standalone command-line executable. Apple publishes its notarization ticket online but does not
-currently support stapling a ticket to a standalone binary, so `spctl` may need network access on first assessment.
-The release evidence records this boundary explicitly and never claims a stapled ticket.
+The display output must show `Signature=adhoc`, identifier `io.github.jxpeng98.canisend`, and the hardened-runtime
+flag. A Gatekeeper assessment may reject the binary because no Apple publisher trust or notarization exists; the
+release evidence records this limitation explicitly.
 
 For Beta or later on Windows PowerShell:
 
@@ -86,10 +86,11 @@ $signature = Get-AuthenticodeSignature `
   .\canisend-VERSION-x86_64-pc-windows-msvc\canisend.exe
 $signature.Status
 $signature.SignerCertificate.Subject
-$signature.TimeStamperCertificate.Subject
+$signature.TimeStamperCertificate
 ```
 
-`Status` must be `Valid`; both certificate fields must be present, and the signer must match the published signing
+`Status` is expected to be `NotTrusted` or `UnknownError`, the subject must be `CN=CanISend Community Build`, and no
+timestamp certificate may be present. Compare the artifact-specific thumbprint and hash with the published signing
 evidence. Continue with the complete [release verification guide](release-verification.md) before using private data.
 
 ## Package-manager candidates

@@ -4,7 +4,10 @@
 
 **Roadmap item:** R11.2
 
-**Status:** Implementation complete; credential-backed qualification pending
+**Status:** Superseded by the free community-signing policy in ADR-RN-0012
+
+> This note preserves the earlier paid-signing design and its historical test evidence. It is not the current
+> release procedure. See `2026-07-18-r11-community-signing-policy.md`.
 
 ## Source baseline
 

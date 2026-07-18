@@ -23,7 +23,7 @@ const BETA_READINESS_SCHEMA: &str = "canisend.beta-readiness/v1";
 const BETA_CONTRACT_FREEZE_SCHEMA: &str = "canisend.beta-contract-freeze/v1";
 const CHANNEL_CANDIDATE_SOURCE_SCHEMA: &str = "canisend.channel-candidate-source/v1";
 const STABLE_CHANNEL_PUBLICATION_SCHEMA: &str = "canisend.stable-channel-publication/v1";
-const SIGNING_POLICY_SCHEMA: &str = "canisend.signing-policy/v1";
+const SIGNING_POLICY_SCHEMA: &str = "canisend.signing-policy/v2";
 const SUPPORT_POLICY_SCHEMA: &str = "canisend.support-policy/v1";
 const FEEDBACK_SNAPSHOT_SCHEMA: &str = "canisend.feedback-snapshot/v1";
 const RELEASE_QUALIFICATION_SCHEMA: &str = "canisend.release-qualification/v1";
@@ -47,7 +47,7 @@ const DOCUMENTATION_UNINSTALL_PLAN_SCHEMA: &str = "canisend.documentation-uninst
 const RELEASE_NOTES_POLICY_SCHEMA: &str = "canisend.release-notes-policy/v1";
 const RELEASE_NOTES_QUALIFICATION_PLAN_SCHEMA: &str =
     "canisend.release-notes-qualification-plan/v1";
-const CODE_SIGNING_EVIDENCE_SCHEMA: &str = "canisend.code-signing-evidence/v1";
+const CODE_SIGNING_EVIDENCE_SCHEMA: &str = "canisend.code-signing-evidence/v2";
 const FUZZ_TOOLCHAIN: &str = "nightly-2026-07-01";
 const CARGO_FUZZ_VERSION: &str = "0.13.2";
 const WINGET_MANIFEST_VERSION: &str = "1.12.0";
@@ -2683,50 +2683,38 @@ fn check_signing_policy() -> Result<(), String> {
         .map_err(|error| format!("signing policy is invalid JSON: {error}"))?;
     let expected = json!({
         "schema": SIGNING_POLICY_SCHEMA,
+        "trust_tier": "community-build",
         "stage_boundary": {
             "alpha_may_be_unsigned": true,
-            "beta_rc_stable_require_all_configured_signers": true,
-            "missing_credentials": "fail-closed"
+            "beta_rc_stable_require_platform_integrity_signatures": true,
+            "external_credentials_required": false,
+            "missing_platform_tooling": "fail-closed"
         },
         "macos": {
             "targets": ["aarch64-apple-darwin", "x86_64-apple-darwin"],
-            "service": "apple-developer-id-notarytool",
-            "certificate_type": "Developer ID Application",
+            "service": "codesign-adhoc",
+            "identity": "-",
             "code_identifier": "io.github.jxpeng98.canisend",
             "hardened_runtime": true,
-            "secure_timestamp": true,
-            "notarization_submission": "zip",
-            "standalone_ticket_stapling_supported": false,
-            "required_secrets": [
-                "APPLE_DEVELOPER_ID_P12_BASE64",
-                "APPLE_DEVELOPER_ID_P12_PASSWORD",
-                "APPLE_NOTARY_KEY_P8_BASE64"
-            ],
-            "required_variables": [
-                "APPLE_SIGNING_IDENTITY",
-                "APPLE_TEAM_ID",
-                "APPLE_NOTARY_KEY_ID",
-                "APPLE_NOTARY_ISSUER_ID"
-            ]
+            "secure_timestamp": false,
+            "notarized": false,
+            "operating_system_trust": "untrusted",
+            "required_secrets": [],
+            "required_variables": []
         },
         "windows": {
             "targets": ["x86_64-pc-windows-msvc"],
-            "service": "azure-artifact-signing",
-            "trust_model": "public-trust",
-            "authentication": "github-oidc",
+            "service": "powershell-self-signed-authenticode",
+            "trust_model": "self-signed-untrusted",
+            "certificate_subject": "CN=CanISend Community Build",
+            "certificate_valid_days": 3650,
+            "private_key_exportable": false,
+            "key_algorithm": "RSA",
+            "key_length": 3072,
             "file_digest": "SHA256",
-            "timestamp_digest": "SHA256",
-            "timestamp_url": "http://timestamp.acs.microsoft.com",
+            "timestamp_present": false,
             "required_secrets": [],
-            "required_variables": [
-                "AZURE_CLIENT_ID",
-                "AZURE_TENANT_ID",
-                "AZURE_SUBSCRIPTION_ID",
-                "AZURE_ARTIFACT_SIGNING_ENDPOINT",
-                "AZURE_ARTIFACT_SIGNING_ACCOUNT",
-                "AZURE_ARTIFACT_SIGNING_PROFILE",
-                "WINDOWS_SIGNING_EXPECTED_SUBJECT"
-            ]
+            "required_variables": []
         },
         "linux": {
             "targets": ["x86_64-unknown-linux-gnu", "x86_64-unknown-linux-musl"],
@@ -2735,114 +2723,123 @@ fn check_signing_policy() -> Result<(), String> {
         }
     });
     if actual != expected {
-        return Err("release signing policy drifted from the fail-closed Beta contract".to_owned());
+        return Err(
+            "release signing policy drifted from the fail-closed community trust contract"
+                .to_owned(),
+        );
     }
     let readiness_path = root.join("scripts/check_signing_readiness.sh");
-    let audit_path = root.join("scripts/audit_github_signing_configuration.sh");
-    let macos_path = root.join("scripts/sign_and_notarize_macos.sh");
-    let windows_path = root.join("scripts/verify_windows_authenticode.ps1");
+    let audit_path = root.join("scripts/audit_community_signing_configuration.sh");
+    let macos_path = root.join("scripts/sign_macos_adhoc.sh");
+    let windows_path = root.join("scripts/sign_windows_self_signed.ps1");
     let operations_path = root.join("docs/release/signing-operations.md");
     let readiness = fs::read_to_string(&readiness_path)
         .map_err(|error| format!("release signing readiness script is missing: {error}"))?;
     let audit = fs::read_to_string(&audit_path)
-        .map_err(|error| format!("GitHub signing configuration audit is missing: {error}"))?;
+        .map_err(|error| format!("community signing configuration audit is missing: {error}"))?;
     let macos = fs::read_to_string(&macos_path)
         .map_err(|error| format!("macOS signing script is missing: {error}"))?;
     let windows = fs::read_to_string(&windows_path)
         .map_err(|error| format!("Windows signing verifier is missing: {error}"))?;
     let operations = fs::read_to_string(&operations_path)
         .map_err(|error| format!("release signing operations guide is missing: {error}"))?;
-    for required in ["release/signing-policy.json", "alpha|beta|rc|stable"] {
+    for required in [
+        "release/signing-policy.json",
+        "alpha|beta|rc|stable",
+        "requires no external credentials",
+        "fail closed on missing tooling",
+    ] {
         if !readiness.contains(required) {
             return Err(format!(
                 "release signing readiness script is missing `{required}`"
             ));
         }
     }
-    let configuration_names = [
-        "APPLE_DEVELOPER_ID_P12_BASE64",
-        "APPLE_DEVELOPER_ID_P12_PASSWORD",
-        "APPLE_NOTARY_KEY_P8_BASE64",
-        "APPLE_SIGNING_IDENTITY",
-        "APPLE_TEAM_ID",
-        "APPLE_NOTARY_KEY_ID",
-        "APPLE_NOTARY_ISSUER_ID",
-        "AZURE_CLIENT_ID",
-        "AZURE_TENANT_ID",
-        "AZURE_SUBSCRIPTION_ID",
-        "AZURE_ARTIFACT_SIGNING_ENDPOINT",
-        "AZURE_ARTIFACT_SIGNING_ACCOUNT",
-        "AZURE_ARTIFACT_SIGNING_PROFILE",
-        "WINDOWS_SIGNING_EXPECTED_SUBJECT",
-    ];
-    for required in configuration_names {
-        if !readiness.contains(required)
-            || !audit.contains(required)
-            || !operations.contains(required)
-        {
-            return Err(format!(
-                "release signing configuration surfaces are missing `{required}`"
-            ));
-        }
-    }
-    for required in ["gh secret list", "gh variable list", "values were not read"] {
+    for required in [
+        "external credentials are not required",
+        "sign_macos_adhoc.sh",
+        "sign_windows_self_signed.ps1",
+    ] {
         if !audit.contains(required) {
             return Err(format!(
-                "GitHub signing configuration audit is missing `{required}`"
+                "community signing configuration audit is missing `{required}`"
             ));
         }
     }
     for required in [
         "--identifier io.github.jxpeng98.canisend",
         "--options runtime",
-        "--timestamp",
+        "--sign -",
+        "--timestamp=none",
+        "Signature=",
+        "Authority=",
         "com.apple.security.get-task-allow",
-        "notarytool submit",
-        "notarytool log",
-        "notary_error_count",
-        "canisend.code-signing-evidence/v1",
-        "stapling_supported: false",
+        "canisend.code-signing-evidence/v2",
+        "gatekeeper_trusted_publisher: false",
     ] {
         if !macos.contains(required) {
-            return Err(format!("macOS signing script is missing `{required}`"));
+            return Err(format!(
+                "macOS ad-hoc signing script is missing `{required}`"
+            ));
         }
     }
     for required in [
-        "signtool.exe",
-        "verify /pa /all /v",
-        "Get-AuthenticodeSignature",
-        "CANISEND_WINDOWS_EXPECTED_SIGNER_SUBJECT",
-        "TimeStamperCertificate",
-        "canisend.code-signing-evidence/v1",
-        "timestamp_present = $true",
-        "service = \"azure-artifact-signing\"",
+        "New-SelfSignedCertificate",
+        "Set-AuthenticodeSignature",
+        "KeyExportPolicy NonExportable",
+        "Remove-Item",
+        "NotTrusted",
+        "UnknownError",
+        "canisend.code-signing-evidence/v2",
+        "certificate_trusted = $false",
+        "timestamp_present = $false",
+        "service = \"powershell-self-signed-authenticode\"",
     ] {
         if !windows.contains(required) {
-            return Err(format!("Windows signing verifier is missing `{required}`"));
+            return Err(format!(
+                "Windows self-signed signing script is missing `{required}`"
+            ));
+        }
+    }
+    for required in [
+        "Community signing",
+        "not a publisher identity",
+        "Gatekeeper",
+        "SmartScreen",
+        "GitHub build provenance",
+    ] {
+        if !operations.contains(required) {
+            return Err(format!(
+                "release signing operations guide is missing `{required}`"
+            ));
         }
     }
     let workflow_path = root.join(".github/workflows/release.yml");
     let workflow = fs::read_to_string(&workflow_path)
         .map_err(|error| format!("release workflow is missing: {error}"))?;
-    for required in configuration_names {
-        if !workflow.contains(required) {
+    for forbidden in [
+        "APPLE_DEVELOPER_ID_P12_BASE64",
+        "APPLE_NOTARY_KEY_P8_BASE64",
+        "AZURE_ARTIFACT_SIGNING_ACCOUNT",
+        "azure/artifact-signing-action",
+        "azure/login@",
+    ] {
+        if workflow.contains(forbidden) {
             return Err(format!(
-                "release workflow is missing signing configuration `{required}`"
+                "release workflow still depends on paid signing configuration `{forbidden}`"
             ));
         }
     }
     for required in [
         "release/signing-policy.json",
         "check_signing_readiness.sh",
-        "sign_and_notarize_macos.sh",
-        "verify_windows_authenticode.ps1",
+        "sign_macos_adhoc.sh",
+        "sign_windows_self_signed.ps1",
         "bind-signing-evidence",
-        "azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43",
-        "azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82",
+        "Ad-hoc sign macOS executable",
+        "Self-sign Windows executable with Authenticode",
+        "attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373",
         "id-token: write",
-        "file-digest: SHA256",
-        "timestamp-rfc3161: http://timestamp.acs.microsoft.com",
-        "timestamp-digest: SHA256",
     ] {
         if !workflow.contains(required) {
             return Err(format!(
@@ -2850,7 +2847,20 @@ fn check_signing_policy() -> Result<(), String> {
             ));
         }
     }
-    println!("signing policy: ok (Apple notarization + Windows Artifact Signing)");
+    let ci_path = root.join(".github/workflows/ci.yml");
+    let ci = fs::read_to_string(&ci_path)
+        .map_err(|error| format!("ordinary CI workflow is missing: {error}"))?;
+    for required in [
+        "Parse Windows self-signed release signer",
+        "scripts/sign_windows_self_signed.ps1",
+    ] {
+        if !ci.contains(required) {
+            return Err(format!(
+                "ordinary CI workflow is missing signing parser `{required}`"
+            ));
+        }
+    }
+    println!("signing policy: ok (community macOS ad-hoc + Windows self-signed Authenticode)");
     Ok(())
 }
 
@@ -6181,8 +6191,8 @@ fn canonical_signing_evidence(
         ));
     }
     let expected_kind = match target.signing.as_str() {
-        "apple" => "apple-developer-id-notarization",
-        "authenticode" => "windows-authenticode-artifact-signing",
+        "apple-adhoc" => "apple-adhoc",
+        "authenticode-self-signed" => "windows-authenticode-self-signed",
         other => {
             return Err(format!(
                 "target `{}` has unsupported signing kind `{other}`",
@@ -6246,98 +6256,79 @@ fn canonical_signing_evidence(
     let signer = &value["signer"];
     let identity = bounded_evidence_string(signer, "identity", "signer", 256)?;
     let (canonical_signer, canonical_verification) = match target.signing.as_str() {
-        "apple" => {
-            if !identity.starts_with("Developer ID Application:") {
-                return Err("macOS signer is not a Developer ID Application identity".to_owned());
-            }
-            let team_id = bounded_evidence_string(signer, "team_id", "Apple signer", 32)?;
-            if team_id.len() != 10
-                || !team_id
-                    .bytes()
-                    .all(|byte| byte.is_ascii_uppercase() || byte.is_ascii_digit())
-            {
-                return Err(
-                    "Apple signer team ID must be 10 uppercase alphanumeric characters".to_owned(),
-                );
+        "apple-adhoc" => {
+            if identity != "adhoc" {
+                return Err("macOS ad-hoc signer identity is invalid".to_owned());
             }
             let code_identifier =
-                bounded_evidence_string(signer, "code_identifier", "Apple signer", 128)?;
+                bounded_evidence_string(signer, "code_identifier", "macOS ad-hoc signer", 128)?;
             if code_identifier != "io.github.jxpeng98.canisend" {
-                return Err("Apple code-signing identifier is invalid".to_owned());
+                return Err("macOS ad-hoc code-signing identifier is invalid".to_owned());
             }
             let verification = &value["verification"];
-            if verification["developer_id"] != true
+            if verification["codesign_valid"] != true
+                || verification["adhoc"] != true
+                || verification["developer_id"] != false
                 || verification["hardened_runtime"] != true
-                || verification["secure_timestamp"] != true
-                || verification["notarization_status"] != "Accepted"
-                || verification["standalone_ticket_stapled"] != false
-                || verification["stapling_supported"] != false
-                || verification["notary_error_count"] != 0
+                || verification["secure_timestamp"] != false
+                || verification["notarized"] != false
+                || verification["gatekeeper_trusted_publisher"] != false
+                || verification["get_task_allow"] != false
             {
-                return Err("Apple signing/notarization evidence is incomplete".to_owned());
+                return Err("macOS ad-hoc signing evidence is incomplete".to_owned());
             }
-            let submission_id = bounded_evidence_string(
-                verification,
-                "notary_submission_id",
-                "Apple notarization",
-                36,
-            )?;
-            validate_uuid_text("Apple notarization submission ID", submission_id)?;
-            let log_sha = required_string(verification, "notary_log_sha256", "Apple notarization")?;
-            validate_lower_hex("Apple notarization log SHA-256", log_sha, 64)?;
-            let warning_count = verification["notary_warning_count"]
-                .as_u64()
-                .ok_or_else(|| "Apple notarization warning count is missing".to_owned())?;
             (
                 json!({
                     "identity": identity,
-                    "team_id": team_id,
                     "code_identifier": code_identifier,
                 }),
                 json!({
-                    "developer_id": true,
+                    "codesign_valid": true,
+                    "adhoc": true,
+                    "developer_id": false,
                     "hardened_runtime": true,
-                    "secure_timestamp": true,
-                    "notarization_status": "Accepted",
-                    "notary_submission_id": submission_id,
-                    "notary_log_sha256": log_sha,
-                    "notary_error_count": 0,
-                    "notary_warning_count": warning_count,
-                    "standalone_ticket_stapled": false,
-                    "stapling_supported": false,
+                    "secure_timestamp": false,
+                    "notarized": false,
+                    "gatekeeper_trusted_publisher": false,
+                    "get_task_allow": false,
                 }),
             )
         }
-        "authenticode" => {
+        "authenticode-self-signed" => {
+            if identity != "CN=CanISend Community Build" {
+                return Err("Windows self-signed identity is invalid".to_owned());
+            }
             let thumbprint = required_string(signer, "thumbprint", "Windows signer")?;
             validate_lower_hex("Windows signer thumbprint", thumbprint, 40)?;
             let verification = &value["verification"];
-            if verification["authenticode_status"] != "Valid"
-                || verification["file_digest"] != "SHA256"
-                || verification["timestamp_digest"] != "SHA256"
-                || verification["timestamp_present"] != true
-                || verification["service"] != "azure-artifact-signing"
-            {
-                return Err("Windows Authenticode evidence is incomplete".to_owned());
-            }
-            let timestamp_identity = bounded_evidence_string(
+            let authenticode_status = required_string(
                 verification,
-                "timestamp_identity",
-                "Windows timestamp",
-                256,
+                "authenticode_status",
+                "Windows self-signed signature",
             )?;
+            if !matches!(authenticode_status, "NotTrusted" | "UnknownError")
+                || verification["signature_present"] != true
+                || verification["self_signed"] != true
+                || verification["certificate_trusted"] != false
+                || verification["file_digest"] != "SHA256"
+                || verification["timestamp_present"] != false
+                || verification["service"] != "powershell-self-signed-authenticode"
+            {
+                return Err("Windows self-signed Authenticode evidence is incomplete".to_owned());
+            }
             (
                 json!({
                     "identity": identity,
                     "thumbprint": thumbprint,
                 }),
                 json!({
-                    "authenticode_status": "Valid",
+                    "authenticode_status": authenticode_status,
+                    "signature_present": true,
+                    "self_signed": true,
+                    "certificate_trusted": false,
                     "file_digest": "SHA256",
-                    "timestamp_digest": "SHA256",
-                    "timestamp_present": true,
-                    "timestamp_identity": timestamp_identity,
-                    "service": "azure-artifact-signing",
+                    "timestamp_present": false,
+                    "service": "powershell-self-signed-authenticode",
                 }),
             )
         }
@@ -6374,18 +6365,6 @@ fn bounded_evidence_string<'a>(
         ));
     }
     Ok(field)
-}
-
-fn validate_uuid_text(context: &str, value: &str) -> Result<(), String> {
-    if value.len() != 36
-        || value.bytes().enumerate().any(|(index, byte)| match index {
-            8 | 13 | 18 | 23 => byte != b'-',
-            _ => !byte.is_ascii_hexdigit(),
-        })
-    {
-        return Err(format!("{context} must be a UUID"));
-    }
-    Ok(())
 }
 
 fn validate_release_tag(tag: &str) -> Result<ReleaseStage, String> {
@@ -7329,7 +7308,7 @@ mod tests {
             "schema": CODE_SIGNING_EVIDENCE_SCHEMA,
             "version": env!("CARGO_PKG_VERSION"),
             "target": "aarch64-apple-darwin",
-            "kind": "apple-developer-id-notarization",
+            "kind": "apple-adhoc",
             "status": "verified",
             "binary": {
                 "file": "canisend",
@@ -7338,21 +7317,18 @@ mod tests {
             },
             "archive": null,
             "signer": {
-                "identity": "Developer ID Application: CanISend Test (ABCDE12345)",
-                "team_id": "ABCDE12345",
+                "identity": "adhoc",
                 "code_identifier": "io.github.jxpeng98.canisend"
             },
             "verification": {
-                "developer_id": true,
+                "codesign_valid": true,
+                "adhoc": true,
+                "developer_id": false,
                 "hardened_runtime": true,
-                "secure_timestamp": true,
-                "notarization_status": "Accepted",
-                "notary_submission_id": "12345678-1234-1234-1234-123456789abc",
-                "notary_log_sha256": "6666666666666666666666666666666666666666666666666666666666666666",
-                "notary_error_count": 0,
-                "notary_warning_count": 0,
-                "standalone_ticket_stapled": false,
-                "stapling_supported": false
+                "secure_timestamp": false,
+                "notarized": false,
+                "gatekeeper_trusted_publisher": false,
+                "get_task_allow": false
             }
         })
     }
@@ -7362,7 +7338,7 @@ mod tests {
             "schema": CODE_SIGNING_EVIDENCE_SCHEMA,
             "version": env!("CARGO_PKG_VERSION"),
             "target": "x86_64-pc-windows-msvc",
-            "kind": "windows-authenticode-artifact-signing",
+            "kind": "windows-authenticode-self-signed",
             "status": "verified",
             "binary": {
                 "file": "canisend.exe",
@@ -7371,16 +7347,17 @@ mod tests {
             },
             "archive": null,
             "signer": {
-                "identity": "CN=CanISend Test",
+                "identity": "CN=CanISend Community Build",
                 "thumbprint": "8888888888888888888888888888888888888888"
             },
             "verification": {
-                "authenticode_status": "Valid",
+                "authenticode_status": "NotTrusted",
+                "signature_present": true,
+                "self_signed": true,
+                "certificate_trusted": false,
                 "file_digest": "SHA256",
-                "timestamp_digest": "SHA256",
-                "timestamp_present": true,
-                "timestamp_identity": "CN=Microsoft Public RSA Time Stamping Authority",
-                "service": "azure-artifact-signing"
+                "timestamp_present": false,
+                "service": "powershell-self-signed-authenticode"
             }
         })
     }
@@ -8989,14 +8966,14 @@ mod tests {
     }
 
     #[test]
-    fn signing_evidence_rejects_missing_windows_timestamp() {
+    fn signing_evidence_rejects_claimed_windows_public_trust() {
         let target = release_targets()
             .expect("release targets")
             .into_iter()
             .find(|target| target.triple == "x86_64-pc-windows-msvc")
             .expect("Windows target");
         let mut evidence = sample_windows_signing_evidence();
-        evidence["verification"]["timestamp_present"] = Value::Bool(false);
+        evidence["verification"]["certificate_trusted"] = Value::Bool(true);
         assert!(
             canonical_signing_evidence(&evidence, &target, env!("CARGO_PKG_VERSION"), None)
                 .is_err()

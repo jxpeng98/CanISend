@@ -1,54 +1,42 @@
 {
-  "schema": "canisend.signing-policy/v1",
+  "schema": "canisend.signing-policy/v2",
+  "trust_tier": "community-build",
   "stage_boundary": {
     "alpha_may_be_unsigned": true,
-    "beta_rc_stable_require_all_configured_signers": true,
-    "missing_credentials": "fail-closed"
+    "beta_rc_stable_require_platform_integrity_signatures": true,
+    "external_credentials_required": false,
+    "missing_platform_tooling": "fail-closed"
   },
   "macos": {
     "targets": [
       "aarch64-apple-darwin",
       "x86_64-apple-darwin"
     ],
-    "service": "apple-developer-id-notarytool",
-    "certificate_type": "Developer ID Application",
+    "service": "codesign-adhoc",
+    "identity": "-",
     "code_identifier": "io.github.jxpeng98.canisend",
     "hardened_runtime": true,
-    "secure_timestamp": true,
-    "notarization_submission": "zip",
-    "standalone_ticket_stapling_supported": false,
-    "required_secrets": [
-      "APPLE_DEVELOPER_ID_P12_BASE64",
-      "APPLE_DEVELOPER_ID_P12_PASSWORD",
-      "APPLE_NOTARY_KEY_P8_BASE64"
-    ],
-    "required_variables": [
-      "APPLE_SIGNING_IDENTITY",
-      "APPLE_TEAM_ID",
-      "APPLE_NOTARY_KEY_ID",
-      "APPLE_NOTARY_ISSUER_ID"
-    ]
+    "secure_timestamp": false,
+    "notarized": false,
+    "operating_system_trust": "untrusted",
+    "required_secrets": [],
+    "required_variables": []
   },
   "windows": {
     "targets": [
       "x86_64-pc-windows-msvc"
     ],
-    "service": "azure-artifact-signing",
-    "trust_model": "public-trust",
-    "authentication": "github-oidc",
+    "service": "powershell-self-signed-authenticode",
+    "trust_model": "self-signed-untrusted",
+    "certificate_subject": "CN=CanISend Community Build",
+    "certificate_valid_days": 3650,
+    "private_key_exportable": false,
+    "key_algorithm": "RSA",
+    "key_length": 3072,
     "file_digest": "SHA256",
-    "timestamp_digest": "SHA256",
-    "timestamp_url": "http://timestamp.acs.microsoft.com",
+    "timestamp_present": false,
     "required_secrets": [],
-    "required_variables": [
-      "AZURE_CLIENT_ID",
-      "AZURE_TENANT_ID",
-      "AZURE_SUBSCRIPTION_ID",
-      "AZURE_ARTIFACT_SIGNING_ENDPOINT",
-      "AZURE_ARTIFACT_SIGNING_ACCOUNT",
-      "AZURE_ARTIFACT_SIGNING_PROFILE",
-      "WINDOWS_SIGNING_EXPECTED_SUBJECT"
-    ]
+    "required_variables": []
   },
   "linux": {
     "targets": [

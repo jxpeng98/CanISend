@@ -30,7 +30,7 @@ synthetic task completion, host asset export, and offline embedded PDF rendering
 ## Consequences
 
 - Cross-platform native release jobs are required even when normal pull requests test on Linux only.
-- macOS notarization and Windows signing are stable-release gates when credentials are available.
+- Platform signing is a stable-release gate; ADR-RN-0012 defines the current free community trust tier.
 - Linux ARM64 is deferred until a reliable build and smoke environment is available.
 - Archive contents and installation instructions must remain consistent across platforms.
 

@@ -27,7 +27,7 @@ and `publication_authorized: false`; changing either invariant fails closed.
 
 ## Why Homebrew uses a Cask
 
-CanISend distributes upstream-built and, after the signing milestone, notarized executables. Current Homebrew policy
+CanISend distributes upstream-built native executables. Current Homebrew policy
 places upstream precompiled binaries in Casks rather than source-building Formulae. The Cask uses Homebrew's `arch`,
 architecture-specific `sha256`, and `binary` stanzas, and points to the actual versioned directory inside each
 release archive.
@@ -45,7 +45,7 @@ References:
 The current Alpha-derived set proves generation and review shape only. It is intentionally not submitted to an
 external package repository. For the version that will be published:
 
-1. Regenerate from the final signed/notarized release assets; never edit hashes or URLs by hand.
+1. Regenerate from the final community-signed, provenance-verified release assets; never edit hashes or URLs by hand.
 2. Run `brew style` and `brew audit --strict --cask`, then install, execute `canisend version --json`, upgrade, and
    uninstall on both Apple Silicon and Intel macOS.
 3. Install the Scoop manifest in a clean Windows account, execute `canisend version --json` and `canisend doctor

@@ -34,7 +34,7 @@ release checks regenerate every candidate in memory and require exact path and b
 sets remain available for audit. A signed Beta or later release produces a new set rather than mutating an old one.
 
 External channel publication remains a separate Stable-stage action. It requires official package-manager
-validation, clean native install/upgrade/uninstall evidence, final signed/notarized archive hashes, two clean RC
+validation, clean native install/upgrade/uninstall evidence, final community-signed archive hashes, two clean RC
 matrices, and explicit roadmap authorization.
 
 ## Consequences

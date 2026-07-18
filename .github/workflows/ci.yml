@@ -130,14 +130,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Parse Windows release signing verifier
+      - name: Parse Windows self-signed release signer
         if: matrix.name == 'windows-x86_64'
         shell: pwsh
         run: |
           $tokens = $null
           $parseErrors = $null
           [System.Management.Automation.Language.Parser]::ParseFile(
-            (Resolve-Path -LiteralPath scripts/verify_windows_authenticode.ps1),
+            (Resolve-Path -LiteralPath scripts/sign_windows_self_signed.ps1),
             [ref]$tokens,
             [ref]$parseErrors
           ) | Out-Null

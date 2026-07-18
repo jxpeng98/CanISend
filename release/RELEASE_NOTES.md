@@ -26,6 +26,10 @@ signature before extracting the executable. Follow the
 [native release verification guide](https://github.com/jxpeng98/CanISend/blob/main/docs/guides/release-verification.md)
 and reject any incomplete or mismatched release unit.
 
+Stage-required artifacts use the free `community-build` signing tier: macOS is ad-hoc signed and Windows uses an
+ephemeral self-signed Authenticode certificate. These signatures provide native integrity evidence but are not
+publicly trusted publisher identities; Gatekeeper, Unknown Publisher, or SmartScreen warnings may still occur.
+
 After extraction, run `canisend version --json`, `canisend doctor --json`, and the
 [documented quick-start](https://github.com/jxpeng98/CanISend/blob/main/docs/guides/quick-start.md) before using private
 application data.
