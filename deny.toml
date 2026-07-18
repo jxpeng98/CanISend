@@ -1,22 +1,53 @@
+[graph]
+targets = [
+    "aarch64-apple-darwin",
+    "x86_64-apple-darwin",
+    "x86_64-pc-windows-msvc",
+    "x86_64-unknown-linux-gnu",
+    "x86_64-unknown-linux-musl",
+]
+all-features = true
+
 [advisories]
-unmaintained = "workspace"
+ignore = [
+    { id = "RUSTSEC-2024-0320", reason = "unmaintained yaml-rust is transitively pinned by Typst; CanISend does not expose Typst YAML parsing" },
+    { id = "RUSTSEC-2024-0436", reason = "unmaintained paste is a transitive Typst compile-time macro dependency with no runtime input surface" },
+    { id = "RUSTSEC-2025-0141", reason = "unmaintained bincode is transitively pinned by Typst syntax assets and receives no CanISend serialized input" },
+    { id = "RUSTSEC-2026-0192", reason = "unmaintained ttf-parser processes only embedded, release-verified fonts; no user font discovery is enabled" },
+    { id = "RUSTSEC-2026-0194", reason = "quick-xml is reachable only through disabled Typst citation features; generated source is escaped, fixed-template, and capped at 1 MiB" },
+    { id = "RUSTSEC-2026-0195", reason = "quick-xml namespace parsing is unreachable from CanISend's fixed Typst template and in-memory world" },
+    { id = "RUSTSEC-2026-0206", reason = "unmaintained rustybuzz shapes only embedded, release-verified fonts; no user font discovery is enabled" },
+]
 
 [licenses]
-confidence-threshold = 0.93
 allow = [
     "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
     "BSD-2-Clause",
     "BSD-3-Clause",
+    "BSL-1.0",
+    "CC0-1.0",
     "ISC",
     "MIT",
+    "MIT-0",
+    "MPL-2.0",
     "Unicode-3.0",
     "Zlib",
 ]
+confidence-threshold = 0.93
+
+[licenses.private]
+ignore = false
 
 [bans]
 multiple-versions = "warn"
 wildcards = "deny"
+highlight = "simplest-path"
+workspace-default-features = "allow"
+external-default-features = "allow"
 
 [sources]
-unknown-git = "deny"
 unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

@@ -11,6 +11,16 @@ on:
   workflow_dispatch:
 
 jobs:
+  dependency-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check advisories, licenses, and dependency sources
+        uses: EmbarkStudios/cargo-deny-action@v2.0.18
+        with:
+          command: check advisories licenses sources
+
   rust-quality:
     runs-on: ubuntu-latest
     steps:
