@@ -265,6 +265,10 @@
   privacy-minimized, dry-run-first refresh reads only public issue number/state and stops on any open issue. The
   implementation commit `f81a262` passed all eight jobs in exact CI `29641475661`; the version remains Alpha until
   external signing configuration is provisioned.
+- 2026-07-18: Replaced manual feature-freeze activation with a HEAD-bound, dry-run-first command. After a signed
+  Beta is qualified, the tool requires canonical planned state and a clean worktree, previews the two exact file
+  digests, and synchronizes the qualification ledger with the exception authority. Alpha remains planned and the
+  R11.3 freeze checkbox remains open until those future preconditions are real.
 
 ## 1. Executive Decision
 

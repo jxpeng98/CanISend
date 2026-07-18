@@ -14,10 +14,22 @@ changes.
 
 After a signed Beta is qualified:
 
-1. choose the exact reviewed feature baseline commit;
-2. set the ledger feature-freeze status to `frozen` and record that full 40-character commit;
-3. set the exception record to the same status and baseline; and
-4. run `cargo run -p xtask --locked -- release check` from a full Git checkout.
+1. finish and commit all reviewed Beta qualification evidence so the clean `HEAD` is the intended baseline;
+2. preview the two-file, digest-bound activation plan;
+3. apply it explicitly from the same clean `HEAD`; and
+4. commit the activation files and run the source gate from a full Git checkout.
+
+```console
+git rev-parse HEAD
+cargo run -p xtask --locked -- release activate-feature-freeze FULL_HEAD_COMMIT
+cargo run -p xtask --locked -- release activate-feature-freeze FULL_HEAD_COMMIT --write
+cargo run -p xtask --locked -- release check
+```
+
+The command accepts only a full lowercase commit equal to current `HEAD`, a Beta-stage ledger with qualified signed
+Beta evidence, and canonical planned ledger/exception state. Dry-run is the default; `--write` additionally requires
+a clean worktree. It updates only `release/qualification-ledger.json` and
+`release/feature-freeze-exceptions.json`. It does not create a tag, publish a release, or authorize Stable.
 
 RC and Stable workspace versions fail unless the freeze is active.
 

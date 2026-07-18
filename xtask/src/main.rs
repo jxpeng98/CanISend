@@ -28,6 +28,7 @@ const FEEDBACK_SNAPSHOT_SCHEMA: &str = "canisend.feedback-snapshot/v1";
 const RELEASE_QUALIFICATION_SCHEMA: &str = "canisend.release-qualification/v1";
 const STAGE_TRANSITION_POLICY_SCHEMA: &str = "canisend.stage-transition-policy/v1";
 const STAGE_TRANSITION_PLAN_SCHEMA: &str = "canisend.stage-transition-plan/v1";
+const FEATURE_FREEZE_PLAN_SCHEMA: &str = "canisend.feature-freeze-plan/v1";
 const FEATURE_FREEZE_EXCEPTIONS_SCHEMA: &str = "canisend.feature-freeze-exceptions/v1";
 const PACKAGE_MANAGER_QUALIFICATION_POLICY_SCHEMA: &str =
     "canisend.package-manager-qualification-policy/v1";
@@ -98,6 +99,16 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
         {
             prepare_stage_transition(tag, true)
         }
+        [area, command, baseline]
+            if area == "release" && command == "activate-feature-freeze" =>
+        {
+            activate_feature_freeze(baseline, false)
+        }
+        [area, command, baseline, write]
+            if area == "release" && command == "activate-feature-freeze" && write == "--write" =>
+        {
+            activate_feature_freeze(baseline, true)
+        }
         [area, command, output] if area == "release" && command == "sbom" => {
             write_release_sbom(Path::new(output))
         }
@@ -142,7 +153,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
         }
         _ => Err(
             "usage: cargo run -p xtask -- schemas <check|write> | <resources|docs> check | \
-             release <check|freeze-candidate|validate-tag TAG|verify-beta-readiness FILE|prepare-stage TAG [--write]|sbom OUTPUT|assemble TAG COMMIT ARTIFACTS OUTPUT|verify TAG DIRECTORY|channels TAG ASSETS OUTPUT|bind-signing-evidence TAG TARGET EVIDENCE BINARY ARCHIVE|verify-package-candidates FROM_TAG FROM_ASSETS TO_TAG TO_ASSETS|verify-package-evidence FROM_TAG TO_TAG DIRECTORY>"
+             release <check|freeze-candidate|validate-tag TAG|verify-beta-readiness FILE|prepare-stage TAG [--write]|activate-feature-freeze COMMIT [--write]|sbom OUTPUT|assemble TAG COMMIT ARTIFACTS OUTPUT|verify TAG DIRECTORY|channels TAG ASSETS OUTPUT|bind-signing-evidence TAG TARGET EVIDENCE BINARY ARCHIVE|verify-package-candidates FROM_TAG FROM_ASSETS TO_TAG TO_ASSETS|verify-package-evidence FROM_TAG TO_TAG DIRECTORY>"
                 .to_owned(),
         ),
     }
@@ -533,6 +544,11 @@ struct RenderedStageTransition {
     files: BTreeMap<String, Vec<u8>>,
 }
 
+struct RenderedFeatureFreeze {
+    baseline: String,
+    files: BTreeMap<String, Vec<u8>>,
+}
+
 fn check_stage_transition_policy() -> Result<(), String> {
     let root = repository_root();
     let path = root.join("release/stage-transition-policy.json");
@@ -633,13 +649,7 @@ fn check_stage_transition_policy() -> Result<(), String> {
 fn prepare_stage_transition(tag: &str, write: bool) -> Result<(), String> {
     let root = repository_root();
     if write {
-        let changes = run_git_lines(&root, &["status", "--porcelain", "--untracked-files=all"])?;
-        if !changes.is_empty() {
-            return Err(
-                "stage transition write requires a clean worktree; commit or stash owned changes first"
-                    .to_owned(),
-            );
-        }
+        require_clean_worktree(&root, "stage transition")?;
     }
     let transition = render_stage_transition(&root, tag)?;
     if write && matches!(transition.to_stage, ReleaseStage::Beta) {
@@ -659,6 +669,141 @@ fn prepare_stage_transition(tag: &str, write: bool) -> Result<(), String> {
             .map_err(|error| format!("could not serialize stage-transition plan: {error}"))?
     );
     Ok(())
+}
+
+fn activate_feature_freeze(baseline: &str, write: bool) -> Result<(), String> {
+    let root = repository_root();
+    if write {
+        require_clean_worktree(&root, "feature-freeze activation")?;
+    }
+    let freeze = render_feature_freeze_activation(&root, baseline)?;
+    let report = feature_freeze_report(&root, &freeze, write)?;
+    if write {
+        for (relative, body) in &freeze.files {
+            let path = root.join(relative);
+            fs::write(&path, body)
+                .map_err(|error| format!("could not write {}: {error}", path.display()))?;
+        }
+    }
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&report)
+            .map_err(|error| format!("could not serialize feature-freeze plan: {error}"))?
+    );
+    Ok(())
+}
+
+fn require_clean_worktree(root: &Path, context: &str) -> Result<(), String> {
+    let changes = run_git_lines(root, &["status", "--porcelain", "--untracked-files=all"])?;
+    if changes.is_empty() {
+        Ok(())
+    } else {
+        Err(format!(
+            "{context} write requires a clean worktree; commit or stash owned changes first"
+        ))
+    }
+}
+
+fn render_feature_freeze_activation(
+    root: &Path,
+    baseline: &str,
+) -> Result<RenderedFeatureFreeze, String> {
+    validate_lower_hex("feature-freeze baseline commit", baseline, 40)?;
+    run_git(root, &["cat-file", "-e", &format!("{baseline}^{{commit}}")])?;
+    let head = run_git_lines(root, &["rev-parse", "HEAD"])?
+        .into_iter()
+        .next()
+        .ok_or_else(|| "could not resolve HEAD for feature-freeze activation".to_owned())?;
+    if baseline != head {
+        return Err(format!(
+            "feature-freeze activation baseline must equal current HEAD `{head}`"
+        ));
+    }
+
+    let ledger_path = root.join("release/qualification-ledger.json");
+    let mut ledger: Value = serde_json::from_slice(
+        &fs::read(&ledger_path)
+            .map_err(|error| format!("could not read qualification ledger: {error}"))?,
+    )
+    .map_err(|error| format!("qualification ledger is invalid JSON: {error}"))?;
+    if ledger["schema"] != RELEASE_QUALIFICATION_SCHEMA
+        || ledger["workspace_stage"] != "beta"
+        || ledger["status"] != "beta-qualifying"
+        || ledger["beta"]["status"] != "qualified"
+        || ledger["stable_authorized"] != false
+    {
+        return Err(
+            "feature-freeze activation requires a qualified signed Beta workspace".to_owned(),
+        );
+    }
+    if ledger["feature_freeze"]["status"] != "planned"
+        || !ledger["feature_freeze"]["baseline_commit"].is_null()
+    {
+        return Err("feature freeze is not in canonical planned state".to_owned());
+    }
+
+    let exceptions_path = root.join("release/feature-freeze-exceptions.json");
+    let mut exceptions: Value = serde_json::from_slice(
+        &fs::read(&exceptions_path)
+            .map_err(|error| format!("could not read feature-freeze exception record: {error}"))?,
+    )
+    .map_err(|error| format!("feature-freeze exception record is invalid JSON: {error}"))?;
+    let planned = json!({
+        "schema": FEATURE_FREEZE_EXCEPTIONS_SCHEMA,
+        "status": "planned",
+        "baseline_commit": null,
+        "exceptions": []
+    });
+    if exceptions != planned {
+        return Err("feature-freeze exception record is not canonical planned state".to_owned());
+    }
+
+    ledger["feature_freeze"]["status"] = Value::String("frozen".to_owned());
+    ledger["feature_freeze"]["baseline_commit"] = Value::String(baseline.to_owned());
+    exceptions["status"] = Value::String("frozen".to_owned());
+    exceptions["baseline_commit"] = Value::String(baseline.to_owned());
+    let files = BTreeMap::from([
+        (
+            "release/feature-freeze-exceptions.json".to_owned(),
+            pretty_json_bytes(&exceptions)?,
+        ),
+        (
+            "release/qualification-ledger.json".to_owned(),
+            pretty_json_bytes(&ledger)?,
+        ),
+    ]);
+    Ok(RenderedFeatureFreeze {
+        baseline: baseline.to_owned(),
+        files,
+    })
+}
+
+fn feature_freeze_report(
+    root: &Path,
+    freeze: &RenderedFeatureFreeze,
+    write: bool,
+) -> Result<Value, String> {
+    let files = freeze
+        .files
+        .iter()
+        .map(|(relative, after)| {
+            let before = fs::read(root.join(relative))
+                .map_err(|error| format!("could not read {relative}: {error}"))?;
+            Ok(json!({
+                "path": relative,
+                "before_sha256": sha256(&before),
+                "after_sha256": sha256(after)
+            }))
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    Ok(json!({
+        "schema": FEATURE_FREEZE_PLAN_SCHEMA,
+        "mode": if write { "write" } else { "dry-run" },
+        "writes_performed": write,
+        "baseline_commit": freeze.baseline,
+        "files": files,
+        "next": "commit the two automatic release-state files, then run release check"
+    }))
 }
 
 fn check_beta_readiness_freshness(root: &Path, now: OffsetDateTime) -> Result<(), String> {
@@ -1918,6 +2063,17 @@ fn check_feature_freeze_exceptions(feature_freeze: &Value) -> Result<(), String>
     let documentation = fs::read_to_string(&documentation_path)
         .map_err(|error| format!("feature-freeze documentation is missing: {error}"))?;
     check_local_markdown_links(&root, &documentation_path, &documentation)?;
+    for required in [
+        "activate-feature-freeze FULL_HEAD_COMMIT",
+        "--write",
+        "equal to current `HEAD`",
+    ] {
+        if !documentation.contains(required) {
+            return Err(format!(
+                "feature-freeze documentation is missing `{required}`"
+            ));
+        }
+    }
     if status == "planned" {
         let expected = json!({
             "schema": FEATURE_FREEZE_EXCEPTIONS_SCHEMA,
@@ -2068,12 +2224,10 @@ fn run_git(root: &Path, arguments: &[&str]) -> Result<(), String> {
         .current_dir(root)
         .args(arguments)
         .output()
-        .map_err(|error| {
-            format!("could not execute Git for feature-freeze verification: {error}")
-        })?;
+        .map_err(|error| format!("could not execute Git repository check: {error}"))?;
     if !output.status.success() {
         return Err(format!(
-            "feature-freeze Git command `git {}` failed: {}",
+            "Git repository command `git {}` failed: {}",
             arguments.join(" "),
             String::from_utf8_lossy(&output.stderr).trim()
         ));
@@ -2086,18 +2240,16 @@ fn run_git_lines(root: &Path, arguments: &[&str]) -> Result<Vec<String>, String>
         .current_dir(root)
         .args(arguments)
         .output()
-        .map_err(|error| {
-            format!("could not execute Git for feature-freeze verification: {error}")
-        })?;
+        .map_err(|error| format!("could not execute Git repository check: {error}"))?;
     if !output.status.success() {
         return Err(format!(
-            "feature-freeze Git command `git {}` failed: {}",
+            "Git repository command `git {}` failed: {}",
             arguments.join(" "),
             String::from_utf8_lossy(&output.stderr).trim()
         ));
     }
     let stdout = String::from_utf8(output.stdout)
-        .map_err(|_| "feature-freeze Git output is not UTF-8".to_owned())?;
+        .map_err(|_| "Git repository output is not UTF-8".to_owned())?;
     Ok(stdout
         .lines()
         .filter(|line| !line.is_empty())
@@ -4824,6 +4976,88 @@ mod tests {
         assert!(!is_automatic_feature_freeze_path(
             ".github/workflows/release.yml"
         ));
+    }
+
+    #[test]
+    fn feature_freeze_activation_is_head_bound_and_two_file_only() {
+        let root = std::env::temp_dir().join(format!(
+            "canisend-feature-freeze-activation-{}",
+            std::process::id()
+        ));
+        if root.exists() {
+            fs::remove_dir_all(&root).expect("remove stale activation fixture");
+        }
+        fs::create_dir_all(root.join("release")).expect("create activation fixture");
+        run_git(&root, &["init", "--initial-branch=main"])
+            .expect("initialize activation repository");
+        run_git(&root, &["config", "user.name", "CanISend qualification"])
+            .expect("configure activation name");
+        run_git(
+            &root,
+            &["config", "user.email", "qualification@canisend.invalid"],
+        )
+        .expect("configure activation email");
+        fs::write(root.join("README.md"), "fixture\n").expect("write initial fixture");
+        run_git(&root, &["add", "README.md"]).expect("stage initial fixture");
+        run_git(&root, &["commit", "-m", "initialize fixture"]).expect("commit initial fixture");
+        write_pretty_json(
+            &root.join("release/qualification-ledger.json"),
+            &json!({
+                "schema": RELEASE_QUALIFICATION_SCHEMA,
+                "workspace_stage": "beta",
+                "status": "beta-qualifying",
+                "stable_authorized": false,
+                "beta": {"status": "qualified"},
+                "feature_freeze": {"status": "planned", "baseline_commit": null}
+            }),
+        )
+        .expect("write activation ledger");
+        write_pretty_json(
+            &root.join("release/feature-freeze-exceptions.json"),
+            &json!({
+                "schema": FEATURE_FREEZE_EXCEPTIONS_SCHEMA,
+                "status": "planned",
+                "baseline_commit": null,
+                "exceptions": []
+            }),
+        )
+        .expect("write activation exceptions");
+        run_git(&root, &["add", "release"]).expect("stage Beta qualification fixture");
+        run_git(&root, &["commit", "-m", "qualify beta"])
+            .expect("commit Beta qualification fixture");
+        let baseline = run_git_lines(&root, &["rev-parse", "HEAD"])
+            .expect("read activation baseline")
+            .pop()
+            .expect("activation baseline");
+        let parent = run_git_lines(&root, &["rev-parse", "HEAD^"])
+            .expect("read activation parent")
+            .pop()
+            .expect("activation parent");
+        assert!(render_feature_freeze_activation(&root, &parent).is_err());
+
+        let before = fs::read(root.join("release/qualification-ledger.json"))
+            .expect("read ledger before activation");
+        let freeze = render_feature_freeze_activation(&root, &baseline)
+            .expect("render feature-freeze activation");
+        assert_eq!(freeze.files.len(), 2);
+        assert_eq!(
+            feature_freeze_report(&root, &freeze, false).expect("activation dry-run report")["writes_performed"],
+            false
+        );
+        assert_eq!(
+            fs::read(root.join("release/qualification-ledger.json"))
+                .expect("read ledger after activation dry run"),
+            before
+        );
+        for (relative, body) in &freeze.files {
+            fs::write(root.join(relative), body).expect("apply activation fixture");
+        }
+        run_git(&root, &["add", "release"]).expect("stage activation fixture");
+        run_git(&root, &["commit", "-m", "activate feature freeze"])
+            .expect("commit activation fixture");
+        validate_feature_freeze_history(&root, &baseline, &[])
+            .expect("automatic activation history");
+        fs::remove_dir_all(root).expect("remove activation fixture");
     }
 
     #[test]

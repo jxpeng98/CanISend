@@ -19,6 +19,12 @@ release checker verifies the baseline commit and ancestry, enumerates every comm
 narrow documentation/release-evidence allowlist automatically, and requires exact per-commit path records for all
 other changes. Exception commits, reasons, classes, paths, ordering, and canonical fields fail closed.
 
+Activation is also machine-controlled. `xtask release activate-feature-freeze FULL_HEAD_COMMIT` previews the exact
+two file hashes without writing. Explicit `--write` requires a clean Beta worktree, qualified signed Beta evidence,
+canonical planned state, and a full baseline equal to current `HEAD`; it then keeps the ledger and exception
+authority synchronized. A temporary Git repository test commits the automatic activation change and proves that
+post-baseline history validation accepts it without inventing an exception.
+
 ## Boundary
 
 This preparation does not freeze the current Alpha branch and does not close the R11.3 checkbox. Activation requires
