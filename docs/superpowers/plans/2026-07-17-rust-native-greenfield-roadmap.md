@@ -294,11 +294,16 @@
 - 2026-07-18: Added same-run five-target documentation/uninstall evidence to the actual release archive smoke. RC
   assembly now binds each body-free record to its signed manifest archive; a guarded recorder can mark only the
   matching recorded RC run as passed. A real local Alpha archive proved evidence production, but it remains
-  `prepared-native`; the R11.3 checkbox awaits a future signed RC matrix.
+  `prepared-native`; the R11.3 checkbox awaits a future signed RC matrix. Exact commit `ea17e1e` passed all eight
+  ordinary CI jobs in run `29643087196`.
 - 2026-07-18: Removed stale-stage risk from the release notes. Because stage transitions intentionally replace only
   the version heading, the body is now a seven-section stage-neutral release unit with machine-required install,
   compatibility, verification, rollback, privacy, limitations, and support guidance. Final RC review remains open
   and cannot be replaced by this structural preparation.
+- 2026-07-18: Completed the package-manager ledger path. The existing strict four-record verifier now feeds a
+  dry-run-first recorder that requires the exact qualified Beta, current recorded RC, frozen baseline, and canonical
+  candidate-only state. It cannot qualify the hosted three-record preparation: a same-run fresh Windows Sandbox
+  WinGet lifecycle and independent inspection remain mandatory.
 
 ## 1. Executive Decision
 
@@ -2027,6 +2032,10 @@ equal the already recorded RC matrix. Alpha preparation remains visible without 
 The [release-notes policy](../../notes/rust-native/2026-07-18-r11-release-notes-policy.md) makes the body
 stage-neutral while preserving an exact version heading, complete verification/compatibility/privacy content, and
 the backup-first rollback guide. The checklist remains open until the real RC receives its final content review.
+
+The [package-manager recorder](../../notes/rust-native/2026-07-18-r11-package-manager-recorder.md) closes the
+implementation path from four canonical lifecycle records to the ledger without relaxing the fresh-Sandbox or
+public-run review boundary. No package channel is published by preparation or recording.
 
 The [qualification ledger](../../release/qualification-ledger.md), machine authority
 `release/qualification-ledger.json`, and

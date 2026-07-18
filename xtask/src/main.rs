@@ -35,6 +35,8 @@ const FEATURE_FREEZE_EXCEPTIONS_SCHEMA: &str = "canisend.feature-freeze-exceptio
 const PACKAGE_MANAGER_QUALIFICATION_POLICY_SCHEMA: &str =
     "canisend.package-manager-qualification-policy/v1";
 const PACKAGE_MANAGER_QUALIFICATION_SCHEMA: &str = "canisend.package-manager-qualification/v1";
+const PACKAGE_MANAGER_QUALIFICATION_PLAN_SCHEMA: &str =
+    "canisend.package-manager-qualification-plan/v1";
 const UPGRADE_QUALIFICATION_POLICY_SCHEMA: &str = "canisend.upgrade-qualification-policy/v1";
 const UPGRADE_QUALIFICATION_SCHEMA: &str = "canisend.upgrade-qualification/v1";
 const UPGRADE_QUALIFICATION_PLAN_SCHEMA: &str = "canisend.upgrade-qualification-plan/v1";
@@ -175,7 +177,29 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
         [area, command, from_tag, to_tag, evidence]
             if area == "release" && command == "verify-package-evidence" =>
         {
-            verify_package_manager_evidence(from_tag, to_tag, Path::new(evidence))
+            verify_package_manager_evidence(from_tag, to_tag, Path::new(evidence)).map(|_| ())
+        }
+        [area, command, from_tag, to_tag, evidence]
+            if area == "release" && command == "record-package-qualification" =>
+        {
+            record_package_manager_qualification(
+                from_tag,
+                to_tag,
+                Path::new(evidence),
+                false,
+            )
+        }
+        [area, command, from_tag, to_tag, evidence, write]
+            if area == "release"
+                && command == "record-package-qualification"
+                && write == "--write" =>
+        {
+            record_package_manager_qualification(
+                from_tag,
+                to_tag,
+                Path::new(evidence),
+                true,
+            )
         }
         [area, command, from_tag, to_tag, evidence]
             if area == "release" && command == "verify-upgrade-evidence" =>
@@ -244,7 +268,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
         }
         _ => Err(
             "usage: cargo run -p xtask -- schemas <check|write> | <resources|docs> check | \
-             release <check|freeze-candidate|validate-tag TAG|verify-beta-readiness FILE|prepare-stage TAG [--write]|activate-feature-freeze COMMIT [--write]|record-beta-qualification TAG RUN_ID ASSETS [--write]|record-rc-qualification TAG RUN_ID ASSETS [--write]|record-upgrade-qualification FROM_TAG TO_TAG EVIDENCE [--write]|record-documentation-qualification TAG ASSETS EVIDENCE [--write]|sbom OUTPUT|assemble TAG COMMIT ARTIFACTS OUTPUT|verify TAG DIRECTORY|channels TAG ASSETS OUTPUT|bind-signing-evidence TAG TARGET EVIDENCE BINARY ARCHIVE|verify-package-candidates FROM_TAG FROM_ASSETS TO_TAG TO_ASSETS|verify-package-evidence FROM_TAG TO_TAG DIRECTORY|verify-upgrade-evidence FROM_TAG TO_TAG DIRECTORY|verify-documentation-evidence TAG ASSETS EVIDENCE>"
+             release <check|freeze-candidate|validate-tag TAG|verify-beta-readiness FILE|prepare-stage TAG [--write]|activate-feature-freeze COMMIT [--write]|record-beta-qualification TAG RUN_ID ASSETS [--write]|record-rc-qualification TAG RUN_ID ASSETS [--write]|record-upgrade-qualification FROM_TAG TO_TAG EVIDENCE [--write]|record-documentation-qualification TAG ASSETS EVIDENCE [--write]|record-package-qualification FROM_TAG TO_TAG EVIDENCE [--write]|sbom OUTPUT|assemble TAG COMMIT ARTIFACTS OUTPUT|verify TAG DIRECTORY|channels TAG ASSETS OUTPUT|bind-signing-evidence TAG TARGET EVIDENCE BINARY ARCHIVE|verify-package-candidates FROM_TAG FROM_ASSETS TO_TAG TO_ASSETS|verify-package-evidence FROM_TAG TO_TAG DIRECTORY|verify-upgrade-evidence FROM_TAG TO_TAG DIRECTORY|verify-documentation-evidence TAG ASSETS EVIDENCE>"
                 .to_owned(),
         ),
     }
@@ -698,6 +722,12 @@ struct UpgradeQualificationSummary {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct DocumentationUninstallSummary {
+    run_id: u64,
+    records: usize,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct PackageManagerQualificationSummary {
     run_id: u64,
     records: usize,
 }
@@ -1252,6 +1282,123 @@ fn documentation_uninstall_qualified_ledger(
             )
         ],
         "native_matrix_run": summary.run_id,
+        "status": "passed"
+    });
+    Ok(qualified)
+}
+
+fn record_package_manager_qualification(
+    from_tag: &str,
+    to_tag: &str,
+    evidence: &Path,
+    write: bool,
+) -> Result<(), String> {
+    let root = repository_root();
+    if write {
+        require_clean_worktree(&root, "package-manager qualification")?;
+    }
+    let (to_version, to_stage) = parse_release_tag(to_tag)?;
+    if to_stage != ReleaseStage::ReleaseCandidate {
+        return Err("package-manager qualification target must be an RC tag".to_owned());
+    }
+    let workspace_body = fs::read_to_string(root.join("Cargo.toml"))
+        .map_err(|error| format!("could not read workspace manifest: {error}"))?;
+    let workspace: toml::Value = workspace_body
+        .parse()
+        .map_err(|error| format!("workspace manifest is invalid TOML: {error}"))?;
+    if workspace["workspace"]["package"]["version"].as_str()
+        != Some(to_version.to_string().as_str())
+    {
+        return Err("package-manager RC tag must match the current workspace version".to_owned());
+    }
+    let summary = verify_package_manager_evidence(from_tag, to_tag, evidence)?;
+    let ledger_path = root.join("release/qualification-ledger.json");
+    let before = fs::read(&ledger_path)
+        .map_err(|error| format!("could not read qualification ledger: {error}"))?;
+    let ledger: Value = serde_json::from_slice(&before)
+        .map_err(|error| format!("qualification ledger is invalid JSON: {error}"))?;
+    let qualified = package_manager_qualified_ledger(&ledger, from_tag, to_tag, summary)?;
+    let after = pretty_json_bytes(&qualified)?;
+    let report = json!({
+        "schema": PACKAGE_MANAGER_QUALIFICATION_PLAN_SCHEMA,
+        "mode": if write { "write" } else { "dry-run" },
+        "writes_performed": write,
+        "from_tag": from_tag,
+        "to_tag": to_tag,
+        "github_run_id": summary.run_id,
+        "records": summary.records,
+        "ledger": {
+            "path": "release/qualification-ledger.json",
+            "before_sha256": sha256(&before),
+            "after_sha256": sha256(&after)
+        },
+        "next": "independently inspect Homebrew, Scoop, and fresh WinGet Sandbox evidence, then commit the ledger"
+    });
+    if write {
+        fs::write(&ledger_path, after)
+            .map_err(|error| format!("could not write {}: {error}", ledger_path.display()))?;
+    }
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&report).map_err(|error| {
+            format!("could not serialize package-manager qualification plan: {error}")
+        })?
+    );
+    Ok(())
+}
+
+fn package_manager_qualified_ledger(
+    ledger: &Value,
+    from_tag: &str,
+    to_tag: &str,
+    summary: PackageManagerQualificationSummary,
+) -> Result<Value, String> {
+    let (_, from_stage) = parse_release_tag(from_tag)?;
+    let (_, to_stage) = parse_release_tag(to_tag)?;
+    let pending = json!({
+        "channels": ["homebrew-cask", "scoop", "winget"],
+        "evidence": [],
+        "status": "candidates-only"
+    });
+    if from_stage != ReleaseStage::Beta
+        || to_stage != ReleaseStage::ReleaseCandidate
+        || summary.run_id == 0
+        || summary.records != 4
+        || ledger["schema"] != RELEASE_QUALIFICATION_SCHEMA
+        || ledger["workspace_stage"] != "rc"
+        || ledger["status"] != "rc-qualifying"
+        || ledger["beta"]["status"] != "qualified"
+        || ledger["beta"]["tag"] != from_tag
+        || ledger["feature_freeze"]["status"] != "frozen"
+        || ledger["stable_authorized"] != false
+        || ledger["package_managers"] != pending
+    {
+        return Err(
+            "qualification ledger is not canonical pending package-manager state".to_owned(),
+        );
+    }
+    let has_rc = ledger["release_candidates"]
+        .as_array()
+        .is_some_and(|candidates| {
+            candidates
+                .iter()
+                .any(|candidate| candidate["tag"] == to_tag && candidate["status"] == "success")
+        });
+    if !has_rc {
+        return Err("package-manager qualification RC has no successful signed matrix".to_owned());
+    }
+    let mut qualified = ledger.clone();
+    qualified["package_managers"] = json!({
+        "channels": ["homebrew-cask", "scoop", "winget"],
+        "evidence": [
+            format!(
+                "package-manager qualification run {} passed Homebrew arm64/Intel, Scoop, and WinGet records",
+                summary.run_id
+            ),
+            format!(
+                "{from_tag} to {to_tag} install, version, doctor, workspace, upgrade, uninstall, and retention passed"
+            )
+        ],
         "status": "passed"
     });
     Ok(qualified)
@@ -3891,6 +4038,18 @@ fn check_package_manager_qualification_policy() -> Result<(), String> {
         format!("package-manager qualification documentation is missing: {error}")
     })?;
     check_local_markdown_links(&root, &documentation_path, &documentation)?;
+    for required in [
+        "verify-package-evidence",
+        "record-package-qualification",
+        "fresh-Sandbox record",
+        "--write",
+    ] {
+        if !documentation.contains(required) {
+            return Err(format!(
+                "package-manager qualification documentation is missing `{required}`"
+            ));
+        }
+    }
 
     let workflow_path = root.join(".github/workflows/package-manager-qualification.yml");
     let workflow = fs::read_to_string(&workflow_path)
@@ -4215,7 +4374,7 @@ fn verify_package_manager_evidence(
     from_tag: &str,
     to_tag: &str,
     directory: &Path,
-) -> Result<(), String> {
+) -> Result<PackageManagerQualificationSummary, String> {
     let (from_version, from_stage) = parse_release_tag(from_tag)?;
     let (to_version, to_stage) = parse_release_tag(to_tag)?;
     if from_stage != ReleaseStage::Beta || to_stage != ReleaseStage::ReleaseCandidate {
@@ -4276,6 +4435,7 @@ fn verify_package_manager_evidence(
     let mut run_ids = BTreeSet::new();
     let mut from_digests = BTreeSet::new();
     let mut to_digests = BTreeSet::new();
+    let expected_records = expected.len();
     for (file, (record, channel, target, environment)) in expected {
         let path = directory.join(file);
         reject_symlink(&path)?;
@@ -4308,11 +4468,15 @@ fn verify_package_manager_evidence(
     if from_digests == to_digests {
         return Err("Beta and RC candidate-source digests must differ".to_owned());
     }
+    let summary = PackageManagerQualificationSummary {
+        run_id: *run_ids.first().expect("one checked run ID"),
+        records: expected_records,
+    };
     println!(
         "package-manager evidence: ok ({from_tag} -> {to_tag}, run {})",
-        run_ids.first().expect("one checked run ID")
+        summary.run_id
     );
-    Ok(())
+    Ok(summary)
 }
 
 fn verify_upgrade_qualification_evidence(
@@ -7288,10 +7452,43 @@ mod tests {
             )
             .expect("write package evidence fixture");
         }
-        verify_package_manager_evidence("v0.7.0-beta.1", "v0.7.0-rc.1", &root)
+        let summary = verify_package_manager_evidence("v0.7.0-beta.1", "v0.7.0-rc.1", &root)
             .expect("verify complete package evidence");
+        assert_eq!(summary.records, 4);
         assert!(verify_package_manager_evidence("v0.7.0-alpha.1", "v0.7.0-rc.1", &root).is_err());
         fs::remove_dir_all(root).expect("remove package evidence fixture");
+    }
+
+    #[test]
+    fn package_manager_promotion_requires_exact_beta_and_recorded_rc() {
+        let ledger = json!({
+            "schema": RELEASE_QUALIFICATION_SCHEMA,
+            "workspace_stage": "rc",
+            "status": "rc-qualifying",
+            "beta": {"status": "qualified", "tag": "v0.7.0-beta.1"},
+            "feature_freeze": {"status": "frozen"},
+            "release_candidates": [
+                {"status": "success", "tag": "v0.7.0-rc.1"}
+            ],
+            "package_managers": {
+                "channels": ["homebrew-cask", "scoop", "winget"],
+                "evidence": [],
+                "status": "candidates-only"
+            },
+            "stable_authorized": false
+        });
+        let summary = PackageManagerQualificationSummary {
+            run_id: 29_670_000_001,
+            records: 4,
+        };
+        let qualified =
+            package_manager_qualified_ledger(&ledger, "v0.7.0-beta.1", "v0.7.0-rc.1", summary)
+                .expect("qualify exact package-manager pair");
+        assert_eq!(qualified["package_managers"]["status"], "passed");
+        assert!(
+            package_manager_qualified_ledger(&ledger, "v0.7.0-beta.1", "v0.7.0-rc.2", summary,)
+                .is_err()
+        );
     }
 
     #[test]

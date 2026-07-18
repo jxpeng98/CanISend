@@ -83,6 +83,21 @@ The command re-verifies the complete signed release, binds every record to its m
 all five evidence run IDs to equal the signed matrix run already recorded for that RC tag. It changes only
 `documentation_uninstall`, only with `--write`, and cannot reuse Alpha preparation or a different RC run.
 
+## Recording package-manager qualification
+
+Hosted prequalification deliberately produces only Homebrew arm64/Intel and Scoop records plus a WinGet Sandbox
+kit. After the WinGet lifecycle runs in a fresh Sandbox and all four records from the same run pass
+`release verify-package-evidence`, independently inspect the run and preview:
+
+```console
+cargo run -p xtask --locked -- release record-package-qualification \
+  v0.7.0-beta.1 v0.7.0-rc.1 DOWNLOADED_EVIDENCE_DIRECTORY
+```
+
+The dry-run-first command requires the ledger's exact qualified Beta, frozen RC state, and a successful recorded
+matrix for that RC tag. It changes only `package_managers` with `--write`; three hosted records, mixed candidate
+digests, or a WinGet record copied from another run remain insufficient.
+
 ## Stable evidence requirements
 
 Stable requires all of these in the committed ledger:

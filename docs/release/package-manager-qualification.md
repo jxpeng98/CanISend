@@ -66,3 +66,16 @@ cargo run -p xtask --locked -- release verify-package-evidence \
 
 The verifier independently enforces the Beta-to-RC stage pair, same release line, exact record environments, shared
 run ID, shared but distinct candidate-source digests, exact observed versions, and all policy checks.
+
+After independently inspecting the complete run, fresh-Sandbox record, signed public asset bindings, and absence of
+skipped/tolerated failures, preview the only permitted ledger mutation from a clean current-RC checkout:
+
+```bash
+cargo run -p xtask --locked -- release record-package-qualification \
+  v0.7.0-beta.1 v0.7.0-rc.1 EVIDENCE_DIRECTORY
+```
+
+The command reruns the strict four-record verifier, requires the ledger's qualified Beta tag and an already
+successful matrix for the exact RC tag, and prints before/after ledger hashes. Nothing changes without `--write`.
+It updates only `package_managers`; the preparation workflow's three hosted records or a WinGet record from another
+run cannot qualify the release.

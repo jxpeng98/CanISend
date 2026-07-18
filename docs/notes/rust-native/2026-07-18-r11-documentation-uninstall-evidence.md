@@ -37,3 +37,5 @@ ledger without a clean-worktree `--write` command.
 The Alpha mechanism run is not RC qualification evidence. The roadmap checkbox remains open until a future signed RC
 release run passes all five jobs, is recorded as an RC matrix, and its public assets, attestations, and evidence
 artifact are independently inspected before ledger promotion.
+
+Exact implementation commit `ea17e1e` passed all eight ordinary CI jobs in GitHub Actions run `29643087196`.
