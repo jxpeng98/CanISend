@@ -53,6 +53,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
             check_schemas()?;
             check_resources()?;
             check_documentation()?;
+            check_property_test_policy()?;
             check_fuzz_policy()?;
             check_internal_dependency_versions()?;
             check_beta_readiness()?;
@@ -306,6 +307,43 @@ fn check_fuzz_policy() -> Result<(), String> {
         .map_err(|error| format!("scheduled fuzz documentation is missing: {error}"))?;
     check_local_markdown_links(&root, &documentation_path, &documentation)?;
     println!("fuzz policy: ok ({} scheduled targets)", targets.len());
+    Ok(())
+}
+
+fn check_property_test_policy() -> Result<(), String> {
+    let root = repository_root();
+    let test_path = root.join("crates/canisend-contracts/tests/property_contract.rs");
+    let test = fs::read_to_string(&test_path)
+        .map_err(|error| format!("property-test target is missing: {error}"))?;
+    for required in [
+        "property_generated_portable_paths_round_trip_without_normalization",
+        "property_inserting_any_reserved_component_is_always_rejected",
+        "property_generated_sha256_digests_round_trip_and_mutations_fail",
+        "property_generated_uuidv7_and_revisions_preserve_identity",
+        "GENERATED_CASES: usize = 512",
+    ] {
+        if !test.contains(required) {
+            return Err(format!("property-test target is missing `{required}`"));
+        }
+    }
+
+    let command = "cargo test -p canisend-contracts --locked --test property_contract";
+    for workflow in [".github/workflows/ci.yml", ".github/workflows/release.yml"] {
+        let path = root.join(workflow);
+        let body = fs::read_to_string(&path)
+            .map_err(|error| format!("property-test workflow `{workflow}` is missing: {error}"))?;
+        if !body.contains(command) {
+            return Err(format!(
+                "property-test workflow `{workflow}` is missing `{command}`"
+            ));
+        }
+    }
+
+    let documentation_path = root.join("docs/testing/property-testing.md");
+    let documentation = fs::read_to_string(&documentation_path)
+        .map_err(|error| format!("property-test documentation is missing: {error}"))?;
+    check_local_markdown_links(&root, &documentation_path, &documentation)?;
+    println!("property-test policy: ok (4 generated properties)");
     Ok(())
 }
 
@@ -3398,6 +3436,11 @@ mod tests {
     #[test]
     fn scheduled_fuzz_policy_is_pinned_and_complete() {
         check_fuzz_policy().expect("scheduled fuzz policy");
+    }
+
+    #[test]
+    fn generated_property_test_policy_is_distinct_and_pinned() {
+        check_property_test_policy().expect("generated property-test policy");
     }
 
     #[test]

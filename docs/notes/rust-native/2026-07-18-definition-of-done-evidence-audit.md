@@ -4,7 +4,7 @@
 
 **Roadmap item:** Definition of Done reconciliation during R11.2
 
-**Status:** Implemented requirements reconciled; three release-wide gates remain open
+**Status:** Implemented requirements reconciled; property-test implementation awaiting CI qualification
 
 ## Purpose
 
@@ -31,9 +31,9 @@ Java, external Typst, or database runtime.
 
 ## Gates intentionally left open
 
-1. The combined quality checkbox names a property-test class. Formatting, Clippy, unit, integration, E2E, schema,
-   resource, and release gates pass, but the repository does not yet expose a separately identifiable generated
-   property-test suite. That checkbox remains open until such a suite is added and passes CI.
+1. The combined quality checkbox names a property-test class. A separately identifiable, deterministic four-property
+   suite is now implemented and wired into ordinary and native-release source gates, but the checkbox remains open
+   until the exact implementation commit passes CI.
 2. The three scheduled libFuzzer targets build and passed bounded local iterations, but a GitHub manual or scheduled
    run cannot be dispatched until the workflow exists on the default branch. The fuzz checkbox remains open.
 3. Alpha publishes checksums, SBOM, provenance, and notices, but Beta/RC macOS notarization and Windows signing are

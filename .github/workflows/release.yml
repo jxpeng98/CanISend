@@ -115,6 +115,9 @@ jobs:
       - name: Run complete Rust suite
         run: cargo test --workspace --locked
 
+      - name: Run generated property contracts
+        run: cargo test -p canisend-contracts --locked --test property_contract
+
       - name: Check release contracts, schemas, resources, and documentation
         run: cargo run -p xtask --locked -- release check
 

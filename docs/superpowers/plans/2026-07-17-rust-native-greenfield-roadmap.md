@@ -226,6 +226,11 @@
   package, and CI evidence. Runtime independence, the complete product workflow, reliability, dependency policy,
   packaged smokes, and installation documentation are proven; property-test, scheduled fuzz, and signed-publication
   gates remain explicitly open.
+- 2026-07-18: Added a distinct deterministic property-test target for generated safe-path, digest, UUIDv7, revision,
+  rejection, and serialization invariants. Ordinary CI and native-release source gates run it explicitly, while the
+  machine release check prevents removal of the target, policy, named properties, or workflow commands. Final
+  quality qualification awaits the exact implementation commit's CI result; the
+  [implementation note](../../notes/rust-native/2026-07-18-r10-property-qualification.md) preserves the boundary.
 
 ## 1. Executive Decision
 
@@ -2097,10 +2102,10 @@ Windows.
 - [x] Installation and quick-start instructions are verified from clean machines.
 
 **Release evidence audit:** Dependency policy passed in ordinary CI `29639651903`; exact five-target package and
-installation smokes passed in native run `29637471699`. The combined quality checkbox remains open only because an
-identifiable property-test suite is still absent. Scheduled fuzz awaits a default-branch run. Alpha publishes
-checksums, SBOM, provenance, and notices, but the combined publication checkbox remains open until credential-backed
-macOS and Windows signatures are published.
+installation smokes passed in native run `29637471699`. A named generated property suite is implemented and enforced
+in both CI entry points; the combined quality checkbox awaits its exact-commit CI result. Scheduled fuzz awaits a
+default-branch run. Alpha publishes checksums, SBOM, provenance, and notices, but the combined publication checkbox
+remains open until credential-backed macOS and Windows signatures are published.
 
 ## 24. Principal Risks and Mitigations
 
