@@ -989,7 +989,6 @@ mod tests {
         assert_eq!(promoted.id, repeated.id);
         assert_eq!(promoted.title, "Lecturer in Applied Economics");
         assert_eq!(discovery.list_sources().expect("sources").len(), 2);
-        drop(discovery);
         drop(workspace);
         std::fs::remove_dir_all(root).expect("remove workspace");
     }

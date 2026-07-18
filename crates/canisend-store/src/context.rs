@@ -84,7 +84,6 @@ mod tests {
         assert_eq!(job_summary.source_count, 0);
         let encoded = serde_json::to_string(&(summary, job_summary)).expect("JSON");
         assert!(!encoded.contains("source body"));
-        drop(service);
         drop(workspace);
         std::fs::remove_dir_all(root).expect("remove workspace");
     }
