@@ -239,6 +239,10 @@
   line, exact native environments, one GitHub run and candidate pair, distinct Beta/RC source hashes, observed
   versions, canonical fields, and 12 all-true validation/lifecycle/publication-boundary checks. No evidence exists
   yet, so the ledger correctly remains `candidates-only`.
+- 2026-07-18: Qualified the distinct generated property suite at exact commit `1d52a83` in GitHub Actions
+  `29640222233`. All eight ordinary CI jobs passed, including the named property step, full Rust suite, formatting,
+  Clippy, release check/build/smoke, dependency policy, three-OS recovery, and three-OS render/documentation gates.
+  The combined quality Definition of Done item is complete; scheduled fuzz and signed publication remain separate.
 
 ## 1. Executive Decision
 
@@ -2102,18 +2106,18 @@ Windows.
 
 ### 23.5 Release evidence
 
-- [ ] Formatting, Clippy, unit, integration, property, E2E, schema, resource, and release tests pass.
+- [x] Formatting, Clippy, unit, integration, property, E2E, schema, resource, and release tests pass.
 - [ ] Scheduled fuzz targets have no unresolved reproducible crash.
 - [x] Security and license checks pass.
 - [x] Cross-platform packaged-binary smokes pass.
 - [ ] Checksums, SBOM, provenance, notices, and signatures are published.
 - [x] Installation and quick-start instructions are verified from clean machines.
 
-**Release evidence audit:** Dependency policy passed in ordinary CI `29639651903`; exact five-target package and
-installation smokes passed in native run `29637471699`. A named generated property suite is implemented and enforced
-in both CI entry points; the combined quality checkbox awaits its exact-commit CI result. Scheduled fuzz awaits a
-default-branch run. Alpha publishes checksums, SBOM, provenance, and notices, but the combined publication checkbox
-remains open until credential-backed macOS and Windows signatures are published.
+**Release evidence audit:** The complete combined quality gate, including its distinct generated property step,
+passed in ordinary CI `29640222233`; dependency policy also passed. Exact five-target package and installation smokes
+passed in native run `29637471699`. Scheduled fuzz awaits a default-branch run. Alpha publishes checksums, SBOM,
+provenance, and notices, but the combined publication checkbox remains open until credential-backed macOS and
+Windows signatures are published.
 
 ## 24. Principal Risks and Mitigations
 

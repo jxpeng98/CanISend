@@ -4,7 +4,7 @@
 
 **Roadmap item:** Definition of Done release evidence
 
-**Status:** Implemented and locally verified; exact-commit CI qualification pending
+**Status:** Qualified on the complete ordinary CI matrix
 
 ## Gap
 
@@ -35,5 +35,10 @@ requires the named properties, test command, policy document, and both workflow 
 
 ## Qualification boundary
 
-The final combined quality checkbox remains open until the exact implementation commit passes ordinary CI. The
-property suite complements scheduled libFuzzer execution but does not qualify or replace it.
+GitHub Actions run `29640222233` passed all eight jobs at exact implementation commit
+`1d52a839eeb089349995dec917633caad0458d90`. The `rust-quality` job's distinct `Run generated property contracts`
+step passed, together with formatting, Clippy, the complete Rust suite, release checks, release build, and packaged
+smoke. Dependency policy, three-OS recovery, and three-OS render/documentation jobs also passed.
+
+The final combined quality checkbox is therefore qualified. The property suite complements scheduled libFuzzer
+execution but does not qualify or replace it.
