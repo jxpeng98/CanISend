@@ -50,6 +50,17 @@
         "scripts/qualify_archive_upgrade.sh"
       ],
       "reason": "Restore the Unix lifecycle executable bit and fail preflight early if it is lost so the five-target Beta-to-RC qualification can run on macOS and Linux."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "c72e39990e75c80b975c0b4617e5bc2190667162",
+      "paths": [
+        "fuzz/Cargo.lock",
+        "fuzz/Cargo.toml",
+        "release/stage-transition-policy.json",
+        "xtask/src/main.rs"
+      ],
+      "reason": "Synchronize the standalone fuzz workspace with the RC version and make future stage transitions update and validate its manifest and lockfile before scheduled campaigns."
     }
   ],
   "schema": "canisend.feature-freeze-exceptions/v1",
