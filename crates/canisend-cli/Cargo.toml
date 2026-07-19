@@ -15,11 +15,11 @@ name = "canisend"
 path = "src/main.rs"
 
 [dependencies]
-canisend-contracts = { path = "../canisend-contracts", version = "=0.7.0-beta.1" }
-canisend-core = { path = "../canisend-core", version = "=0.7.0-beta.1" }
-canisend-io = { path = "../canisend-io", version = "=0.7.0-beta.1" }
-canisend-resources = { path = "../canisend-resources", version = "=0.7.0-beta.1" }
-canisend-store = { path = "../canisend-store", version = "=0.7.0-beta.1" }
+canisend-contracts = { path = "../canisend-contracts", version = "=0.7.0-rc.1" }
+canisend-core = { path = "../canisend-core", version = "=0.7.0-rc.1" }
+canisend-io = { path = "../canisend-io", version = "=0.7.0-rc.1" }
+canisend-resources = { path = "../canisend-resources", version = "=0.7.0-rc.1" }
+canisend-store = { path = "../canisend-store", version = "=0.7.0-rc.1" }
 clap.workspace = true
 serde.workspace = true
 serde_json.workspace = true

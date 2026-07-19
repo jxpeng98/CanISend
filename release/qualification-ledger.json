@@ -41,16 +41,16 @@
     "notes": "release/RELEASE_NOTES.md",
     "review": null,
     "rollback": "docs/guides/upgrade-and-rollback.md",
-    "status": "beta-current"
+    "status": "rc-final"
   },
   "schema": "canisend.release-qualification/v1",
   "stable_authorized": false,
-  "status": "beta-qualifying",
+  "status": "rc-qualifying",
   "upgrade_matrix": {
     "beta_tag": null,
     "evidence": [],
     "rc_tag": null,
     "status": "pending"
   },
-  "workspace_stage": "beta"
+  "workspace_stage": "rc"
 }
