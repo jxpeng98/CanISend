@@ -1,6 +1,6 @@
 {
-  "baseline_commit": null,
+  "baseline_commit": "dd15c138c638113933f70e1ab0d3206a9965e0e4",
   "exceptions": [],
   "schema": "canisend.feature-freeze-exceptions/v1",
-  "status": "planned"
+  "status": "frozen"
 }
