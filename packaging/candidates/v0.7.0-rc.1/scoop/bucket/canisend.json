@@ -1,0 +1,14 @@
+{
+  "architecture": {
+    "64bit": {
+      "hash": "da475f4e9f16b9f8c9c13a05fc458266bf2c9efa56455ebc6916fef9c5533eb3",
+      "url": "https://github.com/jxpeng98/CanISend/releases/download/v0.7.0-rc.1/canisend-0.7.0-rc.1-x86_64-pc-windows-msvc.zip"
+    }
+  },
+  "bin": "canisend.exe",
+  "description": "Prepare evidence-backed academic job applications with agent hosts",
+  "extract_dir": "canisend-0.7.0-rc.1-x86_64-pc-windows-msvc",
+  "homepage": "https://github.com/jxpeng98/CanISend",
+  "license": "MIT",
+  "version": "0.7.0-rc.1"
+}

@@ -1,0 +1,21 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.12.0.schema.json
+
+PackageIdentifier: PengJiaxin.CanISend
+PackageVersion: 0.7.0-rc.1
+PackageLocale: en-US
+Publisher: Peng Jiaxin
+PublisherUrl: https://github.com/jxpeng98
+PublisherSupportUrl: https://github.com/jxpeng98/CanISend/issues
+PackageName: CanISend
+PackageUrl: https://github.com/jxpeng98/CanISend
+License: MIT
+LicenseUrl: https://github.com/jxpeng98/CanISend/blob/v0.7.0-rc.1/LICENSE
+ShortDescription: Prepare evidence-backed academic job applications with agent hosts
+Moniker: canisend
+Tags:
+- academic-jobs
+- agent
+- cli
+ReleaseNotesUrl: https://github.com/jxpeng98/CanISend/releases/tag/v0.7.0-rc.1
+ManifestType: defaultLocale
+ManifestVersion: 1.12.0
