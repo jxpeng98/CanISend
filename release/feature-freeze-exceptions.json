@@ -1,6 +1,30 @@
 {
   "baseline_commit": "dd15c138c638113933f70e1ab0d3206a9965e0e4",
-  "exceptions": [],
+  "exceptions": [
+    {
+      "class": "release-evidence",
+      "commit": "53f25583a3fd7870b25cb06df35cb6129de483d2",
+      "paths": [
+        "Cargo.lock",
+        "Cargo.toml",
+        "crates/canisend-cli/Cargo.toml",
+        "crates/canisend-core/Cargo.toml",
+        "crates/canisend-io/Cargo.toml",
+        "crates/canisend-resources/Cargo.toml",
+        "crates/canisend-store/Cargo.toml",
+        "xtask/Cargo.toml"
+      ],
+      "reason": "Advance the qualified Beta line to the first RC version and synchronize exact internal dependency pins before clean-tag qualification."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "9e86292417b59e20cc55f0d9b7c3315a8f3bb1b9",
+      "paths": [
+        "xtask/src/main.rs"
+      ],
+      "reason": "Keep the release-policy test independent of the live planned/frozen state after RC transition so the mandatory Rust suite can qualify clean tags."
+    }
+  ],
   "schema": "canisend.feature-freeze-exceptions/v1",
   "status": "frozen"
 }
