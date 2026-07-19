@@ -41,6 +41,15 @@
         ".github/workflows/upgrade-qualification.yml"
       ],
       "reason": "Fetch complete history in upgrade and package-manager preflight jobs so their release checks can verify the frozen baseline before consuming public RC assets."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "28261fba28e9cda0400b0cbb4ca9c3ae56660198",
+      "paths": [
+        ".github/workflows/upgrade-qualification.yml",
+        "scripts/qualify_archive_upgrade.sh"
+      ],
+      "reason": "Restore the Unix lifecycle executable bit and fail preflight early if it is lost so the five-target Beta-to-RC qualification can run on macOS and Linux."
     }
   ],
   "schema": "canisend.feature-freeze-exceptions/v1",
