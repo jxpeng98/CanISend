@@ -93,6 +93,7 @@ $workspace = Join-Path ([System.IO.Path]::GetTempPath()) "canisend-package-works
 $installed = $false
 $bucketName = "canisend-qualification"
 $bucketRoot = Join-Path ([System.IO.Path]::GetTempPath()) "canisend-scoop-bucket-$([guid]::NewGuid())"
+$bucketAdded = $false
 $wingetLocalEnabled = $false
 
 try {
@@ -115,6 +116,7 @@ try {
         Invoke-Checked -Command git -Arguments @("-C", $bucketRoot, "commit", "-m", "add beta candidate")
         $bucketUri = ([System.Uri]::new((Resolve-Path -LiteralPath $bucketRoot).Path)).AbsoluteUri
         Invoke-Checked -Command scoop -Arguments @("bucket", "add", $bucketName, $bucketUri)
+        $bucketAdded = $true
         Invoke-Checked -Command scoop -Arguments @("install", "$bucketName/canisend")
         $installed = $true
         $fromObserved = Read-CanISendVersion
@@ -134,6 +136,7 @@ try {
         Invoke-Checked -Command scoop -Arguments @("uninstall", "canisend")
         $installed = $false
         Invoke-Checked -Command scoop -Arguments @("bucket", "rm", $bucketName)
+        $bucketAdded = $false
         $toolVersion = (& scoop --version | Select-Object -First 1).Trim()
     }
     else {
@@ -218,7 +221,7 @@ finally {
     if ($wingetLocalEnabled) {
         & winget settings --disable LocalManifestFiles | Out-Null
     }
-    if ($Channel -eq "scoop") {
+    if ($Channel -eq "scoop" -and $bucketAdded) {
         & scoop bucket rm $bucketName | Out-Null
     }
     Remove-Item -LiteralPath $workspace -Recurse -Force -ErrorAction SilentlyContinue

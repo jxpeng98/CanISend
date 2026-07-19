@@ -5130,6 +5130,9 @@ fn check_package_manager_qualification_policy() -> Result<(), String> {
     for required in [
         "([System.Uri]::new((Resolve-Path -LiteralPath $bucketRoot).Path)).AbsoluteUri",
         "Invoke-Checked -Command scoop -Arguments @(\"bucket\", \"add\", $bucketName, $bucketUri)",
+        "$bucketAdded = $true",
+        "$bucketAdded = $false",
+        "if ($Channel -eq \"scoop\" -and $bucketAdded)",
         "Invoke-Checked -Command scoop -Arguments @(\"update\", \"canisend\")",
         "Invoke-Checked -Command winget -Arguments @(\"validate\"",
         "Invoke-Checked -Command winget -Arguments @(\"install\"",
