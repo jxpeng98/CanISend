@@ -61,6 +61,23 @@
         "xtask/src/main.rs"
       ],
       "reason": "Synchronize the standalone fuzz workspace with the RC version and make future stage transitions update and validate its manifest and lockfile before scheduled campaigns."
+    },
+    {
+      "class": "release-evidence",
+      "commit": "946e313fbccec99f3bdcebc3fb227a662f9b9f4c",
+      "paths": [
+        "Cargo.lock",
+        "Cargo.toml",
+        "crates/canisend-cli/Cargo.toml",
+        "crates/canisend-core/Cargo.toml",
+        "crates/canisend-io/Cargo.toml",
+        "crates/canisend-resources/Cargo.toml",
+        "crates/canisend-store/Cargo.toml",
+        "fuzz/Cargo.lock",
+        "fuzz/Cargo.toml",
+        "xtask/Cargo.toml"
+      ],
+      "reason": "Advance the qualified RC line to the required second clean-tag candidate while preserving the first RC, upgrade, documentation, and fuzz evidence."
     }
   ],
   "schema": "canisend.feature-freeze-exceptions/v1",
