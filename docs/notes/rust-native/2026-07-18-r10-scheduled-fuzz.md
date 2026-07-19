@@ -4,7 +4,7 @@
 
 **Roadmap item:** Definition of Done / release evidence
 
-**Status:** Harness compiled and smoke-fuzzed locally; first full GitHub run pending
+**Status:** Complete — first full default-branch GitHub campaign passed
 
 ## Boundary
 
@@ -17,7 +17,7 @@ The workflow uploads a generated reproducer only on failure. It never seeds from
 application. Reproducible crashes remain release blockers and must become ordinary regression tests before the note
 can record resolution.
 
-## Remaining evidence
+## Completed evidence
 
 The pinned nightly toolchain and cargo-fuzz 0.13.2 compiled all three harnesses locally. Each target completed a
 100-run AddressSanitizer/libFuzzer smoke campaign without a crash, panic, timeout, or reproducer. Generated corpus,
@@ -27,8 +27,12 @@ After release-gate implementation completed, all three targets also ran concurre
 workflow's pinned `nightly-2026-07-01`, 15-second per-input timeout, and 4096 MiB RSS limit. No target produced a
 crash, timeout, or artifact. This is stronger local prequalification, but it is not the required scheduled run.
 
-Dispatch the full five-minute-per-target workflow and require all three jobs to finish successfully. The Definition
-of Done fuzz checkbox remains open until that exact GitHub Actions run is recorded. GitHub does not allow a newly
-introduced workflow to be manually dispatched until the workflow path exists on the default branch; the first full
-run therefore belongs to the reviewed Rust-native main/RC cutover, not an unevidenced branch-only claim.
-An attempted branch dispatch returned GitHub HTTP 404 for this exact default-branch registration rule.
+After the reviewed Rust-native cutover registered the workflow on `main`, GitHub Actions run `29684660492` executed
+the full five-minute campaign for `structured_inputs`, `intake_parsers`, and `pdf_extract` at exact source commit
+`520caee847215d864094aba7378d842f1b5a3990`. All three jobs completed successfully, and the failure-only reproducer
+step did not upload an artifact. The cold AddressSanitizer builds plus bounded campaigns completed within the
+separate 20-minute extended-assurance limit without making the ordinary edit/test loop slower.
+
+The earlier branch dispatch returned GitHub HTTP 404 because GitHub requires a manually dispatched workflow to
+exist on the default branch. That historical failure and the later successful default-branch run distinguish
+workflow registration from fuzz-target behavior; only the successful run closes the Definition of Done item.

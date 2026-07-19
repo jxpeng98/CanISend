@@ -353,6 +353,15 @@ GUI roadmap is approved but implementation is gated behind R11.4 Stable
   source/tag/workflow-bound provenance checks, native `codesign` verification on both macOS archives, and canonical
   signing-evidence review. The ledger now records the qualified Beta, and versioned candidate-only Homebrew, Scoop,
   and WinGet files are derived from the public manifest. R11.2 exit criteria are satisfied; R11.3 is active.
+- 2026-07-19: Activated the feature freeze, published `v0.7.0-rc.1`, and recorded the first clean-tag five-target
+  release matrix from run `29681894739`. The same RC run supplied five-target documentation/uninstall evidence, and
+  native upgrade run `29684079687` passed the complete signed Beta-to-RC lifecycle on all five targets. The first RC
+  remains a prerelease; the second clean-tag matrix, final notes review, and package-manager qualification remain
+  open before Stable.
+- 2026-07-19: Completed the first default-branch scheduled-fuzz campaign at exact source
+  `520caee847215d864094aba7378d842f1b5a3990`. Run `29684660492` passed the full five-minute
+  `structured_inputs`, `intake_parsers`, and `pdf_extract` targets without producing a failure reproducer. This
+  closes the extended fuzz evidence item while preserving the separate fast ordinary CI loop.
 - 2026-07-19: Approved the [native desktop GUI roadmap](2026-07-19-native-desktop-gui-roadmap.md) as the first
   committed `0.8` product extension. The GUI will be a second native adapter over a shared typed application facade,
   not a shell wrapper or parallel workspace implementation. Design and an isolated toolkit spike may proceed during
@@ -2130,10 +2139,10 @@ clean-tag RC matrices.
 
 #### R11.3 Release candidate
 
-- [ ] Freeze features.
+- [x] Freeze features.
 - [ ] Run the complete release matrix twice from clean tags.
-- [ ] Verify upgrade between Rust beta/RC workspace migrations.
-- [ ] Verify documentation and uninstall instructions.
+- [x] Verify upgrade between Rust beta/RC workspace migrations.
+- [x] Verify documentation and uninstall instructions.
 - [ ] Produce release notes and rollback guidance.
 
 #### R11.4 Stable
@@ -2322,17 +2331,17 @@ Windows.
 ### 23.5 Release evidence
 
 - [x] Formatting, Clippy, unit, integration, property, E2E, schema, resource, and release tests pass.
-- [ ] Scheduled fuzz targets have no unresolved reproducible crash.
+- [x] Scheduled fuzz targets have no unresolved reproducible crash.
 - [x] Security and license checks pass.
 - [x] Cross-platform packaged-binary smokes pass.
-- [ ] Checksums, SBOM, provenance, notices, and signatures are published.
+- [x] Checksums, SBOM, provenance, notices, and signatures are published.
 - [x] Installation and quick-start instructions are verified from clean machines.
 
 **Release evidence audit:** The complete combined quality gate, including its distinct generated property step,
 passed in ordinary CI `29640222233`; dependency policy also passed. Exact five-target package and installation smokes
-passed in native run `29637471699`. Scheduled fuzz awaits a default-branch run. Alpha publishes checksums, SBOM,
-provenance, and notices, but the combined publication checkbox remains open until community macOS and Windows
-signatures are published with v2 evidence.
+passed in native run `29637471699`. Default-branch scheduled-fuzz run `29684660492` passed all three five-minute
+targets without a failure reproducer. Public Beta and RC releases publish checksums, SBOM, provenance, notices, and
+canonical community macOS/Windows signing evidence, so the combined publication item is complete.
 
 ## 24. Principal Risks and Mitigations
 
