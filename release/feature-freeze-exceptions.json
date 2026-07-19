@@ -88,6 +88,16 @@
         "xtask/src/main.rs"
       ],
       "reason": "Repair native package-manager qualification after current Homebrew, PowerShell, and WinGet validators exposed fail-closed incompatibilities in the nonpublishing lifecycle scripts."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "2ae07ee0efbea04580cc6d61623d76971cbcc433",
+      "paths": [
+        "scripts/qualify_homebrew_packages.sh",
+        "scripts/qualify_windows_packages.ps1",
+        "xtask/src/main.rs"
+      ],
+      "reason": "Complete the nonpublishing package qualification repair by creating the temporary Homebrew cask directory and presenting the local Scoop bucket as a Git-compatible file URI."
     }
   ],
   "schema": "canisend.feature-freeze-exceptions/v1",
