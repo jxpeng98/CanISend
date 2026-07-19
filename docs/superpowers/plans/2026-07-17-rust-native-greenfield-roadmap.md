@@ -1,6 +1,7 @@
 # CanISend Rust-Native Greenfield Rebuild Roadmap
 
-**Status:** In progress — R0 through R11.2 complete; R11.3 release-candidate preparation active
+**Status:** In progress — R0 through R11.2 complete; R11.3 release-candidate preparation active; the R12 desktop
+GUI roadmap is approved but implementation is gated behind R11.4 Stable
 
 **Date:** 2026-07-17
 
@@ -352,6 +353,10 @@
   source/tag/workflow-bound provenance checks, native `codesign` verification on both macOS archives, and canonical
   signing-evidence review. The ledger now records the qualified Beta, and versioned candidate-only Homebrew, Scoop,
   and WinGet files are derived from the public manifest. R11.2 exit criteria are satisfied; R11.3 is active.
+- 2026-07-19: Approved the [native desktop GUI roadmap](2026-07-19-native-desktop-gui-roadmap.md) as the first
+  committed `0.8` product extension. The GUI will be a second native adapter over a shared typed application facade,
+  not a shell wrapper or parallel workspace implementation. Design and an isolated toolkit spike may proceed during
+  release preparation, but product implementation and package changes remain gated behind `v0.7.0` Stable.
 
 ## 1. Executive Decision
 
@@ -364,7 +369,9 @@ to read old workspaces, reproduce old serialized bytes, preserve the old command
 
 The finished product must satisfy these conditions:
 
-1. End users install one platform-specific `canisend` executable and do not install Python.
+1. For `0.7`, end users install one platform-specific `canisend` executable and do not install Python. Beginning with
+   the post-stable GUI release, a platform bundle may contain the version-locked GUI and CLI executables without
+   adding a development runtime.
 2. Developers use Cargo and Rust-native test tools; Pytest and Python are absent from the active build and CI.
 3. The binary accepts local links, supplied URLs, Markdown, text, JSON, CSV, and text-based PDF job adverts.
 4. The binary exports agent instructions and a stable JSON protocol for Codex, Claude, IDE agents, and custom hosts.
@@ -388,7 +395,8 @@ architecture decision record.
 - The product implementation is Rust.
 - The repository uses a Cargo workspace.
 - The stable Rust toolchain is pinned in `rust-toolchain.toml` and updated deliberately.
-- The distributable product is a native executable named `canisend`.
+- The `0.7` distributable product is a native executable named `canisend`; the post-stable GUI release adds a second
+  native entry point in the same versioned product bundle.
 - Rust tests replace Pytest completely.
 - The active repository contains no required Python scripts, Python package metadata, or Python CI jobs.
 
@@ -478,6 +486,11 @@ architecture decision record.
 - Dynamic Python plugins.
 - Automatic application submission.
 - Byte-identical PDFs across all operating systems when users opt into system fonts.
+
+The graphical desktop application remains outside `0.7` Stable so R11 can stay feature-frozen. It becomes the first
+committed `0.8` extension under the
+[native desktop GUI roadmap](2026-07-19-native-desktop-gui-roadmap.md), while the CLI and Agent v2 interface remain
+first-class product surfaces.
 
 ## 4. Product Scope
 
@@ -586,6 +599,10 @@ canisend-contracts
 If an integration needs to call into core behavior, the interface belongs in `canisend-core` and the implementation
 belongs in the outer crate. `canisend-core` must not depend on `clap`, terminal presentation, a particular HTTP
 client, or a particular model provider.
+
+This diagram is the `0.7` architecture. R12 adds peer `canisend-cli` and `canisend-gui` adapters over a small typed
+`canisend-app` composition facade as specified in the
+[native desktop GUI roadmap](2026-07-19-native-desktop-gui-roadmap.md); it does not put UI dependencies in core.
 
 ## 6. Repository Layout
 
@@ -1408,10 +1425,13 @@ release promises.
 | R9 | Embedded Typst rendering | 2–3 weeks | R3, R8 |
 | R10 | Security, recovery, performance hardening | 2–3 weeks | R4–R9 |
 | R11 | Cross-platform alpha/beta release | 2–3 weeks | R10 |
+| R12 | Native desktop GUI foundation and `0.8` Alpha | 6–9 weeks | R11.4 Stable |
+| R13 | GUI Beta and Stable qualification | 3–5 weeks | R12 |
 
-Expected total: approximately 21–33 engineer-weeks. Scope reduction can shorten this; keeping PDF extraction,
-discovery, agent integration, evidence-backed drafting, embedded rendering, and five release targets makes a much
-shorter estimate unrealistic.
+Expected R0–R11 total: approximately 21–33 engineer-weeks. The post-stable R12–R13 desktop extension adds an
+estimated 9–14 engineer-weeks. Scope reduction can shorten this; keeping PDF extraction, discovery, agent
+integration, evidence-backed drafting, embedded rendering, native GUI accessibility, and the supported release
+targets makes a much shorter estimate unrealistic.
 
 ## 20. Detailed Execution Plan
 
@@ -2120,7 +2140,7 @@ clean-tag RC matrices.
 
 - [ ] Publish stable archives and package-manager manifests.
 - [ ] Publish protocol, schema, and workspace support policy.
-- [ ] Create the next roadmap from measured user feedback.
+- [ ] Promote the post-0.7 roadmap using refreshed feedback and the approved GUI direction.
 
 **R11.4 preparation:** The [support policy](../../release/support-policy.md), machine authority
 `release/support-policy.json`, and
@@ -2140,9 +2160,45 @@ and maintainer-included download counts from two internal cross-platform qualifi
 refresher must advance the snapshot and data-bound roadmap to `Reviewed`; only a qualified Stable transition may
 advance the unchanged measurements to `Published`. The checklist remains open until that real RC evidence exists.
 
+The [native desktop GUI roadmap](2026-07-19-native-desktop-gui-roadmap.md) records a separate product-owner
+direction rather than presenting the zero-report Alpha baseline as feature-demand evidence. It begins only after
+Stable and does not relax the refreshed-feedback, blocker, or release-integrity gates.
+
 **Deliverables:** Signed, documented, platform-specific native releases.
 
 **Exit criteria:** A supported user installs and completes the documented workflow without any development runtime.
+
+### Phase R12 — Native desktop GUI foundation and Alpha
+
+**Objective:** Add a runtime-independent desktop interface while keeping CLI and Agent v2 behavior on the same Rust
+application services and authoritative workspace.
+
+- [ ] R12.0 qualify and record the Rust GUI toolkit, accessibility, licensing, size, and platform boundary.
+- [ ] R12.1 extract a typed `canisend-app` facade and a checked-in CLI-to-GUI parity authority.
+- [ ] R12.2 implement the app shell, body-free activity model, and safe multi-workspace registry.
+- [ ] R12.3 implement supplied URL/PDF/file job intake and the durable workflow console.
+- [ ] R12.4 implement profile, discovery, agent tasks, documents, review, package, render, and export screens.
+- [ ] R12.5 package and qualify a `0.8.0-alpha.1` GUI on macOS arm64/Intel, Windows x64, and Linux x64 glibc while
+  retaining all five CLI targets.
+
+**Detailed plan:** [CanISend Native Desktop GUI Roadmap](2026-07-19-native-desktop-gui-roadmap.md)
+
+**Exit criteria:** A user on every claimed GUI target installs the native app, manages local workspaces, completes the
+synthetic end-to-end workflow without a terminal, reopens authoritative state, and uninstalls without deleting the
+workspace. The GUI does not spawn a shell or duplicate domain validation.
+
+### Phase R13 — GUI Beta and Stable qualification
+
+**Objective:** Convert the desktop Alpha into a supported product surface using measured GUI feedback and exact native
+release evidence.
+
+- [ ] Close data-loss, privacy, accessibility, workflow-parity, and packaging blockers before visual enhancements.
+- [ ] Freeze the GUI action contract, workspace registry format, and product bundle layout at Beta.
+- [ ] Pass two clean-tag RC matrices covering CLI/GUI upgrade, rollback, assistive technology, and workspace retention.
+- [ ] Publish one support policy for the version-locked CLI, GUI, Agent v2, and workspace release unit.
+
+**Exit criteria:** `0.8.0` Stable is published only after the GUI and CLI pass their claimed target matrices and share
+the same release-manifest, checksum, SBOM, provenance, notice, and community-signing authority.
 
 ## 21. Phase Dependency Graph
 
@@ -2160,10 +2216,14 @@ R0
                      └── R9
                          └── R10
                              └── R11
+                                 └── R12
+                                     └── R13
 ```
 
 R5 may continue in parallel with R6 after R4 establishes the shared network and intake infrastructure. R9 may begin
-its compiler integration spike earlier, but full rendering depends on the R8 structured document model.
+its compiler integration spike earlier, but full rendering depends on the R8 structured document model. R12 design
+and a dependency-free synthetic toolkit spike may be prepared during R11, but the shared-facade cutover and GUI
+product implementation begin only after R11.4 Stable.
 
 ## 22. Work Item and Pull Request Strategy
 
@@ -2286,7 +2346,7 @@ signatures are published with v2 evidence.
 | Untrusted source text influences host instructions | unsafe reads/actions | task scope, explicit consent, candidate schema, no internal writes | bounded host-input tests |
 | Provider leaks private data | privacy breach | exact provider-bound manifest, consent, redacted logs | provider payload tests |
 | Too many crates slow development | unnecessary abstraction | six initial crates only; split further only with demonstrated boundary | architecture review |
-| Greenfield scope expands | release never converges | fixed alpha document types/adapters; defer OCR, GUI, portal automation | phase exit review |
+| Greenfield scope expands | release never converges | keep OCR and portal automation deferred; gate the approved GUI extension behind R11.4 Stable | phase exit review |
 | Removing Python too early loses reference | product behavior forgotten | archive tag and history docs before deletion; synthetic new specs | R0/R1 gate |
 | Rust compile time grows | developer feedback slows | feature discipline, dependency review, cache CI, crate-level tests | PR time budget |
 | No old workspace support surprises users | adoption friction | explicit breaking-release notes and separate workspace directory | release docs |
