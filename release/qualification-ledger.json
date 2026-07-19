@@ -36,7 +36,14 @@
     "evidence": [],
     "status": "candidates-only"
   },
-  "release_candidates": [],
+  "release_candidates": [
+    {
+      "signed_matrix_run": 29681894739,
+      "source_commit": "40bc4efba294e9ba0534ab7ab4a89925ae0e53bf",
+      "status": "success",
+      "tag": "v0.7.0-rc.1"
+    }
+  ],
   "release_notes": {
     "notes": "release/RELEASE_NOTES.md",
     "review": null,
