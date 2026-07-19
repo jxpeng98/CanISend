@@ -1,9 +1,9 @@
 {
-  "captured_at": "2026-07-18T08:33:01Z",
+  "captured_at": "2026-07-19T12:38:28Z",
   "default_telemetry": false,
   "next_roadmap": {
     "path": "docs/superpowers/plans/2026-07-18-post-0.7-roadmap.md",
-    "status": "draft"
+    "status": "reviewed"
   },
   "privacy_boundary": "public-metadata-only",
   "public_feedback": {
@@ -25,17 +25,17 @@
     }
   ],
   "release": {
-    "published_at": "2026-07-18T06:37:16Z",
+    "published_at": "2026-07-19T12:33:02Z",
     "repository": "jxpeng98/CanISend",
-    "tag": "v0.7.0-alpha.1"
+    "tag": "v0.7.0-rc.2"
   },
   "release_downloads": {
-    "asset_count": 12,
+    "asset_count": 15,
     "maintainer_verification_included": true,
     "native_archive_count": 5,
-    "native_archive_downloads": 5,
-    "total_downloads": 12
+    "native_archive_downloads": 0,
+    "total_downloads": 0
   },
   "schema": "canisend.feedback-snapshot/v1",
-  "snapshot_stage": "alpha-baseline"
+  "snapshot_stage": "rc"
 }
