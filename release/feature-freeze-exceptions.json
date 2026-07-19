@@ -78,6 +78,16 @@
         "xtask/Cargo.toml"
       ],
       "reason": "Advance the qualified RC line to the required second clean-tag candidate while preserving the first RC, upgrade, documentation, and fuzz evidence."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "f89e148867522db94284d9210776195bfdedb1ee",
+      "paths": [
+        "scripts/qualify_homebrew_packages.sh",
+        "scripts/qualify_windows_packages.ps1",
+        "xtask/src/main.rs"
+      ],
+      "reason": "Repair native package-manager qualification after current Homebrew, PowerShell, and WinGet validators exposed fail-closed incompatibilities in the nonpublishing lifecycle scripts."
     }
   ],
   "schema": "canisend.feature-freeze-exceptions/v1",
