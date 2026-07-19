@@ -41,7 +41,9 @@
   "controlled_surfaces": [
     "Cargo.toml workspace version",
     "workspace Cargo.toml exact internal dependencies",
+    "fuzz/Cargo.toml exact internal dependencies",
     "Cargo.lock workspace package versions",
+    "fuzz/Cargo.lock internal package versions",
     "release/qualification-ledger.json stage, Stable authorization, and RC notes-review reset fields",
     "release/RELEASE_NOTES.md heading",
     "release/support-policy.json Stable publication status",

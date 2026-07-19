@@ -623,6 +623,49 @@ fn check_fuzz_policy() -> Result<(), String> {
             return Err(format!("fuzz manifest is missing `{required}`"));
         }
     }
+    let workspace_body = fs::read_to_string(root.join("Cargo.toml"))
+        .map_err(|error| format!("workspace manifest is missing: {error}"))?;
+    let workspace: toml::Value = workspace_body
+        .parse()
+        .map_err(|error| format!("workspace manifest is invalid TOML: {error}"))?;
+    let workspace_version = workspace["workspace"]["package"]["version"]
+        .as_str()
+        .ok_or_else(|| "workspace manifest has no package version".to_owned())?;
+    let exact_internal_version = format!("version = \"={workspace_version}\"");
+    if manifest.matches(&exact_internal_version).count() != 2 {
+        return Err(format!(
+            "fuzz manifest internal dependencies must use `{exact_internal_version}`"
+        ));
+    }
+    let fuzz_lock_body = fs::read_to_string(root.join("fuzz/Cargo.lock"))
+        .map_err(|error| format!("fuzz lockfile is missing: {error}"))?;
+    let fuzz_lock: toml::Value = fuzz_lock_body
+        .parse()
+        .map_err(|error| format!("fuzz lockfile is invalid TOML: {error}"))?;
+    let packages = fuzz_lock["package"]
+        .as_array()
+        .ok_or_else(|| "fuzz lockfile has no package entries".to_owned())?;
+    let mut internal_package_count = 0;
+    for package in packages {
+        let Some(name) = package["name"].as_str() else {
+            continue;
+        };
+        if !name.starts_with("canisend-") || name == "canisend-fuzz" {
+            continue;
+        }
+        internal_package_count += 1;
+        let version = package["version"]
+            .as_str()
+            .ok_or_else(|| format!("fuzz lockfile package `{name}` has no version"))?;
+        if version != workspace_version {
+            return Err(format!(
+                "fuzz lockfile package `{name}` uses {version}, expected {workspace_version}"
+            ));
+        }
+    }
+    if internal_package_count == 0 {
+        return Err("fuzz lockfile has no internal CanISend packages".to_owned());
+    }
     for target in targets {
         if !workflow.contains(target)
             || !manifest.contains(&format!("name = \"{target}\""))
@@ -908,7 +951,9 @@ fn check_stage_transition_policy() -> Result<(), String> {
         "controlled_surfaces": [
             "Cargo.toml workspace version",
             "workspace Cargo.toml exact internal dependencies",
+            "fuzz/Cargo.toml exact internal dependencies",
             "Cargo.lock workspace package versions",
+            "fuzz/Cargo.lock internal package versions",
             "release/qualification-ledger.json stage, Stable authorization, and RC notes-review reset fields",
             "release/RELEASE_NOTES.md heading",
             "release/support-policy.json Stable publication status",
@@ -2089,6 +2134,28 @@ fn render_stage_transition(root: &Path, tag: &str) -> Result<RenderedStageTransi
         }
     }
 
+    let fuzz_relative = "fuzz/Cargo.toml";
+    let fuzz_path = root.join(fuzz_relative);
+    if fuzz_path.is_file() {
+        let body = fs::read_to_string(&fuzz_path)
+            .map_err(|error| format!("could not read {fuzz_relative}: {error}"))?;
+        let needle = format!("version = \"={from}\"");
+        let occurrences = body.matches(&needle).count();
+        if occurrences == 0 {
+            return Err(format!(
+                "{fuzz_relative} has no internal dependencies pinned to {from}"
+            ));
+        }
+        let updated = replace_exact_count(
+            &body,
+            &needle,
+            &format!("version = \"={to}\""),
+            occurrences,
+            "fuzz manifest internal dependency versions",
+        )?;
+        files.insert(fuzz_relative.to_owned(), updated.into_bytes());
+    }
+
     let lock_path = root.join("Cargo.lock");
     let mut lock = fs::read_to_string(&lock_path)
         .map_err(|error| format!("could not read Cargo.lock: {error}"))?;
@@ -2102,6 +2169,52 @@ fn render_stage_transition(root: &Path, tag: &str) -> Result<RenderedStageTransi
         )?;
     }
     files.insert("Cargo.lock".to_owned(), lock.into_bytes());
+
+    let fuzz_lock_relative = "fuzz/Cargo.lock";
+    let fuzz_lock_path = root.join(fuzz_lock_relative);
+    if fuzz_lock_path.is_file() {
+        let mut fuzz_lock = fs::read_to_string(&fuzz_lock_path)
+            .map_err(|error| format!("could not read {fuzz_lock_relative}: {error}"))?;
+        let parsed: toml::Value = fuzz_lock
+            .parse()
+            .map_err(|error| format!("{fuzz_lock_relative} is invalid TOML: {error}"))?;
+        let packages = parsed["package"]
+            .as_array()
+            .ok_or_else(|| format!("{fuzz_lock_relative} has no package entries"))?;
+        let mut fuzz_package_names = BTreeSet::new();
+        for package in packages {
+            let Some(name) = package["name"].as_str() else {
+                continue;
+            };
+            if !name.starts_with("canisend-") || name == "canisend-fuzz" {
+                continue;
+            }
+            let version = package["version"]
+                .as_str()
+                .ok_or_else(|| format!("{fuzz_lock_relative} package `{name}` has no version"))?;
+            if version != from {
+                return Err(format!(
+                    "{fuzz_lock_relative} package `{name}` uses {version}, expected {from}"
+                ));
+            }
+            fuzz_package_names.insert(name.to_owned());
+        }
+        if fuzz_package_names.is_empty() {
+            return Err(format!(
+                "{fuzz_lock_relative} has no internal CanISend packages"
+            ));
+        }
+        for package in fuzz_package_names {
+            fuzz_lock = replace_exact_count(
+                &fuzz_lock,
+                &format!("name = \"{package}\"\nversion = \"{from}\""),
+                &format!("name = \"{package}\"\nversion = \"{to}\""),
+                1,
+                &format!("{fuzz_lock_relative} package `{package}`"),
+            )?;
+        }
+        files.insert(fuzz_lock_relative.to_owned(), fuzz_lock.into_bytes());
+    }
 
     let ledger_path = root.join("release/qualification-ledger.json");
     let mut ledger: Value = serde_json::from_slice(
@@ -7936,6 +8049,7 @@ mod tests {
         }
         fs::create_dir_all(root.join("crates/app")).expect("create RC app fixture");
         fs::create_dir_all(root.join("crates/contracts")).expect("create RC contracts fixture");
+        fs::create_dir_all(root.join("fuzz")).expect("create RC fuzz fixture");
         fs::create_dir_all(root.join("release")).expect("create RC release fixture");
         fs::write(
             root.join("Cargo.toml"),
@@ -7955,11 +8069,25 @@ mod tests {
         )
         .expect("write RC contracts fixture");
         fs::write(
+            root.join("fuzz/Cargo.toml"),
+            "[package]\nname = \"canisend-fuzz\"\nversion = \"0.0.0\"\n\
+             [dependencies]\napp = { path = \"../crates/app\", version = \"=0.7.0-rc.1\" }\n\
+             contracts = { path = \"../crates/contracts\", version = \"=0.7.0-rc.1\" }\n",
+        )
+        .expect("write RC fuzz fixture");
+        fs::write(
             root.join("Cargo.lock"),
             "version = 4\n\n[[package]]\nname = \"app\"\nversion = \"0.7.0-rc.1\"\n\
              dependencies = [\"contracts\"]\n\n[[package]]\nname = \"contracts\"\nversion = \"0.7.0-rc.1\"\n",
         )
         .expect("write RC lock fixture");
+        fs::write(
+            root.join("fuzz/Cargo.lock"),
+            "version = 4\n\n[[package]]\nname = \"canisend-app\"\nversion = \"0.7.0-rc.1\"\n\
+             \n[[package]]\nname = \"canisend-fuzz\"\nversion = \"0.0.0\"\n\
+             \n[[package]]\nname = \"canisend-contracts\"\nversion = \"0.7.0-rc.1\"\n",
+        )
+        .expect("write RC fuzz lock fixture");
         let ledger = json!({
             "schema": RELEASE_QUALIFICATION_SCHEMA,
             "workspace_stage": "rc",
@@ -7988,7 +8116,7 @@ mod tests {
         expected_ledger["release_notes"]["review"] = Value::Null;
         let transition =
             render_stage_transition(&root, "v0.7.0-rc.2").expect("render sequential RC iteration");
-        assert_eq!(transition.files.len(), 5);
+        assert_eq!(transition.files.len(), 7);
         for (relative, body) in &transition.files {
             fs::write(root.join(relative), body).expect("apply RC iteration fixture");
         }
@@ -8004,6 +8132,20 @@ mod tests {
             fs::read_to_string(root.join("Cargo.toml"))
                 .expect("read iterated RC workspace")
                 .contains("version = \"0.7.0-rc.2\"")
+        );
+        assert_eq!(
+            fs::read_to_string(root.join("fuzz/Cargo.toml"))
+                .expect("read iterated RC fuzz manifest")
+                .matches("version = \"=0.7.0-rc.2\"")
+                .count(),
+            2
+        );
+        assert_eq!(
+            fs::read_to_string(root.join("fuzz/Cargo.lock"))
+                .expect("read iterated RC fuzz lock")
+                .matches("version = \"0.7.0-rc.2\"")
+                .count(),
+            2
         );
         fs::remove_dir_all(root).expect("remove RC fixture");
     }

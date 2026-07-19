@@ -8,8 +8,8 @@ edition = "2024"
 cargo-fuzz = true
 
 [dependencies]
-canisend-contracts = { path = "../crates/canisend-contracts", version = "=0.7.0-alpha.1" }
-canisend-io = { path = "../crates/canisend-io", version = "=0.7.0-alpha.1" }
+canisend-contracts = { path = "../crates/canisend-contracts", version = "=0.7.0-rc.1" }
+canisend-io = { path = "../crates/canisend-io", version = "=0.7.0-rc.1" }
 libfuzzer-sys = "=0.4.13"
 serde_json = "=1.0.150"
 

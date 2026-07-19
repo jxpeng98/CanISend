@@ -50,8 +50,9 @@ git diff --check
 ```
 
 Write mode updates the workspace version, exact internal dependency versions, workspace package entries in
-`Cargo.lock`, qualification-ledger stage/status, and release-note heading as one prevalidated file set. The Stable
-transition also publishes the already-reviewed support-policy document and records explicit Stable authorization.
+`Cargo.lock`, the standalone fuzz workspace's exact dependencies and lockfile package entries,
+qualification-ledger stage/status, and release-note heading as one prevalidated file set. The Stable transition
+also publishes the already-reviewed support-policy document and records explicit Stable authorization.
 The tool refuses RC without a qualified signed Beta and active feature freeze, and refuses Stable authorization
 unless the qualification ledger already proves every other Stable evidence class. It never creates a tag, starts a
 workflow, publishes a release, or changes a package-manager repository.
