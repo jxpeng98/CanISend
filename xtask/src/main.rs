@@ -5110,6 +5110,7 @@ fn check_package_manager_qualification_policy() -> Result<(), String> {
         .map_err(|error| format!("Homebrew qualification script is missing: {error}"))?;
     for required in [
         "brew tap-new --no-git",
+        "mkdir -p \"$(dirname \"$tap_cask\")\"",
         "brew audit --strict --cask",
         "brew install --cask",
         "brew upgrade --cask",
@@ -5127,6 +5128,8 @@ fn check_package_manager_qualification_policy() -> Result<(), String> {
     let windows = fs::read_to_string(root.join("scripts/qualify_windows_packages.ps1"))
         .map_err(|error| format!("Windows package qualification script is missing: {error}"))?;
     for required in [
+        "([System.Uri]::new((Resolve-Path -LiteralPath $bucketRoot).Path)).AbsoluteUri",
+        "Invoke-Checked -Command scoop -Arguments @(\"bucket\", \"add\", $bucketName, $bucketUri)",
         "Invoke-Checked -Command scoop -Arguments @(\"update\", \"canisend\")",
         "Invoke-Checked -Command winget -Arguments @(\"validate\"",
         "Invoke-Checked -Command winget -Arguments @(\"install\"",

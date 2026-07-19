@@ -113,7 +113,8 @@ try {
         Invoke-Checked -Command git -Arguments @("-C", $bucketRoot, "config", "user.email", "qualification@canisend.invalid")
         Invoke-Checked -Command git -Arguments @("-C", $bucketRoot, "add", "bucket/canisend.json")
         Invoke-Checked -Command git -Arguments @("-C", $bucketRoot, "commit", "-m", "add beta candidate")
-        Invoke-Checked -Command scoop -Arguments @("bucket", "add", $bucketName, $bucketRoot)
+        $bucketUri = ([System.Uri]::new((Resolve-Path -LiteralPath $bucketRoot).Path)).AbsoluteUri
+        Invoke-Checked -Command scoop -Arguments @("bucket", "add", $bucketName, $bucketUri)
         Invoke-Checked -Command scoop -Arguments @("install", "$bucketName/canisend")
         $installed = $true
         $fromObserved = Read-CanISendVersion

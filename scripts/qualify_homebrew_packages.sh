@@ -86,6 +86,7 @@ brew tap-new --no-git "$tap"
 tap_created=true
 tap_root="$(brew --repo "$tap")"
 tap_cask="$tap_root/Casks/canisend.rb"
+mkdir -p "$(dirname "$tap_cask")"
 
 brew style "$from_cask"
 brew style "$to_cask"
