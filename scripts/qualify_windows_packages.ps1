@@ -36,7 +36,7 @@ function Invoke-Checked {
         [Parameter(Mandatory = $true)]
         [string]$Command,
 
-        [Parameter(ValueFromRemainingArguments = $true)]
+        [Parameter(Mandatory = $true)]
         [string[]]$Arguments
     )
     & $Command @Arguments
@@ -108,31 +108,31 @@ try {
         }
         New-Item -ItemType Directory -Force -Path (Join-Path $bucketRoot "bucket") | Out-Null
         Copy-Item -LiteralPath $fromManifest -Destination (Join-Path $bucketRoot "bucket/canisend.json")
-        Invoke-Checked git -C $bucketRoot init --initial-branch=main
-        Invoke-Checked git -C $bucketRoot config user.name "CanISend qualification"
-        Invoke-Checked git -C $bucketRoot config user.email "qualification@canisend.invalid"
-        Invoke-Checked git -C $bucketRoot add bucket/canisend.json
-        Invoke-Checked git -C $bucketRoot commit -m "add beta candidate"
-        Invoke-Checked scoop bucket add $bucketName $bucketRoot
-        Invoke-Checked scoop install "$bucketName/canisend"
+        Invoke-Checked -Command git -Arguments @("-C", $bucketRoot, "init", "--initial-branch=main")
+        Invoke-Checked -Command git -Arguments @("-C", $bucketRoot, "config", "user.name", "CanISend qualification")
+        Invoke-Checked -Command git -Arguments @("-C", $bucketRoot, "config", "user.email", "qualification@canisend.invalid")
+        Invoke-Checked -Command git -Arguments @("-C", $bucketRoot, "add", "bucket/canisend.json")
+        Invoke-Checked -Command git -Arguments @("-C", $bucketRoot, "commit", "-m", "add beta candidate")
+        Invoke-Checked -Command scoop -Arguments @("bucket", "add", $bucketName, $bucketRoot)
+        Invoke-Checked -Command scoop -Arguments @("install", "$bucketName/canisend")
         $installed = $true
         $fromObserved = Read-CanISendVersion
         if ($fromObserved -ne $fromVersion) { throw "Scoop installed $fromObserved instead of $fromVersion" }
         Assert-CanISendDoctor
-        Invoke-Checked canisend --workspace $workspace workspace init --json
-        Invoke-Checked canisend --workspace $workspace workspace check --json
+        Invoke-Checked -Command canisend -Arguments @("--workspace", $workspace, "workspace", "init", "--json")
+        Invoke-Checked -Command canisend -Arguments @("--workspace", $workspace, "workspace", "check", "--json")
 
         Copy-Item -LiteralPath $toManifest -Destination (Join-Path $bucketRoot "bucket/canisend.json") -Force
-        Invoke-Checked git -C $bucketRoot add bucket/canisend.json
-        Invoke-Checked git -C $bucketRoot commit -m "upgrade to rc candidate"
-        Invoke-Checked scoop update
-        Invoke-Checked scoop update canisend
+        Invoke-Checked -Command git -Arguments @("-C", $bucketRoot, "add", "bucket/canisend.json")
+        Invoke-Checked -Command git -Arguments @("-C", $bucketRoot, "commit", "-m", "upgrade to rc candidate")
+        Invoke-Checked -Command scoop -Arguments @("update")
+        Invoke-Checked -Command scoop -Arguments @("update", "canisend")
         $toObserved = Read-CanISendVersion
         if ($toObserved -ne $toVersion) { throw "Scoop upgraded to $toObserved instead of $toVersion" }
         Assert-CanISendDoctor
-        Invoke-Checked scoop uninstall canisend
+        Invoke-Checked -Command scoop -Arguments @("uninstall", "canisend")
         $installed = $false
-        Invoke-Checked scoop bucket rm $bucketName
+        Invoke-Checked -Command scoop -Arguments @("bucket", "rm", $bucketName)
         $toolVersion = (& scoop --version | Select-Object -First 1).Trim()
     }
     else {
@@ -142,26 +142,26 @@ try {
         $record = "winget-x86_64-pc-windows-msvc"
         $fromManifest = Join-Path $FromCandidate "winget/manifests/p/PengJiaxin/CanISend/$fromVersion"
         $toManifest = Join-Path $ToCandidate "winget/manifests/p/PengJiaxin/CanISend/$toVersion"
-        Invoke-Checked winget validate --manifest $fromManifest --disable-interactivity
-        Invoke-Checked winget validate --manifest $toManifest --disable-interactivity
-        Invoke-Checked winget settings --enable LocalManifestFiles
+        Invoke-Checked -Command winget -Arguments @("validate", "--manifest", $fromManifest, "--disable-interactivity")
+        Invoke-Checked -Command winget -Arguments @("validate", "--manifest", $toManifest, "--disable-interactivity")
+        Invoke-Checked -Command winget -Arguments @("settings", "--enable", "LocalManifestFiles")
         $wingetLocalEnabled = $true
-        Invoke-Checked winget install --manifest $fromManifest --accept-package-agreements --accept-source-agreements --disable-interactivity
+        Invoke-Checked -Command winget -Arguments @("install", "--manifest", $fromManifest, "--accept-package-agreements", "--accept-source-agreements", "--disable-interactivity")
         $installed = $true
         $env:PATH = "$env:LOCALAPPDATA\Microsoft\WinGet\Links;$env:PATH"
         $fromObserved = Read-CanISendVersion
         if ($fromObserved -ne $fromVersion) { throw "WinGet installed $fromObserved instead of $fromVersion" }
         Assert-CanISendDoctor
-        Invoke-Checked canisend --workspace $workspace workspace init --json
-        Invoke-Checked canisend --workspace $workspace workspace check --json
+        Invoke-Checked -Command canisend -Arguments @("--workspace", $workspace, "workspace", "init", "--json")
+        Invoke-Checked -Command canisend -Arguments @("--workspace", $workspace, "workspace", "check", "--json")
 
-        Invoke-Checked winget upgrade --manifest $toManifest --accept-package-agreements --accept-source-agreements --disable-interactivity
+        Invoke-Checked -Command winget -Arguments @("upgrade", "--manifest", $toManifest, "--accept-package-agreements", "--accept-source-agreements", "--disable-interactivity")
         $toObserved = Read-CanISendVersion
         if ($toObserved -ne $toVersion) { throw "WinGet upgraded to $toObserved instead of $toVersion" }
         Assert-CanISendDoctor
-        Invoke-Checked winget uninstall --id PengJiaxin.CanISend --exact --disable-interactivity
+        Invoke-Checked -Command winget -Arguments @("uninstall", "--id", "PengJiaxin.CanISend", "--exact", "--disable-interactivity")
         $installed = $false
-        Invoke-Checked winget settings --disable LocalManifestFiles
+        Invoke-Checked -Command winget -Arguments @("settings", "--disable", "LocalManifestFiles")
         $wingetLocalEnabled = $false
         $toolVersion = (& winget --version).Trim()
     }

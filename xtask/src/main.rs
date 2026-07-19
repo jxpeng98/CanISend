@@ -50,7 +50,7 @@ const RELEASE_NOTES_QUALIFICATION_PLAN_SCHEMA: &str =
 const CODE_SIGNING_EVIDENCE_SCHEMA: &str = "canisend.code-signing-evidence/v2";
 const FUZZ_TOOLCHAIN: &str = "nightly-2026-07-01";
 const CARGO_FUZZ_VERSION: &str = "0.13.2";
-const WINGET_MANIFEST_VERSION: &str = "1.12.0";
+const WINGET_MANIFEST_VERSION: &str = "1.10.0";
 const BETA_READINESS_MAX_AGE_HOURS: i64 = 24;
 const NATIVE_ALPHA_TAG: &str = "v0.7.0-alpha.1";
 const NATIVE_ALPHA_SOURCE: &str = "4cec4ec48cc2e96f3798dde0b438d3aaa617a2f8";
@@ -5109,10 +5109,12 @@ fn check_package_manager_qualification_policy() -> Result<(), String> {
     let homebrew = fs::read_to_string(root.join("scripts/qualify_homebrew_packages.sh"))
         .map_err(|error| format!("Homebrew qualification script is missing: {error}"))?;
     for required in [
+        "brew tap-new --no-git",
         "brew audit --strict --cask",
         "brew install --cask",
         "brew upgrade --cask",
         "brew uninstall --cask",
+        "brew untap",
         "workspace-retained",
         "no-publication",
     ] {
@@ -5125,13 +5127,13 @@ fn check_package_manager_qualification_policy() -> Result<(), String> {
     let windows = fs::read_to_string(root.join("scripts/qualify_windows_packages.ps1"))
         .map_err(|error| format!("Windows package qualification script is missing: {error}"))?;
     for required in [
-        "scoop update canisend",
-        "winget validate --manifest",
-        "winget install --manifest",
-        "winget upgrade --manifest",
-        "winget uninstall --id PengJiaxin.CanISend",
-        "winget settings --enable LocalManifestFiles",
-        "winget settings --disable LocalManifestFiles",
+        "Invoke-Checked -Command scoop -Arguments @(\"update\", \"canisend\")",
+        "Invoke-Checked -Command winget -Arguments @(\"validate\"",
+        "Invoke-Checked -Command winget -Arguments @(\"install\"",
+        "Invoke-Checked -Command winget -Arguments @(\"upgrade\"",
+        "Invoke-Checked -Command winget -Arguments @(\"uninstall\"",
+        "@(\"settings\", \"--enable\", \"LocalManifestFiles\")",
+        "@(\"settings\", \"--disable\", \"LocalManifestFiles\")",
         "workspace-retained",
         "no-publication",
     ] {

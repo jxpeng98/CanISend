@@ -63,9 +63,14 @@ fi
 
 workspace="$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/canisend-homebrew-workspace.XXXXXX")"
 installed=false
+tap="canisend/qualification"
+tap_created=false
 cleanup() {
   if [[ "$installed" == true ]] || brew list --cask canisend >/dev/null 2>&1; then
     brew uninstall --cask canisend >/dev/null 2>&1 || true
+  fi
+  if [[ "$tap_created" == true ]]; then
+    brew untap "$tap" >/dev/null 2>&1 || true
   fi
   rm -rf "$workspace"
 }
@@ -73,12 +78,21 @@ trap cleanup EXIT
 
 export HOMEBREW_NO_AUTO_UPDATE=1
 export HOMEBREW_NO_INSTALL_FROM_API=1
+if brew tap | grep -Fqx "$tap"; then
+  echo "Temporary qualification tap already exists: $tap" >&2
+  exit 1
+fi
+brew tap-new --no-git "$tap"
+tap_created=true
+tap_root="$(brew --repo "$tap")"
+tap_cask="$tap_root/Casks/canisend.rb"
+
 brew style "$from_cask"
 brew style "$to_cask"
-brew audit --strict --cask "$from_cask"
-brew audit --strict --cask "$to_cask"
+cp "$from_cask" "$tap_cask"
+brew audit --strict --cask "$tap/canisend"
 
-brew install --cask "$from_cask"
+brew install --cask "$tap/canisend"
 installed=true
 hash -r
 from_observed="$(canisend version --json | jq -er '.data.version')"
@@ -94,7 +108,9 @@ canisend --workspace "$workspace" workspace check --json | jq -e '.ok == true' >
 test -f "$workspace/canisend.toml"
 test -d "$workspace/.canisend"
 
-brew upgrade --cask "$to_cask"
+cp "$to_cask" "$tap_cask"
+brew audit --strict --cask "$tap/canisend"
+brew upgrade --cask "$tap/canisend"
 hash -r
 to_observed="$(canisend version --json | jq -er '.data.version')"
 test "$to_observed" = "$to_version"
