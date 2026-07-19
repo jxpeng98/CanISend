@@ -23,6 +23,15 @@
         "xtask/src/main.rs"
       ],
       "reason": "Keep the release-policy test independent of the live planned/frozen state after RC transition so the mandatory Rust suite can qualify clean tags."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "d305afee107ef467aa556da7a6773c8045480648",
+      "paths": [
+        ".github/workflows/ci.yml",
+        ".github/workflows/release.yml"
+      ],
+      "reason": "Fetch complete history in the ordinary and tagged source-gate jobs so RC qualification can verify the frozen baseline and exact post-baseline exceptions."
     }
   ],
   "schema": "canisend.feature-freeze-exceptions/v1",
