@@ -32,6 +32,9 @@ jobs:
       - name: Install pinned Rust toolchain
         uses: dtolnay/rust-toolchain@1.97.0
 
+      - name: Check Unix lifecycle executable
+        run: test -x scripts/qualify_archive_upgrade.sh
+
       - name: Check upgrade qualification contracts
         run: cargo run -p xtask --locked -- release check
 
