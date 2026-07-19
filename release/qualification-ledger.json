@@ -42,6 +42,12 @@
       "source_commit": "40bc4efba294e9ba0534ab7ab4a89925ae0e53bf",
       "status": "success",
       "tag": "v0.7.0-rc.1"
+    },
+    {
+      "signed_matrix_run": 29685921623,
+      "source_commit": "201a887732a44fe300ae3d4fc7f4bfb44ffe03c4",
+      "status": "success",
+      "tag": "v0.7.0-rc.2"
     }
   ],
   "release_notes": {

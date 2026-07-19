@@ -362,6 +362,12 @@ GUI roadmap is approved but implementation is gated behind R11.4 Stable
   `520caee847215d864094aba7378d842f1b5a3990`. Run `29684660492` passed the full five-minute
   `structured_inputs`, `intake_parsers`, and `pdf_extract` targets without producing a failure reproducer. This
   closes the extended fuzz evidence item while preserving the separate fast ordinary CI loop.
+- 2026-07-19: Published and independently verified `v0.7.0-rc.2` from exact source
+  `201a887732a44fe300ae3d4fc7f4bfb44ffe03c4`. Native release run `29685921623` passed the complete source gate,
+  five-target signed matrix, public asset verification, and GitHub OIDC provenance checks; the ledger now records
+  two distinct clean-tag RC runs. Package-manager prequalification run `29686711120` also passed both Homebrew
+  architectures, Scoop, and WinGet manifest validation and produced the run-bound fresh-Sandbox kit. Stable remains
+  blocked on the fresh Windows Sandbox WinGet lifecycle record and the final RC release-notes maintainer review.
 - 2026-07-19: Approved the [native desktop GUI roadmap](2026-07-19-native-desktop-gui-roadmap.md) as the first
   committed `0.8` product extension. The GUI will be a second native adapter over a shared typed application facade,
   not a shell wrapper or parallel workspace implementation. Design and an isolated toolkit spike may proceed during
@@ -2126,8 +2132,8 @@ The [qualification ledger](../../release/qualification-ledger.md), machine autho
 [implementation note](../../notes/rust-native/2026-07-18-r11-qualification-ledger.md) prevent a Stable version from
 passing source gates without a frozen baseline, signed Beta, two distinct clean-tag RC runs, upgrade/restore,
 five-target uninstall, Homebrew/Scoop/WinGet, and final release-note evidence. Its current status is intentionally
-`beta-qualifying`, with public Beta `v0.7.0-beta.1` recorded as qualified and every RC/Stable authorization still
-fail-closed.
+`rc-qualifying`, with public Beta `v0.7.0-beta.1` and two distinct RC matrices recorded while Stable authorization
+remains fail-closed pending package-manager and final release-notes evidence.
 
 **R11.2 exit:** Satisfied by ordinary CI `29649032447`, nonpublishing release run `29649035321`, public tag run
 `29650151493`, and the non-draft
@@ -2140,7 +2146,7 @@ clean-tag RC matrices.
 #### R11.3 Release candidate
 
 - [x] Freeze features.
-- [ ] Run the complete release matrix twice from clean tags.
+- [x] Run the complete release matrix twice from clean tags.
 - [x] Verify upgrade between Rust beta/RC workspace migrations.
 - [x] Verify documentation and uninstall instructions.
 - [ ] Produce release notes and rollback guidance.
