@@ -98,6 +98,15 @@
         "xtask/src/main.rs"
       ],
       "reason": "Complete the nonpublishing package qualification repair by creating the temporary Homebrew cask directory and presenting the local Scoop bucket as a Git-compatible file URI."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "2da851ed0bd1fb61898b2820239e5ec2b35f7e3c",
+      "paths": [
+        "scripts/qualify_windows_packages.ps1",
+        "xtask/src/main.rs"
+      ],
+      "reason": "Preserve a successful Scoop lifecycle result by tracking the temporary bucket state and preventing cleanup from repeating its completed removal."
     }
   ],
   "schema": "canisend.feature-freeze-exceptions/v1",
