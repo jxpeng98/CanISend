@@ -3419,16 +3419,8 @@ fn check_feature_freeze_exceptions(feature_freeze: &Value) -> Result<(), String>
         )
     })?)
     .map_err(|error| format!("feature-freeze exception record is invalid JSON: {error}"))?;
-    if record["schema"] != FEATURE_FREEZE_EXCEPTIONS_SCHEMA {
-        return Err("feature-freeze exception schema is invalid".to_owned());
-    }
+    validate_feature_freeze_exception_record(feature_freeze, &record)?;
     let status = required_string(feature_freeze, "status", "feature freeze")?;
-    if record["status"] != status || record["baseline_commit"] != feature_freeze["baseline_commit"]
-    {
-        return Err(
-            "feature-freeze exception record differs from the qualification ledger".to_owned(),
-        );
-    }
     let exceptions = record["exceptions"]
         .as_array()
         .ok_or_else(|| "feature-freeze exceptions must be an array".to_owned())?;
@@ -3448,26 +3440,54 @@ fn check_feature_freeze_exceptions(feature_freeze: &Value) -> Result<(), String>
         }
     }
     if status == "planned" {
+        println!("feature freeze: ok (planned, no preauthorized exceptions)");
+        return Ok(());
+    }
+
+    let baseline = required_string(feature_freeze, "baseline_commit", "feature freeze")?;
+    validate_feature_freeze_history(&root, baseline, exceptions)?;
+    println!(
+        "feature freeze: ok (frozen at {baseline}, {} exceptions)",
+        exceptions.len()
+    );
+    Ok(())
+}
+
+fn validate_feature_freeze_exception_record(
+    feature_freeze: &Value,
+    record: &Value,
+) -> Result<(), String> {
+    if record["schema"] != FEATURE_FREEZE_EXCEPTIONS_SCHEMA {
+        return Err("feature-freeze exception schema is invalid".to_owned());
+    }
+    let status = required_string(feature_freeze, "status", "feature freeze")?;
+    if record["status"] != status || record["baseline_commit"] != feature_freeze["baseline_commit"]
+    {
+        return Err(
+            "feature-freeze exception record differs from the qualification ledger".to_owned(),
+        );
+    }
+    record["exceptions"]
+        .as_array()
+        .ok_or_else(|| "feature-freeze exceptions must be an array".to_owned())?;
+    if status == "planned" {
         let expected = json!({
             "schema": FEATURE_FREEZE_EXCEPTIONS_SCHEMA,
             "status": "planned",
             "baseline_commit": null,
             "exceptions": []
         });
-        if record != expected {
+        if record != &expected {
             return Err("planned feature freeze cannot pre-authorize exceptions".to_owned());
         }
-        println!("feature freeze: ok (planned, no preauthorized exceptions)");
         return Ok(());
     }
 
     let baseline = required_string(feature_freeze, "baseline_commit", "feature freeze")?;
     validate_lower_hex("feature-freeze baseline commit", baseline, 40)?;
-    validate_feature_freeze_history(&root, baseline, exceptions)?;
-    println!(
-        "feature freeze: ok (frozen at {baseline}, {} exceptions)",
-        exceptions.len()
-    );
+    if status != "frozen" {
+        return Err("feature-freeze status must be `planned` or `frozen`".to_owned());
+    }
     Ok(())
 }
 
@@ -8196,7 +8216,34 @@ mod tests {
     #[test]
     fn planned_feature_freeze_cannot_preapprove_source_changes() {
         let freeze = json!({"status": "planned", "baseline_commit": null});
-        check_feature_freeze_exceptions(&freeze).expect("planned feature freeze");
+        let planned = json!({
+            "schema": FEATURE_FREEZE_EXCEPTIONS_SCHEMA,
+            "status": "planned",
+            "baseline_commit": null,
+            "exceptions": []
+        });
+        validate_feature_freeze_exception_record(&freeze, &planned)
+            .expect("canonical planned feature freeze");
+
+        let mut preauthorized = planned;
+        preauthorized["exceptions"] = json!([{
+            "commit": "0000000000000000000000000000000000000000",
+            "class": "release-blocker",
+            "reason": "Future changes cannot be authorized before the freeze.",
+            "paths": ["crates/canisend-store/src/lib.rs"]
+        }]);
+        assert!(validate_feature_freeze_exception_record(&freeze, &preauthorized).is_err());
+
+        let baseline = "0123456789abcdef0123456789abcdef01234567";
+        let frozen = json!({"status": "frozen", "baseline_commit": baseline});
+        let frozen_record = json!({
+            "schema": FEATURE_FREEZE_EXCEPTIONS_SCHEMA,
+            "status": "frozen",
+            "baseline_commit": baseline,
+            "exceptions": []
+        });
+        validate_feature_freeze_exception_record(&frozen, &frozen_record)
+            .expect("canonical frozen feature-freeze record");
         assert!(is_automatic_feature_freeze_path(
             "docs/release/feature-freeze.md"
         ));
