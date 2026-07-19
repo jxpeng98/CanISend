@@ -1,4 +1,4 @@
-# CanISend 0.7.0-rc.1
+# CanISend 0.7.0-rc.2
 
 ## Highlights
 
