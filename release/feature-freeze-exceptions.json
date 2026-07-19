@@ -32,6 +32,15 @@
         ".github/workflows/release.yml"
       ],
       "reason": "Fetch complete history in the ordinary and tagged source-gate jobs so RC qualification can verify the frozen baseline and exact post-baseline exceptions."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "f7e18bbe84f34d2d350ea28c2013ecc68c38b97c",
+      "paths": [
+        ".github/workflows/package-manager-qualification.yml",
+        ".github/workflows/upgrade-qualification.yml"
+      ],
+      "reason": "Fetch complete history in upgrade and package-manager preflight jobs so their release checks can verify the frozen baseline before consuming public RC assets."
     }
   ],
   "schema": "canisend.feature-freeze-exceptions/v1",
