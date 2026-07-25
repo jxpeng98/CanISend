@@ -6,7 +6,7 @@ mod theme;
 
 use std::{
     path::PathBuf,
-    sync::mpsc::{self, Receiver},
+    sync::mpsc::{self, Receiver, TryRecvError},
     thread,
 };
 
@@ -20,7 +20,7 @@ use canisend_app::{CliInstallState, CliInstallStatus, CliVersionRelation};
 use canisend_contracts::{JobRecord, StageExecutionStatus, WorkflowStage, WorkflowStatusData};
 use cli_bridge::{bundled_cli_path, default_cli_destination};
 use eframe::egui::{self, Align, Color32, Layout, RichText, Sense, Stroke};
-use registry::{WorkspaceRegistry, default_registry_path};
+use registry::{WorkspaceRegistry, default_registry_path, validate_workspace_alias};
 
 const APP_ID: &str = "io.github.jxpeng98.canisend";
 
@@ -43,13 +43,19 @@ fn main() -> eframe::Result {
     )
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum Page {
     Overview,
     Jobs,
     Workspaces,
     CommandLine,
     Diagnostics,
+}
+
+#[derive(Debug, Clone)]
+enum PendingConfirmation {
+    ArchiveJob { title: String },
+    UninstallCli { restores_previous: bool },
 }
 
 impl Page {
@@ -164,6 +170,7 @@ struct CanISendDesktop {
     receiver: Option<Receiver<WorkerEvent>>,
     notice: Option<(bool, String)>,
     registry_error: Option<String>,
+    pending_confirmation: Option<PendingConfirmation>,
 }
 
 impl CanISendDesktop {
@@ -206,6 +213,7 @@ impl CanISendDesktop {
             receiver: None,
             notice: None,
             registry_error,
+            pending_confirmation: None,
         };
         if let Some(path) = application.active_workspace.clone() {
             application.load_workspace(path, creation.egui_ctx.clone());
@@ -240,16 +248,26 @@ impl CanISendDesktop {
     }
 
     fn poll_worker(&mut self, ctx: &egui::Context) {
-        let event = self
-            .receiver
-            .as_ref()
-            .and_then(|receiver| receiver.try_recv().ok());
-        if let Some(event) = event {
-            self.receiver = None;
-            self.activity = None;
-            self.apply_worker_event(event, ctx);
-        } else if self.activity.is_some() {
-            ctx.request_repaint_after(std::time::Duration::from_millis(150));
+        let result = self.receiver.as_ref().map(Receiver::try_recv);
+        match result {
+            Some(Ok(event)) => {
+                self.receiver = None;
+                self.activity = None;
+                self.apply_worker_event(event, ctx);
+            }
+            Some(Err(TryRecvError::Disconnected)) => {
+                self.receiver = None;
+                self.activity = None;
+                self.fail(
+                    "The background operation ended unexpectedly. No completion was recorded; \
+                     review the current workspace state and try again."
+                        .to_owned(),
+                );
+            }
+            Some(Err(TryRecvError::Empty)) => {
+                ctx.request_repaint_after(std::time::Duration::from_millis(150));
+            }
+            None => {}
         }
     }
 
@@ -295,7 +313,6 @@ impl CanISendDesktop {
             WorkerEvent::JobsLoaded(result) => match result {
                 Ok(receipt) => {
                     self.jobs = receipt.data.jobs;
-                    self.notice = None;
                 }
                 Err(error) => self.fail(error),
             },
@@ -386,8 +403,9 @@ impl CanISendDesktop {
     }
 
     fn save_registry(&mut self) {
-        if let Err(error) = self.registry.save(&self.registry_path) {
-            self.registry_error = Some(error);
+        match self.registry.save(&self.registry_path) {
+            Ok(()) => self.registry_error = None,
+            Err(error) => self.registry_error = Some(error),
         }
     }
 
@@ -464,34 +482,40 @@ impl CanISendDesktop {
                         })
                         .map_or("Choose a workspace", |entry| entry.alias.as_str());
                     let mut chosen = None;
-                    egui::ComboBox::from_id_salt("workspace_switcher")
-                        .selected_text(selected)
-                        .width(260.0)
-                        .show_ui(ui, |ui| {
-                            for entry in &self.registry.entries {
-                                if ui
-                                    .selectable_label(
-                                        self.active_workspace.as_ref() == Some(&entry.path),
-                                        &entry.alias,
-                                    )
-                                    .on_hover_text(entry.path.display().to_string())
-                                    .clicked()
-                                {
-                                    chosen = Some(entry.path.clone());
+                    ui.add_enabled_ui(self.activity.is_none(), |ui| {
+                        egui::ComboBox::from_id_salt("workspace_switcher")
+                            .selected_text(selected)
+                            .width(260.0)
+                            .show_ui(ui, |ui| {
+                                for entry in &self.registry.entries {
+                                    if ui
+                                        .selectable_label(
+                                            self.active_workspace.as_ref() == Some(&entry.path),
+                                            &entry.alias,
+                                        )
+                                        .on_hover_text(entry.path.display().to_string())
+                                        .clicked()
+                                    {
+                                        chosen = Some(entry.path.clone());
+                                    }
                                 }
-                            }
-                        });
+                            });
+                    });
                     if let Some(path) = chosen {
                         self.load_workspace(path, ui.ctx().clone());
                     }
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        let health = self.health.as_ref().map_or("Not checked", |health| {
-                            if health.check.ok {
-                                "Healthy"
-                            } else {
-                                "Needs attention"
-                            }
-                        });
+                        let health = if self.active_workspace.is_none() {
+                            "No workspace"
+                        } else {
+                            self.health.as_ref().map_or("Not checked", |health| {
+                                if health.check.ok {
+                                    "Healthy"
+                                } else {
+                                    "Needs attention"
+                                }
+                            })
+                        };
                         ui.label(RichText::new(health).color(if self.dark_mode {
                             theme::TEAL_100
                         } else {
@@ -522,7 +546,12 @@ impl CanISendDesktop {
                 let mut refresh_cli = false;
                 for (page, label) in Page::ALL {
                     let selected = self.page == page;
-                    let button = egui::Button::new(RichText::new(label).size(15.0))
+                    let text = RichText::new(label).size(15.0).color(if selected {
+                        Color32::WHITE
+                    } else {
+                        theme::neutral(self.dark_mode)
+                    });
+                    let button = egui::Button::new(text)
                         .fill(if selected {
                             theme::TEAL_700
                         } else {
@@ -627,7 +656,7 @@ impl CanISendDesktop {
             ui.add_space(10.0);
         }
         if let Some(error) = &self.registry_error {
-            ui.colored_label(theme::RED_600, error);
+            ui.colored_label(theme::error(self.dark_mode), error);
         }
     }
 
@@ -716,14 +745,18 @@ impl CanISendDesktop {
             return;
         }
         ui.horizontal(|ui| {
-            ui.label("Search");
+            let search_label = ui.label("Search");
             ui.add(
                 egui::TextEdit::singleline(&mut self.job_filter)
                     .hint_text("Title or institution")
                     .desired_width(280.0),
-            );
+            )
+            .labelled_by(search_label.id);
             if ui
-                .checkbox(&mut self.include_archived, "Include archived")
+                .add_enabled(
+                    self.activity.is_none(),
+                    egui::Checkbox::new(&mut self.include_archived, "Include archived"),
+                )
                 .changed()
             {
                 self.refresh_jobs(ui.ctx().clone());
@@ -754,11 +787,9 @@ impl CanISendDesktop {
             ui.add_space(28.0);
             ui.label("No jobs match the current filter.");
         }
-        egui::ScrollArea::vertical().show(ui, |ui| {
-            for job in visible {
-                self.job_row(ui, &job);
-            }
-        });
+        for job in visible {
+            self.job_row(ui, &job);
+        }
     }
 
     fn job_row(&mut self, ui: &mut egui::Ui, job: &JobRecord) {
@@ -780,14 +811,25 @@ impl CanISendDesktop {
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         ui.label(format!("Revision {}", job.revision.get()));
                         if job.archived {
-                            ui.colored_label(theme::SLATE_700, "Archived");
+                            ui.colored_label(theme::neutral(self.dark_mode), "Archived");
                         }
                     });
                 });
             })
             .response
-            .interact(Sense::click())
+            .interact(if self.activity.is_none() {
+                Sense::click()
+            } else {
+                Sense::hover()
+            })
             .on_hover_text("Open job");
+        response.widget_info(|| {
+            egui::WidgetInfo::labeled(
+                egui::WidgetType::Button,
+                self.activity.is_none(),
+                format!("Open {} at {}", job.title, job.institution),
+            )
+        });
         if response.clicked() {
             self.selected_job_id = Some(job.id.to_string());
             self.load_job(job.id.to_string(), ui.ctx().clone());
@@ -800,7 +842,10 @@ impl CanISendDesktop {
             return;
         };
         ui.horizontal(|ui| {
-            if ui.button("Back to jobs").clicked() {
+            if ui
+                .add_enabled(self.activity.is_none(), egui::Button::new("Back to jobs"))
+                .clicked()
+            {
                 self.selected_job = None;
                 self.selected_job_id = None;
                 return;
@@ -838,7 +883,9 @@ impl CanISendDesktop {
                 )
                 .clicked()
             {
-                self.archive_selected_job(ui.ctx().clone());
+                self.pending_confirmation = Some(PendingConfirmation::ArchiveJob {
+                    title: detail.job.title.clone(),
+                });
             }
         });
         ui.add_space(18.0);
@@ -852,7 +899,7 @@ impl CanISendDesktop {
                 columns[0].label(
                     RichText::new(format!("{:?}", source.kind))
                         .strong()
-                        .color(theme::TEAL_600),
+                        .color(theme::positive(self.dark_mode)),
                 );
                 columns[0].label(&source.content_type);
                 if let Some(url) = &source.final_url {
@@ -945,7 +992,10 @@ impl CanISendDesktop {
                         });
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                             if ui
-                                .add(theme::destructive_button("Remove from list"))
+                                .add_enabled(
+                                    self.activity.is_none(),
+                                    theme::destructive_button("Remove from list"),
+                                )
                                 .on_hover_text("This does not delete workspace data")
                                 .clicked()
                             {
@@ -966,11 +1016,14 @@ impl CanISendDesktop {
                                     self.load_workspace(next, ui.ctx().clone());
                                 }
                             }
-                            if ui.button("Open").clicked() {
+                            if ui
+                                .add_enabled(self.activity.is_none(), egui::Button::new("Open"))
+                                .clicked()
+                            {
                                 self.load_workspace(entry.path.clone(), ui.ctx().clone());
                             }
                             if self.active_workspace.as_ref() == Some(&entry.path) {
-                                ui.colored_label(theme::TEAL_600, "Active");
+                                ui.colored_label(theme::positive(self.dark_mode), "Active");
                             }
                         });
                     });
@@ -986,7 +1039,10 @@ impl CanISendDesktop {
                 "The workspace needs attention before further mutation."
             });
             for issue in &health.check.issues {
-                ui.colored_label(theme::RED_600, format!("{}: {}", issue.code, issue.message));
+                ui.colored_label(
+                    theme::error(self.dark_mode),
+                    format!("{}: {}", issue.code, issue.message),
+                );
             }
         }
     }
@@ -1048,9 +1104,7 @@ impl CanISendDesktop {
     }
 
     fn show_command_line(&mut self, ui: &mut egui::Ui) {
-        egui::ScrollArea::vertical()
-            .id_salt("command_line_page")
-            .show(ui, |ui| self.show_command_line_content(ui));
+        self.show_command_line_content(ui);
     }
 
     fn show_command_line_content(&mut self, ui: &mut egui::Ui) {
@@ -1081,7 +1135,7 @@ impl CanISendDesktop {
             return;
         };
 
-        let (state_label, state_color) = cli_state_style(&status);
+        let (state_label, state_color) = cli_state_style(&status, self.dark_mode);
         egui::Frame::new()
             .fill(if self.dark_mode {
                 Color32::from_rgb(38, 48, 52)
@@ -1164,7 +1218,7 @@ impl CanISendDesktop {
         if !status.path_configured {
             ui.add_space(8.0);
             ui.colored_label(
-                theme::AMBER_600,
+                theme::warning(self.dark_mode),
                 "The destination directory is not visible in this app's PATH. Add it to your \
                  shell profile, then open a new terminal.",
             );
@@ -1179,13 +1233,13 @@ impl CanISendDesktop {
             }
             CliInstallState::Current if status.active_is_managed => {
                 ui.colored_label(
-                    theme::TEAL_600,
+                    theme::positive(self.dark_mode),
                     "The GUI-managed native CLI is the command currently resolved by PATH.",
                 );
             }
             CliInstallState::Current => {
                 ui.colored_label(
-                    theme::AMBER_600,
+                    theme::warning(self.dark_mode),
                     "The native CLI is installed, but the terminal currently resolves another \
                      CanISend installation first.",
                 );
@@ -1216,11 +1270,11 @@ impl CanISendDesktop {
                         "A newer CanISend version is installed.".to_owned()
                     }
                 };
-                ui.colored_label(theme::AMBER_600, guidance);
+                ui.colored_label(theme::warning(self.dark_mode), guidance);
             }
             CliInstallState::NewerInstalled => {
                 ui.colored_label(
-                    theme::TEAL_600,
+                    theme::positive(self.dark_mode),
                     format!(
                         "CanISend {} is newer than the bundled {} release. This GUI will not \
                          downgrade it.",
@@ -1231,14 +1285,14 @@ impl CanISendDesktop {
             }
             CliInstallState::Modified => {
                 ui.colored_label(
-                    theme::RED_600,
+                    theme::error(self.dark_mode),
                     "The managed binary or installation record changed outside the GUI. Move or \
                      repair it manually before continuing; CanISend will not overwrite it.",
                 );
             }
             CliInstallState::SourceUnavailable => {
                 ui.colored_label(
-                    theme::RED_600,
+                    theme::error(self.dark_mode),
                     "This GUI build does not include a sibling or app-bundled canisend binary. \
                      Build/package both executables before installing.",
                 );
@@ -1303,7 +1357,9 @@ impl CanISendDesktop {
                 .on_disabled_hover_text("Only an unchanged GUI-managed CLI can be uninstalled")
                 .clicked()
             {
-                self.uninstall_cli(ui.ctx().clone());
+                self.pending_confirmation = Some(PendingConfirmation::UninstallCli {
+                    restores_previous: status.previous_installation_preserved,
+                });
             }
             if ui
                 .add_enabled(self.activity.is_none(), egui::Button::new("Refresh"))
@@ -1357,7 +1413,7 @@ impl CanISendDesktop {
                     ui.add_space(10.0);
                     if update.update_available {
                         ui.colored_label(
-                            theme::AMBER_600,
+                            theme::warning(self.dark_mode),
                             RichText::new(format!(
                                 "{} is available on the {} channel.",
                                 update.latest_version, update.channel
@@ -1370,7 +1426,7 @@ impl CanISendDesktop {
                         );
                     } else {
                         ui.colored_label(
-                            theme::TEAL_600,
+                            theme::positive(self.dark_mode),
                             RichText::new(format!(
                                 "Up to date — latest compatible release is {}.",
                                 update.latest_version
@@ -1539,20 +1595,34 @@ impl CanISendDesktop {
             .resizable(false)
             .default_width(440.0)
             .show(ui.ctx(), |ui| {
-                ui.label("Title");
-                ui.add(
-                    egui::TextEdit::singleline(&mut self.job_form.title)
-                        .hint_text("Lecturer in Economics")
-                        .desired_width(f32::INFINITY),
-                );
-                ui.label("Institution");
-                ui.add(
-                    egui::TextEdit::singleline(&mut self.job_form.institution)
-                        .hint_text("University X")
-                        .desired_width(f32::INFINITY),
-                );
+                let title_label = ui.label("Title");
+                if ui
+                    .add_enabled(
+                        self.activity.is_none(),
+                        egui::TextEdit::singleline(&mut self.job_form.title)
+                            .hint_text("Lecturer in Economics")
+                            .desired_width(f32::INFINITY),
+                    )
+                    .labelled_by(title_label.id)
+                    .changed()
+                {
+                    self.job_form.error = None;
+                }
+                let institution_label = ui.label("Institution");
+                if ui
+                    .add_enabled(
+                        self.activity.is_none(),
+                        egui::TextEdit::singleline(&mut self.job_form.institution)
+                            .hint_text("University X")
+                            .desired_width(f32::INFINITY),
+                    )
+                    .labelled_by(institution_label.id)
+                    .changed()
+                {
+                    self.job_form.error = None;
+                }
                 if let Some(error) = &self.job_form.error {
-                    ui.colored_label(theme::RED_600, error);
+                    ui.colored_label(theme::error(self.dark_mode), error);
                 }
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {
@@ -1576,12 +1646,15 @@ impl CanISendDesktop {
                             Err(error) => self.job_form.error = Some(error),
                         }
                     }
-                    if ui.button("Cancel").clicked() {
+                    if ui
+                        .add_enabled(self.activity.is_none(), egui::Button::new("Cancel"))
+                        .clicked()
+                    {
                         self.show_job_form = false;
                     }
                 });
             });
-        self.show_job_form = open && self.show_job_form;
+        self.show_job_form = self.activity.is_some() || (open && self.show_job_form);
     }
 
     fn show_import_dialog(&mut self, ui: &mut egui::Ui) {
@@ -1595,9 +1668,20 @@ impl CanISendDesktop {
             .resizable(false)
             .default_width(520.0)
             .show(ui.ctx(), |ui| {
-                ui.horizontal(|ui| {
-                    ui.selectable_value(&mut self.import_form.kind, ImportKind::File, "Local file");
-                    ui.selectable_value(&mut self.import_form.kind, ImportKind::Url, "Public URL");
+                ui.add_enabled_ui(self.activity.is_none(), |ui| {
+                    let file_changed = ui
+                        .selectable_value(
+                            &mut self.import_form.kind,
+                            ImportKind::File,
+                            "Local file",
+                        )
+                        .changed();
+                    let url_changed = ui
+                        .selectable_value(&mut self.import_form.kind, ImportKind::Url, "Public URL")
+                        .changed();
+                    if file_changed || url_changed {
+                        self.import_form.error = None;
+                    }
                 });
                 ui.separator();
                 match self.import_form.kind {
@@ -1612,32 +1696,63 @@ impl CanISendDesktop {
                                     path.display().to_string()
                                 });
                             ui.label(path);
-                            if ui.button("Choose file").clicked() {
+                            if ui
+                                .add_enabled(
+                                    self.activity.is_none(),
+                                    egui::Button::new("Choose file"),
+                                )
+                                .clicked()
+                            {
                                 self.import_form.file = rfd::FileDialog::new()
                                     .add_filter("Job sources", &["md", "txt", "json", "pdf"])
                                     .pick_file();
+                                self.import_form.error = None;
                             }
                         });
-                        ui.checkbox(
-                            &mut self.import_form.private_read_consent,
-                            "Allow CanISend to read and store this private local source",
-                        );
+                        if ui
+                            .add_enabled(
+                                self.activity.is_none(),
+                                egui::Checkbox::new(
+                                    &mut self.import_form.private_read_consent,
+                                    "Allow CanISend to read and store this private local source",
+                                ),
+                            )
+                            .changed()
+                        {
+                            self.import_form.error = None;
+                        }
                     }
                     ImportKind::Url => {
                         ui.label("CanISend will fetch this user-supplied public HTTP(S) URL.");
-                        ui.add(
-                            egui::TextEdit::singleline(&mut self.import_form.url)
-                                .hint_text("https://jobs.example.edu/vacancy/123")
-                                .desired_width(f32::INFINITY),
-                        );
-                        ui.checkbox(
-                            &mut self.import_form.network_consent,
-                            "Allow this user-invoked network fetch",
-                        );
+                        let url_label = ui.label("Job source URL");
+                        if ui
+                            .add_enabled(
+                                self.activity.is_none(),
+                                egui::TextEdit::singleline(&mut self.import_form.url)
+                                    .hint_text("https://jobs.example.edu/vacancy/123")
+                                    .desired_width(f32::INFINITY),
+                            )
+                            .labelled_by(url_label.id)
+                            .changed()
+                        {
+                            self.import_form.error = None;
+                        }
+                        if ui
+                            .add_enabled(
+                                self.activity.is_none(),
+                                egui::Checkbox::new(
+                                    &mut self.import_form.network_consent,
+                                    "Allow this user-invoked network fetch",
+                                ),
+                            )
+                            .changed()
+                        {
+                            self.import_form.error = None;
+                        }
                     }
                 }
                 if let Some(error) = &self.import_form.error {
-                    ui.colored_label(theme::RED_600, error);
+                    ui.colored_label(theme::error(self.dark_mode), error);
                 }
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {
@@ -1647,12 +1762,15 @@ impl CanISendDesktop {
                     {
                         self.import_selected_source(ui.ctx().clone());
                     }
-                    if ui.button("Cancel").clicked() {
+                    if ui
+                        .add_enabled(self.activity.is_none(), egui::Button::new("Cancel"))
+                        .clicked()
+                    {
                         self.show_import_form = false;
                     }
                 });
             });
-        self.show_import_form = open && self.show_import_form;
+        self.show_import_form = self.activity.is_some() || (open && self.show_import_form);
     }
 
     fn import_selected_source(&mut self, ctx: egui::Context) {
@@ -1727,12 +1845,19 @@ impl CanISendDesktop {
             .resizable(false)
             .default_width(520.0)
             .show(ui.ctx(), |ui| {
-                ui.label("Workspace name");
-                ui.add(
-                    egui::TextEdit::singleline(&mut self.workspace_form.alias)
-                        .hint_text("Academic applications")
-                        .desired_width(f32::INFINITY),
-                );
+                let alias_label = ui.label("Workspace name");
+                if ui
+                    .add_enabled(
+                        self.activity.is_none(),
+                        egui::TextEdit::singleline(&mut self.workspace_form.alias)
+                            .hint_text("Academic applications")
+                            .desired_width(f32::INFINITY),
+                    )
+                    .labelled_by(alias_label.id)
+                    .changed()
+                {
+                    self.workspace_form.error = None;
+                }
                 ui.label(if self.workspace_form.create_new {
                     "Choose a new or empty directory."
                 } else {
@@ -1747,12 +1872,19 @@ impl CanISendDesktop {
                                 path.display().to_string()
                             }),
                     );
-                    if ui.button("Choose directory").clicked() {
+                    if ui
+                        .add_enabled(
+                            self.activity.is_none(),
+                            egui::Button::new("Choose directory"),
+                        )
+                        .clicked()
+                    {
                         self.workspace_form.path = rfd::FileDialog::new().pick_folder();
+                        self.workspace_form.error = None;
                     }
                 });
                 if let Some(error) = &self.workspace_form.error {
-                    ui.colored_label(theme::RED_600, error);
+                    ui.colored_label(theme::error(self.dark_mode), error);
                 }
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {
@@ -1767,18 +1899,86 @@ impl CanISendDesktop {
                     {
                         self.submit_workspace_form(ui.ctx().clone());
                     }
-                    if ui.button("Cancel").clicked() {
+                    if ui
+                        .add_enabled(self.activity.is_none(), egui::Button::new("Cancel"))
+                        .clicked()
+                    {
                         self.show_workspace_form = false;
                     }
                 });
             });
-        self.show_workspace_form = open && self.show_workspace_form;
+        self.show_workspace_form = self.activity.is_some() || (open && self.show_workspace_form);
+    }
+
+    fn show_pending_confirmation(&mut self, ui: &mut egui::Ui) {
+        let Some(pending) = self.pending_confirmation.clone() else {
+            return;
+        };
+        let mut confirmed = false;
+        let mut cancelled = false;
+        let modal = egui::Modal::new(egui::Id::new("pending_confirmation")).show(ui.ctx(), |ui| {
+            ui.set_width(420.0);
+            match &pending {
+                PendingConfirmation::ArchiveJob { title } => {
+                    ui.heading("Archive this job?");
+                    ui.label(
+                        "The job will leave the active list. Its workspace records are retained, \
+                             but this GUI preview does not yet provide an unarchive action.",
+                    );
+                    ui.label(RichText::new(title).strong());
+                    ui.add_space(10.0);
+                    ui.horizontal(|ui| {
+                        if ui
+                            .add(theme::destructive_button("Confirm archive"))
+                            .clicked()
+                        {
+                            confirmed = true;
+                        }
+                        if ui.button("Cancel").clicked() {
+                            cancelled = true;
+                        }
+                    });
+                }
+                PendingConfirmation::UninstallCli { restores_previous } => {
+                    ui.heading("Uninstall the managed CLI?");
+                    ui.label(if *restores_previous {
+                        "CanISend will verify the managed binary, remove it, and restore the \
+                             previous installation. Workspace data is never removed."
+                    } else {
+                        "CanISend will verify and remove only the unchanged GUI-managed CLI. \
+                             Workspace data is never removed."
+                    });
+                    ui.add_space(10.0);
+                    ui.horizontal(|ui| {
+                        if ui.add(theme::destructive_button("Uninstall CLI")).clicked() {
+                            confirmed = true;
+                        }
+                        if ui.button("Cancel").clicked() {
+                            cancelled = true;
+                        }
+                    });
+                }
+            }
+        });
+        if confirmed {
+            self.pending_confirmation = None;
+            match pending {
+                PendingConfirmation::ArchiveJob { .. } => {
+                    self.archive_selected_job(ui.ctx().clone());
+                }
+                PendingConfirmation::UninstallCli { .. } => {
+                    self.uninstall_cli(ui.ctx().clone());
+                }
+            }
+        } else if cancelled || modal.should_close() {
+            self.pending_confirmation = None;
+        }
     }
 
     fn submit_workspace_form(&mut self, ctx: egui::Context) {
         let alias = self.workspace_form.alias.trim().to_owned();
-        if alias.is_empty() {
-            self.workspace_form.error = Some("Workspace name is required".to_owned());
+        if let Err(error) = validate_workspace_alias(&alias) {
+            self.workspace_form.error = Some(error);
             return;
         }
         let Some(path) = self.workspace_form.path.clone() else {
@@ -1823,27 +2023,30 @@ impl eframe::App for CanISendDesktop {
         self.show_top_bar(ui);
         self.show_status_bar(ui);
         self.show_navigation(ui);
+        let panel_fill = theme::panel_background(self.dark_mode);
         egui::CentralPanel::default()
             .frame(
-                egui::Frame::new().inner_margin(egui::Margin::same(if self.compact {
-                    16
-                } else {
-                    24
-                })),
+                egui::Frame::new()
+                    .fill(panel_fill)
+                    .inner_margin(egui::Margin::same(if self.compact { 16 } else { 24 })),
             )
             .show(ui, |ui| {
                 self.show_notice(ui);
-                match self.page {
-                    Page::Overview => self.show_overview(ui),
-                    Page::Jobs => self.show_jobs(ui),
-                    Page::Workspaces => self.show_workspaces(ui),
-                    Page::CommandLine => self.show_command_line(ui),
-                    Page::Diagnostics => self.show_diagnostics(ui),
-                }
+                egui::ScrollArea::vertical()
+                    .id_salt(("main_page", self.page))
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| match self.page {
+                        Page::Overview => self.show_overview(ui),
+                        Page::Jobs => self.show_jobs(ui),
+                        Page::Workspaces => self.show_workspaces(ui),
+                        Page::CommandLine => self.show_command_line(ui),
+                        Page::Diagnostics => self.show_diagnostics(ui),
+                    });
             });
         self.show_job_dialog(ui);
         self.show_import_dialog(ui);
         self.show_workspace_dialog(ui);
+        self.show_pending_confirmation(ui);
     }
 }
 
@@ -1880,7 +2083,7 @@ fn metric_card(ui: &mut egui::Ui, label: &str, value: &str, help: &str) {
 fn workflow_timeline(ui: &mut egui::Ui, workflow: &WorkflowStatusData) {
     for state in &workflow.stages {
         ui.horizontal(|ui| {
-            let (color, label) = stage_status_style(state.status);
+            let (color, label) = stage_status_style(state.status, ui.visuals().dark_mode);
             let (rect, _) = ui.allocate_exact_size(egui::vec2(10.0, 10.0), Sense::hover());
             ui.painter().circle_filled(rect.center(), 5.0, color);
             ui.label(RichText::new(stage_label(state.stage)).strong());
@@ -1899,14 +2102,14 @@ fn workflow_timeline(ui: &mut egui::Ui, workflow: &WorkflowStatusData) {
     }
 }
 
-fn stage_status_style(status: StageExecutionStatus) -> (Color32, &'static str) {
+fn stage_status_style(status: StageExecutionStatus, dark: bool) -> (Color32, &'static str) {
     match status {
-        StageExecutionStatus::Complete => (theme::TEAL_600, "Complete"),
-        StageExecutionStatus::Ready => (theme::AMBER_600, "Ready"),
-        StageExecutionStatus::Running => (Color32::from_rgb(37, 99, 235), "Running"),
-        StageExecutionStatus::AwaitingUser => (theme::AMBER_600, "Awaiting user"),
-        StageExecutionStatus::Blocked => (theme::SLATE_700, "Blocked"),
-        StageExecutionStatus::Stale => (theme::RED_600, "Stale"),
+        StageExecutionStatus::Complete => (theme::positive(dark), "Complete"),
+        StageExecutionStatus::Ready => (theme::warning(dark), "Ready"),
+        StageExecutionStatus::Running => (theme::info(dark), "Running"),
+        StageExecutionStatus::AwaitingUser => (theme::warning(dark), "Awaiting user"),
+        StageExecutionStatus::Blocked => (theme::neutral(dark), "Blocked"),
+        StageExecutionStatus::Stale => (theme::error(dark), "Stale"),
     }
 }
 
@@ -1927,20 +2130,21 @@ fn stage_label(stage: WorkflowStage) -> &'static str {
 
 fn diagnostic_row(ui: &mut egui::Ui, label: &str, value: &str) {
     ui.label(RichText::new(label).strong());
-    ui.label(value);
+    ui.add(egui::Label::new(value).truncate())
+        .on_hover_text(value);
     ui.end_row();
 }
 
-fn cli_state_style(status: &CliInstallStatus) -> (&'static str, Color32) {
+fn cli_state_style(status: &CliInstallStatus, dark: bool) -> (&'static str, Color32) {
     match status.state {
-        CliInstallState::NotInstalled => ("Not installed", theme::SLATE_700),
-        CliInstallState::Current if status.active_is_managed => ("Ready", theme::TEAL_600),
-        CliInstallState::Current => ("Installed; not active", theme::AMBER_600),
-        CliInstallState::UpdateAvailable => ("Update available", theme::AMBER_600),
-        CliInstallState::MigrationAvailable => ("Migration available", theme::AMBER_600),
-        CliInstallState::NewerInstalled => ("Newer version installed", theme::TEAL_600),
-        CliInstallState::Modified => ("Needs attention", theme::RED_600),
-        CliInstallState::SourceUnavailable => ("CLI missing from package", theme::RED_600),
+        CliInstallState::NotInstalled => ("Not installed", theme::neutral(dark)),
+        CliInstallState::Current if status.active_is_managed => ("Ready", theme::positive(dark)),
+        CliInstallState::Current => ("Installed; not active", theme::warning(dark)),
+        CliInstallState::UpdateAvailable => ("Update available", theme::warning(dark)),
+        CliInstallState::MigrationAvailable => ("Migration available", theme::warning(dark)),
+        CliInstallState::NewerInstalled => ("Newer version installed", theme::positive(dark)),
+        CliInstallState::Modified => ("Needs attention", theme::error(dark)),
+        CliInstallState::SourceUnavailable => ("CLI missing from package", theme::error(dark)),
     }
 }
 

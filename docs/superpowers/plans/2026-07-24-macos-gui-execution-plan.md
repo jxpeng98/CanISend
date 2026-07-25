@@ -4,9 +4,12 @@
 
 **Started:** 2026-07-24
 
+**Latest implementation review:**
+[2026-07-25 macOS GUI implementation review](../../notes/rust-native/2026-07-25-gui-implementation-review.md)
+
 **Product decision:** Begin R12 engineering on macOS before the deferred Windows and Linux GUI
-qualification work. The existing `0.7` CLI and Agent v2 contracts remain unchanged; the desktop
-surface is an experimental `0.8` development line until its own release gates pass.
+qualification work. The historical `0.7` CLI and Agent v2 evidence remains unchanged; the desktop
+surface joins the unified `1.0` product line beginning with `1.0.0-alpha.1`.
 
 ## Outcome
 
@@ -29,10 +32,17 @@ The first usable vertical slice must let a macOS user:
 
 - The Rust CLI, store, bounded I/O adapters, embedded resources, Agent v2 contracts, and renderer
   are implemented and locally qualified.
-- The desktop roadmap and information architecture are approved.
-- No GUI crate, shared application-facade crate, workspace registry, app bundle, or GUI test exists.
-- The current release identity is `0.7.0-rc.2`; GUI code must not be presented as part of the
-  qualified `0.7` release.
+- `canisend-app` and `canisend-gui` provide the first typed macOS vertical slice.
+- Workspace registry, job intake, supplied URL/file/PDF import, workflow status, diagnostics,
+  terminal CLI lifecycle, and manual update checks are implemented.
+- A version-matched macOS `.app` can be staged with hashes, notices, and ad-hoc integrity signing.
+- Focused GUI tests, contrast regression, bounded-registry fixtures, strict Clippy, preferred/minimum
+  window visual review, and named macOS accessibility control inspection pass.
+- Restore/repair, full workflow controls, evidence/discovery/agent/document/review/package/render/
+  export screens, disposable-user lifecycle, full native accessibility, and Intel qualification
+  remain open.
+- The source baseline remains `0.7.0-rc.2` until the atomic 1.0 release-line activation; GUI code
+  must not be presented as part of the historical qualified `0.7` release.
 
 ## Architecture
 
@@ -119,7 +129,7 @@ shows current stages, closes, and reopens the registered workspace.
   upgrade, backup/restore, uninstall, and workspace retention.
 - Add Intel compilation and native qualification after the Apple Silicon path is accepted.
 
-**Gate:** Publish `0.8.0-alpha.1` only from an exact packaged-app smoke and machine-checkable
+**Gate:** Publish `1.0.0-alpha.1` only from an exact packaged-app smoke and machine-checkable
 qualification record.
 
 ### Slice E — Deferred platform work
