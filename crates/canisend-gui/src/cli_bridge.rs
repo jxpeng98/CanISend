@@ -53,6 +53,14 @@ mod tests {
 
     static NEXT: AtomicU64 = AtomicU64::new(1);
 
+    fn cli_name() -> &'static str {
+        if cfg!(windows) {
+            "canisend.exe"
+        } else {
+            "canisend"
+        }
+    }
+
     fn root() -> std::path::PathBuf {
         std::env::temp_dir().join(format!(
             "canisend-gui-cli-{}-{}",
@@ -65,7 +73,7 @@ mod tests {
     fn finds_sibling_cli_for_development_build() {
         let root = root();
         let executable = root.join("target/release/canisend-gui");
-        let cli = root.join("target/release/canisend");
+        let cli = root.join("target/release").join(cli_name());
         fs::create_dir_all(executable.parent().expect("parent")).expect("directory");
         fs::write(&executable, b"gui").expect("gui");
         fs::write(&cli, b"cli").expect("cli");
@@ -78,7 +86,9 @@ mod tests {
     fn prefers_app_bundle_resource_cli() {
         let root = root();
         let executable = root.join("CanISend.app/Contents/MacOS/canisend-gui");
-        let cli = root.join("CanISend.app/Contents/Resources/bin/canisend");
+        let cli = root
+            .join("CanISend.app/Contents/Resources/bin")
+            .join(cli_name());
         fs::create_dir_all(executable.parent().expect("executable parent")).expect("macos");
         fs::create_dir_all(cli.parent().expect("cli parent")).expect("resources");
         fs::write(&executable, b"gui").expect("gui");
