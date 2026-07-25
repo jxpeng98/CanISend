@@ -29,8 +29,8 @@ preserve the `0.6.x` command tree, or implement `canisend.agent/v1`.
 ## GUI boundaries
 
 - `1.0.0-alpha.1` publishes the GUI for Apple Silicon macOS first. Intel macOS compilation is
-  required for the manifest, but native Intel qualification and Windows/Linux GUI packages remain
-  Beta work.
+  recorded in the manifest as compile-only with no archive or support claim, while native Intel
+  qualification and Windows/Linux GUI packages remain Beta work.
 - The GUI supports English and Simplified Chinese. CLI and Agent v2 structured contracts remain
   locale-neutral; terminal human-readable output is English in this Alpha.
 - Workspace restore/repair and the workflow begin/complete/rerun, criteria, profile evidence,
@@ -39,11 +39,12 @@ preserve the `0.6.x` command tree, or implement `canisend.agent/v1`.
 
 ## Release trust boundary
 
-`1.0.0-alpha.*` macOS GUI packages use ad-hoc integrity signatures. Verify `SHA256SUMS`, the GitHub artifact attestation, the release tag, and
-the included notices. Beta, release-candidate, and Stable community releases fail closed unless both macOS
-executables pass ad-hoc signing verification and the Windows executable passes self-signed Authenticode integrity
-verification. Their canonical signing evidence is bound to the final archive hashes and included in the release
-manifest and checksum set.
+`1.0.0-alpha.*` macOS GUI packages use ad-hoc integrity signatures. Verify `SHA256SUMS`, the GitHub
+artifact attestation, the release tag, the GUI qualification record, and the included notices.
+Beta, release-candidate, and Stable community releases fail closed unless both standalone macOS
+CLI executables pass ad-hoc signing verification and the Windows executable passes self-signed
+Authenticode integrity verification. Their canonical signing evidence is bound to the final
+archive hashes and included in the release manifest and checksum set.
 
 Community signatures do not establish an operating-system-trusted publisher. The macOS executable has no Developer
 ID certificate, secure timestamp, or Apple notarization, so Gatekeeper can warn or reject it. The Windows certificate

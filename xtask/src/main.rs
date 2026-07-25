@@ -3374,9 +3374,14 @@ fn check_release_contract() -> Result<(), String> {
         "release/beta-readiness.json",
         "release/beta-contract-freeze.json",
         "release/stage-transition-policy.json",
+        "packaging/macos/AppIcon.icns",
         "scripts/stage_native_bundle.sh",
         "scripts/package_native_release.sh",
         "scripts/smoke_release_archive.sh",
+        "scripts/stage_macos_gui_app.sh",
+        "scripts/package_macos_gui_release.sh",
+        "scripts/smoke_macos_gui_release_archive.sh",
+        "scripts/verify_macos_gui_app.sh",
     ] {
         let path = root.join(required);
         if !path.is_file() {
@@ -3406,6 +3411,16 @@ fn check_release_contract() -> Result<(), String> {
         "release assemble",
         "release verify",
         "attest-build-provenance",
+        "build-macos-gui-archive",
+        "canisend.macos-gui-compilation/v1",
+        "x86_64-apple-darwin-gui-compilation.json",
+        "package_macos_gui_release.sh",
+        "smoke_macos_gui_release_archive.sh",
+        "desktop-macos-aarch64",
+        "verify-draft-release-assets",
+        "publish-verified-release",
+        "verify-published-release",
+        "gh attestation verify",
         "SHA256SUMS",
     ] {
         if !workflow.contains(required) {
@@ -3413,6 +3428,20 @@ fn check_release_contract() -> Result<(), String> {
                 "release workflow is missing required gate `{required}`"
             ));
         }
+    }
+    let version = env!("CARGO_PKG_VERSION");
+    let release_line = Version::parse(version)
+        .map_err(|error| format!("workspace version is invalid SemVer: {error}"))?;
+    let expected_tag_pattern = format!(
+        "v{}.{}.{}*",
+        release_line.major, release_line.minor, release_line.patch
+    );
+    if !workflow.contains(&expected_tag_pattern)
+        || !workflow.contains(&format!("default: \"v{version}\""))
+    {
+        return Err(format!(
+            "release workflow must listen to `{expected_tag_pattern}` and default to `v{version}`"
+        ));
     }
     println!("release contract: ok ({} targets)", targets.len());
     Ok(())
@@ -3608,6 +3637,22 @@ fn check_alpha_package_contract() -> Result<(), String> {
             ));
         }
     }
+    let top_level = contract
+        .pointer("/desktop_macos/archive_top_level")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "Alpha macOS archive top-level contract must be an array".to_owned())?;
+    if top_level
+        != &vec![
+            Value::String("CanISend.app".to_owned()),
+            Value::String("CanISend.app.manifest.json".to_owned()),
+        ]
+    {
+        return Err(
+            "Alpha macOS archive top level must be exactly CanISend.app and its companion manifest"
+                .to_owned(),
+        );
+    }
+    let intel_evidence = macos_gui_intel_compilation_name(version);
     if contract
         .pointer("/desktop_macos/signing")
         .and_then(Value::as_str)
@@ -3623,6 +3668,35 @@ fn check_alpha_package_contract() -> Result<(), String> {
     {
         return Err(
             "Alpha macOS package must freeze ad-hoc, non-Developer-ID, non-notarized signing"
+                .to_owned(),
+        );
+    }
+    if contract
+        .pointer("/desktop_macos_intel/target")
+        .and_then(Value::as_str)
+        != Some("x86_64-apple-darwin")
+        || contract
+            .pointer("/desktop_macos_intel/status")
+            .and_then(Value::as_str)
+            != Some("compile-only")
+        || contract
+            .pointer("/desktop_macos_intel/evidence")
+            .and_then(Value::as_str)
+            != Some(intel_evidence.as_str())
+        || !contract
+            .pointer("/desktop_macos_intel/archive")
+            .is_some_and(Value::is_null)
+        || contract
+            .pointer("/desktop_macos_intel/native_runtime_qualified")
+            .and_then(Value::as_bool)
+            != Some(false)
+        || contract
+            .pointer("/desktop_macos_intel/support_claim")
+            .and_then(Value::as_bool)
+            != Some(false)
+    {
+        return Err(
+            "Alpha Intel macOS GUI contract must remain compile-only without an archive or support claim"
                 .to_owned(),
         );
     }
@@ -3689,7 +3763,7 @@ fn check_alpha_package_contract() -> Result<(), String> {
         return Err("macOS GUI Alpha performance baseline exceeds a frozen budget".to_owned());
     }
     println!(
-        "Alpha package contract: ok ({} CLI assets, one macOS desktop archive, GUI performance baseline)",
+        "Alpha package contract: ok ({} CLI assets, one macOS desktop archive, one Intel compile-only record, GUI performance baseline)",
         assets.len()
     );
     Ok(())
@@ -7838,14 +7912,19 @@ fn write_release_sbom(output: &Path) -> Result<(), String> {
         .iter()
         .filter_map(|node| node["id"].as_str().map(|id| (id.to_owned(), node)))
         .collect::<BTreeMap<_, _>>();
-    let root_id = packages
-        .iter()
-        .find(|package| package["name"] == "canisend-cli")
-        .and_then(|package| package["id"].as_str())
-        .ok_or_else(|| "cargo metadata does not contain canisend-cli".to_owned())?
-        .to_owned();
+    let root_ids = ["canisend-cli", "canisend-gui"]
+        .into_iter()
+        .map(|name| {
+            packages
+                .iter()
+                .find(|package| package["name"] == name)
+                .and_then(|package| package["id"].as_str())
+                .map(str::to_owned)
+                .ok_or_else(|| format!("cargo metadata does not contain {name}"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     let mut included = BTreeSet::new();
-    let mut queue = VecDeque::from([root_id.clone()]);
+    let mut queue = VecDeque::from(root_ids.clone());
     while let Some(id) = queue.pop_front() {
         if !included.insert(id.clone()) {
             continue;
@@ -7863,18 +7942,20 @@ fn write_release_sbom(output: &Path) -> Result<(), String> {
             queue.push_back(dependency.to_owned());
         }
     }
-    let root_package = package_by_id
-        .get(&root_id)
-        .ok_or_else(|| "canisend-cli package metadata is missing".to_owned())?;
-    let root_ref = cargo_bom_ref(root_package)?;
     let mut components = included
         .iter()
-        .filter(|id| *id != &root_id)
         .map(|id| {
             package_by_id
                 .get(id)
                 .ok_or_else(|| format!("cargo package metadata is missing for `{id}`"))
-                .and_then(|package| cargo_component(package, "library"))
+                .and_then(|package| {
+                    let component_type = if root_ids.contains(id) {
+                        "application"
+                    } else {
+                        "library"
+                    };
+                    cargo_component(package, component_type)
+                })
         })
         .collect::<Result<Vec<_>, _>>()?;
     components.sort_by(|left, right| left["bom-ref"].as_str().cmp(&right["bom-ref"].as_str()));
@@ -7906,13 +7987,41 @@ fn write_release_sbom(output: &Path) -> Result<(), String> {
         }));
     }
     dependencies.sort_by(|left, right| left["ref"].as_str().cmp(&right["ref"].as_str()));
+    let mut root_refs = root_ids
+        .iter()
+        .map(|id| {
+            package_by_id
+                .get(id)
+                .ok_or_else(|| format!("cargo root package metadata is missing for `{id}`"))
+                .and_then(|package| cargo_bom_ref(package))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    root_refs.sort();
+    let product_ref = format!(
+        "urn:canisend:product:{}",
+        sha256(format!("CanISend@{}", env!("CARGO_PKG_VERSION")).as_bytes())
+    );
+    dependencies.push(json!({
+        "ref": product_ref,
+        "dependsOn": root_refs,
+    }));
     let sbom = json!({
         "$schema": "https://cyclonedx.org/schema/bom-1.6.schema.json",
         "bomFormat": "CycloneDX",
         "specVersion": "1.6",
         "version": 1,
         "metadata": {
-            "component": cargo_component(root_package, "application")?,
+            "component": {
+                "type": "application",
+                "bom-ref": product_ref,
+                "name": "CanISend",
+                "version": env!("CARGO_PKG_VERSION"),
+                "licenses": [{"license": {"name": env!("CARGO_PKG_LICENSE")}}],
+                "externalReferences": [{
+                    "type": "vcs",
+                    "url": env!("CARGO_PKG_REPOSITORY")
+                }]
+            },
             "tools": {
                 "components": [{
                     "type": "application",
@@ -7923,14 +8032,15 @@ fn write_release_sbom(output: &Path) -> Result<(), String> {
             "properties": [
                 {"name": "canisend:agent_protocol", "value": AGENT_PROTOCOL},
                 {"name": "canisend:workspace_format", "value": WORKSPACE_FORMAT},
-                {"name": "canisend:schema_version", "value": PUBLIC_SCHEMA_VERSION}
+                {"name": "canisend:schema_version", "value": PUBLIC_SCHEMA_VERSION},
+                {"name": "canisend:release_surfaces", "value": "standalone-cli,macos-gui"}
             ]
         },
         "components": components,
         "dependencies": dependencies,
         "compositions": [{
             "aggregate": "complete",
-            "assemblies": [root_ref]
+            "assemblies": root_refs
         }]
     });
     write_pretty_json(output, &sbom)?;
@@ -7998,6 +8108,159 @@ fn required_json_string<'a>(value: &'a Value, name: &str) -> Result<&'a str, Str
         .as_str()
         .filter(|field| !field.is_empty())
         .ok_or_else(|| format!("cargo metadata package field `{name}` is missing"))
+}
+
+fn macos_gui_archive_name(version: &str) -> String {
+    format!("CanISend-{version}-aarch64-apple-darwin.zip")
+}
+
+fn macos_gui_qualification_name(version: &str) -> String {
+    format!("CanISend-{version}-aarch64-apple-darwin-qualification.json")
+}
+
+fn macos_gui_intel_compilation_name(version: &str) -> String {
+    format!("CanISend-{version}-x86_64-apple-darwin-gui-compilation.json")
+}
+
+fn read_macos_gui_qualification(
+    path: &Path,
+    tag: &str,
+    version: &str,
+    archive: &Path,
+) -> Result<Value, String> {
+    reject_symlink(path)?;
+    let body = fs::read(path)
+        .map_err(|error| format!("could not read macOS GUI qualification evidence: {error}"))?;
+    if body.len() > 65_536 {
+        return Err("macOS GUI qualification evidence exceeds 65536 bytes".to_owned());
+    }
+    let value: Value = serde_json::from_slice(&body)
+        .map_err(|error| format!("macOS GUI qualification evidence is invalid JSON: {error}"))?;
+    let archive_name = macos_gui_archive_name(version);
+    let archive_sha256 = sha256_file(archive)?;
+    let archive_size = file_size(archive)?;
+    let run_id = value["github_run_id"]
+        .as_u64()
+        .filter(|run| *run > 0)
+        .ok_or_else(|| "macOS GUI qualification evidence has no positive run ID".to_owned())?;
+    let completed_at = required_string(&value, "completed_at", "macOS GUI qualification")?;
+    OffsetDateTime::parse(completed_at, &Rfc3339)
+        .map_err(|error| format!("macOS GUI qualification completion time is invalid: {error}"))?;
+    let canonical = json!({
+        "schema": "canisend.macos-gui-qualification/v1",
+        "record": "desktop-macos-aarch64",
+        "target": "aarch64-apple-darwin",
+        "environment": "macos-15",
+        "tag": tag,
+        "version": version,
+        "archive": {
+            "file": archive_name,
+            "sha256": archive_sha256,
+            "size": archive_size
+        },
+        "github_run_id": run_id,
+        "checks": {
+            "bounded_archive": true,
+            "exact_top_level": true,
+            "no_symlinks": true,
+            "companion_integrity": true,
+            "nested_adhoc_signatures": true,
+            "outer_adhoc_signature": true,
+            "version_match": true,
+            "packaged_cli_doctor": true,
+            "packaged_cli_synthetic_workflow": true,
+            "packaged_host_agent_workflow": true,
+            "packaged_gui_launch": true,
+            "no_publication": true
+        },
+        "completed_at": completed_at
+    });
+    if value != canonical {
+        return Err(
+            "macOS GUI qualification evidence is not canonical or does not bind the archive"
+                .to_owned(),
+        );
+    }
+    Ok(canonical)
+}
+
+fn read_macos_gui_intel_compilation(
+    path: &Path,
+    tag: &str,
+    version: &str,
+    commit: &str,
+) -> Result<Value, String> {
+    reject_symlink(path)?;
+    let body = fs::read(path)
+        .map_err(|error| format!("could not read macOS Intel GUI compilation evidence: {error}"))?;
+    if body.len() > 65_536 {
+        return Err("macOS Intel GUI compilation evidence exceeds 65536 bytes".to_owned());
+    }
+    let value: Value = serde_json::from_slice(&body).map_err(|error| {
+        format!("macOS Intel GUI compilation evidence is invalid JSON: {error}")
+    })?;
+    let run_id = value["github_run_id"]
+        .as_u64()
+        .filter(|run| *run > 0)
+        .ok_or_else(|| "macOS Intel GUI compilation evidence has no positive run ID".to_owned())?;
+    let completed_at = required_string(
+        &value,
+        "completed_at",
+        "macOS Intel GUI compilation evidence",
+    )?;
+    OffsetDateTime::parse(completed_at, &Rfc3339).map_err(|error| {
+        format!("macOS Intel GUI compilation completion time is invalid: {error}")
+    })?;
+    let binary_sha256 = required_string(
+        &value["binary"],
+        "sha256",
+        "macOS Intel GUI compilation binary",
+    )?;
+    validate_lower_hex(
+        "macOS Intel GUI compilation binary SHA-256",
+        binary_sha256,
+        64,
+    )?;
+    let binary_size = value["binary"]["size"]
+        .as_u64()
+        .filter(|size| *size > 0)
+        .ok_or_else(|| {
+            "macOS Intel GUI compilation evidence has no positive binary size".to_owned()
+        })?;
+    let canonical = json!({
+        "schema": "canisend.macos-gui-compilation/v1",
+        "record": "desktop-macos-intel-compile-only",
+        "target": "x86_64-apple-darwin",
+        "environment": "macos-15-intel",
+        "tag": tag,
+        "version": version,
+        "source_commit": commit,
+        "binary": {
+            "file": "canisend-gui",
+            "architecture": "x86_64",
+            "profile": "release",
+            "sha256": binary_sha256,
+            "size": binary_size
+        },
+        "github_run_id": run_id,
+        "checks": {
+            "locked_build": true,
+            "release_profile": true,
+            "target_architecture": true,
+            "archive_published": false,
+            "native_runtime_qualified": false,
+            "support_claim": false,
+            "no_publication": true
+        },
+        "completed_at": completed_at
+    });
+    if value != canonical {
+        return Err(
+            "macOS Intel GUI compilation evidence is not canonical or does not bind the release"
+                .to_owned(),
+        );
+    }
+    Ok(canonical)
 }
 
 fn assemble_release(
@@ -8068,6 +8331,79 @@ fn assemble_release(
             "target": target.triple,
         }));
     }
+    let desktop_archive_name = macos_gui_archive_name(version);
+    let desktop_archive_source = find_unique_file(artifacts_root, &desktop_archive_name)?;
+    reject_symlink(&desktop_archive_source)?;
+    let desktop_archive = output.join(&desktop_archive_name);
+    fs::copy(&desktop_archive_source, &desktop_archive).map_err(|error| {
+        format!(
+            "could not copy macOS GUI archive {} to {}: {error}",
+            desktop_archive_source.display(),
+            desktop_archive.display()
+        )
+    })?;
+    let desktop_qualification_name = macos_gui_qualification_name(version);
+    let desktop_qualification_source =
+        find_unique_file(artifacts_root, &desktop_qualification_name)?;
+    read_macos_gui_qualification(
+        &desktop_qualification_source,
+        tag,
+        version,
+        &desktop_archive,
+    )?;
+    let desktop_qualification = output.join(&desktop_qualification_name);
+    fs::copy(&desktop_qualification_source, &desktop_qualification).map_err(|error| {
+        format!(
+            "could not copy macOS GUI qualification evidence {} to {}: {error}",
+            desktop_qualification_source.display(),
+            desktop_qualification.display()
+        )
+    })?;
+    let desktop_entries = vec![json!({
+        "archive": desktop_archive_name,
+        "archive_format": "zip",
+        "bundle": "CanISend.app",
+        "companion_manifest": "CanISend.app.manifest.json",
+        "developer_id": false,
+        "notarized": false,
+        "qualification_evidence": desktop_qualification_name,
+        "runner": "macos-15",
+        "sha256": sha256_file(&desktop_archive)?,
+        "signing_kind": "apple-adhoc",
+        "size": file_size(&desktop_archive)?,
+        "surface": "desktop-gui",
+        "target": "aarch64-apple-darwin",
+    })];
+    let desktop_intel_compilation_name = macos_gui_intel_compilation_name(version);
+    let desktop_intel_compilation_source =
+        find_unique_file(artifacts_root, &desktop_intel_compilation_name)?;
+    read_macos_gui_intel_compilation(
+        &desktop_intel_compilation_source,
+        tag,
+        version,
+        &commit.to_ascii_lowercase(),
+    )?;
+    let desktop_intel_compilation = output.join(&desktop_intel_compilation_name);
+    fs::copy(
+        &desktop_intel_compilation_source,
+        &desktop_intel_compilation,
+    )
+    .map_err(|error| {
+        format!(
+            "could not copy macOS Intel GUI compilation evidence {} to {}: {error}",
+            desktop_intel_compilation_source.display(),
+            desktop_intel_compilation.display()
+        )
+    })?;
+    let desktop_compilation_entries = vec![json!({
+        "archive": null,
+        "evidence": desktop_intel_compilation_name,
+        "native_runtime_qualified": false,
+        "runner": "macos-15-intel",
+        "status": "compile-only",
+        "surface": "desktop-gui",
+        "target": "x86_64-apple-darwin",
+    })];
     let sbom_name = format!("canisend-{version}-sbom.cdx.json");
     let sbom_path = output.join(&sbom_name);
     write_release_sbom(&sbom_path)?;
@@ -8077,7 +8413,11 @@ fn assemble_release(
         ("RELEASE_NOTES.md", "release/RELEASE_NOTES.md"),
         ("THIRD_PARTY_NOTICES.md", "THIRD_PARTY_NOTICES.md"),
     ];
-    let mut supplemental_entries = vec![release_file_entry(&sbom_path)?];
+    let mut supplemental_entries = vec![
+        release_file_entry(&sbom_path)?,
+        release_file_entry(&desktop_qualification)?,
+        release_file_entry(&desktop_intel_compilation)?,
+    ];
     for evidence in &signing_evidence_paths {
         supplemental_entries.push(release_file_entry(evidence)?);
     }
@@ -8136,9 +8476,12 @@ fn assemble_release(
             "workspace_format": WORKSPACE_FORMAT
         },
         "artifacts": archive_entries,
+        "desktop_artifacts": desktop_entries,
+        "desktop_compilation": desktop_compilation_entries,
         "supplemental_files": supplemental_entries,
         "trust": {
             "archive_code_signing_required": !matches!(stage, ReleaseStage::Alpha),
+            "desktop_bundle_code_signing_required": true,
             "default_telemetry": false,
             "manifest_attestation": "GitHub OIDC artifact attestation",
             "verification_command": format!(
@@ -8238,6 +8581,7 @@ fn verify_release_manifest_contents(
         || manifest["trust"]["default_telemetry"] != false
         || manifest["trust"]["archive_code_signing_required"]
             != !matches!(stage, ReleaseStage::Alpha)
+        || manifest["trust"]["desktop_bundle_code_signing_required"] != true
     {
         return Err("release manifest policy or contract metadata is invalid".to_owned());
     }
@@ -8319,11 +8663,86 @@ fn verify_release_manifest_contents(
         }
     }
 
+    let desktop_entries = manifest["desktop_artifacts"]
+        .as_array()
+        .ok_or_else(|| "release manifest desktop artifacts are missing".to_owned())?;
+    let [desktop_entry] = desktop_entries.as_slice() else {
+        return Err("release manifest must contain exactly one desktop artifact".to_owned());
+    };
+    let desktop_archive_name = macos_gui_archive_name(version);
+    let desktop_qualification_name = macos_gui_qualification_name(version);
+    if desktop_entry["archive"] != desktop_archive_name
+        || desktop_entry["archive_format"] != "zip"
+        || desktop_entry["bundle"] != "CanISend.app"
+        || desktop_entry["companion_manifest"] != "CanISend.app.manifest.json"
+        || desktop_entry["developer_id"] != false
+        || desktop_entry["notarized"] != false
+        || desktop_entry["qualification_evidence"] != desktop_qualification_name
+        || desktop_entry["runner"] != "macos-15"
+        || desktop_entry["signing_kind"] != "apple-adhoc"
+        || desktop_entry["surface"] != "desktop-gui"
+        || desktop_entry["target"] != "aarch64-apple-darwin"
+    {
+        return Err("release manifest macOS GUI artifact metadata is invalid".to_owned());
+    }
+    let desktop_sha = required_string(
+        desktop_entry,
+        "sha256",
+        "release macOS GUI desktop artifact",
+    )?;
+    validate_lower_hex("release macOS GUI archive SHA-256", desktop_sha, 64)?;
+    let desktop_size = desktop_entry["size"]
+        .as_u64()
+        .filter(|size| *size > 0)
+        .ok_or_else(|| "release macOS GUI desktop artifact has no positive size".to_owned())?;
+    let desktop_archive = directory.join(&desktop_archive_name);
+    reject_symlink(&desktop_archive)?;
+    if sha256_file(&desktop_archive)? != desktop_sha || file_size(&desktop_archive)? != desktop_size
+    {
+        return Err(format!(
+            "release manifest digest or size does not match `{desktop_archive_name}`"
+        ));
+    }
+    read_macos_gui_qualification(
+        &directory.join(&desktop_qualification_name),
+        &format!("v{version}"),
+        version,
+        &desktop_archive,
+    )?;
+
+    let desktop_compilation_entries = manifest["desktop_compilation"]
+        .as_array()
+        .ok_or_else(|| "release manifest desktop compilation records are missing".to_owned())?;
+    let [desktop_compilation] = desktop_compilation_entries.as_slice() else {
+        return Err(
+            "release manifest must contain exactly one desktop compilation record".to_owned(),
+        );
+    };
+    let desktop_intel_compilation_name = macos_gui_intel_compilation_name(version);
+    if !desktop_compilation["archive"].is_null()
+        || desktop_compilation["evidence"] != desktop_intel_compilation_name
+        || desktop_compilation["native_runtime_qualified"] != false
+        || desktop_compilation["runner"] != "macos-15-intel"
+        || desktop_compilation["status"] != "compile-only"
+        || desktop_compilation["surface"] != "desktop-gui"
+        || desktop_compilation["target"] != "x86_64-apple-darwin"
+    {
+        return Err("release manifest macOS Intel compile-only record is invalid".to_owned());
+    }
+    read_macos_gui_intel_compilation(
+        &directory.join(&desktop_intel_compilation_name),
+        &format!("v{version}"),
+        version,
+        commit,
+    )?;
+
     let mut expected_supplemental = BTreeSet::from([
         "ISSUE_COLLECTION.md".to_owned(),
         "KNOWN_LIMITATIONS.md".to_owned(),
         "RELEASE_NOTES.md".to_owned(),
         "THIRD_PARTY_NOTICES.md".to_owned(),
+        desktop_qualification_name,
+        desktop_intel_compilation_name,
         format!("canisend-{version}-sbom.cdx.json"),
     ]);
     if !matches!(stage, ReleaseStage::Alpha) {
@@ -10595,6 +11014,115 @@ mod tests {
         read_bound_signing_evidence(&evidence, &target, env!("CARGO_PKG_VERSION"), &archive)
             .expect("verify bound evidence");
         fs::remove_dir_all(root).expect("remove signing fixture");
+    }
+
+    #[test]
+    fn macos_gui_qualification_binds_exact_archive_and_checks() {
+        let root = std::env::temp_dir().join(format!(
+            "canisend-macos-gui-qualification-{}",
+            std::process::id()
+        ));
+        if root.exists() {
+            fs::remove_dir_all(&root).expect("remove stale macOS GUI qualification fixture");
+        }
+        fs::create_dir_all(&root).expect("create macOS GUI qualification fixture");
+        let version = env!("CARGO_PKG_VERSION");
+        let tag = format!("v{version}");
+        let archive = root.join(macos_gui_archive_name(version));
+        fs::write(&archive, b"bounded desktop archive fixture")
+            .expect("write macOS GUI archive fixture");
+        let evidence_path = root.join(macos_gui_qualification_name(version));
+        let mut evidence = json!({
+            "schema": "canisend.macos-gui-qualification/v1",
+            "record": "desktop-macos-aarch64",
+            "target": "aarch64-apple-darwin",
+            "environment": "macos-15",
+            "tag": tag,
+            "version": version,
+            "archive": {
+                "file": macos_gui_archive_name(version),
+                "sha256": sha256_file(&archive).expect("hash GUI archive fixture"),
+                "size": file_size(&archive).expect("size GUI archive fixture")
+            },
+            "github_run_id": 42_u64,
+            "checks": {
+                "bounded_archive": true,
+                "exact_top_level": true,
+                "no_symlinks": true,
+                "companion_integrity": true,
+                "nested_adhoc_signatures": true,
+                "outer_adhoc_signature": true,
+                "version_match": true,
+                "packaged_cli_doctor": true,
+                "packaged_cli_synthetic_workflow": true,
+                "packaged_host_agent_workflow": true,
+                "packaged_gui_launch": true,
+                "no_publication": true
+            },
+            "completed_at": "2026-07-25T20:00:00Z"
+        });
+        write_pretty_json(&evidence_path, &evidence)
+            .expect("write canonical macOS GUI qualification evidence");
+        read_macos_gui_qualification(&evidence_path, &tag, version, &archive)
+            .expect("accept exact macOS GUI qualification evidence");
+
+        evidence["checks"]["packaged_gui_launch"] = Value::Bool(false);
+        write_pretty_json(&evidence_path, &evidence)
+            .expect("write malformed macOS GUI qualification evidence");
+        assert!(read_macos_gui_qualification(&evidence_path, &tag, version, &archive).is_err());
+        fs::remove_dir_all(root).expect("remove macOS GUI qualification fixture");
+    }
+
+    #[test]
+    fn macos_gui_intel_compilation_is_compile_only_and_commit_bound() {
+        let root = std::env::temp_dir().join(format!(
+            "canisend-macos-gui-intel-compilation-{}",
+            std::process::id()
+        ));
+        if root.exists() {
+            fs::remove_dir_all(&root).expect("remove stale Intel GUI compilation fixture");
+        }
+        fs::create_dir_all(&root).expect("create Intel GUI compilation fixture");
+        let version = env!("CARGO_PKG_VERSION");
+        let tag = format!("v{version}");
+        let commit = "a".repeat(40);
+        let path = root.join(macos_gui_intel_compilation_name(version));
+        let mut evidence = json!({
+            "schema": "canisend.macos-gui-compilation/v1",
+            "record": "desktop-macos-intel-compile-only",
+            "target": "x86_64-apple-darwin",
+            "environment": "macos-15-intel",
+            "tag": tag,
+            "version": version,
+            "source_commit": commit,
+            "binary": {
+                "file": "canisend-gui",
+                "architecture": "x86_64",
+                "profile": "release",
+                "sha256": "b".repeat(64),
+                "size": 42_u64
+            },
+            "github_run_id": 43_u64,
+            "checks": {
+                "locked_build": true,
+                "release_profile": true,
+                "target_architecture": true,
+                "archive_published": false,
+                "native_runtime_qualified": false,
+                "support_claim": false,
+                "no_publication": true
+            },
+            "completed_at": "2026-07-25T20:00:00Z"
+        });
+        write_pretty_json(&path, &evidence).expect("write Intel GUI compilation evidence");
+        read_macos_gui_intel_compilation(&path, &tag, version, &commit)
+            .expect("accept canonical Intel GUI compilation evidence");
+
+        evidence["checks"]["support_claim"] = Value::Bool(true);
+        write_pretty_json(&path, &evidence)
+            .expect("write overclaiming Intel GUI compilation evidence");
+        assert!(read_macos_gui_intel_compilation(&path, &tag, version, &commit).is_err());
+        fs::remove_dir_all(root).expect("remove Intel GUI compilation fixture");
     }
 
     #[test]

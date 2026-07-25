@@ -5,9 +5,16 @@ Do not use an archive when any identity check fails.
 
 ## Required release assets
 
-A complete `0.7` release contains:
+A complete `1.0` release contains:
 
-- five target archives;
+- five standalone CLI target archives;
+- one Apple Silicon macOS desktop archive named
+  `CanISend-VERSION-aarch64-apple-darwin.zip`;
+- `CanISend-VERSION-aarch64-apple-darwin-qualification.json`, which binds the
+  exact desktop ZIP to its native package checks;
+- `CanISend-VERSION-x86_64-apple-darwin-gui-compilation.json`, which records
+  Intel release-profile compilation without claiming an Intel GUI archive or native runtime
+  qualification;
 - `SHA256SUMS`;
 - `canisend-VERSION-manifest.json`;
 - `canisend-VERSION-sbom.cdx.json`;
@@ -23,8 +30,14 @@ Stable additionally contains one `canisend-VERSION-channel-publication.json` rec
 Scoop, and WinGet manifest assets. The record must scope authorization to `github-release-assets` and keep
 `external_index_submission: false`; a release asset is not proof that a third-party package index accepted it.
 
-The manifest binds the product version, exact Git commit, stage, protocol, schema, workspace format, all targets, and
-each archive digest. For non-Alpha signed targets, its `signing_evidence` field names the exact evidence file.
+The manifest binds the product version, exact Git commit, stage, protocol, schema, workspace format,
+all five CLI targets, the macOS desktop surface, and every archive digest. The five CLI entries
+remain under `artifacts`; the GUI is a separate `desktop_artifacts` entry so package-manager
+generation cannot confuse an application bundle with a standalone CLI archive. For non-Alpha
+signed CLI targets, `signing_evidence` names the exact evidence file. The GUI entry always names
+its qualification record and requires the nested and outer ad-hoc signatures, including in Alpha.
+`desktop_compilation` records the Intel compile-only boundary with `archive: null`,
+`native_runtime_qualified: false`, and an exact evidence reference.
 `SHA256SUMS` covers every downloadable release file except itself.
 For Stable, the repository verifier also regenerates every package-manager manifest from the three referenced final
 archive hashes and checks its recorded external repository path.
@@ -38,8 +51,8 @@ git fetch origin tag vVERSION
 git rev-list -n 1 vVERSION
 ```
 
-The workspace version and tag are exact SemVer matches. A release workflow refuses `v0.7.0-alpha.2` while the binary
-and Cargo workspace still report `0.7.0-alpha.1`.
+The workspace version and tag are exact SemVer matches. A release workflow refuses
+`v1.0.0-alpha.2` while the binary and Cargo workspace still report `1.0.0-alpha.1`.
 
 ## Verify SHA-256
 
@@ -69,12 +82,38 @@ With the GitHub CLI installed, verify each downloaded asset against this reposit
 
 ```console
 gh attestation verify canisend-VERSION-TARGET.ARCHIVE --repo jxpeng98/CanISend
+gh attestation verify CanISend-VERSION-aarch64-apple-darwin.zip --repo jxpeng98/CanISend
 gh attestation verify canisend-VERSION-manifest.json --repo jxpeng98/CanISend
 gh attestation verify SHA256SUMS --repo jxpeng98/CanISend
 ```
 
 The verification must identify `jxpeng98/CanISend` and the repository's native release workflow. An attestation
 proves which GitHub Actions identity built the bytes; it does not replace operating-system code signing.
+
+## Verify the macOS desktop archive
+
+The desktop ZIP has exactly two top-level entries: `CanISend.app` and
+`CanISend.app.manifest.json`. Reject an archive with another top-level entry, a symbolic link, or
+a different filename. After extracting, compare the companion manifest's SHA-256 values with the
+final signed GUI, bundled CLI, `Info.plist`, and `BUNDLE.json`, then verify the application:
+
+```console
+codesign --verify --deep --strict --verbose=4 ./CanISend.app
+codesign --display --verbose=4 ./CanISend.app
+./CanISend.app/Contents/Resources/bin/canisend version --json
+./CanISend.app/Contents/Resources/bin/canisend doctor --json
+```
+
+The signature display must report an ad-hoc signature. The bundle metadata and qualification
+record must state `developer_id: false` and `notarized: false`; a claim of Apple publisher trust is
+invalid for this channel. The qualification JSON must use
+`canisend.macos-gui-qualification/v1`, name the same ZIP, match its SHA-256 and size, report
+`macos-15`/`aarch64-apple-darwin`, and keep every declared bounded package check true.
+
+The Intel compilation JSON must use `canisend.macos-gui-compilation/v1`, bind the release tag and
+source commit, report an `x86_64` release binary hash from `macos-15-intel`, and explicitly keep
+`archive_published`, `native_runtime_qualified`, and `support_claim` false. It is evidence that the
+source compiles for Intel macOS, not an installable or supported Intel GUI.
 
 ## Verify platform signing evidence
 
@@ -106,10 +145,12 @@ instead, reject evidence that falsely claims public trust.
 
 ## Inspect the SBOM and notices
 
-The CycloneDX 1.6 SBOM is generated from the locked dependency graph reachable from `canisend-cli` across the
-supported target matrix. It includes internal crates and conditional target dependencies, so it may list a component
-that is not linked into the one archive you downloaded. `THIRD_PARTY_NOTICES.md` plus the asset license files inside
-the archive are the redistribution notices.
+The CycloneDX 1.6 SBOM is generated from the locked dependency graph reachable from both
+`canisend-cli` and `canisend-gui`. Its composition names both application roots and therefore
+covers the five standalone CLI archives and the macOS desktop archive. It includes internal crates
+and conditional target dependencies, so it may list a component that is not linked into the one
+archive you downloaded. `THIRD_PARTY_NOTICES.md` plus the asset license files inside the archive
+are the redistribution notices.
 
 Before using private data, read `KNOWN_LIMITATIONS.md`, extract the archive, and run:
 

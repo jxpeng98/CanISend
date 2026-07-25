@@ -3,13 +3,13 @@ name: native-release
 on:
   push:
     tags:
-      - "v0.7.0*"
+      - "v1.0.0*"
   workflow_dispatch:
     inputs:
       tag:
         description: "Exact workspace tag to validate without publishing"
         required: true
-        default: "v0.7.0-alpha.1"
+        default: "v1.0.0-alpha.1"
 
 permissions:
   contents: read
@@ -192,6 +192,59 @@ jobs:
       - name: Build native release binary
         run: cargo build --release --locked --target ${{ matrix.target }} -p canisend-cli
 
+      - name: Build compile-only Intel macOS GUI
+        if: matrix.target == 'x86_64-apple-darwin'
+        run: >-
+          cargo build --release --locked --target x86_64-apple-darwin
+          -p canisend-gui
+
+      - name: Record Intel macOS GUI compilation evidence
+        if: matrix.target == 'x86_64-apple-darwin'
+        shell: bash
+        run: |
+          version="${{ needs.release-identity.outputs.tag }}"
+          version="${version#v}"
+          binary="target/x86_64-apple-darwin/release/canisend-gui"
+          test -f "$binary"
+          test "$(lipo -archs "$binary")" = "x86_64"
+          evidence="$RUNNER_TEMP/gui-compilation-evidence/CanISend-$version-x86_64-apple-darwin-gui-compilation.json"
+          mkdir -p "$(dirname "$evidence")"
+          jq -n \
+            --arg tag "${{ needs.release-identity.outputs.tag }}" \
+            --arg version "$version" \
+            --arg source_commit "$GITHUB_SHA" \
+            --arg sha256 "$(shasum -a 256 "$binary" | awk '{print $1}')" \
+            --arg completed_at "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+            --argjson size "$(stat -f '%z' "$binary")" \
+            --argjson github_run_id "$GITHUB_RUN_ID" \
+            '{
+              schema: "canisend.macos-gui-compilation/v1",
+              record: "desktop-macos-intel-compile-only",
+              target: "x86_64-apple-darwin",
+              environment: "macos-15-intel",
+              tag: $tag,
+              version: $version,
+              source_commit: $source_commit,
+              binary: {
+                file: "canisend-gui",
+                architecture: "x86_64",
+                profile: "release",
+                sha256: $sha256,
+                size: $size
+              },
+              github_run_id: $github_run_id,
+              checks: {
+                locked_build: true,
+                release_profile: true,
+                target_architecture: true,
+                archive_published: false,
+                native_runtime_qualified: false,
+                support_claim: false,
+                no_publication: true
+              },
+              completed_at: $completed_at
+            }' > "$evidence"
+
       - name: Check release performance budgets
         if: matrix.target == 'x86_64-unknown-linux-gnu'
         env:
@@ -295,7 +348,67 @@ jobs:
           path: |
             ${{ runner.temp }}/release-package/canisend-*.${{ matrix.archive }}
             ${{ runner.temp }}/signing-evidence/*.json
+            ${{ runner.temp }}/gui-compilation-evidence/*.json
             ${{ runner.temp }}/documentation-uninstall-${{ matrix.target }}.json
+          if-no-files-found: error
+          retention-days: 14
+
+  build-macos-gui-archive:
+    name: build-macos-gui-aarch64
+    needs:
+      - release-identity
+      - signing-readiness
+      - source-gates
+    runs-on: macos-15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@1.97.0
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Cache Cargo build
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          key: release-macos-gui-aarch64
+
+      - name: Build version-matched macOS GUI and CLI
+        run: >-
+          cargo build --release --locked --target aarch64-apple-darwin
+          -p canisend-cli -p canisend-gui
+
+      - name: Package exact ad-hoc-signed macOS application
+        shell: bash
+        run: |
+          ./scripts/package_macos_gui_release.sh \
+            target/aarch64-apple-darwin/release/canisend-gui \
+            target/aarch64-apple-darwin/release/canisend \
+            "$RUNNER_TEMP/macos-gui-release"
+
+      - name: Smoke exact extracted macOS application archive
+        shell: bash
+        run: |
+          version="${{ needs.release-identity.outputs.tag }}"
+          version="${version#v}"
+          archive="$RUNNER_TEMP/macos-gui-release/CanISend-$version-aarch64-apple-darwin.zip"
+          evidence="$RUNNER_TEMP/macos-gui-release/CanISend-$version-aarch64-apple-darwin-qualification.json"
+          ./scripts/smoke_macos_gui_release_archive.sh \
+            "$archive" \
+            "$RUNNER_TEMP/macos-gui-smoke" \
+            "${{ needs.release-identity.outputs.tag }}" \
+            "macos-15" \
+            "$evidence"
+
+      - name: Upload verified macOS GUI archive and qualification
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: archive-desktop-macos-aarch64
+          path: |
+            ${{ runner.temp }}/macos-gui-release/CanISend-*.zip
+            ${{ runner.temp }}/macos-gui-release/CanISend-*-qualification.json
           if-no-files-found: error
           retention-days: 14
 
@@ -304,6 +417,7 @@ jobs:
     needs:
       - release-identity
       - build-native-archives
+      - build-macos-gui-archive
     runs-on: ubuntu-24.04
     permissions:
       attestations: write
@@ -368,11 +482,10 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Create draft GitHub release and publish verified assets
+      - name: Create draft GitHub release and upload verified assets
         if: needs.release-identity.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_STAGE: ${{ needs.release-identity.outputs.stage }}
           RELEASE_TAG: ${{ needs.release-identity.outputs.tag }}
         shell: bash
         run: |
@@ -383,8 +496,245 @@ jobs:
             --title "CanISend ${RELEASE_TAG#v}" \
             --notes-file "$release_directory/RELEASE_NOTES.md"
           gh release upload "$RELEASE_TAG" "$release_directory"/*
+
+  verify-draft-release-assets:
+    name: verify-draft-${{ matrix.name }}
+    needs:
+      - release-identity
+      - assemble-release
+    if: needs.release-identity.outputs.publish == 'true'
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: cli-aarch64-apple-darwin
+            surface: cli
+            target: aarch64-apple-darwin
+            runner: macos-15
+            extension: tar.gz
+            executable: canisend
+          - name: cli-x86_64-apple-darwin
+            surface: cli
+            target: x86_64-apple-darwin
+            runner: macos-15-intel
+            extension: tar.gz
+            executable: canisend
+          - name: cli-x86_64-unknown-linux-gnu
+            surface: cli
+            target: x86_64-unknown-linux-gnu
+            runner: ubuntu-24.04
+            extension: tar.gz
+            executable: canisend
+          - name: cli-x86_64-unknown-linux-musl
+            surface: cli
+            target: x86_64-unknown-linux-musl
+            runner: ubuntu-24.04
+            extension: tar.gz
+            executable: canisend
+          - name: cli-x86_64-pc-windows-msvc
+            surface: cli
+            target: x86_64-pc-windows-msvc
+            runner: windows-2025
+            extension: zip
+            executable: canisend.exe
+          - name: desktop-aarch64-apple-darwin
+            surface: desktop
+            target: aarch64-apple-darwin
+            runner: macos-15
+            extension: zip
+            executable: canisend-gui
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Download exact archive from the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.release-identity.outputs.tag }}
+        shell: bash
+        run: |
+          source scripts/lib/native_paths.sh
+          download_root="$(canisend_absolute_path "$RUNNER_TEMP/draft-download")"
+          mkdir -p "$download_root"
+          version="${RELEASE_TAG#v}"
+          if [[ "${{ matrix.surface }}" == "desktop" ]]; then
+            archive="CanISend-$version-aarch64-apple-darwin.zip"
+          else
+            archive="canisend-$version-${{ matrix.target }}.${{ matrix.extension }}"
+          fi
+          gh release download "$RELEASE_TAG" \
+            --pattern "$archive" \
+            --dir "$download_root"
+          test -s "$download_root/$archive"
+
+      - name: Smoke downloaded standalone CLI archive
+        if: matrix.surface == 'cli'
+        env:
+          RELEASE_TAG: ${{ needs.release-identity.outputs.tag }}
+        shell: bash
+        run: |
+          source scripts/lib/native_paths.sh
+          download_root="$(canisend_absolute_path "$RUNNER_TEMP/draft-download")"
+          expected_root="$(canisend_absolute_path "$RUNNER_TEMP/draft-expected")"
+          smoke_root="$(canisend_absolute_path "$RUNNER_TEMP/draft-smoke")"
+          version="${RELEASE_TAG#v}"
+          archive="$download_root/canisend-$version-${{ matrix.target }}.${{ matrix.extension }}"
+          mkdir -p "$expected_root"
+          case "$archive" in
+            *.tar.gz) tar -xzf "$archive" -C "$expected_root" ;;
+            *.zip)
+              if command -v 7z >/dev/null 2>&1; then
+                7z x -y "-o$expected_root" "$archive" >/dev/null
+              else
+                unzip -q "$archive" -d "$expected_root"
+              fi
+              ;;
+          esac
+          expected="$expected_root/canisend-$version-${{ matrix.target }}/${{ matrix.executable }}"
+          ./scripts/smoke_release_archive.sh \
+            "$archive" \
+            "${{ matrix.target }}" \
+            "$smoke_root" \
+            "$expected"
+
+      - name: Smoke downloaded macOS desktop archive
+        if: matrix.surface == 'desktop'
+        env:
+          RELEASE_TAG: ${{ needs.release-identity.outputs.tag }}
+        shell: bash
+        run: |
+          source scripts/lib/native_paths.sh
+          download_root="$(canisend_absolute_path "$RUNNER_TEMP/draft-download")"
+          smoke_root="$(canisend_absolute_path "$RUNNER_TEMP/draft-smoke")"
+          version="${RELEASE_TAG#v}"
+          ./scripts/smoke_macos_gui_release_archive.sh \
+            "$download_root/CanISend-$version-aarch64-apple-darwin.zip" \
+            "$smoke_root"
+
+  publish-release:
+    name: publish-verified-release
+    needs:
+      - release-identity
+      - verify-draft-release-assets
+    if: needs.release-identity.outputs.publish == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Publish the fully verified draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_STAGE: ${{ needs.release-identity.outputs.stage }}
+          RELEASE_TAG: ${{ needs.release-identity.outputs.tag }}
+        shell: bash
+        run: |
           if [[ "$RELEASE_STAGE" == "stable" ]]; then
             gh release edit "$RELEASE_TAG" --draft=false --latest
           else
             gh release edit "$RELEASE_TAG" --draft=false --prerelease
           fi
+
+  verify-published-release:
+    name: verify-published-release
+    needs:
+      - release-identity
+      - publish-release
+    if: needs.release-identity.outputs.publish == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      attestations: read
+      contents: read
+      id-token: write
+    steps:
+      - name: Download all published release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.release-identity.outputs.tag }}
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/published-assets"
+          gh release download "$RELEASE_TAG" --dir "$RUNNER_TEMP/published-assets"
+
+      - name: Verify public checksums, prerelease identity, and update response
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_STAGE: ${{ needs.release-identity.outputs.stage }}
+          RELEASE_TAG: ${{ needs.release-identity.outputs.tag }}
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP/published-assets"
+          sha256sum -c SHA256SUMS
+          release_json="$RUNNER_TEMP/published-release.json"
+          gh release view "$RELEASE_TAG" \
+            --json isDraft,isPrerelease,tagName,url \
+            > "$release_json"
+          expected_prerelease=true
+          if [[ "$RELEASE_STAGE" == "stable" ]]; then
+            expected_prerelease=false
+          fi
+          jq -e \
+            --arg tag "$RELEASE_TAG" \
+            --argjson prerelease "$expected_prerelease" \
+            '.tagName == $tag and .isDraft == false and .isPrerelease == $prerelease' \
+            "$release_json" >/dev/null
+          gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=50" \
+            > "$RUNNER_TEMP/public-update-response.json"
+          jq -e \
+            --arg tag "$RELEASE_TAG" \
+            --argjson prerelease "$expected_prerelease" \
+            'any(.tag_name == $tag and .draft == false and .prerelease == $prerelease)' \
+            "$RUNNER_TEMP/public-update-response.json" >/dev/null
+
+      - name: Verify GitHub provenance for every published asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          find "$RUNNER_TEMP/published-assets" -maxdepth 1 -type f -print0 \
+            | while IFS= read -r -d '' asset; do
+                gh attestation verify "$asset" --repo "$GITHUB_REPOSITORY"
+              done
+
+      - name: Record body-free public release verification evidence
+        env:
+          RELEASE_TAG: ${{ needs.release-identity.outputs.tag }}
+        shell: bash
+        run: |
+          release_url="$(jq -er '.url' "$RUNNER_TEMP/published-release.json")"
+          asset_count="$(find "$RUNNER_TEMP/published-assets" -maxdepth 1 -type f | wc -l | tr -d ' ')"
+          manifest="$RUNNER_TEMP/published-assets/canisend-${RELEASE_TAG#v}-manifest.json"
+          manifest_sha256="$(sha256sum "$manifest" | awk '{print $1}')"
+          jq -n \
+            --arg tag "$RELEASE_TAG" \
+            --arg release_url "$release_url" \
+            --arg manifest_sha256 "$manifest_sha256" \
+            --arg checked_at "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+            --argjson asset_count "$asset_count" \
+            --argjson github_run_id "$GITHUB_RUN_ID" \
+            '{
+              schema: "canisend.public-release-verification/v1",
+              tag: $tag,
+              release_url: $release_url,
+              manifest_sha256: $manifest_sha256,
+              asset_count: $asset_count,
+              github_run_id: $github_run_id,
+              checks: {
+                published: true,
+                prerelease_identity: true,
+                checksum_coverage: true,
+                provenance: true,
+                update_response: true,
+                private_issue_content_read: false
+              },
+              checked_at: $checked_at
+            }' > "$RUNNER_TEMP/public-release-verification.json"
+
+      - name: Upload public release verification evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: public-release-verification-${{ needs.release-identity.outputs.tag }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/public-release-verification.json
+          if-no-files-found: error
+          retention-days: 90

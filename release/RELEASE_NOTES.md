@@ -20,7 +20,9 @@ submits an application.
 - This release line uses `canisend.workspace/v2`, `canisend.agent/v2`, and public schema major version 2.
 - It does not migrate Python-era workspaces or preserve the `0.6.x` Python command tree.
 - Rust-native workspace migrations are append-only. An older binary rejects a future schema without mutation.
-- The macOS application bundles a version-matched CLI; standalone CLI archives cover the five declared targets.
+- The Apple Silicon macOS application bundles a version-matched CLI; standalone CLI archives
+  cover the five declared targets. The desktop ZIP contains exactly `CanISend.app` and its
+  external integrity manifest.
 
 ## Install and verify
 
@@ -30,9 +32,18 @@ signature before extracting the executable. Follow the
 [native release verification guide](https://github.com/jxpeng98/CanISend/blob/main/docs/guides/release-verification.md)
 and reject any incomplete or mismatched release unit.
 
-Community builds use macOS ad-hoc signing and a Windows self-signed Authenticode certificate. These signatures
-provide native integrity evidence but are not publicly trusted publisher identities; Gatekeeper, Unknown Publisher,
-or SmartScreen warnings may still occur.
+Apple Silicon GUI users must also download the macOS GUI qualification JSON. It binds the exact
+desktop ZIP to bounded archive checks, final companion hashes, nested and outer ad-hoc signatures,
+the packaged CLI doctor and synthetic workflow, and a packaged GUI launch.
+
+The Intel GUI compilation record proves only that the locked source builds in release profile on
+the declared Intel runner. It does not provide an Intel GUI archive or make a native runtime
+support claim for this release.
+
+The macOS desktop uses ad-hoc signing. Signed standalone macOS and Windows archives use ad-hoc or
+self-signed Authenticode integrity signatures when required by their release-stage policy. These
+signatures are not publicly trusted publisher identities; Gatekeeper, Unknown Publisher, or
+SmartScreen warnings may still occur.
 
 After extraction, run `canisend version --json`, `canisend doctor --json`, and the
 [documented quick-start](https://github.com/jxpeng98/CanISend/blob/main/docs/guides/quick-start.md) before using private

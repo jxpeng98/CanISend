@@ -11,9 +11,9 @@
 
 # 这也能投 / CanISend
 
-CanISend is a standalone Rust-native CLI for evidence-backed academic and professional application
-preparation. A macOS-first native GUI is now under active development over the same typed Rust
-application services and local workspace.
+CanISend is a local-first Rust-native product for evidence-backed academic and professional
+application preparation. It combines a standalone CLI and Agent v2 interface with a macOS-first
+native GUI over the same typed application services and local workspace.
 
 The active product no longer uses Python or Pytest. The final Python implementation remains available only through
 the Git tag `archive/python-v0.6.0b1-final`.

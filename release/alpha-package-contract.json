@@ -46,6 +46,14 @@
     "developer_id": false,
     "notarized": false
   },
+  "desktop_macos_intel": {
+    "target": "x86_64-apple-darwin",
+    "status": "compile-only",
+    "evidence": "CanISend-1.0.0-alpha.1-x86_64-apple-darwin-gui-compilation.json",
+    "archive": null,
+    "native_runtime_qualified": false,
+    "support_claim": false
+  },
   "update_response_fixture": {
     "path": "fixtures/releases/github-releases-v1.json",
     "sha256": "cc433a79495148b92ce1a90185f775c26cb98ab963621b61e086c6328511caa0",

@@ -1,21 +1,21 @@
 {
   "schema": "canisend.macos-gui-performance/v1",
   "version": "1.0.0-alpha.1",
-  "measured_at": "2026-07-25T16:52:37Z",
+  "measured_at": "2026-07-25T21:01:22Z",
   "reference_machine": "MacBook Pro; MacBookPro18,2; Apple M1 Max; 64 GB",
   "macos_version": "27.0",
   "readiness_probe": "native window with AccessKit Overview navigation control",
   "trials": 5,
   "samples_ms": [
-    554.247,
-    570.665,
-    537.973,
-    548.002,
-    583.964
+    467.022,
+    495.361,
+    534.195,
+    515.464,
+    488.119
   ],
-  "minimum_ms": 537.973,
-  "median_ms": 554.247,
-  "maximum_ms": 583.964,
+  "minimum_ms": 467.022,
+  "median_ms": 495.361,
+  "maximum_ms": 534.195,
   "budgets": {
     "maximum_startup_ms": 2000,
     "gui_executable_bytes": 67108864,
@@ -25,10 +25,10 @@
   "bytes": {
     "gui_executable": 50055936,
     "bundled_cli_executable": 48524720,
-    "app_bundle_apparent": 98619392
+    "app_bundle_apparent": 98832384
   },
   "sha256": {
-    "gui_executable": "c559f4df6d78c9320609462ee5df061b53f0c8104418e434058040194f7e9d92",
-    "bundled_cli_executable": "f6f6686f44fe0849bc8b6824196bf8965bf890e631c3ce6a5135a3ad69eded90"
+    "gui_executable": "034cdba87ce08cafe40b089cf1580c3b1cd9d7aae7dec00221a152eeaf7568cb",
+    "bundled_cli_executable": "f5bf0f6f2532cb20b0a4d49749cafd8ac51152a0949f86aacd62921394db7f33"
   }
 }

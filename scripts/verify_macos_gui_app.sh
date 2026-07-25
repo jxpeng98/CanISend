@@ -12,7 +12,7 @@ fi
 
 app="$1"
 manifest="$2"
-for command in codesign jq plutil shasum; do
+for command in codesign file jq plutil shasum; do
   if ! command -v "$command" >/dev/null 2>&1; then
     echo "macOS GUI verification: required command is missing: $command" >&2
     exit 1
@@ -39,7 +39,8 @@ gui="$app/Contents/MacOS/canisend-gui"
 cli="$app/Contents/Resources/bin/canisend"
 metadata="$app/Contents/Resources/BUNDLE.json"
 info="$app/Contents/Info.plist"
-for file in "$gui" "$cli" "$metadata" "$info"; do
+icon="$app/Contents/Resources/AppIcon.icns"
+for file in "$gui" "$cli" "$metadata" "$info" "$icon"; do
   if [[ ! -f "$file" || -L "$file" ]]; then
     echo "macOS GUI verification: required regular file is missing: $file" >&2
     exit 1
@@ -103,6 +104,11 @@ jq -e \
   }' "$metadata" >/dev/null
 
 test "$(plutil -extract CanISendProductVersion raw "$info")" = "$version"
+test "$(plutil -extract CFBundleIconFile raw "$info")" = "AppIcon"
+if [[ "$(file -b "$icon")" != "Mac OS X icon"* ]]; then
+  echo "macOS GUI verification: AppIcon.icns is not a valid macOS icon" >&2
+  exit 1
+fi
 test "$("$cli" version --json | jq -er '.data.version')" = "$version"
 codesign --verify --deep --strict --verbose=4 "$app"
 

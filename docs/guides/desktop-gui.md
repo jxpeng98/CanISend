@@ -124,6 +124,20 @@ signing the outer bundle changes its main executable, so embedding that final ex
 would create a self-reference and invalidate either the digest or the signature. The script does
 not provide Developer ID identity or notarization.
 
+Create the frozen Apple Silicon Alpha ZIP directly from the two release binaries with:
+
+```console
+./scripts/package_macos_gui_release.sh \
+  ./target/release/canisend-gui \
+  ./target/release/canisend \
+  /path/to/release-assets
+```
+
+The command produces `CanISend-VERSION-aarch64-apple-darwin.zip` with exactly
+`CanISend.app` and `CanISend.app.manifest.json` at the top level. It strips resource forks and
+extended attributes from the ZIP so no `__MACOSX` or AppleDouble entries can expand the frozen
+contract; code signatures remain preserved in Mach-O and regular bundle files.
+
 Verify a staged bundle independently before launch:
 
 ```console
@@ -131,6 +145,18 @@ Verify a staged bundle independently before launch:
   /path/to/CanISend.app \
   /path/to/CanISend.app.manifest.json
 ```
+
+Release qualification verifies the archive after a fresh bounded extraction:
+
+```console
+./scripts/smoke_macos_gui_release_archive.sh \
+  /path/to/CanISend-VERSION-aarch64-apple-darwin.zip \
+  /new/path/to/smoke-output
+```
+
+That smoke rejects unsafe paths, symbolic links, an unexpected top level, more than 4096 entries,
+or more than 256 MiB uncompressed; then it checks the final signatures and companion hashes, runs
+the bundled CLI doctor and synthetic workflows, and launches the packaged GUI.
 
 The GUI does not download a binary, run `curl | sh`, invoke a package manager, or expose a general
 command textbox.

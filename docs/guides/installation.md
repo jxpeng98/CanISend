@@ -5,7 +5,7 @@ Java, SQLite, Typst, fonts, or a package manager runtime.
 
 ## Supported native targets
 
-The initial release line verifies these archives natively:
+The `1.0` line publishes these standalone CLI archives:
 
 - macOS arm64: `aarch64-apple-darwin` (`.tar.gz`);
 - macOS Intel: `x86_64-apple-darwin` (`.tar.gz`);
@@ -13,9 +13,12 @@ The initial release line verifies these archives natively:
 - Linux x86_64 static musl: `x86_64-unknown-linux-musl` (`.tar.gz`);
 - Windows x86_64: `x86_64-pc-windows-msvc` (`.zip`).
 
-Linux arm64 is not supported in the `0.7` line. Choose the archive by operating system, CPU architecture, and—on
-Linux—the available C library. `ldd --version` normally identifies a glibc system; use the musl archive for a musl
-distribution or when the glibc archive cannot start because its loader is unavailable.
+The Apple Silicon macOS desktop GUI is a separate
+`CanISend-VERSION-aarch64-apple-darwin.zip`; it is not a sixth CLI target. Linux arm64 is not
+supported in the `1.0` line. Choose a CLI archive by operating system, CPU architecture, and—on
+Linux—the available C library. `ldd --version` normally identifies a glibc system; use the musl
+archive for a musl distribution or when the glibc archive cannot start because its loader is
+unavailable.
 
 ## Install from a release archive
 
@@ -52,7 +55,28 @@ canisend agent capabilities
 `doctor` must report verified embedded resources and schemas, an embedded Typst renderer, disabled system-font and
 runtime-package lookup, and `Python runtime: not required`. Do not continue with a binary that fails this check.
 
-## Install the CLI from the desktop GUI preview
+## Install the macOS desktop application
+
+On Apple Silicon, download `CanISend-VERSION-aarch64-apple-darwin.zip`, `SHA256SUMS`, the release
+manifest, and the matching macOS GUI qualification JSON from the same release. Verify the checksum
+and GitHub provenance before extracting. The ZIP must contain exactly:
+
+```text
+CanISend.app
+CanISend.app.manifest.json
+```
+
+Verify the companion manifest and the ad-hoc application signature as described in the
+[release verification guide](release-verification.md), then move `CanISend.app` to a user-owned
+Applications directory or run it from the extracted folder. Retain the companion manifest,
+checksum file, qualification record, and notices with the verified download. Because this free
+channel is not Developer ID signed or notarized, macOS may require the normal per-application
+Open Anyway confirmation after verification. Never disable Gatekeeper globally.
+
+The application includes a version-matched CLI at
+`CanISend.app/Contents/Resources/bin/canisend`. It does not require a separately installed CLI.
+
+## Install the CLI from the desktop GUI
 
 The macOS-first GUI provides a **Command line** page that installs its version-matched bundled Rust
 CLI to `~/.local/bin/canisend`. Installation is user-scoped and does not require a language
@@ -78,18 +102,21 @@ canisend version --json
 canisend doctor
 ```
 
-The packaged GUI channel is not part of the historical qualified `0.7` release; use the archive
-installation above until the `1.0.0-alpha.1` macOS bundle passes its native gates.
+The first packaged GUI channel is `1.0.0-alpha.1` on Apple Silicon. Intel macOS users can use the
+standalone CLI archive during this Alpha; native Intel GUI qualification is required before Beta.
 
 For complete checksum, SBOM, manifest, and GitHub provenance verification, follow the
 [release verification guide](release-verification.md).
 
 ## Release signing status
 
-`0.7.0-alpha.*` archives may be unsigned under the explicit Alpha policy. Verify the published checksum and release
-provenance. Beta, release-candidate, and Stable community builds fail closed unless both macOS executables have a
-verified ad-hoc integrity signature and the Windows executable has a verified self-signed Authenticode signature.
-Each release publishes canonical JSON evidence bound to the final archive hash.
+The five standalone `1.0.0-alpha.*` CLI archives may be unsigned under the explicit Alpha policy.
+The `1.0.0-alpha.*` macOS GUI always ad-hoc signs its bundled CLI, GUI executable, and outer
+application, and publishes canonical qualification evidence bound to the final desktop ZIP.
+Beta, release-candidate, and Stable community builds fail closed unless both standalone macOS CLI
+executables have verified ad-hoc integrity signatures and the Windows executable has a verified
+self-signed Authenticode signature. Each release publishes canonical JSON evidence bound to the
+final archive hash.
 
 These free signatures are not publisher identities. macOS builds are not Developer-ID signed or notarized; Windows
 builds are not signed by a publicly trusted certificate and have no public timestamp. Gatekeeper, Unknown Publisher,
