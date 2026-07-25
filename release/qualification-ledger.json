@@ -1,22 +1,11 @@
 {
   "beta": {
-    "signed_matrix_run": 29650151493,
-    "signing_evidence_targets": [
-      "aarch64-apple-darwin",
-      "x86_64-apple-darwin",
-      "x86_64-pc-windows-msvc"
-    ],
-    "source_commit": "24054abf40995707a6f212a890ebd87bef606476",
-    "status": "qualified",
-    "tag": "v0.7.0-beta.1"
+    "status": "pending"
   },
   "documentation_uninstall": {
-    "evidence": [
-      "native RC run 29681894739 passed exact archive documentation and uninstall smoke on five targets",
-      "v0.7.0-rc.1 retained external workspaces after installed binary and notice removal"
-    ],
-    "native_matrix_run": 29681894739,
-    "status": "passed"
+    "evidence": [],
+    "native_matrix_run": null,
+    "status": "prepared-local"
   },
   "feature_freeze": {
     "allowed_change_classes": [
@@ -24,8 +13,8 @@
       "release-blocker",
       "release-evidence"
     ],
-    "baseline_commit": "dd15c138c638113933f70e1ab0d3206a9965e0e4",
-    "status": "frozen"
+    "baseline_commit": null,
+    "status": "planned"
   },
   "package_managers": {
     "channels": [
@@ -36,37 +25,21 @@
     "evidence": [],
     "status": "candidates-only"
   },
-  "release_candidates": [
-    {
-      "signed_matrix_run": 29681894739,
-      "source_commit": "40bc4efba294e9ba0534ab7ab4a89925ae0e53bf",
-      "status": "success",
-      "tag": "v0.7.0-rc.1"
-    },
-    {
-      "signed_matrix_run": 29685921623,
-      "source_commit": "201a887732a44fe300ae3d4fc7f4bfb44ffe03c4",
-      "status": "success",
-      "tag": "v0.7.0-rc.2"
-    }
-  ],
+  "release_candidates": [],
   "release_notes": {
     "notes": "release/RELEASE_NOTES.md",
     "review": null,
     "rollback": "docs/guides/upgrade-and-rollback.md",
-    "status": "rc-final"
+    "status": "alpha-current"
   },
   "schema": "canisend.release-qualification/v1",
   "stable_authorized": false,
-  "status": "rc-qualifying",
+  "status": "pre-beta",
   "upgrade_matrix": {
-    "beta_tag": "v0.7.0-beta.1",
-    "evidence": [
-      "native upgrade qualification run 29684079687 passed five signed archive targets",
-      "v0.7.0-beta.1 to v0.7.0-rc.1 backup, old-binary, restore, host-pack, and uninstall lifecycle passed"
-    ],
-    "rc_tag": "v0.7.0-rc.1",
-    "status": "passed"
+    "beta_tag": null,
+    "evidence": [],
+    "rc_tag": null,
+    "status": "pending"
   },
-  "workspace_stage": "rc"
+  "workspace_stage": "alpha"
 }

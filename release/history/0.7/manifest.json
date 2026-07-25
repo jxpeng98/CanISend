@@ -1,0 +1,50 @@
+{
+  "activation_source_commit": "304072a6f250040215442a47426ebe89258ab0fd",
+  "archived_from_version": "0.7.0-rc.2",
+  "files": [
+    {
+      "archive_path": "release/history/0.7/RELEASE_NOTES.md",
+      "sha256": "f7e3dbdf1390c71d57bc823298cee1f83ef1db53b5c16f2f6036158d5d8eeb35",
+      "source_path": "release/RELEASE_NOTES.md"
+    },
+    {
+      "archive_path": "release/history/0.7/beta-contract-freeze.json",
+      "sha256": "3d00ed9b384d10af4d3897b8c575c11bdf6e984ba778bc8d8918797ab9495434",
+      "source_path": "release/beta-contract-freeze.json"
+    },
+    {
+      "archive_path": "release/history/0.7/beta-readiness.json",
+      "sha256": "3abdccf1a269373d65a8513fda49aaf7e8a204e6de910862c2fb310daae6d4ac",
+      "source_path": "release/beta-readiness.json"
+    },
+    {
+      "archive_path": "release/history/0.7/feature-freeze-exceptions.json",
+      "sha256": "6bed57152464f8e229dd564fbe21cab1442606f7e1fbecb338d6f92597010289",
+      "source_path": "release/feature-freeze-exceptions.json"
+    },
+    {
+      "archive_path": "release/history/0.7/feedback-snapshot.json",
+      "sha256": "fdb3f29b89283fd13facf08696c279df6be69624e5078934d9963ce0e010d017",
+      "source_path": "release/feedback-snapshot.json"
+    },
+    {
+      "archive_path": "release/history/0.7/qualification-ledger.json",
+      "sha256": "fbd15feaa8e24e3ee4eb98da54720c561a93e9f261c6da97b76dbc8982708809",
+      "source_path": "release/qualification-ledger.json"
+    },
+    {
+      "archive_path": "release/history/0.7/support-policy.json",
+      "sha256": "d6b30f9a730b70b7abb64c311e4d6337144478960f790bffd95f33c01ed0103d",
+      "source_path": "release/support-policy.json"
+    }
+  ],
+  "references": [
+    {
+      "kind": "repository-tree",
+      "path": "packaging/candidates/v0.7.0-alpha.1",
+      "tree_sha256": "5d5bb39d8e5b597ea29526d2c8df149f08f29fc65e313101181fb29bb1d7928b"
+    }
+  ],
+  "release_line": "0.7",
+  "schema": "canisend.release-history/v1"
+}

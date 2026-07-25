@@ -14,7 +14,7 @@
   },
   "platforms": {
     "authority": "release/targets.json",
-    "linux_arm64": "unsupported-in-1.0",
+    "linux_arm64": "unsupported-in-0.7",
     "runtime_requirements": {
       "external_sqlite": false,
       "external_typst": false,
@@ -25,7 +25,7 @@
     "target_count": 5
   },
   "publication_status": "pre-stable-draft",
-  "release_line": "1.0",
+  "release_line": "0.7",
   "schema": "canisend.support-policy/v1",
   "security": {
     "default_telemetry": false,

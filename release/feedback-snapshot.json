@@ -1,41 +1,14 @@
 {
-  "captured_at": "2026-07-19T12:38:28Z",
   "default_telemetry": false,
+  "expected_release": {
+    "tag": "v1.0.0-alpha.1"
+  },
   "next_roadmap": {
-    "path": "docs/superpowers/plans/2026-07-18-post-0.7-roadmap.md",
-    "status": "reviewed"
+    "path": "docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md",
+    "status": "active"
   },
   "privacy_boundary": "public-metadata-only",
-  "public_feedback": {
-    "closed_issue_count": 0,
-    "issue_numbers": [],
-    "open_issue_count": 0,
-    "total_issue_count": 0
-  },
-  "qualification_findings": [
-    {
-      "evidence": "GitHub Actions run 29631149914",
-      "id": "mixed-windows-git-bash-runner-temp-path",
-      "resolution": "normalize native and Git Bash paths before staged bundle smoke"
-    },
-    {
-      "evidence": "failed run 29636580836; fixed-source run 29637252504",
-      "id": "windows-crlf-false-contract-drift",
-      "resolution": "canonicalize frozen text digests and pin JSON/SQL checkout line endings"
-    }
-  ],
-  "release": {
-    "published_at": "2026-07-19T12:33:02Z",
-    "repository": "jxpeng98/CanISend",
-    "tag": "v0.7.0-rc.2"
-  },
-  "release_downloads": {
-    "asset_count": 15,
-    "maintainer_verification_included": true,
-    "native_archive_count": 5,
-    "native_archive_downloads": 0,
-    "total_downloads": 0
-  },
+  "release_line": "1.0",
   "schema": "canisend.feedback-snapshot/v1",
-  "snapshot_stage": "rc"
+  "status": "pending-alpha-publication"
 }

@@ -1,0 +1,161 @@
+{
+  "baseline_commit": "dd15c138c638113933f70e1ab0d3206a9965e0e4",
+  "exceptions": [
+    {
+      "class": "release-evidence",
+      "commit": "53f25583a3fd7870b25cb06df35cb6129de483d2",
+      "paths": [
+        "Cargo.lock",
+        "Cargo.toml",
+        "crates/canisend-cli/Cargo.toml",
+        "crates/canisend-core/Cargo.toml",
+        "crates/canisend-io/Cargo.toml",
+        "crates/canisend-resources/Cargo.toml",
+        "crates/canisend-store/Cargo.toml",
+        "xtask/Cargo.toml"
+      ],
+      "reason": "Advance the qualified Beta line to the first RC version and synchronize exact internal dependency pins before clean-tag qualification."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "9e86292417b59e20cc55f0d9b7c3315a8f3bb1b9",
+      "paths": [
+        "xtask/src/main.rs"
+      ],
+      "reason": "Keep the release-policy test independent of the live planned/frozen state after RC transition so the mandatory Rust suite can qualify clean tags."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "d305afee107ef467aa556da7a6773c8045480648",
+      "paths": [
+        ".github/workflows/ci.yml",
+        ".github/workflows/release.yml"
+      ],
+      "reason": "Fetch complete history in the ordinary and tagged source-gate jobs so RC qualification can verify the frozen baseline and exact post-baseline exceptions."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "f7e18bbe84f34d2d350ea28c2013ecc68c38b97c",
+      "paths": [
+        ".github/workflows/package-manager-qualification.yml",
+        ".github/workflows/upgrade-qualification.yml"
+      ],
+      "reason": "Fetch complete history in upgrade and package-manager preflight jobs so their release checks can verify the frozen baseline before consuming public RC assets."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "28261fba28e9cda0400b0cbb4ca9c3ae56660198",
+      "paths": [
+        ".github/workflows/upgrade-qualification.yml",
+        "scripts/qualify_archive_upgrade.sh"
+      ],
+      "reason": "Restore the Unix lifecycle executable bit and fail preflight early if it is lost so the five-target Beta-to-RC qualification can run on macOS and Linux."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "c72e39990e75c80b975c0b4617e5bc2190667162",
+      "paths": [
+        "fuzz/Cargo.lock",
+        "fuzz/Cargo.toml",
+        "release/stage-transition-policy.json",
+        "xtask/src/main.rs"
+      ],
+      "reason": "Synchronize the standalone fuzz workspace with the RC version and make future stage transitions update and validate its manifest and lockfile before scheduled campaigns."
+    },
+    {
+      "class": "release-evidence",
+      "commit": "946e313fbccec99f3bdcebc3fb227a662f9b9f4c",
+      "paths": [
+        "Cargo.lock",
+        "Cargo.toml",
+        "crates/canisend-cli/Cargo.toml",
+        "crates/canisend-core/Cargo.toml",
+        "crates/canisend-io/Cargo.toml",
+        "crates/canisend-resources/Cargo.toml",
+        "crates/canisend-store/Cargo.toml",
+        "fuzz/Cargo.lock",
+        "fuzz/Cargo.toml",
+        "xtask/Cargo.toml"
+      ],
+      "reason": "Advance the qualified RC line to the required second clean-tag candidate while preserving the first RC, upgrade, documentation, and fuzz evidence."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "f89e148867522db94284d9210776195bfdedb1ee",
+      "paths": [
+        "scripts/qualify_homebrew_packages.sh",
+        "scripts/qualify_windows_packages.ps1",
+        "xtask/src/main.rs"
+      ],
+      "reason": "Repair native package-manager qualification after current Homebrew, PowerShell, and WinGet validators exposed fail-closed incompatibilities in the nonpublishing lifecycle scripts."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "2ae07ee0efbea04580cc6d61623d76971cbcc433",
+      "paths": [
+        "scripts/qualify_homebrew_packages.sh",
+        "scripts/qualify_windows_packages.ps1",
+        "xtask/src/main.rs"
+      ],
+      "reason": "Complete the nonpublishing package qualification repair by creating the temporary Homebrew cask directory and presenting the local Scoop bucket as a Git-compatible file URI."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "2da851ed0bd1fb61898b2820239e5ec2b35f7e3c",
+      "paths": [
+        "scripts/qualify_windows_packages.ps1",
+        "xtask/src/main.rs"
+      ],
+      "reason": "Preserve a successful Scoop lifecycle result by tracking the temporary bucket state and preventing cleanup from repeating its completed removal."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "20dc0c7b47510593e05b754f51c610f5ada63e39",
+      "paths": [
+        "Cargo.lock",
+        "Cargo.toml",
+        "crates/canisend-app/Cargo.toml",
+        "crates/canisend-app/src/cli_install.rs",
+        "crates/canisend-app/src/lib.rs",
+        "crates/canisend-app/src/update.rs",
+        "crates/canisend-gui/Cargo.toml",
+        "crates/canisend-gui/src/cli_bridge.rs",
+        "crates/canisend-gui/src/main.rs",
+        "crates/canisend-gui/src/registry.rs",
+        "crates/canisend-gui/src/theme.rs",
+        "packaging/macos/Info.plist",
+        "scripts/stage_macos_gui_app.sh"
+      ],
+      "reason": "Implement the product-owner-authorized macOS GUI and CLI distribution bridge required for the next unified 1.0 Alpha while keeping those bytes outside the historical 0.7 qualified release artifacts."
+    },
+    {
+      "class": "release-evidence",
+      "commit": "49cde832f2073168e2bb195b10377442e373771f",
+      "paths": [
+        "crates/canisend-app/src/update.rs"
+      ],
+      "reason": "Record the product-owner decision to begin the unified CLI and GUI product at 1.0.0-alpha.1, align the bounded update-response fixture, and define the history-preserving release-line activation plan."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "c0ab68313ad6ab69cc66925067d545d89a33f948",
+      "paths": [
+        "crates/canisend-gui/src/main.rs",
+        "crates/canisend-gui/src/registry.rs",
+        "crates/canisend-gui/src/theme.rs"
+      ],
+      "reason": "Resolve GUI Alpha contrast, accessibility labeling, minimum-window overflow, operation-context races, stuck-worker recovery, destructive-action confirmation, and bounded workspace-registry input blockers before 1.0 release-line activation."
+    },
+    {
+      "class": "release-evidence",
+      "commit": "8c7736769d30302ef642553685bc502fa6228ff0",
+      "paths": [
+        "release/release-line-policy.json",
+        "xtask/src/main.rs"
+      ],
+      "reason": "Add the fail-closed 1.0 release-line activation policy, deterministic history manifest, dry-run plan, bounded candidate-tree hashing, rollback-capable controlled writes, and focused regression fixtures."
+    }
+  ],
+  "schema": "canisend.feature-freeze-exceptions/v1",
+  "status": "frozen"
+}
