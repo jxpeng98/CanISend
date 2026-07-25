@@ -712,12 +712,20 @@ mod tests {
         ))
     }
 
+    fn cli_name() -> &'static str {
+        if cfg!(windows) {
+            "canisend.exe"
+        } else {
+            "canisend"
+        }
+    }
+
     #[test]
     fn installs_updates_and_uninstalls_managed_cli() {
         let root = root("lifecycle");
         fs::create_dir_all(&root).expect("root");
-        let source = root.join("bundle/canisend");
-        let destination = root.join("bin/canisend");
+        let source = root.join("bundle").join(cli_name());
+        let destination = root.join("bin").join(cli_name());
         fs::create_dir_all(source.parent().expect("source parent")).expect("bundle");
         fs::write(&source, b"rust-cli-v1").expect("source");
 
@@ -771,8 +779,8 @@ mod tests {
     fn replacement_preserves_and_restores_the_previous_installation() {
         let root = root("replacement");
         fs::create_dir_all(&root).expect("root");
-        let source = root.join("bundle/canisend");
-        let destination = root.join("bin/canisend");
+        let source = root.join("bundle").join(cli_name());
+        let destination = root.join("bin").join(cli_name());
         fs::create_dir_all(source.parent().expect("source parent")).expect("bundle");
         fs::create_dir_all(destination.parent().expect("destination parent")).expect("bin");
         fs::write(&source, b"rust-cli").expect("source");
@@ -835,8 +843,8 @@ mod tests {
         use std::os::unix::fs::PermissionsExt;
 
         let root = root("version-probe");
-        let source = root.join("bundle/canisend");
-        let destination = root.join("bin/canisend");
+        let source = root.join("bundle").join(cli_name());
+        let destination = root.join("bin").join(cli_name());
         fs::create_dir_all(source.parent().expect("source parent")).expect("bundle");
         fs::create_dir_all(destination.parent().expect("destination parent")).expect("bin");
         fs::write(&source, b"bundled-cli").expect("source");
@@ -862,8 +870,8 @@ mod tests {
         use std::os::unix::fs::PermissionsExt;
 
         let root = root("newer-version");
-        let source = root.join("bundle/canisend");
-        let destination = root.join("bin/canisend");
+        let source = root.join("bundle").join(cli_name());
+        let destination = root.join("bin").join(cli_name());
         fs::create_dir_all(source.parent().expect("source parent")).expect("bundle");
         fs::create_dir_all(destination.parent().expect("destination parent")).expect("bin");
         fs::write(&source, b"bundled-cli").expect("source");
@@ -894,8 +902,8 @@ mod tests {
     fn uninstall_refuses_modified_managed_binary() {
         let root = root("modified");
         fs::create_dir_all(&root).expect("root");
-        let source = root.join("bundle/canisend");
-        let destination = root.join("bin/canisend");
+        let source = root.join("bundle").join(cli_name());
+        let destination = root.join("bin").join(cli_name());
         fs::create_dir_all(source.parent().expect("source parent")).expect("bundle");
         fs::write(&source, b"rust-cli").expect("source");
         install(
@@ -930,8 +938,8 @@ mod tests {
     fn install_never_replaces_a_directory_destination() {
         let root = root("directory");
         fs::create_dir_all(&root).expect("root");
-        let source = root.join("bundle/canisend");
-        let destination = root.join("bin/canisend");
+        let source = root.join("bundle").join(cli_name());
+        let destination = root.join("bin").join(cli_name());
         fs::create_dir_all(source.parent().expect("source parent")).expect("bundle");
         fs::create_dir_all(&destination).expect("destination directory");
         fs::write(&source, b"rust-cli").expect("source");
