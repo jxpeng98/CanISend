@@ -1,0 +1,37 @@
+{
+  "command": {
+    "clean_worktree_required_for_write": true,
+    "dry_run_default": true,
+    "name": "cargo run -p xtask --locked -- release activate-line",
+    "transactional_rollback": true,
+    "write_flag": "--write"
+  },
+  "external_actions": {
+    "create_tag": false,
+    "modify_package_repository": false,
+    "publish_release": false,
+    "push": false
+  },
+  "history": {
+    "copied_files": [
+      "release/RELEASE_NOTES.md",
+      "release/beta-contract-freeze.json",
+      "release/beta-readiness.json",
+      "release/feature-freeze-exceptions.json",
+      "release/feedback-snapshot.json",
+      "release/qualification-ledger.json",
+      "release/support-policy.json"
+    ],
+    "destination": "release/history/0.7",
+    "referenced_trees": [
+      "packaging/candidates/v0.7.0-alpha.1"
+    ],
+    "schema": "canisend.release-history/v1",
+    "source_line": "0.7"
+  },
+  "schema": "canisend.release-line-policy/v1",
+  "target": {
+    "new_line_prerelease": "X.Y.0-alpha.1",
+    "tag": "v1.0.0-alpha.1"
+  }
+}

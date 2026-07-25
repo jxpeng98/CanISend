@@ -27,6 +27,9 @@ const SIGNING_POLICY_SCHEMA: &str = "canisend.signing-policy/v2";
 const SUPPORT_POLICY_SCHEMA: &str = "canisend.support-policy/v1";
 const FEEDBACK_SNAPSHOT_SCHEMA: &str = "canisend.feedback-snapshot/v1";
 const RELEASE_QUALIFICATION_SCHEMA: &str = "canisend.release-qualification/v1";
+const RELEASE_HISTORY_SCHEMA: &str = "canisend.release-history/v1";
+const RELEASE_LINE_POLICY_SCHEMA: &str = "canisend.release-line-policy/v1";
+const RELEASE_LINE_PLAN_SCHEMA: &str = "canisend.release-line-plan/v1";
 const STAGE_TRANSITION_POLICY_SCHEMA: &str = "canisend.stage-transition-policy/v1";
 const STAGE_TRANSITION_PLAN_SCHEMA: &str = "canisend.stage-transition-plan/v1";
 const FEATURE_FREEZE_PLAN_SCHEMA: &str = "canisend.feature-freeze-plan/v1";
@@ -87,6 +90,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
             check_upgrade_qualification_policy()?;
             check_documentation_uninstall_policy()?;
             check_signing_policy()?;
+            check_release_line_history()?;
             check_stage_transition_policy()?;
             check_support_policy()?;
             check_release_feedback()?;
@@ -120,6 +124,14 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
             if area == "release" && command == "prepare-stage" && write == "--write" =>
         {
             prepare_stage_transition(tag, true)
+        }
+        [area, command, tag] if area == "release" && command == "activate-line" => {
+            activate_release_line(tag, false)
+        }
+        [area, command, tag, write]
+            if area == "release" && command == "activate-line" && write == "--write" =>
+        {
+            activate_release_line(tag, true)
         }
         [area, command, baseline]
             if area == "release" && command == "activate-feature-freeze" =>
@@ -885,6 +897,14 @@ struct RenderedStageTransition {
     files: BTreeMap<String, Vec<u8>>,
 }
 
+struct RenderedReleaseLineActivation {
+    from_version: Version,
+    to_version: Version,
+    source_commit: String,
+    history_line: String,
+    files: BTreeMap<String, Vec<u8>>,
+}
+
 struct RenderedFeatureFreeze {
     baseline: String,
     files: BTreeMap<String, Vec<u8>>,
@@ -1033,6 +1053,727 @@ fn prepare_stage_transition(tag: &str, write: bool) -> Result<(), String> {
             .map_err(|error| format!("could not serialize stage-transition plan: {error}"))?
     );
     Ok(())
+}
+
+fn activate_release_line(tag: &str, write: bool) -> Result<(), String> {
+    let root = repository_root();
+    if write {
+        require_clean_worktree(&root, "release-line activation")?;
+    }
+    let source_commit = run_git_lines(&root, &["rev-parse", "HEAD"])?
+        .into_iter()
+        .next()
+        .ok_or_else(|| "could not resolve release-line activation source commit".to_owned())?;
+    validate_lower_hex("release-line activation source commit", &source_commit, 40)?;
+    let activation = render_release_line_activation(&root, tag, &source_commit)?;
+    let report = release_line_activation_report(&root, &activation, write)?;
+    if write {
+        write_controlled_files_transactionally(&root, &activation.files, None)?;
+    }
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&report).map_err(|error| format!(
+            "could not serialize release-line activation plan: {error}"
+        ))?
+    );
+    Ok(())
+}
+
+fn render_release_line_activation(
+    root: &Path,
+    tag: &str,
+    source_commit: &str,
+) -> Result<RenderedReleaseLineActivation, String> {
+    validate_lower_hex("release-line activation source commit", source_commit, 40)?;
+    let workspace_path = root.join("Cargo.toml");
+    let workspace_body = fs::read_to_string(&workspace_path)
+        .map_err(|error| format!("could not read workspace manifest: {error}"))?;
+    let workspace: toml::Value = workspace_body
+        .parse()
+        .map_err(|error| format!("workspace manifest is invalid TOML: {error}"))?;
+    let from_version = Version::parse(
+        workspace["workspace"]["package"]["version"]
+            .as_str()
+            .ok_or_else(|| "workspace manifest has no package version".to_owned())?,
+    )
+    .map_err(|error| format!("workspace version is invalid: {error}"))?;
+    let (to_version, to_stage) = parse_release_tag(tag)?;
+    validate_release_line_target(&from_version, &to_version, to_stage)?;
+    let history_line = format!("{}.{}", from_version.major, from_version.minor);
+    let history_root = format!("release/history/{history_line}");
+    if root.join(&history_root).exists() {
+        return Err(format!(
+            "release history destination `{history_root}` already exists"
+        ));
+    }
+
+    let mut files = render_workspace_version_update(
+        root,
+        &workspace,
+        &workspace_body,
+        &from_version,
+        &to_version,
+    )?;
+    let archive_sources = [
+        "release/RELEASE_NOTES.md",
+        "release/beta-contract-freeze.json",
+        "release/beta-readiness.json",
+        "release/feature-freeze-exceptions.json",
+        "release/feedback-snapshot.json",
+        "release/qualification-ledger.json",
+        "release/support-policy.json",
+    ];
+    let mut archived_files = Vec::new();
+    for source_path in archive_sources {
+        let body = fs::read(root.join(source_path)).map_err(|error| {
+            format!("could not read historical source `{source_path}`: {error}")
+        })?;
+        let name = Path::new(source_path)
+            .file_name()
+            .and_then(|name| name.to_str())
+            .ok_or_else(|| format!("historical source path is invalid: {source_path}"))?;
+        let archive_path = format!("{history_root}/{name}");
+        archived_files.push(json!({
+            "archive_path": archive_path,
+            "sha256": sha256(&body),
+            "source_path": source_path
+        }));
+        files.insert(archive_path, body);
+    }
+    let candidate_tree_sha256 =
+        digest_regular_file_tree(&root.join("packaging/candidates/v0.7.0-alpha.1"))?;
+    let history_manifest = json!({
+        "schema": RELEASE_HISTORY_SCHEMA,
+        "release_line": history_line,
+        "archived_from_version": from_version.to_string(),
+        "activation_source_commit": source_commit,
+        "files": archived_files,
+        "references": [{
+            "kind": "repository-tree",
+            "path": "packaging/candidates/v0.7.0-alpha.1",
+            "tree_sha256": candidate_tree_sha256
+        }]
+    });
+    files.insert(
+        format!("{history_root}/manifest.json"),
+        pretty_json_bytes(&history_manifest)?,
+    );
+
+    files.insert(
+        "release/qualification-ledger.json".to_owned(),
+        pretty_json_bytes(&initial_alpha_qualification_ledger())?,
+    );
+    files.insert(
+        "release/feature-freeze-exceptions.json".to_owned(),
+        pretty_json_bytes(&json!({
+            "schema": FEATURE_FREEZE_EXCEPTIONS_SCHEMA,
+            "status": "planned",
+            "baseline_commit": null,
+            "exceptions": []
+        }))?,
+    );
+    files.insert(
+        "release/support-policy.json".to_owned(),
+        pretty_json_bytes(&build_support_policy(&to_version)?)?,
+    );
+    files.insert(
+        "release/beta-readiness.json".to_owned(),
+        pretty_json_bytes(&pending_beta_readiness(&to_version)?)?,
+    );
+    files.insert(
+        "release/beta-contract-freeze.json".to_owned(),
+        pretty_json_bytes(&pending_beta_contract_freeze(&to_version)?)?,
+    );
+    files.insert(
+        "release/feedback-snapshot.json".to_owned(),
+        pretty_json_bytes(&pending_release_feedback(&to_version)?)?,
+    );
+    files.insert(
+        "release/RELEASE_NOTES.md".to_owned(),
+        release_notes_for_version(&to_version).into_bytes(),
+    );
+
+    for (relative, after) in &files {
+        let path = root.join(relative);
+        if path.exists() {
+            reject_symlink(&path)?;
+            let before = fs::read(&path)
+                .map_err(|error| format!("could not read controlled file `{relative}`: {error}"))?;
+            if before == *after {
+                return Err(format!(
+                    "release-line activation would not change controlled file `{relative}`"
+                ));
+            }
+        }
+    }
+    Ok(RenderedReleaseLineActivation {
+        from_version,
+        to_version,
+        source_commit: source_commit.to_owned(),
+        history_line,
+        files,
+    })
+}
+
+fn validate_release_line_target(
+    from_version: &Version,
+    to_version: &Version,
+    to_stage: ReleaseStage,
+) -> Result<(), String> {
+    if to_stage != ReleaseStage::Alpha
+        || to_version.patch != 0
+        || to_version.pre.as_str() != "alpha.1"
+        || !to_version.build.is_empty()
+        || (to_version.major, to_version.minor) <= (from_version.major, from_version.minor)
+    {
+        return Err(
+            "release-line activation requires a later X.Y.0-alpha.1 tag without build metadata"
+                .to_owned(),
+        );
+    }
+    Ok(())
+}
+
+fn render_workspace_version_update(
+    root: &Path,
+    workspace: &toml::Value,
+    workspace_body: &str,
+    from_version: &Version,
+    to_version: &Version,
+) -> Result<BTreeMap<String, Vec<u8>>, String> {
+    let members = workspace["workspace"]["members"]
+        .as_array()
+        .ok_or_else(|| "workspace manifest has no members array".to_owned())?
+        .iter()
+        .map(|member| {
+            member
+                .as_str()
+                .map(str::to_owned)
+                .ok_or_else(|| "workspace member must be a string".to_owned())
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut package_names = BTreeSet::new();
+    for member in &members {
+        let manifest: toml::Value = fs::read_to_string(root.join(member).join("Cargo.toml"))
+            .map_err(|error| format!("could not read {member}/Cargo.toml: {error}"))?
+            .parse()
+            .map_err(|error| format!("{member}/Cargo.toml is invalid TOML: {error}"))?;
+        package_names.insert(
+            manifest["package"]["name"]
+                .as_str()
+                .ok_or_else(|| format!("{member}/Cargo.toml has no package name"))?
+                .to_owned(),
+        );
+    }
+    let from = from_version.to_string();
+    let to = to_version.to_string();
+    let mut files = BTreeMap::new();
+    files.insert(
+        "Cargo.toml".to_owned(),
+        replace_exact_count(
+            workspace_body,
+            &format!("version = \"{from}\""),
+            &format!("version = \"{to}\""),
+            1,
+            "workspace version",
+        )?
+        .into_bytes(),
+    );
+    for member in &members {
+        let relative = format!("{member}/Cargo.toml");
+        let body = fs::read_to_string(root.join(&relative))
+            .map_err(|error| format!("could not read {relative}: {error}"))?;
+        let needle = format!("version = \"={from}\"");
+        let occurrences = body.matches(&needle).count();
+        if occurrences > 0 {
+            files.insert(
+                relative.clone(),
+                replace_exact_count(
+                    &body,
+                    &needle,
+                    &format!("version = \"={to}\""),
+                    occurrences,
+                    &format!("internal dependency versions in {relative}"),
+                )?
+                .into_bytes(),
+            );
+        }
+    }
+    let fuzz_manifest = "fuzz/Cargo.toml";
+    if root.join(fuzz_manifest).is_file() {
+        let body = fs::read_to_string(root.join(fuzz_manifest))
+            .map_err(|error| format!("could not read {fuzz_manifest}: {error}"))?;
+        let needle = format!("version = \"={from}\"");
+        let occurrences = body.matches(&needle).count();
+        if occurrences == 0 {
+            return Err(format!(
+                "{fuzz_manifest} has no internal dependencies pinned to {from}"
+            ));
+        }
+        files.insert(
+            fuzz_manifest.to_owned(),
+            replace_exact_count(
+                &body,
+                &needle,
+                &format!("version = \"={to}\""),
+                occurrences,
+                "fuzz manifest internal dependency versions",
+            )?
+            .into_bytes(),
+        );
+    }
+    let mut lock = fs::read_to_string(root.join("Cargo.lock"))
+        .map_err(|error| format!("could not read Cargo.lock: {error}"))?;
+    for package in &package_names {
+        lock = replace_exact_count(
+            &lock,
+            &format!("name = \"{package}\"\nversion = \"{from}\""),
+            &format!("name = \"{package}\"\nversion = \"{to}\""),
+            1,
+            &format!("Cargo.lock package `{package}`"),
+        )?;
+    }
+    files.insert("Cargo.lock".to_owned(), lock.into_bytes());
+
+    let fuzz_lock = "fuzz/Cargo.lock";
+    if root.join(fuzz_lock).is_file() {
+        let body = fs::read_to_string(root.join(fuzz_lock))
+            .map_err(|error| format!("could not read {fuzz_lock}: {error}"))?;
+        let parsed: toml::Value = body
+            .parse()
+            .map_err(|error| format!("{fuzz_lock} is invalid TOML: {error}"))?;
+        let packages = parsed["package"]
+            .as_array()
+            .ok_or_else(|| format!("{fuzz_lock} has no package entries"))?;
+        let mut names = BTreeSet::new();
+        for package in packages {
+            let Some(name) = package["name"].as_str() else {
+                continue;
+            };
+            if !name.starts_with("canisend-") || name == "canisend-fuzz" {
+                continue;
+            }
+            if package["version"].as_str() != Some(from.as_str()) {
+                return Err(format!("{fuzz_lock} package `{name}` does not use {from}"));
+            }
+            names.insert(name.to_owned());
+        }
+        if names.is_empty() {
+            return Err(format!("{fuzz_lock} has no internal CanISend packages"));
+        }
+        let mut updated = body;
+        for package in names {
+            updated = replace_exact_count(
+                &updated,
+                &format!("name = \"{package}\"\nversion = \"{from}\""),
+                &format!("name = \"{package}\"\nversion = \"{to}\""),
+                1,
+                &format!("{fuzz_lock} package `{package}`"),
+            )?;
+        }
+        files.insert(fuzz_lock.to_owned(), updated.into_bytes());
+    }
+    Ok(files)
+}
+
+fn initial_alpha_qualification_ledger() -> Value {
+    json!({
+        "schema": RELEASE_QUALIFICATION_SCHEMA,
+        "workspace_stage": "alpha",
+        "status": "pre-beta",
+        "stable_authorized": false,
+        "beta": {"status": "pending"},
+        "feature_freeze": {
+            "allowed_change_classes": [
+                "documentation",
+                "release-blocker",
+                "release-evidence"
+            ],
+            "baseline_commit": null,
+            "status": "planned"
+        },
+        "release_candidates": [],
+        "upgrade_matrix": {
+            "status": "pending",
+            "beta_tag": null,
+            "rc_tag": null,
+            "evidence": []
+        },
+        "documentation_uninstall": {
+            "status": "prepared-local",
+            "native_matrix_run": null,
+            "evidence": []
+        },
+        "package_managers": {
+            "channels": ["homebrew-cask", "scoop", "winget"],
+            "evidence": [],
+            "status": "candidates-only"
+        },
+        "release_notes": {
+            "notes": "release/RELEASE_NOTES.md",
+            "review": null,
+            "rollback": "docs/guides/upgrade-and-rollback.md",
+            "status": "alpha-current"
+        }
+    })
+}
+
+fn pending_beta_readiness(version: &Version) -> Result<Value, String> {
+    Ok(json!({
+        "schema": BETA_READINESS_SCHEMA,
+        "status": "pending-alpha-publication",
+        "release_line": format!("{}.{}", version.major, version.minor),
+        "alpha_release": {
+            "tag": alpha_tag_for_version(version)?,
+            "source_commit": null,
+            "release_run": null,
+            "release_url": null
+        },
+        "default_telemetry": false,
+        "unresolved_release_blockers": []
+    }))
+}
+
+fn pending_beta_contract_freeze(version: &Version) -> Result<Value, String> {
+    Ok(json!({
+        "schema": BETA_CONTRACT_FREEZE_SCHEMA,
+        "status": "pending-alpha-publication",
+        "release_line": format!("{}.{}", version.major, version.minor),
+        "baseline": {
+            "release": alpha_tag_for_version(version)?,
+            "source_commit": null
+        }
+    }))
+}
+
+fn pending_release_feedback(version: &Version) -> Result<Value, String> {
+    Ok(json!({
+        "schema": FEEDBACK_SNAPSHOT_SCHEMA,
+        "status": "pending-alpha-publication",
+        "release_line": format!("{}.{}", version.major, version.minor),
+        "default_telemetry": false,
+        "privacy_boundary": "public-metadata-only",
+        "expected_release": {
+            "tag": alpha_tag_for_version(version)?
+        },
+        "next_roadmap": {
+            "path": "docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md",
+            "status": "active"
+        }
+    }))
+}
+
+fn alpha_tag_for_version(version: &Version) -> Result<String, String> {
+    if version.patch != 0 {
+        return Err("release-line Alpha identity requires patch version zero".to_owned());
+    }
+    Ok(format!("v{}.{}.0-alpha.1", version.major, version.minor))
+}
+
+fn release_notes_for_version(version: &Version) -> String {
+    format!(
+        r#"# CanISend {version}
+
+## Highlights
+
+CanISend 1.0 combines a macOS desktop interface, standalone command-line application, and versioned agent
+integration in one Rust-native product. It installs without Python and does not require Python, Node.js, Java, a
+separately installed SQLite library, or a Typst command.
+
+The product provides local-first job intake from user-supplied files, text PDFs, and public URLs; discovery imports;
+evidence and criteria workflows; matching; application planning; structured drafting and review; readiness checks;
+editable exports; and embedded PDF rendering. Codex, Claude, and custom hosts integrate through the versioned
+`canisend.agent/v2` JSON protocol and generated agent packs. CanISend prepares application materials but never
+submits an application.
+
+## Compatibility
+
+- This release line uses `canisend.workspace/v2`, `canisend.agent/v2`, and public schema major version 2.
+- It does not migrate Python-era workspaces or preserve the `0.6.x` Python command tree.
+- Rust-native workspace migrations are append-only. An older binary rejects a future schema without mutation.
+- The macOS application bundles a version-matched CLI; standalone CLI archives cover the five declared targets.
+
+## Install and verify
+
+Download the archive for one supported target together with `SHA256SUMS`, the release manifest, notices, and
+stage-required signing evidence. Verify their checksums, GitHub build provenance, manifest identity, and platform
+signature before extracting the executable. Follow the
+[native release verification guide](https://github.com/jxpeng98/CanISend/blob/main/docs/guides/release-verification.md)
+and reject any incomplete or mismatched release unit.
+
+Community builds use macOS ad-hoc signing and a Windows self-signed Authenticode certificate. These signatures
+provide native integrity evidence but are not publicly trusted publisher identities; Gatekeeper, Unknown Publisher,
+or SmartScreen warnings may still occur.
+
+After extraction, run `canisend version --json`, `canisend doctor --json`, and the
+[documented quick-start](https://github.com/jxpeng98/CanISend/blob/main/docs/guides/quick-start.md) before using private
+application data.
+
+## Upgrade and rollback
+
+Check and back up every important workspace before replacing a binary. Retain the previous verified archive and its
+notices. If the new binary opens a workspace, do not roll back by merely reinstalling the old executable: restore the
+pre-upgrade backup into a new directory and check it with the old binary. There is no in-place database downgrade.
+Follow the complete
+[upgrade, rollback, and uninstall guide](https://github.com/jxpeng98/CanISend/blob/main/docs/guides/upgrade-and-rollback.md).
+
+## Security and privacy
+
+CanISend enables no telemetry, analytics, crash upload, or background reporting by default. User confirmation remains
+authoritative for evidence, criteria, application decisions, review dispositions, exports, and final use. Provider
+requests require explicit consent; portal login, upload, and submission are outside the product boundary.
+
+## Known limitations
+
+Read `KNOWN_LIMITATIONS.md` in the release assets before using real data. Text-based PDFs are supported; scanned or
+image-only PDFs require external OCR and user review. User-authored Typst, external Typst packages/files, system or
+user fonts, OCR, GUI automation, portal automation, and Linux arm64 archives are outside the 1.0 release scope.
+
+## Feedback and support
+
+Report reproducible problems through the repository issue templates. Include only sanitized public diagnostic
+fields, exact release/target identity, and reproduction steps. Never attach a workspace, backup, application package,
+private advert/profile content, provider request, token, certificate, or credential. The 1.0 line has no
+service-level agreement or long-term-support commitment; consult the support policy shipped with the repository for
+the current version window.
+"#
+    )
+}
+
+fn release_line_activation_report(
+    root: &Path,
+    activation: &RenderedReleaseLineActivation,
+    write: bool,
+) -> Result<Value, String> {
+    let controlled_files = activation
+        .files
+        .iter()
+        .map(|(relative, after)| {
+            let path = root.join(relative);
+            let before = if path.exists() {
+                Some(sha256(&fs::read(&path).map_err(|error| {
+                    format!("could not read `{relative}`: {error}")
+                })?))
+            } else {
+                None
+            };
+            Ok(json!({
+                "path": relative,
+                "before_sha256": before,
+                "after_sha256": sha256(after)
+            }))
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    Ok(json!({
+        "schema": RELEASE_LINE_PLAN_SCHEMA,
+        "mode": if write { "write" } else { "dry-run" },
+        "writes_performed": write,
+        "from_version": activation.from_version.to_string(),
+        "to_version": activation.to_version.to_string(),
+        "history_line": activation.history_line,
+        "activation_source_commit": activation.source_commit,
+        "controlled_files": controlled_files,
+        "external_actions": {
+            "tag_created": false,
+            "pushed": false,
+            "release_published": false,
+            "package_repository_modified": false
+        },
+        "next": "review and commit the activation, then run the locked release source gate"
+    }))
+}
+
+fn digest_regular_file_tree(root: &Path) -> Result<String, String> {
+    const MAX_FILES: usize = 256;
+    const MAX_BYTES: u64 = 16 * 1024 * 1024;
+
+    if !root.is_dir() {
+        return Err(format!(
+            "historical reference tree is missing: {}",
+            root.display()
+        ));
+    }
+    let mut pending = VecDeque::from([root.to_path_buf()]);
+    let mut entries = Vec::new();
+    let mut total_bytes = 0_u64;
+    while let Some(directory) = pending.pop_front() {
+        let mut children = fs::read_dir(&directory)
+            .map_err(|error| format!("could not inspect {}: {error}", directory.display()))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| format!("could not inspect {}: {error}", directory.display()))?;
+        children.sort_by_key(fs::DirEntry::file_name);
+        for child in children {
+            let path = child.path();
+            let metadata = fs::symlink_metadata(&path)
+                .map_err(|error| format!("could not inspect {}: {error}", path.display()))?;
+            if metadata.file_type().is_symlink() {
+                return Err(format!(
+                    "historical reference tree contains a symlink: {}",
+                    path.display()
+                ));
+            }
+            if metadata.is_dir() {
+                pending.push_back(path);
+                continue;
+            }
+            if !metadata.is_file() {
+                return Err(format!(
+                    "historical reference tree contains a non-regular entry: {}",
+                    path.display()
+                ));
+            }
+            total_bytes = total_bytes
+                .checked_add(metadata.len())
+                .ok_or_else(|| "historical reference tree size overflowed".to_owned())?;
+            if entries.len() >= MAX_FILES || total_bytes > MAX_BYTES {
+                return Err(format!(
+                    "historical reference tree exceeds {MAX_FILES} files or {MAX_BYTES} bytes"
+                ));
+            }
+            let relative = path
+                .strip_prefix(root)
+                .map_err(|_| "historical reference path escaped its root".to_owned())?
+                .to_str()
+                .ok_or_else(|| "historical reference path is not UTF-8".to_owned())?
+                .replace('\\', "/");
+            entries.push((
+                relative,
+                fs::read(&path)
+                    .map_err(|error| format!("could not read {}: {error}", path.display()))?,
+            ));
+        }
+    }
+    if entries.is_empty() {
+        return Err("historical reference tree is empty".to_owned());
+    }
+    entries.sort_by(|left, right| left.0.cmp(&right.0));
+    Ok(digest_named_bytes(&entries))
+}
+
+fn write_controlled_files_transactionally(
+    root: &Path,
+    files: &BTreeMap<String, Vec<u8>>,
+    fail_after_replacements: Option<usize>,
+) -> Result<(), String> {
+    let mut staged = Vec::new();
+    for (index, (relative, body)) in files.iter().enumerate() {
+        let relative_path = Path::new(relative);
+        if relative_path.is_absolute()
+            || relative_path
+                .components()
+                .any(|part| !matches!(part, std::path::Component::Normal(_)))
+        {
+            return Err(format!(
+                "controlled write path must be a normalized repository path: `{relative}`"
+            ));
+        }
+        let target = root.join(relative_path);
+        if target.exists() {
+            reject_symlink(&target)?;
+            if !target.is_file() {
+                return Err(format!(
+                    "controlled write target is not a regular file: {}",
+                    target.display()
+                ));
+            }
+        }
+        let parent = target
+            .parent()
+            .ok_or_else(|| format!("controlled write target has no parent: {relative}"))?;
+        fs::create_dir_all(parent)
+            .map_err(|error| format!("could not create {}: {error}", parent.display()))?;
+        let name = target
+            .file_name()
+            .and_then(|name| name.to_str())
+            .ok_or_else(|| format!("controlled write target name is invalid: {relative}"))?;
+        let temporary = parent.join(format!(
+            ".{name}.canisend-transaction-{}-{index}",
+            std::process::id()
+        ));
+        let mut output = fs::OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(&temporary)
+            .map_err(|error| {
+                format!(
+                    "could not stage controlled write {}: {error}",
+                    temporary.display()
+                )
+            })?;
+        if let Err(error) = output.write_all(body).and_then(|()| output.sync_all()) {
+            let _ = fs::remove_file(&temporary);
+            for (_, staged_path, _) in &staged {
+                let _ = fs::remove_file(staged_path);
+            }
+            return Err(format!(
+                "could not finish staged write {}: {error}",
+                temporary.display()
+            ));
+        }
+        let original = if target.exists() {
+            Some(
+                fs::read(&target)
+                    .map_err(|error| format!("could not back up {}: {error}", target.display()))?,
+            )
+        } else {
+            None
+        };
+        staged.push((target, temporary, original));
+    }
+
+    let mut applied = 0_usize;
+    let mut failure = None;
+    for (target, temporary, _) in &staged {
+        if fail_after_replacements == Some(applied) {
+            failure = Some("injected controlled-write failure".to_owned());
+            break;
+        }
+        if let Err(error) = fs::rename(temporary, target) {
+            failure = Some(format!(
+                "could not replace controlled file {}: {error}",
+                target.display()
+            ));
+            break;
+        }
+        applied += 1;
+    }
+    let Some(failure) = failure else {
+        return Ok(());
+    };
+
+    let mut rollback_errors = Vec::new();
+    for (index, (target, _, original)) in staged[..applied].iter().enumerate().rev() {
+        if let Some(original) = original {
+            let rollback =
+                target.with_file_name(format!(".canisend-rollback-{}-{index}", std::process::id()));
+            let rollback_result = (|| -> Result<(), std::io::Error> {
+                let mut output = fs::OpenOptions::new()
+                    .create_new(true)
+                    .write(true)
+                    .open(&rollback)?;
+                output.write_all(original)?;
+                output.sync_all()?;
+                fs::rename(&rollback, target)
+            })();
+            if let Err(error) = rollback_result {
+                let _ = fs::remove_file(&rollback);
+                rollback_errors.push(format!("{}: {error}", target.display()));
+            }
+        } else if let Err(error) = fs::remove_file(target) {
+            rollback_errors.push(format!("{}: {error}", target.display()));
+        }
+    }
+    for (_, temporary, _) in &staged[applied..] {
+        let _ = fs::remove_file(temporary);
+    }
+    if rollback_errors.is_empty() {
+        Err(format!("{failure}; all applied files were rolled back"))
+    } else {
+        Err(format!(
+            "{failure}; rollback also failed for {}",
+            rollback_errors.join(", ")
+        ))
+    }
 }
 
 fn activate_feature_freeze(baseline: &str, write: bool) -> Result<(), String> {
@@ -2689,14 +3430,31 @@ fn check_beta_readiness_file(path: &Path) -> Result<(), String> {
     })?;
     let ledger: Value = serde_json::from_str(&body)
         .map_err(|error| format!("Beta readiness ledger is invalid JSON: {error}"))?;
+    let version = Version::parse(env!("CARGO_PKG_VERSION"))
+        .map_err(|error| format!("workspace version is invalid: {error}"))?;
+    if ledger["status"] == "pending-alpha-publication" {
+        let expected = pending_beta_readiness(&version)?;
+        if ReleaseStage::from_version(&version) != Ok(ReleaseStage::Alpha) || ledger != expected {
+            return Err(
+                "pending Beta readiness state is not canonical for the active Alpha".to_owned(),
+            );
+        }
+        println!("beta readiness: ok (pending public Alpha evidence)");
+        return Ok(());
+    }
+    let expected_alpha_tag = alpha_tag_for_version(&version)?;
     if ledger["schema"] != BETA_READINESS_SCHEMA
-        || ledger["alpha_release"]["tag"] != NATIVE_ALPHA_TAG
-        || ledger["alpha_release"]["source_commit"] != NATIVE_ALPHA_SOURCE
+        || ledger["alpha_release"]["tag"] != expected_alpha_tag
     {
         return Err(
             "Beta readiness ledger does not identify the qualified native Alpha".to_owned(),
         );
     }
+    validate_lower_hex(
+        "Beta readiness Alpha source commit",
+        required_string(&ledger["alpha_release"], "source_commit", "Alpha release")?,
+        40,
+    )?;
     let audited_at = ledger["audited_at"]
         .as_str()
         .filter(|value| value.ends_with('Z') && value.contains('T'))
@@ -2771,6 +3529,18 @@ fn check_beta_contract_freeze() -> Result<(), String> {
     })?;
     let actual: Value = serde_json::from_str(&body)
         .map_err(|error| format!("Beta contract freeze is invalid JSON: {error}"))?;
+    let version = Version::parse(env!("CARGO_PKG_VERSION"))
+        .map_err(|error| format!("workspace version is invalid: {error}"))?;
+    if actual["status"] == "pending-alpha-publication" {
+        let expected = pending_beta_contract_freeze(&version)?;
+        if ReleaseStage::from_version(&version) != Ok(ReleaseStage::Alpha) || actual != expected {
+            return Err(
+                "pending Beta contract state is not canonical for the active Alpha".to_owned(),
+            );
+        }
+        println!("beta contract freeze: ok (pending public Alpha baseline)");
+        return Ok(());
+    }
     let expected = build_beta_contract_freeze()?;
     if actual != expected {
         return Err(
@@ -2978,6 +3748,183 @@ fn check_signing_policy() -> Result<(), String> {
     Ok(())
 }
 
+fn check_release_line_history() -> Result<(), String> {
+    let root = repository_root();
+    let policy_path = root.join("release/release-line-policy.json");
+    let policy: Value = serde_json::from_slice(&fs::read(&policy_path).map_err(|error| {
+        format!(
+            "release-line policy is missing at {}: {error}",
+            policy_path.display()
+        )
+    })?)
+    .map_err(|error| format!("release-line policy is invalid JSON: {error}"))?;
+    let expected_sources = [
+        "release/RELEASE_NOTES.md",
+        "release/beta-contract-freeze.json",
+        "release/beta-readiness.json",
+        "release/feature-freeze-exceptions.json",
+        "release/feedback-snapshot.json",
+        "release/qualification-ledger.json",
+        "release/support-policy.json",
+    ];
+    let expected_policy = json!({
+        "schema": RELEASE_LINE_POLICY_SCHEMA,
+        "command": {
+            "name": "cargo run -p xtask --locked -- release activate-line",
+            "dry_run_default": true,
+            "write_flag": "--write",
+            "clean_worktree_required_for_write": true,
+            "transactional_rollback": true
+        },
+        "target": {
+            "tag": "v1.0.0-alpha.1",
+            "new_line_prerelease": "X.Y.0-alpha.1"
+        },
+        "history": {
+            "schema": RELEASE_HISTORY_SCHEMA,
+            "source_line": "0.7",
+            "destination": "release/history/0.7",
+            "copied_files": expected_sources,
+            "referenced_trees": ["packaging/candidates/v0.7.0-alpha.1"]
+        },
+        "external_actions": {
+            "create_tag": false,
+            "push": false,
+            "publish_release": false,
+            "modify_package_repository": false
+        }
+    });
+    if policy != expected_policy {
+        return Err(
+            "release-line policy differs from the fail-closed activation contract".to_owned(),
+        );
+    }
+    let runbook_path = root.join("docs/release/release-line-activation.md");
+    let runbook = fs::read_to_string(&runbook_path)
+        .map_err(|error| format!("release-line activation runbook is missing: {error}"))?;
+    check_local_markdown_links(&root, &runbook_path, &runbook)?;
+    for required in [
+        "release activate-line v1.0.0-alpha.1",
+        "--write",
+        "release/history/0.7/manifest.json",
+        "clean worktree",
+        "does not create a tag",
+        "transaction",
+    ] {
+        if !runbook.contains(required) {
+            return Err(format!(
+                "release-line activation runbook is missing `{required}`"
+            ));
+        }
+    }
+
+    let version = Version::parse(env!("CARGO_PKG_VERSION"))
+        .map_err(|error| format!("workspace version is invalid: {error}"))?;
+    let history_root = root.join("release/history/0.7");
+    if (version.major, version.minor) == (0, 7) {
+        if history_root.exists() {
+            return Err(
+                "0.7 active source must not contain an already activated 0.7 history".to_owned(),
+            );
+        }
+        println!("release-line history: ok (1.0 activation planned, 0.7 still active)");
+        return Ok(());
+    }
+    validate_release_history(&root, &history_root, "0.7", &expected_sources)?;
+    println!("release-line history: ok (0.7 archive + candidate-tree digest)");
+    Ok(())
+}
+
+fn validate_release_history(
+    root: &Path,
+    history_root: &Path,
+    release_line: &str,
+    expected_sources: &[&str],
+) -> Result<(), String> {
+    let manifest_path = history_root.join("manifest.json");
+    reject_symlink(&manifest_path)?;
+    let manifest: Value = serde_json::from_slice(&fs::read(&manifest_path).map_err(|error| {
+        format!(
+            "release history manifest is missing at {}: {error}",
+            manifest_path.display()
+        )
+    })?)
+    .map_err(|error| format!("release history manifest is invalid JSON: {error}"))?;
+    if manifest["schema"] != RELEASE_HISTORY_SCHEMA || manifest["release_line"] != release_line {
+        return Err("release history manifest identity is invalid".to_owned());
+    }
+    let archived_version = Version::parse(
+        manifest["archived_from_version"]
+            .as_str()
+            .ok_or_else(|| "release history has no archived source version".to_owned())?,
+    )
+    .map_err(|error| format!("release history source version is invalid: {error}"))?;
+    if format!("{}.{}", archived_version.major, archived_version.minor) != release_line {
+        return Err("release history source version differs from its release line".to_owned());
+    }
+    let source_commit = required_string(&manifest, "activation_source_commit", "release history")?;
+    validate_lower_hex(
+        "release history activation source commit",
+        source_commit,
+        40,
+    )?;
+    run_git(
+        root,
+        &["cat-file", "-e", &format!("{source_commit}^{{commit}}")],
+    )?;
+    run_git(
+        root,
+        &["merge-base", "--is-ancestor", source_commit, "HEAD"],
+    )?;
+
+    let entries = manifest["files"]
+        .as_array()
+        .ok_or_else(|| "release history files must be an array".to_owned())?;
+    if entries.len() != expected_sources.len() {
+        return Err("release history file inventory is incomplete".to_owned());
+    }
+    for (entry, source_path) in entries.iter().zip(expected_sources) {
+        let name = Path::new(source_path)
+            .file_name()
+            .and_then(|name| name.to_str())
+            .ok_or_else(|| "release history source filename is invalid".to_owned())?;
+        let archive_path = format!("release/history/{release_line}/{name}");
+        let digest = required_string(entry, "sha256", "release history file")?;
+        validate_lower_hex("release history file digest", digest, 64)?;
+        let canonical = json!({
+            "archive_path": archive_path,
+            "sha256": digest,
+            "source_path": source_path
+        });
+        if entry != &canonical || sha256_file(&root.join(&archive_path))? != digest {
+            return Err(format!(
+                "release history archive differs for `{source_path}`"
+            ));
+        }
+    }
+    let tree_digest = digest_regular_file_tree(&root.join("packaging/candidates/v0.7.0-alpha.1"))?;
+    let expected_references = json!([{
+        "kind": "repository-tree",
+        "path": "packaging/candidates/v0.7.0-alpha.1",
+        "tree_sha256": tree_digest
+    }]);
+    if manifest["references"] != expected_references {
+        return Err("release history candidate-tree reference drifted".to_owned());
+    }
+    let canonical = json!({
+        "schema": RELEASE_HISTORY_SCHEMA,
+        "release_line": release_line,
+        "archived_from_version": archived_version.to_string(),
+        "activation_source_commit": source_commit,
+        "files": entries,
+        "references": expected_references
+    });
+    if manifest != canonical {
+        return Err("release history manifest contains unknown or noncanonical fields".to_owned());
+    }
+    Ok(())
+}
+
 fn check_support_policy() -> Result<(), String> {
     let root = repository_root();
     let path = root.join("release/support-policy.json");
@@ -2990,56 +3937,7 @@ fn check_support_policy() -> Result<(), String> {
         .map_err(|error| format!("workspace version is invalid: {error}"))?;
     let publication_status = support_policy_publication_status(&version);
     let target_count = release_targets()?.len();
-    let expected = json!({
-        "schema": SUPPORT_POLICY_SCHEMA,
-        "publication_status": publication_status,
-        "release_line": format!("{}.{}", version.major, version.minor),
-        "version_support": {
-            "prerelease": "current-only-until-superseded",
-            "stable": "current-minor-latest-patch",
-            "long_term_support": false,
-            "service_level_agreement": false,
-            "python_0_6_line": "archived-unsupported"
-        },
-        "contracts": {
-            "agent_protocol": AGENT_PROTOCOL,
-            "public_schema_version": PUBLIC_SCHEMA_VERSION,
-            "resource_format": canisend_resources::RESOURCE_VERSION,
-            "beta_freeze": "release/beta-contract-freeze.json",
-            "breaking_agent_change": "new-protocol-and-schema-major"
-        },
-        "workspace": {
-            "format": WORKSPACE_FORMAT,
-            "current_database_schema_version": declared_database_schema_version()?,
-            "frozen_migrations_through": FROZEN_MIGRATIONS_THROUGH,
-            "migration_policy": "append-only",
-            "future_schema": "reject-without-mutation",
-            "downgrade": "restore-verified-pre-upgrade-backup-to-new-path"
-        },
-        "platforms": {
-            "authority": "release/targets.json",
-            "target_count": target_count,
-            "linux_arm64": "unsupported-in-0.7",
-            "runtime_requirements": {
-                "python": false,
-                "node": false,
-                "java": false,
-                "external_typst": false,
-                "external_sqlite": false
-            }
-        },
-        "host_assets": {
-            "codex": "generated-by-installed-binary",
-            "claude": "generated-by-installed-binary",
-            "refresh_after_upgrade": true,
-            "private_workspace_bodies_included_by_default": false
-        },
-        "security": {
-            "reporting": "SECURITY.md",
-            "default_telemetry": false,
-            "private_issue_content": "prohibited"
-        }
-    });
+    let expected = build_support_policy(&version)?;
     if actual != expected {
         return Err(
             "release/support-policy.json differs from the current product, contract, workspace, or platform policy"
@@ -3076,6 +3974,60 @@ fn check_support_policy() -> Result<(), String> {
     Ok(())
 }
 
+fn build_support_policy(version: &Version) -> Result<Value, String> {
+    let target_count = release_targets()?.len();
+    Ok(json!({
+        "schema": SUPPORT_POLICY_SCHEMA,
+        "publication_status": support_policy_publication_status(version),
+        "release_line": format!("{}.{}", version.major, version.minor),
+        "version_support": {
+            "prerelease": "current-only-until-superseded",
+            "stable": "current-minor-latest-patch",
+            "long_term_support": false,
+            "service_level_agreement": false,
+            "python_0_6_line": "archived-unsupported"
+        },
+        "contracts": {
+            "agent_protocol": AGENT_PROTOCOL,
+            "public_schema_version": PUBLIC_SCHEMA_VERSION,
+            "resource_format": canisend_resources::RESOURCE_VERSION,
+            "beta_freeze": "release/beta-contract-freeze.json",
+            "breaking_agent_change": "new-protocol-and-schema-major"
+        },
+        "workspace": {
+            "format": WORKSPACE_FORMAT,
+            "current_database_schema_version": declared_database_schema_version()?,
+            "frozen_migrations_through": FROZEN_MIGRATIONS_THROUGH,
+            "migration_policy": "append-only",
+            "future_schema": "reject-without-mutation",
+            "downgrade": "restore-verified-pre-upgrade-backup-to-new-path"
+        },
+        "platforms": {
+            "authority": "release/targets.json",
+            "target_count": target_count,
+            "linux_arm64": format!("unsupported-in-{}.{}", version.major, version.minor),
+            "runtime_requirements": {
+                "python": false,
+                "node": false,
+                "java": false,
+                "external_typst": false,
+                "external_sqlite": false
+            }
+        },
+        "host_assets": {
+            "codex": "generated-by-installed-binary",
+            "claude": "generated-by-installed-binary",
+            "refresh_after_upgrade": true,
+            "private_workspace_bodies_included_by_default": false
+        },
+        "security": {
+            "reporting": "SECURITY.md",
+            "default_telemetry": false,
+            "private_issue_content": "prohibited"
+        }
+    }))
+}
+
 fn support_policy_publication_status(version: &Version) -> &'static str {
     if version.pre.is_empty() {
         "published"
@@ -3086,9 +4038,16 @@ fn support_policy_publication_status(version: &Version) -> &'static str {
 
 fn check_release_feedback() -> Result<(), String> {
     let root = repository_root();
+    let version = Version::parse(env!("CARGO_PKG_VERSION"))
+        .map_err(|error| format!("workspace version is invalid: {error}"))?;
+    let roadmap = if (version.major, version.minor) == (0, 7) {
+        "docs/superpowers/plans/2026-07-18-post-0.7-roadmap.md"
+    } else {
+        "docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md"
+    };
     check_release_feedback_files(
         &root.join("release/feedback-snapshot.json"),
-        &root.join("docs/superpowers/plans/2026-07-18-post-0.7-roadmap.md"),
+        &root.join(roadmap),
     )
 }
 
@@ -3104,6 +4063,33 @@ fn check_release_feedback_files(
         )
     })?)
     .map_err(|error| format!("release feedback snapshot is invalid JSON: {error}"))?;
+    let version = Version::parse(env!("CARGO_PKG_VERSION"))
+        .map_err(|error| format!("workspace version is invalid: {error}"))?;
+    if snapshot["status"] == "pending-alpha-publication" {
+        let expected = pending_release_feedback(&version)?;
+        if ReleaseStage::from_version(&version) != Ok(ReleaseStage::Alpha) || snapshot != expected {
+            return Err(
+                "pending release feedback is not canonical for the active Alpha".to_owned(),
+            );
+        }
+        let roadmap_path = required_string(
+            &snapshot["next_roadmap"],
+            "path",
+            "pending release feedback",
+        )?;
+        let roadmap = fs::read_to_string(roadmap_candidate).map_err(|error| {
+            format!(
+                "active release roadmap is missing at {}: {error}",
+                roadmap_candidate.display()
+            )
+        })?;
+        check_local_markdown_links(&root, &root.join(roadmap_path), &roadmap)?;
+        if !roadmap.contains("**Status:** Active") {
+            return Err("active release roadmap has no Active status marker".to_owned());
+        }
+        println!("release feedback: ok (pending public Alpha snapshot)");
+        return Ok(());
+    }
     if snapshot["schema"] != FEEDBACK_SNAPSHOT_SCHEMA
         || snapshot["default_telemetry"] != false
         || snapshot["privacy_boundary"] != "public-metadata-only"
@@ -3222,8 +4208,6 @@ fn check_release_feedback_files(
     let roadmap_status = roadmap["status"]
         .as_str()
         .ok_or_else(|| "release feedback snapshot has no next-roadmap status".to_owned())?;
-    let version = Version::parse(env!("CARGO_PKG_VERSION"))
-        .map_err(|error| format!("workspace version is invalid: {error}"))?;
     let (required_stage, required_status) =
         feedback_publication_requirements(&version, snapshot_stage);
     if required_stage.is_some_and(|required| snapshot_stage != required)
@@ -3974,6 +4958,29 @@ fn validate_qualification_release(
 
 fn build_beta_contract_freeze() -> Result<Value, String> {
     let root = repository_root();
+    let version = Version::parse(env!("CARGO_PKG_VERSION"))
+        .map_err(|error| format!("workspace version is invalid: {error}"))?;
+    let readiness_path = root.join("release/beta-readiness.json");
+    let readiness: Value = serde_json::from_slice(
+        &fs::read(&readiness_path)
+            .map_err(|error| format!("could not read qualified Alpha identity: {error}"))?,
+    )
+    .map_err(|error| format!("qualified Alpha identity is invalid JSON: {error}"))?;
+    if readiness["status"] == "pending-alpha-publication" {
+        return Err(
+            "public Alpha qualification is required before freezing Beta contracts".to_owned(),
+        );
+    }
+    let alpha_tag = required_string(&readiness["alpha_release"], "tag", "Alpha release")?;
+    if alpha_tag != alpha_tag_for_version(&version)? {
+        return Err("Beta contract baseline differs from the active release line".to_owned());
+    }
+    let alpha_source = required_string(
+        &readiness["alpha_release"],
+        "source_commit",
+        "Alpha release",
+    )?;
+    validate_lower_hex("Beta contract Alpha source commit", alpha_source, 40)?;
     let schema_root = schema_directory();
     let schema_names = json_files(&schema_root)?.into_iter().collect::<Vec<_>>();
     if schema_names.len() != generate_public_schemas().len() {
@@ -4034,8 +5041,8 @@ fn build_beta_contract_freeze() -> Result<Value, String> {
     Ok(json!({
         "schema": BETA_CONTRACT_FREEZE_SCHEMA,
         "baseline": {
-            "release": NATIVE_ALPHA_TAG,
-            "source_commit": NATIVE_ALPHA_SOURCE
+            "release": alpha_tag,
+            "source_commit": alpha_source
         },
         "agent": {
             "protocol": AGENT_PROTOCOL,
@@ -7906,6 +8913,183 @@ mod tests {
             validate_stage_transition(&beta, ReleaseStage::Beta, &beta_two, ReleaseStage::Beta)
                 .is_err()
         );
+    }
+
+    #[test]
+    fn release_line_target_requires_later_first_alpha() {
+        let from = Version::parse("0.7.0-rc.2").expect("source version");
+        let target = Version::parse("1.0.0-alpha.1").expect("target version");
+        validate_release_line_target(&from, &target, ReleaseStage::Alpha)
+            .expect("first Alpha on later line");
+        for invalid in [
+            "0.7.0-alpha.1",
+            "0.8.1-alpha.1",
+            "1.0.0-alpha.2",
+            "1.0.0-beta.1",
+            "1.0.0-alpha.1+local",
+        ] {
+            let version = Version::parse(invalid).expect("invalid-case SemVer");
+            let stage = ReleaseStage::from_version(&version).expect("recognized stage");
+            assert!(
+                validate_release_line_target(&from, &version, stage).is_err(),
+                "accepted invalid release-line target {invalid}"
+            );
+        }
+    }
+
+    #[test]
+    fn controlled_write_rolls_back_replaced_and_new_files() {
+        let root =
+            std::env::temp_dir().join(format!("canisend-controlled-write-{}", std::process::id()));
+        if root.exists() {
+            fs::remove_dir_all(&root).expect("remove stale controlled-write fixture");
+        }
+        fs::create_dir_all(&root).expect("create controlled-write fixture");
+        fs::write(root.join("a.txt"), b"original\n").expect("write original fixture");
+        let files = BTreeMap::from([
+            ("a.txt".to_owned(), b"replacement\n".to_vec()),
+            ("nested/b.txt".to_owned(), b"new\n".to_vec()),
+        ]);
+        let error = write_controlled_files_transactionally(&root, &files, Some(1))
+            .expect_err("inject replacement failure");
+        assert!(error.contains("rolled back"));
+        assert_eq!(
+            fs::read(root.join("a.txt")).expect("read rolled-back original"),
+            b"original\n"
+        );
+        assert!(!root.join("nested/b.txt").exists());
+        assert!(
+            fs::read_dir(&root)
+                .expect("inspect controlled-write fixture")
+                .filter_map(Result::ok)
+                .all(|entry| !entry
+                    .file_name()
+                    .to_string_lossy()
+                    .contains("canisend-transaction"))
+        );
+        fs::remove_dir_all(root).expect("remove controlled-write fixture");
+    }
+
+    #[test]
+    fn clean_worktree_gate_rejects_untracked_activation_input() {
+        let root = std::env::temp_dir().join(format!("canisend-clean-gate-{}", std::process::id()));
+        if root.exists() {
+            fs::remove_dir_all(&root).expect("remove stale clean-gate fixture");
+        }
+        fs::create_dir_all(&root).expect("create clean-gate fixture");
+        let status = Command::new("git")
+            .current_dir(&root)
+            .args(["init", "--quiet"])
+            .status()
+            .expect("run git init");
+        assert!(status.success());
+        require_clean_worktree(&root, "fixture activation").expect("new repository is clean");
+        fs::write(root.join("untracked.txt"), b"dirty\n").expect("write untracked fixture");
+        assert!(require_clean_worktree(&root, "fixture activation").is_err());
+        fs::remove_dir_all(root).expect("remove clean-gate fixture");
+    }
+
+    #[test]
+    fn release_line_render_archives_hashes_and_resets_active_state() {
+        let root =
+            std::env::temp_dir().join(format!("canisend-line-render-{}", std::process::id()));
+        if root.exists() {
+            fs::remove_dir_all(&root).expect("remove stale line-render fixture");
+        }
+        for directory in [
+            "crates/app",
+            "crates/contracts",
+            "release",
+            "packaging/candidates/v0.7.0-alpha.1",
+        ] {
+            fs::create_dir_all(root.join(directory)).expect("create line-render fixture directory");
+        }
+        fs::write(
+            root.join("Cargo.toml"),
+            "[workspace]\nmembers = [\"crates/app\", \"crates/contracts\"]\n\
+             [workspace.package]\nversion = \"0.7.0-rc.2\"\n",
+        )
+        .expect("write line-render workspace");
+        fs::write(
+            root.join("crates/app/Cargo.toml"),
+            "[package]\nname = \"app\"\nversion.workspace = true\n\
+             [dependencies]\ncontracts = { path = \"../contracts\", version = \"=0.7.0-rc.2\" }\n",
+        )
+        .expect("write line-render app");
+        fs::write(
+            root.join("crates/contracts/Cargo.toml"),
+            "[package]\nname = \"contracts\"\nversion.workspace = true\n",
+        )
+        .expect("write line-render contracts");
+        fs::write(
+            root.join("Cargo.lock"),
+            "version = 4\n\n[[package]]\nname = \"app\"\nversion = \"0.7.0-rc.2\"\n\
+             \n[[package]]\nname = \"contracts\"\nversion = \"0.7.0-rc.2\"\n",
+        )
+        .expect("write line-render lockfile");
+        let historical_sources = [
+            "release/RELEASE_NOTES.md",
+            "release/beta-contract-freeze.json",
+            "release/beta-readiness.json",
+            "release/feature-freeze-exceptions.json",
+            "release/feedback-snapshot.json",
+            "release/qualification-ledger.json",
+            "release/support-policy.json",
+        ];
+        for (index, relative) in historical_sources.iter().enumerate() {
+            fs::write(root.join(relative), format!("historical-{index}\n"))
+                .expect("write historical line-render source");
+        }
+        fs::write(
+            root.join("packaging/candidates/v0.7.0-alpha.1/candidate-source.json"),
+            b"retained candidate\n",
+        )
+        .expect("write retained candidate fixture");
+        let source_commit = "a".repeat(40);
+        let activation = render_release_line_activation(&root, "v1.0.0-alpha.1", &source_commit)
+            .expect("render release-line activation");
+        assert_eq!(activation.from_version.to_string(), "0.7.0-rc.2");
+        assert_eq!(activation.to_version.to_string(), "1.0.0-alpha.1");
+        assert!(
+            String::from_utf8(
+                activation
+                    .files
+                    .get("Cargo.toml")
+                    .expect("rendered workspace")
+                    .clone()
+            )
+            .expect("rendered workspace UTF-8")
+            .contains("version = \"1.0.0-alpha.1\"")
+        );
+        let manifest: Value = serde_json::from_slice(
+            activation
+                .files
+                .get("release/history/0.7/manifest.json")
+                .expect("history manifest"),
+        )
+        .expect("parse history manifest");
+        assert_eq!(
+            manifest["files"].as_array().expect("history files").len(),
+            7
+        );
+        for entry in manifest["files"].as_array().expect("history files") {
+            let archive = entry["archive_path"].as_str().expect("archive path");
+            assert_eq!(
+                entry["sha256"],
+                sha256(activation.files.get(archive).expect("archived bytes"))
+            );
+        }
+        let active: Value = serde_json::from_slice(
+            activation
+                .files
+                .get("release/qualification-ledger.json")
+                .expect("active qualification"),
+        )
+        .expect("parse active qualification");
+        assert_eq!(active["workspace_stage"], "alpha");
+        assert_eq!(active["beta"]["status"], "pending");
+        assert_eq!(active["release_candidates"], json!([]));
+        fs::remove_dir_all(root).expect("remove line-render fixture");
     }
 
     #[test]
