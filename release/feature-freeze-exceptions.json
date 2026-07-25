@@ -127,6 +127,24 @@
         "scripts/stage_macos_gui_app.sh"
       ],
       "reason": "Implement the product-owner-authorized macOS GUI and CLI distribution bridge required for the next unified 1.0 Alpha while keeping those bytes outside the historical 0.7 qualified release artifacts."
+    },
+    {
+      "class": "release-evidence",
+      "commit": "49cde832f2073168e2bb195b10377442e373771f",
+      "paths": [
+        "crates/canisend-app/src/update.rs"
+      ],
+      "reason": "Record the product-owner decision to begin the unified CLI and GUI product at 1.0.0-alpha.1, align the bounded update-response fixture, and define the history-preserving release-line activation plan."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "c0ab68313ad6ab69cc66925067d545d89a33f948",
+      "paths": [
+        "crates/canisend-gui/src/main.rs",
+        "crates/canisend-gui/src/registry.rs",
+        "crates/canisend-gui/src/theme.rs"
+      ],
+      "reason": "Resolve GUI Alpha contrast, accessibility labeling, minimum-window overflow, operation-context races, stuck-worker recovery, destructive-action confirmation, and bounded workspace-registry input blockers before 1.0 release-line activation."
     }
   ],
   "schema": "canisend.feature-freeze-exceptions/v1",
