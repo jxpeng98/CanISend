@@ -5,9 +5,9 @@ layout, ad-hoc signature, and final-byte integrity
 
 **Product version:** `1.0.0-alpha.1`
 
-**Source baseline:** `6f246e1` plus the candidate changes described here
+**Source baseline:** `80d2706` after the lifecycle and packaging commits described here
 
-**Completed at:** `2026-07-25T11:40:07Z`
+**Latest qualification at:** `2026-07-25T12:35:25Z`
 
 **Classification:** local Alpha evidence; not clean-tag release qualification
 
@@ -68,7 +68,65 @@ disposable directory. The test passed in 33.43 seconds and proved:
   uninstall.
 
 This test uses a bounded executable fixture for the old 0.7 interface. It does not yet qualify an
-upgrade from the exact public `v0.7.0-rc.2` archive or verify a pre-upgrade workspace backup.
+upgrade from the exact public `v0.7.0-rc.2` archive or verify a pre-upgrade workspace backup. That
+separate qualification is recorded below.
+
+## Exact public 0.7 upgrade and backup
+
+`scripts/qualify_macos_public_07_upgrade.sh` adds a repeatable, nonpublishing Apple Silicon
+qualification path. It accepts a complete downloaded `v0.7.0-rc.2` asset directory and a new
+body-free evidence destination. It does not access the normal user HOME or any real workspace.
+
+The final run was performed from clean qualification-tool commit `80d2706` and passed in 31.37
+seconds after the release build. Before running the lifecycle, the script:
+
+- verified all 14 files covered by the public `SHA256SUMS` with the repository release verifier;
+- bound the Apple Silicon archive to both the release manifest and signing evidence;
+- bound the extracted CLI to the signing-evidence binary digest;
+- verified the extracted public CLI's strict ad-hoc signature; and
+- observed exact version `0.7.0-rc.2`.
+
+The immutable public inputs and local candidate were:
+
+| Item | SHA-256 |
+|---|---|
+| Public release manifest | `b961b9d544b190bade4c76311c8e4c5e95b97a97a17ad28f9b7d7a80c95568a1` |
+| Public Apple Silicon archive | `0fef54fac09e25915f41f8cfb6315c1ab506e7180db00e82ef47f0036a4cb18d` |
+| Extracted public 0.7 CLI | `5925697e900d0c8828847b7a17a40e34a65985c2a96c799c4df94c6b73f4693d` |
+| Ad-hoc-signed 1.0 Alpha candidate CLI | `3a1b1402a9ba046290c24aca76731a4265eef364829b0ff97b810c0ac6656c65` |
+
+The native integration test used the exact old CLI to create a synthetic workspace and job, run
+integrity checks, and create a verified pre-upgrade backup. It then proved:
+
+1. GUI inspection reports the public CLI as an older migration candidate.
+2. Replacement without the explicit replace decision fails without changing the old executable,
+   workspace database, or backup manifest.
+3. Explicit migration installs the current CLI and preserves the exact public executable.
+4. The current CLI opens and checks the workspace while the backup remains byte-identical and
+   verified.
+5. Both the public 0.7 CLI and current 1.0 CLI restore the backup into separate new workspaces,
+   each retaining the synthetic job.
+6. The old CLI either accepts the unchanged schema or rejects a future schema without mutation.
+7. GUI-managed uninstall restores the exact old executable digest.
+8. The upgraded workspace, backup, and both restored workspaces remain present.
+
+The generated evidence uses `canisend.alpha-public-upgrade-evidence/v1`, records only versions,
+digests, target, source commit, timestamps, and boolean checks, and explicitly records that no
+publication occurred. The repository verifier and local binary/signature checks passed. A separate
+`gh attestation verify` attempt on this host could not initialize a Sigstore verifier, so this local
+Alpha record does not claim a fresh GitHub attestation verification and is not clean-tag release
+qualification.
+
+To repeat the test:
+
+```console
+gh release download v0.7.0-rc.2 \
+  --repo jxpeng98/CanISend \
+  --dir /private/tmp/canisend-v0.7.0-rc.2-assets
+./scripts/qualify_macos_public_07_upgrade.sh \
+  /private/tmp/canisend-v0.7.0-rc.2-assets \
+  /private/tmp/canisend-v0.7.0-to-v1.0.0-alpha.1.json
+```
 
 ## Packaging integrity correction
 
@@ -99,7 +157,6 @@ Its final measurements were:
 
 ## Remaining Stage 2 work
 
-- Run the exact public 0.7 CLI/archive upgrade and verified-workspace-backup lifecycle.
 - Complete keyboard traversal, VoiceOver announcements, text scaling, high-DPI, reduced-motion,
   and file-dialog qualification.
 - Measure repeatable cold-start time against a declared threshold.

@@ -107,6 +107,6 @@ lifecycle, the defined native accessibility checks, exact package evidence, and 
 notes. Beta remains blocked on complete ordinary CLI-to-GUI workflow coverage.
 
 The later [Stage 2 Alpha lifecycle evidence](2026-07-25-r12-stage2-alpha-lifecycle.md) completes the
-bounded GUI reopen and disposable CLI lifecycle items and corrects final-byte bundle integrity.
-Exact public 0.7 upgrade/backup evidence, the remaining accessibility matrix, and clean-tag package
+bounded GUI reopen, disposable CLI lifecycle, exact public `v0.7.0-rc.2` upgrade/verified-backup,
+and final-byte bundle-integrity items. The remaining accessibility matrix and clean-tag package
 qualification remain open.
