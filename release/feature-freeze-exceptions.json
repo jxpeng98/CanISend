@@ -145,6 +145,15 @@
         "crates/canisend-gui/src/theme.rs"
       ],
       "reason": "Resolve GUI Alpha contrast, accessibility labeling, minimum-window overflow, operation-context races, stuck-worker recovery, destructive-action confirmation, and bounded workspace-registry input blockers before 1.0 release-line activation."
+    },
+    {
+      "class": "release-evidence",
+      "commit": "8c7736769d30302ef642553685bc502fa6228ff0",
+      "paths": [
+        "release/release-line-policy.json",
+        "xtask/src/main.rs"
+      ],
+      "reason": "Add the fail-closed 1.0 release-line activation policy, deterministic history manifest, dry-run plan, bounded candidate-tree hashing, rollback-capable controlled writes, and focused regression fixtures."
     }
   ],
   "schema": "canisend.feature-freeze-exceptions/v1",
