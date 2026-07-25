@@ -1,7 +1,9 @@
 # CanISend user guides
 
-CanISend is a local-first native command-line tool for preparing evidence-backed academic job applications. It does
-not submit an application, fill a portal, create an account, or make sensitive declarations for the user.
+CanISend is a local-first native tool for preparing evidence-backed academic job applications. The
+qualified `0.7` surface is the CLI; a macOS-first desktop GUI is under active development for
+`0.8`. CanISend does not submit an application, fill a portal, create an account, or make sensitive
+declarations for the user.
 
 Start here:
 
@@ -13,6 +15,7 @@ Start here:
 6. [Back up and restore the workspace](backup-and-recovery.md).
 7. [Upgrade, roll back, or uninstall safely](upgrade-and-rollback.md).
 8. [Diagnose common failures](troubleshooting.md).
+9. [Try the macOS-first desktop GUI preview](desktop-gui.md).
 
 The machine contract is [CanISend agent protocol v2](../contracts/agent-protocol-v2.md). Security assumptions are in
 the [threat model](../security/threat-model.md).

@@ -1,8 +1,10 @@
 [workspace]
 members = [
+    "crates/canisend-app",
     "crates/canisend-cli",
     "crates/canisend-contracts",
     "crates/canisend-core",
+    "crates/canisend-gui",
     "crates/canisend-io",
     "crates/canisend-resources",
     "crates/canisend-store",
@@ -23,6 +25,7 @@ publish = false
 [workspace.dependencies]
 clap = { version = "4.5.54", features = ["derive"] }
 csv = "1.4.0"
+eframe = { version = "0.35.0", default-features = false, features = ["accesskit", "default_fonts", "glow", "persistence"] }
 feed-rs = "2.4.0"
 hex = "0.4.3"
 getrandom = "0.3.4"
@@ -31,6 +34,7 @@ jsonschema = { version = "0.48.0", default-features = false }
 lopdf = { version = "0.42.0", default-features = false }
 pdf-extract = "0.12.0"
 reqwest = { version = "0.13.4", default-features = false, features = ["blocking", "rustls"] }
+rfd = { version = "0.17.2", default-features = false }
 rusqlite = { version = "0.40.1", default-features = false, features = ["backup", "bundled"] }
 schemars = "1.2.1"
 semver = "1.0.28"

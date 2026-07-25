@@ -52,6 +52,35 @@ canisend agent capabilities
 `doctor` must report verified embedded resources and schemas, an embedded Typst renderer, disabled system-font and
 runtime-package lookup, and `Python runtime: not required`. Do not continue with a binary that fails this check.
 
+## Install the CLI from the desktop GUI preview
+
+The macOS-first GUI provides a **Command line** page that installs its version-matched bundled Rust
+CLI to `~/.local/bin/canisend`. Installation is user-scoped and does not require a language
+runtime, package manager, Rust toolchain, Homebrew, or administrator access.
+
+The page detects only the CanISend version at the exact destination; it does not inspect Python,
+package managers, or their environments. An older or version-unaware CanISend interface is offered
+as a one-click migration/upgrade. That user action preserves the previous file or symlink for
+restoration during GUI-managed uninstall. A newer installed version is never downgraded. CanISend
+also refuses to overwrite or remove a managed binary whose recorded SHA-256 digest no longer
+matches.
+
+**Check for updates** makes a user-invoked, body-free request to the public CanISend GitHub Releases
+endpoint. Preview builds consider published prereleases; Stable builds remain on the Stable
+channel. The check sends no workspace, job, profile, source, or document data and does not download
+or execute an installer.
+
+The preview does not edit shell profiles. If needed, add `~/.local/bin` to `PATH` using the
+copyable command shown in the GUI, open a new terminal, and verify:
+
+```console
+canisend version --json
+canisend doctor
+```
+
+The packaged GUI channel is not yet a qualified `0.7` release channel; use the archive installation
+above for the supported CLI release until the `0.8` macOS Alpha bundle passes its native gates.
+
 For complete checksum, SBOM, manifest, and GitHub provenance verification, follow the
 [release verification guide](release-verification.md).
 

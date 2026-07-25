@@ -1,6 +1,6 @@
 # CanISend Native Desktop GUI Roadmap
 
-**Status:** Approved product direction; implementation is gated behind `v0.7.0` Stable
+**Status:** Active — macOS-first implementation began on 2026-07-24
 
 **Target release:** `0.8.x`, beginning with a native GUI Alpha
 
@@ -26,9 +26,10 @@ The desktop application must:
 7. remain local-first and require no Python, Node.js, Java, browser server, or external Typst runtime at use time; and
 8. prepare and export application materials but never submit an application.
 
-The `0.7` Release Candidate and Stable gates remain feature-frozen. GUI architecture notes and an isolated toolkit
-spike may be prepared before Stable, but product code, release contracts, and package contents change only after
-R11.4 closes.
+The `0.7` CLI and Agent v2 release contracts remain frozen. By explicit product-owner direction,
+R12 engineering now proceeds on an experimental macOS-first GUI line before Windows and Linux GUI
+qualification. GUI bytes are not part of the qualified `0.7` release unit and must not be published
+as Stable until their separate `0.8` gates pass.
 
 ## 2. Product and Terminology Boundary
 
@@ -386,12 +387,13 @@ Initial performance budgets:
 
 ## 10. Delivery Roadmap
 
-Estimates are planning ranges for one experienced engineer and start only after R11.4 Stable closes.
+Estimates are planning ranges for one experienced engineer. macOS-first source implementation has
+been authorized; cross-platform publication still follows the release gates below.
 
 ### R12.0 — Toolkit and application-boundary spike (2–4 days)
 
-- [ ] Write the GUI architecture ADR and dependency/license record.
-- [ ] Prototype one workspace list, one job list, one workflow timeline, and one validated form.
+- [x] Write the GUI architecture ADR and dependency/license record.
+- [x] Prototype one workspace list, one job list, one workflow timeline, and one validated form.
 - [ ] Verify the four GUI target builds and record the musl boundary.
 - [ ] Test keyboard, focus, accessibility tree, IME, high DPI, theme, file dialog, and background operation behavior.
 - [ ] Measure binary size and cold start, then accept `egui`/`eframe` or switch to the bounded fallback.
@@ -420,6 +422,33 @@ without spawning a process.
 
 **Exit:** A user can manage multiple local workspaces and complete backup/restore without the CLI or data deletion
 risk.
+
+### R12.2a — Terminal CLI distribution bridge (2–3 days)
+
+- [x] Add typed CLI install status, install/update, and uninstall receipts to `canisend-app`.
+- [x] Discover a version-locked sibling development binary or app-bundled
+  `Contents/Resources/bin/canisend` without searching for an arbitrary executable.
+- [x] Install to the user-owned `~/.local/bin/canisend` destination with SHA-256 tracking and
+  executable permissions.
+- [x] Detect only the installed CanISend version; do not inspect language runtimes or package
+  managers.
+- [x] Offer older or version-unaware CanISend installations as a one-click migration/upgrade,
+  preserve the previous installation, and restore it on uninstall.
+- [x] Refuse downgrade when the installed CanISend version is newer than the bundled version.
+- [x] Refuse uninstall or overwrite when the managed binary/record was modified externally.
+- [x] Add a Command line GUI surface showing the bundled source, target, PATH visibility, active
+  command, installed/bundled versions, lifecycle actions, and copyable verification commands.
+- [x] Add a manual, body-free, host-allowlisted GitHub release check with Stable/Preview channel
+  selection and no automatic download or installer execution.
+- [x] Stage both version-matched executables in the macOS `.app`, emit their SHA-256 manifest,
+  ad-hoc sign the nested executables and outer app, and pass packaged launch/status/accessibility
+  smoke on Apple Silicon.
+- [ ] Run packaged install/update/uninstall through a disposable macOS user profile before Alpha
+  publication.
+
+**Exit:** A GUI user can install the same native release for terminal and agent-host use without
+Python or administrator access, while pre-existing installations and workspace data remain
+recoverable.
 
 ### R12.3 — Job intake and workflow console (1–2 weeks)
 
@@ -478,6 +507,8 @@ without removing its workspace.
 - [ ] The musl CLI remains supported and is not mislabeled as a GUI target.
 - [ ] Release manifests bind both binaries, exact source, checksums, SBOM, provenance, notices, and community signing.
 - [ ] The GUI never submits applications, runs arbitrary shell input, or uploads private workspace content by default.
+- [ ] The CLI installer never edits shell profiles implicitly, silently overwrites an unmanaged command, or removes a
+      changed managed binary.
 
 ## 12. Principal Risks and Mitigations
 
@@ -495,8 +526,8 @@ without removing its workspace.
 
 ## 13. First Execution Iteration
 
-After `v0.7.0` Stable, the first implementation iteration is intentionally bounded to R12.0 and the first vertical
-slice of R12.1:
+The first implementation iteration is intentionally bounded to R12.0 and the first vertical slice
+of R12.1:
 
 1. inventory the current CLI command handlers and publish the parity manifest;
 2. write the toolkit/application-facade ADR;
@@ -508,3 +539,27 @@ slice of R12.1:
 
 The iteration stops if the toolkit cannot meet keyboard, accessibility-tree, IME, target, or packaging requirements.
 It does not begin broad GUI feature work until the ADR and shared-facade slice are accepted.
+
+### 2026-07-24 implementation checkpoint
+
+The first macOS vertical slice now includes:
+
+- `canisend-app` typed actions for diagnostics, workspace initialization/status/check/backup, job
+  list/create/detail/archive/import, and workflow start/status;
+- `canisend-gui` with an eframe/egui app shell, body-free workspace registry, serialized background
+  worker, native path dialogs, Overview, Jobs, Workspaces, and Diagnostics;
+- local Markdown/text/JSON/text-PDF and consented supplied-URL intake;
+- a workflow timeline, visible blockers/status, light/dark themes, compact density, and safe
+  registry removal;
+- a bounded Command line surface for version-matched CLI status/install/update/uninstall, PATH
+  diagnostics, one-click CanISend migration, downgrade refusal, rollback restoration, and manual
+  online update checks;
+- facade privacy/vertical-slice tests, registry-retention and form tests, and the initial
+  CLI-to-GUI parity manifest; and
+- a successful optimized Apple Silicon launch smoke. The arm64 executable is approximately
+  50.1 MB and opened the expected `1120 × 740` content window.
+
+R12.0 remains open for explicit AccessKit/VoiceOver, IME, high-DPI, native file-dialog, Intel,
+Windows, and Linux evidence. R12.1 remains open because only the first facade action families have
+been extracted and the CLI has not yet been converted into a thin facade adapter. R12.2–R12.4
+remain partial as recorded in the parity manifest.

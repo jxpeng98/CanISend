@@ -11,8 +11,9 @@
 
 # 这也能投 / CanISend
 
-CanISend is being rebuilt as a standalone Rust-native CLI for evidence-backed academic and professional application
-preparation.
+CanISend is a standalone Rust-native CLI for evidence-backed academic and professional application
+preparation. A macOS-first native GUI is now under active development over the same typed Rust
+application services and local workspace.
 
 The active product no longer uses Python or Pytest. The final Python implementation remains available only through
 the Git tag `archive/python-v0.6.0b1-final`.
@@ -30,18 +31,19 @@ the Git tag `archive/python-v0.6.0b1-final`.
 - [Backup and recovery](docs/guides/backup-and-recovery.md)
 - [Upgrade, rollback, and uninstall](docs/guides/upgrade-and-rollback.md)
 - [Troubleshooting](docs/guides/troubleshooting.md)
+- [Desktop GUI preview](docs/guides/desktop-gui.md)
 
 ## Current status
 
-The Rust rebuild has completed R0–R11.1, including the full evidence-backed material pipeline, restricted native
-rendering, audited security/privacy/dependency boundaries, cross-platform recovery evidence, enforced performance
-budgets, human remediation output, staged-binary user documentation, and the verified five-platform
-[`v0.7.0-alpha.1` native prerelease](https://github.com/jxpeng98/CanISend/releases/tag/v0.7.0-alpha.1). R11.2 Beta
-hardening is active. Verified-byte-derived [package-manager candidates](packaging/README.md) now cover Homebrew Cask,
-Scoop, and WinGet without claiming a live external channel. The free `community-build` tier uses fail-closed macOS
-ad-hoc and Windows self-signed Authenticode integrity gates without claiming operating-system publisher trust; the
-signing milestone remains open until a native Beta publishes archive-bound v2 evidence on all three signed targets.
-The current binary provides:
+The Rust rebuild is at `v0.7.0-rc.2`; R0–R11.2 and the full evidence-backed material
+pipeline are implemented, with the remaining Stable qualification tracked separately. R12 native
+desktop work is now active: the first macOS GUI vertical slice adds shared typed application
+services, workspace management, job intake, supplied URL/PDF/file import, workflow status, and
+diagnostics without changing the CLI or Agent v2 contracts. Its Command line surface can also
+detect, install, update, and safely uninstall the version-matched native CLI in a user-owned
+terminal location, including version-aware migration and rollback for an earlier CanISend install.
+Windows and Linux GUI work remains
+deferred while the macOS Alpha path is completed. The current CLI provides:
 
 - Standalone `canisend` executable archives for five native targets.
 - Validated UUIDv7, SHA-256, revision, UTC timestamp, and safe relative-path contract types.
@@ -109,6 +111,11 @@ The current binary provides:
   stale tasks, and concurrent idempotent host-agent completion.
 - Main/release performance gates for startup, large-workspace status, HTML/PDF intake, complete workflow execution,
   embedded rendering, and binary size, with a committed reproducible baseline.
+
+The experimental `canisend-gui` development binary currently provides a native app shell,
+body-free workspace registry, background operation queue, workspace create/check/backup, job
+create/import/archive, workflow timeline, and managed terminal CLI installation on macOS. See the
+[desktop GUI preview guide](docs/guides/desktop-gui.md) for current coverage and limits.
 
 The R9 native matrix verifies embedded fonts, edge-case Unicode/layout, missing-system-font isolation, bundled
 licenses/notices, render timing, and a 64 MiB release-binary budget. Hardening gates continue in the

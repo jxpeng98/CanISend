@@ -1,0 +1,26 @@
+[package]
+name = "canisend-app"
+description = "Typed application facade shared by CanISend native adapters"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+canisend-contracts = { path = "../canisend-contracts", version = "=0.7.0-rc.2" }
+canisend-io = { path = "../canisend-io", version = "=0.7.0-rc.2" }
+canisend-resources = { path = "../canisend-resources", version = "=0.7.0-rc.2" }
+canisend-store = { path = "../canisend-store", version = "=0.7.0-rc.2" }
+hex.workspace = true
+semver.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+[lints]
+workspace = true
