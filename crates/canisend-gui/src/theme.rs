@@ -20,7 +20,7 @@ const DARK_INFO: Color32 = Color32::from_rgb(147, 197, 253);
 const LIGHT_WARNING: Color32 = Color32::from_rgb(154, 79, 0);
 const LIGHT_INFO: Color32 = Color32::from_rgb(29, 78, 216);
 
-pub fn apply(ctx: &egui::Context, dark: bool, compact: bool) {
+pub fn apply(ctx: &egui::Context, dark: bool, compact: bool, reduce_motion: bool) {
     ctx.set_theme(egui::Theme::from_dark_mode(dark));
     let mut visuals = if dark {
         Visuals::dark()
@@ -42,6 +42,8 @@ pub fn apply(ctx: &egui::Context, dark: bool, compact: bool) {
         SLATE_100
     };
     visuals.widgets.active.bg_fill = TEAL_700;
+    visuals.widgets.active.bg_stroke = Stroke::new(2.0, AMBER_600);
+    visuals.widgets.active.expansion = 1.0;
     let text_color = if dark { DARK_TEXT } else { SLATE_700 };
     visuals.widgets.noninteractive.fg_stroke.color = text_color;
     visuals.widgets.inactive.fg_stroke.color = text_color;
@@ -56,6 +58,12 @@ pub fn apply(ctx: &egui::Context, dark: bool, compact: bool) {
     ctx.set_visuals(visuals);
 
     ctx.global_style_mut(|style| {
+        style.animation_time = if reduce_motion { 0.0 } else { 0.2 };
+        style.scroll_animation = if reduce_motion {
+            egui::style::ScrollAnimation::none()
+        } else {
+            egui::style::ScrollAnimation::default()
+        };
         style.spacing.item_spacing = if compact {
             egui::vec2(6.0, 6.0)
         } else {
@@ -66,7 +74,7 @@ pub fn apply(ctx: &egui::Context, dark: bool, compact: bool) {
         } else {
             egui::vec2(12.0, 7.0)
         };
-        style.spacing.interact_size.y = if compact { 28.0 } else { 34.0 };
+        style.spacing.interact_size.y = if compact { 32.0 } else { 36.0 };
     });
 }
 
@@ -118,10 +126,10 @@ pub fn destructive_button(text: impl Into<String>) -> egui::Button<'static> {
 
 #[cfg(test)]
 mod tests {
-    use eframe::egui::Color32;
+    use eframe::egui::{self, Color32};
 
     use super::{
-        AMBER_600, BUTTON_INK, DARK_PANEL, RED_600, TEAL_700, error, info, neutral,
+        AMBER_600, BUTTON_INK, DARK_PANEL, RED_600, TEAL_700, apply, error, info, neutral,
         panel_background, positive, warning,
     };
 
@@ -147,6 +155,27 @@ mod tests {
                 "{foreground:?} on {background:?} is below WCAG AA"
             );
         }
+    }
+
+    #[test]
+    fn accessibility_style_has_visible_focus_and_motion_free_mode() {
+        let context = egui::Context::default();
+        apply(&context, false, false, true);
+        let style = context.global_style();
+        assert_eq!(style.animation_time, 0.0);
+        assert_eq!(style.scroll_animation, egui::style::ScrollAnimation::none());
+        assert_eq!(style.visuals.widgets.active.bg_stroke.width, 2.0);
+        assert_eq!(style.visuals.widgets.active.bg_stroke.color, AMBER_600);
+        assert!(style.spacing.interact_size.y >= 36.0);
+
+        apply(&context, true, true, false);
+        let style = context.global_style();
+        assert_eq!(style.animation_time, 0.2);
+        assert_eq!(
+            style.scroll_animation,
+            egui::style::ScrollAnimation::default()
+        );
+        assert!(style.spacing.interact_size.y >= 32.0);
     }
 
     fn contrast_ratio(left: Color32, right: Color32) -> f32 {

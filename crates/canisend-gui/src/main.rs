@@ -21,8 +21,10 @@ use canisend_contracts::{JobRecord, StageExecutionStatus, WorkflowStage, Workflo
 use cli_bridge::{bundled_cli_path, default_cli_destination};
 use eframe::egui::{self, Align, Color32, Layout, RichText, Sense, Stroke};
 use registry::{WorkspaceRegistry, default_registry_path, validate_workspace_alias};
+use serde::{Deserialize, Serialize};
 
 const APP_ID: &str = "io.github.jxpeng98.canisend";
+const GUI_PREFERENCES_KEY: &str = "canisend.gui-preferences/v1";
 
 fn main() -> eframe::Result {
     let options = eframe::NativeOptions {
@@ -56,6 +58,21 @@ enum Page {
 enum PendingConfirmation {
     ArchiveJob { title: String },
     UninstallCli { restores_previous: bool },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FocusTarget {
+    JobTitle,
+    ImportKind,
+    WorkspaceAlias,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct GuiPreferences {
+    dark_mode: bool,
+    compact: bool,
+    reduce_motion: bool,
 }
 
 impl Page {
@@ -166,11 +183,13 @@ struct CanISendDesktop {
     update_check: Option<UpdateCheckReadModel>,
     dark_mode: bool,
     compact: bool,
+    reduce_motion: bool,
     activity: Option<Activity>,
     receiver: Option<Receiver<WorkerEvent>>,
     notice: Option<(bool, String)>,
     registry_error: Option<String>,
     pending_confirmation: Option<PendingConfirmation>,
+    pending_focus: Option<FocusTarget>,
 }
 
 impl CanISendDesktop {
@@ -181,8 +200,16 @@ impl CanISendDesktop {
             Err(error) => (WorkspaceRegistry::default(), Some(error)),
         };
         let active_workspace = registry.default_path.clone();
-        let dark_mode = creation.egui_ctx.theme() == egui::Theme::Dark;
-        theme::apply(&creation.egui_ctx, dark_mode, false);
+        let stored_preferences = creation
+            .storage
+            .and_then(|storage| eframe::get_value::<GuiPreferences>(storage, GUI_PREFERENCES_KEY));
+        let dark_mode = stored_preferences.map_or_else(
+            || creation.egui_ctx.theme() == egui::Theme::Dark,
+            |preferences| preferences.dark_mode,
+        );
+        let compact = stored_preferences.is_some_and(|preferences| preferences.compact);
+        let reduce_motion = stored_preferences.is_some_and(|preferences| preferences.reduce_motion);
+        theme::apply(&creation.egui_ctx, dark_mode, compact, reduce_motion);
         let mut application = Self {
             registry_path,
             registry,
@@ -208,12 +235,14 @@ impl CanISendDesktop {
             cli_status: None,
             update_check: None,
             dark_mode,
-            compact: false,
+            compact,
+            reduce_motion,
             activity: None,
             receiver: None,
             notice: None,
             registry_error,
             pending_confirmation: None,
+            pending_focus: None,
         };
         if let Some(path) = application.active_workspace.clone() {
             application.load_workspace(path, creation.egui_ctx.clone());
@@ -449,7 +478,7 @@ impl CanISendDesktop {
     }
 
     fn show_top_bar(&mut self, ui: &mut egui::Ui) {
-        egui::Panel::top("top_bar")
+        let panel = egui::Panel::top("top_bar")
             .exact_size(58.0)
             .frame(
                 egui::Frame::new()
@@ -463,6 +492,7 @@ impl CanISendDesktop {
             )
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
+                    let narrow_header = ui.available_width() < 650.0;
                     ui.label(RichText::new("CanISend").size(22.0).strong().color(
                         if self.dark_mode {
                             theme::TEAL_100
@@ -470,7 +500,8 @@ impl CanISendDesktop {
                             theme::TEAL_700
                         },
                     ));
-                    ui.add_space(24.0);
+                    ui.add_space(if narrow_header { 10.0 } else { 24.0 });
+                    let workspace_label = ui.label("Workspace");
                     let selected = self
                         .active_workspace
                         .as_ref()
@@ -483,9 +514,9 @@ impl CanISendDesktop {
                         .map_or("Choose a workspace", |entry| entry.alias.as_str());
                     let mut chosen = None;
                     ui.add_enabled_ui(self.activity.is_none(), |ui| {
-                        egui::ComboBox::from_id_salt("workspace_switcher")
+                        let combo = egui::ComboBox::from_id_salt("workspace_switcher")
                             .selected_text(selected)
-                            .width(260.0)
+                            .width(if narrow_header { 140.0 } else { 260.0 })
                             .show_ui(ui, |ui| {
                                 for entry in &self.registry.entries {
                                     if ui
@@ -500,35 +531,44 @@ impl CanISendDesktop {
                                     }
                                 }
                             });
+                        combo.response.labelled_by(workspace_label.id);
                     });
                     if let Some(path) = chosen {
                         self.load_workspace(path, ui.ctx().clone());
                     }
-                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        let health = if self.active_workspace.is_none() {
-                            "No workspace"
-                        } else {
-                            self.health.as_ref().map_or("Not checked", |health| {
-                                if health.check.ok {
-                                    "Healthy"
-                                } else {
-                                    "Needs attention"
-                                }
-                            })
-                        };
-                        ui.label(RichText::new(health).color(if self.dark_mode {
-                            theme::TEAL_100
-                        } else {
-                            theme::TEAL_700
-                        }));
-                        ui.label(RichText::new("Workspace").weak());
-                    });
+                    if !narrow_header {
+                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                            let health = if self.active_workspace.is_none() {
+                                "No workspace"
+                            } else {
+                                self.health.as_ref().map_or("Not checked", |health| {
+                                    if health.check.ok {
+                                        "Healthy"
+                                    } else {
+                                        "Needs attention"
+                                    }
+                                })
+                            };
+                            ui.label(RichText::new(health).color(if self.dark_mode {
+                                theme::TEAL_100
+                            } else {
+                                theme::TEAL_700
+                            }));
+                            ui.label(RichText::new("Health").weak());
+                        });
+                    }
                 });
             });
+        set_accesskit_role(
+            ui.ctx(),
+            panel.response.id,
+            egui::accesskit::Role::Banner,
+            Some("CanISend workspace header"),
+        );
     }
 
     fn show_navigation(&mut self, ui: &mut egui::Ui) {
-        egui::Panel::left("navigation")
+        let panel = egui::Panel::left("navigation")
             .resizable(false)
             .exact_size(180.0)
             .frame(
@@ -542,52 +582,103 @@ impl CanISendDesktop {
                     .stroke(Stroke::new(1.0, theme::SLATE_300)),
             )
             .show(ui, |ui| {
-                ui.add_space(8.0);
-                let mut refresh_cli = false;
-                for (page, label) in Page::ALL {
-                    let selected = self.page == page;
-                    let text = RichText::new(label).size(15.0).color(if selected {
-                        Color32::WHITE
-                    } else {
-                        theme::neutral(self.dark_mode)
+                egui::ScrollArea::vertical()
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        ui.add_space(8.0);
+                        let mut refresh_cli = false;
+                        for (page, label) in Page::ALL {
+                            let selected = self.page == page;
+                            let text = RichText::new(label).size(15.0).color(if selected {
+                                Color32::WHITE
+                            } else {
+                                theme::neutral(self.dark_mode)
+                            });
+                            let button = egui::Button::new(text)
+                                .fill(if selected {
+                                    theme::TEAL_700
+                                } else {
+                                    Color32::TRANSPARENT
+                                })
+                                .stroke(if selected {
+                                    Stroke::NONE
+                                } else {
+                                    Stroke::new(1.0, theme::SLATE_300)
+                                })
+                                .min_size(egui::vec2(154.0, 38.0));
+                            let response = ui.add(button);
+                            paint_focus_ring(ui, &response);
+                            keep_focused_visible(&response);
+                            if response.clicked() {
+                                self.page = page;
+                                refresh_cli = page == Page::CommandLine;
+                            }
+                        }
+                        if refresh_cli {
+                            self.refresh_cli_status(ui.ctx().clone());
+                        }
+                        ui.separator();
+                        accessible_heading(ui, "Accessibility & appearance", 2);
+                        let dark_response = ui.checkbox(&mut self.dark_mode, "Dark appearance");
+                        keep_focused_visible(&dark_response);
+                        if dark_response.changed() {
+                            theme::apply(
+                                ui.ctx(),
+                                self.dark_mode,
+                                self.compact,
+                                self.reduce_motion,
+                            );
+                        }
+                        let compact_response = ui.checkbox(&mut self.compact, "Compact density");
+                        keep_focused_visible(&compact_response);
+                        if compact_response.changed() {
+                            theme::apply(
+                                ui.ctx(),
+                                self.dark_mode,
+                                self.compact,
+                                self.reduce_motion,
+                            );
+                        }
+                        let motion_response = ui.checkbox(&mut self.reduce_motion, "Reduce motion");
+                        keep_focused_visible(&motion_response);
+                        if motion_response.changed() {
+                            theme::apply(
+                                ui.ctx(),
+                                self.dark_mode,
+                                self.compact,
+                                self.reduce_motion,
+                            );
+                        }
+                        let mut zoom = ui.ctx().zoom_factor();
+                        let previous_zoom = zoom;
+                        let zoom_combo = egui::ComboBox::from_label("Text size")
+                            .selected_text(format!("{:.0}%", zoom * 100.0))
+                            .show_ui(ui, |ui| {
+                                for (factor, label) in
+                                    [(1.0, "100%"), (1.25, "125%"), (1.5, "150%"), (2.0, "200%")]
+                                {
+                                    if ui.selectable_value(&mut zoom, factor, label).clicked() {
+                                        ui.close();
+                                    }
+                                }
+                            });
+                        keep_focused_visible(&zoom_combo.response);
+                        if zoom != previous_zoom {
+                            ui.ctx().set_zoom_factor(zoom);
+                        }
+                        ui.add_space(8.0);
                     });
-                    let button = egui::Button::new(text)
-                        .fill(if selected {
-                            theme::TEAL_700
-                        } else {
-                            Color32::TRANSPARENT
-                        })
-                        .stroke(if selected {
-                            Stroke::NONE
-                        } else {
-                            Stroke::new(1.0, theme::SLATE_300)
-                        })
-                        .min_size(egui::vec2(154.0, 38.0));
-                    if ui.add(button).clicked() {
-                        self.page = page;
-                        refresh_cli = page == Page::CommandLine;
-                    }
-                }
-                if refresh_cli {
-                    self.refresh_cli_status(ui.ctx().clone());
-                }
-                ui.with_layout(Layout::bottom_up(Align::LEFT), |ui| {
-                    ui.separator();
-                    if ui.checkbox(&mut self.compact, "Compact density").changed() {
-                        theme::apply(ui.ctx(), self.dark_mode, self.compact);
-                    }
-                    if ui
-                        .checkbox(&mut self.dark_mode, "Dark appearance")
-                        .changed()
-                    {
-                        theme::apply(ui.ctx(), self.dark_mode, self.compact);
-                    }
-                });
             });
+        set_accesskit_role(
+            ui.ctx(),
+            panel.response.id,
+            egui::accesskit::Role::Navigation,
+            Some("Primary navigation"),
+        );
     }
 
     fn show_status_bar(&mut self, ui: &mut egui::Ui) {
-        egui::Panel::bottom("status_bar")
+        let panel = egui::Panel::bottom("status_bar")
             .exact_size(34.0)
             .frame(
                 egui::Frame::new()
@@ -619,6 +710,12 @@ impl CanISendDesktop {
                     });
                 });
             });
+        set_accesskit_role(
+            ui.ctx(),
+            panel.response.id,
+            egui::accesskit::Role::Status,
+            Some("Application status"),
+        );
     }
 
     fn show_notice(&mut self, ui: &mut egui::Ui) {
@@ -640,12 +737,15 @@ impl CanISendDesktop {
                 .inner_margin(egui::Margin::same(10))
                 .show(ui, |ui| {
                     ui.horizontal_wrapped(|ui| {
-                        ui.label(if success {
-                            "Completed:"
-                        } else {
-                            "Needs attention:"
-                        });
-                        ui.label(&message);
+                        accessible_live_region(
+                            ui,
+                            if success {
+                                format!("Completed: {message}")
+                            } else {
+                                format!("Needs attention: {message}")
+                            },
+                            success,
+                        );
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                             if ui.small_button("Dismiss").clicked() {
                                 self.notice = None;
@@ -656,7 +756,7 @@ impl CanISendDesktop {
             ui.add_space(10.0);
         }
         if let Some(error) = &self.registry_error {
-            ui.colored_label(theme::error(self.dark_mode), error);
+            accessible_error(ui, theme::error(self.dark_mode), error);
         }
     }
 
@@ -666,33 +766,49 @@ impl CanISendDesktop {
             self.empty_workspace(ui);
             return;
         };
-        ui.columns(3, |columns| {
+        let active_jobs = self
+            .jobs
+            .iter()
+            .filter(|job| !job.archived)
+            .count()
+            .to_string();
+        let artifacts = workspace.status.artifact_count.to_string();
+        let health = self.health.as_ref().map_or("Not checked", |health| {
+            if health.check.ok { "Healthy" } else { "Issues" }
+        });
+        if ui.available_width() >= 640.0 {
+            ui.columns(3, |columns| {
+                metric_card(
+                    &mut columns[0],
+                    "Active jobs",
+                    &active_jobs,
+                    "Stored in this workspace",
+                );
+                metric_card(
+                    &mut columns[1],
+                    "Artifacts",
+                    &artifacts,
+                    "Revisioned local records",
+                );
+                metric_card(
+                    &mut columns[2],
+                    "Workspace health",
+                    health,
+                    "Run an integrity check regularly",
+                );
+            });
+        } else {
+            metric_card(ui, "Active jobs", &active_jobs, "Stored in this workspace");
+            ui.add_space(8.0);
+            metric_card(ui, "Artifacts", &artifacts, "Revisioned local records");
+            ui.add_space(8.0);
             metric_card(
-                &mut columns[0],
-                "Active jobs",
-                &self
-                    .jobs
-                    .iter()
-                    .filter(|job| !job.archived)
-                    .count()
-                    .to_string(),
-                "Stored in this workspace",
-            );
-            metric_card(
-                &mut columns[1],
-                "Artifacts",
-                &workspace.status.artifact_count.to_string(),
-                "Revisioned local records",
-            );
-            metric_card(
-                &mut columns[2],
+                ui,
                 "Workspace health",
-                self.health.as_ref().map_or("Not checked", |health| {
-                    if health.check.ok { "Healthy" } else { "Issues" }
-                }),
+                health,
                 "Run an integrity check regularly",
             );
-        });
+        }
         ui.add_space(20.0);
         ui.horizontal(|ui| {
             if ui
@@ -702,7 +818,7 @@ impl CanISendDesktop {
                 )
                 .clicked()
             {
-                self.show_job_form = true;
+                self.open_job_form();
             }
             if ui
                 .add_enabled(
@@ -718,7 +834,7 @@ impl CanISendDesktop {
             }
         });
         ui.add_space(22.0);
-        ui.heading("Recently updated jobs");
+        accessible_heading(ui, "Recently updated jobs", 2);
         ui.separator();
         if self.jobs.is_empty() {
             ui.label("No jobs yet. Add a job from a URL, PDF, Markdown, text, or JSON file.");
@@ -766,7 +882,7 @@ impl CanISendDesktop {
                     .add_enabled(self.activity.is_none(), theme::primary_button("Add job"))
                     .clicked()
                 {
-                    self.show_job_form = true;
+                    self.open_job_form();
                 }
             });
         });
@@ -830,6 +946,7 @@ impl CanISendDesktop {
                 format!("Open {} at {}", job.title, job.institution),
             )
         });
+        paint_focus_ring(ui, &response);
         if response.clicked() {
             self.selected_job_id = Some(job.id.to_string());
             self.load_job(job.id.to_string(), ui.ctx().clone());
@@ -851,7 +968,10 @@ impl CanISendDesktop {
                 return;
             }
             ui.separator();
-            ui.label(RichText::new(&detail.job.title).size(20.0).strong());
+            let title = ui.label(RichText::new(&detail.job.title).size(20.0).strong());
+            set_accesskit_role(ui.ctx(), title.id, egui::accesskit::Role::Heading, None);
+            ui.ctx()
+                .accesskit_node_builder(title.id, |node| node.set_level(1));
             ui.label(&detail.job.institution);
         });
         ui.add_space(14.0);
@@ -863,7 +983,7 @@ impl CanISendDesktop {
                 )
                 .clicked()
             {
-                self.show_import_form = true;
+                self.open_import_form();
             }
             if detail.workflow.is_none()
                 && ui
@@ -890,7 +1010,7 @@ impl CanISendDesktop {
         });
         ui.add_space(18.0);
         ui.columns(2, |columns| {
-            columns[0].heading("Sources");
+            accessible_heading(&mut columns[0], "Sources", 2);
             columns[0].separator();
             if detail.sources.is_empty() {
                 columns[0].label("No source has been imported.");
@@ -908,7 +1028,7 @@ impl CanISendDesktop {
                 columns[0].label(RichText::new(source.retrieved_at.as_str()).weak());
                 columns[0].add_space(8.0);
             }
-            columns[1].heading("Workflow");
+            accessible_heading(&mut columns[1], "Workflow", 2);
             columns[1].separator();
             if let Some(workflow) = &detail.workflow {
                 workflow_timeline(&mut columns[1], workflow);
@@ -937,7 +1057,7 @@ impl CanISendDesktop {
                     create_new: true,
                     ..Default::default()
                 };
-                self.show_workspace_form = true;
+                self.open_workspace_form();
             }
             if ui
                 .add_enabled(
@@ -947,7 +1067,7 @@ impl CanISendDesktop {
                 .clicked()
             {
                 self.workspace_form = WorkspaceForm::default();
-                self.show_workspace_form = true;
+                self.open_workspace_form();
             }
             if ui
                 .add_enabled(
@@ -1032,7 +1152,7 @@ impl CanISendDesktop {
         }
         if let Some(health) = &self.health {
             ui.add_space(12.0);
-            ui.heading("Latest integrity check");
+            accessible_heading(ui, "Latest integrity check", 2);
             ui.label(if health.check.ok {
                 "Database and referenced blobs passed verification."
             } else {
@@ -1066,6 +1186,28 @@ impl CanISendDesktop {
                     "Target",
                     &format!("{}-{}", self.product.target_arch, self.product.target_os),
                 );
+                diagnostic_row(
+                    ui,
+                    "Text size",
+                    &format!("{:.0}%", ui.ctx().zoom_factor() * 100.0),
+                );
+                diagnostic_row(
+                    ui,
+                    "Display scale",
+                    &ui.ctx().native_pixels_per_point().map_or_else(
+                        || "Not reported by the window system".to_owned(),
+                        |scale| format!("{scale:.2} physical pixels per point"),
+                    ),
+                );
+                diagnostic_row(
+                    ui,
+                    "Reduced motion",
+                    if self.reduce_motion {
+                        "Enabled"
+                    } else {
+                        "Disabled"
+                    },
+                );
             });
         ui.add_space(18.0);
         if ui
@@ -1083,11 +1225,15 @@ impl CanISendDesktop {
         }
         if let Some(doctor) = &self.doctor {
             ui.add_space(16.0);
-            ui.heading(if doctor.healthy {
-                "Native foundation healthy"
-            } else {
-                "Native foundation needs attention"
-            });
+            accessible_heading(
+                ui,
+                if doctor.healthy {
+                    "Native foundation healthy"
+                } else {
+                    "Native foundation needs attention"
+                },
+                2,
+            );
             ui.label(format!(
                 "{} embedded resources; renderer produced {} page(s) with {} warning(s)",
                 doctor.embedded_resources, doctor.rendered_pages, doctor.render_warning_count
@@ -1147,7 +1293,7 @@ impl CanISendDesktop {
             .inner_margin(egui::Margin::same(16))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    ui.heading("Terminal installation");
+                    accessible_heading(ui, "Terminal installation", 2);
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         ui.colored_label(state_color, RichText::new(state_label).strong());
                     });
@@ -1208,7 +1354,7 @@ impl CanISendDesktop {
         ui.add_space(18.0);
         self.show_product_update_check(ui);
         ui.add_space(18.0);
-        ui.heading("Use from a terminal or agent host");
+        accessible_heading(ui, "Use from a terminal or agent host", 2);
         ui.label(
             "Open a new terminal after installation, then verify the native binary before using \
              the same workspace from Codex, Claude, or another local agent.",
@@ -1382,7 +1528,7 @@ impl CanISendDesktop {
             .inner_margin(egui::Margin::same(16))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    ui.heading("CanISend updates");
+                    accessible_heading(ui, "CanISend updates", 2);
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         if ui
                             .add_enabled(
@@ -1504,7 +1650,7 @@ impl CanISendDesktop {
     fn page_header(&mut self, ui: &mut egui::Ui, title: &str, subtitle: &str) {
         ui.horizontal(|ui| {
             ui.vertical(|ui| {
-                ui.heading(title);
+                accessible_heading(ui, title, 1);
                 ui.label(RichText::new(subtitle).weak());
             });
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
@@ -1516,10 +1662,25 @@ impl CanISendDesktop {
         ui.add_space(14.0);
     }
 
+    fn open_job_form(&mut self) {
+        self.show_job_form = true;
+        self.pending_focus = Some(FocusTarget::JobTitle);
+    }
+
+    fn open_import_form(&mut self) {
+        self.show_import_form = true;
+        self.pending_focus = Some(FocusTarget::ImportKind);
+    }
+
+    fn open_workspace_form(&mut self) {
+        self.show_workspace_form = true;
+        self.pending_focus = Some(FocusTarget::WorkspaceAlias);
+    }
+
     fn empty_workspace(&mut self, ui: &mut egui::Ui) {
         ui.add_space(36.0);
         ui.vertical_centered(|ui| {
-            ui.heading("Choose a local workspace");
+            accessible_heading(ui, "Choose a local workspace", 2);
             ui.label("Create a new workspace or register an existing Rust v2 workspace.");
             ui.add_space(12.0);
             if ui
@@ -1596,16 +1757,19 @@ impl CanISendDesktop {
             .default_width(440.0)
             .show(ui.ctx(), |ui| {
                 let title_label = ui.label("Title");
-                if ui
+                let title_response = ui
                     .add_enabled(
                         self.activity.is_none(),
                         egui::TextEdit::singleline(&mut self.job_form.title)
                             .hint_text("Lecturer in Economics")
                             .desired_width(f32::INFINITY),
                     )
-                    .labelled_by(title_label.id)
-                    .changed()
-                {
+                    .labelled_by(title_label.id);
+                if self.pending_focus == Some(FocusTarget::JobTitle) {
+                    title_response.request_focus();
+                    self.pending_focus = None;
+                }
+                if title_response.changed() {
                     self.job_form.error = None;
                 }
                 let institution_label = ui.label("Institution");
@@ -1622,7 +1786,7 @@ impl CanISendDesktop {
                     self.job_form.error = None;
                 }
                 if let Some(error) = &self.job_form.error {
-                    ui.colored_label(theme::error(self.dark_mode), error);
+                    accessible_error(ui, theme::error(self.dark_mode), error);
                 }
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {
@@ -1654,6 +1818,9 @@ impl CanISendDesktop {
                     }
                 });
             });
+        if self.activity.is_none() && ui.ctx().input(|input| input.key_pressed(egui::Key::Escape)) {
+            self.show_job_form = false;
+        }
         self.show_job_form = self.activity.is_some() || (open && self.show_job_form);
     }
 
@@ -1669,16 +1836,22 @@ impl CanISendDesktop {
             .default_width(520.0)
             .show(ui.ctx(), |ui| {
                 ui.add_enabled_ui(self.activity.is_none(), |ui| {
-                    let file_changed = ui
-                        .selectable_value(
-                            &mut self.import_form.kind,
-                            ImportKind::File,
-                            "Local file",
-                        )
-                        .changed();
-                    let url_changed = ui
-                        .selectable_value(&mut self.import_form.kind, ImportKind::Url, "Public URL")
-                        .changed();
+                    let file_response = ui.selectable_value(
+                        &mut self.import_form.kind,
+                        ImportKind::File,
+                        "Local file",
+                    );
+                    if self.pending_focus == Some(FocusTarget::ImportKind) {
+                        file_response.request_focus();
+                        self.pending_focus = None;
+                    }
+                    let url_response = ui.selectable_value(
+                        &mut self.import_form.kind,
+                        ImportKind::Url,
+                        "Public URL",
+                    );
+                    let file_changed = file_response.changed();
+                    let url_changed = url_response.changed();
                     if file_changed || url_changed {
                         self.import_form.error = None;
                     }
@@ -1752,7 +1925,7 @@ impl CanISendDesktop {
                     }
                 }
                 if let Some(error) = &self.import_form.error {
-                    ui.colored_label(theme::error(self.dark_mode), error);
+                    accessible_error(ui, theme::error(self.dark_mode), error);
                 }
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {
@@ -1770,6 +1943,9 @@ impl CanISendDesktop {
                     }
                 });
             });
+        if self.activity.is_none() && ui.ctx().input(|input| input.key_pressed(egui::Key::Escape)) {
+            self.show_import_form = false;
+        }
         self.show_import_form = self.activity.is_some() || (open && self.show_import_form);
     }
 
@@ -1846,16 +2022,19 @@ impl CanISendDesktop {
             .default_width(520.0)
             .show(ui.ctx(), |ui| {
                 let alias_label = ui.label("Workspace name");
-                if ui
+                let alias_response = ui
                     .add_enabled(
                         self.activity.is_none(),
                         egui::TextEdit::singleline(&mut self.workspace_form.alias)
                             .hint_text("Academic applications")
                             .desired_width(f32::INFINITY),
                     )
-                    .labelled_by(alias_label.id)
-                    .changed()
-                {
+                    .labelled_by(alias_label.id);
+                if self.pending_focus == Some(FocusTarget::WorkspaceAlias) {
+                    alias_response.request_focus();
+                    self.pending_focus = None;
+                }
+                if alias_response.changed() {
                     self.workspace_form.error = None;
                 }
                 ui.label(if self.workspace_form.create_new {
@@ -1884,7 +2063,7 @@ impl CanISendDesktop {
                     }
                 });
                 if let Some(error) = &self.workspace_form.error {
-                    ui.colored_label(theme::error(self.dark_mode), error);
+                    accessible_error(ui, theme::error(self.dark_mode), error);
                 }
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {
@@ -1907,6 +2086,9 @@ impl CanISendDesktop {
                     }
                 });
             });
+        if self.activity.is_none() && ui.ctx().input(|input| input.key_pressed(egui::Key::Escape)) {
+            self.show_workspace_form = false;
+        }
         self.show_workspace_form = self.activity.is_some() || (open && self.show_workspace_form);
     }
 
@@ -1920,7 +2102,7 @@ impl CanISendDesktop {
             ui.set_width(420.0);
             match &pending {
                 PendingConfirmation::ArchiveJob { title } => {
-                    ui.heading("Archive this job?");
+                    accessible_heading(ui, "Archive this job?", 1);
                     ui.label(
                         "The job will leave the active list. Its workspace records are retained, \
                              but this GUI preview does not yet provide an unarchive action.",
@@ -1940,7 +2122,7 @@ impl CanISendDesktop {
                     });
                 }
                 PendingConfirmation::UninstallCli { restores_previous } => {
-                    ui.heading("Uninstall the managed CLI?");
+                    accessible_heading(ui, "Uninstall the managed CLI?", 1);
                     ui.label(if *restores_previous {
                         "CanISend will verify the managed binary, remove it, and restore the \
                              previous installation. Workspace data is never removed."
@@ -2014,9 +2196,21 @@ impl eframe::App for CanISendDesktop {
         if self.compact {
             let current = ctx.global_style().spacing.item_spacing;
             if current != egui::vec2(6.0, 6.0) {
-                theme::apply(ctx, self.dark_mode, true);
+                theme::apply(ctx, self.dark_mode, true, self.reduce_motion);
             }
         }
+    }
+
+    fn save(&mut self, storage: &mut dyn eframe::Storage) {
+        eframe::set_value(
+            storage,
+            GUI_PREFERENCES_KEY,
+            &GuiPreferences {
+                dark_mode: self.dark_mode,
+                compact: self.compact,
+                reduce_motion: self.reduce_motion,
+            },
+        );
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
@@ -2024,7 +2218,7 @@ impl eframe::App for CanISendDesktop {
         self.show_status_bar(ui);
         self.show_navigation(ui);
         let panel_fill = theme::panel_background(self.dark_mode);
-        egui::CentralPanel::default()
+        let panel = egui::CentralPanel::default()
             .frame(
                 egui::Frame::new()
                     .fill(panel_fill)
@@ -2043,10 +2237,91 @@ impl eframe::App for CanISendDesktop {
                         Page::Diagnostics => self.show_diagnostics(ui),
                     });
             });
+        set_accesskit_role(
+            ui.ctx(),
+            panel.response.id,
+            egui::accesskit::Role::Main,
+            Some(page_accessible_label(self.page)),
+        );
         self.show_job_dialog(ui);
         self.show_import_dialog(ui);
         self.show_workspace_dialog(ui);
         self.show_pending_confirmation(ui);
+    }
+}
+
+fn set_accesskit_role(
+    ctx: &egui::Context,
+    id: egui::Id,
+    role: egui::accesskit::Role,
+    label: Option<&str>,
+) {
+    ctx.accesskit_node_builder(id, |node| {
+        node.set_role(role);
+        if let Some(label) = label {
+            node.set_label(label);
+        }
+    });
+}
+
+fn accessible_heading(ui: &mut egui::Ui, text: &str, level: usize) -> egui::Response {
+    let response = ui.heading(text);
+    set_accesskit_role(ui.ctx(), response.id, egui::accesskit::Role::Heading, None);
+    ui.ctx()
+        .accesskit_node_builder(response.id, |node| node.set_level(level));
+    response
+}
+
+fn accessible_live_region(ui: &mut egui::Ui, text: String, polite: bool) -> egui::Response {
+    let response = ui.label(text);
+    ui.ctx().accesskit_node_builder(response.id, |node| {
+        node.set_role(if polite {
+            egui::accesskit::Role::Status
+        } else {
+            egui::accesskit::Role::Alert
+        });
+        node.set_live(if polite {
+            egui::accesskit::Live::Polite
+        } else {
+            egui::accesskit::Live::Assertive
+        });
+    });
+    response
+}
+
+fn accessible_error(ui: &mut egui::Ui, color: Color32, text: &str) -> egui::Response {
+    let response = ui.colored_label(color, text);
+    ui.ctx().accesskit_node_builder(response.id, |node| {
+        node.set_role(egui::accesskit::Role::Alert);
+        node.set_live(egui::accesskit::Live::Assertive);
+    });
+    response
+}
+
+fn paint_focus_ring(ui: &egui::Ui, response: &egui::Response) {
+    if response.has_focus() {
+        ui.painter().rect_stroke(
+            response.rect.shrink(1.0),
+            6,
+            Stroke::new(2.0, theme::AMBER_600),
+            egui::StrokeKind::Inside,
+        );
+    }
+}
+
+fn keep_focused_visible(response: &egui::Response) {
+    if response.has_focus() {
+        response.scroll_to_me(Some(Align::Center));
+    }
+}
+
+fn page_accessible_label(page: Page) -> &'static str {
+    match page {
+        Page::Overview => "Overview content",
+        Page::Jobs => "Jobs content",
+        Page::Workspaces => "Workspaces content",
+        Page::CommandLine => "Command line content",
+        Page::Diagnostics => "Diagnostics content",
     }
 }
 
@@ -2175,7 +2450,10 @@ mod tests {
 
     use canisend_app::{Application, PrivateReadConsent};
 
-    use super::{WorkspaceRegistry, validate_job_form};
+    use super::{
+        GuiPreferences, WorkspaceRegistry, accessible_error, accessible_heading,
+        accessible_live_region, validate_job_form,
+    };
 
     static NEXT: AtomicU64 = AtomicU64::new(1);
 
@@ -2193,6 +2471,74 @@ mod tests {
         assert!(validate_job_form("Lecturer", " ").is_err());
         assert!(validate_job_form("Lecturer", "University X").is_ok());
         assert!(validate_job_form(&"x".repeat(513), "University X").is_err());
+    }
+
+    #[test]
+    fn accessibility_preferences_are_strict_and_round_trip() {
+        let preferences = GuiPreferences {
+            dark_mode: true,
+            compact: false,
+            reduce_motion: true,
+        };
+        let encoded = serde_json::to_string(&preferences).expect("serialize GUI preferences");
+        assert_eq!(
+            serde_json::from_str::<GuiPreferences>(&encoded).expect("parse GUI preferences"),
+            preferences
+        );
+        assert!(
+            serde_json::from_str::<GuiPreferences>(
+                r#"{"dark_mode":true,"compact":false,"reduce_motion":true,"unknown":1}"#
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn accesskit_exposes_heading_and_live_region_semantics() {
+        let context = eframe::egui::Context::default();
+        context.enable_accesskit();
+        let mut heading_id = None;
+        let mut status_id = None;
+        let mut alert_id = None;
+        let output = context.run_ui(Default::default(), |ui| {
+            heading_id = Some(accessible_heading(ui, "Jobs", 1).id);
+            status_id = Some(accessible_live_region(ui, "Completed: saved".to_owned(), true).id);
+            alert_id =
+                Some(accessible_error(ui, eframe::egui::Color32::RED, "Job title is required").id);
+        });
+        let update = output
+            .platform_output
+            .accesskit_update
+            .expect("AccessKit update");
+        let node = |id: eframe::egui::Id| {
+            update
+                .nodes
+                .iter()
+                .find(|(node_id, _)| *node_id == id.accesskit_id())
+                .map(|(_, node)| node)
+                .expect("semantic node")
+        };
+        assert_eq!(
+            node(heading_id.expect("heading id")).role(),
+            eframe::egui::accesskit::Role::Heading
+        );
+        assert_eq!(node(heading_id.expect("heading id")).level(), Some(1));
+        assert_eq!(
+            node(status_id.expect("status id")).role(),
+            eframe::egui::accesskit::Role::Status
+        );
+        assert_eq!(
+            node(status_id.expect("status id")).live(),
+            Some(eframe::egui::accesskit::Live::Polite)
+        );
+        assert_eq!(
+            node(alert_id.expect("alert id")).role(),
+            eframe::egui::accesskit::Role::Alert
+        );
+        assert_eq!(
+            node(alert_id.expect("alert id")).live(),
+            Some(eframe::egui::accesskit::Live::Assertive)
+        );
     }
 
     #[test]
