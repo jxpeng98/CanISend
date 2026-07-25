@@ -2168,7 +2168,24 @@ fn command_copy_row(ui: &mut egui::Ui, command: &str) {
 
 #[cfg(test)]
 mod tests {
-    use super::validate_job_form;
+    use std::{
+        fs,
+        sync::atomic::{AtomicU64, Ordering},
+    };
+
+    use canisend_app::{Application, PrivateReadConsent};
+
+    use super::{WorkspaceRegistry, validate_job_form};
+
+    static NEXT: AtomicU64 = AtomicU64::new(1);
+
+    fn temporary_root(label: &str) -> std::path::PathBuf {
+        std::env::temp_dir().join(format!(
+            "canisend-gui-{label}-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ))
+    }
 
     #[test]
     fn job_form_requires_both_bounded_labels() {
@@ -2176,5 +2193,71 @@ mod tests {
         assert!(validate_job_form("Lecturer", " ").is_err());
         assert!(validate_job_form("Lecturer", "University X").is_ok());
         assert!(validate_job_form(&"x".repeat(513), "University X").is_err());
+    }
+
+    #[test]
+    fn registry_reopens_the_complete_synthetic_gui_slice() {
+        let root = temporary_root("reopen");
+        let workspace = root.join("workspace");
+        let registry_path = root.join("config/workspaces.json");
+        let source = root.join("lecturer.md");
+        let sentinel = "SYNTHETIC-PRIVATE-ADVERT-BODY";
+        fs::create_dir_all(&root).expect("create GUI fixture root");
+        fs::write(
+            &source,
+            format!(
+                "# Lecturer in Economics\n\n{sentinel}\nTeach and publish synthetic research.\n"
+            ),
+        )
+        .expect("write GUI source fixture");
+
+        Application::initialize_workspace(&workspace).expect("initialize GUI workspace");
+        let job =
+            Application::create_job(&workspace, "Lecturer in Economics", "Synthetic University")
+                .expect("create GUI job")
+                .data;
+        Application::import_local_job_source(
+            &workspace,
+            job.id.as_str(),
+            &source,
+            PrivateReadConsent::granted_by_user(),
+        )
+        .expect("import GUI source");
+        Application::start_workflow(&workspace, job.id.as_str()).expect("start GUI workflow");
+
+        let mut registry = WorkspaceRegistry::default();
+        let canonical = registry
+            .register("Synthetic applications", &workspace)
+            .expect("register GUI workspace");
+        registry.save(&registry_path).expect("persist GUI registry");
+        drop(registry);
+
+        let reopened = WorkspaceRegistry::load(&registry_path).expect("reopen GUI registry");
+        assert_eq!(reopened.default_path.as_ref(), Some(&canonical));
+        assert_eq!(reopened.entries.len(), 1);
+        let status = Application::workspace_status(&canonical).expect("reopen workspace");
+        assert_eq!(status.data.status.job_count, 1);
+        let jobs = Application::list_jobs(&canonical, false).expect("reload GUI jobs");
+        assert_eq!(jobs.data.jobs.len(), 1);
+        let detail =
+            Application::job_detail(&canonical, job.id.as_str()).expect("reload GUI job detail");
+        assert_eq!(detail.data.sources.len(), 1);
+        assert_eq!(
+            detail
+                .data
+                .workflow
+                .as_ref()
+                .expect("reopened workflow")
+                .stages
+                .len(),
+            10
+        );
+        assert!(
+            !serde_json::to_string(&reopened)
+                .expect("serialize GUI registry")
+                .contains(sentinel)
+        );
+
+        fs::remove_dir_all(root).expect("remove GUI reopen fixture");
     }
 }
