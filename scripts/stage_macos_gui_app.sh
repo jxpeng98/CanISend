@@ -9,6 +9,7 @@ fi
 gui_binary="$1"
 cli_binary="$2"
 destination="$3"
+companion_manifest="$destination.manifest.json"
 script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 repo_root="$(CDPATH= cd -- "$script_dir/.." && pwd)"
 source "$script_dir/lib/native_paths.sh"
@@ -26,6 +27,10 @@ if [[ "$destination" != *.app ]]; then
 fi
 if [[ -e "$destination" ]]; then
   echo "macOS GUI bundle: destination must not exist: $destination" >&2
+  exit 1
+fi
+if [[ -e "$companion_manifest" ]]; then
+  echo "macOS GUI bundle: companion manifest must not exist: $companion_manifest" >&2
   exit 1
 fi
 for binary in "$gui_binary" "$cli_binary"; do
@@ -80,14 +85,10 @@ codesign \
   --timestamp=none \
   "$macos/canisend-gui"
 
-gui_sha256="$(shasum -a 256 "$macos/canisend-gui" | awk '{print $1}')"
-cli_sha256="$(shasum -a 256 "$cli_destination" | awk '{print $1}')"
 jq -n \
   --arg version "$version" \
-  --arg gui_sha256 "$gui_sha256" \
-  --arg cli_sha256 "$cli_sha256" \
   '{
-    schema: "canisend.macos-app-bundle/v1",
+    schema: "canisend.macos-app-bundle/v2",
     version: $version,
     signing: {
       kind: "apple-adhoc",
@@ -95,8 +96,12 @@ jq -n \
       notarized: false
     },
     executables: {
-      gui: {path: "Contents/MacOS/canisend-gui", sha256: $gui_sha256},
-      cli: {path: "Contents/Resources/bin/canisend", sha256: $cli_sha256}
+      gui: {path: "Contents/MacOS/canisend-gui"},
+      cli: {path: "Contents/Resources/bin/canisend"}
+    },
+    integrity_manifest: {
+      placement: "external-companion",
+      suffix: ".manifest.json"
     }
   }' > "$resources/BUNDLE.json"
 
@@ -114,4 +119,43 @@ codesign \
   "$destination"
 codesign --verify --deep --strict --verbose=4 "$destination"
 
+gui_sha256="$(shasum -a 256 "$macos/canisend-gui" | awk '{print $1}')"
+cli_sha256="$(shasum -a 256 "$cli_destination" | awk '{print $1}')"
+bundle_metadata_sha256="$(shasum -a 256 "$resources/BUNDLE.json" | awk '{print $1}')"
+info_plist_sha256="$(shasum -a 256 "$contents/Info.plist" | awk '{print $1}')"
+jq -n \
+  --arg version "$version" \
+  --arg bundle_name "$(basename "$destination")" \
+  --arg gui_sha256 "$gui_sha256" \
+  --arg cli_sha256 "$cli_sha256" \
+  --arg bundle_metadata_sha256 "$bundle_metadata_sha256" \
+  --arg info_plist_sha256 "$info_plist_sha256" \
+  '{
+    schema: "canisend.macos-app-integrity/v1",
+    version: $version,
+    bundle: {
+      name: $bundle_name,
+      signing: {
+        kind: "apple-adhoc",
+        developer_id: false,
+        notarized: false
+      },
+      metadata: {
+        path: "Contents/Resources/BUNDLE.json",
+        sha256: $bundle_metadata_sha256
+      },
+      info_plist: {
+        path: "Contents/Info.plist",
+        sha256: $info_plist_sha256
+      }
+    },
+    executables: {
+      gui: {path: "Contents/MacOS/canisend-gui", sha256: $gui_sha256},
+      cli: {path: "Contents/Resources/bin/canisend", sha256: $cli_sha256}
+    }
+  }' > "$companion_manifest"
+
+"$script_dir/verify_macos_gui_app.sh" "$destination" "$companion_manifest"
+
 echo "macOS GUI bundle: staged and ad-hoc signed $destination"
+echo "macOS GUI bundle: final-byte integrity manifest $companion_manifest"

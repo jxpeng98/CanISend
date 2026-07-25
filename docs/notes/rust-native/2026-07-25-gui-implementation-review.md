@@ -105,3 +105,8 @@ Keep the GUI classified as a `1.0.0-alpha.1` vertical slice. The resolved issues
 continue release-line activation, but Alpha publication remains blocked on the disposable-user CLI
 lifecycle, the defined native accessibility checks, exact package evidence, and truthful release
 notes. Beta remains blocked on complete ordinary CLI-to-GUI workflow coverage.
+
+The later [Stage 2 Alpha lifecycle evidence](2026-07-25-r12-stage2-alpha-lifecycle.md) completes the
+bounded GUI reopen and disposable CLI lifecycle items and corrects final-byte bundle integrity.
+Exact public 0.7 upgrade/backup evidence, the remaining accessibility matrix, and clean-tag package
+qualification remain open.

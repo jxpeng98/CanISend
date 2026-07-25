@@ -83,9 +83,21 @@ Developers can stage the current ad-hoc-signed preview bundle with:
   /path/to/CanISend.app
 ```
 
-The script copies both exact executables, licenses, privacy/GUI guidance, and an executable
-SHA-256 manifest before applying free ad-hoc integrity signatures to the nested executables and
-outer app. It does not provide Developer ID identity or notarization.
+The script copies both exact executables, licenses, and privacy/GUI guidance before applying free
+ad-hoc integrity signatures to the nested executables and outer app. It then writes
+`CanISend.app.manifest.json` beside the app with SHA-256 digests of the final signed GUI, bundled
+CLI, `Info.plist`, and internal bundle metadata. The integrity manifest must stay outside the app:
+signing the outer bundle changes its main executable, so embedding that final executable digest
+would create a self-reference and invalidate either the digest or the signature. The script does
+not provide Developer ID identity or notarization.
+
+Verify a staged bundle independently before launch:
+
+```console
+./scripts/verify_macos_gui_app.sh \
+  /path/to/CanISend.app \
+  /path/to/CanISend.app.manifest.json
+```
 
 The GUI does not download a binary, run `curl | sh`, invoke a package manager, or expose a general
 command textbox.
