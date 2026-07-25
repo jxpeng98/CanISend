@@ -30,6 +30,32 @@ use serde::{Deserialize, Serialize};
 const APP_ID: &str = "io.github.jxpeng98.canisend";
 const GUI_PREFERENCES_KEY: &str = "canisend.gui-preferences/v1";
 
+#[cfg(target_os = "macos")]
+fn pick_directory(title: Option<&str>) -> Option<PathBuf> {
+    let mut dialog = rfd::FileDialog::new();
+    if let Some(title) = title {
+        dialog = dialog.set_title(title);
+    }
+    dialog.pick_folder()
+}
+
+#[cfg(not(target_os = "macos"))]
+fn pick_directory(_title: Option<&str>) -> Option<PathBuf> {
+    None
+}
+
+#[cfg(target_os = "macos")]
+fn pick_job_source_file() -> Option<PathBuf> {
+    rfd::FileDialog::new()
+        .add_filter("Job sources", &["md", "txt", "json", "pdf"])
+        .pick_file()
+}
+
+#[cfg(not(target_os = "macos"))]
+fn pick_job_source_file() -> Option<PathBuf> {
+    None
+}
+
 fn main() -> eframe::Result {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
@@ -2026,13 +2052,10 @@ impl CanISendDesktop {
         let Some(root) = self.active_workspace.clone() else {
             return;
         };
-        let Some(destination) = rfd::FileDialog::new()
-            .set_title(
-                self.language
-                    .select("Choose a new backup directory", "选择新的备份目录"),
-            )
-            .pick_folder()
-        else {
+        let Some(destination) = pick_directory(Some(
+            self.language
+                .select("Choose a new backup directory", "选择新的备份目录"),
+        )) else {
             return;
         };
         self.dispatch(
@@ -2223,9 +2246,7 @@ impl CanISendDesktop {
                                 )
                                 .clicked()
                             {
-                                self.import_form.file = rfd::FileDialog::new()
-                                    .add_filter("Job sources", &["md", "txt", "json", "pdf"])
-                                    .pick_file();
+                                self.import_form.file = pick_job_source_file();
                                 self.import_form.error = None;
                             }
                         });
@@ -2432,7 +2453,7 @@ impl CanISendDesktop {
                         )
                         .clicked()
                     {
-                        self.workspace_form.path = rfd::FileDialog::new().pick_folder();
+                        self.workspace_form.path = pick_directory(None);
                         self.workspace_form.error = None;
                     }
                 });

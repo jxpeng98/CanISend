@@ -17,9 +17,11 @@ path = "src/main.rs"
 canisend-app = { path = "../canisend-app", version = "=1.0.0-alpha.1" }
 canisend-contracts = { path = "../canisend-contracts", version = "=1.0.0-alpha.1" }
 eframe.workspace = true
-rfd.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+rfd.workspace = true
 
 [lints]
 workspace = true
