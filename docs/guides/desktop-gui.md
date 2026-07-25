@@ -6,8 +6,8 @@ operations. The Command line page has one bounded exception: it invokes only the
 `canisend` path with fixed version arguments and a short timeout. It never invokes a shell or
 inspects Python, package managers, or their environments.
 
-The GUI is not part of the qualified `0.7` release archives. It is the first implementation slice
-for the future `0.8` desktop line.
+The GUI is not part of the historical qualified `0.7` release archives. It is the first
+implementation slice for the unified `1.0` product line, beginning with `1.0.0-alpha.1`.
 
 ## Build and launch on Apple Silicon
 

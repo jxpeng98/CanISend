@@ -78,8 +78,8 @@ canisend version --json
 canisend doctor
 ```
 
-The packaged GUI channel is not yet a qualified `0.7` release channel; use the archive installation
-above for the supported CLI release until the `0.8` macOS Alpha bundle passes its native gates.
+The packaged GUI channel is not part of the historical qualified `0.7` release; use the archive
+installation above until the `1.0.0-alpha.1` macOS bundle passes its native gates.
 
 For complete checksum, SBOM, manifest, and GitHub provenance verification, follow the
 [release verification guide](release-verification.md).

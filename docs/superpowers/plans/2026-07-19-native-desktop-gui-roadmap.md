@@ -2,12 +2,13 @@
 
 **Status:** Active — macOS-first implementation began on 2026-07-24
 
-**Target release:** `0.8.x`, beginning with a native GUI Alpha
+**Target release:** `1.0.x`, beginning with `1.0.0-alpha.1`
 
 **Related plans:**
 
 - [Rust-native greenfield roadmap](2026-07-17-rust-native-greenfield-roadmap.md)
 - [Post-0.7 roadmap](2026-07-18-post-0.7-roadmap.md)
+- [1.0 release roadmap](2026-07-25-1.0-release-roadmap.md)
 
 ## 1. Decision Summary
 
@@ -26,10 +27,10 @@ The desktop application must:
 7. remain local-first and require no Python, Node.js, Java, browser server, or external Typst runtime at use time; and
 8. prepare and export application materials but never submit an application.
 
-The `0.7` CLI and Agent v2 release contracts remain frozen. By explicit product-owner direction,
-R12 engineering now proceeds on an experimental macOS-first GUI line before Windows and Linux GUI
-qualification. GUI bytes are not part of the qualified `0.7` release unit and must not be published
-as Stable until their separate `0.8` gates pass.
+The historical `0.7` CLI and Agent v2 release evidence remains immutable. By explicit product-owner
+direction, R12 engineering now proceeds on a macOS-first GUI line before Windows and Linux GUI
+qualification. GUI bytes are not part of the qualified `0.7` release unit. ADR-RN-0014 supersedes
+the provisional `0.8` number: the next public product begins at `1.0.0-alpha.1`.
 
 ## 2. Product and Terminology Boundary
 
@@ -343,12 +344,12 @@ Accessibility is a release requirement, not post-polish:
 
 The existing CLI target matrix remains unchanged. GUI support is claimed only after exact packaged-app smoke tests.
 
-| Target | CLI `0.8` | GUI Alpha | Notes |
+| Target | CLI `1.0` | GUI Alpha | Notes |
 |---|---:|---:|---|
 | `aarch64-apple-darwin` | yes | planned | native `.app` bundle plus CLI |
 | `x86_64-apple-darwin` | yes | planned | native `.app` bundle plus CLI |
-| `x86_64-pc-windows-msvc` | yes | planned | GUI `.exe` plus CLI `.exe` |
-| `x86_64-unknown-linux-gnu` | yes | planned | desktop bundle/archive plus CLI |
+| `x86_64-pc-windows-msvc` | yes | deferred | standalone CLI for the 1.0 Alpha |
+| `x86_64-unknown-linux-gnu` | yes | deferred | standalone CLI for the 1.0 Alpha |
 | `x86_64-unknown-linux-musl` | yes | no initial claim | CLI-only until window-system dependencies qualify |
 
 GUI and CLI bytes, versions, licenses, notices, checksums, SBOM entries, provenance, and community-signing evidence
@@ -394,7 +395,7 @@ been authorized; cross-platform publication still follows the release gates belo
 
 - [x] Write the GUI architecture ADR and dependency/license record.
 - [x] Prototype one workspace list, one job list, one workflow timeline, and one validated form.
-- [ ] Verify the four GUI target builds and record the musl boundary.
+- [ ] Verify macOS arm64 behavior, Intel compilation, and the deferred non-macOS/musl boundaries.
 - [ ] Test keyboard, focus, accessibility tree, IME, high DPI, theme, file dialog, and background operation behavior.
 - [ ] Measure binary size and cold start, then accept `egui`/`eframe` or switch to the bounded fallback.
 
@@ -474,10 +475,10 @@ end-to-end application workflow completes without a terminal.
 ### R12.5 — Native GUI Alpha packaging (1–2 weeks)
 
 - [ ] Extend manifest, checksums, SBOM, notices, provenance, and signing records to both executables.
-- [ ] Package the four claimed GUI targets while preserving the five-target CLI release.
+- [ ] Package the claimed macOS GUI targets while preserving the five-target CLI release.
 - [ ] Run packaged desktop workflow, upgrade, rollback, uninstall, and workspace-retention smokes.
 - [ ] Publish GUI quick-start, workspace management, privacy, agent handoff, and troubleshooting guides.
-- [ ] Publish `0.8.0-alpha.1` only after the GUI Alpha ledger is machine-checkable.
+- [ ] Publish `1.0.0-alpha.1` only after the unified CLI/GUI Alpha ledger is machine-checkable.
 
 **Exit:** A clean supported desktop installs a runtime-independent GUI, completes the synthetic workflow, and uninstalls
 without removing its workspace.
@@ -488,7 +489,7 @@ without removing its workspace.
 - [ ] Fix data-loss, privacy, accessibility, workflow-parity, and packaging blockers before visual enhancements.
 - [ ] Freeze GUI action contracts, workspace registry format, and bundle layout at Beta.
 - [ ] Pass two clean-tag native RC matrices with upgrade, rollback, and assistive-technology evidence.
-- [ ] Publish `0.8.0` Stable only when CLI and GUI version/support policies describe one product release unit.
+- [ ] Publish `1.0.0` Stable only when CLI and GUI version/support policies describe one product release unit.
 
 **Exit:** The GUI is a supported product surface rather than an experimental launcher.
 
@@ -503,7 +504,7 @@ without removing its workspace.
 - [ ] Long-running operations do not freeze the event loop and preserve transaction/retry invariants.
 - [ ] All functionality is keyboard reachable with visible focus and named accessible controls.
 - [ ] Light/dark contrast, text scale, reduced motion, IME, and high-DPI checks pass on claimed targets.
-- [ ] Packaged GUI launch/workflow/reopen/uninstall smokes pass on all four claimed GUI targets.
+- [ ] Packaged GUI launch/workflow/reopen/uninstall smokes pass on every claimed macOS GUI target.
 - [ ] The musl CLI remains supported and is not mislabeled as a GUI target.
 - [ ] Release manifests bind both binaries, exact source, checksums, SBOM, provenance, notices, and community signing.
 - [ ] The GUI never submits applications, runs arbitrary shell input, or uploads private workspace content by default.

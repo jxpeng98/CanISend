@@ -1,8 +1,9 @@
 # CanISend user guides
 
 CanISend is a local-first native tool for preparing evidence-backed academic job applications. The
-qualified `0.7` surface is the CLI; a macOS-first desktop GUI is under active development for
-`0.8`. CanISend does not submit an application, fill a portal, create an account, or make sensitive
+historical `0.7` release surface is the CLI; a macOS-first desktop GUI is under active development
+for the unified `1.0` line. CanISend does not submit an application, fill a portal, create an
+account, or make sensitive
 declarations for the user.
 
 Start here:

@@ -107,6 +107,26 @@
         "xtask/src/main.rs"
       ],
       "reason": "Preserve a successful Scoop lifecycle result by tracking the temporary bucket state and preventing cleanup from repeating its completed removal."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "20dc0c7b47510593e05b754f51c610f5ada63e39",
+      "paths": [
+        "Cargo.lock",
+        "Cargo.toml",
+        "crates/canisend-app/Cargo.toml",
+        "crates/canisend-app/src/cli_install.rs",
+        "crates/canisend-app/src/lib.rs",
+        "crates/canisend-app/src/update.rs",
+        "crates/canisend-gui/Cargo.toml",
+        "crates/canisend-gui/src/cli_bridge.rs",
+        "crates/canisend-gui/src/main.rs",
+        "crates/canisend-gui/src/registry.rs",
+        "crates/canisend-gui/src/theme.rs",
+        "packaging/macos/Info.plist",
+        "scripts/stage_macos_gui_app.sh"
+      ],
+      "reason": "Implement the product-owner-authorized macOS GUI and CLI distribution bridge required for the next unified 1.0 Alpha while keeping those bytes outside the historical 0.7 qualified release artifacts."
     }
   ],
   "schema": "canisend.feature-freeze-exceptions/v1",

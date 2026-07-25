@@ -33,8 +33,8 @@ Windows and Linux GUI qualification deferred until the native macOS path is usab
   downgrade a newer CanISend version, replace an existing command without a user-invoked install
   action and rollback backup, or remove a managed binary whose digest changed after installation.
 - Make online release checks manual, body-free, host-allowlisted, bounded, and non-installing.
-- Keep GUI code out of the five-target `0.7` release unit. GUI release identity begins with the
-  separately qualified `0.8` line.
+- Keep GUI code out of the historical five-target `0.7` release unit. Under ADR-RN-0014, GUI
+  release identity begins with the separately activated `1.0` line.
 
 ## Consequences
 

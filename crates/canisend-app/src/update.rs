@@ -129,9 +129,9 @@ mod tests {
 
     const RELEASES: &str = r#"[
       {
-        "tag_name": "v0.8.0-alpha.1",
-        "html_url": "https://github.com/jxpeng98/CanISend/releases/tag/v0.8.0-alpha.1",
-        "name": "CanISend 0.8.0-alpha.1",
+        "tag_name": "v1.0.0-alpha.1",
+        "html_url": "https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.1",
+        "name": "CanISend 1.0.0-alpha.1",
         "draft": false,
         "prerelease": true,
         "published_at": "2026-08-01T10:00:00Z"
@@ -158,7 +158,7 @@ mod tests {
     fn preview_channel_includes_published_prereleases() {
         let current = Version::parse("0.7.0-rc.2").expect("current");
         let result = select_release(RELEASES.as_bytes(), &current).expect("release");
-        assert_eq!(result.latest_version, "0.8.0-alpha.1");
+        assert_eq!(result.latest_version, "1.0.0-alpha.1");
         assert!(result.prerelease);
         assert!(result.update_available);
         assert_eq!(result.channel, "preview");
@@ -177,8 +177,8 @@ mod tests {
     #[test]
     fn release_page_must_stay_on_the_project() {
         let fixture = RELEASES.replace(
-            "https://github.com/jxpeng98/CanISend/releases/tag/v0.8.0-alpha.1",
-            "https://example.invalid/releases/tag/v0.8.0-alpha.1",
+            "https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.1",
+            "https://example.invalid/releases/tag/v1.0.0-alpha.1",
         );
         let current = Version::parse("0.7.0-rc.2").expect("current");
         assert!(select_release(fixture.as_bytes(), &current).is_err());

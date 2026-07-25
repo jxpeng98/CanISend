@@ -35,9 +35,11 @@ the Git tag `archive/python-v0.6.0b1-final`.
 
 ## Current status
 
-The Rust rebuild is at `v0.7.0-rc.2`; R0–R11.2 and the full evidence-backed material
-pipeline are implemented, with the remaining Stable qualification tracked separately. R12 native
-desktop work is now active: the first macOS GUI vertical slice adds shared typed application
+The checked-in release authority remains at `v0.7.0-rc.2` while its historical evidence is
+prepared for archival. The next public product line is `1.0`, beginning with
+`v1.0.0-alpha.1`; there will be no public `0.8` line. R0–R11.2 and the full evidence-backed
+material pipeline are implemented. R12 native desktop work is now active: the first macOS GUI
+vertical slice adds shared typed application
 services, workspace management, job intake, supplied URL/PDF/file import, workflow status, and
 diagnostics without changing the CLI or Agent v2 contracts. Its Command line surface can also
 detect, install, update, and safely uninstall the version-matched native CLI in a user-owned

@@ -1,7 +1,7 @@
 {
   "format": "canisend.cli-gui-parity/v1",
   "updated_at": "2026-07-25",
-  "gui_release_line": "0.8",
+  "gui_release_line": "1.0",
   "entries": [
     {"operation": "product.version", "gui_surface": "Diagnostics", "status": "implemented"},
     {"operation": "product.doctor", "gui_surface": "Diagnostics", "status": "implemented"},

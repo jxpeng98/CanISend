@@ -369,9 +369,9 @@ GUI roadmap is approved but implementation is gated behind R11.4 Stable
   architectures, Scoop, and WinGet manifest validation and produced the run-bound fresh-Sandbox kit. Stable remains
   blocked on the fresh Windows Sandbox WinGet lifecycle record and the final RC release-notes maintainer review.
 - 2026-07-19: Approved the [native desktop GUI roadmap](2026-07-19-native-desktop-gui-roadmap.md) as the first
-  committed `0.8` product extension. The GUI will be a second native adapter over a shared typed application facade,
-  not a shell wrapper or parallel workspace implementation. Design and an isolated toolkit spike may proceed during
-  release preparation, but product implementation and package changes remain gated behind `v0.7.0` Stable.
+  committed post-0.7 product extension. ADR-RN-0014 later set its public version to
+  `1.0.0-alpha.1`. The GUI will be a second native adapter over a shared typed application facade,
+  not a shell wrapper or parallel workspace implementation.
 
 ## 1. Executive Decision
 
@@ -502,8 +502,8 @@ architecture decision record.
 - Automatic application submission.
 - Byte-identical PDFs across all operating systems when users opt into system fonts.
 
-The graphical desktop application remains outside `0.7` Stable so R11 can stay feature-frozen. It becomes the first
-committed `0.8` extension under the
+The graphical desktop application remains outside the historical `0.7` release unit. It becomes
+the first committed `1.0` extension under the
 [native desktop GUI roadmap](2026-07-19-native-desktop-gui-roadmap.md), while the CLI and Agent v2 interface remain
 first-class product surfaces.
 
@@ -1440,7 +1440,7 @@ release promises.
 | R9 | Embedded Typst rendering | 2–3 weeks | R3, R8 |
 | R10 | Security, recovery, performance hardening | 2–3 weeks | R4–R9 |
 | R11 | Cross-platform alpha/beta release | 2–3 weeks | R10 |
-| R12 | Native desktop GUI foundation and `0.8` Alpha | 6–9 weeks | R11.4 Stable |
+| R12 | Native desktop GUI foundation and `1.0` Alpha | 6–9 weeks | R11 |
 | R13 | GUI Beta and Stable qualification | 3–5 weeks | R12 |
 
 Expected R0–R11 total: approximately 21–33 engineer-weeks. The post-stable R12–R13 desktop extension adds an
@@ -2193,8 +2193,8 @@ application services and authoritative workspace.
 - [ ] R12.2 implement the app shell, body-free activity model, and safe multi-workspace registry.
 - [ ] R12.3 implement supplied URL/PDF/file job intake and the durable workflow console.
 - [ ] R12.4 implement profile, discovery, agent tasks, documents, review, package, render, and export screens.
-- [ ] R12.5 package and qualify a `0.8.0-alpha.1` GUI on macOS arm64/Intel, Windows x64, and Linux x64 glibc while
-  retaining all five CLI targets.
+- [ ] R12.5 package and qualify a macOS-first `1.0.0-alpha.1` GUI while retaining all five
+  standalone CLI targets.
 
 **Detailed plan:** [CanISend Native Desktop GUI Roadmap](2026-07-19-native-desktop-gui-roadmap.md)
 
@@ -2212,7 +2212,7 @@ release evidence.
 - [ ] Pass two clean-tag RC matrices covering CLI/GUI upgrade, rollback, assistive technology, and workspace retention.
 - [ ] Publish one support policy for the version-locked CLI, GUI, Agent v2, and workspace release unit.
 
-**Exit criteria:** `0.8.0` Stable is published only after the GUI and CLI pass their claimed target matrices and share
+**Exit criteria:** `1.0.0` Stable is published only after the GUI and CLI pass their claimed target matrices and share
 the same release-manifest, checksum, SBOM, provenance, notice, and community-signing authority.
 
 ## 21. Phase Dependency Graph
