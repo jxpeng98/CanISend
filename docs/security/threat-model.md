@@ -120,8 +120,10 @@ whenever the Typst stack changes. User-authored Typst, bibliography/CSL, YAML/XM
 user/system fonts are release blockers until the affected stack is upgraded or isolated in a preemptible bounded
 worker. An advisory shown reachable by the existing fixed-template path is also an immediate release blocker.
 
-The license policy permits only the explicitly listed SPDX licenses. Embedded font licenses and notices are outside
-Cargo package metadata and are copied verbatim into every native bundle.
+The license policy permits only the explicitly listed SPDX licenses. The GUI default-font crate exposes its SIL Open
+Font License 1.1 and Ubuntu Font Licence 1.0 requirements through Cargo metadata, so both are explicitly allowed and
+their exact upstream notices are copied into the macOS app. Typst asset licenses and notices are likewise copied
+verbatim into every standalone native bundle.
 
 ## Residual risks and required follow-up
 

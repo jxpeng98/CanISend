@@ -20,6 +20,19 @@ the embedded font families and other compiler assets, including:
 CanISend does not modify or rename these fonts. PDFs created with the fonts are not themselves placed under the font
 licenses.
 
+## Embedded egui desktop fonts
+
+The macOS desktop application embeds the default fonts distributed by `epaint_default_fonts` 0.35.0:
+
+- Hack Regular, including the upstream MIT, public-domain, and Bitstream Vera notices;
+- Emoji Icon Font, MIT;
+- Noto Emoji Regular, SIL Open Font License 1.1;
+- Ubuntu Light, Ubuntu Font Licence 1.0.
+
+CanISend copies the four exact upstream font notice files into the macOS app's `Contents/Resources/legal` directory.
+The SIL Open Font License and Ubuntu Font Licence permit bundling and redistribution under their respective terms.
+Documents created with these fonts are not themselves placed under the font licenses.
+
 ## SQLite storage
 
 - SQLite amalgamation: public domain dedication published by the SQLite project.

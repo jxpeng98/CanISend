@@ -40,7 +40,20 @@ cli="$app/Contents/Resources/bin/canisend"
 metadata="$app/Contents/Resources/BUNDLE.json"
 info="$app/Contents/Info.plist"
 icon="$app/Contents/Resources/AppIcon.icns"
-for file in "$gui" "$cli" "$metadata" "$info" "$icon"; do
+legal="$app/Contents/Resources/legal"
+for file in \
+  "$gui" \
+  "$cli" \
+  "$metadata" \
+  "$info" \
+  "$icon" \
+  "$legal/LICENSE" \
+  "$legal/THIRD_PARTY_NOTICES.md" \
+  "$legal/EGUI-FONT-HACK-LICENSE" \
+  "$legal/EGUI-FONT-EMOJI-ICON-LICENSE" \
+  "$legal/EGUI-FONT-NOTO-EMOJI-OFL" \
+  "$legal/EGUI-FONT-UBUNTU-LICENSE"
+do
   if [[ ! -f "$file" || -L "$file" ]]; then
     echo "macOS GUI verification: required regular file is missing: $file" >&2
     exit 1
