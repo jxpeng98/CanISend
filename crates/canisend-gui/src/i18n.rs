@@ -1,0 +1,347 @@
+use std::{fs, sync::Arc};
+
+use eframe::egui::{self, FontData, FontDefinitions, FontFamily};
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Language {
+    #[default]
+    #[serde(rename = "en")]
+    English,
+    #[serde(rename = "zh-CN")]
+    SimplifiedChinese,
+}
+
+impl Language {
+    pub const ALL: [Self; 2] = [Self::English, Self::SimplifiedChinese];
+
+    #[must_use]
+    pub const fn code(self) -> &'static str {
+        match self {
+            Self::English => "en",
+            Self::SimplifiedChinese => "zh-CN",
+        }
+    }
+
+    #[must_use]
+    pub const fn native_name(self) -> &'static str {
+        match self {
+            Self::English => "English",
+            Self::SimplifiedChinese => "简体中文",
+        }
+    }
+
+    #[must_use]
+    pub const fn select<'a>(self, english: &'a str, simplified_chinese: &'a str) -> &'a str {
+        match self {
+            Self::English => english,
+            Self::SimplifiedChinese => simplified_chinese,
+        }
+    }
+
+    #[must_use]
+    pub fn text(self, english: &'static str) -> &'static str {
+        if self == Self::English {
+            return english;
+        }
+        match english {
+            "Workspace" => "工作区",
+            "Choose a workspace" => "选择工作区",
+            "No workspace" => "未选择工作区",
+            "Not checked" => "尚未检查",
+            "Healthy" => "正常",
+            "Needs attention" => "需要处理",
+            "Health" => "健康状态",
+            "CanISend workspace header" => "CanISend 工作区标题栏",
+            "Overview" => "概览",
+            "Jobs" => "职位",
+            "Workspaces" => "工作区",
+            "Command line" => "命令行",
+            "Diagnostics" => "诊断",
+            "Accessibility & appearance" => "无障碍与外观",
+            "Language" => "语言",
+            "Locale" => "区域代码",
+            "CJK font" => "中日韩字体",
+            "Dark appearance" => "深色外观",
+            "Compact density" => "紧凑布局",
+            "Reduce motion" => "减少动态效果",
+            "Text size" => "文字大小",
+            "Primary navigation" => "主导航",
+            "Local workspace state" => "本地工作区状态",
+            "Application status" => "应用状态",
+            "Finish the current operation before starting another one." => {
+                "请等待当前操作完成后再开始其他操作。"
+            }
+            "The background operation ended unexpectedly. No completion was recorded; review the current workspace state and try again." => {
+                "后台操作意外结束，未记录完成结果。请检查当前工作区状态后重试。"
+            }
+            "Opening workspace" => "正在打开工作区",
+            "Loading jobs" => "正在加载职位",
+            "Loading job" => "正在加载职位",
+            "Completed" => "已完成",
+            "Dismiss" => "关闭",
+            "Current local workspace and next actions" => "当前本地工作区和后续操作",
+            "Active jobs" => "活跃职位",
+            "Stored in this workspace" => "保存在此工作区中",
+            "Artifacts" => "工件",
+            "Revisioned local records" => "带修订记录的本地数据",
+            "Workspace health" => "工作区健康状态",
+            "Issues" => "存在问题",
+            "Run an integrity check regularly" => "请定期运行完整性检查",
+            "Add job" => "添加职位",
+            "Check workspace" => "检查工作区",
+            "View all jobs" => "查看全部职位",
+            "Recently updated jobs" => "最近更新的职位",
+            "No jobs yet. Add a job from a URL, PDF, Markdown, text, or JSON file." => {
+                "还没有职位。可通过 URL、PDF、Markdown、文本或 JSON 文件添加职位。"
+            }
+            "Application records, supplied sources, and workflow state" => {
+                "申请记录、用户提供的来源和工作流状态"
+            }
+            "Search" => "搜索",
+            "Title or institution" => "职位名称或机构",
+            "Include archived" => "包含已归档",
+            "No jobs match the current filter." => "没有符合当前筛选条件的职位。",
+            "Archived" => "已归档",
+            "Open job" => "打开职位",
+            "Back to jobs" => "返回职位列表",
+            "Import source" => "导入来源",
+            "Start workflow" => "启动工作流",
+            "Import at least one source first" => "请先导入至少一个来源",
+            "Archive" => "归档",
+            "Sources" => "来源",
+            "No source has been imported." => "尚未导入来源。",
+            "Workflow" => "工作流",
+            "Workflow has not started." => "工作流尚未启动。",
+            "Import a source, then start the durable stage graph." => {
+                "请先导入来源，然后启动持久化阶段流程。"
+            }
+            "Alpha GUI scope" => "Alpha GUI 范围",
+            "Stage begin/complete/rerun, criteria, evidence, documents, review, render, and export remain available through the CLI or Agent v2 until the Beta GUI." => {
+                "在 Beta GUI 完成前，阶段开始/完成/重跑、条件、证据、文档、审阅、渲染和导出仍可通过 CLI 或 Agent v2 使用。"
+            }
+            "Local workspace registry, integrity, and backups" => "本地工作区注册、完整性和备份",
+            "Create workspace" => "创建工作区",
+            "Register existing" => "注册现有工作区",
+            "Check active" => "检查当前工作区",
+            "Back up active" => "备份当前工作区",
+            "Remove from list" => "从列表移除",
+            "This does not delete workspace data" => "此操作不会删除工作区数据",
+            "Open" => "打开",
+            "Active" => "当前",
+            "Latest integrity check" => "最近一次完整性检查",
+            "Database and referenced blobs passed verification." => {
+                "数据库及其引用的文件已通过验证。"
+            }
+            "The workspace needs attention before further mutation." => {
+                "继续修改前需要先处理此工作区的问题。"
+            }
+            "Body-free product and runtime information" => "不包含用户内容的产品与运行时信息",
+            "Product" => "产品",
+            "Version" => "版本",
+            "Protocol" => "协议",
+            "Workspace format" => "工作区格式",
+            "Target" => "目标平台",
+            "Display scale" => "显示缩放",
+            "Not reported by the window system" => "窗口系统未报告",
+            "physical pixels per point" => "物理像素/点",
+            "Reduced motion" => "减少动态效果",
+            "Enabled" => "已启用",
+            "Disabled" => "已停用",
+            "Run native self-check" => "运行原生自检",
+            "Running native self-check" => "正在运行原生自检",
+            "Native foundation healthy" => "原生基础组件正常",
+            "Native foundation needs attention" => "原生基础组件需要处理",
+            "Python runtime: not required" => "Python 运行时：不需要",
+            "Diagnostics intentionally omit job adverts, profile evidence, drafts, and provider payloads." => {
+                "诊断信息不会包含职位广告、个人资料证据、草稿或服务提供方载荷。"
+            }
+            "Keep the terminal CLI aligned with this CanISend desktop release" => {
+                "使终端 CLI 与当前 CanISend 桌面版本保持一致"
+            }
+            "Check CLI installation" => "检查 CLI 安装",
+            "Checking CLI installation" => "正在检查 CLI 安装",
+            "Checking CLI installation…" => "正在检查 CLI 安装…",
+            "Terminal installation" => "终端安装",
+            "Bundled version" => "内置版本",
+            "Installed version" => "已安装版本",
+            "Unknown (older version interface)" => "未知（旧版接口）",
+            "Not installed" => "未安装",
+            "Bundled CLI" => "内置 CLI",
+            "Not found" => "未找到",
+            "Install destination" => "安装位置",
+            "Current PATH resolves" => "当前 PATH 解析结果",
+            "No canisend command found on PATH" => "PATH 中未找到 canisend 命令",
+            "Destination on current PATH" => "安装位置是否在当前 PATH 中",
+            "Yes" => "是",
+            "No" => "否",
+            "No GUI-managed Rust CLI is installed at the destination." => {
+                "目标位置尚未安装由 GUI 管理的 Rust CLI。"
+            }
+            "The GUI-managed native CLI is the command currently resolved by PATH." => {
+                "PATH 当前解析到由 GUI 管理的原生 CLI。"
+            }
+            "The CLI installed by this GUI differs from the bundled release." => {
+                "此 GUI 安装的 CLI 与当前内置版本不同。"
+            }
+            "Update CLI" => "更新 CLI",
+            "Upgrade installed CLI" => "升级已安装的 CLI",
+            "Migrate installed CLI" => "迁移已安装的 CLI",
+            "Reinstall CLI" => "重新安装 CLI",
+            "Install CLI" => "安装 CLI",
+            "Uninstall managed CLI" => "卸载受管理的 CLI",
+            "Refresh" => "刷新",
+            "CanISend updates" => "CanISend 更新",
+            "Check for updates" => "检查更新",
+            "Copy release link" => "复制发布链接",
+            "Use from a terminal or agent host" => "在终端或 Agent 宿主中使用",
+            "Copy" => "复制",
+            "Installing or upgrading CanISend CLI" => "正在安装或升级 CanISend CLI",
+            "Checking for CanISend updates" => "正在检查 CanISend 更新",
+            "No bundled CanISend CLI is available" => "没有可用的内置 CanISend CLI",
+            "Choose a local workspace" => "选择本地工作区",
+            "Create a new workspace or register an existing Rust v2 workspace." => {
+                "创建新工作区，或注册现有的 Rust v2 工作区。"
+            }
+            "Open workspace manager" => "打开工作区管理器",
+            "Checking workspace integrity" => "正在检查工作区完整性",
+            "Creating verified backup" => "正在创建经过验证的备份",
+            "Starting workflow" => "正在启动工作流",
+            "Archiving job" => "正在归档职位",
+            "Title" => "职位名称",
+            "Institution" => "机构",
+            "Create job" => "创建职位",
+            "Cancel" => "取消",
+            "Job title is required" => "必须填写职位名称",
+            "Institution is required" => "必须填写机构",
+            "Title and institution must each be at most 512 bytes" => {
+                "职位名称和机构分别不能超过 512 字节"
+            }
+            "Creating job" => "正在创建职位",
+            "Import job source" => "导入职位来源",
+            "Local file" => "本地文件",
+            "Public URL" => "公开 URL",
+            "Choose a source file" => "选择来源文件",
+            "No file selected" => "未选择文件",
+            "Choose file" => "选择文件",
+            "Supported: Markdown, text, JSON, and text-based PDF." => {
+                "支持 Markdown、文本、JSON 和文本型 PDF。"
+            }
+            "Job source URL" => "职位来源 URL",
+            "CanISend will fetch this user-supplied public HTTP(S) URL." => {
+                "CanISend 将读取用户提供的公开 HTTP(S) URL。"
+            }
+            "Allow this user-invoked network fetch" => "允许本次由用户发起的网络读取",
+            "Allow CanISend to read and store this private local source" => {
+                "允许 CanISend 读取并保存此私有本地来源"
+            }
+            "Import" => "导入",
+            "No active job is selected" => "尚未选择活跃职位",
+            "Choose a file" => "请选择文件",
+            "Confirm private local source access before importing" => {
+                "导入前请确认允许访问私有本地来源"
+            }
+            "Enter a public HTTP(S) URL" => "请输入公开的 HTTP(S) URL",
+            "Confirm the user-invoked network fetch before importing" => {
+                "导入前请确认本次由用户发起的网络读取"
+            }
+            "Importing local source" => "正在导入本地来源",
+            "Fetching and importing URL" => "正在读取并导入 URL",
+            "Register existing workspace" => "注册现有工作区",
+            "Workspace name" => "工作区名称",
+            "Choose a new or empty directory." => "请选择新目录或空目录。",
+            "Choose a directory containing canisend.toml." => "请选择包含 canisend.toml 的目录。",
+            "No directory selected" => "未选择目录",
+            "Choose directory" => "选择目录",
+            "Create" => "创建",
+            "Register" => "注册",
+            "Choose a directory" => "请选择目录",
+            "Creating workspace" => "正在创建工作区",
+            "Archive this job?" => "归档此职位？",
+            "Confirm archive" => "确认归档",
+            "Uninstall the managed CLI?" => "卸载受管理的 CLI？",
+            "Uninstall CLI" => "卸载 CLI",
+            "Uninstalling managed CLI" => "正在卸载受管理的 CLI",
+            "Blockers" => "阻塞项",
+            "Complete" => "已完成",
+            "Ready" => "可开始",
+            "Running" => "运行中",
+            "Awaiting user" => "等待用户",
+            "Blocked" => "已阻塞",
+            "Stale" => "已过期",
+            "Intake" => "信息收集",
+            "Parse" => "解析",
+            "Criteria" => "条件提取",
+            "Evidence" => "证据",
+            "Match" => "匹配",
+            "Plan" => "计划",
+            "Draft" => "起草",
+            "Review" => "审阅",
+            "Package" => "打包",
+            "Render" => "渲染",
+            "Overview content" => "概览内容",
+            "Jobs content" => "职位内容",
+            "Workspaces content" => "工作区内容",
+            "Command line content" => "命令行内容",
+            "Diagnostics content" => "诊断内容",
+            "Installed; not active" => "已安装但未生效",
+            "Update available" => "有可用更新",
+            "Migration available" => "可迁移",
+            "Newer version installed" => "已安装较新版本",
+            "CLI missing from package" => "安装包中缺少 CLI",
+            _ => english,
+        }
+    }
+}
+
+/// Install a system CJK font as a fallback. The font remains outside the app
+/// bundle, keeping the binary small while allowing both supported locales to
+/// render from the first frame.
+pub fn install_cjk_fallback(ctx: &egui::Context) -> Option<&'static str> {
+    const CANDIDATES: &[&str] = &[
+        "/System/Library/Fonts/Hiragino Sans GB.ttc",
+        "/System/Library/Fonts/STHeiti Light.ttc",
+        r"C:\Windows\Fonts\msyh.ttc",
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+    ];
+    let (path, bytes) = CANDIDATES
+        .iter()
+        .find_map(|path| fs::read(path).ok().map(|bytes| (*path, bytes)))?;
+
+    let mut fonts = FontDefinitions::default();
+    fonts.font_data.insert(
+        "canisend-cjk".to_owned(),
+        Arc::new(FontData::from_owned(bytes)),
+    );
+    for family in [FontFamily::Proportional, FontFamily::Monospace] {
+        fonts
+            .families
+            .get_mut(&family)
+            .expect("default egui font family")
+            .push("canisend-cjk".to_owned());
+    }
+    ctx.set_fonts(fonts);
+    Some(path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Language;
+
+    #[test]
+    fn locale_codes_and_catalog_are_stable() {
+        assert_eq!(Language::English.code(), "en");
+        assert_eq!(Language::SimplifiedChinese.code(), "zh-CN");
+        assert_eq!(Language::SimplifiedChinese.text("Workspaces"), "工作区");
+        assert_eq!(
+            serde_json::to_string(&Language::SimplifiedChinese).unwrap(),
+            r#""zh-CN""#
+        );
+    }
+
+    #[test]
+    fn unknown_catalog_entries_fall_back_to_english() {
+        assert_eq!(Language::SimplifiedChinese.text("CanISend"), "CanISend");
+    }
+}

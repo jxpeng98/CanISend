@@ -114,7 +114,7 @@ on run arguments
         end tell
         delay 0.2
 
-        set expectedFocus to {"Workspace", "Overview", "Jobs", "Workspaces", "Command line", "Diagnostics", "Dark appearance", "Compact density", "Reduce motion", "Text size"}
+        set expectedFocus to {"Workspace", "Overview", "Jobs", "Workspaces", "Command line", "Diagnostics", "Language", "Dark appearance", "Compact density", "Reduce motion", "Text size"}
         repeat with expectedName in expectedFocus
             key code 48
             delay 0.12
@@ -169,6 +169,25 @@ on run arguments
             log "accessibility smoke: 100% reset passed"
         end tell
 
+        tell guiProcess
+            set languageControl to pop up button "Language" of group 1 of appWindow
+            set {languageX, languageY} to position of languageControl
+            set {languageWidth, languageHeight} to size of languageControl
+            click languageControl
+        end tell
+        delay 0.2
+        tell guiProcess
+            set chosenOption to click at {languageX + 20, languageY + languageHeight + 70}
+        end tell
+        delay 0.8
+        tell guiProcess
+            set languageControl to pop up button "语言" of group 1 of appWindow
+            my assertCondition((value of languageControl as text) is "简体中文", "Chinese language selection did not persist in the UI")
+            set appearanceControl to checkbox "深色外观" of group 1 of appWindow
+            my assertCondition(appearanceControl is not missing value, "Chinese appearance control missing")
+            log "accessibility smoke: Simplified Chinese locale and native control names passed"
+        end tell
+
         keystroke "q" using command down
         log "accessibility smoke: quit requested"
     end tell
@@ -182,4 +201,4 @@ fi
 
 wait "$gui_pid"
 gui_pid=""
-echo "macOS GUI accessibility smoke: semantics, Tab order, 200% focus visibility, and reduced motion passed"
+echo "macOS GUI accessibility smoke: English and Simplified Chinese semantics, Tab order, 200% focus visibility, and reduced motion passed"

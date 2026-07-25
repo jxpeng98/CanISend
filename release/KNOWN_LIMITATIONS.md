@@ -1,4 +1,4 @@
-# CanISend 0.7 Native Release Limitations
+# CanISend 1.0 Alpha Release Limitations
 
 This release line is a greenfield Rust-native product generation. It does not read Python-era CanISend workspaces,
 preserve the `0.6.x` command tree, or implement `canisend.agent/v1`.
@@ -24,11 +24,22 @@ preserve the `0.6.x` command tree, or implement `canisend.agent/v1`.
 - The renderer compiles only CanISend's embedded template with escaped structured inputs and embedded fonts.
 - User-authored Typst, external files, packages, bibliography/XML/YAML input, system fonts, and user fonts are not
   supported. Enabling any of these surfaces requires a new security review.
-- OCR, GUI operation, portal automation, and Linux arm64 packages are outside the `0.7` release scope.
+- OCR, GUI automation, portal automation, and Linux arm64 packages are outside the `1.0` release scope.
+
+## GUI boundaries
+
+- `1.0.0-alpha.1` publishes the GUI for Apple Silicon macOS first. Intel macOS compilation is
+  required for the manifest, but native Intel qualification and Windows/Linux GUI packages remain
+  Beta work.
+- The GUI supports English and Simplified Chinese. CLI and Agent v2 structured contracts remain
+  locale-neutral; terminal human-readable output is English in this Alpha.
+- Workspace restore/repair and the workflow begin/complete/rerun, criteria, profile evidence,
+  match, plan, document, review, package, render, and export mutations remain available through the
+  CLI or Agent v2 until their Beta GUI surfaces are complete.
 
 ## Release trust boundary
 
-`0.7.0-alpha.*` archives may be unsigned. Verify `SHA256SUMS`, the GitHub artifact attestation, the release tag, and
+`1.0.0-alpha.*` macOS GUI packages use ad-hoc integrity signatures. Verify `SHA256SUMS`, the GitHub artifact attestation, the release tag, and
 the included notices. Beta, release-candidate, and Stable community releases fail closed unless both macOS
 executables pass ad-hoc signing verification and the Windows executable passes self-signed Authenticode integrity
 verification. Their canonical signing evidence is bound to the final archive hashes and included in the release

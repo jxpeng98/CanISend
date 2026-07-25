@@ -6,6 +6,9 @@ CanISend 1.0 combines a macOS desktop interface, standalone command-line applica
 integration in one Rust-native product. It installs without Python and does not require Python, Node.js, Java, a
 separately installed SQLite library, or a Typst command.
 
+The macOS GUI supports persistent English and Simplified Chinese interfaces, native
+accessibility names, 100–200% text scaling, light/dark appearance, and reduced motion.
+
 The product provides local-first job intake from user-supplied files, text PDFs, and public URLs; discovery imports;
 evidence and criteria workflows; matching; application planning; structured drafting and review; readiness checks;
 editable exports; and embedded PDF rendering. Codex, Claude, and custom hosts integrate through the versioned

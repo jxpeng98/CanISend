@@ -1,0 +1,34 @@
+{
+  "schema": "canisend.macos-gui-performance/v1",
+  "version": "1.0.0-alpha.1",
+  "measured_at": "2026-07-25T16:52:37Z",
+  "reference_machine": "MacBook Pro; MacBookPro18,2; Apple M1 Max; 64 GB",
+  "macos_version": "27.0",
+  "readiness_probe": "native window with AccessKit Overview navigation control",
+  "trials": 5,
+  "samples_ms": [
+    554.247,
+    570.665,
+    537.973,
+    548.002,
+    583.964
+  ],
+  "minimum_ms": 537.973,
+  "median_ms": 554.247,
+  "maximum_ms": 583.964,
+  "budgets": {
+    "maximum_startup_ms": 2000,
+    "gui_executable_bytes": 67108864,
+    "app_bundle_apparent_bytes": 134217728
+  },
+  "passed": true,
+  "bytes": {
+    "gui_executable": 50055936,
+    "bundled_cli_executable": 48524720,
+    "app_bundle_apparent": 98619392
+  },
+  "sha256": {
+    "gui_executable": "c559f4df6d78c9320609462ee5df061b53f0c8104418e434058040194f7e9d92",
+    "bundled_cli_executable": "f6f6686f44fe0849bc8b6824196bf8965bf890e631c3ce6a5135a3ad69eded90"
+  }
+}

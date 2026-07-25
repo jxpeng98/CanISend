@@ -35,17 +35,18 @@ the Git tag `archive/python-v0.6.0b1-final`.
 
 ## Current status
 
-The checked-in release authority remains at `v0.7.0-rc.2` while its historical evidence is
-prepared for archival. The next public product line is `1.0`, beginning with
-`v1.0.0-alpha.1`; there will be no public `0.8` line. R0–R11.2 and the full evidence-backed
-material pipeline are implemented. R12 native desktop work is now active: the first macOS GUI
+The checked-in release authority is `1.0.0-alpha.1`; the `0.7` evidence is preserved as immutable
+history and there is no public `0.8` line. R0–R11.2 and the full evidence-backed material pipeline
+are implemented. R12 Stage 2 is complete: the first macOS GUI
 vertical slice adds shared typed application
 services, workspace management, job intake, supplied URL/PDF/file import, workflow status, and
-diagnostics without changing the CLI or Agent v2 contracts. Its Command line surface can also
+body-free diagnostics without changing the CLI or Agent v2 contracts. It supports persistent
+English and Simplified Chinese interfaces, system CJK font fallback, and localized native
+accessibility names. Its Command line surface can also
 detect, install, update, and safely uninstall the version-matched native CLI in a user-owned
 terminal location, including version-aware migration and rollback for an earlier CanISend install.
-Windows and Linux GUI work remains
-deferred while the macOS Alpha path is completed. The current CLI provides:
+Windows and Linux GUI work remains deferred while the macOS Alpha enters exact-package Stage 3.
+The current CLI provides:
 
 - Standalone `canisend` executable archives for five native targets.
 - Validated UUIDv7, SHA-256, revision, UTC timestamp, and safe relative-path contract types.

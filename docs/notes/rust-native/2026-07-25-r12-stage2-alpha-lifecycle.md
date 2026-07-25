@@ -5,8 +5,8 @@ app-bundle layout, ad-hoc signature, and final-byte integrity
 
 **Product version:** `1.0.0-alpha.1`
 
-**Source baseline:** `2339cdb` after the lifecycle, packaging, and accessibility commits described
-here
+**Source baseline:** the Stage 2 completion commit containing this record, after the lifecycle,
+packaging, accessibility, localization, parity, and performance changes described here
 
 **Latest qualification at:** `2026-07-25T15:02:09Z`
 
@@ -182,8 +182,8 @@ final run completed normally in about 31 seconds and proved:
 
 - the primary navigation and main content landmarks are named;
 - visible section/page headings expose heading roles;
-- Tab order is Workspace, Overview, Jobs, Workspaces, Command line, Diagnostics, Dark appearance,
-  Compact density, Reduce motion, and Text size;
+- Tab order is Workspace, Overview, Jobs, Workspaces, Command line, Diagnostics, Language, Dark
+  appearance, Compact density, Reduce motion, and Text size;
 - Command-equals reaches exactly 200%, the focused off-screen Reduce motion control scrolls inside
   the window, and Command-0 restores 100%;
 - Reduce motion can be enabled entirely by keyboard; and
@@ -210,8 +210,47 @@ coverage is complete for this Alpha task. This local record does not claim a hum
 of every VoiceOver phrase; that manual spoken-output pass remains part of the exact clean-tag native
 package review.
 
-## Remaining Stage 2 work
+## Stage 2 completion
 
-- Measure repeatable cold-start time against a declared threshold.
-- Resolve or explicitly defer all planned GUI parity entries.
-- Freeze the update-response fixtures and final Alpha package names around the v2 bundle layout.
+The final Stage 2 candidate adds persistent English and Simplified Chinese GUI locales. Switching
+language updates visible copy, form validation, operation labels, workflow states, and AccessKit
+names without restarting. Existing preference records migrate to English by default. A system CJK
+font is loaded as an egui fallback at runtime, so the app renders Chinese from its first frame
+without adding a bundled 23–55 MiB font. Diagnostics records the locale and selected CJK font
+without inspecting user content.
+
+The exact final ad-hoc-signed candidate passed the extended native accessibility smoke in both
+locales. The test retained the English landmark, Tab-order, 200% focus-visibility, reduced-motion,
+and reset checks, then selected `简体中文` and verified the native `语言` pop-up and `深色外观`
+checkbox names. Manual visual inspection confirmed complete Chinese glyph rendering at the default
+window size.
+
+The same signed bytes passed five isolated-user startup trials:
+
+| Item | Result | Frozen budget |
+|---|---:|---:|
+| Median usable startup | 554.247 ms | — |
+| Maximum usable startup | 583.964 ms | 2,000 ms |
+| Signed GUI executable | 50,055,936 bytes | 67,108,864 bytes |
+| Signed bundled CLI | 48,524,720 bytes | existing CLI budget |
+| App apparent size | 98,619,392 bytes | 134,217,728 bytes |
+
+The readiness probe requires a native window whose AccessKit Overview control exists. The
+machine-readable evidence, exact executable digests, hardware identity, and five samples are in
+[`macos-gui-alpha-baseline.json`](../../performance/macos-gui-alpha-baseline.json).
+
+The parity manifest now permits only `implemented` and `deferred-beta`; every former `planned-*`
+entry has an explicit Alpha disposition. The GUI itself labels the later workflow actions as
+CLI/Agent v2-only until Beta. `release check` rejects unresolved statuses or loss of the required
+Alpha vertical slice.
+
+Finally, [`alpha-package-contract.json`](../../../release/alpha-package-contract.json) freezes:
+
+- all five standalone CLI archive names;
+- the Apple Silicon `CanISend-1.0.0-alpha.1-aarch64-apple-darwin.zip` name;
+- the App, nested executable, bundle metadata, companion-manifest, and ad-hoc-signing layout; and
+- the checked-in GitHub Releases response fixture and its SHA-256 digest.
+
+The source gate verifies that package contract, fixture digest, parity disposition, and GUI
+performance budgets. Stage 2 is complete; clean-tag artifact construction and publication remain
+Stage 3 work.

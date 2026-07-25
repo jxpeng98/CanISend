@@ -47,12 +47,13 @@ amber focus ring; at high text scale, focused navigation controls scroll into vi
 
 The **Accessibility & appearance** section provides:
 
+- an immediately applied, persistent **English** or **简体中文** language choice;
 - system-initialized light or dark appearance;
 - normal or compact density with a minimum interactive height;
 - **Reduce motion**, which disables widget and scroll animation; and
 - 100%, 125%, 150%, or 200% text size.
 
-Appearance, density, reduced-motion, window, and text-scale state persist across normal restarts.
+Language, appearance, density, reduced-motion, window, and text-scale state persist across normal restarts.
 The standard Command-plus, Command-minus, and Command-0 zoom shortcuts also work. Diagnostics
 reports the active text size, window-system display scale, and reduced-motion state without
 including job, profile, draft, or provider bodies.
@@ -64,8 +65,9 @@ smoke against an isolated HOME:
 ./scripts/smoke_macos_gui_accessibility.sh /path/to/CanISend.app
 ```
 
-The smoke independently verifies the app manifest and ad-hoc signature, then checks AccessKit
-landmarks/headings, exact Tab order, 200% focus visibility, reduced motion, and Command-0 reset.
+The smoke independently verifies the app manifest and ad-hoc signature, then checks English and
+Simplified Chinese native control names, AccessKit landmarks/headings, exact Tab order, 200% focus
+visibility, reduced motion, and Command-0 reset.
 Real IME composition and native directory/file selection remain native release-matrix checks
 because they change global input-source or Finder UI state and do not belong in the fast edit loop.
 

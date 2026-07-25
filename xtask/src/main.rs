@@ -95,6 +95,8 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
             check_support_policy()?;
             check_release_feedback()?;
             check_release_qualification()?;
+            check_cli_gui_parity()?;
+            check_alpha_package_contract()?;
             check_release_contract()
         }
         [area, command] if area == "release" && command == "freeze-candidate" => {
@@ -3413,6 +3415,283 @@ fn check_release_contract() -> Result<(), String> {
         }
     }
     println!("release contract: ok ({} targets)", targets.len());
+    Ok(())
+}
+
+fn check_cli_gui_parity() -> Result<(), String> {
+    let path = repository_root().join("docs/contracts/cli-gui-parity-v1.json");
+    let document: Value = serde_json::from_slice(
+        &fs::read(&path).map_err(|error| format!("CLI/GUI parity manifest is missing: {error}"))?,
+    )
+    .map_err(|error| format!("CLI/GUI parity manifest is invalid JSON: {error}"))?;
+    if document.get("format").and_then(Value::as_str) != Some("canisend.cli-gui-parity/v1") {
+        return Err("CLI/GUI parity manifest format must be canisend.cli-gui-parity/v1".to_owned());
+    }
+    let alpha_scope = document
+        .get("alpha_scope")
+        .and_then(Value::as_object)
+        .ok_or_else(|| "CLI/GUI parity manifest must define alpha_scope".to_owned())?;
+    if alpha_scope.get("version").and_then(Value::as_str) != Some(env!("CARGO_PKG_VERSION")) {
+        return Err(format!(
+            "CLI/GUI parity Alpha scope must equal workspace version {}",
+            env!("CARGO_PKG_VERSION")
+        ));
+    }
+    if alpha_scope
+        .get("planned_statuses_allowed")
+        .and_then(Value::as_bool)
+        != Some(false)
+    {
+        return Err(
+            "CLI/GUI parity Alpha scope must prohibit unresolved planned statuses".to_owned(),
+        );
+    }
+    let entries = document
+        .get("entries")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "CLI/GUI parity manifest entries must be an array".to_owned())?;
+    let required_implemented = BTreeSet::from([
+        "product.version",
+        "product.doctor",
+        "product.update.check",
+        "workspace.init",
+        "workspace.status",
+        "workspace.check",
+        "workspace.backup",
+        "job.create",
+        "job.import",
+        "job.list",
+        "job.show",
+        "job.archive",
+        "workflow.start",
+        "workflow.status",
+        "cli.install.status",
+        "cli.install",
+        "cli.uninstall",
+    ]);
+    let mut operations = BTreeSet::new();
+    let mut implemented = BTreeSet::new();
+    let mut deferred = 0_usize;
+    for entry in entries {
+        let operation = entry
+            .get("operation")
+            .and_then(Value::as_str)
+            .ok_or_else(|| "CLI/GUI parity entry is missing operation".to_owned())?;
+        if !operations.insert(operation) {
+            return Err(format!("duplicate CLI/GUI parity operation: {operation}"));
+        }
+        let status = entry
+            .get("status")
+            .and_then(Value::as_str)
+            .ok_or_else(|| format!("CLI/GUI parity entry {operation} is missing status"))?;
+        match status {
+            "implemented" => {
+                implemented.insert(operation);
+            }
+            "deferred-beta" => deferred += 1,
+            other => {
+                return Err(format!(
+                    "CLI/GUI parity entry {operation} has unresolved or unknown Alpha status {other}"
+                ));
+            }
+        }
+    }
+    if !required_implemented.is_subset(&implemented) {
+        let missing = required_implemented
+            .difference(&implemented)
+            .copied()
+            .collect::<Vec<_>>();
+        return Err(format!(
+            "CLI/GUI Alpha parity is missing implemented operations: {missing:?}"
+        ));
+    }
+    if deferred == 0 {
+        return Err("CLI/GUI parity must explicitly document deferred Beta operations".to_owned());
+    }
+    println!(
+        "CLI/GUI parity: ok ({} implemented, {deferred} deferred to Beta)",
+        implemented.len()
+    );
+    Ok(())
+}
+
+fn check_alpha_package_contract() -> Result<(), String> {
+    let root = repository_root();
+    let path = root.join("release/alpha-package-contract.json");
+    let contract: Value = serde_json::from_slice(
+        &fs::read(&path).map_err(|error| format!("Alpha package contract is missing: {error}"))?,
+    )
+    .map_err(|error| format!("Alpha package contract is invalid JSON: {error}"))?;
+    if contract.get("schema").and_then(Value::as_str) != Some("canisend.alpha-package-contract/v1")
+    {
+        return Err(
+            "Alpha package contract schema must be canisend.alpha-package-contract/v1".to_owned(),
+        );
+    }
+    let version = env!("CARGO_PKG_VERSION");
+    if contract.get("version").and_then(Value::as_str) != Some(version)
+        || contract.get("tag").and_then(Value::as_str) != Some(&format!("v{version}"))
+    {
+        return Err(format!(
+            "Alpha package contract version and tag must be {version} and v{version}"
+        ));
+    }
+    let assets = contract
+        .pointer("/standalone_cli/assets")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "Alpha package contract CLI assets must be an array".to_owned())?;
+    let mut actual_targets = BTreeSet::new();
+    for asset in assets {
+        let target = asset
+            .get("target")
+            .and_then(Value::as_str)
+            .ok_or_else(|| "Alpha CLI asset is missing target".to_owned())?;
+        let file = asset
+            .get("file")
+            .and_then(Value::as_str)
+            .ok_or_else(|| format!("Alpha CLI asset {target} is missing file"))?;
+        let extension = if target == "x86_64-pc-windows-msvc" {
+            "zip"
+        } else {
+            "tar.gz"
+        };
+        let expected = format!("canisend-{version}-{target}.{extension}");
+        if file != expected {
+            return Err(format!(
+                "Alpha CLI asset {target} must be named {expected}, found {file}"
+            ));
+        }
+        if !actual_targets.insert(target) {
+            return Err(format!("duplicate Alpha CLI package target: {target}"));
+        }
+    }
+    let expected_targets = release_targets()?
+        .into_iter()
+        .map(|target| target.triple)
+        .collect::<BTreeSet<_>>();
+    let actual_targets = actual_targets
+        .into_iter()
+        .map(str::to_owned)
+        .collect::<BTreeSet<_>>();
+    if actual_targets != expected_targets {
+        return Err(format!(
+            "Alpha package target set differs: expected {expected_targets:?}, found {actual_targets:?}"
+        ));
+    }
+    for (pointer, expected) in [
+        (
+            "/desktop_macos/archive",
+            format!("CanISend-{version}-aarch64-apple-darwin.zip"),
+        ),
+        (
+            "/desktop_macos/gui_executable",
+            "Contents/MacOS/canisend-gui".to_owned(),
+        ),
+        (
+            "/desktop_macos/bundled_cli_executable",
+            "Contents/Resources/bin/canisend".to_owned(),
+        ),
+        (
+            "/desktop_macos/bundle_schema",
+            "canisend.macos-app-bundle/v2".to_owned(),
+        ),
+        (
+            "/desktop_macos/companion_schema",
+            "canisend.macos-app-integrity/v1".to_owned(),
+        ),
+    ] {
+        let actual = contract.pointer(pointer).and_then(Value::as_str);
+        if actual != Some(expected.as_str()) {
+            return Err(format!(
+                "Alpha package contract {pointer} must be {expected}, found {}",
+                actual.unwrap_or("<missing>")
+            ));
+        }
+    }
+    if contract
+        .pointer("/desktop_macos/signing")
+        .and_then(Value::as_str)
+        != Some("apple-adhoc")
+        || contract
+            .pointer("/desktop_macos/developer_id")
+            .and_then(Value::as_bool)
+            != Some(false)
+        || contract
+            .pointer("/desktop_macos/notarized")
+            .and_then(Value::as_bool)
+            != Some(false)
+    {
+        return Err(
+            "Alpha macOS package must freeze ad-hoc, non-Developer-ID, non-notarized signing"
+                .to_owned(),
+        );
+    }
+    let fixture_path = contract
+        .pointer("/update_response_fixture/path")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "Alpha update fixture path is missing".to_owned())?;
+    let fixture = fs::read(root.join(fixture_path))
+        .map_err(|error| format!("Alpha update fixture is missing: {error}"))?;
+    serde_json::from_slice::<Value>(&fixture)
+        .map_err(|error| format!("Alpha update fixture is invalid JSON: {error}"))?;
+    let digest = hex::encode(Sha256::digest(&fixture));
+    if contract
+        .pointer("/update_response_fixture/sha256")
+        .and_then(Value::as_str)
+        != Some(digest.as_str())
+    {
+        return Err(format!(
+            "Alpha update fixture digest drifted; expected contract digest {digest}"
+        ));
+    }
+    let performance_path = root.join("docs/performance/macos-gui-alpha-baseline.json");
+    let performance: Value =
+        serde_json::from_slice(&fs::read(&performance_path).map_err(|error| {
+            format!("macOS GUI Alpha performance baseline is missing: {error}")
+        })?)
+        .map_err(|error| {
+            format!("macOS GUI Alpha performance baseline is invalid JSON: {error}")
+        })?;
+    if performance.get("schema").and_then(Value::as_str)
+        != Some("canisend.macos-gui-performance/v1")
+        || performance.get("version").and_then(Value::as_str) != Some(version)
+        || performance.get("passed").and_then(Value::as_bool) != Some(true)
+    {
+        return Err(
+            "macOS GUI Alpha performance baseline must match the version and record a passing v1 measurement"
+                .to_owned(),
+        );
+    }
+    for (pointer, expected) in [
+        ("/budgets/maximum_startup_ms", 2_000_u64),
+        ("/budgets/gui_executable_bytes", 67_108_864),
+        ("/budgets/app_bundle_apparent_bytes", 134_217_728),
+    ] {
+        if performance.pointer(pointer).and_then(Value::as_u64) != Some(expected) {
+            return Err(format!(
+                "macOS GUI Alpha performance baseline {pointer} must remain {expected}"
+            ));
+        }
+    }
+    let maximum_ms = performance
+        .get("maximum_ms")
+        .and_then(Value::as_f64)
+        .ok_or_else(|| "macOS GUI Alpha baseline maximum_ms is missing".to_owned())?;
+    let gui_bytes = performance
+        .pointer("/bytes/gui_executable")
+        .and_then(Value::as_u64)
+        .ok_or_else(|| "macOS GUI Alpha baseline GUI byte count is missing".to_owned())?;
+    let bundle_bytes = performance
+        .pointer("/bytes/app_bundle_apparent")
+        .and_then(Value::as_u64)
+        .ok_or_else(|| "macOS GUI Alpha baseline App byte count is missing".to_owned())?;
+    if maximum_ms > 2_000.0 || gui_bytes > 67_108_864 || bundle_bytes > 134_217_728 {
+        return Err("macOS GUI Alpha performance baseline exceeds a frozen budget".to_owned());
+    }
+    println!(
+        "Alpha package contract: ok ({} CLI assets, one macOS desktop archive, GUI performance baseline)",
+        assets.len()
+    );
     Ok(())
 }
 

@@ -127,37 +127,12 @@ mod tests {
 
     use super::{check, select_release};
 
-    const RELEASES: &str = r#"[
-      {
-        "tag_name": "v1.0.0-alpha.1",
-        "html_url": "https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.1",
-        "name": "CanISend 1.0.0-alpha.1",
-        "draft": false,
-        "prerelease": true,
-        "published_at": "2026-08-01T10:00:00Z"
-      },
-      {
-        "tag_name": "v0.7.0",
-        "html_url": "https://github.com/jxpeng98/CanISend/releases/tag/v0.7.0",
-        "name": "CanISend 0.7.0",
-        "draft": false,
-        "prerelease": false,
-        "published_at": "2026-07-30T10:00:00Z"
-      },
-      {
-        "tag_name": "v9.0.0",
-        "html_url": "https://github.com/jxpeng98/CanISend/releases/tag/v9.0.0",
-        "name": "Draft",
-        "draft": true,
-        "prerelease": false,
-        "published_at": null
-      }
-    ]"#;
+    const RELEASES: &[u8] = include_bytes!("../../../fixtures/releases/github-releases-v1.json");
 
     #[test]
     fn preview_channel_includes_published_prereleases() {
         let current = Version::parse("0.7.0-rc.2").expect("current");
-        let result = select_release(RELEASES.as_bytes(), &current).expect("release");
+        let result = select_release(RELEASES, &current).expect("release");
         assert_eq!(result.latest_version, "1.0.0-alpha.1");
         assert!(result.prerelease);
         assert!(result.update_available);
@@ -167,7 +142,7 @@ mod tests {
     #[test]
     fn stable_channel_ignores_prereleases() {
         let current = Version::parse("0.7.0").expect("current");
-        let result = select_release(RELEASES.as_bytes(), &current).expect("release");
+        let result = select_release(RELEASES, &current).expect("release");
         assert_eq!(result.latest_version, "0.7.0");
         assert!(!result.prerelease);
         assert!(!result.update_available);
@@ -176,10 +151,12 @@ mod tests {
 
     #[test]
     fn release_page_must_stay_on_the_project() {
-        let fixture = RELEASES.replace(
-            "https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.1",
-            "https://example.invalid/releases/tag/v1.0.0-alpha.1",
-        );
+        let fixture = String::from_utf8(RELEASES.to_vec())
+            .expect("UTF-8 release fixture")
+            .replace(
+                "https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.1",
+                "https://example.invalid/releases/tag/v1.0.0-alpha.1",
+            );
         let current = Version::parse("0.7.0-rc.2").expect("current");
         assert!(select_release(fixture.as_bytes(), &current).is_err());
     }
