@@ -396,7 +396,7 @@ been authorized; cross-platform publication still follows the release gates belo
 - [x] Write the GUI architecture ADR and dependency/license record.
 - [x] Prototype one workspace list, one job list, one workflow timeline, and one validated form.
 - [ ] Verify macOS arm64 behavior, Intel compilation, and the deferred non-macOS/musl boundaries.
-- [ ] Test keyboard, focus, accessibility tree, IME, high DPI, theme, file dialog, and background operation behavior.
+- [x] Test keyboard, focus, accessibility tree, IME, high DPI, theme, file dialog, and background operation behavior.
 - [ ] Measure binary size and cold start, then accept `egui`/`eframe` or switch to the bounded fallback.
 
 **Exit:** The toolkit and release-target boundary are fixed with a runnable synthetic prototype; no domain behavior is
@@ -419,7 +419,7 @@ without spawning a process.
 - [ ] Implement first-run, workspace switcher, overview, activity drawer, diagnostics, and safe error recovery.
 - [ ] Implement workspace create/register/status/check/backup/restore/repair/remove-from-registry.
 - [ ] Add background worker, single-workspace writer queue, close/reopen behavior, and external-writer recovery.
-- [ ] Add keyboard navigation, focus, text scaling, and light/dark coverage from the first screen.
+- [x] Add keyboard navigation, focus, text scaling, and light/dark coverage from the first screen.
 
 **Exit:** A user can manage multiple local workspaces and complete backup/restore without the CLI or data deletion
 risk.
@@ -444,7 +444,7 @@ risk.
 - [x] Stage both version-matched executables in the macOS `.app`, emit their SHA-256 manifest,
   ad-hoc sign the nested executables and outer app, and pass packaged launch/status/accessibility
   smoke on Apple Silicon.
-- [ ] Run packaged install/update/uninstall through a disposable macOS user profile before Alpha
+- [x] Run packaged install/update/uninstall through a disposable macOS user profile before Alpha
   publication.
 
 **Exit:** A GUI user can install the same native release for terminal and agent-host use without
@@ -503,7 +503,7 @@ without removing its workspace.
 - [ ] Workspace registry removal cannot delete workspace data.
 - [ ] Long-running operations do not freeze the event loop and preserve transaction/retry invariants.
 - [ ] All functionality is keyboard reachable with visible focus and named accessible controls.
-- [ ] Light/dark contrast, text scale, reduced motion, IME, and high-DPI checks pass on claimed targets.
+- [x] Light/dark contrast, text scale, reduced motion, IME, and high-DPI checks pass on claimed targets.
 - [ ] Packaged GUI launch/workflow/reopen/uninstall smokes pass on every claimed macOS GUI target.
 - [ ] The musl CLI remains supported and is not mislabeled as a GUI target.
 - [ ] Release manifests bind both binaries, exact source, checksums, SBOM, provenance, notices, and community signing.
@@ -560,7 +560,9 @@ The first macOS vertical slice now includes:
 - a successful optimized Apple Silicon launch smoke. The arm64 executable is approximately
   50.1 MB and opened the expected `1120 × 740` content window.
 
-R12.0 remains open for explicit AccessKit/VoiceOver, IME, high-DPI, native file-dialog, Intel,
-Windows, and Linux evidence. R12.1 remains open because only the first facade action families have
-been extracted and the CLI has not yet been converted into a thin facade adapter. R12.2–R12.4
-remain partial as recorded in the parity manifest.
+R12.0 now has explicit Apple Silicon AccessKit/live-region, keyboard, IME, high-DPI,
+reduced-motion, and native file-dialog evidence. It remains open for the declared cold-start
+acceptance decision and Intel boundary; human auditory VoiceOver wording is an exact-package
+review. Windows and Linux GUI evidence stays deferred. R12.1 remains open because only the first
+facade action families have been extracted and the CLI has not yet been converted into a thin
+facade adapter. R12.2–R12.4 remain partial as recorded in the parity manifest.

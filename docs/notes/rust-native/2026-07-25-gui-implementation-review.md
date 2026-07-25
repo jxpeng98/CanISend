@@ -3,7 +3,7 @@
 **Scope:** `canisend-app`, `canisend-gui`, workspace registry, terminal CLI bridge, update check,
 and staged macOS `.app`
 
-**Baseline:** `20dc0c7` plus the reviewed changes recorded here
+**Baseline:** `2339cdb` plus the evidence/documentation follow-up recorded here
 
 **Release assessment:** usable Alpha vertical slice; not feature-complete and not an RC
 
@@ -36,6 +36,11 @@ Implemented:
 - Added a WCAG AA contrast regression test for semantic text and button pairs.
 - Added explicit accessible information for custom clickable job rows.
 - Associated visible form labels with title, institution, URL, workspace-name, and search fields.
+- Added named Banner, Navigation, Main, Status, Heading, Alert, and live-region AccessKit semantics.
+- Added initial focus for workspace, job, and source-import dialogs plus Escape dismissal.
+- Added visible amber focus for custom navigation/job controls and focus-following navigation
+  scrolling at high text scale.
+- Added persistent 100–200% text size, light/dark appearance, compact density, and reduced motion.
 - Made all page bodies vertically scrollable at the declared minimum window size.
 - Truncated long diagnostic paths within their column while preserving the complete value in the
   hover text.
@@ -68,14 +73,20 @@ Implemented:
 
 ## Native evidence collected
 
-- `cargo test -p canisend-gui --locked`: 6 passed.
+- `cargo test -p canisend-gui --locked`: 10 passed.
 - `cargo clippy -p canisend-gui --all-targets --locked -- -D warnings`: passed.
+- `cargo run -p xtask --locked -- release check`: passed.
 - Release CLI and GUI executables built successfully.
 - A complete temporary `.app` was staged and passed strict ad-hoc signature verification.
 - The packaged app launched on Apple Silicon.
-- Dark-mode review passed at the preferred window size.
+- Light- and dark-mode review passed at the preferred window size.
 - The app remained legible at the declared 800 × 600 content minimum.
-- macOS accessibility exposed the `Command line` navigation control by name and role.
+- The repeatable native accessibility smoke passed exact Tab order, named landmarks/headings,
+  keyboard-only reduced motion, 200% focus visibility, and Command-0 reset.
+- macOS reported a 2.00 physical-pixels-per-point Retina scale.
+- Simplified Chinese Pinyin composition displayed native candidates and committed
+  `无障碍测试`; the original input source was restored.
+- Native directory and file `Open` dialogs returned their selected disposable fixtures to the app.
 - The minimum-size Command line page scrolled vertically and kept long paths inside the content
   column.
 - No CLI install/update/uninstall action was invoked against the real user destination during this
@@ -92,21 +103,20 @@ These are planned product work, not hidden implementation:
 5. Agent task preparation, private-input consent export, completion, and host-pack controls.
 6. Document, review, package, render, and export screens.
 7. Complete ordinary mutation coverage in the CLI-to-GUI parity manifest.
-8. Full keyboard traversal, VoiceOver announcement, IME, text scaling, reduced-motion, and file
-   dialog qualification with recorded evidence.
-9. Disposable macOS user CLI install/migration/update/uninstall lifecycle.
-10. macOS Intel compilation/native qualification, final icon/bundle metadata, and exact Alpha
+8. Human auditory review of exact VoiceOver phrases on the clean-tag Alpha package.
+9. macOS Intel compilation/native qualification, final icon/bundle metadata, and exact Alpha
     release manifest/SBOM/provenance evidence.
-11. Theme/density preference persistence and GUI-level workspace restore/repair recovery tests.
+10. GUI-level workspace restore/repair recovery tests.
 
 ## Recommendation
 
-Keep the GUI classified as a `1.0.0-alpha.1` vertical slice. The resolved issues are sufficient to
-continue release-line activation, but Alpha publication remains blocked on the disposable-user CLI
-lifecycle, the defined native accessibility checks, exact package evidence, and truthful release
-notes. Beta remains blocked on complete ordinary CLI-to-GUI workflow coverage.
+Keep the GUI classified as a `1.0.0-alpha.1` vertical slice. Stage 2 accessibility and
+disposable-user CLI lifecycle checks are complete. Stage 2 still requires parity-scope decisions,
+cold-start measurement, and package/update-fixture freezing; Alpha publication then requires exact
+clean-tag package evidence and truthful release notes. Beta remains blocked on complete ordinary
+CLI-to-GUI workflow coverage.
 
 The later [Stage 2 Alpha lifecycle evidence](2026-07-25-r12-stage2-alpha-lifecycle.md) completes the
 bounded GUI reopen, disposable CLI lifecycle, exact public `v0.7.0-rc.2` upgrade/verified-backup,
-and final-byte bundle-integrity items. The remaining accessibility matrix and clean-tag package
-qualification remain open.
+final-byte bundle-integrity, and deterministic AccessKit/keyboard/scale/IME/file-dialog items.
+Human auditory VoiceOver review remains an exact-package task.

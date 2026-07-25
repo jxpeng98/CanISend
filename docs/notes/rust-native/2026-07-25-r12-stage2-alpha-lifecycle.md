@@ -1,13 +1,14 @@
 # 2026-07-25 R12 Stage 2 Alpha lifecycle evidence
 
-**Scope:** macOS arm64 GUI create/import/workflow/reopen, GUI-managed CLI lifecycle, app-bundle
-layout, ad-hoc signature, and final-byte integrity
+**Scope:** macOS arm64 GUI create/import/workflow/reopen, GUI-managed CLI lifecycle, accessibility,
+app-bundle layout, ad-hoc signature, and final-byte integrity
 
 **Product version:** `1.0.0-alpha.1`
 
-**Source baseline:** `80d2706` after the lifecycle and packaging commits described here
+**Source baseline:** `2339cdb` after the lifecycle, packaging, and accessibility commits described
+here
 
-**Latest qualification at:** `2026-07-25T12:35:25Z`
+**Latest qualification at:** `2026-07-25T15:02:09Z`
 
 **Classification:** local Alpha evidence; not clean-tag release qualification
 
@@ -24,7 +25,7 @@ layout, ad-hoc signature, and final-byte integrity
 7. reloads the job, source metadata, and workflow; and
 8. proves the registry JSON does not contain the synthetic private-body sentinel.
 
-The ordinary focused run passed seven GUI tests. The underlying `canisend-app` suite passed thirteen
+The ordinary focused run passed ten GUI tests. The underlying `canisend-app` suite passed thirteen
 tests with the public-endpoint network test intentionally ignored.
 
 ## Native GUI workflow
@@ -155,10 +156,62 @@ Its final measurements were:
 | Bundled CLI | 48,808,384 bytes |
 | Signing | ad-hoc, not Developer ID, not notarized |
 
+## macOS accessibility and input qualification
+
+Commit `2339cdb` adds persisted appearance/accessibility preferences, explicit AccessKit
+landmarks/headings/live regions, dialog initial focus, visible custom-control focus, a
+reduced-motion mode, and 100%, 125%, 150%, and 200% text-size controls. The navigation rail is now
+scrollable and focused controls explicitly scroll into view; this corrects a clipping/focus defect
+found during the first 200% native run.
+
+The final staged Apple Silicon candidate retained the v2 external-integrity layout and passed
+independent verification before every native run:
+
+| Item | Result |
+|---|---|
+| Companion manifest SHA-256 | `0a822d473de222fdad35ebdb6084fdbe5ea2b513b96026cd1c85aacba16178b2` |
+| Final signed GUI SHA-256 | `666cad51b27be20b2bba1fa60630855b7fc18b005822c97221cefb523865f541` |
+| Bundled CLI SHA-256 | `6334b0ec543a93c79d88912a99504bb615ee93c3a84f1708eee101e495f195c7` |
+| GUI executable | 50,006,704 bytes |
+| Bundled CLI | 48,524,720 bytes |
+| App directory | 94 MiB |
+| Window-system display scale | 2.00 physical pixels per point |
+
+`scripts/smoke_macos_gui_accessibility.sh` runs the exact staged app under a disposable HOME. Its
+final run completed normally in about 31 seconds and proved:
+
+- the primary navigation and main content landmarks are named;
+- visible section/page headings expose heading roles;
+- Tab order is Workspace, Overview, Jobs, Workspaces, Command line, Diagnostics, Dark appearance,
+  Compact density, Reduce motion, and Text size;
+- Command-equals reaches exactly 200%, the focused off-screen Reduce motion control scrolls inside
+  the window, and Command-0 restores 100%;
+- Reduce motion can be enabled entirely by keyboard; and
+- the exact app exits normally after the smoke.
+
+The fast deterministic tests separately prove light/dark semantic contrast, a 2 px amber focus
+stroke, zero animation/scroll-animation in reduced-motion mode, strict preference persistence, and
+AccessKit Heading, polite Status, and assertive Alert semantics.
+
+The manual native matrix additionally passed:
+
+- visible amber focus at 100% and 200%, plus legible light and dark views;
+- preference persistence across a normal quit/reopen;
+- real macOS Simplified Chinese Pinyin composition, including a visible candidate window and a
+  committed `无障碍测试` value, followed by restoration of the original British input source;
+- an `Open` directory picker that selected a disposable workspace directory;
+- an `Open` file picker that selected a bounded local Markdown job fixture;
+- explicit private-read consent before importing that local source; and
+- a healthy workspace integrity check with one referenced blob after import.
+
+The native tree exposed the body-free completion text
+`Completed: Imported text/markdown; charset=utf-8 source`. Programmatic AccessKit role/live-region
+coverage is complete for this Alpha task. This local record does not claim a human auditory review
+of every VoiceOver phrase; that manual spoken-output pass remains part of the exact clean-tag native
+package review.
+
 ## Remaining Stage 2 work
 
-- Complete keyboard traversal, VoiceOver announcements, text scaling, high-DPI, reduced-motion,
-  and file-dialog qualification.
 - Measure repeatable cold-start time against a declared threshold.
 - Resolve or explicitly defer all planned GUI parity entries.
 - Freeze the update-response fixtures and final Alpha package names around the v2 bundle layout.

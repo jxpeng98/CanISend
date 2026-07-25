@@ -36,13 +36,15 @@ The first usable vertical slice must let a macOS user:
 - Workspace registry, job intake, supplied URL/file/PDF import, workflow status, diagnostics,
   terminal CLI lifecycle, and manual update checks are implemented.
 - A version-matched macOS `.app` can be staged with hashes, notices, and ad-hoc integrity signing.
-- Focused GUI tests, contrast regression, bounded-registry fixtures, strict Clippy, preferred/minimum
-  window visual review, and named macOS accessibility control inspection pass.
+- Focused GUI tests, contrast/AccessKit regressions, bounded-registry fixtures, strict Clippy,
+  preferred/minimum window review, exact Tab order, 100–200% scaling, reduced motion, Simplified
+  Chinese Pinyin composition, and native directory/file-dialog inspection pass.
+- Disposable-user CLI lifecycle/rollback and exact public 0.7 upgrade/verified-backup checks pass.
 - Restore/repair, full workflow controls, evidence/discovery/agent/document/review/package/render/
-  export screens, disposable-user lifecycle, full native accessibility, and Intel qualification
-  remain open.
-- The source baseline remains `0.7.0-rc.2` until the atomic 1.0 release-line activation; GUI code
-  must not be presented as part of the historical qualified `0.7` release.
+  export screens, planned-parity decisions, cold-start acceptance, exact Alpha packaging, human
+  auditory VoiceOver review, and Intel qualification remain open.
+- The source line is activated at `1.0.0-alpha.1`; historical `0.7` evidence remains immutable and
+  separate from the unified GUI product.
 
 ## Architecture
 
@@ -102,7 +104,8 @@ from routine read models.
 - Implement Overview, Jobs, Job detail, Workflow, Workspaces, and Diagnostics screens.
 - Implement local file and URL import, explicit network/private-read language, progress, and safe
   recovery errors.
-- Implement theme and density controls and background action dispatch.
+- Implement persistent theme, density, text-scale, reduced-motion controls, AccessKit semantics,
+  visible focus, and background action dispatch.
 - Implement Command line installed/bundled CanISend version status, one-click
   migration/update/uninstall, preserved rollback, downgrade refusal, PATH diagnostics, a manual
   online release check, and copyable verification commands.

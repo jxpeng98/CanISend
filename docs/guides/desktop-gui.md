@@ -38,6 +38,37 @@ and Diagnostics navigation.
 Every file, URL, PDF, workspace, job, and workflow mutation uses the same bounded Rust services and
 authoritative SQLite/blob store as the CLI.
 
+## Accessibility and appearance
+
+The navigation rail exposes native AccessKit names and roles, and every dialog moves initial focus
+to its first required control. Use Tab and Shift-Tab to traverse the workspace switcher,
+navigation, appearance settings, and page actions. Custom navigation and job-row controls draw an
+amber focus ring; at high text scale, focused navigation controls scroll into view.
+
+The **Accessibility & appearance** section provides:
+
+- system-initialized light or dark appearance;
+- normal or compact density with a minimum interactive height;
+- **Reduce motion**, which disables widget and scroll animation; and
+- 100%, 125%, 150%, or 200% text size.
+
+Appearance, density, reduced-motion, window, and text-scale state persist across normal restarts.
+The standard Command-plus, Command-minus, and Command-0 zoom shortcuts also work. Diagnostics
+reports the active text size, window-system display scale, and reduced-motion state without
+including job, profile, draft, or provider bodies.
+
+After staging an app, developers with macOS Accessibility automation permission can run the bounded
+smoke against an isolated HOME:
+
+```console
+./scripts/smoke_macos_gui_accessibility.sh /path/to/CanISend.app
+```
+
+The smoke independently verifies the app manifest and ad-hoc signature, then checks AccessKit
+landmarks/headings, exact Tab order, 200% focus visibility, reduced motion, and Command-0 reset.
+Real IME composition and native directory/file selection remain native release-matrix checks
+because they change global input-source or Finder UI state and do not belong in the fast edit loop.
+
 ## Install the CLI from the GUI
 
 Open **Command line** to inspect the exact CLI bundled with the GUI, the user-level destination
@@ -131,8 +162,9 @@ the workspace, SQLite database, blobs, projections, exports, or backups.
 
 ## Implemented preview coverage
 
-- Native light/dark app shell, compact density, keyboard-native widgets, visible status, and
-  background-operation feedback.
+- Persistent native light/dark appearance, compact density, 100–200% text scaling, reduced motion,
+  AccessKit landmarks/headings/live regions, visible keyboard focus, and background-operation
+  feedback.
 - Native CanISend version detection, one-click user-level install/migration/update/uninstall,
   rollback restoration, PATH diagnostics, online release checks, and copyable terminal checks.
 - Workspace create/register/switch/status/check/backup and registry removal.
@@ -147,7 +179,7 @@ Not yet implemented in the GUI:
 - workflow begin/complete/rerun controls;
 - criteria, evidence, match, and plan confirmation forms;
 - discovery, agent-task, document, review, package, render, and export screens;
-- a signed `.app` bundle, Intel qualification, or non-macOS GUI packages.
+- Developer ID/notarized release signing, Intel native qualification, or non-macOS GUI packages.
 
 All of these operations remain available through the CLI while the GUI coverage expands. The
 desktop application still never submits an application.
