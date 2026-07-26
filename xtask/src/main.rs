@@ -3871,6 +3871,8 @@ fn check_release_contract() -> Result<(), String> {
         "package_macos_gui_release.sh",
         "smoke_macos_gui_release_archive.sh",
         "desktop-macos-aarch64",
+        "stage-draft-release-assets",
+        "Stage exact draft bytes for read-only native smoke jobs",
         "verify-draft-release-assets",
         "promote_existing_tag:",
         "existing-tag promotion requires an annotated tag",

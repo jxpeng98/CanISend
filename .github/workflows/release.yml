@@ -1045,14 +1045,63 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
-  verify-draft-release-assets:
-    name: verify-draft-${{ matrix.name }}
+  stage-draft-release-assets:
+    name: stage-exact-draft-release-assets
     needs:
       - release-identity
       - promote-release-candidate
     if: needs.release-identity.outputs.mode == 'promote'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Download and verify every private draft asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.release-identity.outputs.tag }}
+        shell: bash
+        run: |
+          draft_assets="$RUNNER_TEMP/draft-release-assets"
+          mkdir -p "$draft_assets"
+          mapfile -t assets < <(
+            gh release view "$RELEASE_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --json assets \
+              --jq '.assets[].name' \
+              | sort
+          )
+          [[ "${#assets[@]}" -eq 13 ]]
+          [[ "$(printf '%s\n' "${assets[@]}" | sort -u | wc -l | tr -d ' ')" -eq 13 ]]
+          for asset in "${assets[@]}"; do
+            ./scripts/download_github_draft_asset.sh \
+              "$RELEASE_TAG" \
+              "$asset" \
+              "$draft_assets/$asset"
+          done
+          cd "$draft_assets"
+          sha256sum -c SHA256SUMS
+          expected_asset_count="$(( $(wc -l < SHA256SUMS) + 1 ))"
+          [[ "${#assets[@]}" -eq "$expected_asset_count" ]]
+
+      - name: Stage exact draft bytes for read-only native smoke jobs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: draft-release-assets-${{ needs.release-identity.outputs.tag }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/draft-release-assets
+          if-no-files-found: error
+          retention-days: 1
+
+  verify-draft-release-assets:
+    name: verify-draft-${{ matrix.name }}
+    needs:
+      - release-identity
+      - stage-draft-release-assets
+    if: needs.release-identity.outputs.mode == 'promote'
     runs-on: ${{ matrix.runner }}
     permissions:
+      actions: read
       contents: read
     strategy:
       fail-fast: false
@@ -1097,25 +1146,11 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - name: Download exact archive from the draft release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ needs.release-identity.outputs.tag }}
-        shell: bash
-        run: |
-          source scripts/lib/native_paths.sh
-          download_root="$(canisend_absolute_path "$RUNNER_TEMP/draft-download")"
-          mkdir -p "$download_root"
-          version="${RELEASE_TAG#v}"
-          if [[ "${{ matrix.surface }}" == "desktop" ]]; then
-            archive="CanISend-$version-aarch64-apple-darwin.zip"
-          else
-            archive="canisend-$version-${{ matrix.target }}.${{ matrix.extension }}"
-          fi
-          ./scripts/download_github_draft_asset.sh \
-            "$RELEASE_TAG" \
-            "$archive" \
-            "$download_root/$archive"
+      - name: Download exact draft bytes from the write-scoped broker
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: draft-release-assets-${{ needs.release-identity.outputs.tag }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/draft-download
 
       - name: Smoke downloaded standalone CLI archive
         if: matrix.surface == 'cli'
