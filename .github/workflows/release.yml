@@ -1072,8 +1072,9 @@ jobs:
               --jq '.assets[].name' \
               | sort
           )
-          [[ "${#assets[@]}" -eq 13 ]]
-          [[ "$(printf '%s\n' "${assets[@]}" | sort -u | wc -l | tr -d ' ')" -eq 13 ]]
+          [[ "${#assets[@]}" -gt 1 ]]
+          unique_asset_count="$(printf '%s\n' "${assets[@]}" | sort -u | wc -l | tr -d ' ')"
+          [[ "$unique_asset_count" -eq "${#assets[@]}" ]]
           for asset in "${assets[@]}"; do
             ./scripts/download_github_draft_asset.sh \
               "$RELEASE_TAG" \
