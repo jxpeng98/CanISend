@@ -35,9 +35,10 @@ preserve the `0.6.x` command tree, or implement `canisend.agent/v1`.
   future work until explicitly supported.
 - The GUI supports English and Simplified Chinese. CLI and Agent v2 structured contracts remain
   locale-neutral; terminal human-readable output is English in this Alpha.
-- Workspace restore/repair and the workflow begin/complete/rerun, criteria, profile evidence,
-  match, plan, document, review, package, render, and export mutations remain available through the
-  CLI or Agent v2 until their Beta GUI surfaces are complete.
+- Workspace restore/repair and generic workflow begin/complete/rerun are available in the GUI.
+  Stage-specific artifact creation, criteria, profile evidence, match, dedicated plan
+  confirmation, document, review, package, render, and export mutations remain available through
+  the CLI or Agent v2 until their GUI surfaces are complete.
 
 ## Release trust boundary
 

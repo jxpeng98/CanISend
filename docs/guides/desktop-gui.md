@@ -38,6 +38,41 @@ and Diagnostics navigation.
 Every file, URL, PDF, workspace, job, and workflow mutation uses the same bounded Rust services and
 authoritative SQLite/blob store as the CLI.
 
+## Recover and repair a workspace
+
+Open **Workspaces** and choose **Restore backup** to recover a verified CanISend backup. Select the
+backup directory, a separate new or empty destination, and a local display name. The confirmation
+shows both paths before any work begins. CanISend verifies the backup and restores into the new
+destination first; only after success does the GUI register and select it. The source backup and
+previous active workspace are not changed.
+
+Choose **Repair active** to rebuild only missing or repair-required managed projections from
+verified workspace records. The confirmation identifies the active path. User-edited projections
+are preserved, and a second repair that has nothing to rebuild succeeds with zero changes.
+
+If an integrity check reports a missing or invalid authoritative blob, do not use projection
+repair. Stop writing and restore from a verified backup instead.
+
+## Control workflow stages
+
+After a workflow starts, each stage card shows its authoritative state, execution mode, expected or
+current output, blockers, and next actions:
+
+- a ready stage offers **Begin stage** with exactly the modes in its compiled descriptor;
+- a running or awaiting-user stage offers **Complete stage** using a current compatible artifact
+  UUIDv7;
+- a complete or stale stage offers **Rerun stage** when allowed; and
+- blocked stages explain their blockers without offering a mutation.
+
+CanISend resolves the artifact reference from the workspace and validates it before completing a
+stage. The GUI never accepts a caller-supplied kind, revision, or digest. Rerun first displays every
+affected descendant stage and current output, then requires explicit confirmation. Each dialog
+also shows a copyable equivalent CLI command as text; it does not execute that command.
+
+Stage-specific artifact creation is not part of this GUI slice. Create or obtain compatible
+artifacts through the CLI or Agent v2, then paste the returned artifact ID. Plan confirmation uses
+its dedicated CLI/Agent v2 operation rather than generic workflow completion.
+
 ## Accessibility and appearance
 
 The navigation rail exposes native AccessKit names and roles, and every dialog moves initial focus
@@ -172,9 +207,9 @@ canisend --workspace /path/to/applications workflow status --job JOB_ID
 canisend --workspace /path/to/applications agent context --job JOB_ID --json
 ```
 
-Codex and Claude continue to use Agent v2 rather than GUI automation. The current GUI shows intake
-and workflow state; agent-task preparation/completion and later evidence/document/review/export
-screens remain scheduled for the next R12 slices.
+Codex and Claude continue to use Agent v2 rather than GUI automation. The current GUI shows intake,
+workflow state, and generic begin/complete/rerun controls; agent-task preparation/completion and
+later evidence/document/review/export screens remain scheduled for later Stage 4 slices.
 
 ## Workspace registry and retention
 
@@ -195,19 +230,18 @@ the workspace, SQLite database, blobs, projections, exports, or backups.
   feedback.
 - Native CanISend version detection, one-click user-level install/migration/update/uninstall,
   rollback restoration, PATH diagnostics, online release checks, and copyable terminal checks.
-- Workspace create/register/switch/status/check/backup and registry removal.
+- Workspace create/register/switch/status/check/backup/restore/repair and registry removal.
 - Job search, active/archive visibility, create, detail, archive, and source metadata.
 - Local Markdown/text/JSON/text-PDF and supplied public URL intake.
-- Workflow start and body-free stage/blocker timeline.
+- Workflow start, body-free stage/blocker timeline, descriptor-bound begin/complete, and
+  preview-confirmed rerun.
 - Body-free product diagnostics and embedded renderer/resource self-check.
 
 Not yet implemented in the GUI:
 
-- workspace restore and projection repair;
-- workflow begin/complete/rerun controls;
 - criteria, evidence, match, and plan confirmation forms;
 - discovery, agent-task, document, review, package, render, and export screens;
 - Developer ID/notarized release signing, Intel native qualification, or non-macOS GUI packages.
 
-All of these operations remain available through the CLI while the GUI coverage expands. The
-desktop application still never submits an application.
+These remaining operations stay available through the CLI or Agent v2 while GUI coverage expands.
+The desktop application still never submits an application.

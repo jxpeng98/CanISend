@@ -32,6 +32,10 @@ canisend --workspace ./applications-restored workspace check
 Restore verifies the source, copies it to a unique staging directory, rebuilds missing raw/Markdown/JSON/Typst
 projections from authoritative blobs, and only then publishes the new destination. Failure removes staging.
 
+The macOS GUI exposes the same operation under **Workspaces → Restore backup**. It shows the backup
+and destination before confirmation, and adds the restored workspace to the GUI registry only
+after the verified restore succeeds.
+
 ## Repair versus restore
 
 Use `workspace repair` when authoritative SQLite/blob state passes `workspace check` but deterministic projection
@@ -44,6 +48,8 @@ canisend --workspace ./applications workspace repair
 Repair preserves user-edited projections and does not invent a missing authoritative blob. If `workspace check`
 reports `blob.reference_invalid`, stop writing and restore a verified backup. Do not replace a content-addressed blob
 manually.
+
+The same bounded repair is available as **Workspaces → Repair active** in the macOS GUI.
 
 For the complete failure model and test evidence, see the
 [recovery and interruption matrix](../recovery/interruption-matrix.md).

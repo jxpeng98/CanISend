@@ -1,6 +1,6 @@
 # CanISend Stage 4A and 4B execution plan
 
-**Status:** Stage 4A source-complete; Stage 4B ready to begin
+**Status:** Stage 4A and Stage 4B source-complete; native Alpha.2 candidate qualification pending
 
 **Decision date:** 2026-07-26
 
@@ -751,14 +751,14 @@ automatically create a tag, release, or update response.
 
 Stage 4B definition of done:
 
-- [ ] Verified backup restore works from the GUI into a new destination.
-- [ ] Projection repair is safe, idempotent, and visible in the GUI.
-- [ ] Workflow begin, complete, and rerun use typed application actions.
-- [ ] Rerun impact is previewed and explicitly confirmed.
-- [ ] CLI contracts remain unchanged for all five migrated commands.
-- [ ] New GUI strings and accessibility semantics pass in English and Simplified Chinese.
-- [ ] Parity is `22/35`, with exactly 13 explicit deferred-Beta families.
-- [ ] Fast CI remains below five minutes.
+- [x] Verified backup restore works from the GUI into a new destination.
+- [x] Projection repair is safe, idempotent, and visible in the GUI.
+- [x] Workflow begin, complete, and rerun use typed application actions.
+- [x] Rerun impact is previewed and explicitly confirmed.
+- [x] CLI contracts remain unchanged for all five migrated commands.
+- [x] New GUI strings and accessibility semantics pass in English and Simplified Chinese.
+- [x] Parity is `22/35`, with exactly 13 explicit deferred-Beta families.
+- [x] The local Fast CI equivalent remains below five minutes; hosted evidence awaits push.
 - [ ] Exact packaged macOS lifecycle evidence passes before Alpha.2 publication is considered.
 
 ## 8. Test ownership and timing policy
