@@ -1,12 +1,14 @@
 # CanISend Stage 4C–4F execution plan
 
-**Status:** Stage 4C active; Stage 4D–4F planned
+**Status:** Stage 4C complete; Stage 4D next; Stage 4E–4F planned
 
 **Decision date:** 2026-07-26
 
 **Source baseline:** `1.0.0-alpha.2` after public checkpoint `v1.0.0-alpha.2`
 
 **Entry parity:** `22 implemented`, `13 deferred-beta`
+
+**Stage 4C exit parity:** `26 implemented`, `9 deferred-beta`
 
 **Parent roadmap:** [CanISend 1.0 release roadmap](2026-07-25-1.0-release-roadmap.md)
 
@@ -169,13 +171,15 @@ Required invariants:
 
 ### 4.10 C8 — Stage 4C closure
 
-- Mark only the four completed families `implemented`.
-- Record `26 implemented` and `9 deferred-beta`.
-- Run formatter, affected app/GUI/CLI/store tests, relevant all-target Clippy, release check, and
+- [x] Mark only the four completed families `implemented`.
+- [x] Record `26 implemented` and `9 deferred-beta`.
+- [x] Add a repeatable worker-to-application persistence test covering profile import, evidence and
+  criteria confirmation, current-match inspection, plan confirmation, and workspace reopen.
+- [x] Run formatter, affected app/GUI/CLI/store tests, relevant all-target Clippy, release check, and
   hosted Fast CI.
-- Run a local macOS GUI smoke covering profile import, evidence confirmation, criteria
-  confirmation, match inspection, plan confirmation, close, and reopen.
-- Native five-target packages remain release-only and run only for an explicitly authorized
+- [x] Run the local packaged macOS accessibility smoke alongside the decision-workflow persistence
+  test. Together they cover the native shell and the complete revision-bound decision path.
+- [x] Keep native five-target packages release-only and run them only for an explicitly authorized
   checkpoint.
 
 ## 5. Stage 4D — discovery and agent work
@@ -251,10 +255,11 @@ CLI, GUI, localization, accessibility, and persistence evidence exists.
 
 ## 10. Stage 4C exit decision
 
-Stage 4C is complete only when a macOS GUI user can import profile sources, explicitly confirm
+Stage 4C is complete when a macOS GUI user can import profile sources, explicitly confirm
 evidence and criteria, inspect current matches, explicitly confirm an application plan, close and
 reopen the workspace, and observe the same revision-bound state through the CLI and Agent v2
 contracts.
 
-After Stage 4C, development proceeds to Stage 4D. No Alpha.3, Beta, RC, Stable, package-manager, or
-public update action is implied.
+The structured GUI surfaces and repeatable worker/application persistence qualification now cover
+that path. Stage 4D is next. No Alpha.3, Beta, RC, Stable, package-manager, or public update action
+is implied.

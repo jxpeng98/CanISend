@@ -19,8 +19,8 @@ cargo build -p canisend-cli -p canisend-gui --release --locked
 ```
 
 Build both executables so the GUI can discover the sibling native CLI. The current release build is
-a native arm64 Mach-O executable. It opens one window with Overview, Jobs, Workspaces, Command line,
-and Diagnostics navigation.
+a native arm64 Mach-O executable. It opens one window with Overview, Jobs, Profile, Workspaces,
+Command line, and Diagnostics navigation.
 
 ## First run
 
@@ -34,6 +34,8 @@ and Diagnostics navigation.
    - a local Markdown, text, JSON, or text-based PDF after confirming private local read access; or
    - a user-supplied public HTTP(S) URL after confirming the network fetch.
 6. Choose **Start workflow**. The job view shows the ten durable stages, current state, and blockers.
+7. Open **Profile** to import a local Markdown, text, or JSON profile source. Choose its sensitivity
+   before confirming a private read.
 
 Every file, URL, PDF, workspace, job, and workflow mutation uses the same bounded Rust services and
 authoritative SQLite/blob store as the CLI.
@@ -69,9 +71,32 @@ stage. The GUI never accepts a caller-supplied kind, revision, or digest. Rerun 
 affected descendant stage and current output, then requires explicit confirmation. Each dialog
 also shows a copyable equivalent CLI command as text; it does not execute that command.
 
-Stage-specific artifact creation is not part of this GUI slice. Create or obtain compatible
-artifacts through the CLI or Agent v2, then paste the returned artifact ID. Plan confirmation uses
-its dedicated CLI/Agent v2 operation rather than generic workflow completion.
+Generic stage completion still requires an existing compatible artifact from the CLI or Agent v2.
+Evidence, criteria, and plan decisions use their dedicated structured GUI controls rather than an
+artifact-ID field. Match creation remains an Agent v2 task operation; the GUI displays the current
+revision-bound match without synthesizing one.
+
+## Review evidence and make an application decision
+
+The Profile and selected-job views expose one revision-bound decision path:
+
+1. On **Profile**, select a job and load proposed, editable, or currently confirmed evidence.
+2. Review kind, summary, quoted source, sensitivity, and confirmation/exclusion state. Source
+   identity and byte spans remain read-only. Confirming a revision previews its downstream effect.
+3. On the selected job, load proposed, editable, or confirmed criteria. Review requirement,
+   importance, kind, confidence, and source identity before confirming.
+4. Inspect the current criterion-to-evidence match. Strength, rationale, evidence identities, gaps,
+   and prohibited claims are read-only. If no match exists, the page identifies the workflow/task
+   action needed.
+5. Load the application-plan candidate, choose Apply, Hold, or Withdraw, and review positioning,
+   priorities, risks, planned documents, and derived blockers. Match identity and derived blockers
+   remain read-only. Confirming the plan requires a separate explicit action.
+6. Close and reopen the same workspace to load the confirmed evidence, criteria, match, and plan
+   revisions from the shared store.
+
+Every mutation shows an in-progress state and an explicit success or failure result. Controls use
+text labels in addition to status color, support keyboard focus, and retain English and Simplified
+Chinese labels.
 
 ## Accessibility and appearance
 
@@ -207,9 +232,11 @@ canisend --workspace /path/to/applications workflow status --job JOB_ID
 canisend --workspace /path/to/applications agent context --job JOB_ID --json
 ```
 
-Codex and Claude continue to use Agent v2 rather than GUI automation. The current GUI shows intake,
-workflow state, and generic begin/complete/rerun controls; agent-task preparation/completion and
-later evidence/document/review/export screens remain scheduled for later Stage 4 slices.
+Codex and Claude continue to use Agent v2 rather than GUI automation. The GUI and CLI read and
+confirm profile evidence, job criteria, current matches, and application plans through the same
+application facade and authoritative workspace. Agent-task preparation/completion and later
+discovery, document, review, package, render, and export screens remain scheduled for later Stage 4
+slices.
 
 ## Workspace registry and retention
 
@@ -233,14 +260,18 @@ the workspace, SQLite database, blobs, projections, exports, or backups.
 - Workspace create/register/switch/status/check/backup/restore/repair and registry removal.
 - Job search, active/archive visibility, create, detail, archive, and source metadata.
 - Local Markdown/text/JSON/text-PDF and supplied public URL intake.
+- Profile source catalog/import plus structured evidence review, correction, exclusion, and
+  confirmation.
+- Structured criteria review and confirmation, read-only current match inspection, and explicit
+  application-plan decision and confirmation.
 - Workflow start, body-free stage/blocker timeline, descriptor-bound begin/complete, and
   preview-confirmed rerun.
 - Body-free product diagnostics and embedded renderer/resource self-check.
 
 Not yet implemented in the GUI:
 
-- criteria, evidence, match, and plan confirmation forms;
-- discovery, agent-task, document, review, package, render, and export screens;
+- discovery and Agent v2 task preparation/completion screens;
+- document, review, package, render, and export screens;
 - Developer ID/notarized release signing, Intel native qualification, or non-macOS GUI packages.
 
 These remaining operations stay available through the CLI or Agent v2 while GUI coverage expands.
