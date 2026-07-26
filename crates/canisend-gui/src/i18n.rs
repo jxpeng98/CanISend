@@ -190,6 +190,68 @@ impl Language {
             "Evidence references" => "证据引用",
             "No evidence reference" => "没有证据引用",
             "Prohibited claims" => "禁止使用的陈述",
+            "Application plan" => "申请计划",
+            "Allow this user-invoked private plan review" => "允许本次由用户发起的私有申请计划审阅",
+            "Load editable plan" => "加载可编辑计划",
+            "Load confirmed plan" => "加载已确认计划",
+            "Loading application plan candidate" => "正在加载候选申请计划",
+            "Loading current application plan" => "正在加载当前申请计划",
+            "Application plan candidate" => "候选申请计划",
+            "Matches artifact" => "匹配工件",
+            "Decision" => "申请决定",
+            "Apply" => "申请",
+            "Hold" => "暂缓",
+            "Skip" => "跳过",
+            "Application strategy" => "申请策略",
+            "Positioning" => "定位",
+            "Priorities" => "优先事项",
+            "Priority" => "优先事项",
+            "Add priority" => "添加优先事项",
+            "Risks" => "风险",
+            "Risk" => "风险",
+            "Add risk" => "添加风险",
+            "Remove" => "移除",
+            "Document plan" => "文档计划",
+            "Cover letter" => "求职信",
+            "Research statement" => "研究陈述",
+            "Teaching statement" => "教学陈述",
+            "CV" => "简历",
+            "Required" => "必需",
+            "Optional" => "可选",
+            "Omitted" => "省略",
+            "Executor" => "执行方式",
+            "Omitted documents do not have an executor." => "省略的文档不设置执行方式。",
+            "Document rationale" => "文档理由",
+            "Constraints" => "约束",
+            "Constraint" => "约束",
+            "Add constraint" => "添加约束",
+            "Derived blockers" => "派生阻塞项",
+            "No derived blockers." => "没有派生阻塞项。",
+            "Blocking" => "阻塞",
+            "Warning" => "警告",
+            "I confirm this application decision and its downstream effects" => {
+                "我确认此申请决定及其下游影响"
+            }
+            "Confirm application plan" => "确认申请计划",
+            "Confirming application plan" => "正在确认申请计划",
+            "Confirm private plan access before loading" => "加载前请确认允许访问私有申请计划",
+            "Application positioning is required" => "必须填写申请定位",
+            "Add at least one non-empty application priority" => "请至少添加一项非空的申请优先事项",
+            "Remove empty application risks" => "请移除空的申请风险",
+            "The plan must contain each supported document exactly once" => {
+                "计划必须且只能包含每种受支持的文档"
+            }
+            "An omitted document cannot have an executor" => "省略的文档不能设置执行方式",
+            "Each included document needs a supported executor" => {
+                "每个包含的文档都需要设置受支持的执行方式"
+            }
+            "A skipped application must omit every document" => "跳过申请时必须省略所有文档",
+            "Resolve blocking evidence gaps before choosing Apply" => {
+                "选择申请前必须解决阻塞性的证据差距"
+            }
+            "Explicitly confirm the application decision before saving" => {
+                "保存前请明确确认申请决定"
+            }
             "Application records, supplied sources, and workflow state" => {
                 "申请记录、用户提供的来源和工作流状态"
             }
@@ -231,6 +293,9 @@ impl Language {
             "Workflow scope" => "工作流范围",
             "Plan confirmation, document creation, review, render, and export remain available through the CLI or Agent v2." => {
                 "计划确认、文档创建、审阅、渲染和导出仍可通过 CLI 或 Agent v2 完成。"
+            }
+            "Document creation, review, render, and export remain available through the CLI or Agent v2." => {
+                "文档创建、审阅、渲染和导出仍可通过 CLI 或 Agent v2 完成。"
             }
             "Stage-specific artifact creation, plan confirmation, criteria, evidence, documents, review, render, and export remain available through the CLI or Agent v2." => {
                 "阶段专用工件创建、计划确认、条件、证据、文档、审阅、渲染和导出仍可通过 CLI 或 Agent v2 完成。"
@@ -550,6 +615,14 @@ mod tests {
         assert_eq!(
             Language::SimplifiedChinese.text("Current evidence matches"),
             "当前证据匹配"
+        );
+        assert_eq!(
+            Language::SimplifiedChinese.text("Application plan"),
+            "申请计划"
+        );
+        assert_eq!(
+            Language::SimplifiedChinese.text("Confirm application plan"),
+            "确认申请计划"
         );
         assert_eq!(
             serde_json::to_string(&Language::SimplifiedChinese).unwrap(),

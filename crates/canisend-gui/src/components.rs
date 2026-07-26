@@ -2,7 +2,8 @@ use std::path::Path;
 
 use canisend_app::{ActionReceipt, CliInstallState, CliInstallStatus, WorkflowControlReadModel};
 use canisend_contracts::{
-    ArtifactKind, CriteriaSetRecord, EvidenceCatalogRecord, ExecutionMode, SourceKind,
+    ApplicationDecision, ApplicationPlanCandidate, ArtifactKind, CriteriaSetRecord,
+    DocumentRequirement, EvidenceCatalogRecord, ExecutionMode, PlanBlockerSeverity, SourceKind,
     StageExecutionStatus, WorkflowStage, WorkflowStatusData,
 };
 use eframe::egui::{self, Align, Color32, Layout, RichText, Sense, Stroke};
@@ -98,6 +99,7 @@ pub(crate) fn localized_receipt_summary<T>(
         "profile.source.add" => "个人资料来源已导入",
         "profile.evidence.confirm" => "个人资料证据已确认",
         "criteria.confirm" => "职位条件已确认",
+        "plan.confirm" => "申请计划已确认",
         "workflow.start" => "工作流已启动",
         "workflow.status" => "工作流状态已更新",
         "workflow.begin" => "工作流阶段已开始",
@@ -244,6 +246,120 @@ pub(crate) fn validate_criteria_review(
     if !downstream_effects_confirmed {
         return Err(language
             .text("Confirm the downstream revision effects before saving criteria")
+            .to_owned());
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_plan_review(
+    candidate: &ApplicationPlanCandidate,
+    decision_confirmed: bool,
+    language: Language,
+) -> Result<(), String> {
+    if candidate.strategy.positioning.trim().is_empty() {
+        return Err(language
+            .text("Application positioning is required")
+            .to_owned());
+    }
+    if candidate.strategy.priorities.is_empty()
+        || candidate
+            .strategy
+            .priorities
+            .iter()
+            .any(|value| value.trim().is_empty())
+    {
+        return Err(language
+            .text("Add at least one non-empty application priority")
+            .to_owned());
+    }
+    if candidate
+        .strategy
+        .risks
+        .iter()
+        .any(|value| value.trim().is_empty())
+    {
+        return Err(language.text("Remove empty application risks").to_owned());
+    }
+
+    let kinds = candidate
+        .documents
+        .iter()
+        .map(|document| document.kind)
+        .collect::<std::collections::BTreeSet<_>>();
+    if candidate.documents.len() != 4 || kinds.len() != 4 {
+        return Err(language
+            .text("The plan must contain each supported document exactly once")
+            .to_owned());
+    }
+    for (index, document) in candidate.documents.iter().enumerate() {
+        if document.rationale.trim().is_empty() {
+            return Err(match language {
+                Language::English => {
+                    format!("Planned document {} needs a rationale", index + 1)
+                }
+                Language::SimplifiedChinese => {
+                    format!("计划文档 {} 需要填写理由", index + 1)
+                }
+            });
+        }
+        if document
+            .constraints
+            .iter()
+            .any(|value| value.trim().is_empty())
+        {
+            return Err(match language {
+                Language::English => {
+                    format!(
+                        "Remove empty constraints from planned document {}",
+                        index + 1
+                    )
+                }
+                Language::SimplifiedChinese => {
+                    format!("请移除计划文档 {} 中的空约束", index + 1)
+                }
+            });
+        }
+        match (document.requirement, document.executor) {
+            (DocumentRequirement::Omitted, None)
+            | (
+                DocumentRequirement::Required | DocumentRequirement::Optional,
+                Some(ExecutionMode::HostAgent | ExecutionMode::ConfiguredProvider),
+            ) => {}
+            (DocumentRequirement::Omitted, Some(_)) => {
+                return Err(language
+                    .text("An omitted document cannot have an executor")
+                    .to_owned());
+            }
+            _ => {
+                return Err(language
+                    .text("Each included document needs a supported executor")
+                    .to_owned());
+            }
+        }
+    }
+    if candidate.decision == ApplicationDecision::Skip
+        && candidate
+            .documents
+            .iter()
+            .any(|document| document.requirement != DocumentRequirement::Omitted)
+    {
+        return Err(language
+            .text("A skipped application must omit every document")
+            .to_owned());
+    }
+    if candidate.decision == ApplicationDecision::Apply
+        && candidate
+            .blockers
+            .iter()
+            .any(|blocker| blocker.severity == PlanBlockerSeverity::Blocking)
+    {
+        return Err(language
+            .text("Resolve blocking evidence gaps before choosing Apply")
+            .to_owned());
+    }
+    if !decision_confirmed {
+        return Err(language
+            .text("Explicitly confirm the application decision before saving")
             .to_owned());
     }
     Ok(())
@@ -571,13 +687,14 @@ pub(crate) fn command_copy_row(ui: &mut egui::Ui, command: &str, language: Langu
 #[cfg(test)]
 mod tests {
     use canisend_contracts::{
-        CriteriaSetRecord, EvidenceCatalogRecord, StageExecutionStatus, WorkflowStage,
+        ApplicationPlanCandidate, CriteriaSetRecord, EvidenceCatalogRecord, StageExecutionStatus,
+        WorkflowStage,
     };
     use serde_json::json;
 
     use super::{
         Language, WorkflowPrimaryAction, validate_criteria_review, validate_evidence_review,
-        workflow_primary_action,
+        validate_plan_review, workflow_primary_action,
     };
 
     #[test]
@@ -701,5 +818,69 @@ mod tests {
                 .contains("downstream")
         );
         assert!(validate_criteria_review(&candidate, true, Language::English).is_ok());
+    }
+
+    #[test]
+    fn plan_review_requires_valid_editable_fields_and_explicit_decision() {
+        let mut candidate: ApplicationPlanCandidate = serde_json::from_value(json!({
+            "job_id": "019f2f55-7c00-7000-8000-000000000401",
+            "matches_artifact": {
+                "kind": "evidence-matches",
+                "id": "019f2f55-7c00-7000-8000-000000000402",
+                "revision": 1,
+                "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            },
+            "decision": "hold",
+            "strategy": {
+                "positioning": "Lead with economics teaching and research.",
+                "priorities": ["Address essential criteria"],
+                "risks": []
+            },
+            "documents": [
+                {
+                    "kind": "cover-letter",
+                    "requirement": "required",
+                    "rationale": "Required by the advert.",
+                    "constraints": [],
+                    "executor": "host-agent"
+                },
+                {
+                    "kind": "research-statement",
+                    "requirement": "optional",
+                    "rationale": "Supports the research case.",
+                    "constraints": [],
+                    "executor": "host-agent"
+                },
+                {
+                    "kind": "teaching-statement",
+                    "requirement": "optional",
+                    "rationale": "Supports the teaching case.",
+                    "constraints": [],
+                    "executor": "host-agent"
+                },
+                {
+                    "kind": "cv",
+                    "requirement": "required",
+                    "rationale": "Required application record.",
+                    "constraints": [],
+                    "executor": "host-agent"
+                }
+            ],
+            "blockers": []
+        }))
+        .expect("plan fixture");
+
+        assert!(
+            validate_plan_review(&candidate, false, Language::English)
+                .expect_err("decision consent")
+                .contains("Explicitly confirm")
+        );
+        assert!(validate_plan_review(&candidate, true, Language::English).is_ok());
+        candidate.strategy.priorities[0].clear();
+        assert!(
+            validate_plan_review(&candidate, true, Language::English)
+                .expect_err("empty priority")
+                .contains("priority")
+        );
     }
 }

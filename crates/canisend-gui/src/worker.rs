@@ -9,8 +9,8 @@ use canisend_app::{
     WorkspaceReadModel, WorkspaceRepairReadModel, WorkspaceRestoreReadModel,
 };
 use canisend_contracts::{
-    CriteriaSetRecord, EvidenceCatalogRecord, EvidenceMatchSetRecord, JobRecord,
-    PrivacyClassification, WorkflowStage, WorkflowStatusData,
+    ApplicationPlanCandidate, ApplicationPlanRecord, CriteriaSetRecord, EvidenceCatalogRecord,
+    EvidenceMatchSetRecord, JobRecord, PrivacyClassification, WorkflowStage, WorkflowStatusData,
 };
 
 #[derive(Debug)]
@@ -94,6 +94,19 @@ pub(crate) enum WorkerRequest {
         path: PathBuf,
         job_id: String,
     },
+    LoadPlanCandidate {
+        path: PathBuf,
+        job_id: String,
+    },
+    LoadCurrentPlan {
+        path: PathBuf,
+        job_id: String,
+    },
+    ConfirmPlan {
+        path: PathBuf,
+        job_id: String,
+        candidate: ApplicationPlanCandidate,
+    },
     StartWorkflow {
         path: PathBuf,
         id: String,
@@ -176,6 +189,18 @@ pub(crate) enum WorkerEvent {
     CurrentMatchesLoaded {
         job_id: String,
         result: Result<ActionReceipt<EvidenceMatchSetRecord>, String>,
+    },
+    PlanCandidateLoaded {
+        job_id: String,
+        result: Result<ActionReceipt<ApplicationPlanCandidate>, String>,
+    },
+    CurrentPlanLoaded {
+        job_id: String,
+        result: Result<ActionReceipt<ApplicationPlanRecord>, String>,
+    },
+    PlanConfirmed {
+        job_id: String,
+        result: Result<ActionReceipt<ApplicationPlanRecord>, String>,
     },
     WorkflowLoaded(Result<ActionReceipt<WorkflowStatusData>, String>),
     WorkflowControlsLoaded(Result<ActionReceipt<WorkflowControlReadModel>, String>),
@@ -330,6 +355,42 @@ pub(crate) fn execute(request: WorkerRequest) -> WorkerEvent {
             )
             .map_err(|error| error.to_string());
             WorkerEvent::CurrentMatchesLoaded { job_id, result }
+        }
+        WorkerRequest::LoadPlanCandidate { path, job_id } => {
+            let result = Application::application_plan_template(
+                &path,
+                &job_id,
+                PrivateReadConsent::granted_by_user(),
+            )
+            .map_err(|error| error.to_string());
+            WorkerEvent::PlanCandidateLoaded { job_id, result }
+        }
+        WorkerRequest::LoadCurrentPlan { path, job_id } => {
+            let result = Application::current_application_plan(
+                &path,
+                &job_id,
+                PrivateReadConsent::granted_by_user(),
+            )
+            .map_err(|error| error.to_string());
+            WorkerEvent::CurrentPlanLoaded { job_id, result }
+        }
+        WorkerRequest::ConfirmPlan {
+            path,
+            job_id,
+            candidate,
+        } => {
+            let result = serde_json::to_value(candidate)
+                .map_err(|error| error.to_string())
+                .and_then(|candidate| {
+                    Application::confirm_application_plan(
+                        &path,
+                        &job_id,
+                        &candidate,
+                        PrivateReadConsent::granted_by_user(),
+                    )
+                    .map_err(|error| error.to_string())
+                });
+            WorkerEvent::PlanConfirmed { job_id, result }
         }
         WorkerRequest::StartWorkflow { path, id } => WorkerEvent::WorkflowLoaded(
             Application::start_workflow(&path, &id).map_err(|error| error.to_string()),
@@ -496,6 +557,20 @@ mod tests {
                 job_id: job_id.to_string(),
             }),
             WorkerEvent::CurrentMatchesLoaded { result: Err(_), .. }
+        ));
+        assert!(matches!(
+            execute(WorkerRequest::LoadPlanCandidate {
+                path: root.clone(),
+                job_id: job_id.to_string(),
+            }),
+            WorkerEvent::PlanCandidateLoaded { result: Err(_), .. }
+        ));
+        assert!(matches!(
+            execute(WorkerRequest::LoadCurrentPlan {
+                path: root.clone(),
+                job_id: job_id.to_string(),
+            }),
+            WorkerEvent::CurrentPlanLoaded { result: Err(_), .. }
         ));
         assert!(matches!(
             execute(WorkerRequest::StartWorkflow {

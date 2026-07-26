@@ -1,5 +1,6 @@
 mod dialogs;
 mod pages;
+mod plan_page;
 
 use std::{
     path::PathBuf,
@@ -15,15 +16,15 @@ use crate::{
         keep_focused_visible, localized_receipt_summary, localized_workspace_alias_error,
         metric_card, page_accessible_label, paint_focus_ring, set_accesskit_role,
         source_kind_label, stage_label, validate_criteria_review, validate_evidence_review,
-        validate_job_form, validate_profile_source_form, workflow_control_timeline,
-        workflow_timeline,
+        validate_job_form, validate_plan_review, validate_profile_source_form,
+        workflow_control_timeline, workflow_timeline,
     },
     i18n::{self, Language},
     registry::{WorkspaceRegistry, default_registry_path, validate_workspace_alias},
     state::{
         CriteriaMatchForm, EvidenceReviewForm, FocusTarget, GuiPreferences, ImportForm, ImportKind,
-        JobForm, Page, PendingConfirmation, ProfileSourceForm, RestoreWorkspaceForm,
-        WorkflowActionForm, WorkspaceForm, parse_workflow_artifact_id,
+        JobForm, Page, PendingConfirmation, PlanReviewForm, ProfileSourceForm,
+        RestoreWorkspaceForm, WorkflowActionForm, WorkspaceForm, parse_workflow_artifact_id,
     },
     theme,
     worker::{WorkerEvent, WorkerRequest, execute},
@@ -35,8 +36,10 @@ use canisend_app::{
 };
 use canisend_app::{CliInstallState, CliInstallStatus, CliVersionRelation};
 use canisend_contracts::{
-    ArtifactKind, CriterionImportance, EntityId, EvidenceKind, ExecutionMode, JobRecord,
-    MatchStrength, PrivacyClassification, ProfileSourceKind, WorkflowStage,
+    ApplicationDecision, ApplicationPlanCandidate, ApplicationPlanRecord, ArtifactKind,
+    CriterionImportance, DocumentKind, DocumentPlanCandidateRecord, DocumentRequirement, EntityId,
+    EvidenceKind, ExecutionMode, JobRecord, MatchStrength, PlanBlockerSeverity,
+    PrivacyClassification, ProfileSourceKind, WorkflowStage,
 };
 use eframe::egui::{self, Align, Color32, Layout, RichText, Sense, Stroke};
 
@@ -129,6 +132,7 @@ struct CanISendDesktop {
     show_profile_source_form: bool,
     evidence_review_form: EvidenceReviewForm,
     criteria_match_form: CriteriaMatchForm,
+    plan_review_form: PlanReviewForm,
     workspace_form: WorkspaceForm,
     show_workspace_form: bool,
     restore_workspace_form: RestoreWorkspaceForm,
@@ -196,6 +200,7 @@ impl CanISendDesktop {
             show_profile_source_form: false,
             evidence_review_form: EvidenceReviewForm::default(),
             criteria_match_form: CriteriaMatchForm::default(),
+            plan_review_form: PlanReviewForm::default(),
             workspace_form: WorkspaceForm::default(),
             show_workspace_form: false,
             restore_workspace_form: RestoreWorkspaceForm::default(),
@@ -384,6 +389,12 @@ impl CanISendDesktop {
                             ..CriteriaMatchForm::default()
                         };
                     }
+                    if self.plan_review_form.job_id.as_deref() != Some(job_id.as_str()) {
+                        self.plan_review_form = PlanReviewForm {
+                            job_id: Some(job_id.clone()),
+                            ..PlanReviewForm::default()
+                        };
+                    }
                     self.selected_job_id = Some(job_id.clone());
                     self.selected_job = Some(receipt.data);
                     if has_workflow {
@@ -402,6 +413,7 @@ impl CanISendDesktop {
                     self.workflow_controls = None;
                     self.workflow_action_form = None;
                     self.criteria_match_form = CriteriaMatchForm::default();
+                    self.plan_review_form = PlanReviewForm::default();
                     self.notice = Some((true, summary));
                     self.refresh_jobs(ctx.clone());
                 }
@@ -413,6 +425,14 @@ impl CanISendDesktop {
                     let id = receipt.data.job.id.to_string();
                     self.show_import_form = false;
                     self.import_form = ImportForm::default();
+                    self.criteria_match_form = CriteriaMatchForm {
+                        job_id: Some(id.clone()),
+                        ..CriteriaMatchForm::default()
+                    };
+                    self.plan_review_form = PlanReviewForm {
+                        job_id: Some(id.clone()),
+                        ..PlanReviewForm::default()
+                    };
                     self.notice = Some((true, summary));
                     self.load_job(id, ctx.clone());
                 }
@@ -453,6 +473,12 @@ impl CanISendDesktop {
                     self.evidence_review_form.downstream_effects_confirmed = false;
                     self.evidence_review_form.error = None;
                     self.notice = Some((true, summary));
+                    if self.plan_review_form.job_id.as_deref() == Some(job_id.as_str()) {
+                        self.plan_review_form = PlanReviewForm {
+                            job_id: Some(job_id.clone()),
+                            ..PlanReviewForm::default()
+                        };
+                    }
                     if self.selected_job_id.as_deref() == Some(job_id.as_str()) {
                         self.load_job(job_id, ctx.clone());
                     }
@@ -483,6 +509,7 @@ impl CanISendDesktop {
                     self.criteria_match_form.criteria_error = None;
                     self.criteria_match_form.matches = None;
                     self.criteria_match_form.match_error = None;
+                    self.plan_review_form = PlanReviewForm::default();
                     self.notice = Some((true, summary));
                     if self.selected_job_id.as_deref() == Some(job_id.as_str()) {
                         self.load_job(job_id, ctx.clone());
@@ -497,6 +524,43 @@ impl CanISendDesktop {
                     self.criteria_match_form.match_error = None;
                 }
                 Err(error) => self.criteria_match_form.match_error = Some(error),
+            },
+            WorkerEvent::PlanCandidateLoaded { job_id, result } => match result {
+                Ok(receipt) => {
+                    self.plan_review_form.job_id = Some(job_id);
+                    self.plan_review_form.candidate = Some(receipt.data);
+                    self.plan_review_form.current = None;
+                    self.plan_review_form.decision_confirmed = false;
+                    self.plan_review_form.error = None;
+                }
+                Err(error) => self.plan_review_form.error = Some(error),
+            },
+            WorkerEvent::CurrentPlanLoaded { job_id, result } => match result {
+                Ok(receipt) => {
+                    let current = receipt.data;
+                    self.plan_review_form.job_id = Some(job_id);
+                    self.plan_review_form.candidate = Some(editable_plan(&current));
+                    self.plan_review_form.current = Some(current);
+                    self.plan_review_form.decision_confirmed = false;
+                    self.plan_review_form.error = None;
+                }
+                Err(error) => self.plan_review_form.error = Some(error),
+            },
+            WorkerEvent::PlanConfirmed { job_id, result } => match result {
+                Ok(receipt) => {
+                    let summary = localized_receipt_summary(&receipt, self.language);
+                    let current = receipt.data;
+                    self.plan_review_form.job_id = Some(job_id.clone());
+                    self.plan_review_form.candidate = Some(editable_plan(&current));
+                    self.plan_review_form.current = Some(current);
+                    self.plan_review_form.decision_confirmed = false;
+                    self.plan_review_form.error = None;
+                    self.notice = Some((true, summary));
+                    if self.selected_job_id.as_deref() == Some(job_id.as_str()) {
+                        self.load_job(job_id, ctx.clone());
+                    }
+                }
+                Err(error) => self.plan_review_form.error = Some(error),
             },
             WorkerEvent::WorkflowLoaded(result) => match result {
                 Ok(receipt) => {
@@ -522,6 +586,10 @@ impl CanISendDesktop {
                     }
                     self.workflow_controls = Some(receipt.data);
                     self.workflow_action_form = None;
+                    self.plan_review_form = PlanReviewForm {
+                        job_id: self.selected_job_id.clone(),
+                        ..PlanReviewForm::default()
+                    };
                     self.notice = Some((true, summary));
                 }
                 Err(error) => {
@@ -598,6 +666,7 @@ impl CanISendDesktop {
         self.profile_sources = None;
         self.evidence_review_form = EvidenceReviewForm::default();
         self.criteria_match_form = CriteriaMatchForm::default();
+        self.plan_review_form = PlanReviewForm::default();
         self.selected_job = None;
         self.selected_job_id = None;
         self.workflow_controls = None;
@@ -657,6 +726,27 @@ impl CanISendDesktop {
             ctx,
             WorkerRequest::LoadWorkflowControls { path, id },
         );
+    }
+}
+
+fn editable_plan(plan: &ApplicationPlanRecord) -> ApplicationPlanCandidate {
+    ApplicationPlanCandidate {
+        job_id: plan.job_id.clone(),
+        matches_artifact: plan.matches_artifact.clone(),
+        decision: plan.decision,
+        strategy: plan.strategy.clone(),
+        documents: plan
+            .documents
+            .iter()
+            .map(|document| DocumentPlanCandidateRecord {
+                kind: document.kind,
+                requirement: document.requirement,
+                rationale: document.rationale.clone(),
+                constraints: document.constraints.clone(),
+                executor: document.executor,
+            })
+            .collect(),
+        blockers: plan.blockers.clone(),
     }
 }
 

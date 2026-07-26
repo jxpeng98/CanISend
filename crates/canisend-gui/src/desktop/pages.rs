@@ -1103,6 +1103,7 @@ impl CanISendDesktop {
                 self.workflow_controls = None;
                 self.workflow_action_form = None;
                 self.criteria_match_form = CriteriaMatchForm::default();
+                self.plan_review_form = PlanReviewForm::default();
                 return;
             }
             ui.separator();
@@ -1201,7 +1202,7 @@ impl CanISendDesktop {
                     .color(theme::warning(self.dark_mode)),
             );
             columns[1].label(self.language.text(
-                "Plan confirmation, document creation, review, render, and export remain available through the CLI or Agent v2.",
+                "Document creation, review, render, and export remain available through the CLI or Agent v2.",
             ));
         });
         if let Some(action) = workflow_action {
@@ -1222,6 +1223,8 @@ impl CanISendDesktop {
         }
         ui.add_space(22.0);
         self.show_criteria_match_workflow(ui, detail.job.id.as_str());
+        ui.add_space(22.0);
+        self.show_application_plan_workflow(ui, detail.job.id.as_str());
     }
 
     pub(super) fn show_criteria_match_workflow(&mut self, ui: &mut egui::Ui, job_id: &str) {
