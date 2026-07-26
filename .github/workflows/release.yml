@@ -103,6 +103,30 @@ jobs:
 
       - name: Cache Cargo build
         uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          cache-targets: false
+
+      - name: Install pinned sccache
+        id: sccache_install
+        continue-on-error: true
+        uses: mozilla-actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696 # v0.0.10
+        with:
+          version: "v0.16.0"
+          disable_annotations: true
+
+      - name: Enable source-gate compiler cache with fallback
+        id: sccache_config
+        env:
+          CANISEND_SCCACHE_INSTALL_OUTCOME: ${{ steps.sccache_install.outcome }}
+        shell: bash
+        run: >-
+          ./scripts/configure_sccache.sh
+          canisend-v1-rust-1.97.0-x86_64-unknown-linux-gnu-debug-release-all-features
+
+      - name: Start source-gate compiler cache measurement
+        id: sccache_timing_start
+        shell: bash
+        run: echo "epoch=$(date +%s)" >> "$GITHUB_OUTPUT"
 
       - name: Reject active Python product files
         shell: bash
@@ -128,8 +152,37 @@ jobs:
         shell: bash
         run: ./scripts/test_native_release_timing.sh
 
+      - name: Run compiler cache contract regression
+        shell: bash
+        run: ./scripts/test_sccache_contract.sh
+
       - name: Check release contracts, schemas, resources, and documentation
         run: cargo run -p xtask --locked -- release check
+
+      - name: Record source-gate compiler cache statistics
+        shell: bash
+        run: |
+          completed_epoch="$(date +%s)"
+          completed_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+          ./scripts/write_sccache_stats.sh \
+            "$GITHUB_SHA" \
+            source-gates \
+            x86_64-unknown-linux-gnu \
+            debug-release \
+            workspace-all-features \
+            canisend-v1-rust-1.97.0-x86_64-unknown-linux-gnu-debug-release-all-features \
+            "${{ steps.sccache_timing_start.outputs.epoch }}" \
+            "$completed_epoch" \
+            "$completed_at" \
+            "$RUNNER_TEMP/sccache-stats/source-gates.json"
+
+      - name: Upload source-gate compiler cache statistics
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sccache-source-gates-${{ github.sha }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/sccache-stats/source-gates.json
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Check dependency advisories, licenses, and sources
         uses: EmbarkStudios/cargo-deny-action@6c8f9facfa5047ec02d8485b6bf52b587b7777d1 # v2.0.18
@@ -208,6 +261,24 @@ jobs:
         uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           key: release-${{ matrix.target }}
+          cache-targets: false
+
+      - name: Install pinned sccache
+        id: sccache_install
+        continue-on-error: true
+        uses: mozilla-actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696 # v0.0.10
+        with:
+          version: "v0.16.0"
+          disable_annotations: true
+
+      - name: Enable native compiler cache with fallback
+        id: sccache_config
+        env:
+          CANISEND_SCCACHE_INSTALL_OUTCOME: ${{ steps.sccache_install.outcome }}
+        shell: bash
+        run: >-
+          ./scripts/configure_sccache.sh
+          canisend-v1-rust-1.97.0-${{ matrix.target }}-release-cli-default
 
       - name: Start native release timing
         id: timing_start
@@ -221,6 +292,22 @@ jobs:
         id: timing_build
         shell: bash
         run: echo "epoch=$(date +%s)" >> "$GITHUB_OUTPUT"
+
+      - name: Record native compiler cache statistics
+        shell: bash
+        run: |
+          completed_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+          ./scripts/write_sccache_stats.sh \
+            "$GITHUB_SHA" \
+            native-release \
+            "${{ matrix.target }}" \
+            release \
+            canisend-cli-default \
+            canisend-v1-rust-1.97.0-${{ matrix.target }}-release-cli-default \
+            "${{ steps.timing_start.outputs.epoch }}" \
+            "${{ steps.timing_build.outputs.epoch }}" \
+            "$completed_at" \
+            "$RUNNER_TEMP/sccache-stats/canisend-${{ matrix.target }}.json"
 
       - name: Build compile-only Intel macOS GUI
         if: matrix.target == 'x86_64-apple-darwin' && needs.release-identity.outputs.stage != 'alpha'
@@ -412,6 +499,7 @@ jobs:
             ${{ runner.temp }}/gui-compilation-evidence/*.json
             ${{ runner.temp }}/documentation-uninstall-${{ matrix.target }}.json
             ${{ runner.temp }}/release-timing/*.json
+            ${{ runner.temp }}/sccache-stats/*.json
           if-no-files-found: error
           retention-days: 14
 
@@ -437,6 +525,24 @@ jobs:
         uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           key: release-macos-gui-aarch64
+          cache-targets: false
+
+      - name: Install pinned sccache
+        id: sccache_install
+        continue-on-error: true
+        uses: mozilla-actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696 # v0.0.10
+        with:
+          version: "v0.16.0"
+          disable_annotations: true
+
+      - name: Enable desktop compiler cache with fallback
+        id: sccache_config
+        env:
+          CANISEND_SCCACHE_INSTALL_OUTCOME: ${{ steps.sccache_install.outcome }}
+        shell: bash
+        run: >-
+          ./scripts/configure_sccache.sh
+          canisend-v1-rust-1.97.0-aarch64-apple-darwin-release-cli-gui-default
 
       - name: Start desktop release timing
         id: timing_start
@@ -452,6 +558,22 @@ jobs:
         id: timing_build
         shell: bash
         run: echo "epoch=$(date +%s)" >> "$GITHUB_OUTPUT"
+
+      - name: Record desktop compiler cache statistics
+        shell: bash
+        run: |
+          completed_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+          ./scripts/write_sccache_stats.sh \
+            "$GITHUB_SHA" \
+            desktop-release \
+            aarch64-apple-darwin \
+            release \
+            canisend-cli-gui-default \
+            canisend-v1-rust-1.97.0-aarch64-apple-darwin-release-cli-gui-default \
+            "${{ steps.timing_start.outputs.epoch }}" \
+            "${{ steps.timing_build.outputs.epoch }}" \
+            "$completed_at" \
+            "$RUNNER_TEMP/sccache-stats/CanISend-aarch64-apple-darwin-gui.json"
 
       - name: Record desktop package timing start
         id: timing_package_start
@@ -514,6 +636,7 @@ jobs:
             ${{ runner.temp }}/macos-gui-release/CanISend-*.zip
             ${{ runner.temp }}/macos-gui-release/CanISend-*-qualification.json
             ${{ runner.temp }}/release-timing/*.json
+            ${{ runner.temp }}/sccache-stats/*.json
           if-no-files-found: error
           retention-days: 14
 

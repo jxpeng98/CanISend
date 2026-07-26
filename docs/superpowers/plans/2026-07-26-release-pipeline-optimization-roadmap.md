@@ -1,6 +1,6 @@
 # CanISend release-pipeline optimization roadmap
 
-**Status:** Stage 3 implemented locally; Stage 1–3 native candidate measurement remains pending
+**Status:** Stage 4 implemented locally; Stage 1–4 native candidate measurement remains pending
 
 **Decision date:** 2026-07-26
 
@@ -167,13 +167,15 @@ owned by a scheduled or stage-specific gate instead of every ordinary candidate.
 
 ### Implementation tasks
 
-- [ ] Pin an `sccache` installation action or exact binary version and checksum.
-- [ ] Use target, Rust version, profile, and relevant feature state in cache separation.
-- [ ] Keep `Cargo.lock`, source, manifest, checksums, native signatures, and attestations as the
+- [x] Pin the installation action to an immutable commit, pin `sccache` `v0.16.0`, and require
+  official release SHA-256 verification.
+- [x] Use target, Rust version, profile, and relevant feature state in cache separation.
+- [x] Keep `Cargo.lock`, source, manifest, checksums, native signatures, and attestations as the
   authority; a cache hit is never evidence.
-- [ ] Capture hit rate, compile requests, cache errors, and time saved without private paths or
-  source bodies.
-- [ ] Fall back to normal Cargo compilation when the cache is unavailable.
+- [x] Capture body-free hit rate, compile requests, cache errors, cache/compiler durations, and
+  the compile-window input for the cold/warm time-saved comparison.
+- [x] Fall back to normal Cargo compilation when installation, server startup, or cache I/O is
+  unavailable.
 - [ ] Compare cold, warm, and intentionally invalidated candidates.
 
 **Exit:** Warm candidate critical-path time improves by at least 20%, cold builds remain correct,
@@ -219,7 +221,8 @@ qualification suite. Those remain owned by scheduled or exact-release workflows.
 
 ## 10. Immediate next action
 
-Prepare Stage 4 compiler-cache integration as a non-authoritative accelerator. Do not trigger
-another expensive native candidate for the already published `v1.0.0-alpha.1`; use the next
-sequential future version to measure the combined Stage 1–4 candidate path and the Stage 1
-candidate-to-tag promotion path.
+Do not trigger another expensive native candidate for the already published
+`v1.0.0-alpha.1`. On the next sequential future version, run cold, warm, and intentionally
+invalidated candidates; calculate time saved from the recorded compile windows; then exercise the
+Stage 1 candidate-to-tag promotion path. Start Stage 5 only after that measurement confirms the
+cache boundary and warm-run budget.

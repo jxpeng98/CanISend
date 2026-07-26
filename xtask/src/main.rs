@@ -20,6 +20,7 @@ use time::{Duration, OffsetDateTime, format_description::well_known::Rfc3339};
 const RELEASE_TARGET_SCHEMA: &str = "canisend.release-targets/v1";
 const RELEASE_MANIFEST_SCHEMA: &str = "canisend.release-manifest/v1";
 const NATIVE_TEST_OWNERSHIP_SCHEMA: &str = "canisend.native-test-ownership/v1";
+const SCCACHE_STATS_SCHEMA: &str = "canisend.sccache-stats/v1";
 const BETA_READINESS_SCHEMA: &str = "canisend.beta-readiness/v1";
 const BETA_CONTRACT_FREEZE_SCHEMA: &str = "canisend.beta-contract-freeze/v1";
 const CHANNEL_CANDIDATE_SOURCE_SCHEMA: &str = "canisend.channel-candidate-source/v1";
@@ -3378,6 +3379,26 @@ fn check_native_test_ownership() -> Result<(), String> {
             "runner": "ubuntu-24.04",
             "runs_per_candidate": 1
         },
+        "compiler_cache": {
+            "action":
+                "mozilla-actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696",
+            "action_release": "v0.0.10",
+            "binary_version": "v0.16.0",
+            "backend": "github-actions-v2",
+            "checksum_verification": "official-release-sha256-sidecar",
+            "cache_namespaces_include": [
+                "target",
+                "rust-version",
+                "profile",
+                "feature-set"
+            ],
+            "cargo_registry_cache_only": true,
+            "fallback": "ordinary-cargo",
+            "setup_failure_blocks_build": false,
+            "stats_schema": SCCACHE_STATS_SCHEMA,
+            "authoritative_release_evidence": false,
+            "time_saved_measurement": "cold-warm-invalidated-candidate"
+        },
         "candidate_native_matrix": {
             "common_gates": [
                 "locked-release-build",
@@ -3543,6 +3564,34 @@ fn check_native_test_ownership() -> Result<(), String> {
             );
         }
     }
+    let sccache_action = "mozilla-actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696";
+    if workflow.matches(sccache_action).count() != 3
+        || workflow.matches("          version: \"v0.16.0\"").count() != 3
+        || workflow.matches("          cache-targets: false").count() != 3
+        || workflow.matches("./scripts/configure_sccache.sh").count() != 3
+        || workflow.matches("./scripts/write_sccache_stats.sh").count() != 3
+    {
+        return Err(
+            "release workflow must configure the pinned compiler cache once for source, native, and desktop owners"
+                .to_owned(),
+        );
+    }
+    for required in [
+        "continue-on-error: true",
+        "disable_annotations: true",
+        "Run compiler cache contract regression",
+        "./scripts/test_sccache_contract.sh",
+        "canisend-v1-rust-1.97.0-x86_64-unknown-linux-gnu-debug-release-all-features",
+        "canisend-v1-rust-1.97.0-${{ matrix.target }}-release-cli-default",
+        "canisend-v1-rust-1.97.0-aarch64-apple-darwin-release-cli-gui-default",
+        "${{ runner.temp }}/sccache-stats/*.json",
+    ] {
+        if !workflow.contains(required) {
+            return Err(format!(
+                "release workflow compiler cache is missing invariant `{required}`"
+            ));
+        }
+    }
     if workflow
         .matches("${{ runner.temp }}/release-timing/*.json")
         .count()
@@ -3569,10 +3618,52 @@ fn check_native_test_ownership() -> Result<(), String> {
     }
     for required in [
         "scripts/test_native_release_timing.sh",
+        "scripts/configure_sccache.sh",
+        "scripts/write_sccache_stats.sh",
+        "scripts/test_sccache_contract.sh",
         "docs/release/native-test-ownership.md",
     ] {
         if !root.join(required).is_file() {
             return Err(format!("native test ownership file is missing: {required}"));
+        }
+    }
+    let sccache_configuration = fs::read_to_string(root.join("scripts/configure_sccache.sh"))
+        .map_err(|error| format!("sccache configuration helper is missing: {error}"))?;
+    for required in [
+        "SCCACHE_GHA_ENABLED=true",
+        "SCCACHE_IGNORE_SERVER_IO_ERROR=1",
+        "RUSTC_WRAPPER=$tool",
+        "CARGO_INCREMENTAL=0",
+        "installation-or-server-unavailable",
+        "continuing with ordinary Cargo compilation",
+    ] {
+        if !sccache_configuration.contains(required) {
+            return Err(format!(
+                "sccache fallback configuration is missing invariant `{required}`"
+            ));
+        }
+    }
+    let sccache_statistics = fs::read_to_string(root.join("scripts/write_sccache_stats.sh"))
+        .map_err(|error| format!("sccache statistics writer is missing: {error}"))?;
+    for required in [
+        SCCACHE_STATS_SCHEMA,
+        "compile_requests",
+        "cache_hits",
+        "cache_misses",
+        "cache_errors",
+        "hit_rate_percent",
+        "version: \"v0.16.0\"",
+        "time_saved_seconds: null",
+        "cold-warm-candidate-comparison-required",
+        "authoritative_release_evidence: false",
+        "cache_hit_is_release_evidence: false",
+        "fallback_preserves_build_command: true",
+        "no_publication: true",
+    ] {
+        if !sccache_statistics.contains(required) {
+            return Err(format!(
+                "sccache statistics writer is missing invariant `{required}`"
+            ));
         }
     }
     let scheduled_workflow =
@@ -3589,6 +3680,15 @@ fn check_native_test_ownership() -> Result<(), String> {
         "native_runtime_qualified: false",
         "support_claim: false",
         "no_publication: true",
+        sccache_action,
+        "version: \"v0.16.0\"",
+        "cache-targets: false",
+        "continue-on-error: true",
+        "disable_annotations: true",
+        "canisend-v1-rust-1.97.0-x86_64-apple-darwin-release-gui-default",
+        "./scripts/configure_sccache.sh",
+        "./scripts/write_sccache_stats.sh",
+        "${{ runner.temp }}/sccache-stats/*.json",
     ] {
         if !scheduled_workflow.contains(required) {
             return Err(format!(
@@ -3597,7 +3697,7 @@ fn check_native_test_ownership() -> Result<(), String> {
         }
     }
     println!(
-        "native test ownership: ok (one source suite, {} CLI targets, one desktop package)",
+        "native test ownership: ok (one source suite, {} CLI targets, one desktop package, non-authoritative compiler cache)",
         policy_targets.len()
     );
     Ok(())

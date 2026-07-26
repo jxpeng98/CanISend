@@ -43,6 +43,11 @@ compilation evidence. For Beta and later, it records the Intel compile-only boun
 For Stable, the repository verifier also regenerates every package-manager manifest from the three referenced final
 archive hashes and checks its recorded external repository path.
 
+Compiler-cache statistics may appear in retained workflow artifacts while diagnosing candidate
+performance. They are not release assets, are not listed in the release manifest or
+`SHA256SUMS`, and never prove artifact identity. A cache hit only avoids a repeated compiler
+invocation; all ordinary package, checksum, signing, smoke, and provenance checks still apply.
+
 ## Verify the release tag
 
 Fetch the tag and ensure the manifest's `source.commit` is the commit selected by that exact tag:

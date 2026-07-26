@@ -41,3 +41,22 @@ Each successful native CLI and desktop package job uploads a body-free
 
 Timing evidence is diagnostic and never authorizes publication. The release manifest, checksums,
 native qualification records, signatures, and GitHub attestations remain authoritative.
+
+## Compiler cache
+
+Candidate source, native CLI, and Apple Silicon desktop builds use `sccache` with the GitHub
+Actions cache backend. The scheduled Intel GUI compile uses the same bounded mechanism. The
+installation action is pinned to an immutable commit, installs `sccache` `v0.16.0`, and verifies
+the official release SHA-256 sidecar before extraction.
+
+The existing Rust cache stores the Cargo registry only; it does not restore `target/`. Each
+`sccache` namespace includes the target, Rust version, profile, and feature/package set. If
+installation or server startup fails, the workflow does not set `RUSTC_WRAPPER` and continues with
+the unchanged Cargo command. Server I/O errors also fall back to the real compiler.
+
+Each owner records a body-free `canisend.sccache-stats/v1` document containing compile requests,
+hits, misses, cache errors, hit rate, compiler/cache durations, and the measured compile window.
+Time saved remains `null` until cold and warm candidates are compared on the same runner class.
+These statistics are diagnostic job artifacts: they are excluded from the release manifest and
+cannot authorize publication or replace source, archive, signature, checksum, or provenance
+verification.

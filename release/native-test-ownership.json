@@ -6,6 +6,25 @@
     "runner": "ubuntu-24.04",
     "runs_per_candidate": 1
   },
+  "compiler_cache": {
+    "action": "mozilla-actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696",
+    "action_release": "v0.0.10",
+    "binary_version": "v0.16.0",
+    "backend": "github-actions-v2",
+    "checksum_verification": "official-release-sha256-sidecar",
+    "cache_namespaces_include": [
+      "target",
+      "rust-version",
+      "profile",
+      "feature-set"
+    ],
+    "cargo_registry_cache_only": true,
+    "fallback": "ordinary-cargo",
+    "setup_failure_blocks_build": false,
+    "stats_schema": "canisend.sccache-stats/v1",
+    "authoritative_release_evidence": false,
+    "time_saved_measurement": "cold-warm-invalidated-candidate"
+  },
   "candidate_native_matrix": {
     "common_gates": [
       "locked-release-build",
