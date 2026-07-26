@@ -54,6 +54,27 @@ git rev-list -n 1 vVERSION
 The workspace version and tag are exact SemVer matches. A release workflow refuses
 `v1.0.0-alpha.2` while the binary and Cargo workspace still report `1.0.0-alpha.1`.
 
+## Maintainer candidate-to-tag promotion
+
+The native release workflow builds a release version once. Before creating a tag, dispatch
+`native-release` with the exact future tag from the intended source commit and wait for the entire
+candidate run to succeed. The run assembles, verifies, attests, and retains one complete
+`canisend-TAG-release-assets` artifact for 30 days, but it cannot create a GitHub release.
+
+After review, create and push an annotated tag at that exact commit. The tag-triggered workflow
+does not compile or package the product again. It locates the newest successful unexpired
+workflow-dispatch candidate with all three matching identities:
+
+- exact release tag in the artifact name and manifest;
+- exact tagged source commit in both the workflow run and manifest; and
+- exact `native-release` signer workflow and source digest in every GitHub attestation.
+
+It then repeats complete checksum and manifest verification, uploads the same bytes to a draft,
+smokes every archive after downloading it from that draft, and publishes only if all native checks
+pass. A missing or expired candidate, lightweight tag, commit mismatch, unknown draft asset, or
+provenance mismatch blocks promotion. If the candidate is older than 30 days, bump or rebuild the
+future version before creating its tag; never replace one file inside an existing candidate.
+
 ## Verify SHA-256
 
 Download `SHA256SUMS` and the selected archive into the same directory. On macOS:

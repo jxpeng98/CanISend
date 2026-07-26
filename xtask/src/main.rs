@@ -197,6 +197,11 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
         [area, command, tag, directory] if area == "release" && command == "verify" => {
             verify_release(tag, Path::new(directory))
         }
+        [area, command, tag, commit, directory]
+            if area == "release" && command == "verify-candidate" =>
+        {
+            verify_release_candidate(tag, commit, Path::new(directory))
+        }
         [area, command, tag, assets, output]
             if area == "release" && command == "channels" =>
         {
@@ -307,7 +312,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
         }
         _ => Err(
             "usage: cargo run -p xtask -- schemas <check|write> | <resources|docs> check | \
-             release <check|freeze-candidate|validate-tag TAG|verify-beta-readiness FILE|verify-feedback-candidate SNAPSHOT ROADMAP|prepare-stage TAG [--write]|activate-feature-freeze COMMIT [--write]|record-beta-qualification TAG RUN_ID ASSETS [--write]|record-rc-qualification TAG RUN_ID ASSETS [--write]|record-release-notes-qualification TAG ASSETS REVIEWER [--write]|record-upgrade-qualification FROM_TAG TO_TAG EVIDENCE [--write]|record-documentation-qualification TAG ASSETS EVIDENCE [--write]|record-package-qualification FROM_TAG TO_TAG EVIDENCE [--write]|sbom OUTPUT|assemble TAG COMMIT ARTIFACTS OUTPUT|verify TAG DIRECTORY|channels TAG ASSETS OUTPUT|bind-signing-evidence TAG TARGET EVIDENCE BINARY ARCHIVE|verify-package-candidates FROM_TAG FROM_ASSETS TO_TAG TO_ASSETS|verify-package-evidence FROM_TAG TO_TAG DIRECTORY|verify-upgrade-evidence FROM_TAG TO_TAG DIRECTORY|verify-documentation-evidence TAG ASSETS EVIDENCE>"
+             release <check|freeze-candidate|validate-tag TAG|verify-beta-readiness FILE|verify-feedback-candidate SNAPSHOT ROADMAP|prepare-stage TAG [--write]|activate-feature-freeze COMMIT [--write]|record-beta-qualification TAG RUN_ID ASSETS [--write]|record-rc-qualification TAG RUN_ID ASSETS [--write]|record-release-notes-qualification TAG ASSETS REVIEWER [--write]|record-upgrade-qualification FROM_TAG TO_TAG EVIDENCE [--write]|record-documentation-qualification TAG ASSETS EVIDENCE [--write]|record-package-qualification FROM_TAG TO_TAG EVIDENCE [--write]|sbom OUTPUT|assemble TAG COMMIT ARTIFACTS OUTPUT|verify TAG DIRECTORY|verify-candidate TAG COMMIT DIRECTORY|channels TAG ASSETS OUTPUT|bind-signing-evidence TAG TARGET EVIDENCE BINARY ARCHIVE|verify-package-candidates FROM_TAG FROM_ASSETS TO_TAG TO_ASSETS|verify-package-evidence FROM_TAG TO_TAG DIRECTORY|verify-upgrade-evidence FROM_TAG TO_TAG DIRECTORY|verify-documentation-evidence TAG ASSETS EVIDENCE>"
                 .to_owned(),
         ),
     }
@@ -3410,7 +3415,16 @@ fn check_release_contract() -> Result<(), String> {
         "release validate-tag",
         "release assemble",
         "release verify",
+        "release verify-candidate",
         "attest-build-provenance",
+        "locate-release-candidate",
+        "promote-release-candidate",
+        "canisend.release-candidate-promotion/v1",
+        "recompiled_during_promotion: false",
+        "cancel-in-progress: false",
+        "head_sha",
+        "--signer-workflow",
+        "--source-digest",
         "build-macos-gui-archive",
         "canisend.macos-gui-compilation/v1",
         "x86_64-apple-darwin-gui-compilation.json",
@@ -3442,6 +3456,22 @@ fn check_release_contract() -> Result<(), String> {
         return Err(format!(
             "release workflow must listen to `{expected_tag_pattern}` and default to `v{version}`"
         ));
+    }
+    let recovery_workflow =
+        fs::read_to_string(root.join(".github/workflows/finalize-verified-release.yml"))
+            .map_err(|error| format!("release recovery workflow is missing: {error}"))?;
+    for required in [
+        "locate-release-candidate",
+        "promote-release-candidate",
+        "candidate_promoted_without_recompile: true",
+        "--signer-workflow",
+        "--source-digest",
+    ] {
+        if !recovery_workflow.contains(required) {
+            return Err(format!(
+                "release recovery workflow is missing required gate `{required}`"
+            ));
+        }
     }
     println!("release contract: ok ({} targets)", targets.len());
     Ok(())
@@ -8565,6 +8595,47 @@ fn verify_release(tag: &str, directory: &Path) -> Result<(), String> {
     Ok(())
 }
 
+fn verify_release_candidate(
+    tag: &str,
+    expected_commit: &str,
+    directory: &Path,
+) -> Result<(), String> {
+    validate_lower_hex(
+        "expected release candidate source commit",
+        expected_commit,
+        40,
+    )?;
+    verify_release(tag, directory)?;
+    let version = parse_release_tag(tag)?.0.to_string();
+    let manifest_path = directory.join(format!("canisend-{version}-manifest.json"));
+    let manifest: Value = serde_json::from_slice(&fs::read(&manifest_path).map_err(|error| {
+        format!(
+            "release manifest is missing at {}: {error}",
+            manifest_path.display()
+        )
+    })?)
+    .map_err(|error| format!("release manifest is invalid JSON: {error}"))?;
+    verify_release_candidate_source(&manifest, expected_commit)?;
+    println!("release candidate: verified {tag} at {expected_commit}");
+    Ok(())
+}
+
+fn verify_release_candidate_source(manifest: &Value, expected_commit: &str) -> Result<(), String> {
+    validate_lower_hex(
+        "expected release candidate source commit",
+        expected_commit,
+        40,
+    )?;
+    let actual_commit = required_string(&manifest["source"], "commit", "release source")?;
+    validate_lower_hex("release source commit", actual_commit, 40)?;
+    if actual_commit != expected_commit {
+        return Err(format!(
+            "release candidate source commit `{actual_commit}` does not match tagged commit `{expected_commit}`"
+        ));
+    }
+    Ok(())
+}
+
 fn verify_release_manifest_contents(
     stage: ReleaseStage,
     version: &str,
@@ -9229,6 +9300,23 @@ mod tests {
                 .1,
             ReleaseStage::ReleaseCandidate
         );
+    }
+
+    #[test]
+    fn release_candidate_source_must_match_tagged_commit() {
+        let commit = "0123456789abcdef0123456789abcdef01234567";
+        let manifest = json!({
+            "source": {
+                "commit": commit
+            }
+        });
+        verify_release_candidate_source(&manifest, commit).expect("matching candidate source");
+
+        let different_commit = "89abcdef0123456789abcdef0123456789abcdef";
+        let error = verify_release_candidate_source(&manifest, different_commit)
+            .expect_err("mismatched candidate source");
+        assert!(error.contains("does not match tagged commit"));
+        assert!(verify_release_candidate_source(&manifest, "not-a-commit").is_err());
     }
 
     #[test]

@@ -55,8 +55,11 @@ unavailable.
    flag remains false where public trust would otherwise be implied.
 5. Verify every asset's GitHub attestation and compare the native signature with its artifact-specific evidence.
 6. Regenerate package-manager candidates from those exact verified bytes and run their native lifecycle tests.
-7. Only then create and push the annotated release tag. Re-download and independently verify the public assets
-   before recording qualification.
+7. Keep the successful complete candidate artifact within its 30-day retention boundary. Only then create and push
+   the annotated release tag at the candidate's exact source commit.
+8. Let the tag workflow locate and reverify that candidate. Promotion must not compile, sign, package, or attest new
+   product bytes; it uploads the original candidate bytes to a draft and repeats the native download smoke matrix.
+9. Re-download and independently verify the published assets before recording qualification.
 
 Never replace a failed artifact with a locally rebuilt archive, reuse signing evidence from another run, turn a
 signed target into `signing: none`, or change a false public-trust field merely to pass a release gate.

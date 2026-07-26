@@ -7,12 +7,16 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Exact workspace tag to validate without publishing"
+        description: "Exact future tag to build once as a non-publishing candidate"
         required: true
         default: "v1.0.0-alpha.1"
 
 permissions:
   contents: read
+
+concurrency:
+  group: native-release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
 
 jobs:
   release-identity:
@@ -20,11 +24,13 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       commit: ${{ steps.identity.outputs.commit }}
-      publish: ${{ steps.identity.outputs.publish }}
+      mode: ${{ steps.identity.outputs.mode }}
       stage: ${{ steps.identity.outputs.stage }}
       tag: ${{ steps.identity.outputs.tag }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
 
       - name: Install pinned Rust toolchain
         uses: dtolnay/rust-toolchain@1.97.0
@@ -35,10 +41,20 @@ jobs:
         run: |
           if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
             tag="$GITHUB_REF_NAME"
-            publish="true"
+            mode="promote"
+            if [[ "$(git cat-file -t "refs/tags/$tag")" != "tag" ]]; then
+              echo "release promotion requires an annotated tag: $tag" >&2
+              exit 1
+            fi
+            commit="$(git rev-list -n 1 "refs/tags/$tag")"
           else
             tag="${{ inputs.tag }}"
-            publish="false"
+            mode="candidate"
+            commit="$GITHUB_SHA"
+            if git show-ref --verify --quiet "refs/tags/$tag"; then
+              echo "candidate tag already exists; build a future tag before promotion: $tag" >&2
+              exit 1
+            fi
           fi
           cargo run -p xtask --locked -- release validate-tag "$tag"
           version="${tag#v}"
@@ -52,8 +68,8 @@ jobs:
             stage="stable"
           fi
           {
-            echo "commit=$GITHUB_SHA"
-            echo "publish=$publish"
+            echo "commit=$commit"
+            echo "mode=$mode"
             echo "stage=$stage"
             echo "tag=$tag"
           } >> "$GITHUB_OUTPUT"
@@ -61,6 +77,7 @@ jobs:
   signing-readiness:
     name: signing-readiness
     needs: release-identity
+    if: needs.release-identity.outputs.mode == 'candidate'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -74,6 +91,7 @@ jobs:
   source-gates:
     name: source-gates
     needs: release-identity
+    if: needs.release-identity.outputs.mode == 'candidate'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -118,6 +136,7 @@ jobs:
       - release-identity
       - signing-readiness
       - source-gates
+    if: needs.release-identity.outputs.mode == 'candidate'
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
@@ -359,6 +378,7 @@ jobs:
       - release-identity
       - signing-readiness
       - source-gates
+    if: needs.release-identity.outputs.mode == 'candidate'
     runs-on: macos-15
     permissions:
       contents: read
@@ -418,10 +438,11 @@ jobs:
       - release-identity
       - build-native-archives
       - build-macos-gui-archive
+    if: needs.release-identity.outputs.mode == 'candidate'
     runs-on: ubuntu-24.04
     permissions:
       attestations: write
-      contents: write
+      contents: read
       id-token: write
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -482,30 +503,229 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Create draft GitHub release and upload verified assets
-        if: needs.release-identity.outputs.publish == 'true'
+  locate-release-candidate:
+    name: locate-release-candidate
+    needs: release-identity
+    if: needs.release-identity.outputs.mode == 'promote'
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      artifact-id: ${{ steps.candidate.outputs.artifact-id }}
+      artifact-name: ${{ steps.candidate.outputs.artifact-name }}
+      run-id: ${{ steps.candidate.outputs.run-id }}
+    steps:
+      - name: Locate exact successful unexpired candidate
+        id: candidate
+        env:
+          CANDIDATE_COMMIT: ${{ needs.release-identity.outputs.commit }}
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.release-identity.outputs.tag }}
+        shell: bash
+        run: |
+          artifact_name="canisend-$RELEASE_TAG-release-assets"
+          runs_json="$(
+            gh api --method GET \
+              "repos/${GITHUB_REPOSITORY}/actions/workflows/release.yml/runs" \
+              -f event=workflow_dispatch \
+              -f status=success \
+              -f head_sha="$CANDIDATE_COMMIT" \
+              -f per_page=100
+          )"
+          mapfile -t run_ids < <(
+            jq -r \
+              '.workflow_runs | sort_by(.run_number) | reverse | .[].id' \
+              <<< "$runs_json"
+          )
+          candidate_run_id=""
+          candidate_artifact_id=""
+          for run_id in "${run_ids[@]}"; do
+            artifacts_json="$(
+              gh api --method GET \
+                "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts" \
+                -f per_page=100
+            )"
+            artifact_id="$(
+              jq -r \
+                --arg name "$artifact_name" \
+                '.artifacts[]
+                 | select(.name == $name and .expired == false)
+                 | .id' \
+                <<< "$artifacts_json" \
+                | head -n 1
+            )"
+            if [[ -n "$artifact_id" ]]; then
+              candidate_run_id="$run_id"
+              candidate_artifact_id="$artifact_id"
+              break
+            fi
+          done
+          if [[ -z "$candidate_run_id" || -z "$candidate_artifact_id" ]]; then
+            echo "no successful unexpired candidate matches $RELEASE_TAG at $CANDIDATE_COMMIT" >&2
+            echo "dispatch this workflow for the future tag before creating its annotated tag" >&2
+            exit 1
+          fi
+          {
+            echo "artifact-id=$candidate_artifact_id"
+            echo "artifact-name=$artifact_name"
+            echo "run-id=$candidate_run_id"
+          } >> "$GITHUB_OUTPUT"
+
+  promote-release-candidate:
+    name: promote-release-candidate
+    needs:
+      - release-identity
+      - locate-release-candidate
+    if: needs.release-identity.outputs.mode == 'promote'
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      attestations: read
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@1.97.0
+
+      - name: Download exact candidate release assets
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ needs.locate-release-candidate.outputs.artifact-name }}
+          path: ${{ runner.temp }}/release-assets
+          run-id: ${{ needs.locate-release-candidate.outputs.run-id }}
+          github-token: ${{ github.token }}
+
+      - name: Reverify candidate identity and complete checksums
+        shell: bash
+        run: |
+          cargo run -p xtask --locked -- release verify-candidate \
+            "${{ needs.release-identity.outputs.tag }}" \
+            "${{ needs.release-identity.outputs.commit }}" \
+            "$RUNNER_TEMP/release-assets"
+
+      - name: Reverify candidate provenance at the tagged commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_COMMIT: ${{ needs.release-identity.outputs.commit }}
+        shell: bash
+        run: |
+          find "$RUNNER_TEMP/release-assets" -maxdepth 1 -type f -print0 \
+            | while IFS= read -r -d '' asset; do
+                gh attestation verify "$asset" \
+                  --repo "$GITHUB_REPOSITORY" \
+                  --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml" \
+                  --source-digest "$SOURCE_COMMIT"
+              done
+
+      - name: Create or safely resume the draft release
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ needs.release-identity.outputs.tag }}
         shell: bash
         run: |
           release_directory="$RUNNER_TEMP/release-assets"
-          gh release create "$RELEASE_TAG" \
-            --draft \
-            --verify-tag \
-            --title "CanISend ${RELEASE_TAG#v}" \
-            --notes-file "$release_directory/RELEASE_NOTES.md"
-          gh release upload "$RELEASE_TAG" "$release_directory"/*
+          release_json="$RUNNER_TEMP/existing-release.json"
+          if gh release view "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --json assets,isDraft \
+            > "$release_json" 2>/dev/null; then
+            jq -e '.isDraft == true' "$release_json" >/dev/null
+            find "$release_directory" -maxdepth 1 -type f -exec basename {} \; \
+              | sort > "$RUNNER_TEMP/expected-assets.txt"
+            jq -r '.assets[].name' "$release_json" \
+              | sort > "$RUNNER_TEMP/existing-assets.txt"
+            if comm -23 \
+              "$RUNNER_TEMP/existing-assets.txt" \
+              "$RUNNER_TEMP/expected-assets.txt" \
+              | grep -q .; then
+              echo "existing draft contains unexpected assets; refusing to overwrite it" >&2
+              exit 1
+            fi
+            gh release edit "$RELEASE_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --draft \
+              --title "CanISend ${RELEASE_TAG#v}" \
+              --notes-file "$release_directory/RELEASE_NOTES.md"
+          else
+            gh release create "$RELEASE_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --draft \
+              --verify-tag \
+              --title "CanISend ${RELEASE_TAG#v}" \
+              --notes-file "$release_directory/RELEASE_NOTES.md"
+          fi
+          gh release upload "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --clobber \
+            "$release_directory"/*
+
+      - name: Record body-free candidate promotion evidence
+        env:
+          CANDIDATE_ARTIFACT_ID: ${{ needs.locate-release-candidate.outputs.artifact-id }}
+          CANDIDATE_RUN_ID: ${{ needs.locate-release-candidate.outputs.run-id }}
+          RELEASE_TAG: ${{ needs.release-identity.outputs.tag }}
+          SOURCE_COMMIT: ${{ needs.release-identity.outputs.commit }}
+        shell: bash
+        run: |
+          manifest="$RUNNER_TEMP/release-assets/canisend-${RELEASE_TAG#v}-manifest.json"
+          asset_count="$(
+            find "$RUNNER_TEMP/release-assets" -maxdepth 1 -type f \
+              | wc -l \
+              | tr -d ' '
+          )"
+          jq -n \
+            --arg tag "$RELEASE_TAG" \
+            --arg source_commit "$SOURCE_COMMIT" \
+            --arg candidate_run_url "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${CANDIDATE_RUN_ID}" \
+            --arg manifest_sha256 "$(sha256sum "$manifest" | awk '{print $1}')" \
+            --arg promoted_at "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+            --argjson asset_count "$asset_count" \
+            --argjson candidate_artifact_id "$CANDIDATE_ARTIFACT_ID" \
+            --argjson candidate_run_id "$CANDIDATE_RUN_ID" \
+            --argjson promotion_run_id "$GITHUB_RUN_ID" \
+            '{
+              schema: "canisend.release-candidate-promotion/v1",
+              tag: $tag,
+              source_commit: $source_commit,
+              candidate_run_id: $candidate_run_id,
+              candidate_run_url: $candidate_run_url,
+              candidate_artifact_id: $candidate_artifact_id,
+              promotion_run_id: $promotion_run_id,
+              manifest_sha256: $manifest_sha256,
+              asset_count: $asset_count,
+              checks: {
+                successful_candidate_run: true,
+                exact_source_commit: true,
+                complete_checksum_coverage: true,
+                candidate_provenance: true,
+                draft_uploaded: true,
+                recompiled_during_promotion: false
+              },
+              promoted_at: $promoted_at
+            }' > "$RUNNER_TEMP/release-candidate-promotion.json"
+
+      - name: Upload candidate promotion evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-candidate-promotion-${{ needs.release-identity.outputs.tag }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/release-candidate-promotion.json
+          if-no-files-found: error
+          retention-days: 90
 
   verify-draft-release-assets:
     name: verify-draft-${{ matrix.name }}
     needs:
       - release-identity
-      - assemble-release
-    if: needs.release-identity.outputs.publish == 'true'
+      - promote-release-candidate
+    if: needs.release-identity.outputs.mode == 'promote'
     runs-on: ${{ matrix.runner }}
     permissions:
-      contents: write
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -618,7 +838,7 @@ jobs:
     needs:
       - release-identity
       - verify-draft-release-assets
-    if: needs.release-identity.outputs.publish == 'true'
+    if: needs.release-identity.outputs.mode == 'promote'
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -647,7 +867,7 @@ jobs:
     needs:
       - release-identity
       - publish-release
-    if: needs.release-identity.outputs.publish == 'true'
+    if: needs.release-identity.outputs.mode == 'promote'
     runs-on: ubuntu-24.04
     permissions:
       attestations: read
@@ -699,11 +919,15 @@ jobs:
       - name: Verify GitHub provenance for every published asset
         env:
           GH_TOKEN: ${{ github.token }}
+          SOURCE_COMMIT: ${{ needs.release-identity.outputs.commit }}
         shell: bash
         run: |
           find "$RUNNER_TEMP/published-assets" -maxdepth 1 -type f -print0 \
             | while IFS= read -r -d '' asset; do
-                gh attestation verify "$asset" --repo "$GITHUB_REPOSITORY"
+                gh attestation verify "$asset" \
+                  --repo "$GITHUB_REPOSITORY" \
+                  --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml" \
+                  --source-digest "$SOURCE_COMMIT"
               done
 
       - name: Record body-free public release verification evidence

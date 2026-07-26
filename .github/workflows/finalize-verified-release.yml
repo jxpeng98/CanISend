@@ -30,7 +30,7 @@ jobs:
           fetch-tags: true
           ref: ${{ inputs.tag }}
 
-      - name: Validate immutable tag and successful source gates
+      - name: Validate immutable tag and successful promotion gates
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.tag }}
@@ -62,15 +62,8 @@ jobs:
             > "$RUNNER_TEMP/source-jobs.json"
           required_jobs='[
             "release-identity",
-            "signing-readiness",
-            "source-gates",
-            "build-macos-gui-aarch64",
-            "build-aarch64-apple-darwin",
-            "build-x86_64-apple-darwin",
-            "build-x86_64-unknown-linux-gnu",
-            "build-x86_64-unknown-linux-musl",
-            "build-x86_64-pc-windows-msvc",
-            "assemble-and-attest-release",
+            "locate-release-candidate",
+            "promote-release-candidate",
             "verify-draft-cli-aarch64-apple-darwin",
             "verify-draft-cli-x86_64-apple-darwin",
             "verify-draft-cli-x86_64-unknown-linux-gnu",
@@ -122,10 +115,15 @@ jobs:
           cd "$draft_assets"
           sha256sum -c SHA256SUMS
           asset_count="$(find . -maxdepth 1 -type f | wc -l | tr -d ' ')"
-          [[ "$asset_count" -eq 15 ]]
+          expected_asset_count="$(( $(wc -l < SHA256SUMS) + 1 ))"
+          [[ "$asset_count" -eq "$expected_asset_count" ]]
+          source_commit="$(git -C "$GITHUB_WORKSPACE" rev-parse "$RELEASE_TAG^{commit}")"
           find . -maxdepth 1 -type f -print0 \
             | while IFS= read -r -d '' asset; do
-                gh attestation verify "$asset" --repo "$GITHUB_REPOSITORY"
+                gh attestation verify "$asset" \
+                  --repo "$GITHUB_REPOSITORY" \
+                  --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml" \
+                  --source-digest "$source_commit"
               done
 
       - name: Publish the fully verified draft
@@ -159,9 +157,13 @@ jobs:
             --dir "$published_assets"
           cd "$published_assets"
           sha256sum -c SHA256SUMS
+          source_commit="$(git -C "$GITHUB_WORKSPACE" rev-parse "$RELEASE_TAG^{commit}")"
           find . -maxdepth 1 -type f -print0 \
             | while IFS= read -r -d '' asset; do
-                gh attestation verify "$asset" --repo "$GITHUB_REPOSITORY"
+                gh attestation verify "$asset" \
+                  --repo "$GITHUB_REPOSITORY" \
+                  --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml" \
+                  --source-digest "$source_commit"
               done
 
           gh release view "$RELEASE_TAG" \
@@ -217,7 +219,7 @@ jobs:
             --argjson source_run_id "$SOURCE_RUN_ID" \
             --argjson recovery_run_id "$GITHUB_RUN_ID" \
             '{
-              schema: "canisend.public-release-recovery/v1",
+              schema: "canisend.public-release-recovery/v2",
               tag: $tag,
               release_url: $release_url,
               manifest_sha256: $manifest_sha256,
@@ -226,7 +228,8 @@ jobs:
               recovery_run_id: $recovery_run_id,
               checks: {
                 immutable_tag: true,
-                source_gates: true,
+                successful_candidate: true,
+                candidate_promoted_without_recompile: true,
                 draft_native_smokes: true,
                 draft_checksums: true,
                 draft_provenance: true,
