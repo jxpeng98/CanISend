@@ -72,7 +72,14 @@ impl ApplicationError {
             status: status.to_owned(),
             code,
             retryable,
-            message: self.to_string(),
+            message: match self {
+                Self::InvalidEntityId(message)
+                | Self::InvalidInput(message)
+                | Self::ResourceIntegrity(message)
+                | Self::CliInstall(message)
+                | Self::UpdateCheck(message) => message.clone(),
+                Self::Store(_) | Self::Input(_) | Self::Render(_) => self.to_string(),
+            },
             details,
             remediation,
         }

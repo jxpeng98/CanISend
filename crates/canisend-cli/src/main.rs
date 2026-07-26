@@ -1,5 +1,7 @@
 #![forbid(unsafe_code)]
 
+mod app_adapter;
+
 use std::{
     fs::OpenOptions,
     io::{IsTerminal, Write},
@@ -8,29 +10,28 @@ use std::{
     str::FromStr,
 };
 
+use canisend_app::{Application, NetworkFetchConsent, PrivateReadConsent, WorkspaceInitPolicy};
 use canisend_contracts::{
     AGENT_PROTOCOL, ActorKind, AgentContextBlocker, AgentContextData, AgentError, AgentResponse,
     CapabilitiesData, DocumentKind, EntityId, ErrorCode, ExecutionMode, ExitClass, NextAction,
     PUBLIC_SCHEMA_VERSION, PrivacyClassification, ProfileSourceKind, PublicSchemaId,
     RESOURCE_FORMAT, ResourceCatalogData, ResourceCatalogEntry, SafeRelativePath,
-    SchemaCatalogData, SchemaCatalogEntry, SemanticVersion, Sha256Digest, SourceKind, VersionData,
+    SchemaCatalogData, SchemaCatalogEntry, SemanticVersion, Sha256Digest, VersionData,
     WORKSPACE_FORMAT, WorkflowStage,
 };
 use canisend_core::{CapabilityRegistry, StageRegistry};
 use canisend_io::{
-    DiscoveryAdapter, DiscoveryFileKind, EmbeddedTypstCompiler, GreenhouseAdapter, HttpFetcher,
-    IoAdapterError, JobsAcUkAdapter, LeverAdapter, LocalTextKind, RemoteDocumentKind,
-    RssAtomAdapter, discovery_adapter_capabilities, extract_pdf_text, parse_csv_batch,
-    parse_host_agent_batch, parse_json_batch, read_criteria_file, read_discovery_file,
-    read_local_pdf, read_local_text, read_task_completion_file, read_task_completion_stdin,
-    render_acceptance_probe,
+    DiscoveryAdapter, DiscoveryFileKind, GreenhouseAdapter, HttpFetcher, IoAdapterError,
+    JobsAcUkAdapter, LeverAdapter, LocalTextKind, RssAtomAdapter, discovery_adapter_capabilities,
+    parse_csv_batch, parse_host_agent_batch, parse_json_batch, read_criteria_file,
+    read_discovery_file, read_local_text, read_task_completion_file, read_task_completion_stdin,
 };
 use canisend_resources::{AgentHost, ResourceError, ResourceId, ResourceKind, export_agent_pack};
 use canisend_store::{
     AgentContextService, ArtifactService, CriteriaService, DiscoveryService, DocumentService,
-    EvidenceService, JobService, MatchService, NewProfileSource, NewSource, PackageService,
-    PlanService, ProfileService, ProjectionService, RenderService, ReviewService, StoreError,
-    TaskService, WorkflowService, Workspace, current_utc_timestamp,
+    EvidenceService, MatchService, NewProfileSource, PackageService, PlanService, ProfileService,
+    ProjectionService, RenderService, ReviewService, StoreError, TaskService, WorkflowService,
+    Workspace, current_utc_timestamp,
 };
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use serde_json::json;
@@ -1133,7 +1134,7 @@ struct CommandOutput {
 
 struct CommandFailure {
     operation: &'static str,
-    status: &'static str,
+    status: String,
     error: AgentError,
     human: String,
 }
@@ -1143,7 +1144,7 @@ type CommandResult<T> = Result<T, Box<CommandFailure>>;
 impl CommandFailure {
     fn new(
         operation: &'static str,
-        status: &'static str,
+        status: impl Into<String>,
         code: ErrorCode,
         message: impl Into<String>,
         retryable: bool,
@@ -1151,7 +1152,7 @@ impl CommandFailure {
         let message = message.into();
         Box::new(Self {
             operation,
-            status,
+            status: status.into(),
             error: AgentError {
                 code,
                 message: message.clone(),
@@ -1168,7 +1169,7 @@ impl CommandFailure {
     }
 
     fn response(&self) -> AgentResponse {
-        AgentResponse::failure(self.operation, self.status, self.error.clone())
+        AgentResponse::failure(self.operation, self.status.clone(), self.error.clone())
     }
 }
 
@@ -1412,12 +1413,13 @@ fn execute(cli: Cli) -> CommandResult<CommandOutput> {
 }
 
 fn version() -> CommandResult<CommandOutput> {
+    let product = Application::product_summary();
     let data = VersionData {
-        product: "canisend".to_owned(),
-        version: product_version()?,
-        protocol: AGENT_PROTOCOL.to_owned(),
-        workspace_format: WORKSPACE_FORMAT.to_owned(),
-        resource_format: RESOURCE_FORMAT.to_owned(),
+        product: product.product,
+        version: SemanticVersion::try_new(product.version).map_err(internal_version)?,
+        protocol: product.protocol,
+        workspace_format: product.workspace_format,
+        resource_format: product.resource_format,
         rustc: env!("CANISEND_RUSTC_VERSION").to_owned(),
         target: env!("CANISEND_BUILD_TARGET").to_owned(),
         git_revision: env!("CANISEND_GIT_REVISION").to_owned(),
@@ -1436,77 +1438,29 @@ fn version() -> CommandResult<CommandOutput> {
 }
 
 fn doctor() -> CommandResult<CommandOutput> {
-    canisend_resources::verify().map_err(|message| {
-        CommandFailure::new(
-            "product.doctor",
-            "unhealthy",
-            ErrorCode::ResourcesIntegrityFailed,
-            message,
-            false,
-        )
+    let receipt = Application::doctor().map_err(|error| {
+        let mut failure = app_adapter::failure("product.doctor", error);
+        failure.status = "unhealthy".to_owned();
+        failure
     })?;
-    let template =
-        std::str::from_utf8(canisend_resources::get(ResourceId::TemplateCoverLetter).bytes)
-            .map_err(|_| {
-                CommandFailure::new(
-                    "product.doctor",
-                    "unhealthy",
-                    ErrorCode::ResourcesIntegrityFailed,
-                    "embedded Typst template is not UTF-8",
-                    false,
-                )
-            })?;
-    let probe_source = format!(
-        "{template}\n#application_cover_letter([CanISend], [Native self-check], [Embedded rendering verified.])"
-    );
-    EmbeddedTypstCompiler::new()
-        .compile_pdf(&probe_source)
-        .map_err(|error| {
-            CommandFailure::new(
-                "product.doctor",
-                "unhealthy",
-                ErrorCode::InternalInvariantFailed,
-                error.to_string(),
-                false,
-            )
-        })?;
-    let render_probe = render_acceptance_probe().map_err(|error| {
-        CommandFailure::new(
-            "product.doctor",
-            "unhealthy",
-            ErrorCode::InternalInvariantFailed,
-            error.to_string(),
-            false,
-        )
-    })?;
-    let binary_size_bytes = std::env::current_exe()
-        .and_then(|path| std::fs::metadata(path).map(|metadata| metadata.len()))
-        .map_err(|error| {
-            CommandFailure::new(
-                "product.doctor",
-                "unhealthy",
-                ErrorCode::InternalInvariantFailed,
-                format!("cannot measure current executable: {error}"),
-                false,
-            )
-        })?;
+    let doctor = receipt.data;
     let data = json!({
         "resource_manifest": "verified",
-        "resource_count": canisend_resources::manifest().len(),
-        "schema_count": PublicSchemaId::ALL.len(),
+        "resource_count": doctor.embedded_resources,
+        "schema_count": doctor.schema_count,
         "embedded_typst": "verified",
         "default_fonts": "embedded",
-        "system_font_scan": false,
-        "runtime_package_downloads": false,
-        "python_required": false,
+        "system_font_scan": doctor.system_font_scan,
+        "runtime_package_downloads": doctor.runtime_package_downloads,
+        "python_required": doctor.python_required,
         "render_probe": {
             "target": env!("CANISEND_BUILD_TARGET"),
-            "page_count": render_probe.page_count(),
-            "pdf_bytes": render_probe.bytes().len(),
-            "warning_count": render_probe.warning_count(),
-            "elapsed_millis": render_probe.elapsed().as_millis(),
-            "binary_size_bytes": binary_size_bytes,
-            "release_binary_budget_bytes": 67_108_864_u64,
+            "page_count": doctor.rendered_pages,
+            "pdf_bytes": doctor.rendered_pdf_bytes,
+            "warning_count": doctor.render_warning_count,
+            "elapsed_millis": doctor.render_elapsed_millis,
+            "binary_size_bytes": doctor.binary_size_bytes,
+            "release_binary_budget_bytes": doctor.release_binary_budget_bytes,
         },
     });
     Ok(CommandOutput {
@@ -1518,9 +1472,7 @@ fn doctor() -> CommandResult<CommandOutput> {
             "Embedded Typst renderer: verified".to_owned(),
             format!(
                 "Cross-platform probe: {} pages, {} bytes, {} ms",
-                render_probe.page_count(),
-                render_probe.bytes().len(),
-                render_probe.elapsed().as_millis()
+                doctor.rendered_pages, doctor.rendered_pdf_bytes, doctor.render_elapsed_millis
             ),
             "System fonts and runtime packages: disabled".to_owned(),
             "Python runtime: not required".to_owned(),
@@ -1800,30 +1752,30 @@ fn resource_list() -> CommandResult<CommandOutput> {
 
 fn workspace_init(workspace_path: Option<PathBuf>) -> CommandResult<CommandOutput> {
     let root = workspace_path.unwrap_or_else(|| PathBuf::from("."));
-    let workspace =
-        Workspace::init(&root).map_err(|error| store_failure("workspace.init", error))?;
-    let data = workspace
-        .status()
-        .map_err(|error| store_failure("workspace.init", error))?;
+    let receipt = Application::initialize_workspace_with_policy(
+        &root,
+        WorkspaceInitPolicy::PreserveExistingFiles,
+    )
+    .map_err(|error| app_adapter::failure("workspace.init", error))?;
+    let path = receipt.data.path;
+    let data = receipt.data.status;
     success(
         "workspace.init",
         "initialized",
         &data,
         vec![
-            format!(
-                "Initialized CanISend workspace at {}",
-                workspace.paths.root.display()
-            ),
+            format!("Initialized CanISend workspace at {}", path.display()),
             format!("Workspace ID: {}", data.workspace_id),
         ],
     )
 }
 
 fn workspace_status(workspace_path: Option<PathBuf>) -> CommandResult<CommandOutput> {
-    let workspace = open_workspace(workspace_path, "workspace.status")?;
-    let data = workspace
-        .status()
-        .map_err(|error| store_failure("workspace.status", error))?;
+    let root = app_adapter::workspace_root(workspace_path, "workspace.status")?;
+    let data = Application::workspace_status(&root)
+        .map_err(|error| app_adapter::failure("workspace.status", error))?
+        .data
+        .status;
     success(
         "workspace.status",
         "available",
@@ -1838,10 +1790,11 @@ fn workspace_status(workspace_path: Option<PathBuf>) -> CommandResult<CommandOut
 }
 
 fn workspace_check(workspace_path: Option<PathBuf>) -> CommandResult<CommandOutput> {
-    let workspace = open_workspace(workspace_path, "workspace.check")?;
-    let data = workspace
-        .check()
-        .map_err(|error| store_failure("workspace.check", error))?;
+    let root = app_adapter::workspace_root(workspace_path, "workspace.check")?;
+    let data = Application::check_workspace(&root)
+        .map_err(|error| app_adapter::failure("workspace.check", error))?
+        .data
+        .check;
     let status = if data.ok { "healthy" } else { "issues-found" };
     success(
         "workspace.check",
@@ -1859,16 +1812,16 @@ fn workspace_backup(
     workspace_path: Option<PathBuf>,
     destination: PathBuf,
 ) -> CommandResult<CommandOutput> {
-    let mut workspace = open_workspace(workspace_path, "workspace.backup")?;
-    let result = workspace
-        .backup(&destination)
-        .map_err(|error| store_failure("workspace.backup", error))?;
+    let root = app_adapter::workspace_root(workspace_path, "workspace.backup")?;
+    let result = Application::backup_workspace(&root, &destination)
+        .map_err(|error| app_adapter::failure("workspace.backup", error))?
+        .data;
     success(
         "workspace.backup",
         "verified",
         &result.manifest,
         vec![
-            format!("Verified backup: {}", result.directory.display()),
+            format!("Verified backup: {}", result.destination.display()),
             format!("Blobs: {}", result.manifest.blobs.len()),
         ],
     )
@@ -1915,10 +1868,10 @@ fn job_create(
     workspace_path: Option<PathBuf>,
     arguments: JobCreateArgs,
 ) -> CommandResult<CommandOutput> {
-    let mut workspace = open_workspace(workspace_path, "job.create")?;
-    let record = JobService::new(&mut workspace.database, &workspace.blobs)
-        .create(&arguments.title, &arguments.institution, ActorKind::User)
-        .map_err(|error| store_failure("job.create", error))?;
+    let root = app_adapter::workspace_root(workspace_path, "job.create")?;
+    let record = Application::create_job(&root, &arguments.title, &arguments.institution)
+        .map_err(|error| app_adapter::failure("job.create", error))?
+        .data;
     success(
         "job.create",
         "created",
@@ -1934,62 +1887,22 @@ fn job_import(
     workspace_path: Option<PathBuf>,
     arguments: JobImportArgs,
 ) -> CommandResult<CommandOutput> {
-    let job_id = parse_entity_id("job.import", &arguments.job_id)?;
-    let source = if let Some(path) = arguments.file {
-        if path
-            .extension()
-            .and_then(|extension| extension.to_str())
-            .is_some_and(|extension| extension.eq_ignore_ascii_case("pdf"))
-        {
-            let document =
-                read_local_pdf(&path).map_err(|error| io_adapter_failure("job.import", error))?;
-            NewSource {
-                kind: SourceKind::LocalFile,
-                original_bytes: document.original_bytes,
-                normalized_text: document.normalized_text,
-                source_url: None,
-                final_url: None,
-                content_type: "application/pdf".to_owned(),
-                redirect_chain: Vec::new(),
-                privacy: PrivacyClassification::PrivateLocal,
-            }
-        } else {
-            let document =
-                read_local_text(&path).map_err(|error| io_adapter_failure("job.import", error))?;
-            NewSource {
-                kind: SourceKind::LocalFile,
-                original_bytes: document.original_bytes,
-                normalized_text: document.normalized_text,
-                source_url: None,
-                final_url: None,
-                content_type: document.content_type.to_owned(),
-                redirect_chain: Vec::new(),
-                privacy: PrivacyClassification::PrivateLocal,
-            }
-        }
+    let _ = parse_entity_id("job.import", &arguments.job_id)?;
+    let root = app_adapter::workspace_root(workspace_path, "job.import")?;
+    let receipt = if let Some(path) = arguments.file {
+        Application::import_local_job_source(
+            &root,
+            &arguments.job_id,
+            &path,
+            PrivateReadConsent::granted_by_user(),
+        )
     } else if let Some(url) = arguments.url {
-        let document = HttpFetcher::new()
-            .fetch(&url)
-            .map_err(|error| io_adapter_failure("job.import", error))?;
-        let normalized_text = if document.kind == RemoteDocumentKind::Pdf {
-            extract_pdf_text(document.original_bytes.clone())
-                .map_err(|error| io_adapter_failure("job.import", error))?
-                .normalized_text
-        } else {
-            document
-                .normalized_text
-                .ok_or_else(|| io_adapter_failure("job.import", IoAdapterError::TextUnavailable))?
-        };
-        NewSource {
-            kind: SourceKind::UserUrl,
-            original_bytes: document.original_bytes,
-            normalized_text,
-            source_url: Some(document.source_url),
-            final_url: Some(document.final_url),
-            content_type: document.content_type,
-            redirect_chain: document.redirect_chain,
-            privacy: PrivacyClassification::PrivateLocal,
-        }
+        Application::import_url_job_source(
+            &root,
+            &arguments.job_id,
+            &url,
+            NetworkFetchConsent::granted_by_user(),
+        )
     } else {
         return Err(CommandFailure::new(
             "job.import",
@@ -1998,11 +1911,9 @@ fn job_import(
             "exactly one of --file or --url is required",
             false,
         ));
-    };
-    let mut workspace = open_workspace(workspace_path, "job.import")?;
-    let record = JobService::new(&mut workspace.database, &workspace.blobs)
-        .import_source(&job_id, source, ActorKind::User)
-        .map_err(|error| store_failure("job.import", error))?;
+    }
+    .map_err(|error| app_adapter::failure("job.import", error))?;
+    let record = receipt.data.source;
     success(
         "job.import",
         "imported",
@@ -2027,10 +1938,11 @@ fn job_list(
     workspace_path: Option<PathBuf>,
     include_archived: bool,
 ) -> CommandResult<CommandOutput> {
-    let mut workspace = open_workspace(workspace_path, "job.list")?;
-    let records = JobService::new(&mut workspace.database, &workspace.blobs)
-        .list(include_archived)
-        .map_err(|error| store_failure("job.list", error))?;
+    let root = app_adapter::workspace_root(workspace_path, "job.list")?;
+    let records = Application::list_jobs(&root, include_archived)
+        .map_err(|error| app_adapter::failure("job.list", error))?
+        .data
+        .jobs;
     let human = if records.is_empty() {
         vec!["No jobs found".to_owned()]
     } else {
@@ -2051,15 +1963,13 @@ fn job_list(
 }
 
 fn job_show(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<CommandOutput> {
-    let job_id = parse_entity_id("job.show", job_id)?;
-    let mut workspace = open_workspace(workspace_path, "job.show")?;
-    let service = JobService::new(&mut workspace.database, &workspace.blobs);
-    let record = service
-        .get(&job_id)
-        .map_err(|error| store_failure("job.show", error))?;
-    let sources = service
-        .sources(&job_id)
-        .map_err(|error| store_failure("job.show", error))?;
+    let _ = parse_entity_id("job.show", job_id)?;
+    let root = app_adapter::workspace_root(workspace_path, "job.show")?;
+    let detail = Application::job_detail(&root, job_id)
+        .map_err(|error| app_adapter::failure("job.show", error))?
+        .data;
+    let record = detail.job;
+    let sources = detail.sources;
     let data = json!({"job": record, "sources": sources});
     success(
         "job.show",
@@ -2075,11 +1985,11 @@ fn job_show(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<Comm
 }
 
 fn job_archive(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<CommandOutput> {
-    let job_id = parse_entity_id("job.archive", job_id)?;
-    let mut workspace = open_workspace(workspace_path, "job.archive")?;
-    let record = JobService::new(&mut workspace.database, &workspace.blobs)
-        .archive(&job_id, ActorKind::User)
-        .map_err(|error| store_failure("job.archive", error))?;
+    let _ = parse_entity_id("job.archive", job_id)?;
+    let root = app_adapter::workspace_root(workspace_path, "job.archive")?;
+    let record = Application::archive_job(&root, job_id)
+        .map_err(|error| app_adapter::failure("job.archive", error))?
+        .data;
     success(
         "job.archive",
         "archived",
@@ -3518,20 +3428,20 @@ fn write_private_json_new<T: serde::Serialize>(
 }
 
 fn workflow_start(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<CommandOutput> {
-    let job_id = parse_entity_id("workflow.start", job_id)?;
-    let mut workspace = open_workspace(workspace_path, "workflow.start")?;
-    let status = WorkflowService::new(&mut workspace.database)
-        .start(&job_id)
-        .map_err(|error| store_failure("workflow.start", error))?;
+    let _ = parse_entity_id("workflow.start", job_id)?;
+    let root = app_adapter::workspace_root(workspace_path, "workflow.start")?;
+    let status = Application::start_workflow(&root, job_id)
+        .map_err(|error| app_adapter::failure("workflow.start", error))?
+        .data;
     workflow_command_output("workflow.start", "started", status)
 }
 
 fn workflow_status(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<CommandOutput> {
-    let job_id = parse_entity_id("workflow.status", job_id)?;
-    let mut workspace = open_workspace(workspace_path, "workflow.status")?;
-    let status = WorkflowService::new(&mut workspace.database)
-        .status(&job_id)
-        .map_err(|error| store_failure("workflow.status", error))?;
+    let _ = parse_entity_id("workflow.status", job_id)?;
+    let root = app_adapter::workspace_root(workspace_path, "workflow.status")?;
+    let status = Application::workflow_status(&root, job_id)
+        .map_err(|error| app_adapter::failure("workflow.status", error))?
+        .data;
     workflow_command_output("workflow.status", "available", status)
 }
 

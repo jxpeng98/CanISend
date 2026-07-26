@@ -19,7 +19,9 @@ pub use job::{JobDetailReadModel, JobListReadModel, SourceImportReadModel};
 pub use receipt::ActionReceipt;
 pub use system::{DoctorSummary, ProductSummary};
 pub use update::UpdateCheckReadModel;
-pub use workspace::{BackupReadModel, WorkspaceHealthReadModel, WorkspaceReadModel};
+pub use workspace::{
+    BackupReadModel, WorkspaceHealthReadModel, WorkspaceInitPolicy, WorkspaceReadModel,
+};
 
 #[cfg(test)]
 mod tests {

@@ -28,6 +28,14 @@ impl NetworkFetchConsent {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Application;
 
+impl Application {
+    pub fn resolve_workspace_root(
+        explicit: Option<&Path>,
+    ) -> Result<std::path::PathBuf, ApplicationError> {
+        Ok(Workspace::open(explicit)?.paths.root)
+    }
+}
+
 pub(crate) fn open_workspace(root: &Path) -> Result<Workspace, StoreError> {
     Workspace::open(Some(root))
 }

@@ -3,7 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use canisend_contracts::{WorkspaceCheckData, WorkspaceStatusData};
+use canisend_contracts::{BackupManifestData, WorkspaceCheckData, WorkspaceStatusData};
 use canisend_store::{BACKUP_FORMAT, BackupResult, Workspace};
 use serde::{Deserialize, Serialize};
 
@@ -29,13 +29,29 @@ pub struct BackupReadModel {
     pub destination: PathBuf,
     pub format: String,
     pub blob_count: usize,
+    pub manifest: BackupManifestData,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WorkspaceInitPolicy {
+    NewOrEmpty,
+    PreserveExistingFiles,
 }
 
 impl Application {
     pub fn initialize_workspace(
         root: &Path,
     ) -> Result<ActionReceipt<WorkspaceReadModel>, ApplicationError> {
-        require_new_or_empty_directory(root)?;
+        Self::initialize_workspace_with_policy(root, WorkspaceInitPolicy::NewOrEmpty)
+    }
+
+    pub fn initialize_workspace_with_policy(
+        root: &Path,
+        policy: WorkspaceInitPolicy,
+    ) -> Result<ActionReceipt<WorkspaceReadModel>, ApplicationError> {
+        if policy == WorkspaceInitPolicy::NewOrEmpty {
+            require_new_or_empty_directory(root)?;
+        }
         let workspace = Workspace::init(root)?;
         let status = workspace.status()?;
         Ok(ActionReceipt::new(
@@ -106,6 +122,7 @@ impl Application {
                 destination: directory,
                 format: BACKUP_FORMAT.to_owned(),
                 blob_count: manifest.blobs.len(),
+                manifest,
             },
         ))
     }
