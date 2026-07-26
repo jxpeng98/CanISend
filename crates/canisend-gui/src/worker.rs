@@ -1,17 +1,40 @@
 use std::path::PathBuf;
 
 use canisend_app::{
-    ActionReceipt, Application, BackupReadModel, CliInstallStatus, DoctorSummary,
-    JobDetailReadModel, JobListReadModel, NetworkFetchConsent, PrivateReadConsent,
-    ProfileSourceImportReadModel, ProfileSourceListReadModel, SourceImportReadModel,
-    TerminalInstallConsent, UpdateCheckReadModel, WorkflowBeginRequest, WorkflowCompleteRequest,
-    WorkflowControlReadModel, WorkflowRerunPreview, WorkflowRerunRequest, WorkspaceHealthReadModel,
-    WorkspaceReadModel, WorkspaceRepairReadModel, WorkspaceRestoreReadModel,
+    ActionReceipt, Application, BackupReadModel, CliInstallStatus,
+    DiscoveryAdapterCatalogReadModel, DiscoveryImportRequest, DiscoveryLeadListReadModel,
+    DiscoveryPromotionReadModel, DiscoveryRefreshRequest, DiscoverySourceListReadModel,
+    DiscoverySuggestionReadModel, DoctorSummary, JobDetailReadModel, JobListReadModel,
+    NetworkFetchConsent, PrivateReadConsent, ProfileSourceImportReadModel,
+    ProfileSourceListReadModel, SourceImportReadModel, TerminalInstallConsent,
+    UpdateCheckReadModel, WorkflowBeginRequest, WorkflowCompleteRequest, WorkflowControlReadModel,
+    WorkflowRerunPreview, WorkflowRerunRequest, WorkspaceHealthReadModel, WorkspaceReadModel,
+    WorkspaceRepairReadModel, WorkspaceRestoreReadModel,
 };
 use canisend_contracts::{
-    ApplicationPlanCandidate, ApplicationPlanRecord, CriteriaSetRecord, EvidenceCatalogRecord,
-    EvidenceMatchSetRecord, JobRecord, PrivacyClassification, WorkflowStage, WorkflowStatusData,
+    ApplicationPlanCandidate, ApplicationPlanRecord, CriteriaSetRecord, DiscoveryImportReport,
+    DiscoveryLeadRecord, EvidenceCatalogRecord, EvidenceMatchSetRecord, JobRecord,
+    PrivacyClassification, WorkflowStage, WorkflowStatusData,
 };
+
+#[derive(Debug)]
+pub(crate) struct DiscoveryWorkspaceReadModel {
+    pub(crate) sources: DiscoverySourceListReadModel,
+    pub(crate) leads: DiscoveryLeadListReadModel,
+}
+
+#[derive(Debug)]
+pub(crate) struct DiscoveryPromotionResult {
+    pub(crate) receipt: ActionReceipt<DiscoveryPromotionReadModel>,
+    pub(crate) jobs: Result<JobListReadModel, String>,
+    pub(crate) discovery: Result<DiscoveryWorkspaceReadModel, String>,
+}
+
+#[derive(Debug)]
+pub(crate) struct DiscoveryCommitResult {
+    pub(crate) receipt: ActionReceipt<DiscoveryImportReport>,
+    pub(crate) discovery: Result<DiscoveryWorkspaceReadModel, String>,
+}
 
 #[derive(Debug)]
 pub(crate) enum WorkerRequest {
@@ -40,6 +63,42 @@ pub(crate) enum WorkerRequest {
     LoadJobs {
         path: PathBuf,
         include_archived: bool,
+    },
+    LoadDiscoveryCatalog,
+    LoadDiscoveryWorkspace {
+        path: PathBuf,
+        include_history: bool,
+    },
+    LoadDiscoveryLead {
+        path: PathBuf,
+        lead_id: String,
+    },
+    PreviewDiscoveryImport {
+        request: DiscoveryImportRequest,
+    },
+    CommitDiscoveryImport {
+        path: PathBuf,
+        report: DiscoveryImportReport,
+        include_history: bool,
+    },
+    PreviewDiscoveryRefresh {
+        request: DiscoveryRefreshRequest,
+    },
+    CommitDiscoveryRefresh {
+        path: PathBuf,
+        report: DiscoveryImportReport,
+        include_history: bool,
+    },
+    LoadDiscoverySuggestions {
+        path: PathBuf,
+        lead_id: String,
+        limit: usize,
+    },
+    PromoteDiscoveryLead {
+        path: PathBuf,
+        lead_id: String,
+        include_history: bool,
+        include_archived_jobs: bool,
     },
     CreateJob {
         path: PathBuf,
@@ -164,6 +223,15 @@ pub(crate) enum WorkerEvent {
     },
     WorkspaceRepaired(Result<ActionReceipt<WorkspaceRepairReadModel>, String>),
     JobsLoaded(Result<ActionReceipt<JobListReadModel>, String>),
+    DiscoveryCatalogLoaded(Result<ActionReceipt<DiscoveryAdapterCatalogReadModel>, String>),
+    DiscoveryWorkspaceLoaded(Result<DiscoveryWorkspaceReadModel, String>),
+    DiscoveryLeadLoaded(Result<ActionReceipt<DiscoveryLeadRecord>, String>),
+    DiscoveryImportPreviewed(Result<ActionReceipt<DiscoveryImportReport>, String>),
+    DiscoveryImportCommitted(Result<DiscoveryCommitResult, String>),
+    DiscoveryRefreshPreviewed(Result<ActionReceipt<DiscoveryImportReport>, String>),
+    DiscoveryRefreshCommitted(Result<DiscoveryCommitResult, String>),
+    DiscoverySuggestionsLoaded(Result<ActionReceipt<DiscoverySuggestionReadModel>, String>),
+    DiscoveryLeadPromoted(Result<DiscoveryPromotionResult, String>),
     JobCreated(Result<ActionReceipt<JobRecord>, String>),
     JobLoaded(Result<ActionReceipt<JobDetailReadModel>, String>),
     JobArchived(Result<ActionReceipt<JobRecord>, String>),
@@ -246,6 +314,84 @@ pub(crate) fn execute(request: WorkerRequest) -> WorkerEvent {
         } => WorkerEvent::JobsLoaded(
             Application::list_jobs(&path, include_archived).map_err(|error| error.to_string()),
         ),
+        WorkerRequest::LoadDiscoveryCatalog => {
+            WorkerEvent::DiscoveryCatalogLoaded(Ok(Application::discovery_adapters()))
+        }
+        WorkerRequest::LoadDiscoveryWorkspace {
+            path,
+            include_history,
+        } => {
+            WorkerEvent::DiscoveryWorkspaceLoaded(load_discovery_workspace(&path, include_history))
+        }
+        WorkerRequest::LoadDiscoveryLead { path, lead_id } => WorkerEvent::DiscoveryLeadLoaded(
+            Application::discovery_lead(&path, &lead_id).map_err(|error| error.to_string()),
+        ),
+        WorkerRequest::PreviewDiscoveryImport { request } => WorkerEvent::DiscoveryImportPreviewed(
+            Application::preview_discovery_import(&request, PrivateReadConsent::granted_by_user())
+                .map_err(|error| error.to_string()),
+        ),
+        WorkerRequest::CommitDiscoveryImport {
+            path,
+            report,
+            include_history,
+        } => WorkerEvent::DiscoveryImportCommitted(
+            Application::commit_discovery_import(&path, report)
+                .map_err(|error| error.to_string())
+                .map(|receipt| {
+                    let discovery = load_discovery_workspace(&path, include_history);
+                    DiscoveryCommitResult { receipt, discovery }
+                }),
+        ),
+        WorkerRequest::PreviewDiscoveryRefresh { request } => {
+            WorkerEvent::DiscoveryRefreshPreviewed(
+                Application::preview_discovery_refresh(
+                    &request,
+                    NetworkFetchConsent::granted_by_user(),
+                )
+                .map_err(|error| error.to_string()),
+            )
+        }
+        WorkerRequest::CommitDiscoveryRefresh {
+            path,
+            report,
+            include_history,
+        } => WorkerEvent::DiscoveryRefreshCommitted(
+            Application::commit_discovery_refresh(&path, report)
+                .map_err(|error| error.to_string())
+                .map(|receipt| {
+                    let discovery = load_discovery_workspace(&path, include_history);
+                    DiscoveryCommitResult { receipt, discovery }
+                }),
+        ),
+        WorkerRequest::LoadDiscoverySuggestions {
+            path,
+            lead_id,
+            limit,
+        } => WorkerEvent::DiscoverySuggestionsLoaded(
+            Application::discovery_suggestions(&path, &lead_id, limit)
+                .map_err(|error| error.to_string()),
+        ),
+        WorkerRequest::PromoteDiscoveryLead {
+            path,
+            lead_id,
+            include_history,
+            include_archived_jobs,
+        } => {
+            let result = Application::promote_discovery_lead(&path, &lead_id)
+                .map_err(|error| error.to_string())
+                .map(|receipt| {
+                    let jobs = Application::list_jobs(&path, include_archived_jobs)
+                        .map(|result| result.data)
+                        .map_err(|error| error.to_string());
+                    let discovery = load_discovery_workspace(&path, include_history);
+                    DiscoveryPromotionResult {
+                        receipt,
+                        jobs,
+                        discovery,
+                    }
+                });
+            WorkerEvent::DiscoveryLeadPromoted(result)
+        }
         WorkerRequest::CreateJob {
             path,
             title,
@@ -454,16 +600,30 @@ pub(crate) fn execute(request: WorkerRequest) -> WorkerEvent {
     }
 }
 
+fn load_discovery_workspace(
+    path: &std::path::Path,
+    include_history: bool,
+) -> Result<DiscoveryWorkspaceReadModel, String> {
+    let sources = Application::list_discovery_sources(path)
+        .map_err(|error| error.to_string())?
+        .data;
+    let leads = Application::list_discovery_leads(path, include_history)
+        .map_err(|error| error.to_string())?
+        .data;
+    Ok(DiscoveryWorkspaceReadModel { sources, leads })
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::atomic::{AtomicU64, Ordering};
 
     use canisend_app::{
-        Application, PrivateReadConsent, WorkflowBeginRequest, WorkflowRerunRequest,
+        Application, DiscoveryImportRequest, DiscoveryNetworkAdapter, DiscoveryRefreshRequest,
+        PrivateReadConsent, WorkflowBeginRequest, WorkflowRerunRequest,
     };
     use canisend_contracts::{
-        ApplicationDecision, ExecutionMode, ExpectedInputRevision, TaskCompletionRequest,
-        WorkflowStage,
+        ApplicationDecision, DiscoveryLeadStatus, ExecutionMode, ExpectedInputRevision,
+        TaskCompletionRequest, WorkflowStage,
     };
     use canisend_store::{CriteriaService, EvidenceService, TaskService, Workspace};
     use serde_json::json;
@@ -661,6 +821,170 @@ mod tests {
         std::fs::remove_file(profile_source).expect("remove profile source fixture");
         std::fs::remove_dir_all(backup).expect("remove backup fixture");
         std::fs::remove_dir_all(restored).expect("remove restored fixture");
+    }
+
+    #[test]
+    fn discovery_worker_commits_the_reviewed_batch_and_refreshes_jobs_after_promotion() {
+        let root = temporary_root("discovery");
+        let source = temporary_root("discovery-batch").with_extension("csv");
+        let host_source = temporary_root("host-discovery-batch").with_extension("json");
+        std::fs::write(
+            &source,
+            "title,organization,url,location\nLecturer,University X,https://example.edu/a,London\nLecturer,University X,https://example.edu/b,London\n",
+        )
+        .expect("write discovery CSV");
+        std::fs::write(
+            &host_source,
+            serde_json::to_vec_pretty(&serde_json::json!({
+                "source_kind": "host-agent",
+                "source_name": "Reviewed agent leads",
+                "source_url": null,
+                "cursor": null,
+                "observed_at": "2026-07-26T00:00:00Z",
+                "leads": [{
+                    "external_id": "agent-1",
+                    "title": "Reader in Economics",
+                    "organization": "University Y",
+                    "location": null,
+                    "deadline": null,
+                    "url": "https://example.edu/jobs/agent-1",
+                    "summary": null,
+                    "metadata": {}
+                }]
+            }))
+            .expect("serialize host-agent batch"),
+        )
+        .expect("write host-agent batch");
+        assert!(matches!(
+            execute(WorkerRequest::CreateWorkspace {
+                alias: "Discovery fixture".to_owned(),
+                path: root.clone(),
+            }),
+            WorkerEvent::WorkspaceCreated { result: Ok(_), .. }
+        ));
+        match execute(WorkerRequest::LoadDiscoveryCatalog) {
+            WorkerEvent::DiscoveryCatalogLoaded(Ok(receipt)) => {
+                assert_eq!(receipt.data.adapters.len(), 4);
+            }
+            event => panic!("unexpected discovery catalog event: {event:?}"),
+        }
+        match execute(WorkerRequest::PreviewDiscoveryImport {
+            request: DiscoveryImportRequest {
+                path: host_source.clone(),
+                source_name: None,
+                source_url: None,
+                host_agent: true,
+            },
+        }) {
+            WorkerEvent::DiscoveryImportPreviewed(Ok(receipt)) => {
+                assert_eq!(receipt.data.accepted, 1);
+                assert_eq!(
+                    receipt.data.batch.expect("host batch").source_kind,
+                    canisend_contracts::DiscoverySourceKind::HostAgent
+                );
+            }
+            event => panic!("unexpected host-agent preview event: {event:?}"),
+        }
+        assert!(matches!(
+            execute(WorkerRequest::PreviewDiscoveryRefresh {
+                request: DiscoveryRefreshRequest {
+                    adapter: DiscoveryNetworkAdapter::RssAtom,
+                    endpoint: "http://127.0.0.1:9/feed".to_owned(),
+                    source_name: "Unsafe local feed".to_owned(),
+                    organization: None,
+                },
+            }),
+            WorkerEvent::DiscoveryRefreshPreviewed(Err(_))
+        ));
+
+        let report = match execute(WorkerRequest::PreviewDiscoveryImport {
+            request: DiscoveryImportRequest {
+                path: source.clone(),
+                source_name: Some("Reviewed CSV".to_owned()),
+                source_url: Some("https://example.edu/jobs".to_owned()),
+                host_agent: false,
+            },
+        }) {
+            WorkerEvent::DiscoveryImportPreviewed(Ok(receipt)) => {
+                assert_eq!(receipt.data.accepted, 2);
+                receipt.data
+            }
+            event => panic!("unexpected discovery preview event: {event:?}"),
+        };
+        std::fs::write(
+            &source,
+            "title,organization,url\nChanged,Other,https://example.edu/changed\n",
+        )
+        .expect("replace source after preview");
+        let (lead_id, committed_leads) = match execute(WorkerRequest::CommitDiscoveryImport {
+            path: root.clone(),
+            report,
+            include_history: false,
+        }) {
+            WorkerEvent::DiscoveryImportCommitted(Ok(committed)) => {
+                assert_eq!(committed.receipt.data.accepted, 2);
+                let discovery = committed.discovery.expect("reload committed discovery");
+                assert_eq!(discovery.sources.sources.len(), 1);
+                assert_eq!(discovery.leads.leads.len(), 2);
+                assert!(
+                    discovery
+                        .leads
+                        .leads
+                        .iter()
+                        .all(|lead| lead.title == "Lecturer")
+                );
+                (
+                    discovery.leads.leads[0].id.to_string(),
+                    discovery.leads.leads,
+                )
+            }
+            event => panic!("unexpected discovery commit event: {event:?}"),
+        };
+        assert_eq!(committed_leads.len(), 2);
+        assert!(matches!(
+            execute(WorkerRequest::LoadDiscoveryLead {
+                path: root.clone(),
+                lead_id: lead_id.clone(),
+            }),
+            WorkerEvent::DiscoveryLeadLoaded(Ok(_))
+        ));
+        match execute(WorkerRequest::LoadDiscoverySuggestions {
+            path: root.clone(),
+            lead_id: lead_id.clone(),
+            limit: 5,
+        }) {
+            WorkerEvent::DiscoverySuggestionsLoaded(Ok(receipt)) => {
+                assert!(!receipt.data.automatic_merge);
+                assert_eq!(receipt.data.suggestions.len(), 1);
+            }
+            event => panic!("unexpected discovery suggestion event: {event:?}"),
+        }
+
+        match execute(WorkerRequest::PromoteDiscoveryLead {
+            path: root.clone(),
+            lead_id,
+            include_history: true,
+            include_archived_jobs: false,
+        }) {
+            WorkerEvent::DiscoveryLeadPromoted(Ok(promoted)) => {
+                assert_eq!(promoted.jobs.expect("reload promoted jobs").jobs.len(), 1);
+                assert_eq!(promoted.receipt.next_actions.len(), 1);
+                let discovery = promoted.discovery.expect("reload promoted discovery");
+                assert_eq!(discovery.leads.leads.len(), 2);
+                assert!(
+                    discovery
+                        .leads
+                        .leads
+                        .iter()
+                        .any(|lead| lead.status == DiscoveryLeadStatus::Promoted)
+                );
+            }
+            event => panic!("unexpected discovery promotion event: {event:?}"),
+        }
+
+        std::fs::remove_dir_all(root).expect("remove discovery workspace");
+        std::fs::remove_file(source).expect("remove discovery CSV");
+        std::fs::remove_file(host_source).expect("remove host-agent discovery JSON");
     }
 
     #[test]

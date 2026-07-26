@@ -96,6 +96,9 @@ pub(crate) fn localized_receipt_summary<T>(
         "job.create" => "职位已创建",
         "job.archive" => "职位已归档",
         "job.import" => "职位来源已导入",
+        "discovery.import" => "发现批次已导入",
+        "discovery.refresh" => "公开发现来源已刷新",
+        "discovery.promote" => "发现线索已提升为职位",
         "profile.source.add" => "个人资料来源已导入",
         "profile.evidence.confirm" => "个人资料证据已确认",
         "criteria.confirm" => "职位条件已确认",
@@ -137,6 +140,7 @@ pub(crate) fn page_accessible_label(page: Page, language: Language) -> &'static 
     language.text(match page {
         Page::Overview => "Overview content",
         Page::Jobs => "Jobs content",
+        Page::Discovery => "Discovery content",
         Page::Profile => "Profile content",
         Page::Workspaces => "Workspaces content",
         Page::CommandLine => "Command line content",

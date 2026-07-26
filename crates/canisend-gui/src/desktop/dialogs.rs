@@ -1098,6 +1098,37 @@ impl CanISendDesktop {
                         }
                     });
                 }
+                PendingConfirmation::PromoteDiscoveryLead {
+                    title,
+                    organization,
+                    ..
+                } => {
+                    accessible_heading(
+                        ui,
+                        self.language.text("Promote this discovery lead?"),
+                        1,
+                    );
+                    ui.label(self.language.select(
+                        "CanISend will create a revisioned job from this lead. The advert body is not fetched until you invoke the separate safe import action.",
+                        "CanISend 将从这条线索创建带修订记录的职位。只有在您另行执行安全导入操作后，系统才会读取招聘广告正文。",
+                    ));
+                    ui.label(RichText::new(title).strong());
+                    ui.label(organization);
+                    ui.add_space(10.0);
+                    ui.horizontal(|ui| {
+                        if ui
+                            .add(theme::primary_button(
+                                self.language.text("Confirm promotion"),
+                            ))
+                            .clicked()
+                        {
+                            confirmed = true;
+                        }
+                        if ui.button(self.language.text("Cancel")).clicked() {
+                            cancelled = true;
+                        }
+                    });
+                }
                 PendingConfirmation::UninstallCli { restores_previous } => {
                     accessible_heading(
                         ui,
@@ -1178,6 +1209,26 @@ impl CanISendDesktop {
                                 job_id: preview.job_id,
                                 stage: preview.target,
                             },
+                        },
+                    );
+                }
+                PendingConfirmation::PromoteDiscoveryLead { lead_id, .. } => {
+                    let Some(path) = self.active_workspace.clone() else {
+                        self.fail(
+                            self.language
+                                .text("No active workspace is selected")
+                                .to_owned(),
+                        );
+                        return;
+                    };
+                    self.dispatch(
+                        self.language.text("Promoting discovery lead"),
+                        ui.ctx().clone(),
+                        WorkerRequest::PromoteDiscoveryLead {
+                            path,
+                            lead_id,
+                            include_history: self.discovery_include_history,
+                            include_archived_jobs: self.include_archived,
                         },
                     );
                 }

@@ -55,6 +55,7 @@ impl Language {
             "CanISend workspace header" => "CanISend 工作区标题栏",
             "Overview" => "概览",
             "Jobs" => "职位",
+            "Discovery" => "职位发现",
             "Profile" => "个人资料",
             "Workspaces" => "工作区",
             "Command line" => "命令行",
@@ -79,11 +80,18 @@ impl Language {
             "Opening workspace" => "正在打开工作区",
             "Loading jobs" => "正在加载职位",
             "Loading job" => "正在加载职位",
+            "Loading discovery catalog" => "正在加载发现适配器目录",
+            "Loading discovery workspace" => "正在加载职位发现数据",
+            "Promoting discovery lead" => "正在提升发现线索",
             "Loading profile sources" => "正在加载个人资料来源",
             "Loading profile sources…" => "正在加载个人资料来源…",
             "Completed" => "已完成",
             "Dismiss" => "关闭",
             "Current local workspace and next actions" => "当前本地工作区和后续操作",
+            "Leads" => "线索",
+            "Discovery sources" => "发现来源",
+            "Import batch" => "导入批次",
+            "Refresh public source" => "刷新公开来源",
             "Active jobs" => "活跃职位",
             "Stored in this workspace" => "保存在此工作区中",
             "Artifacts" => "工件",
@@ -515,6 +523,8 @@ impl Language {
             "Backup and destination directories must be different" => "备份目录与目标目录必须不同",
             "Archive this job?" => "归档此职位？",
             "Confirm archive" => "确认归档",
+            "Promote this discovery lead?" => "提升这条发现线索？",
+            "Confirm promotion" => "确认提升",
             "Uninstall the managed CLI?" => "卸载受管理的 CLI？",
             "Uninstall CLI" => "卸载 CLI",
             "Uninstalling managed CLI" => "正在卸载受管理的 CLI",
@@ -537,6 +547,7 @@ impl Language {
             "Render" => "渲染",
             "Overview content" => "概览内容",
             "Jobs content" => "职位内容",
+            "Discovery content" => "职位发现内容",
             "Profile content" => "个人资料内容",
             "Workspaces content" => "工作区内容",
             "Command line content" => "命令行内容",
@@ -592,6 +603,7 @@ mod tests {
         assert_eq!(Language::SimplifiedChinese.code(), "zh-CN");
         assert_eq!(Language::SimplifiedChinese.text("Workspaces"), "工作区");
         assert_eq!(Language::SimplifiedChinese.text("Profile"), "个人资料");
+        assert_eq!(Language::SimplifiedChinese.text("Discovery"), "职位发现");
         assert_eq!(
             Language::SimplifiedChinese.text("Restore backup"),
             "恢复备份"

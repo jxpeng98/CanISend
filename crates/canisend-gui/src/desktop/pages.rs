@@ -116,6 +116,7 @@ impl CanISendDesktop {
                     .show(ui, |ui| {
                         ui.add_space(8.0);
                         let mut refresh_cli = false;
+                        let mut refresh_discovery = false;
                         let mut refresh_profile = false;
                         for page in Page::ALL {
                             let selected = self.page == page;
@@ -144,6 +145,9 @@ impl CanISendDesktop {
                             if response.clicked() {
                                 self.page = page;
                                 refresh_cli = page == Page::CommandLine;
+                                refresh_discovery = page == Page::Discovery
+                                    && self.discovery_sources.is_none()
+                                    && self.activity.is_none();
                                 refresh_profile = page == Page::Profile
                                     && self.profile_sources.is_none()
                                     && self.activity.is_none();
@@ -151,6 +155,13 @@ impl CanISendDesktop {
                         }
                         if refresh_cli {
                             self.refresh_cli_status(ui.ctx().clone());
+                        }
+                        if refresh_discovery {
+                            if self.discovery_adapters.is_none() {
+                                self.load_discovery_catalog(ui.ctx().clone());
+                            } else {
+                                self.refresh_discovery_workspace(ui.ctx().clone());
+                            }
                         }
                         if refresh_profile {
                             self.refresh_profile_sources(ui.ctx().clone());

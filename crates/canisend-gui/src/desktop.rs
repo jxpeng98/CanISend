@@ -1,4 +1,5 @@
 mod dialogs;
+mod discovery_page;
 mod pages;
 mod plan_page;
 
@@ -22,24 +23,28 @@ use crate::{
     i18n::{self, Language},
     registry::{WorkspaceRegistry, default_registry_path, validate_workspace_alias},
     state::{
-        CriteriaMatchForm, EvidenceReviewForm, FocusTarget, GuiPreferences, ImportForm, ImportKind,
-        JobForm, Page, PendingConfirmation, PlanReviewForm, ProfileSourceForm,
-        RestoreWorkspaceForm, WorkflowActionForm, WorkspaceForm, parse_workflow_artifact_id,
+        CriteriaMatchForm, DiscoveryImportForm, DiscoveryPanel, DiscoveryRefreshForm,
+        EvidenceReviewForm, FocusTarget, GuiPreferences, ImportForm, ImportKind, JobForm, Page,
+        PendingConfirmation, PlanReviewForm, ProfileSourceForm, RestoreWorkspaceForm,
+        WorkflowActionForm, WorkspaceForm, parse_workflow_artifact_id,
+        validate_discovery_import_form, validate_discovery_refresh_form,
     },
     theme,
     worker::{WorkerEvent, WorkerRequest, execute},
 };
 use canisend_app::{
-    Application, DoctorSummary, JobDetailReadModel, ProductSummary, ProfileSourceListReadModel,
-    UpdateCheckReadModel, WorkflowBeginRequest, WorkflowCompleteRequest, WorkflowControlReadModel,
-    WorkflowRerunRequest, WorkspaceHealthReadModel, WorkspaceReadModel,
+    Application, DiscoveryAdapterCatalogReadModel, DiscoveryLeadListReadModel,
+    DiscoverySourceListReadModel, DiscoverySuggestionReadModel, DoctorSummary, JobDetailReadModel,
+    ProductSummary, ProfileSourceListReadModel, UpdateCheckReadModel, WorkflowBeginRequest,
+    WorkflowCompleteRequest, WorkflowControlReadModel, WorkflowRerunRequest,
+    WorkspaceHealthReadModel, WorkspaceReadModel,
 };
 use canisend_app::{CliInstallState, CliInstallStatus, CliVersionRelation};
 use canisend_contracts::{
     ApplicationDecision, ApplicationPlanCandidate, ApplicationPlanRecord, ArtifactKind,
-    CriterionImportance, DocumentKind, DocumentPlanCandidateRecord, DocumentRequirement, EntityId,
-    EvidenceKind, ExecutionMode, JobRecord, MatchStrength, PlanBlockerSeverity,
-    PrivacyClassification, ProfileSourceKind, WorkflowStage,
+    CriterionImportance, DiscoveryLeadRecord, DocumentKind, DocumentPlanCandidateRecord,
+    DocumentRequirement, EntityId, EvidenceKind, ExecutionMode, JobRecord, MatchStrength,
+    NextAction, PlanBlockerSeverity, PrivacyClassification, ProfileSourceKind, WorkflowStage,
 };
 use eframe::egui::{self, Align, Color32, Layout, RichText, Sense, Stroke};
 
@@ -74,6 +79,13 @@ fn pick_profile_source_file() -> Option<PathBuf> {
         .pick_file()
 }
 
+#[cfg(target_os = "macos")]
+fn pick_discovery_batch_file() -> Option<PathBuf> {
+    rfd::FileDialog::new()
+        .add_filter("Discovery batches", &["csv", "json"])
+        .pick_file()
+}
+
 #[cfg(not(target_os = "macos"))]
 fn pick_profile_source_file() -> Option<PathBuf> {
     None
@@ -81,6 +93,11 @@ fn pick_profile_source_file() -> Option<PathBuf> {
 
 #[cfg(not(target_os = "macos"))]
 fn pick_job_source_file() -> Option<PathBuf> {
+    None
+}
+
+#[cfg(not(target_os = "macos"))]
+fn pick_discovery_batch_file() -> Option<PathBuf> {
     None
 }
 
@@ -118,6 +135,17 @@ struct CanISendDesktop {
     jobs: Vec<JobRecord>,
     include_archived: bool,
     job_filter: String,
+    discovery_adapters: Option<DiscoveryAdapterCatalogReadModel>,
+    discovery_sources: Option<DiscoverySourceListReadModel>,
+    discovery_leads: Option<DiscoveryLeadListReadModel>,
+    selected_discovery_lead: Option<DiscoveryLeadRecord>,
+    discovery_suggestions: Option<DiscoverySuggestionReadModel>,
+    discovery_next_actions: Vec<NextAction>,
+    discovery_panel: DiscoveryPanel,
+    discovery_filter: String,
+    discovery_include_history: bool,
+    discovery_import_form: DiscoveryImportForm,
+    discovery_refresh_form: DiscoveryRefreshForm,
     selected_job: Option<JobDetailReadModel>,
     selected_job_id: Option<String>,
     profile_sources: Option<ProfileSourceListReadModel>,
@@ -186,6 +214,17 @@ impl CanISendDesktop {
             jobs: Vec::new(),
             include_archived: false,
             job_filter: String::new(),
+            discovery_adapters: None,
+            discovery_sources: None,
+            discovery_leads: None,
+            selected_discovery_lead: None,
+            discovery_suggestions: None,
+            discovery_next_actions: Vec::new(),
+            discovery_panel: DiscoveryPanel::Leads,
+            discovery_filter: String::new(),
+            discovery_include_history: false,
+            discovery_import_form: DiscoveryImportForm::default(),
+            discovery_refresh_form: DiscoveryRefreshForm::default(),
             selected_job: None,
             selected_job_id: None,
             profile_sources: None,
@@ -362,7 +401,163 @@ impl CanISendDesktop {
                     self.jobs = receipt.data.jobs;
                     if self.page == Page::Profile && self.profile_sources.is_none() {
                         self.refresh_profile_sources(ctx.clone());
+                    } else if self.page == Page::Discovery && self.discovery_sources.is_none() {
+                        if self.discovery_adapters.is_none() {
+                            self.load_discovery_catalog(ctx.clone());
+                        } else {
+                            self.refresh_discovery_workspace(ctx.clone());
+                        }
                     }
+                }
+                Err(error) => self.fail(error),
+            },
+            WorkerEvent::DiscoveryCatalogLoaded(result) => match result {
+                Ok(receipt) => {
+                    self.discovery_adapters = Some(receipt.data);
+                    if let Some(path) = self.active_workspace.clone() {
+                        self.dispatch(
+                            self.language.text("Loading discovery workspace"),
+                            ctx.clone(),
+                            WorkerRequest::LoadDiscoveryWorkspace {
+                                path,
+                                include_history: self.discovery_include_history,
+                            },
+                        );
+                    }
+                }
+                Err(error) => self.fail(error),
+            },
+            WorkerEvent::DiscoveryWorkspaceLoaded(result) => match result {
+                Ok(discovery) => self.apply_discovery_workspace(discovery),
+                Err(error) => self.fail(error),
+            },
+            WorkerEvent::DiscoveryLeadLoaded(result) => match result {
+                Ok(receipt) => {
+                    self.selected_discovery_lead = Some(receipt.data);
+                    self.discovery_suggestions = None;
+                }
+                Err(error) => self.fail(error),
+            },
+            WorkerEvent::DiscoveryImportPreviewed(result) => match result {
+                Ok(receipt) => {
+                    self.discovery_import_form.preview = Some(receipt.data);
+                    self.discovery_import_form.error = None;
+                }
+                Err(error) => self.discovery_import_form.error = Some(error),
+            },
+            WorkerEvent::DiscoveryImportCommitted(result) => match result {
+                Ok(committed) => {
+                    let summary = localized_receipt_summary(&committed.receipt, self.language);
+                    let refresh_error = match committed.discovery {
+                        Ok(discovery) => {
+                            self.apply_discovery_workspace(discovery);
+                            None
+                        }
+                        Err(error) => {
+                            self.discovery_sources = None;
+                            self.discovery_leads = None;
+                            Some(error)
+                        }
+                    };
+                    self.discovery_import_form = DiscoveryImportForm::default();
+                    self.discovery_panel = DiscoveryPanel::Leads;
+                    self.notice = Some(match refresh_error {
+                        Some(error) => (
+                            false,
+                            self.language.select(
+                                &format!(
+                                    "{summary}; the workspace lists could not be refreshed: {error}"
+                                ),
+                                &format!(
+                                    "{summary}；但无法刷新工作区列表：{error}"
+                                ),
+                            ).to_owned(),
+                        ),
+                        None => (true, summary),
+                    });
+                }
+                Err(error) => self.discovery_import_form.error = Some(error),
+            },
+            WorkerEvent::DiscoveryRefreshPreviewed(result) => match result {
+                Ok(receipt) => {
+                    self.discovery_refresh_form.preview = Some(receipt.data);
+                    self.discovery_refresh_form.error = None;
+                }
+                Err(error) => self.discovery_refresh_form.error = Some(error),
+            },
+            WorkerEvent::DiscoveryRefreshCommitted(result) => match result {
+                Ok(committed) => {
+                    let summary = localized_receipt_summary(&committed.receipt, self.language);
+                    let refresh_error = match committed.discovery {
+                        Ok(discovery) => {
+                            self.apply_discovery_workspace(discovery);
+                            None
+                        }
+                        Err(error) => {
+                            self.discovery_sources = None;
+                            self.discovery_leads = None;
+                            Some(error)
+                        }
+                    };
+                    self.discovery_refresh_form = DiscoveryRefreshForm::default();
+                    self.discovery_panel = DiscoveryPanel::Leads;
+                    self.notice = Some(match refresh_error {
+                        Some(error) => (
+                            false,
+                            self.language.select(
+                                &format!(
+                                    "{summary}; the workspace lists could not be refreshed: {error}"
+                                ),
+                                &format!(
+                                    "{summary}；但无法刷新工作区列表：{error}"
+                                ),
+                            ).to_owned(),
+                        ),
+                        None => (true, summary),
+                    });
+                }
+                Err(error) => self.discovery_refresh_form.error = Some(error),
+            },
+            WorkerEvent::DiscoverySuggestionsLoaded(result) => match result {
+                Ok(receipt) => self.discovery_suggestions = Some(receipt.data),
+                Err(error) => self.fail(error),
+            },
+            WorkerEvent::DiscoveryLeadPromoted(result) => match result {
+                Ok(promoted) => {
+                    let summary = localized_receipt_summary(&promoted.receipt, self.language);
+                    self.discovery_next_actions = promoted.receipt.next_actions;
+                    self.selected_discovery_lead = None;
+                    self.discovery_suggestions = None;
+                    let mut refresh_errors = Vec::new();
+                    match promoted.jobs {
+                        Ok(jobs) => self.jobs = jobs.jobs,
+                        Err(error) => refresh_errors.push(error),
+                    }
+                    match promoted.discovery {
+                        Ok(discovery) => self.apply_discovery_workspace(discovery),
+                        Err(error) => {
+                            self.discovery_sources = None;
+                            self.discovery_leads = None;
+                            refresh_errors.push(error);
+                        }
+                    }
+                    self.notice = Some(if refresh_errors.is_empty() {
+                        (true, summary)
+                    } else {
+                        (
+                            false,
+                            match self.language {
+                                Language::English => format!(
+                                    "{summary}; current lists could not be refreshed: {}",
+                                    refresh_errors.join("; ")
+                                ),
+                                Language::SimplifiedChinese => format!(
+                                    "{summary}；但无法刷新当前列表：{}",
+                                    refresh_errors.join("；")
+                                ),
+                            },
+                        )
+                    });
                 }
                 Err(error) => self.fail(error),
             },
@@ -663,6 +858,13 @@ impl CanISendDesktop {
         self.workspace = None;
         self.health = None;
         self.jobs.clear();
+        self.discovery_sources = None;
+        self.discovery_leads = None;
+        self.selected_discovery_lead = None;
+        self.discovery_suggestions = None;
+        self.discovery_next_actions.clear();
+        self.discovery_import_form = DiscoveryImportForm::default();
+        self.discovery_refresh_form = DiscoveryRefreshForm::default();
         self.profile_sources = None;
         self.evidence_review_form = EvidenceReviewForm::default();
         self.criteria_match_form = CriteriaMatchForm::default();
@@ -693,6 +895,42 @@ impl CanISendDesktop {
                 include_archived,
             },
         );
+    }
+
+    fn load_discovery_catalog(&mut self, ctx: egui::Context) {
+        self.dispatch(
+            self.language.text("Loading discovery catalog"),
+            ctx,
+            WorkerRequest::LoadDiscoveryCatalog,
+        );
+    }
+
+    fn refresh_discovery_workspace(&mut self, ctx: egui::Context) {
+        let Some(path) = self.active_workspace.clone() else {
+            return;
+        };
+        self.dispatch(
+            self.language.text("Loading discovery workspace"),
+            ctx,
+            WorkerRequest::LoadDiscoveryWorkspace {
+                path,
+                include_history: self.discovery_include_history,
+            },
+        );
+    }
+
+    fn apply_discovery_workspace(&mut self, discovery: crate::worker::DiscoveryWorkspaceReadModel) {
+        self.selected_discovery_lead = self.selected_discovery_lead.as_ref().and_then(|selected| {
+            discovery
+                .leads
+                .leads
+                .iter()
+                .find(|lead| lead.id == selected.id)
+                .cloned()
+        });
+        self.discovery_suggestions = None;
+        self.discovery_sources = Some(discovery.sources);
+        self.discovery_leads = Some(discovery.leads);
     }
 
     fn refresh_profile_sources(&mut self, ctx: egui::Context) {
@@ -793,6 +1031,7 @@ impl eframe::App for CanISendDesktop {
                     .show(ui, |ui| match self.page {
                         Page::Overview => self.show_overview(ui),
                         Page::Jobs => self.show_jobs(ui),
+                        Page::Discovery => self.show_discovery(ui),
                         Page::Profile => self.show_profile(ui),
                         Page::Workspaces => self.show_workspaces(ui),
                         Page::CommandLine => self.show_command_line(ui),
@@ -903,6 +1142,10 @@ mod tests {
         assert_eq!(
             page_accessible_label(Page::Profile, Language::SimplifiedChinese),
             "个人资料内容"
+        );
+        assert_eq!(
+            page_accessible_label(Page::Discovery, Language::SimplifiedChinese),
+            "职位发现内容"
         );
     }
 
