@@ -401,6 +401,13 @@ fn native_workspace_commands_initialize_check_backup_and_restore() {
         restored.text(),
         "--json",
     ]);
+    let repair_result = run_json(&[
+        "--workspace",
+        restored.text(),
+        "workspace",
+        "repair",
+        "--json",
+    ]);
 
     assert_eq!(initialized["status"], "initialized");
     assert_eq!(
@@ -413,6 +420,20 @@ fn native_workspace_commands_initialize_check_backup_and_restore() {
         restore_result["data"]["workspace_id"],
         status["data"]["workspace_id"]
     );
+    assert_eq!(repair_result["data"]["repaired_projections"], 0);
+
+    let restore_conflict = run(&[
+        "workspace",
+        "restore",
+        backup.text(),
+        restored.text(),
+        "--json",
+    ]);
+    assert_eq!(restore_conflict.status.code(), Some(3));
+    let restore_conflict: Value =
+        serde_json::from_slice(&restore_conflict.stdout).expect("restore conflict JSON");
+    assert_eq!(restore_conflict["operation"], "workspace.restore");
+    assert_eq!(restore_conflict["error"]["code"], "input.path_rejected");
 }
 
 #[test]
@@ -706,6 +727,24 @@ fn workflow_cli_exposes_body_free_graph_modes_and_rerun() {
     ]);
     assert_eq!(running["data"]["stages"][1]["status"], "running");
     assert_eq!(running["data"]["stages"][1]["execution_mode"], "host-agent");
+    let missing_artifact = run(&[
+        "--workspace",
+        workspace.text(),
+        "workflow",
+        "complete",
+        "--job",
+        job_id,
+        "--stage",
+        "parse",
+        "--artifact",
+        "019f2f55-7c00-7000-8000-000000000002",
+        "--json",
+    ]);
+    assert_eq!(missing_artifact.status.code(), Some(4));
+    let missing_artifact: Value =
+        serde_json::from_slice(&missing_artifact.stdout).expect("artifact error JSON");
+    assert_eq!(missing_artifact["operation"], "workflow.complete");
+    assert_eq!(missing_artifact["error"]["code"], "workspace.conflict");
     let rerun = run_json(&[
         "--workspace",
         workspace.text(),

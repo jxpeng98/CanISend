@@ -10,7 +10,10 @@ use std::{
     str::FromStr,
 };
 
-use canisend_app::{Application, NetworkFetchConsent, PrivateReadConsent, WorkspaceInitPolicy};
+use canisend_app::{
+    Application, NetworkFetchConsent, PrivateReadConsent, WorkflowBeginRequest,
+    WorkflowCompleteRequest, WorkflowRerunRequest, WorkspaceInitPolicy,
+};
 use canisend_contracts::{
     AGENT_PROTOCOL, ActorKind, AgentContextBlocker, AgentContextData, AgentError, AgentResponse,
     CapabilitiesData, DocumentKind, EntityId, ErrorCode, ExecutionMode, ExitClass, NextAction,
@@ -28,10 +31,10 @@ use canisend_io::{
 };
 use canisend_resources::{AgentHost, ResourceError, ResourceId, ResourceKind, export_agent_pack};
 use canisend_store::{
-    AgentContextService, ArtifactService, CriteriaService, DiscoveryService, DocumentService,
-    EvidenceService, MatchService, NewProfileSource, PackageService, PlanService, ProfileService,
-    ProjectionService, RenderService, ReviewService, StoreError, TaskService, WorkflowService,
-    Workspace, current_utc_timestamp,
+    AgentContextService, CriteriaService, DiscoveryService, DocumentService, EvidenceService,
+    MatchService, NewProfileSource, PackageService, PlanService, ProfileService, ProjectionService,
+    RenderService, ReviewService, StoreError, TaskService, WorkflowService, Workspace,
+    current_utc_timestamp,
 };
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use serde_json::json;
@@ -1828,11 +1831,10 @@ fn workspace_backup(
 }
 
 fn workspace_restore(backup: PathBuf, destination: PathBuf) -> CommandResult<CommandOutput> {
-    let workspace = Workspace::restore(&backup, &destination)
-        .map_err(|error| store_failure("workspace.restore", error))?;
-    let data = workspace
-        .status()
-        .map_err(|error| store_failure("workspace.restore", error))?;
+    let data = Application::restore_workspace(&backup, &destination)
+        .map_err(|error| app_adapter::failure("workspace.restore", error))?
+        .data
+        .workspace;
     success(
         "workspace.restore",
         "restored",
@@ -1845,17 +1847,11 @@ fn workspace_restore(backup: PathBuf, destination: PathBuf) -> CommandResult<Com
 }
 
 fn workspace_repair(workspace_path: Option<PathBuf>) -> CommandResult<CommandOutput> {
-    let mut workspace = open_workspace(workspace_path, "workspace.repair")?;
-    let repaired = {
-        let mut service = ProjectionService::new(
-            &mut workspace.database,
-            &workspace.blobs,
-            &workspace.paths.root,
-        );
-        service
-            .repair_all()
-            .map_err(|error| store_failure("workspace.repair", error))?
-    };
+    let root = app_adapter::workspace_root(workspace_path, "workspace.repair")?;
+    let repaired = Application::repair_workspace(&root)
+        .map_err(|error| app_adapter::failure("workspace.repair", error))?
+        .data
+        .repaired_projections;
     success(
         "workspace.repair",
         "repaired",
@@ -3452,10 +3448,18 @@ fn workflow_begin(
     let job_id = parse_entity_id("workflow.begin", &arguments.job)?;
     let stage = WorkflowStage::from(arguments.stage);
     let mode = ExecutionMode::from(arguments.mode);
-    let mut workspace = open_workspace(workspace_path, "workflow.begin")?;
-    let status = WorkflowService::new(&mut workspace.database)
-        .begin_stage(&job_id, stage, mode, ActorKind::User)
-        .map_err(|error| store_failure("workflow.begin", error))?;
+    let root = app_adapter::workspace_root(workspace_path, "workflow.begin")?;
+    let status = Application::begin_workflow_stage(
+        &root,
+        WorkflowBeginRequest {
+            job_id,
+            stage,
+            mode,
+        },
+    )
+    .map_err(|error| app_adapter::failure("workflow.begin", error))?
+    .data
+    .status;
     workflow_command_output("workflow.begin", "begun", status)
 }
 
@@ -3466,19 +3470,18 @@ fn workflow_complete(
     let job_id = parse_entity_id("workflow.complete", &arguments.job)?;
     let artifact_id = parse_entity_id("workflow.complete", &arguments.artifact)?;
     let stage = WorkflowStage::from(arguments.stage);
-    let mut workspace = open_workspace(workspace_path, "workflow.complete")?;
-    let artifact = ArtifactService::new(
-        &mut workspace.database,
-        &workspace.blobs,
-        &workspace.paths.root,
+    let root = app_adapter::workspace_root(workspace_path, "workflow.complete")?;
+    let receipt = Application::complete_workflow_stage(
+        &root,
+        WorkflowCompleteRequest {
+            job_id,
+            stage,
+            artifact_id,
+        },
     )
-    .reference(&artifact_id)
-    .map_err(|error| store_failure("workflow.complete", error))?;
-    let status = WorkflowService::new(&mut workspace.database)
-        .complete_stage(&job_id, stage, &artifact, ActorKind::User)
-        .map_err(|error| store_failure("workflow.complete", error))?;
-    let mut output = workflow_command_output("workflow.complete", "complete", status)?;
-    output.response.artifacts.push(artifact);
+    .map_err(|error| app_adapter::failure("workflow.complete", error))?;
+    let mut output = workflow_command_output("workflow.complete", "complete", receipt.data.status)?;
+    output.response.artifacts = receipt.artifacts;
     Ok(output)
 }
 
@@ -3488,10 +3491,11 @@ fn workflow_rerun(
 ) -> CommandResult<CommandOutput> {
     let job_id = parse_entity_id("workflow.rerun", &arguments.job)?;
     let stage = WorkflowStage::from(arguments.stage);
-    let mut workspace = open_workspace(workspace_path, "workflow.rerun")?;
-    let status = WorkflowService::new(&mut workspace.database)
-        .rerun(&job_id, stage, ActorKind::User)
-        .map_err(|error| store_failure("workflow.rerun", error))?;
+    let root = app_adapter::workspace_root(workspace_path, "workflow.rerun")?;
+    let status = Application::rerun_workflow_stage(&root, WorkflowRerunRequest { job_id, stage })
+        .map_err(|error| app_adapter::failure("workflow.rerun", error))?
+        .data
+        .status;
     workflow_command_output("workflow.rerun", "ready", status)
 }
 
