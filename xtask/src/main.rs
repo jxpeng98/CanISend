@@ -19,6 +19,7 @@ use time::{Duration, OffsetDateTime, format_description::well_known::Rfc3339};
 
 const RELEASE_TARGET_SCHEMA: &str = "canisend.release-targets/v1";
 const RELEASE_MANIFEST_SCHEMA: &str = "canisend.release-manifest/v1";
+const NATIVE_TEST_OWNERSHIP_SCHEMA: &str = "canisend.native-test-ownership/v1";
 const BETA_READINESS_SCHEMA: &str = "canisend.beta-readiness/v1";
 const BETA_CONTRACT_FREEZE_SCHEMA: &str = "canisend.beta-contract-freeze/v1";
 const CHANNEL_CANDIDATE_SOURCE_SCHEMA: &str = "canisend.channel-candidate-source/v1";
@@ -97,6 +98,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
             check_release_qualification()?;
             check_cli_gui_parity()?;
             check_alpha_package_contract()?;
+            check_native_test_ownership()?;
             check_release_contract()
         }
         [area, command] if area == "release" && command == "freeze-candidate" => {
@@ -3350,6 +3352,214 @@ fn check_dependency_table(
             ));
         }
     }
+    Ok(())
+}
+
+fn check_native_test_ownership() -> Result<(), String> {
+    let root = repository_root();
+    let policy_path = root.join("release/native-test-ownership.json");
+    let policy: Value = serde_json::from_slice(&fs::read(&policy_path).map_err(|error| {
+        format!(
+            "native test ownership policy is missing at {}: {error}",
+            policy_path.display()
+        )
+    })?)
+    .map_err(|error| format!("native test ownership policy is invalid JSON: {error}"))?;
+    let expected = json!({
+        "schema": NATIVE_TEST_OWNERSHIP_SCHEMA,
+        "source_gate": {
+            "command": "cargo test --workspace --locked",
+            "property_contract_command":
+                "cargo test -p canisend-contracts --locked --test property_contract",
+            "runner": "ubuntu-24.04",
+            "runs_per_candidate": 1
+        },
+        "candidate_native_matrix": {
+            "common_gates": [
+                "locked-release-build",
+                "exact-extracted-archive-binary",
+                "version-and-doctor",
+                "documented-quickstart",
+                "host-agent-smoke",
+                "isolated-install-uninstall-workspace-retention"
+            ],
+            "targets": [
+                {
+                    "owned_gates": [
+                        "native-runner-architecture",
+                        "tar-gzip-archive",
+                        "apple-adhoc-signing-beta-plus"
+                    ],
+                    "runner": "macos-15",
+                    "target": "aarch64-apple-darwin"
+                },
+                {
+                    "owned_gates": [
+                        "native-runner-architecture",
+                        "tar-gzip-archive",
+                        "apple-adhoc-signing-beta-plus",
+                        "intel-gui-compile-only"
+                    ],
+                    "runner": "macos-15-intel",
+                    "target": "x86_64-apple-darwin"
+                },
+                {
+                    "owned_gates": [
+                        "native-runner-architecture",
+                        "tar-gzip-archive",
+                        "release-performance-budget",
+                        "full-synthetic-workflow-budget"
+                    ],
+                    "runner": "ubuntu-24.04",
+                    "target": "x86_64-unknown-linux-gnu"
+                },
+                {
+                    "owned_gates": [
+                        "native-runner-architecture",
+                        "tar-gzip-archive",
+                        "musl-linker"
+                    ],
+                    "runner": "ubuntu-24.04",
+                    "target": "x86_64-unknown-linux-musl"
+                },
+                {
+                    "owned_gates": [
+                        "native-runner-architecture",
+                        "zip-archive",
+                        "powershell-parser",
+                        "authenticode-self-signed-beta-plus"
+                    ],
+                    "runner": "windows-2025",
+                    "target": "x86_64-pc-windows-msvc"
+                }
+            ],
+            "timing_evidence_schema": "canisend.native-release-timing/v1",
+            "workspace_suite_repeated_per_target": false
+        },
+        "desktop_gui": {
+            "owned_gates": [
+                "locked-cli-gui-release-build",
+                "bounded-app-archive",
+                "nested-and-outer-adhoc-signatures",
+                "exact-companion-integrity",
+                "packaged-cli-workflows",
+                "packaged-gui-launch"
+            ],
+            "runner": "macos-15",
+            "target": "aarch64-apple-darwin",
+            "timing_evidence_schema": "canisend.native-release-timing/v1"
+        },
+        "extended_assurance": [
+            {
+                "owner": "ci/recovery-native",
+                "scope": "cross-platform recovery and concurrency"
+            },
+            {
+                "owner": "ci/render-native",
+                "scope": "cross-platform rendering, staged quickstart, and performance"
+            },
+            {
+                "owner": "fuzz/scheduled",
+                "scope": "extended malformed-input fuzzing"
+            }
+        ]
+    });
+    if policy != expected {
+        return Err(
+            "native test ownership policy contains unknown, missing, or noncanonical fields"
+                .to_owned(),
+        );
+    }
+
+    let release_targets = release_targets()?
+        .into_iter()
+        .map(|target| (target.triple, target.runner))
+        .collect::<BTreeSet<_>>();
+    let policy_targets = policy["candidate_native_matrix"]["targets"]
+        .as_array()
+        .ok_or_else(|| "native test ownership targets are missing".to_owned())?
+        .iter()
+        .map(|target| {
+            Ok((
+                required_string(target, "target", "native test ownership target")?.to_owned(),
+                required_string(target, "runner", "native test ownership target")?.to_owned(),
+            ))
+        })
+        .collect::<Result<BTreeSet<_>, String>>()?;
+    if release_targets != policy_targets {
+        return Err("native test ownership targets do not match release targets".to_owned());
+    }
+
+    let workflow_path = root.join(".github/workflows/release.yml");
+    let workflow = fs::read_to_string(&workflow_path)
+        .map_err(|error| format!("release workflow is missing: {error}"))?;
+    let source_suite = "cargo test --workspace --locked";
+    if workflow.matches(source_suite).count() != 1 {
+        return Err(
+            "release workflow must run the complete locked workspace suite exactly once".to_owned(),
+        );
+    }
+    if workflow.contains("cargo test --workspace --locked --target") {
+        return Err(
+            "release native matrix must not repeat the complete workspace suite per target"
+                .to_owned(),
+        );
+    }
+    for required in [
+        "Run native release timing regression",
+        "./scripts/test_native_release_timing.sh",
+        "./scripts/write_native_release_timing.sh",
+        "Smoke exact extracted release archive",
+        "Check release performance budgets",
+        "Check full synthetic workflow budget",
+        "Build compile-only Intel macOS GUI",
+        "Parse Windows release signing verifier",
+        "Install musl linker",
+        "Package exact ad-hoc-signed macOS application",
+        "Smoke exact extracted macOS application archive",
+    ] {
+        if !workflow.contains(required) {
+            return Err(format!(
+                "release workflow is missing native test owner `{required}`"
+            ));
+        }
+    }
+    if workflow
+        .matches("${{ runner.temp }}/release-timing/*.json")
+        .count()
+        != 2
+    {
+        return Err(
+            "release workflow must upload CLI and desktop timing evidence exactly once each"
+                .to_owned(),
+        );
+    }
+
+    let timing_script = fs::read_to_string(root.join("scripts/write_native_release_timing.sh"))
+        .map_err(|error| format!("native release timing writer is missing: {error}"))?;
+    for required in [
+        "canisend.native-release-timing/v1",
+        "workspace_suite_repeated_on_target: false",
+        "authoritative_release_evidence: false",
+    ] {
+        if !timing_script.contains(required) {
+            return Err(format!(
+                "native release timing writer is missing invariant `{required}`"
+            ));
+        }
+    }
+    for required in [
+        "scripts/test_native_release_timing.sh",
+        "docs/release/native-test-ownership.md",
+    ] {
+        if !root.join(required).is_file() {
+            return Err(format!("native test ownership file is missing: {required}"));
+        }
+    }
+    println!(
+        "native test ownership: ok (one source suite, {} CLI targets, one desktop package)",
+        policy_targets.len()
+    );
     Ok(())
 }
 
@@ -9331,6 +9541,11 @@ mod tests {
                 .len(),
             5
         );
+    }
+
+    #[test]
+    fn native_test_ownership_runs_the_source_suite_once() {
+        check_native_test_ownership().expect("native test ownership policy");
     }
 
     #[test]

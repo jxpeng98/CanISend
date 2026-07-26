@@ -124,6 +124,10 @@ jobs:
       - name: Run generated property contracts
         run: cargo test -p canisend-contracts --locked --test property_contract
 
+      - name: Run native release timing regression
+        shell: bash
+        run: ./scripts/test_native_release_timing.sh
+
       - name: Check release contracts, schemas, resources, and documentation
         run: cargo run -p xtask --locked -- release check
 
@@ -205,11 +209,18 @@ jobs:
         with:
           key: release-${{ matrix.target }}
 
-      - name: Test target workspace
-        run: cargo test --workspace --locked --target ${{ matrix.target }}
+      - name: Start native release timing
+        id: timing_start
+        shell: bash
+        run: echo "epoch=$(date +%s)" >> "$GITHUB_OUTPUT"
 
       - name: Build native release binary
         run: cargo build --release --locked --target ${{ matrix.target }} -p canisend-cli
+
+      - name: Record release build timing boundary
+        id: timing_build
+        shell: bash
+        run: echo "epoch=$(date +%s)" >> "$GITHUB_OUTPUT"
 
       - name: Build compile-only Intel macOS GUI
         if: matrix.target == 'x86_64-apple-darwin'
@@ -322,6 +333,11 @@ jobs:
               ;;
           esac
 
+      - name: Record package timing start
+        id: timing_package_start
+        shell: bash
+        run: echo "epoch=$(date +%s)" >> "$GITHUB_OUTPUT"
+
       - name: Create platform archive with notices
         shell: bash
         run: |
@@ -329,6 +345,11 @@ jobs:
             "${{ matrix.binary }}" \
             "${{ matrix.target }}" \
             "$RUNNER_TEMP/release-package"
+
+      - name: Record package timing boundary
+        id: timing_package_done
+        shell: bash
+        run: echo "epoch=$(date +%s)" >> "$GITHUB_OUTPUT"
 
       - name: Smoke exact extracted release archive
         shell: bash
@@ -344,6 +365,27 @@ jobs:
             "${{ needs.release-identity.outputs.tag }}" \
             "${{ matrix.environment }}" \
             "$RUNNER_TEMP/documentation-uninstall-${{ matrix.target }}.json"
+
+      - name: Record native release timing evidence
+        shell: bash
+        run: |
+          completed_epoch="$(date +%s)"
+          completed_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+          version="${{ needs.release-identity.outputs.tag }}"
+          version="${version#v}"
+          ./scripts/write_native_release_timing.sh \
+            "${{ needs.release-identity.outputs.tag }}" \
+            "${{ needs.release-identity.outputs.commit }}" \
+            cli \
+            "${{ matrix.target }}" \
+            "${{ matrix.environment }}" \
+            "${{ steps.timing_start.outputs.epoch }}" \
+            "${{ steps.timing_build.outputs.epoch }}" \
+            "${{ steps.timing_package_start.outputs.epoch }}" \
+            "${{ steps.timing_package_done.outputs.epoch }}" \
+            "$completed_epoch" \
+            "$completed_at" \
+            "$RUNNER_TEMP/release-timing/canisend-$version-${{ matrix.target }}-timing.json"
 
       - name: Bind signing evidence to the final archive
         if: needs.release-identity.outputs.stage != 'alpha' && (contains(matrix.target, 'apple-darwin') || matrix.target == 'x86_64-pc-windows-msvc')
@@ -369,6 +411,7 @@ jobs:
             ${{ runner.temp }}/signing-evidence/*.json
             ${{ runner.temp }}/gui-compilation-evidence/*.json
             ${{ runner.temp }}/documentation-uninstall-${{ matrix.target }}.json
+            ${{ runner.temp }}/release-timing/*.json
           if-no-files-found: error
           retention-days: 14
 
@@ -395,10 +438,25 @@ jobs:
         with:
           key: release-macos-gui-aarch64
 
+      - name: Start desktop release timing
+        id: timing_start
+        shell: bash
+        run: echo "epoch=$(date +%s)" >> "$GITHUB_OUTPUT"
+
       - name: Build version-matched macOS GUI and CLI
         run: >-
           cargo build --release --locked --target aarch64-apple-darwin
           -p canisend-cli -p canisend-gui
+
+      - name: Record desktop build timing boundary
+        id: timing_build
+        shell: bash
+        run: echo "epoch=$(date +%s)" >> "$GITHUB_OUTPUT"
+
+      - name: Record desktop package timing start
+        id: timing_package_start
+        shell: bash
+        run: echo "epoch=$(date +%s)" >> "$GITHUB_OUTPUT"
 
       - name: Package exact ad-hoc-signed macOS application
         shell: bash
@@ -407,6 +465,11 @@ jobs:
             target/aarch64-apple-darwin/release/canisend-gui \
             target/aarch64-apple-darwin/release/canisend \
             "$RUNNER_TEMP/macos-gui-release"
+
+      - name: Record desktop package timing boundary
+        id: timing_package_done
+        shell: bash
+        run: echo "epoch=$(date +%s)" >> "$GITHUB_OUTPUT"
 
       - name: Smoke exact extracted macOS application archive
         shell: bash
@@ -422,6 +485,27 @@ jobs:
             "macos-15" \
             "$evidence"
 
+      - name: Record desktop release timing evidence
+        shell: bash
+        run: |
+          completed_epoch="$(date +%s)"
+          completed_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+          version="${{ needs.release-identity.outputs.tag }}"
+          version="${version#v}"
+          ./scripts/write_native_release_timing.sh \
+            "${{ needs.release-identity.outputs.tag }}" \
+            "${{ needs.release-identity.outputs.commit }}" \
+            desktop-gui \
+            aarch64-apple-darwin \
+            macos-15 \
+            "${{ steps.timing_start.outputs.epoch }}" \
+            "${{ steps.timing_build.outputs.epoch }}" \
+            "${{ steps.timing_package_start.outputs.epoch }}" \
+            "${{ steps.timing_package_done.outputs.epoch }}" \
+            "$completed_epoch" \
+            "$completed_at" \
+            "$RUNNER_TEMP/release-timing/CanISend-$version-aarch64-apple-darwin-gui-timing.json"
+
       - name: Upload verified macOS GUI archive and qualification
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -429,6 +513,7 @@ jobs:
           path: |
             ${{ runner.temp }}/macos-gui-release/CanISend-*.zip
             ${{ runner.temp }}/macos-gui-release/CanISend-*-qualification.json
+            ${{ runner.temp }}/release-timing/*.json
           if-no-files-found: error
           retention-days: 14
 

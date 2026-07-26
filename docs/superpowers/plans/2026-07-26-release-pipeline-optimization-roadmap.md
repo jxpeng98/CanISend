@@ -1,6 +1,6 @@
 # CanISend release-pipeline optimization roadmap
 
-**Status:** Stage 1 implemented and locally verified; live exercise waits for the next version
+**Status:** Stage 2 implemented locally; next candidate measurement remains pending
 
 **Decision date:** 2026-07-26
 
@@ -130,13 +130,14 @@ the smallest native test that proves each platform claim.
 
 ### Implementation tasks
 
-- [ ] Inventory every target-sensitive test and assign it to one explicit owner.
-- [ ] Replace `cargo test --workspace --target TARGET` in the release matrix with the bounded
+- [x] Inventory every target-sensitive test and assign it to one explicit owner.
+- [x] Replace `cargo test --workspace --target TARGET` in the release matrix with the bounded
   platform-owned test or smoke set.
-- [ ] Keep a scheduled cross-target test workflow for regressions that are valuable but not
+- [x] Keep a scheduled cross-target test workflow for regressions that are valuable but not
   release-critical.
-- [ ] Add source checks that reject a native target with neither a platform test nor archive smoke.
-- [ ] Record per-job build, test, package, and smoke duration in a body-free timing artifact.
+- [x] Add source checks that reject a native target with neither a platform test nor archive smoke.
+- [x] Record per-job build, target-specific validation, package, and smoke duration in a body-free
+  timing artifact.
 - [ ] Compare two candidate runs before accepting the new partition.
 
 **Exit:** No claimed native behavior loses its owning test, while Windows and Intel runners no
