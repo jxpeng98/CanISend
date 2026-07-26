@@ -4,6 +4,7 @@ mod application;
 mod cli_install;
 mod error;
 mod job;
+mod profile;
 mod receipt;
 mod system;
 mod update;
@@ -16,6 +17,7 @@ pub use cli_install::{
 };
 pub use error::{ApplicationError, ApplicationFailure};
 pub use job::{JobDetailReadModel, JobListReadModel, SourceImportReadModel};
+pub use profile::{ProfileSourceImportReadModel, ProfileSourceListReadModel};
 pub use receipt::ActionReceipt;
 pub use system::{DoctorSummary, ProductSummary};
 pub use update::UpdateCheckReadModel;
