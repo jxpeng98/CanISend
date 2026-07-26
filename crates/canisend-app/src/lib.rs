@@ -2,6 +2,7 @@
 
 mod application;
 mod cli_install;
+mod decision;
 mod error;
 mod job;
 mod profile;
