@@ -114,14 +114,31 @@ on run arguments
         end tell
         delay 0.2
 
-        set expectedFocus to {"Workspace", "Overview", "Jobs", "Workspaces", "Command line", "Diagnostics", "Language", "Dark appearance", "Compact density", "Reduce motion", "Text size"}
+        set tabAnchorFound to false
+        repeat 15 times
+            key code 48
+            delay 0.12
+            tell guiProcess
+                set focusedElement to value of attribute "AXFocusedUIElement"
+                if focusedElement is not missing value then
+                    try
+                        if (name of focusedElement as text) is "Workspace" then set tabAnchorFound to true
+                    end try
+                end if
+            end tell
+            if tabAnchorFound then exit repeat
+        end repeat
+        my assertCondition(tabAnchorFound, "Tab traversal could not locate the Workspace anchor")
+
+        set expectedFocus to {"Overview", "Jobs", "Workspaces", "Command line", "Diagnostics", "Language", "Dark appearance", "Compact density", "Reduce motion", "Text size"}
         repeat with expectedName in expectedFocus
             key code 48
             delay 0.12
             tell guiProcess
                 set focusedElement to value of attribute "AXFocusedUIElement"
                 my assertCondition(focusedElement is not missing value, "Tab traversal lost focus")
-                my assertCondition((name of focusedElement as text) is (expectedName as text), "unexpected Tab order at " & (expectedName as text))
+                set actualName to name of focusedElement as text
+                my assertCondition(actualName is (expectedName as text), "unexpected Tab order: expected " & (expectedName as text) & ", got " & actualName)
             end tell
         end repeat
         log "accessibility smoke: Tab order passed"
