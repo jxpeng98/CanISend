@@ -10,26 +10,29 @@ use std::{
 use crate::{
     cli_bridge::{bundled_cli_path, default_cli_destination},
     components::{
-        accessible_error, accessible_heading, accessible_live_region, cli_state_style,
-        command_copy_row, diagnostic_row, keep_focused_visible, localized_receipt_summary,
-        localized_workspace_alias_error, metric_card, page_accessible_label, paint_focus_ring,
-        set_accesskit_role, source_kind_label, validate_job_form, workflow_timeline,
+        WorkflowTimelineAction, accessible_error, accessible_heading, accessible_live_region,
+        cli_state_style, command_copy_row, diagnostic_row, execution_mode_label,
+        keep_focused_visible, localized_receipt_summary, localized_workspace_alias_error,
+        metric_card, page_accessible_label, paint_focus_ring, set_accesskit_role,
+        source_kind_label, stage_label, validate_job_form, workflow_control_timeline,
+        workflow_timeline,
     },
     i18n::{self, Language},
     registry::{WorkspaceRegistry, default_registry_path, validate_workspace_alias},
     state::{
         FocusTarget, GuiPreferences, ImportForm, ImportKind, JobForm, Page, PendingConfirmation,
-        RestoreWorkspaceForm, WorkspaceForm,
+        RestoreWorkspaceForm, WorkflowActionForm, WorkspaceForm, parse_workflow_artifact_id,
     },
     theme,
     worker::{WorkerEvent, WorkerRequest, execute},
 };
 use canisend_app::{
     Application, DoctorSummary, JobDetailReadModel, ProductSummary, UpdateCheckReadModel,
+    WorkflowBeginRequest, WorkflowCompleteRequest, WorkflowControlReadModel, WorkflowRerunRequest,
     WorkspaceHealthReadModel, WorkspaceReadModel,
 };
 use canisend_app::{CliInstallState, CliInstallStatus, CliVersionRelation};
-use canisend_contracts::JobRecord;
+use canisend_contracts::{ArtifactKind, EntityId, ExecutionMode, JobRecord, WorkflowStage};
 use eframe::egui::{self, Align, Color32, Layout, RichText, Sense, Stroke};
 
 const APP_ID: &str = "io.github.jxpeng98.canisend";
@@ -97,6 +100,8 @@ struct CanISendDesktop {
     job_filter: String,
     selected_job: Option<JobDetailReadModel>,
     selected_job_id: Option<String>,
+    workflow_controls: Option<WorkflowControlReadModel>,
+    workflow_action_form: Option<WorkflowActionForm>,
     page: Page,
     job_form: JobForm,
     show_job_form: bool,
@@ -157,6 +162,8 @@ impl CanISendDesktop {
             job_filter: String::new(),
             selected_job: None,
             selected_job_id: None,
+            workflow_controls: None,
+            workflow_action_form: None,
             page: Page::Overview,
             job_form: JobForm::default(),
             show_job_form: false,
@@ -339,8 +346,15 @@ impl CanISendDesktop {
             },
             WorkerEvent::JobLoaded(result) => match result {
                 Ok(receipt) => {
-                    self.selected_job_id = Some(receipt.data.job.id.to_string());
+                    let job_id = receipt.data.job.id.to_string();
+                    let has_workflow = receipt.data.workflow.is_some();
+                    self.selected_job_id = Some(job_id.clone());
                     self.selected_job = Some(receipt.data);
+                    if has_workflow {
+                        self.load_workflow_controls(job_id, ctx.clone());
+                    } else {
+                        self.workflow_controls = None;
+                    }
                 }
                 Err(error) => self.fail(error),
             },
@@ -349,6 +363,8 @@ impl CanISendDesktop {
                     let summary = localized_receipt_summary(&receipt, self.language);
                     self.selected_job = None;
                     self.selected_job_id = None;
+                    self.workflow_controls = None;
+                    self.workflow_action_form = None;
                     self.notice = Some((true, summary));
                     self.refresh_jobs(ctx.clone());
                 }
@@ -368,10 +384,42 @@ impl CanISendDesktop {
             WorkerEvent::WorkflowLoaded(result) => match result {
                 Ok(receipt) => {
                     let summary = localized_receipt_summary(&receipt, self.language);
+                    let job_id = receipt.data.job_id.to_string();
                     if let Some(job) = self.selected_job.as_mut() {
                         job.workflow = Some(receipt.data);
                     }
                     self.notice = Some((true, summary));
+                    self.load_workflow_controls(job_id, ctx.clone());
+                }
+                Err(error) => self.fail(error),
+            },
+            WorkerEvent::WorkflowControlsLoaded(result) => match result {
+                Ok(receipt) => self.workflow_controls = Some(receipt.data),
+                Err(error) => self.fail(error),
+            },
+            WorkerEvent::WorkflowMutated(result) => match result {
+                Ok(receipt) => {
+                    let summary = localized_receipt_summary(&receipt, self.language);
+                    if let Some(job) = self.selected_job.as_mut() {
+                        job.workflow = Some(receipt.data.status.clone());
+                    }
+                    self.workflow_controls = Some(receipt.data);
+                    self.workflow_action_form = None;
+                    self.notice = Some((true, summary));
+                }
+                Err(error) => {
+                    if let Some(form) = self.workflow_action_form.as_mut() {
+                        form.set_error(error);
+                    } else {
+                        self.fail(error);
+                    }
+                }
+            },
+            WorkerEvent::WorkflowRerunPreviewed(result) => match result {
+                Ok(receipt) => {
+                    self.pending_confirmation = Some(PendingConfirmation::RerunWorkflow {
+                        preview: receipt.data,
+                    });
                 }
                 Err(error) => self.fail(error),
             },
@@ -432,6 +480,8 @@ impl CanISendDesktop {
         self.jobs.clear();
         self.selected_job = None;
         self.selected_job_id = None;
+        self.workflow_controls = None;
+        self.workflow_action_form = None;
         let _ = self.registry.touch(&path);
         self.save_registry();
         self.dispatch(
@@ -464,6 +514,17 @@ impl CanISendDesktop {
             self.language.text("Loading job"),
             ctx,
             WorkerRequest::LoadJob { path, id },
+        );
+    }
+
+    fn load_workflow_controls(&mut self, id: String, ctx: egui::Context) {
+        let Some(path) = self.active_workspace.clone() else {
+            return;
+        };
+        self.dispatch(
+            self.language.text("Loading workflow controls"),
+            ctx,
+            WorkerRequest::LoadWorkflowControls { path, id },
         );
     }
 }
@@ -526,6 +587,7 @@ impl eframe::App for CanISendDesktop {
         self.show_import_dialog(ui);
         self.show_workspace_dialog(ui);
         self.show_restore_workspace_dialog(ui);
+        self.show_workflow_action_dialog(ui);
         self.show_pending_confirmation(ui);
     }
 }

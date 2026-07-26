@@ -582,6 +582,8 @@ impl CanISendDesktop {
             {
                 self.selected_job = None;
                 self.selected_job_id = None;
+                self.workflow_controls = None;
+                self.workflow_action_form = None;
                 return;
             }
             ui.separator();
@@ -626,6 +628,8 @@ impl CanISendDesktop {
             }
         });
         ui.add_space(18.0);
+        let controls = self.workflow_controls.clone();
+        let mut workflow_action = None;
         ui.columns(2, |columns| {
             accessible_heading(&mut columns[0], self.language.text("Sources"), 2);
             columns[0].separator();
@@ -648,7 +652,22 @@ impl CanISendDesktop {
             accessible_heading(&mut columns[1], self.language.text("Workflow"), 2);
             columns[1].separator();
             if let Some(workflow) = &detail.workflow {
-                workflow_timeline(&mut columns[1], workflow, self.language);
+                if let Some(controls) = controls
+                    .as_ref()
+                    .filter(|controls| controls.status.run_id == workflow.run_id)
+                {
+                    workflow_action = workflow_control_timeline(
+                        &mut columns[1],
+                        controls,
+                        self.language,
+                        self.activity.is_some(),
+                    );
+                } else {
+                    workflow_timeline(&mut columns[1], workflow, self.language);
+                    columns[1].label(
+                        RichText::new(self.language.text("Loading workflow controls…")).weak(),
+                    );
+                }
             } else {
                 columns[1].label(self.language.text("Workflow has not started."));
                 columns[1].label(
@@ -658,14 +677,30 @@ impl CanISendDesktop {
             }
             columns[1].add_space(12.0);
             columns[1].label(
-                RichText::new(self.language.text("Alpha GUI scope"))
+                RichText::new(self.language.text("Workflow scope"))
                     .strong()
                     .color(theme::warning(self.dark_mode)),
             );
             columns[1].label(self.language.text(
-                "Stage begin/complete/rerun, criteria, evidence, documents, review, render, and export remain available through the CLI or Agent v2 until the Beta GUI.",
+                "Stage-specific artifact creation, plan confirmation, criteria, evidence, documents, review, render, and export remain available through the CLI or Agent v2.",
             ));
         });
+        if let Some(action) = workflow_action {
+            match action {
+                WorkflowTimelineAction::Begin { stage, modes } => {
+                    self.open_workflow_begin(stage, modes);
+                }
+                WorkflowTimelineAction::Complete {
+                    stage,
+                    expected_kind,
+                } => {
+                    self.open_workflow_complete(stage, expected_kind);
+                }
+                WorkflowTimelineAction::PreviewRerun { stage } => {
+                    self.preview_workflow_rerun(stage, ui.ctx().clone());
+                }
+            }
+        }
     }
 
     pub(super) fn show_workspaces(&mut self, ui: &mut egui::Ui) {

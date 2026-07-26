@@ -1,5 +1,8 @@
-use canisend_app::{ActionReceipt, CliInstallState, CliInstallStatus};
-use canisend_contracts::{SourceKind, StageExecutionStatus, WorkflowStage, WorkflowStatusData};
+use canisend_app::{ActionReceipt, CliInstallState, CliInstallStatus, WorkflowControlReadModel};
+use canisend_contracts::{
+    ArtifactKind, ExecutionMode, SourceKind, StageExecutionStatus, WorkflowStage,
+    WorkflowStatusData,
+};
 use eframe::egui::{self, Align, Color32, Layout, RichText, Sense, Stroke};
 
 use crate::{i18n::Language, state::Page, theme};
@@ -92,6 +95,9 @@ pub(crate) fn localized_receipt_summary<T>(
         "job.import" => "职位来源已导入",
         "workflow.start" => "工作流已启动",
         "workflow.status" => "工作流状态已更新",
+        "workflow.begin" => "工作流阶段已开始",
+        "workflow.complete" => "工作流阶段已完成",
+        "workflow.rerun" => "工作流阶段已重置并可重新执行",
         "cli.install" => "CanISend CLI 已安装或更新",
         "cli.uninstall" => "受管理的 CanISend CLI 已卸载",
         "product.update.check" => "CanISend 更新检查已完成",
@@ -190,6 +196,179 @@ pub(crate) fn workflow_timeline(
             ui.label(format!("{}: {}", blocker.code, blocker.description));
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum WorkflowTimelineAction {
+    Begin {
+        stage: WorkflowStage,
+        modes: Vec<ExecutionMode>,
+    },
+    Complete {
+        stage: WorkflowStage,
+        expected_kind: ArtifactKind,
+    },
+    PreviewRerun {
+        stage: WorkflowStage,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum WorkflowPrimaryAction {
+    Begin,
+    Complete,
+    Rerun,
+}
+
+#[must_use]
+pub(crate) fn workflow_primary_action(
+    stage: WorkflowStage,
+    status: StageExecutionStatus,
+) -> Option<WorkflowPrimaryAction> {
+    match status {
+        StageExecutionStatus::Ready => Some(WorkflowPrimaryAction::Begin),
+        StageExecutionStatus::Running | StageExecutionStatus::AwaitingUser
+            if stage != WorkflowStage::Plan =>
+        {
+            Some(WorkflowPrimaryAction::Complete)
+        }
+        StageExecutionStatus::Complete | StageExecutionStatus::Stale
+            if stage != WorkflowStage::Intake =>
+        {
+            Some(WorkflowPrimaryAction::Rerun)
+        }
+        StageExecutionStatus::Blocked
+        | StageExecutionStatus::Running
+        | StageExecutionStatus::AwaitingUser
+        | StageExecutionStatus::Complete
+        | StageExecutionStatus::Stale => None,
+    }
+}
+
+pub(crate) fn workflow_control_timeline(
+    ui: &mut egui::Ui,
+    controls: &WorkflowControlReadModel,
+    language: Language,
+    busy: bool,
+) -> Option<WorkflowTimelineAction> {
+    let mut requested = None;
+    for state in &controls.status.stages {
+        let descriptor = controls
+            .stage_descriptors
+            .iter()
+            .find(|descriptor| descriptor.stage == state.stage);
+        egui::Frame::new()
+            .fill(ui.visuals().faint_bg_color)
+            .corner_radius(5)
+            .inner_margin(egui::Margin::same(9))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    let (color, label) =
+                        stage_status_style(state.status, ui.visuals().dark_mode, language);
+                    let (rect, _) = ui.allocate_exact_size(egui::vec2(10.0, 10.0), Sense::hover());
+                    ui.painter().circle_filled(rect.center(), 5.0, color);
+                    ui.label(RichText::new(stage_label(state.stage, language)).strong());
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        ui.colored_label(color, label);
+                    });
+                });
+
+                if let Some(mode) = state.execution_mode {
+                    ui.label(format!(
+                        "{}: {}",
+                        language.text("Execution mode"),
+                        execution_mode_label(mode, language)
+                    ));
+                }
+                if let Some(output) = &state.output {
+                    ui.label(format!(
+                        "{}: {:?} · {} · r{}",
+                        language.text("Current output"),
+                        output.kind,
+                        output.id,
+                        output.revision.get()
+                    ));
+                } else if let Some(descriptor) = descriptor {
+                    ui.label(
+                        RichText::new(format!(
+                            "{}: {:?}",
+                            language.text("Expected output"),
+                            descriptor.output_kind
+                        ))
+                        .weak(),
+                    );
+                }
+                for blocker in controls
+                    .status
+                    .blockers
+                    .iter()
+                    .filter(|blocker| blocker.stage == state.stage)
+                {
+                    ui.label(
+                        RichText::new(format!("{}: {}", blocker.code, blocker.description))
+                            .color(theme::warning(ui.visuals().dark_mode)),
+                    );
+                }
+
+                if let (Some(primary), Some(descriptor)) = (
+                    workflow_primary_action(state.stage, state.status),
+                    descriptor,
+                ) {
+                    let label = match primary {
+                        WorkflowPrimaryAction::Begin => language.text("Begin stage"),
+                        WorkflowPrimaryAction::Complete => language.text("Complete stage"),
+                        WorkflowPrimaryAction::Rerun => language.text("Rerun stage"),
+                    };
+                    if ui.add_enabled(!busy, egui::Button::new(label)).clicked() {
+                        requested = Some(match primary {
+                            WorkflowPrimaryAction::Begin => WorkflowTimelineAction::Begin {
+                                stage: state.stage,
+                                modes: descriptor.execution_modes.clone(),
+                            },
+                            WorkflowPrimaryAction::Complete => WorkflowTimelineAction::Complete {
+                                stage: state.stage,
+                                expected_kind: descriptor.output_kind,
+                            },
+                            WorkflowPrimaryAction::Rerun => {
+                                WorkflowTimelineAction::PreviewRerun { stage: state.stage }
+                            }
+                        });
+                    }
+                } else if state.stage == WorkflowStage::Plan
+                    && matches!(
+                        state.status,
+                        StageExecutionStatus::Running | StageExecutionStatus::AwaitingUser
+                    )
+                {
+                    ui.label(
+                        RichText::new(language.text(
+                            "Plan confirmation remains available through the CLI or Agent v2.",
+                        ))
+                        .weak(),
+                    );
+                }
+            });
+        ui.add_space(6.0);
+    }
+
+    if !controls.status.next_actions.is_empty() {
+        ui.add_space(6.0);
+        ui.label(RichText::new(language.text("Next actions")).strong());
+        for action in &controls.status.next_actions {
+            ui.label(format!("{} — {}", action.action, action.description));
+        }
+    }
+    requested
+}
+
+pub(crate) fn execution_mode_label(mode: ExecutionMode, language: Language) -> &'static str {
+    language.text(match mode {
+        ExecutionMode::Deterministic => "Deterministic",
+        ExecutionMode::HostAgent => "Host agent",
+        ExecutionMode::ConfiguredProvider => "Configured provider",
+        ExecutionMode::UserDecision => "User decision",
+        ExecutionMode::ManualImport => "Manual import",
+    })
 }
 
 pub(crate) fn stage_status_style(
@@ -293,4 +472,47 @@ pub(crate) fn command_copy_row(ui: &mut egui::Ui, command: &str, language: Langu
             });
         });
     ui.add_space(6.0);
+}
+
+#[cfg(test)]
+mod tests {
+    use canisend_contracts::{StageExecutionStatus, WorkflowStage};
+
+    use super::{WorkflowPrimaryAction, workflow_primary_action};
+
+    #[test]
+    fn workflow_actions_follow_authoritative_stage_state() {
+        assert_eq!(
+            workflow_primary_action(WorkflowStage::Parse, StageExecutionStatus::Ready),
+            Some(WorkflowPrimaryAction::Begin)
+        );
+        assert_eq!(
+            workflow_primary_action(WorkflowStage::Parse, StageExecutionStatus::Running),
+            Some(WorkflowPrimaryAction::Complete)
+        );
+        assert_eq!(
+            workflow_primary_action(WorkflowStage::Criteria, StageExecutionStatus::AwaitingUser),
+            Some(WorkflowPrimaryAction::Complete)
+        );
+        assert_eq!(
+            workflow_primary_action(WorkflowStage::Parse, StageExecutionStatus::Complete),
+            Some(WorkflowPrimaryAction::Rerun)
+        );
+        assert_eq!(
+            workflow_primary_action(WorkflowStage::Parse, StageExecutionStatus::Stale),
+            Some(WorkflowPrimaryAction::Rerun)
+        );
+        assert_eq!(
+            workflow_primary_action(WorkflowStage::Parse, StageExecutionStatus::Blocked),
+            None
+        );
+        assert_eq!(
+            workflow_primary_action(WorkflowStage::Intake, StageExecutionStatus::Complete),
+            None
+        );
+        assert_eq!(
+            workflow_primary_action(WorkflowStage::Plan, StageExecutionStatus::AwaitingUser),
+            None
+        );
+    }
 }

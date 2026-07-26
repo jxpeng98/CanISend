@@ -593,6 +593,200 @@ impl CanISendDesktop {
             self.activity.is_some() || (open && self.show_restore_workspace_form);
     }
 
+    pub(super) fn open_workflow_begin(&mut self, stage: WorkflowStage, modes: Vec<ExecutionMode>) {
+        let Some(selected_mode) = modes.first().copied() else {
+            self.fail(
+                self.language
+                    .text("This stage has no supported execution mode.")
+                    .to_owned(),
+            );
+            return;
+        };
+        self.workflow_action_form = Some(WorkflowActionForm::Begin {
+            stage,
+            modes,
+            selected_mode,
+            error: None,
+        });
+    }
+
+    pub(super) fn open_workflow_complete(
+        &mut self,
+        stage: WorkflowStage,
+        expected_kind: ArtifactKind,
+    ) {
+        self.workflow_action_form = Some(WorkflowActionForm::Complete {
+            stage,
+            expected_kind,
+            artifact_id: String::new(),
+            error: None,
+        });
+        self.pending_focus = Some(FocusTarget::WorkflowArtifact);
+    }
+
+    pub(super) fn preview_workflow_rerun(&mut self, stage: WorkflowStage, ctx: egui::Context) {
+        let (Some(path), Some(id)) = (self.active_workspace.clone(), self.selected_job_id.clone())
+        else {
+            return;
+        };
+        self.dispatch(
+            self.language.text("Preparing rerun preview"),
+            ctx,
+            WorkerRequest::PreviewWorkflowRerun { path, id, stage },
+        );
+    }
+
+    pub(super) fn show_workflow_action_dialog(&mut self, ui: &mut egui::Ui) {
+        let Some(mut form) = self.workflow_action_form.take() else {
+            return;
+        };
+        let mut submit = false;
+        let mut cancel = false;
+        let title = match &form {
+            WorkflowActionForm::Begin { .. } => self.language.text("Begin workflow stage"),
+            WorkflowActionForm::Complete { .. } => self.language.text("Complete workflow stage"),
+        };
+        egui::Window::new(title)
+            .collapsible(false)
+            .resizable(false)
+            .default_width(560.0)
+            .show(ui.ctx(), |ui| {
+                match &mut form {
+                    WorkflowActionForm::Begin {
+                        stage,
+                        modes,
+                        selected_mode,
+                        error,
+                    } => {
+                        accessible_heading(
+                            ui,
+                            &format!(
+                                "{}: {}",
+                                self.language.text("Stage"),
+                                stage_label(*stage, self.language)
+                            ),
+                            2,
+                        );
+                        ui.label(self.language.text(
+                            "Choose one execution mode supported by the compiled stage descriptor.",
+                        ));
+                        egui::ComboBox::from_label(self.language.text("Execution mode"))
+                            .selected_text(execution_mode_label(*selected_mode, self.language))
+                            .show_ui(ui, |ui| {
+                                for mode in modes.iter().copied() {
+                                    ui.selectable_value(
+                                        selected_mode,
+                                        mode,
+                                        execution_mode_label(mode, self.language),
+                                    );
+                                }
+                            });
+                        if let Some(job_id) = &self.selected_job_id {
+                            command_copy_row(
+                                ui,
+                                &format!(
+                                    "canisend workflow begin --job {job_id} --stage {} --mode {}",
+                                    stage.as_str(),
+                                    execution_mode_slug(*selected_mode)
+                                ),
+                                self.language,
+                            );
+                        }
+                        if let Some(error) = error {
+                            accessible_error(ui, theme::error(self.dark_mode), error);
+                        }
+                    }
+                    WorkflowActionForm::Complete {
+                        stage,
+                        expected_kind,
+                        artifact_id,
+                        error,
+                    } => {
+                        accessible_heading(
+                            ui,
+                            &format!(
+                                "{}: {}",
+                                self.language.text("Stage"),
+                                stage_label(*stage, self.language)
+                            ),
+                            2,
+                        );
+                        ui.label(format!(
+                            "{}: {expected_kind:?}",
+                            self.language.text("Expected output")
+                        ));
+                        ui.label(self.language.text(
+                            "Enter the current artifact UUIDv7. CanISend resolves and validates its kind, revision, and digest from the workspace.",
+                        ));
+                        let artifact_label = ui.label(self.language.text("Artifact ID"));
+                        let response = ui
+                            .add_enabled(
+                                self.activity.is_none(),
+                                egui::TextEdit::singleline(artifact_id)
+                                    .hint_text("019f…")
+                                    .desired_width(f32::INFINITY),
+                            )
+                            .labelled_by(artifact_label.id);
+                        if self.pending_focus == Some(FocusTarget::WorkflowArtifact) {
+                            response.request_focus();
+                            self.pending_focus = None;
+                        }
+                        if response.changed() {
+                            *error = None;
+                        }
+                        if let Some(job_id) = &self.selected_job_id {
+                            command_copy_row(
+                                ui,
+                                &format!(
+                                    "canisend workflow complete --job {job_id} --stage {} --artifact {}",
+                                    stage.as_str(),
+                                    if artifact_id.trim().is_empty() {
+                                        "<artifact-id>"
+                                    } else {
+                                        artifact_id.trim()
+                                    }
+                                ),
+                                self.language,
+                            );
+                        }
+                        if let Some(error) = error {
+                            accessible_error(ui, theme::error(self.dark_mode), error);
+                        }
+                    }
+                }
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    if ui
+                        .add_enabled(
+                            self.activity.is_none(),
+                            theme::primary_button(self.language.text("Continue")),
+                        )
+                        .clicked()
+                    {
+                        submit = true;
+                    }
+                    if ui
+                        .add_enabled(
+                            self.activity.is_none(),
+                            egui::Button::new(self.language.text("Cancel")),
+                        )
+                        .clicked()
+                    {
+                        cancel = true;
+                    }
+                });
+            });
+        if self.activity.is_none() && ui.ctx().input(|input| input.key_pressed(egui::Key::Escape)) {
+            cancel = true;
+        }
+        self.workflow_action_form = Some(form);
+        if submit {
+            self.submit_workflow_action(ui.ctx().clone());
+        } else if cancel {
+            self.workflow_action_form = None;
+        }
+    }
+
     pub(super) fn show_pending_confirmation(&mut self, ui: &mut egui::Ui) {
         let Some(pending) = self.pending_confirmation.clone() else {
             return;
@@ -691,6 +885,55 @@ impl CanISendDesktop {
                         }
                     });
                 }
+                PendingConfirmation::RerunWorkflow { preview } => {
+                    accessible_heading(ui, self.language.text("Rerun this workflow stage?"), 1);
+                    ui.label(self.language.text(
+                        "The target stage and its descendants will be reset. Current affected outputs become stale and are no longer selected as workflow outputs.",
+                    ));
+                    ui.label(format!(
+                        "{}: {}",
+                        self.language.text("Target stage"),
+                        stage_label(preview.target, self.language)
+                    ));
+                    ui.label(RichText::new(self.language.text("Affected stages")).strong());
+                    for stage in &preview.affected_stages {
+                        ui.label(format!("• {}", stage_label(*stage, self.language)));
+                    }
+                    if !preview.affected_outputs.is_empty() {
+                        ui.label(RichText::new(self.language.text("Affected outputs")).strong());
+                        for output in &preview.affected_outputs {
+                            ui.label(format!(
+                                "• {:?} · {} · r{}",
+                                output.kind,
+                                output.id,
+                                output.revision.get()
+                            ));
+                        }
+                    }
+                    command_copy_row(
+                        ui,
+                        &format!(
+                            "canisend workflow rerun --job {} --stage {}",
+                            preview.job_id,
+                            preview.target.as_str()
+                        ),
+                        self.language,
+                    );
+                    ui.add_space(10.0);
+                    ui.horizontal(|ui| {
+                        if ui
+                            .add(theme::destructive_button(
+                                self.language.text("Confirm rerun"),
+                            ))
+                            .clicked()
+                        {
+                            confirmed = true;
+                        }
+                        if ui.button(self.language.text("Cancel")).clicked() {
+                            cancelled = true;
+                        }
+                    });
+                }
                 PendingConfirmation::UninstallCli { restores_previous } => {
                     accessible_heading(
                         ui,
@@ -751,6 +994,27 @@ impl CanISendDesktop {
                         self.language.text("Repairing managed workspace files"),
                         ui.ctx().clone(),
                         WorkerRequest::RepairWorkspace { path },
+                    );
+                }
+                PendingConfirmation::RerunWorkflow { preview } => {
+                    let Some(path) = self.active_workspace.clone() else {
+                        self.fail(
+                            self.language
+                                .text("No active workspace is selected")
+                                .to_owned(),
+                        );
+                        return;
+                    };
+                    self.dispatch(
+                        self.language.text("Rerunning workflow stage"),
+                        ui.ctx().clone(),
+                        WorkerRequest::RerunWorkflowStage {
+                            path,
+                            request: WorkflowRerunRequest {
+                                job_id: preview.job_id,
+                                stage: preview.target,
+                            },
+                        },
                     );
                 }
                 PendingConfirmation::UninstallCli { .. } => {
@@ -826,5 +1090,86 @@ impl CanISendDesktop {
             backup,
             destination,
         });
+    }
+
+    fn submit_workflow_action(&mut self, ctx: egui::Context) {
+        let (Some(path), Some(job_id)) =
+            (self.active_workspace.clone(), self.selected_job_id.clone())
+        else {
+            self.workflow_action_form = None;
+            return;
+        };
+        let Ok(job_id) = EntityId::try_new(job_id) else {
+            if let Some(form) = self.workflow_action_form.as_mut() {
+                form.set_error(
+                    self.language
+                        .text("The selected job ID is invalid")
+                        .to_owned(),
+                );
+            }
+            return;
+        };
+        let Some(form) = self.workflow_action_form.clone() else {
+            return;
+        };
+        match form {
+            WorkflowActionForm::Begin {
+                stage,
+                selected_mode,
+                ..
+            } => {
+                self.dispatch(
+                    self.language.text("Beginning workflow stage"),
+                    ctx,
+                    WorkerRequest::BeginWorkflowStage {
+                        path,
+                        request: WorkflowBeginRequest {
+                            job_id,
+                            stage,
+                            mode: selected_mode,
+                        },
+                    },
+                );
+            }
+            WorkflowActionForm::Complete {
+                stage, artifact_id, ..
+            } => {
+                let artifact_id = match parse_workflow_artifact_id(&artifact_id) {
+                    Ok(artifact_id) => artifact_id,
+                    Err(_) => {
+                        if let Some(form) = self.workflow_action_form.as_mut() {
+                            form.set_error(
+                                self.language
+                                    .text("Enter a canonical artifact UUIDv7")
+                                    .to_owned(),
+                            );
+                        }
+                        return;
+                    }
+                };
+                self.dispatch(
+                    self.language.text("Completing workflow stage"),
+                    ctx,
+                    WorkerRequest::CompleteWorkflowStage {
+                        path,
+                        request: WorkflowCompleteRequest {
+                            job_id,
+                            stage,
+                            artifact_id,
+                        },
+                    },
+                );
+            }
+        }
+    }
+}
+
+fn execution_mode_slug(mode: ExecutionMode) -> &'static str {
+    match mode {
+        ExecutionMode::Deterministic => "deterministic",
+        ExecutionMode::HostAgent => "host-agent",
+        ExecutionMode::ConfiguredProvider => "configured-provider",
+        ExecutionMode::UserDecision => "user-decision",
+        ExecutionMode::ManualImport => "manual-import",
     }
 }

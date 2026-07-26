@@ -3,10 +3,12 @@ use std::path::PathBuf;
 use canisend_app::{
     ActionReceipt, Application, BackupReadModel, CliInstallStatus, DoctorSummary,
     JobDetailReadModel, JobListReadModel, NetworkFetchConsent, PrivateReadConsent,
-    SourceImportReadModel, TerminalInstallConsent, UpdateCheckReadModel, WorkspaceHealthReadModel,
-    WorkspaceReadModel, WorkspaceRepairReadModel, WorkspaceRestoreReadModel,
+    SourceImportReadModel, TerminalInstallConsent, UpdateCheckReadModel, WorkflowBeginRequest,
+    WorkflowCompleteRequest, WorkflowControlReadModel, WorkflowRerunPreview, WorkflowRerunRequest,
+    WorkspaceHealthReadModel, WorkspaceReadModel, WorkspaceRepairReadModel,
+    WorkspaceRestoreReadModel,
 };
-use canisend_contracts::{JobRecord, WorkflowStatusData};
+use canisend_contracts::{JobRecord, WorkflowStage, WorkflowStatusData};
 
 #[derive(Debug)]
 pub(crate) enum WorkerRequest {
@@ -63,6 +65,27 @@ pub(crate) enum WorkerRequest {
         path: PathBuf,
         id: String,
     },
+    LoadWorkflowControls {
+        path: PathBuf,
+        id: String,
+    },
+    BeginWorkflowStage {
+        path: PathBuf,
+        request: WorkflowBeginRequest,
+    },
+    CompleteWorkflowStage {
+        path: PathBuf,
+        request: WorkflowCompleteRequest,
+    },
+    PreviewWorkflowRerun {
+        path: PathBuf,
+        id: String,
+        stage: WorkflowStage,
+    },
+    RerunWorkflowStage {
+        path: PathBuf,
+        request: WorkflowRerunRequest,
+    },
     LoadCliStatus {
         source: Option<PathBuf>,
         destination: PathBuf,
@@ -100,6 +123,9 @@ pub(crate) enum WorkerEvent {
     JobArchived(Result<ActionReceipt<JobRecord>, String>),
     SourceImported(Result<ActionReceipt<SourceImportReadModel>, String>),
     WorkflowLoaded(Result<ActionReceipt<WorkflowStatusData>, String>),
+    WorkflowControlsLoaded(Result<ActionReceipt<WorkflowControlReadModel>, String>),
+    WorkflowMutated(Result<ActionReceipt<WorkflowControlReadModel>, String>),
+    WorkflowRerunPreviewed(Result<ActionReceipt<WorkflowRerunPreview>, String>),
     CliStatusLoaded(Result<ActionReceipt<CliInstallStatus>, String>),
     CliInstalled(Result<ActionReceipt<CliInstallStatus>, String>),
     CliUninstalled(Result<ActionReceipt<CliInstallStatus>, String>),
@@ -174,6 +200,24 @@ pub(crate) fn execute(request: WorkerRequest) -> WorkerEvent {
         WorkerRequest::StartWorkflow { path, id } => WorkerEvent::WorkflowLoaded(
             Application::start_workflow(&path, &id).map_err(|error| error.to_string()),
         ),
+        WorkerRequest::LoadWorkflowControls { path, id } => WorkerEvent::WorkflowControlsLoaded(
+            Application::workflow_controls(&path, &id).map_err(|error| error.to_string()),
+        ),
+        WorkerRequest::BeginWorkflowStage { path, request } => WorkerEvent::WorkflowMutated(
+            Application::begin_workflow_stage(&path, request).map_err(|error| error.to_string()),
+        ),
+        WorkerRequest::CompleteWorkflowStage { path, request } => WorkerEvent::WorkflowMutated(
+            Application::complete_workflow_stage(&path, request).map_err(|error| error.to_string()),
+        ),
+        WorkerRequest::PreviewWorkflowRerun { path, id, stage } => {
+            WorkerEvent::WorkflowRerunPreviewed(
+                Application::preview_workflow_rerun(&path, &id, stage)
+                    .map_err(|error| error.to_string()),
+            )
+        }
+        WorkerRequest::RerunWorkflowStage { path, request } => WorkerEvent::WorkflowMutated(
+            Application::rerun_workflow_stage(&path, request).map_err(|error| error.to_string()),
+        ),
         WorkerRequest::LoadCliStatus {
             source,
             destination,
@@ -219,6 +263,9 @@ pub(crate) fn execute(request: WorkerRequest) -> WorkerEvent {
 mod tests {
     use std::sync::atomic::{AtomicU64, Ordering};
 
+    use canisend_app::{WorkflowBeginRequest, WorkflowRerunRequest};
+    use canisend_contracts::{ExecutionMode, WorkflowStage};
+
     use super::{WorkerEvent, WorkerRequest, execute};
 
     static NEXT: AtomicU64 = AtomicU64::new(1);
@@ -252,6 +299,73 @@ mod tests {
             execute(WorkerRequest::LoadWorkspace { path: root.clone() }),
             WorkerEvent::WorkspaceLoaded(Ok(_))
         ));
+        let job_id = match execute(WorkerRequest::CreateJob {
+            path: root.clone(),
+            title: "Lecturer".to_owned(),
+            institution: "University".to_owned(),
+        }) {
+            WorkerEvent::JobCreated(Ok(receipt)) => receipt.data.id,
+            event => panic!("unexpected job event: {event:?}"),
+        };
+        let source = temporary_root("source").with_extension("txt");
+        std::fs::write(&source, "bounded job source").expect("write source");
+        assert!(matches!(
+            execute(WorkerRequest::ImportLocalSource {
+                path: root.clone(),
+                id: job_id.to_string(),
+                source: source.clone(),
+            }),
+            WorkerEvent::SourceImported(Ok(_))
+        ));
+        assert!(matches!(
+            execute(WorkerRequest::StartWorkflow {
+                path: root.clone(),
+                id: job_id.to_string(),
+            }),
+            WorkerEvent::WorkflowLoaded(Ok(_))
+        ));
+        let controls = execute(WorkerRequest::LoadWorkflowControls {
+            path: root.clone(),
+            id: job_id.to_string(),
+        });
+        match controls {
+            WorkerEvent::WorkflowControlsLoaded(Ok(receipt)) => {
+                assert_eq!(
+                    receipt.data.stage_descriptors[1].execution_modes,
+                    vec![ExecutionMode::HostAgent, ExecutionMode::ConfiguredProvider]
+                );
+            }
+            event => panic!("unexpected controls event: {event:?}"),
+        }
+        assert!(matches!(
+            execute(WorkerRequest::BeginWorkflowStage {
+                path: root.clone(),
+                request: WorkflowBeginRequest {
+                    job_id: job_id.clone(),
+                    stage: WorkflowStage::Parse,
+                    mode: ExecutionMode::HostAgent,
+                },
+            }),
+            WorkerEvent::WorkflowMutated(Ok(_))
+        ));
+        assert!(matches!(
+            execute(WorkerRequest::PreviewWorkflowRerun {
+                path: root.clone(),
+                id: job_id.to_string(),
+                stage: WorkflowStage::Parse,
+            }),
+            WorkerEvent::WorkflowRerunPreviewed(Ok(_))
+        ));
+        assert!(matches!(
+            execute(WorkerRequest::RerunWorkflowStage {
+                path: root.clone(),
+                request: WorkflowRerunRequest {
+                    job_id,
+                    stage: WorkflowStage::Parse,
+                },
+            }),
+            WorkerEvent::WorkflowMutated(Ok(_))
+        ));
 
         let backup = temporary_root("backup");
         assert!(matches!(
@@ -281,6 +395,7 @@ mod tests {
         ));
 
         std::fs::remove_dir_all(root).expect("remove worker fixture");
+        std::fs::remove_file(source).expect("remove source fixture");
         std::fs::remove_dir_all(backup).expect("remove backup fixture");
         std::fs::remove_dir_all(restored).expect("remove restored fixture");
     }

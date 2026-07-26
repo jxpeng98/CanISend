@@ -116,6 +116,27 @@ impl Language {
             "Import a source, then start the durable stage graph." => {
                 "请先导入来源，然后启动持久化阶段流程。"
             }
+            "Loading workflow controls" => "正在加载工作流控制",
+            "Loading workflow controls…" => "正在加载工作流控制…",
+            "Execution mode" => "执行模式",
+            "Current output" => "当前输出",
+            "Expected output" => "预期输出",
+            "Next actions" => "后续操作",
+            "Begin stage" => "开始阶段",
+            "Complete stage" => "完成阶段",
+            "Rerun stage" => "重新运行阶段",
+            "Deterministic" => "确定性执行",
+            "Host agent" => "宿主 Agent",
+            "Configured provider" => "已配置的提供方",
+            "User decision" => "用户决策",
+            "Manual import" => "手动导入",
+            "Plan confirmation remains available through the CLI or Agent v2." => {
+                "计划确认仍可通过 CLI 或 Agent v2 完成。"
+            }
+            "Workflow scope" => "工作流范围",
+            "Stage-specific artifact creation, plan confirmation, criteria, evidence, documents, review, render, and export remain available through the CLI or Agent v2." => {
+                "阶段专用工件创建、计划确认、条件、证据、文档、审阅、渲染和导出仍可通过 CLI 或 Agent v2 完成。"
+            }
             "Alpha GUI scope" => "Alpha GUI 范围",
             "Stage begin/complete/rerun, criteria, evidence, documents, review, render, and export remain available through the CLI or Agent v2 until the Beta GUI." => {
                 "在 Beta GUI 完成前，阶段开始/完成/重跑、条件、证据、文档、审阅、渲染和导出仍可通过 CLI 或 Agent v2 使用。"
@@ -262,6 +283,33 @@ impl Language {
             "Register" => "注册",
             "Choose a directory" => "请选择目录",
             "Creating workspace" => "正在创建工作区",
+            "This stage has no supported execution mode." => "此阶段没有受支持的执行模式。",
+            "Preparing rerun preview" => "正在准备重新运行预览",
+            "Begin workflow stage" => "开始工作流阶段",
+            "Complete workflow stage" => "完成工作流阶段",
+            "Stage" => "阶段",
+            "Choose one execution mode supported by the compiled stage descriptor." => {
+                "请选择编译阶段描述符支持的一种执行模式。"
+            }
+            "Enter the current artifact UUIDv7. CanISend resolves and validates its kind, revision, and digest from the workspace." => {
+                "请输入当前工件的 UUIDv7。CanISend 将从工作区解析并验证其类型、修订版本和摘要。"
+            }
+            "Artifact ID" => "工件 ID",
+            "Continue" => "继续",
+            "Rerun this workflow stage?" => "重新运行此工作流阶段？",
+            "The target stage and its descendants will be reset. Current affected outputs become stale and are no longer selected as workflow outputs." => {
+                "目标阶段及其后代阶段将被重置。当前受影响的输出会变为过期状态，不再作为工作流输出。"
+            }
+            "Target stage" => "目标阶段",
+            "Affected stages" => "受影响的阶段",
+            "Affected outputs" => "受影响的输出",
+            "Confirm rerun" => "确认重新运行",
+            "No active workspace is selected" => "尚未选择当前工作区",
+            "Rerunning workflow stage" => "正在重新运行工作流阶段",
+            "The selected job ID is invalid" => "所选职位 ID 无效",
+            "Beginning workflow stage" => "正在开始工作流阶段",
+            "Enter a canonical artifact UUIDv7" => "请输入规范的工件 UUIDv7",
+            "Completing workflow stage" => "正在完成工作流阶段",
             "Restore workspace backup" => "恢复工作区备份",
             "Restore verifies the backup before creating a separate workspace directory." => {
                 "恢复操作会先验证备份，再创建一个独立的工作区目录。"
@@ -375,6 +423,14 @@ mod tests {
         assert_eq!(
             Language::SimplifiedChinese.text("Confirm repair"),
             "确认修复"
+        );
+        assert_eq!(
+            Language::SimplifiedChinese.text("Begin workflow stage"),
+            "开始工作流阶段"
+        );
+        assert_eq!(
+            Language::SimplifiedChinese.text("Affected outputs"),
+            "受影响的输出"
         );
         assert_eq!(
             serde_json::to_string(&Language::SimplifiedChinese).unwrap(),
