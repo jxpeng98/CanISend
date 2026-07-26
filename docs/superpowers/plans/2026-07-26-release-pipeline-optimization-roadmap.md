@@ -1,6 +1,6 @@
 # CanISend release-pipeline optimization roadmap
 
-**Status:** Stage 2 implemented locally; next candidate measurement remains pending
+**Status:** Stage 3 implemented locally; Stage 1–3 native candidate measurement remains pending
 
 **Decision date:** 2026-07-26
 
@@ -60,8 +60,9 @@ promotes those exact bytes without compiling, signing, packaging, or attesting r
 
 - `workflow_dispatch` accepts an exact future tag that matches the Cargo workspace version.
 - The future tag must not exist yet.
-- Source gates, signing readiness, five native CLI archives, Apple Silicon GUI packaging, Intel
-  compile-only evidence, assembly, checksum verification, and attestations run once.
+- Source gates, signing readiness, five native CLI archives, Apple Silicon GUI packaging,
+  stage-required Intel compile-only evidence, assembly, checksum verification, and attestations
+  run once.
 - The complete `canisend-TAG-release-assets` artifact is retained for 30 days.
 - Candidate mode has read-only release-content permission and cannot create a GitHub release.
 - Candidate and promotion runs for the same tag are serialized without canceling the in-progress
@@ -150,12 +151,12 @@ Intel GUI support.
 
 ### Implementation tasks
 
-- [ ] Change the Alpha release manifest so it does not require per-candidate Intel GUI evidence.
-- [ ] Retain the truthful absence of an Intel GUI archive and runtime support claim.
-- [ ] Add a scheduled Intel compile workflow for development regressions.
-- [ ] Restore exact-commit Intel GUI compilation as an RC/Stable qualification gate, or earlier
-  when the product begins claiming an Intel GUI.
-- [ ] Update release notes, support policy, verifier, and negative tests atomically.
+- [x] Change the Alpha release manifest so it does not require per-candidate Intel GUI evidence.
+- [x] Retain the truthful absence of an Intel GUI archive and runtime support claim.
+- [x] Add a scheduled Intel compile workflow for development regressions.
+- [x] Require exact-candidate Intel GUI compilation evidence for Beta, RC, and Stable while
+  keeping the record compile-only.
+- [x] Update release notes, support policy, verifier, and negative tests atomically.
 
 **Exit:** Alpha release integrity is unchanged for published artifacts; Intel compile evidence is
 owned by a scheduled or stage-specific gate instead of every ordinary candidate.
@@ -218,6 +219,7 @@ qualification suite. Those remain owned by scheduled or exact-release workflows.
 
 ## 10. Immediate next action
 
-Finish Stage 1 local verification. Do not trigger another expensive native candidate for the
-already published `v1.0.0-alpha.1`. Exercise the candidate-to-tag path on the next sequential
-version after its source version and release notes are prepared.
+Prepare Stage 4 compiler-cache integration as a non-authoritative accelerator. Do not trigger
+another expensive native candidate for the already published `v1.0.0-alpha.1`; use the next
+sequential future version to measure the combined Stage 1–4 candidate path and the Stage 1
+candidate-to-tag promotion path.

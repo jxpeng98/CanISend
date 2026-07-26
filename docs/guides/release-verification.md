@@ -12,9 +12,6 @@ A complete `1.0` release contains:
   `CanISend-VERSION-aarch64-apple-darwin.zip`;
 - `CanISend-VERSION-aarch64-apple-darwin-qualification.json`, which binds the
   exact desktop ZIP to its native package checks;
-- `CanISend-VERSION-x86_64-apple-darwin-gui-compilation.json`, which records
-  Intel release-profile compilation without claiming an Intel GUI archive or native runtime
-  qualification;
 - `SHA256SUMS`;
 - `canisend-VERSION-manifest.json`;
 - `canisend-VERSION-sbom.cdx.json`;
@@ -22,6 +19,9 @@ A complete `1.0` release contains:
 
 Beta, release-candidate, and Stable releases additionally contain:
 
+- `CanISend-VERSION-x86_64-apple-darwin-gui-compilation.json`, which records
+  exact-candidate Intel release-profile compilation without claiming an Intel GUI archive or
+  native runtime qualification;
 - `canisend-VERSION-aarch64-apple-darwin-signing.json`;
 - `canisend-VERSION-x86_64-apple-darwin-signing.json`;
 - `canisend-VERSION-x86_64-pc-windows-msvc-signing.json`.
@@ -36,8 +36,9 @@ remain under `artifacts`; the GUI is a separate `desktop_artifacts` entry so pac
 generation cannot confuse an application bundle with a standalone CLI archive. For non-Alpha
 signed CLI targets, `signing_evidence` names the exact evidence file. The GUI entry always names
 its qualification record and requires the nested and outer ad-hoc signatures, including in Alpha.
-`desktop_compilation` records the Intel compile-only boundary with `archive: null`,
-`native_runtime_qualified: false`, and an exact evidence reference.
+For Alpha, `desktop_compilation` must be an empty array and the release must not contain Intel GUI
+compilation evidence. For Beta and later, it records the Intel compile-only boundary with
+`archive: null`, `native_runtime_qualified: false`, and an exact candidate evidence reference.
 `SHA256SUMS` covers every downloadable release file except itself.
 For Stable, the repository verifier also regenerates every package-manager manifest from the three referenced final
 archive hashes and checks its recorded external repository path.
@@ -131,10 +132,16 @@ invalid for this channel. The qualification JSON must use
 `canisend.macos-gui-qualification/v1`, name the same ZIP, match its SHA-256 and size, report
 `macos-15`/`aarch64-apple-darwin`, and keep every declared bounded package check true.
 
-The Intel compilation JSON must use `canisend.macos-gui-compilation/v1`, bind the release tag and
-source commit, report an `x86_64` release binary hash from `macos-15-intel`, and explicitly keep
-`archive_published`, `native_runtime_qualified`, and `support_claim` false. It is evidence that the
+For Beta and later, the Intel compilation JSON must use
+`canisend.macos-gui-compilation/v1`, bind the release tag and source commit, report an `x86_64`
+release binary hash from `macos-15-intel`, and explicitly keep `archive_published`,
+`native_runtime_qualified`, and `support_claim` false. It is evidence that the exact candidate
 source compiles for Intel macOS, not an installable or supported Intel GUI.
+
+During Alpha development, the scheduled `intel-gui-compile` workflow provides a body-free
+compile-regression record. That record uses a separate scheduled schema, is not included in the
+release manifest, cannot authorize publication, and does not change the absence of an Intel GUI
+archive or support claim.
 
 ## Verify platform signing evidence
 

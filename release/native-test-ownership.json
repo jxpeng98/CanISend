@@ -30,7 +30,7 @@
           "native-runner-architecture",
           "tar-gzip-archive",
           "apple-adhoc-signing-beta-plus",
-          "intel-gui-compile-only"
+          "intel-gui-compile-beta-plus"
         ],
         "runner": "macos-15-intel",
         "target": "x86_64-apple-darwin"
@@ -89,6 +89,10 @@
     {
       "owner": "ci/render-native",
       "scope": "cross-platform rendering, staged quickstart, and performance"
+    },
+    {
+      "owner": "intel-gui-compile/scheduled-alpha",
+      "scope": "non-publishing Intel GUI compile regression"
     },
     {
       "owner": "fuzz/scheduled",

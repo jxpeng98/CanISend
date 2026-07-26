@@ -16,6 +16,8 @@ of the named native package gates.
 | Candidate source gate | format, full workspace Clippy, complete locked workspace tests, generated property contracts, release contracts, dependency policy |
 | Every CLI native job | locked target release build; exact archived-binary comparison; extracted version, doctor, quickstart, host-agent, isolated install/uninstall, and workspace-retention smoke |
 | macOS CLI jobs | native architecture plus stage-required ad-hoc signing |
+| Intel macOS candidate job | standalone CLI for every stage; exact-commit GUI compilation evidence for Beta and later |
+| Scheduled Intel GUI workflow | weekly/manual Alpha development compile regression; never release evidence or a support claim |
 | Windows CLI job | PowerShell parser plus stage-required self-signed Authenticode verification |
 | Linux GNU job | release performance and full synthetic workflow budgets |
 | Linux musl job | musl linker and execution of the extracted static-target archive |

@@ -36,9 +36,11 @@ Apple Silicon GUI users must also download the macOS GUI qualification JSON. It 
 desktop ZIP to bounded archive checks, final companion hashes, nested and outer ad-hoc signatures,
 the packaged CLI doctor and synthetic workflow, and a packaged GUI launch.
 
-The Intel GUI compilation record proves only that the locked source builds in release profile on
-the declared Intel runner. It does not provide an Intel GUI archive or make a native runtime
-support claim for this release.
+The release manifest includes Intel GUI compilation evidence only when required by the validated
+release-stage policy. When it is omitted, a separate scheduled workflow checks that development
+source still builds in release profile on the Intel runner, but its body-free record cannot
+authorize publication or make a native runtime support claim. A required record binds
+exact-candidate compile-only evidence without publishing an Intel GUI archive.
 
 The macOS desktop uses ad-hoc signing. Signed standalone macOS and Windows archives use ad-hoc or
 self-signed Authenticode integrity signatures when required by their release-stage policy. These

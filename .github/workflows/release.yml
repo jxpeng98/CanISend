@@ -223,13 +223,13 @@ jobs:
         run: echo "epoch=$(date +%s)" >> "$GITHUB_OUTPUT"
 
       - name: Build compile-only Intel macOS GUI
-        if: matrix.target == 'x86_64-apple-darwin'
+        if: matrix.target == 'x86_64-apple-darwin' && needs.release-identity.outputs.stage != 'alpha'
         run: >-
           cargo build --release --locked --target x86_64-apple-darwin
           -p canisend-gui
 
       - name: Record Intel macOS GUI compilation evidence
-        if: matrix.target == 'x86_64-apple-darwin'
+        if: matrix.target == 'x86_64-apple-darwin' && needs.release-identity.outputs.stage != 'alpha'
         shell: bash
         run: |
           version="${{ needs.release-identity.outputs.tag }}"

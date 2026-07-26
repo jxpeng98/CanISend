@@ -896,6 +896,10 @@ impl ReleaseStage {
             ))
         }
     }
+
+    fn requires_intel_gui_release_evidence(self) -> bool {
+        !matches!(self, Self::Alpha)
+    }
 }
 
 struct RenderedStageTransition {
@@ -3398,7 +3402,7 @@ fn check_native_test_ownership() -> Result<(), String> {
                         "native-runner-architecture",
                         "tar-gzip-archive",
                         "apple-adhoc-signing-beta-plus",
-                        "intel-gui-compile-only"
+                        "intel-gui-compile-beta-plus"
                     ],
                     "runner": "macos-15-intel",
                     "target": "x86_64-apple-darwin"
@@ -3457,6 +3461,10 @@ fn check_native_test_ownership() -> Result<(), String> {
             {
                 "owner": "ci/render-native",
                 "scope": "cross-platform rendering, staged quickstart, and performance"
+            },
+            {
+                "owner": "intel-gui-compile/scheduled-alpha",
+                "scope": "non-publishing Intel GUI compile regression"
             },
             {
                 "owner": "fuzz/scheduled",
@@ -3524,6 +3532,17 @@ fn check_native_test_ownership() -> Result<(), String> {
             ));
         }
     }
+    for required in [
+        "      - name: Build compile-only Intel macOS GUI\n        if: matrix.target == 'x86_64-apple-darwin' && needs.release-identity.outputs.stage != 'alpha'",
+        "      - name: Record Intel macOS GUI compilation evidence\n        if: matrix.target == 'x86_64-apple-darwin' && needs.release-identity.outputs.stage != 'alpha'",
+    ] {
+        if !workflow.contains(required) {
+            return Err(
+                "release workflow must limit Intel GUI release evidence to Beta or later"
+                    .to_owned(),
+            );
+        }
+    }
     if workflow
         .matches("${{ runner.temp }}/release-timing/*.json")
         .count()
@@ -3554,6 +3573,27 @@ fn check_native_test_ownership() -> Result<(), String> {
     ] {
         if !root.join(required).is_file() {
             return Err(format!("native test ownership file is missing: {required}"));
+        }
+    }
+    let scheduled_workflow =
+        fs::read_to_string(root.join(".github/workflows/intel-gui-compile.yml"))
+            .map_err(|error| format!("scheduled Intel GUI workflow is missing: {error}"))?;
+    for required in [
+        "schedule:",
+        "workflow_dispatch:",
+        "macos-15-intel",
+        "cargo build --release --locked --target x86_64-apple-darwin",
+        "canisend.scheduled-macos-gui-compilation/v1",
+        "release_manifest_evidence: false",
+        "archive_published: false",
+        "native_runtime_qualified: false",
+        "support_claim: false",
+        "no_publication: true",
+    ] {
+        if !scheduled_workflow.contains(required) {
+            return Err(format!(
+                "scheduled Intel GUI workflow is missing invariant `{required}`"
+            ));
         }
     }
     println!(
@@ -3892,7 +3932,6 @@ fn check_alpha_package_contract() -> Result<(), String> {
                 .to_owned(),
         );
     }
-    let intel_evidence = macos_gui_intel_compilation_name(version);
     if contract
         .pointer("/desktop_macos/signing")
         .and_then(Value::as_str)
@@ -3918,11 +3957,10 @@ fn check_alpha_package_contract() -> Result<(), String> {
         || contract
             .pointer("/desktop_macos_intel/status")
             .and_then(Value::as_str)
-            != Some("compile-only")
-        || contract
+            != Some("not-published")
+        || !contract
             .pointer("/desktop_macos_intel/evidence")
-            .and_then(Value::as_str)
-            != Some(intel_evidence.as_str())
+            .is_some_and(Value::is_null)
         || !contract
             .pointer("/desktop_macos_intel/archive")
             .is_some_and(Value::is_null)
@@ -3934,9 +3972,13 @@ fn check_alpha_package_contract() -> Result<(), String> {
             .pointer("/desktop_macos_intel/support_claim")
             .and_then(Value::as_bool)
             != Some(false)
+        || contract
+            .pointer("/desktop_macos_intel/scheduled_compile_owner")
+            .and_then(Value::as_str)
+            != Some(".github/workflows/intel-gui-compile.yml")
     {
         return Err(
-            "Alpha Intel macOS GUI contract must remain compile-only without an archive or support claim"
+            "Alpha Intel macOS GUI contract must publish no archive or evidence and make no support claim"
                 .to_owned(),
         );
     }
@@ -4003,7 +4045,7 @@ fn check_alpha_package_contract() -> Result<(), String> {
         return Err("macOS GUI Alpha performance baseline exceeds a frozen budget".to_owned());
     }
     println!(
-        "Alpha package contract: ok ({} CLI assets, one macOS desktop archive, one Intel compile-only record, GUI performance baseline)",
+        "Alpha package contract: ok ({} CLI assets, one macOS desktop archive, no Intel GUI release evidence, GUI performance baseline)",
         assets.len()
     );
     Ok(())
@@ -8614,36 +8656,37 @@ fn assemble_release(
         "surface": "desktop-gui",
         "target": "aarch64-apple-darwin",
     })];
-    let desktop_intel_compilation_name = macos_gui_intel_compilation_name(version);
-    let desktop_intel_compilation_source =
-        find_unique_file(artifacts_root, &desktop_intel_compilation_name)?;
-    read_macos_gui_intel_compilation(
-        &desktop_intel_compilation_source,
-        tag,
-        version,
-        &commit.to_ascii_lowercase(),
-    )?;
-    let desktop_intel_compilation = output.join(&desktop_intel_compilation_name);
-    fs::copy(
-        &desktop_intel_compilation_source,
-        &desktop_intel_compilation,
-    )
-    .map_err(|error| {
-        format!(
-            "could not copy macOS Intel GUI compilation evidence {} to {}: {error}",
-            desktop_intel_compilation_source.display(),
-            desktop_intel_compilation.display()
-        )
-    })?;
-    let desktop_compilation_entries = vec![json!({
-        "archive": null,
-        "evidence": desktop_intel_compilation_name,
-        "native_runtime_qualified": false,
-        "runner": "macos-15-intel",
-        "status": "compile-only",
-        "surface": "desktop-gui",
-        "target": "x86_64-apple-darwin",
-    })];
+    let mut desktop_compilation_entries = Vec::new();
+    let desktop_intel_compilation = if stage.requires_intel_gui_release_evidence() {
+        let evidence_name = macos_gui_intel_compilation_name(version);
+        let evidence_source = find_unique_file(artifacts_root, &evidence_name)?;
+        read_macos_gui_intel_compilation(
+            &evidence_source,
+            tag,
+            version,
+            &commit.to_ascii_lowercase(),
+        )?;
+        let evidence_destination = output.join(&evidence_name);
+        fs::copy(&evidence_source, &evidence_destination).map_err(|error| {
+            format!(
+                "could not copy macOS Intel GUI compilation evidence {} to {}: {error}",
+                evidence_source.display(),
+                evidence_destination.display()
+            )
+        })?;
+        desktop_compilation_entries.push(json!({
+            "archive": null,
+            "evidence": evidence_name,
+            "native_runtime_qualified": false,
+            "runner": "macos-15-intel",
+            "status": "compile-only",
+            "surface": "desktop-gui",
+            "target": "x86_64-apple-darwin",
+        }));
+        Some(evidence_destination)
+    } else {
+        None
+    };
     let sbom_name = format!("canisend-{version}-sbom.cdx.json");
     let sbom_path = output.join(&sbom_name);
     write_release_sbom(&sbom_path)?;
@@ -8656,8 +8699,10 @@ fn assemble_release(
     let mut supplemental_entries = vec![
         release_file_entry(&sbom_path)?,
         release_file_entry(&desktop_qualification)?,
-        release_file_entry(&desktop_intel_compilation)?,
     ];
+    if let Some(evidence) = &desktop_intel_compilation {
+        supplemental_entries.push(release_file_entry(evidence)?);
+    }
     for evidence in &signing_evidence_paths {
         supplemental_entries.push(release_file_entry(evidence)?);
     }
@@ -8994,28 +9039,16 @@ fn verify_release_manifest_contents(
     let desktop_compilation_entries = manifest["desktop_compilation"]
         .as_array()
         .ok_or_else(|| "release manifest desktop compilation records are missing".to_owned())?;
-    let [desktop_compilation] = desktop_compilation_entries.as_slice() else {
-        return Err(
-            "release manifest must contain exactly one desktop compilation record".to_owned(),
-        );
-    };
     let desktop_intel_compilation_name = macos_gui_intel_compilation_name(version);
-    if !desktop_compilation["archive"].is_null()
-        || desktop_compilation["evidence"] != desktop_intel_compilation_name
-        || desktop_compilation["native_runtime_qualified"] != false
-        || desktop_compilation["runner"] != "macos-15-intel"
-        || desktop_compilation["status"] != "compile-only"
-        || desktop_compilation["surface"] != "desktop-gui"
-        || desktop_compilation["target"] != "x86_64-apple-darwin"
+    if validate_desktop_compilation_entries(stage, version, desktop_compilation_entries)?.is_some()
     {
-        return Err("release manifest macOS Intel compile-only record is invalid".to_owned());
+        read_macos_gui_intel_compilation(
+            &directory.join(&desktop_intel_compilation_name),
+            &format!("v{version}"),
+            version,
+            commit,
+        )?;
     }
-    read_macos_gui_intel_compilation(
-        &directory.join(&desktop_intel_compilation_name),
-        &format!("v{version}"),
-        version,
-        commit,
-    )?;
 
     let mut expected_supplemental = BTreeSet::from([
         "ISSUE_COLLECTION.md".to_owned(),
@@ -9023,9 +9056,11 @@ fn verify_release_manifest_contents(
         "RELEASE_NOTES.md".to_owned(),
         "THIRD_PARTY_NOTICES.md".to_owned(),
         desktop_qualification_name,
-        desktop_intel_compilation_name,
         format!("canisend-{version}-sbom.cdx.json"),
     ]);
+    if stage.requires_intel_gui_release_evidence() {
+        expected_supplemental.insert(desktop_intel_compilation_name);
+    }
     if !matches!(stage, ReleaseStage::Alpha) {
         for target in release_targets()?
             .into_iter()
@@ -9078,6 +9113,39 @@ fn verify_release_manifest_contents(
         verify_stable_channel_publication(directory, &format!("v{version}"), manifest)?;
     }
     Ok(())
+}
+
+fn validate_desktop_compilation_entries<'a>(
+    stage: ReleaseStage,
+    version: &str,
+    entries: &'a [Value],
+) -> Result<Option<&'a Value>, String> {
+    if !stage.requires_intel_gui_release_evidence() {
+        if entries.is_empty() {
+            return Ok(None);
+        }
+        return Err(
+            "Alpha release manifest must not contain Intel GUI compilation evidence".to_owned(),
+        );
+    }
+
+    let [entry] = entries else {
+        return Err(
+            "Beta, RC, and Stable manifests must contain exactly one Intel GUI compilation record"
+                .to_owned(),
+        );
+    };
+    if !entry["archive"].is_null()
+        || entry["evidence"] != macos_gui_intel_compilation_name(version)
+        || entry["native_runtime_qualified"] != false
+        || entry["runner"] != "macos-15-intel"
+        || entry["status"] != "compile-only"
+        || entry["surface"] != "desktop-gui"
+        || entry["target"] != "x86_64-apple-darwin"
+    {
+        return Err("release manifest macOS Intel compile-only record is invalid".to_owned());
+    }
+    Ok(Some(entry))
 }
 
 fn write_checksums(directory: &Path) -> Result<(), String> {
@@ -9509,6 +9577,63 @@ mod tests {
                 .expect("historical RC tag")
                 .1,
             ReleaseStage::ReleaseCandidate
+        );
+    }
+
+    #[test]
+    fn intel_gui_release_evidence_starts_at_beta() {
+        assert!(!ReleaseStage::Alpha.requires_intel_gui_release_evidence());
+        assert!(ReleaseStage::Beta.requires_intel_gui_release_evidence());
+        assert!(ReleaseStage::ReleaseCandidate.requires_intel_gui_release_evidence());
+        assert!(ReleaseStage::Stable.requires_intel_gui_release_evidence());
+    }
+
+    #[test]
+    fn desktop_compilation_manifest_policy_is_stage_aware() {
+        let version = "1.0.0-beta.1";
+        let canonical = json!({
+            "archive": null,
+            "evidence": macos_gui_intel_compilation_name(version),
+            "native_runtime_qualified": false,
+            "runner": "macos-15-intel",
+            "status": "compile-only",
+            "surface": "desktop-gui",
+            "target": "x86_64-apple-darwin"
+        });
+
+        assert!(
+            validate_desktop_compilation_entries(ReleaseStage::Alpha, version, &[])
+                .expect("accept empty Alpha desktop compilation records")
+                .is_none()
+        );
+        assert!(
+            validate_desktop_compilation_entries(
+                ReleaseStage::Alpha,
+                version,
+                std::slice::from_ref(&canonical)
+            )
+            .is_err()
+        );
+        assert!(validate_desktop_compilation_entries(ReleaseStage::Beta, version, &[]).is_err());
+        assert!(
+            validate_desktop_compilation_entries(
+                ReleaseStage::Beta,
+                version,
+                std::slice::from_ref(&canonical)
+            )
+            .expect("accept canonical Beta Intel compilation record")
+            .is_some()
+        );
+
+        let mut overclaim = canonical;
+        overclaim["native_runtime_qualified"] = Value::Bool(true);
+        assert!(
+            validate_desktop_compilation_entries(
+                ReleaseStage::Stable,
+                version,
+                std::slice::from_ref(&overclaim)
+            )
+            .is_err()
         );
     }
 

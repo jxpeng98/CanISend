@@ -28,9 +28,11 @@ preserve the `0.6.x` command tree, or implement `canisend.agent/v1`.
 
 ## GUI boundaries
 
-- `1.0.0-alpha.1` publishes the GUI for Apple Silicon macOS first. Intel macOS compilation is
-  recorded in the manifest as compile-only with no archive or support claim, while native Intel
-  qualification and Windows/Linux GUI packages remain Beta work.
+- `1.0.0-alpha.*` publishes the GUI for Apple Silicon macOS first. Alpha manifests contain no
+  Intel GUI archive or compile-only release evidence. A separate scheduled Intel compile
+  regression cannot authorize publication or support; Beta and later require exact-candidate
+  compile-only evidence, while native Intel qualification and Windows/Linux GUI packages remain
+  future work until explicitly supported.
 - The GUI supports English and Simplified Chinese. CLI and Agent v2 structured contracts remain
   locale-neutral; terminal human-readable output is English in this Alpha.
 - Workspace restore/repair and the workflow begin/complete/rerun, criteria, profile evidence,

@@ -1,0 +1,90 @@
+name: intel-gui-compile
+
+on:
+  schedule:
+    - cron: "17 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: intel-gui-compile-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  intel-gui-compile:
+    name: intel-gui-compile
+    runs-on: macos-15-intel
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install pinned Rust target
+        uses: dtolnay/rust-toolchain@1.97.0
+        with:
+          targets: x86_64-apple-darwin
+
+      - name: Cache Cargo build
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          key: scheduled-intel-gui
+
+      - name: Build Intel GUI release-profile regression
+        run: >-
+          cargo build --release --locked --target x86_64-apple-darwin
+          -p canisend-gui
+
+      - name: Record non-publishing Intel compilation evidence
+        shell: bash
+        run: |
+          binary="target/x86_64-apple-darwin/release/canisend-gui"
+          test -f "$binary"
+          test "$(lipo -archs "$binary")" = "x86_64"
+          version="$(
+            cargo metadata --locked --no-deps --format-version 1 \
+              | jq -er '.packages[] | select(.name == "canisend-gui") | .version'
+          )"
+          evidence="$RUNNER_TEMP/intel-gui-compilation.json"
+          jq -n \
+            --arg version "$version" \
+            --arg source_commit "$GITHUB_SHA" \
+            --arg sha256 "$(shasum -a 256 "$binary" | awk '{print $1}')" \
+            --arg completed_at "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+            --argjson size "$(stat -f '%z' "$binary")" \
+            --argjson github_run_id "$GITHUB_RUN_ID" \
+            '{
+              schema: "canisend.scheduled-macos-gui-compilation/v1",
+              record: "scheduled-desktop-macos-intel-compile-only",
+              target: "x86_64-apple-darwin",
+              environment: "macos-15-intel",
+              version: $version,
+              source_commit: $source_commit,
+              binary: {
+                file: "canisend-gui",
+                architecture: "x86_64",
+                profile: "release",
+                sha256: $sha256,
+                size: $size
+              },
+              github_run_id: $github_run_id,
+              checks: {
+                locked_build: true,
+                release_profile: true,
+                target_architecture: true,
+                scheduled_regression: true,
+                release_manifest_evidence: false,
+                archive_published: false,
+                native_runtime_qualified: false,
+                support_claim: false,
+                no_publication: true
+              },
+              completed_at: $completed_at
+            }' > "$evidence"
+
+      - name: Upload body-free scheduled evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: scheduled-intel-gui-compilation-${{ github.sha }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/intel-gui-compilation.json
+          if-no-files-found: error
+          retention-days: 30

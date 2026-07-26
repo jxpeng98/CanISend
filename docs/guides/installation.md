@@ -103,7 +103,10 @@ canisend doctor
 ```
 
 The first packaged GUI channel is `1.0.0-alpha.1` on Apple Silicon. Intel macOS users can use the
-standalone CLI archive during this Alpha; native Intel GUI qualification is required before Beta.
+standalone CLI archive during Alpha. Scheduled Intel GUI compilation is a development regression
+check, not an installable package. Beta and later require exact-candidate Intel compilation
+evidence; native Intel runtime qualification is required before CanISend makes an Intel GUI
+support claim.
 
 For complete checksum, SBOM, manifest, and GitHub provenance verification, follow the
 [release verification guide](release-verification.md).
