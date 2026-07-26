@@ -888,11 +888,7 @@ impl CanISendDesktop {
             self.dispatch(
                 self.language.text("Running native self-check"),
                 ui.ctx().clone(),
-                || {
-                    WorkerEvent::DoctorFinished(
-                        Application::doctor().map_err(|error| error.to_string()),
-                    )
-                },
+                WorkerRequest::Doctor,
             );
         }
         if let Some(doctor) = &self.doctor {
@@ -1372,11 +1368,9 @@ impl CanISendDesktop {
         self.dispatch(
             self.language.text("Checking CLI installation"),
             ctx,
-            move || {
-                WorkerEvent::CliStatusLoaded(
-                    Application::cli_install_status(source.as_deref(), &destination)
-                        .map_err(|error| error.to_string()),
-                )
+            WorkerRequest::LoadCliStatus {
+                source,
+                destination,
             },
         );
     }
@@ -1394,16 +1388,10 @@ impl CanISendDesktop {
         self.dispatch(
             self.language.text("Installing or upgrading CanISend CLI"),
             ctx,
-            move || {
-                WorkerEvent::CliInstalled(
-                    Application::install_cli(
-                        &source,
-                        &destination,
-                        true,
-                        TerminalInstallConsent::granted_by_user(),
-                    )
-                    .map_err(|error| error.to_string()),
-                )
+            WorkerRequest::InstallCli {
+                source,
+                destination,
+                replace_existing: true,
             },
         );
     }
@@ -1412,12 +1400,7 @@ impl CanISendDesktop {
         self.dispatch(
             self.language.text("Checking for CanISend updates"),
             ctx,
-            move || {
-                WorkerEvent::UpdateCheckFinished(
-                    Application::check_for_updates(NetworkFetchConsent::granted_by_user())
-                        .map_err(|error| error.to_string()),
-                )
-            },
+            WorkerRequest::CheckForUpdates,
         );
     }
 
@@ -1427,15 +1410,9 @@ impl CanISendDesktop {
         self.dispatch(
             self.language.text("Uninstalling managed CLI"),
             ctx,
-            move || {
-                WorkerEvent::CliUninstalled(
-                    Application::uninstall_cli(
-                        source.as_deref(),
-                        &destination,
-                        TerminalInstallConsent::granted_by_user(),
-                    )
-                    .map_err(|error| error.to_string()),
-                )
+            WorkerRequest::UninstallCli {
+                source,
+                destination,
             },
         );
     }

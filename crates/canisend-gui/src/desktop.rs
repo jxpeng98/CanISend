@@ -22,15 +22,14 @@ use crate::{
         WorkspaceForm,
     },
     theme,
+    worker::{WorkerEvent, WorkerRequest, execute},
 };
 use canisend_app::{
-    ActionReceipt, Application, BackupReadModel, DoctorSummary, JobDetailReadModel,
-    JobListReadModel, NetworkFetchConsent, PrivateReadConsent, ProductSummary,
-    SourceImportReadModel, TerminalInstallConsent, UpdateCheckReadModel, WorkspaceHealthReadModel,
-    WorkspaceReadModel,
+    Application, DoctorSummary, JobDetailReadModel, ProductSummary, UpdateCheckReadModel,
+    WorkspaceHealthReadModel, WorkspaceReadModel,
 };
 use canisend_app::{CliInstallState, CliInstallStatus, CliVersionRelation};
-use canisend_contracts::{JobRecord, WorkflowStatusData};
+use canisend_contracts::JobRecord;
 use eframe::egui::{self, Align, Color32, Layout, RichText, Sense, Stroke};
 
 const APP_ID: &str = "io.github.jxpeng98.canisend";
@@ -79,28 +78,6 @@ pub(crate) fn run() -> eframe::Result {
         options,
         Box::new(|creation| Ok(Box::new(CanISendDesktop::new(creation)))),
     )
-}
-
-#[derive(Debug)]
-enum WorkerEvent {
-    WorkspaceLoaded(Result<ActionReceipt<WorkspaceReadModel>, String>),
-    WorkspaceCreated {
-        alias: String,
-        result: Result<ActionReceipt<WorkspaceReadModel>, String>,
-    },
-    WorkspaceChecked(Result<ActionReceipt<WorkspaceHealthReadModel>, String>),
-    BackupCreated(Result<ActionReceipt<BackupReadModel>, String>),
-    JobsLoaded(Result<ActionReceipt<JobListReadModel>, String>),
-    JobCreated(Result<ActionReceipt<JobRecord>, String>),
-    JobLoaded(Result<ActionReceipt<JobDetailReadModel>, String>),
-    JobArchived(Result<ActionReceipt<JobRecord>, String>),
-    SourceImported(Result<ActionReceipt<SourceImportReadModel>, String>),
-    WorkflowLoaded(Result<ActionReceipt<WorkflowStatusData>, String>),
-    CliStatusLoaded(Result<ActionReceipt<CliInstallStatus>, String>),
-    CliInstalled(Result<ActionReceipt<CliInstallStatus>, String>),
-    CliUninstalled(Result<ActionReceipt<CliInstallStatus>, String>),
-    UpdateCheckFinished(Result<ActionReceipt<UpdateCheckReadModel>, String>),
-    DoctorFinished(Result<ActionReceipt<DoctorSummary>, String>),
 }
 
 #[derive(Debug)]
@@ -209,12 +186,7 @@ impl CanISendDesktop {
         application
     }
 
-    fn dispatch(
-        &mut self,
-        label: impl Into<String>,
-        ctx: egui::Context,
-        work: impl FnOnce() -> WorkerEvent + Send + 'static,
-    ) {
+    fn dispatch(&mut self, label: impl Into<String>, ctx: egui::Context, request: WorkerRequest) {
         if self.activity.is_some() {
             self.notice = Some((
                 false,
@@ -231,7 +203,7 @@ impl CanISendDesktop {
             started: std::time::Instant::now(),
         });
         thread::spawn(move || {
-            let event = work();
+            let event = execute(request);
             let _ = sender.send(event);
             ctx.request_repaint();
         });
@@ -424,11 +396,11 @@ impl CanISendDesktop {
         self.selected_job_id = None;
         let _ = self.registry.touch(&path);
         self.save_registry();
-        self.dispatch(self.language.text("Opening workspace"), ctx, move || {
-            WorkerEvent::WorkspaceLoaded(
-                Application::workspace_status(&path).map_err(|error| error.to_string()),
-            )
-        });
+        self.dispatch(
+            self.language.text("Opening workspace"),
+            ctx,
+            WorkerRequest::LoadWorkspace { path },
+        );
     }
 
     fn refresh_jobs(&mut self, ctx: egui::Context) {
@@ -436,22 +408,25 @@ impl CanISendDesktop {
             return;
         };
         let include_archived = self.include_archived;
-        self.dispatch(self.language.text("Loading jobs"), ctx, move || {
-            WorkerEvent::JobsLoaded(
-                Application::list_jobs(&path, include_archived).map_err(|error| error.to_string()),
-            )
-        });
+        self.dispatch(
+            self.language.text("Loading jobs"),
+            ctx,
+            WorkerRequest::LoadJobs {
+                path,
+                include_archived,
+            },
+        );
     }
 
     fn load_job(&mut self, id: String, ctx: egui::Context) {
         let Some(path) = self.active_workspace.clone() else {
             return;
         };
-        self.dispatch(self.language.text("Loading job"), ctx, move || {
-            WorkerEvent::JobLoaded(
-                Application::job_detail(&path, &id).map_err(|error| error.to_string()),
-            )
-        });
+        self.dispatch(
+            self.language.text("Loading job"),
+            ctx,
+            WorkerRequest::LoadJob { path, id },
+        );
     }
 }
 

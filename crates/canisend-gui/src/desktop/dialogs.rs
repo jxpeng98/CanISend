@@ -58,11 +58,7 @@ impl CanISendDesktop {
         self.dispatch(
             self.language.text("Checking workspace integrity"),
             ctx,
-            move || {
-                WorkerEvent::WorkspaceChecked(
-                    Application::check_workspace(&path).map_err(|error| error.to_string()),
-                )
-            },
+            WorkerRequest::CheckWorkspace { path },
         );
     }
 
@@ -79,12 +75,7 @@ impl CanISendDesktop {
         self.dispatch(
             self.language.text("Creating verified backup"),
             ctx,
-            move || {
-                WorkerEvent::BackupCreated(
-                    Application::backup_workspace(&root, &destination)
-                        .map_err(|error| error.to_string()),
-                )
-            },
+            WorkerRequest::BackupWorkspace { root, destination },
         );
     }
 
@@ -93,11 +84,11 @@ impl CanISendDesktop {
         else {
             return;
         };
-        self.dispatch(self.language.text("Starting workflow"), ctx, move || {
-            WorkerEvent::WorkflowLoaded(
-                Application::start_workflow(&path, &id).map_err(|error| error.to_string()),
-            )
-        });
+        self.dispatch(
+            self.language.text("Starting workflow"),
+            ctx,
+            WorkerRequest::StartWorkflow { path, id },
+        );
     }
 
     pub(super) fn archive_selected_job(&mut self, ctx: egui::Context) {
@@ -105,11 +96,11 @@ impl CanISendDesktop {
         else {
             return;
         };
-        self.dispatch(self.language.text("Archiving job"), ctx, move || {
-            WorkerEvent::JobArchived(
-                Application::archive_job(&path, &id).map_err(|error| error.to_string()),
-            )
-        });
+        self.dispatch(
+            self.language.text("Archiving job"),
+            ctx,
+            WorkerRequest::ArchiveJob { path, id },
+        );
     }
 
     pub(super) fn show_job_dialog(&mut self, ui: &mut egui::Ui) {
@@ -176,15 +167,10 @@ impl CanISendDesktop {
                                     self.dispatch(
                                         self.language.text("Creating job"),
                                         ui.ctx().clone(),
-                                        move || {
-                                            WorkerEvent::JobCreated(
-                                                Application::create_job(
-                                                    &path,
-                                                    &title,
-                                                    &institution,
-                                                )
-                                                .map_err(|error| error.to_string()),
-                                            )
+                                        WorkerRequest::CreateJob {
+                                            path,
+                                            title,
+                                            institution,
                                         },
                                     );
                                 }
@@ -374,16 +360,10 @@ impl CanISendDesktop {
                 self.dispatch(
                     self.language.text("Importing local source"),
                     ctx,
-                    move || {
-                        WorkerEvent::SourceImported(
-                            Application::import_local_job_source(
-                                &root,
-                                &job_id,
-                                &file,
-                                PrivateReadConsent::granted_by_user(),
-                            )
-                            .map_err(|error| error.to_string()),
-                        )
+                    WorkerRequest::ImportLocalSource {
+                        path: root,
+                        id: job_id,
+                        source: file,
                     },
                 );
             }
@@ -405,16 +385,10 @@ impl CanISendDesktop {
                 self.dispatch(
                     self.language.text("Fetching and importing URL"),
                     ctx,
-                    move || {
-                        WorkerEvent::SourceImported(
-                            Application::import_url_job_source(
-                                &root,
-                                &job_id,
-                                &url,
-                                NetworkFetchConsent::granted_by_user(),
-                            )
-                            .map_err(|error| error.to_string()),
-                        )
+                    WorkerRequest::ImportUrlSource {
+                        path: root,
+                        id: job_id,
+                        url,
                     },
                 );
             }
@@ -601,13 +575,11 @@ impl CanISendDesktop {
             return;
         };
         if self.workspace_form.create_new {
-            self.dispatch(self.language.text("Creating workspace"), ctx, move || {
-                WorkerEvent::WorkspaceCreated {
-                    alias,
-                    result: Application::initialize_workspace(&path)
-                        .map_err(|error| error.to_string()),
-                }
-            });
+            self.dispatch(
+                self.language.text("Creating workspace"),
+                ctx,
+                WorkerRequest::CreateWorkspace { alias, path },
+            );
         } else {
             match self.registry.register(&alias, &path) {
                 Ok(canonical) => {
