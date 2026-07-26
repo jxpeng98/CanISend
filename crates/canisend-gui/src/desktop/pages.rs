@@ -1102,6 +1102,7 @@ impl CanISendDesktop {
                 self.selected_job_id = None;
                 self.workflow_controls = None;
                 self.workflow_action_form = None;
+                self.criteria_match_form = CriteriaMatchForm::default();
                 return;
             }
             ui.separator();
@@ -1200,7 +1201,7 @@ impl CanISendDesktop {
                     .color(theme::warning(self.dark_mode)),
             );
             columns[1].label(self.language.text(
-                "Stage-specific artifact creation, plan confirmation, criteria, evidence, documents, review, render, and export remain available through the CLI or Agent v2.",
+                "Plan confirmation, document creation, review, render, and export remain available through the CLI or Agent v2.",
             ));
         });
         if let Some(action) = workflow_action {
@@ -1219,6 +1220,500 @@ impl CanISendDesktop {
                 }
             }
         }
+        ui.add_space(22.0);
+        self.show_criteria_match_workflow(ui, detail.job.id.as_str());
+    }
+
+    pub(super) fn show_criteria_match_workflow(&mut self, ui: &mut egui::Ui, job_id: &str) {
+        if self.criteria_match_form.job_id.as_deref() != Some(job_id) {
+            self.criteria_match_form = CriteriaMatchForm {
+                job_id: Some(job_id.to_owned()),
+                ..CriteriaMatchForm::default()
+            };
+        }
+
+        accessible_heading(ui, self.language.text("Criteria review"), 2);
+        ui.separator();
+        ui.label(self.language.select(
+            "Load the parsed job criteria only when you are ready to review private source-derived text. CanISend will not confirm criteria automatically.",
+            "仅在准备审阅由私有来源生成的文本时加载职位条件。CanISend 不会自动确认任何条件。",
+        ));
+        ui.add_space(8.0);
+        if ui
+            .add_enabled(
+                self.activity.is_none(),
+                egui::Checkbox::new(
+                    &mut self.criteria_match_form.criteria_private_read_consent,
+                    self.language
+                        .text("Allow this user-invoked private criteria review"),
+                ),
+            )
+            .changed()
+        {
+            self.criteria_match_form.criteria_error = None;
+        }
+        if ui
+            .add_enabled(
+                self.activity.is_none(),
+                theme::primary_button(self.language.text("Load criteria candidate")),
+            )
+            .clicked()
+        {
+            self.load_criteria_candidate(ui.ctx().clone());
+        }
+        if let Some(error) = &self.criteria_match_form.criteria_error {
+            accessible_error(ui, theme::error(self.dark_mode), error);
+        }
+
+        if let Some(mut candidate) = self.criteria_match_form.candidate.clone() {
+            ui.add_space(16.0);
+            ui.horizontal(|ui| {
+                accessible_heading(ui, self.language.text("Criteria candidate"), 3);
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    ui.label(match self.language {
+                        Language::English => format!(
+                            "Revision {} · {} criterion/criteria",
+                            candidate.revision.get(),
+                            candidate.criteria.len()
+                        ),
+                        Language::SimplifiedChinese => format!(
+                            "修订 {} · {} 条条件",
+                            candidate.revision.get(),
+                            candidate.criteria.len()
+                        ),
+                    });
+                });
+            });
+            ui.colored_label(
+                theme::warning(self.dark_mode),
+                self.language.select(
+                    "Private source-derived criteria and quotes are visible below and remain local.",
+                    "下方会显示由私有来源生成的条件和引文，内容只保留在本地。",
+                ),
+            );
+
+            let mut changed = false;
+            for (index, criterion) in candidate.criteria.iter_mut().enumerate() {
+                ui.add_space(10.0);
+                egui::Frame::new()
+                    .fill(if self.dark_mode {
+                        Color32::from_rgb(38, 48, 52)
+                    } else {
+                        Color32::WHITE
+                    })
+                    .stroke(Stroke::new(1.0, theme::SLATE_300))
+                    .corner_radius(6)
+                    .inner_margin(egui::Margin::same(14))
+                    .show(ui, |ui| {
+                        accessible_heading(
+                            ui,
+                            &format!("{} {}", self.language.text("Criterion"), index + 1),
+                            4,
+                        );
+
+                        let previous_kind = criterion.kind;
+                        let previous_importance = criterion.importance;
+                        ui.horizontal_wrapped(|ui| {
+                            ui.add_enabled_ui(self.activity.is_none(), |ui| {
+                                egui::ComboBox::from_label(self.language.text("Evidence kind"))
+                                    .selected_text(evidence_kind_text(
+                                        self.language,
+                                        criterion.kind,
+                                    ))
+                                    .show_ui(ui, |ui| {
+                                        for kind in [
+                                            EvidenceKind::Qualification,
+                                            EvidenceKind::Teaching,
+                                            EvidenceKind::Research,
+                                            EvidenceKind::Communication,
+                                            EvidenceKind::Leadership,
+                                            EvidenceKind::Service,
+                                            EvidenceKind::Employment,
+                                            EvidenceKind::Other,
+                                        ] {
+                                            ui.selectable_value(
+                                                &mut criterion.kind,
+                                                kind,
+                                                evidence_kind_text(self.language, kind),
+                                            );
+                                        }
+                                    });
+                                egui::ComboBox::from_label(self.language.text("Importance"))
+                                    .selected_text(criterion_importance_text(
+                                        self.language,
+                                        criterion.importance,
+                                    ))
+                                    .show_ui(ui, |ui| {
+                                        for importance in [
+                                            CriterionImportance::Essential,
+                                            CriterionImportance::Desirable,
+                                            CriterionImportance::Informational,
+                                        ] {
+                                            ui.selectable_value(
+                                                &mut criterion.importance,
+                                                importance,
+                                                criterion_importance_text(
+                                                    self.language,
+                                                    importance,
+                                                ),
+                                            );
+                                        }
+                                    });
+                            });
+                        });
+                        if criterion.kind != previous_kind
+                            || criterion.importance != previous_importance
+                        {
+                            criterion.confirmed = false;
+                            changed = true;
+                        }
+
+                        let requirement_label = ui.label(self.language.text("Requirement"));
+                        if ui
+                            .add_enabled(
+                                self.activity.is_none(),
+                                egui::TextEdit::multiline(&mut criterion.requirement)
+                                    .desired_rows(2)
+                                    .desired_width(f32::INFINITY),
+                            )
+                            .labelled_by(requirement_label.id)
+                            .changed()
+                        {
+                            criterion.confirmed = false;
+                            changed = true;
+                        }
+
+                        ui.label(RichText::new(self.language.text("Source quote")).strong());
+                        egui::Frame::new()
+                            .fill(ui.visuals().faint_bg_color)
+                            .inner_margin(egui::Margin::same(8))
+                            .show(ui, |ui| {
+                                ui.label(&criterion.source_quote);
+                            });
+                        ui.label(
+                            RichText::new(match self.language {
+                                Language::English => format!(
+                                    "Parser confidence: {:.1}%",
+                                    f32::from(criterion.confidence_milli) / 10.0
+                                ),
+                                Language::SimplifiedChinese => format!(
+                                    "解析置信度：{:.1}%",
+                                    f32::from(criterion.confidence_milli) / 10.0
+                                ),
+                            })
+                            .small()
+                            .weak(),
+                        );
+                        ui.label(
+                            RichText::new(format!(
+                                "{} · {} {}–{} · SHA-256 {}",
+                                criterion.source_span.source.id,
+                                self.language.text("bytes"),
+                                criterion.source_span.start_byte,
+                                criterion.source_span.end_byte,
+                                criterion.source_span.source.sha256
+                            ))
+                            .small()
+                            .weak(),
+                        );
+                        if ui
+                            .add_enabled(
+                                self.activity.is_none(),
+                                egui::Checkbox::new(
+                                    &mut criterion.confirmed,
+                                    self.language
+                                        .text("I reviewed this criterion and its importance"),
+                                ),
+                            )
+                            .changed()
+                        {
+                            changed = true;
+                        }
+                    });
+            }
+            if changed {
+                self.criteria_match_form.downstream_effects_confirmed = false;
+                self.criteria_match_form.criteria_error = None;
+                self.criteria_match_form.matches = None;
+                self.criteria_match_form.match_error = None;
+            }
+            self.criteria_match_form.candidate = Some(candidate.clone());
+
+            ui.add_space(12.0);
+            ui.colored_label(
+                theme::warning(self.dark_mode),
+                self.language.select(
+                    "Saving this criteria revision may mark current matches, plan, documents, review, package, and render outputs stale. Existing records remain available but are no longer current.",
+                    "保存此条件修订版本可能会将当前匹配、计划、文档、审阅、打包和渲染结果标记为过期。已有记录仍会保留，但不再是当前版本。",
+                ),
+            );
+            if ui
+                .add_enabled(
+                    self.activity.is_none(),
+                    egui::Checkbox::new(
+                        &mut self.criteria_match_form.downstream_effects_confirmed,
+                        self.language
+                            .text("I understand the downstream revision effects"),
+                    ),
+                )
+                .changed()
+            {
+                self.criteria_match_form.criteria_error = None;
+            }
+            if ui
+                .add_enabled(
+                    self.activity.is_none(),
+                    theme::primary_button(self.language.text("Confirm criteria")),
+                )
+                .clicked()
+            {
+                self.confirm_criteria_candidate(candidate, ui.ctx().clone());
+            }
+        } else {
+            ui.add_space(8.0);
+            ui.label(
+                RichText::new(self.language.select(
+                    "Complete the parse task before loading a criteria candidate.",
+                    "请先完成 parse 任务，再加载候选条件。",
+                ))
+                .weak(),
+            );
+        }
+
+        ui.add_space(22.0);
+        accessible_heading(ui, self.language.text("Current evidence matches"), 2);
+        ui.separator();
+        ui.label(self.language.select(
+            "This is a read-only view of the current revision-bound match artifact. CanISend never creates or updates matches from this button.",
+            "这里只读取与当前修订版本绑定的匹配工件。CanISend 不会通过此按钮创建或更新匹配结果。",
+        ));
+        if ui
+            .add_enabled(
+                self.activity.is_none(),
+                egui::Checkbox::new(
+                    &mut self.criteria_match_form.match_private_read_consent,
+                    self.language
+                        .text("Allow this user-invoked private match review"),
+                ),
+            )
+            .changed()
+        {
+            self.criteria_match_form.match_error = None;
+        }
+        if ui
+            .add_enabled(
+                self.activity.is_none(),
+                theme::primary_button(self.language.text("Load current matches")),
+            )
+            .clicked()
+        {
+            self.load_current_matches(ui.ctx().clone());
+        }
+        if let Some(error) = &self.criteria_match_form.match_error {
+            accessible_error(ui, theme::error(self.dark_mode), error);
+        }
+
+        if let Some(matches) = &self.criteria_match_form.matches {
+            ui.add_space(14.0);
+            ui.horizontal(|ui| {
+                accessible_heading(ui, self.language.text("Match results"), 3);
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    ui.label(match self.language {
+                        Language::English => format!(
+                            "Revision {} · {} match(es)",
+                            matches.revision.get(),
+                            matches.matches.len()
+                        ),
+                        Language::SimplifiedChinese => format!(
+                            "修订 {} · {} 条匹配",
+                            matches.revision.get(),
+                            matches.matches.len()
+                        ),
+                    });
+                });
+            });
+            ui.colored_label(
+                theme::warning(self.dark_mode),
+                self.language.select(
+                    "Private evidence rationale and gaps are visible below and remain local.",
+                    "下方会显示私有证据的匹配依据和差距，内容只保留在本地。",
+                ),
+            );
+            if matches.matches.is_empty() {
+                ui.label(self.language.text("No current matches are recorded."));
+            }
+            for (index, evidence_match) in matches.matches.iter().enumerate() {
+                ui.add_space(10.0);
+                egui::Frame::new()
+                    .fill(if self.dark_mode {
+                        Color32::from_rgb(38, 48, 52)
+                    } else {
+                        Color32::WHITE
+                    })
+                    .stroke(Stroke::new(1.0, theme::SLATE_300))
+                    .corner_radius(6)
+                    .inner_margin(egui::Margin::same(14))
+                    .show(ui, |ui| {
+                        ui.horizontal_wrapped(|ui| {
+                            accessible_heading(
+                                ui,
+                                &format!("{} {}", self.language.text("Match"), index + 1),
+                                4,
+                            );
+                            let color = match evidence_match.strength {
+                                MatchStrength::Strong => theme::positive(self.dark_mode),
+                                MatchStrength::Partial | MatchStrength::Unknown => {
+                                    theme::warning(self.dark_mode)
+                                }
+                                MatchStrength::Gap => theme::error(self.dark_mode),
+                            };
+                            ui.colored_label(
+                                color,
+                                RichText::new(match_strength_text(
+                                    self.language,
+                                    evidence_match.strength,
+                                ))
+                                .strong(),
+                            );
+                        });
+                        diagnostic_row(
+                            ui,
+                            self.language.text("Criterion ID"),
+                            evidence_match.criterion.id.as_str(),
+                        );
+                        ui.label(RichText::new(self.language.text("Rationale")).strong());
+                        ui.label(&evidence_match.rationale);
+                        if let Some(gap) = &evidence_match.gap {
+                            ui.label(
+                                RichText::new(self.language.text("Gap"))
+                                    .strong()
+                                    .color(theme::error(self.dark_mode)),
+                            );
+                            ui.label(gap);
+                        }
+                        ui.label(RichText::new(self.language.text("Evidence references")).strong());
+                        if evidence_match.evidence.is_empty() {
+                            ui.label(self.language.text("No evidence reference"));
+                        } else {
+                            for evidence in &evidence_match.evidence {
+                                ui.monospace(format!(
+                                    "{} · r{}",
+                                    evidence.id,
+                                    evidence.revision.get()
+                                ));
+                            }
+                        }
+                        if !evidence_match.prohibited_claims.is_empty() {
+                            ui.label(
+                                RichText::new(self.language.text("Prohibited claims"))
+                                    .strong()
+                                    .color(theme::warning(self.dark_mode)),
+                            );
+                            for claim in &evidence_match.prohibited_claims {
+                                ui.label(format!("• {claim}"));
+                            }
+                        }
+                    });
+            }
+        } else {
+            ui.add_space(8.0);
+            ui.label(
+                RichText::new(self.language.select(
+                    "Complete the evidence-match task before loading current matches.",
+                    "请先完成 evidence-match 任务，再加载当前匹配结果。",
+                ))
+                .weak(),
+            );
+        }
+    }
+
+    pub(super) fn load_criteria_candidate(&mut self, ctx: egui::Context) {
+        let (Some(path), Some(job_id)) = (
+            self.active_workspace.clone(),
+            self.criteria_match_form.job_id.clone(),
+        ) else {
+            self.criteria_match_form.criteria_error = Some(
+                self.language
+                    .text("No active workspace or job is selected")
+                    .to_owned(),
+            );
+            return;
+        };
+        if !self.criteria_match_form.criteria_private_read_consent {
+            self.criteria_match_form.criteria_error = Some(
+                self.language
+                    .text("Confirm private criteria access before loading")
+                    .to_owned(),
+            );
+            return;
+        }
+        self.dispatch(
+            self.language.text("Loading criteria candidate"),
+            ctx,
+            WorkerRequest::LoadCriteriaCandidate { path, job_id },
+        );
+    }
+
+    pub(super) fn confirm_criteria_candidate(
+        &mut self,
+        candidate: canisend_contracts::CriteriaSetRecord,
+        ctx: egui::Context,
+    ) {
+        if let Err(error) = validate_criteria_review(
+            &candidate,
+            self.criteria_match_form.downstream_effects_confirmed,
+            self.language,
+        ) {
+            self.criteria_match_form.criteria_error = Some(error);
+            return;
+        }
+        let (Some(path), Some(job_id)) = (
+            self.active_workspace.clone(),
+            self.criteria_match_form.job_id.clone(),
+        ) else {
+            self.criteria_match_form.criteria_error = Some(
+                self.language
+                    .text("No active workspace or job is selected")
+                    .to_owned(),
+            );
+            return;
+        };
+        self.dispatch(
+            self.language.text("Confirming criteria"),
+            ctx,
+            WorkerRequest::ConfirmCriteria {
+                path,
+                job_id,
+                candidate,
+            },
+        );
+    }
+
+    pub(super) fn load_current_matches(&mut self, ctx: egui::Context) {
+        let (Some(path), Some(job_id)) = (
+            self.active_workspace.clone(),
+            self.criteria_match_form.job_id.clone(),
+        ) else {
+            self.criteria_match_form.match_error = Some(
+                self.language
+                    .text("No active workspace or job is selected")
+                    .to_owned(),
+            );
+            return;
+        };
+        if !self.criteria_match_form.match_private_read_consent {
+            self.criteria_match_form.match_error = Some(
+                self.language
+                    .text("Confirm private match access before loading")
+                    .to_owned(),
+            );
+            return;
+        }
+        self.dispatch(
+            self.language.text("Loading current matches"),
+            ctx,
+            WorkerRequest::LoadCurrentMatches { path, job_id },
+        );
     }
 
     pub(super) fn show_workspaces(&mut self, ui: &mut egui::Ui) {
@@ -1995,4 +2490,34 @@ impl CanISendDesktop {
             },
         );
     }
+}
+
+fn evidence_kind_text(language: Language, kind: EvidenceKind) -> &'static str {
+    language.text(match kind {
+        EvidenceKind::Qualification => "Qualification",
+        EvidenceKind::Teaching => "Teaching",
+        EvidenceKind::Research => "Research",
+        EvidenceKind::Communication => "Communication",
+        EvidenceKind::Leadership => "Leadership",
+        EvidenceKind::Service => "Service",
+        EvidenceKind::Employment => "Employment",
+        EvidenceKind::Other => "Other",
+    })
+}
+
+fn criterion_importance_text(language: Language, importance: CriterionImportance) -> &'static str {
+    language.text(match importance {
+        CriterionImportance::Essential => "Essential",
+        CriterionImportance::Desirable => "Desirable",
+        CriterionImportance::Informational => "Informational",
+    })
+}
+
+fn match_strength_text(language: Language, strength: MatchStrength) -> &'static str {
+    language.text(match strength {
+        MatchStrength::Strong => "Strong",
+        MatchStrength::Partial => "Partial",
+        MatchStrength::Gap => "Gap",
+        MatchStrength::Unknown => "Unknown",
+    })
 }

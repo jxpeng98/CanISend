@@ -9,7 +9,8 @@ use canisend_app::{
     WorkspaceReadModel, WorkspaceRepairReadModel, WorkspaceRestoreReadModel,
 };
 use canisend_contracts::{
-    EvidenceCatalogRecord, JobRecord, PrivacyClassification, WorkflowStage, WorkflowStatusData,
+    CriteriaSetRecord, EvidenceCatalogRecord, EvidenceMatchSetRecord, JobRecord,
+    PrivacyClassification, WorkflowStage, WorkflowStatusData,
 };
 
 #[derive(Debug)]
@@ -79,6 +80,19 @@ pub(crate) enum WorkerRequest {
         path: PathBuf,
         job_id: String,
         candidate: EvidenceCatalogRecord,
+    },
+    LoadCriteriaCandidate {
+        path: PathBuf,
+        job_id: String,
+    },
+    ConfirmCriteria {
+        path: PathBuf,
+        job_id: String,
+        candidate: CriteriaSetRecord,
+    },
+    LoadCurrentMatches {
+        path: PathBuf,
+        job_id: String,
     },
     StartWorkflow {
         path: PathBuf,
@@ -150,6 +164,18 @@ pub(crate) enum WorkerEvent {
     ProfileEvidenceConfirmed {
         job_id: String,
         result: Result<ActionReceipt<EvidenceCatalogRecord>, String>,
+    },
+    CriteriaCandidateLoaded {
+        job_id: String,
+        result: Result<ActionReceipt<CriteriaSetRecord>, String>,
+    },
+    CriteriaConfirmed {
+        job_id: String,
+        result: Result<ActionReceipt<CriteriaSetRecord>, String>,
+    },
+    CurrentMatchesLoaded {
+        job_id: String,
+        result: Result<ActionReceipt<EvidenceMatchSetRecord>, String>,
     },
     WorkflowLoaded(Result<ActionReceipt<WorkflowStatusData>, String>),
     WorkflowControlsLoaded(Result<ActionReceipt<WorkflowControlReadModel>, String>),
@@ -268,6 +294,42 @@ pub(crate) fn execute(request: WorkerRequest) -> WorkerEvent {
                     .map_err(|error| error.to_string())
                 });
             WorkerEvent::ProfileEvidenceConfirmed { job_id, result }
+        }
+        WorkerRequest::LoadCriteriaCandidate { path, job_id } => {
+            let result = Application::job_criteria_template(
+                &path,
+                &job_id,
+                PrivateReadConsent::granted_by_user(),
+            )
+            .map_err(|error| error.to_string());
+            WorkerEvent::CriteriaCandidateLoaded { job_id, result }
+        }
+        WorkerRequest::ConfirmCriteria {
+            path,
+            job_id,
+            candidate,
+        } => {
+            let result = serde_json::to_value(candidate)
+                .map_err(|error| error.to_string())
+                .and_then(|candidate| {
+                    Application::confirm_job_criteria(
+                        &path,
+                        &job_id,
+                        &candidate,
+                        PrivateReadConsent::granted_by_user(),
+                    )
+                    .map_err(|error| error.to_string())
+                });
+            WorkerEvent::CriteriaConfirmed { job_id, result }
+        }
+        WorkerRequest::LoadCurrentMatches { path, job_id } => {
+            let result = Application::current_evidence_matches(
+                &path,
+                &job_id,
+                PrivateReadConsent::granted_by_user(),
+            )
+            .map_err(|error| error.to_string());
+            WorkerEvent::CurrentMatchesLoaded { job_id, result }
         }
         WorkerRequest::StartWorkflow { path, id } => WorkerEvent::WorkflowLoaded(
             Application::start_workflow(&path, &id).map_err(|error| error.to_string()),
@@ -420,6 +482,20 @@ mod tests {
                 job_id: job_id.to_string(),
             }),
             WorkerEvent::ProfileEvidenceLoaded { result: Err(_), .. }
+        ));
+        assert!(matches!(
+            execute(WorkerRequest::LoadCriteriaCandidate {
+                path: root.clone(),
+                job_id: job_id.to_string(),
+            }),
+            WorkerEvent::CriteriaCandidateLoaded { result: Err(_), .. }
+        ));
+        assert!(matches!(
+            execute(WorkerRequest::LoadCurrentMatches {
+                path: root.clone(),
+                job_id: job_id.to_string(),
+            }),
+            WorkerEvent::CurrentMatchesLoaded { result: Err(_), .. }
         ));
         assert!(matches!(
             execute(WorkerRequest::StartWorkflow {

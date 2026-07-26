@@ -2,8 +2,8 @@ use std::path::PathBuf;
 
 use canisend_app::WorkflowRerunPreview;
 use canisend_contracts::{
-    ArtifactKind, EntityId, EvidenceCatalogRecord, ExecutionMode, PrivacyClassification,
-    WorkflowStage,
+    ArtifactKind, CriteriaSetRecord, EntityId, EvidenceCatalogRecord, EvidenceMatchSetRecord,
+    ExecutionMode, PrivacyClassification, WorkflowStage,
 };
 use serde::{Deserialize, Serialize};
 
@@ -144,6 +144,18 @@ pub(crate) struct EvidenceReviewForm {
     pub(crate) candidate: Option<EvidenceCatalogRecord>,
     pub(crate) downstream_effects_confirmed: bool,
     pub(crate) error: Option<String>,
+}
+
+#[derive(Debug, Default)]
+pub(crate) struct CriteriaMatchForm {
+    pub(crate) job_id: Option<String>,
+    pub(crate) criteria_private_read_consent: bool,
+    pub(crate) candidate: Option<CriteriaSetRecord>,
+    pub(crate) downstream_effects_confirmed: bool,
+    pub(crate) criteria_error: Option<String>,
+    pub(crate) match_private_read_consent: bool,
+    pub(crate) matches: Option<EvidenceMatchSetRecord>,
+    pub(crate) match_error: Option<String>,
 }
 
 #[derive(Debug, Default)]

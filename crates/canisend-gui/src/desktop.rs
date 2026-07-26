@@ -14,15 +14,16 @@ use crate::{
         cli_state_style, command_copy_row, diagnostic_row, execution_mode_label,
         keep_focused_visible, localized_receipt_summary, localized_workspace_alias_error,
         metric_card, page_accessible_label, paint_focus_ring, set_accesskit_role,
-        source_kind_label, stage_label, validate_evidence_review, validate_job_form,
-        validate_profile_source_form, workflow_control_timeline, workflow_timeline,
+        source_kind_label, stage_label, validate_criteria_review, validate_evidence_review,
+        validate_job_form, validate_profile_source_form, workflow_control_timeline,
+        workflow_timeline,
     },
     i18n::{self, Language},
     registry::{WorkspaceRegistry, default_registry_path, validate_workspace_alias},
     state::{
-        EvidenceReviewForm, FocusTarget, GuiPreferences, ImportForm, ImportKind, JobForm, Page,
-        PendingConfirmation, ProfileSourceForm, RestoreWorkspaceForm, WorkflowActionForm,
-        WorkspaceForm, parse_workflow_artifact_id,
+        CriteriaMatchForm, EvidenceReviewForm, FocusTarget, GuiPreferences, ImportForm, ImportKind,
+        JobForm, Page, PendingConfirmation, ProfileSourceForm, RestoreWorkspaceForm,
+        WorkflowActionForm, WorkspaceForm, parse_workflow_artifact_id,
     },
     theme,
     worker::{WorkerEvent, WorkerRequest, execute},
@@ -34,8 +35,8 @@ use canisend_app::{
 };
 use canisend_app::{CliInstallState, CliInstallStatus, CliVersionRelation};
 use canisend_contracts::{
-    ArtifactKind, EntityId, EvidenceKind, ExecutionMode, JobRecord, PrivacyClassification,
-    ProfileSourceKind, WorkflowStage,
+    ArtifactKind, CriterionImportance, EntityId, EvidenceKind, ExecutionMode, JobRecord,
+    MatchStrength, PrivacyClassification, ProfileSourceKind, WorkflowStage,
 };
 use eframe::egui::{self, Align, Color32, Layout, RichText, Sense, Stroke};
 
@@ -127,6 +128,7 @@ struct CanISendDesktop {
     profile_source_form: ProfileSourceForm,
     show_profile_source_form: bool,
     evidence_review_form: EvidenceReviewForm,
+    criteria_match_form: CriteriaMatchForm,
     workspace_form: WorkspaceForm,
     show_workspace_form: bool,
     restore_workspace_form: RestoreWorkspaceForm,
@@ -193,6 +195,7 @@ impl CanISendDesktop {
             profile_source_form: ProfileSourceForm::default(),
             show_profile_source_form: false,
             evidence_review_form: EvidenceReviewForm::default(),
+            criteria_match_form: CriteriaMatchForm::default(),
             workspace_form: WorkspaceForm::default(),
             show_workspace_form: false,
             restore_workspace_form: RestoreWorkspaceForm::default(),
@@ -375,6 +378,12 @@ impl CanISendDesktop {
                 Ok(receipt) => {
                     let job_id = receipt.data.job.id.to_string();
                     let has_workflow = receipt.data.workflow.is_some();
+                    if self.criteria_match_form.job_id.as_deref() != Some(job_id.as_str()) {
+                        self.criteria_match_form = CriteriaMatchForm {
+                            job_id: Some(job_id.clone()),
+                            ..CriteriaMatchForm::default()
+                        };
+                    }
                     self.selected_job_id = Some(job_id.clone());
                     self.selected_job = Some(receipt.data);
                     if has_workflow {
@@ -392,6 +401,7 @@ impl CanISendDesktop {
                     self.selected_job_id = None;
                     self.workflow_controls = None;
                     self.workflow_action_form = None;
+                    self.criteria_match_form = CriteriaMatchForm::default();
                     self.notice = Some((true, summary));
                     self.refresh_jobs(ctx.clone());
                 }
@@ -448,6 +458,45 @@ impl CanISendDesktop {
                     }
                 }
                 Err(error) => self.evidence_review_form.error = Some(error),
+            },
+            WorkerEvent::CriteriaCandidateLoaded { job_id, result } => match result {
+                Ok(receipt) => {
+                    let mut candidate = receipt.data;
+                    for criterion in &mut candidate.criteria {
+                        criterion.confirmed = false;
+                    }
+                    self.criteria_match_form.job_id = Some(job_id);
+                    self.criteria_match_form.candidate = Some(candidate);
+                    self.criteria_match_form.downstream_effects_confirmed = false;
+                    self.criteria_match_form.criteria_error = None;
+                    self.criteria_match_form.matches = None;
+                    self.criteria_match_form.match_error = None;
+                }
+                Err(error) => self.criteria_match_form.criteria_error = Some(error),
+            },
+            WorkerEvent::CriteriaConfirmed { job_id, result } => match result {
+                Ok(receipt) => {
+                    let summary = localized_receipt_summary(&receipt, self.language);
+                    self.criteria_match_form.job_id = Some(job_id.clone());
+                    self.criteria_match_form.candidate = Some(receipt.data);
+                    self.criteria_match_form.downstream_effects_confirmed = false;
+                    self.criteria_match_form.criteria_error = None;
+                    self.criteria_match_form.matches = None;
+                    self.criteria_match_form.match_error = None;
+                    self.notice = Some((true, summary));
+                    if self.selected_job_id.as_deref() == Some(job_id.as_str()) {
+                        self.load_job(job_id, ctx.clone());
+                    }
+                }
+                Err(error) => self.criteria_match_form.criteria_error = Some(error),
+            },
+            WorkerEvent::CurrentMatchesLoaded { job_id, result } => match result {
+                Ok(receipt) => {
+                    self.criteria_match_form.job_id = Some(job_id);
+                    self.criteria_match_form.matches = Some(receipt.data);
+                    self.criteria_match_form.match_error = None;
+                }
+                Err(error) => self.criteria_match_form.match_error = Some(error),
             },
             WorkerEvent::WorkflowLoaded(result) => match result {
                 Ok(receipt) => {
@@ -548,6 +597,7 @@ impl CanISendDesktop {
         self.jobs.clear();
         self.profile_sources = None;
         self.evidence_review_form = EvidenceReviewForm::default();
+        self.criteria_match_form = CriteriaMatchForm::default();
         self.selected_job = None;
         self.selected_job_id = None;
         self.workflow_controls = None;

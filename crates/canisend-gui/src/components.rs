@@ -2,8 +2,8 @@ use std::path::Path;
 
 use canisend_app::{ActionReceipt, CliInstallState, CliInstallStatus, WorkflowControlReadModel};
 use canisend_contracts::{
-    ArtifactKind, EvidenceCatalogRecord, ExecutionMode, SourceKind, StageExecutionStatus,
-    WorkflowStage, WorkflowStatusData,
+    ArtifactKind, CriteriaSetRecord, EvidenceCatalogRecord, ExecutionMode, SourceKind,
+    StageExecutionStatus, WorkflowStage, WorkflowStatusData,
 };
 use eframe::egui::{self, Align, Color32, Layout, RichText, Sense, Stroke};
 
@@ -97,6 +97,7 @@ pub(crate) fn localized_receipt_summary<T>(
         "job.import" => "职位来源已导入",
         "profile.source.add" => "个人资料来源已导入",
         "profile.evidence.confirm" => "个人资料证据已确认",
+        "criteria.confirm" => "职位条件已确认",
         "workflow.start" => "工作流已启动",
         "workflow.status" => "工作流状态已更新",
         "workflow.begin" => "工作流阶段已开始",
@@ -209,6 +210,40 @@ pub(crate) fn validate_evidence_review(
     if !downstream_effects_confirmed {
         return Err(language
             .text("Confirm the downstream revision effects before saving evidence")
+            .to_owned());
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_criteria_review(
+    candidate: &CriteriaSetRecord,
+    downstream_effects_confirmed: bool,
+    language: Language,
+) -> Result<(), String> {
+    if candidate.criteria.is_empty() {
+        return Err(language
+            .text("No criteria are available to confirm")
+            .to_owned());
+    }
+    for (index, criterion) in candidate.criteria.iter().enumerate() {
+        if criterion.requirement.trim().is_empty() {
+            return Err(match language {
+                Language::English => format!("Criterion {} needs a requirement", index + 1),
+                Language::SimplifiedChinese => {
+                    format!("条件 {} 需要填写要求", index + 1)
+                }
+            });
+        }
+        if !criterion.confirmed {
+            return Err(match language {
+                Language::English => format!("Review and confirm criterion {}", index + 1),
+                Language::SimplifiedChinese => format!("请审阅并确认第 {} 条条件", index + 1),
+            });
+        }
+    }
+    if !downstream_effects_confirmed {
+        return Err(language
+            .text("Confirm the downstream revision effects before saving criteria")
             .to_owned());
     }
     Ok(())
@@ -535,11 +570,14 @@ pub(crate) fn command_copy_row(ui: &mut egui::Ui, command: &str, language: Langu
 
 #[cfg(test)]
 mod tests {
-    use canisend_contracts::{EvidenceCatalogRecord, StageExecutionStatus, WorkflowStage};
+    use canisend_contracts::{
+        CriteriaSetRecord, EvidenceCatalogRecord, StageExecutionStatus, WorkflowStage,
+    };
     use serde_json::json;
 
     use super::{
-        Language, WorkflowPrimaryAction, validate_evidence_review, workflow_primary_action,
+        Language, WorkflowPrimaryAction, validate_criteria_review, validate_evidence_review,
+        workflow_primary_action,
     };
 
     #[test]
@@ -619,5 +657,49 @@ mod tests {
                 .contains("downstream")
         );
         assert!(validate_evidence_review(&candidate, true, Language::English).is_ok());
+    }
+
+    #[test]
+    fn criteria_review_requires_each_item_and_downstream_effect_confirmation() {
+        let mut candidate: CriteriaSetRecord = serde_json::from_value(json!({
+            "id": "019f2f55-7c00-7000-8000-000000000301",
+            "job_id": "019f2f55-7c00-7000-8000-000000000302",
+            "criteria": [{
+                "id": "019f2f55-7c00-7000-8000-000000000303",
+                "job_id": "019f2f55-7c00-7000-8000-000000000302",
+                "kind": "teaching",
+                "requirement": "Evidence of excellent teaching",
+                "importance": "essential",
+                "source_quote": "excellent teaching",
+                "source_span": {
+                    "source": {
+                        "kind": "source-normalized-text",
+                        "id": "019f2f55-7c00-7000-8000-000000000304",
+                        "revision": 1,
+                        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+                    },
+                    "start_byte": 0,
+                    "end_byte": 18
+                },
+                "confidence_milli": 900,
+                "confirmed": false,
+                "revision": 1
+            }],
+            "revision": 1
+        }))
+        .expect("criteria fixture");
+
+        assert!(
+            validate_criteria_review(&candidate, true, Language::English)
+                .expect_err("unconfirmed criterion")
+                .contains("Review and confirm")
+        );
+        candidate.criteria[0].confirmed = true;
+        assert!(
+            validate_criteria_review(&candidate, false, Language::English)
+                .expect_err("missing downstream confirmation")
+                .contains("downstream")
+        );
+        assert!(validate_criteria_review(&candidate, true, Language::English).is_ok());
     }
 }

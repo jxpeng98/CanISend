@@ -152,6 +152,44 @@ impl Language {
             "Loading evidence candidate" => "正在加载候选证据",
             "No active workspace or job is selected" => "尚未选择当前工作区或职位",
             "Confirming profile evidence" => "正在确认个人资料证据",
+            "Criteria review" => "职位条件审阅",
+            "Allow this user-invoked private criteria review" => {
+                "允许本次由用户发起的私有职位条件审阅"
+            }
+            "Load criteria candidate" => "加载候选条件",
+            "Loading criteria candidate" => "正在加载候选条件",
+            "Criteria candidate" => "候选条件",
+            "Criterion" => "条件",
+            "Evidence kind" => "证据类型",
+            "Importance" => "重要性",
+            "Essential" => "必要",
+            "Desirable" => "优先",
+            "Informational" => "参考",
+            "Requirement" => "要求",
+            "I reviewed this criterion and its importance" => "我已审阅此条件及其重要性",
+            "No criteria are available to confirm" => "没有可确认的职位条件",
+            "Confirm the downstream revision effects before saving criteria" => {
+                "保存职位条件前请确认下游修订影响"
+            }
+            "Confirm criteria" => "确认职位条件",
+            "Confirming criteria" => "正在确认职位条件",
+            "Confirm private criteria access before loading" => "加载前请确认允许访问私有职位条件",
+            "Current evidence matches" => "当前证据匹配",
+            "Allow this user-invoked private match review" => "允许本次由用户发起的私有匹配审阅",
+            "Load current matches" => "加载当前匹配",
+            "Loading current matches" => "正在加载当前匹配",
+            "Confirm private match access before loading" => "加载前请确认允许访问私有匹配",
+            "Match results" => "匹配结果",
+            "No current matches are recorded." => "没有记录当前匹配结果。",
+            "Strong" => "强",
+            "Partial" => "部分",
+            "Gap" => "差距",
+            "Unknown" => "未知",
+            "Criterion ID" => "条件 ID",
+            "Rationale" => "匹配依据",
+            "Evidence references" => "证据引用",
+            "No evidence reference" => "没有证据引用",
+            "Prohibited claims" => "禁止使用的陈述",
             "Application records, supplied sources, and workflow state" => {
                 "申请记录、用户提供的来源和工作流状态"
             }
@@ -191,6 +229,9 @@ impl Language {
                 "计划确认仍可通过 CLI 或 Agent v2 完成。"
             }
             "Workflow scope" => "工作流范围",
+            "Plan confirmation, document creation, review, render, and export remain available through the CLI or Agent v2." => {
+                "计划确认、文档创建、审阅、渲染和导出仍可通过 CLI 或 Agent v2 完成。"
+            }
             "Stage-specific artifact creation, plan confirmation, criteria, evidence, documents, review, render, and export remain available through the CLI or Agent v2." => {
                 "阶段专用工件创建、计划确认、条件、证据、文档、审阅、渲染和导出仍可通过 CLI 或 Agent v2 完成。"
             }
@@ -501,6 +542,14 @@ mod tests {
         assert_eq!(
             Language::SimplifiedChinese.text("Affected outputs"),
             "受影响的输出"
+        );
+        assert_eq!(
+            Language::SimplifiedChinese.text("Criteria review"),
+            "职位条件审阅"
+        );
+        assert_eq!(
+            Language::SimplifiedChinese.text("Current evidence matches"),
+            "当前证据匹配"
         );
         assert_eq!(
             serde_json::to_string(&Language::SimplifiedChinese).unwrap(),
