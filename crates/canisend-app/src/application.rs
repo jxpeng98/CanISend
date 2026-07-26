@@ -25,6 +25,16 @@ impl NetworkFetchConsent {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ProviderSendConsent(());
+
+impl ProviderSendConsent {
+    #[must_use]
+    pub const fn granted_by_user() -> Self {
+        Self(())
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Application;
 

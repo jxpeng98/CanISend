@@ -1187,28 +1187,93 @@ impl<'a> TaskService<'a> {
         })
     }
 
-    pub fn complete(
-        &mut self,
+    pub fn validate_completion(
+        &self,
         request: &TaskCompletionRequest,
-    ) -> Result<TaskCommitData, StoreError> {
-        let initial = self.get(&request.task_id)?;
-        if initial.status == TaskStatus::Stale {
+    ) -> Result<TaskStateData, StoreError> {
+        let (state, _, candidate_sha256) = self.validate_completion_candidate(request)?;
+        if state.status == TaskStatus::Committed {
+            replay_task(
+                self.database.connection(),
+                &request.task_id,
+                &candidate_sha256,
+            )?;
+            return Ok(state);
+        }
+        if state.status != TaskStatus::Prepared {
+            return Err(StoreError::TaskConflict(format!(
+                "task {} is in {:?} state",
+                request.task_id, state.status
+            )));
+        }
+
+        type ValidationRow = (String, String, i64, Option<i64>);
+        let (lease_id, lease_expires_at, prepared_job_revision, prepared_profile_revision):
+            ValidationRow = self
+            .database
+            .connection()
+            .query_row(
+                "SELECT lease_id, lease_expires_at, job_revision, profile_revision
+                 FROM tasks WHERE id = ?1",
+                params![request.task_id.as_str()],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .optional()?
+            .ok_or_else(|| StoreError::TaskNotFound(request.task_id.to_string()))?;
+        if lease_id != request.lease_id.as_str() {
+            return Err(StoreError::TaskConflict(format!(
+                "lease does not belong to task {}",
+                request.task_id
+            )));
+        }
+        let expired = timestamp_is_past(&lease_expires_at)?;
+        let stale = completion_is_stale(
+            self.database.connection(),
+            &state.descriptor,
+            request,
+            expired,
+            prepared_job_revision,
+            prepared_profile_revision,
+        )?;
+        if stale {
             return Err(StoreError::TaskStale(format!(
                 "task {} must be prepared again",
                 request.task_id
             )));
         }
-        validate_request_shape(&initial.descriptor, request)?;
-        let validated = validate_candidate(&initial.descriptor, &request.candidate)?;
+        Ok(state)
+    }
+
+    fn validate_completion_candidate(
+        &self,
+        request: &TaskCompletionRequest,
+    ) -> Result<ValidatedCompletion, StoreError> {
+        let state = self.get(&request.task_id)?;
+        if state.status == TaskStatus::Stale {
+            return Err(StoreError::TaskStale(format!(
+                "task {} must be prepared again",
+                request.task_id
+            )));
+        }
+        validate_request_shape(&state.descriptor, request)?;
+        let validated = validate_candidate(&state.descriptor, &request.candidate)?;
         validate_task_source_spans(
             self.database.connection(),
             self.blobs,
-            &initial.descriptor,
+            &state.descriptor,
             &validated,
         )?;
         let candidate_bytes = canonical_json_bytes(&request.candidate)?;
         let candidate_sha256 =
             Sha256Digest::try_new(hex::encode(Sha256::digest(&candidate_bytes)))?;
+        Ok((state, validated, candidate_sha256))
+    }
+
+    pub fn complete(
+        &mut self,
+        request: &TaskCompletionRequest,
+    ) -> Result<TaskCommitData, StoreError> {
+        let (initial, validated, candidate_sha256) = self.validate_completion_candidate(request)?;
         if initial.status == TaskStatus::Committed {
             return replay_task(
                 self.database.connection(),
@@ -1323,28 +1388,23 @@ impl<'a> TaskService<'a> {
                 request.task_id
             )));
         }
-        let current_job_revision: i64 = transaction
-            .query_row(
-                "SELECT revision FROM jobs WHERE id = ?1",
-                params![initial.descriptor.job_id.as_str()],
-                |row| row.get(0),
-            )
-            .optional()?
-            .ok_or_else(|| StoreError::TaskStale("job no longer exists".to_owned()))?;
-        let current_profile_revision: i64 = transaction.query_row(
-            "SELECT profile_revision FROM workspace_metadata WHERE singleton = 1",
-            [],
-            |row| row.get(0),
-        )?;
         let expired = timestamp_is_past(&lease_expires_at)?;
-        let profile_stale =
-            prepared_profile_revision.is_some_and(|revision| revision != current_profile_revision);
-        let stale = expired
-            || current_job_revision != prepared_job_revision
-            || current_job_revision != to_i64(request.expected_job_revision.get())?
-            || profile_stale
-            || !inputs_are_current(&transaction, request)?;
+        let stale = completion_is_stale(
+            &transaction,
+            &initial.descriptor,
+            request,
+            expired,
+            prepared_job_revision,
+            prepared_profile_revision,
+        )?;
         if stale {
+            let current_profile_revision: i64 = transaction.query_row(
+                "SELECT profile_revision FROM workspace_metadata WHERE singleton = 1",
+                [],
+                |row| row.get(0),
+            )?;
+            let profile_stale = prepared_profile_revision
+                .is_some_and(|revision| revision != current_profile_revision);
             let stale_at = now_utc()?;
             let event_id = generate_id()?;
             transaction.execute(
@@ -1941,6 +2001,8 @@ enum ValidatedTaskCandidate {
     Document(DocumentCandidate),
     Review(ReviewCandidate),
 }
+
+type ValidatedCompletion = (TaskStateData, ValidatedTaskCandidate, Sha256Digest);
 
 fn validate_candidate(
     descriptor: &TaskDescriptor,
@@ -3563,11 +3625,11 @@ fn verify_artifact_revision(
 }
 
 fn inputs_are_current(
-    transaction: &Transaction<'_>,
+    connection: &Connection,
     request: &TaskCompletionRequest,
 ) -> Result<bool, StoreError> {
     for input in &request.expected_inputs {
-        let actual: Option<(i64, String)> = transaction
+        let actual: Option<(i64, String)> = connection
             .query_row(
                 "SELECT a.head_revision, ar.sha256
                  FROM artifacts AS a
@@ -3587,6 +3649,36 @@ fn inputs_are_current(
         }
     }
     Ok(true)
+}
+
+fn completion_is_stale(
+    connection: &Connection,
+    descriptor: &TaskDescriptor,
+    request: &TaskCompletionRequest,
+    expired: bool,
+    prepared_job_revision: i64,
+    prepared_profile_revision: Option<i64>,
+) -> Result<bool, StoreError> {
+    let current_job_revision: i64 = connection
+        .query_row(
+            "SELECT revision FROM jobs WHERE id = ?1",
+            params![descriptor.job_id.as_str()],
+            |row| row.get(0),
+        )
+        .optional()?
+        .ok_or_else(|| StoreError::TaskStale("job no longer exists".to_owned()))?;
+    let current_profile_revision: i64 = connection.query_row(
+        "SELECT profile_revision FROM workspace_metadata WHERE singleton = 1",
+        [],
+        |row| row.get(0),
+    )?;
+    let profile_stale =
+        prepared_profile_revision.is_some_and(|revision| revision != current_profile_revision);
+    Ok(expired
+        || current_job_revision != prepared_job_revision
+        || current_job_revision != to_i64(request.expected_job_revision.get())?
+        || profile_stale
+        || !inputs_are_current(connection, request)?)
 }
 
 fn canonical_json_bytes(value: &Value) -> Result<Vec<u8>, StoreError> {
@@ -3794,6 +3886,18 @@ mod tests {
             }),
         };
         assert!(matches!(
+            TaskService::new(&mut workspace.database, &workspace.blobs)
+                .validate_completion(&request),
+            Err(StoreError::TaskStale(_))
+        ));
+        assert_eq!(
+            TaskService::new(&mut workspace.database, &workspace.blobs)
+                .get(&descriptor.id)
+                .expect("state after read-only validation")
+                .status,
+            TaskStatus::Prepared
+        );
+        assert!(matches!(
             TaskService::new(&mut workspace.database, &workspace.blobs).complete(&request),
             Err(StoreError::TaskStale(_))
         ));
@@ -3804,6 +3908,61 @@ mod tests {
                 .status,
             TaskStatus::Stale
         );
+        drop(workspace);
+        fs::remove_dir_all(root).expect("cleanup");
+    }
+
+    #[test]
+    fn cancellation_is_terminal_idempotent_and_audited_once() {
+        let root =
+            std::env::temp_dir().join(format!("canisend-task-cancel-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let mut workspace = Workspace::init(&root).expect("workspace");
+        let job = JobService::new(&mut workspace.database, &workspace.blobs)
+            .create("Research Fellow", "University X", ActorKind::User)
+            .expect("job");
+        JobService::new(&mut workspace.database, &workspace.blobs)
+            .import_source(
+                &job.id,
+                NewSource {
+                    kind: SourceKind::LocalFile,
+                    original_bytes: b"Conduct research".to_vec(),
+                    normalized_text: "Conduct research\n".to_owned(),
+                    source_url: None,
+                    final_url: None,
+                    content_type: "text/plain; charset=utf-8".to_owned(),
+                    redirect_chain: Vec::new(),
+                    privacy: PrivacyClassification::PrivateLocal,
+                },
+                ActorKind::User,
+            )
+            .expect("source");
+        WorkflowService::new(&mut workspace.database)
+            .start(&job.id)
+            .expect("workflow");
+        let descriptor = TaskService::new(&mut workspace.database, &workspace.blobs)
+            .prepare_job_parse(&job.id, ExecutionMode::HostAgent)
+            .expect("task");
+        let cancelled = TaskService::new(&mut workspace.database, &workspace.blobs)
+            .cancel(&descriptor.id)
+            .expect("cancel");
+        assert_eq!(cancelled.status, TaskStatus::Cancelled);
+        let replay = TaskService::new(&mut workspace.database, &workspace.blobs)
+            .cancel(&descriptor.id)
+            .expect("idempotent cancel");
+        assert_eq!(replay.status, TaskStatus::Cancelled);
+        let audit_count: i64 = workspace
+            .database
+            .connection()
+            .query_row(
+                "SELECT COUNT(*) FROM audit_events
+                 WHERE action = 'task.cancel' AND subject_id = ?1",
+                params![descriptor.id.as_str()],
+                |row| row.get(0),
+            )
+            .expect("cancellation audit count");
+        assert_eq!(audit_count, 1);
+
         drop(workspace);
         fs::remove_dir_all(root).expect("cleanup");
     }

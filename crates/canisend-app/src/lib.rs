@@ -10,11 +10,12 @@ mod plan;
 mod profile;
 mod receipt;
 mod system;
+mod task;
 mod update;
 mod workflow;
 mod workspace;
 
-pub use application::{Application, NetworkFetchConsent, PrivateReadConsent};
+pub use application::{Application, NetworkFetchConsent, PrivateReadConsent, ProviderSendConsent};
 pub use cli_install::{
     CliInstallState, CliInstallStatus, CliVersionRelation, TerminalInstallConsent,
 };
@@ -28,6 +29,10 @@ pub use job::{JobDetailReadModel, JobListReadModel, SourceImportReadModel};
 pub use profile::{ProfileSourceImportReadModel, ProfileSourceListReadModel};
 pub use receipt::ActionReceipt;
 pub use system::{DoctorSummary, ProductSummary};
+pub use task::{
+    TaskCompletionPreviewReadModel, TaskExecutionMode, TaskInputExportRequest, TaskOperation,
+    TaskPrepareAgainReadModel, TaskPrepareRequest,
+};
 pub use update::UpdateCheckReadModel;
 pub use workflow::{
     WorkflowBeginRequest, WorkflowCompleteRequest, WorkflowControlReadModel, WorkflowRerunPreview,

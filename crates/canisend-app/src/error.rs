@@ -17,6 +17,11 @@ pub enum ApplicationError {
     InvalidEntityId(String),
     #[error("input is invalid: {0}")]
     InvalidInput(String),
+    #[error("{message}")]
+    ConsentRequired {
+        message: String,
+        remediation: NextAction,
+    },
     #[error("embedded resources failed verification: {0}")]
     ResourceIntegrity(String),
     #[error("CLI installation failed: {0}")]
@@ -46,6 +51,13 @@ impl ApplicationError {
             Self::InvalidEntityId(_) | Self::InvalidInput(_) => {
                 ("invalid", ErrorCode::InputInvalid, false, None, None)
             }
+            Self::ConsentRequired { remediation, .. } => (
+                "consent-required",
+                ErrorCode::ConsentRequired,
+                false,
+                None,
+                Some(remediation.clone()),
+            ),
             Self::ResourceIntegrity(_) => (
                 "integrity-failed",
                 ErrorCode::ResourcesIntegrityFailed,
@@ -78,6 +90,7 @@ impl ApplicationError {
                 | Self::ResourceIntegrity(message)
                 | Self::CliInstall(message)
                 | Self::UpdateCheck(message) => message.clone(),
+                Self::ConsentRequired { message, .. } => message.clone(),
                 Self::Store(_) | Self::Input(_) | Self::Render(_) => self.to_string(),
             },
             details,
