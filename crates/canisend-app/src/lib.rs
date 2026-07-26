@@ -5,6 +5,7 @@ mod cli_install;
 mod decision;
 mod error;
 mod job;
+mod plan;
 mod profile;
 mod receipt;
 mod system;
