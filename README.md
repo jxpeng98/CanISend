@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/jxpeng98/CanISend/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/jxpeng98/CanISend/ci.yml?branch=rewrite%2Frust-native&label=Rust%20CI" alt="Rust CI status"></a>
+  <a href="https://github.com/jxpeng98/CanISend/actions/workflows/fast-ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/jxpeng98/CanISend/fast-ci.yml?branch=main&label=macOS%20Fast%20CI" alt="macOS Fast CI status"></a>
   <img src="https://img.shields.io/badge/Rust-1.92%2B-orange" alt="Rust 1.92+">
   <img src="https://img.shields.io/badge/protocol-canisend.agent%2Fv2-blue" alt="Agent protocol v2">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT license">

@@ -1,7 +1,7 @@
 # CanISend release-pipeline optimization roadmap
 
-**Status:** Stage 1–5 implementation and Stage 2–5 candidate measurements complete; Stage 1 tag
-promotion remains pending
+**Status:** Stage 1–5 implementation and Stage 2–5 candidate measurements complete; Stage 6
+implemented locally with remote macOS timing pending; Stage 1 tag promotion remains pending
 
 **Decision date:** 2026-07-26
 
@@ -216,7 +216,30 @@ follow-up items rather than hidden by the overall result.
 **Exit:** Alpha builds are materially faster, every artifact records its profile, runtime budgets
 remain green, and RC/Stable optimization is unchanged.
 
-## 9. Measurement and review protocol
+## 9. Stage 6 — macOS fast CI and release-only Windows/Linux validation
+
+**Goal:** Keep ordinary development feedback on Apple Silicon macOS and move Windows/Linux native
+testing to the release candidate boundary without losing an owning gate.
+
+### Implementation tasks
+
+- [x] Replace the cross-platform ordinary CI matrix with two parallel `macos-15` jobs.
+- [x] Keep formatting, Clippy, the complete locked workspace suite, generated properties, release
+  contracts, debug CLI/GUI compilation, and documented CLI smoke in fast CI.
+- [x] Remove release-profile builds, dependency assurance, Linux performance, and Windows parsing
+  from the development path.
+- [x] Retain the Linux full suite, dependency policy, performance budgets, and native archive smoke
+  in the release workflow.
+- [x] Add a release-only Windows recovery/render gate and make assembly depend on it.
+- [x] Start source, Windows, native CLI, and macOS GUI candidate owners in parallel; assembly
+  remains the fail-closed join.
+- [ ] Measure cold and warm macOS fast CI runs; the warm critical-path target is five minutes.
+
+**Exit:** Development jobs use only Apple Silicon macOS and warm feedback is at most five minutes.
+Every Windows/Linux test has a release or scheduled assurance owner, and release assembly cannot
+run until all required owners pass.
+
+## 10. Measurement and review protocol
 
 For each stage:
 
@@ -230,10 +253,9 @@ For each stage:
 The ordinary edit loop does not run extended fuzzing, dependency assurance, or the complete native
 qualification suite. Those remain owned by scheduled or exact-release workflows.
 
-## 10. Immediate next action
+## 11. Immediate next action
 
-Review the Stage 4 and Stage 5 evidence, then exercise the Stage 1 build-once promotion contract
-for `v1.0.0-alpha.2`: create the annotated tag only after explicitly authorizing publication and
-confirm that the tag workflow promotes the already verified candidate without compiling product
-binaries. Independently profile the GNU and Windows `release-alpha` regressions before changing
-the accepted profile boundary.
+Push Stage 6, measure the first macOS-only run, and repeat once with warm job-specific caches.
+Record both job durations and tune only the longer job until its warm path is at most five minutes.
+After that measurement, exercise the Stage 1 build-once promotion contract for
+`v1.0.0-alpha.2` only after explicitly authorizing publication.

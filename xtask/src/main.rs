@@ -724,7 +724,10 @@ fn check_property_test_policy() -> Result<(), String> {
     }
 
     let command = "cargo test -p canisend-contracts --locked --test property_contract";
-    for workflow in [".github/workflows/ci.yml", ".github/workflows/release.yml"] {
+    for workflow in [
+        ".github/workflows/fast-ci.yml",
+        ".github/workflows/release.yml",
+    ] {
         let path = root.join(workflow);
         let body = fs::read_to_string(&path)
             .map_err(|error| format!("property-test workflow `{workflow}` is missing: {error}"))?;
@@ -3413,6 +3416,24 @@ fn check_native_test_ownership() -> Result<(), String> {
             "rc": "release",
             "stable": "release"
         },
+        "development_fast_ci": {
+            "workflow": ".github/workflows/fast-ci.yml",
+            "runner": "macos-15",
+            "jobs": [
+                "macos-quality",
+                "macos-tests"
+            ],
+            "commands": [
+                "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings",
+                "cargo test --workspace --locked",
+                "cargo test -p canisend-contracts --locked --test property_contract",
+                "cargo run -p xtask --locked -- release check",
+                "cargo build --locked -p canisend-cli -p canisend-gui"
+            ],
+            "target_seconds_after_cache_warmup": 300,
+            "windows_linux_native_tests": false,
+            "authoritative_release_evidence": false
+        },
         "candidate_native_matrix": {
             "common_gates": [
                 "locked-release-build",
@@ -3490,12 +3511,12 @@ fn check_native_test_ownership() -> Result<(), String> {
         },
         "extended_assurance": [
             {
-                "owner": "ci/recovery-native",
-                "scope": "cross-platform recovery and concurrency"
+                "owner": "fast-ci/macos-tests",
+                "scope": "macOS development workspace, recovery, rendering, CLI, and GUI"
             },
             {
-                "owner": "ci/render-native",
-                "scope": "cross-platform rendering, staged quickstart, and performance"
+                "owner": "native-release/source-and-native",
+                "scope": "release-only Linux and Windows tests, performance, packaging, and exact archive smoke"
             },
             {
                 "owner": "intel-gui-compile/scheduled-alpha",
@@ -3533,6 +3554,47 @@ fn check_native_test_ownership() -> Result<(), String> {
         return Err("native test ownership targets do not match release targets".to_owned());
     }
 
+    let fast_ci_path = root.join(".github/workflows/fast-ci.yml");
+    let fast_ci = fs::read_to_string(&fast_ci_path)
+        .map_err(|error| format!("fast CI workflow is missing: {error}"))?;
+    for required in [
+        "name: fast-ci",
+        "cancel-in-progress: true",
+        "  macos-quality:",
+        "  macos-tests:",
+        "runs-on: macos-15",
+        "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings",
+        "cargo test --workspace --locked",
+        "cargo test -p canisend-contracts --locked --test property_contract",
+        "cargo run -p xtask --locked -- release check",
+        "cargo build --locked -p canisend-cli -p canisend-gui",
+        "./scripts/smoke_host_agent.sh ./target/debug/canisend",
+        "Target: 300 seconds or less after cache warm-up",
+    ] {
+        if !fast_ci.contains(required) {
+            return Err(format!(
+                "fast CI workflow is missing invariant `{required}`"
+            ));
+        }
+    }
+    if fast_ci.matches("runs-on: macos-15").count() != 2 {
+        return Err("fast CI must contain exactly two parallel macOS jobs".to_owned());
+    }
+    for forbidden in [
+        "ubuntu-",
+        "windows-",
+        "cargo build --release",
+        "cargo test --release",
+        "cargo build --profile",
+        "cargo test --profile",
+    ] {
+        if fast_ci.contains(forbidden) {
+            return Err(format!(
+                "fast CI contains release-only or non-macOS work `{forbidden}`"
+            ));
+        }
+    }
+
     let workflow_path = root.join(".github/workflows/release.yml");
     let workflow = fs::read_to_string(&workflow_path)
         .map_err(|error| format!("release workflow is missing: {error}"))?;
@@ -3557,6 +3619,10 @@ fn check_native_test_ownership() -> Result<(), String> {
         "Check full synthetic workflow budget",
         "Build compile-only Intel macOS GUI",
         "Parse Windows release signing verifier",
+        "windows-release-tests",
+        "Exercise Windows recovery and concurrency contracts",
+        "Test Windows embedded fonts and complex layout",
+        "Test Windows revision-bound package render",
         "Install musl linker",
         "Package exact ad-hoc-signed macOS application",
         "Smoke exact extracted macOS application archive",
@@ -4497,19 +4563,6 @@ fn check_signing_policy() -> Result<(), String> {
         if !workflow.contains(required) {
             return Err(format!(
                 "release workflow is missing signing gate `{required}`"
-            ));
-        }
-    }
-    let ci_path = root.join(".github/workflows/ci.yml");
-    let ci = fs::read_to_string(&ci_path)
-        .map_err(|error| format!("ordinary CI workflow is missing: {error}"))?;
-    for required in [
-        "Parse Windows self-signed release signer",
-        "scripts/sign_windows_self_signed.ps1",
-    ] {
-        if !ci.contains(required) {
-            return Err(format!(
-                "ordinary CI workflow is missing signing parser `{required}`"
             ));
         }
     }

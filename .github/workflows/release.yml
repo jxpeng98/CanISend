@@ -208,12 +208,73 @@ jobs:
           # cargo-deny does not compile product code, so keep this integrity gate isolated.
           RUSTC_WRAPPER: ""
 
+  windows-release-tests:
+    name: windows-release-tests
+    needs:
+      - release-identity
+      - signing-readiness
+    if: needs.release-identity.outputs.mode == 'candidate'
+    runs-on: windows-2025
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@1.97.0
+
+      - name: Cache Windows release tests
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          key: release-windows-tests
+
+      - name: Parse Windows release signing verifier
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $parseErrors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path -LiteralPath scripts/sign_windows_self_signed.ps1),
+            [ref]$tokens,
+            [ref]$parseErrors
+          ) | Out-Null
+          if ($parseErrors.Count -gt 0) {
+            $parseErrors | ForEach-Object { Write-Error $_ }
+            exit 1
+          }
+
+      - name: Parse Windows package lifecycle verifier
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $parseErrors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path -LiteralPath scripts/qualify_windows_packages.ps1),
+            [ref]$tokens,
+            [ref]$parseErrors
+          ) | Out-Null
+          if ($parseErrors.Count -gt 0) {
+            $parseErrors | ForEach-Object { Write-Error $_ }
+            exit 1
+          }
+
+      - name: Exercise Windows recovery and concurrency contracts
+        run: cargo test -p canisend-store --locked recovery_
+
+      - name: Test Windows embedded fonts and complex layout
+        run: cargo test -p canisend-io --locked render::tests
+
+      - name: Test Windows revision-bound package render
+        run: >-
+          cargo test -p canisend-store --locked --test store_contract
+          evidence_and_match_tasks_enforce_stable_revision_bound_identities
+          -- --exact
+
   build-native-archives:
     name: build-${{ matrix.target }}
     needs:
       - release-identity
       - signing-readiness
-      - source-gates
     if: needs.release-identity.outputs.mode == 'candidate'
     runs-on: ${{ matrix.runner }}
     permissions:
@@ -541,7 +602,6 @@ jobs:
     needs:
       - release-identity
       - signing-readiness
-      - source-gates
     if: needs.release-identity.outputs.mode == 'candidate'
     runs-on: macos-15
     permissions:
@@ -681,6 +741,8 @@ jobs:
     name: assemble-and-attest-release
     needs:
       - release-identity
+      - source-gates
+      - windows-release-tests
       - build-native-archives
       - build-macos-gui-archive
     if: needs.release-identity.outputs.mode == 'candidate'

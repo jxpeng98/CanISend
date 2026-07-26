@@ -26,8 +26,10 @@ to a verified blob.
 | Workspace check after blob loss or replacement | One referenced blob is removed and another is replaced with different bytes | Check fails closed and identifies both reference digests as invalid | `recovery_check_detects_missing_and_corrupted_referenced_blobs` |
 | Workspace open after database corruption | SQLite content is replaced with invalid bytes | Open fails; no repair is attempted over the damaged authority | `database::tests::migration_failure_rolls_back_and_corrupt_database_fails_closed` |
 
-The `recovery-native` CI matrix runs the `recovery_` contract subset on Linux x86_64, macOS
-arm64, and Windows x86_64. The full quality job separately runs every store and protocol test.
+The complete workspace suite in `fast-ci` runs these contracts on Apple Silicon macOS during
+development. Release candidates run the same complete suite in the Linux source gate and the
+bounded `recovery_` subset in `windows-release-tests`. Windows and Linux native validation is
+therefore release-only, while the macOS development loop keeps immediate recovery coverage.
 
 ## Restore behavior
 

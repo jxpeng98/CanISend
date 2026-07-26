@@ -32,6 +32,24 @@
     "rc": "release",
     "stable": "release"
   },
+  "development_fast_ci": {
+    "workflow": ".github/workflows/fast-ci.yml",
+    "runner": "macos-15",
+    "jobs": [
+      "macos-quality",
+      "macos-tests"
+    ],
+    "commands": [
+      "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings",
+      "cargo test --workspace --locked",
+      "cargo test -p canisend-contracts --locked --test property_contract",
+      "cargo run -p xtask --locked -- release check",
+      "cargo build --locked -p canisend-cli -p canisend-gui"
+    ],
+    "target_seconds_after_cache_warmup": 300,
+    "windows_linux_native_tests": false,
+    "authoritative_release_evidence": false
+  },
   "candidate_native_matrix": {
     "common_gates": [
       "locked-release-build",
@@ -109,12 +127,12 @@
   },
   "extended_assurance": [
     {
-      "owner": "ci/recovery-native",
-      "scope": "cross-platform recovery and concurrency"
+      "owner": "fast-ci/macos-tests",
+      "scope": "macOS development workspace, recovery, rendering, CLI, and GUI"
     },
     {
-      "owner": "ci/render-native",
-      "scope": "cross-platform rendering, staged quickstart, and performance"
+      "owner": "native-release/source-and-native",
+      "scope": "release-only Linux and Windows tests, performance, packaging, and exact archive smoke"
     },
     {
       "owner": "intel-gui-compile/scheduled-alpha",
