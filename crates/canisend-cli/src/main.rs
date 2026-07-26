@@ -31,9 +31,9 @@ use canisend_io::{
 };
 use canisend_resources::{AgentHost, ResourceError, ResourceId, ResourceKind, export_agent_pack};
 use canisend_store::{
-    AgentContextService, DiscoveryService, DocumentService, PackageService, PlanService,
-    ProjectionService, RenderService, ReviewService, StoreError, TaskService, WorkflowService,
-    Workspace, current_utc_timestamp,
+    AgentContextService, DiscoveryService, DocumentService, PackageService, ProjectionService,
+    RenderService, ReviewService, StoreError, TaskService, WorkflowService, Workspace,
+    current_utc_timestamp,
 };
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use serde_json::json;
@@ -2832,10 +2832,14 @@ fn plan_export(
     arguments: PlanExportArgs,
 ) -> CommandResult<CommandOutput> {
     let job_id = parse_entity_id("plan.export", &arguments.job)?;
-    let mut workspace = open_workspace(workspace_path, "plan.export")?;
-    let template = PlanService::new(&mut workspace.database, &workspace.blobs)
-        .template(&job_id)
-        .map_err(|error| store_failure("plan.export", error))?;
+    let root = app_adapter::workspace_root(workspace_path, "plan.export")?;
+    let template = Application::application_plan_template(
+        &root,
+        job_id.as_str(),
+        PrivateReadConsent::granted_by_user(),
+    )
+    .map_err(|error| app_adapter::failure("plan.export", error))?
+    .data;
     write_private_json_new(&arguments.destination, &template)
         .map_err(|error| io_adapter_failure("plan.export", error))?;
     let mut output = success(
@@ -2877,13 +2881,24 @@ fn plan_confirm(
     let job_id = parse_entity_id("plan.confirm", &arguments.job)?;
     let candidate = read_criteria_file(&arguments.file)
         .map_err(|error| io_adapter_failure("plan.confirm", error))?;
-    let mut workspace = open_workspace(workspace_path, "plan.confirm")?;
-    let artifact = PlanService::new(&mut workspace.database, &workspace.blobs)
-        .confirm(&job_id, &candidate)
-        .map_err(|error| store_failure("plan.confirm", error))?;
-    let confirmed = PlanService::new(&mut workspace.database, &workspace.blobs)
-        .current(&job_id)
-        .map_err(|error| store_failure("plan.confirm", error))?;
+    let root = app_adapter::workspace_root(workspace_path, "plan.confirm")?;
+    let receipt = Application::confirm_application_plan(
+        &root,
+        job_id.as_str(),
+        &candidate,
+        PrivateReadConsent::granted_by_user(),
+    )
+    .map_err(|error| app_adapter::failure("plan.confirm", error))?;
+    let confirmed = receipt.data;
+    let artifact = receipt.artifacts.first().cloned().ok_or_else(|| {
+        CommandFailure::new(
+            "plan.confirm",
+            "invariant-failed",
+            ErrorCode::InternalInvariantFailed,
+            "plan confirmation returned no artifact",
+            false,
+        )
+    })?;
     let mut output = success(
         "plan.confirm",
         "confirmed",
@@ -2900,11 +2915,12 @@ fn plan_confirm(
 }
 
 fn plan_show(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<CommandOutput> {
-    let job_id = parse_entity_id("plan.show", job_id)?;
-    let mut workspace = open_workspace(workspace_path, "plan.show")?;
-    let plan = PlanService::new(&mut workspace.database, &workspace.blobs)
-        .current(&job_id)
-        .map_err(|error| store_failure("plan.show", error))?;
+    let _ = parse_entity_id("plan.show", job_id)?;
+    let root = app_adapter::workspace_root(workspace_path, "plan.show")?;
+    let plan =
+        Application::current_application_plan(&root, job_id, PrivateReadConsent::granted_by_user())
+            .map_err(|error| app_adapter::failure("plan.show", error))?
+            .data;
     success(
         "plan.show",
         "available",
