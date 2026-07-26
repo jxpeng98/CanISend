@@ -130,7 +130,7 @@ on run arguments
         end repeat
         my assertCondition(tabAnchorFound, "Tab traversal could not locate the Workspace anchor")
 
-        set expectedFocus to {"Overview", "Jobs", "Workspaces", "Command line", "Diagnostics", "Language", "Dark appearance", "Compact density", "Reduce motion", "Text size"}
+        set expectedFocus to {"Overview", "Jobs", "Profile", "Workspaces", "Command line", "Diagnostics", "Language", "Dark appearance", "Compact density", "Reduce motion", "Text size"}
         repeat with expectedName in expectedFocus
             key code 48
             delay 0.12

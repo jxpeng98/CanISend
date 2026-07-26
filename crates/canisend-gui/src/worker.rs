@@ -458,8 +458,15 @@ pub(crate) fn execute(request: WorkerRequest) -> WorkerEvent {
 mod tests {
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    use canisend_app::{WorkflowBeginRequest, WorkflowRerunRequest};
-    use canisend_contracts::{ExecutionMode, WorkflowStage};
+    use canisend_app::{
+        Application, PrivateReadConsent, WorkflowBeginRequest, WorkflowRerunRequest,
+    };
+    use canisend_contracts::{
+        ApplicationDecision, ExecutionMode, ExpectedInputRevision, TaskCompletionRequest,
+        WorkflowStage,
+    };
+    use canisend_store::{CriteriaService, EvidenceService, TaskService, Workspace};
+    use serde_json::json;
 
     use super::{WorkerEvent, WorkerRequest, execute};
 
@@ -654,5 +661,345 @@ mod tests {
         std::fs::remove_file(profile_source).expect("remove profile source fixture");
         std::fs::remove_dir_all(backup).expect("remove backup fixture");
         std::fs::remove_dir_all(restored).expect("remove restored fixture");
+    }
+
+    #[test]
+    fn decision_workflow_round_trips_through_worker_and_reopens() {
+        let root = temporary_root("decision-reopen");
+        let source = temporary_root("decision-source").with_extension("txt");
+        let profile_source = temporary_root("decision-profile").with_extension("md");
+        std::fs::write(&source, "bounded job source").expect("write job source");
+        std::fs::write(&profile_source, "# Private profile\n\nBounded evidence.")
+            .expect("write profile source");
+
+        assert!(matches!(
+            execute(WorkerRequest::CreateWorkspace {
+                alias: "Decision fixture".to_owned(),
+                path: root.clone(),
+            }),
+            WorkerEvent::WorkspaceCreated { result: Ok(_), .. }
+        ));
+        let job_id = match execute(WorkerRequest::CreateJob {
+            path: root.clone(),
+            title: "Lecturer".to_owned(),
+            institution: "University X".to_owned(),
+        }) {
+            WorkerEvent::JobCreated(Ok(receipt)) => receipt.data.id,
+            event => panic!("unexpected job event: {event:?}"),
+        };
+        assert!(matches!(
+            execute(WorkerRequest::ImportLocalSource {
+                path: root.clone(),
+                id: job_id.to_string(),
+                source: source.clone(),
+            }),
+            WorkerEvent::SourceImported(Ok(_))
+        ));
+        assert!(matches!(
+            execute(WorkerRequest::ImportProfileSource {
+                path: root.clone(),
+                source: profile_source.clone(),
+                sensitivity: PrivacyClassification::PrivateLocal,
+            }),
+            WorkerEvent::ProfileSourceImported(Ok(_))
+        ));
+        assert!(matches!(
+            execute(WorkerRequest::StartWorkflow {
+                path: root.clone(),
+                id: job_id.to_string(),
+            }),
+            WorkerEvent::WorkflowLoaded(Ok(_))
+        ));
+
+        let mut workspace = Workspace::open(Some(&root)).expect("open seed workspace");
+        let evidence_descriptor = TaskService::new(&mut workspace.database, &workspace.blobs)
+            .prepare_evidence_normalization(&job_id, ExecutionMode::HostAgent)
+            .expect("prepare evidence task");
+        let evidence_request = TaskCompletionRequest {
+            task_id: evidence_descriptor.id.clone(),
+            lease_id: evidence_descriptor.lease.id.clone(),
+            expected_job_revision: evidence_descriptor.job_revision,
+            expected_inputs: expected_inputs(&evidence_descriptor.input_artifacts),
+            candidate: json!({
+                "profile_revision": evidence_descriptor
+                    .profile_revision
+                    .expect("profile revision"),
+                "proposals": [{
+                    "kind": "qualification",
+                    "summary": "Doctorate in economics",
+                    "source_quote": "# Private profile",
+                    "source_span": {
+                        "source": evidence_descriptor.input_artifacts[0],
+                        "start_byte": 0,
+                        "end_byte": 17
+                    },
+                    "sensitivity": "private-local"
+                }]
+            }),
+        };
+        TaskService::new(&mut workspace.database, &workspace.blobs)
+            .complete(&evidence_request)
+            .expect("complete evidence proposal");
+
+        let parse_descriptor = TaskService::new(&mut workspace.database, &workspace.blobs)
+            .prepare_job_parse(&job_id, ExecutionMode::HostAgent)
+            .expect("prepare parse task");
+        let parse_request = TaskCompletionRequest {
+            task_id: parse_descriptor.id.clone(),
+            lease_id: parse_descriptor.lease.id.clone(),
+            expected_job_revision: parse_descriptor.job_revision,
+            expected_inputs: expected_inputs(&parse_descriptor.input_artifacts),
+            candidate: json!({
+                "id": "019f2f55-7c00-7000-8000-000000000601",
+                "job_id": job_id,
+                "title": "Lecturer",
+                "institution": "University X",
+                "summary": "Teach economics",
+                "responsibilities": ["Teach economics"],
+                "criteria": [{
+                    "id": "019f2f55-7c00-7000-8000-000000000602",
+                    "job_id": job_id,
+                    "kind": "qualification",
+                    "requirement": "Demonstrate economics expertise",
+                    "importance": "essential",
+                    "source_quote": "bounded job source",
+                    "source_span": {
+                        "source": parse_descriptor.input_artifacts[0],
+                        "start_byte": 0,
+                        "end_byte": 18
+                    },
+                    "confidence_milli": 900,
+                    "confirmed": false,
+                    "revision": 1
+                }],
+                "revision": 1
+            }),
+        };
+        TaskService::new(&mut workspace.database, &workspace.blobs)
+            .complete(&parse_request)
+            .expect("complete parse task");
+        drop(workspace);
+
+        let mut evidence = match execute(WorkerRequest::LoadProfileEvidence {
+            path: root.clone(),
+            job_id: job_id.to_string(),
+        }) {
+            WorkerEvent::ProfileEvidenceLoaded {
+                result: Ok(receipt),
+                ..
+            } => receipt.data,
+            event => panic!("unexpected evidence event: {event:?}"),
+        };
+        evidence.items[0].confirmed = true;
+        let evidence_artifact = match execute(WorkerRequest::ConfirmProfileEvidence {
+            path: root.clone(),
+            job_id: job_id.to_string(),
+            candidate: evidence,
+        }) {
+            WorkerEvent::ProfileEvidenceConfirmed {
+                result: Ok(receipt),
+                ..
+            } => receipt
+                .artifacts
+                .first()
+                .cloned()
+                .expect("confirmed evidence artifact"),
+            event => panic!("unexpected evidence confirmation: {event:?}"),
+        };
+
+        let mut criteria = match execute(WorkerRequest::LoadCriteriaCandidate {
+            path: root.clone(),
+            job_id: job_id.to_string(),
+        }) {
+            WorkerEvent::CriteriaCandidateLoaded {
+                result: Ok(receipt),
+                ..
+            } => receipt.data,
+            event => panic!("unexpected criteria event: {event:?}"),
+        };
+        criteria.criteria[0].confirmed = true;
+        let criterion = criteria.criteria[0].clone();
+        let criteria_artifact = match execute(WorkerRequest::ConfirmCriteria {
+            path: root.clone(),
+            job_id: job_id.to_string(),
+            candidate: criteria,
+        }) {
+            WorkerEvent::CriteriaConfirmed {
+                result: Ok(receipt),
+                ..
+            } => receipt
+                .artifacts
+                .first()
+                .cloned()
+                .expect("confirmed criteria artifact"),
+            event => panic!("unexpected criteria confirmation: {event:?}"),
+        };
+
+        let mut workspace = Workspace::open(Some(&root)).expect("open match workspace");
+        let confirmed_evidence = EvidenceService::new(&mut workspace.database, &workspace.blobs)
+            .confirmed(&job_id)
+            .expect("confirmed evidence");
+        let confirmed_criteria = CriteriaService::new(&mut workspace.database, &workspace.blobs)
+            .confirmed(&job_id)
+            .expect("confirmed criteria");
+        let match_descriptor = TaskService::new(&mut workspace.database, &workspace.blobs)
+            .prepare_evidence_match(&job_id, ExecutionMode::HostAgent)
+            .expect("prepare match task");
+        let match_request = TaskCompletionRequest {
+            task_id: match_descriptor.id.clone(),
+            lease_id: match_descriptor.lease.id.clone(),
+            expected_job_revision: match_descriptor.job_revision,
+            expected_inputs: expected_inputs(&match_descriptor.input_artifacts),
+            candidate: json!({
+                "job_id": job_id,
+                "criteria_artifact": criteria_artifact,
+                "evidence_artifact": evidence_artifact,
+                "proposals": [{
+                    "criterion": {
+                        "id": confirmed_criteria.criteria[0].id,
+                        "revision": confirmed_criteria.criteria[0].revision
+                    },
+                    "evidence": [{
+                        "id": confirmed_evidence.items[0].id,
+                        "revision": confirmed_evidence.items[0].revision
+                    }],
+                    "strength": "strong",
+                    "rationale": "The confirmed profile evidence supports the criterion.",
+                    "gap": null,
+                    "prohibited_claims": ["Do not claim an unverified teaching award."]
+                }]
+            }),
+        };
+        let match_artifact = TaskService::new(&mut workspace.database, &workspace.blobs)
+            .complete(&match_request)
+            .expect("complete match task")
+            .artifact;
+        drop(workspace);
+
+        let matches = match execute(WorkerRequest::LoadCurrentMatches {
+            path: root.clone(),
+            job_id: job_id.to_string(),
+        }) {
+            WorkerEvent::CurrentMatchesLoaded {
+                result: Ok(receipt),
+                ..
+            } => receipt.data,
+            event => panic!("unexpected current matches: {event:?}"),
+        };
+        assert_eq!(matches.matches.len(), 1);
+        assert_eq!(matches.matches[0].criterion.id, criterion.id);
+        assert_eq!(
+            matches.matches[0].prohibited_claims,
+            vec!["Do not claim an unverified teaching award."]
+        );
+
+        let mut plan = match execute(WorkerRequest::LoadPlanCandidate {
+            path: root.clone(),
+            job_id: job_id.to_string(),
+        }) {
+            WorkerEvent::PlanCandidateLoaded {
+                result: Ok(receipt),
+                ..
+            } => receipt.data,
+            event => panic!("unexpected plan candidate: {event:?}"),
+        };
+        assert_eq!(plan.decision, ApplicationDecision::Hold);
+        plan.decision = ApplicationDecision::Apply;
+        plan.strategy.positioning =
+            "Lead with confirmed economics expertise and bounded claims.".to_owned();
+        let confirmed_plan = match execute(WorkerRequest::ConfirmPlan {
+            path: root.clone(),
+            job_id: job_id.to_string(),
+            candidate: plan,
+        }) {
+            WorkerEvent::PlanConfirmed {
+                result: Ok(receipt),
+                ..
+            } => receipt.data,
+            event => panic!("unexpected plan confirmation: {event:?}"),
+        };
+        assert_eq!(confirmed_plan.decision, ApplicationDecision::Apply);
+        assert_eq!(confirmed_plan.revision.get(), 1);
+
+        assert!(matches!(
+            execute(WorkerRequest::LoadWorkspace { path: root.clone() }),
+            WorkerEvent::WorkspaceLoaded(Ok(_))
+        ));
+        let reopened_evidence = match execute(WorkerRequest::LoadProfileEvidence {
+            path: root.clone(),
+            job_id: job_id.to_string(),
+        }) {
+            WorkerEvent::ProfileEvidenceLoaded {
+                result: Ok(receipt),
+                ..
+            } => receipt.data,
+            event => panic!("unexpected reopened evidence: {event:?}"),
+        };
+        let reopened_criteria = match execute(WorkerRequest::LoadCriteriaCandidate {
+            path: root.clone(),
+            job_id: job_id.to_string(),
+        }) {
+            WorkerEvent::CriteriaCandidateLoaded {
+                result: Ok(receipt),
+                ..
+            } => receipt.data,
+            event => panic!("unexpected reopened criteria: {event:?}"),
+        };
+        let reopened_matches = match execute(WorkerRequest::LoadCurrentMatches {
+            path: root.clone(),
+            job_id: job_id.to_string(),
+        }) {
+            WorkerEvent::CurrentMatchesLoaded {
+                result: Ok(receipt),
+                ..
+            } => receipt.data,
+            event => panic!("unexpected reopened matches: {event:?}"),
+        };
+        let reopened_plan = match execute(WorkerRequest::LoadCurrentPlan {
+            path: root.clone(),
+            job_id: job_id.to_string(),
+        }) {
+            WorkerEvent::CurrentPlanLoaded {
+                result: Ok(receipt),
+                ..
+            } => receipt.data,
+            event => panic!("unexpected reopened plan: {event:?}"),
+        };
+        assert_eq!(reopened_evidence.revision.get(), 1);
+        assert_eq!(reopened_criteria.revision.get(), 1);
+        assert_eq!(reopened_matches.id, matches.id);
+        assert_eq!(reopened_matches.revision, matches.revision);
+        assert_eq!(reopened_plan.id, confirmed_plan.id);
+        assert_eq!(reopened_plan.revision, confirmed_plan.revision);
+        assert_eq!(reopened_plan.matches_artifact, match_artifact);
+        assert_eq!(
+            reopened_plan.strategy.positioning,
+            confirmed_plan.strategy.positioning
+        );
+        let application_plan = Application::current_application_plan(
+            &root,
+            job_id.as_str(),
+            PrivateReadConsent::granted_by_user(),
+        )
+        .expect("load plan through shared application facade")
+        .data;
+        assert_eq!(application_plan, reopened_plan);
+
+        std::fs::remove_dir_all(root).expect("remove decision workspace");
+        std::fs::remove_file(source).expect("remove job source");
+        std::fs::remove_file(profile_source).expect("remove profile source");
+    }
+
+    fn expected_inputs(
+        artifacts: &[canisend_contracts::ArtifactReference],
+    ) -> Vec<ExpectedInputRevision> {
+        artifacts
+            .iter()
+            .map(|artifact| ExpectedInputRevision {
+                artifact_id: artifact.id.clone(),
+                revision: artifact.revision,
+                sha256: artifact.sha256.clone(),
+            })
+            .collect()
     }
 }

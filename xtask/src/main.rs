@@ -3963,6 +3963,8 @@ fn check_cli_gui_parity() -> Result<(), String> {
         "workspace.status",
         "workspace.check",
         "workspace.backup",
+        "workspace.restore",
+        "workspace.repair",
         "job.create",
         "job.import",
         "job.list",
@@ -3970,9 +3972,16 @@ fn check_cli_gui_parity() -> Result<(), String> {
         "job.archive",
         "workflow.start",
         "workflow.status",
+        "workflow.begin",
+        "workflow.complete",
+        "workflow.rerun",
         "cli.install.status",
         "cli.install",
         "cli.uninstall",
+        "profile.*",
+        "criteria.*",
+        "match.*",
+        "plan.*",
     ]);
     let mut operations = BTreeSet::new();
     let mut implemented = BTreeSet::new();

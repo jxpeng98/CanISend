@@ -796,6 +796,7 @@ version = "1.0.0-alpha.2"
 dependencies = [
  "canisend-app",
  "canisend-contracts",
+ "canisend-store",
  "eframe",
  "rfd",
  "serde",

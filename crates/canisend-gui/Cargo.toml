@@ -23,5 +23,8 @@ serde_json.workspace = true
 [target.'cfg(target_os = "macos")'.dependencies]
 rfd.workspace = true
 
+[dev-dependencies]
+canisend-store = { path = "../canisend-store", version = "=1.0.0-alpha.2" }
+
 [lints]
 workspace = true
