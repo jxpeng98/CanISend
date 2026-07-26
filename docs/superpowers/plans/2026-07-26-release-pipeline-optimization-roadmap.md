@@ -1,7 +1,7 @@
 # CanISend release-pipeline optimization roadmap
 
-**Status:** Stage 1–5 implementation and Stage 2–5 candidate measurements complete; Stage 6
-implemented locally with remote macOS timing pending; Stage 1 tag promotion remains pending
+**Status:** Stage 1–6 implementation and Stage 2–6 measurements complete; Stage 1 tag promotion
+remains pending
 
 **Decision date:** 2026-07-26
 
@@ -233,7 +233,9 @@ testing to the release candidate boundary without losing an owning gate.
 - [x] Add a release-only Windows recovery/render gate and make assembly depend on it.
 - [x] Start source, Windows, native CLI, and macOS GUI candidate owners in parallel; assembly
   remains the fail-closed join.
-- [ ] Measure cold and warm macOS fast CI runs; the warm critical-path target is five minutes.
+- [x] Measure initial and exact-cache warm macOS fast CI runs. The evidence is recorded in
+  [`fast-ci-stage6.json`](../../performance/fast-ci-stage6.json): the initial critical path was
+  287 seconds and the warm path was 99 seconds.
 
 **Exit:** Development jobs use only Apple Silicon macOS and warm feedback is at most five minutes.
 Every Windows/Linux test has a release or scheduled assurance owner, and release assembly cannot
@@ -255,7 +257,8 @@ qualification suite. Those remain owned by scheduled or exact-release workflows.
 
 ## 11. Immediate next action
 
-Push Stage 6, measure the first macOS-only run, and repeat once with warm job-specific caches.
-Record both job durations and tune only the longer job until its warm path is at most five minutes.
-After that measurement, exercise the Stage 1 build-once promotion contract for
-`v1.0.0-alpha.2` only after explicitly authorizing publication.
+Keep ordinary development on the measured macOS fast path. At the next explicitly authorized
+release, run the complete non-publishing candidate so the release-only Windows gate and parallel
+source/native dependency graph receive their first remote execution. Exercise the Stage 1
+build-once promotion contract for `v1.0.0-alpha.2` only after that candidate succeeds and
+publication is explicitly authorized.

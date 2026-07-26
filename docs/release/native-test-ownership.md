@@ -9,6 +9,10 @@ formatting, Clippy, and release-contract checks; the other owns the complete wor
 generated properties, debug CLI/GUI compilation, and the documented CLI/host-agent smoke. Neither
 job builds a release profile or uses a Windows/Linux runner.
 
+The initial and exact-cache warm measurements are recorded in
+[`fast-ci-stage6.json`](../performance/fast-ci-stage6.json). Their critical paths were 287 and 99
+seconds respectively, so both stay below the five-minute development budget.
+
 The machine-readable authority is
 [`release/native-test-ownership.json`](../../release/native-test-ownership.json). `xtask release
 check` rejects policy drift, a missing source suite, a repeated target workspace suite, or removal

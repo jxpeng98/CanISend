@@ -1,0 +1,77 @@
+{
+  "schema": "canisend.fast-ci-comparison/v1",
+  "recorded_at": "2026-07-26T14:56:00Z",
+  "source_commit": "8ca7a1fe457afe4f9a0557cf21c0130c239122ee",
+  "workflow": ".github/workflows/fast-ci.yml",
+  "runner": "macos-15",
+  "architecture": "arm64",
+  "target_seconds": 300,
+  "runs": {
+    "initial": {
+      "github_run_id": 30206764458,
+      "event": "push",
+      "conclusion": "success",
+      "exact_job_cache_hit": false,
+      "jobs": {
+        "macos-quality": {
+          "seconds": 216,
+          "conclusion": "success"
+        },
+        "macos-tests": {
+          "seconds": 287,
+          "conclusion": "success"
+        }
+      },
+      "critical_path_seconds": 287,
+      "target_passed": true
+    },
+    "warm": {
+      "github_run_id": 30207049990,
+      "event": "workflow_dispatch",
+      "conclusion": "success",
+      "exact_job_cache_hit": true,
+      "jobs": {
+        "macos-quality": {
+          "seconds": 57,
+          "conclusion": "success"
+        },
+        "macos-tests": {
+          "seconds": 99,
+          "conclusion": "success"
+        }
+      },
+      "critical_path_seconds": 99,
+      "target_passed": true
+    }
+  },
+  "comparison": {
+    "quality_saved_seconds": 159,
+    "quality_improvement_percent": 73.61,
+    "tests_saved_seconds": 188,
+    "tests_improvement_percent": 65.51,
+    "critical_path_saved_seconds": 188,
+    "critical_path_improvement_percent": 65.51
+  },
+  "checks": {
+    "macos_only": true,
+    "two_parallel_jobs": true,
+    "complete_workspace_suite": true,
+    "generated_property_contracts": true,
+    "clippy_all_targets_all_features": true,
+    "release_contract_check": true,
+    "debug_cli_gui_build": true,
+    "documented_cli_smoke": true,
+    "host_agent_smoke": true,
+    "release_profile_build": false,
+    "windows_linux_jobs": false,
+    "authoritative_release_evidence": false,
+    "publication": false
+  },
+  "release_boundary": {
+    "linux_owner": "native-release/source-gates and native GNU/musl jobs",
+    "windows_owner": "native-release/windows-release-tests and native Windows package job",
+    "assembly_requires_all_owners": true,
+    "first_remote_execution": "deferred until the next explicitly authorized non-publishing release candidate"
+  },
+  "conclusion": "The initial macOS-only development run completed in 287 seconds and the exact-cache warm run completed in 99 seconds. Both satisfy the five-minute target without moving Windows or Linux validation into development CI."
+}
