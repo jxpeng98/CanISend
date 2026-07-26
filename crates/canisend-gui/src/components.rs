@@ -85,6 +85,8 @@ pub(crate) fn localized_receipt_summary<T>(
         "workspace.status" => "工作区已打开",
         "workspace.check" => "工作区完整性检查已完成",
         "workspace.backup" => "经过验证的工作区备份已创建",
+        "workspace.restore" => "工作区已从经过验证的备份恢复",
+        "workspace.repair" => "工作区托管文件已修复",
         "job.create" => "职位已创建",
         "job.archive" => "职位已归档",
         "job.import" => "职位来源已导入",

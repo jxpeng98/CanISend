@@ -35,8 +35,20 @@ impl Page {
 
 #[derive(Debug, Clone)]
 pub(crate) enum PendingConfirmation {
-    ArchiveJob { title: String },
-    UninstallCli { restores_previous: bool },
+    ArchiveJob {
+        title: String,
+    },
+    RestoreWorkspace {
+        alias: String,
+        backup: PathBuf,
+        destination: PathBuf,
+    },
+    RepairWorkspace {
+        path: PathBuf,
+    },
+    UninstallCli {
+        restores_previous: bool,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -44,6 +56,7 @@ pub(crate) enum FocusTarget {
     JobTitle,
     ImportKind,
     WorkspaceAlias,
+    RestoreWorkspaceAlias,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -97,5 +110,13 @@ pub(crate) struct WorkspaceForm {
     pub(crate) alias: String,
     pub(crate) path: Option<PathBuf>,
     pub(crate) create_new: bool,
+    pub(crate) error: Option<String>,
+}
+
+#[derive(Debug, Default)]
+pub(crate) struct RestoreWorkspaceForm {
+    pub(crate) alias: String,
+    pub(crate) backup: Option<PathBuf>,
+    pub(crate) destination: Option<PathBuf>,
     pub(crate) error: Option<String>,
 }

@@ -482,6 +482,117 @@ impl CanISendDesktop {
         self.show_workspace_form = self.activity.is_some() || (open && self.show_workspace_form);
     }
 
+    pub(super) fn show_restore_workspace_dialog(&mut self, ui: &mut egui::Ui) {
+        if !self.show_restore_workspace_form {
+            return;
+        }
+        let mut open = self.show_restore_workspace_form;
+        egui::Window::new(self.language.text("Restore workspace backup"))
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(false)
+            .default_width(600.0)
+            .show(ui.ctx(), |ui| {
+                ui.label(self.language.text(
+                    "Restore verifies the backup before creating a separate workspace directory.",
+                ));
+                ui.add_space(8.0);
+
+                let alias_label = ui.label(self.language.text("Workspace name"));
+                let alias_response = ui
+                    .add_enabled(
+                        self.activity.is_none(),
+                        egui::TextEdit::singleline(&mut self.restore_workspace_form.alias)
+                            .hint_text("Recovered applications")
+                            .desired_width(f32::INFINITY),
+                    )
+                    .labelled_by(alias_label.id);
+                if self.pending_focus == Some(FocusTarget::RestoreWorkspaceAlias) {
+                    alias_response.request_focus();
+                    self.pending_focus = None;
+                }
+                if alias_response.changed() {
+                    self.restore_workspace_form.error = None;
+                }
+
+                ui.label(self.language.text("Verified backup directory"));
+                ui.horizontal(|ui| {
+                    ui.label(self.restore_workspace_form.backup.as_ref().map_or(
+                        self.language.text("No directory selected").to_owned(),
+                        |path| path.display().to_string(),
+                    ));
+                    if ui
+                        .add_enabled(
+                            self.activity.is_none(),
+                            egui::Button::new(self.language.text("Choose backup")),
+                        )
+                        .clicked()
+                    {
+                        self.restore_workspace_form.backup =
+                            pick_directory(Some(self.language.text("Choose a verified backup")));
+                        self.restore_workspace_form.error = None;
+                    }
+                });
+
+                ui.label(self.language.text("New workspace destination"));
+                ui.horizontal(|ui| {
+                    ui.label(self.restore_workspace_form.destination.as_ref().map_or(
+                        self.language.text("No directory selected").to_owned(),
+                        |path| path.display().to_string(),
+                    ));
+                    if ui
+                        .add_enabled(
+                            self.activity.is_none(),
+                            egui::Button::new(self.language.text("Choose destination")),
+                        )
+                        .clicked()
+                    {
+                        self.restore_workspace_form.destination = pick_directory(Some(
+                            self.language.text("Choose a new or empty destination"),
+                        ));
+                        self.restore_workspace_form.error = None;
+                    }
+                });
+                ui.label(
+                    RichText::new(
+                        self.language
+                            .text("The destination must be new or empty and is never overwritten."),
+                    )
+                    .weak(),
+                );
+
+                if let Some(error) = &self.restore_workspace_form.error {
+                    accessible_error(ui, theme::error(self.dark_mode), error);
+                }
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    if ui
+                        .add_enabled(
+                            self.activity.is_none(),
+                            theme::primary_button(self.language.text("Review restore")),
+                        )
+                        .clicked()
+                    {
+                        self.submit_restore_workspace_form();
+                    }
+                    if ui
+                        .add_enabled(
+                            self.activity.is_none(),
+                            egui::Button::new(self.language.text("Cancel")),
+                        )
+                        .clicked()
+                    {
+                        self.show_restore_workspace_form = false;
+                    }
+                });
+            });
+        if self.activity.is_none() && ui.ctx().input(|input| input.key_pressed(egui::Key::Escape)) {
+            self.show_restore_workspace_form = false;
+        }
+        self.show_restore_workspace_form =
+            self.activity.is_some() || (open && self.show_restore_workspace_form);
+    }
+
     pub(super) fn show_pending_confirmation(&mut self, ui: &mut egui::Ui) {
         let Some(pending) = self.pending_confirmation.clone() else {
             return;
@@ -505,6 +616,71 @@ impl CanISendDesktop {
                         if ui
                             .add(theme::destructive_button(
                                 self.language.text("Confirm archive"),
+                            ))
+                            .clicked()
+                        {
+                            confirmed = true;
+                        }
+                        if ui.button(self.language.text("Cancel")).clicked() {
+                            cancelled = true;
+                        }
+                    });
+                }
+                PendingConfirmation::RestoreWorkspace {
+                    alias,
+                    backup,
+                    destination,
+                } => {
+                    accessible_heading(
+                        ui,
+                        self.language.text("Restore this workspace backup?"),
+                        1,
+                    );
+                    ui.label(self.language.text(
+                        "CanISend will verify the backup and create a separate workspace. The source backup is not changed.",
+                    ));
+                    ui.add_space(6.0);
+                    ui.label(format!("{}: {alias}", self.language.text("Workspace name")));
+                    ui.label(format!(
+                        "{}: {}",
+                        self.language.text("Verified backup directory"),
+                        backup.display()
+                    ));
+                    ui.label(format!(
+                        "{}: {}",
+                        self.language.text("New workspace destination"),
+                        destination.display()
+                    ));
+                    ui.add_space(10.0);
+                    ui.horizontal(|ui| {
+                        if ui
+                            .add(theme::primary_button(
+                                self.language.text("Confirm restore"),
+                            ))
+                            .clicked()
+                        {
+                            confirmed = true;
+                        }
+                        if ui.button(self.language.text("Cancel")).clicked() {
+                            cancelled = true;
+                        }
+                    });
+                }
+                PendingConfirmation::RepairWorkspace { path } => {
+                    accessible_heading(
+                        ui,
+                        self.language.text("Repair the active workspace?"),
+                        1,
+                    );
+                    ui.label(self.language.text(
+                        "CanISend will rebuild managed projections from verified workspace records, then run an integrity check. User-edited files are protected by the workspace repair policy.",
+                    ));
+                    ui.label(RichText::new(path.display().to_string()).strong());
+                    ui.add_space(10.0);
+                    ui.horizontal(|ui| {
+                        if ui
+                            .add(theme::primary_button(
+                                self.language.text("Confirm repair"),
                             ))
                             .clicked()
                         {
@@ -555,6 +731,28 @@ impl CanISendDesktop {
                 PendingConfirmation::ArchiveJob { .. } => {
                     self.archive_selected_job(ui.ctx().clone());
                 }
+                PendingConfirmation::RestoreWorkspace {
+                    alias,
+                    backup,
+                    destination,
+                } => {
+                    self.dispatch(
+                        self.language.text("Restoring verified workspace backup"),
+                        ui.ctx().clone(),
+                        WorkerRequest::RestoreWorkspace {
+                            alias,
+                            backup,
+                            destination,
+                        },
+                    );
+                }
+                PendingConfirmation::RepairWorkspace { path } => {
+                    self.dispatch(
+                        self.language.text("Repairing managed workspace files"),
+                        ui.ctx().clone(),
+                        WorkerRequest::RepairWorkspace { path },
+                    );
+                }
                 PendingConfirmation::UninstallCli { .. } => {
                     self.uninstall_cli(ui.ctx().clone());
                 }
@@ -592,5 +790,41 @@ impl CanISendDesktop {
                 Err(error) => self.workspace_form.error = Some(error),
             }
         }
+    }
+
+    fn submit_restore_workspace_form(&mut self) {
+        let alias = self.restore_workspace_form.alias.trim().to_owned();
+        if let Err(error) = validate_workspace_alias(&alias) {
+            self.restore_workspace_form.error =
+                Some(localized_workspace_alias_error(error, self.language));
+            return;
+        }
+        let Some(backup) = self.restore_workspace_form.backup.clone() else {
+            self.restore_workspace_form.error =
+                Some(self.language.text("Choose a backup directory").to_owned());
+            return;
+        };
+        let Some(destination) = self.restore_workspace_form.destination.clone() else {
+            self.restore_workspace_form.error = Some(
+                self.language
+                    .text("Choose a destination directory")
+                    .to_owned(),
+            );
+            return;
+        };
+        if backup == destination {
+            self.restore_workspace_form.error = Some(
+                self.language
+                    .text("Backup and destination directories must be different")
+                    .to_owned(),
+            );
+            return;
+        }
+        self.restore_workspace_form.error = None;
+        self.pending_confirmation = Some(PendingConfirmation::RestoreWorkspace {
+            alias,
+            backup,
+            destination,
+        });
     }
 }

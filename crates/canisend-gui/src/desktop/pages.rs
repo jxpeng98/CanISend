@@ -701,6 +701,17 @@ impl CanISendDesktop {
             }
             if ui
                 .add_enabled(
+                    self.activity.is_none(),
+                    egui::Button::new(self.language.text("Restore backup")),
+                )
+                .clicked()
+            {
+                self.restore_workspace_form = RestoreWorkspaceForm::default();
+                self.show_restore_workspace_form = true;
+                self.pending_focus = Some(FocusTarget::RestoreWorkspaceAlias);
+            }
+            if ui
+                .add_enabled(
                     self.active_workspace.is_some() && self.activity.is_none(),
                     egui::Button::new(self.language.text("Check active")),
                 )
@@ -716,6 +727,21 @@ impl CanISendDesktop {
                 .clicked()
             {
                 self.backup_active_workspace(ui.ctx().clone());
+            }
+            if ui
+                .add_enabled(
+                    self.active_workspace.is_some() && self.activity.is_none(),
+                    egui::Button::new(self.language.text("Repair active")),
+                )
+                .on_hover_text(
+                    self.language.text(
+                        "Rebuild missing or changed managed projections from verified records",
+                    ),
+                )
+                .clicked()
+                && let Some(path) = self.active_workspace.clone()
+            {
+                self.pending_confirmation = Some(PendingConfirmation::RepairWorkspace { path });
             }
         });
         ui.add_space(18.0);

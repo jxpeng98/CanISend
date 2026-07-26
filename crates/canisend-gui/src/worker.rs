@@ -4,7 +4,7 @@ use canisend_app::{
     ActionReceipt, Application, BackupReadModel, CliInstallStatus, DoctorSummary,
     JobDetailReadModel, JobListReadModel, NetworkFetchConsent, PrivateReadConsent,
     SourceImportReadModel, TerminalInstallConsent, UpdateCheckReadModel, WorkspaceHealthReadModel,
-    WorkspaceReadModel,
+    WorkspaceReadModel, WorkspaceRepairReadModel, WorkspaceRestoreReadModel,
 };
 use canisend_contracts::{JobRecord, WorkflowStatusData};
 
@@ -23,6 +23,14 @@ pub(crate) enum WorkerRequest {
     BackupWorkspace {
         root: PathBuf,
         destination: PathBuf,
+    },
+    RestoreWorkspace {
+        alias: String,
+        backup: PathBuf,
+        destination: PathBuf,
+    },
+    RepairWorkspace {
+        path: PathBuf,
     },
     LoadJobs {
         path: PathBuf,
@@ -81,6 +89,11 @@ pub(crate) enum WorkerEvent {
     },
     WorkspaceChecked(Result<ActionReceipt<WorkspaceHealthReadModel>, String>),
     BackupCreated(Result<ActionReceipt<BackupReadModel>, String>),
+    WorkspaceRestored {
+        alias: String,
+        result: Result<ActionReceipt<WorkspaceRestoreReadModel>, String>,
+    },
+    WorkspaceRepaired(Result<ActionReceipt<WorkspaceRepairReadModel>, String>),
     JobsLoaded(Result<ActionReceipt<JobListReadModel>, String>),
     JobCreated(Result<ActionReceipt<JobRecord>, String>),
     JobLoaded(Result<ActionReceipt<JobDetailReadModel>, String>),
@@ -108,6 +121,18 @@ pub(crate) fn execute(request: WorkerRequest) -> WorkerEvent {
         ),
         WorkerRequest::BackupWorkspace { root, destination } => WorkerEvent::BackupCreated(
             Application::backup_workspace(&root, &destination).map_err(|error| error.to_string()),
+        ),
+        WorkerRequest::RestoreWorkspace {
+            alias,
+            backup,
+            destination,
+        } => WorkerEvent::WorkspaceRestored {
+            alias,
+            result: Application::restore_workspace(&backup, &destination)
+                .map_err(|error| error.to_string()),
+        },
+        WorkerRequest::RepairWorkspace { path } => WorkerEvent::WorkspaceRepaired(
+            Application::repair_workspace(&path).map_err(|error| error.to_string()),
         ),
         WorkerRequest::LoadJobs {
             path,
@@ -227,6 +252,36 @@ mod tests {
             execute(WorkerRequest::LoadWorkspace { path: root.clone() }),
             WorkerEvent::WorkspaceLoaded(Ok(_))
         ));
+
+        let backup = temporary_root("backup");
+        assert!(matches!(
+            execute(WorkerRequest::BackupWorkspace {
+                root: root.clone(),
+                destination: backup.clone(),
+            }),
+            WorkerEvent::BackupCreated(Ok(_))
+        ));
+        let restored = temporary_root("restored");
+        assert!(matches!(
+            execute(WorkerRequest::RestoreWorkspace {
+                alias: "Recovered fixture".to_owned(),
+                backup: backup.clone(),
+                destination: restored.clone(),
+            }),
+            WorkerEvent::WorkspaceRestored {
+                alias,
+                result: Ok(_),
+            } if alias == "Recovered fixture"
+        ));
+        assert!(matches!(
+            execute(WorkerRequest::RepairWorkspace {
+                path: restored.clone(),
+            }),
+            WorkerEvent::WorkspaceRepaired(Ok(_))
+        ));
+
         std::fs::remove_dir_all(root).expect("remove worker fixture");
+        std::fs::remove_dir_all(backup).expect("remove backup fixture");
+        std::fs::remove_dir_all(restored).expect("remove restored fixture");
     }
 }

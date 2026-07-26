@@ -123,6 +123,11 @@ impl Language {
             "Local workspace registry, integrity, and backups" => "本地工作区注册、完整性和备份",
             "Create workspace" => "创建工作区",
             "Register existing" => "注册现有工作区",
+            "Restore backup" => "恢复备份",
+            "Repair active" => "修复当前工作区",
+            "Rebuild missing or changed managed projections from verified records" => {
+                "根据已验证的记录重建缺失或发生变化的托管文件"
+            }
             "Check active" => "检查当前工作区",
             "Back up active" => "备份当前工作区",
             "Remove from list" => "从列表移除",
@@ -257,6 +262,35 @@ impl Language {
             "Register" => "注册",
             "Choose a directory" => "请选择目录",
             "Creating workspace" => "正在创建工作区",
+            "Restore workspace backup" => "恢复工作区备份",
+            "Restore verifies the backup before creating a separate workspace directory." => {
+                "恢复操作会先验证备份，再创建一个独立的工作区目录。"
+            }
+            "Verified backup directory" => "已验证的备份目录",
+            "Choose backup" => "选择备份",
+            "Choose a verified backup" => "选择经过验证的备份",
+            "New workspace destination" => "新工作区目标目录",
+            "Choose destination" => "选择目标目录",
+            "Choose a new or empty destination" => "选择新建或空的目标目录",
+            "The destination must be new or empty and is never overwritten." => {
+                "目标目录必须是新建或空目录，已有内容绝不会被覆盖。"
+            }
+            "Review restore" => "检查恢复设置",
+            "Restore this workspace backup?" => "恢复此工作区备份？",
+            "CanISend will verify the backup and create a separate workspace. The source backup is not changed." => {
+                "CanISend 将验证备份并创建独立工作区，不会修改源备份。"
+            }
+            "Confirm restore" => "确认恢复",
+            "Repair the active workspace?" => "修复当前工作区？",
+            "CanISend will rebuild managed projections from verified workspace records, then run an integrity check. User-edited files are protected by the workspace repair policy." => {
+                "CanISend 将根据已验证的工作区记录重建托管文件，然后运行完整性检查。用户编辑过的文件受工作区修复策略保护。"
+            }
+            "Confirm repair" => "确认修复",
+            "Restoring verified workspace backup" => "正在恢复经过验证的工作区备份",
+            "Repairing managed workspace files" => "正在修复工作区托管文件",
+            "Choose a backup directory" => "请选择备份目录",
+            "Choose a destination directory" => "请选择目标目录",
+            "Backup and destination directories must be different" => "备份目录与目标目录必须不同",
             "Archive this job?" => "归档此职位？",
             "Confirm archive" => "确认归档",
             "Uninstall the managed CLI?" => "卸载受管理的 CLI？",
@@ -334,6 +368,14 @@ mod tests {
         assert_eq!(Language::English.code(), "en");
         assert_eq!(Language::SimplifiedChinese.code(), "zh-CN");
         assert_eq!(Language::SimplifiedChinese.text("Workspaces"), "工作区");
+        assert_eq!(
+            Language::SimplifiedChinese.text("Restore backup"),
+            "恢复备份"
+        );
+        assert_eq!(
+            Language::SimplifiedChinese.text("Confirm repair"),
+            "确认修复"
+        );
         assert_eq!(
             serde_json::to_string(&Language::SimplifiedChinese).unwrap(),
             r#""zh-CN""#

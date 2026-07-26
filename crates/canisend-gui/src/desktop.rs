@@ -19,7 +19,7 @@ use crate::{
     registry::{WorkspaceRegistry, default_registry_path, validate_workspace_alias},
     state::{
         FocusTarget, GuiPreferences, ImportForm, ImportKind, JobForm, Page, PendingConfirmation,
-        WorkspaceForm,
+        RestoreWorkspaceForm, WorkspaceForm,
     },
     theme,
     worker::{WorkerEvent, WorkerRequest, execute},
@@ -104,6 +104,8 @@ struct CanISendDesktop {
     show_import_form: bool,
     workspace_form: WorkspaceForm,
     show_workspace_form: bool,
+    restore_workspace_form: RestoreWorkspaceForm,
+    show_restore_workspace_form: bool,
     product: ProductSummary,
     doctor: Option<DoctorSummary>,
     cli_source: Option<PathBuf>,
@@ -162,6 +164,8 @@ impl CanISendDesktop {
             show_import_form: false,
             workspace_form: WorkspaceForm::default(),
             show_workspace_form: false,
+            restore_workspace_form: RestoreWorkspaceForm::default(),
+            show_restore_workspace_form: false,
             product: Application::product_summary(),
             doctor: None,
             cli_source: bundled_cli_path(),
@@ -276,6 +280,40 @@ impl CanISendDesktop {
             WorkerEvent::BackupCreated(result) => match result {
                 Ok(receipt) => {
                     let summary = localized_receipt_summary(&receipt, self.language);
+                    self.notice = Some((true, summary));
+                }
+                Err(error) => self.fail(error),
+            },
+            WorkerEvent::WorkspaceRestored { alias, result } => match result {
+                Ok(receipt) => {
+                    let summary = localized_receipt_summary(&receipt, self.language);
+                    let path = receipt.data.destination.clone();
+                    match self.registry.register(&alias, &path) {
+                        Ok(canonical) => {
+                            self.active_workspace = Some(canonical.clone());
+                            self.workspace = Some(WorkspaceReadModel {
+                                path: canonical,
+                                status: receipt.data.workspace,
+                            });
+                            self.health = None;
+                            self.show_restore_workspace_form = false;
+                            self.restore_workspace_form = RestoreWorkspaceForm::default();
+                            self.save_registry();
+                            self.notice = Some((true, summary));
+                            self.refresh_jobs(ctx.clone());
+                        }
+                        Err(error) => self.restore_workspace_form.error = Some(error),
+                    }
+                }
+                Err(error) => self.restore_workspace_form.error = Some(error),
+            },
+            WorkerEvent::WorkspaceRepaired(result) => match result {
+                Ok(receipt) => {
+                    let summary = localized_receipt_summary(&receipt, self.language);
+                    self.health = Some(WorkspaceHealthReadModel {
+                        path: receipt.data.workspace,
+                        check: receipt.data.check,
+                    });
                     self.notice = Some((true, summary));
                 }
                 Err(error) => self.fail(error),
@@ -487,6 +525,7 @@ impl eframe::App for CanISendDesktop {
         self.show_job_dialog(ui);
         self.show_import_dialog(ui);
         self.show_workspace_dialog(ui);
+        self.show_restore_workspace_dialog(ui);
         self.show_pending_confirmation(ui);
     }
 }
