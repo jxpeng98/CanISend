@@ -257,8 +257,8 @@ qualification suite. Those remain owned by scheduled or exact-release workflows.
 
 ## 11. Immediate next action
 
-Keep ordinary development on the measured macOS fast path. At the next explicitly authorized
-release, run the complete non-publishing candidate so the release-only Windows gate and parallel
-source/native dependency graph receive their first remote execution. Exercise the Stage 1
-build-once promotion contract for `v1.0.0-alpha.2` only after that candidate succeeds and
-publication is explicitly authorized.
+Keep ordinary development on the measured macOS fast path. Non-publishing native run `30215276643`
+successfully exercised the release-only Windows gate and parallel source/native dependency graph
+for exact source `d091d14`; the downloaded 13-file candidate also passed exact-byte verification.
+The next release action is the Stage 1 build-once annotated-tag promotion for
+`v1.0.0-alpha.2`, and it remains prohibited until publication is explicitly authorized.

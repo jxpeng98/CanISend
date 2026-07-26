@@ -4,7 +4,7 @@
 
 **Source version:** `1.0.0-alpha.2`
 
-**Scope:** Stage 4B source implementation and local macOS source-gate evidence
+**Scope:** Stage 4B source implementation, hosted Fast CI, and exact Alpha.2 candidate evidence
 
 ## Outcome
 
@@ -38,6 +38,7 @@ render, and export GUI surfaces remain later Stage 4 work.
 | B3 application workflow controls | `40e53e9` | descriptor-bound begin/complete and graph rerun preview/action |
 | B4 CLI adapter alignment | `a38fabf` | five Stage 4B commands route through the application facade |
 | B5 GUI workflow controls | `1a95c28` | timeline actions, artifact validation, CLI handoff text, rerun confirmation |
+| B6 accessibility qualification | `d091d14` | deterministic Tab-ring anchor and exact-package qualification |
 
 ## Source verification
 
@@ -73,6 +74,32 @@ The local package was
 `b6c9ddd935d89c84a307e471fbbd4f032ac7cfa841db7158b85850e89b901472`. It is a disposable local
 artifact under `/tmp`, not a publication candidate or release asset.
 
-Formal five-target native builds, packaged GUI interaction/accessibility qualification, hosted Fast
-CI, staged-candidate download, and exact-byte publication review remain candidate qualification
-work. Local source and launch evidence do not replace those gates.
+## Hosted and exact-candidate verification
+
+Hosted Fast CI run
+[`30215205425`](https://github.com/jxpeng98/CanISend/actions/runs/30215205425) passed at source
+`d091d147390474514145b154b88b2cf443e6f7c1`. The quality lane completed in 50 seconds and the
+complete test/development-package lane completed in 1 minute 20 seconds, keeping the critical path
+below five minutes.
+
+The non-publishing native candidate run
+[`30215276643`](https://github.com/jxpeng98/CanISend/actions/runs/30215276643) then passed in 21
+minutes. It built and smoked the five supported CLI targets, built the Apple Silicon desktop app
+with its version-matched CLI, verified community signing policy, completed the Windows release
+contracts, assembled the SBOM/manifest/checksums, and attested the resulting assets. The complete
+candidate artifact was downloaded rather than rebuilt locally. `xtask release verify-candidate`
+verified all 13 files against `v1.0.0-alpha.2` and exact source `d091d14`.
+
+The downloaded desktop archive was 49,466,754 bytes with SHA-256
+`1891f184583d5d221af8e02cb521c49cce0503709e53586790be257dd30e2a9f`. Its exact bytes passed:
+
+- bounded archive, bundle manifest, nested/outer ad-hoc signature, documentation, and GUI launch;
+- packaged host-agent and synthetic workflow smoke;
+- English and Simplified Chinese accessibility semantics, deterministic Tab order, 200% text and
+  focus visibility, and reduced-motion behavior;
+- workflow start/begin/rerun followed by backup, restore, repair, check, and separate-process
+  reopen; and
+- terminal CLI migration, same-version update, rollback uninstall, and workspace retention.
+
+Stage 4B is therefore qualified. No tag, GitHub Release, public asset, or update response was
+created; publication remains a separate explicitly authorized action.

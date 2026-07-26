@@ -1,10 +1,12 @@
 # CanISend Stage 4A and 4B execution plan
 
-**Status:** Stage 4A and Stage 4B source-complete; native Alpha.2 candidate qualification pending
+**Status:** Stage 4A and Stage 4B complete; exact non-publishing Alpha.2 candidate qualified
 
 **Decision date:** 2026-07-26
 
 **Source baseline:** `1.0.0-alpha.2` at `d657710`
+
+**Qualified checkpoint:** `1.0.0-alpha.2` at `d091d14`, native run `30215276643`
 
 **Parent roadmap:** [CanISend 1.0 release roadmap](2026-07-25-1.0-release-roadmap.md)
 
@@ -758,8 +760,9 @@ Stage 4B definition of done:
 - [x] CLI contracts remain unchanged for all five migrated commands.
 - [x] New GUI strings and accessibility semantics pass in English and Simplified Chinese.
 - [x] Parity is `22/35`, with exactly 13 explicit deferred-Beta families.
-- [x] The local Fast CI equivalent remains below five minutes; hosted evidence awaits push.
-- [ ] Exact packaged macOS lifecycle evidence passes before Alpha.2 publication is considered.
+- [x] Local and hosted Fast CI remain below five minutes.
+- [x] Exact downloaded macOS lifecycle and accessibility evidence passes before Alpha.2
+  publication is considered.
 
 ## 8. Test ownership and timing policy
 
