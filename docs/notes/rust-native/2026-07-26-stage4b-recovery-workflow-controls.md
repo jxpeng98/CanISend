@@ -57,5 +57,22 @@ The five principal test/Clippy commands ran concurrently; their combined wall ti
 seconds rather than the sum of lane times. This remains comfortably below the five-minute Fast CI
 budget.
 
-Exact packaged macOS lifecycle, ad-hoc signature, staged-candidate download, and hosted Fast CI
-evidence remain candidate qualification work and are not implied by local source completion.
+The broader local equivalent of hosted Fast CI also passed:
+
+| Check | Result | Local wall time |
+|---|---|---:|
+| complete workspace test suite | pass, including bounded loopback fixtures | 24.54 s |
+| workspace Clippy, all targets and features | pass with warnings denied | 3.23 s |
+| Alpha-profile CLI and GUI build | pass from source checkpoint `49f8526` | 10.11 s |
+| local Apple Silicon package creation | pass; nested and outer ad-hoc signatures verified | 7.07 s |
+| bounded packaged archive smoke | manifest, signatures, documented workflow, host-agent workflow, and GUI launch passed | 6.29 s |
+| packaged recovery/control smoke | start, begin, rerun, backup, restore, repair, check, and reopen passed | pass |
+
+The local package was
+`CanISend-1.0.0-alpha.2-aarch64-apple-darwin.zip`, 48,832,099 bytes, with SHA-256
+`b6c9ddd935d89c84a307e471fbbd4f032ac7cfa841db7158b85850e89b901472`. It is a disposable local
+artifact under `/tmp`, not a publication candidate or release asset.
+
+Formal five-target native builds, packaged GUI interaction/accessibility qualification, hosted Fast
+CI, staged-candidate download, and exact-byte publication review remain candidate qualification
+work. Local source and launch evidence do not replace those gates.

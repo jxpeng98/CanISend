@@ -141,12 +141,16 @@ jobs:
           job_id="$(./target/debug/canisend --workspace "$workspace" job create --title "Lecturer in Economics" --institution "University X" --json | sed -E 's/.*"id":"([^"]+)".*/\1/')"
           ./target/debug/canisend --workspace "$workspace" job import "$job_id" --file fixtures/v2-spec/job-advert.md --json
           ./target/debug/canisend --workspace "$workspace" job show "$job_id" --json
+          ./target/debug/canisend --workspace "$workspace" workflow start --job "$job_id" --json
+          ./target/debug/canisend --workspace "$workspace" workflow begin --job "$job_id" --stage parse --mode host-agent --json
+          ./target/debug/canisend --workspace "$workspace" workflow rerun --job "$job_id" --stage parse --json
           ./target/debug/canisend discovery import --file fixtures/v2-spec/discovery/leads.csv --source-name "Fast CI fixture" --dry-run --json
           ./target/debug/canisend --workspace "$workspace" discovery import --file fixtures/v2-spec/discovery/leads.csv --source-name "Fast CI fixture" --json
           lead_id="$(./target/debug/canisend --workspace "$workspace" discovery list --json | sed -E 's/.*"id":"([^"]+)".*/\1/')"
           ./target/debug/canisend --workspace "$workspace" discovery promote "$lead_id" --json
           ./target/debug/canisend --workspace "$workspace" workspace backup "$backup" --json
           ./target/debug/canisend workspace restore "$backup" "$restored" --json
+          ./target/debug/canisend --workspace "$restored" workspace repair --json
           ./target/debug/canisend --workspace "$restored" workspace check --json
           ./scripts/smoke_host_agent.sh ./target/debug/canisend "$RUNNER_TEMP/canisend-host-agent-smoke"
 
