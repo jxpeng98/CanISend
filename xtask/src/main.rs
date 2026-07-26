@@ -3584,6 +3584,8 @@ fn check_native_test_ownership() -> Result<(), String> {
         "./scripts/test_sccache_contract.sh",
         "cache_epoch:",
         "candidate cache epoch must be a 1..32 character lowercase body-free token",
+        "# cargo-deny does not compile product code, so keep this integrity gate isolated.",
+        "          RUSTC_WRAPPER: \"\"",
         "canisend-v1-rust-1.97.0-x86_64-unknown-linux-gnu-debug-release-all-features-${{ needs.release-identity.outputs.cache_epoch }}",
         "canisend-v1-rust-1.97.0-${{ matrix.target }}-release-cli-default-${{ needs.release-identity.outputs.cache_epoch }}",
         "canisend-v1-rust-1.97.0-aarch64-apple-darwin-release-cli-gui-default-${{ needs.release-identity.outputs.cache_epoch }}",

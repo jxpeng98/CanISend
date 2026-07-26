@@ -197,6 +197,10 @@ jobs:
 
       - name: Check dependency advisories, licenses, and sources
         uses: EmbarkStudios/cargo-deny-action@6c8f9facfa5047ec02d8485b6bf52b587b7777d1 # v2.0.18
+        env:
+          # The container cannot access the host runner's absolute sccache executable path.
+          # cargo-deny does not compile product code, so keep this integrity gate isolated.
+          RUSTC_WRAPPER: ""
 
   build-native-archives:
     name: build-${{ matrix.target }}
