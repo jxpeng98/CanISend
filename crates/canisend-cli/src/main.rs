@@ -17,24 +17,23 @@ use canisend_app::{
 use canisend_contracts::{
     AGENT_PROTOCOL, ActorKind, AgentContextBlocker, AgentContextData, AgentError, AgentResponse,
     CapabilitiesData, DocumentKind, EntityId, ErrorCode, ExecutionMode, ExitClass, NextAction,
-    PUBLIC_SCHEMA_VERSION, PrivacyClassification, ProfileSourceKind, PublicSchemaId,
-    RESOURCE_FORMAT, ResourceCatalogData, ResourceCatalogEntry, SafeRelativePath,
-    SchemaCatalogData, SchemaCatalogEntry, SemanticVersion, Sha256Digest, VersionData,
-    WORKSPACE_FORMAT, WorkflowStage,
+    PUBLIC_SCHEMA_VERSION, PrivacyClassification, PublicSchemaId, RESOURCE_FORMAT,
+    ResourceCatalogData, ResourceCatalogEntry, SafeRelativePath, SchemaCatalogData,
+    SchemaCatalogEntry, SemanticVersion, Sha256Digest, VersionData, WORKSPACE_FORMAT,
+    WorkflowStage,
 };
 use canisend_core::{CapabilityRegistry, StageRegistry};
 use canisend_io::{
     DiscoveryAdapter, DiscoveryFileKind, GreenhouseAdapter, HttpFetcher, IoAdapterError,
-    JobsAcUkAdapter, LeverAdapter, LocalTextKind, RssAtomAdapter, discovery_adapter_capabilities,
-    parse_csv_batch, parse_host_agent_batch, parse_json_batch, read_criteria_file,
-    read_discovery_file, read_local_text, read_task_completion_file, read_task_completion_stdin,
+    JobsAcUkAdapter, LeverAdapter, RssAtomAdapter, discovery_adapter_capabilities, parse_csv_batch,
+    parse_host_agent_batch, parse_json_batch, read_criteria_file, read_discovery_file,
+    read_task_completion_file, read_task_completion_stdin,
 };
 use canisend_resources::{AgentHost, ResourceError, ResourceId, ResourceKind, export_agent_pack};
 use canisend_store::{
-    AgentContextService, CriteriaService, DiscoveryService, DocumentService, EvidenceService,
-    MatchService, NewProfileSource, PackageService, PlanService, ProfileService, ProjectionService,
-    RenderService, ReviewService, StoreError, TaskService, WorkflowService, Workspace,
-    current_utc_timestamp,
+    AgentContextService, CriteriaService, DiscoveryService, DocumentService, MatchService,
+    PackageService, PlanService, ProjectionService, RenderService, ReviewService, StoreError,
+    TaskService, WorkflowService, Workspace, current_utc_timestamp,
 };
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use serde_json::json;
@@ -1998,30 +1997,19 @@ fn profile_source_add(
     workspace_path: Option<PathBuf>,
     arguments: ProfileSourceAddArgs,
 ) -> CommandResult<CommandOutput> {
-    let document = read_local_text(&arguments.file)
-        .map_err(|error| io_adapter_failure("profile.source.add", error))?;
-    let kind = match document.kind {
-        LocalTextKind::Markdown => ProfileSourceKind::Markdown,
-        LocalTextKind::PlainText => ProfileSourceKind::PlainText,
-        LocalTextKind::Json => ProfileSourceKind::Json,
-    };
     let sensitivity = match arguments.sensitivity {
         ProfileSensitivityName::Public => PrivacyClassification::Public,
         ProfileSensitivityName::PrivateLocal => PrivacyClassification::PrivateLocal,
     };
-    let mut workspace = open_workspace(workspace_path, "profile.source.add")?;
-    let source = ProfileService::new(&mut workspace.database, &workspace.blobs)
-        .import_source(
-            NewProfileSource {
-                kind,
-                original_bytes: document.original_bytes,
-                normalized_text: document.normalized_text,
-                content_type: document.content_type.to_owned(),
-                sensitivity,
-            },
-            ActorKind::User,
-        )
-        .map_err(|error| store_failure("profile.source.add", error))?;
+    let root = app_adapter::workspace_root(workspace_path, "profile.source.add")?;
+    let receipt = Application::import_profile_source(
+        &root,
+        &arguments.file,
+        sensitivity,
+        PrivateReadConsent::granted_by_user(),
+    )
+    .map_err(|error| app_adapter::failure("profile.source.add", error))?;
+    let source = receipt.data.source;
     let mut output = success(
         "profile.source.add",
         "imported",
@@ -2032,19 +2020,16 @@ fn profile_source_add(
             format!("Sensitivity: {:?}", source.sensitivity),
         ],
     )?;
-    output.response.artifacts.push(source.original.clone());
-    output
-        .response
-        .artifacts
-        .push(source.normalized_text.clone());
+    output.response.artifacts = receipt.artifacts;
     Ok(output)
 }
 
 fn profile_source_list(workspace_path: Option<PathBuf>) -> CommandResult<CommandOutput> {
-    let mut workspace = open_workspace(workspace_path, "profile.source.list")?;
-    let sources = ProfileService::new(&mut workspace.database, &workspace.blobs)
-        .list_sources()
-        .map_err(|error| store_failure("profile.source.list", error))?;
+    let root = app_adapter::workspace_root(workspace_path, "profile.source.list")?;
+    let sources = Application::list_profile_sources(&root)
+        .map_err(|error| app_adapter::failure("profile.source.list", error))?
+        .data
+        .sources;
     success(
         "profile.source.list",
         "available",
@@ -2057,11 +2042,11 @@ fn profile_source_show(
     workspace_path: Option<PathBuf>,
     source_id: &str,
 ) -> CommandResult<CommandOutput> {
-    let source_id = parse_entity_id("profile.source.show", source_id)?;
-    let mut workspace = open_workspace(workspace_path, "profile.source.show")?;
-    let source = ProfileService::new(&mut workspace.database, &workspace.blobs)
-        .get_source(&source_id)
-        .map_err(|error| store_failure("profile.source.show", error))?;
+    let _ = parse_entity_id("profile.source.show", source_id)?;
+    let root = app_adapter::workspace_root(workspace_path, "profile.source.show")?;
+    let source = Application::profile_source(&root, source_id)
+        .map_err(|error| app_adapter::failure("profile.source.show", error))?
+        .data;
     success(
         "profile.source.show",
         "available",
@@ -2077,11 +2062,15 @@ fn profile_evidence_proposed(
     workspace_path: Option<PathBuf>,
     job_id: &str,
 ) -> CommandResult<CommandOutput> {
-    let job_id = parse_entity_id("profile.evidence.proposed", job_id)?;
-    let mut workspace = open_workspace(workspace_path, "profile.evidence.proposed")?;
-    let proposed = EvidenceService::new(&mut workspace.database, &workspace.blobs)
-        .proposed(&job_id)
-        .map_err(|error| store_failure("profile.evidence.proposed", error))?;
+    let _ = parse_entity_id("profile.evidence.proposed", job_id)?;
+    let root = app_adapter::workspace_root(workspace_path, "profile.evidence.proposed")?;
+    let proposed = Application::proposed_profile_evidence(
+        &root,
+        job_id,
+        PrivateReadConsent::granted_by_user(),
+    )
+    .map_err(|error| app_adapter::failure("profile.evidence.proposed", error))?
+    .data;
     success(
         "profile.evidence.proposed",
         "available",
@@ -2099,10 +2088,14 @@ fn profile_evidence_export(
     arguments: ProfileEvidenceExportArgs,
 ) -> CommandResult<CommandOutput> {
     let job_id = parse_entity_id("profile.evidence.export", &arguments.job)?;
-    let mut workspace = open_workspace(workspace_path, "profile.evidence.export")?;
-    let template = EvidenceService::new(&mut workspace.database, &workspace.blobs)
-        .template(&job_id)
-        .map_err(|error| store_failure("profile.evidence.export", error))?;
+    let root = app_adapter::workspace_root(workspace_path, "profile.evidence.export")?;
+    let template = Application::profile_evidence_template(
+        &root,
+        job_id.as_str(),
+        PrivateReadConsent::granted_by_user(),
+    )
+    .map_err(|error| app_adapter::failure("profile.evidence.export", error))?
+    .data;
     write_private_json_new(&arguments.destination, &template)
         .map_err(|error| io_adapter_failure("profile.evidence.export", error))?;
     let mut output = success(
@@ -2142,13 +2135,24 @@ fn profile_evidence_confirm(
     let job_id = parse_entity_id("profile.evidence.confirm", &arguments.job)?;
     let candidate = read_criteria_file(&arguments.file)
         .map_err(|error| io_adapter_failure("profile.evidence.confirm", error))?;
-    let mut workspace = open_workspace(workspace_path, "profile.evidence.confirm")?;
-    let artifact = EvidenceService::new(&mut workspace.database, &workspace.blobs)
-        .confirm(&job_id, &candidate)
-        .map_err(|error| store_failure("profile.evidence.confirm", error))?;
-    let confirmed = EvidenceService::new(&mut workspace.database, &workspace.blobs)
-        .confirmed(&job_id)
-        .map_err(|error| store_failure("profile.evidence.confirm", error))?;
+    let root = app_adapter::workspace_root(workspace_path, "profile.evidence.confirm")?;
+    let receipt = Application::confirm_profile_evidence(
+        &root,
+        job_id.as_str(),
+        &candidate,
+        PrivateReadConsent::granted_by_user(),
+    )
+    .map_err(|error| app_adapter::failure("profile.evidence.confirm", error))?;
+    let confirmed = receipt.data;
+    let artifact = receipt.artifacts.first().cloned().ok_or_else(|| {
+        CommandFailure::new(
+            "profile.evidence.confirm",
+            "invariant-failed",
+            ErrorCode::InternalInvariantFailed,
+            "profile evidence confirmation returned no artifact",
+            false,
+        )
+    })?;
     let mut output = success(
         "profile.evidence.confirm",
         "confirmed",
@@ -2167,11 +2171,15 @@ fn profile_evidence_show(
     workspace_path: Option<PathBuf>,
     job_id: &str,
 ) -> CommandResult<CommandOutput> {
-    let job_id = parse_entity_id("profile.evidence.show", job_id)?;
-    let mut workspace = open_workspace(workspace_path, "profile.evidence.show")?;
-    let confirmed = EvidenceService::new(&mut workspace.database, &workspace.blobs)
-        .confirmed(&job_id)
-        .map_err(|error| store_failure("profile.evidence.show", error))?;
+    let _ = parse_entity_id("profile.evidence.show", job_id)?;
+    let root = app_adapter::workspace_root(workspace_path, "profile.evidence.show")?;
+    let confirmed = Application::confirmed_profile_evidence(
+        &root,
+        job_id,
+        PrivateReadConsent::granted_by_user(),
+    )
+    .map_err(|error| app_adapter::failure("profile.evidence.show", error))?
+    .data;
     success(
         "profile.evidence.show",
         "available",
