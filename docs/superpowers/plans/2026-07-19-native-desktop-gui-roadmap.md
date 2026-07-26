@@ -1,6 +1,8 @@
 # CanISend Native Desktop GUI Roadmap
 
-**Status:** Active — macOS-first implementation began on 2026-07-24
+**Status:** Historical design and delivery reference — implementation status is governed by the
+[1.0 release roadmap](2026-07-25-1.0-release-roadmap.md), and current Stage 4 work is governed by
+the [Stage 4A and 4B execution plan](2026-07-26-stage-4a-4b-execution-plan.md)
 
 **Target release:** `1.0.x`, beginning with `1.0.0-alpha.1`
 
