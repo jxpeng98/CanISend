@@ -631,9 +631,15 @@ jobs:
         shell: bash
         run: |
           if [[ "$RELEASE_STAGE" == "stable" ]]; then
-            gh release edit "$RELEASE_TAG" --draft=false --latest
+            gh release edit "$RELEASE_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --draft=false \
+              --latest
           else
-            gh release edit "$RELEASE_TAG" --draft=false --prerelease
+            gh release edit "$RELEASE_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --draft=false \
+              --prerelease
           fi
 
   verify-published-release:
@@ -655,7 +661,9 @@ jobs:
         shell: bash
         run: |
           mkdir -p "$RUNNER_TEMP/published-assets"
-          gh release download "$RELEASE_TAG" --dir "$RUNNER_TEMP/published-assets"
+          gh release download "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --dir "$RUNNER_TEMP/published-assets"
 
       - name: Verify public checksums, prerelease identity, and update response
         env:
@@ -668,6 +676,7 @@ jobs:
           sha256sum -c SHA256SUMS
           release_json="$RUNNER_TEMP/published-release.json"
           gh release view "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
             --json isDraft,isPrerelease,tagName,url \
             > "$release_json"
           expected_prerelease=true

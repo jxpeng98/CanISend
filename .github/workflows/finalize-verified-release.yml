@@ -1,0 +1,249 @@
+name: finalize-verified-release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing draft release tag to finalize"
+        required: true
+      source_run_id:
+        description: "Failed native-release run whose draft gates all passed"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  finalize:
+    name: finalize-verified-release
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      attestations: read
+      contents: write
+      id-token: write
+    steps:
+      - name: Check out the exact release tag
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          ref: ${{ inputs.tag }}
+
+      - name: Validate immutable tag and successful source gates
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+        shell: bash
+        run: |
+          [[ "$SOURCE_RUN_ID" =~ ^[0-9]+$ ]]
+          [[ "$(git cat-file -t "$RELEASE_TAG")" == "tag" ]]
+          tag_commit="$(git rev-parse "$RELEASE_TAG^{commit}")"
+          [[ "$tag_commit" == "$(git rev-parse HEAD)" ]]
+
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${SOURCE_RUN_ID}" \
+            > "$RUNNER_TEMP/source-run.json"
+          jq -e \
+            --arg tag "$RELEASE_TAG" \
+            --arg commit "$tag_commit" \
+            '
+              .event == "push"
+              and .path == ".github/workflows/release.yml"
+              and .head_branch == $tag
+              and .head_sha == $commit
+              and .status == "completed"
+              and .conclusion == "failure"
+            ' \
+            "$RUNNER_TEMP/source-run.json" >/dev/null
+
+          gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/runs/${SOURCE_RUN_ID}/jobs?per_page=100" \
+            > "$RUNNER_TEMP/source-jobs.json"
+          required_jobs='[
+            "release-identity",
+            "signing-readiness",
+            "source-gates",
+            "build-macos-gui-aarch64",
+            "build-aarch64-apple-darwin",
+            "build-x86_64-apple-darwin",
+            "build-x86_64-unknown-linux-gnu",
+            "build-x86_64-unknown-linux-musl",
+            "build-x86_64-pc-windows-msvc",
+            "assemble-and-attest-release",
+            "verify-draft-cli-aarch64-apple-darwin",
+            "verify-draft-cli-x86_64-apple-darwin",
+            "verify-draft-cli-x86_64-unknown-linux-gnu",
+            "verify-draft-cli-x86_64-unknown-linux-musl",
+            "verify-draft-cli-x86_64-pc-windows-msvc",
+            "verify-draft-desktop-aarch64-apple-darwin"
+          ]'
+          jq -e \
+            --argjson required "$required_jobs" \
+            '
+              [
+                .jobs[]
+                | select(.conclusion == "success")
+                | .name
+              ] as $passed
+              | ($required - ($passed | unique)) == []
+              and any(
+                .jobs[];
+                .name == "publish-verified-release"
+                and .conclusion == "failure"
+              )
+            ' \
+            "$RUNNER_TEMP/source-jobs.json" >/dev/null
+
+          gh release view "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --json isDraft,isPrerelease,tagName \
+            > "$RUNNER_TEMP/draft-release.json"
+          jq -e \
+            --arg tag "$RELEASE_TAG" \
+            '
+              .tagName == $tag
+              and .isDraft == true
+              and .isPrerelease == false
+            ' \
+            "$RUNNER_TEMP/draft-release.json" >/dev/null
+
+      - name: Download and verify every draft asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          draft_assets="$RUNNER_TEMP/draft-assets"
+          mkdir -p "$draft_assets"
+          gh release download "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --dir "$draft_assets"
+          cd "$draft_assets"
+          sha256sum -c SHA256SUMS
+          asset_count="$(find . -maxdepth 1 -type f | wc -l | tr -d ' ')"
+          [[ "$asset_count" -eq 15 ]]
+          find . -maxdepth 1 -type f -print0 \
+            | while IFS= read -r -d '' asset; do
+                gh attestation verify "$asset" --repo "$GITHUB_REPOSITORY"
+              done
+
+      - name: Publish the fully verified draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          if [[ "$RELEASE_TAG" == *-* ]]; then
+            gh release edit "$RELEASE_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --draft=false \
+              --prerelease
+          else
+            gh release edit "$RELEASE_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --draft=false \
+              --latest
+          fi
+
+      - name: Re-download and verify the public release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          published_assets="$RUNNER_TEMP/published-assets"
+          mkdir -p "$published_assets"
+          gh release download "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --dir "$published_assets"
+          cd "$published_assets"
+          sha256sum -c SHA256SUMS
+          find . -maxdepth 1 -type f -print0 \
+            | while IFS= read -r -d '' asset; do
+                gh attestation verify "$asset" --repo "$GITHUB_REPOSITORY"
+              done
+
+          gh release view "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --json isDraft,isPrerelease,tagName,url \
+            > "$RUNNER_TEMP/published-release.json"
+          expected_prerelease=true
+          if [[ "$RELEASE_TAG" != *-* ]]; then
+            expected_prerelease=false
+          fi
+          jq -e \
+            --arg tag "$RELEASE_TAG" \
+            --argjson prerelease "$expected_prerelease" \
+            '
+              .tagName == $tag
+              and .isDraft == false
+              and .isPrerelease == $prerelease
+            ' \
+            "$RUNNER_TEMP/published-release.json" >/dev/null
+
+          gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=50" \
+            > "$RUNNER_TEMP/public-update-response.json"
+          jq -e \
+            --arg tag "$RELEASE_TAG" \
+            --argjson prerelease "$expected_prerelease" \
+            '
+              any(
+                .[];
+                .tag_name == $tag
+                and .draft == false
+                and .prerelease == $prerelease
+              )
+            ' \
+            "$RUNNER_TEMP/public-update-response.json" >/dev/null
+
+      - name: Record public release recovery evidence
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+          SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+        shell: bash
+        run: |
+          published_assets="$RUNNER_TEMP/published-assets"
+          release_url="$(jq -er '.url' "$RUNNER_TEMP/published-release.json")"
+          asset_count="$(find "$published_assets" -maxdepth 1 -type f | wc -l | tr -d ' ')"
+          manifest="$published_assets/canisend-${RELEASE_TAG#v}-manifest.json"
+          manifest_sha256="$(sha256sum "$manifest" | awk '{print $1}')"
+          jq -n \
+            --arg tag "$RELEASE_TAG" \
+            --arg release_url "$release_url" \
+            --arg manifest_sha256 "$manifest_sha256" \
+            --arg checked_at "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+            --argjson asset_count "$asset_count" \
+            --argjson source_run_id "$SOURCE_RUN_ID" \
+            --argjson recovery_run_id "$GITHUB_RUN_ID" \
+            '{
+              schema: "canisend.public-release-recovery/v1",
+              tag: $tag,
+              release_url: $release_url,
+              manifest_sha256: $manifest_sha256,
+              asset_count: $asset_count,
+              source_run_id: $source_run_id,
+              recovery_run_id: $recovery_run_id,
+              checks: {
+                immutable_tag: true,
+                source_gates: true,
+                draft_native_smokes: true,
+                draft_checksums: true,
+                draft_provenance: true,
+                published: true,
+                prerelease_identity: true,
+                public_checksums: true,
+                public_provenance: true,
+                update_response: true,
+                private_issue_content_read: false
+              },
+              checked_at: $checked_at
+            }' > "$RUNNER_TEMP/public-release-recovery.json"
+
+      - name: Upload public release recovery evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: public-release-recovery-${{ inputs.tag }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/public-release-recovery.json
+          if-no-files-found: error
+          retention-days: 90
