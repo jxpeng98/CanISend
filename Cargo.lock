@@ -741,6 +741,7 @@ name = "canisend-app"
 version = "1.0.0-alpha.2"
 dependencies = [
  "canisend-contracts",
+ "canisend-core",
  "canisend-io",
  "canisend-resources",
  "canisend-store",

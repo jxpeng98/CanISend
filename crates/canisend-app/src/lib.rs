@@ -19,6 +19,10 @@ pub use job::{JobDetailReadModel, JobListReadModel, SourceImportReadModel};
 pub use receipt::ActionReceipt;
 pub use system::{DoctorSummary, ProductSummary};
 pub use update::UpdateCheckReadModel;
+pub use workflow::{
+    WorkflowBeginRequest, WorkflowCompleteRequest, WorkflowControlReadModel, WorkflowRerunPreview,
+    WorkflowRerunRequest,
+};
 pub use workspace::{
     BackupReadModel, WorkspaceHealthReadModel, WorkspaceInitPolicy, WorkspaceReadModel,
     WorkspaceRepairReadModel, WorkspaceRestoreReadModel,
