@@ -1,6 +1,6 @@
 # CanISend Stage 4C–4F execution plan
 
-**Status:** Stage 4C complete; Stage 4D next; Stage 4E–4F planned
+**Status:** Stage 4C complete; Stage 4D active; Stage 4E–4F planned
 
 **Decision date:** 2026-07-26
 
@@ -184,16 +184,124 @@ Required invariants:
 
 ## 5. Stage 4D — discovery and agent work
 
-Implement:
+### 5.1 Product surface
 
-- adapter/source inspection, bounded CSV/JSON/host-agent import, user-invoked refresh, lead
-  history, suggestions, and promotion;
-- prepared task inspection, declared inputs, consent, lease/start, result validation, completion,
-  failure, stale handling, and recovery; and
-- Agent v2 capability/context inspection plus Codex, Claude, and generic asset-pack export.
+Add a **Discovery** page with:
 
-Provider credentials remain outside workspace and registry storage. The GUI may reveal a prepared
-task directory or copy an exact command but cannot start a general shell. Exit parity is `29/35`.
+- the compiled adapter catalog and bounded limits;
+- CSV, JSON, or host-agent batch preview before an explicit commit;
+- user-invoked public-source refresh with a separate network-consent boundary;
+- source metadata, active/history filtering, freshness, and lead detail;
+- bounded possible-duplicate suggestions that never merge automatically; and
+- explicit lead promotion with the resulting job and safe next action.
+
+Extend the selected job's **Workflow** surface with a task panel that shows:
+
+- the exact operation, execution mode, lease expiry, declared input artifacts, output kind, and
+  candidate schema;
+- prepared, committed, cancelled, or stale status in text, never by color alone;
+- separate private-read and configured-provider-send consent;
+- a bounded input-export destination and the resulting manifest identity;
+- completion-file validation and committed artifact identity;
+- cancel and prepare-again recovery actions; and
+- explicit loading, success, validation-error, stale, and recovery feedback.
+
+Add an **Agent integration** surface for body-free Agent v2 capability/context inspection and
+Codex, Claude, or generic asset-pack export. The destination must be new or empty. The GUI may show
+the exact exported files and copy bounded commands, but it cannot run a general shell.
+
+The UI remains content-first and uses the existing semantic theme, platform typography, English and
+Simplified Chinese catalog, visible focus, reduced motion, 100–200% text scaling, and AccessKit
+live-region feedback. Provider credentials remain outside workspace and registry storage.
+
+### 5.2 D0 — tracking authority
+
+- [x] Freeze Stage 4D entry parity at `26 implemented`, `9 deferred-beta`.
+- [x] Record the dependency order and atomic work packages before changing parity.
+- [x] Keep `1.0.0-alpha.2` as the source version until an explicit release-line decision.
+- [x] Keep five-target package qualification release-only.
+
+### 5.3 D1 — discovery application facade
+
+- Add typed adapter, import-preview/commit, source, lead, suggestion, and promotion operations.
+- Keep a previewed normalized report in memory so GUI confirmation commits the exact reviewed batch
+  rather than rereading a changed file.
+- Require explicit private-read consent for local CSV/JSON and explicit network consent for public
+  refresh.
+- Validate lead UUIDv7 values before workspace access.
+- Preserve store-owned limits, freshness/history rules, idempotent promotion, and no-auto-merge
+  behavior.
+- Return typed receipts and safe next actions without exposing provider credentials.
+
+### 5.4 D2 — discovery CLI adapter alignment
+
+- Route all eight discovery commands through `canisend-app`.
+- Preserve current JSON shapes, human summaries, error codes, exit classes, and dry-run behavior.
+- Keep host-agent JSON explicit and reject host-agent CSV.
+- Keep JSON source identity inside the versioned batch and CSV source provenance in CLI arguments.
+
+### 5.5 D3 — discovery GUI
+
+- Add Discovery navigation, source/lead lists, history filter, detail, and freshness labels.
+- Preview CSV/JSON/host-agent diagnostics before commit and require explicit private-read consent.
+- Preview a public adapter refresh before commit and require explicit user-invoked network consent.
+- Show bounded duplicate suggestions without automatic merge.
+- Confirm promotion, refresh Jobs after success, and expose the safe advert-import next action.
+
+### 5.6 D4 — task application facade
+
+- Add typed operation/mode requests for all eight compiled task operations.
+- Add descriptor/state inspection, scoped input export, completion-file validation, cancel, and
+  prepare-again recovery.
+- Preserve exact lease, job revision, input revision/hash, output-kind, and schema validation.
+- Keep private-read and provider-send consent independent.
+- Treat validation failure as non-mutating, stale state as prepare-again, and cancellation as an
+  audited terminal state.
+
+### 5.7 D5 — task CLI adapter alignment
+
+- Route task prepare/show/inputs/complete/cancel through `canisend-app`.
+- Preserve current Agent v2 JSON and human contracts.
+- Keep stdin completion CLI-only; GUI uses bounded regular JSON files.
+- Preserve committed artifact and idempotent-replay reporting.
+
+### 5.8 D6 — task GUI
+
+- Add the selected-job task panel and operation/mode selector constrained by current workflow state.
+- Show declared inputs and required consents before preparation or export.
+- Export to a selected new/empty directory without revealing undeclared workspace bodies.
+- Load one bounded completion JSON file, show field-level validation, and commit explicitly.
+- Show cancel, stale, and prepare-again recovery actions with deterministic focus restoration.
+
+### 5.9 D7 — Agent v2 application facade
+
+- Add typed capability and body-free context read models shared by CLI and GUI.
+- Add Codex, Claude, and generic asset-pack export through the embedded resource verifier.
+- Preserve new/empty destination, safe path, manifest, and digest rules.
+
+### 5.10 D8 — Agent v2 CLI adapter alignment
+
+- Route capabilities, context, and asset-pack export through `canisend-app`.
+- Preserve committed JSON snapshots and human output.
+- Prove the context remains public metadata only.
+
+### 5.11 D9 — Agent integration GUI
+
+- Add capability/context inspection with a selected optional job.
+- Show blockers and next actions as text with copy controls.
+- Export one selected host pack to a new/empty directory after previewing the destination.
+- Show the manifest and resource count after success; never execute the exported host.
+
+### 5.12 D10 — Stage 4D closure
+
+- Mark only `discovery.*`, `task.*`, and `agent.*` implemented.
+- Record `29 implemented` and `6 deferred-beta`.
+- Add a repeatable discovery-to-task-to-agent persistence regression.
+- Run formatter, affected tests, relevant all-target Clippy, release check, hosted Fast CI, and a
+  local packaged macOS bilingual/accessibility smoke.
+- Do not create a tag, release, package-manager update, or five-target native matrix.
+
+Exit parity is `29/35`.
 
 ## 6. Stage 4E — documents and delivery
 
@@ -249,6 +357,18 @@ or create a release.
 11. `feat(gui): add application plan confirmation`
 12. `test(stage4): qualify decision workflow slice`
 13. `docs(stage4): close decision workflow parity`
+14. `docs(stage4): define discovery and agent execution slice`
+15. `feat(app): add discovery actions`
+16. `refactor(cli): route discovery through application facade`
+17. `feat(gui): add discovery workflow`
+18. `feat(app): add agent task actions`
+19. `refactor(cli): route tasks through application facade`
+20. `feat(gui): add agent task workflow`
+21. `feat(app): add agent integration actions`
+22. `refactor(cli): route agent integration through application facade`
+23. `feat(gui): add agent integration workflow`
+24. `test(stage4): qualify discovery and agent workflow`
+25. `docs(stage4): close discovery and agent parity`
 
 Each commit must pass its focused gate. Parity changes land only after the corresponding application,
 CLI, GUI, localization, accessibility, and persistence evidence exists.
