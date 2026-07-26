@@ -2,7 +2,8 @@ use std::path::PathBuf;
 
 use canisend_app::WorkflowRerunPreview;
 use canisend_contracts::{
-    ArtifactKind, EntityId, ExecutionMode, PrivacyClassification, WorkflowStage,
+    ArtifactKind, EntityId, EvidenceCatalogRecord, ExecutionMode, PrivacyClassification,
+    WorkflowStage,
 };
 use serde::{Deserialize, Serialize};
 
@@ -134,6 +135,15 @@ impl Default for ProfileSourceForm {
             error: None,
         }
     }
+}
+
+#[derive(Debug, Default)]
+pub(crate) struct EvidenceReviewForm {
+    pub(crate) job_id: Option<String>,
+    pub(crate) private_read_consent: bool,
+    pub(crate) candidate: Option<EvidenceCatalogRecord>,
+    pub(crate) downstream_effects_confirmed: bool,
+    pub(crate) error: Option<String>,
 }
 
 #[derive(Debug, Default)]

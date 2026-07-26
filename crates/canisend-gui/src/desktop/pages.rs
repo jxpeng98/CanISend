@@ -676,13 +676,349 @@ impl CanISendDesktop {
             ui.add_space(10.0);
         }
 
-        ui.add_space(10.0);
+        ui.add_space(18.0);
+        self.show_evidence_review(ui);
+    }
+
+    pub(super) fn show_evidence_review(&mut self, ui: &mut egui::Ui) {
+        accessible_heading(ui, self.language.text("Evidence review"), 2);
+        ui.separator();
         ui.label(
-            RichText::new(self.language.select(
-                "Evidence review and confirmation are the next Stage 4C work package. Until then, use the existing CLI or Agent v2 workflow.",
-                "证据审阅和确认是 Stage 4C 的下一个工作包。在完成前，请继续使用现有 CLI 或 Agent v2 工作流。",
-            ))
-            .weak(),
+            self.language.select(
+                "Choose a job and explicitly allow this private read before CanISend displays evidence summaries or source quotes.",
+                "请选择职位并明确允许本次私有读取，CanISend 才会显示证据摘要或来源引文。",
+            ),
+        );
+        ui.add_space(10.0);
+
+        let selected_text = self
+            .evidence_review_form
+            .job_id
+            .as_deref()
+            .and_then(|id| self.jobs.iter().find(|job| job.id.as_str() == id))
+            .map_or(self.language.text("Choose a job").to_owned(), |job| {
+                format!("{} — {}", job.title, job.institution)
+            });
+        let mut selected_job = None;
+        ui.add_enabled_ui(self.activity.is_none(), |ui| {
+            egui::ComboBox::from_label(self.language.text("Job"))
+                .selected_text(selected_text)
+                .width(360.0)
+                .show_ui(ui, |ui| {
+                    for job in self.jobs.iter().filter(|job| !job.archived) {
+                        if ui
+                            .selectable_label(
+                                self.evidence_review_form.job_id.as_deref()
+                                    == Some(job.id.as_str()),
+                                format!("{} — {}", job.title, job.institution),
+                            )
+                            .clicked()
+                        {
+                            selected_job = Some(job.id.to_string());
+                            ui.close();
+                        }
+                    }
+                });
+        });
+        if let Some(job_id) = selected_job {
+            self.evidence_review_form.job_id = Some(job_id);
+            self.evidence_review_form.private_read_consent = false;
+            self.evidence_review_form.candidate = None;
+            self.evidence_review_form.downstream_effects_confirmed = false;
+            self.evidence_review_form.error = None;
+        }
+        if ui
+            .add_enabled(
+                self.activity.is_none(),
+                egui::Checkbox::new(
+                    &mut self.evidence_review_form.private_read_consent,
+                    self.language
+                        .text("Allow this user-invoked private evidence review"),
+                ),
+            )
+            .changed()
+        {
+            self.evidence_review_form.error = None;
+        }
+        if ui
+            .add_enabled(
+                self.activity.is_none(),
+                theme::primary_button(self.language.text("Load evidence candidate")),
+            )
+            .clicked()
+        {
+            self.load_evidence_candidate(ui.ctx().clone());
+        }
+        if let Some(error) = &self.evidence_review_form.error {
+            accessible_error(ui, theme::error(self.dark_mode), error);
+        }
+
+        let Some(mut candidate) = self.evidence_review_form.candidate.clone() else {
+            ui.add_space(8.0);
+            ui.label(
+                RichText::new(self.language.select(
+                    "The evidence-normalize task must be completed before a candidate is available.",
+                    "必须先完成 evidence-normalize 任务，才能生成可审阅的候选证据。",
+                ))
+                .weak(),
+            );
+            return;
+        };
+
+        ui.add_space(18.0);
+        ui.horizontal(|ui| {
+            accessible_heading(ui, self.language.text("Evidence candidate"), 3);
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                ui.label(match self.language {
+                    Language::English => format!(
+                        "Profile revision {} · {} item(s)",
+                        candidate.profile_revision.get(),
+                        candidate.items.len()
+                    ),
+                    Language::SimplifiedChinese => format!(
+                        "个人资料修订 {} · {} 条",
+                        candidate.profile_revision.get(),
+                        candidate.items.len()
+                    ),
+                });
+            });
+        });
+        ui.colored_label(
+            theme::warning(self.dark_mode),
+            self.language.select(
+                "Private applicant evidence is visible below. It remains local unless a separate provider or export consent is granted.",
+                "下方会显示申请人的私有证据。除非另行允许提供方读取或导出，否则这些内容只保留在本地。",
+            ),
+        );
+
+        let mut changed = false;
+        for (index, item) in candidate.items.iter_mut().enumerate() {
+            ui.add_space(10.0);
+            egui::Frame::new()
+                .fill(if self.dark_mode {
+                    Color32::from_rgb(38, 48, 52)
+                } else {
+                    Color32::WHITE
+                })
+                .stroke(Stroke::new(1.0, theme::SLATE_300))
+                .corner_radius(6)
+                .inner_margin(egui::Margin::same(14))
+                .show(ui, |ui| {
+                    let kind = match item.kind {
+                        EvidenceKind::Qualification => self.language.text("Qualification"),
+                        EvidenceKind::Teaching => self.language.text("Teaching"),
+                        EvidenceKind::Research => self.language.text("Research"),
+                        EvidenceKind::Communication => self.language.text("Communication"),
+                        EvidenceKind::Leadership => self.language.text("Leadership"),
+                        EvidenceKind::Service => self.language.text("Service"),
+                        EvidenceKind::Employment => self.language.text("Employment"),
+                        EvidenceKind::Other => self.language.text("Other"),
+                    };
+                    ui.horizontal(|ui| {
+                        accessible_heading(
+                            ui,
+                            &format!("{} {}", self.language.text("Evidence"), index + 1),
+                            4,
+                        );
+                        ui.label(RichText::new(kind).strong());
+                    });
+
+                    let summary_label = ui.label(self.language.text("Summary"));
+                    if ui
+                        .add_enabled(
+                            self.activity.is_none(),
+                            egui::TextEdit::multiline(&mut item.summary)
+                                .desired_rows(2)
+                                .desired_width(f32::INFINITY),
+                        )
+                        .labelled_by(summary_label.id)
+                        .changed()
+                    {
+                        item.confirmed = false;
+                        changed = true;
+                    }
+                    ui.label(RichText::new(self.language.text("Source quote")).strong());
+                    egui::Frame::new()
+                        .fill(ui.visuals().faint_bg_color)
+                        .inner_margin(egui::Margin::same(8))
+                        .show(ui, |ui| {
+                            ui.label(&item.source_quote);
+                        });
+
+                    let previous_sensitivity = item.sensitivity;
+                    ui.add_enabled_ui(self.activity.is_none(), |ui| {
+                        egui::ComboBox::from_label(self.language.text("Sensitivity"))
+                            .selected_text(match item.sensitivity {
+                                PrivacyClassification::Public => self.language.text("Public"),
+                                PrivacyClassification::PrivateLocal => {
+                                    self.language.text("Private local")
+                                }
+                                PrivacyClassification::ProviderBound => {
+                                    self.language.text("Provider bound")
+                                }
+                                PrivacyClassification::Secret => self.language.text("Secret"),
+                            })
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(
+                                    &mut item.sensitivity,
+                                    PrivacyClassification::Public,
+                                    self.language.text("Public"),
+                                );
+                                ui.selectable_value(
+                                    &mut item.sensitivity,
+                                    PrivacyClassification::PrivateLocal,
+                                    self.language.text("Private local"),
+                                );
+                                ui.selectable_value(
+                                    &mut item.sensitivity,
+                                    PrivacyClassification::ProviderBound,
+                                    self.language.text("Provider bound"),
+                                );
+                            });
+                    });
+                    if item.sensitivity != previous_sensitivity {
+                        item.confirmed = false;
+                        changed = true;
+                    }
+                    let excluded = ui.add_enabled(
+                        self.activity.is_none(),
+                        egui::Checkbox::new(
+                            &mut item.excluded,
+                            self.language.text("Exclude from application evidence"),
+                        ),
+                    );
+                    if excluded.changed() {
+                        item.confirmed = false;
+                        changed = true;
+                    }
+                    if ui
+                        .add_enabled(
+                            self.activity.is_none(),
+                            egui::Checkbox::new(
+                                &mut item.confirmed,
+                                self.language
+                                    .text("I reviewed this evidence item and its classification"),
+                            ),
+                        )
+                        .changed()
+                    {
+                        changed = true;
+                    }
+
+                    ui.add_space(6.0);
+                    ui.label(
+                        RichText::new(format!(
+                            "{} · {} {}–{} · SHA-256 {}",
+                            item.source_span.source.id,
+                            self.language.text("bytes"),
+                            item.source_span.start_byte,
+                            item.source_span.end_byte,
+                            item.source_span.source.sha256
+                        ))
+                        .small()
+                        .weak(),
+                    );
+                });
+        }
+        if changed {
+            self.evidence_review_form.downstream_effects_confirmed = false;
+            self.evidence_review_form.error = None;
+        }
+        self.evidence_review_form.candidate = Some(candidate.clone());
+
+        ui.add_space(14.0);
+        ui.colored_label(
+            theme::warning(self.dark_mode),
+            self.language.select(
+                "Saving this evidence revision may mark current matches, plan, documents, review, package, and render outputs stale. The records remain available but are no longer current.",
+                "保存此证据修订版本可能会将当前匹配、计划、文档、审阅、打包和渲染结果标记为过期。记录仍会保留，但不再是当前版本。",
+            ),
+        );
+        if ui
+            .add_enabled(
+                self.activity.is_none(),
+                egui::Checkbox::new(
+                    &mut self.evidence_review_form.downstream_effects_confirmed,
+                    self.language
+                        .text("I understand the downstream revision effects"),
+                ),
+            )
+            .changed()
+        {
+            self.evidence_review_form.error = None;
+        }
+        if ui
+            .add_enabled(
+                self.activity.is_none(),
+                theme::primary_button(self.language.text("Confirm evidence")),
+            )
+            .clicked()
+        {
+            self.confirm_evidence_candidate(candidate, ui.ctx().clone());
+        }
+    }
+
+    pub(super) fn load_evidence_candidate(&mut self, ctx: egui::Context) {
+        let Some(path) = self.active_workspace.clone() else {
+            self.evidence_review_form.error = Some(
+                self.language
+                    .text("No active workspace is selected")
+                    .to_owned(),
+            );
+            return;
+        };
+        let Some(job_id) = self.evidence_review_form.job_id.clone() else {
+            self.evidence_review_form.error =
+                Some(self.language.text("Choose a job first").to_owned());
+            return;
+        };
+        if !self.evidence_review_form.private_read_consent {
+            self.evidence_review_form.error = Some(
+                self.language
+                    .text("Confirm private evidence access before loading")
+                    .to_owned(),
+            );
+            return;
+        }
+        self.dispatch(
+            self.language.text("Loading evidence candidate"),
+            ctx,
+            WorkerRequest::LoadProfileEvidence { path, job_id },
+        );
+    }
+
+    pub(super) fn confirm_evidence_candidate(
+        &mut self,
+        candidate: canisend_contracts::EvidenceCatalogRecord,
+        ctx: egui::Context,
+    ) {
+        if let Err(error) = validate_evidence_review(
+            &candidate,
+            self.evidence_review_form.downstream_effects_confirmed,
+            self.language,
+        ) {
+            self.evidence_review_form.error = Some(error);
+            return;
+        }
+        let (Some(path), Some(job_id)) = (
+            self.active_workspace.clone(),
+            self.evidence_review_form.job_id.clone(),
+        ) else {
+            self.evidence_review_form.error = Some(
+                self.language
+                    .text("No active workspace or job is selected")
+                    .to_owned(),
+            );
+            return;
+        };
+        self.dispatch(
+            self.language.text("Confirming profile evidence"),
+            ctx,
+            WorkerRequest::ConfirmProfileEvidence {
+                path,
+                job_id,
+                candidate,
+            },
         );
     }
 

@@ -122,6 +122,36 @@ impl Language {
             "Imported at" => "导入时间",
             "Original digest" => "原始文件摘要",
             "Normalized digest" => "规范化摘要",
+            "Evidence review" => "证据审阅",
+            "Choose a job" => "选择职位",
+            "Job" => "职位",
+            "Allow this user-invoked private evidence review" => "允许本次由用户发起的私有证据审阅",
+            "Load evidence candidate" => "加载候选证据",
+            "Evidence candidate" => "候选证据",
+            "Qualification" => "资格",
+            "Teaching" => "教学",
+            "Research" => "研究",
+            "Communication" => "沟通",
+            "Leadership" => "领导力",
+            "Service" => "服务",
+            "Employment" => "工作经历",
+            "Other" => "其他",
+            "Summary" => "摘要",
+            "Source quote" => "来源引文",
+            "Exclude from application evidence" => "从申请证据中排除",
+            "I reviewed this evidence item and its classification" => "我已审阅此证据条目及其分类",
+            "bytes" => "字节",
+            "I understand the downstream revision effects" => "我了解下游修订影响",
+            "Confirm evidence" => "确认证据",
+            "No evidence items are available to confirm" => "没有可确认的证据条目",
+            "Confirm the downstream revision effects before saving evidence" => {
+                "保存证据前请确认下游修订影响"
+            }
+            "Choose a job first" => "请先选择职位",
+            "Confirm private evidence access before loading" => "加载前请确认允许访问私有证据",
+            "Loading evidence candidate" => "正在加载候选证据",
+            "No active workspace or job is selected" => "尚未选择当前工作区或职位",
+            "Confirming profile evidence" => "正在确认个人资料证据",
             "Application records, supplied sources, and workflow state" => {
                 "申请记录、用户提供的来源和工作流状态"
             }

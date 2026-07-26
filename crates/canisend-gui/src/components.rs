@@ -2,8 +2,8 @@ use std::path::Path;
 
 use canisend_app::{ActionReceipt, CliInstallState, CliInstallStatus, WorkflowControlReadModel};
 use canisend_contracts::{
-    ArtifactKind, ExecutionMode, SourceKind, StageExecutionStatus, WorkflowStage,
-    WorkflowStatusData,
+    ArtifactKind, EvidenceCatalogRecord, ExecutionMode, SourceKind, StageExecutionStatus,
+    WorkflowStage, WorkflowStatusData,
 };
 use eframe::egui::{self, Align, Color32, Layout, RichText, Sense, Stroke};
 
@@ -96,6 +96,7 @@ pub(crate) fn localized_receipt_summary<T>(
         "job.archive" => "职位已归档",
         "job.import" => "职位来源已导入",
         "profile.source.add" => "个人资料来源已导入",
+        "profile.evidence.confirm" => "个人资料证据已确认",
         "workflow.start" => "工作流已启动",
         "workflow.status" => "工作流状态已更新",
         "workflow.begin" => "工作流阶段已开始",
@@ -170,6 +171,44 @@ pub(crate) fn validate_profile_source_form(
     if !private_read_consent {
         return Err(language
             .text("Confirm local profile source access before importing")
+            .to_owned());
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_evidence_review(
+    candidate: &EvidenceCatalogRecord,
+    downstream_effects_confirmed: bool,
+    language: Language,
+) -> Result<(), String> {
+    if candidate.items.is_empty() {
+        return Err(language
+            .text("No evidence items are available to confirm")
+            .to_owned());
+    }
+    for (index, item) in candidate.items.iter().enumerate() {
+        if item.summary.trim().is_empty() {
+            return Err(match language {
+                Language::English => format!("Evidence item {} needs a summary", index + 1),
+                Language::SimplifiedChinese => {
+                    format!("证据条目 {} 需要填写摘要", index + 1)
+                }
+            });
+        }
+        if !item.confirmed {
+            return Err(match language {
+                Language::English => {
+                    format!("Review and confirm evidence item {}", index + 1)
+                }
+                Language::SimplifiedChinese => {
+                    format!("请审阅并确认第 {} 条证据", index + 1)
+                }
+            });
+        }
+    }
+    if !downstream_effects_confirmed {
+        return Err(language
+            .text("Confirm the downstream revision effects before saving evidence")
             .to_owned());
     }
     Ok(())
@@ -496,9 +535,12 @@ pub(crate) fn command_copy_row(ui: &mut egui::Ui, command: &str, language: Langu
 
 #[cfg(test)]
 mod tests {
-    use canisend_contracts::{StageExecutionStatus, WorkflowStage};
+    use canisend_contracts::{EvidenceCatalogRecord, StageExecutionStatus, WorkflowStage};
+    use serde_json::json;
 
-    use super::{WorkflowPrimaryAction, workflow_primary_action};
+    use super::{
+        Language, WorkflowPrimaryAction, validate_evidence_review, workflow_primary_action,
+    };
 
     #[test]
     fn workflow_actions_follow_authoritative_stage_state() {
@@ -534,5 +576,48 @@ mod tests {
             workflow_primary_action(WorkflowStage::Plan, StageExecutionStatus::AwaitingUser),
             None
         );
+    }
+
+    #[test]
+    fn evidence_review_requires_each_item_and_downstream_effect_confirmation() {
+        let mut candidate: EvidenceCatalogRecord = serde_json::from_value(json!({
+            "id": "019f2f55-7c00-7000-8000-000000000201",
+            "profile_revision": 1,
+            "items": [{
+                "id": "019f2f55-7c00-7000-8000-000000000202",
+                "kind": "qualification",
+                "summary": "Doctorate in economics",
+                "source_quote": "PhD",
+                "source_span": {
+                    "source": {
+                        "kind": "source-normalized-text",
+                        "id": "019f2f55-7c00-7000-8000-000000000203",
+                        "revision": 1,
+                        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+                    },
+                    "start_byte": 0,
+                    "end_byte": 3
+                },
+                "confirmed": false,
+                "excluded": false,
+                "sensitivity": "private-local",
+                "revision": 1
+            }],
+            "revision": 1
+        }))
+        .expect("evidence fixture");
+
+        assert!(
+            validate_evidence_review(&candidate, true, Language::English)
+                .expect_err("unconfirmed evidence")
+                .contains("Review and confirm")
+        );
+        candidate.items[0].confirmed = true;
+        assert!(
+            validate_evidence_review(&candidate, false, Language::English)
+                .expect_err("missing downstream confirmation")
+                .contains("downstream")
+        );
+        assert!(validate_evidence_review(&candidate, true, Language::English).is_ok());
     }
 }

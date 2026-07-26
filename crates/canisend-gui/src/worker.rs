@@ -8,7 +8,9 @@ use canisend_app::{
     WorkflowControlReadModel, WorkflowRerunPreview, WorkflowRerunRequest, WorkspaceHealthReadModel,
     WorkspaceReadModel, WorkspaceRepairReadModel, WorkspaceRestoreReadModel,
 };
-use canisend_contracts::{JobRecord, PrivacyClassification, WorkflowStage, WorkflowStatusData};
+use canisend_contracts::{
+    EvidenceCatalogRecord, JobRecord, PrivacyClassification, WorkflowStage, WorkflowStatusData,
+};
 
 #[derive(Debug)]
 pub(crate) enum WorkerRequest {
@@ -68,6 +70,15 @@ pub(crate) enum WorkerRequest {
         path: PathBuf,
         source: PathBuf,
         sensitivity: PrivacyClassification,
+    },
+    LoadProfileEvidence {
+        path: PathBuf,
+        job_id: String,
+    },
+    ConfirmProfileEvidence {
+        path: PathBuf,
+        job_id: String,
+        candidate: EvidenceCatalogRecord,
     },
     StartWorkflow {
         path: PathBuf,
@@ -132,6 +143,14 @@ pub(crate) enum WorkerEvent {
     SourceImported(Result<ActionReceipt<SourceImportReadModel>, String>),
     ProfileSourcesLoaded(Result<ActionReceipt<ProfileSourceListReadModel>, String>),
     ProfileSourceImported(Result<ActionReceipt<ProfileSourceImportReadModel>, String>),
+    ProfileEvidenceLoaded {
+        job_id: String,
+        result: Result<ActionReceipt<EvidenceCatalogRecord>, String>,
+    },
+    ProfileEvidenceConfirmed {
+        job_id: String,
+        result: Result<ActionReceipt<EvidenceCatalogRecord>, String>,
+    },
     WorkflowLoaded(Result<ActionReceipt<WorkflowStatusData>, String>),
     WorkflowControlsLoaded(Result<ActionReceipt<WorkflowControlReadModel>, String>),
     WorkflowMutated(Result<ActionReceipt<WorkflowControlReadModel>, String>),
@@ -223,6 +242,33 @@ pub(crate) fn execute(request: WorkerRequest) -> WorkerEvent {
             )
             .map_err(|error| error.to_string()),
         ),
+        WorkerRequest::LoadProfileEvidence { path, job_id } => {
+            let result = Application::profile_evidence_template(
+                &path,
+                &job_id,
+                PrivateReadConsent::granted_by_user(),
+            )
+            .map_err(|error| error.to_string());
+            WorkerEvent::ProfileEvidenceLoaded { job_id, result }
+        }
+        WorkerRequest::ConfirmProfileEvidence {
+            path,
+            job_id,
+            candidate,
+        } => {
+            let result = serde_json::to_value(candidate)
+                .map_err(|error| error.to_string())
+                .and_then(|candidate| {
+                    Application::confirm_profile_evidence(
+                        &path,
+                        &job_id,
+                        &candidate,
+                        PrivateReadConsent::granted_by_user(),
+                    )
+                    .map_err(|error| error.to_string())
+                });
+            WorkerEvent::ProfileEvidenceConfirmed { job_id, result }
+        }
         WorkerRequest::StartWorkflow { path, id } => WorkerEvent::WorkflowLoaded(
             Application::start_workflow(&path, &id).map_err(|error| error.to_string()),
         ),
@@ -368,6 +414,13 @@ mod tests {
             }
             event => panic!("unexpected profile event: {event:?}"),
         }
+        assert!(matches!(
+            execute(WorkerRequest::LoadProfileEvidence {
+                path: root.clone(),
+                job_id: job_id.to_string(),
+            }),
+            WorkerEvent::ProfileEvidenceLoaded { result: Err(_), .. }
+        ));
         assert!(matches!(
             execute(WorkerRequest::StartWorkflow {
                 path: root.clone(),

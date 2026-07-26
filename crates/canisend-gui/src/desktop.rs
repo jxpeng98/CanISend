@@ -14,15 +14,15 @@ use crate::{
         cli_state_style, command_copy_row, diagnostic_row, execution_mode_label,
         keep_focused_visible, localized_receipt_summary, localized_workspace_alias_error,
         metric_card, page_accessible_label, paint_focus_ring, set_accesskit_role,
-        source_kind_label, stage_label, validate_job_form, validate_profile_source_form,
-        workflow_control_timeline, workflow_timeline,
+        source_kind_label, stage_label, validate_evidence_review, validate_job_form,
+        validate_profile_source_form, workflow_control_timeline, workflow_timeline,
     },
     i18n::{self, Language},
     registry::{WorkspaceRegistry, default_registry_path, validate_workspace_alias},
     state::{
-        FocusTarget, GuiPreferences, ImportForm, ImportKind, JobForm, Page, PendingConfirmation,
-        ProfileSourceForm, RestoreWorkspaceForm, WorkflowActionForm, WorkspaceForm,
-        parse_workflow_artifact_id,
+        EvidenceReviewForm, FocusTarget, GuiPreferences, ImportForm, ImportKind, JobForm, Page,
+        PendingConfirmation, ProfileSourceForm, RestoreWorkspaceForm, WorkflowActionForm,
+        WorkspaceForm, parse_workflow_artifact_id,
     },
     theme,
     worker::{WorkerEvent, WorkerRequest, execute},
@@ -34,8 +34,8 @@ use canisend_app::{
 };
 use canisend_app::{CliInstallState, CliInstallStatus, CliVersionRelation};
 use canisend_contracts::{
-    ArtifactKind, EntityId, ExecutionMode, JobRecord, PrivacyClassification, ProfileSourceKind,
-    WorkflowStage,
+    ArtifactKind, EntityId, EvidenceKind, ExecutionMode, JobRecord, PrivacyClassification,
+    ProfileSourceKind, WorkflowStage,
 };
 use eframe::egui::{self, Align, Color32, Layout, RichText, Sense, Stroke};
 
@@ -126,6 +126,7 @@ struct CanISendDesktop {
     show_import_form: bool,
     profile_source_form: ProfileSourceForm,
     show_profile_source_form: bool,
+    evidence_review_form: EvidenceReviewForm,
     workspace_form: WorkspaceForm,
     show_workspace_form: bool,
     restore_workspace_form: RestoreWorkspaceForm,
@@ -191,6 +192,7 @@ impl CanISendDesktop {
             show_import_form: false,
             profile_source_form: ProfileSourceForm::default(),
             show_profile_source_form: false,
+            evidence_review_form: EvidenceReviewForm::default(),
             workspace_form: WorkspaceForm::default(),
             show_workspace_form: false,
             restore_workspace_form: RestoreWorkspaceForm::default(),
@@ -420,6 +422,33 @@ impl CanISendDesktop {
                 }
                 Err(error) => self.profile_source_form.error = Some(error),
             },
+            WorkerEvent::ProfileEvidenceLoaded { job_id, result } => match result {
+                Ok(receipt) => {
+                    let mut candidate = receipt.data;
+                    for item in &mut candidate.items {
+                        item.confirmed = false;
+                    }
+                    self.evidence_review_form.job_id = Some(job_id);
+                    self.evidence_review_form.candidate = Some(candidate);
+                    self.evidence_review_form.downstream_effects_confirmed = false;
+                    self.evidence_review_form.error = None;
+                }
+                Err(error) => self.evidence_review_form.error = Some(error),
+            },
+            WorkerEvent::ProfileEvidenceConfirmed { job_id, result } => match result {
+                Ok(receipt) => {
+                    let summary = localized_receipt_summary(&receipt, self.language);
+                    self.evidence_review_form.job_id = Some(job_id.clone());
+                    self.evidence_review_form.candidate = Some(receipt.data);
+                    self.evidence_review_form.downstream_effects_confirmed = false;
+                    self.evidence_review_form.error = None;
+                    self.notice = Some((true, summary));
+                    if self.selected_job_id.as_deref() == Some(job_id.as_str()) {
+                        self.load_job(job_id, ctx.clone());
+                    }
+                }
+                Err(error) => self.evidence_review_form.error = Some(error),
+            },
             WorkerEvent::WorkflowLoaded(result) => match result {
                 Ok(receipt) => {
                     let summary = localized_receipt_summary(&receipt, self.language);
@@ -518,6 +547,7 @@ impl CanISendDesktop {
         self.health = None;
         self.jobs.clear();
         self.profile_sources = None;
+        self.evidence_review_form = EvidenceReviewForm::default();
         self.selected_job = None;
         self.selected_job_id = None;
         self.workflow_controls = None;
