@@ -395,6 +395,170 @@ impl CanISendDesktop {
         }
     }
 
+    pub(super) fn show_profile_source_dialog(&mut self, ui: &mut egui::Ui) {
+        if !self.show_profile_source_form {
+            return;
+        }
+        let mut open = self.show_profile_source_form;
+        egui::Window::new(self.language.text("Import profile source"))
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(false)
+            .default_width(520.0)
+            .show(ui.ctx(), |ui| {
+                ui.label(self.language.text("Supported: Markdown, text, and JSON."));
+                ui.horizontal(|ui| {
+                    let path = self
+                        .profile_source_form
+                        .file
+                        .as_ref()
+                        .map_or(self.language.text("No file selected").to_owned(), |path| {
+                            path.display().to_string()
+                        });
+                    ui.label(path);
+                    if ui
+                        .add_enabled(
+                            self.activity.is_none(),
+                            egui::Button::new(self.language.text("Choose file")),
+                        )
+                        .clicked()
+                    {
+                        self.profile_source_form.file = pick_profile_source_file();
+                        self.profile_source_form.error = None;
+                    }
+                });
+                ui.add_space(10.0);
+                let sensitivity_label = ui.label(self.language.text("Sensitivity"));
+                ui.horizontal(|ui| {
+                    let private = ui
+                        .add_enabled(
+                            self.activity.is_none(),
+                            egui::RadioButton::new(
+                                self.profile_source_form.sensitivity
+                                    == PrivacyClassification::PrivateLocal,
+                                self.language.text("Private local"),
+                            ),
+                        )
+                        .labelled_by(sensitivity_label.id);
+                    if self.pending_focus == Some(FocusTarget::ProfileSensitivity) {
+                        private.request_focus();
+                        self.pending_focus = None;
+                    }
+                    if private.clicked() {
+                        self.profile_source_form.sensitivity = PrivacyClassification::PrivateLocal;
+                        self.profile_source_form.error = None;
+                    }
+                    if ui
+                        .add_enabled(
+                            self.activity.is_none(),
+                            egui::RadioButton::new(
+                                self.profile_source_form.sensitivity
+                                    == PrivacyClassification::Public,
+                                self.language.text("Public"),
+                            ),
+                        )
+                        .labelled_by(sensitivity_label.id)
+                        .clicked()
+                    {
+                        self.profile_source_form.sensitivity = PrivacyClassification::Public;
+                        self.profile_source_form.error = None;
+                    }
+                });
+                ui.label(match self.profile_source_form.sensitivity {
+                    PrivacyClassification::PrivateLocal => self.language.select(
+                        "Stored locally and treated as private applicant information.",
+                        "仅在本地保存，并作为申请人的私有信息处理。",
+                    ),
+                    PrivacyClassification::Public => self.language.select(
+                        "Recorded as information the user has classified as public.",
+                        "记录为用户已明确分类为公开的信息。",
+                    ),
+                    PrivacyClassification::ProviderBound | PrivacyClassification::Secret => {
+                        self.language.text("Unsupported profile source sensitivity")
+                    }
+                });
+                ui.add_space(8.0);
+                if ui
+                    .add_enabled(
+                        self.activity.is_none(),
+                        egui::Checkbox::new(
+                            &mut self.profile_source_form.private_read_consent,
+                            self.language
+                                .text("Allow CanISend to read and store this local profile source"),
+                        ),
+                    )
+                    .changed()
+                {
+                    self.profile_source_form.error = None;
+                }
+                if let Some(error) = &self.profile_source_form.error {
+                    accessible_error(ui, theme::error(self.dark_mode), error);
+                }
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    if ui
+                        .add_enabled(
+                            self.activity.is_none(),
+                            theme::primary_button(self.language.text("Import")),
+                        )
+                        .clicked()
+                    {
+                        self.import_profile_source(ui.ctx().clone());
+                    }
+                    if ui
+                        .add_enabled(
+                            self.activity.is_none(),
+                            egui::Button::new(self.language.text("Cancel")),
+                        )
+                        .clicked()
+                    {
+                        self.show_profile_source_form = false;
+                    }
+                });
+            });
+        if self.activity.is_none() && ui.ctx().input(|input| input.key_pressed(egui::Key::Escape)) {
+            self.show_profile_source_form = false;
+        }
+        self.show_profile_source_form =
+            self.activity.is_some() || (open && self.show_profile_source_form);
+    }
+
+    pub(super) fn import_profile_source(&mut self, ctx: egui::Context) {
+        let Some(path) = self.active_workspace.clone() else {
+            self.profile_source_form.error = Some(
+                self.language
+                    .text("No active workspace is selected")
+                    .to_owned(),
+            );
+            return;
+        };
+        if let Err(error) = validate_profile_source_form(
+            self.profile_source_form.file.as_deref(),
+            self.profile_source_form.private_read_consent,
+            self.language,
+        ) {
+            self.profile_source_form.error = Some(error);
+            return;
+        }
+        let Some(source) = self.profile_source_form.file.clone() else {
+            self.profile_source_form.error = Some(
+                self.language
+                    .text("Choose a profile source file")
+                    .to_owned(),
+            );
+            return;
+        };
+        self.dispatch(
+            self.language.text("Importing profile source"),
+            ctx,
+            WorkerRequest::ImportProfileSource {
+                path,
+                source,
+                sensitivity: self.profile_source_form.sensitivity,
+            },
+        );
+    }
+
     pub(super) fn show_workspace_dialog(&mut self, ui: &mut egui::Ui) {
         if !self.show_workspace_form {
             return;

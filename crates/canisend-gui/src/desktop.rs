@@ -14,25 +14,29 @@ use crate::{
         cli_state_style, command_copy_row, diagnostic_row, execution_mode_label,
         keep_focused_visible, localized_receipt_summary, localized_workspace_alias_error,
         metric_card, page_accessible_label, paint_focus_ring, set_accesskit_role,
-        source_kind_label, stage_label, validate_job_form, workflow_control_timeline,
-        workflow_timeline,
+        source_kind_label, stage_label, validate_job_form, validate_profile_source_form,
+        workflow_control_timeline, workflow_timeline,
     },
     i18n::{self, Language},
     registry::{WorkspaceRegistry, default_registry_path, validate_workspace_alias},
     state::{
         FocusTarget, GuiPreferences, ImportForm, ImportKind, JobForm, Page, PendingConfirmation,
-        RestoreWorkspaceForm, WorkflowActionForm, WorkspaceForm, parse_workflow_artifact_id,
+        ProfileSourceForm, RestoreWorkspaceForm, WorkflowActionForm, WorkspaceForm,
+        parse_workflow_artifact_id,
     },
     theme,
     worker::{WorkerEvent, WorkerRequest, execute},
 };
 use canisend_app::{
-    Application, DoctorSummary, JobDetailReadModel, ProductSummary, UpdateCheckReadModel,
-    WorkflowBeginRequest, WorkflowCompleteRequest, WorkflowControlReadModel, WorkflowRerunRequest,
-    WorkspaceHealthReadModel, WorkspaceReadModel,
+    Application, DoctorSummary, JobDetailReadModel, ProductSummary, ProfileSourceListReadModel,
+    UpdateCheckReadModel, WorkflowBeginRequest, WorkflowCompleteRequest, WorkflowControlReadModel,
+    WorkflowRerunRequest, WorkspaceHealthReadModel, WorkspaceReadModel,
 };
 use canisend_app::{CliInstallState, CliInstallStatus, CliVersionRelation};
-use canisend_contracts::{ArtifactKind, EntityId, ExecutionMode, JobRecord, WorkflowStage};
+use canisend_contracts::{
+    ArtifactKind, EntityId, ExecutionMode, JobRecord, PrivacyClassification, ProfileSourceKind,
+    WorkflowStage,
+};
 use eframe::egui::{self, Align, Color32, Layout, RichText, Sense, Stroke};
 
 const APP_ID: &str = "io.github.jxpeng98.canisend";
@@ -57,6 +61,18 @@ fn pick_job_source_file() -> Option<PathBuf> {
     rfd::FileDialog::new()
         .add_filter("Job sources", &["md", "txt", "json", "pdf"])
         .pick_file()
+}
+
+#[cfg(target_os = "macos")]
+fn pick_profile_source_file() -> Option<PathBuf> {
+    rfd::FileDialog::new()
+        .add_filter("Profile sources", &["md", "txt", "json"])
+        .pick_file()
+}
+
+#[cfg(not(target_os = "macos"))]
+fn pick_profile_source_file() -> Option<PathBuf> {
+    None
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -100,6 +116,7 @@ struct CanISendDesktop {
     job_filter: String,
     selected_job: Option<JobDetailReadModel>,
     selected_job_id: Option<String>,
+    profile_sources: Option<ProfileSourceListReadModel>,
     workflow_controls: Option<WorkflowControlReadModel>,
     workflow_action_form: Option<WorkflowActionForm>,
     page: Page,
@@ -107,6 +124,8 @@ struct CanISendDesktop {
     show_job_form: bool,
     import_form: ImportForm,
     show_import_form: bool,
+    profile_source_form: ProfileSourceForm,
+    show_profile_source_form: bool,
     workspace_form: WorkspaceForm,
     show_workspace_form: bool,
     restore_workspace_form: RestoreWorkspaceForm,
@@ -162,6 +181,7 @@ impl CanISendDesktop {
             job_filter: String::new(),
             selected_job: None,
             selected_job_id: None,
+            profile_sources: None,
             workflow_controls: None,
             workflow_action_form: None,
             page: Page::Overview,
@@ -169,6 +189,8 @@ impl CanISendDesktop {
             show_job_form: false,
             import_form: ImportForm::default(),
             show_import_form: false,
+            profile_source_form: ProfileSourceForm::default(),
+            show_profile_source_form: false,
             workspace_form: WorkspaceForm::default(),
             show_workspace_form: false,
             restore_workspace_form: RestoreWorkspaceForm::default(),
@@ -328,6 +350,9 @@ impl CanISendDesktop {
             WorkerEvent::JobsLoaded(result) => match result {
                 Ok(receipt) => {
                     self.jobs = receipt.data.jobs;
+                    if self.page == Page::Profile && self.profile_sources.is_none() {
+                        self.refresh_profile_sources(ctx.clone());
+                    }
                 }
                 Err(error) => self.fail(error),
             },
@@ -380,6 +405,20 @@ impl CanISendDesktop {
                     self.load_job(id, ctx.clone());
                 }
                 Err(error) => self.import_form.error = Some(error),
+            },
+            WorkerEvent::ProfileSourcesLoaded(result) => match result {
+                Ok(receipt) => self.profile_sources = Some(receipt.data),
+                Err(error) => self.fail(error),
+            },
+            WorkerEvent::ProfileSourceImported(result) => match result {
+                Ok(receipt) => {
+                    let summary = localized_receipt_summary(&receipt, self.language);
+                    self.show_profile_source_form = false;
+                    self.profile_source_form = ProfileSourceForm::default();
+                    self.notice = Some((true, summary));
+                    self.refresh_profile_sources(ctx.clone());
+                }
+                Err(error) => self.profile_source_form.error = Some(error),
             },
             WorkerEvent::WorkflowLoaded(result) => match result {
                 Ok(receipt) => {
@@ -478,6 +517,7 @@ impl CanISendDesktop {
         self.workspace = None;
         self.health = None;
         self.jobs.clear();
+        self.profile_sources = None;
         self.selected_job = None;
         self.selected_job_id = None;
         self.workflow_controls = None;
@@ -503,6 +543,17 @@ impl CanISendDesktop {
                 path,
                 include_archived,
             },
+        );
+    }
+
+    fn refresh_profile_sources(&mut self, ctx: egui::Context) {
+        let Some(path) = self.active_workspace.clone() else {
+            return;
+        };
+        self.dispatch(
+            self.language.text("Loading profile sources"),
+            ctx,
+            WorkerRequest::LoadProfileSources { path },
         );
     }
 
@@ -572,6 +623,7 @@ impl eframe::App for CanISendDesktop {
                     .show(ui, |ui| match self.page {
                         Page::Overview => self.show_overview(ui),
                         Page::Jobs => self.show_jobs(ui),
+                        Page::Profile => self.show_profile(ui),
                         Page::Workspaces => self.show_workspaces(ui),
                         Page::CommandLine => self.show_command_line(ui),
                         Page::Diagnostics => self.show_diagnostics(ui),
@@ -585,6 +637,7 @@ impl eframe::App for CanISendDesktop {
         );
         self.show_job_dialog(ui);
         self.show_import_dialog(ui);
+        self.show_profile_source_dialog(ui);
         self.show_workspace_dialog(ui);
         self.show_restore_workspace_dialog(ui);
         self.show_workflow_action_dialog(ui);
@@ -604,7 +657,7 @@ mod tests {
     use super::{
         GuiPreferences, Language, Page, WorkspaceRegistry, accessible_error, accessible_heading,
         accessible_live_region, localized_receipt_summary, localized_workspace_alias_error,
-        page_accessible_label, validate_job_form,
+        page_accessible_label, validate_job_form, validate_profile_source_form,
     };
 
     static NEXT: AtomicU64 = AtomicU64::new(1);
@@ -676,6 +729,23 @@ mod tests {
         assert_eq!(
             page_accessible_label(Page::Jobs, Language::SimplifiedChinese),
             "职位内容"
+        );
+        assert_eq!(
+            page_accessible_label(Page::Profile, Language::SimplifiedChinese),
+            "个人资料内容"
+        );
+    }
+
+    #[test]
+    fn profile_source_form_requires_a_file_and_explicit_read_consent() {
+        let source = std::path::Path::new("/tmp/profile.md");
+        assert!(validate_profile_source_form(None, true, Language::English).is_err());
+        assert!(validate_profile_source_form(Some(source), false, Language::English).is_err());
+        assert!(validate_profile_source_form(Some(source), true, Language::English).is_ok());
+        assert_eq!(
+            validate_profile_source_form(None, true, Language::SimplifiedChinese)
+                .expect_err("missing Chinese profile source"),
+            "请选择个人资料来源文件"
         );
     }
 

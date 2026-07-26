@@ -1,7 +1,9 @@
 use std::path::PathBuf;
 
 use canisend_app::WorkflowRerunPreview;
-use canisend_contracts::{ArtifactKind, EntityId, ExecutionMode, WorkflowStage};
+use canisend_contracts::{
+    ArtifactKind, EntityId, ExecutionMode, PrivacyClassification, WorkflowStage,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::i18n::Language;
@@ -10,15 +12,17 @@ use crate::i18n::Language;
 pub(crate) enum Page {
     Overview,
     Jobs,
+    Profile,
     Workspaces,
     CommandLine,
     Diagnostics,
 }
 
 impl Page {
-    pub(crate) const ALL: [Self; 5] = [
+    pub(crate) const ALL: [Self; 6] = [
         Self::Overview,
         Self::Jobs,
+        Self::Profile,
         Self::Workspaces,
         Self::CommandLine,
         Self::Diagnostics,
@@ -28,6 +32,7 @@ impl Page {
         language.text(match self {
             Self::Overview => "Overview",
             Self::Jobs => "Jobs",
+            Self::Profile => "Profile",
             Self::Workspaces => "Workspaces",
             Self::CommandLine => "Command line",
             Self::Diagnostics => "Diagnostics",
@@ -60,6 +65,7 @@ pub(crate) enum PendingConfirmation {
 pub(crate) enum FocusTarget {
     JobTitle,
     ImportKind,
+    ProfileSensitivity,
     WorkspaceAlias,
     RestoreWorkspaceAlias,
     WorkflowArtifact,
@@ -105,6 +111,25 @@ impl Default for ImportForm {
             file: None,
             url: String::new(),
             network_consent: false,
+            private_read_consent: false,
+            error: None,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct ProfileSourceForm {
+    pub(crate) file: Option<PathBuf>,
+    pub(crate) sensitivity: PrivacyClassification,
+    pub(crate) private_read_consent: bool,
+    pub(crate) error: Option<String>,
+}
+
+impl Default for ProfileSourceForm {
+    fn default() -> Self {
+        Self {
+            file: None,
+            sensitivity: PrivacyClassification::PrivateLocal,
             private_read_consent: false,
             error: None,
         }

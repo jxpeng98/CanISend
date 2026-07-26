@@ -116,6 +116,7 @@ impl CanISendDesktop {
                     .show(ui, |ui| {
                         ui.add_space(8.0);
                         let mut refresh_cli = false;
+                        let mut refresh_profile = false;
                         for page in Page::ALL {
                             let selected = self.page == page;
                             let text = RichText::new(page.label(self.language)).size(15.0).color(
@@ -143,10 +144,16 @@ impl CanISendDesktop {
                             if response.clicked() {
                                 self.page = page;
                                 refresh_cli = page == Page::CommandLine;
+                                refresh_profile = page == Page::Profile
+                                    && self.profile_sources.is_none()
+                                    && self.activity.is_none();
                             }
                         }
                         if refresh_cli {
                             self.refresh_cli_status(ui.ctx().clone());
+                        }
+                        if refresh_profile {
+                            self.refresh_profile_sources(ui.ctx().clone());
                         }
                         ui.separator();
                         accessible_heading(ui, self.language.text("Accessibility & appearance"), 2);
@@ -502,6 +509,181 @@ impl CanISendDesktop {
         for job in visible {
             self.job_row(ui, &job);
         }
+    }
+
+    pub(super) fn show_profile(&mut self, ui: &mut egui::Ui) {
+        self.page_header(
+            ui,
+            self.language.text("Profile"),
+            self.language
+                .text("Reusable applicant sources and confirmed evidence"),
+        );
+        if self.workspace.is_none() {
+            self.empty_workspace(ui);
+            return;
+        }
+
+        ui.horizontal(|ui| {
+            if ui
+                .add_enabled(
+                    self.activity.is_none(),
+                    theme::primary_button(self.language.text("Import profile source")),
+                )
+                .clicked()
+            {
+                self.show_profile_source_form = true;
+                self.pending_focus = Some(FocusTarget::ProfileSensitivity);
+            }
+            if ui
+                .add_enabled(
+                    self.activity.is_none(),
+                    egui::Button::new(self.language.text("Refresh")),
+                )
+                .clicked()
+            {
+                self.refresh_profile_sources(ui.ctx().clone());
+            }
+        });
+        ui.add_space(12.0);
+        ui.label(
+            self.language.select(
+                "Profile sources stay in the selected local workspace. This page lists metadata and digests only; imported source bodies are never rendered here.",
+                "个人资料来源保存在当前本地工作区中。此页面只显示元数据和摘要，不会呈现导入的来源正文。",
+            ),
+        );
+        ui.add_space(16.0);
+
+        let Some(profile) = self.profile_sources.clone() else {
+            if self.activity.is_some() {
+                ui.spinner();
+                ui.label(self.language.text("Loading profile sources…"));
+            } else if ui
+                .button(self.language.text("Load profile sources"))
+                .clicked()
+            {
+                self.refresh_profile_sources(ui.ctx().clone());
+            }
+            return;
+        };
+
+        let revision = profile.profile_revision.to_string();
+        let source_count = profile.sources.len().to_string();
+        if ui.available_width() >= 560.0 {
+            ui.columns(2, |columns| {
+                metric_card(
+                    &mut columns[0],
+                    self.language.text("Profile revision"),
+                    &revision,
+                    self.language.text("Revision-bound applicant context"),
+                );
+                metric_card(
+                    &mut columns[1],
+                    self.language.text("Profile sources"),
+                    &source_count,
+                    self.language.text("Sources available to evidence workflow"),
+                );
+            });
+        } else {
+            metric_card(
+                ui,
+                self.language.text("Profile revision"),
+                &revision,
+                self.language.text("Revision-bound applicant context"),
+            );
+            ui.add_space(8.0);
+            metric_card(
+                ui,
+                self.language.text("Profile sources"),
+                &source_count,
+                self.language.text("Sources available to evidence workflow"),
+            );
+        }
+
+        ui.add_space(20.0);
+        accessible_heading(ui, self.language.text("Source catalog"), 2);
+        ui.separator();
+        if profile.sources.is_empty() {
+            ui.label(self.language.text("No profile sources yet."));
+            ui.label(
+                self.language
+                    .text("Import Markdown, text, or JSON to create reusable applicant context."),
+            );
+        }
+        for source in &profile.sources {
+            egui::Frame::new()
+                .fill(if self.dark_mode {
+                    Color32::from_rgb(38, 48, 52)
+                } else {
+                    Color32::WHITE
+                })
+                .stroke(Stroke::new(1.0, theme::SLATE_300))
+                .corner_radius(6)
+                .inner_margin(egui::Margin::same(14))
+                .show(ui, |ui| {
+                    let kind = match source.kind {
+                        ProfileSourceKind::Markdown => self.language.text("Markdown"),
+                        ProfileSourceKind::PlainText => self.language.text("Plain text"),
+                        ProfileSourceKind::Json => "JSON",
+                    };
+                    ui.horizontal(|ui| {
+                        accessible_heading(ui, kind, 3);
+                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                            let sensitivity = match source.sensitivity {
+                                PrivacyClassification::Public => self.language.text("Public"),
+                                PrivacyClassification::PrivateLocal => {
+                                    self.language.text("Private local")
+                                }
+                                PrivacyClassification::ProviderBound => {
+                                    self.language.text("Provider bound")
+                                }
+                                PrivacyClassification::Secret => self.language.text("Secret"),
+                            };
+                            ui.label(RichText::new(sensitivity).strong());
+                        });
+                    });
+                    egui::Grid::new(("profile_source", source.id.as_str()))
+                        .num_columns(2)
+                        .spacing([24.0, 8.0])
+                        .show(ui, |ui| {
+                            diagnostic_row(ui, self.language.text("Source ID"), source.id.as_str());
+                            diagnostic_row(
+                                ui,
+                                self.language.text("Content type"),
+                                &source.content_type,
+                            );
+                            diagnostic_row(
+                                ui,
+                                self.language.text("Revision"),
+                                &source.revision.get().to_string(),
+                            );
+                            diagnostic_row(
+                                ui,
+                                self.language.text("Imported at"),
+                                source.created_at.as_str(),
+                            );
+                            diagnostic_row(
+                                ui,
+                                self.language.text("Original digest"),
+                                source.original.sha256.as_str(),
+                            );
+                            diagnostic_row(
+                                ui,
+                                self.language.text("Normalized digest"),
+                                source.normalized_text.sha256.as_str(),
+                            );
+                        });
+                });
+            ui.add_space(10.0);
+        }
+
+        ui.add_space(10.0);
+        ui.label(
+            RichText::new(self.language.select(
+                "Evidence review and confirmation are the next Stage 4C work package. Until then, use the existing CLI or Agent v2 workflow.",
+                "证据审阅和确认是 Stage 4C 的下一个工作包。在完成前，请继续使用现有 CLI 或 Agent v2 工作流。",
+            ))
+            .weak(),
+        );
     }
 
     pub(super) fn job_row(&mut self, ui: &mut egui::Ui, job: &JobRecord) {

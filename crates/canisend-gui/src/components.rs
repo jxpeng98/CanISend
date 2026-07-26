@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use canisend_app::{ActionReceipt, CliInstallState, CliInstallStatus, WorkflowControlReadModel};
 use canisend_contracts::{
     ArtifactKind, ExecutionMode, SourceKind, StageExecutionStatus, WorkflowStage,
@@ -93,6 +95,7 @@ pub(crate) fn localized_receipt_summary<T>(
         "job.create" => "职位已创建",
         "job.archive" => "职位已归档",
         "job.import" => "职位来源已导入",
+        "profile.source.add" => "个人资料来源已导入",
         "workflow.start" => "工作流已启动",
         "workflow.status" => "工作流状态已更新",
         "workflow.begin" => "工作流阶段已开始",
@@ -130,6 +133,7 @@ pub(crate) fn page_accessible_label(page: Page, language: Language) -> &'static 
     language.text(match page {
         Page::Overview => "Overview content",
         Page::Jobs => "Jobs content",
+        Page::Profile => "Profile content",
         Page::Workspaces => "Workspaces content",
         Page::CommandLine => "Command line content",
         Page::Diagnostics => "Diagnostics content",
@@ -150,6 +154,22 @@ pub(crate) fn validate_job_form(
     if title.len() > 512 || institution.len() > 512 {
         return Err(language
             .text("Title and institution must each be at most 512 bytes")
+            .to_owned());
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_profile_source_form(
+    file: Option<&Path>,
+    private_read_consent: bool,
+    language: Language,
+) -> Result<(), String> {
+    if file.is_none() {
+        return Err(language.text("Choose a profile source file").to_owned());
+    }
+    if !private_read_consent {
+        return Err(language
+            .text("Confirm local profile source access before importing")
             .to_owned());
     }
     Ok(())

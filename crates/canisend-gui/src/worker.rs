@@ -3,12 +3,12 @@ use std::path::PathBuf;
 use canisend_app::{
     ActionReceipt, Application, BackupReadModel, CliInstallStatus, DoctorSummary,
     JobDetailReadModel, JobListReadModel, NetworkFetchConsent, PrivateReadConsent,
-    SourceImportReadModel, TerminalInstallConsent, UpdateCheckReadModel, WorkflowBeginRequest,
-    WorkflowCompleteRequest, WorkflowControlReadModel, WorkflowRerunPreview, WorkflowRerunRequest,
-    WorkspaceHealthReadModel, WorkspaceReadModel, WorkspaceRepairReadModel,
-    WorkspaceRestoreReadModel,
+    ProfileSourceImportReadModel, ProfileSourceListReadModel, SourceImportReadModel,
+    TerminalInstallConsent, UpdateCheckReadModel, WorkflowBeginRequest, WorkflowCompleteRequest,
+    WorkflowControlReadModel, WorkflowRerunPreview, WorkflowRerunRequest, WorkspaceHealthReadModel,
+    WorkspaceReadModel, WorkspaceRepairReadModel, WorkspaceRestoreReadModel,
 };
-use canisend_contracts::{JobRecord, WorkflowStage, WorkflowStatusData};
+use canisend_contracts::{JobRecord, PrivacyClassification, WorkflowStage, WorkflowStatusData};
 
 #[derive(Debug)]
 pub(crate) enum WorkerRequest {
@@ -60,6 +60,14 @@ pub(crate) enum WorkerRequest {
         path: PathBuf,
         id: String,
         url: String,
+    },
+    LoadProfileSources {
+        path: PathBuf,
+    },
+    ImportProfileSource {
+        path: PathBuf,
+        source: PathBuf,
+        sensitivity: PrivacyClassification,
     },
     StartWorkflow {
         path: PathBuf,
@@ -122,6 +130,8 @@ pub(crate) enum WorkerEvent {
     JobLoaded(Result<ActionReceipt<JobDetailReadModel>, String>),
     JobArchived(Result<ActionReceipt<JobRecord>, String>),
     SourceImported(Result<ActionReceipt<SourceImportReadModel>, String>),
+    ProfileSourcesLoaded(Result<ActionReceipt<ProfileSourceListReadModel>, String>),
+    ProfileSourceImported(Result<ActionReceipt<ProfileSourceImportReadModel>, String>),
     WorkflowLoaded(Result<ActionReceipt<WorkflowStatusData>, String>),
     WorkflowControlsLoaded(Result<ActionReceipt<WorkflowControlReadModel>, String>),
     WorkflowMutated(Result<ActionReceipt<WorkflowControlReadModel>, String>),
@@ -194,6 +204,22 @@ pub(crate) fn execute(request: WorkerRequest) -> WorkerEvent {
                 &id,
                 &url,
                 NetworkFetchConsent::granted_by_user(),
+            )
+            .map_err(|error| error.to_string()),
+        ),
+        WorkerRequest::LoadProfileSources { path } => WorkerEvent::ProfileSourcesLoaded(
+            Application::list_profile_sources(&path).map_err(|error| error.to_string()),
+        ),
+        WorkerRequest::ImportProfileSource {
+            path,
+            source,
+            sensitivity,
+        } => WorkerEvent::ProfileSourceImported(
+            Application::import_profile_source(
+                &path,
+                &source,
+                sensitivity,
+                PrivateReadConsent::granted_by_user(),
             )
             .map_err(|error| error.to_string()),
         ),
@@ -280,6 +306,8 @@ mod tests {
 
     use std::path::PathBuf;
 
+    use canisend_contracts::PrivacyClassification;
+
     #[test]
     fn each_request_produces_one_typed_terminal_event() {
         assert!(matches!(
@@ -317,6 +345,29 @@ mod tests {
             }),
             WorkerEvent::SourceImported(Ok(_))
         ));
+        let profile_source = temporary_root("profile-source").with_extension("md");
+        std::fs::write(&profile_source, "# Private profile\n\nBounded evidence.")
+            .expect("write profile source");
+        assert!(matches!(
+            execute(WorkerRequest::ImportProfileSource {
+                path: root.clone(),
+                source: profile_source.clone(),
+                sensitivity: PrivacyClassification::PrivateLocal,
+            }),
+            WorkerEvent::ProfileSourceImported(Ok(_))
+        ));
+        match execute(WorkerRequest::LoadProfileSources { path: root.clone() }) {
+            WorkerEvent::ProfileSourcesLoaded(Ok(receipt)) => {
+                assert_eq!(receipt.data.profile_revision, 1);
+                assert_eq!(receipt.data.sources.len(), 1);
+                assert!(
+                    !serde_json::to_string(&receipt)
+                        .expect("serialize profile source list")
+                        .contains("Bounded evidence")
+                );
+            }
+            event => panic!("unexpected profile event: {event:?}"),
+        }
         assert!(matches!(
             execute(WorkerRequest::StartWorkflow {
                 path: root.clone(),
@@ -396,6 +447,7 @@ mod tests {
 
         std::fs::remove_dir_all(root).expect("remove worker fixture");
         std::fs::remove_file(source).expect("remove source fixture");
+        std::fs::remove_file(profile_source).expect("remove profile source fixture");
         std::fs::remove_dir_all(backup).expect("remove backup fixture");
         std::fs::remove_dir_all(restored).expect("remove restored fixture");
     }

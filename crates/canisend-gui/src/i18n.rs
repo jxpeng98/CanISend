@@ -55,6 +55,7 @@ impl Language {
             "CanISend workspace header" => "CanISend 工作区标题栏",
             "Overview" => "概览",
             "Jobs" => "职位",
+            "Profile" => "个人资料",
             "Workspaces" => "工作区",
             "Command line" => "命令行",
             "Diagnostics" => "诊断",
@@ -78,6 +79,8 @@ impl Language {
             "Opening workspace" => "正在打开工作区",
             "Loading jobs" => "正在加载职位",
             "Loading job" => "正在加载职位",
+            "Loading profile sources" => "正在加载个人资料来源",
+            "Loading profile sources…" => "正在加载个人资料来源…",
             "Completed" => "已完成",
             "Dismiss" => "关闭",
             "Current local workspace and next actions" => "当前本地工作区和后续操作",
@@ -95,6 +98,30 @@ impl Language {
             "No jobs yet. Add a job from a URL, PDF, Markdown, text, or JSON file." => {
                 "还没有职位。可通过 URL、PDF、Markdown、文本或 JSON 文件添加职位。"
             }
+            "Reusable applicant sources and confirmed evidence" => "可复用的申请人来源和已确认证据",
+            "Import profile source" => "导入个人资料来源",
+            "Load profile sources" => "加载个人资料来源",
+            "Profile revision" => "个人资料修订版本",
+            "Revision-bound applicant context" => "与修订版本绑定的申请人信息",
+            "Profile sources" => "个人资料来源",
+            "Sources available to evidence workflow" => "可供证据工作流使用的来源",
+            "Source catalog" => "来源目录",
+            "No profile sources yet." => "尚未导入个人资料来源。",
+            "Import Markdown, text, or JSON to create reusable applicant context." => {
+                "导入 Markdown、文本或 JSON，以创建可复用的申请人信息。"
+            }
+            "Markdown" => "Markdown",
+            "Plain text" => "纯文本",
+            "Public" => "公开",
+            "Private local" => "本地私有",
+            "Provider bound" => "仅限提供方",
+            "Secret" => "机密",
+            "Source ID" => "来源 ID",
+            "Content type" => "内容类型",
+            "Revision" => "修订版本",
+            "Imported at" => "导入时间",
+            "Original digest" => "原始文件摘要",
+            "Normalized digest" => "规范化摘要",
             "Application records, supplied sources, and workflow state" => {
                 "申请记录、用户提供的来源和工作流状态"
             }
@@ -253,6 +280,12 @@ impl Language {
             "Supported: Markdown, text, JSON, and text-based PDF." => {
                 "支持 Markdown、文本、JSON 和文本型 PDF。"
             }
+            "Supported: Markdown, text, and JSON." => "支持 Markdown、文本和 JSON。",
+            "Sensitivity" => "敏感级别",
+            "Unsupported profile source sensitivity" => "不支持的个人资料来源敏感级别",
+            "Allow CanISend to read and store this local profile source" => {
+                "允许 CanISend 读取并保存此本地个人资料来源"
+            }
             "Job source URL" => "职位来源 URL",
             "CanISend will fetch this user-supplied public HTTP(S) URL." => {
                 "CanISend 将读取用户提供的公开 HTTP(S) URL。"
@@ -267,6 +300,11 @@ impl Language {
             "Confirm private local source access before importing" => {
                 "导入前请确认允许访问私有本地来源"
             }
+            "Choose a profile source file" => "请选择个人资料来源文件",
+            "Confirm local profile source access before importing" => {
+                "导入前请确认允许访问本地个人资料来源"
+            }
+            "Importing profile source" => "正在导入个人资料来源",
             "Enter a public HTTP(S) URL" => "请输入公开的 HTTP(S) URL",
             "Confirm the user-invoked network fetch before importing" => {
                 "导入前请确认本次由用户发起的网络读取"
@@ -363,6 +401,7 @@ impl Language {
             "Render" => "渲染",
             "Overview content" => "概览内容",
             "Jobs content" => "职位内容",
+            "Profile content" => "个人资料内容",
             "Workspaces content" => "工作区内容",
             "Command line content" => "命令行内容",
             "Diagnostics content" => "诊断内容",
@@ -416,6 +455,7 @@ mod tests {
         assert_eq!(Language::English.code(), "en");
         assert_eq!(Language::SimplifiedChinese.code(), "zh-CN");
         assert_eq!(Language::SimplifiedChinese.text("Workspaces"), "工作区");
+        assert_eq!(Language::SimplifiedChinese.text("Profile"), "个人资料");
         assert_eq!(
             Language::SimplifiedChinese.text("Restore backup"),
             "恢复备份"
