@@ -16,7 +16,8 @@
       "target",
       "rust-version",
       "profile",
-      "feature-set"
+      "feature-set",
+      "epoch"
     ],
     "cargo_registry_cache_only": true,
     "fallback": "ordinary-cargo",

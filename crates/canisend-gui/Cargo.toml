@@ -14,8 +14,8 @@ name = "canisend-gui"
 path = "src/main.rs"
 
 [dependencies]
-canisend-app = { path = "../canisend-app", version = "=1.0.0-alpha.1" }
-canisend-contracts = { path = "../canisend-contracts", version = "=1.0.0-alpha.1" }
+canisend-app = { path = "../canisend-app", version = "=1.0.0-alpha.2" }
+canisend-contracts = { path = "../canisend-contracts", version = "=1.0.0-alpha.2" }
 eframe.workspace = true
 serde.workspace = true
 serde_json.workspace = true

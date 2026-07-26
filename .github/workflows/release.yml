@@ -9,7 +9,11 @@ on:
       tag:
         description: "Exact future tag to build once as a non-publishing candidate"
         required: true
-        default: "v1.0.0-alpha.1"
+        default: "v1.0.0-alpha.2"
+      cache_epoch:
+        description: "Body-free sccache namespace epoch used for cold/warm/invalidation measurement"
+        required: true
+        default: "stage4-v1"
 
 permissions:
   contents: read
@@ -23,6 +27,7 @@ jobs:
     name: release-identity
     runs-on: ubuntu-24.04
     outputs:
+      cache_epoch: ${{ steps.identity.outputs.cache_epoch }}
       commit: ${{ steps.identity.outputs.commit }}
       mode: ${{ steps.identity.outputs.mode }}
       stage: ${{ steps.identity.outputs.stage }}
@@ -51,6 +56,11 @@ jobs:
             tag="${{ inputs.tag }}"
             mode="candidate"
             commit="$GITHUB_SHA"
+            cache_epoch="${{ inputs.cache_epoch }}"
+            if [[ ! "$cache_epoch" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]]; then
+              echo "candidate cache epoch must be a 1..32 character lowercase body-free token" >&2
+              exit 1
+            fi
             if git show-ref --verify --quiet "refs/tags/$tag"; then
               echo "candidate tag already exists; build a future tag before promotion: $tag" >&2
               exit 1
@@ -68,6 +78,7 @@ jobs:
             stage="stable"
           fi
           {
+            echo "cache_epoch=${cache_epoch:-promotion}"
             echo "commit=$commit"
             echo "mode=$mode"
             echo "stage=$stage"
@@ -121,7 +132,7 @@ jobs:
         shell: bash
         run: >-
           ./scripts/configure_sccache.sh
-          canisend-v1-rust-1.97.0-x86_64-unknown-linux-gnu-debug-release-all-features
+          canisend-v1-rust-1.97.0-x86_64-unknown-linux-gnu-debug-release-all-features-${{ needs.release-identity.outputs.cache_epoch }}
 
       - name: Start source-gate compiler cache measurement
         id: sccache_timing_start
@@ -170,7 +181,7 @@ jobs:
             x86_64-unknown-linux-gnu \
             debug-release \
             workspace-all-features \
-            canisend-v1-rust-1.97.0-x86_64-unknown-linux-gnu-debug-release-all-features \
+            canisend-v1-rust-1.97.0-x86_64-unknown-linux-gnu-debug-release-all-features-${{ needs.release-identity.outputs.cache_epoch }} \
             "${{ steps.sccache_timing_start.outputs.epoch }}" \
             "$completed_epoch" \
             "$completed_at" \
@@ -278,7 +289,7 @@ jobs:
         shell: bash
         run: >-
           ./scripts/configure_sccache.sh
-          canisend-v1-rust-1.97.0-${{ matrix.target }}-release-cli-default
+          canisend-v1-rust-1.97.0-${{ matrix.target }}-release-cli-default-${{ needs.release-identity.outputs.cache_epoch }}
 
       - name: Start native release timing
         id: timing_start
@@ -303,7 +314,7 @@ jobs:
             "${{ matrix.target }}" \
             release \
             canisend-cli-default \
-            canisend-v1-rust-1.97.0-${{ matrix.target }}-release-cli-default \
+            canisend-v1-rust-1.97.0-${{ matrix.target }}-release-cli-default-${{ needs.release-identity.outputs.cache_epoch }} \
             "${{ steps.timing_start.outputs.epoch }}" \
             "${{ steps.timing_build.outputs.epoch }}" \
             "$completed_at" \
@@ -542,7 +553,7 @@ jobs:
         shell: bash
         run: >-
           ./scripts/configure_sccache.sh
-          canisend-v1-rust-1.97.0-aarch64-apple-darwin-release-cli-gui-default
+          canisend-v1-rust-1.97.0-aarch64-apple-darwin-release-cli-gui-default-${{ needs.release-identity.outputs.cache_epoch }}
 
       - name: Start desktop release timing
         id: timing_start
@@ -569,7 +580,7 @@ jobs:
             aarch64-apple-darwin \
             release \
             canisend-cli-gui-default \
-            canisend-v1-rust-1.97.0-aarch64-apple-darwin-release-cli-gui-default \
+            canisend-v1-rust-1.97.0-aarch64-apple-darwin-release-cli-gui-default-${{ needs.release-identity.outputs.cache_epoch }} \
             "${{ steps.timing_start.outputs.epoch }}" \
             "${{ steps.timing_build.outputs.epoch }}" \
             "$completed_at" \

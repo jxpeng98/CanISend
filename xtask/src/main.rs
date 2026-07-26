@@ -3390,7 +3390,8 @@ fn check_native_test_ownership() -> Result<(), String> {
                 "target",
                 "rust-version",
                 "profile",
-                "feature-set"
+                "feature-set",
+                "epoch"
             ],
             "cargo_registry_cache_only": true,
             "fallback": "ordinary-cargo",
@@ -3581,9 +3582,11 @@ fn check_native_test_ownership() -> Result<(), String> {
         "disable_annotations: true",
         "Run compiler cache contract regression",
         "./scripts/test_sccache_contract.sh",
-        "canisend-v1-rust-1.97.0-x86_64-unknown-linux-gnu-debug-release-all-features",
-        "canisend-v1-rust-1.97.0-${{ matrix.target }}-release-cli-default",
-        "canisend-v1-rust-1.97.0-aarch64-apple-darwin-release-cli-gui-default",
+        "cache_epoch:",
+        "candidate cache epoch must be a 1..32 character lowercase body-free token",
+        "canisend-v1-rust-1.97.0-x86_64-unknown-linux-gnu-debug-release-all-features-${{ needs.release-identity.outputs.cache_epoch }}",
+        "canisend-v1-rust-1.97.0-${{ matrix.target }}-release-cli-default-${{ needs.release-identity.outputs.cache_epoch }}",
+        "canisend-v1-rust-1.97.0-aarch64-apple-darwin-release-cli-gui-default-${{ needs.release-identity.outputs.cache_epoch }}",
         "${{ runner.temp }}/sccache-stats/*.json",
     ] {
         if !workflow.contains(required) {
