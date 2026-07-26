@@ -24,6 +24,10 @@ of the named native package gates.
 | Apple Silicon desktop job | version-matched CLI/GUI build, bounded app archive, companion integrity, nested/outer ad-hoc signatures, packaged workflows, and GUI launch |
 | Ordinary CI and scheduled workflows | cross-platform recovery, concurrency, rendering, staged quickstart, performance, dependency assurance, and fuzzing |
 
+Alpha candidates use the explicit `release-alpha` profile. Beta, RC, Stable, and the scheduled
+Intel GUI compile keep the canonical `release` profile. The stage selector is emitted only after
+the tag has passed validation, and each release artifact records the selected profile.
+
 The extracted archive is compared byte-for-byte with the target binary before it is executed.
 `version`, `doctor`, the documented workflow, host-agent workflow, and isolated
 installation/uninstallation therefore run against the actual bytes intended for release rather
@@ -38,6 +42,9 @@ Each successful native CLI and desktop package job uploads a body-free
 - target-specific validation such as signing, performance, or Intel compile-only work;
 - packaging; and
 - exact extracted-archive smoke.
+
+The timing record includes the validated build profile. An Alpha record with `release`, or a
+Beta/RC/Stable record with `release-alpha`, is rejected before evidence is written.
 
 Timing evidence is diagnostic and never authorizes publication. The release manifest, checksums,
 native qualification records, signatures, and GitHub attestations remain authoritative.

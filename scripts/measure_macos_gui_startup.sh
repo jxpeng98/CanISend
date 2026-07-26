@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -ne 2 ]]; then
-  echo "usage: $0 CanISend.app OUTPUT.json" >&2
+if [[ $# -ne 3 ]]; then
+  echo "usage: $0 CanISend.app OUTPUT.json PROFILE" >&2
   exit 2
 fi
 if [[ "$(uname -s)" != "Darwin" ]]; then
@@ -14,6 +14,7 @@ script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 source "$script_dir/lib/native_paths.sh"
 app="$(canisend_absolute_path "$1")"
 output="$(canisend_absolute_path "$2")"
+profile="$3"
 manifest="$app.manifest.json"
 gui="$app/Contents/MacOS/canisend-gui"
 cli="$app/Contents/Resources/bin/canisend"
@@ -22,6 +23,14 @@ gui_budget_bytes=67108864
 bundle_budget_bytes=134217728
 trials=5
 
+case "$profile" in
+  release-alpha | release) ;;
+  *)
+    echo "macOS GUI startup: profile must be release-alpha or release" >&2
+    exit 1
+    ;;
+esac
+
 for command in jq osascript perl shasum; do
   if ! command -v "$command" >/dev/null 2>&1; then
     echo "macOS GUI startup: required command is missing: $command" >&2
@@ -29,6 +38,16 @@ for command in jq osascript perl shasum; do
   fi
 done
 "$script_dir/verify_macos_gui_app.sh" "$app" "$manifest"
+version="$("$cli" version --json | jq -er '.data.version')"
+if [[ "$version" == *-alpha.* ]]; then
+  expected_profile="release-alpha"
+else
+  expected_profile="release"
+fi
+if [[ "$profile" != "$expected_profile" ]]; then
+  echo "macOS GUI startup: profile does not match the packaged release stage" >&2
+  exit 1
+fi
 if [[ -e "$output" ]]; then
   echo "macOS GUI startup: output must not already exist: $output" >&2
   exit 1
@@ -102,7 +121,8 @@ machine="$(system_profiler SPHardwareDataType 2>/dev/null | awk -F: \
 macos_version="$(sw_vers -productVersion)"
 
 jq -n \
-  --arg version "$("$cli" version --json | jq -er '.data.version')" \
+  --arg version "$version" \
+  --arg profile "$profile" \
   --arg measured_at "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
   --arg machine "$machine" \
   --arg macos_version "$macos_version" \
@@ -121,6 +141,7 @@ jq -n \
   '{
     schema: "canisend.macos-gui-performance/v1",
     version: $version,
+    profile: $profile,
     measured_at: $measured_at,
     reference_machine: $machine,
     macos_version: $macos_version,

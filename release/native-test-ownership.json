@@ -26,6 +26,12 @@
     "authoritative_release_evidence": false,
     "time_saved_measurement": "cold-warm-invalidated-candidate"
   },
+  "build_profiles": {
+    "alpha": "release-alpha",
+    "beta": "release",
+    "rc": "release",
+    "stable": "release"
+  },
   "candidate_native_matrix": {
     "common_gates": [
       "locked-release-build",

@@ -27,6 +27,7 @@ for specification in "${cases[@]}"; do
     "$surface" \
     "$target" \
     "$environment" \
+    release-alpha \
     100 \
     110 \
     114 \
@@ -46,6 +47,7 @@ for specification in "${cases[@]}"; do
       and .surface == $surface
       and .target == $target
       and .environment == $environment
+      and .profile == "release-alpha"
       and .runner_os == $runner_os
       and .durations_seconds == {
         release_build: 10,
@@ -67,6 +69,7 @@ if "$script_dir/write_native_release_timing.sh" \
   cli \
   x86_64-unknown-linux-gnu \
   ubuntu-24.04 \
+  release-alpha \
   100 \
   99 \
   114 \
@@ -80,5 +83,27 @@ if "$script_dir/write_native_release_timing.sh" \
   exit 1
 fi
 grep -q "timing boundaries are not monotonic" "$temporary/invalid.stderr"
+
+if "$script_dir/write_native_release_timing.sh" \
+  "v1.0.0-alpha.1" \
+  "$commit" \
+  cli \
+  x86_64-unknown-linux-gnu \
+  ubuntu-24.04 \
+  release \
+  100 \
+  110 \
+  114 \
+  120 \
+  130 \
+  "2026-07-26T12:00:00Z" \
+  "$temporary/profile-mismatch.json" \
+  >"$temporary/profile-mismatch.stdout" \
+  2>"$temporary/profile-mismatch.stderr"; then
+  echo "native release timing test: mismatched Alpha profile was accepted" >&2
+  exit 1
+fi
+grep -q "profile does not match the validated release stage" \
+  "$temporary/profile-mismatch.stderr"
 
 echo "native release timing test: ok"

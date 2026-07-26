@@ -135,7 +135,9 @@ The signature display must report an ad-hoc signature. The bundle metadata and q
 record must state `developer_id: false` and `notarized: false`; a claim of Apple publisher trust is
 invalid for this channel. The qualification JSON must use
 `canisend.macos-gui-qualification/v1`, name the same ZIP, match its SHA-256 and size, report
-`macos-15`/`aarch64-apple-darwin`, and keep every declared bounded package check true.
+`macos-15`/`aarch64-apple-darwin`, record `release-alpha` for Alpha or `release` for later stages,
+and keep every declared bounded package check true. Every standalone CLI and desktop entry in the
+release manifest must record that same stage-selected profile.
 
 For Beta and later, the Intel compilation JSON must use
 `canisend.macos-gui-compilation/v1`, bind the release tag and source commit, report an `x86_64`

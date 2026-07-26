@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -ne 2 && $# -ne 5 ]]; then
-  echo "usage: $0 ARCHIVE NEW_SMOKE_DIRECTORY [TAG ENVIRONMENT EVIDENCE]" >&2
+if [[ $# -ne 2 && $# -ne 6 ]]; then
+  echo "usage: $0 ARCHIVE NEW_SMOKE_DIRECTORY [TAG ENVIRONMENT PROFILE EVIDENCE]" >&2
   exit 2
 fi
 if [[ "$(uname -s)" != "Darwin" ]]; then
@@ -17,11 +17,12 @@ script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 source "$script_dir/lib/native_paths.sh"
 archive="$(canisend_absolute_path "$archive")"
 smoke_root="$(canisend_absolute_path "$smoke_root")"
-if [[ $# -eq 5 ]]; then
+if [[ $# -eq 6 ]]; then
   qualification=true
   tag="$3"
   environment="$4"
-  evidence="$(canisend_absolute_path "$5")"
+  profile="$5"
+  evidence="$(canisend_absolute_path "$6")"
   : "${GITHUB_RUN_ID:?GITHUB_RUN_ID is required for qualification evidence}"
   if [[ ! "$GITHUB_RUN_ID" =~ ^[1-9][0-9]*$ ]]; then
     echo "macOS GUI archive smoke: GITHUB_RUN_ID must be a positive integer" >&2
@@ -29,6 +30,15 @@ if [[ $# -eq 5 ]]; then
   fi
   if [[ "$environment:$(uname -m)" != "macos-15:arm64" ]]; then
     echo "macOS GUI archive smoke: qualification requires macos-15 on arm64" >&2
+    exit 1
+  fi
+  if [[ "$tag" == *-alpha.* ]]; then
+    expected_profile="release-alpha"
+  else
+    expected_profile="release"
+  fi
+  if [[ "$profile" != "$expected_profile" ]]; then
+    echo "macOS GUI archive smoke: profile does not match the validated release stage" >&2
     exit 1
   fi
   if [[ -e "$evidence" || -L "$evidence" ]]; then
@@ -183,6 +193,7 @@ if [[ "$qualification" == true ]]; then
     --arg tag "$tag" \
     --arg version "$version" \
     --arg environment "$environment" \
+    --arg profile "$profile" \
     --arg archive "$(basename "$archive")" \
     --arg archive_sha256 "$archive_sha256" \
     --argjson archive_size "$archive_size" \
@@ -193,6 +204,7 @@ if [[ "$qualification" == true ]]; then
       record: "desktop-macos-aarch64",
       target: "aarch64-apple-darwin",
       environment: $environment,
+      profile: $profile,
       tag: $tag,
       version: $version,
       archive: {

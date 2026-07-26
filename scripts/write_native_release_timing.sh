@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -ne 12 ]]; then
-  echo "usage: $0 TAG SOURCE_COMMIT SURFACE TARGET ENVIRONMENT START_EPOCH BUILD_DONE_EPOCH PACKAGE_START_EPOCH PACKAGE_DONE_EPOCH COMPLETED_EPOCH COMPLETED_AT OUTPUT" >&2
+if [[ $# -ne 13 ]]; then
+  echo "usage: $0 TAG SOURCE_COMMIT SURFACE TARGET ENVIRONMENT PROFILE START_EPOCH BUILD_DONE_EPOCH PACKAGE_START_EPOCH PACKAGE_DONE_EPOCH COMPLETED_EPOCH COMPLETED_AT OUTPUT" >&2
   exit 2
 fi
 
@@ -11,13 +11,14 @@ source_commit="$2"
 surface="$3"
 target="$4"
 environment="$5"
-start_epoch="$6"
-build_done_epoch="$7"
-package_start_epoch="$8"
-package_done_epoch="$9"
-completed_epoch="${10}"
-completed_at="${11}"
-output="${12}"
+profile="$6"
+start_epoch="$7"
+build_done_epoch="$8"
+package_start_epoch="$9"
+package_done_epoch="${10}"
+completed_epoch="${11}"
+completed_at="${12}"
+output="${13}"
 
 : "${GITHUB_RUN_ID:?GITHUB_RUN_ID is required}"
 : "${GITHUB_RUN_ATTEMPT:?GITHUB_RUN_ATTEMPT is required}"
@@ -30,6 +31,15 @@ if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
 fi
 if [[ ! "$source_commit" =~ ^[0-9a-f]{40}$ ]]; then
   echo "native release timing: source commit must be 40 lowercase hexadecimal characters" >&2
+  exit 1
+fi
+if [[ "$tag" == *-alpha.* ]]; then
+  expected_profile="release-alpha"
+else
+  expected_profile="release"
+fi
+if [[ "$profile" != "$expected_profile" ]]; then
+  echo "native release timing: profile does not match the validated release stage" >&2
   exit 1
 fi
 for value in \
@@ -92,6 +102,7 @@ jq -n \
   --arg surface "$surface" \
   --arg target "$target" \
   --arg environment "$environment" \
+  --arg profile "$profile" \
   --arg runner_os "$RUNNER_OS" \
   --arg completed_at "$completed_at" \
   --argjson github_run_id "$GITHUB_RUN_ID" \
@@ -109,6 +120,7 @@ jq -n \
     surface: $surface,
     target: $target,
     environment: $environment,
+    profile: $profile,
     runner_os: $runner_os,
     github_run_id: $github_run_id,
     github_run_attempt: $github_run_attempt,

@@ -10,6 +10,11 @@ CanISend performance gates measure the optimized native product, not Cargo compi
 allowed to populate the shared Cargo cache before measurement. The benchmark contract is ignored by normal `cargo
 test` runs and is activated explicitly by main and release workflows.
 
+Alpha candidate gates run with the named `release-alpha` profile (`lto = false`,
+`codegen-units = 16`). Beta, RC, and Stable retain the canonical `release` profile
+(`lto = "thin"`, `codegen-units = 1`). Before/after measurements must name the profile so results
+from these two optimization policies are not silently mixed.
+
 ## Measured paths
 
 | Metric | Fixture and method | Threshold |
@@ -38,10 +43,10 @@ SQLite transactions, candidate validation, projections, Typst compilation, PDF v
 ## Running the gates
 
 ```console
-cargo test --release -p canisend-cli --locked \
+cargo test --profile release-alpha -p canisend-cli --locked \
   --test performance_contract -- --ignored --nocapture
 
-CANISEND_PERFORMANCE_GATE=1 cargo test --release -p canisend-store --locked \
+CANISEND_PERFORMANCE_GATE=1 cargo test --profile release-alpha -p canisend-store --locked \
   --test store_contract \
   evidence_and_match_tasks_enforce_stable_revision_bound_identities \
   -- --exact --nocapture
@@ -55,7 +60,8 @@ The macOS GUI gate runs separately against a staged, verified, ad-hoc-signed App
 ```console
 ./scripts/measure_macos_gui_startup.sh \
   /path/to/CanISend.app \
-  /path/to/macos-gui-performance.json
+  /path/to/macos-gui-performance.json \
+  release-alpha
 ```
 
 Each launch gets a new disposable `HOME`. The timer stops only after macOS exposes the Overview navigation control,

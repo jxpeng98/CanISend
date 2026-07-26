@@ -28,6 +28,7 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       cache_epoch: ${{ steps.identity.outputs.cache_epoch }}
+      cargo_profile: ${{ steps.identity.outputs.cargo_profile }}
       commit: ${{ steps.identity.outputs.commit }}
       mode: ${{ steps.identity.outputs.mode }}
       stage: ${{ steps.identity.outputs.stage }}
@@ -70,15 +71,20 @@ jobs:
           version="${tag#v}"
           if [[ "$version" == *-alpha.* ]]; then
             stage="alpha"
+            cargo_profile="release-alpha"
           elif [[ "$version" == *-beta.* ]]; then
             stage="beta"
+            cargo_profile="release"
           elif [[ "$version" == *-rc.* ]]; then
             stage="rc"
+            cargo_profile="release"
           else
             stage="stable"
+            cargo_profile="release"
           fi
           {
             echo "cache_epoch=${cache_epoch:-promotion}"
+            echo "cargo_profile=$cargo_profile"
             echo "commit=$commit"
             echo "mode=$mode"
             echo "stage=$stage"
@@ -219,27 +225,27 @@ jobs:
           - target: aarch64-apple-darwin
             runner: macos-15
             environment: macos-15
-            binary: target/aarch64-apple-darwin/release/canisend
+            executable: canisend
             archive: tar.gz
           - target: x86_64-apple-darwin
             runner: macos-15-intel
             environment: macos-15-intel
-            binary: target/x86_64-apple-darwin/release/canisend
+            executable: canisend
             archive: tar.gz
           - target: x86_64-unknown-linux-gnu
             runner: ubuntu-24.04
             environment: ubuntu-24.04
-            binary: target/x86_64-unknown-linux-gnu/release/canisend
+            executable: canisend
             archive: tar.gz
           - target: x86_64-unknown-linux-musl
             runner: ubuntu-24.04
             environment: ubuntu-24.04
-            binary: target/x86_64-unknown-linux-musl/release/canisend
+            executable: canisend
             archive: tar.gz
           - target: x86_64-pc-windows-msvc
             runner: windows-2025
             environment: windows-2025
-            binary: target/x86_64-pc-windows-msvc/release/canisend.exe
+            executable: canisend.exe
             archive: zip
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -275,7 +281,7 @@ jobs:
       - name: Cache Cargo build
         uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
-          key: release-${{ matrix.target }}
+          key: ${{ needs.release-identity.outputs.cargo_profile }}-${{ matrix.target }}
           cache-targets: false
 
       - name: Install pinned sccache
@@ -293,7 +299,7 @@ jobs:
         shell: bash
         run: >-
           ./scripts/configure_sccache.sh
-          canisend-v1-rust-1.97.0-${{ matrix.target }}-release-cli-default-${{ needs.release-identity.outputs.cache_epoch }}
+          canisend-v1-rust-1.97.0-${{ matrix.target }}-${{ needs.release-identity.outputs.cargo_profile }}-cli-default-${{ needs.release-identity.outputs.cache_epoch }}
 
       - name: Start native release timing
         id: timing_start
@@ -301,7 +307,16 @@ jobs:
         run: echo "epoch=$(date +%s)" >> "$GITHUB_OUTPUT"
 
       - name: Build native release binary
-        run: cargo build --release --locked --target ${{ matrix.target }} -p canisend-cli
+        run: >-
+          cargo build --profile ${{ needs.release-identity.outputs.cargo_profile }}
+          --locked --target ${{ matrix.target }} -p canisend-cli
+
+      - name: Resolve stage-selected native binary
+        id: native_binary
+        shell: bash
+        run: |
+          profile="${{ needs.release-identity.outputs.cargo_profile }}"
+          echo "path=target/${{ matrix.target }}/$profile/${{ matrix.executable }}" >> "$GITHUB_OUTPUT"
 
       - name: Record release build timing boundary
         id: timing_build
@@ -316,9 +331,9 @@ jobs:
             "$GITHUB_SHA" \
             native-release \
             "${{ matrix.target }}" \
-            release \
+            "${{ needs.release-identity.outputs.cargo_profile }}" \
             canisend-cli-default \
-            canisend-v1-rust-1.97.0-${{ matrix.target }}-release-cli-default-${{ needs.release-identity.outputs.cache_epoch }} \
+            canisend-v1-rust-1.97.0-${{ matrix.target }}-${{ needs.release-identity.outputs.cargo_profile }}-cli-default-${{ needs.release-identity.outputs.cache_epoch }} \
             "${{ steps.timing_start.outputs.epoch }}" \
             "${{ steps.timing_build.outputs.epoch }}" \
             "$completed_at" \
@@ -382,7 +397,8 @@ jobs:
         env:
           CANISEND_PERFORMANCE_OUTPUT: ${{ runner.temp }}/canisend-performance.json
         run: >-
-          cargo test --release -p canisend-cli --locked
+          cargo test --profile ${{ needs.release-identity.outputs.cargo_profile }}
+          -p canisend-cli --locked
           --target x86_64-unknown-linux-gnu
           --test performance_contract -- --ignored --nocapture
 
@@ -391,7 +407,8 @@ jobs:
         env:
           CANISEND_PERFORMANCE_GATE: "1"
         run: >-
-          cargo test --release -p canisend-store --locked
+          cargo test --profile ${{ needs.release-identity.outputs.cargo_profile }}
+          -p canisend-store --locked
           --target x86_64-unknown-linux-gnu --test store_contract
           evidence_and_match_tasks_enforce_stable_revision_bound_identities
           -- --exact --nocapture
@@ -403,7 +420,7 @@ jobs:
           version="${{ needs.release-identity.outputs.tag }}"
           version="${version#v}"
           ./scripts/sign_macos_adhoc.sh \
-            "${{ matrix.binary }}" \
+            "${{ steps.native_binary.outputs.path }}" \
             "${{ matrix.target }}" \
             "$RUNNER_TEMP/signing-evidence/canisend-$version-${{ matrix.target }}-signing.json"
 
@@ -413,7 +430,7 @@ jobs:
         run: |
           $version = '${{ needs.release-identity.outputs.tag }}'.Substring(1)
           ./scripts/sign_windows_self_signed.ps1 `
-            -Binary '${{ matrix.binary }}' `
+            -Binary '${{ steps.native_binary.outputs.path }}' `
             -Target '${{ matrix.target }}' `
             -EvidenceJson "$env:RUNNER_TEMP/signing-evidence/canisend-$version-${{ matrix.target }}-signing.json"
 
@@ -444,7 +461,7 @@ jobs:
         shell: bash
         run: |
           ./scripts/package_native_release.sh \
-            "${{ matrix.binary }}" \
+            "${{ steps.native_binary.outputs.path }}" \
             "${{ matrix.target }}" \
             "$RUNNER_TEMP/release-package"
 
@@ -463,7 +480,7 @@ jobs:
             "$archive" \
             "${{ matrix.target }}" \
             "$RUNNER_TEMP/release-smoke-${{ matrix.target }}" \
-            "${{ matrix.binary }}" \
+            "${{ steps.native_binary.outputs.path }}" \
             "${{ needs.release-identity.outputs.tag }}" \
             "${{ matrix.environment }}" \
             "$RUNNER_TEMP/documentation-uninstall-${{ matrix.target }}.json"
@@ -481,6 +498,7 @@ jobs:
             cli \
             "${{ matrix.target }}" \
             "${{ matrix.environment }}" \
+            "${{ needs.release-identity.outputs.cargo_profile }}" \
             "${{ steps.timing_start.outputs.epoch }}" \
             "${{ steps.timing_build.outputs.epoch }}" \
             "${{ steps.timing_package_start.outputs.epoch }}" \
@@ -501,7 +519,7 @@ jobs:
             "${{ needs.release-identity.outputs.tag }}" \
             "${{ matrix.target }}" \
             "$evidence" \
-            "${{ matrix.binary }}" \
+            "${{ steps.native_binary.outputs.path }}" \
             "$archive"
 
       - name: Upload verified platform archive
@@ -539,7 +557,7 @@ jobs:
       - name: Cache Cargo build
         uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
-          key: release-macos-gui-aarch64
+          key: ${{ needs.release-identity.outputs.cargo_profile }}-macos-gui-aarch64
           cache-targets: false
 
       - name: Install pinned sccache
@@ -557,7 +575,7 @@ jobs:
         shell: bash
         run: >-
           ./scripts/configure_sccache.sh
-          canisend-v1-rust-1.97.0-aarch64-apple-darwin-release-cli-gui-default-${{ needs.release-identity.outputs.cache_epoch }}
+          canisend-v1-rust-1.97.0-aarch64-apple-darwin-${{ needs.release-identity.outputs.cargo_profile }}-cli-gui-default-${{ needs.release-identity.outputs.cache_epoch }}
 
       - name: Start desktop release timing
         id: timing_start
@@ -566,7 +584,8 @@ jobs:
 
       - name: Build version-matched macOS GUI and CLI
         run: >-
-          cargo build --release --locked --target aarch64-apple-darwin
+          cargo build --profile ${{ needs.release-identity.outputs.cargo_profile }}
+          --locked --target aarch64-apple-darwin
           -p canisend-cli -p canisend-gui
 
       - name: Record desktop build timing boundary
@@ -582,9 +601,9 @@ jobs:
             "$GITHUB_SHA" \
             desktop-release \
             aarch64-apple-darwin \
-            release \
+            "${{ needs.release-identity.outputs.cargo_profile }}" \
             canisend-cli-gui-default \
-            canisend-v1-rust-1.97.0-aarch64-apple-darwin-release-cli-gui-default-${{ needs.release-identity.outputs.cache_epoch }} \
+            canisend-v1-rust-1.97.0-aarch64-apple-darwin-${{ needs.release-identity.outputs.cargo_profile }}-cli-gui-default-${{ needs.release-identity.outputs.cache_epoch }} \
             "${{ steps.timing_start.outputs.epoch }}" \
             "${{ steps.timing_build.outputs.epoch }}" \
             "$completed_at" \
@@ -598,9 +617,10 @@ jobs:
       - name: Package exact ad-hoc-signed macOS application
         shell: bash
         run: |
+          profile="${{ needs.release-identity.outputs.cargo_profile }}"
           ./scripts/package_macos_gui_release.sh \
-            target/aarch64-apple-darwin/release/canisend-gui \
-            target/aarch64-apple-darwin/release/canisend \
+            "target/aarch64-apple-darwin/$profile/canisend-gui" \
+            "target/aarch64-apple-darwin/$profile/canisend" \
             "$RUNNER_TEMP/macos-gui-release"
 
       - name: Record desktop package timing boundary
@@ -620,6 +640,7 @@ jobs:
             "$RUNNER_TEMP/macos-gui-smoke" \
             "${{ needs.release-identity.outputs.tag }}" \
             "macos-15" \
+            "${{ needs.release-identity.outputs.cargo_profile }}" \
             "$evidence"
 
       - name: Record desktop release timing evidence
@@ -635,6 +656,7 @@ jobs:
             desktop-gui \
             aarch64-apple-darwin \
             macos-15 \
+            "${{ needs.release-identity.outputs.cargo_profile }}" \
             "${{ steps.timing_start.outputs.epoch }}" \
             "${{ steps.timing_build.outputs.epoch }}" \
             "${{ steps.timing_package_start.outputs.epoch }}" \

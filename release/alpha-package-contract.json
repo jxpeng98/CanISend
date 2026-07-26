@@ -3,6 +3,7 @@
   "version": "1.0.0-alpha.2",
   "tag": "v1.0.0-alpha.2",
   "standalone_cli": {
+    "build_profile": "release-alpha",
     "bundle_root_pattern": "canisend-{version}-{target}",
     "bundle_executable_path": "bin/{executable}",
     "assets": [
@@ -29,6 +30,7 @@
     ]
   },
   "desktop_macos": {
+    "build_profile": "release-alpha",
     "target": "aarch64-apple-darwin",
     "archive": "CanISend-1.0.0-alpha.2-aarch64-apple-darwin.zip",
     "archive_top_level": [

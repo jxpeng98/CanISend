@@ -901,6 +901,13 @@ impl ReleaseStage {
     fn requires_intel_gui_release_evidence(self) -> bool {
         !matches!(self, Self::Alpha)
     }
+
+    fn cargo_profile(self) -> &'static str {
+        match self {
+            Self::Alpha => "release-alpha",
+            Self::Beta | Self::ReleaseCandidate | Self::Stable => "release",
+        }
+    }
 }
 
 struct RenderedStageTransition {
@@ -3400,6 +3407,12 @@ fn check_native_test_ownership() -> Result<(), String> {
             "authoritative_release_evidence": false,
             "time_saved_measurement": "cold-warm-invalidated-candidate"
         },
+        "build_profiles": {
+            "alpha": "release-alpha",
+            "beta": "release",
+            "rc": "release",
+            "stable": "release"
+        },
         "candidate_native_matrix": {
             "common_gates": [
                 "locked-release-build",
@@ -3587,8 +3600,11 @@ fn check_native_test_ownership() -> Result<(), String> {
         "# cargo-deny does not compile product code, so keep this integrity gate isolated.",
         "          RUSTC_WRAPPER: \"\"",
         "canisend-v1-rust-1.97.0-x86_64-unknown-linux-gnu-debug-release-all-features-${{ needs.release-identity.outputs.cache_epoch }}",
-        "canisend-v1-rust-1.97.0-${{ matrix.target }}-release-cli-default-${{ needs.release-identity.outputs.cache_epoch }}",
-        "canisend-v1-rust-1.97.0-aarch64-apple-darwin-release-cli-gui-default-${{ needs.release-identity.outputs.cache_epoch }}",
+        "cargo_profile: ${{ steps.identity.outputs.cargo_profile }}",
+        "cargo build --profile ${{ needs.release-identity.outputs.cargo_profile }}",
+        "cargo test --profile ${{ needs.release-identity.outputs.cargo_profile }}",
+        "canisend-v1-rust-1.97.0-${{ matrix.target }}-${{ needs.release-identity.outputs.cargo_profile }}-cli-default-${{ needs.release-identity.outputs.cache_epoch }}",
+        "canisend-v1-rust-1.97.0-aarch64-apple-darwin-${{ needs.release-identity.outputs.cargo_profile }}-cli-gui-default-${{ needs.release-identity.outputs.cache_epoch }}",
         "${{ runner.temp }}/sccache-stats/*.json",
     ] {
         if !workflow.contains(required) {
@@ -3612,6 +3628,8 @@ fn check_native_test_ownership() -> Result<(), String> {
         .map_err(|error| format!("native release timing writer is missing: {error}"))?;
     for required in [
         "canisend.native-release-timing/v1",
+        "profile does not match the validated release stage",
+        "profile: $profile",
         "workspace_suite_repeated_on_target: false",
         "authoritative_release_evidence: false",
     ] {
@@ -3950,6 +3968,16 @@ fn check_alpha_package_contract() -> Result<(), String> {
             "Alpha package contract version and tag must be {version} and v{version}"
         ));
     }
+    for pointer in [
+        "/standalone_cli/build_profile",
+        "/desktop_macos/build_profile",
+    ] {
+        if contract.pointer(pointer).and_then(Value::as_str) != Some("release-alpha") {
+            return Err(format!(
+                "Alpha package contract {pointer} must be release-alpha"
+            ));
+        }
+    }
     let assets = contract
         .pointer("/standalone_cli/assets")
         .and_then(Value::as_array)
@@ -4116,6 +4144,7 @@ fn check_alpha_package_contract() -> Result<(), String> {
     if performance.get("schema").and_then(Value::as_str)
         != Some("canisend.macos-gui-performance/v1")
         || performance.get("version").and_then(Value::as_str) != Some(version)
+        || performance.get("profile").and_then(Value::as_str) != Some("release-alpha")
         || performance.get("passed").and_then(Value::as_bool) != Some(true)
     {
         return Err(
@@ -8526,6 +8555,7 @@ fn read_macos_gui_qualification(
     let archive_name = macos_gui_archive_name(version);
     let archive_sha256 = sha256_file(archive)?;
     let archive_size = file_size(archive)?;
+    let expected_profile = parse_release_tag(tag)?.1.cargo_profile();
     let run_id = value["github_run_id"]
         .as_u64()
         .filter(|run| *run > 0)
@@ -8538,6 +8568,7 @@ fn read_macos_gui_qualification(
         "record": "desktop-macos-aarch64",
         "target": "aarch64-apple-darwin",
         "environment": "macos-15",
+        "profile": expected_profile,
         "tag": tag,
         "version": version,
         "archive": {
@@ -8710,6 +8741,7 @@ fn assemble_release(
             "archive": file_name,
             "archive_format": target.archive,
             "executable": target.executable,
+            "profile": stage.cargo_profile(),
             "runner": target.runner,
             "sha256": sha256_file(&destination)?,
             "signing_kind": target.signing,
@@ -8753,6 +8785,7 @@ fn assemble_release(
         "companion_manifest": "CanISend.app.manifest.json",
         "developer_id": false,
         "notarized": false,
+        "profile": stage.cargo_profile(),
         "qualification_evidence": desktop_qualification_name,
         "runner": "macos-15",
         "sha256": sha256_file(&desktop_archive)?,
@@ -9044,6 +9077,7 @@ fn verify_release_manifest_contents(
         if entry["archive"] != file_name
             || entry["archive_format"] != target.archive
             || entry["executable"] != target.executable
+            || entry["profile"] != stage.cargo_profile()
             || entry["runner"] != target.runner
             || entry["signing_kind"] != target.signing
         {
@@ -9108,6 +9142,7 @@ fn verify_release_manifest_contents(
         || desktop_entry["companion_manifest"] != "CanISend.app.manifest.json"
         || desktop_entry["developer_id"] != false
         || desktop_entry["notarized"] != false
+        || desktop_entry["profile"] != stage.cargo_profile()
         || desktop_entry["qualification_evidence"] != desktop_qualification_name
         || desktop_entry["runner"] != "macos-15"
         || desktop_entry["signing_kind"] != "apple-adhoc"
@@ -9691,6 +9726,14 @@ mod tests {
         assert!(ReleaseStage::Beta.requires_intel_gui_release_evidence());
         assert!(ReleaseStage::ReleaseCandidate.requires_intel_gui_release_evidence());
         assert!(ReleaseStage::Stable.requires_intel_gui_release_evidence());
+    }
+
+    #[test]
+    fn build_profile_is_selected_from_validated_release_stage() {
+        assert_eq!(ReleaseStage::Alpha.cargo_profile(), "release-alpha");
+        assert_eq!(ReleaseStage::Beta.cargo_profile(), "release");
+        assert_eq!(ReleaseStage::ReleaseCandidate.cargo_profile(), "release");
+        assert_eq!(ReleaseStage::Stable.cargo_profile(), "release");
     }
 
     #[test]
@@ -11570,6 +11613,7 @@ mod tests {
             "record": "desktop-macos-aarch64",
             "target": "aarch64-apple-darwin",
             "environment": "macos-15",
+            "profile": ReleaseStage::Alpha.cargo_profile(),
             "tag": tag,
             "version": version,
             "archive": {
@@ -11599,6 +11643,12 @@ mod tests {
         read_macos_gui_qualification(&evidence_path, &tag, version, &archive)
             .expect("accept exact macOS GUI qualification evidence");
 
+        evidence["profile"] = Value::String("release".to_owned());
+        write_pretty_json(&evidence_path, &evidence)
+            .expect("write profile-drifted macOS GUI qualification evidence");
+        assert!(read_macos_gui_qualification(&evidence_path, &tag, version, &archive).is_err());
+
+        evidence["profile"] = Value::String(ReleaseStage::Alpha.cargo_profile().to_owned());
         evidence["checks"]["packaged_gui_launch"] = Value::Bool(false);
         write_pretty_json(&evidence_path, &evidence)
             .expect("write malformed macOS GUI qualification evidence");
