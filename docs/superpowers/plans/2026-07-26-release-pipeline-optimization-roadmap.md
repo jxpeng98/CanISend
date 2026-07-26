@@ -1,7 +1,6 @@
 # CanISend release-pipeline optimization roadmap
 
-**Status:** Stage 1–6 implementation and Stage 2–6 measurements complete; Stage 1 tag promotion
-remains pending
+**Status:** Stage 1–6 implementation, measurement, and exact-byte tag promotion complete
 
 **Decision date:** 2026-07-26
 
@@ -108,7 +107,7 @@ promotes those exact bytes without compiling, signing, packaging, or attesting r
 - [x] Document the operator and signing sequence.
 - [x] Run formatter, focused `xtask` tests, Clippy, workflow syntax checks, and `release check`.
 - [x] Review the workflow diff and commit Stage 1.
-- [ ] Exercise the new path with the next future version: successful candidate first, then
+- [x] Exercise the new path with the next future version: successful candidate first, then
   annotated tag, then confirm the tag run has no product build jobs.
 
 **Exit:** Source gates prove the contract locally. The next release proves that the candidate and
@@ -259,6 +258,12 @@ qualification suite. Those remain owned by scheduled or exact-release workflows.
 
 Keep ordinary development on the measured macOS fast path. Non-publishing native run `30215276643`
 successfully exercised the release-only Windows gate and parallel source/native dependency graph
-for exact source `d091d14`; the downloaded 13-file candidate also passed exact-byte verification.
-The next release action is the Stage 1 build-once annotated-tag promotion for
-`v1.0.0-alpha.2`, and it remains prohibited until publication is explicitly authorized.
+for exact source `d091d14`; the downloaded candidate contained 13 checksum-covered files plus
+`SHA256SUMS` and passed exact-byte verification. Annotated-tag recovery/promotion run
+`30218290996` then published the same 14 assets as `v1.0.0-alpha.2` without recompilation. All six
+private-draft smoke lanes and the public checksum, provenance, update-response, and byte-continuity
+checks passed.
+
+The next product action is the remaining Stage 4 feature work. The next release should reuse this
+build-once path: qualify a future candidate, explicitly authorize an annotated tag, then promote
+only its verified bytes.

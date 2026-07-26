@@ -4,7 +4,8 @@
 
 **Source version:** `1.0.0-alpha.2`
 
-**Scope:** Stage 4B source implementation, hosted Fast CI, and exact Alpha.2 candidate evidence
+**Scope:** Stage 4B source implementation, hosted Fast CI, exact Alpha.2 candidate evidence, and
+public prerelease verification
 
 ## Outcome
 
@@ -88,7 +89,8 @@ minutes. It built and smoked the five supported CLI targets, built the Apple Sil
 with its version-matched CLI, verified community signing policy, completed the Windows release
 contracts, assembled the SBOM/manifest/checksums, and attested the resulting assets. The complete
 candidate artifact was downloaded rather than rebuilt locally. `xtask release verify-candidate`
-verified all 13 files against `v1.0.0-alpha.2` and exact source `d091d14`.
+verified all 13 checksum-covered files against `v1.0.0-alpha.2` and exact source `d091d14`. The
+complete candidate contained those files plus `SHA256SUMS`, for 14 release assets in total.
 
 The downloaded desktop archive was 49,466,754 bytes with SHA-256
 `1891f184583d5d221af8e02cb521c49cce0503709e53586790be257dd30e2a9f`. Its exact bytes passed:
@@ -101,5 +103,29 @@ The downloaded desktop archive was 49,466,754 bytes with SHA-256
   reopen; and
 - terminal CLI migration, same-version update, rollback uninstall, and workspace retention.
 
-Stage 4B is therefore qualified. No tag, GitHub Release, public asset, or update response was
-created; publication remains a separate explicitly authorized action.
+## Publication and public verification
+
+After explicit publication authorization, annotated tag `v1.0.0-alpha.2` was created at exact
+candidate source `d091d147390474514145b154b88b2cf443e6f7c1`. The first promotion attempt failed
+closed while reading private draft assets and did not publish the release. The recovery retained
+the already-qualified candidate bytes and added:
+
+- API-based private draft asset lookup and digest validation (`cb49716`);
+- a least-privilege broker artifact for the six read-only native smoke jobs (`ec9adc2`); and
+- checksum-derived draft asset accounting for 13 covered files plus `SHA256SUMS` (`9ef124e`).
+
+Recovery/promotion run
+[`30218290996`](https://github.com/jxpeng98/CanISend/actions/runs/30218290996) completed in about
+5 minutes 21 seconds without rebuilding a product binary. It published
+[`v1.0.0-alpha.2`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.2) as a
+prerelease at `2026-07-26T20:11:04Z`, after all six draft-boundary native smoke jobs passed.
+
+The 14 public assets were downloaded again. They were byte-identical to candidate run
+`30215276643`; all 13 checksum-covered files passed `SHA256SUMS`, candidate identity and
+provenance verification passed against `d091d14`, and the public update response reported the
+expected prerelease. The public manifest SHA-256 is
+`784f3efba940444955e3b2066efd9ffc586a76dba7d9d25196f4bd52aafb5463`; the Apple Silicon GUI
+archive remains 49,466,754 bytes with SHA-256
+`1891f184583d5d221af8e02cb521c49cce0503709e53586790be257dd30e2a9f`.
+
+Stage 4B and its public Alpha.2 checkpoint are therefore qualified.

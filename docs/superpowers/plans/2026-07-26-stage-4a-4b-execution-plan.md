@@ -1,12 +1,16 @@
 # CanISend Stage 4A and 4B execution plan
 
-**Status:** Stage 4A and Stage 4B complete; exact non-publishing Alpha.2 candidate qualified
+**Status:** Stage 4A and Stage 4B complete; exact Alpha.2 candidate qualified and published
 
 **Decision date:** 2026-07-26
 
 **Source baseline:** `1.0.0-alpha.2` at `d657710`
 
 **Qualified checkpoint:** `1.0.0-alpha.2` at `d091d14`, native run `30215276643`
+
+**Published checkpoint:**
+[`v1.0.0-alpha.2`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.2), promotion
+run `30218290996`
 
 **Parent roadmap:** [CanISend 1.0 release roadmap](2026-07-25-1.0-release-roadmap.md)
 
@@ -763,6 +767,9 @@ Stage 4B definition of done:
 - [x] Local and hosted Fast CI remain below five minutes.
 - [x] Exact downloaded macOS lifecycle and accessibility evidence passes before Alpha.2
   publication is considered.
+- [x] Annotated tag promotion publishes the exact 14-asset candidate without recompilation, and
+  the re-downloaded public assets pass checksum, provenance, update-response, and byte-continuity
+  verification.
 
 ## 8. Test ownership and timing policy
 
@@ -871,7 +878,8 @@ below five minutes, and the exact macOS Alpha candidate lifecycle passes.
 
 After Stage 4B:
 
-- `v1.0.0-alpha.2` may be considered for publication as an explicit Alpha checkpoint;
+- `v1.0.0-alpha.2` is published as an explicitly authorized Alpha checkpoint from the exact
+  qualified candidate;
 - Stage 4 continues with profile/evidence, decision workflow, agent tasks, discovery, documents,
   review, render, and export;
 - `v1.0.0-beta.1` remains prohibited until the intended 1.0 surface is complete and the remaining
