@@ -23,12 +23,11 @@ jobs:
       contents: write
       id-token: write
     steps:
-      - name: Check out the exact release tag
+      - name: Check out the default-branch recovery workflow and fetch release tags
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
           fetch-tags: true
-          ref: ${{ inputs.tag }}
 
       - name: Validate immutable tag and successful promotion gates
         env:
@@ -38,9 +37,9 @@ jobs:
         shell: bash
         run: |
           [[ "$SOURCE_RUN_ID" =~ ^[0-9]+$ ]]
+          [[ "$GITHUB_REF" == "refs/heads/main" ]]
           [[ "$(git cat-file -t "$RELEASE_TAG")" == "tag" ]]
           tag_commit="$(git rev-parse "$RELEASE_TAG^{commit}")"
-          [[ "$tag_commit" == "$(git rev-parse HEAD)" ]]
 
           gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${SOURCE_RUN_ID}" \
             > "$RUNNER_TEMP/source-run.json"
@@ -109,9 +108,16 @@ jobs:
         run: |
           draft_assets="$RUNNER_TEMP/draft-assets"
           mkdir -p "$draft_assets"
-          gh release download "$RELEASE_TAG" \
+          gh release view "$RELEASE_TAG" \
             --repo "$GITHUB_REPOSITORY" \
-            --dir "$draft_assets"
+            --json assets \
+            --jq '.assets[].name' \
+            | while IFS= read -r asset; do
+                ./scripts/download_github_draft_asset.sh \
+                  "$RELEASE_TAG" \
+                  "$asset" \
+                  "$draft_assets/$asset"
+              done
           cd "$draft_assets"
           sha256sum -c SHA256SUMS
           asset_count="$(find . -maxdepth 1 -type f | wc -l | tr -d ' ')"

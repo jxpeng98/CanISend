@@ -14,6 +14,11 @@ on:
         description: "Body-free sccache namespace epoch used for cold/warm/invalidation measurement"
         required: true
         default: "stage4-v1"
+      promote_existing_tag:
+        description: "Explicitly resume build-once promotion for an existing annotated tag"
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -50,6 +55,22 @@ jobs:
             mode="promote"
             if [[ "$(git cat-file -t "refs/tags/$tag")" != "tag" ]]; then
               echo "release promotion requires an annotated tag: $tag" >&2
+              exit 1
+            fi
+            commit="$(git rev-list -n 1 "refs/tags/$tag")"
+          elif [[ "${{ inputs.promote_existing_tag }}" == "true" ]]; then
+            tag="${{ inputs.tag }}"
+            mode="promote"
+            if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+              echo "existing-tag promotion must run from refs/heads/main" >&2
+              exit 1
+            fi
+            if ! git show-ref --verify --quiet "refs/tags/$tag"; then
+              echo "existing-tag promotion requires a pushed tag: $tag" >&2
+              exit 1
+            fi
+            if [[ "$(git cat-file -t "refs/tags/$tag")" != "tag" ]]; then
+              echo "existing-tag promotion requires an annotated tag: $tag" >&2
               exit 1
             fi
             commit="$(git rev-list -n 1 "refs/tags/$tag")"
@@ -1091,10 +1112,10 @@ jobs:
           else
             archive="canisend-$version-${{ matrix.target }}.${{ matrix.extension }}"
           fi
-          gh release download "$RELEASE_TAG" \
-            --pattern "$archive" \
-            --dir "$download_root"
-          test -s "$download_root/$archive"
+          ./scripts/download_github_draft_asset.sh \
+            "$RELEASE_TAG" \
+            "$archive" \
+            "$download_root/$archive"
 
       - name: Smoke downloaded standalone CLI archive
         if: matrix.surface == 'cli'

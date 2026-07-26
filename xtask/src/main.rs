@@ -3826,6 +3826,7 @@ fn check_release_contract() -> Result<(), String> {
         "scripts/package_macos_gui_release.sh",
         "scripts/smoke_macos_gui_release_archive.sh",
         "scripts/verify_macos_gui_app.sh",
+        "scripts/download_github_draft_asset.sh",
     ] {
         let path = root.join(required);
         if !path.is_file() {
@@ -3871,6 +3872,10 @@ fn check_release_contract() -> Result<(), String> {
         "smoke_macos_gui_release_archive.sh",
         "desktop-macos-aarch64",
         "verify-draft-release-assets",
+        "promote_existing_tag:",
+        "existing-tag promotion requires an annotated tag",
+        "existing-tag promotion must run from refs/heads/main",
+        "download_github_draft_asset.sh",
         "publish-verified-release",
         "verify-published-release",
         "gh attestation verify",
