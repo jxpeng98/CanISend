@@ -1,6 +1,6 @@
 # CanISend Stage 4A and 4B execution plan
 
-**Status:** Approved for execution planning; implementation not started
+**Status:** Stage 4A source-complete; Stage 4B ready to begin
 
 **Decision date:** 2026-07-26
 
@@ -433,13 +433,14 @@ Fast CI:
 
 Stage 4A definition of done:
 
-- [ ] Roadmap and parity authority are unambiguous.
-- [ ] GUI structure is modular with no visible behavior change.
-- [ ] Worker requests/events are typed and centrally reduced.
-- [ ] The 13 overlapping Alpha CLI operations route through `canisend-app`.
-- [ ] CLI response and exit contracts are unchanged.
-- [ ] Focused and source gates pass.
-- [ ] Fast CI remains under the five-minute target.
+- [x] Roadmap and parity authority are unambiguous.
+- [x] GUI structure is modular with no visible behavior change.
+- [x] Worker requests/events are typed and centrally reduced.
+- [x] The 13 overlapping Alpha CLI operations route through `canisend-app`.
+- [x] CLI response and exit contracts are unchanged.
+- [x] Focused and source gates pass.
+- [x] The local Fast CI equivalent remains under the five-minute target; the current hosted run
+  will start after the commits are pushed.
 
 ## 7. Stage 4B — recovery and workflow controls
 
