@@ -21,6 +21,7 @@ pub use system::{DoctorSummary, ProductSummary};
 pub use update::UpdateCheckReadModel;
 pub use workspace::{
     BackupReadModel, WorkspaceHealthReadModel, WorkspaceInitPolicy, WorkspaceReadModel,
+    WorkspaceRepairReadModel, WorkspaceRestoreReadModel,
 };
 
 #[cfg(test)]
