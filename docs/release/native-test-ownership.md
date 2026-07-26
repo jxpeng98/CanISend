@@ -67,3 +67,13 @@ Time saved remains `null` until cold and warm candidates are compared on the sam
 These statistics are diagnostic job artifacts: they are excluded from the release manifest and
 cannot authorize publication or replace source, archive, signature, checksum, or provenance
 verification.
+
+The completed Alpha comparison is preserved in
+[`release-pipeline-stage4.json`](../performance/release-pipeline-stage4.json). Its three
+non-publishing candidates use the same tag, source commit, and runner classes; the warm run reuses
+`stage4-v1`, while the intentionally invalidated run uses `stage4-v2`.
+
+The Alpha-fast profile comparison is preserved in
+[`release-pipeline-stage5.json`](../performance/release-pipeline-stage5.json). It compares cold
+canonical and `release-alpha` candidates across every package owner, records archive and runtime
+effects, and keeps the observed GNU and Windows compile regressions visible for targeted follow-up.

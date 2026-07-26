@@ -1,6 +1,7 @@
 # CanISend release-pipeline optimization roadmap
 
-**Status:** Stage 4 implemented locally; Stage 1–4 native candidate measurement remains pending
+**Status:** Stage 1–5 implementation and Stage 2–5 candidate measurements complete; Stage 1 tag
+promotion remains pending
 
 **Decision date:** 2026-07-26
 
@@ -139,7 +140,7 @@ the smallest native test that proves each platform claim.
 - [x] Add source checks that reject a native target with neither a platform test nor archive smoke.
 - [x] Record per-job build, target-specific validation, package, and smoke duration in a body-free
   timing artifact.
-- [ ] Compare two candidate runs before accepting the new partition.
+- [x] Compare two candidate runs before accepting the new partition.
 
 **Exit:** No claimed native behavior loses its owning test, while Windows and Intel runners no
 longer compile unrelated workspace test binaries.
@@ -176,7 +177,10 @@ owned by a scheduled or stage-specific gate instead of every ordinary candidate.
   the compile-window input for the cold/warm time-saved comparison.
 - [x] Fall back to normal Cargo compilation when installation, server startup, or cache I/O is
   unavailable.
-- [ ] Compare cold, warm, and intentionally invalidated candidates.
+- [x] Compare cold, warm, and intentionally invalidated candidates. The body-free evidence is
+  recorded in [`release-pipeline-stage4.json`](../../performance/release-pipeline-stage4.json):
+  warm improved the critical path by 37.45% versus the native-cold run and 41.83% versus the
+  fully invalidated run.
 
 **Exit:** Warm candidate critical-path time improves by at least 20%, cold builds remain correct,
 and cache failure cannot block or weaken release verification.
@@ -193,14 +197,21 @@ The canonical `release` profile remains the RC/Stable profile.
 
 ### Implementation tasks
 
-- [ ] Measure current Alpha archive size, startup, render, and synthetic workflow budgets.
-- [ ] Add a named profile such as `release-alpha`; do not silently redefine `release`.
-- [ ] Select the profile from the validated release stage in packaging scripts/workflow.
-- [ ] Record the selected profile in CLI, GUI compilation, and package qualification evidence.
-- [ ] Update manifest verification so profile identity cannot drift.
-- [ ] Compare compile time, binary size, cold start, and runtime budgets on Apple Silicon,
+- [x] Measure current Alpha archive size, startup, render, and synthetic workflow budgets.
+- [x] Add a named profile such as `release-alpha`; do not silently redefine `release`.
+- [x] Select the profile from the validated release stage in packaging scripts/workflow.
+- [x] Record the selected profile in CLI, GUI compilation, and package qualification evidence.
+- [x] Update manifest verification so profile identity cannot drift.
+- [x] Compare compile time, binary size, cold start, and runtime budgets on Apple Silicon,
   Intel macOS, Windows, GNU, and musl.
-- [ ] Keep RC/Stable on the canonical optimized profile.
+- [x] Keep RC/Stable on the canonical optimized profile.
+
+The comparison is preserved in
+[`release-pipeline-stage5.json`](../../performance/release-pipeline-stage5.json). Against the
+intentionally cold canonical candidate, `release-alpha` reduced the critical path from 2044 to
+1733 seconds (15.22%, or 5m11s), with all runtime and archive gates green. Four of six compile
+owners improved; GNU (+10.68%) and Windows (+7.77%) are retained as explicit runner-specific
+follow-up items rather than hidden by the overall result.
 
 **Exit:** Alpha builds are materially faster, every artifact records its profile, runtime budgets
 remain green, and RC/Stable optimization is unchanged.
@@ -221,8 +232,8 @@ qualification suite. Those remain owned by scheduled or exact-release workflows.
 
 ## 10. Immediate next action
 
-Do not trigger another expensive native candidate for the already published
-`v1.0.0-alpha.1`. On the next sequential future version, run cold, warm, and intentionally
-invalidated candidates; calculate time saved from the recorded compile windows; then exercise the
-Stage 1 candidate-to-tag promotion path. Start Stage 5 only after that measurement confirms the
-cache boundary and warm-run budget.
+Review the Stage 4 and Stage 5 evidence, then exercise the Stage 1 build-once promotion contract
+for `v1.0.0-alpha.2`: create the annotated tag only after explicitly authorizing publication and
+confirm that the tag workflow promotes the already verified candidate without compiling product
+binaries. Independently profile the GNU and Windows `release-alpha` regressions before changing
+the accepted profile boundary.

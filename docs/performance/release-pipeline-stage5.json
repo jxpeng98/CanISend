@@ -1,0 +1,183 @@
+{
+  "schema": "canisend.release-alpha-profile-comparison/v1",
+  "recorded_at": "2026-07-26T13:20:00Z",
+  "tag": "v1.0.0-alpha.2",
+  "rust_toolchain": "1.97.0",
+  "comparison": {
+    "canonical_release": {
+      "github_run_id": 30201714808,
+      "source_commit": "a20ab7879f42c983492baed98421ede803c12d67",
+      "cargo_profile": "release",
+      "cache_epoch": "stage4-v2",
+      "critical_path_seconds": 2044,
+      "conclusion": "success"
+    },
+    "alpha_fast": {
+      "github_run_id": 30202847351,
+      "source_commit": "050f0362e2025cad569f5d4fb209aed2afb06079",
+      "cargo_profile": "release-alpha",
+      "cache_epoch": "stage5-v1",
+      "critical_path_seconds": 1733,
+      "conclusion": "success"
+    },
+    "critical_path": {
+      "saved_seconds": 311,
+      "improvement_percent": 15.22,
+      "materially_faster": true
+    },
+    "method": "Both non-publishing candidates used the same tag, Rust toolchain, runner classes, complete verification graph, and cold compiler-cache namespaces. The candidate commit differs only by the Stage 5 profile-selection implementation."
+  },
+  "compile_windows": [
+    {
+      "owner": "native-release",
+      "target": "aarch64-apple-darwin",
+      "runner": "macos-15",
+      "canonical_seconds": 395,
+      "alpha_fast_seconds": 372,
+      "change_percent": -5.82
+    },
+    {
+      "owner": "native-release",
+      "target": "x86_64-apple-darwin",
+      "runner": "macos-15-intel",
+      "canonical_seconds": 1200,
+      "alpha_fast_seconds": 913,
+      "change_percent": -23.92
+    },
+    {
+      "owner": "native-release",
+      "target": "x86_64-unknown-linux-gnu",
+      "runner": "ubuntu-24.04",
+      "canonical_seconds": 440,
+      "alpha_fast_seconds": 487,
+      "change_percent": 10.68
+    },
+    {
+      "owner": "native-release",
+      "target": "x86_64-unknown-linux-musl",
+      "runner": "ubuntu-24.04",
+      "canonical_seconds": 472,
+      "alpha_fast_seconds": 445,
+      "change_percent": -5.72
+    },
+    {
+      "owner": "native-release",
+      "target": "x86_64-pc-windows-msvc",
+      "runner": "windows-2025",
+      "canonical_seconds": 849,
+      "alpha_fast_seconds": 915,
+      "change_percent": 7.77
+    },
+    {
+      "owner": "desktop-release",
+      "target": "aarch64-apple-darwin",
+      "runner": "macos-15",
+      "canonical_seconds": 598,
+      "alpha_fast_seconds": 550,
+      "change_percent": -8.03
+    }
+  ],
+  "archive_sizes": [
+    {
+      "artifact": "cli/aarch64-apple-darwin",
+      "canonical_bytes": 23515078,
+      "alpha_fast_bytes": 23753543,
+      "change_percent": 1.01
+    },
+    {
+      "artifact": "cli/x86_64-apple-darwin",
+      "canonical_bytes": 24972418,
+      "alpha_fast_bytes": 25177957,
+      "change_percent": 0.82
+    },
+    {
+      "artifact": "cli/x86_64-unknown-linux-gnu",
+      "canonical_bytes": 25593528,
+      "alpha_fast_bytes": 26004978,
+      "change_percent": 1.61
+    },
+    {
+      "artifact": "cli/x86_64-unknown-linux-musl",
+      "canonical_bytes": 25887814,
+      "alpha_fast_bytes": 26426570,
+      "change_percent": 2.08
+    },
+    {
+      "artifact": "cli/x86_64-pc-windows-msvc",
+      "canonical_bytes": 23514368,
+      "alpha_fast_bytes": 23528761,
+      "change_percent": 0.06
+    },
+    {
+      "artifact": "desktop/aarch64-apple-darwin",
+      "canonical_bytes": 48052463,
+      "alpha_fast_bytes": 48643106,
+      "change_percent": 1.23
+    }
+  ],
+  "linux_gnu_runtime": {
+    "canonical": {
+      "release_binary_bytes": 58437288,
+      "version_startup_median_ms": 3,
+      "capabilities_startup_median_ms": 3,
+      "status_100_jobs_median_ms": 4,
+      "html_1_mib_intake_median_ms": 72,
+      "pdf_50_page_intake_median_ms": 14,
+      "typst_render_median_ms": 6,
+      "full_synthetic_workflow_ms": 278
+    },
+    "alpha_fast": {
+      "release_binary_bytes": 61718288,
+      "version_startup_median_ms": 4,
+      "capabilities_startup_median_ms": 3,
+      "status_100_jobs_median_ms": 4,
+      "html_1_mib_intake_median_ms": 77,
+      "pdf_50_page_intake_median_ms": 17,
+      "typst_render_median_ms": 6,
+      "full_synthetic_workflow_ms": 295
+    },
+    "all_budgets_passed": true
+  },
+  "local_macos_gui": {
+    "evidence": "macos-gui-alpha-baseline.json",
+    "canonical": {
+      "startup_median_ms": 757.387,
+      "startup_max_ms": 951.566,
+      "signed_gui_bytes": 50055904,
+      "bundled_cli_bytes": 48524720,
+      "app_bundle_bytes": 98861056
+    },
+    "alpha_fast": {
+      "startup_median_ms": 649.651,
+      "startup_max_ms": 934.211,
+      "signed_gui_bytes": 52249856,
+      "bundled_cli_bytes": 51077184,
+      "app_bundle_bytes": 103612416
+    },
+    "change_percent": {
+      "startup_median": -14.22,
+      "startup_max": -1.82,
+      "signed_gui_size": 4.38,
+      "bundled_cli_size": 5.26,
+      "app_bundle_size": 4.81
+    },
+    "all_budgets_passed": true
+  },
+  "integrity": {
+    "all_six_packages_built": true,
+    "all_exact_archive_smokes_passed": true,
+    "release_manifest_profile_verification_passed": true,
+    "macos_qualification_profile": "release-alpha",
+    "all_native_timing_profiles": "release-alpha",
+    "beta_rc_stable_profile": "release",
+    "scheduled_intel_profile": "release",
+    "publication_jobs_skipped": true,
+    "no_publication": true
+  },
+  "follow_up": {
+    "gnu_compile_regression_percent": 10.68,
+    "windows_compile_regression_percent": 7.77,
+    "rule": "Keep the accepted Stage 5 profile boundary and investigate these runner-specific regressions independently; do not weaken package or runtime gates."
+  },
+  "conclusion": "The cold Alpha candidate critical path is 311 seconds faster, four of six compile owners improve, size growth remains bounded, runtime budgets remain green, and every package records the selected profile. GNU and Windows compile-window regressions remain explicit follow-up items."
+}

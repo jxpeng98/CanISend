@@ -1,0 +1,259 @@
+{
+  "schema": "canisend.release-pipeline-cache-comparison/v1",
+  "recorded_at": "2026-07-26T12:50:00Z",
+  "tag": "v1.0.0-alpha.2",
+  "source_commit": "a20ab7879f42c983492baed98421ede803c12d67",
+  "rust_toolchain": "1.97.0",
+  "cargo_profile": "release",
+  "candidates": {
+    "cold": {
+      "github_run_id": 30200016002,
+      "cache_epoch": "stage4-v1",
+      "critical_path_seconds": 1901,
+      "conclusion": "success",
+      "note": "Native owners were cold. The source owner had been primed by rejected run 30199672917 and is excluded from the cold source comparison."
+    },
+    "warm": {
+      "github_run_id": 30201049334,
+      "cache_epoch": "stage4-v1",
+      "critical_path_seconds": 1189,
+      "conclusion": "success"
+    },
+    "invalidated": {
+      "github_run_id": 30201714808,
+      "cache_epoch": "stage4-v2",
+      "critical_path_seconds": 2044,
+      "conclusion": "success"
+    }
+  },
+  "critical_path_comparisons": {
+    "warm_vs_cold": {
+      "saved_seconds": 712,
+      "improvement_percent": 37.45,
+      "minimum_required_percent": 20,
+      "passed": true
+    },
+    "warm_vs_invalidated": {
+      "saved_seconds": 855,
+      "improvement_percent": 41.83,
+      "minimum_required_percent": 20,
+      "passed": true
+    }
+  },
+  "owners": [
+    {
+      "owner": "source-gates",
+      "target": "x86_64-unknown-linux-gnu",
+      "runner": "ubuntu-24.04",
+      "profile": "debug-release",
+      "cold": {
+        "compile_window_seconds": 183,
+        "cache_hits": 16,
+        "cache_misses": 0,
+        "cache_errors": 0,
+        "hit_rate_percent": 100
+      },
+      "warm": {
+        "compile_window_seconds": 160,
+        "cache_hits": 16,
+        "cache_misses": 0,
+        "cache_errors": 0,
+        "hit_rate_percent": 100
+      },
+      "invalidated": {
+        "compile_window_seconds": 562,
+        "cache_hits": 0,
+        "cache_misses": 16,
+        "cache_errors": 0,
+        "hit_rate_percent": 0
+      }
+    },
+    {
+      "owner": "native-release",
+      "target": "aarch64-apple-darwin",
+      "runner": "macos-15",
+      "profile": "release",
+      "cold": {
+        "compile_window_seconds": 381,
+        "cache_hits": 0,
+        "cache_misses": 1630,
+        "cache_errors": 0,
+        "hit_rate_percent": 0
+      },
+      "warm": {
+        "compile_window_seconds": 368,
+        "cache_hits": 606,
+        "cache_misses": 1024,
+        "cache_errors": 0,
+        "hit_rate_percent": 37.17
+      },
+      "invalidated": {
+        "compile_window_seconds": 395,
+        "cache_hits": 0,
+        "cache_misses": 1630,
+        "cache_errors": 0,
+        "hit_rate_percent": 0
+      }
+    },
+    {
+      "owner": "native-release",
+      "target": "x86_64-apple-darwin",
+      "runner": "macos-15-intel",
+      "profile": "release",
+      "cold": {
+        "compile_window_seconds": 1358,
+        "cache_hits": 6,
+        "cache_misses": 1614,
+        "cache_errors": 0,
+        "hit_rate_percent": 0.37
+      },
+      "warm": {
+        "compile_window_seconds": 511,
+        "cache_hits": 1334,
+        "cache_misses": 286,
+        "cache_errors": 0,
+        "hit_rate_percent": 82.34
+      },
+      "invalidated": {
+        "compile_window_seconds": 1200,
+        "cache_hits": 6,
+        "cache_misses": 1614,
+        "cache_errors": 0,
+        "hit_rate_percent": 0.37
+      }
+    },
+    {
+      "owner": "native-release",
+      "target": "x86_64-unknown-linux-gnu",
+      "runner": "ubuntu-24.04",
+      "profile": "release",
+      "cold": {
+        "compile_window_seconds": 501,
+        "cache_hits": 0,
+        "cache_misses": 1622,
+        "cache_errors": 0,
+        "hit_rate_percent": 0
+      },
+      "warm": {
+        "compile_window_seconds": 346,
+        "cache_hits": 514,
+        "cache_misses": 1108,
+        "cache_errors": 0,
+        "hit_rate_percent": 31.68
+      },
+      "invalidated": {
+        "compile_window_seconds": 440,
+        "cache_hits": 0,
+        "cache_misses": 1622,
+        "cache_errors": 0,
+        "hit_rate_percent": 0
+      }
+    },
+    {
+      "owner": "native-release",
+      "target": "x86_64-unknown-linux-musl",
+      "runner": "ubuntu-24.04",
+      "profile": "release",
+      "cold": {
+        "compile_window_seconds": 494,
+        "cache_hits": 0,
+        "cache_misses": 1620,
+        "cache_errors": 4,
+        "hit_rate_percent": 0
+      },
+      "warm": {
+        "compile_window_seconds": 348,
+        "cache_hits": 460,
+        "cache_misses": 1160,
+        "cache_errors": 4,
+        "hit_rate_percent": 28.32
+      },
+      "invalidated": {
+        "compile_window_seconds": 472,
+        "cache_hits": 0,
+        "cache_misses": 1620,
+        "cache_errors": 4,
+        "hit_rate_percent": 0
+      }
+    },
+    {
+      "owner": "native-release",
+      "target": "x86_64-pc-windows-msvc",
+      "runner": "windows-2025",
+      "profile": "release",
+      "cold": {
+        "compile_window_seconds": 859,
+        "cache_hits": 0,
+        "cache_misses": 880,
+        "cache_errors": 0,
+        "hit_rate_percent": 0
+      },
+      "warm": {
+        "compile_window_seconds": 729,
+        "cache_hits": 0,
+        "cache_misses": 880,
+        "cache_errors": 0,
+        "hit_rate_percent": 0
+      },
+      "invalidated": {
+        "compile_window_seconds": 849,
+        "cache_hits": 0,
+        "cache_misses": 880,
+        "cache_errors": 0,
+        "hit_rate_percent": 0
+      }
+    },
+    {
+      "owner": "desktop-release",
+      "target": "aarch64-apple-darwin",
+      "runner": "macos-15",
+      "profile": "release",
+      "cold": {
+        "compile_window_seconds": 522,
+        "cache_hits": 0,
+        "cache_misses": 1760,
+        "cache_errors": 0,
+        "hit_rate_percent": 0
+      },
+      "warm": {
+        "compile_window_seconds": 500,
+        "cache_hits": 698,
+        "cache_misses": 1062,
+        "cache_errors": 0,
+        "hit_rate_percent": 39.65
+      },
+      "invalidated": {
+        "compile_window_seconds": 598,
+        "cache_hits": 0,
+        "cache_misses": 1760,
+        "cache_errors": 0,
+        "hit_rate_percent": 0
+      }
+    }
+  ],
+  "artifact_integrity": {
+    "cross_run_identical_extracted_binaries": [
+      "cli/aarch64-apple-darwin",
+      "cli/x86_64-apple-darwin",
+      "cli/x86_64-unknown-linux-gnu",
+      "cli/x86_64-unknown-linux-musl",
+      "desktop-gui/aarch64-apple-darwin",
+      "desktop-bundled-cli/aarch64-apple-darwin"
+    ],
+    "windows_cross_run_reproducible": false,
+    "windows_each_run_exact_archive_verified": true,
+    "all_candidates_assembled_and_verified": true
+  },
+  "checks": {
+    "same_tag": true,
+    "same_source_commit": true,
+    "same_runner_classes": true,
+    "warm_namespace_reused": true,
+    "invalidated_namespace_changed": true,
+    "cache_failure_blocks_build": false,
+    "cache_is_release_evidence": false,
+    "publication_jobs_skipped": true,
+    "no_publication": true
+  },
+  "conclusion": "Warm candidate critical-path time improved by more than 20 percent, invalidation restored cold behavior, and every candidate retained the complete release verification path."
+}
