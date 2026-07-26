@@ -3,6 +3,7 @@
 mod application;
 mod cli_install;
 mod decision;
+mod discovery;
 mod error;
 mod job;
 mod plan;
@@ -16,6 +17,11 @@ mod workspace;
 pub use application::{Application, NetworkFetchConsent, PrivateReadConsent};
 pub use cli_install::{
     CliInstallState, CliInstallStatus, CliVersionRelation, TerminalInstallConsent,
+};
+pub use discovery::{
+    DiscoveryAdapterCatalogReadModel, DiscoveryImportRequest, DiscoveryLeadListReadModel,
+    DiscoveryNetworkAdapter, DiscoveryPromotionReadModel, DiscoveryRefreshRequest,
+    DiscoverySourceListReadModel, DiscoverySuggestionReadModel,
 };
 pub use error::{ApplicationError, ApplicationFailure};
 pub use job::{JobDetailReadModel, JobListReadModel, SourceImportReadModel};
