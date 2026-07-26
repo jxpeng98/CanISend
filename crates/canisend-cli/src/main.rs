@@ -31,9 +31,9 @@ use canisend_io::{
 };
 use canisend_resources::{AgentHost, ResourceError, ResourceId, ResourceKind, export_agent_pack};
 use canisend_store::{
-    AgentContextService, CriteriaService, DiscoveryService, DocumentService, MatchService,
-    PackageService, PlanService, ProjectionService, RenderService, ReviewService, StoreError,
-    TaskService, WorkflowService, Workspace, current_utc_timestamp,
+    AgentContextService, DiscoveryService, DocumentService, PackageService, PlanService,
+    ProjectionService, RenderService, ReviewService, StoreError, TaskService, WorkflowService,
+    Workspace, current_utc_timestamp,
 };
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use serde_json::json;
@@ -2692,11 +2692,12 @@ fn criteria_proposed(
     workspace_path: Option<PathBuf>,
     job_id: &str,
 ) -> CommandResult<CommandOutput> {
-    let job_id = parse_entity_id("criteria.proposed", job_id)?;
-    let mut workspace = open_workspace(workspace_path, "criteria.proposed")?;
-    let proposed = CriteriaService::new(&mut workspace.database, &workspace.blobs)
-        .proposed(&job_id)
-        .map_err(|error| store_failure("criteria.proposed", error))?;
+    let _ = parse_entity_id("criteria.proposed", job_id)?;
+    let root = app_adapter::workspace_root(workspace_path, "criteria.proposed")?;
+    let proposed =
+        Application::proposed_job_criteria(&root, job_id, PrivateReadConsent::granted_by_user())
+            .map_err(|error| app_adapter::failure("criteria.proposed", error))?
+            .data;
     success(
         "criteria.proposed",
         "available",
@@ -2714,10 +2715,14 @@ fn criteria_export(
     arguments: CriteriaExportArgs,
 ) -> CommandResult<CommandOutput> {
     let job_id = parse_entity_id("criteria.export", &arguments.job)?;
-    let mut workspace = open_workspace(workspace_path, "criteria.export")?;
-    let template = CriteriaService::new(&mut workspace.database, &workspace.blobs)
-        .template(&job_id)
-        .map_err(|error| store_failure("criteria.export", error))?;
+    let root = app_adapter::workspace_root(workspace_path, "criteria.export")?;
+    let template = Application::job_criteria_template(
+        &root,
+        job_id.as_str(),
+        PrivateReadConsent::granted_by_user(),
+    )
+    .map_err(|error| app_adapter::failure("criteria.export", error))?
+    .data;
     write_private_json_new(&arguments.destination, &template)
         .map_err(|error| io_adapter_failure("criteria.export", error))?;
     let mut output = success(
@@ -2755,13 +2760,24 @@ fn criteria_confirm(
     let job_id = parse_entity_id("criteria.confirm", &arguments.job)?;
     let candidate = read_criteria_file(&arguments.file)
         .map_err(|error| io_adapter_failure("criteria.confirm", error))?;
-    let mut workspace = open_workspace(workspace_path, "criteria.confirm")?;
-    let artifact = CriteriaService::new(&mut workspace.database, &workspace.blobs)
-        .confirm(&job_id, &candidate)
-        .map_err(|error| store_failure("criteria.confirm", error))?;
-    let confirmed = CriteriaService::new(&mut workspace.database, &workspace.blobs)
-        .confirmed(&job_id)
-        .map_err(|error| store_failure("criteria.confirm", error))?;
+    let root = app_adapter::workspace_root(workspace_path, "criteria.confirm")?;
+    let receipt = Application::confirm_job_criteria(
+        &root,
+        job_id.as_str(),
+        &candidate,
+        PrivateReadConsent::granted_by_user(),
+    )
+    .map_err(|error| app_adapter::failure("criteria.confirm", error))?;
+    let confirmed = receipt.data;
+    let artifact = receipt.artifacts.first().cloned().ok_or_else(|| {
+        CommandFailure::new(
+            "criteria.confirm",
+            "invariant-failed",
+            ErrorCode::InternalInvariantFailed,
+            "criteria confirmation returned no artifact",
+            false,
+        )
+    })?;
     let mut output = success(
         "criteria.confirm",
         "confirmed",
@@ -2776,11 +2792,12 @@ fn criteria_confirm(
 }
 
 fn criteria_show(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<CommandOutput> {
-    let job_id = parse_entity_id("criteria.show", job_id)?;
-    let mut workspace = open_workspace(workspace_path, "criteria.show")?;
-    let confirmed = CriteriaService::new(&mut workspace.database, &workspace.blobs)
-        .confirmed(&job_id)
-        .map_err(|error| store_failure("criteria.show", error))?;
+    let _ = parse_entity_id("criteria.show", job_id)?;
+    let root = app_adapter::workspace_root(workspace_path, "criteria.show")?;
+    let confirmed =
+        Application::confirmed_job_criteria(&root, job_id, PrivateReadConsent::granted_by_user())
+            .map_err(|error| app_adapter::failure("criteria.show", error))?
+            .data;
     success(
         "criteria.show",
         "available",
@@ -2793,11 +2810,12 @@ fn criteria_show(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult
 }
 
 fn match_show(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<CommandOutput> {
-    let job_id = parse_entity_id("match.show", job_id)?;
-    let mut workspace = open_workspace(workspace_path, "match.show")?;
-    let matches = MatchService::new(&mut workspace.database, &workspace.blobs)
-        .current(&job_id)
-        .map_err(|error| store_failure("match.show", error))?;
+    let _ = parse_entity_id("match.show", job_id)?;
+    let root = app_adapter::workspace_root(workspace_path, "match.show")?;
+    let matches =
+        Application::current_evidence_matches(&root, job_id, PrivateReadConsent::granted_by_user())
+            .map_err(|error| app_adapter::failure("match.show", error))?
+            .data;
     success(
         "match.show",
         "available",
