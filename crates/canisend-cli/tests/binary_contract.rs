@@ -777,7 +777,7 @@ fn discovery_csv_dry_run_commit_and_promotion_are_agent_callable() {
     let batch = input.path().join("leads.csv");
     fs::write(
         &batch,
-        b"external_id,title,organization,url,deadline\n1,Lecturer in Economics,University X,https://example.edu/jobs/1,2099-08-31\n2,Bad URL,University X,ftp://example.edu/jobs/2,2099-08-31\n",
+        b"external_id,title,organization,url,deadline\n1,Lecturer in Economics,University X,https://example.edu/jobs/1,2099-08-31\n2,Bad URL,University X,ftp://example.edu/jobs/2,2099-08-31\n3,Lecturer in Economics,University X,https://example.edu/jobs/3,2099-08-31\n",
     )
     .expect("write discovery batch");
     let batch_path = batch.to_str().expect("batch path is UTF-8");
@@ -799,9 +799,114 @@ fn discovery_csv_dry_run_commit_and_promotion_are_agent_callable() {
         "--json",
     ]);
     assert_eq!(dry_run["status"], "validated");
-    assert_eq!(dry_run["data"]["accepted"], 1);
+    assert_eq!(dry_run["data"]["accepted"], 2);
     assert_eq!(dry_run["data"]["rejected"], 1);
     assert_eq!(dry_run["data"]["receipt"], Value::Null);
+
+    let host_agent_csv = run(&[
+        "discovery",
+        "import",
+        "--file",
+        batch_path,
+        "--host-agent",
+        "--dry-run",
+        "--json",
+    ]);
+    assert_eq!(host_agent_csv.status.code(), Some(3));
+    let host_agent_csv: Value =
+        serde_json::from_slice(&host_agent_csv.stdout).expect("host-agent CSV error JSON");
+    assert_eq!(host_agent_csv["operation"], "discovery.import");
+    assert_eq!(host_agent_csv["error"]["code"], "input.invalid");
+    assert_eq!(
+        host_agent_csv["error"]["message"],
+        "--host-agent requires a JSON batch"
+    );
+
+    let host_batch = input.path().join("host-agent.json");
+    fs::write(
+        &host_batch,
+        serde_json::to_vec_pretty(&serde_json::json!({
+            "source_kind": "host-agent",
+            "source_name": "Reviewed agent leads",
+            "source_url": null,
+            "cursor": null,
+            "observed_at": "2026-07-26T00:00:00Z",
+            "leads": [{
+                "external_id": "agent-1",
+                "title": "Reader in Economics",
+                "organization": "University Y",
+                "location": null,
+                "deadline": null,
+                "url": "https://example.edu/jobs/agent-1",
+                "summary": null,
+                "metadata": {}
+            }]
+        }))
+        .expect("host-agent batch JSON"),
+    )
+    .expect("write host-agent batch");
+    let host_batch_path = host_batch.to_str().expect("host-agent path is UTF-8");
+    let host_preview = run_json(&[
+        "discovery",
+        "import",
+        "--file",
+        host_batch_path,
+        "--host-agent",
+        "--dry-run",
+        "--json",
+    ]);
+    assert_eq!(host_preview["status"], "validated");
+    assert_eq!(host_preview["data"]["accepted"], 1);
+    assert_eq!(host_preview["data"]["batch"]["source_kind"], "host-agent");
+
+    let host_override = run(&[
+        "discovery",
+        "import",
+        "--file",
+        host_batch_path,
+        "--host-agent",
+        "--source-name",
+        "Rejected override",
+        "--dry-run",
+        "--json",
+    ]);
+    assert_eq!(host_override.status.code(), Some(3));
+    let host_override: Value =
+        serde_json::from_slice(&host_override.stdout).expect("host-agent override error JSON");
+    assert_eq!(host_override["operation"], "discovery.import");
+    assert_eq!(host_override["error"]["code"], "input.invalid");
+
+    let unsafe_refresh = run(&[
+        "discovery",
+        "refresh",
+        "--adapter",
+        "rss-atom",
+        "--endpoint",
+        "http://127.0.0.1:9/feed",
+        "--source-name",
+        "Unsafe local feed",
+        "--dry-run",
+        "--json",
+    ]);
+    assert_eq!(unsafe_refresh.status.code(), Some(3));
+    let unsafe_refresh: Value =
+        serde_json::from_slice(&unsafe_refresh.stdout).expect("refresh policy error JSON");
+    assert_eq!(unsafe_refresh["operation"], "discovery.refresh");
+    assert_eq!(unsafe_refresh["error"]["code"], "input.invalid");
+
+    let invalid_lead = run(&[
+        "--workspace",
+        workspace.text(),
+        "discovery",
+        "show",
+        "not-a-uuid",
+        "--json",
+    ]);
+    assert_eq!(invalid_lead.status.code(), Some(3));
+    let invalid_lead: Value =
+        serde_json::from_slice(&invalid_lead.stdout).expect("invalid lead error JSON");
+    assert_eq!(invalid_lead["operation"], "discovery.show");
+    assert_eq!(invalid_lead["error"]["code"], "input.invalid");
 
     run_json(&[
         "--workspace",
@@ -822,8 +927,18 @@ fn discovery_csv_dry_run_commit_and_promotion_are_agent_callable() {
         "--json",
     ]);
     assert_eq!(imported["status"], "imported");
-    assert_eq!(imported["data"]["receipt"]["inserted"], 1);
+    assert_eq!(imported["data"]["receipt"]["inserted"], 2);
     assert_eq!(imported["data"]["receipt"]["rejected"], 1);
+
+    let sources = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "discovery",
+        "sources",
+        "--json",
+    ]);
+    assert_eq!(sources["data"]["sources"].as_array().map(Vec::len), Some(1));
+    assert_eq!(sources["data"]["sources"][0]["name"], "University export");
 
     let listed = run_json(&[
         "--workspace",
@@ -832,7 +947,34 @@ fn discovery_csv_dry_run_commit_and_promotion_are_agent_callable() {
         "list",
         "--json",
     ]);
+    assert_eq!(listed["data"]["leads"].as_array().map(Vec::len), Some(2));
     let lead_id = listed["data"]["leads"][0]["id"].as_str().expect("lead ID");
+    let shown = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "discovery",
+        "show",
+        lead_id,
+        "--json",
+    ]);
+    assert_eq!(shown["data"]["id"], lead_id);
+    assert_eq!(shown["data"]["title"], "Lecturer in Economics");
+    let suggestions = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "discovery",
+        "suggest",
+        lead_id,
+        "--limit",
+        "5",
+        "--json",
+    ]);
+    assert_eq!(suggestions["data"]["automatic_merge"], false);
+    assert_eq!(
+        suggestions["data"]["suggestions"].as_array().map(Vec::len),
+        Some(1)
+    );
+
     let promoted = run_json(&[
         "--workspace",
         workspace.text(),
@@ -852,7 +994,13 @@ fn discovery_csv_dry_run_commit_and_promotion_are_agent_callable() {
         "--include-history",
         "--json",
     ]);
-    assert_eq!(history["data"]["leads"][0]["status"], "promoted");
+    assert!(
+        history["data"]["leads"]
+            .as_array()
+            .expect("history")
+            .iter()
+            .any(|lead| lead["status"] == "promoted")
+    );
 }
 
 #[test]

@@ -11,8 +11,9 @@ use std::{
 };
 
 use canisend_app::{
-    Application, NetworkFetchConsent, PrivateReadConsent, WorkflowBeginRequest,
-    WorkflowCompleteRequest, WorkflowRerunRequest, WorkspaceInitPolicy,
+    Application, DiscoveryImportRequest, DiscoveryNetworkAdapter, DiscoveryRefreshRequest,
+    NetworkFetchConsent, PrivateReadConsent, WorkflowBeginRequest, WorkflowCompleteRequest,
+    WorkflowRerunRequest, WorkspaceInitPolicy,
 };
 use canisend_contracts::{
     AGENT_PROTOCOL, ActorKind, AgentContextBlocker, AgentContextData, AgentError, AgentResponse,
@@ -24,16 +25,13 @@ use canisend_contracts::{
 };
 use canisend_core::{CapabilityRegistry, StageRegistry};
 use canisend_io::{
-    DiscoveryAdapter, DiscoveryFileKind, GreenhouseAdapter, HttpFetcher, IoAdapterError,
-    JobsAcUkAdapter, LeverAdapter, RssAtomAdapter, discovery_adapter_capabilities, parse_csv_batch,
-    parse_host_agent_batch, parse_json_batch, read_criteria_file, read_discovery_file,
-    read_task_completion_file, read_task_completion_stdin,
+    IoAdapterError, discovery_adapter_capabilities, read_criteria_file, read_task_completion_file,
+    read_task_completion_stdin,
 };
 use canisend_resources::{AgentHost, ResourceError, ResourceId, ResourceKind, export_agent_pack};
 use canisend_store::{
-    AgentContextService, DiscoveryService, DocumentService, PackageService, ProjectionService,
-    RenderService, ReviewService, StoreError, TaskService, WorkflowService, Workspace,
-    current_utc_timestamp,
+    AgentContextService, DocumentService, PackageService, ProjectionService, RenderService,
+    ReviewService, StoreError, TaskService, WorkflowService, Workspace,
 };
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use serde_json::json;
@@ -560,6 +558,28 @@ enum DiscoveryAdapterName {
     JobsAcUk,
     Greenhouse,
     Lever,
+}
+
+impl DiscoveryAdapterName {
+    const fn id(self) -> &'static str {
+        match self {
+            Self::RssAtom => "rss-atom",
+            Self::JobsAcUk => "jobs-ac-uk",
+            Self::Greenhouse => "greenhouse",
+            Self::Lever => "lever",
+        }
+    }
+}
+
+impl From<DiscoveryAdapterName> for DiscoveryNetworkAdapter {
+    fn from(value: DiscoveryAdapterName) -> Self {
+        match value {
+            DiscoveryAdapterName::RssAtom => Self::RssAtom,
+            DiscoveryAdapterName::JobsAcUk => Self::JobsAcUk,
+            DiscoveryAdapterName::Greenhouse => Self::Greenhouse,
+            DiscoveryAdapterName::Lever => Self::Lever,
+        }
+    }
 }
 
 #[derive(Debug, Args)]
@@ -2196,66 +2216,23 @@ fn discovery_import(
     workspace_path: Option<PathBuf>,
     arguments: DiscoveryImportArgs,
 ) -> CommandResult<CommandOutput> {
-    let document = read_discovery_file(&arguments.file)
-        .map_err(|error| io_adapter_failure("discovery.import", error))?;
-    let actor = if arguments.host_agent {
-        ActorKind::HostAgent
-    } else {
-        ActorKind::User
-    };
-    let report = match document.kind {
-        DiscoveryFileKind::Csv => {
-            if arguments.host_agent {
-                return Err(CommandFailure::new(
-                    "discovery.import",
-                    "invalid",
-                    ErrorCode::InputInvalid,
-                    "--host-agent requires a JSON batch",
-                    false,
-                ));
-            }
-            let source_name = arguments.source_name.unwrap_or_else(|| {
-                document
-                    .path
-                    .file_stem()
-                    .map(|value| value.to_string_lossy().into_owned())
-                    .unwrap_or_else(|| "CSV import".to_owned())
-            });
-            let observed_at = current_utc_timestamp()
-                .map_err(|error| store_failure("discovery.import", error))?;
-            parse_csv_batch(
-                &document.bytes,
-                &source_name,
-                arguments.source_url.as_deref(),
-                observed_at,
-            )
-            .map_err(|error| io_adapter_failure("discovery.import", error))?
-        }
-        DiscoveryFileKind::Json => {
-            if arguments.source_name.is_some() || arguments.source_url.is_some() {
-                return Err(CommandFailure::new(
-                    "discovery.import",
-                    "invalid",
-                    ErrorCode::InputInvalid,
-                    "JSON batches declare source_name and source_url inside the versioned contract",
-                    false,
-                ));
-            }
-            if arguments.host_agent {
-                parse_host_agent_batch(&document.bytes)
-            } else {
-                parse_json_batch(&document.bytes)
-            }
-            .map_err(|error| io_adapter_failure("discovery.import", error))?
-        }
-    };
+    let preview = Application::preview_discovery_import(
+        &DiscoveryImportRequest {
+            path: arguments.file,
+            source_name: arguments.source_name,
+            source_url: arguments.source_url,
+            host_agent: arguments.host_agent,
+        },
+        PrivateReadConsent::granted_by_user(),
+    )
+    .map_err(|error| app_adapter::failure("discovery.import", error))?;
     let report = if arguments.dry_run {
-        report
+        preview.data
     } else {
-        let mut workspace = open_workspace(workspace_path, "discovery.import")?;
-        DiscoveryService::new(&mut workspace.database)
-            .import_report(report, actor)
-            .map_err(|error| store_failure("discovery.import", error))?
+        let root = app_adapter::workspace_root(workspace_path, "discovery.import")?;
+        Application::commit_discovery_import(&root, preview.data)
+            .map_err(|error| app_adapter::failure("discovery.import", error))?
+            .data
     };
     let status = if report.dry_run {
         "validated"
@@ -2275,7 +2252,7 @@ fn discovery_import(
 }
 
 fn discovery_adapters() -> CommandResult<CommandOutput> {
-    let adapters = discovery_adapter_capabilities();
+    let adapters = Application::discovery_adapters().data.adapters;
     let human = adapters
         .iter()
         .map(|adapter| {
@@ -2308,24 +2285,24 @@ fn discovery_refresh(
         dry_run,
         output: _,
     } = arguments;
-    let adapter: Box<dyn DiscoveryAdapter> = match adapter {
-        DiscoveryAdapterName::RssAtom => Box::new(RssAtomAdapter::new(source_name, organization)),
-        DiscoveryAdapterName::JobsAcUk => Box::new(JobsAcUkAdapter::new(organization)),
-        DiscoveryAdapterName::Greenhouse => Box::new(GreenhouseAdapter::new(source_name)),
-        DiscoveryAdapterName::Lever => Box::new(LeverAdapter::new(source_name)),
-    };
-    let observed_at =
-        current_utc_timestamp().map_err(|error| store_failure("discovery.refresh", error))?;
-    let report = adapter
-        .refresh(&HttpFetcher::new(), &endpoint, observed_at)
-        .map_err(|error| io_adapter_failure("discovery.refresh", error))?;
+    let adapter_id = adapter.id();
+    let preview = Application::preview_discovery_refresh(
+        &DiscoveryRefreshRequest {
+            adapter: adapter.into(),
+            endpoint,
+            source_name,
+            organization,
+        },
+        NetworkFetchConsent::granted_by_user(),
+    )
+    .map_err(|error| app_adapter::failure("discovery.refresh", error))?;
     let report = if dry_run {
-        report
+        preview.data
     } else {
-        let mut workspace = open_workspace(workspace_path, "discovery.refresh")?;
-        DiscoveryService::new(&mut workspace.database)
-            .import_report(report, ActorKind::User)
-            .map_err(|error| store_failure("discovery.refresh", error))?
+        let root = app_adapter::workspace_root(workspace_path, "discovery.refresh")?;
+        Application::commit_discovery_refresh(&root, preview.data)
+            .map_err(|error| app_adapter::failure("discovery.refresh", error))?
+            .data
     };
     let status = if report.dry_run {
         "validated"
@@ -2337,7 +2314,7 @@ fn discovery_refresh(
         status,
         &report,
         vec![
-            format!("{} source: {status}", adapter.id()),
+            format!("{adapter_id} source: {status}"),
             format!("Accepted leads: {}", report.accepted),
             format!("Rejected rows: {}", report.rejected),
         ],
@@ -2345,10 +2322,11 @@ fn discovery_refresh(
 }
 
 fn discovery_sources(workspace_path: Option<PathBuf>) -> CommandResult<CommandOutput> {
-    let mut workspace = open_workspace(workspace_path, "discovery.sources")?;
-    let sources = DiscoveryService::new(&mut workspace.database)
-        .list_sources()
-        .map_err(|error| store_failure("discovery.sources", error))?;
+    let root = app_adapter::workspace_root(workspace_path, "discovery.sources")?;
+    let sources = Application::list_discovery_sources(&root)
+        .map_err(|error| app_adapter::failure("discovery.sources", error))?
+        .data
+        .sources;
     let human = if sources.is_empty() {
         vec!["No discovery sources found".to_owned()]
     } else {
@@ -2369,10 +2347,11 @@ fn discovery_list(
     workspace_path: Option<PathBuf>,
     include_history: bool,
 ) -> CommandResult<CommandOutput> {
-    let mut workspace = open_workspace(workspace_path, "discovery.list")?;
-    let leads = DiscoveryService::new(&mut workspace.database)
-        .list_leads(include_history)
-        .map_err(|error| store_failure("discovery.list", error))?;
+    let root = app_adapter::workspace_root(workspace_path, "discovery.list")?;
+    let leads = Application::list_discovery_leads(&root, include_history)
+        .map_err(|error| app_adapter::failure("discovery.list", error))?
+        .data
+        .leads;
     let human = if leads.is_empty() {
         vec!["No discovery leads found".to_owned()]
     } else {
@@ -2395,11 +2374,11 @@ fn discovery_list(
 }
 
 fn discovery_show(workspace_path: Option<PathBuf>, lead_id: &str) -> CommandResult<CommandOutput> {
-    let lead_id = parse_entity_id("discovery.show", lead_id)?;
-    let mut workspace = open_workspace(workspace_path, "discovery.show")?;
-    let lead = DiscoveryService::new(&mut workspace.database)
-        .get_lead(&lead_id)
-        .map_err(|error| store_failure("discovery.show", error))?;
+    let _ = parse_entity_id("discovery.show", lead_id)?;
+    let root = app_adapter::workspace_root(workspace_path, "discovery.show")?;
+    let lead = Application::discovery_lead(&root, lead_id)
+        .map_err(|error| app_adapter::failure("discovery.show", error))?
+        .data;
     success(
         "discovery.show",
         "available",
@@ -2418,11 +2397,12 @@ fn discovery_suggest(
     lead_id: &str,
     limit: usize,
 ) -> CommandResult<CommandOutput> {
-    let lead_id = parse_entity_id("discovery.suggest", lead_id)?;
-    let mut workspace = open_workspace(workspace_path, "discovery.suggest")?;
-    let suggestions = DiscoveryService::new(&mut workspace.database)
-        .suggestions(&lead_id, limit)
-        .map_err(|error| store_failure("discovery.suggest", error))?;
+    let _ = parse_entity_id("discovery.suggest", lead_id)?;
+    let root = app_adapter::workspace_root(workspace_path, "discovery.suggest")?;
+    let suggestions = Application::discovery_suggestions(&root, lead_id, limit)
+        .map_err(|error| app_adapter::failure("discovery.suggest", error))?
+        .data
+        .suggestions;
     let human = if suggestions.is_empty() {
         vec!["No likely duplicate candidates found".to_owned()]
     } else {
@@ -2451,33 +2431,34 @@ fn discovery_promote(
     workspace_path: Option<PathBuf>,
     lead_id: &str,
 ) -> CommandResult<CommandOutput> {
-    let lead_id = parse_entity_id("discovery.promote", lead_id)?;
-    let mut workspace = open_workspace(workspace_path, "discovery.promote")?;
-    let (lead, job) = {
-        let mut service = DiscoveryService::new(&mut workspace.database);
-        let lead = service
-            .get_lead(&lead_id)
-            .map_err(|error| store_failure("discovery.promote", error))?;
-        let job = service
-            .promote(&lead_id, ActorKind::User)
-            .map_err(|error| store_failure("discovery.promote", error))?;
-        (lead, job)
-    };
-    let import_action = format!("canisend job import {} --url {}", job.id, lead.url);
+    let _ = parse_entity_id("discovery.promote", lead_id)?;
+    let root = app_adapter::workspace_root(workspace_path, "discovery.promote")?;
+    let receipt = Application::promote_discovery_lead(&root, lead_id)
+        .map_err(|error| app_adapter::failure("discovery.promote", error))?;
+    let promoted = receipt.data;
+    let import_action = receipt
+        .next_actions
+        .first()
+        .map(|action| action.action.clone())
+        .ok_or_else(|| {
+            CommandFailure::new(
+                "discovery.promote",
+                "invariant-failed",
+                ErrorCode::InternalInvariantFailed,
+                "discovery promotion returned no next action",
+                false,
+            )
+        })?;
     let mut output = success(
         "discovery.promote",
         "promoted",
-        &json!({"job": job, "lead_id": lead_id}),
+        &promoted,
         vec![
-            format!("Promoted lead into job: {}", job.id),
+            format!("Promoted lead into job: {}", promoted.job.id),
             format!("Next: {import_action}"),
         ],
     )?;
-    output.response.next_actions.push(NextAction {
-        action: import_action,
-        description: "Import the selected advert through the safe direct-intake URL boundary"
-            .to_owned(),
-    });
+    output.response.next_actions = receipt.next_actions;
     Ok(output)
 }
 

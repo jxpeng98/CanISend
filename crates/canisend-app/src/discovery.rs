@@ -111,7 +111,7 @@ impl Application {
             DiscoveryFileKind::Csv => {
                 if request.host_agent {
                     return Err(ApplicationError::InvalidInput(
-                        "host-agent discovery input must use a JSON batch".to_owned(),
+                        "--host-agent requires a JSON batch".to_owned(),
                     ));
                 }
                 let source_name = request.source_name.clone().unwrap_or_else(|| {
