@@ -92,7 +92,8 @@ on run arguments
         end repeat
         my assertCondition(guiProcess is not missing value, "GUI process did not appear")
         tell guiProcess
-            my assertCondition((count of windows) is 1, "expected one CanISend window")
+            set windowCount to count of windows
+            my assertCondition(windowCount is 1, "expected one CanISend window, got " & windowCount)
             set frontmost to true
             set appWindow to window 1
             log "accessibility smoke: window ready"
@@ -130,7 +131,7 @@ on run arguments
         end repeat
         my assertCondition(tabAnchorFound, "Tab traversal could not locate the Workspace anchor")
 
-        set expectedFocus to {"Overview", "Jobs", "Profile", "Workspaces", "Command line", "Diagnostics", "Language", "Dark appearance", "Compact density", "Reduce motion", "Text size"}
+        set expectedFocus to {"Overview", "Jobs", "Discovery", "Profile", "Agent integration", "Workspaces", "Command line", "Diagnostics", "Language", "Dark appearance", "Compact density", "Reduce motion", "Text size"}
         repeat with expectedName in expectedFocus
             key code 48
             delay 0.12
