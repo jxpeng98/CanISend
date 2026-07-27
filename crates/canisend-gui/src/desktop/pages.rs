@@ -1099,6 +1099,8 @@ impl CanISendDesktop {
         paint_focus_ring(ui, &response);
         if response.clicked() {
             self.selected_job_id = Some(job.id.to_string());
+            self.job_panel = JobPanel::Workflow;
+            self.document_form = DocumentWorkspaceForm::default();
             self.load_job(job.id.to_string(), ui.ctx().clone());
         }
         ui.add_space(8.0);
@@ -1120,6 +1122,8 @@ impl CanISendDesktop {
                 self.selected_job_id = None;
                 self.workflow_controls = None;
                 self.workflow_action_form = None;
+                self.job_panel = JobPanel::Workflow;
+                self.document_form = DocumentWorkspaceForm::default();
                 self.task_form = TaskPanelForm::default();
                 self.criteria_match_form = CriteriaMatchForm::default();
                 self.plan_review_form = PlanReviewForm::default();
@@ -1167,6 +1171,14 @@ impl CanISendDesktop {
             }
         });
         ui.add_space(18.0);
+        self.show_job_panel_selector(ui);
+        ui.separator();
+        ui.add_space(10.0);
+        if self.job_panel == JobPanel::Documents {
+            self.show_document_workspace(ui, detail.job.id.as_str());
+            return;
+        }
+
         let controls = self.workflow_controls.clone();
         let mut workflow_action = None;
         ui.columns(2, |columns| {
@@ -1220,8 +1232,9 @@ impl CanISendDesktop {
                     .strong()
                     .color(theme::warning(self.dark_mode)),
             );
-            columns[1].label(self.language.text(
-                "Document creation, review, render, and export remain available through the CLI or Agent v2.",
+            columns[1].label(self.language.select(
+                "Review, render, and export remain available through the CLI or Agent v2.",
+                "审阅、渲染和导出仍可通过 CLI 或 Agent v2 完成。",
             ));
         });
         if let Some(action) = workflow_action {

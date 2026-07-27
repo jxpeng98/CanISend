@@ -5,8 +5,8 @@ use canisend_app::{
     AgentPackExportRequest, Application, ApplicationFailure, BackupReadModel, CliInstallStatus,
     DiscoveryAdapterCatalogReadModel, DiscoveryImportRequest, DiscoveryLeadListReadModel,
     DiscoveryPromotionReadModel, DiscoveryRefreshRequest, DiscoverySourceListReadModel,
-    DiscoverySuggestionReadModel, DoctorSummary, JobDetailReadModel, JobListReadModel,
-    NetworkFetchConsent, PrivateReadConsent, ProfileSourceImportReadModel,
+    DiscoverySuggestionReadModel, DoctorSummary, DocumentWorkspaceReadModel, JobDetailReadModel,
+    JobListReadModel, NetworkFetchConsent, PrivateReadConsent, ProfileSourceImportReadModel,
     ProfileSourceListReadModel, ProviderSendConsent, SourceImportReadModel,
     TaskCompletionPreviewReadModel, TaskInputExportRequest, TaskPrepareAgainReadModel,
     TaskPrepareRequest, TerminalInstallConsent, UpdateCheckReadModel, WorkflowBeginRequest,
@@ -170,6 +170,10 @@ pub(crate) enum WorkerRequest {
         job_id: String,
         candidate: ApplicationPlanCandidate,
     },
+    LoadDocuments {
+        path: PathBuf,
+        job_id: String,
+    },
     StartWorkflow {
         path: PathBuf,
         id: String,
@@ -311,6 +315,10 @@ pub(crate) enum WorkerEvent {
     PlanConfirmed {
         job_id: String,
         result: Result<ActionReceipt<ApplicationPlanRecord>, String>,
+    },
+    DocumentsLoaded {
+        job_id: String,
+        result: Result<DocumentWorkspaceReadModel, String>,
     },
     WorkflowLoaded(Result<ActionReceipt<WorkflowStatusData>, String>),
     WorkflowControlsLoaded(Result<ActionReceipt<WorkflowControlReadModel>, String>),
@@ -601,6 +609,10 @@ pub(crate) fn execute(request: WorkerRequest) -> WorkerEvent {
                 });
             WorkerEvent::PlanConfirmed { job_id, result }
         }
+        WorkerRequest::LoadDocuments { path, job_id } => WorkerEvent::DocumentsLoaded {
+            result: load_document_workspace(&path, &job_id),
+            job_id,
+        },
         WorkerRequest::StartWorkflow { path, id } => WorkerEvent::WorkflowLoaded(
             Application::start_workflow(&path, &id).map_err(|error| error.to_string()),
         ),
@@ -732,6 +744,17 @@ fn load_discovery_workspace(
     Ok(DiscoveryWorkspaceReadModel { sources, leads })
 }
 
+fn load_document_workspace(
+    path: &std::path::Path,
+    job_id: &str,
+) -> Result<DocumentWorkspaceReadModel, String> {
+    Ok(
+        Application::document_workspace(path, job_id, PrivateReadConsent::granted_by_user())
+            .map_err(|error| error.to_string())?
+            .data,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::atomic::{AtomicU64, Ordering};
@@ -792,6 +815,20 @@ mod tests {
             WorkerEvent::JobCreated(Ok(receipt)) => receipt.data.id,
             event => panic!("unexpected job event: {event:?}"),
         };
+        match execute(WorkerRequest::LoadDocuments {
+            path: root.clone(),
+            job_id: job_id.to_string(),
+        }) {
+            WorkerEvent::DocumentsLoaded {
+                result: Ok(workspace),
+                ..
+            } => {
+                assert!(workspace.documents.is_empty());
+                assert!(workspace.accepted_set.is_none());
+                assert!(workspace.acceptance_blocker.is_some());
+            }
+            event => panic!("unexpected documents event: {event:?}"),
+        }
         let source = temporary_root("source").with_extension("txt");
         std::fs::write(&source, "bounded job source").expect("write source");
         assert!(matches!(

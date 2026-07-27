@@ -7,9 +7,9 @@ use canisend_app::{
 };
 use canisend_contracts::{
     ApplicationPlanCandidate, ApplicationPlanRecord, ArtifactKind, CriteriaSetRecord,
-    DiscoveryImportReport, EntityId, EvidenceCatalogRecord, EvidenceMatchSetRecord, ExecutionMode,
-    PrivacyClassification, StageExecutionStatus, TaskInputExportData, TaskStateData, TaskStatus,
-    WorkflowStage,
+    DiscoveryImportReport, DocumentRecord, DocumentSetRecord, EntityId, EvidenceCatalogRecord,
+    EvidenceMatchSetRecord, ExecutionMode, PrivacyClassification, StageExecutionStatus,
+    TaskInputExportData, TaskStateData, TaskStatus, WorkflowStage,
 };
 use serde::{Deserialize, Serialize};
 
@@ -99,6 +99,30 @@ pub(crate) enum FocusTarget {
     TaskPrepareAgain,
     AgentContextRefresh,
     AgentExport,
+    DocumentLoad,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum JobPanel {
+    Workflow,
+    Documents,
+}
+
+impl JobPanel {
+    pub(crate) const ALL: [Self; 2] = [Self::Workflow, Self::Documents];
+
+    pub(crate) fn label(self, language: Language) -> &'static str {
+        language.select(
+            match self {
+                Self::Workflow => "Workflow",
+                Self::Documents => "Documents",
+            },
+            match self {
+                Self::Workflow => "工作流",
+                Self::Documents => "申请文档",
+            },
+        )
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -195,6 +219,34 @@ pub(crate) struct PlanReviewForm {
     pub(crate) current: Option<ApplicationPlanRecord>,
     pub(crate) decision_confirmed: bool,
     pub(crate) error: Option<String>,
+}
+
+#[derive(Debug, Default)]
+pub(crate) struct DocumentWorkspaceForm {
+    pub(crate) job_id: Option<String>,
+    pub(crate) private_read_consent: bool,
+    pub(crate) documents: Option<Vec<DocumentRecord>>,
+    pub(crate) accepted_set: Option<DocumentSetRecord>,
+    pub(crate) acceptance_blocker: Option<String>,
+    pub(crate) error: Option<String>,
+}
+
+impl DocumentWorkspaceForm {
+    pub(crate) fn select_job(&mut self, job_id: &str) {
+        if self.job_id.as_deref() != Some(job_id) {
+            *self = Self {
+                job_id: Some(job_id.to_owned()),
+                ..Self::default()
+            };
+        }
+    }
+
+    pub(crate) fn clear_loaded_private_data(&mut self) {
+        self.documents = None;
+        self.accepted_set = None;
+        self.acceptance_blocker = None;
+        self.error = None;
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -658,8 +710,9 @@ mod tests {
 
     use super::{
         AgentDestinationIssue, AgentDestinationPreview, AgentIntegrationForm, DiscoveryImportForm,
-        DiscoveryRefreshForm, TaskPanelForm, inspect_agent_export_destination,
-        parse_workflow_artifact_id, task_operation_stage, task_operations_for_ready_stages,
+        DiscoveryRefreshForm, DocumentWorkspaceForm, TaskPanelForm,
+        inspect_agent_export_destination, parse_workflow_artifact_id, task_operation_stage,
+        task_operations_for_ready_stages,
     };
     use super::{validate_discovery_import_form, validate_discovery_refresh_form};
     use crate::i18n::Language;
@@ -783,6 +836,24 @@ mod tests {
         assert_eq!(form.mode, TaskExecutionMode::HostAgent);
         assert!(form.completion_file.is_none());
         assert!(!form.completion_read_consent);
+    }
+
+    #[test]
+    fn document_workspace_drops_private_state_when_the_job_changes() {
+        let mut form = DocumentWorkspaceForm {
+            job_id: Some("job-a".to_owned()),
+            private_read_consent: true,
+            acceptance_blocker: Some("old blocker".to_owned()),
+            error: Some("old error".to_owned()),
+            ..DocumentWorkspaceForm::default()
+        };
+        form.select_job("job-b");
+        assert_eq!(form.job_id.as_deref(), Some("job-b"));
+        assert!(!form.private_read_consent);
+        assert!(form.documents.is_none());
+        assert!(form.accepted_set.is_none());
+        assert!(form.acceptance_blocker.is_none());
+        assert!(form.error.is_none());
     }
 
     #[test]

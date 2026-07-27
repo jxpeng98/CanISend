@@ -1,6 +1,7 @@
 mod agent_page;
 mod dialogs;
 mod discovery_page;
+mod document_page;
 mod pages;
 mod plan_page;
 mod task_panel;
@@ -26,11 +27,12 @@ use crate::{
     registry::{WorkspaceRegistry, default_registry_path, validate_workspace_alias},
     state::{
         AgentDestinationIssue, AgentDestinationPreview, AgentIntegrationForm, CriteriaMatchForm,
-        DiscoveryImportForm, DiscoveryPanel, DiscoveryRefreshForm, EvidenceReviewForm, FocusTarget,
-        GuiPreferences, ImportForm, ImportKind, JobForm, Page, PendingConfirmation, PlanReviewForm,
-        ProfileSourceForm, RestoreWorkspaceForm, TaskPanelForm, WorkflowActionForm, WorkspaceForm,
-        available_task_modes, available_task_operations, parse_workflow_artifact_id,
-        validate_discovery_import_form, validate_discovery_refresh_form,
+        DiscoveryImportForm, DiscoveryPanel, DiscoveryRefreshForm, DocumentWorkspaceForm,
+        EvidenceReviewForm, FocusTarget, GuiPreferences, ImportForm, ImportKind, JobForm, JobPanel,
+        Page, PendingConfirmation, PlanReviewForm, ProfileSourceForm, RestoreWorkspaceForm,
+        TaskPanelForm, WorkflowActionForm, WorkspaceForm, available_task_modes,
+        available_task_operations, parse_workflow_artifact_id, validate_discovery_import_form,
+        validate_discovery_refresh_form,
     },
     theme,
     worker::{WorkerEvent, WorkerRequest, execute},
@@ -165,6 +167,8 @@ struct CanISendDesktop {
     discovery_refresh_form: DiscoveryRefreshForm,
     selected_job: Option<JobDetailReadModel>,
     selected_job_id: Option<String>,
+    job_panel: JobPanel,
+    document_form: DocumentWorkspaceForm,
     profile_sources: Option<ProfileSourceListReadModel>,
     workflow_controls: Option<WorkflowControlReadModel>,
     workflow_action_form: Option<WorkflowActionForm>,
@@ -246,6 +250,8 @@ impl CanISendDesktop {
             discovery_refresh_form: DiscoveryRefreshForm::default(),
             selected_job: None,
             selected_job_id: None,
+            job_panel: JobPanel::Workflow,
+            document_form: DocumentWorkspaceForm::default(),
             profile_sources: None,
             workflow_controls: None,
             workflow_action_form: None,
@@ -595,6 +601,8 @@ impl CanISendDesktop {
                     self.notice = Some((true, summary));
                     self.selected_job_id = Some(id.clone());
                     self.page = Page::Jobs;
+                    self.job_panel = JobPanel::Workflow;
+                    self.document_form = DocumentWorkspaceForm::default();
                     self.load_job(id, ctx.clone());
                 }
                 Err(error) => self.job_form.error = Some(error),
@@ -616,6 +624,7 @@ impl CanISendDesktop {
                         };
                     }
                     self.selected_job_id = Some(job_id.clone());
+                    self.document_form.select_job(&job_id);
                     self.task_form.select_job(&job_id);
                     self.selected_job = Some(receipt.data);
                     if has_workflow {
@@ -635,6 +644,8 @@ impl CanISendDesktop {
                     self.workflow_controls = None;
                     self.workflow_action_form = None;
                     self.task_form = TaskPanelForm::default();
+                    self.job_panel = JobPanel::Workflow;
+                    self.document_form = DocumentWorkspaceForm::default();
                     self.criteria_match_form = CriteriaMatchForm::default();
                     self.plan_review_form = PlanReviewForm::default();
                     self.notice = Some((true, summary));
@@ -656,6 +667,7 @@ impl CanISendDesktop {
                         job_id: Some(id.clone()),
                         ..PlanReviewForm::default()
                     };
+                    self.document_form.clear_loaded_private_data();
                     self.notice = Some((true, summary));
                     self.load_job(id, ctx.clone());
                 }
@@ -670,6 +682,7 @@ impl CanISendDesktop {
                     let summary = localized_receipt_summary(&receipt, self.language);
                     self.show_profile_source_form = false;
                     self.profile_source_form = ProfileSourceForm::default();
+                    self.document_form.clear_loaded_private_data();
                     self.notice = Some((true, summary));
                     self.refresh_profile_sources(ctx.clone());
                 }
@@ -702,6 +715,7 @@ impl CanISendDesktop {
                             ..PlanReviewForm::default()
                         };
                     }
+                    self.document_form.clear_loaded_private_data();
                     if self.selected_job_id.as_deref() == Some(job_id.as_str()) {
                         self.load_job(job_id, ctx.clone());
                     }
@@ -733,6 +747,7 @@ impl CanISendDesktop {
                     self.criteria_match_form.matches = None;
                     self.criteria_match_form.match_error = None;
                     self.plan_review_form = PlanReviewForm::default();
+                    self.document_form.clear_loaded_private_data();
                     self.notice = Some((true, summary));
                     if self.selected_job_id.as_deref() == Some(job_id.as_str()) {
                         self.load_job(job_id, ctx.clone());
@@ -778,6 +793,7 @@ impl CanISendDesktop {
                     self.plan_review_form.current = Some(current);
                     self.plan_review_form.decision_confirmed = false;
                     self.plan_review_form.error = None;
+                    self.document_form.clear_loaded_private_data();
                     self.notice = Some((true, summary));
                     if self.selected_job_id.as_deref() == Some(job_id.as_str()) {
                         self.load_job(job_id, ctx.clone());
@@ -785,6 +801,33 @@ impl CanISendDesktop {
                 }
                 Err(error) => self.plan_review_form.error = Some(error),
             },
+            WorkerEvent::DocumentsLoaded { job_id, result } => {
+                if self.selected_job_id.as_deref() == Some(job_id.as_str()) {
+                    match result {
+                        Ok(workspace) => {
+                            self.document_form.job_id = Some(job_id);
+                            self.document_form.documents = Some(workspace.documents);
+                            self.document_form.accepted_set = workspace.accepted_set;
+                            self.document_form.acceptance_blocker = workspace.acceptance_blocker;
+                            self.document_form.error = None;
+                            self.notice = Some((
+                                true,
+                                self.language
+                                    .select(
+                                        "Current structured documents loaded",
+                                        "已加载当前结构化申请文档",
+                                    )
+                                    .to_owned(),
+                            ));
+                            self.pending_focus = Some(FocusTarget::DocumentLoad);
+                        }
+                        Err(error) => {
+                            self.document_form.error = Some(error);
+                            self.pending_focus = Some(FocusTarget::DocumentLoad);
+                        }
+                    }
+                }
+            }
             WorkerEvent::WorkflowLoaded(result) => match result {
                 Ok(receipt) => {
                     let summary = localized_receipt_summary(&receipt, self.language);
@@ -818,6 +861,7 @@ impl CanISendDesktop {
                         job_id: self.selected_job_id.clone(),
                         ..PlanReviewForm::default()
                     };
+                    self.document_form.clear_loaded_private_data();
                     self.notice = Some((true, summary));
                     if let Some(job_id) = self.selected_job_id.clone() {
                         self.load_latest_task(job_id, ctx.clone());
@@ -907,6 +951,7 @@ impl CanISendDesktop {
                     }
                     self.task_form.completion_preview = None;
                     self.task_form.failure = None;
+                    self.document_form.clear_loaded_private_data();
                     self.notice = Some((true, summary));
                     self.reload_selected_job_after_task(ctx.clone());
                 }
@@ -1086,6 +1131,8 @@ impl CanISendDesktop {
         self.plan_review_form = PlanReviewForm::default();
         self.selected_job = None;
         self.selected_job_id = None;
+        self.job_panel = JobPanel::Workflow;
+        self.document_form = DocumentWorkspaceForm::default();
         self.workflow_controls = None;
         self.workflow_action_form = None;
         self.task_form = TaskPanelForm::default();
@@ -1169,6 +1216,26 @@ impl CanISendDesktop {
             self.language.text("Loading job"),
             ctx,
             WorkerRequest::LoadJob { path, id },
+        );
+    }
+
+    fn load_documents(&mut self, job_id: String, ctx: egui::Context) {
+        let Some(path) = self.active_workspace.clone() else {
+            self.document_form.error = Some(
+                self.language
+                    .select(
+                        "Choose a workspace before loading documents",
+                        "加载申请文档前请先选择工作区",
+                    )
+                    .to_owned(),
+            );
+            return;
+        };
+        self.dispatch(
+            self.language
+                .select("Loading current documents", "正在加载当前申请文档"),
+            ctx,
+            WorkerRequest::LoadDocuments { path, job_id },
         );
     }
 

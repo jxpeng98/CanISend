@@ -1,12 +1,21 @@
 use std::path::Path;
 
 use canisend_contracts::{DocumentKind, DocumentRecord, DocumentSetRecord};
-use canisend_store::DocumentService;
+use canisend_store::{DocumentService, StoreError};
+use serde::{Deserialize, Serialize};
 
 use crate::{
     ActionReceipt, Application, ApplicationError, PrivateReadConsent,
     application::{open_workspace, parse_entity_id},
 };
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentWorkspaceReadModel {
+    pub documents: Vec<DocumentRecord>,
+    pub accepted_set: Option<DocumentSetRecord>,
+    pub acceptance_blocker: Option<String>,
+}
 
 impl Application {
     pub fn current_documents(
@@ -66,6 +75,40 @@ impl Application {
             set,
         )
         .with_artifacts(artifacts))
+    }
+
+    pub fn document_workspace(
+        root: &Path,
+        job_id: &str,
+        _consent: PrivateReadConsent,
+    ) -> Result<ActionReceipt<DocumentWorkspaceReadModel>, ApplicationError> {
+        let job_id = parse_entity_id(job_id)?;
+        let workspace = open_workspace(root)?;
+        let service = DocumentService::new(&workspace.database, &workspace.blobs);
+        let documents = service.list(&job_id)?;
+        let (accepted_set, acceptance_blocker) = match service.set(&job_id) {
+            Ok(set) => (Some(set), None),
+            Err(StoreError::WorkflowConflict(message)) => (None, Some(message)),
+            Err(error) => return Err(error.into()),
+        };
+        let status = if accepted_set.is_some() {
+            "complete"
+        } else if documents.is_empty() {
+            "empty"
+        } else {
+            "in-progress"
+        };
+        let count = documents.len();
+        Ok(ActionReceipt::new(
+            "document.workspace",
+            status,
+            format!("Loaded document workspace with {count} current draft(s)"),
+            DocumentWorkspaceReadModel {
+                documents,
+                accepted_set,
+                acceptance_blocker,
+            },
+        ))
     }
 }
 
@@ -140,6 +183,16 @@ mod tests {
             .data
             .is_empty()
         );
+        let document_workspace = Application::document_workspace(
+            &root,
+            job.id.as_str(),
+            PrivateReadConsent::granted_by_user(),
+        )
+        .expect("empty document workspace")
+        .data;
+        assert!(document_workspace.documents.is_empty());
+        assert!(document_workspace.accepted_set.is_none());
+        assert!(document_workspace.acceptance_blocker.is_some());
         assert!(Application::current_document_set(&root, job.id.as_str()).is_err());
 
         let after = Application::workspace_status(&root)

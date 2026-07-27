@@ -30,6 +30,7 @@ pub use discovery::{
     DiscoveryNetworkAdapter, DiscoveryPromotionReadModel, DiscoveryRefreshRequest,
     DiscoverySourceListReadModel, DiscoverySuggestionReadModel,
 };
+pub use document::DocumentWorkspaceReadModel;
 pub use error::{ApplicationError, ApplicationFailure};
 pub use job::{JobDetailReadModel, JobListReadModel, SourceImportReadModel};
 pub use profile::{ProfileSourceImportReadModel, ProfileSourceListReadModel};
