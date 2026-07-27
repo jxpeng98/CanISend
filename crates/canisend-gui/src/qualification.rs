@@ -4,10 +4,11 @@ use std::{
 };
 
 use canisend_app::{
-    AgentHost, AgentPackExportRequest, DiscoveryImportRequest, TaskExecutionMode, TaskOperation,
-    TaskPrepareRequest,
+    AgentHost, AgentPackExportRequest, DiscoveryImportRequest, ResourceCatalogExportRequest,
+    TaskExecutionMode, TaskOperation, TaskPrepareRequest,
 };
-use canisend_contracts::{DiscoveryLeadStatus, PrivacyClassification, TaskStatus};
+use canisend_contracts::{DiscoveryLeadStatus, ErrorCode, PrivacyClassification, TaskStatus};
+use sha2::{Digest, Sha256};
 
 use crate::worker::{WorkerEvent, WorkerRequest, execute};
 
@@ -245,4 +246,60 @@ fn assert_body_free(context: &canisend_app::AgentContextReadModel, private_senti
     assert!(!serialized.contains(private_sentinel));
     assert!(!serialized.contains("normalized_text"));
     assert!(!serialized.contains("\"body\""));
+}
+
+#[test]
+fn verified_catalog_export_round_trips_without_a_workspace() {
+    let parent = temporary_root("catalog-parent");
+    std::fs::create_dir(&parent).expect("create catalog parent");
+    let destination = parent.join("catalog");
+
+    let catalog = match execute(WorkerRequest::LoadInspectionCatalog) {
+        WorkerEvent::InspectionCatalogLoaded(Ok(receipt)) => {
+            assert_eq!(receipt.operation, "inspection.catalog");
+            receipt.data
+        }
+        event => panic!("unexpected inspection catalog event: {event:?}"),
+    };
+    assert_eq!(catalog.schemas.schemas.len(), 40);
+    assert!(!catalog.resources.is_empty());
+    assert!(!parent.join("canisend.toml").exists());
+    assert!(!parent.join(".canisend").exists());
+
+    let request = ResourceCatalogExportRequest::new(&destination);
+    let exported = match execute(WorkerRequest::ExportResourceCatalog {
+        request: request.clone(),
+    }) {
+        WorkerEvent::ResourceCatalogExported {
+            result: Ok(receipt),
+            ..
+        } => {
+            assert_eq!(receipt.operation, "resource.export");
+            receipt.data
+        }
+        event => panic!("unexpected resource export event: {event:?}"),
+    };
+    assert_eq!(exported.manifest.files.len(), catalog.resources.len());
+    let on_disk: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(&exported.manifest_path).expect("read catalog manifest"),
+    )
+    .expect("parse catalog manifest");
+    assert_eq!(
+        on_disk,
+        serde_json::to_value(&exported.manifest).expect("serialize exported manifest")
+    );
+    for file in &exported.manifest.files {
+        let bytes = std::fs::read(destination.join(&file.path)).expect("read exported resource");
+        assert_eq!(bytes.len(), file.size);
+        assert_eq!(hex::encode(Sha256::digest(bytes)), file.sha256);
+    }
+    match execute(WorkerRequest::ExportResourceCatalog { request }) {
+        WorkerEvent::ResourceCatalogExported {
+            result: Err(failure),
+            ..
+        } => assert_eq!(failure.code, ErrorCode::InputPathRejected),
+        event => panic!("unexpected repeated export event: {event:?}"),
+    }
+
+    std::fs::remove_dir_all(parent).expect("remove catalog qualification fixture");
 }

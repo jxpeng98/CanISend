@@ -797,9 +797,11 @@ dependencies = [
  "canisend-contracts",
  "canisend-store",
  "eframe",
+ "hex",
  "rfd",
  "serde",
  "serde_json",
+ "sha2",
 ]
 
 [[package]]
