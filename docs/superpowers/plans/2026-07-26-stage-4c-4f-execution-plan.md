@@ -1,6 +1,6 @@
 # CanISend Stage 4C–4F execution plan
 
-**Status:** Stage 4C–4D complete; Stage 4E active; Stage 4F planned
+**Status:** Stage 4C–4E complete; Stage 4F active
 
 **Decision date:** 2026-07-26
 
@@ -11,6 +11,8 @@
 **Stage 4C exit parity:** `26 implemented`, `9 deferred-beta`
 
 **Stage 4D exit parity:** `29 implemented`, `6 deferred-beta`
+
+**Stage 4E exit parity:** `33 implemented`, `2 deferred-beta`
 
 **Parent roadmap:** [CanISend 1.0 release roadmap](2026-07-25-1.0-release-roadmap.md)
 
@@ -354,97 +356,107 @@ bodies do not enter navigation, registry data, routine diagnostics, or error str
 
 ### 6.3 E1 — document application facade
 
-- Add typed current-list, current-kind, and accepted-set operations.
-- Require explicit private-read consent before returning document bodies.
-- Validate job UUIDv7 input before workspace access.
-- Preserve exact plan, planned-document, generation-task, revision, citation, and placeholder data.
-- Return the store-owned accepted set only when every exact current document head matches it.
+- [x] Add typed current-list, current-kind, and accepted-set operations.
+- [x] Require explicit private-read consent before returning document bodies.
+- [x] Validate job UUIDv7 input before workspace access.
+- [x] Preserve exact plan, planned-document, generation-task, revision, citation, and placeholder
+  data.
+- [x] Return the store-owned accepted set only when every exact current document head matches it.
 
 ### 6.4 E2 — document CLI adapter alignment
 
-- Route document list/show/set through `canisend-app`.
-- Preserve committed JSON shapes, human summaries, artifacts, error codes, and exit classes.
-- Keep document mutation in the existing Agent-task lifecycle; do not add an untracked CLI editor.
+- [x] Route document list/show/set through `canisend-app`.
+- [x] Preserve committed JSON shapes, human summaries, artifacts, error codes, and exit classes.
+- [x] Keep document mutation in the existing Agent-task lifecycle; do not add an untracked CLI
+  editor.
 
 ### 6.5 E3 — Documents GUI
 
-- Add selected-job sub-navigation and a Documents view.
-- Require a user-invoked private-read confirmation before loading bodies.
-- Show the accepted set and every exact member revision once.
-- Render sections, claims/citations, placeholders, and generation metadata with body-free collapsed
+- [x] Add selected-job sub-navigation and a Documents view.
+- [x] Require a user-invoked private-read confirmation before loading bodies.
+- [x] Show the accepted set and every exact member revision once.
+- [x] Render sections, claims/citations, placeholders, and generation metadata with body-free
+  collapsed
   summaries by default.
-- Show ready/stale/missing recovery through the existing task and workflow controls.
+- [x] Show ready/stale/missing recovery through the existing task and workflow controls.
 
 ### 6.6 E4 — review application facade
 
-- Add typed current-review, disposition-template, and confirm-disposition operations.
-- Require explicit private-read consent before exposing finding messages and rationales.
-- Keep deterministic findings read-only.
-- Validate the exact review artifact, finding identity/revision, selected disposition, and rationale
+- [x] Add typed current-review, disposition-template, and confirm-disposition operations.
+- [x] Require explicit private-read consent before exposing finding messages and rationales.
+- [x] Keep deterministic findings read-only.
+- [x] Validate the exact review artifact, finding identity/revision, selected disposition, and
+  rationale
   before mutation.
-- Return the revised artifact and preserve store-owned package/render invalidation.
+- [x] Return the revised artifact and preserve store-owned package/render invalidation.
 
 ### 6.7 E5 — review CLI adapter alignment
 
-- Route review export/confirm/show through `canisend-app`.
-- Preserve create-new private JSON export, regular-file input, committed JSON/human output, and exit
+- [x] Route review export/confirm/show through `canisend-app`.
+- [x] Preserve create-new private JSON export, regular-file input, committed JSON/human output, and
+  exit
   classes.
-- Keep explicit user review as the only authority for accepted-risk or dismissed dispositions.
+- [x] Keep explicit user review as the only authority for accepted-risk or dismissed dispositions.
 
 ### 6.8 E6 — Review GUI
 
-- Load current findings and an editable human-disposition template after explicit private-read
+- [x] Load current findings and an editable human-disposition template after explicit private-read
   consent.
-- Show deterministic authority and blockers without an enabled disposition control.
-- Require a non-empty rationale for every selected human disposition and at least one selection.
-- Preview package/render invalidation and confirm the revised review explicitly.
-- Restore focus to the first invalid field or the review action after completion.
+- [x] Show deterministic authority and blockers without an enabled disposition control.
+- [x] Require a non-empty rationale for every selected human disposition and at least one
+  selection.
+- [x] Preview package/render invalidation and confirm the revised review explicitly.
+- [x] Restore focus to the first invalid field or the review action after completion.
 
 ### 6.9 E7 — package application and CLI
 
-- Add typed readiness check/current, projection export/current, reconcile, replace, and
+- [x] Add typed readiness check/current, projection export/current, reconcile, replace, and
   copy-as-new operations.
-- Add a distinct explicit private-export consent boundary.
-- Validate job UUIDv7 and safe relative destinations before workspace access.
-- Preserve readiness reasons, revision binding, new-file behavior, edit detection, user-copy
+- [x] Add a distinct explicit private-export consent boundary.
+- [x] Validate job UUIDv7 and safe relative destinations before workspace access.
+- [x] Preserve readiness reasons, revision binding, new-file behavior, edit detection, user-copy
   preservation, and authoritative-artifact immutability.
-- Route all package CLI commands through `canisend-app` without external contract drift.
+- [x] Route all package CLI commands through `canisend-app` without external contract drift.
 
 ### 6.10 E8 — package GUI
 
-- Show deterministic package readiness and exact body-free reasons.
-- Preview a job-scoped destination before an explicit private export.
-- Show the resulting export receipt and every managed projection path/status.
-- Reconcile only on user request.
-- Require a separate confirmation to discard an edit, or a distinct safe destination to preserve
+- [x] Show deterministic package readiness and exact body-free reasons.
+- [x] Preview a job-scoped destination before an explicit private export.
+- [x] Show the resulting export receipt and every managed projection path/status.
+- [x] Reconcile only on user request.
+- [x] Require a separate confirmation to discard an edit, or a distinct safe destination to
+  preserve
   the edit before restoring the generated projection.
 
 ### 6.11 E9 — render application and CLI
 
-- Add typed build/current/export operations through the embedded renderer.
-- Add distinct private PDF-export consent and safe relative destination validation.
-- Preserve package revision binding, bounded PDF validation, manifest identity, page/byte/warning
+- [x] Add typed build/current/export operations through the embedded renderer.
+- [x] Add distinct private PDF-export consent and safe relative destination validation.
+- [x] Preserve package revision binding, bounded PDF validation, manifest identity,
+  page/byte/warning
   counts, no-overwrite behavior, and `submission_performed: false`.
-- Route render build/show/export through `canisend-app` without external contract drift.
+- [x] Route render build/show/export through `canisend-app` without external contract drift.
 
 ### 6.12 E10 — render GUI
 
-- Build only when the authoritative workflow exposes Render as ready.
-- State that editable Typst projections are not renderer inputs.
-- Show every rendered document's kind, artifact revisions, page/byte/warning counts, and elapsed
+- [x] Build only when the authoritative workflow exposes Render as ready.
+- [x] State that editable Typst projections are not renderer inputs.
+- [x] Show every rendered document's kind, artifact revisions, page/byte/warning counts, and
+  elapsed
   time.
-- Preview and explicitly confirm a private PDF export, then show every resulting path.
-- Never open an application portal or imply submission.
+- [x] Preview and explicitly confirm a private PDF export, then show every resulting path.
+- [x] Never open an application portal or imply submission.
 
 ### 6.13 E11 — Stage 4E closure
 
-- Mark only `document.*`, `review.*`, `package.*`, and `render.*` implemented.
-- Record `33 implemented` and `2 deferred-beta`.
-- Add a repeatable document-to-review-to-package-to-render persistence and export-recovery
+- [x] Mark only `document.*`, `review.*`, `package.*`, and `render.*` implemented.
+- [x] Record `33 implemented` and `2 deferred-beta`.
+- [x] Add a repeatable document-to-review-to-package-to-render persistence and export-recovery
   regression through the worker/application boundary.
-- Run formatter, affected tests, relevant all-target Clippy, release check, hosted Fast CI, and a
+- [x] Run formatter, affected tests, relevant all-target Clippy, release check, hosted Fast CI, and
+  a
   local packaged macOS bilingual/accessibility smoke.
-- Do not create a tag, release, package-manager update, or five-target native matrix.
+- [x] Do not create a tag, release, package-manager update, or five-target native matrix.
 
 Exit parity is `33/35`.
 
@@ -538,6 +550,17 @@ one verified host resource pack, close and reopen the workspace, and observe the
 the CLI and Agent v2 contracts.
 
 The shared application facade, body-free read models, `discovery -> task -> agent` reopen
-regression, hosted Fast CI, and packaged bilingual/accessibility smoke now cover that path. Stage
-4E is next at `29 implemented` and `6 deferred-beta`. No Alpha.3, Beta, RC, Stable,
-package-manager, five-target native matrix, or public update action is implied.
+regression, hosted Fast CI, and packaged bilingual/accessibility smoke now cover that path.
+
+## 12. Stage 4E exit decision
+
+Stage 4E is complete when a macOS GUI user can inspect the accepted structured document set,
+explicitly disposition human-review findings, prove package readiness, export and reconcile
+editable projections, recover user edits without changing authoritative artifacts, build validated
+PDFs, export them with separate consent, reopen the workspace, and observe the same persisted
+state.
+
+The shared application facade, stable CLI adapters, selected-job Documents and Review & export
+views, worker/application delivery regression, hosted Fast CI, and packaged bilingual/accessibility
+smoke now cover that path. Stage 4F is next at `33 implemented` and `2 deferred-beta`. No Alpha.3,
+Beta, RC, Stable, package-manager, five-target native matrix, or public update action is implied.

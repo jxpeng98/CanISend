@@ -455,20 +455,24 @@ recoverable.
 
 ### R12.3 — Job intake and workflow console (1–2 weeks)
 
-- [ ] Implement job list, filters, archive, detail, and add-job flow.
-- [ ] Implement supplied URL and local file/PDF import with preview, consent, progress, and recovery.
-- [ ] Implement workflow timeline, blockers, freshness, next actions, begin/complete/rerun, and receipts.
-- [ ] Implement criteria, match, and application-plan review/confirmation screens.
-- [ ] Show equivalent copyable CLI commands without executing a shell.
+- [x] Implement job list, filters, archive, detail, and add-job flow.
+- [x] Implement supplied URL and local file/PDF import with preview, consent, progress, and
+  recovery.
+- [x] Implement workflow timeline, blockers, freshness, next actions, begin/complete/rerun, and
+  receipts.
+- [x] Implement criteria, match, and application-plan review/confirmation screens.
+- [x] Show equivalent copyable CLI commands without executing a shell.
 
 **Exit:** A GUI-only user can intake a job and advance it through the first user-confirmed plan boundary.
 
 ### R12.4 — Evidence, agents, documents, review, and export (2–3 weeks)
 
-- [ ] Implement profile sources and evidence proposal/confirmation.
-- [ ] Implement discovery source refresh/import, lead review, duplicate suggestion, and promotion.
-- [ ] Implement agent task preparation, consented input export, completion status, and host-pack export.
-- [ ] Implement documents, findings/dispositions, readiness, projections, render, and private export consent.
+- [x] Implement profile sources and evidence proposal/confirmation.
+- [x] Implement discovery source refresh/import, lead review, duplicate suggestion, and promotion.
+- [x] Implement agent task preparation, consented input export, completion status, and host-pack
+  export.
+- [x] Implement documents, findings/dispositions, readiness, projections, render, and private
+  export consent.
 - [ ] Complete the command coverage manifest and body-free diagnostics export.
 
 **Exit:** Every ordinary state-changing CLI operation is available through a typed GUI action, and the documented
@@ -565,6 +569,7 @@ The first macOS vertical slice now includes:
 R12.0 now has explicit Apple Silicon AccessKit/live-region, keyboard, IME, high-DPI,
 reduced-motion, and native file-dialog evidence. It remains open for the declared cold-start
 acceptance decision and Intel boundary; human auditory VoiceOver wording is an exact-package
-review. Windows and Linux GUI evidence stays deferred. R12.1 remains open because only the first
-facade action families have been extracted and the CLI has not yet been converted into a thin
-facade adapter. R12.2–R12.4 remain partial as recorded in the parity manifest.
+review. Windows and Linux GUI evidence stays deferred. R12.1 and R12.2 retain their broader
+architecture and shell exit conditions. R12.3 is complete. R12.4 has implemented profile,
+discovery, Agent task, document, review, package, projection-recovery, render, and private-export
+surfaces; only the schema/resource Diagnostics coverage tracked by Stage 4F remains.

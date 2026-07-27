@@ -146,6 +146,47 @@ Every mutation shows an in-progress state and an explicit success or failure res
 text labels in addition to status color, support keyboard focus, and retain English and Simplified
 Chinese labels.
 
+## Inspect the accepted document set
+
+Open a selected job and choose **Documents**. Document bodies stay hidden until you explicitly
+confirm private local reading. After confirmation, the page shows:
+
+- the accepted document-set and application-plan artifact identities;
+- every exact document artifact revision in that set;
+- each document's kind, title, generation mode, Agent task, sections, claims, citations, and
+  placeholders; and
+- text guidance when drafts are incomplete, stale, or missing.
+
+Document bodies are collapsed by default. Expanding them does not create an editable GUI copy:
+authoritative structured drafts are still produced or replaced through the revision-bound Agent
+task lifecycle. A changed upstream plan, match, evidence catalog, criteria set, source, or profile
+invalidates downstream state according to the shared store rules.
+
+## Review, export, recover, and render
+
+Open **Review & export** for the selected job:
+
+1. Confirm private local reading to load review messages and rationales. Deterministic findings are
+   read-only. For a human-review finding, choose a disposition, provide a non-empty rationale, and
+   explicitly confirm the revision.
+2. Run **Check package** to calculate readiness from the exact plan, evidence, document set, and
+   review revisions. Reason codes contain no document body. The GUI always reports
+   `submission_performed: false`.
+3. Enter a destination below `jobs/JOB_ID/`, confirm the separate private-export boundary, and
+   export managed Markdown, structured JSON, and Typst projections. Existing files or directories
+   are not overwritten.
+4. Reconcile projections only when requested. If a managed file was edited, either discard the
+   edit through a separate confirmation or provide a distinct path that preserves the edit before
+   restoring the generated projection. Neither action changes an authoritative artifact.
+5. Build PDFs with the embedded trusted renderer. Editable Typst projections are not renderer
+   inputs. Inspect the manifest, artifact revisions, page and byte counts, warnings, and elapsed
+   time.
+6. Choose a separate destination below `jobs/JOB_ID/`, confirm private PDF export, and review every
+   created path. The GUI never opens an application portal or submits an application.
+
+Package receipts, reconciliation state, render manifests, and structured artifacts persist in the
+shared workspace and can be inspected through either the GUI or CLI after reopening.
+
 ## Accessibility and appearance
 
 The navigation rail exposes native AccessKit names and roles, and every dialog moves initial focus
@@ -282,8 +323,9 @@ canisend --workspace /path/to/applications agent context --job JOB_ID --json
 
 Codex and Claude continue to use Agent v2 rather than GUI automation. The GUI and CLI share the
 same discovery records, prepared tasks, body-free Agent context, profile evidence, job criteria,
-current matches, and application plans through the application facade and authoritative workspace.
-Document, review, package, and render screens remain scheduled for later Stage 4 slices.
+current matches, application plans, structured documents, review findings, package manifests,
+managed projections, and render manifests through the application facade and authoritative
+workspace.
 
 ## Workspace registry and retention
 
@@ -317,14 +359,19 @@ the workspace, SQLite database, blobs, projections, exports, or backups.
   stale detection, and prepare-again recovery.
 - Body-free Agent v2 capability/context inspection and verified Codex, Claude, or generic
   resource-pack export.
+- Private-read structured document inspection with accepted-set, revision, claim, citation,
+  placeholder, and generation metadata.
+- Human-review dispositions, deterministic package readiness, private projection export,
+  user-invoked edit reconciliation, preserve-copy/replace recovery, validated PDF rendering, and
+  private PDF export.
 - Workflow start, body-free stage/blocker timeline, descriptor-bound begin/complete, and
   preview-confirmed rerun.
 - Body-free product diagnostics and embedded renderer/resource self-check.
 
 Not yet implemented in the GUI:
 
-- document, review, package, render, and application-package export screens;
+- schema and embedded-resource catalog inspection/export in Diagnostics;
 - Developer ID/notarized release signing, Intel native qualification, or non-macOS GUI packages.
 
-These remaining operations stay available through the CLI or Agent v2 while GUI coverage expands.
-The desktop application still never submits an application.
+The remaining schema/resource operations stay available through the CLI while GUI coverage
+expands. The desktop application still never submits an application.
