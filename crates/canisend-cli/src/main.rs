@@ -7,7 +7,6 @@ use std::{
     io::{IsTerminal, Write},
     path::{Component, Path, PathBuf},
     process::ExitCode,
-    str::FromStr,
 };
 
 use canisend_app::{
@@ -20,14 +19,11 @@ use canisend_app::{
 };
 use canisend_contracts::{
     AgentError, AgentResponse, DocumentKind, EntityId, ErrorCode, ExecutionMode, ExitClass,
-    NextAction, PUBLIC_SCHEMA_VERSION, PrivacyClassification, PublicSchemaId, ResourceCatalogData,
-    ResourceCatalogEntry, SchemaCatalogData, SchemaCatalogEntry, SemanticVersion, Sha256Digest,
-    VersionData, WorkflowStage,
+    NextAction, PrivacyClassification, PublicSchemaId, SemanticVersion, VersionData, WorkflowStage,
 };
 use canisend_io::{
     IoAdapterError, read_criteria_file, read_task_completion_file, read_task_completion_stdin,
 };
-use canisend_resources::{ResourceId, ResourceKind};
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use serde_json::json;
 
@@ -1586,36 +1582,21 @@ fn agent_assets_export(arguments: AgentAssetsExportArgs) -> CommandResult<Comman
 }
 
 fn schema_list() -> CommandResult<CommandOutput> {
-    let schemas = PublicSchemaId::ALL
-        .into_iter()
-        .map(schema_catalog_entry)
-        .collect::<CommandResult<Vec<_>>>()?;
-    let human = schemas
+    let data = Application::schema_catalog()
+        .map_err(|error| app_adapter::failure("schema.list", error))?
+        .data;
+    let human = data
+        .schemas
         .iter()
         .map(|schema| format!("{} {}", schema.id, schema.sha256))
         .collect();
-    success(
-        "schema.list",
-        "available",
-        &SchemaCatalogData { schemas },
-        human,
-    )
+    success("schema.list", "available", &data, human)
 }
 
 fn schema_show(query: &str) -> CommandResult<CommandOutput> {
-    let schema_id = PublicSchemaId::ALL
-        .into_iter()
-        .find(|schema_id| schema_id.as_str() == query || schema_id.slug() == query)
-        .ok_or_else(|| {
-            CommandFailure::new(
-                "schema.show",
-                "not-found",
-                ErrorCode::SchemaNotFound,
-                format!("unknown public schema: {query}"),
-                false,
-            )
-        })?;
-    let schema = schema_catalog_entry(schema_id)?;
+    let schema = Application::schema_detail(query)
+        .map_err(|error| app_adapter::failure("schema.show", error))?
+        .data;
     success(
         "schema.show",
         "available",
@@ -1628,51 +1609,16 @@ fn schema_show(query: &str) -> CommandResult<CommandOutput> {
     )
 }
 
-fn schema_catalog_entry(schema_id: PublicSchemaId) -> CommandResult<SchemaCatalogEntry> {
-    let resource_id =
-        ResourceId::from_str(&format!("schema.{}", schema_id.slug())).map_err(|error| {
-            CommandFailure::new(
-                "schema.catalog",
-                "unavailable",
-                ErrorCode::InternalInvariantFailed,
-                error.to_string(),
-                false,
-            )
-        })?;
-    let descriptor = canisend_resources::get(resource_id).descriptor;
-    Ok(SchemaCatalogEntry {
-        id: schema_id.as_str().to_owned(),
-        version: SemanticVersion::try_new(PUBLIC_SCHEMA_VERSION).map_err(internal_version)?,
-        uri: schema_id.canonical_uri(),
-        resource_id: resource_id.as_str().to_owned(),
-        size: descriptor.size,
-        sha256: Sha256Digest::try_new(descriptor.sha256).map_err(internal_version)?,
-    })
-}
-
 fn resource_list() -> CommandResult<CommandOutput> {
-    let resources = canisend_resources::manifest()
-        .into_iter()
-        .map(|resource| {
-            Ok(ResourceCatalogEntry {
-                id: resource.id.to_owned(),
-                kind: resource_kind_name(resource.kind).to_owned(),
-                version: SemanticVersion::try_new(resource.version).map_err(internal_version)?,
-                size: resource.size,
-                sha256: Sha256Digest::try_new(resource.sha256).map_err(internal_version)?,
-            })
-        })
-        .collect::<CommandResult<Vec<_>>>()?;
-    let human = resources
+    let data = Application::resource_catalog()
+        .map_err(|error| app_adapter::failure("resource.list", error))?
+        .data;
+    let human = data
+        .resources
         .iter()
         .map(|resource| format!("{} [{}]", resource.id, resource.kind))
         .collect();
-    success(
-        "resource.list",
-        "available",
-        &ResourceCatalogData { resources },
-        human,
-    )
+    success("resource.list", "available", &data, human)
 }
 
 fn workspace_init(workspace_path: Option<PathBuf>) -> CommandResult<CommandOutput> {
@@ -3520,16 +3466,6 @@ fn success<T: serde::Serialize>(
         response: AgentResponse::success(operation, status, value),
         human,
     })
-}
-
-fn resource_kind_name(kind: ResourceKind) -> &'static str {
-    match kind {
-        ResourceKind::Agent => "agent",
-        ResourceKind::Example => "example",
-        ResourceKind::Prompt => "prompt",
-        ResourceKind::Schema => "schema",
-        ResourceKind::Template => "template",
-    }
 }
 
 fn wants_json(explicit: bool) -> bool {
