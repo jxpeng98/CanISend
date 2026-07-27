@@ -12,8 +12,8 @@
     "public_schema_version": "2.0.0"
   },
   "baseline": {
-    "release": "v1.0.0-alpha.2",
-    "source_commit": "d091d147390474514145b154b88b2cf443e6f7c1"
+    "release": "v1.0.0-alpha.3",
+    "source_commit": "cebf59629d615d4b950b5823524922b56bde68ce"
   },
   "schema": "canisend.beta-contract-freeze/v1",
   "workspace": {

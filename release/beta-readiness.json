@@ -1,11 +1,11 @@
 {
   "schema": "canisend.beta-readiness/v1",
-  "audited_at": "2026-07-27T20:21:09Z",
+  "audited_at": "2026-07-27T21:34:49Z",
   "alpha_release": {
-    "tag": "v1.0.0-alpha.2",
-    "source_commit": "d091d147390474514145b154b88b2cf443e6f7c1",
-    "release_run": 30218290996,
-    "release_url": "https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.2"
+    "tag": "v1.0.0-alpha.3",
+    "source_commit": "cebf59629d615d4b950b5823524922b56bde68ce",
+    "release_run": 30306912005,
+    "release_url": "https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.3"
   },
   "github_issue_snapshot": {
     "query": "https://github.com/jxpeng98/CanISend/issues?q=is%3Aissue",
@@ -21,8 +21,8 @@
       "open_issue_numbers": [],
       "evidence": [
         "Public GitHub issue snapshot contains no reported issue",
-        "Native candidate run 30215276643 passed the configured recovery and lifecycle gates",
-        "Alpha.2 promotion run 30218290996 published the previously qualified bytes without recompilation"
+        "Native candidate run 30305363882 passed the configured recovery and lifecycle gates",
+        "Alpha.3 promotion run 30306912005 published the previously qualified bytes without recompilation"
       ]
     },
     {
@@ -31,8 +31,8 @@
       "open_issue_numbers": [],
       "evidence": [
         "Public GitHub issue snapshot contains no reported issue",
-        "Native candidate run 30215276643 passed the configured release-integrity gates",
-        "Alpha.2 remains local-first with default telemetry disabled"
+        "Native candidate run 30305363882 passed the configured release-integrity gates",
+        "Alpha.3 remains local-first with default telemetry disabled"
       ]
     },
     {
@@ -41,8 +41,8 @@
       "open_issue_numbers": [],
       "evidence": [
         "Public GitHub issue snapshot contains no reported issue",
-        "Native candidate run 30215276643 passed the configured schema, resource, and Agent v2 gates",
-        "Alpha.2 manifest declares the committed CanISend Agent v2 and workspace v2 contracts"
+        "Native candidate run 30305363882 passed the configured schema, resource, and Agent v2 gates",
+        "Alpha.3 manifest declares the committed CanISend Agent v2 and workspace v2 contracts"
       ]
     },
     {
@@ -51,8 +51,8 @@
       "open_issue_numbers": [],
       "evidence": [
         "Public GitHub issue snapshot contains no reported issue",
-        "Native candidate run 30215276643 passed the configured packaged renderer and desktop gates",
-        "Alpha.2 exact-package macOS accessibility and lifecycle qualification completed successfully"
+        "Native candidate run 30305363882 passed the configured packaged renderer and desktop gates",
+        "Alpha.3 exact-package macOS accessibility and lifecycle qualification completed successfully"
       ]
     }
   ],

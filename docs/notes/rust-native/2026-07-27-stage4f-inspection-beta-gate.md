@@ -43,14 +43,14 @@ bodies, comments, attachments, telemetry, or workspace data. The snapshot contai
 issues and therefore zero open release blockers.
 
 [`release/beta-readiness.json`](../../../release/beta-readiness.json) records the public
-[`v1.0.0-alpha.2`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.2) identity,
-source commit `d091d147390474514145b154b88b2cf443e6f7c1`, successful native candidate run
-`30215276643`, build-once promotion run `30218290996`, four clear blocker classes, and disabled
+[`v1.0.0-alpha.3`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.3) identity,
+source commit `cebf59629d615d4b950b5823524922b56bde68ce`, successful native candidate run
+`30305363882`, build-once promotion run `30306912005`, four clear blocker classes, and disabled
 default telemetry.
 
 [`release/beta-contract-freeze.json`](../../../release/beta-contract-freeze.json) binds the
 Agent v2 snapshots, all 40 public schemas, workspace v2, and migrations through schema 13 to that
-Alpha.2 baseline.
+Alpha.3 baseline.
 
 ## Exact remaining Beta gate
 

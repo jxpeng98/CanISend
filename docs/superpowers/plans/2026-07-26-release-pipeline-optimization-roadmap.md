@@ -256,14 +256,13 @@ qualification suite. Those remain owned by scheduled or exact-release workflows.
 
 ## 11. Immediate next action
 
-Keep ordinary development on the measured macOS fast path. Non-publishing native run `30215276643`
+Keep ordinary development on the measured macOS fast path. Non-publishing native run `30305363882`
 successfully exercised the release-only Windows gate and parallel source/native dependency graph
-for exact source `d091d14`; the downloaded candidate contained 13 checksum-covered files plus
-`SHA256SUMS` and passed exact-byte verification. Annotated-tag recovery/promotion run
-`30218290996` then published the same 14 assets as `v1.0.0-alpha.2` without recompilation. All six
-private-draft smoke lanes and the public checksum, provenance, update-response, and byte-continuity
-checks passed.
+for exact source `cebf596`; the downloaded candidate contained 13 checksum-covered files plus
+`SHA256SUMS` and passed exact-byte verification. Annotated-tag promotion run `30306912005` then
+published the same 14 assets as `v1.0.0-alpha.3` without recompilation. All six private-draft smoke
+lanes and the public checksum, provenance, update-response, and byte-continuity checks passed.
 
-The next product action is the remaining Stage 4 feature work. The next release should reuse this
-build-once path: qualify a future candidate, explicitly authorize an annotated tag, then promote
-only its verified bytes.
+The next product action is the explicitly authorized Beta transition and whole-product feature
+freeze. That release should reuse this build-once path: qualify a Beta candidate, authorize its
+annotated tag, then promote only its verified bytes.
