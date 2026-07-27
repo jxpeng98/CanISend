@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use canisend_app::{
     AgentCapabilitiesReadModel, AgentContextReadModel, AgentHost, AgentPackExportReadModel,
-    ApplicationFailure, DiscoveryNetworkAdapter, ProjectionReplaceRequest,
+    ApplicationFailure, DiscoveryNetworkAdapter, ProjectionReplaceRequest, RenderExportReadModel,
     TaskCompletionPreviewReadModel, TaskExecutionMode, TaskOperation, WorkflowControlReadModel,
     WorkflowRerunPreview,
 };
@@ -10,7 +10,7 @@ use canisend_contracts::{
     ApplicationPlanCandidate, ApplicationPlanRecord, ArtifactKind, CriteriaSetRecord,
     DiscoveryImportReport, DocumentRecord, DocumentSetRecord, EntityId, EvidenceCatalogRecord,
     EvidenceMatchSetRecord, ExecutionMode, FindingDisposition, PackageExportManifestRecord,
-    PackageManifestRecord, PrivacyClassification, ProjectionReconcileRecord,
+    PackageManifestRecord, PrivacyClassification, ProjectionReconcileRecord, RenderManifestRecord,
     ReviewDispositionCandidate, ReviewFindingsRecord, SafeRelativePath, StageExecutionStatus,
     TaskInputExportData, TaskStateData, TaskStatus, WorkflowStage,
 };
@@ -111,6 +111,8 @@ pub(crate) enum FocusTarget {
     PackageCheck,
     PackageExport,
     PackageReconcile,
+    RenderBuild,
+    RenderExport,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -391,6 +393,35 @@ fn suggested_copy_path(path: &SafeRelativePath) -> String {
         format!("{stem}-edited-copy")
     } else {
         format!("{stem}-edited-copy.{suffix}")
+    }
+}
+
+#[derive(Debug, Default)]
+pub(crate) struct RenderWorkspaceForm {
+    pub(crate) job_id: Option<String>,
+    pub(crate) manifest: Option<RenderManifestRecord>,
+    pub(crate) export_destination: String,
+    pub(crate) private_export_consent: bool,
+    pub(crate) export: Option<RenderExportReadModel>,
+    pub(crate) error: Option<String>,
+}
+
+impl RenderWorkspaceForm {
+    pub(crate) fn select_job(&mut self, job_id: &str) {
+        if self.job_id.as_deref() != Some(job_id) {
+            *self = Self {
+                job_id: Some(job_id.to_owned()),
+                export_destination: format!("jobs/{job_id}/rendered"),
+                ..Self::default()
+            };
+        }
+    }
+
+    pub(crate) fn clear_loaded_data(&mut self) {
+        self.manifest = None;
+        self.private_export_consent = false;
+        self.export = None;
+        self.error = None;
     }
 }
 
@@ -855,9 +886,9 @@ mod tests {
 
     use super::{
         AgentDestinationIssue, AgentDestinationPreview, AgentIntegrationForm, DiscoveryImportForm,
-        DiscoveryRefreshForm, DocumentWorkspaceForm, PackageWorkspaceForm, ReviewWorkspaceForm,
-        TaskPanelForm, inspect_agent_export_destination, parse_workflow_artifact_id,
-        task_operation_stage, task_operations_for_ready_stages,
+        DiscoveryRefreshForm, DocumentWorkspaceForm, PackageWorkspaceForm, RenderWorkspaceForm,
+        ReviewWorkspaceForm, TaskPanelForm, inspect_agent_export_destination,
+        parse_workflow_artifact_id, task_operation_stage, task_operations_for_ready_stages,
     };
     use super::{validate_discovery_import_form, validate_discovery_refresh_form};
     use crate::i18n::Language;
@@ -1032,6 +1063,21 @@ mod tests {
         assert!(form.manifest.is_none());
         assert!(form.export_receipt.is_none());
         assert!(form.reconciliation.is_none());
+        assert!(form.error.is_none());
+    }
+
+    #[test]
+    fn render_workspace_uses_a_job_scoped_default_and_clears_export_consent() {
+        let mut form = RenderWorkspaceForm::default();
+        form.select_job("job-a");
+        assert_eq!(form.export_destination, "jobs/job-a/rendered");
+        form.private_export_consent = true;
+        form.error = Some("old error".to_owned());
+        form.select_job("job-b");
+        assert_eq!(form.export_destination, "jobs/job-b/rendered");
+        assert!(!form.private_export_consent);
+        assert!(form.manifest.is_none());
+        assert!(form.export.is_none());
         assert!(form.error.is_none());
     }
 

@@ -1103,6 +1103,7 @@ impl CanISendDesktop {
             self.document_form = DocumentWorkspaceForm::default();
             self.review_form = ReviewWorkspaceForm::default();
             self.package_form = PackageWorkspaceForm::default();
+            self.render_form = RenderWorkspaceForm::default();
             self.load_job(job.id.to_string(), ui.ctx().clone());
         }
         ui.add_space(8.0);
@@ -1128,6 +1129,7 @@ impl CanISendDesktop {
                 self.document_form = DocumentWorkspaceForm::default();
                 self.review_form = ReviewWorkspaceForm::default();
                 self.package_form = PackageWorkspaceForm::default();
+                self.render_form = RenderWorkspaceForm::default();
                 self.task_form = TaskPanelForm::default();
                 self.criteria_match_form = CriteriaMatchForm::default();
                 self.plan_review_form = PlanReviewForm::default();
@@ -1188,6 +1190,10 @@ impl CanISendDesktop {
             ui.separator();
             ui.add_space(18.0);
             self.show_package_workspace(ui, detail.job.id.as_str());
+            ui.add_space(24.0);
+            ui.separator();
+            ui.add_space(18.0);
+            self.show_render_workspace(ui, detail.job.id.as_str());
             return;
         }
 

@@ -9,19 +9,20 @@ use canisend_app::{
     JobListReadModel, NetworkFetchConsent, PackageExportRequest, PrivateExportConsent,
     PrivateReadConsent, ProfileSourceImportReadModel, ProfileSourceListReadModel,
     ProjectionCopyAsNewRequest, ProjectionReplaceRequest, ProviderSendConsent,
-    ReviewWorkspaceReadModel, SourceImportReadModel, TaskCompletionPreviewReadModel,
-    TaskInputExportRequest, TaskPrepareAgainReadModel, TaskPrepareRequest, TerminalInstallConsent,
-    UpdateCheckReadModel, WorkflowBeginRequest, WorkflowCompleteRequest, WorkflowControlReadModel,
-    WorkflowRerunPreview, WorkflowRerunRequest, WorkspaceHealthReadModel, WorkspaceReadModel,
-    WorkspaceRepairReadModel, WorkspaceRestoreReadModel,
+    RenderExportReadModel, RenderExportRequest, ReviewWorkspaceReadModel, SourceImportReadModel,
+    TaskCompletionPreviewReadModel, TaskInputExportRequest, TaskPrepareAgainReadModel,
+    TaskPrepareRequest, TerminalInstallConsent, UpdateCheckReadModel, WorkflowBeginRequest,
+    WorkflowCompleteRequest, WorkflowControlReadModel, WorkflowRerunPreview, WorkflowRerunRequest,
+    WorkspaceHealthReadModel, WorkspaceReadModel, WorkspaceRepairReadModel,
+    WorkspaceRestoreReadModel,
 };
 use canisend_contracts::{
     ApplicationPlanCandidate, ApplicationPlanRecord, CriteriaSetRecord, DiscoveryImportReport,
     DiscoveryLeadRecord, EvidenceCatalogRecord, EvidenceMatchSetRecord, JobRecord,
     PackageExportManifestRecord, PackageManifestRecord, PrivacyClassification,
-    ProjectionReconcileRecord, ReviewDispositionCandidate, ReviewFindingsRecord, TaskCommitData,
-    TaskCompletionRequest, TaskDescriptor, TaskInputExportData, TaskStateData, WorkflowStage,
-    WorkflowStatusData,
+    ProjectionReconcileRecord, RenderManifestRecord, ReviewDispositionCandidate,
+    ReviewFindingsRecord, TaskCommitData, TaskCompletionRequest, TaskDescriptor,
+    TaskInputExportData, TaskStateData, WorkflowStage, WorkflowStatusData,
 };
 
 #[derive(Debug)]
@@ -221,6 +222,19 @@ pub(crate) enum WorkerRequest {
         path: PathBuf,
         request: ProjectionCopyAsNewRequest,
     },
+    BuildRender {
+        path: PathBuf,
+        job_id: String,
+    },
+    LoadRender {
+        path: PathBuf,
+        job_id: String,
+    },
+    ExportRender {
+        path: PathBuf,
+        request: RenderExportRequest,
+        private_export_consent: bool,
+    },
     StartWorkflow {
         path: PathBuf,
         id: String,
@@ -402,6 +416,18 @@ pub(crate) enum WorkerEvent {
     ProjectionCopiedAsNew {
         job_id: String,
         result: Result<ActionReceipt<ProjectionReconcileRecord>, String>,
+    },
+    RenderBuilt {
+        job_id: String,
+        result: Result<ActionReceipt<RenderManifestRecord>, String>,
+    },
+    RenderLoaded {
+        job_id: String,
+        result: Result<ActionReceipt<RenderManifestRecord>, String>,
+    },
+    RenderExported {
+        job_id: String,
+        result: Result<ActionReceipt<RenderExportReadModel>, String>,
     },
     WorkflowLoaded(Result<ActionReceipt<WorkflowStatusData>, String>),
     WorkflowControlsLoaded(Result<ActionReceipt<WorkflowControlReadModel>, String>),
@@ -772,6 +798,30 @@ pub(crate) fn execute(request: WorkerRequest) -> WorkerEvent {
                 job_id,
             }
         }
+        WorkerRequest::BuildRender { path, job_id } => WorkerEvent::RenderBuilt {
+            result: Application::build_render(&path, &job_id).map_err(|error| error.to_string()),
+            job_id,
+        },
+        WorkerRequest::LoadRender { path, job_id } => WorkerEvent::RenderLoaded {
+            result: Application::current_render(&path, &job_id).map_err(|error| error.to_string()),
+            job_id,
+        },
+        WorkerRequest::ExportRender {
+            path,
+            request,
+            private_export_consent,
+        } => {
+            let job_id = request.job_id.to_string();
+            WorkerEvent::RenderExported {
+                result: Application::export_render(
+                    &path,
+                    request,
+                    private_export_consent.then(PrivateExportConsent::granted_by_user),
+                )
+                .map_err(|error| error.to_string()),
+                job_id,
+            }
+        }
         WorkerRequest::StartWorkflow { path, id } => WorkerEvent::WorkflowLoaded(
             Application::start_workflow(&path, &id).map_err(|error| error.to_string()),
         ),
@@ -1026,6 +1076,20 @@ mod tests {
                 job_id: job_id.to_string(),
             }),
             WorkerEvent::PackageExportLoaded { result: Err(_), .. }
+        ));
+        assert!(matches!(
+            execute(WorkerRequest::BuildRender {
+                path: root.clone(),
+                job_id: job_id.to_string(),
+            }),
+            WorkerEvent::RenderBuilt { result: Err(_), .. }
+        ));
+        assert!(matches!(
+            execute(WorkerRequest::LoadRender {
+                path: root.clone(),
+                job_id: job_id.to_string(),
+            }),
+            WorkerEvent::RenderLoaded { result: Err(_), .. }
         ));
         let source = temporary_root("source").with_extension("txt");
         std::fs::write(&source, "bounded job source").expect("write source");

@@ -5,6 +5,7 @@ mod document_page;
 mod package_page;
 mod pages;
 mod plan_page;
+mod render_page;
 mod review_page;
 mod task_panel;
 
@@ -32,9 +33,10 @@ use crate::{
         DiscoveryImportForm, DiscoveryPanel, DiscoveryRefreshForm, DocumentWorkspaceForm,
         EvidenceReviewForm, FocusTarget, GuiPreferences, ImportForm, ImportKind, JobForm, JobPanel,
         PackageWorkspaceForm, Page, PendingConfirmation, PlanReviewForm, ProfileSourceForm,
-        RestoreWorkspaceForm, ReviewWorkspaceForm, TaskPanelForm, WorkflowActionForm,
-        WorkspaceForm, available_task_modes, available_task_operations, parse_workflow_artifact_id,
-        validate_discovery_import_form, validate_discovery_refresh_form,
+        RenderWorkspaceForm, RestoreWorkspaceForm, ReviewWorkspaceForm, TaskPanelForm,
+        WorkflowActionForm, WorkspaceForm, available_task_modes, available_task_operations,
+        parse_workflow_artifact_id, validate_discovery_import_form,
+        validate_discovery_refresh_form,
     },
     theme,
     worker::{WorkerEvent, WorkerRequest, execute},
@@ -44,9 +46,10 @@ use canisend_app::{
     DiscoveryAdapterCatalogReadModel, DiscoveryLeadListReadModel, DiscoverySourceListReadModel,
     DiscoverySuggestionReadModel, DoctorSummary, JobDetailReadModel, PackageExportRequest,
     ProductSummary, ProfileSourceListReadModel, ProjectionCopyAsNewRequest,
-    ProjectionReplaceRequest, TaskExecutionMode, TaskInputExportRequest, TaskOperation,
-    TaskPrepareRequest, UpdateCheckReadModel, WorkflowBeginRequest, WorkflowCompleteRequest,
-    WorkflowControlReadModel, WorkflowRerunRequest, WorkspaceHealthReadModel, WorkspaceReadModel,
+    ProjectionReplaceRequest, RenderExportRequest, TaskExecutionMode, TaskInputExportRequest,
+    TaskOperation, TaskPrepareRequest, UpdateCheckReadModel, WorkflowBeginRequest,
+    WorkflowCompleteRequest, WorkflowControlReadModel, WorkflowRerunRequest,
+    WorkspaceHealthReadModel, WorkspaceReadModel,
 };
 use canisend_app::{CliInstallState, CliInstallStatus, CliVersionRelation};
 use canisend_contracts::{
@@ -174,6 +177,7 @@ struct CanISendDesktop {
     document_form: DocumentWorkspaceForm,
     review_form: ReviewWorkspaceForm,
     package_form: PackageWorkspaceForm,
+    render_form: RenderWorkspaceForm,
     profile_sources: Option<ProfileSourceListReadModel>,
     workflow_controls: Option<WorkflowControlReadModel>,
     workflow_action_form: Option<WorkflowActionForm>,
@@ -259,6 +263,7 @@ impl CanISendDesktop {
             document_form: DocumentWorkspaceForm::default(),
             review_form: ReviewWorkspaceForm::default(),
             package_form: PackageWorkspaceForm::default(),
+            render_form: RenderWorkspaceForm::default(),
             profile_sources: None,
             workflow_controls: None,
             workflow_action_form: None,
@@ -612,6 +617,7 @@ impl CanISendDesktop {
                     self.document_form = DocumentWorkspaceForm::default();
                     self.review_form = ReviewWorkspaceForm::default();
                     self.package_form = PackageWorkspaceForm::default();
+                    self.render_form = RenderWorkspaceForm::default();
                     self.load_job(id, ctx.clone());
                 }
                 Err(error) => self.job_form.error = Some(error),
@@ -636,6 +642,7 @@ impl CanISendDesktop {
                     self.document_form.select_job(&job_id);
                     self.review_form.select_job(&job_id);
                     self.package_form.select_job(&job_id);
+                    self.render_form.select_job(&job_id);
                     self.task_form.select_job(&job_id);
                     self.selected_job = Some(receipt.data);
                     if has_workflow {
@@ -659,6 +666,7 @@ impl CanISendDesktop {
                     self.document_form = DocumentWorkspaceForm::default();
                     self.review_form = ReviewWorkspaceForm::default();
                     self.package_form = PackageWorkspaceForm::default();
+                    self.render_form = RenderWorkspaceForm::default();
                     self.criteria_match_form = CriteriaMatchForm::default();
                     self.plan_review_form = PlanReviewForm::default();
                     self.notice = Some((true, summary));
@@ -683,6 +691,7 @@ impl CanISendDesktop {
                     self.document_form.clear_loaded_private_data();
                     self.review_form.clear_loaded_private_data();
                     self.package_form.clear_loaded_data();
+                    self.render_form.clear_loaded_data();
                     self.notice = Some((true, summary));
                     self.load_job(id, ctx.clone());
                 }
@@ -700,6 +709,7 @@ impl CanISendDesktop {
                     self.document_form.clear_loaded_private_data();
                     self.review_form.clear_loaded_private_data();
                     self.package_form.clear_loaded_data();
+                    self.render_form.clear_loaded_data();
                     self.notice = Some((true, summary));
                     self.refresh_profile_sources(ctx.clone());
                 }
@@ -735,6 +745,7 @@ impl CanISendDesktop {
                     self.document_form.clear_loaded_private_data();
                     self.review_form.clear_loaded_private_data();
                     self.package_form.clear_loaded_data();
+                    self.render_form.clear_loaded_data();
                     if self.selected_job_id.as_deref() == Some(job_id.as_str()) {
                         self.load_job(job_id, ctx.clone());
                     }
@@ -769,6 +780,7 @@ impl CanISendDesktop {
                     self.document_form.clear_loaded_private_data();
                     self.review_form.clear_loaded_private_data();
                     self.package_form.clear_loaded_data();
+                    self.render_form.clear_loaded_data();
                     self.notice = Some((true, summary));
                     if self.selected_job_id.as_deref() == Some(job_id.as_str()) {
                         self.load_job(job_id, ctx.clone());
@@ -817,6 +829,7 @@ impl CanISendDesktop {
                     self.document_form.clear_loaded_private_data();
                     self.review_form.clear_loaded_private_data();
                     self.package_form.clear_loaded_data();
+                    self.render_form.clear_loaded_data();
                     self.notice = Some((true, summary));
                     if self.selected_job_id.as_deref() == Some(job_id.as_str()) {
                         self.load_job(job_id, ctx.clone());
@@ -882,6 +895,7 @@ impl CanISendDesktop {
                             let summary =
                                 localized_receipt_summary(&committed.receipt, self.language);
                             self.package_form.clear_loaded_data();
+                            self.render_form.clear_loaded_data();
                             match committed.workspace {
                                 Ok(workspace) => {
                                     self.review_form.job_id = Some(job_id);
@@ -925,6 +939,7 @@ impl CanISendDesktop {
                     match result {
                         Ok(receipt) => {
                             let summary = localized_receipt_summary(&receipt, self.language);
+                            self.render_form.clear_loaded_data();
                             self.package_form.job_id = Some(job_id);
                             self.package_form.manifest = Some(receipt.data);
                             self.package_form.error = None;
@@ -1006,6 +1021,46 @@ impl CanISendDesktop {
                     }
                 }
             }
+            WorkerEvent::RenderBuilt { job_id, result }
+            | WorkerEvent::RenderLoaded { job_id, result } => {
+                if self.selected_job_id.as_deref() == Some(job_id.as_str()) {
+                    match result {
+                        Ok(receipt) => {
+                            let summary = localized_receipt_summary(&receipt, self.language);
+                            self.render_form.job_id = Some(job_id);
+                            self.render_form.manifest = Some(receipt.data);
+                            self.render_form.export = None;
+                            self.render_form.error = None;
+                            self.notice = Some((true, summary));
+                            self.pending_focus = Some(FocusTarget::RenderBuild);
+                        }
+                        Err(error) => {
+                            self.render_form.error = Some(error);
+                            self.pending_focus = Some(FocusTarget::RenderBuild);
+                        }
+                    }
+                }
+            }
+            WorkerEvent::RenderExported { job_id, result } => {
+                if self.selected_job_id.as_deref() == Some(job_id.as_str()) {
+                    match result {
+                        Ok(receipt) => {
+                            let summary = localized_receipt_summary(&receipt, self.language);
+                            self.render_form.job_id = Some(job_id);
+                            self.render_form.manifest = Some(receipt.data.render_manifest.clone());
+                            self.render_form.export = Some(receipt.data);
+                            self.render_form.private_export_consent = false;
+                            self.render_form.error = None;
+                            self.notice = Some((true, summary));
+                            self.pending_focus = Some(FocusTarget::RenderExport);
+                        }
+                        Err(error) => {
+                            self.render_form.error = Some(error);
+                            self.pending_focus = Some(FocusTarget::RenderExport);
+                        }
+                    }
+                }
+            }
             WorkerEvent::WorkflowLoaded(result) => match result {
                 Ok(receipt) => {
                     let summary = localized_receipt_summary(&receipt, self.language);
@@ -1042,6 +1097,7 @@ impl CanISendDesktop {
                     self.document_form.clear_loaded_private_data();
                     self.review_form.clear_loaded_private_data();
                     self.package_form.clear_loaded_data();
+                    self.render_form.clear_loaded_data();
                     self.notice = Some((true, summary));
                     if let Some(job_id) = self.selected_job_id.clone() {
                         self.load_latest_task(job_id, ctx.clone());
@@ -1134,6 +1190,7 @@ impl CanISendDesktop {
                     self.document_form.clear_loaded_private_data();
                     self.review_form.clear_loaded_private_data();
                     self.package_form.clear_loaded_data();
+                    self.render_form.clear_loaded_data();
                     self.notice = Some((true, summary));
                     self.reload_selected_job_after_task(ctx.clone());
                 }
@@ -1317,6 +1374,7 @@ impl CanISendDesktop {
         self.document_form = DocumentWorkspaceForm::default();
         self.review_form = ReviewWorkspaceForm::default();
         self.package_form = PackageWorkspaceForm::default();
+        self.render_form = RenderWorkspaceForm::default();
         self.workflow_controls = None;
         self.workflow_action_form = None;
         self.task_form = TaskPanelForm::default();
@@ -1578,6 +1636,65 @@ impl CanISendDesktop {
             ),
             ctx,
             WorkerRequest::CopyProjectionAsNew { path, request },
+        );
+    }
+
+    fn render_manifest(&mut self, job_id: String, build: bool, ctx: egui::Context) {
+        let Some(path) = self.active_workspace.clone() else {
+            self.render_form.error = Some(
+                self.language
+                    .select(
+                        "Choose a workspace before building PDFs",
+                        "构建 PDF 前请先选择工作区",
+                    )
+                    .to_owned(),
+            );
+            return;
+        };
+        let request = if build {
+            WorkerRequest::BuildRender { path, job_id }
+        } else {
+            WorkerRequest::LoadRender { path, job_id }
+        };
+        self.dispatch(
+            if build {
+                self.language
+                    .select("Building validated PDFs", "正在构建并验证 PDF")
+            } else {
+                self.language
+                    .select("Loading current render", "正在加载当前渲染")
+            },
+            ctx,
+            request,
+        );
+    }
+
+    fn export_render(
+        &mut self,
+        request: RenderExportRequest,
+        private_export_consent: bool,
+        ctx: egui::Context,
+    ) {
+        let Some(path) = self.active_workspace.clone() else {
+            self.render_form.error = Some(
+                self.language
+                    .select(
+                        "Choose a workspace before exporting PDFs",
+                        "导出 PDF 前请先选择工作区",
+                    )
+                    .to_owned(),
+            );
+            return;
+        };
+        self.dispatch(
+            self.language
+                .select("Exporting validated PDFs", "正在导出已验证 PDF"),
+            ctx,
+            WorkerRequest::ExportRender {
+                path,
+                request,
+                private_export_consent,
+            },
         );
     }
 
