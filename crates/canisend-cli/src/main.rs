@@ -12,7 +12,8 @@ use std::{
 
 use canisend_app::{
     AgentHost, AgentPackExportRequest, Application, ApplicationError, DiscoveryImportRequest,
-    DiscoveryNetworkAdapter, DiscoveryRefreshRequest, NetworkFetchConsent, PrivateReadConsent,
+    DiscoveryNetworkAdapter, DiscoveryRefreshRequest, NetworkFetchConsent, PackageExportRequest,
+    PrivateExportConsent, PrivateReadConsent, ProjectionCopyAsNewRequest, ProjectionReplaceRequest,
     ProviderSendConsent, TaskExecutionMode, TaskInputExportRequest, TaskOperation,
     TaskPrepareRequest, WorkflowBeginRequest, WorkflowCompleteRequest, WorkflowRerunRequest,
     WorkspaceInitPolicy,
@@ -27,7 +28,7 @@ use canisend_io::{
     IoAdapterError, read_criteria_file, read_task_completion_file, read_task_completion_stdin,
 };
 use canisend_resources::{ResourceId, ResourceKind};
-use canisend_store::{PackageService, ProjectionService, RenderService, StoreError, Workspace};
+use canisend_store::{RenderService, StoreError, Workspace};
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use serde_json::json;
 
@@ -2945,25 +2946,22 @@ fn review_output(
 }
 
 fn package_check(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<CommandOutput> {
-    let job_id = parse_entity_id("package.check", job_id)?;
-    let mut workspace = open_workspace(workspace_path, "package.check")?;
-    let artifact = PackageService::new(&mut workspace.database, &workspace.blobs)
-        .check(&job_id)
-        .map_err(|error| store_failure("package.check", error))?;
-    let manifest = PackageService::new(&mut workspace.database, &workspace.blobs)
-        .current(&job_id)
-        .map_err(|error| store_failure("package.check", error))?;
+    let _ = parse_entity_id("package.check", job_id)?;
+    let root = app_adapter::workspace_root(workspace_path, "package.check")?;
+    let receipt = Application::check_package(&root, job_id)
+        .map_err(|error| app_adapter::failure("package.check", error))?;
+    let manifest = receipt.data;
     let mut output = package_output("package.check", &manifest)?;
-    output.response.artifacts.push(artifact);
+    output.response.artifacts.extend(receipt.artifacts);
     Ok(output)
 }
 
 fn package_show(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<CommandOutput> {
-    let job_id = parse_entity_id("package.show", job_id)?;
-    let mut workspace = open_workspace(workspace_path, "package.show")?;
-    let manifest = PackageService::new(&mut workspace.database, &workspace.blobs)
-        .current(&job_id)
-        .map_err(|error| store_failure("package.show", error))?;
+    let _ = parse_entity_id("package.show", job_id)?;
+    let root = app_adapter::workspace_root(workspace_path, "package.show")?;
+    let manifest = Application::current_package(&root, job_id)
+        .map_err(|error| app_adapter::failure("package.show", error))?
+        .data;
     package_output("package.show", &manifest)
 }
 
@@ -3004,30 +3002,20 @@ fn package_export(
     workspace_path: Option<PathBuf>,
     arguments: PackageExportArgs,
 ) -> CommandResult<CommandOutput> {
-    if !arguments.allow_private_export {
-        let mut failure = CommandFailure::new(
-            "package.export",
-            "consent-required",
-            ErrorCode::ConsentRequired,
-            "export-private-artifacts consent must be explicitly confirmed",
-            false,
-        );
-        failure.error.remediation = Some(NextAction {
-            action: "obtain user approval, then repeat with --allow-private-export".to_owned(),
-            description:
-                "The command writes editable application material bodies under jobs/JOB_ID/"
-                    .to_owned(),
-        });
-        return Err(failure);
-    }
-    let job_id = parse_entity_id("package.export", &arguments.job)?;
-    let destination = parse_safe_relative_path("package.export", &arguments.destination)?;
-    let mut workspace = open_workspace(workspace_path, "package.export")?;
-    let root = workspace.paths.root.clone();
-    let (artifact, receipt) =
-        ProjectionService::new(&mut workspace.database, &workspace.blobs, &root)
-            .export(&job_id, &destination)
-            .map_err(|error| store_failure("package.export", error))?;
+    let request = PackageExportRequest::try_new(&arguments.job, &arguments.destination)
+        .map_err(|error| app_adapter::failure("package.export", error))?;
+    let destination = request.destination.clone();
+    let consent = arguments
+        .allow_private_export
+        .then(PrivateExportConsent::granted_by_user);
+    let root = if consent.is_some() {
+        app_adapter::workspace_root(workspace_path, "package.export")?
+    } else {
+        PathBuf::from(".")
+    };
+    let result = Application::export_package(&root, request, consent)
+        .map_err(|error| app_adapter::failure("package.export", error))?;
+    let receipt = result.data;
     let mut output = success(
         "package.export",
         "exported",
@@ -3039,18 +3027,16 @@ fn package_export(
             "Submission performed: no".to_owned(),
         ],
     )?;
-    output.response.artifacts.push(artifact);
+    output.response.artifacts.extend(result.artifacts);
     Ok(output)
 }
 
 fn package_exports(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<CommandOutput> {
-    let job_id = parse_entity_id("package.exports", job_id)?;
-    let mut workspace = open_workspace(workspace_path, "package.exports")?;
-    let root = workspace.paths.root.clone();
-    let (artifact, receipt) =
-        ProjectionService::new(&mut workspace.database, &workspace.blobs, &root)
-            .current(&job_id)
-            .map_err(|error| store_failure("package.exports", error))?;
+    let _ = parse_entity_id("package.exports", job_id)?;
+    let root = app_adapter::workspace_root(workspace_path, "package.exports")?;
+    let result = Application::current_package_export(&root, job_id)
+        .map_err(|error| app_adapter::failure("package.exports", error))?;
+    let receipt = result.data;
     let mut output = success(
         "package.exports",
         "available",
@@ -3061,7 +3047,7 @@ fn package_exports(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResu
             "Submission performed: no".to_owned(),
         ],
     )?;
-    output.response.artifacts.push(artifact);
+    output.response.artifacts.extend(result.artifacts);
     Ok(output)
 }
 
@@ -3069,12 +3055,11 @@ fn package_reconcile(
     workspace_path: Option<PathBuf>,
     job_id: &str,
 ) -> CommandResult<CommandOutput> {
-    let job_id = parse_entity_id("package.reconcile", job_id)?;
-    let mut workspace = open_workspace(workspace_path, "package.reconcile")?;
-    let root = workspace.paths.root.clone();
-    let records = ProjectionService::new(&mut workspace.database, &workspace.blobs, &root)
-        .reconcile(&job_id)
-        .map_err(|error| store_failure("package.reconcile", error))?;
+    let _ = parse_entity_id("package.reconcile", job_id)?;
+    let root = app_adapter::workspace_root(workspace_path, "package.reconcile")?;
+    let records = Application::reconcile_package_projections(&root, job_id)
+        .map_err(|error| app_adapter::failure("package.reconcile", error))?
+        .data;
     let edited = records
         .iter()
         .filter(|record| {
@@ -3108,13 +3093,13 @@ fn package_replace(
     workspace_path: Option<PathBuf>,
     arguments: PackageProjectionArgs,
 ) -> CommandResult<CommandOutput> {
-    let job_id = parse_entity_id("package.replace", &arguments.job)?;
-    let path = parse_safe_relative_path("package.replace", &arguments.path)?;
-    let mut workspace = open_workspace(workspace_path, "package.replace")?;
-    let root = workspace.paths.root.clone();
-    let record = ProjectionService::new(&mut workspace.database, &workspace.blobs, &root)
-        .replace(&job_id, &path)
-        .map_err(|error| store_failure("package.replace", error))?;
+    let request = ProjectionReplaceRequest::try_new(&arguments.job, &arguments.path)
+        .map_err(|error| app_adapter::failure("package.replace", error))?;
+    let path = request.path.clone();
+    let root = app_adapter::workspace_root(workspace_path, "package.replace")?;
+    let record = Application::replace_package_projection(&root, request)
+        .map_err(|error| app_adapter::failure("package.replace", error))?
+        .data;
     success(
         "package.replace",
         "replaced",
@@ -3131,14 +3116,18 @@ fn package_copy_as_new(
     workspace_path: Option<PathBuf>,
     arguments: PackageCopyAsNewArgs,
 ) -> CommandResult<CommandOutput> {
-    let job_id = parse_entity_id("package.copy-as-new", &arguments.job)?;
-    let path = parse_safe_relative_path("package.copy-as-new", &arguments.path)?;
-    let destination = parse_safe_relative_path("package.copy-as-new", &arguments.destination)?;
-    let mut workspace = open_workspace(workspace_path, "package.copy-as-new")?;
-    let root = workspace.paths.root.clone();
-    let record = ProjectionService::new(&mut workspace.database, &workspace.blobs, &root)
-        .copy_as_new(&job_id, &path, &destination)
-        .map_err(|error| store_failure("package.copy-as-new", error))?;
+    let request = ProjectionCopyAsNewRequest::try_new(
+        &arguments.job,
+        &arguments.path,
+        &arguments.destination,
+    )
+    .map_err(|error| app_adapter::failure("package.copy-as-new", error))?;
+    let path = request.path.clone();
+    let destination = request.destination.clone();
+    let root = app_adapter::workspace_root(workspace_path, "package.copy-as-new")?;
+    let record = Application::copy_package_projection_as_new(&root, request)
+        .map_err(|error| app_adapter::failure("package.copy-as-new", error))?
+        .data;
     success(
         "package.copy-as-new",
         "preserved-and-restored",
