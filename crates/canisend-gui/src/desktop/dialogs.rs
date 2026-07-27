@@ -1129,6 +1129,35 @@ impl CanISendDesktop {
                         }
                     });
                 }
+                PendingConfirmation::CancelTask { task_id, operation } => {
+                    accessible_heading(
+                        ui,
+                        self.language
+                            .select("Cancel this prepared task?", "取消这个已准备的任务？"),
+                        1,
+                    );
+                    ui.label(self.language.select(
+                        "Cancellation is terminal for this lease and is recorded in the audit log. It does not delete inputs or previously committed artifacts.",
+                        "取消操作会终止此租约并记录到审计日志中，但不会删除输入或此前已提交的工件。",
+                    ));
+                    ui.label(RichText::new(operation).strong());
+                    ui.monospace(task_id);
+                    ui.add_space(10.0);
+                    ui.horizontal(|ui| {
+                        if ui
+                            .add(theme::destructive_button(
+                                self.language
+                                    .select("Confirm cancellation", "确认取消任务"),
+                            ))
+                            .clicked()
+                        {
+                            confirmed = true;
+                        }
+                        if ui.button(self.language.text("Cancel")).clicked() {
+                            cancelled = true;
+                        }
+                    });
+                }
                 PendingConfirmation::UninstallCli { restores_previous } => {
                     accessible_heading(
                         ui,
@@ -1231,6 +1260,9 @@ impl CanISendDesktop {
                             include_archived_jobs: self.include_archived,
                         },
                     );
+                }
+                PendingConfirmation::CancelTask { task_id, .. } => {
+                    self.cancel_task(task_id, ui.ctx().clone());
                 }
                 PendingConfirmation::UninstallCli { .. } => {
                     self.uninstall_cli(ui.ctx().clone());

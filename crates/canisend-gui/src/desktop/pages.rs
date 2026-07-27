@@ -1113,6 +1113,7 @@ impl CanISendDesktop {
                 self.selected_job_id = None;
                 self.workflow_controls = None;
                 self.workflow_action_form = None;
+                self.task_form = TaskPanelForm::default();
                 self.criteria_match_form = CriteriaMatchForm::default();
                 self.plan_review_form = PlanReviewForm::default();
                 return;
@@ -1232,6 +1233,8 @@ impl CanISendDesktop {
                 }
             }
         }
+        ui.add_space(22.0);
+        self.show_task_panel(ui, detail.job.id.as_str());
         ui.add_space(22.0);
         self.show_criteria_match_workflow(ui, detail.job.id.as_str());
         ui.add_space(22.0);

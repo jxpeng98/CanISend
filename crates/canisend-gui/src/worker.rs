@@ -1,20 +1,23 @@
 use std::path::PathBuf;
 
 use canisend_app::{
-    ActionReceipt, Application, BackupReadModel, CliInstallStatus,
+    ActionReceipt, Application, ApplicationFailure, BackupReadModel, CliInstallStatus,
     DiscoveryAdapterCatalogReadModel, DiscoveryImportRequest, DiscoveryLeadListReadModel,
     DiscoveryPromotionReadModel, DiscoveryRefreshRequest, DiscoverySourceListReadModel,
     DiscoverySuggestionReadModel, DoctorSummary, JobDetailReadModel, JobListReadModel,
     NetworkFetchConsent, PrivateReadConsent, ProfileSourceImportReadModel,
-    ProfileSourceListReadModel, SourceImportReadModel, TerminalInstallConsent,
-    UpdateCheckReadModel, WorkflowBeginRequest, WorkflowCompleteRequest, WorkflowControlReadModel,
-    WorkflowRerunPreview, WorkflowRerunRequest, WorkspaceHealthReadModel, WorkspaceReadModel,
-    WorkspaceRepairReadModel, WorkspaceRestoreReadModel,
+    ProfileSourceListReadModel, ProviderSendConsent, SourceImportReadModel,
+    TaskCompletionPreviewReadModel, TaskInputExportRequest, TaskPrepareAgainReadModel,
+    TaskPrepareRequest, TerminalInstallConsent, UpdateCheckReadModel, WorkflowBeginRequest,
+    WorkflowCompleteRequest, WorkflowControlReadModel, WorkflowRerunPreview, WorkflowRerunRequest,
+    WorkspaceHealthReadModel, WorkspaceReadModel, WorkspaceRepairReadModel,
+    WorkspaceRestoreReadModel,
 };
 use canisend_contracts::{
     ApplicationPlanCandidate, ApplicationPlanRecord, CriteriaSetRecord, DiscoveryImportReport,
     DiscoveryLeadRecord, EvidenceCatalogRecord, EvidenceMatchSetRecord, JobRecord,
-    PrivacyClassification, WorkflowStage, WorkflowStatusData,
+    PrivacyClassification, TaskCommitData, TaskCompletionRequest, TaskDescriptor,
+    TaskInputExportData, TaskStateData, WorkflowStage, WorkflowStatusData,
 };
 
 #[derive(Debug)]
@@ -191,6 +194,36 @@ pub(crate) enum WorkerRequest {
         path: PathBuf,
         request: WorkflowRerunRequest,
     },
+    LoadLatestTask {
+        path: PathBuf,
+        job_id: String,
+    },
+    PrepareTask {
+        path: PathBuf,
+        request: TaskPrepareRequest,
+    },
+    ExportTaskInputs {
+        path: PathBuf,
+        request: TaskInputExportRequest,
+        private_read_consent: bool,
+        provider_send_consent: bool,
+    },
+    PreviewTaskCompletion {
+        path: PathBuf,
+        file: PathBuf,
+    },
+    CommitTaskCompletion {
+        path: PathBuf,
+        request: TaskCompletionRequest,
+    },
+    CancelTask {
+        path: PathBuf,
+        task_id: String,
+    },
+    PrepareTaskAgain {
+        path: PathBuf,
+        task_id: String,
+    },
     LoadCliStatus {
         source: Option<PathBuf>,
         destination: PathBuf,
@@ -274,6 +307,18 @@ pub(crate) enum WorkerEvent {
     WorkflowControlsLoaded(Result<ActionReceipt<WorkflowControlReadModel>, String>),
     WorkflowMutated(Result<ActionReceipt<WorkflowControlReadModel>, String>),
     WorkflowRerunPreviewed(Result<ActionReceipt<WorkflowRerunPreview>, String>),
+    LatestTaskLoaded {
+        job_id: String,
+        result: Result<ActionReceipt<Option<TaskStateData>>, ApplicationFailure>,
+    },
+    TaskPrepared(Result<ActionReceipt<TaskDescriptor>, ApplicationFailure>),
+    TaskInputsExported(Result<ActionReceipt<TaskInputExportData>, ApplicationFailure>),
+    TaskCompletionPreviewed(
+        Result<ActionReceipt<TaskCompletionPreviewReadModel>, ApplicationFailure>,
+    ),
+    TaskCompleted(Result<ActionReceipt<TaskCommitData>, ApplicationFailure>),
+    TaskCancelled(Result<ActionReceipt<TaskStateData>, ApplicationFailure>),
+    TaskPreparedAgain(Result<ActionReceipt<TaskPrepareAgainReadModel>, ApplicationFailure>),
     CliStatusLoaded(Result<ActionReceipt<CliInstallStatus>, String>),
     CliInstalled(Result<ActionReceipt<CliInstallStatus>, String>),
     CliUninstalled(Result<ActionReceipt<CliInstallStatus>, String>),
@@ -559,6 +604,47 @@ pub(crate) fn execute(request: WorkerRequest) -> WorkerEvent {
         WorkerRequest::RerunWorkflowStage { path, request } => WorkerEvent::WorkflowMutated(
             Application::rerun_workflow_stage(&path, request).map_err(|error| error.to_string()),
         ),
+        WorkerRequest::LoadLatestTask { path, job_id } => WorkerEvent::LatestTaskLoaded {
+            result: Application::latest_task_for_job(&path, &job_id)
+                .map_err(|error| error.classify()),
+            job_id,
+        },
+        WorkerRequest::PrepareTask { path, request } => WorkerEvent::TaskPrepared(
+            Application::prepare_task(&path, request).map_err(|error| error.classify()),
+        ),
+        WorkerRequest::ExportTaskInputs {
+            path,
+            request,
+            private_read_consent,
+            provider_send_consent,
+        } => WorkerEvent::TaskInputsExported(
+            Application::export_task_inputs(
+                &path,
+                request,
+                private_read_consent.then(PrivateReadConsent::granted_by_user),
+                provider_send_consent.then(ProviderSendConsent::granted_by_user),
+            )
+            .map_err(|error| error.classify()),
+        ),
+        WorkerRequest::PreviewTaskCompletion { path, file } => {
+            WorkerEvent::TaskCompletionPreviewed(
+                Application::preview_task_completion_file(
+                    &path,
+                    &file,
+                    PrivateReadConsent::granted_by_user(),
+                )
+                .map_err(|error| error.classify()),
+            )
+        }
+        WorkerRequest::CommitTaskCompletion { path, request } => WorkerEvent::TaskCompleted(
+            Application::commit_task_completion(&path, request).map_err(|error| error.classify()),
+        ),
+        WorkerRequest::CancelTask { path, task_id } => WorkerEvent::TaskCancelled(
+            Application::cancel_task(&path, &task_id).map_err(|error| error.classify()),
+        ),
+        WorkerRequest::PrepareTaskAgain { path, task_id } => WorkerEvent::TaskPreparedAgain(
+            Application::prepare_task_again(&path, &task_id).map_err(|error| error.classify()),
+        ),
         WorkerRequest::LoadCliStatus {
             source,
             destination,
@@ -619,11 +705,12 @@ mod tests {
 
     use canisend_app::{
         Application, DiscoveryImportRequest, DiscoveryNetworkAdapter, DiscoveryRefreshRequest,
-        PrivateReadConsent, WorkflowBeginRequest, WorkflowRerunRequest,
+        PrivateReadConsent, TaskExecutionMode, TaskInputExportRequest, TaskOperation,
+        TaskPrepareRequest, WorkflowBeginRequest, WorkflowRerunRequest,
     };
     use canisend_contracts::{
-        ApplicationDecision, DiscoveryLeadStatus, ExecutionMode, ExpectedInputRevision,
-        TaskCompletionRequest, WorkflowStage,
+        ApplicationDecision, ArtifactKind, DiscoveryLeadStatus, ErrorCode, ExecutionMode,
+        ExpectedInputRevision, TaskCompletionRequest, TaskStatus, WorkflowStage,
     };
     use canisend_store::{CriteriaService, EvidenceService, TaskService, Workspace};
     use serde_json::json;
@@ -985,6 +1072,228 @@ mod tests {
         std::fs::remove_dir_all(root).expect("remove discovery workspace");
         std::fs::remove_file(source).expect("remove discovery CSV");
         std::fs::remove_file(host_source).expect("remove host-agent discovery JSON");
+    }
+
+    #[test]
+    fn task_worker_restores_scoped_preview_commit_and_recovery_state() {
+        let root = temporary_root("task-workflow");
+        let source = temporary_root("task-source").with_extension("txt");
+        let export = temporary_root("task-export");
+        let completion = temporary_root("task-completion").with_extension("json");
+        std::fs::write(&source, "bounded job source").expect("write task source");
+        assert!(matches!(
+            execute(WorkerRequest::CreateWorkspace {
+                alias: "Task fixture".to_owned(),
+                path: root.clone(),
+            }),
+            WorkerEvent::WorkspaceCreated { result: Ok(_), .. }
+        ));
+        let job_id = match execute(WorkerRequest::CreateJob {
+            path: root.clone(),
+            title: "Lecturer".to_owned(),
+            institution: "University X".to_owned(),
+        }) {
+            WorkerEvent::JobCreated(Ok(receipt)) => receipt.data.id,
+            event => panic!("unexpected job event: {event:?}"),
+        };
+        assert!(matches!(
+            execute(WorkerRequest::ImportLocalSource {
+                path: root.clone(),
+                id: job_id.to_string(),
+                source: source.clone(),
+            }),
+            WorkerEvent::SourceImported(Ok(_))
+        ));
+        assert!(matches!(
+            execute(WorkerRequest::StartWorkflow {
+                path: root.clone(),
+                id: job_id.to_string(),
+            }),
+            WorkerEvent::WorkflowLoaded(Ok(_))
+        ));
+        match execute(WorkerRequest::LoadLatestTask {
+            path: root.clone(),
+            job_id: job_id.to_string(),
+        }) {
+            WorkerEvent::LatestTaskLoaded {
+                result: Ok(receipt),
+                ..
+            } => assert!(receipt.data.is_none()),
+            event => panic!("unexpected empty latest-task event: {event:?}"),
+        }
+
+        let prepared = match execute(WorkerRequest::PrepareTask {
+            path: root.clone(),
+            request: TaskPrepareRequest {
+                job_id: job_id.clone(),
+                operation: TaskOperation::JobParse,
+                mode: TaskExecutionMode::HostAgent,
+            },
+        }) {
+            WorkerEvent::TaskPrepared(Ok(receipt)) => receipt.data,
+            event => panic!("unexpected task prepare event: {event:?}"),
+        };
+        match execute(WorkerRequest::LoadLatestTask {
+            path: root.clone(),
+            job_id: job_id.to_string(),
+        }) {
+            WorkerEvent::LatestTaskLoaded {
+                result: Ok(receipt),
+                ..
+            } => {
+                let latest = receipt.data.expect("latest prepared task");
+                assert_eq!(latest.descriptor.id, prepared.id);
+                assert_eq!(latest.status, TaskStatus::Prepared);
+            }
+            event => panic!("unexpected latest-task event: {event:?}"),
+        }
+        let export_request = TaskInputExportRequest {
+            task_id: prepared.id.clone(),
+            destination: export.clone(),
+        };
+        match execute(WorkerRequest::ExportTaskInputs {
+            path: root.clone(),
+            request: export_request.clone(),
+            private_read_consent: false,
+            provider_send_consent: false,
+        }) {
+            WorkerEvent::TaskInputsExported(Err(failure)) => {
+                assert_eq!(failure.code, ErrorCode::ConsentRequired);
+            }
+            event => panic!("unexpected task consent event: {event:?}"),
+        }
+        assert!(!export.exists());
+        match execute(WorkerRequest::ExportTaskInputs {
+            path: root.clone(),
+            request: export_request,
+            private_read_consent: true,
+            provider_send_consent: false,
+        }) {
+            WorkerEvent::TaskInputsExported(Ok(receipt)) => {
+                assert_eq!(receipt.data.files.len(), 1);
+                assert_eq!(receipt.data.task_id, prepared.id);
+            }
+            event => panic!("unexpected task export event: {event:?}"),
+        }
+
+        assert!(matches!(
+            execute(WorkerRequest::CancelTask {
+                path: root.clone(),
+                task_id: prepared.id.to_string(),
+            }),
+            WorkerEvent::TaskCancelled(Ok(receipt))
+                if receipt.data.status == TaskStatus::Cancelled
+        ));
+        let replacement = match execute(WorkerRequest::PrepareTaskAgain {
+            path: root.clone(),
+            task_id: prepared.id.to_string(),
+        }) {
+            WorkerEvent::TaskPreparedAgain(Ok(receipt)) => {
+                assert_eq!(receipt.data.previous.status, TaskStatus::Cancelled);
+                receipt.data.descriptor
+            }
+            event => panic!("unexpected task recovery event: {event:?}"),
+        };
+        assert_ne!(replacement.id, prepared.id);
+
+        let mut request = TaskCompletionRequest {
+            task_id: replacement.id.clone(),
+            lease_id: replacement.lease.id.clone(),
+            expected_job_revision: replacement.job_revision,
+            expected_inputs: expected_inputs(&replacement.input_artifacts),
+            candidate: json!({"title": 3}),
+        };
+        std::fs::write(
+            &completion,
+            serde_json::to_vec(&request).expect("invalid completion JSON"),
+        )
+        .expect("write invalid completion");
+        match execute(WorkerRequest::PreviewTaskCompletion {
+            path: root.clone(),
+            file: completion.clone(),
+        }) {
+            WorkerEvent::TaskCompletionPreviewed(Err(failure)) => {
+                assert_eq!(failure.code, ErrorCode::CandidateSchemaInvalid);
+                assert!(
+                    failure
+                        .details
+                        .as_ref()
+                        .and_then(serde_json::Value::as_array)
+                        .is_some_and(|details| !details.is_empty())
+                );
+            }
+            event => panic!("unexpected invalid preview event: {event:?}"),
+        }
+        request.candidate = json!({
+            "id": "019f2f55-7c00-7000-8000-000000000801",
+            "job_id": job_id,
+            "title": "Lecturer",
+            "institution": "University X",
+            "summary": "bounded job source",
+            "responsibilities": ["bounded job source"],
+            "criteria": [{
+                "id": "019f2f55-7c00-7000-8000-000000000802",
+                "job_id": job_id,
+                "kind": "teaching",
+                "requirement": "bounded job source",
+                "importance": "essential",
+                "source_quote": "bounded job source",
+                "source_span": {
+                    "source": replacement.input_artifacts[0],
+                    "start_byte": 0,
+                    "end_byte": 18
+                },
+                "confidence_milli": 900,
+                "confirmed": false,
+                "revision": 1
+            }],
+            "revision": 1
+        });
+        std::fs::write(
+            &completion,
+            serde_json::to_vec(&request).expect("valid completion JSON"),
+        )
+        .expect("write valid completion");
+        let reviewed = match execute(WorkerRequest::PreviewTaskCompletion {
+            path: root.clone(),
+            file: completion.clone(),
+        }) {
+            WorkerEvent::TaskCompletionPreviewed(Ok(receipt)) => {
+                assert_eq!(receipt.data.state.status, TaskStatus::Prepared);
+                receipt.data.request
+            }
+            event => panic!("unexpected valid preview event: {event:?}"),
+        };
+        std::fs::write(&completion, b"{}").expect("replace reviewed completion file");
+        match execute(WorkerRequest::CommitTaskCompletion {
+            path: root.clone(),
+            request: reviewed,
+        }) {
+            WorkerEvent::TaskCompleted(Ok(receipt)) => {
+                assert_eq!(receipt.data.status, TaskStatus::Committed);
+                assert_eq!(receipt.data.artifact.kind, ArtifactKind::ParsedJob);
+                assert!(!receipt.data.idempotent);
+            }
+            event => panic!("unexpected task commit event: {event:?}"),
+        }
+        match execute(WorkerRequest::LoadLatestTask {
+            path: root.clone(),
+            job_id: job_id.to_string(),
+        }) {
+            WorkerEvent::LatestTaskLoaded {
+                result: Ok(receipt),
+                ..
+            } => assert_eq!(
+                receipt.data.expect("latest committed task").status,
+                TaskStatus::Committed
+            ),
+            event => panic!("unexpected committed latest-task event: {event:?}"),
+        }
+
+        std::fs::remove_dir_all(root).expect("remove task workspace");
+        std::fs::remove_file(source).expect("remove task source");
+        std::fs::remove_dir_all(export).expect("remove task export");
+        std::fs::remove_file(completion).expect("remove task completion");
     }
 
     #[test]

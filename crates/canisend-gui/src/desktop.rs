@@ -2,6 +2,7 @@ mod dialogs;
 mod discovery_page;
 mod pages;
 mod plan_page;
+mod task_panel;
 
 use std::{
     path::PathBuf,
@@ -26,16 +27,18 @@ use crate::{
         CriteriaMatchForm, DiscoveryImportForm, DiscoveryPanel, DiscoveryRefreshForm,
         EvidenceReviewForm, FocusTarget, GuiPreferences, ImportForm, ImportKind, JobForm, Page,
         PendingConfirmation, PlanReviewForm, ProfileSourceForm, RestoreWorkspaceForm,
-        WorkflowActionForm, WorkspaceForm, parse_workflow_artifact_id,
-        validate_discovery_import_form, validate_discovery_refresh_form,
+        TaskPanelForm, WorkflowActionForm, WorkspaceForm, available_task_modes,
+        available_task_operations, parse_workflow_artifact_id, validate_discovery_import_form,
+        validate_discovery_refresh_form,
     },
     theme,
     worker::{WorkerEvent, WorkerRequest, execute},
 };
 use canisend_app::{
-    Application, DiscoveryAdapterCatalogReadModel, DiscoveryLeadListReadModel,
+    Application, ApplicationFailure, DiscoveryAdapterCatalogReadModel, DiscoveryLeadListReadModel,
     DiscoverySourceListReadModel, DiscoverySuggestionReadModel, DoctorSummary, JobDetailReadModel,
-    ProductSummary, ProfileSourceListReadModel, UpdateCheckReadModel, WorkflowBeginRequest,
+    ProductSummary, ProfileSourceListReadModel, TaskExecutionMode, TaskInputExportRequest,
+    TaskOperation, TaskPrepareRequest, UpdateCheckReadModel, WorkflowBeginRequest,
     WorkflowCompleteRequest, WorkflowControlReadModel, WorkflowRerunRequest,
     WorkspaceHealthReadModel, WorkspaceReadModel,
 };
@@ -43,8 +46,9 @@ use canisend_app::{CliInstallState, CliInstallStatus, CliVersionRelation};
 use canisend_contracts::{
     ApplicationDecision, ApplicationPlanCandidate, ApplicationPlanRecord, ArtifactKind,
     CriterionImportance, DiscoveryLeadRecord, DocumentKind, DocumentPlanCandidateRecord,
-    DocumentRequirement, EntityId, EvidenceKind, ExecutionMode, JobRecord, MatchStrength,
-    NextAction, PlanBlockerSeverity, PrivacyClassification, ProfileSourceKind, WorkflowStage,
+    DocumentRequirement, EntityId, ErrorCode, EvidenceKind, ExecutionMode, JobRecord,
+    MatchStrength, NextAction, PlanBlockerSeverity, PrivacyClassification, ProfileSourceKind,
+    TaskStateData, TaskStatus, WorkflowStage,
 };
 use eframe::egui::{self, Align, Color32, Layout, RichText, Sense, Stroke};
 
@@ -86,6 +90,13 @@ fn pick_discovery_batch_file() -> Option<PathBuf> {
         .pick_file()
 }
 
+#[cfg(target_os = "macos")]
+fn pick_task_completion_file() -> Option<PathBuf> {
+    rfd::FileDialog::new()
+        .add_filter("Task completion", &["json"])
+        .pick_file()
+}
+
 #[cfg(not(target_os = "macos"))]
 fn pick_profile_source_file() -> Option<PathBuf> {
     None
@@ -98,6 +109,11 @@ fn pick_job_source_file() -> Option<PathBuf> {
 
 #[cfg(not(target_os = "macos"))]
 fn pick_discovery_batch_file() -> Option<PathBuf> {
+    None
+}
+
+#[cfg(not(target_os = "macos"))]
+fn pick_task_completion_file() -> Option<PathBuf> {
     None
 }
 
@@ -151,6 +167,7 @@ struct CanISendDesktop {
     profile_sources: Option<ProfileSourceListReadModel>,
     workflow_controls: Option<WorkflowControlReadModel>,
     workflow_action_form: Option<WorkflowActionForm>,
+    task_form: TaskPanelForm,
     page: Page,
     job_form: JobForm,
     show_job_form: bool,
@@ -230,6 +247,7 @@ impl CanISendDesktop {
             profile_sources: None,
             workflow_controls: None,
             workflow_action_form: None,
+            task_form: TaskPanelForm::default(),
             page: Page::Overview,
             job_form: JobForm::default(),
             show_job_form: false,
@@ -591,11 +609,13 @@ impl CanISendDesktop {
                         };
                     }
                     self.selected_job_id = Some(job_id.clone());
+                    self.task_form.select_job(&job_id);
                     self.selected_job = Some(receipt.data);
                     if has_workflow {
                         self.load_workflow_controls(job_id, ctx.clone());
                     } else {
                         self.workflow_controls = None;
+                        self.load_latest_task(job_id, ctx.clone());
                     }
                 }
                 Err(error) => self.fail(error),
@@ -607,6 +627,7 @@ impl CanISendDesktop {
                     self.selected_job_id = None;
                     self.workflow_controls = None;
                     self.workflow_action_form = None;
+                    self.task_form = TaskPanelForm::default();
                     self.criteria_match_form = CriteriaMatchForm::default();
                     self.plan_review_form = PlanReviewForm::default();
                     self.notice = Some((true, summary));
@@ -770,7 +791,12 @@ impl CanISendDesktop {
                 Err(error) => self.fail(error),
             },
             WorkerEvent::WorkflowControlsLoaded(result) => match result {
-                Ok(receipt) => self.workflow_controls = Some(receipt.data),
+                Ok(receipt) => {
+                    self.workflow_controls = Some(receipt.data);
+                    if let Some(job_id) = self.selected_job_id.clone() {
+                        self.load_latest_task(job_id, ctx.clone());
+                    }
+                }
                 Err(error) => self.fail(error),
             },
             WorkerEvent::WorkflowMutated(result) => match result {
@@ -786,6 +812,9 @@ impl CanISendDesktop {
                         ..PlanReviewForm::default()
                     };
                     self.notice = Some((true, summary));
+                    if let Some(job_id) = self.selected_job_id.clone() {
+                        self.load_latest_task(job_id, ctx.clone());
+                    }
                 }
                 Err(error) => {
                     if let Some(form) = self.workflow_action_form.as_mut() {
@@ -802,6 +831,118 @@ impl CanISendDesktop {
                     });
                 }
                 Err(error) => self.fail(error),
+            },
+            WorkerEvent::LatestTaskLoaded { job_id, result } => {
+                if self.selected_job_id.as_deref() == Some(job_id.as_str()) {
+                    match result {
+                        Ok(receipt) => self.task_form.apply_state(receipt.data),
+                        Err(failure) => self.apply_task_failure(failure, FocusTarget::TaskPrepare),
+                    }
+                }
+            }
+            WorkerEvent::TaskPrepared(result) => match result {
+                Ok(receipt) => {
+                    let summary = localized_receipt_summary(&receipt, self.language);
+                    self.task_form.apply_state(Some(TaskStateData {
+                        descriptor: receipt.data,
+                        status: TaskStatus::Prepared,
+                        result: None,
+                    }));
+                    self.task_form.failure = None;
+                    self.notice = Some((true, summary));
+                    self.pending_focus = Some(FocusTarget::TaskExport);
+                    self.reload_selected_job_after_task(ctx.clone());
+                }
+                Err(failure) => self.apply_task_failure(failure, FocusTarget::TaskPrepare),
+            },
+            WorkerEvent::TaskInputsExported(result) => match result {
+                Ok(receipt) => {
+                    let summary = localized_receipt_summary(&receipt, self.language);
+                    self.task_form.exported = Some(receipt.data);
+                    self.task_form.failure = None;
+                    self.notice = Some((true, summary));
+                    self.pending_focus = Some(FocusTarget::TaskCompletionFile);
+                }
+                Err(failure) => self.apply_task_failure(failure, FocusTarget::TaskExport),
+            },
+            WorkerEvent::TaskCompletionPreviewed(result) => match result {
+                Ok(receipt) => {
+                    let summary = localized_receipt_summary(&receipt, self.language);
+                    let preview = receipt.data;
+                    self.task_form.apply_state(Some(preview.state.clone()));
+                    self.task_form.completion_preview = Some(preview);
+                    self.task_form.failure = None;
+                    self.task_form.stale_detected = false;
+                    self.notice = Some((true, summary));
+                    self.pending_focus = Some(FocusTarget::TaskCommit);
+                }
+                Err(failure) => {
+                    let focus = if failure.code == ErrorCode::TaskStale {
+                        FocusTarget::TaskCancel
+                    } else {
+                        FocusTarget::TaskCompletionFile
+                    };
+                    self.apply_task_failure(failure, focus);
+                }
+            },
+            WorkerEvent::TaskCompleted(result) => match result {
+                Ok(receipt) => {
+                    let summary = localized_receipt_summary(&receipt, self.language);
+                    let committed = receipt.data;
+                    if let Some(current) = self.task_form.state.as_ref()
+                        && current.descriptor.id == committed.task_id
+                    {
+                        self.task_form.apply_state(Some(TaskStateData {
+                            descriptor: current.descriptor.clone(),
+                            status: TaskStatus::Committed,
+                            result: Some(committed.artifact),
+                        }));
+                    }
+                    self.task_form.completion_preview = None;
+                    self.task_form.failure = None;
+                    self.notice = Some((true, summary));
+                    self.reload_selected_job_after_task(ctx.clone());
+                }
+                Err(failure) => {
+                    let stale = failure.code == ErrorCode::TaskStale;
+                    self.apply_task_failure(
+                        failure,
+                        if stale {
+                            FocusTarget::TaskPrepareAgain
+                        } else {
+                            FocusTarget::TaskCommit
+                        },
+                    );
+                    if stale && let Some(job_id) = self.selected_job_id.clone() {
+                        self.load_latest_task(job_id, ctx.clone());
+                    }
+                }
+            },
+            WorkerEvent::TaskCancelled(result) => match result {
+                Ok(receipt) => {
+                    let summary = localized_receipt_summary(&receipt, self.language);
+                    self.task_form.apply_state(Some(receipt.data));
+                    self.task_form.failure = None;
+                    self.notice = Some((true, summary));
+                    self.pending_focus = Some(FocusTarget::TaskPrepareAgain);
+                    self.reload_selected_job_after_task(ctx.clone());
+                }
+                Err(failure) => self.apply_task_failure(failure, FocusTarget::TaskCancel),
+            },
+            WorkerEvent::TaskPreparedAgain(result) => match result {
+                Ok(receipt) => {
+                    let summary = localized_receipt_summary(&receipt, self.language);
+                    self.task_form.apply_state(Some(TaskStateData {
+                        descriptor: receipt.data.descriptor,
+                        status: TaskStatus::Prepared,
+                        result: None,
+                    }));
+                    self.task_form.failure = None;
+                    self.notice = Some((true, summary));
+                    self.pending_focus = Some(FocusTarget::TaskExport);
+                    self.reload_selected_job_after_task(ctx.clone());
+                }
+                Err(failure) => self.apply_task_failure(failure, FocusTarget::TaskPrepareAgain),
             },
             WorkerEvent::CliStatusLoaded(result) => match result {
                 Ok(receipt) => self.cli_status = Some(receipt.data),
@@ -846,6 +987,19 @@ impl CanISendDesktop {
         self.notice = Some((false, error));
     }
 
+    fn apply_task_failure(&mut self, failure: ApplicationFailure, focus: FocusTarget) {
+        self.task_form.stale_detected = failure.code == ErrorCode::TaskStale;
+        self.notice = Some((false, failure.message.clone()));
+        self.task_form.failure = Some(failure);
+        self.pending_focus = Some(focus);
+    }
+
+    fn reload_selected_job_after_task(&mut self, ctx: egui::Context) {
+        if let Some(job_id) = self.selected_job_id.clone() {
+            self.load_job(job_id, ctx);
+        }
+    }
+
     fn save_registry(&mut self) {
         match self.registry.save(&self.registry_path) {
             Ok(()) => self.registry_error = None,
@@ -873,6 +1027,7 @@ impl CanISendDesktop {
         self.selected_job_id = None;
         self.workflow_controls = None;
         self.workflow_action_form = None;
+        self.task_form = TaskPanelForm::default();
         let _ = self.registry.touch(&path);
         self.save_registry();
         self.dispatch(
@@ -963,6 +1118,18 @@ impl CanISendDesktop {
             self.language.text("Loading workflow controls"),
             ctx,
             WorkerRequest::LoadWorkflowControls { path, id },
+        );
+    }
+
+    fn load_latest_task(&mut self, job_id: String, ctx: egui::Context) {
+        let Some(path) = self.active_workspace.clone() else {
+            return;
+        };
+        self.dispatch(
+            self.language
+                .select("Loading latest task", "正在加载最新任务"),
+            ctx,
+            WorkerRequest::LoadLatestTask { path, job_id },
         );
     }
 }

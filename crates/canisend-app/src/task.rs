@@ -184,6 +184,32 @@ impl Application {
         Ok(task_state_receipt("task.show", state))
     }
 
+    pub fn latest_task_for_job(
+        root: &Path,
+        job_id: &str,
+    ) -> Result<ActionReceipt<Option<TaskStateData>>, ApplicationError> {
+        let job_id = parse_entity_id(job_id)?;
+        let mut workspace = open_workspace(root)?;
+        let state =
+            TaskService::new(&mut workspace.database, &workspace.blobs).latest_for_job(&job_id)?;
+        let status = if state.is_some() {
+            "available"
+        } else {
+            "empty"
+        };
+        let summary = state.as_ref().map_or_else(
+            || format!("No task has been prepared for job {job_id}"),
+            |state| {
+                format!(
+                    "Latest task {} is {}",
+                    state.descriptor.id,
+                    task_status_text(state.status)
+                )
+            },
+        );
+        Ok(ActionReceipt::new("task.latest", status, summary, state))
+    }
+
     pub fn export_task_inputs(
         root: &Path,
         request: TaskInputExportRequest,
@@ -617,6 +643,12 @@ mod tests {
             Application::task_state(&root, prepared.data.id.as_str()).expect("show prepared task");
         assert_eq!(shown.data.descriptor, prepared.data);
         assert_eq!(shown.data.status, TaskStatus::Prepared);
+        let latest = Application::latest_task_for_job(&root, job.id.as_str())
+            .expect("latest task for job")
+            .data
+            .expect("prepared task is discoverable");
+        assert_eq!(latest.descriptor.id, shown.data.descriptor.id);
+        assert_eq!(latest.status, TaskStatus::Prepared);
 
         let host_export_request =
             TaskInputExportRequest::try_new(prepared.data.id.as_str(), host_export.clone())
@@ -792,6 +824,14 @@ mod tests {
             .expect("idempotent replay");
         assert!(replay.data.idempotent);
         assert_eq!(replay.data.artifact, committed.data.artifact);
+        assert_eq!(
+            Application::latest_task_for_job(&root, job.id.as_str())
+                .expect("latest committed task")
+                .data
+                .expect("task remains discoverable")
+                .status,
+            TaskStatus::Committed
+        );
 
         fs::remove_dir_all(root).expect("remove workspace");
         fs::remove_file(source).expect("remove source");

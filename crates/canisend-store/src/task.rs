@@ -1030,6 +1030,38 @@ impl<'a> TaskService<'a> {
         load_task_state(self.database.connection(), task_id)
     }
 
+    pub fn latest_for_job(&self, job_id: &EntityId) -> Result<Option<TaskStateData>, StoreError> {
+        let connection = self.database.connection();
+        let job_exists = connection
+            .query_row(
+                "SELECT 1 FROM jobs WHERE id = ?1",
+                params![job_id.as_str()],
+                |_| Ok(()),
+            )
+            .optional()?
+            .is_some();
+        if !job_exists {
+            return Err(StoreError::JobNotFound(job_id.to_string()));
+        }
+        let task_id = connection
+            .query_row(
+                "SELECT id FROM tasks
+                 WHERE job_id = ?1
+                 ORDER BY created_at DESC, id DESC
+                 LIMIT 1",
+                params![job_id.as_str()],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?;
+        task_id
+            .map(|task_id| {
+                EntityId::try_new(task_id)
+                    .map_err(StoreError::from)
+                    .and_then(|task_id| load_task_state(connection, &task_id))
+            })
+            .transpose()
+    }
+
     pub fn cancel(&mut self, task_id: &EntityId) -> Result<TaskStateData, StoreError> {
         let event_id = generate_id()?;
         let cancelled_at = now_utc()?;
@@ -3943,6 +3975,12 @@ mod tests {
         let descriptor = TaskService::new(&mut workspace.database, &workspace.blobs)
             .prepare_job_parse(&job.id, ExecutionMode::HostAgent)
             .expect("task");
+        let latest = TaskService::new(&mut workspace.database, &workspace.blobs)
+            .latest_for_job(&job.id)
+            .expect("latest task")
+            .expect("prepared task is discoverable");
+        assert_eq!(latest.descriptor.id, descriptor.id);
+        assert_eq!(latest.status, TaskStatus::Prepared);
         let cancelled = TaskService::new(&mut workspace.database, &workspace.blobs)
             .cancel(&descriptor.id)
             .expect("cancel");
@@ -3951,6 +3989,14 @@ mod tests {
             .cancel(&descriptor.id)
             .expect("idempotent cancel");
         assert_eq!(replay.status, TaskStatus::Cancelled);
+        assert_eq!(
+            TaskService::new(&mut workspace.database, &workspace.blobs)
+                .latest_for_job(&job.id)
+                .expect("latest cancelled task")
+                .expect("cancelled task remains discoverable")
+                .status,
+            TaskStatus::Cancelled
+        );
         let audit_count: i64 = workspace
             .database
             .connection()

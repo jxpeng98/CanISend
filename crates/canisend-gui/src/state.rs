@@ -1,10 +1,14 @@
 use std::path::PathBuf;
 
-use canisend_app::{DiscoveryNetworkAdapter, WorkflowRerunPreview};
+use canisend_app::{
+    ApplicationFailure, DiscoveryNetworkAdapter, TaskCompletionPreviewReadModel, TaskExecutionMode,
+    TaskOperation, WorkflowControlReadModel, WorkflowRerunPreview,
+};
 use canisend_contracts::{
     ApplicationPlanCandidate, ApplicationPlanRecord, ArtifactKind, CriteriaSetRecord,
     DiscoveryImportReport, EntityId, EvidenceCatalogRecord, EvidenceMatchSetRecord, ExecutionMode,
-    PrivacyClassification, WorkflowStage,
+    PrivacyClassification, StageExecutionStatus, TaskInputExportData, TaskStateData, TaskStatus,
+    WorkflowStage,
 };
 use serde::{Deserialize, Serialize};
 
@@ -66,6 +70,10 @@ pub(crate) enum PendingConfirmation {
         title: String,
         organization: String,
     },
+    CancelTask {
+        task_id: String,
+        operation: String,
+    },
     UninstallCli {
         restores_previous: bool,
     },
@@ -79,6 +87,12 @@ pub(crate) enum FocusTarget {
     WorkspaceAlias,
     RestoreWorkspaceAlias,
     WorkflowArtifact,
+    TaskPrepare,
+    TaskExport,
+    TaskCompletionFile,
+    TaskCommit,
+    TaskCancel,
+    TaskPrepareAgain,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -248,6 +262,155 @@ impl DiscoveryRefreshForm {
     }
 }
 
+#[derive(Debug)]
+pub(crate) struct TaskPanelForm {
+    pub(crate) job_id: Option<String>,
+    pub(crate) operation: TaskOperation,
+    pub(crate) mode: TaskExecutionMode,
+    pub(crate) state: Option<TaskStateData>,
+    pub(crate) export_destination: Option<PathBuf>,
+    pub(crate) private_read_consent: bool,
+    pub(crate) provider_send_consent: bool,
+    pub(crate) exported: Option<TaskInputExportData>,
+    pub(crate) completion_file: Option<PathBuf>,
+    pub(crate) completion_read_consent: bool,
+    pub(crate) completion_preview: Option<TaskCompletionPreviewReadModel>,
+    pub(crate) failure: Option<ApplicationFailure>,
+    pub(crate) stale_detected: bool,
+}
+
+impl Default for TaskPanelForm {
+    fn default() -> Self {
+        Self {
+            job_id: None,
+            operation: TaskOperation::JobParse,
+            mode: TaskExecutionMode::HostAgent,
+            state: None,
+            export_destination: None,
+            private_read_consent: false,
+            provider_send_consent: false,
+            exported: None,
+            completion_file: None,
+            completion_read_consent: false,
+            completion_preview: None,
+            failure: None,
+            stale_detected: false,
+        }
+    }
+}
+
+impl TaskPanelForm {
+    pub(crate) fn select_job(&mut self, job_id: &str) {
+        if self.job_id.as_deref() != Some(job_id) {
+            *self = Self {
+                job_id: Some(job_id.to_owned()),
+                ..Self::default()
+            };
+        }
+    }
+
+    pub(crate) fn apply_state(&mut self, state: Option<TaskStateData>) {
+        let next_id = state.as_ref().map(|state| state.descriptor.id.as_str());
+        let current_id = self
+            .state
+            .as_ref()
+            .map(|state| state.descriptor.id.as_str());
+        let terminal_state = state
+            .as_ref()
+            .is_some_and(|state| state.status != TaskStatus::Prepared);
+        if current_id != next_id || terminal_state {
+            self.export_destination = None;
+            self.private_read_consent = false;
+            self.provider_send_consent = false;
+            self.exported = None;
+            self.completion_file = None;
+            self.completion_read_consent = false;
+            self.completion_preview = None;
+            self.failure = None;
+            self.stale_detected = false;
+        }
+        self.state = state;
+    }
+
+    pub(crate) fn invalidate_completion_preview(&mut self) {
+        self.completion_preview = None;
+        self.failure = None;
+        self.stale_detected = false;
+    }
+
+    pub(crate) fn requires_provider_send(&self) -> bool {
+        self.state.as_ref().is_some_and(|state| {
+            state.descriptor.required_consents.iter().any(|consent| {
+                consent.scope == canisend_contracts::ConsentScope::SendToConfiguredProvider
+            })
+        })
+    }
+
+    pub(crate) fn can_prepare_again(&self) -> bool {
+        self.state
+            .as_ref()
+            .is_some_and(|state| matches!(state.status, TaskStatus::Cancelled | TaskStatus::Stale))
+    }
+}
+
+pub(crate) fn task_operation_stage(operation: TaskOperation) -> WorkflowStage {
+    match operation {
+        TaskOperation::JobParse => WorkflowStage::Parse,
+        TaskOperation::EvidenceNormalize => WorkflowStage::Evidence,
+        TaskOperation::EvidenceMatch => WorkflowStage::Match,
+        TaskOperation::CoverLetterDraft
+        | TaskOperation::ResearchStatementDraft
+        | TaskOperation::TeachingStatementDraft
+        | TaskOperation::CvDraft => WorkflowStage::Draft,
+        TaskOperation::DocumentReview => WorkflowStage::Review,
+    }
+}
+
+pub(crate) fn task_operations_for_ready_stages(
+    ready_stages: impl IntoIterator<Item = WorkflowStage>,
+) -> Vec<TaskOperation> {
+    let ready_stages = ready_stages.into_iter().collect::<Vec<_>>();
+    TaskOperation::ALL
+        .into_iter()
+        .filter(|operation| ready_stages.contains(&task_operation_stage(*operation)))
+        .collect()
+}
+
+pub(crate) fn available_task_operations(
+    controls: Option<&WorkflowControlReadModel>,
+) -> Vec<TaskOperation> {
+    task_operations_for_ready_stages(controls.into_iter().flat_map(|controls| {
+        controls
+            .status
+            .stages
+            .iter()
+            .filter(|stage| stage.status == StageExecutionStatus::Ready)
+            .map(|stage| stage.stage)
+    }))
+}
+
+pub(crate) fn available_task_modes(
+    controls: Option<&WorkflowControlReadModel>,
+    operation: TaskOperation,
+) -> Vec<TaskExecutionMode> {
+    let stage = task_operation_stage(operation);
+    controls
+        .and_then(|controls| {
+            controls
+                .stage_descriptors
+                .iter()
+                .find(|descriptor| descriptor.stage == stage)
+        })
+        .into_iter()
+        .flat_map(|descriptor| descriptor.execution_modes.iter().copied())
+        .filter_map(|mode| match mode {
+            ExecutionMode::HostAgent => Some(TaskExecutionMode::HostAgent),
+            ExecutionMode::ConfiguredProvider => Some(TaskExecutionMode::ConfiguredProvider),
+            _ => None,
+        })
+        .collect()
+}
+
 pub(crate) fn validate_discovery_import_form(
     file: Option<&std::path::Path>,
     host_agent: bool,
@@ -366,9 +529,13 @@ pub(crate) fn parse_workflow_artifact_id(value: &str) -> Result<EntityId, ()> {
 
 #[cfg(test)]
 mod tests {
-    use canisend_contracts::DiscoveryImportReport;
+    use canisend_app::{TaskExecutionMode, TaskOperation};
+    use canisend_contracts::{DiscoveryImportReport, WorkflowStage};
 
-    use super::{DiscoveryImportForm, DiscoveryRefreshForm, parse_workflow_artifact_id};
+    use super::{
+        DiscoveryImportForm, DiscoveryRefreshForm, TaskPanelForm, parse_workflow_artifact_id,
+        task_operation_stage, task_operations_for_ready_stages,
+    };
     use super::{validate_discovery_import_form, validate_discovery_refresh_form};
     use crate::i18n::Language;
 
@@ -442,5 +609,44 @@ mod tests {
             .expect_err("network consent"),
             "读取前请确认允许公开网络访问"
         );
+    }
+
+    #[test]
+    fn task_operations_follow_only_ready_workflow_stages() {
+        assert_eq!(
+            task_operation_stage(TaskOperation::EvidenceNormalize),
+            WorkflowStage::Evidence
+        );
+        assert_eq!(
+            task_operations_for_ready_stages([WorkflowStage::Parse, WorkflowStage::Draft]),
+            vec![
+                TaskOperation::JobParse,
+                TaskOperation::CoverLetterDraft,
+                TaskOperation::ResearchStatementDraft,
+                TaskOperation::TeachingStatementDraft,
+                TaskOperation::CvDraft,
+            ]
+        );
+        assert!(task_operations_for_ready_stages([]).is_empty());
+    }
+
+    #[test]
+    fn task_form_changes_discard_reviewed_completion_and_private_choices() {
+        let mut form = TaskPanelForm {
+            job_id: Some("job-a".to_owned()),
+            mode: TaskExecutionMode::ConfiguredProvider,
+            completion_file: Some(std::path::PathBuf::from("/tmp/completion.json")),
+            completion_read_consent: true,
+            stale_detected: true,
+            ..TaskPanelForm::default()
+        };
+        form.invalidate_completion_preview();
+        assert!(!form.stale_detected);
+        assert!(form.failure.is_none());
+        form.select_job("job-b");
+        assert_eq!(form.job_id.as_deref(), Some("job-b"));
+        assert_eq!(form.mode, TaskExecutionMode::HostAgent);
+        assert!(form.completion_file.is_none());
+        assert!(!form.completion_read_consent);
     }
 }
