@@ -28,8 +28,7 @@ use canisend_io::{
 };
 use canisend_resources::{ResourceId, ResourceKind};
 use canisend_store::{
-    DocumentService, PackageService, ProjectionService, RenderService, ReviewService, StoreError,
-    Workspace,
+    PackageService, ProjectionService, RenderService, ReviewService, StoreError, Workspace,
 };
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use serde_json::json;
@@ -2775,11 +2774,12 @@ fn plan_show(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<Com
 }
 
 fn document_list(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<CommandOutput> {
-    let job_id = parse_entity_id("document.list", job_id)?;
-    let workspace = open_workspace(workspace_path, "document.list")?;
-    let documents = DocumentService::new(&workspace.database, &workspace.blobs)
-        .list(&job_id)
-        .map_err(|error| store_failure("document.list", error))?;
+    let _ = parse_entity_id("document.list", job_id)?;
+    let root = app_adapter::workspace_root(workspace_path, "document.list")?;
+    let documents =
+        Application::current_documents(&root, job_id, PrivateReadConsent::granted_by_user())
+            .map_err(|error| app_adapter::failure("document.list", error))?
+            .data;
     success(
         "document.list",
         "available",
@@ -2796,11 +2796,16 @@ fn document_show(
     job_id: &str,
     kind: DocumentKindName,
 ) -> CommandResult<CommandOutput> {
-    let job_id = parse_entity_id("document.show", job_id)?;
-    let workspace = open_workspace(workspace_path, "document.show")?;
-    let document = DocumentService::new(&workspace.database, &workspace.blobs)
-        .current(&job_id, DocumentKind::from(kind))
-        .map_err(|error| store_failure("document.show", error))?;
+    let _ = parse_entity_id("document.show", job_id)?;
+    let root = app_adapter::workspace_root(workspace_path, "document.show")?;
+    let document = Application::current_document(
+        &root,
+        job_id,
+        DocumentKind::from(kind),
+        PrivateReadConsent::granted_by_user(),
+    )
+    .map_err(|error| app_adapter::failure("document.show", error))?
+    .data;
     success(
         "document.show",
         "available",
@@ -2815,11 +2820,11 @@ fn document_show(
 }
 
 fn document_set(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<CommandOutput> {
-    let job_id = parse_entity_id("document.set", job_id)?;
-    let workspace = open_workspace(workspace_path, "document.set")?;
-    let set = DocumentService::new(&workspace.database, &workspace.blobs)
-        .set(&job_id)
-        .map_err(|error| store_failure("document.set", error))?;
+    let _ = parse_entity_id("document.set", job_id)?;
+    let root = app_adapter::workspace_root(workspace_path, "document.set")?;
+    let receipt = Application::current_document_set(&root, job_id)
+        .map_err(|error| app_adapter::failure("document.set", error))?;
+    let set = receipt.data;
     let mut output = success(
         "document.set",
         "complete",
@@ -2829,7 +2834,7 @@ fn document_set(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<
             format!("Current documents: {}", set.documents.len()),
         ],
     )?;
-    output.response.artifacts.extend(set.documents.clone());
+    output.response.artifacts.extend(receipt.artifacts);
     Ok(output)
 }
 
