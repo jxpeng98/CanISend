@@ -981,13 +981,16 @@ mod tests {
 
     use canisend_app::{
         AgentHost, AgentPackExportRequest, Application, DiscoveryImportRequest,
-        DiscoveryNetworkAdapter, DiscoveryRefreshRequest, PrivateReadConsent, TaskExecutionMode,
-        TaskInputExportRequest, TaskOperation, TaskPrepareRequest, WorkflowBeginRequest,
-        WorkflowRerunRequest,
+        DiscoveryNetworkAdapter, DiscoveryRefreshRequest, PackageExportRequest, PrivateReadConsent,
+        ProjectionCopyAsNewRequest, ProjectionReplaceRequest, RenderExportRequest,
+        TaskExecutionMode, TaskInputExportRequest, TaskOperation, TaskPrepareRequest,
+        WorkflowBeginRequest, WorkflowRerunRequest,
     };
     use canisend_contracts::{
-        ApplicationDecision, ArtifactKind, DiscoveryLeadStatus, ErrorCode, ExecutionMode,
-        ExpectedInputRevision, TaskCompletionRequest, TaskStatus, WorkflowStage,
+        ApplicationDecision, ArtifactKind, ArtifactReference, DiscoveryLeadStatus, DocumentKind,
+        DocumentRequirement, EntityId, ErrorCode, ExecutionMode, ExpectedInputRevision,
+        FindingDisposition, PlannedDocumentRecord, ProjectionEditStatus, ProjectionKind,
+        ReadinessState, Revision, TaskCompletionRequest, TaskStatus, WorkflowStage,
     };
     use canisend_store::{CriteriaService, EvidenceService, TaskService, Workspace};
     use serde_json::json;
@@ -1696,7 +1699,7 @@ mod tests {
     }
 
     #[test]
-    fn decision_workflow_round_trips_through_worker_and_reopens() {
+    fn decision_and_delivery_workflow_round_trip_through_worker_and_reopen() {
         let root = temporary_root("decision-reopen");
         let source = temporary_root("decision-source").with_extension("txt");
         let profile_source = temporary_root("decision-profile").with_extension("md");
@@ -1939,7 +1942,7 @@ mod tests {
         plan.decision = ApplicationDecision::Apply;
         plan.strategy.positioning =
             "Lead with confirmed economics expertise and bounded claims.".to_owned();
-        let confirmed_plan = match execute(WorkerRequest::ConfirmPlan {
+        let (confirmed_plan, plan_artifact) = match execute(WorkerRequest::ConfirmPlan {
             path: root.clone(),
             job_id: job_id.to_string(),
             candidate: plan,
@@ -1947,7 +1950,14 @@ mod tests {
             WorkerEvent::PlanConfirmed {
                 result: Ok(receipt),
                 ..
-            } => receipt.data,
+            } => (
+                receipt.data,
+                receipt
+                    .artifacts
+                    .first()
+                    .cloned()
+                    .expect("confirmed plan artifact"),
+            ),
             event => panic!("unexpected plan confirmation: {event:?}"),
         };
         assert_eq!(confirmed_plan.decision, ApplicationDecision::Apply);
@@ -2017,9 +2027,520 @@ mod tests {
         .data;
         assert_eq!(application_plan, reopened_plan);
 
+        let planned_documents = confirmed_plan
+            .documents
+            .iter()
+            .filter(|document| document.requirement != DocumentRequirement::Omitted)
+            .cloned()
+            .collect::<Vec<_>>();
+        assert!(!planned_documents.is_empty());
+        for planned in &planned_documents {
+            let descriptor = {
+                let mut workspace = Workspace::open(Some(&root)).expect("open document workspace");
+                TaskService::new(&mut workspace.database, &workspace.blobs)
+                    .prepare_document_draft(
+                        &job_id,
+                        planned.kind,
+                        planned.executor.expect("planned document executor"),
+                    )
+                    .expect("prepare document task")
+            };
+            let request = task_completion_request(
+                &descriptor,
+                delivery_document_candidate(
+                    &job_id,
+                    &plan_artifact,
+                    planned,
+                    (&criterion.id, criterion.revision),
+                    (
+                        &confirmed_evidence.items[0].id,
+                        confirmed_evidence.items[0].revision,
+                    ),
+                ),
+            );
+            match execute(WorkerRequest::CommitTaskCompletion {
+                path: root.clone(),
+                request,
+            }) {
+                WorkerEvent::TaskCompleted(Ok(receipt)) => {
+                    assert_eq!(receipt.data.status, TaskStatus::Committed);
+                    assert_eq!(
+                        receipt.data.artifact.kind,
+                        document_artifact_kind(planned.kind)
+                    );
+                }
+                event => panic!("unexpected document completion: {event:?}"),
+            }
+        }
+
+        let documents = match execute(WorkerRequest::LoadDocuments {
+            path: root.clone(),
+            job_id: job_id.to_string(),
+        }) {
+            WorkerEvent::DocumentsLoaded {
+                result: Ok(workspace),
+                ..
+            } => workspace,
+            event => panic!("unexpected document workspace: {event:?}"),
+        };
+        assert_eq!(documents.documents.len(), planned_documents.len());
+        let accepted_set = documents.accepted_set.expect("accepted document set");
+        assert_eq!(accepted_set.documents.len(), planned_documents.len());
+        assert!(documents.acceptance_blocker.is_none());
+
+        let review_descriptor = {
+            let mut workspace = Workspace::open(Some(&root)).expect("open review workspace");
+            TaskService::new(&mut workspace.database, &workspace.blobs)
+                .prepare_document_review(&job_id, ExecutionMode::HostAgent)
+                .expect("prepare review task")
+        };
+        let document_set_artifact = review_descriptor
+            .input_artifacts
+            .iter()
+            .find(|artifact| artifact.kind == ArtifactKind::DocumentSet)
+            .cloned()
+            .expect("document set review input");
+        let cover = documents
+            .documents
+            .iter()
+            .find(|document| document.kind == DocumentKind::CoverLetter)
+            .expect("cover letter document");
+        let cover_artifact = accepted_set
+            .documents
+            .iter()
+            .find(|artifact| artifact.kind == ArtifactKind::CoverLetter)
+            .cloned()
+            .expect("cover letter artifact");
+        let review_request = task_completion_request(
+            &review_descriptor,
+            json!({
+                "job_id": job_id,
+                "document_set_artifact": document_set_artifact,
+                "findings": [{
+                    "code": "review.motivation",
+                    "category": "human-judgement",
+                    "severity": "warning",
+                    "message": "Confirm that the closing reflects the applicant's intent.",
+                    "target": {
+                        "kind": "document",
+                        "document": cover_artifact,
+                        "document_id": cover.id
+                    },
+                    "related_targets": [],
+                    "suggested_resolution": "Review and explicitly accept or revise the closing."
+                }]
+            }),
+        );
+        assert!(matches!(
+            execute(WorkerRequest::CommitTaskCompletion {
+                path: root.clone(),
+                request: review_request,
+            }),
+            WorkerEvent::TaskCompleted(Ok(receipt))
+                if receipt.data.artifact.kind == ArtifactKind::ReviewFindings
+        ));
+        let mut review_candidate = match execute(WorkerRequest::LoadReview {
+            path: root.clone(),
+            job_id: job_id.to_string(),
+        }) {
+            WorkerEvent::ReviewLoaded {
+                result: Ok(workspace),
+                ..
+            } => {
+                assert_eq!(workspace.current.findings.len(), 1);
+                workspace.disposition_candidate
+            }
+            event => panic!("unexpected review workspace: {event:?}"),
+        };
+        assert_eq!(review_candidate.decisions.len(), 1);
+        review_candidate.decisions[0].disposition = Some(FindingDisposition::AcceptedRisk);
+        review_candidate.decisions[0].rationale =
+            Some("The applicant reviewed and accepts this wording.".to_owned());
+        let confirmed_review = match execute(WorkerRequest::ConfirmReview {
+            path: root.clone(),
+            job_id: job_id.to_string(),
+            candidate: review_candidate,
+        }) {
+            WorkerEvent::ReviewConfirmed {
+                result: Ok(committed),
+                ..
+            } => committed.receipt.data,
+            event => panic!("unexpected review confirmation: {event:?}"),
+        };
+        assert_eq!(
+            confirmed_review.findings[0].status,
+            canisend_contracts::FindingStatus::AcceptedRisk
+        );
+
+        let package = match execute(WorkerRequest::CheckPackage {
+            path: root.clone(),
+            job_id: job_id.to_string(),
+        }) {
+            WorkerEvent::PackageChecked {
+                result: Ok(receipt),
+                ..
+            } => receipt.data,
+            event => panic!("unexpected package check: {event:?}"),
+        };
+        assert_eq!(package.readiness.state, ReadinessState::ReadyToExport);
+        assert!(!package.submission_performed);
+
+        let package_destination = format!("jobs/{job_id}/application");
+        let package_request = PackageExportRequest::try_new(job_id.as_str(), &package_destination)
+            .expect("package export request");
+        assert!(matches!(
+            execute(WorkerRequest::ExportPackage {
+                path: root.clone(),
+                request: package_request.clone(),
+                private_export_consent: false,
+            }),
+            WorkerEvent::PackageExported { result: Err(_), .. }
+        ));
+        assert!(!root.join(&package_destination).exists());
+        let package_export = match execute(WorkerRequest::ExportPackage {
+            path: root.clone(),
+            request: package_request,
+            private_export_consent: true,
+        }) {
+            WorkerEvent::PackageExported {
+                result: Ok(receipt),
+                ..
+            } => receipt.data,
+            event => panic!("unexpected package export: {event:?}"),
+        };
+        assert!(!package_export.submission_performed);
+        let managed_markdown = package_export
+            .projections
+            .iter()
+            .find(|projection| projection.kind == ProjectionKind::Markdown)
+            .expect("managed Markdown projection")
+            .relative_path
+            .clone();
+        let managed_path = root.join(managed_markdown.as_str());
+        let generated_markdown =
+            std::fs::read_to_string(&managed_path).expect("read generated Markdown");
+        std::fs::write(
+            &managed_path,
+            format!("{generated_markdown}\nUser-reviewed local edit.\n"),
+        )
+        .expect("edit managed Markdown");
+        let reconciled = match execute(WorkerRequest::ReconcilePackage {
+            path: root.clone(),
+            job_id: job_id.to_string(),
+        }) {
+            WorkerEvent::PackageReconciled {
+                result: Ok(receipt),
+                ..
+            } => receipt.data,
+            event => panic!("unexpected package reconciliation: {event:?}"),
+        };
+        assert!(reconciled.iter().any(|record| {
+            record.projection.relative_path == managed_markdown
+                && record.projection.edit_status == ProjectionEditStatus::Edited
+                && !record.authoritative_changed
+        }));
+
+        let preserved_edit = format!("jobs/{job_id}/application/user-edited-copy.md");
+        let copy_request = ProjectionCopyAsNewRequest::try_new(
+            job_id.as_str(),
+            managed_markdown.as_str(),
+            &preserved_edit,
+        )
+        .expect("copy-as-new request");
+        match execute(WorkerRequest::CopyProjectionAsNew {
+            path: root.clone(),
+            request: copy_request,
+        }) {
+            WorkerEvent::ProjectionCopiedAsNew {
+                result: Ok(receipt),
+                ..
+            } => assert_eq!(
+                receipt.data.projection.edit_status,
+                ProjectionEditStatus::Current
+            ),
+            event => panic!("unexpected projection copy-as-new: {event:?}"),
+        }
+        assert!(
+            std::fs::read_to_string(root.join(&preserved_edit))
+                .expect("read preserved edit")
+                .contains("User-reviewed local edit")
+        );
+        assert_eq!(
+            std::fs::read_to_string(&managed_path).expect("read restored managed projection"),
+            generated_markdown
+        );
+
+        std::fs::write(
+            &managed_path,
+            format!("{generated_markdown}\nDisposable local edit.\n"),
+        )
+        .expect("edit managed Markdown again");
+        let replace_request =
+            ProjectionReplaceRequest::try_new(job_id.as_str(), managed_markdown.as_str())
+                .expect("replace request");
+        match execute(WorkerRequest::ReplaceProjection {
+            path: root.clone(),
+            request: replace_request,
+        }) {
+            WorkerEvent::ProjectionReplaced {
+                result: Ok(receipt),
+                ..
+            } => assert_eq!(
+                receipt.data.projection.edit_status,
+                ProjectionEditStatus::Current
+            ),
+            event => panic!("unexpected projection replacement: {event:?}"),
+        }
+        assert_eq!(
+            std::fs::read_to_string(&managed_path).expect("read replaced projection"),
+            generated_markdown
+        );
+
+        let render = match execute(WorkerRequest::BuildRender {
+            path: root.clone(),
+            job_id: job_id.to_string(),
+        }) {
+            WorkerEvent::RenderBuilt {
+                result: Ok(receipt),
+                ..
+            } => receipt.data,
+            event => panic!("unexpected render build: {event:?}"),
+        };
+        assert_eq!(render.documents.len(), planned_documents.len());
+        assert!(
+            render
+                .documents
+                .iter()
+                .all(|document| document.page_count > 0)
+        );
+        let render_destination = format!("jobs/{job_id}/rendered");
+        let render_request = RenderExportRequest::try_new(job_id.as_str(), &render_destination)
+            .expect("render export request");
+        assert!(matches!(
+            execute(WorkerRequest::ExportRender {
+                path: root.clone(),
+                request: render_request.clone(),
+                private_export_consent: false,
+            }),
+            WorkerEvent::RenderExported { result: Err(_), .. }
+        ));
+        assert!(!root.join(&render_destination).exists());
+        let render_export = match execute(WorkerRequest::ExportRender {
+            path: root.clone(),
+            request: render_request,
+            private_export_consent: true,
+        }) {
+            WorkerEvent::RenderExported {
+                result: Ok(receipt),
+                ..
+            } => receipt.data,
+            event => panic!("unexpected render export: {event:?}"),
+        };
+        assert!(!render_export.submission_performed);
+        assert_eq!(render_export.render_manifest, render);
+        assert!(
+            render_export
+                .files
+                .iter()
+                .all(|path| root.join(path.as_str()).is_file())
+        );
+
+        assert!(matches!(
+            execute(WorkerRequest::LoadWorkspace { path: root.clone() }),
+            WorkerEvent::WorkspaceLoaded(Ok(_))
+        ));
+        match execute(WorkerRequest::LoadDocuments {
+            path: root.clone(),
+            job_id: job_id.to_string(),
+        }) {
+            WorkerEvent::DocumentsLoaded {
+                result: Ok(workspace),
+                ..
+            } => {
+                assert_eq!(workspace.documents, documents.documents);
+                assert_eq!(workspace.accepted_set.as_ref(), Some(&accepted_set));
+            }
+            event => panic!("unexpected reopened documents: {event:?}"),
+        }
+        match execute(WorkerRequest::LoadReview {
+            path: root.clone(),
+            job_id: job_id.to_string(),
+        }) {
+            WorkerEvent::ReviewLoaded {
+                result: Ok(workspace),
+                ..
+            } => assert_eq!(workspace.current, confirmed_review),
+            event => panic!("unexpected reopened review: {event:?}"),
+        }
+        match execute(WorkerRequest::LoadPackageExport {
+            path: root.clone(),
+            job_id: job_id.to_string(),
+        }) {
+            WorkerEvent::PackageExportLoaded {
+                result: Ok(receipt),
+                ..
+            } => assert_eq!(receipt.data, package_export),
+            event => panic!("unexpected reopened package export: {event:?}"),
+        }
+        match execute(WorkerRequest::ReconcilePackage {
+            path: root.clone(),
+            job_id: job_id.to_string(),
+        }) {
+            WorkerEvent::PackageReconciled {
+                result: Ok(receipt),
+                ..
+            } => assert!(receipt.data.iter().all(|record| {
+                record.projection.edit_status == ProjectionEditStatus::Current
+                    && !record.authoritative_changed
+            })),
+            event => panic!("unexpected reopened projection reconciliation: {event:?}"),
+        }
+        match execute(WorkerRequest::LoadRender {
+            path: root.clone(),
+            job_id: job_id.to_string(),
+        }) {
+            WorkerEvent::RenderLoaded {
+                result: Ok(receipt),
+                ..
+            } => assert_eq!(receipt.data, render),
+            event => panic!("unexpected reopened render: {event:?}"),
+        }
+
         std::fs::remove_dir_all(root).expect("remove decision workspace");
         std::fs::remove_file(source).expect("remove job source");
         std::fs::remove_file(profile_source).expect("remove profile source");
+    }
+
+    fn delivery_document_candidate(
+        job_id: &EntityId,
+        plan: &ArtifactReference,
+        planned: &PlannedDocumentRecord,
+        criterion: (&EntityId, Revision),
+        evidence: (&EntityId, Revision),
+    ) -> serde_json::Value {
+        let applicant_claim = || {
+            json!({
+                "text": "I hold a reviewed doctorate in economics.",
+                "classification": "applicant-fact",
+                "citations": [{
+                    "target": {
+                        "kind": "evidence",
+                        "evidence": {
+                            "id": evidence.0,
+                            "revision": evidence.1
+                        }
+                    },
+                    "purpose": "Ground the applicant claim in confirmed profile evidence"
+                }]
+            })
+        };
+        let sections = match planned.kind {
+            DocumentKind::CoverLetter => vec![
+                json!({
+                    "kind": "opening",
+                    "heading": null,
+                    "body": "I am applying for the Lecturer role.",
+                    "claims": [{
+                        "text": "I am applying for this role.",
+                        "classification": "user-intent",
+                        "citations": []
+                    }]
+                }),
+                json!({
+                    "kind": "fit",
+                    "heading": "Fit",
+                    "body": "The role requires economics expertise, and I hold a reviewed doctorate in economics.",
+                    "claims": [
+                        applicant_claim(),
+                        {
+                            "text": "The role requires economics expertise.",
+                            "classification": "job-requirement",
+                            "citations": [{
+                                "target": {
+                                    "kind": "criterion",
+                                    "criterion": {
+                                        "id": criterion.0,
+                                        "revision": criterion.1
+                                    }
+                                },
+                                "purpose": "Repeat the exact confirmed job criterion"
+                            }]
+                        }
+                    ]
+                }),
+                json!({
+                    "kind": "closing",
+                    "heading": null,
+                    "body": "I would welcome the opportunity to discuss my application.",
+                    "claims": [{
+                        "text": "I would welcome a discussion.",
+                        "classification": "user-intent",
+                        "citations": []
+                    }]
+                }),
+            ],
+            DocumentKind::ResearchStatement => vec![json!({
+                "kind": "research",
+                "heading": "Research foundation",
+                "body": "My research foundation includes a reviewed doctorate in economics.",
+                "claims": [applicant_claim()]
+            })],
+            DocumentKind::TeachingStatement => vec![json!({
+                "kind": "teaching",
+                "heading": "Teaching foundation",
+                "body": "My subject foundation includes a reviewed doctorate in economics.",
+                "claims": [applicant_claim()]
+            })],
+            DocumentKind::Cv => vec![json!({
+                "kind": "education",
+                "heading": "Education",
+                "body": "Reviewed doctorate in economics.",
+                "claims": [applicant_claim()]
+            })],
+        };
+        json!({
+            "job_id": job_id,
+            "plan_artifact": plan,
+            "planned_document": {
+                "id": planned.id,
+                "revision": planned.revision
+            },
+            "kind": planned.kind,
+            "title": format!("Lecturer application {:?}", planned.kind),
+            "sections": sections,
+            "placeholders": if planned.kind == DocumentKind::CoverLetter {
+                json!([{
+                    "key": "contact-name",
+                    "instruction": "Confirm the addressee before packaging",
+                    "required": true,
+                    "resolution": "Hiring Committee"
+                }])
+            } else {
+                json!([])
+            }
+        })
+    }
+
+    fn task_completion_request(
+        descriptor: &canisend_contracts::TaskDescriptor,
+        candidate: serde_json::Value,
+    ) -> TaskCompletionRequest {
+        TaskCompletionRequest {
+            task_id: descriptor.id.clone(),
+            lease_id: descriptor.lease.id.clone(),
+            expected_job_revision: descriptor.job_revision,
+            expected_inputs: expected_inputs(&descriptor.input_artifacts),
+            candidate,
+        }
+    }
+
+    fn document_artifact_kind(kind: DocumentKind) -> ArtifactKind {
+        match kind {
+            DocumentKind::CoverLetter => ArtifactKind::CoverLetter,
+            DocumentKind::ResearchStatement => ArtifactKind::ResearchStatement,
+            DocumentKind::TeachingStatement => ArtifactKind::TeachingStatement,
+            DocumentKind::Cv => ArtifactKind::Cv,
+        }
     }
 
     fn expected_inputs(
