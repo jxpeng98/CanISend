@@ -1,6 +1,6 @@
 # CanISend Stage 4C–4F execution plan
 
-**Status:** Stage 4C–4D complete; Stage 4E next; Stage 4F planned
+**Status:** Stage 4C–4D complete; Stage 4E active; Stage 4F planned
 
 **Decision date:** 2026-07-26
 
@@ -307,16 +307,146 @@ Exit parity is `29/35`.
 
 ## 6. Stage 4E — documents and delivery
 
-Implement:
+### 6.1 Product surface
 
-- current document set, member revisions, acceptance, and stale-state handling;
-- deterministic and human-review findings with explicit dispositions;
-- package readiness, reconciliation, edited-projection recovery, and private export consent; and
-- trusted embedded render, PDF inspection, render manifest, and private export.
+Add selected-job **Workflow**, **Documents**, and **Review & export** views without adding a second
+workspace or artifact representation.
 
-No control submits to an application portal. Existing destinations are never overwritten, edited
-managed projections require an explicit recovery choice, and exports remain revision-bound. Exit
-parity is `33/35`.
+The Documents view provides:
+
+- an explicit private-read boundary before loading draft bodies;
+- the accepted current document-set identity, plan binding, and exact member revisions;
+- document title, kind, generation mode/task, sections, claims, citations, and placeholders;
+- unresolved-placeholder and stale/missing guidance in text; and
+- the Agent-task action that creates or replaces structured drafts rather than an untracked editor.
+
+The Review & export view provides:
+
+- deterministic and human-review findings with authority, severity, target, status, and resolution;
+- read-only deterministic findings plus an explicit disposition and rationale for each selected
+  human finding;
+- package readiness, body-free reason codes, exact input revisions, and the permanent
+  `submission_performed: false` boundary;
+- a private projection export with exact destination preview and explicit consent;
+- managed-projection reconciliation with separate inspect, replace, and preserve-copy-then-replace
+  actions;
+- trusted embedded rendering from authoritative structured artifacts rather than editable
+  projections;
+- PDF page, byte, warning, timing, artifact, and render-manifest inspection; and
+- a separate private PDF export with exact file paths and explicit consent.
+
+Every export destination is a safe relative path below `jobs/JOB_ID/`. Existing files and
+directories are never overwritten. Edited projections are never replaced automatically, and a
+preserved user copy must use a distinct unmanaged path. No control launches a shell, starts a
+general host, or submits material to an application portal.
+
+The UI retains the existing semantic theme and platform typography. It uses English and Simplified
+Chinese labels, visible focus, 44-point minimum actions, reduced motion, 100–200% text scaling,
+plain-text status, field-level validation, and AccessKit headings/live feedback. Private document
+bodies do not enter navigation, registry data, routine diagnostics, or error strings.
+
+### 6.2 E0 — tracking authority
+
+- [x] Freeze Stage 4E entry parity at `29 implemented`, `6 deferred-beta`.
+- [x] Record the dependency order and atomic work packages before changing parity.
+- [x] Keep `1.0.0-alpha.2` as the source version until an explicit release-line decision.
+- [x] Keep five-target package qualification release-only.
+
+### 6.3 E1 — document application facade
+
+- Add typed current-list, current-kind, and accepted-set operations.
+- Require explicit private-read consent before returning document bodies.
+- Validate job UUIDv7 input before workspace access.
+- Preserve exact plan, planned-document, generation-task, revision, citation, and placeholder data.
+- Return the store-owned accepted set only when every exact current document head matches it.
+
+### 6.4 E2 — document CLI adapter alignment
+
+- Route document list/show/set through `canisend-app`.
+- Preserve committed JSON shapes, human summaries, artifacts, error codes, and exit classes.
+- Keep document mutation in the existing Agent-task lifecycle; do not add an untracked CLI editor.
+
+### 6.5 E3 — Documents GUI
+
+- Add selected-job sub-navigation and a Documents view.
+- Require a user-invoked private-read confirmation before loading bodies.
+- Show the accepted set and every exact member revision once.
+- Render sections, claims/citations, placeholders, and generation metadata with body-free collapsed
+  summaries by default.
+- Show ready/stale/missing recovery through the existing task and workflow controls.
+
+### 6.6 E4 — review application facade
+
+- Add typed current-review, disposition-template, and confirm-disposition operations.
+- Require explicit private-read consent before exposing finding messages and rationales.
+- Keep deterministic findings read-only.
+- Validate the exact review artifact, finding identity/revision, selected disposition, and rationale
+  before mutation.
+- Return the revised artifact and preserve store-owned package/render invalidation.
+
+### 6.7 E5 — review CLI adapter alignment
+
+- Route review export/confirm/show through `canisend-app`.
+- Preserve create-new private JSON export, regular-file input, committed JSON/human output, and exit
+  classes.
+- Keep explicit user review as the only authority for accepted-risk or dismissed dispositions.
+
+### 6.8 E6 — Review GUI
+
+- Load current findings and an editable human-disposition template after explicit private-read
+  consent.
+- Show deterministic authority and blockers without an enabled disposition control.
+- Require a non-empty rationale for every selected human disposition and at least one selection.
+- Preview package/render invalidation and confirm the revised review explicitly.
+- Restore focus to the first invalid field or the review action after completion.
+
+### 6.9 E7 — package application and CLI
+
+- Add typed readiness check/current, projection export/current, reconcile, replace, and
+  copy-as-new operations.
+- Add a distinct explicit private-export consent boundary.
+- Validate job UUIDv7 and safe relative destinations before workspace access.
+- Preserve readiness reasons, revision binding, new-file behavior, edit detection, user-copy
+  preservation, and authoritative-artifact immutability.
+- Route all package CLI commands through `canisend-app` without external contract drift.
+
+### 6.10 E8 — package GUI
+
+- Show deterministic package readiness and exact body-free reasons.
+- Preview a job-scoped destination before an explicit private export.
+- Show the resulting export receipt and every managed projection path/status.
+- Reconcile only on user request.
+- Require a separate confirmation to discard an edit, or a distinct safe destination to preserve
+  the edit before restoring the generated projection.
+
+### 6.11 E9 — render application and CLI
+
+- Add typed build/current/export operations through the embedded renderer.
+- Add distinct private PDF-export consent and safe relative destination validation.
+- Preserve package revision binding, bounded PDF validation, manifest identity, page/byte/warning
+  counts, no-overwrite behavior, and `submission_performed: false`.
+- Route render build/show/export through `canisend-app` without external contract drift.
+
+### 6.12 E10 — render GUI
+
+- Build only when the authoritative workflow exposes Render as ready.
+- State that editable Typst projections are not renderer inputs.
+- Show every rendered document's kind, artifact revisions, page/byte/warning counts, and elapsed
+  time.
+- Preview and explicitly confirm a private PDF export, then show every resulting path.
+- Never open an application portal or imply submission.
+
+### 6.13 E11 — Stage 4E closure
+
+- Mark only `document.*`, `review.*`, `package.*`, and `render.*` implemented.
+- Record `33 implemented` and `2 deferred-beta`.
+- Add a repeatable document-to-review-to-package-to-render persistence and export-recovery
+  regression through the worker/application boundary.
+- Run formatter, affected tests, relevant all-target Clippy, release check, hosted Fast CI, and a
+  local packaged macOS bilingual/accessibility smoke.
+- Do not create a tag, release, package-manager update, or five-target native matrix.
+
+Exit parity is `33/35`.
 
 ## 7. Stage 4F — inspection and Beta freeze
 
@@ -371,6 +501,21 @@ or create a release.
 23. `feat(gui): add agent integration workflow`
 24. `test(stage4): qualify discovery and agent workflow`
 25. `docs(stage4): close discovery and agent parity`
+26. `docs(stage4): define documents and delivery slice`
+27. `feat(app): add document actions`
+28. `refactor(cli): route document operations through application facade`
+29. `feat(gui): add document workspace`
+30. `feat(app): add review actions`
+31. `refactor(cli): route review operations through application facade`
+32. `feat(gui): add review workflow`
+33. `feat(app): add package actions`
+34. `refactor(cli): route package operations through application facade`
+35. `feat(gui): add package delivery workflow`
+36. `feat(app): add render actions`
+37. `refactor(cli): route render operations through application facade`
+38. `feat(gui): add render delivery workflow`
+39. `test(stage4): qualify documents and delivery workflow`
+40. `docs(stage4): close documents and delivery parity`
 
 Each commit must pass its focused gate. Parity changes land only after the corresponding application,
 CLI, GUI, localization, accessibility, and persistence evidence exists.
