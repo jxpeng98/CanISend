@@ -1,6 +1,6 @@
 # CanISend Stage 4C–4F execution plan
 
-**Status:** Stage 4C–4E complete; Stage 4F active
+**Status:** Stage 4C–4F complete; Beta transition gated
 
 **Decision date:** 2026-07-26
 
@@ -15,6 +15,8 @@
 **Stage 4E exit parity:** `33 implemented`, `2 deferred-beta`
 
 **Stage 4F entry parity:** `33 implemented`, `2 deferred-beta`
+
+**Stage 4F exit parity:** `35 implemented`, `0 deferred-beta`
 
 **Parent roadmap:** [CanISend 1.0 release roadmap](2026-07-25-1.0-release-roadmap.md)
 
@@ -498,80 +500,80 @@ workspace files, a shell, or automatic export.
 
 ### 7.3 F1 — bounded embedded-resource export
 
-- Add a typed versioned export manifest in `canisend-resources`.
-- Export the generated resource paths with create-new files under one new or empty root.
-- Verify the compiled manifest and every selected digest before writing.
-- Reject empty or duplicate selections, internal/unsafe paths, symlink components, and existing
+- [x] Add a typed versioned export manifest in `canisend-resources`.
+- [x] Export the generated resource paths with create-new files under one new or empty root.
+- [x] Verify the compiled manifest and every selected digest before writing.
+- [x] Reject empty or duplicate selections, internal/unsafe paths, symlink components, and existing
   files.
-- Roll back files and directories created by a failed export without deleting a pre-existing
+- [x] Roll back files and directories created by a failed export without deleting a pre-existing
   destination.
-- Keep public catalog export distinct from host-specific Agent-pack export.
+- [x] Keep public catalog export distinct from host-specific Agent-pack export.
 
 ### 7.4 F2 — schema/resource application facade
 
-- Add typed schema list/show, resource list/show, and complete-catalog export actions.
-- Reuse committed `SchemaCatalogData`, `SchemaCatalogEntry`, `ResourceCatalogData`, and
+- [x] Add typed schema list/show, resource list/show, and complete-catalog export actions.
+- [x] Reuse committed `SchemaCatalogData`, `SchemaCatalogEntry`, `ResourceCatalogData`, and
   `ResourceCatalogEntry` contracts where their external shape is already authoritative.
-- Add resource path/detail and export read models only in `canisend-app`.
-- Verify embedded-resource integrity before returning catalog or export receipts.
-- Preserve `schema.not_found`, `resource.not_found`, integrity, and input-path error
+- [x] Add resource path/detail and export read models only in `canisend-app`.
+- [x] Verify embedded-resource integrity before returning catalog or export receipts.
+- [x] Preserve `schema.not_found`, `resource.not_found`, integrity, and input-path error
   classifications.
-- Keep all catalog receipts public, deterministic, body-free with respect to user workspaces, and
+- [x] Keep all catalog receipts public, deterministic, body-free with respect to user workspaces, and
   independent of workspace discovery.
 
 ### 7.5 F3 — CLI adapter alignment
 
-- Route `schema list/show` and `resource list` through `canisend-app`.
-- Preserve committed JSON shapes, human output, not-found codes, exit classes, and ordering.
-- Remove direct schema/resource catalog construction from the CLI adapter.
-- Do not add an implicit export, workspace requirement, or resource-body output to existing
+- [x] Route `schema list/show` and `resource list` through `canisend-app`.
+- [x] Preserve committed JSON shapes, human output, not-found codes, exit classes, and ordering.
+- [x] Remove direct schema/resource catalog construction from the CLI adapter.
+- [x] Do not add an implicit export, workspace requirement, or resource-body output to existing
   commands.
 
 ### 7.6 F4 — Diagnostics worker and state
 
-- Add one typed worker request that loads both verified catalogs through the application facade.
-- Add one typed worker request for explicit complete-catalog export.
-- Keep loading, success, error, destination preview, and export receipt state separate from doctor
+- [x] Add one typed worker request that loads both verified catalogs through the application facade.
+- [x] Add one typed worker request for explicit complete-catalog export.
+- [x] Keep loading, success, error, destination preview, and export receipt state separate from doctor
   state.
-- Invalidate a reviewed destination when it changes and prevent duplicate dispatch while busy.
-- Accept only a new or empty regular directory outside `.canisend`.
+- [x] Invalidate a reviewed destination when it changes and prevent duplicate dispatch while busy.
+- [x] Accept only a new or empty regular directory outside `.canisend`.
 
 ### 7.7 F5 — Diagnostics GUI
 
-- Add schema/resource segmented navigation, text filter, totals, and integrity status.
-- Render metadata in a content-first list with copyable IDs, URIs/paths, versions, sizes, and
+- [x] Add schema/resource segmented navigation, text filter, totals, and integrity status.
+- [x] Render metadata in a content-first list with copyable IDs, URIs/paths, versions, sizes, and
   digests.
-- Load catalogs explicitly in the background and expose progress through the existing activity
+- [x] Load catalogs explicitly in the background and expose progress through the existing activity
   live region.
-- Preview a chosen destination before enabling export.
-- Explain that exported resources are public, do not contain workspace bodies, and are not
+- [x] Preview a chosen destination before enabling export.
+- [x] Explain that exported resources are public, do not contain workspace bodies, and are not
   executed.
-- Show the manifest and every created file after success, with English and Simplified Chinese
+- [x] Show the manifest and every created file after success, with English and Simplified Chinese
   labels and no color-only state.
 
 ### 7.8 F6 — inspection/export qualification
 
-- Add application tests for deterministic catalogs, ID/slug lookup, not-found classification,
+- [x] Add application tests for deterministic catalogs, ID/slug lookup, not-found classification,
   integrity verification, safe destination policy, create-new output, digest equality, repeated
   export refusal, and cleanup after bounded failure.
-- Add CLI binary-contract assertions proving facade routing preserves existing responses.
-- Add GUI state/localization tests for filters, destination invalidation, bilingual labels,
+- [x] Add CLI binary-contract assertions proving facade routing preserves existing responses.
+- [x] Add GUI state/localization tests for filters, destination invalidation, bilingual labels,
   loading/error/success states, and disabled duplicate actions.
-- Add a repeatable worker/application regression that loads catalogs without a workspace, exports
+- [x] Add a repeatable worker/application regression that loads catalogs without a workspace, exports
   all resources, verifies the on-disk manifest and digests, and refuses a second export.
 
 ### 7.9 F7 — Stage 4F closure and Beta freeze audit
 
-- Mark only `schema.*` and `resource.*` implemented after F1–F6 evidence exists.
-- Record `35 implemented` and `0 deferred-beta`.
-- Run formatter, complete workspace tests, all-target Clippy, release check, hosted Fast CI, and
+- [x] Mark only `schema.*` and `resource.*` implemented after F1–F6 evidence exists.
+- [x] Record `35 implemented` and `0 deferred-beta`.
+- [x] Run formatter, complete workspace tests, all-target Clippy, release check, hosted Fast CI, and
   the local packaged macOS bilingual/accessibility smoke.
-- Triage available public Alpha reports without telemetry or private issue bodies and record any
+- [x] Triage available public Alpha reports without telemetry or private issue bodies and record any
   unresolved release blocker explicitly.
-- Refresh the Beta readiness and contract-freeze records without pre-authorizing source changes.
-- Freeze Agent v2, schema/resource formats, GUI action contracts, workspace registry, and bundle
-  layout only when the checked-in freeze authority accepts the exact source commit.
-- Do not transition, tag, publish, update package managers, or run the five-target native release
+- [x] Refresh the Beta readiness and contract-freeze records without pre-authorizing source changes.
+- [ ] Activate the whole-product freeze for GUI action contracts, workspace registry, and bundle
+  layout only after the exact Beta is qualified and the checked-in authority accepts its commit.
+- [x] Do not transition, tag, publish, update package managers, or run the five-target native release
   matrix without separate authorization.
 
 **Implementation exit parity:** `35/35`.
@@ -677,5 +679,18 @@ state.
 
 The shared application facade, stable CLI adapters, selected-job Documents and Review & export
 views, worker/application delivery regression, hosted Fast CI, and packaged bilingual/accessibility
-smoke now cover that path. Stage 4F is next at `33 implemented` and `2 deferred-beta`. No Alpha.3,
-Beta, RC, Stable, package-manager, five-target native matrix, or public update action is implied.
+smoke now cover that path.
+
+## 13. Stage 4F exit decision
+
+Stage 4F is complete when a GUI user can load every verified public schema and embedded-resource
+entry without a workspace, filter and copy bounded metadata, explicitly export the complete public
+catalog to a new or empty destination, and verify the versioned manifest and exact digests without
+launching an Agent host.
+
+The application facade, preserved CLI contracts, bilingual Diagnostics surface, 45-test GUI suite,
+digest round-trip regression, public Alpha.2 issue-number/state audit, and checked-in
+Agent/schema/workspace baseline cover that path. Parity is `35 implemented` and `0 deferred-beta`.
+The source remains `1.0.0-alpha.2`: whole-product feature-freeze activation requires a qualified
+Beta exact commit, and no Beta transition, tag, publication, package-manager update, or five-target
+native matrix is authorized by this closure.

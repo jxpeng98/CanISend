@@ -4042,12 +4042,16 @@ fn check_cli_gui_parity() -> Result<(), String> {
         ));
     }
     if deferred == 0 {
-        return Err("CLI/GUI parity must explicitly document deferred Beta operations".to_owned());
+        println!(
+            "CLI/GUI parity: ok ({} implemented, no deferred Beta operations)",
+            implemented.len()
+        );
+    } else {
+        println!(
+            "CLI/GUI parity: ok ({} implemented, {deferred} deferred to Beta)",
+            implemented.len()
+        );
     }
-    println!(
-        "CLI/GUI parity: ok ({} implemented, {deferred} deferred to Beta)",
-        implemented.len()
-    );
     Ok(())
 }
 

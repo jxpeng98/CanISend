@@ -42,7 +42,7 @@
     {"operation": "package.*", "gui_surface": "Job / Review & Export", "status": "implemented"},
     {"operation": "render.*", "gui_surface": "Job / Review & Export", "status": "implemented"},
     {"operation": "agent.*", "gui_surface": "Agent integration / Diagnostics", "status": "implemented"},
-    {"operation": "schema.*", "gui_surface": "Diagnostics", "status": "deferred-beta"},
-    {"operation": "resource.*", "gui_surface": "Diagnostics", "status": "deferred-beta"}
+    {"operation": "schema.*", "gui_surface": "Diagnostics", "status": "implemented"},
+    {"operation": "resource.*", "gui_surface": "Diagnostics", "status": "implemented"}
   ]
 }

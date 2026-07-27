@@ -88,6 +88,21 @@ previews the destination as new or empty; the application layer verifies it agai
 On success the page shows the manifest path, resource count, and exact exported files. The GUI
 never launches the exported host or exposes a general shell.
 
+## Inspect schemas and export the public catalog
+
+Open **Diagnostics**, then use **Schemas & resources** to load the verified public catalogs. This
+does not require a workspace. The two tabs show the complete totals and let you filter schema or
+resource metadata while keeping IDs, canonical URIs or embedded paths, versions, sizes, and
+SHA-256 digests selectable for copying. Integrity is always stated in text and is never conveyed
+by color alone.
+
+To export the complete public catalog, choose a new or empty directory and review the destination
+preview. Export remains disabled until the catalog is loaded and the destination passes the same
+application-layer policy used by the CLI. A successful export shows the versioned manifest and
+every exact file written. It contains only compiled public resources: it does not include
+workspace bodies, execute an Agent host, or open a shell. Existing files, symlinks, `.canisend`
+paths, and repeated exports are refused.
+
 ## Recover and repair a workspace
 
 Open **Workspaces** and choose **Restore backup** to recover a verified CanISend backup. Select the
@@ -366,12 +381,11 @@ the workspace, SQLite database, blobs, projections, exports, or backups.
   private PDF export.
 - Workflow start, body-free stage/blocker timeline, descriptor-bound begin/complete, and
   preview-confirmed rerun.
-- Body-free product diagnostics and embedded renderer/resource self-check.
+- Body-free product diagnostics, embedded renderer/resource self-check, verified schema/resource
+  catalog inspection, and explicit public-catalog export.
 
 Not yet implemented in the GUI:
 
-- schema and embedded-resource catalog inspection/export in Diagnostics;
 - Developer ID/notarized release signing, Intel native qualification, or non-macOS GUI packages.
 
-The remaining schema/resource operations stay available through the CLI while GUI coverage
-expands. The desktop application still never submits an application.
+The desktop application still never submits an application.

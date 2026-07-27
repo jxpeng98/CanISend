@@ -473,7 +473,7 @@ recoverable.
   export.
 - [x] Implement documents, findings/dispositions, readiness, projections, render, and private
   export consent.
-- [ ] Complete the command coverage manifest and body-free diagnostics export.
+- [x] Complete the command coverage manifest and body-free diagnostics export.
 
 **Exit:** Every ordinary state-changing CLI operation is available through a typed GUI action, and the documented
 end-to-end application workflow completes without a terminal.
@@ -570,6 +570,6 @@ R12.0 now has explicit Apple Silicon AccessKit/live-region, keyboard, IME, high-
 reduced-motion, and native file-dialog evidence. It remains open for the declared cold-start
 acceptance decision and Intel boundary; human auditory VoiceOver wording is an exact-package
 review. Windows and Linux GUI evidence stays deferred. R12.1 and R12.2 retain their broader
-architecture and shell exit conditions. R12.3 is complete. R12.4 has implemented profile,
-discovery, Agent task, document, review, package, projection-recovery, render, and private-export
-surfaces; only the schema/resource Diagnostics coverage tracked by Stage 4F remains.
+architecture and shell exit conditions. R12.3 and R12.4 are complete. The final R12.4 slice adds
+workspace-independent verified schema/resource inspection and bounded public-catalog export in
+Diagnostics, bringing the command coverage manifest to `35/35`.
