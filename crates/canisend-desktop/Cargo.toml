@@ -18,11 +18,13 @@ tauri-build.workspace = true
 
 [dependencies]
 canisend-app = { path = "../canisend-app", version = "=1.0.0-alpha.3" }
+canisend-contracts = { path = "../canisend-contracts", version = "=1.0.0-alpha.3" }
 serde.workspace = true
 serde_json.workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
 tauri.workspace = true
+tauri-plugin-dialog.workspace = true
 
 [lints]
 workspace = true

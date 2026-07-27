@@ -13,6 +13,7 @@ mod package;
 mod plan;
 mod profile;
 mod receipt;
+mod registry;
 mod render;
 mod review;
 mod system;
@@ -46,6 +47,9 @@ pub use job::{JobDetailReadModel, JobListReadModel, SourceImportReadModel};
 pub use package::{PackageExportRequest, ProjectionCopyAsNewRequest, ProjectionReplaceRequest};
 pub use profile::{ProfileSourceImportReadModel, ProfileSourceListReadModel};
 pub use receipt::ActionReceipt;
+pub use registry::{
+    WorkspaceEntry, WorkspaceRegistry, default_registry_path, validate_workspace_alias,
+};
 pub use render::{RenderExportReadModel, RenderExportRequest};
 pub use review::ReviewWorkspaceReadModel;
 pub use system::{DoctorSummary, ProductSummary};

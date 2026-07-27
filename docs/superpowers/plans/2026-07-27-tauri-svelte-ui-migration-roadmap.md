@@ -1,6 +1,6 @@
 # CanISend Tauri + Svelte UI migration roadmap
 
-**Status:** Active — Stage TS1 complete; TS2 next
+**Status:** Active — Stage TS2 complete; TS3 next
 
 **Decision date:** 2026-07-27
 
@@ -113,15 +113,17 @@ and passes focused checks without changing the public egui package.
 
 ### TS2 — Workspaces, jobs, and source intake
 
-- [ ] Move workspace registry ownership out of egui-specific code.
-- [ ] Implement workspace init/status/check/backup/restore/repair.
-- [ ] Implement job create/list/show/archive.
-- [ ] Implement local file, PDF, URL, JSON, CSV, and text source intake with explicit consent.
-- [ ] Add empty, loading, stale, success, and recoverable-error states.
+- [x] Move workspace registry ownership out of egui-specific code.
+- [x] Implement workspace init/status/check/backup/restore/repair.
+- [x] Implement job create/list/show/archive.
+- [x] Implement direct job source intake for local PDF, JSON, Markdown, text, and URL inputs with
+  explicit private-read or network-fetch consent.
+- [x] Add empty, loading, integrity/stale, success, and recoverable-error states.
 
 ### TS3 — Discovery, profile, and workflow
 
-- [ ] Implement discovery sources, refresh/import, leads, suggestions, and promotion.
+- [ ] Implement discovery sources, structured CSV/JSON batch preview/import, network refresh, leads,
+  suggestions, and promotion.
 - [ ] Implement profile sources, private-read consent, evidence review, criteria, match, and plan.
 - [ ] Implement workflow start/status/begin/complete/rerun.
 - [ ] Implement task preparation/export/completion/cancel and Agent v2 context.
@@ -167,7 +169,7 @@ Linux UI packaging remain out of scope until macOS cutover is complete.
 
 ## 7. Immediate execution
 
-Begin TS2 without changing the current Alpha3 release executable. Move workspace registry
-ownership to a shared Rust layer, then migrate workspace/job/source intake through typed Tauri
-commands. Do not start Beta preparation while the parity manifest still describes the egui
-implementation.
+Begin TS3 without changing the current Alpha3 release executable. Structured CSV/JSON discovery
+batches belong to Opportunities because they create reviewable leads rather than a single job
+source; keep their preview/commit boundary intact when migrating that screen. Do not start Beta
+preparation while the parity manifest still describes the egui implementation.
