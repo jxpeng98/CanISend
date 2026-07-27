@@ -8,6 +8,7 @@ mod discovery;
 mod document;
 mod error;
 mod job;
+mod package;
 mod plan;
 mod profile;
 mod receipt;
@@ -22,7 +23,9 @@ pub use agent::{
     AgentCapabilitiesReadModel, AgentContextReadModel, AgentHost, AgentPackExportReadModel,
     AgentPackExportRequest,
 };
-pub use application::{Application, NetworkFetchConsent, PrivateReadConsent, ProviderSendConsent};
+pub use application::{
+    Application, NetworkFetchConsent, PrivateExportConsent, PrivateReadConsent, ProviderSendConsent,
+};
 pub use cli_install::{
     CliInstallState, CliInstallStatus, CliVersionRelation, TerminalInstallConsent,
 };
@@ -34,6 +37,7 @@ pub use discovery::{
 pub use document::DocumentWorkspaceReadModel;
 pub use error::{ApplicationError, ApplicationFailure};
 pub use job::{JobDetailReadModel, JobListReadModel, SourceImportReadModel};
+pub use package::{PackageExportRequest, ProjectionCopyAsNewRequest, ProjectionReplaceRequest};
 pub use profile::{ProfileSourceImportReadModel, ProfileSourceListReadModel};
 pub use receipt::ActionReceipt;
 pub use review::ReviewWorkspaceReadModel;
