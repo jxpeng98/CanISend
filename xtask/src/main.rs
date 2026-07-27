@@ -3445,10 +3445,15 @@ fn check_native_test_ownership() -> Result<(), String> {
             "workflow": ".github/workflows/fast-ci.yml",
             "runner": "macos-15",
             "jobs": [
+                "desktop-ui",
                 "macos-quality",
                 "macos-tests"
             ],
             "commands": [
+                "pnpm install --frozen-lockfile",
+                "pnpm check",
+                "pnpm test",
+                "pnpm build",
                 "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings",
                 "cargo test --workspace --locked",
                 "cargo test -p canisend-contracts --locked --test property_contract",
@@ -3536,6 +3541,10 @@ fn check_native_test_ownership() -> Result<(), String> {
         },
         "extended_assurance": [
             {
+                "owner": "fast-ci/desktop-ui",
+                "scope": "Svelte and TypeScript checks, unit tests, and production frontend build"
+            },
+            {
                 "owner": "fast-ci/macos-tests",
                 "scope": "macOS development workspace, recovery, rendering, CLI, and GUI"
             },
@@ -3585,9 +3594,14 @@ fn check_native_test_ownership() -> Result<(), String> {
     for required in [
         "name: fast-ci",
         "cancel-in-progress: true",
+        "  desktop-ui:",
         "  macos-quality:",
         "  macos-tests:",
         "runs-on: macos-15",
+        "pnpm install --frozen-lockfile",
+        "pnpm check",
+        "pnpm test",
+        "pnpm build",
         "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings",
         "cargo test --workspace --locked",
         "cargo test -p canisend-contracts --locked --test property_contract",
@@ -3602,8 +3616,11 @@ fn check_native_test_ownership() -> Result<(), String> {
             ));
         }
     }
-    if fast_ci.matches("runs-on: macos-15").count() != 2 {
-        return Err("fast CI must contain exactly two parallel macOS jobs".to_owned());
+    if fast_ci.matches("runs-on: macos-15").count() != 3 {
+        return Err(
+            "fast CI must contain exactly three parallel macOS jobs, including desktop UI"
+                .to_owned(),
+        );
     }
     for forbidden in [
         "ubuntu-",

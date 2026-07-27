@@ -11,6 +11,9 @@
 /fuzz/corpus/
 /dist/
 /build/
+/apps/*/dist/
+/apps/*/node_modules/
+/crates/canisend-desktop/gen/
 
 /.canisend/
 /jobs/

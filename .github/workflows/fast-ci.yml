@@ -22,6 +22,41 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  desktop-ui:
+    name: desktop-ui
+    runs-on: macos-15
+    timeout-minutes: 8
+    defaults:
+      run:
+        working-directory: apps/canisend-desktop
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install pinned pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.17.0
+          run_install: false
+
+      - name: Install pinned Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 26.5.0
+          cache: pnpm
+          cache-dependency-path: apps/canisend-desktop/pnpm-lock.yaml
+
+      - name: Install locked desktop UI dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check Svelte and TypeScript
+        run: pnpm check
+
+      - name: Run desktop UI unit tests
+        run: pnpm test
+
+      - name: Build production desktop UI
+        run: pnpm build
+
   macos-quality:
     name: macos-quality
     runs-on: macos-15

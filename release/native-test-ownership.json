@@ -36,10 +36,15 @@
     "workflow": ".github/workflows/fast-ci.yml",
     "runner": "macos-15",
     "jobs": [
+      "desktop-ui",
       "macos-quality",
       "macos-tests"
     ],
     "commands": [
+      "pnpm install --frozen-lockfile",
+      "pnpm check",
+      "pnpm test",
+      "pnpm build",
       "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings",
       "cargo test --workspace --locked",
       "cargo test -p canisend-contracts --locked --test property_contract",
@@ -126,6 +131,10 @@
     "timing_evidence_schema": "canisend.native-release-timing/v1"
   },
   "extended_assurance": [
+    {
+      "owner": "fast-ci/desktop-ui",
+      "scope": "Svelte and TypeScript checks, unit tests, and production frontend build"
+    },
     {
       "owner": "fast-ci/macos-tests",
       "scope": "macOS development workspace, recovery, rendering, CLI, and GUI"
