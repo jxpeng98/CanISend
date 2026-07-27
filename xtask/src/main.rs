@@ -3979,9 +3979,12 @@ fn check_cli_gui_parity() -> Result<(), String> {
         "cli.install",
         "cli.uninstall",
         "profile.*",
+        "discovery.*",
+        "task.*",
         "criteria.*",
         "match.*",
         "plan.*",
+        "agent.*",
     ]);
     let mut operations = BTreeSet::new();
     let mut implemented = BTreeSet::new();

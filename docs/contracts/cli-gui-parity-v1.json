@@ -1,6 +1,6 @@
 {
   "format": "canisend.cli-gui-parity/v1",
-  "updated_at": "2026-07-26",
+  "updated_at": "2026-07-27",
   "gui_release_line": "1.0",
   "alpha_scope": {
     "version": "1.0.0-alpha.2",
@@ -32,8 +32,8 @@
     {"operation": "cli.install", "gui_surface": "Command line", "status": "implemented"},
     {"operation": "cli.uninstall", "gui_surface": "Command line", "status": "implemented"},
     {"operation": "profile.*", "gui_surface": "Profile", "status": "implemented"},
-    {"operation": "discovery.*", "gui_surface": "Discovery", "status": "deferred-beta"},
-    {"operation": "task.*", "gui_surface": "Workflow task panel", "status": "deferred-beta"},
+    {"operation": "discovery.*", "gui_surface": "Discovery", "status": "implemented"},
+    {"operation": "task.*", "gui_surface": "Workflow task panel", "status": "implemented"},
     {"operation": "criteria.*", "gui_surface": "Job / Workflow", "status": "implemented"},
     {"operation": "match.*", "gui_surface": "Job / Workflow", "status": "implemented"},
     {"operation": "plan.*", "gui_surface": "Job / Workflow", "status": "implemented"},
@@ -41,7 +41,7 @@
     {"operation": "review.*", "gui_surface": "Job / Review & Export", "status": "deferred-beta"},
     {"operation": "package.*", "gui_surface": "Job / Review & Export", "status": "deferred-beta"},
     {"operation": "render.*", "gui_surface": "Job / Review & Export", "status": "deferred-beta"},
-    {"operation": "agent.*", "gui_surface": "Agent integration / Diagnostics", "status": "deferred-beta"},
+    {"operation": "agent.*", "gui_surface": "Agent integration / Diagnostics", "status": "implemented"},
     {"operation": "schema.*", "gui_surface": "Diagnostics", "status": "deferred-beta"},
     {"operation": "resource.*", "gui_surface": "Diagnostics", "status": "deferred-beta"}
   ]

@@ -15,7 +15,7 @@ source "$script_dir/lib/native_paths.sh"
 app="$(canisend_absolute_path "$1")"
 manifest="$app.manifest.json"
 gui="$app/Contents/MacOS/canisend-gui"
-for command in osascript; do
+for command in open osascript; do
   command -v "$command" >/dev/null
 done
 if [[ ! -d "$app" || -L "$app" ]]; then
@@ -31,18 +31,42 @@ fi
 
 fixture_root="$(mktemp -d "${TMPDIR:-/tmp}/canisend-gui-accessibility.XXXXXX")"
 gui_pid=""
+launcher_pid=""
 cleanup() {
   if [[ -n "$gui_pid" ]] && kill -0 "$gui_pid" 2>/dev/null; then
     kill "$gui_pid" 2>/dev/null || true
-    wait "$gui_pid" 2>/dev/null || true
+  fi
+  if [[ -n "$launcher_pid" ]] && kill -0 "$launcher_pid" 2>/dev/null; then
+    kill "$launcher_pid" 2>/dev/null || true
+    wait "$launcher_pid" 2>/dev/null || true
   fi
   rm -rf "$fixture_root"
 }
 trap cleanup EXIT
 mkdir -p "$fixture_root/home"
 
-HOME="$fixture_root/home" "$gui" >"$fixture_root/gui.log" 2>&1 &
-gui_pid="$!"
+open -n -W \
+  --env "HOME=$fixture_root/home" \
+  --stdout "$fixture_root/gui.log" \
+  --stderr "$fixture_root/gui.log" \
+  "$app" &
+launcher_pid="$!"
+
+if ! gui_pid="$(osascript - <<'APPLESCRIPT'
+tell application "System Events"
+    repeat 100 times
+        set guiProcesses to every application process whose bundle identifier is "io.github.jxpeng98.canisend"
+        if (count of guiProcesses) is 1 then return unix id of item 1 of guiProcesses
+        delay 0.1
+    end repeat
+end tell
+error "GUI process did not appear uniquely" number 1
+APPLESCRIPT
+)"; then
+  echo "macOS GUI accessibility smoke: packaged app did not launch" >&2
+  sed -n '1,160p' "$fixture_root/gui.log" >&2
+  exit 1
+fi
 
 if ! osascript - "$gui_pid" <<'APPLESCRIPT'
 on assertCondition(conditionValue, failureMessage)
@@ -137,7 +161,7 @@ on run arguments
             delay 0.12
             tell guiProcess
                 set focusedElement to value of attribute "AXFocusedUIElement"
-                my assertCondition(focusedElement is not missing value, "Tab traversal lost focus")
+                my assertCondition(focusedElement is not missing value, "Tab traversal lost focus before " & (expectedName as text))
                 set actualName to name of focusedElement as text
                 my assertCondition(actualName is (expectedName as text), "unexpected Tab order: expected " & (expectedName as text) & ", got " & actualName)
             end tell
@@ -217,6 +241,7 @@ then
   exit 1
 fi
 
-wait "$gui_pid"
+wait "$launcher_pid"
 gui_pid=""
+launcher_pid=""
 echo "macOS GUI accessibility smoke: English and Simplified Chinese semantics, Tab order, 200% focus visibility, and reduced motion passed"

@@ -1,6 +1,6 @@
 # CanISend Stage 4C–4F execution plan
 
-**Status:** Stage 4C complete; Stage 4D active; Stage 4E–4F planned
+**Status:** Stage 4C–4D complete; Stage 4E next; Stage 4F planned
 
 **Decision date:** 2026-07-26
 
@@ -9,6 +9,8 @@
 **Entry parity:** `22 implemented`, `13 deferred-beta`
 
 **Stage 4C exit parity:** `26 implemented`, `9 deferred-beta`
+
+**Stage 4D exit parity:** `29 implemented`, `6 deferred-beta`
 
 **Parent roadmap:** [CanISend 1.0 release roadmap](2026-07-25-1.0-release-roadmap.md)
 
@@ -294,12 +296,12 @@ live-region feedback. Provider credentials remain outside workspace and registry
 
 ### 5.12 D10 — Stage 4D closure
 
-- Mark only `discovery.*`, `task.*`, and `agent.*` implemented.
-- Record `29 implemented` and `6 deferred-beta`.
-- Add a repeatable discovery-to-task-to-agent persistence regression.
-- Run formatter, affected tests, relevant all-target Clippy, release check, hosted Fast CI, and a
+- [x] Mark only `discovery.*`, `task.*`, and `agent.*` implemented.
+- [x] Record `29 implemented` and `6 deferred-beta`.
+- [x] Add a repeatable discovery-to-task-to-agent persistence regression.
+- [x] Run formatter, affected tests, relevant all-target Clippy, release check, hosted Fast CI, and a
   local packaged macOS bilingual/accessibility smoke.
-- Do not create a tag, release, package-manager update, or five-target native matrix.
+- [x] Do not create a tag, release, package-manager update, or five-target native matrix.
 
 Exit parity is `29/35`.
 
@@ -381,5 +383,16 @@ reopen the workspace, and observe the same revision-bound state through the CLI 
 contracts.
 
 The structured GUI surfaces and repeatable worker/application persistence qualification now cover
-that path. Stage 4D is next. No Alpha.3, Beta, RC, Stable, package-manager, or public update action
-is implied.
+that path.
+
+## 11. Stage 4D exit decision
+
+Stage 4D is complete when a macOS GUI user can preview and commit discovery leads, promote a lead
+to a job, prepare and recover revision-bound Agent tasks, inspect public Agent v2 context, export
+one verified host resource pack, close and reopen the workspace, and observe the same state through
+the CLI and Agent v2 contracts.
+
+The shared application facade, body-free read models, `discovery -> task -> agent` reopen
+regression, hosted Fast CI, and packaged bilingual/accessibility smoke now cover that path. Stage
+4E is next at `29 implemented` and `6 deferred-beta`. No Alpha.3, Beta, RC, Stable,
+package-manager, five-target native matrix, or public update action is implied.

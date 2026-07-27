@@ -19,8 +19,8 @@ cargo build -p canisend-cli -p canisend-gui --release --locked
 ```
 
 Build both executables so the GUI can discover the sibling native CLI. The current release build is
-a native arm64 Mach-O executable. It opens one window with Overview, Jobs, Profile, Workspaces,
-Command line, and Diagnostics navigation.
+a native arm64 Mach-O executable. It opens one window with Overview, Jobs, Discovery, Profile,
+Agent integration, Workspaces, Command line, and Diagnostics navigation.
 
 ## First run
 
@@ -39,6 +39,54 @@ Command line, and Diagnostics navigation.
 
 Every file, URL, PDF, workspace, job, and workflow mutation uses the same bounded Rust services and
 authoritative SQLite/blob store as the CLI.
+
+## Discover and promote jobs
+
+Open **Discovery** to review local lead batches or refresh one supported public source:
+
+1. Choose CSV or JSON for a user-reviewed local batch. Host-agent discovery uses the same bounded
+   JSON contract and must be selected explicitly.
+2. Confirm private local reading before previewing a file. CanISend shows accepted and rejected
+   rows plus diagnostics before an explicit commit; changing the file does not change the reviewed
+   in-memory report.
+3. For RSS/Atom, jobs.ac.uk, Greenhouse, or Lever, provide the public endpoint and separately
+   confirm network access. Refresh remains user-invoked and is previewed before commit.
+4. Inspect active or historical leads, freshness, source metadata, and bounded possible-duplicate
+   suggestions. Suggestions never merge records automatically.
+5. Promote one reviewed lead explicitly. The resulting job keeps the discovery provenance and
+   provides the safe next action for importing its advert.
+
+## Prepare and complete Agent tasks
+
+The selected job's Workflow view includes an **Agent task** panel. It exposes only operations ready
+under the authoritative stage graph:
+
+1. Choose the bounded operation and either Host agent or Configured provider when the current stage
+   permits that mode.
+2. Review the task ID, lease expiry, exact job revision, declared input artifacts, output kind,
+   candidate schema, and required consent scopes.
+3. Choose a new or empty directory and confirm private reading. Provider execution requires a
+   separate send consent. The export contains only the descriptor's declared revisions and a
+   digest-bound manifest.
+4. Load one regular bounded completion JSON file. CanISend validates the candidate without mutation
+   and shows its resulting artifact before a separate commit.
+5. Cancel a prepared task when necessary. Expired or stale tasks provide a prepare-again recovery
+   action; a replacement receives a new lease and rechecks every revision.
+
+Task state is stored in the workspace, so the GUI, CLI, Codex, Claude, or another Agent v2 host sees
+the same prepared, committed, cancelled, or stale state after reopening.
+
+## Inspect Agent integration and export resources
+
+Open **Agent integration** to inspect the compiled Agent v2 protocol without exposing source
+bodies. The page shows product and format versions, capability and stage registries, discovery
+adapters, and either a workspace summary or one optional active-job summary. Blockers and bounded
+next actions are plain text with copy controls; copying never executes a command.
+
+Choose Codex, Claude, or Generic, then select a destination. Export is enabled only after the GUI
+previews the destination as new or empty; the application layer verifies it again before writing.
+On success the page shows the manifest path, resource count, and exact exported files. The GUI
+never launches the exported host or exposes a general shell.
 
 ## Recover and repair a workspace
 
@@ -232,11 +280,10 @@ canisend --workspace /path/to/applications workflow status --job JOB_ID
 canisend --workspace /path/to/applications agent context --job JOB_ID --json
 ```
 
-Codex and Claude continue to use Agent v2 rather than GUI automation. The GUI and CLI read and
-confirm profile evidence, job criteria, current matches, and application plans through the same
-application facade and authoritative workspace. Agent-task preparation/completion and later
-discovery, document, review, package, render, and export screens remain scheduled for later Stage 4
-slices.
+Codex and Claude continue to use Agent v2 rather than GUI automation. The GUI and CLI share the
+same discovery records, prepared tasks, body-free Agent context, profile evidence, job criteria,
+current matches, and application plans through the application facade and authoritative workspace.
+Document, review, package, and render screens remain scheduled for later Stage 4 slices.
 
 ## Workspace registry and retention
 
@@ -264,14 +311,19 @@ the workspace, SQLite database, blobs, projections, exports, or backups.
   confirmation.
 - Structured criteria review and confirmation, read-only current match inspection, and explicit
   application-plan decision and confirmation.
+- Discovery source/lead inspection, reviewed local imports, consent-bound public refresh,
+  duplicate suggestions, and explicit lead promotion.
+- Revision-bound Agent task preparation, scoped input export, completion preview/commit, cancel,
+  stale detection, and prepare-again recovery.
+- Body-free Agent v2 capability/context inspection and verified Codex, Claude, or generic
+  resource-pack export.
 - Workflow start, body-free stage/blocker timeline, descriptor-bound begin/complete, and
   preview-confirmed rerun.
 - Body-free product diagnostics and embedded renderer/resource self-check.
 
 Not yet implemented in the GUI:
 
-- discovery and Agent v2 task preparation/completion screens;
-- document, review, package, render, and export screens;
+- document, review, package, render, and application-package export screens;
 - Developer ID/notarized release signing, Intel native qualification, or non-macOS GUI packages.
 
 These remaining operations stay available through the CLI or Agent v2 while GUI coverage expands.
