@@ -1494,6 +1494,25 @@ fn alpha_tag_for_version(version: &Version) -> Result<String, String> {
     Ok(format!("v{}.{}.0-alpha.1", version.major, version.minor))
 }
 
+fn validate_alpha_baseline_tag(active: &Version, tag: &str) -> Result<Version, String> {
+    let candidate = Version::parse(
+        tag.strip_prefix('v')
+            .ok_or_else(|| "Alpha baseline tag must start with `v`".to_owned())?,
+    )
+    .map_err(|error| format!("Alpha baseline tag is invalid SemVer: {error}"))?;
+    if ReleaseStage::from_version(&candidate) != Ok(ReleaseStage::Alpha)
+        || candidate.major != active.major
+        || candidate.minor != active.minor
+        || candidate.patch != active.patch
+    {
+        return Err("Alpha baseline tag differs from the active release line".to_owned());
+    }
+    if ReleaseStage::from_version(active) == Ok(ReleaseStage::Alpha) && candidate != *active {
+        return Err("Alpha baseline tag does not identify the current Alpha source".to_owned());
+    }
+    Ok(candidate)
+}
+
 fn release_notes_for_version(version: &Version) -> String {
     format!(
         r#"# CanISend {version}
@@ -4296,14 +4315,13 @@ fn check_beta_readiness_file(path: &Path) -> Result<(), String> {
         println!("beta readiness: ok (pending public Alpha evidence)");
         return Ok(());
     }
-    let expected_alpha_tag = alpha_tag_for_version(&version)?;
-    if ledger["schema"] != BETA_READINESS_SCHEMA
-        || ledger["alpha_release"]["tag"] != expected_alpha_tag
-    {
+    if ledger["schema"] != BETA_READINESS_SCHEMA {
         return Err(
             "Beta readiness ledger does not identify the qualified native Alpha".to_owned(),
         );
     }
+    let alpha_tag = required_string(&ledger["alpha_release"], "tag", "Alpha release")?;
+    validate_alpha_baseline_tag(&version, alpha_tag)?;
     validate_lower_hex(
         "Beta readiness Alpha source commit",
         required_string(&ledger["alpha_release"], "source_commit", "Alpha release")?,
@@ -5813,9 +5831,7 @@ fn build_beta_contract_freeze() -> Result<Value, String> {
         );
     }
     let alpha_tag = required_string(&readiness["alpha_release"], "tag", "Alpha release")?;
-    if alpha_tag != alpha_tag_for_version(&version)? {
-        return Err("Beta contract baseline differs from the active release line".to_owned());
-    }
+    validate_alpha_baseline_tag(&version, alpha_tag)?;
     let alpha_source = required_string(
         &readiness["alpha_release"],
         "source_commit",
@@ -10466,6 +10482,34 @@ mod tests {
             );
         }
         fs::remove_dir_all(root).expect("remove readiness-age fixture");
+    }
+
+    #[test]
+    fn alpha_baseline_accepts_the_current_alpha_and_survives_later_stages() {
+        let alpha = Version::parse("1.0.0-alpha.2").expect("Alpha version");
+        let beta = Version::parse("1.0.0-beta.1").expect("Beta version");
+        assert_eq!(
+            validate_alpha_baseline_tag(&alpha, "v1.0.0-alpha.2").expect("current Alpha baseline"),
+            alpha
+        );
+        assert!(
+            validate_alpha_baseline_tag(&alpha, "v1.0.0-alpha.1").is_err(),
+            "an older Alpha must not replace the current Alpha baseline"
+        );
+        assert!(
+            validate_alpha_baseline_tag(&alpha, "v1.1.0-alpha.2").is_err(),
+            "another release line must not qualify this source"
+        );
+        assert!(
+            validate_alpha_baseline_tag(&alpha, "v1.0.0-beta.1").is_err(),
+            "the baseline itself must be an Alpha"
+        );
+        assert_eq!(
+            validate_alpha_baseline_tag(&beta, "v1.0.0-alpha.2")
+                .expect("preserved Alpha baseline after transition")
+                .to_string(),
+            "1.0.0-alpha.2"
+        );
     }
 
     #[test]
