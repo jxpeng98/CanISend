@@ -14,21 +14,20 @@ use canisend_app::{
     AgentHost, AgentPackExportRequest, Application, ApplicationError, DiscoveryImportRequest,
     DiscoveryNetworkAdapter, DiscoveryRefreshRequest, NetworkFetchConsent, PackageExportRequest,
     PrivateExportConsent, PrivateReadConsent, ProjectionCopyAsNewRequest, ProjectionReplaceRequest,
-    ProviderSendConsent, TaskExecutionMode, TaskInputExportRequest, TaskOperation,
-    TaskPrepareRequest, WorkflowBeginRequest, WorkflowCompleteRequest, WorkflowRerunRequest,
-    WorkspaceInitPolicy,
+    ProviderSendConsent, RenderExportRequest, TaskExecutionMode, TaskInputExportRequest,
+    TaskOperation, TaskPrepareRequest, WorkflowBeginRequest, WorkflowCompleteRequest,
+    WorkflowRerunRequest, WorkspaceInitPolicy,
 };
 use canisend_contracts::{
     AgentError, AgentResponse, DocumentKind, EntityId, ErrorCode, ExecutionMode, ExitClass,
     NextAction, PUBLIC_SCHEMA_VERSION, PrivacyClassification, PublicSchemaId, ResourceCatalogData,
-    ResourceCatalogEntry, SafeRelativePath, SchemaCatalogData, SchemaCatalogEntry, SemanticVersion,
-    Sha256Digest, VersionData, WorkflowStage,
+    ResourceCatalogEntry, SchemaCatalogData, SchemaCatalogEntry, SemanticVersion, Sha256Digest,
+    VersionData, WorkflowStage,
 };
 use canisend_io::{
     IoAdapterError, read_criteria_file, read_task_completion_file, read_task_completion_stdin,
 };
 use canisend_resources::{ResourceId, ResourceKind};
-use canisend_store::{RenderService, StoreError, Workspace};
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use serde_json::json;
 
@@ -3141,26 +3140,24 @@ fn package_copy_as_new(
 }
 
 fn render_build(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<CommandOutput> {
-    let job_id = parse_entity_id("render.build", job_id)?;
-    let mut workspace = open_workspace(workspace_path, "render.build")?;
-    let root = workspace.paths.root.clone();
-    let (artifact, manifest) = RenderService::new(&mut workspace.database, &workspace.blobs, &root)
-        .build(&job_id)
-        .map_err(|error| store_failure("render.build", error))?;
+    let _ = parse_entity_id("render.build", job_id)?;
+    let root = app_adapter::workspace_root(workspace_path, "render.build")?;
+    let receipt = Application::build_render(&root, job_id)
+        .map_err(|error| app_adapter::failure("render.build", error))?;
+    let manifest = receipt.data;
     let mut output = render_output("render.build", "rendered", &manifest)?;
-    output.response.artifacts.push(artifact);
+    output.response.artifacts.extend(receipt.artifacts);
     Ok(output)
 }
 
 fn render_show(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<CommandOutput> {
-    let job_id = parse_entity_id("render.show", job_id)?;
-    let mut workspace = open_workspace(workspace_path, "render.show")?;
-    let root = workspace.paths.root.clone();
-    let (artifact, manifest) = RenderService::new(&mut workspace.database, &workspace.blobs, &root)
-        .current(&job_id)
-        .map_err(|error| store_failure("render.show", error))?;
+    let _ = parse_entity_id("render.show", job_id)?;
+    let root = app_adapter::workspace_root(workspace_path, "render.show")?;
+    let receipt = Application::current_render(&root, job_id)
+        .map_err(|error| app_adapter::failure("render.show", error))?;
+    let manifest = receipt.data;
     let mut output = render_output("render.show", "available", &manifest)?;
-    output.response.artifacts.push(artifact);
+    output.response.artifacts.extend(receipt.artifacts);
     Ok(output)
 }
 
@@ -3168,47 +3165,31 @@ fn render_export(
     workspace_path: Option<PathBuf>,
     arguments: RenderExportArgs,
 ) -> CommandResult<CommandOutput> {
-    if !arguments.allow_private_export {
-        let mut failure = CommandFailure::new(
-            "render.export",
-            "consent-required",
-            ErrorCode::ConsentRequired,
-            "export-private-artifacts consent must be explicitly confirmed",
-            false,
-        );
-        failure.error.remediation = Some(NextAction {
-            action: "obtain user approval, then repeat with --allow-private-export".to_owned(),
-            description:
-                "The command writes private PDFs and their exact manifest under jobs/JOB_ID/"
-                    .to_owned(),
-        });
-        return Err(failure);
-    }
-    let job_id = parse_entity_id("render.export", &arguments.job)?;
-    let destination = parse_safe_relative_path("render.export", &arguments.destination)?;
-    let mut workspace = open_workspace(workspace_path, "render.export")?;
-    let root = workspace.paths.root.clone();
-    let (artifact, manifest, files) =
-        RenderService::new(&mut workspace.database, &workspace.blobs, &root)
-            .export(&job_id, &destination)
-            .map_err(|error| store_failure("render.export", error))?;
-    let data = json!({
-        "render_manifest": manifest,
-        "destination": destination,
-        "files": files,
-        "submission_performed": false
-    });
+    let request = RenderExportRequest::try_new(&arguments.job, &arguments.destination)
+        .map_err(|error| app_adapter::failure("render.export", error))?;
+    let destination = request.destination.clone();
+    let consent = arguments
+        .allow_private_export
+        .then(PrivateExportConsent::granted_by_user);
+    let root = if consent.is_some() {
+        app_adapter::workspace_root(workspace_path, "render.export")?
+    } else {
+        PathBuf::from(".")
+    };
+    let result = Application::export_render(&root, request, consent)
+        .map_err(|error| app_adapter::failure("render.export", error))?;
+    let data = result.data;
     let mut output = success(
         "render.export",
         "exported",
         &data,
         vec![
             format!("Directory: {destination}"),
-            format!("Exported files: {}", files.len()),
+            format!("Exported files: {}", data.files.len()),
             "Submission performed: no".to_owned(),
         ],
     )?;
-    output.response.artifacts.push(artifact);
+    output.response.artifacts.extend(result.artifacts);
     Ok(output)
 }
 
@@ -3411,21 +3392,6 @@ fn parse_entity_id(operation: &'static str, value: &str) -> CommandResult<Entity
     })
 }
 
-fn parse_safe_relative_path(
-    operation: &'static str,
-    value: &str,
-) -> CommandResult<SafeRelativePath> {
-    SafeRelativePath::try_new(value).map_err(|error| {
-        CommandFailure::new(
-            operation,
-            "invalid",
-            ErrorCode::InputPathRejected,
-            error.to_string(),
-            false,
-        )
-    })
-}
-
 fn io_adapter_failure(operation: &'static str, error: IoAdapterError) -> Box<CommandFailure> {
     let (status, code, retryable) = match &error {
         IoAdapterError::PdfEncrypted => ("invalid", ErrorCode::PdfEncrypted, false),
@@ -3478,13 +3444,6 @@ fn io_adapter_failure(operation: &'static str, error: IoAdapterError) -> Box<Com
     failure
 }
 
-fn open_workspace(
-    workspace_path: Option<PathBuf>,
-    operation: &'static str,
-) -> CommandResult<Workspace> {
-    Workspace::open(workspace_path.as_deref()).map_err(|error| store_failure(operation, error))
-}
-
 fn task_application_failure(
     operation: &'static str,
     error: ApplicationError,
@@ -3522,108 +3481,6 @@ fn task_application_failure(
 fn agent_context_failure(error: ApplicationError) -> Box<CommandFailure> {
     let mut failure = app_adapter::failure("agent.context", error);
     if failure.error.code == ErrorCode::WorkspaceNotFound {
-        failure.error.remediation = Some(NextAction {
-            action: "run canisend --workspace PATH workspace init".to_owned(),
-            description:
-                "Choose a new workspace directory, or pass --workspace for an existing canisend.toml"
-                    .to_owned(),
-        });
-    }
-    failure
-}
-
-fn store_failure(operation: &'static str, error: StoreError) -> Box<CommandFailure> {
-    let (status, code, retryable) = match &error {
-        StoreError::WorkspaceNotFound(_) => ("not-found", ErrorCode::WorkspaceNotFound, false),
-        StoreError::JobNotFound(_) => ("not-found", ErrorCode::JobNotFound, false),
-        StoreError::JobArchived(_) => ("archived", ErrorCode::JobArchived, false),
-        StoreError::ProfileSourceNotFound(_) => {
-            ("not-found", ErrorCode::ProfileSourceNotFound, false)
-        }
-        StoreError::DiscoverySourceNotFound(_) => {
-            ("not-found", ErrorCode::DiscoverySourceNotFound, false)
-        }
-        StoreError::DiscoveryLeadNotFound(_) => {
-            ("not-found", ErrorCode::DiscoveryLeadNotFound, false)
-        }
-        StoreError::DiscoveryConflict(_) => ("conflict", ErrorCode::DiscoveryConflict, false),
-        StoreError::TaskNotFound(_) => ("not-found", ErrorCode::TaskNotFound, false),
-        StoreError::TaskStale(_) => ("stale", ErrorCode::TaskStale, true),
-        StoreError::TaskConflict(_) => ("conflict", ErrorCode::TaskConflict, false),
-        StoreError::WorkflowNotFound(_) => ("not-found", ErrorCode::WorkflowNotFound, false),
-        StoreError::WorkflowConflict(_) => ("conflict", ErrorCode::WorkflowConflict, false),
-        StoreError::TemplateFieldsUnresolved { .. } => {
-            ("conflict", ErrorCode::WorkflowConflict, false)
-        }
-        StoreError::EmbeddedRender(canisend_io::EmbeddedRenderError::EncryptedPdf) => {
-            ("render-failed", ErrorCode::PdfEncrypted, false)
-        }
-        StoreError::EmbeddedRender(
-            canisend_io::EmbeddedRenderError::InvalidPdf
-            | canisend_io::EmbeddedRenderError::PageCountInvalid,
-        ) => ("render-failed", ErrorCode::PdfMalformed, false),
-        StoreError::EmbeddedRender(_) => {
-            ("render-failed", ErrorCode::InternalInvariantFailed, false)
-        }
-        StoreError::CandidateStructural(_) => {
-            ("validation-failed", ErrorCode::CandidateSchemaInvalid, true)
-        }
-        StoreError::CandidateSemantic(_) => (
-            "validation-failed",
-            ErrorCode::CandidateSemanticInvalid,
-            true,
-        ),
-        StoreError::WorkspaceExists(_)
-        | StoreError::Sqlite(_)
-        | StoreError::DependencyConflict(_)
-        | StoreError::ArtifactNotFound(_)
-        | StoreError::ProjectionEdited(_)
-        | StoreError::ProjectionUnmanagedConflict(_)
-        | StoreError::ProjectionNotFound(_) => ("conflict", ErrorCode::WorkspaceConflict, false),
-        StoreError::UnsafePath(_)
-        | StoreError::NotDirectory(_)
-        | StoreError::ProjectionPathRejected
-        | StoreError::BlobTooLarge { .. }
-        | StoreError::ConfigDecode(_)
-        | StoreError::BackupInvalid(_) => ("invalid", ErrorCode::InputPathRejected, false),
-        StoreError::InvalidInput(_) => ("invalid", ErrorCode::InputInvalid, false),
-        StoreError::Io { .. } | StoreError::BlobMissing(_) => {
-            ("io-failed", ErrorCode::ExternalIoFailed, true)
-        }
-        StoreError::BlobDigestMismatch { .. } | StoreError::BlobCollision(_) => {
-            ("integrity-failed", ErrorCode::WorkspaceConflict, false)
-        }
-        StoreError::ConfigEncode(_)
-        | StoreError::Json(_)
-        | StoreError::Contract(_)
-        | StoreError::Random(_)
-        | StoreError::Clock
-        | StoreError::TypstProjectionInvariant
-        | StoreError::Invariant(_) => (
-            "invariant-failed",
-            ErrorCode::InternalInvariantFailed,
-            false,
-        ),
-    };
-    let mut failure = CommandFailure::new(operation, status, code, error.to_string(), retryable);
-    if let StoreError::CandidateStructural(violations) | StoreError::CandidateSemantic(violations) =
-        &error
-    {
-        failure.error.details = serde_json::to_value(violations).ok();
-        failure.error.remediation = Some(NextAction {
-            action: "correct the candidate JSON and retry the same leased task".to_owned(),
-            description:
-                "Use each violation's JSON pointer and stable code; no task state was committed"
-                    .to_owned(),
-        });
-    } else if matches!(error, StoreError::TaskStale(_)) {
-        failure.error.remediation = Some(NextAction {
-            action: "run canisend task prepare again for the current job revision".to_owned(),
-            description:
-                "A lease expired or a declared input changed; do not reuse the old candidate"
-                    .to_owned(),
-        });
-    } else if matches!(error, StoreError::WorkspaceNotFound(_)) {
         failure.error.remediation = Some(NextAction {
             action: "run canisend --workspace PATH workspace init".to_owned(),
             description:
