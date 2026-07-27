@@ -2,6 +2,7 @@ mod agent_page;
 mod dialogs;
 mod discovery_page;
 mod document_page;
+mod package_page;
 mod pages;
 mod plan_page;
 mod review_page;
@@ -30,9 +31,9 @@ use crate::{
         AgentDestinationIssue, AgentDestinationPreview, AgentIntegrationForm, CriteriaMatchForm,
         DiscoveryImportForm, DiscoveryPanel, DiscoveryRefreshForm, DocumentWorkspaceForm,
         EvidenceReviewForm, FocusTarget, GuiPreferences, ImportForm, ImportKind, JobForm, JobPanel,
-        Page, PendingConfirmation, PlanReviewForm, ProfileSourceForm, RestoreWorkspaceForm,
-        ReviewWorkspaceForm, TaskPanelForm, WorkflowActionForm, WorkspaceForm,
-        available_task_modes, available_task_operations, parse_workflow_artifact_id,
+        PackageWorkspaceForm, Page, PendingConfirmation, PlanReviewForm, ProfileSourceForm,
+        RestoreWorkspaceForm, ReviewWorkspaceForm, TaskPanelForm, WorkflowActionForm,
+        WorkspaceForm, available_task_modes, available_task_operations, parse_workflow_artifact_id,
         validate_discovery_import_form, validate_discovery_refresh_form,
     },
     theme,
@@ -41,8 +42,9 @@ use crate::{
 use canisend_app::{
     AgentHost, AgentPackExportRequest, Application, ApplicationFailure,
     DiscoveryAdapterCatalogReadModel, DiscoveryLeadListReadModel, DiscoverySourceListReadModel,
-    DiscoverySuggestionReadModel, DoctorSummary, JobDetailReadModel, ProductSummary,
-    ProfileSourceListReadModel, TaskExecutionMode, TaskInputExportRequest, TaskOperation,
+    DiscoverySuggestionReadModel, DoctorSummary, JobDetailReadModel, PackageExportRequest,
+    ProductSummary, ProfileSourceListReadModel, ProjectionCopyAsNewRequest,
+    ProjectionReplaceRequest, TaskExecutionMode, TaskInputExportRequest, TaskOperation,
     TaskPrepareRequest, UpdateCheckReadModel, WorkflowBeginRequest, WorkflowCompleteRequest,
     WorkflowControlReadModel, WorkflowRerunRequest, WorkspaceHealthReadModel, WorkspaceReadModel,
 };
@@ -171,6 +173,7 @@ struct CanISendDesktop {
     job_panel: JobPanel,
     document_form: DocumentWorkspaceForm,
     review_form: ReviewWorkspaceForm,
+    package_form: PackageWorkspaceForm,
     profile_sources: Option<ProfileSourceListReadModel>,
     workflow_controls: Option<WorkflowControlReadModel>,
     workflow_action_form: Option<WorkflowActionForm>,
@@ -255,6 +258,7 @@ impl CanISendDesktop {
             job_panel: JobPanel::Workflow,
             document_form: DocumentWorkspaceForm::default(),
             review_form: ReviewWorkspaceForm::default(),
+            package_form: PackageWorkspaceForm::default(),
             profile_sources: None,
             workflow_controls: None,
             workflow_action_form: None,
@@ -607,6 +611,7 @@ impl CanISendDesktop {
                     self.job_panel = JobPanel::Workflow;
                     self.document_form = DocumentWorkspaceForm::default();
                     self.review_form = ReviewWorkspaceForm::default();
+                    self.package_form = PackageWorkspaceForm::default();
                     self.load_job(id, ctx.clone());
                 }
                 Err(error) => self.job_form.error = Some(error),
@@ -630,6 +635,7 @@ impl CanISendDesktop {
                     self.selected_job_id = Some(job_id.clone());
                     self.document_form.select_job(&job_id);
                     self.review_form.select_job(&job_id);
+                    self.package_form.select_job(&job_id);
                     self.task_form.select_job(&job_id);
                     self.selected_job = Some(receipt.data);
                     if has_workflow {
@@ -652,6 +658,7 @@ impl CanISendDesktop {
                     self.job_panel = JobPanel::Workflow;
                     self.document_form = DocumentWorkspaceForm::default();
                     self.review_form = ReviewWorkspaceForm::default();
+                    self.package_form = PackageWorkspaceForm::default();
                     self.criteria_match_form = CriteriaMatchForm::default();
                     self.plan_review_form = PlanReviewForm::default();
                     self.notice = Some((true, summary));
@@ -675,6 +682,7 @@ impl CanISendDesktop {
                     };
                     self.document_form.clear_loaded_private_data();
                     self.review_form.clear_loaded_private_data();
+                    self.package_form.clear_loaded_data();
                     self.notice = Some((true, summary));
                     self.load_job(id, ctx.clone());
                 }
@@ -691,6 +699,7 @@ impl CanISendDesktop {
                     self.profile_source_form = ProfileSourceForm::default();
                     self.document_form.clear_loaded_private_data();
                     self.review_form.clear_loaded_private_data();
+                    self.package_form.clear_loaded_data();
                     self.notice = Some((true, summary));
                     self.refresh_profile_sources(ctx.clone());
                 }
@@ -725,6 +734,7 @@ impl CanISendDesktop {
                     }
                     self.document_form.clear_loaded_private_data();
                     self.review_form.clear_loaded_private_data();
+                    self.package_form.clear_loaded_data();
                     if self.selected_job_id.as_deref() == Some(job_id.as_str()) {
                         self.load_job(job_id, ctx.clone());
                     }
@@ -758,6 +768,7 @@ impl CanISendDesktop {
                     self.plan_review_form = PlanReviewForm::default();
                     self.document_form.clear_loaded_private_data();
                     self.review_form.clear_loaded_private_data();
+                    self.package_form.clear_loaded_data();
                     self.notice = Some((true, summary));
                     if self.selected_job_id.as_deref() == Some(job_id.as_str()) {
                         self.load_job(job_id, ctx.clone());
@@ -805,6 +816,7 @@ impl CanISendDesktop {
                     self.plan_review_form.error = None;
                     self.document_form.clear_loaded_private_data();
                     self.review_form.clear_loaded_private_data();
+                    self.package_form.clear_loaded_data();
                     self.notice = Some((true, summary));
                     if self.selected_job_id.as_deref() == Some(job_id.as_str()) {
                         self.load_job(job_id, ctx.clone());
@@ -869,6 +881,7 @@ impl CanISendDesktop {
                         Ok(committed) => {
                             let summary =
                                 localized_receipt_summary(&committed.receipt, self.language);
+                            self.package_form.clear_loaded_data();
                             match committed.workspace {
                                 Ok(workspace) => {
                                     self.review_form.job_id = Some(job_id);
@@ -902,6 +915,93 @@ impl CanISendDesktop {
                         Err(error) => {
                             self.review_form.error = Some(error);
                             self.pending_focus = Some(FocusTarget::ReviewConfirm);
+                        }
+                    }
+                }
+            }
+            WorkerEvent::PackageChecked { job_id, result }
+            | WorkerEvent::PackageLoaded { job_id, result } => {
+                if self.selected_job_id.as_deref() == Some(job_id.as_str()) {
+                    match result {
+                        Ok(receipt) => {
+                            let summary = localized_receipt_summary(&receipt, self.language);
+                            self.package_form.job_id = Some(job_id);
+                            self.package_form.manifest = Some(receipt.data);
+                            self.package_form.error = None;
+                            self.notice = Some((true, summary));
+                            self.pending_focus = Some(FocusTarget::PackageCheck);
+                        }
+                        Err(error) => {
+                            self.package_form.error = Some(error);
+                            self.pending_focus = Some(FocusTarget::PackageCheck);
+                        }
+                    }
+                }
+            }
+            WorkerEvent::PackageExported { job_id, result }
+            | WorkerEvent::PackageExportLoaded { job_id, result } => {
+                if self.selected_job_id.as_deref() == Some(job_id.as_str()) {
+                    match result {
+                        Ok(receipt) => {
+                            let summary = localized_receipt_summary(&receipt, self.language);
+                            self.package_form.job_id = Some(job_id);
+                            self.package_form.export_receipt = Some(receipt.data);
+                            self.package_form.reconciliation = None;
+                            self.package_form.private_export_consent = false;
+                            self.package_form.error = None;
+                            self.notice = Some((true, summary));
+                            self.pending_focus = Some(FocusTarget::PackageExport);
+                        }
+                        Err(error) => {
+                            self.package_form.error = Some(error);
+                            self.pending_focus = Some(FocusTarget::PackageExport);
+                        }
+                    }
+                }
+            }
+            WorkerEvent::PackageReconciled { job_id, result } => {
+                if self.selected_job_id.as_deref() == Some(job_id.as_str()) {
+                    match result {
+                        Ok(receipt) => {
+                            let summary = localized_receipt_summary(&receipt, self.language);
+                            self.package_form.job_id = Some(job_id);
+                            self.package_form.reconciliation = Some(receipt.data);
+                            self.package_form.selected_projection = None;
+                            self.package_form.copy_destination.clear();
+                            self.package_form.error = None;
+                            self.notice = Some((true, summary));
+                            self.pending_focus = Some(FocusTarget::PackageReconcile);
+                        }
+                        Err(error) => {
+                            self.package_form.error = Some(error);
+                            self.pending_focus = Some(FocusTarget::PackageReconcile);
+                        }
+                    }
+                }
+            }
+            WorkerEvent::ProjectionReplaced { job_id, result }
+            | WorkerEvent::ProjectionCopiedAsNew { job_id, result } => {
+                if self.selected_job_id.as_deref() == Some(job_id.as_str()) {
+                    match result {
+                        Ok(receipt) => {
+                            let summary = localized_receipt_summary(&receipt, self.language);
+                            if let Some(records) = &mut self.package_form.reconciliation
+                                && let Some(existing) = records.iter_mut().find(|record| {
+                                    record.projection.relative_path
+                                        == receipt.data.projection.relative_path
+                                })
+                            {
+                                *existing = receipt.data;
+                            }
+                            self.package_form.selected_projection = None;
+                            self.package_form.copy_destination.clear();
+                            self.package_form.error = None;
+                            self.notice = Some((true, summary));
+                            self.pending_focus = Some(FocusTarget::PackageReconcile);
+                        }
+                        Err(error) => {
+                            self.package_form.error = Some(error);
+                            self.pending_focus = Some(FocusTarget::PackageReconcile);
                         }
                     }
                 }
@@ -941,6 +1041,7 @@ impl CanISendDesktop {
                     };
                     self.document_form.clear_loaded_private_data();
                     self.review_form.clear_loaded_private_data();
+                    self.package_form.clear_loaded_data();
                     self.notice = Some((true, summary));
                     if let Some(job_id) = self.selected_job_id.clone() {
                         self.load_latest_task(job_id, ctx.clone());
@@ -1032,6 +1133,7 @@ impl CanISendDesktop {
                     self.task_form.failure = None;
                     self.document_form.clear_loaded_private_data();
                     self.review_form.clear_loaded_private_data();
+                    self.package_form.clear_loaded_data();
                     self.notice = Some((true, summary));
                     self.reload_selected_job_after_task(ctx.clone());
                 }
@@ -1214,6 +1316,7 @@ impl CanISendDesktop {
         self.job_panel = JobPanel::Workflow;
         self.document_form = DocumentWorkspaceForm::default();
         self.review_form = ReviewWorkspaceForm::default();
+        self.package_form = PackageWorkspaceForm::default();
         self.workflow_controls = None;
         self.workflow_action_form = None;
         self.task_form = TaskPanelForm::default();
@@ -1366,6 +1469,115 @@ impl CanISendDesktop {
                 job_id,
                 candidate,
             },
+        );
+    }
+
+    fn check_package(&mut self, job_id: String, load_only: bool, ctx: egui::Context) {
+        let Some(path) = self.active_workspace.clone() else {
+            self.package_form.error = Some(
+                self.language
+                    .select(
+                        "Choose a workspace before checking package readiness",
+                        "检查申请包就绪状态前请先选择工作区",
+                    )
+                    .to_owned(),
+            );
+            return;
+        };
+        let request = if load_only {
+            WorkerRequest::LoadPackage { path, job_id }
+        } else {
+            WorkerRequest::CheckPackage { path, job_id }
+        };
+        self.dispatch(
+            if load_only {
+                self.language
+                    .select("Loading current package", "正在加载当前申请包")
+            } else {
+                self.language
+                    .select("Checking package readiness", "正在检查申请包就绪状态")
+            },
+            ctx,
+            request,
+        );
+    }
+
+    fn export_package(
+        &mut self,
+        request: PackageExportRequest,
+        private_export_consent: bool,
+        ctx: egui::Context,
+    ) {
+        let Some(path) = self.active_workspace.clone() else {
+            self.package_form.error = Some(
+                self.language
+                    .select(
+                        "Choose a workspace before exporting private projections",
+                        "导出私密投影前请先选择工作区",
+                    )
+                    .to_owned(),
+            );
+            return;
+        };
+        self.dispatch(
+            self.language
+                .select("Exporting private projections", "正在导出私密投影"),
+            ctx,
+            WorkerRequest::ExportPackage {
+                path,
+                request,
+                private_export_consent,
+            },
+        );
+    }
+
+    fn load_package_export(&mut self, job_id: String, ctx: egui::Context) {
+        let Some(path) = self.active_workspace.clone() else {
+            return;
+        };
+        self.dispatch(
+            self.language
+                .select("Loading current export receipt", "正在加载当前导出收据"),
+            ctx,
+            WorkerRequest::LoadPackageExport { path, job_id },
+        );
+    }
+
+    fn reconcile_package(&mut self, job_id: String, ctx: egui::Context) {
+        let Some(path) = self.active_workspace.clone() else {
+            return;
+        };
+        self.dispatch(
+            self.language
+                .select("Reconciling managed projections", "正在对账受管理投影"),
+            ctx,
+            WorkerRequest::ReconcilePackage { path, job_id },
+        );
+    }
+
+    fn replace_projection(&mut self, request: ProjectionReplaceRequest, ctx: egui::Context) {
+        let Some(path) = self.active_workspace.clone() else {
+            return;
+        };
+        self.dispatch(
+            self.language
+                .select("Restoring managed projection", "正在恢复受管理投影"),
+            ctx,
+            WorkerRequest::ReplaceProjection { path, request },
+        );
+    }
+
+    fn copy_projection_as_new(&mut self, request: ProjectionCopyAsNewRequest, ctx: egui::Context) {
+        let Some(path) = self.active_workspace.clone() else {
+            return;
+        };
+        self.dispatch(
+            self.language.select(
+                "Preserving edit and restoring projection",
+                "正在保留编辑稿并恢复投影",
+            ),
+            ctx,
+            WorkerRequest::CopyProjectionAsNew { path, request },
         );
     }
 

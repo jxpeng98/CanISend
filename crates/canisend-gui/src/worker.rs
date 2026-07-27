@@ -6,18 +6,20 @@ use canisend_app::{
     DiscoveryAdapterCatalogReadModel, DiscoveryImportRequest, DiscoveryLeadListReadModel,
     DiscoveryPromotionReadModel, DiscoveryRefreshRequest, DiscoverySourceListReadModel,
     DiscoverySuggestionReadModel, DoctorSummary, DocumentWorkspaceReadModel, JobDetailReadModel,
-    JobListReadModel, NetworkFetchConsent, PrivateReadConsent, ProfileSourceImportReadModel,
-    ProfileSourceListReadModel, ProviderSendConsent, ReviewWorkspaceReadModel,
-    SourceImportReadModel, TaskCompletionPreviewReadModel, TaskInputExportRequest,
-    TaskPrepareAgainReadModel, TaskPrepareRequest, TerminalInstallConsent, UpdateCheckReadModel,
-    WorkflowBeginRequest, WorkflowCompleteRequest, WorkflowControlReadModel, WorkflowRerunPreview,
-    WorkflowRerunRequest, WorkspaceHealthReadModel, WorkspaceReadModel, WorkspaceRepairReadModel,
-    WorkspaceRestoreReadModel,
+    JobListReadModel, NetworkFetchConsent, PackageExportRequest, PrivateExportConsent,
+    PrivateReadConsent, ProfileSourceImportReadModel, ProfileSourceListReadModel,
+    ProjectionCopyAsNewRequest, ProjectionReplaceRequest, ProviderSendConsent,
+    ReviewWorkspaceReadModel, SourceImportReadModel, TaskCompletionPreviewReadModel,
+    TaskInputExportRequest, TaskPrepareAgainReadModel, TaskPrepareRequest, TerminalInstallConsent,
+    UpdateCheckReadModel, WorkflowBeginRequest, WorkflowCompleteRequest, WorkflowControlReadModel,
+    WorkflowRerunPreview, WorkflowRerunRequest, WorkspaceHealthReadModel, WorkspaceReadModel,
+    WorkspaceRepairReadModel, WorkspaceRestoreReadModel,
 };
 use canisend_contracts::{
     ApplicationPlanCandidate, ApplicationPlanRecord, CriteriaSetRecord, DiscoveryImportReport,
     DiscoveryLeadRecord, EvidenceCatalogRecord, EvidenceMatchSetRecord, JobRecord,
-    PrivacyClassification, ReviewDispositionCandidate, ReviewFindingsRecord, TaskCommitData,
+    PackageExportManifestRecord, PackageManifestRecord, PrivacyClassification,
+    ProjectionReconcileRecord, ReviewDispositionCandidate, ReviewFindingsRecord, TaskCommitData,
     TaskCompletionRequest, TaskDescriptor, TaskInputExportData, TaskStateData, WorkflowStage,
     WorkflowStatusData,
 };
@@ -190,6 +192,35 @@ pub(crate) enum WorkerRequest {
         job_id: String,
         candidate: ReviewDispositionCandidate,
     },
+    CheckPackage {
+        path: PathBuf,
+        job_id: String,
+    },
+    LoadPackage {
+        path: PathBuf,
+        job_id: String,
+    },
+    ExportPackage {
+        path: PathBuf,
+        request: PackageExportRequest,
+        private_export_consent: bool,
+    },
+    LoadPackageExport {
+        path: PathBuf,
+        job_id: String,
+    },
+    ReconcilePackage {
+        path: PathBuf,
+        job_id: String,
+    },
+    ReplaceProjection {
+        path: PathBuf,
+        request: ProjectionReplaceRequest,
+    },
+    CopyProjectionAsNew {
+        path: PathBuf,
+        request: ProjectionCopyAsNewRequest,
+    },
     StartWorkflow {
         path: PathBuf,
         id: String,
@@ -343,6 +374,34 @@ pub(crate) enum WorkerEvent {
     ReviewConfirmed {
         job_id: String,
         result: Result<ReviewCommitResult, String>,
+    },
+    PackageChecked {
+        job_id: String,
+        result: Result<ActionReceipt<PackageManifestRecord>, String>,
+    },
+    PackageLoaded {
+        job_id: String,
+        result: Result<ActionReceipt<PackageManifestRecord>, String>,
+    },
+    PackageExported {
+        job_id: String,
+        result: Result<ActionReceipt<PackageExportManifestRecord>, String>,
+    },
+    PackageExportLoaded {
+        job_id: String,
+        result: Result<ActionReceipt<PackageExportManifestRecord>, String>,
+    },
+    PackageReconciled {
+        job_id: String,
+        result: Result<ActionReceipt<Vec<ProjectionReconcileRecord>>, String>,
+    },
+    ProjectionReplaced {
+        job_id: String,
+        result: Result<ActionReceipt<ProjectionReconcileRecord>, String>,
+    },
+    ProjectionCopiedAsNew {
+        job_id: String,
+        result: Result<ActionReceipt<ProjectionReconcileRecord>, String>,
     },
     WorkflowLoaded(Result<ActionReceipt<WorkflowStatusData>, String>),
     WorkflowControlsLoaded(Result<ActionReceipt<WorkflowControlReadModel>, String>),
@@ -663,6 +722,56 @@ pub(crate) fn execute(request: WorkerRequest) -> WorkerEvent {
                 });
             WorkerEvent::ReviewConfirmed { job_id, result }
         }
+        WorkerRequest::CheckPackage { path, job_id } => WorkerEvent::PackageChecked {
+            result: Application::check_package(&path, &job_id).map_err(|error| error.to_string()),
+            job_id,
+        },
+        WorkerRequest::LoadPackage { path, job_id } => WorkerEvent::PackageLoaded {
+            result: Application::current_package(&path, &job_id).map_err(|error| error.to_string()),
+            job_id,
+        },
+        WorkerRequest::ExportPackage {
+            path,
+            request,
+            private_export_consent,
+        } => {
+            let job_id = request.job_id.to_string();
+            WorkerEvent::PackageExported {
+                result: Application::export_package(
+                    &path,
+                    request,
+                    private_export_consent.then(PrivateExportConsent::granted_by_user),
+                )
+                .map_err(|error| error.to_string()),
+                job_id,
+            }
+        }
+        WorkerRequest::LoadPackageExport { path, job_id } => WorkerEvent::PackageExportLoaded {
+            result: Application::current_package_export(&path, &job_id)
+                .map_err(|error| error.to_string()),
+            job_id,
+        },
+        WorkerRequest::ReconcilePackage { path, job_id } => WorkerEvent::PackageReconciled {
+            result: Application::reconcile_package_projections(&path, &job_id)
+                .map_err(|error| error.to_string()),
+            job_id,
+        },
+        WorkerRequest::ReplaceProjection { path, request } => {
+            let job_id = request.job_id.to_string();
+            WorkerEvent::ProjectionReplaced {
+                result: Application::replace_package_projection(&path, request)
+                    .map_err(|error| error.to_string()),
+                job_id,
+            }
+        }
+        WorkerRequest::CopyProjectionAsNew { path, request } => {
+            let job_id = request.job_id.to_string();
+            WorkerEvent::ProjectionCopiedAsNew {
+                result: Application::copy_package_projection_as_new(&path, request)
+                    .map_err(|error| error.to_string()),
+                job_id,
+            }
+        }
         WorkerRequest::StartWorkflow { path, id } => WorkerEvent::WorkflowLoaded(
             Application::start_workflow(&path, &id).map_err(|error| error.to_string()),
         ),
@@ -896,6 +1005,27 @@ mod tests {
                 job_id: job_id.to_string(),
             }),
             WorkerEvent::ReviewLoaded { result: Err(_), .. }
+        ));
+        assert!(matches!(
+            execute(WorkerRequest::CheckPackage {
+                path: root.clone(),
+                job_id: job_id.to_string(),
+            }),
+            WorkerEvent::PackageChecked { result: Err(_), .. }
+        ));
+        assert!(matches!(
+            execute(WorkerRequest::LoadPackage {
+                path: root.clone(),
+                job_id: job_id.to_string(),
+            }),
+            WorkerEvent::PackageLoaded { result: Err(_), .. }
+        ));
+        assert!(matches!(
+            execute(WorkerRequest::LoadPackageExport {
+                path: root.clone(),
+                job_id: job_id.to_string(),
+            }),
+            WorkerEvent::PackageExportLoaded { result: Err(_), .. }
         ));
         let source = temporary_root("source").with_extension("txt");
         std::fs::write(&source, "bounded job source").expect("write source");

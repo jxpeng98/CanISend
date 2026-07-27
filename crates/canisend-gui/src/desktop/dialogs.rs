@@ -1190,6 +1190,36 @@ impl CanISendDesktop {
                         }
                     });
                 }
+                PendingConfirmation::ReplaceProjection { request } => {
+                    accessible_heading(
+                        ui,
+                        self.language.select(
+                            "Replace this edited projection?",
+                            "覆盖这个已编辑的投影？",
+                        ),
+                        1,
+                    );
+                    ui.label(self.language.select(
+                        "CanISend will discard the current file bytes and regenerate the managed projection from authoritative structured artifacts. Use copy-as-new instead if the edit must be preserved.",
+                        "CanISend 将丢弃当前文件内容，并根据权威结构化工件重新生成受管理投影。如果需要保留编辑，请改用“复制为新文件”。",
+                    ));
+                    ui.monospace(request.path.as_str());
+                    ui.add_space(10.0);
+                    ui.horizontal(|ui| {
+                        if ui
+                            .add(theme::destructive_button(
+                                self.language
+                                    .select("Replace edited file", "覆盖已编辑文件"),
+                            ))
+                            .clicked()
+                        {
+                            confirmed = true;
+                        }
+                        if ui.button(self.language.text("Cancel")).clicked() {
+                            cancelled = true;
+                        }
+                    });
+                }
             }
         });
         if confirmed {
@@ -1266,6 +1296,9 @@ impl CanISendDesktop {
                 }
                 PendingConfirmation::UninstallCli { .. } => {
                     self.uninstall_cli(ui.ctx().clone());
+                }
+                PendingConfirmation::ReplaceProjection { request } => {
+                    self.replace_projection(request, ui.ctx().clone());
                 }
             }
         } else if cancelled || modal.should_close() {
