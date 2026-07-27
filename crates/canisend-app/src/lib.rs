@@ -11,6 +11,7 @@ mod job;
 mod plan;
 mod profile;
 mod receipt;
+mod review;
 mod system;
 mod task;
 mod update;
@@ -35,6 +36,7 @@ pub use error::{ApplicationError, ApplicationFailure};
 pub use job::{JobDetailReadModel, JobListReadModel, SourceImportReadModel};
 pub use profile::{ProfileSourceImportReadModel, ProfileSourceListReadModel};
 pub use receipt::ActionReceipt;
+pub use review::ReviewWorkspaceReadModel;
 pub use system::{DoctorSummary, ProductSummary};
 pub use task::{
     TaskCompletionPreviewReadModel, TaskExecutionMode, TaskInputExportRequest, TaskOperation,
