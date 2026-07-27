@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use canisend_app::{
+    AgentCapabilitiesReadModel, AgentContextReadModel, AgentHost, AgentPackExportReadModel,
     ApplicationFailure, DiscoveryNetworkAdapter, TaskCompletionPreviewReadModel, TaskExecutionMode,
     TaskOperation, WorkflowControlReadModel, WorkflowRerunPreview,
 };
@@ -20,17 +21,19 @@ pub(crate) enum Page {
     Jobs,
     Discovery,
     Profile,
+    AgentIntegration,
     Workspaces,
     CommandLine,
     Diagnostics,
 }
 
 impl Page {
-    pub(crate) const ALL: [Self; 7] = [
+    pub(crate) const ALL: [Self; 8] = [
         Self::Overview,
         Self::Jobs,
         Self::Discovery,
         Self::Profile,
+        Self::AgentIntegration,
         Self::Workspaces,
         Self::CommandLine,
         Self::Diagnostics,
@@ -42,6 +45,7 @@ impl Page {
             Self::Jobs => "Jobs",
             Self::Discovery => "Discovery",
             Self::Profile => "Profile",
+            Self::AgentIntegration => "Agent integration",
             Self::Workspaces => "Workspaces",
             Self::CommandLine => "Command line",
             Self::Diagnostics => "Diagnostics",
@@ -93,6 +97,8 @@ pub(crate) enum FocusTarget {
     TaskCommit,
     TaskCancel,
     TaskPrepareAgain,
+    AgentContextRefresh,
+    AgentExport,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -353,6 +359,122 @@ impl TaskPanelForm {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum AgentDestinationPreview {
+    New,
+    Empty,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum AgentDestinationIssue {
+    InsideWorkspace,
+    Symlink,
+    NotDirectory,
+    NotEmpty,
+    MissingParent,
+    Unreadable,
+}
+
+#[derive(Debug)]
+pub(crate) struct AgentIntegrationForm {
+    pub(crate) selected_job_id: Option<String>,
+    pub(crate) capabilities: Option<AgentCapabilitiesReadModel>,
+    pub(crate) context: Option<AgentContextReadModel>,
+    pub(crate) host: AgentHost,
+    pub(crate) destination: Option<PathBuf>,
+    pub(crate) destination_preview: Option<AgentDestinationPreview>,
+    pub(crate) destination_issue: Option<AgentDestinationIssue>,
+    pub(crate) exported: Option<AgentPackExportReadModel>,
+    pub(crate) failure: Option<ApplicationFailure>,
+}
+
+impl Default for AgentIntegrationForm {
+    fn default() -> Self {
+        Self {
+            selected_job_id: None,
+            capabilities: None,
+            context: None,
+            host: AgentHost::Codex,
+            destination: None,
+            destination_preview: None,
+            destination_issue: None,
+            exported: None,
+            failure: None,
+        }
+    }
+}
+
+impl AgentIntegrationForm {
+    pub(crate) fn select_job(&mut self, job_id: Option<String>) {
+        if self.selected_job_id != job_id {
+            self.selected_job_id = job_id;
+            self.context = None;
+            self.failure = None;
+        }
+    }
+
+    pub(crate) fn select_host(&mut self, host: AgentHost) {
+        if self.host != host {
+            self.host = host;
+            self.exported = None;
+            self.failure = None;
+        }
+    }
+
+    pub(crate) fn select_destination(&mut self, destination: PathBuf) {
+        let preview = inspect_agent_export_destination(&destination);
+        self.destination = Some(destination);
+        self.destination_preview = preview.ok();
+        self.destination_issue = preview.err();
+        self.exported = None;
+        self.failure = None;
+    }
+
+    pub(crate) fn export_ready(&self) -> bool {
+        self.destination.is_some()
+            && self.destination_preview.is_some()
+            && self.destination_issue.is_none()
+    }
+}
+
+pub(crate) fn inspect_agent_export_destination(
+    destination: &std::path::Path,
+) -> Result<AgentDestinationPreview, AgentDestinationIssue> {
+    if destination
+        .components()
+        .any(|component| component.as_os_str().eq_ignore_ascii_case(".canisend"))
+    {
+        return Err(AgentDestinationIssue::InsideWorkspace);
+    }
+    match std::fs::symlink_metadata(destination) {
+        Ok(metadata) if metadata.file_type().is_symlink() => Err(AgentDestinationIssue::Symlink),
+        Ok(metadata) if !metadata.is_dir() => Err(AgentDestinationIssue::NotDirectory),
+        Ok(_) => match std::fs::read_dir(destination) {
+            Ok(mut entries) => {
+                if entries.next().is_none() {
+                    Ok(AgentDestinationPreview::Empty)
+                } else {
+                    Err(AgentDestinationIssue::NotEmpty)
+                }
+            }
+            Err(_) => Err(AgentDestinationIssue::Unreadable),
+        },
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            let Some(parent) = destination.parent() else {
+                return Err(AgentDestinationIssue::MissingParent);
+            };
+            match std::fs::symlink_metadata(parent) {
+                Ok(metadata) if metadata.file_type().is_symlink() => {
+                    Err(AgentDestinationIssue::Symlink)
+                }
+                Ok(metadata) if metadata.is_dir() => Ok(AgentDestinationPreview::New),
+                Ok(_) | Err(_) => Err(AgentDestinationIssue::MissingParent),
+            }
+        }
+        Err(_) => Err(AgentDestinationIssue::Unreadable),
+    }
+}
+
 pub(crate) fn task_operation_stage(operation: TaskOperation) -> WorkflowStage {
     match operation {
         TaskOperation::JobParse => WorkflowStage::Parse,
@@ -529,15 +651,28 @@ pub(crate) fn parse_workflow_artifact_id(value: &str) -> Result<EntityId, ()> {
 
 #[cfg(test)]
 mod tests {
-    use canisend_app::{TaskExecutionMode, TaskOperation};
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    use canisend_app::{AgentHost, TaskExecutionMode, TaskOperation};
     use canisend_contracts::{DiscoveryImportReport, WorkflowStage};
 
     use super::{
-        DiscoveryImportForm, DiscoveryRefreshForm, TaskPanelForm, parse_workflow_artifact_id,
-        task_operation_stage, task_operations_for_ready_stages,
+        AgentDestinationIssue, AgentDestinationPreview, AgentIntegrationForm, DiscoveryImportForm,
+        DiscoveryRefreshForm, TaskPanelForm, inspect_agent_export_destination,
+        parse_workflow_artifact_id, task_operation_stage, task_operations_for_ready_stages,
     };
     use super::{validate_discovery_import_form, validate_discovery_refresh_form};
     use crate::i18n::Language;
+
+    static NEXT: AtomicU64 = AtomicU64::new(1);
+
+    fn temporary_root(label: &str) -> std::path::PathBuf {
+        std::env::temp_dir().join(format!(
+            "canisend-gui-state-{label}-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ))
+    }
 
     #[test]
     fn workflow_artifact_input_requires_a_canonical_uuidv7() {
@@ -648,5 +783,57 @@ mod tests {
         assert_eq!(form.mode, TaskExecutionMode::HostAgent);
         assert!(form.completion_file.is_none());
         assert!(!form.completion_read_consent);
+    }
+
+    #[test]
+    fn agent_destination_preview_accepts_only_new_or_empty_directories() {
+        let root = temporary_root("agent-destination");
+        let empty = root.join("empty");
+        let new = root.join("new");
+        let non_empty = root.join("non-empty");
+        std::fs::create_dir_all(&empty).expect("create empty destination");
+        std::fs::create_dir_all(&non_empty).expect("create non-empty destination");
+        std::fs::write(non_empty.join("keep.txt"), "user-owned").expect("write sentinel");
+
+        assert_eq!(
+            inspect_agent_export_destination(&empty),
+            Ok(AgentDestinationPreview::Empty)
+        );
+        assert_eq!(
+            inspect_agent_export_destination(&new),
+            Ok(AgentDestinationPreview::New)
+        );
+        assert_eq!(
+            inspect_agent_export_destination(&non_empty),
+            Err(AgentDestinationIssue::NotEmpty)
+        );
+        assert_eq!(
+            inspect_agent_export_destination(&root.join(".canisend/export")),
+            Err(AgentDestinationIssue::InsideWorkspace)
+        );
+
+        std::fs::remove_dir_all(root).expect("remove destination fixtures");
+    }
+
+    #[test]
+    fn agent_form_invalidates_stale_context_and_export_selections() {
+        let mut form = AgentIntegrationForm::default();
+        form.select_job(Some("job-a".to_owned()));
+        assert_eq!(form.selected_job_id.as_deref(), Some("job-a"));
+        assert!(form.context.is_none());
+
+        form.select_host(AgentHost::Generic);
+        assert_eq!(form.host, AgentHost::Generic);
+        assert!(form.exported.is_none());
+
+        let root = temporary_root("agent-form");
+        std::fs::create_dir_all(&root).expect("create empty destination");
+        form.select_destination(root.clone());
+        assert!(form.export_ready());
+        assert_eq!(
+            form.destination_preview,
+            Some(AgentDestinationPreview::Empty)
+        );
+        std::fs::remove_dir_all(root).expect("remove empty destination");
     }
 }

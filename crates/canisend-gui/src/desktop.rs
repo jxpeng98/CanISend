@@ -1,3 +1,4 @@
+mod agent_page;
 mod dialogs;
 mod discovery_page;
 mod pages;
@@ -24,23 +25,23 @@ use crate::{
     i18n::{self, Language},
     registry::{WorkspaceRegistry, default_registry_path, validate_workspace_alias},
     state::{
-        CriteriaMatchForm, DiscoveryImportForm, DiscoveryPanel, DiscoveryRefreshForm,
-        EvidenceReviewForm, FocusTarget, GuiPreferences, ImportForm, ImportKind, JobForm, Page,
-        PendingConfirmation, PlanReviewForm, ProfileSourceForm, RestoreWorkspaceForm,
-        TaskPanelForm, WorkflowActionForm, WorkspaceForm, available_task_modes,
-        available_task_operations, parse_workflow_artifact_id, validate_discovery_import_form,
-        validate_discovery_refresh_form,
+        AgentDestinationIssue, AgentDestinationPreview, AgentIntegrationForm, CriteriaMatchForm,
+        DiscoveryImportForm, DiscoveryPanel, DiscoveryRefreshForm, EvidenceReviewForm, FocusTarget,
+        GuiPreferences, ImportForm, ImportKind, JobForm, Page, PendingConfirmation, PlanReviewForm,
+        ProfileSourceForm, RestoreWorkspaceForm, TaskPanelForm, WorkflowActionForm, WorkspaceForm,
+        available_task_modes, available_task_operations, parse_workflow_artifact_id,
+        validate_discovery_import_form, validate_discovery_refresh_form,
     },
     theme,
     worker::{WorkerEvent, WorkerRequest, execute},
 };
 use canisend_app::{
-    Application, ApplicationFailure, DiscoveryAdapterCatalogReadModel, DiscoveryLeadListReadModel,
-    DiscoverySourceListReadModel, DiscoverySuggestionReadModel, DoctorSummary, JobDetailReadModel,
-    ProductSummary, ProfileSourceListReadModel, TaskExecutionMode, TaskInputExportRequest,
-    TaskOperation, TaskPrepareRequest, UpdateCheckReadModel, WorkflowBeginRequest,
-    WorkflowCompleteRequest, WorkflowControlReadModel, WorkflowRerunRequest,
-    WorkspaceHealthReadModel, WorkspaceReadModel,
+    AgentHost, AgentPackExportRequest, Application, ApplicationFailure,
+    DiscoveryAdapterCatalogReadModel, DiscoveryLeadListReadModel, DiscoverySourceListReadModel,
+    DiscoverySuggestionReadModel, DoctorSummary, JobDetailReadModel, ProductSummary,
+    ProfileSourceListReadModel, TaskExecutionMode, TaskInputExportRequest, TaskOperation,
+    TaskPrepareRequest, UpdateCheckReadModel, WorkflowBeginRequest, WorkflowCompleteRequest,
+    WorkflowControlReadModel, WorkflowRerunRequest, WorkspaceHealthReadModel, WorkspaceReadModel,
 };
 use canisend_app::{CliInstallState, CliInstallStatus, CliVersionRelation};
 use canisend_contracts::{
@@ -168,6 +169,7 @@ struct CanISendDesktop {
     workflow_controls: Option<WorkflowControlReadModel>,
     workflow_action_form: Option<WorkflowActionForm>,
     task_form: TaskPanelForm,
+    agent_form: AgentIntegrationForm,
     page: Page,
     job_form: JobForm,
     show_job_form: bool,
@@ -248,6 +250,7 @@ impl CanISendDesktop {
             workflow_controls: None,
             workflow_action_form: None,
             task_form: TaskPanelForm::default(),
+            agent_form: AgentIntegrationForm::default(),
             page: Page::Overview,
             job_form: JobForm::default(),
             show_job_form: false,
@@ -425,6 +428,10 @@ impl CanISendDesktop {
                         } else {
                             self.refresh_discovery_workspace(ctx.clone());
                         }
+                    } else if self.page == Page::AgentIntegration
+                        && self.agent_form.context.is_none()
+                    {
+                        self.load_agent_integration(ctx.clone());
                     }
                 }
                 Err(error) => self.fail(error),
@@ -944,6 +951,54 @@ impl CanISendDesktop {
                 }
                 Err(failure) => self.apply_task_failure(failure, FocusTarget::TaskPrepareAgain),
             },
+            WorkerEvent::AgentCapabilitiesLoaded(result) => match result {
+                Ok(receipt) => {
+                    self.agent_form.capabilities = Some(receipt.data);
+                    self.agent_form.failure = None;
+                    if self.page == Page::AgentIntegration {
+                        self.load_agent_context(ctx.clone());
+                    }
+                }
+                Err(failure) => {
+                    self.apply_agent_failure(failure, FocusTarget::AgentContextRefresh);
+                }
+            },
+            WorkerEvent::AgentContextLoaded {
+                selected_job_id,
+                result,
+            } => {
+                if self.agent_form.selected_job_id != selected_job_id {
+                    self.load_agent_context(ctx.clone());
+                } else {
+                    match result {
+                        Ok(receipt) => {
+                            self.agent_form.context = Some(receipt.data);
+                            self.agent_form.failure = None;
+                        }
+                        Err(failure) => {
+                            self.apply_agent_failure(failure, FocusTarget::AgentContextRefresh);
+                        }
+                    }
+                }
+            }
+            WorkerEvent::AgentPackExported { request, result } => {
+                let selection_matches = self.agent_form.host == request.host
+                    && self.agent_form.destination.as_ref() == Some(&request.destination);
+                match result {
+                    Ok(receipt) => {
+                        let summary = localized_receipt_summary(&receipt, self.language);
+                        if selection_matches {
+                            self.agent_form.exported = Some(receipt.data);
+                            self.agent_form.failure = None;
+                        }
+                        self.notice = Some((true, summary));
+                    }
+                    Err(failure) if selection_matches => {
+                        self.apply_agent_failure(failure, FocusTarget::AgentExport);
+                    }
+                    Err(failure) => self.notice = Some((false, failure.message)),
+                }
+            }
             WorkerEvent::CliStatusLoaded(result) => match result {
                 Ok(receipt) => self.cli_status = Some(receipt.data),
                 Err(error) => self.fail(error),
@@ -994,6 +1049,12 @@ impl CanISendDesktop {
         self.pending_focus = Some(focus);
     }
 
+    fn apply_agent_failure(&mut self, failure: ApplicationFailure, focus: FocusTarget) {
+        self.notice = Some((false, failure.message.clone()));
+        self.agent_form.failure = Some(failure);
+        self.pending_focus = Some(focus);
+    }
+
     fn reload_selected_job_after_task(&mut self, ctx: egui::Context) {
         if let Some(job_id) = self.selected_job_id.clone() {
             self.load_job(job_id, ctx);
@@ -1028,6 +1089,7 @@ impl CanISendDesktop {
         self.workflow_controls = None;
         self.workflow_action_form = None;
         self.task_form = TaskPanelForm::default();
+        self.agent_form = AgentIntegrationForm::default();
         let _ = self.registry.touch(&path);
         self.save_registry();
         self.dispatch(
@@ -1132,6 +1194,36 @@ impl CanISendDesktop {
             WorkerRequest::LoadLatestTask { path, job_id },
         );
     }
+
+    fn load_agent_integration(&mut self, ctx: egui::Context) {
+        self.agent_form.failure = None;
+        if self.agent_form.capabilities.is_none() {
+            self.dispatch(
+                self.language
+                    .select("Loading Agent capabilities", "正在加载 Agent 能力"),
+                ctx,
+                WorkerRequest::LoadAgentCapabilities,
+            );
+        } else {
+            self.load_agent_context(ctx);
+        }
+    }
+
+    fn load_agent_context(&mut self, ctx: egui::Context) {
+        self.agent_form.context = None;
+        self.agent_form.failure = None;
+        self.dispatch(
+            self.language.select(
+                "Loading body-free Agent context",
+                "正在加载不含正文的 Agent 上下文",
+            ),
+            ctx,
+            WorkerRequest::LoadAgentContext {
+                root: self.active_workspace.clone(),
+                selected_job_id: self.agent_form.selected_job_id.clone(),
+            },
+        );
+    }
 }
 
 fn editable_plan(plan: &ApplicationPlanRecord) -> ApplicationPlanCandidate {
@@ -1200,6 +1292,7 @@ impl eframe::App for CanISendDesktop {
                         Page::Jobs => self.show_jobs(ui),
                         Page::Discovery => self.show_discovery(ui),
                         Page::Profile => self.show_profile(ui),
+                        Page::AgentIntegration => self.show_agent_integration(ui),
                         Page::Workspaces => self.show_workspaces(ui),
                         Page::CommandLine => self.show_command_line(ui),
                         Page::Diagnostics => self.show_diagnostics(ui),
@@ -1277,6 +1370,11 @@ mod tests {
             localized_receipt_summary(&receipt, Language::SimplifiedChinese),
             "原生自检已完成"
         );
+        let agent = Application::agent_capabilities().expect("Agent capabilities receipt");
+        assert_eq!(
+            localized_receipt_summary(&agent, Language::SimplifiedChinese),
+            "Agent v2 能力已加载"
+        );
     }
 
     #[test]
@@ -1313,6 +1411,10 @@ mod tests {
         assert_eq!(
             page_accessible_label(Page::Discovery, Language::SimplifiedChinese),
             "职位发现内容"
+        );
+        assert_eq!(
+            page_accessible_label(Page::AgentIntegration, Language::SimplifiedChinese),
+            "Agent 集成内容"
         );
     }
 

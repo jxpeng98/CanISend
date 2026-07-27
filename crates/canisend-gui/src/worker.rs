@@ -1,7 +1,8 @@
 use std::path::PathBuf;
 
 use canisend_app::{
-    ActionReceipt, Application, ApplicationFailure, BackupReadModel, CliInstallStatus,
+    ActionReceipt, AgentCapabilitiesReadModel, AgentContextReadModel, AgentPackExportReadModel,
+    AgentPackExportRequest, Application, ApplicationFailure, BackupReadModel, CliInstallStatus,
     DiscoveryAdapterCatalogReadModel, DiscoveryImportRequest, DiscoveryLeadListReadModel,
     DiscoveryPromotionReadModel, DiscoveryRefreshRequest, DiscoverySourceListReadModel,
     DiscoverySuggestionReadModel, DoctorSummary, JobDetailReadModel, JobListReadModel,
@@ -224,6 +225,14 @@ pub(crate) enum WorkerRequest {
         path: PathBuf,
         task_id: String,
     },
+    LoadAgentCapabilities,
+    LoadAgentContext {
+        root: Option<PathBuf>,
+        selected_job_id: Option<String>,
+    },
+    ExportAgentPack {
+        request: AgentPackExportRequest,
+    },
     LoadCliStatus {
         source: Option<PathBuf>,
         destination: PathBuf,
@@ -319,6 +328,15 @@ pub(crate) enum WorkerEvent {
     TaskCompleted(Result<ActionReceipt<TaskCommitData>, ApplicationFailure>),
     TaskCancelled(Result<ActionReceipt<TaskStateData>, ApplicationFailure>),
     TaskPreparedAgain(Result<ActionReceipt<TaskPrepareAgainReadModel>, ApplicationFailure>),
+    AgentCapabilitiesLoaded(Result<ActionReceipt<AgentCapabilitiesReadModel>, ApplicationFailure>),
+    AgentContextLoaded {
+        selected_job_id: Option<String>,
+        result: Result<ActionReceipt<AgentContextReadModel>, ApplicationFailure>,
+    },
+    AgentPackExported {
+        request: AgentPackExportRequest,
+        result: Result<ActionReceipt<AgentPackExportReadModel>, ApplicationFailure>,
+    },
     CliStatusLoaded(Result<ActionReceipt<CliInstallStatus>, String>),
     CliInstalled(Result<ActionReceipt<CliInstallStatus>, String>),
     CliUninstalled(Result<ActionReceipt<CliInstallStatus>, String>),
@@ -645,6 +663,21 @@ pub(crate) fn execute(request: WorkerRequest) -> WorkerEvent {
         WorkerRequest::PrepareTaskAgain { path, task_id } => WorkerEvent::TaskPreparedAgain(
             Application::prepare_task_again(&path, &task_id).map_err(|error| error.classify()),
         ),
+        WorkerRequest::LoadAgentCapabilities => WorkerEvent::AgentCapabilitiesLoaded(
+            Application::agent_capabilities().map_err(|error| error.classify()),
+        ),
+        WorkerRequest::LoadAgentContext {
+            root,
+            selected_job_id,
+        } => WorkerEvent::AgentContextLoaded {
+            result: Application::agent_context(root.as_deref(), selected_job_id.as_deref())
+                .map_err(|error| error.classify()),
+            selected_job_id,
+        },
+        WorkerRequest::ExportAgentPack { request } => WorkerEvent::AgentPackExported {
+            result: Application::export_agent_assets(&request).map_err(|error| error.classify()),
+            request,
+        },
         WorkerRequest::LoadCliStatus {
             source,
             destination,
@@ -704,9 +737,10 @@ mod tests {
     use std::sync::atomic::{AtomicU64, Ordering};
 
     use canisend_app::{
-        Application, DiscoveryImportRequest, DiscoveryNetworkAdapter, DiscoveryRefreshRequest,
-        PrivateReadConsent, TaskExecutionMode, TaskInputExportRequest, TaskOperation,
-        TaskPrepareRequest, WorkflowBeginRequest, WorkflowRerunRequest,
+        AgentHost, AgentPackExportRequest, Application, DiscoveryImportRequest,
+        DiscoveryNetworkAdapter, DiscoveryRefreshRequest, PrivateReadConsent, TaskExecutionMode,
+        TaskInputExportRequest, TaskOperation, TaskPrepareRequest, WorkflowBeginRequest,
+        WorkflowRerunRequest,
     };
     use canisend_contracts::{
         ApplicationDecision, ArtifactKind, DiscoveryLeadStatus, ErrorCode, ExecutionMode,
@@ -908,6 +942,72 @@ mod tests {
         std::fs::remove_file(profile_source).expect("remove profile source fixture");
         std::fs::remove_dir_all(backup).expect("remove backup fixture");
         std::fs::remove_dir_all(restored).expect("remove restored fixture");
+    }
+
+    #[test]
+    fn agent_worker_events_preserve_body_free_context_and_export_failures() {
+        let root = temporary_root("agent-workspace");
+        let destination = temporary_root("agent-pack");
+        Application::initialize_workspace(&root).expect("initialize Agent workspace");
+        let job = Application::create_job(&root, "Lecturer", "University")
+            .expect("create Agent job")
+            .data;
+
+        match execute(WorkerRequest::LoadAgentCapabilities) {
+            WorkerEvent::AgentCapabilitiesLoaded(Ok(receipt)) => {
+                assert_eq!(receipt.operation, "agent.capabilities");
+                assert!(!receipt.data.capabilities.is_empty());
+            }
+            event => panic!("unexpected capabilities event: {event:?}"),
+        }
+
+        let context = match execute(WorkerRequest::LoadAgentContext {
+            root: Some(root.clone()),
+            selected_job_id: Some(job.id.to_string()),
+        }) {
+            WorkerEvent::AgentContextLoaded {
+                selected_job_id,
+                result: Ok(receipt),
+            } => {
+                assert_eq!(selected_job_id.as_deref(), Some(job.id.as_str()));
+                receipt.data
+            }
+            event => panic!("unexpected context event: {event:?}"),
+        };
+        assert_eq!(
+            context.selected_job.as_ref().map(|job| job.id.as_str()),
+            Some(job.id.as_str())
+        );
+        let serialized = serde_json::to_string(&context).expect("serialize public Agent context");
+        assert_eq!(context.privacy, PrivacyClassification::Public);
+        assert!(!serialized.contains("normalized_text"));
+        assert!(!serialized.contains("\"body\""));
+
+        let request = AgentPackExportRequest::new(AgentHost::Codex, &destination);
+        match execute(WorkerRequest::ExportAgentPack {
+            request: request.clone(),
+        }) {
+            WorkerEvent::AgentPackExported {
+                request: returned,
+                result: Ok(receipt),
+            } => {
+                assert_eq!(returned, request);
+                assert_eq!(receipt.data.manifest.host, AgentHost::Codex);
+                assert_eq!(receipt.data.manifest.files.len(), 31);
+                assert!(receipt.data.manifest_path.is_file());
+            }
+            event => panic!("unexpected Agent export event: {event:?}"),
+        }
+        match execute(WorkerRequest::ExportAgentPack { request }) {
+            WorkerEvent::AgentPackExported {
+                result: Err(failure),
+                ..
+            } => assert_eq!(failure.code, ErrorCode::InputPathRejected),
+            event => panic!("unexpected repeated Agent export event: {event:?}"),
+        }
+
+        std::fs::remove_dir_all(root).expect("remove Agent workspace");
+        std::fs::remove_dir_all(destination).expect("remove Agent pack");
     }
 
     #[test]

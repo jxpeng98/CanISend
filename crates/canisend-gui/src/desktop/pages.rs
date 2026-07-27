@@ -118,6 +118,7 @@ impl CanISendDesktop {
                         let mut refresh_cli = false;
                         let mut refresh_discovery = false;
                         let mut refresh_profile = false;
+                        let mut refresh_agent = false;
                         for page in Page::ALL {
                             let selected = self.page == page;
                             let text = RichText::new(page.label(self.language)).size(15.0).color(
@@ -151,6 +152,9 @@ impl CanISendDesktop {
                                 refresh_profile = page == Page::Profile
                                     && self.profile_sources.is_none()
                                     && self.activity.is_none();
+                                refresh_agent = page == Page::AgentIntegration
+                                    && self.agent_form.context.is_none()
+                                    && self.activity.is_none();
                             }
                         }
                         if refresh_cli {
@@ -165,6 +169,9 @@ impl CanISendDesktop {
                         }
                         if refresh_profile {
                             self.refresh_profile_sources(ui.ctx().clone());
+                        }
+                        if refresh_agent {
+                            self.load_agent_integration(ui.ctx().clone());
                         }
                         ui.separator();
                         accessible_heading(ui, self.language.text("Accessibility & appearance"), 2);
