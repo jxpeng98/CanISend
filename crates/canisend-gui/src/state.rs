@@ -8,8 +8,9 @@ use canisend_app::{
 use canisend_contracts::{
     ApplicationPlanCandidate, ApplicationPlanRecord, ArtifactKind, CriteriaSetRecord,
     DiscoveryImportReport, DocumentRecord, DocumentSetRecord, EntityId, EvidenceCatalogRecord,
-    EvidenceMatchSetRecord, ExecutionMode, PrivacyClassification, StageExecutionStatus,
-    TaskInputExportData, TaskStateData, TaskStatus, WorkflowStage,
+    EvidenceMatchSetRecord, ExecutionMode, FindingDisposition, PrivacyClassification,
+    ReviewDispositionCandidate, ReviewFindingsRecord, StageExecutionStatus, TaskInputExportData,
+    TaskStateData, TaskStatus, WorkflowStage,
 };
 use serde::{Deserialize, Serialize};
 
@@ -100,26 +101,31 @@ pub(crate) enum FocusTarget {
     AgentContextRefresh,
     AgentExport,
     DocumentLoad,
+    ReviewLoad,
+    ReviewConfirm,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum JobPanel {
     Workflow,
     Documents,
+    ReviewExport,
 }
 
 impl JobPanel {
-    pub(crate) const ALL: [Self; 2] = [Self::Workflow, Self::Documents];
+    pub(crate) const ALL: [Self; 3] = [Self::Workflow, Self::Documents, Self::ReviewExport];
 
     pub(crate) fn label(self, language: Language) -> &'static str {
         language.select(
             match self {
                 Self::Workflow => "Workflow",
                 Self::Documents => "Documents",
+                Self::ReviewExport => "Review & export",
             },
             match self {
                 Self::Workflow => "工作流",
                 Self::Documents => "申请文档",
+                Self::ReviewExport => "审阅与导出",
             },
         )
     }
@@ -247,6 +253,84 @@ impl DocumentWorkspaceForm {
         self.acceptance_blocker = None;
         self.error = None;
     }
+}
+
+#[derive(Debug, Default)]
+pub(crate) struct ReviewWorkspaceForm {
+    pub(crate) job_id: Option<String>,
+    pub(crate) private_read_consent: bool,
+    pub(crate) current: Option<ReviewFindingsRecord>,
+    pub(crate) candidate: Option<ReviewDispositionCandidate>,
+    pub(crate) downstream_effects_confirmed: bool,
+    pub(crate) error: Option<String>,
+}
+
+impl ReviewWorkspaceForm {
+    pub(crate) fn select_job(&mut self, job_id: &str) {
+        if self.job_id.as_deref() != Some(job_id) {
+            *self = Self {
+                job_id: Some(job_id.to_owned()),
+                ..Self::default()
+            };
+        }
+    }
+
+    pub(crate) fn clear_loaded_private_data(&mut self) {
+        self.current = None;
+        self.candidate = None;
+        self.downstream_effects_confirmed = false;
+        self.error = None;
+    }
+
+    pub(crate) fn validation_issue(&self) -> Option<ReviewValidationIssue> {
+        let candidate = self.candidate.as_ref()?;
+        let selected = candidate
+            .decisions
+            .iter()
+            .filter(|decision| decision.disposition.is_some())
+            .collect::<Vec<_>>();
+        if selected.is_empty() {
+            return Some(ReviewValidationIssue::NoSelection);
+        }
+        if selected.iter().any(|decision| {
+            decision
+                .rationale
+                .as_deref()
+                .is_none_or(|value| value.trim().is_empty())
+        }) {
+            return Some(ReviewValidationIssue::MissingRationale);
+        }
+        if !self.downstream_effects_confirmed {
+            return Some(ReviewValidationIssue::DownstreamEffectsNotConfirmed);
+        }
+        None
+    }
+
+    pub(crate) fn candidate_mut(
+        &mut self,
+        finding_id: &EntityId,
+    ) -> Option<&mut canisend_contracts::FindingDispositionCandidateRecord> {
+        self.candidate
+            .as_mut()?
+            .decisions
+            .iter_mut()
+            .find(|decision| decision.finding_id == *finding_id)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ReviewValidationIssue {
+    NoSelection,
+    MissingRationale,
+    DownstreamEffectsNotConfirmed,
+}
+
+pub(crate) fn finding_disposition_values() -> [Option<FindingDisposition>; 3] {
+    [
+        None,
+        Some(FindingDisposition::AcceptedRisk),
+        Some(FindingDisposition::Dismissed),
+    ]
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -710,7 +794,7 @@ mod tests {
 
     use super::{
         AgentDestinationIssue, AgentDestinationPreview, AgentIntegrationForm, DiscoveryImportForm,
-        DiscoveryRefreshForm, DocumentWorkspaceForm, TaskPanelForm,
+        DiscoveryRefreshForm, DocumentWorkspaceForm, ReviewWorkspaceForm, TaskPanelForm,
         inspect_agent_export_destination, parse_workflow_artifact_id, task_operation_stage,
         task_operations_for_ready_stages,
     };
@@ -853,6 +937,24 @@ mod tests {
         assert!(form.documents.is_none());
         assert!(form.accepted_set.is_none());
         assert!(form.acceptance_blocker.is_none());
+        assert!(form.error.is_none());
+    }
+
+    #[test]
+    fn review_workspace_drops_private_state_and_consent_when_the_job_changes() {
+        let mut form = ReviewWorkspaceForm {
+            job_id: Some("job-a".to_owned()),
+            private_read_consent: true,
+            downstream_effects_confirmed: true,
+            error: Some("old error".to_owned()),
+            ..ReviewWorkspaceForm::default()
+        };
+        form.select_job("job-b");
+        assert_eq!(form.job_id.as_deref(), Some("job-b"));
+        assert!(!form.private_read_consent);
+        assert!(form.current.is_none());
+        assert!(form.candidate.is_none());
+        assert!(!form.downstream_effects_confirmed);
         assert!(form.error.is_none());
     }
 

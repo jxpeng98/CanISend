@@ -7,18 +7,19 @@ use canisend_app::{
     DiscoveryPromotionReadModel, DiscoveryRefreshRequest, DiscoverySourceListReadModel,
     DiscoverySuggestionReadModel, DoctorSummary, DocumentWorkspaceReadModel, JobDetailReadModel,
     JobListReadModel, NetworkFetchConsent, PrivateReadConsent, ProfileSourceImportReadModel,
-    ProfileSourceListReadModel, ProviderSendConsent, SourceImportReadModel,
-    TaskCompletionPreviewReadModel, TaskInputExportRequest, TaskPrepareAgainReadModel,
-    TaskPrepareRequest, TerminalInstallConsent, UpdateCheckReadModel, WorkflowBeginRequest,
-    WorkflowCompleteRequest, WorkflowControlReadModel, WorkflowRerunPreview, WorkflowRerunRequest,
-    WorkspaceHealthReadModel, WorkspaceReadModel, WorkspaceRepairReadModel,
+    ProfileSourceListReadModel, ProviderSendConsent, ReviewWorkspaceReadModel,
+    SourceImportReadModel, TaskCompletionPreviewReadModel, TaskInputExportRequest,
+    TaskPrepareAgainReadModel, TaskPrepareRequest, TerminalInstallConsent, UpdateCheckReadModel,
+    WorkflowBeginRequest, WorkflowCompleteRequest, WorkflowControlReadModel, WorkflowRerunPreview,
+    WorkflowRerunRequest, WorkspaceHealthReadModel, WorkspaceReadModel, WorkspaceRepairReadModel,
     WorkspaceRestoreReadModel,
 };
 use canisend_contracts::{
     ApplicationPlanCandidate, ApplicationPlanRecord, CriteriaSetRecord, DiscoveryImportReport,
     DiscoveryLeadRecord, EvidenceCatalogRecord, EvidenceMatchSetRecord, JobRecord,
-    PrivacyClassification, TaskCommitData, TaskCompletionRequest, TaskDescriptor,
-    TaskInputExportData, TaskStateData, WorkflowStage, WorkflowStatusData,
+    PrivacyClassification, ReviewDispositionCandidate, ReviewFindingsRecord, TaskCommitData,
+    TaskCompletionRequest, TaskDescriptor, TaskInputExportData, TaskStateData, WorkflowStage,
+    WorkflowStatusData,
 };
 
 #[derive(Debug)]
@@ -38,6 +39,12 @@ pub(crate) struct DiscoveryPromotionResult {
 pub(crate) struct DiscoveryCommitResult {
     pub(crate) receipt: ActionReceipt<DiscoveryImportReport>,
     pub(crate) discovery: Result<DiscoveryWorkspaceReadModel, String>,
+}
+
+#[derive(Debug)]
+pub(crate) struct ReviewCommitResult {
+    pub(crate) receipt: ActionReceipt<ReviewFindingsRecord>,
+    pub(crate) workspace: Result<ReviewWorkspaceReadModel, String>,
 }
 
 #[derive(Debug)]
@@ -173,6 +180,15 @@ pub(crate) enum WorkerRequest {
     LoadDocuments {
         path: PathBuf,
         job_id: String,
+    },
+    LoadReview {
+        path: PathBuf,
+        job_id: String,
+    },
+    ConfirmReview {
+        path: PathBuf,
+        job_id: String,
+        candidate: ReviewDispositionCandidate,
     },
     StartWorkflow {
         path: PathBuf,
@@ -319,6 +335,14 @@ pub(crate) enum WorkerEvent {
     DocumentsLoaded {
         job_id: String,
         result: Result<DocumentWorkspaceReadModel, String>,
+    },
+    ReviewLoaded {
+        job_id: String,
+        result: Result<ReviewWorkspaceReadModel, String>,
+    },
+    ReviewConfirmed {
+        job_id: String,
+        result: Result<ReviewCommitResult, String>,
     },
     WorkflowLoaded(Result<ActionReceipt<WorkflowStatusData>, String>),
     WorkflowControlsLoaded(Result<ActionReceipt<WorkflowControlReadModel>, String>),
@@ -613,6 +637,32 @@ pub(crate) fn execute(request: WorkerRequest) -> WorkerEvent {
             result: load_document_workspace(&path, &job_id),
             job_id,
         },
+        WorkerRequest::LoadReview { path, job_id } => WorkerEvent::ReviewLoaded {
+            result: load_review_workspace(&path, &job_id),
+            job_id,
+        },
+        WorkerRequest::ConfirmReview {
+            path,
+            job_id,
+            candidate,
+        } => {
+            let result = serde_json::to_value(candidate)
+                .map_err(|error| error.to_string())
+                .and_then(|candidate| {
+                    Application::confirm_review_dispositions(
+                        &path,
+                        &job_id,
+                        &candidate,
+                        PrivateReadConsent::granted_by_user(),
+                    )
+                    .map_err(|error| error.to_string())
+                })
+                .map(|receipt| ReviewCommitResult {
+                    receipt,
+                    workspace: load_review_workspace(&path, &job_id),
+                });
+            WorkerEvent::ReviewConfirmed { job_id, result }
+        }
         WorkerRequest::StartWorkflow { path, id } => WorkerEvent::WorkflowLoaded(
             Application::start_workflow(&path, &id).map_err(|error| error.to_string()),
         ),
@@ -755,6 +805,17 @@ fn load_document_workspace(
     )
 }
 
+fn load_review_workspace(
+    path: &std::path::Path,
+    job_id: &str,
+) -> Result<ReviewWorkspaceReadModel, String> {
+    Ok(
+        Application::review_workspace(path, job_id, PrivateReadConsent::granted_by_user())
+            .map_err(|error| error.to_string())?
+            .data,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::atomic::{AtomicU64, Ordering};
@@ -829,6 +890,13 @@ mod tests {
             }
             event => panic!("unexpected documents event: {event:?}"),
         }
+        assert!(matches!(
+            execute(WorkerRequest::LoadReview {
+                path: root.clone(),
+                job_id: job_id.to_string(),
+            }),
+            WorkerEvent::ReviewLoaded { result: Err(_), .. }
+        ));
         let source = temporary_root("source").with_extension("txt");
         std::fs::write(&source, "bounded job source").expect("write source");
         assert!(matches!(

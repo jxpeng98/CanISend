@@ -4,6 +4,7 @@ mod discovery_page;
 mod document_page;
 mod pages;
 mod plan_page;
+mod review_page;
 mod task_panel;
 
 use std::{
@@ -30,9 +31,9 @@ use crate::{
         DiscoveryImportForm, DiscoveryPanel, DiscoveryRefreshForm, DocumentWorkspaceForm,
         EvidenceReviewForm, FocusTarget, GuiPreferences, ImportForm, ImportKind, JobForm, JobPanel,
         Page, PendingConfirmation, PlanReviewForm, ProfileSourceForm, RestoreWorkspaceForm,
-        TaskPanelForm, WorkflowActionForm, WorkspaceForm, available_task_modes,
-        available_task_operations, parse_workflow_artifact_id, validate_discovery_import_form,
-        validate_discovery_refresh_form,
+        ReviewWorkspaceForm, TaskPanelForm, WorkflowActionForm, WorkspaceForm,
+        available_task_modes, available_task_operations, parse_workflow_artifact_id,
+        validate_discovery_import_form, validate_discovery_refresh_form,
     },
     theme,
     worker::{WorkerEvent, WorkerRequest, execute},
@@ -169,6 +170,7 @@ struct CanISendDesktop {
     selected_job_id: Option<String>,
     job_panel: JobPanel,
     document_form: DocumentWorkspaceForm,
+    review_form: ReviewWorkspaceForm,
     profile_sources: Option<ProfileSourceListReadModel>,
     workflow_controls: Option<WorkflowControlReadModel>,
     workflow_action_form: Option<WorkflowActionForm>,
@@ -252,6 +254,7 @@ impl CanISendDesktop {
             selected_job_id: None,
             job_panel: JobPanel::Workflow,
             document_form: DocumentWorkspaceForm::default(),
+            review_form: ReviewWorkspaceForm::default(),
             profile_sources: None,
             workflow_controls: None,
             workflow_action_form: None,
@@ -603,6 +606,7 @@ impl CanISendDesktop {
                     self.page = Page::Jobs;
                     self.job_panel = JobPanel::Workflow;
                     self.document_form = DocumentWorkspaceForm::default();
+                    self.review_form = ReviewWorkspaceForm::default();
                     self.load_job(id, ctx.clone());
                 }
                 Err(error) => self.job_form.error = Some(error),
@@ -625,6 +629,7 @@ impl CanISendDesktop {
                     }
                     self.selected_job_id = Some(job_id.clone());
                     self.document_form.select_job(&job_id);
+                    self.review_form.select_job(&job_id);
                     self.task_form.select_job(&job_id);
                     self.selected_job = Some(receipt.data);
                     if has_workflow {
@@ -646,6 +651,7 @@ impl CanISendDesktop {
                     self.task_form = TaskPanelForm::default();
                     self.job_panel = JobPanel::Workflow;
                     self.document_form = DocumentWorkspaceForm::default();
+                    self.review_form = ReviewWorkspaceForm::default();
                     self.criteria_match_form = CriteriaMatchForm::default();
                     self.plan_review_form = PlanReviewForm::default();
                     self.notice = Some((true, summary));
@@ -668,6 +674,7 @@ impl CanISendDesktop {
                         ..PlanReviewForm::default()
                     };
                     self.document_form.clear_loaded_private_data();
+                    self.review_form.clear_loaded_private_data();
                     self.notice = Some((true, summary));
                     self.load_job(id, ctx.clone());
                 }
@@ -683,6 +690,7 @@ impl CanISendDesktop {
                     self.show_profile_source_form = false;
                     self.profile_source_form = ProfileSourceForm::default();
                     self.document_form.clear_loaded_private_data();
+                    self.review_form.clear_loaded_private_data();
                     self.notice = Some((true, summary));
                     self.refresh_profile_sources(ctx.clone());
                 }
@@ -716,6 +724,7 @@ impl CanISendDesktop {
                         };
                     }
                     self.document_form.clear_loaded_private_data();
+                    self.review_form.clear_loaded_private_data();
                     if self.selected_job_id.as_deref() == Some(job_id.as_str()) {
                         self.load_job(job_id, ctx.clone());
                     }
@@ -748,6 +757,7 @@ impl CanISendDesktop {
                     self.criteria_match_form.match_error = None;
                     self.plan_review_form = PlanReviewForm::default();
                     self.document_form.clear_loaded_private_data();
+                    self.review_form.clear_loaded_private_data();
                     self.notice = Some((true, summary));
                     if self.selected_job_id.as_deref() == Some(job_id.as_str()) {
                         self.load_job(job_id, ctx.clone());
@@ -794,6 +804,7 @@ impl CanISendDesktop {
                     self.plan_review_form.decision_confirmed = false;
                     self.plan_review_form.error = None;
                     self.document_form.clear_loaded_private_data();
+                    self.review_form.clear_loaded_private_data();
                     self.notice = Some((true, summary));
                     if self.selected_job_id.as_deref() == Some(job_id.as_str()) {
                         self.load_job(job_id, ctx.clone());
@@ -824,6 +835,73 @@ impl CanISendDesktop {
                         Err(error) => {
                             self.document_form.error = Some(error);
                             self.pending_focus = Some(FocusTarget::DocumentLoad);
+                        }
+                    }
+                }
+            }
+            WorkerEvent::ReviewLoaded { job_id, result } => {
+                if self.selected_job_id.as_deref() == Some(job_id.as_str()) {
+                    match result {
+                        Ok(workspace) => {
+                            self.review_form.job_id = Some(job_id);
+                            self.review_form.current = Some(workspace.current);
+                            self.review_form.candidate = Some(workspace.disposition_candidate);
+                            self.review_form.downstream_effects_confirmed = false;
+                            self.review_form.error = None;
+                            self.notice = Some((
+                                true,
+                                self.language
+                                    .select("Current review findings loaded", "已加载当前审阅发现")
+                                    .to_owned(),
+                            ));
+                            self.pending_focus = Some(FocusTarget::ReviewLoad);
+                        }
+                        Err(error) => {
+                            self.review_form.error = Some(error);
+                            self.pending_focus = Some(FocusTarget::ReviewLoad);
+                        }
+                    }
+                }
+            }
+            WorkerEvent::ReviewConfirmed { job_id, result } => {
+                if self.selected_job_id.as_deref() == Some(job_id.as_str()) {
+                    match result {
+                        Ok(committed) => {
+                            let summary =
+                                localized_receipt_summary(&committed.receipt, self.language);
+                            match committed.workspace {
+                                Ok(workspace) => {
+                                    self.review_form.job_id = Some(job_id);
+                                    self.review_form.current = Some(workspace.current);
+                                    self.review_form.candidate =
+                                        Some(workspace.disposition_candidate);
+                                    self.review_form.downstream_effects_confirmed = false;
+                                    self.review_form.error = None;
+                                    self.notice = Some((true, summary));
+                                }
+                                Err(error) => {
+                                    self.review_form.clear_loaded_private_data();
+                                    self.review_form.error = Some(error.clone());
+                                    self.notice = Some((
+                                        false,
+                                        self.language
+                                            .select(
+                                                &format!(
+                                                    "{summary}; confirmation succeeded but the current review could not be refreshed: {error}"
+                                                ),
+                                                &format!(
+                                                    "{summary}；处置已确认，但无法刷新当前审阅：{error}"
+                                                ),
+                                            )
+                                            .to_owned(),
+                                    ));
+                                }
+                            }
+                            self.pending_focus = Some(FocusTarget::ReviewConfirm);
+                        }
+                        Err(error) => {
+                            self.review_form.error = Some(error);
+                            self.pending_focus = Some(FocusTarget::ReviewConfirm);
                         }
                     }
                 }
@@ -862,6 +940,7 @@ impl CanISendDesktop {
                         ..PlanReviewForm::default()
                     };
                     self.document_form.clear_loaded_private_data();
+                    self.review_form.clear_loaded_private_data();
                     self.notice = Some((true, summary));
                     if let Some(job_id) = self.selected_job_id.clone() {
                         self.load_latest_task(job_id, ctx.clone());
@@ -952,6 +1031,7 @@ impl CanISendDesktop {
                     self.task_form.completion_preview = None;
                     self.task_form.failure = None;
                     self.document_form.clear_loaded_private_data();
+                    self.review_form.clear_loaded_private_data();
                     self.notice = Some((true, summary));
                     self.reload_selected_job_after_task(ctx.clone());
                 }
@@ -1133,6 +1213,7 @@ impl CanISendDesktop {
         self.selected_job_id = None;
         self.job_panel = JobPanel::Workflow;
         self.document_form = DocumentWorkspaceForm::default();
+        self.review_form = ReviewWorkspaceForm::default();
         self.workflow_controls = None;
         self.workflow_action_form = None;
         self.task_form = TaskPanelForm::default();
@@ -1236,6 +1317,55 @@ impl CanISendDesktop {
                 .select("Loading current documents", "正在加载当前申请文档"),
             ctx,
             WorkerRequest::LoadDocuments { path, job_id },
+        );
+    }
+
+    fn load_review(&mut self, job_id: String, ctx: egui::Context) {
+        let Some(path) = self.active_workspace.clone() else {
+            self.review_form.error = Some(
+                self.language
+                    .select(
+                        "Choose a workspace before loading review findings",
+                        "加载审阅发现前请先选择工作区",
+                    )
+                    .to_owned(),
+            );
+            return;
+        };
+        self.dispatch(
+            self.language
+                .select("Loading current review", "正在加载当前审阅"),
+            ctx,
+            WorkerRequest::LoadReview { path, job_id },
+        );
+    }
+
+    fn confirm_review(
+        &mut self,
+        job_id: String,
+        candidate: canisend_contracts::ReviewDispositionCandidate,
+        ctx: egui::Context,
+    ) {
+        let Some(path) = self.active_workspace.clone() else {
+            self.review_form.error = Some(
+                self.language
+                    .select(
+                        "Choose a workspace before confirming review dispositions",
+                        "确认审阅处置前请先选择工作区",
+                    )
+                    .to_owned(),
+            );
+            return;
+        };
+        self.dispatch(
+            self.language
+                .select("Confirming review dispositions", "正在确认审阅处置"),
+            ctx,
+            WorkerRequest::ConfirmReview {
+                path,
+                job_id,
+                candidate,
+            },
         );
     }
 
