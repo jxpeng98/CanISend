@@ -2,6 +2,7 @@
 
 mod agent;
 mod application;
+mod catalog;
 mod cli_install;
 mod decision;
 mod discovery;
@@ -26,6 +27,10 @@ pub use agent::{
 };
 pub use application::{
     Application, NetworkFetchConsent, PrivateExportConsent, PrivateReadConsent, ProviderSendConsent,
+};
+pub use catalog::{
+    InspectionCatalogReadModel, ResourceCatalogExportReadModel, ResourceCatalogExportRequest,
+    ResourceDetailReadModel,
 };
 pub use cli_install::{
     CliInstallState, CliInstallStatus, CliVersionRelation, TerminalInstallConsent,

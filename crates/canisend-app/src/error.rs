@@ -16,6 +16,8 @@ pub enum ApplicationError {
     Render(#[from] EmbeddedRenderError),
     #[error("invalid entity ID: {0}")]
     InvalidEntityId(String),
+    #[error("unknown public schema: {0}")]
+    SchemaNotFound(String),
     #[error("input is invalid: {0}")]
     InvalidInput(String),
     #[error("{message}")]
@@ -54,6 +56,7 @@ impl ApplicationError {
             Self::InvalidEntityId(_) | Self::InvalidInput(_) => {
                 ("invalid", ErrorCode::InputInvalid, false, None, None)
             }
+            Self::SchemaNotFound(_) => ("not-found", ErrorCode::SchemaNotFound, false, None, None),
             Self::ConsentRequired { remediation, .. } => (
                 "consent-required",
                 ErrorCode::ConsentRequired,
@@ -90,6 +93,7 @@ impl ApplicationError {
             retryable,
             message: match self {
                 Self::InvalidEntityId(message)
+                | Self::SchemaNotFound(message)
                 | Self::InvalidInput(message)
                 | Self::ResourceIntegrity(message)
                 | Self::CliInstall(message)
