@@ -1077,6 +1077,10 @@ fn leased_task_completion_is_validated_atomic_and_idempotent() {
     let consent_required: Value =
         serde_json::from_slice(&consent_required.stdout).expect("consent failure JSON");
     assert_eq!(consent_required["error"]["code"], "consent.required");
+    assert_eq!(
+        consent_required["error"]["remediation"]["action"],
+        "obtain user approval, then repeat with --allow-private-read"
+    );
     let exported = run_json(&[
         "--workspace",
         workspace.text(),
@@ -1302,7 +1306,154 @@ fn leased_task_completion_is_validated_atomic_and_idempotent() {
     assert_eq!(stale.status.code(), Some(4));
     let stale: Value = serde_json::from_slice(&stale.stdout).expect("stale JSON");
     assert_eq!(stale["error"]["code"], "task.stale");
-    assert!(stale["error"]["remediation"].is_object());
+    assert_eq!(
+        stale["error"]["remediation"]["action"],
+        "run canisend task prepare again for the current job revision"
+    );
+}
+
+#[test]
+fn task_cli_adapter_preserves_show_cancel_and_provider_consent_contracts() {
+    let workspace = TestDirectory::new("task-adapter-workspace");
+    let input = TestDirectory::new("task-adapter-input");
+    fs::create_dir_all(input.path()).expect("input directory");
+    let advert = input.path().join("advert.txt");
+    fs::write(&advert, "Teach economics\n").expect("advert");
+    run_json(&[
+        "--workspace",
+        workspace.text(),
+        "workspace",
+        "init",
+        "--json",
+    ]);
+    let job = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "job",
+        "create",
+        "--title",
+        "Lecturer in Economics",
+        "--institution",
+        "University X",
+        "--json",
+    ]);
+    let job_id = job["data"]["id"].as_str().expect("job ID");
+    run_json(&[
+        "--workspace",
+        workspace.text(),
+        "job",
+        "import",
+        job_id,
+        "--file",
+        advert.to_str().expect("advert path"),
+        "--json",
+    ]);
+    let prepared = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "task",
+        "prepare",
+        "--job",
+        job_id,
+        "--operation",
+        "job-parse",
+        "--mode",
+        "configured-provider",
+        "--json",
+    ]);
+    assert_eq!(prepared["operation"], "task.prepare");
+    assert_eq!(prepared["status"], "prepared");
+    assert_eq!(
+        prepared["required_consents"].as_array().map(Vec::len),
+        Some(2)
+    );
+    let task_id = prepared["data"]["id"].as_str().expect("task ID");
+
+    let shown = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "task",
+        "show",
+        task_id,
+        "--json",
+    ]);
+    assert_eq!(shown["operation"], "task.show");
+    assert_eq!(shown["status"], "available");
+    assert_eq!(shown["data"]["descriptor"], prepared["data"]);
+    assert_eq!(shown["data"]["status"], "prepared");
+    assert_eq!(shown["required_consents"], serde_json::json!([]));
+
+    let export_directory = input.path().join("provider-task-work");
+    let provider_consent = run(&[
+        "--workspace",
+        workspace.text(),
+        "task",
+        "inputs",
+        task_id,
+        "--destination",
+        export_directory.to_str().expect("export path"),
+        "--allow-private-read",
+        "--json",
+    ]);
+    assert_eq!(provider_consent.status.code(), Some(3));
+    let provider_consent: Value =
+        serde_json::from_slice(&provider_consent.stdout).expect("provider consent JSON");
+    assert_eq!(provider_consent["status"], "consent-required");
+    assert_eq!(provider_consent["error"]["code"], "consent.required");
+    assert_eq!(
+        provider_consent["error"]["remediation"]["action"],
+        "obtain user approval, then repeat with --allow-provider-send"
+    );
+    assert!(!export_directory.exists());
+
+    let exported = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "task",
+        "inputs",
+        task_id,
+        "--destination",
+        export_directory.to_str().expect("export path"),
+        "--allow-private-read",
+        "--allow-provider-send",
+        "--json",
+    ]);
+    assert_eq!(exported["operation"], "task.inputs");
+    assert_eq!(exported["status"], "exported");
+    assert_eq!(exported["data"]["task_id"], task_id);
+    assert_eq!(exported["data"]["files"].as_array().map(Vec::len), Some(1));
+
+    let cancelled = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "task",
+        "cancel",
+        task_id,
+        "--json",
+    ]);
+    assert_eq!(cancelled["operation"], "task.cancel");
+    assert_eq!(cancelled["status"], "cancelled");
+    assert_eq!(cancelled["data"]["status"], "cancelled");
+    let replay = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "task",
+        "cancel",
+        task_id,
+        "--json",
+    ]);
+    assert_eq!(replay["operation"], "task.cancel");
+    assert_eq!(replay["status"], "cancelled");
+    assert_eq!(replay["data"], cancelled["data"]);
+    let shown_cancelled = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "task",
+        "show",
+        task_id,
+        "--json",
+    ]);
+    assert_eq!(shown_cancelled["data"]["status"], "cancelled");
 }
 
 #[test]

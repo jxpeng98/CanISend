@@ -11,9 +11,10 @@ use std::{
 };
 
 use canisend_app::{
-    Application, DiscoveryImportRequest, DiscoveryNetworkAdapter, DiscoveryRefreshRequest,
-    NetworkFetchConsent, PrivateReadConsent, WorkflowBeginRequest, WorkflowCompleteRequest,
-    WorkflowRerunRequest, WorkspaceInitPolicy,
+    Application, ApplicationError, DiscoveryImportRequest, DiscoveryNetworkAdapter,
+    DiscoveryRefreshRequest, NetworkFetchConsent, PrivateReadConsent, ProviderSendConsent,
+    TaskExecutionMode, TaskInputExportRequest, TaskOperation, TaskPrepareRequest,
+    WorkflowBeginRequest, WorkflowCompleteRequest, WorkflowRerunRequest, WorkspaceInitPolicy,
 };
 use canisend_contracts::{
     AGENT_PROTOCOL, ActorKind, AgentContextBlocker, AgentContextData, AgentError, AgentResponse,
@@ -31,7 +32,7 @@ use canisend_io::{
 use canisend_resources::{AgentHost, ResourceError, ResourceId, ResourceKind, export_agent_pack};
 use canisend_store::{
     AgentContextService, DocumentService, PackageService, ProjectionService, RenderService,
-    ReviewService, StoreError, TaskService, WorkflowService, Workspace,
+    ReviewService, StoreError, Workspace,
 };
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use serde_json::json;
@@ -642,6 +643,21 @@ enum TaskOperationName {
     DocumentReview,
 }
 
+impl From<TaskOperationName> for TaskOperation {
+    fn from(value: TaskOperationName) -> Self {
+        match value {
+            TaskOperationName::JobParse => Self::JobParse,
+            TaskOperationName::EvidenceNormalize => Self::EvidenceNormalize,
+            TaskOperationName::EvidenceMatch => Self::EvidenceMatch,
+            TaskOperationName::CoverLetterDraft => Self::CoverLetterDraft,
+            TaskOperationName::ResearchStatementDraft => Self::ResearchStatementDraft,
+            TaskOperationName::TeachingStatementDraft => Self::TeachingStatementDraft,
+            TaskOperationName::CvDraft => Self::CvDraft,
+            TaskOperationName::DocumentReview => Self::DocumentReview,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, ValueEnum)]
 enum DocumentKindName {
     CoverLetter,
@@ -665,6 +681,15 @@ impl From<DocumentKindName> for DocumentKind {
 enum TaskExecutionModeName {
     HostAgent,
     ConfiguredProvider,
+}
+
+impl From<TaskExecutionModeName> for TaskExecutionMode {
+    fn from(value: TaskExecutionModeName) -> Self {
+        match value {
+            TaskExecutionModeName::HostAgent => Self::HostAgent,
+            TaskExecutionModeName::ConfiguredProvider => Self::ConfiguredProvider,
+        }
+    }
 }
 
 #[derive(Debug, Args)]
@@ -2467,52 +2492,17 @@ fn task_prepare(
     arguments: TaskPrepareArgs,
 ) -> CommandResult<CommandOutput> {
     let job_id = parse_entity_id("task.prepare", &arguments.job)?;
-    let mut workspace = open_workspace(workspace_path, "task.prepare")?;
-    WorkflowService::new(&mut workspace.database)
-        .start(&job_id)
-        .map_err(|error| store_failure("task.prepare", error))?;
-    let mode = match arguments.mode {
-        TaskExecutionModeName::HostAgent => ExecutionMode::HostAgent,
-        TaskExecutionModeName::ConfiguredProvider => ExecutionMode::ConfiguredProvider,
-    };
-    let descriptor = match arguments.operation {
-        TaskOperationName::JobParse => TaskService::new(&mut workspace.database, &workspace.blobs)
-            .prepare_job_parse(&job_id, mode)
-            .map_err(|error| store_failure("task.prepare", error))?,
-        TaskOperationName::EvidenceNormalize => {
-            TaskService::new(&mut workspace.database, &workspace.blobs)
-                .prepare_evidence_normalization(&job_id, mode)
-                .map_err(|error| store_failure("task.prepare", error))?
-        }
-        TaskOperationName::EvidenceMatch => {
-            TaskService::new(&mut workspace.database, &workspace.blobs)
-                .prepare_evidence_match(&job_id, mode)
-                .map_err(|error| store_failure("task.prepare", error))?
-        }
-        TaskOperationName::CoverLetterDraft => {
-            TaskService::new(&mut workspace.database, &workspace.blobs)
-                .prepare_document_draft(&job_id, DocumentKind::CoverLetter, mode)
-                .map_err(|error| store_failure("task.prepare", error))?
-        }
-        TaskOperationName::ResearchStatementDraft => {
-            TaskService::new(&mut workspace.database, &workspace.blobs)
-                .prepare_document_draft(&job_id, DocumentKind::ResearchStatement, mode)
-                .map_err(|error| store_failure("task.prepare", error))?
-        }
-        TaskOperationName::TeachingStatementDraft => {
-            TaskService::new(&mut workspace.database, &workspace.blobs)
-                .prepare_document_draft(&job_id, DocumentKind::TeachingStatement, mode)
-                .map_err(|error| store_failure("task.prepare", error))?
-        }
-        TaskOperationName::CvDraft => TaskService::new(&mut workspace.database, &workspace.blobs)
-            .prepare_document_draft(&job_id, DocumentKind::Cv, mode)
-            .map_err(|error| store_failure("task.prepare", error))?,
-        TaskOperationName::DocumentReview => {
-            TaskService::new(&mut workspace.database, &workspace.blobs)
-                .prepare_document_review(&job_id, mode)
-                .map_err(|error| store_failure("task.prepare", error))?
-        }
-    };
+    let root = app_adapter::workspace_root(workspace_path, "task.prepare")?;
+    let descriptor = Application::prepare_task(
+        &root,
+        TaskPrepareRequest {
+            job_id,
+            operation: arguments.operation.into(),
+            mode: arguments.mode.into(),
+        },
+    )
+    .map_err(|error| task_application_failure("task.prepare", error))?
+    .data;
     let mut output = success(
         "task.prepare",
         "prepared",
@@ -2537,10 +2527,10 @@ fn task_prepare(
 
 fn task_show(workspace_path: Option<PathBuf>, task_id: &str) -> CommandResult<CommandOutput> {
     let task_id = parse_entity_id("task.show", task_id)?;
-    let mut workspace = open_workspace(workspace_path, "task.show")?;
-    let state = TaskService::new(&mut workspace.database, &workspace.blobs)
-        .get(&task_id)
-        .map_err(|error| store_failure("task.show", error))?;
+    let root = app_adapter::workspace_root(workspace_path, "task.show")?;
+    let state = Application::task_state(&root, task_id.as_str())
+        .map_err(|error| task_application_failure("task.show", error))?
+        .data;
     success(
         "task.show",
         "available",
@@ -2575,34 +2565,22 @@ fn task_inputs(
         return Err(failure);
     }
     let task_id = parse_entity_id("task.inputs", &arguments.task_id)?;
-    let mut workspace = open_workspace(workspace_path, "task.inputs")?;
-    let state = TaskService::new(&mut workspace.database, &workspace.blobs)
-        .get(&task_id)
-        .map_err(|error| store_failure("task.inputs", error))?;
-    if state.descriptor.execution_mode == ExecutionMode::ConfiguredProvider
-        && !arguments.allow_provider_send
-    {
-        let mut failure = CommandFailure::new(
-            "task.inputs",
-            "consent-required",
-            ErrorCode::ConsentRequired,
-            "send-to-configured-provider consent must be explicitly confirmed",
-            false,
-        );
-        failure.error.remediation = Some(NextAction {
-            action: "obtain user approval, then repeat with --allow-provider-send".to_owned(),
-            description: "Only the exact artifact revisions declared by the task may be sent"
-                .to_owned(),
-        });
-        return Err(failure);
-    }
-    let exported = TaskService::new(&mut workspace.database, &workspace.blobs)
-        .export_inputs(
-            &task_id,
-            &arguments.destination,
-            arguments.allow_provider_send,
-        )
-        .map_err(|error| store_failure("task.inputs", error))?;
+    let root = app_adapter::workspace_root(workspace_path, "task.inputs")?;
+    let request = TaskInputExportRequest {
+        task_id,
+        destination: arguments.destination.clone(),
+    };
+    let provider_send_consent = arguments
+        .allow_provider_send
+        .then(ProviderSendConsent::granted_by_user);
+    let exported = Application::export_task_inputs(
+        &root,
+        request,
+        Some(PrivateReadConsent::granted_by_user()),
+        provider_send_consent,
+    )
+    .map_err(|error| task_application_failure("task.inputs", error))?
+    .data;
     success(
         "task.inputs",
         "exported",
@@ -2636,10 +2614,10 @@ fn task_complete(
             false,
         ));
     };
-    let mut workspace = open_workspace(workspace_path, "task.complete")?;
-    let result = TaskService::new(&mut workspace.database, &workspace.blobs)
-        .complete(&request)
-        .map_err(|error| store_failure("task.complete", error))?;
+    let root = app_adapter::workspace_root(workspace_path, "task.complete")?;
+    let result = Application::commit_task_completion(&root, request)
+        .map_err(|error| task_application_failure("task.complete", error))?
+        .data;
     let mut output = success(
         "task.complete",
         "committed",
@@ -2657,10 +2635,10 @@ fn task_complete(
 
 fn task_cancel(workspace_path: Option<PathBuf>, task_id: &str) -> CommandResult<CommandOutput> {
     let task_id = parse_entity_id("task.cancel", task_id)?;
-    let mut workspace = open_workspace(workspace_path, "task.cancel")?;
-    let state = TaskService::new(&mut workspace.database, &workspace.blobs)
-        .cancel(&task_id)
-        .map_err(|error| store_failure("task.cancel", error))?;
+    let root = app_adapter::workspace_root(workspace_path, "task.cancel")?;
+    let state = Application::cancel_task(&root, task_id.as_str())
+        .map_err(|error| task_application_failure("task.cancel", error))?
+        .data;
     success(
         "task.cancel",
         "cancelled",
@@ -3637,6 +3615,40 @@ fn open_workspace(
     Workspace::open(workspace_path.as_deref()).map_err(|error| store_failure(operation, error))
 }
 
+fn task_application_failure(
+    operation: &'static str,
+    error: ApplicationError,
+) -> Box<CommandFailure> {
+    let mut failure = app_adapter::failure(operation, error);
+    failure.error.remediation = match failure.error.code {
+        ErrorCode::ConsentRequired
+            if failure
+                .human
+                .contains("send-to-configured-provider consent") =>
+        {
+            Some(NextAction {
+                action: "obtain user approval, then repeat with --allow-provider-send".to_owned(),
+                description: "Only the exact artifact revisions declared by the task may be sent"
+                    .to_owned(),
+            })
+        }
+        ErrorCode::TaskStale => Some(NextAction {
+            action: "run canisend task prepare again for the current job revision".to_owned(),
+            description:
+                "A lease expired or a declared input changed; do not reuse the old candidate"
+                    .to_owned(),
+        }),
+        ErrorCode::WorkspaceNotFound => Some(NextAction {
+            action: "run canisend --workspace PATH workspace init".to_owned(),
+            description:
+                "Choose a new workspace directory, or pass --workspace for an existing canisend.toml"
+                    .to_owned(),
+        }),
+        _ => failure.error.remediation,
+    };
+    failure
+}
+
 fn store_failure(operation: &'static str, error: StoreError) -> Box<CommandFailure> {
     let (status, code, retryable) = match &error {
         StoreError::WorkspaceNotFound(_) => ("not-found", ErrorCode::WorkspaceNotFound, false),
@@ -3865,10 +3877,14 @@ fn render_json(response: &AgentResponse) -> ExitCode {
 
 #[cfg(test)]
 mod tests {
+    use canisend_app::{TaskExecutionMode, TaskOperation};
     use canisend_contracts::{ErrorCode, NextAction};
     use clap::Parser;
 
-    use super::{Cli, CommandFailure, ExitClass, human_failure_lines};
+    use super::{
+        Cli, CommandFailure, ExitClass, TaskExecutionModeName, TaskOperationName,
+        human_failure_lines,
+    };
 
     #[test]
     fn clap_usage_errors_are_reserved_for_exit_two() {
@@ -3896,6 +3912,30 @@ mod tests {
                 "Next: prepare the task again — do not reuse the old candidate",
                 "Retryable: yes",
             ]
+        );
+    }
+
+    #[test]
+    fn task_cli_values_cover_the_application_registry() {
+        let operations = [
+            TaskOperationName::JobParse,
+            TaskOperationName::EvidenceNormalize,
+            TaskOperationName::EvidenceMatch,
+            TaskOperationName::CoverLetterDraft,
+            TaskOperationName::ResearchStatementDraft,
+            TaskOperationName::TeachingStatementDraft,
+            TaskOperationName::CvDraft,
+            TaskOperationName::DocumentReview,
+        ]
+        .map(TaskOperation::from);
+        assert_eq!(operations, TaskOperation::ALL);
+        assert_eq!(
+            TaskExecutionMode::from(TaskExecutionModeName::HostAgent),
+            TaskExecutionMode::HostAgent
+        );
+        assert_eq!(
+            TaskExecutionMode::from(TaskExecutionModeName::ConfiguredProvider),
+            TaskExecutionMode::ConfiguredProvider
         );
     }
 }
