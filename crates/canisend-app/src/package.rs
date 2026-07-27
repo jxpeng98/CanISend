@@ -253,7 +253,10 @@ const fn readiness_status(state: ReadinessState) -> &'static str {
     }
 }
 
-fn parse_job_path(job_id: &EntityId, value: &str) -> Result<SafeRelativePath, ApplicationError> {
+pub(crate) fn parse_job_path(
+    job_id: &EntityId,
+    value: &str,
+) -> Result<SafeRelativePath, ApplicationError> {
     let path = SafeRelativePath::try_new(value)
         .map_err(|error| ApplicationError::Store(StoreError::from(error)))?;
     let expected = format!("jobs/{job_id}/");
