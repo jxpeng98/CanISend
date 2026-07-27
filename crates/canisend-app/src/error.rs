@@ -110,6 +110,16 @@ fn classify_resource(error: &ResourceError) -> Classification {
         ResourceError::UnknownId(_) => {
             ("not-found", ErrorCode::ResourceNotFound, false, None, None)
         }
+        ResourceError::InvalidSelection(_) => {
+            ("invalid", ErrorCode::InputInvalid, false, None, None)
+        }
+        ResourceError::Integrity(_) => (
+            "integrity-failed",
+            ErrorCode::ResourcesIntegrityFailed,
+            false,
+            None,
+            None,
+        ),
         ResourceError::UnsafeExportPath(_) => {
             ("invalid", ErrorCode::InputPathRejected, false, None, None)
         }

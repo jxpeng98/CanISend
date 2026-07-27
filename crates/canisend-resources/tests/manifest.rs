@@ -1,8 +1,8 @@
 use std::{fs, str::FromStr};
 
 use canisend_resources::{
-    AgentHost, AgentPackManifest, ResourceId, ResourceKind, export_agent_pack, export_all, get,
-    manifest, verify,
+    AgentHost, AgentPackManifest, ResourceCatalogManifest, ResourceId, ResourceKind,
+    export_agent_pack, export_all, export_catalog, get, manifest, verify,
 };
 use sha2::{Digest, Sha256};
 
@@ -40,6 +40,57 @@ fn export_all_reproduces_declared_resource_tree() {
         assert!(path.is_file(), "missing exported file: {}", path.display());
     }
     fs::remove_dir_all(root).expect("remove test directory");
+}
+
+#[test]
+fn catalog_export_is_complete_integrity_bound_and_create_new() {
+    let parent = std::env::temp_dir().join(format!(
+        "canisend-resource-catalog-test-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&parent);
+    fs::create_dir(&parent).expect("catalog parent");
+    let root = parent.join("catalog");
+    let exported = export_catalog(&ResourceId::ALL, &root).expect("catalog export");
+    let manifest: ResourceCatalogManifest =
+        serde_json::from_slice(&fs::read(&exported.manifest_path).expect("manifest bytes"))
+            .expect("manifest JSON");
+    assert_eq!(manifest, exported.manifest);
+    assert_eq!(manifest.format, "canisend.resource-catalog-export/v1");
+    assert_eq!(manifest.resource_format, "canisend.resources/v2");
+    assert_eq!(manifest.files.len(), ResourceId::ALL.len());
+    for entry in &manifest.files {
+        let bytes = fs::read(root.join(&entry.path)).expect("catalog file");
+        assert_eq!(bytes.len(), entry.size);
+        assert_eq!(hex::encode(Sha256::digest(bytes)), entry.sha256);
+    }
+    assert!(export_catalog(&ResourceId::ALL, &root).is_err());
+
+    let duplicate_root = parent.join("duplicate");
+    fs::create_dir(&duplicate_root).expect("empty duplicate root");
+    assert!(
+        export_catalog(
+            &[
+                ResourceId::TemplateCoverLetter,
+                ResourceId::TemplateCoverLetter
+            ],
+            &duplicate_root,
+        )
+        .is_err()
+    );
+    assert!(
+        fs::read_dir(&duplicate_root)
+            .expect("duplicate root")
+            .next()
+            .is_none()
+    );
+    assert!(duplicate_root.is_dir());
+    assert!(export_catalog(&[], &parent.join("empty-selection")).is_err());
+    assert!(!parent.join("empty-selection").exists());
+    assert!(export_catalog(&ResourceId::ALL, &parent.join(".canisend/catalog")).is_err());
+    assert!(!parent.join(".canisend").exists());
+
+    fs::remove_dir_all(parent).expect("cleanup catalog");
 }
 
 #[test]

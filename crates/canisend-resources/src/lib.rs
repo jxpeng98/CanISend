@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 use std::{
+    collections::BTreeSet,
     fs,
     fs::OpenOptions,
     io::Write,
@@ -15,7 +16,7 @@ use thiserror::Error;
 
 pub const RESOURCE_VERSION: &str = "canisend.resources/v2";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum ResourceKind {
     Agent,
@@ -46,6 +47,10 @@ pub struct EmbeddedResource {
 pub enum ResourceError {
     #[error("unknown embedded resource ID: {0}")]
     UnknownId(String),
+    #[error("embedded resource selection is invalid: {0}")]
+    InvalidSelection(String),
+    #[error("embedded resources failed verification: {0}")]
+    Integrity(String),
     #[error("resource export path is unsafe: {0}")]
     UnsafeExportPath(PathBuf),
     #[error("resource export failed at {path}: {source}")]
@@ -102,6 +107,34 @@ pub struct AgentPackExportData {
     pub directory: PathBuf,
     pub manifest_path: PathBuf,
     pub manifest: AgentPackManifest,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ResourceCatalogFile {
+    pub resource_id: String,
+    pub kind: ResourceKind,
+    pub resource_version: String,
+    pub path: String,
+    pub size: usize,
+    pub sha256: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ResourceCatalogManifest {
+    pub format: String,
+    pub product_version: String,
+    pub resource_format: String,
+    pub files: Vec<ResourceCatalogFile>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ResourceCatalogExportData {
+    pub directory: PathBuf,
+    pub manifest_path: PathBuf,
+    pub manifest: ResourceCatalogManifest,
 }
 
 include!(concat!(env!("OUT_DIR"), "/resource_manifest.rs"));
@@ -172,11 +205,76 @@ pub fn export_all(root: &Path) -> Result<Vec<PathBuf>, ResourceError> {
         .collect()
 }
 
+pub fn export_catalog(
+    resource_ids: &[ResourceId],
+    root: &Path,
+) -> Result<ResourceCatalogExportData, ResourceError> {
+    verify().map_err(ResourceError::Integrity)?;
+    if resource_ids.is_empty() {
+        return Err(ResourceError::InvalidSelection(
+            "at least one resource is required".to_owned(),
+        ));
+    }
+    let mut unique = BTreeSet::new();
+    let mut resources = Vec::with_capacity(resource_ids.len());
+    for resource_id in resource_ids {
+        if !unique.insert(*resource_id) {
+            return Err(ResourceError::InvalidSelection(format!(
+                "duplicate resource ID: {resource_id}"
+            )));
+        }
+        let resource = get(*resource_id);
+        validate_resource_path(resource.descriptor.path)?;
+        resources.push(resource);
+    }
+
+    let root_was_created = fs::symlink_metadata(root).is_err();
+    ensure_empty_pack_root(root)?;
+    let mut created = Vec::with_capacity(resources.len() + 1);
+    let result = (|| {
+        let mut files = Vec::with_capacity(resources.len());
+        for resource in resources {
+            let destination = root.join(resource.descriptor.path);
+            write_new_file(root, &destination, resource.bytes)?;
+            created.push(destination);
+            files.push(ResourceCatalogFile {
+                resource_id: resource.descriptor.id.to_owned(),
+                kind: resource.descriptor.kind,
+                resource_version: resource.descriptor.version.to_owned(),
+                path: resource.descriptor.path.to_owned(),
+                size: resource.descriptor.size,
+                sha256: resource.descriptor.sha256.to_owned(),
+            });
+        }
+        let manifest = ResourceCatalogManifest {
+            format: "canisend.resource-catalog-export/v1".to_owned(),
+            product_version: env!("CARGO_PKG_VERSION").to_owned(),
+            resource_format: RESOURCE_FORMAT.to_owned(),
+            files,
+        };
+        let mut manifest_bytes = serde_json::to_vec_pretty(&manifest)
+            .map_err(|_| ResourceError::UnsafeExportPath(root.to_path_buf()))?;
+        manifest_bytes.push(b'\n');
+        let manifest_path = root.join("canisend-resource-catalog.json");
+        write_new_file(root, &manifest_path, &manifest_bytes)?;
+        created.push(manifest_path.clone());
+        Ok(ResourceCatalogExportData {
+            directory: root.to_path_buf(),
+            manifest_path,
+            manifest,
+        })
+    })();
+    if result.is_err() {
+        rollback_new_files(root, &created, root_was_created);
+    }
+    result
+}
+
 pub fn export_agent_pack(
     host: AgentHost,
     root: &Path,
 ) -> Result<AgentPackExportData, ResourceError> {
-    verify().map_err(|_| ResourceError::UnsafeExportPath(root.to_path_buf()))?;
+    verify().map_err(ResourceError::Integrity)?;
     ensure_empty_pack_root(root)?;
     let guide = match host {
         AgentHost::Codex => ("agent.codex.guide", "AGENTS.md"),
@@ -373,13 +471,56 @@ fn write_new_file(root: &Path, destination: &Path, bytes: &[u8]) -> Result<(), R
             path: destination.to_path_buf(),
             source,
         })?;
-    file.write_all(bytes)
+    let result = file
+        .write_all(bytes)
         .and_then(|()| file.sync_all())
         .map_err(|source| ResourceError::ExportIo {
             path: destination.to_path_buf(),
             source,
-        })?;
-    set_private_file_permissions(destination)
+        })
+        .and_then(|()| set_private_file_permissions(destination));
+    if result.is_err() {
+        drop(file);
+        let _ = fs::remove_file(destination);
+    }
+    result
+}
+
+fn validate_resource_path(path: &str) -> Result<(), ResourceError> {
+    let path = Path::new(path);
+    if path.as_os_str().is_empty()
+        || path.is_absolute()
+        || path.components().any(|component| {
+            !matches!(component, std::path::Component::Normal(_))
+                || component.as_os_str().eq_ignore_ascii_case(".canisend")
+        })
+    {
+        return Err(ResourceError::UnsafeExportPath(path.to_path_buf()));
+    }
+    Ok(())
+}
+
+fn rollback_new_files(root: &Path, files: &[PathBuf], remove_root: bool) {
+    let mut directories = BTreeSet::new();
+    for file in files.iter().rev() {
+        let _ = fs::remove_file(file);
+        let mut parent = file.parent();
+        while let Some(directory) = parent {
+            if directory == root {
+                break;
+            }
+            directories.insert(directory.to_path_buf());
+            parent = directory.parent();
+        }
+    }
+    let mut directories = directories.into_iter().collect::<Vec<_>>();
+    directories.sort_by_key(|path| std::cmp::Reverse(path.components().count()));
+    for directory in directories {
+        let _ = fs::remove_dir(directory);
+    }
+    if remove_root {
+        let _ = fs::remove_dir(root);
+    }
 }
 
 #[cfg(unix)]
@@ -438,4 +579,34 @@ fn ensure_directory(path: &Path) -> Result<(), ResourceError> {
         path: path.to_path_buf(),
         source,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use super::rollback_new_files;
+
+    #[test]
+    fn export_rollback_removes_only_paths_owned_by_the_failed_operation() {
+        let root =
+            std::env::temp_dir().join(format!("canisend-resource-rollback-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let managed = root.join("schemas/v2/managed.json");
+        let sentinel = root.join("concurrent-user-file.txt");
+        fs::create_dir_all(managed.parent().expect("managed parent")).expect("managed directory");
+        fs::write(&managed, "partial").expect("managed file");
+        fs::write(&sentinel, "preserve").expect("sentinel");
+
+        rollback_new_files(&root, std::slice::from_ref(&managed), false);
+
+        assert!(!managed.exists());
+        assert!(!root.join("schemas").exists());
+        assert_eq!(
+            fs::read_to_string(&sentinel).expect("preserved sentinel"),
+            "preserve"
+        );
+        assert!(root.is_dir());
+        fs::remove_dir_all(root).expect("cleanup rollback fixture");
+    }
 }
