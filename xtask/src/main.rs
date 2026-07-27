@@ -1507,8 +1507,14 @@ fn validate_alpha_baseline_tag(active: &Version, tag: &str) -> Result<Version, S
     {
         return Err("Alpha baseline tag differs from the active release line".to_owned());
     }
-    if ReleaseStage::from_version(active) == Ok(ReleaseStage::Alpha) && candidate != *active {
-        return Err("Alpha baseline tag does not identify the current Alpha source".to_owned());
+    if ReleaseStage::from_version(active) == Ok(ReleaseStage::Alpha) {
+        let candidate_iteration = prerelease_iteration(&candidate, "alpha")?;
+        let active_iteration = prerelease_iteration(active, "alpha")?;
+        if candidate_iteration > active_iteration || active_iteration - candidate_iteration > 1 {
+            return Err(
+                "Alpha baseline must identify the current or immediately previous Alpha".to_owned(),
+            );
+        }
     }
     Ok(candidate)
 }
@@ -10489,19 +10495,29 @@ mod tests {
     }
 
     #[test]
-    fn alpha_baseline_accepts_the_current_alpha_and_survives_later_stages() {
-        let alpha = Version::parse("1.0.0-alpha.2").expect("Alpha version");
+    fn alpha_baseline_accepts_current_or_previous_alpha_and_survives_later_stages() {
+        let alpha = Version::parse("1.0.0-alpha.3").expect("Alpha version");
         let beta = Version::parse("1.0.0-beta.1").expect("Beta version");
         assert_eq!(
-            validate_alpha_baseline_tag(&alpha, "v1.0.0-alpha.2").expect("current Alpha baseline"),
+            validate_alpha_baseline_tag(&alpha, "v1.0.0-alpha.3").expect("current Alpha baseline"),
             alpha
+        );
+        assert_eq!(
+            validate_alpha_baseline_tag(&alpha, "v1.0.0-alpha.2")
+                .expect("previous public Alpha during sequential candidate work")
+                .to_string(),
+            "1.0.0-alpha.2"
         );
         assert!(
             validate_alpha_baseline_tag(&alpha, "v1.0.0-alpha.1").is_err(),
-            "an older Alpha must not replace the current Alpha baseline"
+            "a stale Alpha must not replace the latest public baseline"
         );
         assert!(
-            validate_alpha_baseline_tag(&alpha, "v1.1.0-alpha.2").is_err(),
+            validate_alpha_baseline_tag(&alpha, "v1.0.0-alpha.4").is_err(),
+            "a future Alpha must not qualify the current source"
+        );
+        assert!(
+            validate_alpha_baseline_tag(&alpha, "v1.1.0-alpha.3").is_err(),
             "another release line must not qualify this source"
         );
         assert!(
@@ -10509,10 +10525,10 @@ mod tests {
             "the baseline itself must be an Alpha"
         );
         assert_eq!(
-            validate_alpha_baseline_tag(&beta, "v1.0.0-alpha.2")
+            validate_alpha_baseline_tag(&beta, "v1.0.0-alpha.3")
                 .expect("preserved Alpha baseline after transition")
                 .to_string(),
-            "1.0.0-alpha.2"
+            "1.0.0-alpha.3"
         );
     }
 

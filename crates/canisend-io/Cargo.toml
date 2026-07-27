@@ -10,9 +10,9 @@ repository.workspace = true
 publish.workspace = true
 
 [dependencies]
-canisend-contracts = { path = "../canisend-contracts", version = "=1.0.0-alpha.2" }
-canisend-core = { path = "../canisend-core", version = "=1.0.0-alpha.2" }
-canisend-resources = { path = "../canisend-resources", version = "=1.0.0-alpha.2" }
+canisend-contracts = { path = "../canisend-contracts", version = "=1.0.0-alpha.3" }
+canisend-core = { path = "../canisend-core", version = "=1.0.0-alpha.3" }
+canisend-resources = { path = "../canisend-resources", version = "=1.0.0-alpha.3" }
 csv.workspace = true
 feed-rs.workspace = true
 html2text.workspace = true

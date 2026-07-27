@@ -4,7 +4,8 @@
 
 **Decision date:** 2026-07-26
 
-**Source baseline:** `1.0.0-alpha.2` after public checkpoint `v1.0.0-alpha.2`
+**Source baseline:** `1.0.0-alpha.3` release candidate after public checkpoint
+`v1.0.0-alpha.2`
 
 **Entry parity:** `22 implemented`, `13 deferred-beta`
 
@@ -495,7 +496,8 @@ workspace files, a shell, or automatic export.
 
 - [x] Freeze Stage 4F entry parity at `33 implemented`, `2 deferred-beta`.
 - [x] Record the inspection/export boundary and atomic work packages before changing parity.
-- [x] Keep `1.0.0-alpha.2` as the source version until an explicitly authorized Beta transition.
+- [x] Keep `1.0.0-alpha.2` until a release decision; the user explicitly authorized the
+  sequential `1.0.0-alpha.3` checkpoint after Stage 4F.
 - [x] Keep native five-target packages, signing, and publication outside the ordinary edit loop.
 
 ### 7.3 F1 — bounded embedded-resource export
@@ -691,6 +693,6 @@ launching an Agent host.
 The application facade, preserved CLI contracts, bilingual Diagnostics surface, 45-test GUI suite,
 digest round-trip regression, public Alpha.2 issue-number/state audit, and checked-in
 Agent/schema/workspace baseline cover that path. Parity is `35 implemented` and `0 deferred-beta`.
-The source remains `1.0.0-alpha.2`: whole-product feature-freeze activation requires a qualified
-Beta exact commit, and no Beta transition, tag, publication, package-manager update, or five-target
-native matrix is authorized by this closure.
+The Stage 4F closure itself left the source at `1.0.0-alpha.2`. A later explicit release decision
+authorized the sequential `1.0.0-alpha.3` checkpoint; whole-product feature-freeze activation
+still requires a qualified Beta exact commit.
