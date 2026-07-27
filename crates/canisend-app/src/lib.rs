@@ -5,6 +5,7 @@ mod application;
 mod cli_install;
 mod decision;
 mod discovery;
+mod document;
 mod error;
 mod job;
 mod plan;
