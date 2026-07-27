@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+mod agent;
 mod application;
 mod cli_install;
 mod decision;
@@ -15,6 +16,10 @@ mod update;
 mod workflow;
 mod workspace;
 
+pub use agent::{
+    AgentCapabilitiesReadModel, AgentContextReadModel, AgentHost, AgentPackExportReadModel,
+    AgentPackExportRequest,
+};
 pub use application::{Application, NetworkFetchConsent, PrivateReadConsent, ProviderSendConsent};
 pub use cli_install::{
     CliInstallState, CliInstallStatus, CliVersionRelation, TerminalInstallConsent,

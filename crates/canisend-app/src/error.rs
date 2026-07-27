@@ -1,5 +1,6 @@
 use canisend_contracts::{ErrorCode, NextAction};
 use canisend_io::{EmbeddedRenderError, IoAdapterError};
+use canisend_resources::ResourceError;
 use canisend_store::StoreError;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -24,6 +25,8 @@ pub enum ApplicationError {
     },
     #[error("embedded resources failed verification: {0}")]
     ResourceIntegrity(String),
+    #[error("{0}")]
+    ResourceExport(#[from] ResourceError),
     #[error("CLI installation failed: {0}")]
     CliInstall(String),
     #[error("update check failed: {0}")]
@@ -65,6 +68,7 @@ impl ApplicationError {
                 None,
                 None,
             ),
+            Self::ResourceExport(error) => classify_resource(error),
             Self::CliInstall(_) => (
                 "install-failed",
                 ErrorCode::InputPathRejected,
@@ -91,10 +95,26 @@ impl ApplicationError {
                 | Self::CliInstall(message)
                 | Self::UpdateCheck(message) => message.clone(),
                 Self::ConsentRequired { message, .. } => message.clone(),
-                Self::Store(_) | Self::Input(_) | Self::Render(_) => self.to_string(),
+                Self::Store(_) | Self::Input(_) | Self::Render(_) | Self::ResourceExport(_) => {
+                    self.to_string()
+                }
             },
             details,
             remediation,
+        }
+    }
+}
+
+fn classify_resource(error: &ResourceError) -> Classification {
+    match error {
+        ResourceError::UnknownId(_) => {
+            ("not-found", ErrorCode::ResourceNotFound, false, None, None)
+        }
+        ResourceError::UnsafeExportPath(_) => {
+            ("invalid", ErrorCode::InputPathRejected, false, None, None)
+        }
+        ResourceError::ExportIo { .. } => {
+            ("io-failed", ErrorCode::ExternalIoFailed, true, None, None)
         }
     }
 }
@@ -271,6 +291,7 @@ mod tests {
 
     use canisend_contracts::ErrorCode;
     use canisend_io::IoAdapterError;
+    use canisend_resources::ResourceError;
     use canisend_store::StoreError;
 
     use super::ApplicationError;
@@ -289,5 +310,12 @@ mod tests {
         assert_eq!(pdf.code, ErrorCode::PdfTextUnavailable);
         assert_eq!(pdf.status, "text-unavailable");
         assert!(pdf.remediation.is_some());
+
+        let unsafe_export =
+            ApplicationError::from(ResourceError::UnsafeExportPath(PathBuf::from("/unsafe")))
+                .classify();
+        assert_eq!(unsafe_export.code, ErrorCode::InputPathRejected);
+        assert_eq!(unsafe_export.status, "invalid");
+        assert!(!unsafe_export.retryable);
     }
 }
