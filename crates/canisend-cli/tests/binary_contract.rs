@@ -212,6 +212,21 @@ fn capabilities_and_context_match_committed_json_snapshots() {
 }
 
 #[test]
+fn agent_context_preserves_missing_workspace_remediation() {
+    let missing = TestDirectory::new("missing-agent-context");
+    let output = run(&["--workspace", missing.text(), "agent", "context", "--json"]);
+    assert_eq!(output.status.code(), Some(4));
+    assert!(output.stderr.is_empty());
+    let response: Value = serde_json::from_slice(&output.stdout).expect("context error JSON");
+    assert_eq!(response["operation"], "agent.context");
+    assert_eq!(response["error"]["code"], "workspace.not_found");
+    assert_eq!(
+        response["error"]["remediation"]["action"],
+        "run canisend --workspace PATH workspace init"
+    );
+}
+
+#[test]
 fn agent_host_pack_export_is_versioned_and_self_contained() {
     let parent = TestDirectory::new("agent-pack-parent");
     fs::create_dir_all(parent.path()).expect("pack parent");
@@ -297,7 +312,26 @@ fn agent_host_pack_export_is_versioned_and_self_contained() {
         pack.join("schemas/v2/render-manifest.schema.json")
             .is_file()
     );
-    assert!(pack.join("canisend-agent-pack.json").is_file());
+    let manifest = pack.join("canisend-agent-pack.json");
+    let manifest_before = fs::read(&manifest).expect("manifest bytes");
+    let repeated = run(&[
+        "agent",
+        "assets",
+        "export",
+        "--host",
+        "codex",
+        "--destination",
+        pack.to_str().expect("pack path"),
+        "--json",
+    ]);
+    assert_eq!(repeated.status.code(), Some(3));
+    assert!(repeated.stderr.is_empty());
+    let failure: Value = serde_json::from_slice(&repeated.stdout).expect("host-pack failure JSON");
+    assert_eq!(failure["error"]["code"], "input.path_rejected");
+    assert_eq!(
+        fs::read(manifest).expect("unchanged manifest"),
+        manifest_before
+    );
 }
 
 #[test]
@@ -549,11 +583,11 @@ fn native_job_commands_import_original_and_normalized_local_text() {
     ]);
     assert_eq!(context["data"]["selected_job"]["source_count"], 2);
     assert_eq!(context["data"]["active_job_id"], job_id);
-    assert!(
-        !serde_json::to_string(&context)
-            .expect("context JSON")
-            .contains("Teach economics")
-    );
+    assert_eq!(context["data"]["privacy"], "public");
+    let context_json = serde_json::to_string(&context).expect("context JSON");
+    assert!(!context_json.contains("Teach economics"));
+    assert!(!context_json.contains("original"));
+    assert!(!context_json.contains("normalized_text"));
     let listed = run_json(&["--workspace", workspace.text(), "job", "list", "--json"]);
     assert_eq!(listed["data"]["jobs"].as_array().map(Vec::len), Some(1));
     let documents = run_json(&[

@@ -11,28 +11,25 @@ use std::{
 };
 
 use canisend_app::{
-    Application, ApplicationError, DiscoveryImportRequest, DiscoveryNetworkAdapter,
-    DiscoveryRefreshRequest, NetworkFetchConsent, PrivateReadConsent, ProviderSendConsent,
-    TaskExecutionMode, TaskInputExportRequest, TaskOperation, TaskPrepareRequest,
-    WorkflowBeginRequest, WorkflowCompleteRequest, WorkflowRerunRequest, WorkspaceInitPolicy,
+    AgentHost, AgentPackExportRequest, Application, ApplicationError, DiscoveryImportRequest,
+    DiscoveryNetworkAdapter, DiscoveryRefreshRequest, NetworkFetchConsent, PrivateReadConsent,
+    ProviderSendConsent, TaskExecutionMode, TaskInputExportRequest, TaskOperation,
+    TaskPrepareRequest, WorkflowBeginRequest, WorkflowCompleteRequest, WorkflowRerunRequest,
+    WorkspaceInitPolicy,
 };
 use canisend_contracts::{
-    AGENT_PROTOCOL, ActorKind, AgentContextBlocker, AgentContextData, AgentError, AgentResponse,
-    CapabilitiesData, DocumentKind, EntityId, ErrorCode, ExecutionMode, ExitClass, NextAction,
-    PUBLIC_SCHEMA_VERSION, PrivacyClassification, PublicSchemaId, RESOURCE_FORMAT,
-    ResourceCatalogData, ResourceCatalogEntry, SafeRelativePath, SchemaCatalogData,
-    SchemaCatalogEntry, SemanticVersion, Sha256Digest, VersionData, WORKSPACE_FORMAT,
-    WorkflowStage,
+    AgentError, AgentResponse, DocumentKind, EntityId, ErrorCode, ExecutionMode, ExitClass,
+    NextAction, PUBLIC_SCHEMA_VERSION, PrivacyClassification, PublicSchemaId, ResourceCatalogData,
+    ResourceCatalogEntry, SafeRelativePath, SchemaCatalogData, SchemaCatalogEntry, SemanticVersion,
+    Sha256Digest, VersionData, WorkflowStage,
 };
-use canisend_core::{CapabilityRegistry, StageRegistry};
 use canisend_io::{
-    IoAdapterError, discovery_adapter_capabilities, read_criteria_file, read_task_completion_file,
-    read_task_completion_stdin,
+    IoAdapterError, read_criteria_file, read_task_completion_file, read_task_completion_stdin,
 };
-use canisend_resources::{AgentHost, ResourceError, ResourceId, ResourceKind, export_agent_pack};
+use canisend_resources::{ResourceId, ResourceKind};
 use canisend_store::{
-    AgentContextService, DocumentService, PackageService, ProjectionService, RenderService,
-    ReviewService, StoreError, Workspace,
+    DocumentService, PackageService, ProjectionService, RenderService, ReviewService, StoreError,
+    Workspace,
 };
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use serde_json::json;
@@ -1528,19 +1525,9 @@ fn doctor() -> CommandResult<CommandOutput> {
 }
 
 fn capabilities() -> CommandResult<CommandOutput> {
-    let data = CapabilitiesData {
-        product_version: product_version()?,
-        protocol: AGENT_PROTOCOL.to_owned(),
-        workspace_format: WORKSPACE_FORMAT.to_owned(),
-        resource_format: RESOURCE_FORMAT.to_owned(),
-        capabilities: CapabilityRegistry::built_in(),
-        stages: StageRegistry::built_in(),
-        discovery_adapters: discovery_adapter_capabilities(),
-        error_codes: ErrorCode::ALL
-            .into_iter()
-            .map(|code| code.as_str().to_owned())
-            .collect(),
-    };
+    let data = Application::agent_capabilities()
+        .map_err(|error| app_adapter::failure("agent.capabilities", error))?
+        .data;
     let human = std::iter::once(format!("CanISend {} capabilities", data.product_version))
         .chain(
             data.capabilities
@@ -1555,117 +1542,9 @@ fn context(
     workspace_path: Option<PathBuf>,
     selected_job_id: Option<&str>,
 ) -> CommandResult<CommandOutput> {
-    let workspace = if workspace_path.is_some() {
-        Some(open_workspace(workspace_path, "agent.context")?)
-    } else {
-        match Workspace::open(None) {
-            Ok(workspace) => Some(workspace),
-            Err(StoreError::WorkspaceNotFound(_)) => None,
-            Err(error) => return Err(store_failure("agent.context", error)),
-        }
-    };
-    let mut blockers = Vec::new();
-    let mut next_actions = Vec::new();
-    let mut workspace_summary = None;
-    let mut selected_job = None;
-    if let Some(workspace) = &workspace {
-        let service = AgentContextService::new(&workspace.database);
-        let summary = service
-            .workspace_summary()
-            .map_err(|error| store_failure("agent.context", error))?;
-        if let Some(job_id) = selected_job_id {
-            let job_id = parse_entity_id("agent.context", job_id)?;
-            let job = service
-                .job_summary(&job_id)
-                .map_err(|error| store_failure("agent.context", error))?;
-            if job.archived {
-                blockers.push(AgentContextBlocker {
-                    code: "job.archived".to_owned(),
-                    description: "The selected job is archived".to_owned(),
-                    subject_id: Some(job.id.clone()),
-                });
-            } else if job.source_count == 0 {
-                blockers.push(AgentContextBlocker {
-                    code: "job.source_missing".to_owned(),
-                    description: "The selected job has no imported advert source".to_owned(),
-                    subject_id: Some(job.id.clone()),
-                });
-                next_actions.push(NextAction {
-                    action: format!("canisend job import {} --file PATH", job.id),
-                    description: "Import a local advert, PDF, or use --url before preparing work"
-                        .to_owned(),
-                });
-            } else {
-                next_actions.push(NextAction {
-                    action: format!("canisend workflow start --job {} --json", job.id),
-                    description: "Start or resume the durable application stage graph".to_owned(),
-                });
-            }
-            selected_job = Some(job);
-        } else if summary.active_job_count > 0 {
-            blockers.push(AgentContextBlocker {
-                code: "job.not_selected".to_owned(),
-                description: "Select an active job with agent context --job JOB_ID".to_owned(),
-                subject_id: None,
-            });
-            next_actions.push(NextAction {
-                action: "canisend job list --json".to_owned(),
-                description: "Choose one active job for the next workflow operation".to_owned(),
-            });
-        } else if summary.active_lead_count > 0 {
-            blockers.push(AgentContextBlocker {
-                code: "job.missing".to_owned(),
-                description: "Promote a discovery lead before preparing application work"
-                    .to_owned(),
-                subject_id: None,
-            });
-            next_actions.push(NextAction {
-                action: "canisend discovery list --json".to_owned(),
-                description: "Select and promote an active discovery lead".to_owned(),
-            });
-        } else {
-            blockers.push(AgentContextBlocker {
-                code: "job.missing".to_owned(),
-                description: "Create or discover a job before preparing application work"
-                    .to_owned(),
-                subject_id: None,
-            });
-            next_actions.push(NextAction {
-                action: "canisend job create --title TITLE --institution INSTITUTION --json"
-                    .to_owned(),
-                description: "Create a direct-intake job or import discovery leads".to_owned(),
-            });
-        }
-        workspace_summary = Some(summary);
-    } else {
-        blockers.push(AgentContextBlocker {
-            code: "workspace.not_selected".to_owned(),
-            description: "No CanISend workspace was discovered or selected".to_owned(),
-            subject_id: None,
-        });
-        next_actions.push(NextAction {
-            action: "canisend --workspace PATH workspace init --json".to_owned(),
-            description: "Initialize or explicitly select a workspace".to_owned(),
-        });
-    }
-    let data = AgentContextData {
-        product_version: product_version()?,
-        protocol: AGENT_PROTOCOL.to_owned(),
-        workspace_format: WORKSPACE_FORMAT.to_owned(),
-        resource_format: RESOURCE_FORMAT.to_owned(),
-        actor: ActorKind::HostAgent,
-        execution_mode: ExecutionMode::HostAgent,
-        workspace_id: workspace_summary
-            .as_ref()
-            .map(|summary| summary.workspace_id.clone()),
-        active_job_id: selected_job.as_ref().map(|job| job.id.clone()),
-        workspace: workspace_summary,
-        selected_job,
-        supported_stages: StageRegistry::built_in(),
-        blockers,
-        next_actions,
-        privacy: PrivacyClassification::Public,
-    };
+    let data = Application::agent_context(workspace_path.as_deref(), selected_job_id)
+        .map_err(agent_context_failure)?
+        .data;
     let mut output = success(
         "agent.context",
         "available",
@@ -1692,8 +1571,10 @@ fn agent_assets_export(arguments: AgentAssetsExportArgs) -> CommandResult<Comman
         AgentHostName::Claude => AgentHost::Claude,
         AgentHostName::Generic => AgentHost::Generic,
     };
-    let exported = export_agent_pack(host, &arguments.destination)
-        .map_err(|error| resource_export_failure("agent.assets.export", error))?;
+    let exported =
+        Application::export_agent_assets(&AgentPackExportRequest::new(host, arguments.destination))
+            .map_err(|error| app_adapter::failure("agent.assets.export", error))?
+            .data;
     success(
         "agent.assets.export",
         "exported",
@@ -3599,15 +3480,6 @@ fn io_adapter_failure(operation: &'static str, error: IoAdapterError) -> Box<Com
     failure
 }
 
-fn resource_export_failure(operation: &'static str, error: ResourceError) -> Box<CommandFailure> {
-    let (status, code, retryable) = match &error {
-        ResourceError::UnknownId(_) => ("not-found", ErrorCode::ResourceNotFound, false),
-        ResourceError::UnsafeExportPath(_) => ("invalid", ErrorCode::InputPathRejected, false),
-        ResourceError::ExportIo { .. } => ("io-failed", ErrorCode::ExternalIoFailed, true),
-    };
-    CommandFailure::new(operation, status, code, error.to_string(), retryable)
-}
-
 fn open_workspace(
     workspace_path: Option<PathBuf>,
     operation: &'static str,
@@ -3646,6 +3518,19 @@ fn task_application_failure(
         }),
         _ => failure.error.remediation,
     };
+    failure
+}
+
+fn agent_context_failure(error: ApplicationError) -> Box<CommandFailure> {
+    let mut failure = app_adapter::failure("agent.context", error);
+    if failure.error.code == ErrorCode::WorkspaceNotFound {
+        failure.error.remediation = Some(NextAction {
+            action: "run canisend --workspace PATH workspace init".to_owned(),
+            description:
+                "Choose a new workspace directory, or pass --workspace for an existing canisend.toml"
+                    .to_owned(),
+        });
+    }
     failure
 }
 
@@ -3749,10 +3634,6 @@ fn store_failure(operation: &'static str, error: StoreError) -> Box<CommandFailu
         });
     }
     failure
-}
-
-fn product_version() -> CommandResult<SemanticVersion> {
-    SemanticVersion::try_new(env!("CARGO_PKG_VERSION")).map_err(internal_version)
 }
 
 fn internal_version(error: impl std::fmt::Display) -> Box<CommandFailure> {
@@ -3877,13 +3758,16 @@ fn render_json(response: &AgentResponse) -> ExitCode {
 
 #[cfg(test)]
 mod tests {
-    use canisend_app::{TaskExecutionMode, TaskOperation};
+    use std::fs;
+
+    use canisend_app::{Application, TaskExecutionMode, TaskOperation};
     use canisend_contracts::{ErrorCode, NextAction};
     use clap::Parser;
 
     use super::{
-        Cli, CommandFailure, ExitClass, TaskExecutionModeName, TaskOperationName,
-        human_failure_lines,
+        AgentAssetsExportArgs, AgentHostName, Cli, CommandFailure, ExitClass, OutputArgs,
+        TaskExecutionModeName, TaskOperationName, agent_assets_export, capabilities, context,
+        human_failure_lines, human_success_lines,
     };
 
     #[test]
@@ -3937,5 +3821,68 @@ mod tests {
             TaskExecutionMode::from(TaskExecutionModeName::ConfiguredProvider),
             TaskExecutionMode::ConfiguredProvider
         );
+    }
+
+    #[test]
+    fn agent_facade_adapter_preserves_human_output() {
+        let root =
+            std::env::temp_dir().join(format!("canisend-cli-agent-human-{}", std::process::id()));
+        let packs = root.with_extension("packs");
+        let _ = fs::remove_dir_all(&root);
+        let _ = fs::remove_dir_all(&packs);
+        Application::initialize_workspace(&root).expect("workspace");
+
+        let capabilities =
+            capabilities().unwrap_or_else(|_| panic!("capabilities output must succeed"));
+        let capability_lines = human_success_lines(&capabilities);
+        assert_eq!(
+            capability_lines.first().map(String::as_str),
+            Some(concat!(
+                "CanISend ",
+                env!("CARGO_PKG_VERSION"),
+                " capabilities"
+            ))
+        );
+        assert!(
+            capability_lines
+                .iter()
+                .any(|line| line == "agent.context: Available")
+        );
+
+        let context = context(Some(root.clone()), None)
+            .unwrap_or_else(|_| panic!("context output must succeed"));
+        let context_lines = human_success_lines(&context);
+        assert_eq!(context_lines[0], "CanISend body-free agent context");
+        assert!(context_lines[1].starts_with("Workspace: "));
+        assert_eq!(context_lines[2], "Blockers: 1");
+        assert_eq!(context_lines[3], "Privacy: public metadata only");
+        assert_eq!(
+            context_lines[4],
+            "Next: canisend job create --title TITLE --institution INSTITUTION --json — Create a direct-intake job or import discovery leads"
+        );
+
+        fs::create_dir(&packs).expect("pack parent");
+        let destination = packs.join("generic");
+        let assets = agent_assets_export(AgentAssetsExportArgs {
+            host: AgentHostName::Generic,
+            destination: destination.clone(),
+            output: OutputArgs { json: false },
+        })
+        .unwrap_or_else(|_| panic!("asset output must succeed"));
+        assert_eq!(
+            human_success_lines(&assets),
+            [
+                "Exported generic agent pack".to_owned(),
+                format!("Directory: {}", destination.display()),
+                format!(
+                    "Manifest: {}",
+                    destination.join("canisend-agent-pack.json").display()
+                ),
+                "Resources: 31".to_owned(),
+            ]
+        );
+
+        fs::remove_dir_all(root).expect("remove workspace");
+        fs::remove_dir_all(packs).expect("remove packs");
     }
 }
