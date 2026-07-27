@@ -1,4 +1,5 @@
 mod agent_page;
+mod diagnostics_page;
 mod dialogs;
 mod discovery_page;
 mod document_page;
@@ -29,9 +30,10 @@ use crate::{
     i18n::{self, Language},
     registry::{WorkspaceRegistry, default_registry_path, validate_workspace_alias},
     state::{
-        AgentDestinationIssue, AgentDestinationPreview, AgentIntegrationForm, CriteriaMatchForm,
-        DiscoveryImportForm, DiscoveryPanel, DiscoveryRefreshForm, DocumentWorkspaceForm,
-        EvidenceReviewForm, FocusTarget, GuiPreferences, ImportForm, ImportKind, JobForm, JobPanel,
+        AgentDestinationIssue, AgentDestinationPreview, AgentIntegrationForm,
+        CatalogInspectionForm, CatalogPanel, CriteriaMatchForm, DiscoveryImportForm,
+        DiscoveryPanel, DiscoveryRefreshForm, DocumentWorkspaceForm, EvidenceReviewForm,
+        FocusTarget, GuiPreferences, ImportForm, ImportKind, JobForm, JobPanel,
         PackageWorkspaceForm, Page, PendingConfirmation, PlanReviewForm, ProfileSourceForm,
         RenderWorkspaceForm, RestoreWorkspaceForm, ReviewWorkspaceForm, TaskPanelForm,
         WorkflowActionForm, WorkspaceForm, available_task_modes, available_task_operations,
@@ -46,9 +48,9 @@ use canisend_app::{
     DiscoveryAdapterCatalogReadModel, DiscoveryLeadListReadModel, DiscoverySourceListReadModel,
     DiscoverySuggestionReadModel, DoctorSummary, JobDetailReadModel, PackageExportRequest,
     ProductSummary, ProfileSourceListReadModel, ProjectionCopyAsNewRequest,
-    ProjectionReplaceRequest, RenderExportRequest, TaskExecutionMode, TaskInputExportRequest,
-    TaskOperation, TaskPrepareRequest, UpdateCheckReadModel, WorkflowBeginRequest,
-    WorkflowCompleteRequest, WorkflowControlReadModel, WorkflowRerunRequest,
+    ProjectionReplaceRequest, RenderExportRequest, ResourceCatalogExportRequest, TaskExecutionMode,
+    TaskInputExportRequest, TaskOperation, TaskPrepareRequest, UpdateCheckReadModel,
+    WorkflowBeginRequest, WorkflowCompleteRequest, WorkflowControlReadModel, WorkflowRerunRequest,
     WorkspaceHealthReadModel, WorkspaceReadModel,
 };
 use canisend_app::{CliInstallState, CliInstallStatus, CliVersionRelation};
@@ -199,6 +201,7 @@ struct CanISendDesktop {
     show_restore_workspace_form: bool,
     product: ProductSummary,
     doctor: Option<DoctorSummary>,
+    catalog_form: CatalogInspectionForm,
     cli_source: Option<PathBuf>,
     cli_destination: PathBuf,
     cli_status: Option<CliInstallStatus>,
@@ -285,6 +288,7 @@ impl CanISendDesktop {
             show_restore_workspace_form: false,
             product: Application::product_summary(),
             doctor: None,
+            catalog_form: CatalogInspectionForm::default(),
             cli_source: bundled_cli_path(),
             cli_destination: default_cli_destination(),
             cli_status: None,
@@ -1279,6 +1283,40 @@ impl CanISendDesktop {
                     }
                     Err(failure) if selection_matches => {
                         self.apply_agent_failure(failure, FocusTarget::AgentExport);
+                    }
+                    Err(failure) => self.notice = Some((false, failure.message)),
+                }
+            }
+            WorkerEvent::InspectionCatalogLoaded(result) => match result {
+                Ok(receipt) => {
+                    let summary = localized_receipt_summary(&receipt, self.language);
+                    self.catalog_form.catalog = Some(receipt.data);
+                    self.catalog_form.failure = None;
+                    self.notice = Some((true, summary));
+                    self.pending_focus = Some(FocusTarget::CatalogExport);
+                }
+                Err(failure) => {
+                    self.notice = Some((false, failure.message.clone()));
+                    self.catalog_form.failure = Some(failure);
+                    self.pending_focus = Some(FocusTarget::CatalogLoad);
+                }
+            },
+            WorkerEvent::ResourceCatalogExported { request, result } => {
+                let selection_matches =
+                    self.catalog_form.destination.as_ref() == Some(&request.destination);
+                match result {
+                    Ok(receipt) => {
+                        let summary = localized_receipt_summary(&receipt, self.language);
+                        if selection_matches {
+                            self.catalog_form.exported = Some(receipt.data);
+                            self.catalog_form.failure = None;
+                        }
+                        self.notice = Some((true, summary));
+                    }
+                    Err(failure) if selection_matches => {
+                        self.notice = Some((false, failure.message.clone()));
+                        self.catalog_form.failure = Some(failure);
+                        self.pending_focus = Some(FocusTarget::CatalogExport);
                     }
                     Err(failure) => self.notice = Some((false, failure.message)),
                 }

@@ -2043,6 +2043,7 @@ impl CanISendDesktop {
             });
             ui.label(self.language.text("Python runtime: not required"));
         }
+        self.show_inspection_diagnostics(ui);
         ui.add_space(24.0);
         ui.label(
             RichText::new(

@@ -2,7 +2,8 @@ use std::path::PathBuf;
 
 use canisend_app::{
     AgentCapabilitiesReadModel, AgentContextReadModel, AgentHost, AgentPackExportReadModel,
-    ApplicationFailure, DiscoveryNetworkAdapter, ProjectionReplaceRequest, RenderExportReadModel,
+    ApplicationFailure, DiscoveryNetworkAdapter, InspectionCatalogReadModel,
+    ProjectionReplaceRequest, RenderExportReadModel, ResourceCatalogExportReadModel,
     TaskCompletionPreviewReadModel, TaskExecutionMode, TaskOperation, WorkflowControlReadModel,
     WorkflowRerunPreview,
 };
@@ -113,6 +114,8 @@ pub(crate) enum FocusTarget {
     PackageReconcile,
     RenderBuild,
     RenderExport,
+    CatalogLoad,
+    CatalogExport,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -665,6 +668,57 @@ impl AgentIntegrationForm {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CatalogPanel {
+    Schemas,
+    Resources,
+}
+
+#[derive(Debug)]
+pub(crate) struct CatalogInspectionForm {
+    pub(crate) catalog: Option<InspectionCatalogReadModel>,
+    pub(crate) panel: CatalogPanel,
+    pub(crate) filter: String,
+    pub(crate) destination: Option<PathBuf>,
+    pub(crate) destination_preview: Option<AgentDestinationPreview>,
+    pub(crate) destination_issue: Option<AgentDestinationIssue>,
+    pub(crate) exported: Option<ResourceCatalogExportReadModel>,
+    pub(crate) failure: Option<ApplicationFailure>,
+}
+
+impl Default for CatalogInspectionForm {
+    fn default() -> Self {
+        Self {
+            catalog: None,
+            panel: CatalogPanel::Schemas,
+            filter: String::new(),
+            destination: None,
+            destination_preview: None,
+            destination_issue: None,
+            exported: None,
+            failure: None,
+        }
+    }
+}
+
+impl CatalogInspectionForm {
+    pub(crate) fn select_destination(&mut self, destination: PathBuf) {
+        let preview = inspect_agent_export_destination(&destination);
+        self.destination = Some(destination);
+        self.destination_preview = preview.ok();
+        self.destination_issue = preview.err();
+        self.exported = None;
+        self.failure = None;
+    }
+
+    pub(crate) fn export_ready(&self) -> bool {
+        self.catalog.is_some()
+            && self.destination.is_some()
+            && self.destination_preview.is_some()
+            && self.destination_issue.is_none()
+    }
+}
+
 pub(crate) fn inspect_agent_export_destination(
     destination: &std::path::Path,
 ) -> Result<AgentDestinationPreview, AgentDestinationIssue> {
@@ -881,14 +935,15 @@ pub(crate) fn parse_workflow_artifact_id(value: &str) -> Result<EntityId, ()> {
 mod tests {
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    use canisend_app::{AgentHost, TaskExecutionMode, TaskOperation};
+    use canisend_app::{AgentHost, Application, TaskExecutionMode, TaskOperation};
     use canisend_contracts::{DiscoveryImportReport, WorkflowStage};
 
     use super::{
-        AgentDestinationIssue, AgentDestinationPreview, AgentIntegrationForm, DiscoveryImportForm,
-        DiscoveryRefreshForm, DocumentWorkspaceForm, PackageWorkspaceForm, RenderWorkspaceForm,
-        ReviewWorkspaceForm, TaskPanelForm, inspect_agent_export_destination,
-        parse_workflow_artifact_id, task_operation_stage, task_operations_for_ready_stages,
+        AgentDestinationIssue, AgentDestinationPreview, AgentIntegrationForm,
+        CatalogInspectionForm, DiscoveryImportForm, DiscoveryRefreshForm, DocumentWorkspaceForm,
+        PackageWorkspaceForm, RenderWorkspaceForm, ReviewWorkspaceForm, TaskPanelForm,
+        inspect_agent_export_destination, parse_workflow_artifact_id, task_operation_stage,
+        task_operations_for_ready_stages,
     };
     use super::{validate_discovery_import_form, validate_discovery_refresh_form};
     use crate::i18n::Language;
@@ -1131,5 +1186,29 @@ mod tests {
             Some(AgentDestinationPreview::Empty)
         );
         std::fs::remove_dir_all(root).expect("remove empty destination");
+    }
+
+    #[test]
+    fn catalog_export_requires_loaded_catalog_and_new_or_empty_destination() {
+        let root = temporary_root("catalog-form");
+        let empty = root.join("empty");
+        let non_empty = root.join("non-empty");
+        std::fs::create_dir_all(&empty).expect("empty destination");
+        std::fs::create_dir_all(&non_empty).expect("non-empty destination");
+        std::fs::write(non_empty.join("keep.txt"), "user-owned").expect("sentinel");
+
+        let mut form = CatalogInspectionForm::default();
+        form.select_destination(empty);
+        assert!(!form.export_ready());
+        form.catalog = Some(Application::inspection_catalog().expect("catalog").data);
+        assert!(form.export_ready());
+        form.select_destination(non_empty);
+        assert_eq!(
+            form.destination_issue,
+            Some(AgentDestinationIssue::NotEmpty)
+        );
+        assert!(!form.export_ready());
+
+        std::fs::remove_dir_all(root).expect("remove catalog form fixtures");
     }
 }

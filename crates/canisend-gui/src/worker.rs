@@ -5,15 +5,16 @@ use canisend_app::{
     AgentPackExportRequest, Application, ApplicationFailure, BackupReadModel, CliInstallStatus,
     DiscoveryAdapterCatalogReadModel, DiscoveryImportRequest, DiscoveryLeadListReadModel,
     DiscoveryPromotionReadModel, DiscoveryRefreshRequest, DiscoverySourceListReadModel,
-    DiscoverySuggestionReadModel, DoctorSummary, DocumentWorkspaceReadModel, JobDetailReadModel,
-    JobListReadModel, NetworkFetchConsent, PackageExportRequest, PrivateExportConsent,
-    PrivateReadConsent, ProfileSourceImportReadModel, ProfileSourceListReadModel,
-    ProjectionCopyAsNewRequest, ProjectionReplaceRequest, ProviderSendConsent,
-    RenderExportReadModel, RenderExportRequest, ReviewWorkspaceReadModel, SourceImportReadModel,
-    TaskCompletionPreviewReadModel, TaskInputExportRequest, TaskPrepareAgainReadModel,
-    TaskPrepareRequest, TerminalInstallConsent, UpdateCheckReadModel, WorkflowBeginRequest,
-    WorkflowCompleteRequest, WorkflowControlReadModel, WorkflowRerunPreview, WorkflowRerunRequest,
-    WorkspaceHealthReadModel, WorkspaceReadModel, WorkspaceRepairReadModel,
+    DiscoverySuggestionReadModel, DoctorSummary, DocumentWorkspaceReadModel,
+    InspectionCatalogReadModel, JobDetailReadModel, JobListReadModel, NetworkFetchConsent,
+    PackageExportRequest, PrivateExportConsent, PrivateReadConsent, ProfileSourceImportReadModel,
+    ProfileSourceListReadModel, ProjectionCopyAsNewRequest, ProjectionReplaceRequest,
+    ProviderSendConsent, RenderExportReadModel, RenderExportRequest,
+    ResourceCatalogExportReadModel, ResourceCatalogExportRequest, ReviewWorkspaceReadModel,
+    SourceImportReadModel, TaskCompletionPreviewReadModel, TaskInputExportRequest,
+    TaskPrepareAgainReadModel, TaskPrepareRequest, TerminalInstallConsent, UpdateCheckReadModel,
+    WorkflowBeginRequest, WorkflowCompleteRequest, WorkflowControlReadModel, WorkflowRerunPreview,
+    WorkflowRerunRequest, WorkspaceHealthReadModel, WorkspaceReadModel, WorkspaceRepairReadModel,
     WorkspaceRestoreReadModel,
 };
 use canisend_contracts::{
@@ -298,6 +299,10 @@ pub(crate) enum WorkerRequest {
     ExportAgentPack {
         request: AgentPackExportRequest,
     },
+    LoadInspectionCatalog,
+    ExportResourceCatalog {
+        request: ResourceCatalogExportRequest,
+    },
     LoadCliStatus {
         source: Option<PathBuf>,
         destination: PathBuf,
@@ -453,6 +458,11 @@ pub(crate) enum WorkerEvent {
     AgentPackExported {
         request: AgentPackExportRequest,
         result: Result<ActionReceipt<AgentPackExportReadModel>, ApplicationFailure>,
+    },
+    InspectionCatalogLoaded(Result<ActionReceipt<InspectionCatalogReadModel>, ApplicationFailure>),
+    ResourceCatalogExported {
+        request: ResourceCatalogExportRequest,
+        result: Result<ActionReceipt<ResourceCatalogExportReadModel>, ApplicationFailure>,
     },
     CliStatusLoaded(Result<ActionReceipt<CliInstallStatus>, String>),
     CliInstalled(Result<ActionReceipt<CliInstallStatus>, String>),
@@ -899,6 +909,14 @@ pub(crate) fn execute(request: WorkerRequest) -> WorkerEvent {
             result: Application::export_agent_assets(&request).map_err(|error| error.classify()),
             request,
         },
+        WorkerRequest::LoadInspectionCatalog => WorkerEvent::InspectionCatalogLoaded(
+            Application::inspection_catalog().map_err(|error| error.classify()),
+        ),
+        WorkerRequest::ExportResourceCatalog { request } => WorkerEvent::ResourceCatalogExported {
+            result: Application::export_resource_catalog(&request)
+                .map_err(|error| error.classify()),
+            request,
+        },
         WorkerRequest::LoadCliStatus {
             source,
             destination,
@@ -983,8 +1001,8 @@ mod tests {
         AgentHost, AgentPackExportRequest, Application, DiscoveryImportRequest,
         DiscoveryNetworkAdapter, DiscoveryRefreshRequest, PackageExportRequest, PrivateReadConsent,
         ProjectionCopyAsNewRequest, ProjectionReplaceRequest, RenderExportRequest,
-        TaskExecutionMode, TaskInputExportRequest, TaskOperation, TaskPrepareRequest,
-        WorkflowBeginRequest, WorkflowRerunRequest,
+        ResourceCatalogExportRequest, TaskExecutionMode, TaskInputExportRequest, TaskOperation,
+        TaskPrepareRequest, WorkflowBeginRequest, WorkflowRerunRequest,
     };
     use canisend_contracts::{
         ApplicationDecision, ArtifactKind, ArtifactReference, DiscoveryLeadStatus, DocumentKind,
@@ -1017,6 +1035,35 @@ mod tests {
             execute(WorkerRequest::Doctor),
             WorkerEvent::DoctorFinished(Ok(_))
         ));
+        let catalog = match execute(WorkerRequest::LoadInspectionCatalog) {
+            WorkerEvent::InspectionCatalogLoaded(Ok(receipt)) => receipt.data,
+            event => panic!("unexpected inspection catalog event: {event:?}"),
+        };
+        assert_eq!(catalog.schemas.schemas.len(), 40);
+        assert!(!catalog.resources.is_empty());
+        let catalog_parent = temporary_root("catalog-parent");
+        std::fs::create_dir(&catalog_parent).expect("catalog parent");
+        let catalog_destination = catalog_parent.join("export");
+        let catalog_request = ResourceCatalogExportRequest::new(&catalog_destination);
+        match execute(WorkerRequest::ExportResourceCatalog {
+            request: catalog_request.clone(),
+        }) {
+            WorkerEvent::ResourceCatalogExported {
+                result: Ok(receipt),
+                ..
+            } => {
+                assert_eq!(receipt.data.manifest.files.len(), catalog.resources.len());
+                assert!(receipt.data.manifest_path.is_file());
+            }
+            event => panic!("unexpected catalog export event: {event:?}"),
+        }
+        assert!(matches!(
+            execute(WorkerRequest::ExportResourceCatalog {
+                request: catalog_request,
+            }),
+            WorkerEvent::ResourceCatalogExported { result: Err(_), .. }
+        ));
+        std::fs::remove_dir_all(catalog_parent).expect("remove catalog export");
 
         let root = temporary_root("workspace");
         assert!(matches!(

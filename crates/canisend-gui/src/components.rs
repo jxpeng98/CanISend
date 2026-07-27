@@ -111,6 +111,8 @@ pub(crate) fn localized_receipt_summary<T>(
         "agent.capabilities" => "Agent v2 能力已加载",
         "agent.context" => "不含正文的 Agent v2 上下文已加载",
         "agent.assets.export" => "Agent v2 资源包已导出",
+        "inspection.catalog" => "Schema 与资源目录已加载",
+        "resource.export" => "经过验证的公开资源目录已导出",
         "cli.install" => "CanISend CLI 已安装或更新",
         "cli.uninstall" => "受管理的 CanISend CLI 已卸载",
         "product.update.check" => "CanISend 更新检查已完成",
