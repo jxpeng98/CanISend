@@ -27,9 +27,7 @@ use canisend_io::{
     IoAdapterError, read_criteria_file, read_task_completion_file, read_task_completion_stdin,
 };
 use canisend_resources::{ResourceId, ResourceKind};
-use canisend_store::{
-    PackageService, ProjectionService, RenderService, ReviewService, StoreError, Workspace,
-};
+use canisend_store::{PackageService, ProjectionService, RenderService, StoreError, Workspace};
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use serde_json::json;
 
@@ -2843,10 +2841,14 @@ fn review_export(
     arguments: ReviewExportArgs,
 ) -> CommandResult<CommandOutput> {
     let job_id = parse_entity_id("review.export", &arguments.job)?;
-    let mut workspace = open_workspace(workspace_path, "review.export")?;
-    let candidate = ReviewService::new(&mut workspace.database, &workspace.blobs)
-        .template(&job_id)
-        .map_err(|error| store_failure("review.export", error))?;
+    let root = app_adapter::workspace_root(workspace_path, "review.export")?;
+    let candidate = Application::review_disposition_template(
+        &root,
+        job_id.as_str(),
+        PrivateReadConsent::granted_by_user(),
+    )
+    .map_err(|error| app_adapter::failure("review.export", error))?
+    .data;
     write_private_json_new(&arguments.destination, &candidate)
         .map_err(|error| io_adapter_failure("review.export", error))?;
     let mut output = success(
@@ -2884,24 +2886,26 @@ fn review_confirm(
     let job_id = parse_entity_id("review.confirm", &arguments.job)?;
     let candidate = read_criteria_file(&arguments.file)
         .map_err(|error| io_adapter_failure("review.confirm", error))?;
-    let mut workspace = open_workspace(workspace_path, "review.confirm")?;
-    let artifact = ReviewService::new(&mut workspace.database, &workspace.blobs)
-        .confirm(&job_id, &candidate)
-        .map_err(|error| store_failure("review.confirm", error))?;
-    let review = ReviewService::new(&mut workspace.database, &workspace.blobs)
-        .current(&job_id)
-        .map_err(|error| store_failure("review.confirm", error))?;
+    let root = app_adapter::workspace_root(workspace_path, "review.confirm")?;
+    let receipt = Application::confirm_review_dispositions(
+        &root,
+        job_id.as_str(),
+        &candidate,
+        PrivateReadConsent::granted_by_user(),
+    )
+    .map_err(|error| app_adapter::failure("review.confirm", error))?;
+    let review = receipt.data;
     let mut output = review_output("review.confirm", "confirmed", &review)?;
-    output.response.artifacts.push(artifact);
+    output.response.artifacts.extend(receipt.artifacts);
     Ok(output)
 }
 
 fn review_show(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<CommandOutput> {
-    let job_id = parse_entity_id("review.show", job_id)?;
-    let mut workspace = open_workspace(workspace_path, "review.show")?;
-    let review = ReviewService::new(&mut workspace.database, &workspace.blobs)
-        .current(&job_id)
-        .map_err(|error| store_failure("review.show", error))?;
+    let _ = parse_entity_id("review.show", job_id)?;
+    let root = app_adapter::workspace_root(workspace_path, "review.show")?;
+    let review = Application::current_review(&root, job_id, PrivateReadConsent::granted_by_user())
+        .map_err(|error| app_adapter::failure("review.show", error))?
+        .data;
     review_output("review.show", "available", &review)
 }
 
