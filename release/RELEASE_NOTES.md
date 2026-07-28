@@ -1,13 +1,16 @@
-# CanISend 1.0.0-alpha.3
+# CanISend 1.0.0-alpha.4
 
 ## Highlights
 
-CanISend 1.0 combines a macOS desktop interface, standalone command-line application, and versioned agent
-integration in one Rust-native product. It installs without Python and does not require Python, Node.js, Java, a
-separately installed SQLite library, or a Typst command.
+CanISend 1.0 combines a Svelte-based macOS desktop interface, standalone command-line application, and versioned
+agent integration in one Rust-native product. This release completes the desktop transition from egui to
+Tauri + Svelte while preserving the same typed Rust application facade, local workspace, CLI, and Agent v2
+contracts. It installs without Python and does not require Python, Node.js, Java, a separately installed SQLite
+library, or a Typst command.
 
-The macOS GUI supports persistent English and Simplified Chinese interfaces, native
-accessibility names, 100–200% text scaling, light/dark appearance, and reduced motion.
+The macOS GUI supports persistent English and Simplified Chinese interfaces, native accessibility names, 100–200%
+text scaling, light/dark appearance, reduced motion, and the complete application workflow. Apple Silicon users can
+install from the new read-only DMG with an Applications drag target or retain the portable ZIP distribution.
 
 The product provides local-first job intake from user-supplied files, text PDFs, and public URLs; discovery imports;
 evidence and criteria workflows; matching; application planning; structured drafting and review; readiness checks;

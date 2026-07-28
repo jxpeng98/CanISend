@@ -1,22 +1,22 @@
 {
   "schema": "canisend.macos-gui-performance/v1",
-  "version": "1.0.0-alpha.3",
+  "version": "1.0.0-alpha.4",
   "profile": "release-alpha",
-  "measured_at": "2026-07-27T20:59:32Z",
+  "measured_at": "2026-07-28T08:54:09Z",
   "reference_machine": "MacBook Pro; MacBookPro18,2; Apple M1 Max; 64 GB",
   "macos_version": "27.0",
-  "readiness_probe": "native window with AccessKit Overview navigation control",
+  "readiness_probe": "native WebView window with the CanISend main content landmark",
   "trials": 5,
   "samples_ms": [
-    1141.392,
-    950.169,
-    963.921,
-    899.501,
-    828.364
+    1246.497,
+    1255.931,
+    1168.270,
+    1167.912,
+    1571.431
   ],
-  "minimum_ms": 828.364,
-  "median_ms": 950.169,
-  "maximum_ms": 1141.392,
+  "minimum_ms": 1167.912,
+  "median_ms": 1246.497,
+  "maximum_ms": 1571.431,
   "budgets": {
     "maximum_startup_ms": 2000,
     "gui_executable_bytes": 67108864,
@@ -24,12 +24,12 @@
   },
   "passed": true,
   "bytes": {
-    "gui_executable": 56846656,
-    "bundled_cli_executable": 51196032,
-    "app_bundle_apparent": 108339200
+    "gui_executable": 60109120,
+    "bundled_cli_executable": 51295616,
+    "app_bundle_apparent": 111673344
   },
   "sha256": {
-    "gui_executable": "48bd5937d7c02ca6316bf15e5d7a366a93c57a03834de26def4da24d139dd022",
-    "bundled_cli_executable": "fbd57baee7340ff07725909d5637099597e1c352333ee0fb821a6849fbf19fdb"
+    "gui_executable": "e9abe441b3d6f1ae26e44f493047316fa0c59d470f4600039945ef5981c4755b",
+    "bundled_cli_executable": "1929334b67080db85b254579eae44f7ad3eb4ce221f19fd5dd4db4e8fdaea9b2"
   }
 }

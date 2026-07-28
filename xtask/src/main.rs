@@ -10995,28 +10995,28 @@ mod tests {
 
     #[test]
     fn alpha_baseline_accepts_current_or_previous_alpha_and_survives_later_stages() {
-        let alpha = Version::parse("1.0.0-alpha.3").expect("Alpha version");
+        let alpha = Version::parse("1.0.0-alpha.4").expect("Alpha version");
         let beta = Version::parse("1.0.0-beta.1").expect("Beta version");
         assert_eq!(
-            validate_alpha_baseline_tag(&alpha, "v1.0.0-alpha.3").expect("current Alpha baseline"),
+            validate_alpha_baseline_tag(&alpha, "v1.0.0-alpha.4").expect("current Alpha baseline"),
             alpha
         );
         assert_eq!(
-            validate_alpha_baseline_tag(&alpha, "v1.0.0-alpha.2")
+            validate_alpha_baseline_tag(&alpha, "v1.0.0-alpha.3")
                 .expect("previous public Alpha during sequential candidate work")
                 .to_string(),
-            "1.0.0-alpha.2"
+            "1.0.0-alpha.3"
         );
         assert!(
-            validate_alpha_baseline_tag(&alpha, "v1.0.0-alpha.1").is_err(),
+            validate_alpha_baseline_tag(&alpha, "v1.0.0-alpha.2").is_err(),
             "a stale Alpha must not replace the latest public baseline"
         );
         assert!(
-            validate_alpha_baseline_tag(&alpha, "v1.0.0-alpha.4").is_err(),
+            validate_alpha_baseline_tag(&alpha, "v1.0.0-alpha.5").is_err(),
             "a future Alpha must not qualify the current source"
         );
         assert!(
-            validate_alpha_baseline_tag(&alpha, "v1.1.0-alpha.3").is_err(),
+            validate_alpha_baseline_tag(&alpha, "v1.1.0-alpha.4").is_err(),
             "another release line must not qualify this source"
         );
         assert!(
@@ -11024,10 +11024,10 @@ mod tests {
             "the baseline itself must be an Alpha"
         );
         assert_eq!(
-            validate_alpha_baseline_tag(&beta, "v1.0.0-alpha.3")
+            validate_alpha_baseline_tag(&beta, "v1.0.0-alpha.4")
                 .expect("preserved Alpha baseline after transition")
                 .to_string(),
-            "1.0.0-alpha.3"
+            "1.0.0-alpha.4"
         );
     }
 

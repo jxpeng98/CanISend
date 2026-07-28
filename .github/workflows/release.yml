@@ -9,7 +9,7 @@ on:
       tag:
         description: "Exact future tag to build once as a non-publishing candidate"
         required: true
-        default: "v1.0.0-alpha.3"
+        default: "v1.0.0-alpha.4"
       cache_epoch:
         description: "Body-free sccache namespace epoch used for cold/warm/invalidation measurement"
         required: true

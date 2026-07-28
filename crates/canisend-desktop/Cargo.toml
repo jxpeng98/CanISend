@@ -20,8 +20,8 @@ custom-protocol = ["tauri/custom-protocol"]
 tauri-build.workspace = true
 
 [dependencies]
-canisend-app = { path = "../canisend-app", version = "=1.0.0-alpha.3" }
-canisend-contracts = { path = "../canisend-contracts", version = "=1.0.0-alpha.3" }
+canisend-app = { path = "../canisend-app", version = "=1.0.0-alpha.4" }
+canisend-contracts = { path = "../canisend-contracts", version = "=1.0.0-alpha.4" }
 serde.workspace = true
 serde_json.workspace = true
 
