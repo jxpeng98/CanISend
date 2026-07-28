@@ -120,6 +120,19 @@ whenever the Typst stack changes. User-authored Typst, bibliography/CSL, YAML/XM
 user/system fonts are release blockers until the affected stack is upgraded or isolated in a preemptible bounded
 worker. An advisory shown reachable by the existing fixed-template path is also an immediate release blocker.
 
+The 2026-07-28 Alpha.4 audit added sixteen unmaintained-only findings introduced by the Tauri desktop graph:
+
+| Advisory class | Dependency | Decision |
+| --- | --- | --- |
+| Unmaintained | GTK3 `atk`, `gdk`, `gtk`, their `-sys`/X11/Wayland crates, and `gtk3-macros` | Audited exception: reachable only through Tauri's Linux GUI backend. CanISend publishes the desktop GUI only for macOS; Linux artifacts contain the standalone CLI and do not link GTK |
+| Unmaintained | `proc-macro-error` | Audited exception: compile-time-only dependency of the same non-published GTK3 backend |
+| Unmaintained | `unic-char-range`, `unic-char-property`, `unic-common`, `unic-ucd-ident`, and `unic-ucd-version` | Audited exception: pinned through Tauri `urlpattern`; the product accepts only checked-in application and capability patterns, not user-authored Tauri configuration |
+
+The exact advisory IDs and per-crate reasons remain enumerated in `deny.toml`; advisory checking itself remains
+enabled for the five-target lock graph. Adding a Linux GUI artifact, accepting user-authored Tauri patterns, changing
+the Tauri graph, or receiving a vulnerability advisory for any listed crate requires a new review and removal or
+replacement of the affected dependency before release.
+
 The license policy permits only the explicitly listed SPDX licenses. The GUI default-font crate exposes its SIL Open
 Font License 1.1 and Ubuntu Font Licence 1.0 requirements through Cargo metadata, so both are explicitly allowed and
 their exact upstream notices are copied into the macOS app. Typst asset licenses and notices are likewise copied
