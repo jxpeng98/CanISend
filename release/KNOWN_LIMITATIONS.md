@@ -43,7 +43,8 @@ preserve the `0.6.x` command tree, or implement `canisend.agent/v1`.
 ## Release trust boundary
 
 `1.0.0-alpha.*` macOS GUI packages use ad-hoc integrity signatures. Verify `SHA256SUMS`, the GitHub
-artifact attestation, the release tag, the GUI qualification record, and the included notices.
+artifact attestation, the release tag, the ZIP or DMG GUI qualification record, and the included
+notices.
 Beta, release-candidate, and Stable community releases fail closed unless both standalone macOS
 CLI executables pass ad-hoc signing verification and the Windows executable passes self-signed
 Authenticode integrity verification. Their canonical signing evidence is bound to the final

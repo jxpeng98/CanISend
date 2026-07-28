@@ -32,7 +32,7 @@ of the named native package gates.
 | Windows CLI job | PowerShell parser plus stage-required self-signed Authenticode verification |
 | Linux GNU job | release performance and full synthetic workflow budgets |
 | Linux musl job | musl linker and execution of the extracted static-target archive |
-| Apple Silicon desktop job | version-matched CLI/GUI build, bounded app archive, companion integrity, nested/outer ad-hoc signatures, packaged workflows, and GUI launch |
+| Apple Silicon desktop job | version-matched CLI/GUI build, bounded ZIP, compressed read-only DMG with `/Applications` link, companion integrity, nested/outer ad-hoc signatures, packaged workflows, and GUI launch |
 | Svelte fast CI | locked dependencies, Svelte/TypeScript checks, focused unit tests, and production static-asset build |
 | macOS Rust fast CI | development formatting, Clippy, complete workspace tests, generated properties, debug CLI/GUI build, recovery/render coverage, and CLI/host-agent smoke |
 | Windows release tests | PowerShell parsers plus bounded recovery, concurrency, embedded-font, complex-layout, and revision-bound render contracts |

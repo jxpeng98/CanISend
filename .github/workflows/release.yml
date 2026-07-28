@@ -732,7 +732,7 @@ jobs:
         shell: bash
         run: echo "epoch=$(date +%s)" >> "$GITHUB_OUTPUT"
 
-      - name: Package exact ad-hoc-signed macOS application
+      - name: Package exact ad-hoc-signed macOS ZIP and DMG
         shell: bash
         run: |
           profile="${{ needs.release-identity.outputs.cargo_profile }}"
@@ -761,6 +761,21 @@ jobs:
             "${{ needs.release-identity.outputs.cargo_profile }}" \
             "$evidence"
 
+      - name: Smoke exact read-only macOS application DMG
+        shell: bash
+        run: |
+          version="${{ needs.release-identity.outputs.tag }}"
+          version="${version#v}"
+          dmg="$RUNNER_TEMP/macos-gui-release/CanISend-$version-aarch64-apple-darwin.dmg"
+          evidence="$RUNNER_TEMP/macos-gui-release/CanISend-$version-aarch64-apple-darwin-dmg-qualification.json"
+          ./scripts/smoke_macos_gui_dmg.sh \
+            "$dmg" \
+            "$RUNNER_TEMP/macos-gui-dmg-smoke" \
+            "${{ needs.release-identity.outputs.tag }}" \
+            "macos-15" \
+            "${{ needs.release-identity.outputs.cargo_profile }}" \
+            "$evidence"
+
       - name: Record desktop release timing evidence
         shell: bash
         run: |
@@ -783,12 +798,13 @@ jobs:
             "$completed_at" \
             "$RUNNER_TEMP/release-timing/CanISend-$version-aarch64-apple-darwin-gui-timing.json"
 
-      - name: Upload verified macOS GUI archive and qualification
+      - name: Upload verified macOS GUI ZIP, DMG, and qualifications
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: archive-desktop-macos-aarch64
           path: |
             ${{ runner.temp }}/macos-gui-release/CanISend-*.zip
+            ${{ runner.temp }}/macos-gui-release/CanISend-*.dmg
             ${{ runner.temp }}/macos-gui-release/CanISend-*-qualification.json
             ${{ runner.temp }}/release-timing/*.json
             ${{ runner.temp }}/sccache-stats/*.json
@@ -1220,7 +1236,7 @@ jobs:
             "$smoke_root" \
             "$expected"
 
-      - name: Smoke downloaded macOS desktop archive
+      - name: Smoke downloaded macOS desktop ZIP and DMG
         if: matrix.surface == 'desktop'
         env:
           RELEASE_TAG: ${{ needs.release-identity.outputs.tag }}
@@ -1233,6 +1249,9 @@ jobs:
           ./scripts/smoke_macos_gui_release_archive.sh \
             "$download_root/CanISend-$version-aarch64-apple-darwin.zip" \
             "$smoke_root"
+          ./scripts/smoke_macos_gui_dmg.sh \
+            "$download_root/CanISend-$version-aarch64-apple-darwin.dmg" \
+            "$RUNNER_TEMP/draft-dmg-smoke"
 
   publish-release:
     name: publish-verified-release

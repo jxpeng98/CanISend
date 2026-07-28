@@ -21,8 +21,9 @@ submits an application.
 - It does not migrate Python-era workspaces or preserve the `0.6.x` Python command tree.
 - Rust-native workspace migrations are append-only. An older binary rejects a future schema without mutation.
 - The Apple Silicon macOS application bundles a version-matched CLI; standalone CLI archives
-  cover the five declared targets. The desktop ZIP contains exactly `CanISend.app` and its
-  external integrity manifest.
+  cover the five declared targets. The desktop is distributed as a read-only DMG with an
+  Applications drag target and as a portable ZIP; both contain the same ad-hoc-signed
+  `CanISend.app` and external integrity manifest.
 
 ## Install and verify
 
@@ -32,9 +33,10 @@ signature before extracting the executable. Follow the
 [native release verification guide](https://github.com/jxpeng98/CanISend/blob/main/docs/guides/release-verification.md)
 and reject any incomplete or mismatched release unit.
 
-Apple Silicon GUI users must also download the macOS GUI qualification JSON. It binds the exact
-desktop ZIP to bounded archive checks, final companion hashes, nested and outer ad-hoc signatures,
-the packaged CLI doctor and synthetic workflow, and a packaged GUI launch.
+Apple Silicon GUI users must also download the matching macOS GUI qualification JSON. The DMG
+record binds its exact image bytes, read-only mount, Applications link, companion hashes, and
+nested plus outer ad-hoc signatures. The portable ZIP record additionally binds the packaged CLI
+doctor, synthetic workflow, and GUI launch.
 
 The release manifest includes Intel GUI compilation evidence only when required by the validated
 release-stage policy. When it is omitted, a separate scheduled workflow checks that development

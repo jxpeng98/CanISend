@@ -3533,6 +3533,9 @@ fn check_native_test_ownership() -> Result<(), String> {
             "owned_gates": [
                 "locked-cli-gui-release-build",
                 "bounded-app-archive",
+                "compressed-dmg-image",
+                "readonly-dmg-mount",
+                "applications-link",
                 "nested-and-outer-adhoc-signatures",
                 "exact-companion-integrity",
                 "packaged-cli-workflows",
@@ -3678,8 +3681,9 @@ fn check_native_test_ownership() -> Result<(), String> {
         "Test Windows embedded fonts and complex layout",
         "Test Windows revision-bound package render",
         "Install musl linker",
-        "Package exact ad-hoc-signed macOS application",
+        "Package exact ad-hoc-signed macOS ZIP and DMG",
         "Smoke exact extracted macOS application archive",
+        "Smoke exact read-only macOS application DMG",
     ] {
         if !workflow.contains(required) {
             return Err(format!(
@@ -3840,7 +3844,7 @@ fn check_native_test_ownership() -> Result<(), String> {
         }
     }
     println!(
-        "native test ownership: ok (one source suite, {} CLI targets, one desktop package, non-authoritative compiler cache)",
+        "native test ownership: ok (one source suite, {} CLI targets, ZIP+DMG desktop package, non-authoritative compiler cache)",
         policy_targets.len()
     );
     Ok(())
@@ -3878,6 +3882,7 @@ fn check_release_contract() -> Result<(), String> {
         "scripts/smoke_release_archive.sh",
         "scripts/stage_macos_gui_app.sh",
         "scripts/package_macos_gui_release.sh",
+        "scripts/smoke_macos_gui_dmg.sh",
         "scripts/smoke_macos_gui_release_archive.sh",
         "scripts/verify_macos_gui_app.sh",
         "scripts/download_github_draft_asset.sh",
@@ -3923,7 +3928,10 @@ fn check_release_contract() -> Result<(), String> {
         "canisend.macos-gui-compilation/v1",
         "x86_64-apple-darwin-gui-compilation.json",
         "package_macos_gui_release.sh",
+        "smoke_macos_gui_dmg.sh",
         "smoke_macos_gui_release_archive.sh",
+        "CanISend-$version-aarch64-apple-darwin.dmg",
+        "aarch64-apple-darwin-dmg-qualification.json",
         "desktop-macos-aarch64",
         "stage-draft-release-assets",
         "Stage exact draft bytes for read-only native smoke jobs",
@@ -4422,6 +4430,14 @@ fn check_alpha_package_contract() -> Result<(), String> {
             format!("CanISend-{version}-aarch64-apple-darwin.zip"),
         ),
         (
+            "/desktop_macos/dmg",
+            format!("CanISend-{version}-aarch64-apple-darwin.dmg"),
+        ),
+        (
+            "/desktop_macos/applications_link",
+            "/Applications".to_owned(),
+        ),
+        (
             "/desktop_macos/gui_executable",
             "Contents/MacOS/canisend-gui".to_owned(),
         ),
@@ -4458,6 +4474,22 @@ fn check_alpha_package_contract() -> Result<(), String> {
     {
         return Err(
             "Alpha macOS archive top level must be exactly CanISend.app and its companion manifest"
+                .to_owned(),
+        );
+    }
+    let dmg_top_level = contract
+        .pointer("/desktop_macos/dmg_top_level")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "Alpha macOS DMG top-level contract must be an array".to_owned())?;
+    if dmg_top_level
+        != &vec![
+            Value::String("Applications".to_owned()),
+            Value::String("CanISend.app".to_owned()),
+            Value::String("CanISend.app.manifest.json".to_owned()),
+        ]
+    {
+        return Err(
+            "Alpha macOS DMG top level must contain Applications, CanISend.app, and its companion manifest"
                 .to_owned(),
         );
     }
@@ -4575,7 +4607,7 @@ fn check_alpha_package_contract() -> Result<(), String> {
         return Err("macOS GUI Alpha performance baseline exceeds a frozen budget".to_owned());
     }
     println!(
-        "Alpha package contract: ok ({} CLI assets, one macOS desktop archive, no Intel GUI release evidence, GUI performance baseline)",
+        "Alpha package contract: ok ({} CLI assets, macOS ZIP and DMG desktop artifacts, no Intel GUI release evidence, GUI performance baseline)",
         assets.len()
     );
     Ok(())
@@ -8910,8 +8942,16 @@ fn macos_gui_archive_name(version: &str) -> String {
     format!("CanISend-{version}-aarch64-apple-darwin.zip")
 }
 
+fn macos_gui_dmg_name(version: &str) -> String {
+    format!("CanISend-{version}-aarch64-apple-darwin.dmg")
+}
+
 fn macos_gui_qualification_name(version: &str) -> String {
     format!("CanISend-{version}-aarch64-apple-darwin-qualification.json")
+}
+
+fn macos_gui_dmg_qualification_name(version: &str) -> String {
+    format!("CanISend-{version}-aarch64-apple-darwin-dmg-qualification.json")
 }
 
 fn macos_gui_intel_compilation_name(version: &str) -> String {
@@ -8976,6 +9016,70 @@ fn read_macos_gui_qualification(
     if value != canonical {
         return Err(
             "macOS GUI qualification evidence is not canonical or does not bind the archive"
+                .to_owned(),
+        );
+    }
+    Ok(canonical)
+}
+
+fn read_macos_gui_dmg_qualification(
+    path: &Path,
+    tag: &str,
+    version: &str,
+    dmg: &Path,
+) -> Result<Value, String> {
+    reject_symlink(path)?;
+    let body = fs::read(path)
+        .map_err(|error| format!("could not read macOS GUI DMG qualification evidence: {error}"))?;
+    if body.len() > 65_536 {
+        return Err("macOS GUI DMG qualification evidence exceeds 65536 bytes".to_owned());
+    }
+    let value: Value = serde_json::from_slice(&body).map_err(|error| {
+        format!("macOS GUI DMG qualification evidence is invalid JSON: {error}")
+    })?;
+    let dmg_name = macos_gui_dmg_name(version);
+    let dmg_sha256 = sha256_file(dmg)?;
+    let dmg_size = file_size(dmg)?;
+    let expected_profile = parse_release_tag(tag)?.1.cargo_profile();
+    let run_id = value["github_run_id"]
+        .as_u64()
+        .filter(|run| *run > 0)
+        .ok_or_else(|| "macOS GUI DMG qualification evidence has no positive run ID".to_owned())?;
+    let completed_at = required_string(&value, "completed_at", "macOS GUI DMG qualification")?;
+    OffsetDateTime::parse(completed_at, &Rfc3339).map_err(|error| {
+        format!("macOS GUI DMG qualification completion time is invalid: {error}")
+    })?;
+    let canonical = json!({
+        "schema": "canisend.macos-gui-dmg-qualification/v1",
+        "record": "desktop-macos-aarch64-dmg",
+        "target": "aarch64-apple-darwin",
+        "environment": "macos-15",
+        "profile": expected_profile,
+        "tag": tag,
+        "version": version,
+        "image": {
+            "file": dmg_name,
+            "sha256": dmg_sha256,
+            "size": dmg_size
+        },
+        "github_run_id": run_id,
+        "checks": {
+            "bounded_image": true,
+            "hdiutil_verify": true,
+            "readonly_mount": true,
+            "exact_top_level": true,
+            "applications_link": true,
+            "companion_integrity": true,
+            "nested_adhoc_signatures": true,
+            "outer_adhoc_signature": true,
+            "version_match": true,
+            "no_publication": true
+        },
+        "completed_at": completed_at
+    });
+    if value != canonical {
+        return Err(
+            "macOS GUI DMG qualification evidence is not canonical or does not bind the image"
                 .to_owned(),
         );
     }
@@ -9158,22 +9262,75 @@ fn assemble_release(
             desktop_qualification.display()
         )
     })?;
-    let desktop_entries = vec![json!({
-        "archive": desktop_archive_name,
-        "archive_format": "zip",
-        "bundle": "CanISend.app",
-        "companion_manifest": "CanISend.app.manifest.json",
-        "developer_id": false,
-        "notarized": false,
-        "profile": stage.cargo_profile(),
-        "qualification_evidence": desktop_qualification_name,
-        "runner": "macos-15",
-        "sha256": sha256_file(&desktop_archive)?,
-        "signing_kind": "apple-adhoc",
-        "size": file_size(&desktop_archive)?,
-        "surface": "desktop-gui",
-        "target": "aarch64-apple-darwin",
-    })];
+    let desktop_dmg_name = macos_gui_dmg_name(version);
+    let desktop_dmg_source = find_unique_file(artifacts_root, &desktop_dmg_name)?;
+    reject_symlink(&desktop_dmg_source)?;
+    let desktop_dmg = output.join(&desktop_dmg_name);
+    fs::copy(&desktop_dmg_source, &desktop_dmg).map_err(|error| {
+        format!(
+            "could not copy macOS GUI DMG {} to {}: {error}",
+            desktop_dmg_source.display(),
+            desktop_dmg.display()
+        )
+    })?;
+    let desktop_dmg_qualification_name = macos_gui_dmg_qualification_name(version);
+    let desktop_dmg_qualification_source =
+        find_unique_file(artifacts_root, &desktop_dmg_qualification_name)?;
+    read_macos_gui_dmg_qualification(
+        &desktop_dmg_qualification_source,
+        tag,
+        version,
+        &desktop_dmg,
+    )?;
+    let desktop_dmg_qualification = output.join(&desktop_dmg_qualification_name);
+    fs::copy(
+        &desktop_dmg_qualification_source,
+        &desktop_dmg_qualification,
+    )
+    .map_err(|error| {
+        format!(
+            "could not copy macOS GUI DMG qualification evidence {} to {}: {error}",
+            desktop_dmg_qualification_source.display(),
+            desktop_dmg_qualification.display()
+        )
+    })?;
+    let desktop_entries = vec![
+        json!({
+            "archive": desktop_archive_name,
+            "archive_format": "zip",
+            "bundle": "CanISend.app",
+            "companion_manifest": "CanISend.app.manifest.json",
+            "developer_id": false,
+            "distribution": "portable",
+            "notarized": false,
+            "profile": stage.cargo_profile(),
+            "qualification_evidence": desktop_qualification_name,
+            "runner": "macos-15",
+            "sha256": sha256_file(&desktop_archive)?,
+            "signing_kind": "apple-adhoc",
+            "size": file_size(&desktop_archive)?,
+            "surface": "desktop-gui",
+            "target": "aarch64-apple-darwin",
+        }),
+        json!({
+            "applications_link": "/Applications",
+            "archive": desktop_dmg_name,
+            "archive_format": "dmg",
+            "bundle": "CanISend.app",
+            "companion_manifest": "CanISend.app.manifest.json",
+            "developer_id": false,
+            "distribution": "installer",
+            "notarized": false,
+            "profile": stage.cargo_profile(),
+            "qualification_evidence": desktop_dmg_qualification_name,
+            "runner": "macos-15",
+            "sha256": sha256_file(&desktop_dmg)?,
+            "signing_kind": "apple-adhoc",
+            "size": file_size(&desktop_dmg)?,
+            "surface": "desktop-gui",
+            "target": "aarch64-apple-darwin",
+        }),
+    ];
     let mut desktop_compilation_entries = Vec::new();
     let desktop_intel_compilation = if stage.requires_intel_gui_release_evidence() {
         let evidence_name = macos_gui_intel_compilation_name(version);
@@ -9217,6 +9374,7 @@ fn assemble_release(
     let mut supplemental_entries = vec![
         release_file_entry(&sbom_path)?,
         release_file_entry(&desktop_qualification)?,
+        release_file_entry(&desktop_dmg_qualification)?,
     ];
     if let Some(evidence) = &desktop_intel_compilation {
         supplemental_entries.push(release_file_entry(evidence)?);
@@ -9511,9 +9669,19 @@ fn verify_release_manifest_contents(
     let desktop_entries = manifest["desktop_artifacts"]
         .as_array()
         .ok_or_else(|| "release manifest desktop artifacts are missing".to_owned())?;
-    let [desktop_entry] = desktop_entries.as_slice() else {
-        return Err("release manifest must contain exactly one desktop artifact".to_owned());
-    };
+    if desktop_entries.len() != 2 {
+        return Err("release manifest must contain exactly two macOS desktop artifacts".to_owned());
+    }
+    let mut desktop_by_format = BTreeMap::new();
+    for entry in desktop_entries {
+        let format = required_string(entry, "archive_format", "desktop artifact")?;
+        if desktop_by_format.insert(format, entry).is_some() {
+            return Err(format!("duplicate desktop artifact format `{format}`"));
+        }
+    }
+    let desktop_entry = desktop_by_format
+        .get("zip")
+        .ok_or_else(|| "release manifest portable ZIP desktop artifact is missing".to_owned())?;
     let desktop_archive_name = macos_gui_archive_name(version);
     let desktop_qualification_name = macos_gui_qualification_name(version);
     if desktop_entry["archive"] != desktop_archive_name
@@ -9521,6 +9689,7 @@ fn verify_release_manifest_contents(
         || desktop_entry["bundle"] != "CanISend.app"
         || desktop_entry["companion_manifest"] != "CanISend.app.manifest.json"
         || desktop_entry["developer_id"] != false
+        || desktop_entry["distribution"] != "portable"
         || desktop_entry["notarized"] != false
         || desktop_entry["profile"] != stage.cargo_profile()
         || desktop_entry["qualification_evidence"] != desktop_qualification_name
@@ -9556,6 +9725,53 @@ fn verify_release_manifest_contents(
         &desktop_archive,
     )?;
 
+    let desktop_dmg_entry = desktop_by_format
+        .get("dmg")
+        .ok_or_else(|| "release manifest installer DMG desktop artifact is missing".to_owned())?;
+    let desktop_dmg_name = macos_gui_dmg_name(version);
+    let desktop_dmg_qualification_name = macos_gui_dmg_qualification_name(version);
+    if desktop_dmg_entry["applications_link"] != "/Applications"
+        || desktop_dmg_entry["archive"] != desktop_dmg_name
+        || desktop_dmg_entry["archive_format"] != "dmg"
+        || desktop_dmg_entry["bundle"] != "CanISend.app"
+        || desktop_dmg_entry["companion_manifest"] != "CanISend.app.manifest.json"
+        || desktop_dmg_entry["developer_id"] != false
+        || desktop_dmg_entry["distribution"] != "installer"
+        || desktop_dmg_entry["notarized"] != false
+        || desktop_dmg_entry["profile"] != stage.cargo_profile()
+        || desktop_dmg_entry["qualification_evidence"] != desktop_dmg_qualification_name
+        || desktop_dmg_entry["runner"] != "macos-15"
+        || desktop_dmg_entry["signing_kind"] != "apple-adhoc"
+        || desktop_dmg_entry["surface"] != "desktop-gui"
+        || desktop_dmg_entry["target"] != "aarch64-apple-darwin"
+    {
+        return Err("release manifest macOS GUI DMG metadata is invalid".to_owned());
+    }
+    let desktop_dmg_sha = required_string(
+        desktop_dmg_entry,
+        "sha256",
+        "release macOS GUI DMG artifact",
+    )?;
+    validate_lower_hex("release macOS GUI DMG SHA-256", desktop_dmg_sha, 64)?;
+    let desktop_dmg_size = desktop_dmg_entry["size"]
+        .as_u64()
+        .filter(|size| *size > 0)
+        .ok_or_else(|| "release macOS GUI DMG artifact has no positive size".to_owned())?;
+    let desktop_dmg = directory.join(&desktop_dmg_name);
+    reject_symlink(&desktop_dmg)?;
+    if sha256_file(&desktop_dmg)? != desktop_dmg_sha || file_size(&desktop_dmg)? != desktop_dmg_size
+    {
+        return Err(format!(
+            "release manifest digest or size does not match `{desktop_dmg_name}`"
+        ));
+    }
+    read_macos_gui_dmg_qualification(
+        &directory.join(&desktop_dmg_qualification_name),
+        &format!("v{version}"),
+        version,
+        &desktop_dmg,
+    )?;
+
     let desktop_compilation_entries = manifest["desktop_compilation"]
         .as_array()
         .ok_or_else(|| "release manifest desktop compilation records are missing".to_owned())?;
@@ -9576,6 +9792,7 @@ fn verify_release_manifest_contents(
         "RELEASE_NOTES.md".to_owned(),
         "THIRD_PARTY_NOTICES.md".to_owned(),
         desktop_qualification_name,
+        desktop_dmg_qualification_name,
         format!("canisend-{version}-sbom.cdx.json"),
     ]);
     if stage.requires_intel_gui_release_evidence() {
@@ -12072,6 +12289,61 @@ mod tests {
             .expect("write malformed macOS GUI qualification evidence");
         assert!(read_macos_gui_qualification(&evidence_path, &tag, version, &archive).is_err());
         fs::remove_dir_all(root).expect("remove macOS GUI qualification fixture");
+    }
+
+    #[test]
+    fn macos_gui_dmg_qualification_binds_exact_image_and_checks() {
+        let root = std::env::temp_dir().join(format!(
+            "canisend-macos-gui-dmg-qualification-{}",
+            std::process::id()
+        ));
+        if root.exists() {
+            fs::remove_dir_all(&root).expect("remove stale macOS GUI DMG fixture");
+        }
+        fs::create_dir_all(&root).expect("create macOS GUI DMG fixture");
+        let version = env!("CARGO_PKG_VERSION");
+        let tag = format!("v{version}");
+        let dmg = root.join(macos_gui_dmg_name(version));
+        fs::write(&dmg, b"bounded desktop DMG fixture").expect("write macOS GUI DMG fixture");
+        let evidence_path = root.join(macos_gui_dmg_qualification_name(version));
+        let mut evidence = json!({
+            "schema": "canisend.macos-gui-dmg-qualification/v1",
+            "record": "desktop-macos-aarch64-dmg",
+            "target": "aarch64-apple-darwin",
+            "environment": "macos-15",
+            "profile": ReleaseStage::Alpha.cargo_profile(),
+            "tag": tag,
+            "version": version,
+            "image": {
+                "file": macos_gui_dmg_name(version),
+                "sha256": sha256_file(&dmg).expect("hash GUI DMG fixture"),
+                "size": file_size(&dmg).expect("size GUI DMG fixture")
+            },
+            "github_run_id": 42_u64,
+            "checks": {
+                "bounded_image": true,
+                "hdiutil_verify": true,
+                "readonly_mount": true,
+                "exact_top_level": true,
+                "applications_link": true,
+                "companion_integrity": true,
+                "nested_adhoc_signatures": true,
+                "outer_adhoc_signature": true,
+                "version_match": true,
+                "no_publication": true
+            },
+            "completed_at": "2026-07-28T20:00:00Z"
+        });
+        write_pretty_json(&evidence_path, &evidence)
+            .expect("write canonical macOS GUI DMG qualification evidence");
+        read_macos_gui_dmg_qualification(&evidence_path, &tag, version, &dmg)
+            .expect("accept exact macOS GUI DMG qualification evidence");
+
+        evidence["checks"]["readonly_mount"] = Value::Bool(false);
+        write_pretty_json(&evidence_path, &evidence)
+            .expect("write malformed macOS GUI DMG qualification evidence");
+        assert!(read_macos_gui_dmg_qualification(&evidence_path, &tag, version, &dmg).is_err());
+        fs::remove_dir_all(root).expect("remove macOS GUI DMG fixture");
     }
 
     #[test]

@@ -121,6 +121,9 @@
     "owned_gates": [
       "locked-cli-gui-release-build",
       "bounded-app-archive",
+      "compressed-dmg-image",
+      "readonly-dmg-mount",
+      "applications-link",
       "nested-and-outer-adhoc-signatures",
       "exact-companion-integrity",
       "packaged-cli-workflows",

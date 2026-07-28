@@ -295,7 +295,7 @@ signing the outer bundle changes its main executable, so embedding that final ex
 would create a self-reference and invalidate either the digest or the signature. The script does
 not provide Developer ID identity or notarization.
 
-Create the frozen Apple Silicon Alpha ZIP directly from the two release binaries with:
+Create the frozen Apple Silicon ZIP and DMG directly from the two release binaries with:
 
 ```console
 ./scripts/package_macos_gui_release.sh \
@@ -304,10 +304,16 @@ Create the frozen Apple Silicon Alpha ZIP directly from the two release binaries
   /path/to/release-assets
 ```
 
-The command produces `CanISend-VERSION-aarch64-apple-darwin.zip` with exactly
-`CanISend.app` and `CanISend.app.manifest.json` at the top level. It strips resource forks and
-extended attributes from the ZIP so no `__MACOSX` or AppleDouble entries can expand the frozen
-contract; code signatures remain preserved in Mach-O and regular bundle files.
+The command produces:
+
+- `CanISend-VERSION-aarch64-apple-darwin.zip`, with exactly `CanISend.app` and
+  `CanISend.app.manifest.json`; and
+- `CanISend-VERSION-aarch64-apple-darwin.dmg`, a compressed read-only image containing the same
+  signed app and manifest plus `Applications -> /Applications`.
+
+It strips resource forks and extended attributes from the ZIP so no `__MACOSX` or AppleDouble
+entries can expand the frozen contract; code signatures remain preserved in Mach-O and regular
+bundle files. The DMG is independently verified with `hdiutil`.
 
 Verify a staged bundle independently before launch:
 
@@ -328,6 +334,17 @@ Release qualification verifies the archive after a fresh bounded extraction:
 That smoke rejects unsafe paths, symbolic links, an unexpected top level, more than 4096 entries,
 or more than 256 MiB uncompressed; then it checks the final signatures and companion hashes, runs
 the bundled CLI doctor and synthetic workflows, and launches the packaged GUI.
+
+Verify the DMG through a fresh read-only mount:
+
+```console
+./scripts/smoke_macos_gui_dmg.sh \
+  /path/to/CanISend-VERSION-aarch64-apple-darwin.dmg \
+  /new/path/to/dmg-smoke-output
+```
+
+The DMG smoke verifies the image checksum structure, exact top level, `/Applications` link,
+companion hashes, version, and nested plus outer ad-hoc signatures before detaching the volume.
 
 The GUI does not download a binary, run `curl | sh`, invoke a package manager, or expose a general
 command textbox.

@@ -23,7 +23,7 @@ gui_binary="$(canisend_absolute_path "$gui_binary")"
 cli_binary="$(canisend_absolute_path "$cli_binary")"
 output="$(canisend_absolute_path "$output")"
 
-for command in ditto jq unzip; do
+for command in ditto hdiutil jq unzip; do
   if ! command -v "$command" >/dev/null 2>&1; then
     echo "macOS GUI package: required command is missing: $command" >&2
     exit 1
@@ -40,11 +40,15 @@ version_json="$("$cli_binary" version --json)"
 version="$(printf '%s' "$version_json" | jq -er '.data.version')"
 archive_name="CanISend-$version-aarch64-apple-darwin.zip"
 archive="$output/$archive_name"
+dmg_name="CanISend-$version-aarch64-apple-darwin.dmg"
+dmg="$output/$dmg_name"
 mkdir -p "$output"
-if [[ -e "$archive" || -L "$archive" ]]; then
-  echo "macOS GUI package: output archive already exists: $archive" >&2
-  exit 1
-fi
+for destination in "$archive" "$dmg"; do
+  if [[ -e "$destination" || -L "$destination" ]]; then
+    echo "macOS GUI package: output already exists: $destination" >&2
+    exit 1
+  fi
+done
 
 fixture_root="$(mktemp -d "${TMPDIR:-/tmp}/canisend-gui-package.XXXXXX")"
 cleanup() {
@@ -77,5 +81,27 @@ if [[ "$(printf '%s\n' "$entries" | sed -n '/^CanISend\.app\/$/p' | wc -l | tr -
   exit 1
 fi
 
+dmg_source="$fixture_root/dmg-source"
+mkdir -p "$dmg_source"
+ditto --norsrc --noextattr "$app" "$dmg_source/CanISend.app"
+cp "$manifest" "$dmg_source/CanISend.app.manifest.json"
+ln -s /Applications "$dmg_source/Applications"
+
+temporary_dmg="$fixture_root/$dmg_name"
+hdiutil create \
+  -quiet \
+  -format UDZO \
+  -fs HFS+ \
+  -volname CanISend \
+  -srcfolder "$dmg_source" \
+  "$temporary_dmg"
+if [[ ! -s "$temporary_dmg" || -L "$temporary_dmg" ]]; then
+  echo "macOS GUI package: DMG was not created as a regular non-empty file" >&2
+  exit 1
+fi
+hdiutil verify "$temporary_dmg" >/dev/null
+
 mv "$temporary_archive" "$archive"
+mv "$temporary_dmg" "$dmg"
 echo "macOS GUI package: created $archive"
+echo "macOS GUI package: created $dmg"

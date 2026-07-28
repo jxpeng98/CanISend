@@ -13,8 +13,9 @@ The `1.0` line publishes these standalone CLI archives:
 - Linux x86_64 static musl: `x86_64-unknown-linux-musl` (`.tar.gz`);
 - Windows x86_64: `x86_64-pc-windows-msvc` (`.zip`).
 
-The Apple Silicon macOS desktop GUI is a separate
-`CanISend-VERSION-aarch64-apple-darwin.zip`; it is not a sixth CLI target. Linux arm64 is not
+The Apple Silicon macOS desktop GUI is distributed as
+`CanISend-VERSION-aarch64-apple-darwin.dmg` and a portable
+`CanISend-VERSION-aarch64-apple-darwin.zip`; neither is a sixth CLI target. Linux arm64 is not
 supported in the `1.0` line. Choose a CLI archive by operating system, CPU architecture, and—on
 Linux—the available C library. `ldd --version` normally identifies a glibc system; use the musl
 archive for a musl distribution or when the glibc archive cannot start because its loader is
@@ -57,21 +58,23 @@ runtime-package lookup, and `Python runtime: not required`. Do not continue with
 
 ## Install the macOS desktop application
 
-On Apple Silicon, download `CanISend-VERSION-aarch64-apple-darwin.zip`, `SHA256SUMS`, the release
-manifest, and the matching macOS GUI qualification JSON from the same release. Verify the checksum
-and GitHub provenance before extracting. The ZIP must contain exactly:
+On Apple Silicon, download `CanISend-VERSION-aarch64-apple-darwin.dmg`, `SHA256SUMS`, the release
+manifest, and the matching macOS GUI DMG qualification JSON from the same release. Verify the
+checksum and GitHub provenance before opening the image. Its read-only volume contains exactly:
 
 ```text
+Applications -> /Applications
 CanISend.app
 CanISend.app.manifest.json
 ```
 
 Verify the companion manifest and the ad-hoc application signature as described in the
-[release verification guide](release-verification.md), then move `CanISend.app` to a user-owned
-Applications directory or run it from the extracted folder. Retain the companion manifest,
-checksum file, qualification record, and notices with the verified download. Because this free
-channel is not Developer ID signed or notarized, macOS may require the normal per-application
-Open Anyway confirmation after verification. Never disable Gatekeeper globally.
+[release verification guide](release-verification.md), then drag `CanISend.app` to the included
+Applications link. Retain the checksum file, qualification record, and notices with the verified
+download. The portable ZIP remains available when a mountable image cannot be used; it contains
+exactly `CanISend.app` and `CanISend.app.manifest.json`. Because this free channel is not Developer
+ID signed or notarized, macOS may require the normal per-application Open Anyway confirmation
+after verification. Never disable Gatekeeper globally.
 
 The application includes a version-matched CLI at
 `CanISend.app/Contents/Resources/bin/canisend`. It does not require a separately installed CLI.
@@ -115,7 +118,8 @@ For complete checksum, SBOM, manifest, and GitHub provenance verification, follo
 
 The five standalone `1.0.0-alpha.*` CLI archives may be unsigned under the explicit Alpha policy.
 The `1.0.0-alpha.*` macOS GUI always ad-hoc signs its bundled CLI, GUI executable, and outer
-application, and publishes canonical qualification evidence bound to the final desktop ZIP.
+application, and publishes canonical qualification evidence bound separately to the final desktop
+ZIP and DMG.
 Beta, release-candidate, and Stable community builds fail closed unless both standalone macOS CLI
 executables have verified ad-hoc integrity signatures and the Windows executable has a verified
 self-signed Authenticode signature. Each release publishes canonical JSON evidence bound to the

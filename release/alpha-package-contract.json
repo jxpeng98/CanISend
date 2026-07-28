@@ -33,10 +33,17 @@
     "build_profile": "release-alpha",
     "target": "aarch64-apple-darwin",
     "archive": "CanISend-1.0.0-alpha.3-aarch64-apple-darwin.zip",
+    "dmg": "CanISend-1.0.0-alpha.3-aarch64-apple-darwin.dmg",
     "archive_top_level": [
       "CanISend.app",
       "CanISend.app.manifest.json"
     ],
+    "dmg_top_level": [
+      "Applications",
+      "CanISend.app",
+      "CanISend.app.manifest.json"
+    ],
+    "applications_link": "/Applications",
     "bundle": "CanISend.app",
     "gui_executable": "Contents/MacOS/canisend-gui",
     "bundled_cli_executable": "Contents/Resources/bin/canisend",

@@ -8,8 +8,12 @@ Do not use an archive when any identity check fails.
 A complete `1.0` release contains:
 
 - five standalone CLI target archives;
-- one Apple Silicon macOS desktop archive named
+- one Apple Silicon macOS desktop DMG named
+  `CanISend-VERSION-aarch64-apple-darwin.dmg`;
+- one portable Apple Silicon macOS desktop archive named
   `CanISend-VERSION-aarch64-apple-darwin.zip`;
+- `CanISend-VERSION-aarch64-apple-darwin-dmg-qualification.json`, which binds
+  the exact read-only DMG to its native image checks;
 - `CanISend-VERSION-aarch64-apple-darwin-qualification.json`, which binds the
   exact desktop ZIP to its native package checks;
 - `SHA256SUMS`;
@@ -32,10 +36,11 @@ Scoop, and WinGet manifest assets. The record must scope authorization to `githu
 
 The manifest binds the product version, exact Git commit, stage, protocol, schema, workspace format,
 all five CLI targets, the macOS desktop surface, and every archive digest. The five CLI entries
-remain under `artifacts`; the GUI is a separate `desktop_artifacts` entry so package-manager
-generation cannot confuse an application bundle with a standalone CLI archive. For non-Alpha
-signed CLI targets, `signing_evidence` names the exact evidence file. The GUI entry always names
-its qualification record and requires the nested and outer ad-hoc signatures, including in Alpha.
+remain under `artifacts`; the portable ZIP and installer DMG are separate `desktop_artifacts`
+entries so package-manager generation cannot confuse an application bundle with a standalone CLI
+archive. For non-Alpha signed CLI targets, `signing_evidence` names the exact evidence file. Each
+GUI entry names its qualification record and requires the nested and outer ad-hoc signatures,
+including in Alpha.
 For Alpha, `desktop_compilation` must be an empty array and the release must not contain Intel GUI
 compilation evidence. For Beta and later, it records the Intel compile-only boundary with
 `archive: null`, `native_runtime_qualified: false`, and an exact candidate evidence reference.
@@ -110,6 +115,7 @@ With the GitHub CLI installed, verify each downloaded asset against this reposit
 ```console
 gh attestation verify canisend-VERSION-TARGET.ARCHIVE --repo jxpeng98/CanISend
 gh attestation verify CanISend-VERSION-aarch64-apple-darwin.zip --repo jxpeng98/CanISend
+gh attestation verify CanISend-VERSION-aarch64-apple-darwin.dmg --repo jxpeng98/CanISend
 gh attestation verify canisend-VERSION-manifest.json --repo jxpeng98/CanISend
 gh attestation verify SHA256SUMS --repo jxpeng98/CanISend
 ```
@@ -119,7 +125,20 @@ proves which GitHub Actions identity built the bytes; it does not replace operat
 
 ## Verify the macOS desktop archive
 
-The desktop ZIP has exactly two top-level entries: `CanISend.app` and
+The read-only DMG has exactly three top-level entries: `CanISend.app`,
+`CanISend.app.manifest.json`, and `Applications`, which must be a symbolic link whose exact target
+is `/Applications`. Verify the image before mounting it:
+
+```console
+hdiutil verify ./CanISend-VERSION-aarch64-apple-darwin.dmg
+hdiutil attach -readonly -nobrowse ./CanISend-VERSION-aarch64-apple-darwin.dmg
+```
+
+Reject a writable image, an unexpected top-level item, a different Applications target, or a
+missing companion manifest. Verify the mounted app with the commands below, then detach it with
+`hdiutil detach /Volumes/CanISend`.
+
+The portable desktop ZIP has exactly two top-level entries: `CanISend.app` and
 `CanISend.app.manifest.json`. Reject an archive with another top-level entry, a symbolic link, or
 a different filename. After extracting, compare the companion manifest's SHA-256 values with the
 final signed GUI, bundled CLI, `Info.plist`, and `BUNDLE.json`, then verify the application:
@@ -132,12 +151,15 @@ codesign --display --verbose=4 ./CanISend.app
 ```
 
 The signature display must report an ad-hoc signature. The bundle metadata and qualification
-record must state `developer_id: false` and `notarized: false`; a claim of Apple publisher trust is
-invalid for this channel. The qualification JSON must use
+records must state `developer_id: false` and `notarized: false`; a claim of Apple publisher trust
+is invalid for this channel. The ZIP qualification JSON must use
 `canisend.macos-gui-qualification/v1`, name the same ZIP, match its SHA-256 and size, report
 `macos-15`/`aarch64-apple-darwin`, record `release-alpha` for Alpha or `release` for later stages,
-and keep every declared bounded package check true. Every standalone CLI and desktop entry in the
-release manifest must record that same stage-selected profile.
+and keep every declared bounded package check true. The DMG qualification JSON must use
+`canisend.macos-gui-dmg-qualification/v1`, bind the same DMG digest and size, and record successful
+bounded-image, `hdiutil`, read-only-mount, Applications-link, companion, version, and signature
+checks. Every standalone CLI and desktop entry in the release manifest must record that same
+stage-selected profile.
 
 For Beta and later, the Intel compilation JSON must use
 `canisend.macos-gui-compilation/v1`, bind the release tag and source commit, report an `x86_64`
@@ -182,7 +204,8 @@ instead, reject evidence that falsely claims public trust.
 
 The CycloneDX 1.6 SBOM is generated from the locked dependency graph reachable from both
 `canisend-cli` and `canisend-gui`. Its composition names both application roots and therefore
-covers the five standalone CLI archives and the macOS desktop archive. It includes internal crates
+covers the five standalone CLI archives, portable macOS desktop ZIP, and installer DMG. It
+includes internal crates
 and conditional target dependencies, so it may list a component that is not linked into the one
 archive you downloaded. `THIRD_PARTY_NOTICES.md` plus the asset license files inside the archive
 are the redistribution notices.
