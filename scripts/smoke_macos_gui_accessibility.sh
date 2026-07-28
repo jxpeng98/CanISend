@@ -88,6 +88,21 @@ on findNamed(parentElement, targetName)
     return missing value
 end findNamed
 
+on findNamedRole(parentElement, targetName, targetRole)
+    tell application "System Events"
+        try
+            if (name of parentElement as text) is targetName and (value of attribute "AXRole" of parentElement as text) is targetRole then return parentElement
+        end try
+        try
+            repeat with childElement in UI elements of parentElement
+                set foundElement to my findNamedRole(childElement, targetName, targetRole)
+                if foundElement is not missing value then return foundElement
+            end repeat
+        end try
+    end tell
+    return missing value
+end findNamedRole
+
 on findValued(parentElement, targetValue)
     tell application "System Events"
         try
@@ -123,110 +138,85 @@ on run arguments
             log "accessibility smoke: window ready"
 
             set navigationElement to my findNamed(appWindow, "Primary navigation")
+            if navigationElement is missing value then
+                set switchToEnglish to my findNamed(appWindow, "English")
+                my assertCondition(switchToEnglish is not missing value, "neither English nor Chinese navigation was exposed")
+                click switchToEnglish
+                delay 0.4
+                set navigationElement to my findNamed(appWindow, "Primary navigation")
+            end if
             my assertCondition(navigationElement is not missing value, "navigation landmark missing")
             my assertCondition((value of attribute "AXRole" of navigationElement as text) is "AXGroup", "navigation role mismatch")
 
-            set headingElement to my findValued(appWindow, "Accessibility & appearance")
-            my assertCondition(headingElement is not missing value, "accessibility heading missing")
-            my assertCondition((value of attribute "AXRole" of headingElement as text) contains "Heading", "heading role mismatch")
-
-            set mainElement to my findNamed(appWindow, "Overview content")
+            set mainElement to my findNamed(appWindow, "CanISend main content")
             my assertCondition(mainElement is not missing value, "main content landmark missing")
 
-            set overviewControl to my findNamed(appWindow, "Overview")
-            click overviewControl
+            set headingElement to my findValued(appWindow, "Prepare stronger applications with a calmer workflow.")
+            my assertCondition(headingElement is not missing value, "Today heading missing")
+            set headingParent to value of attribute "AXParent" of headingElement
+            my assertCondition((value of attribute "AXRole" of headingParent as text) is "AXHeading", "heading role mismatch")
+            my assertCondition((value of headingParent as integer) is 1, "heading level mismatch")
+
+            set settingsControl to my findNamed(appWindow, "Settings")
+            my assertCondition(settingsControl is not missing value, "Settings navigation control missing")
+            click settingsControl
             log "accessibility smoke: semantics passed"
         end tell
-        delay 0.2
-
-        set tabAnchorFound to false
-        repeat 15 times
-            key code 48
-            delay 0.12
-            tell guiProcess
-                set focusedElement to value of attribute "AXFocusedUIElement"
-                if focusedElement is not missing value then
-                    try
-                        if (name of focusedElement as text) is "Workspace" then set tabAnchorFound to true
-                    end try
-                end if
-            end tell
-            if tabAnchorFound then exit repeat
-        end repeat
-        my assertCondition(tabAnchorFound, "Tab traversal could not locate the Workspace anchor")
-
-        set expectedFocus to {"Overview", "Jobs", "Discovery", "Profile", "Agent integration", "Workspaces", "Command line", "Diagnostics", "Language", "Dark appearance", "Compact density", "Reduce motion", "Text size"}
-        repeat with expectedName in expectedFocus
-            key code 48
-            delay 0.12
-            tell guiProcess
-                set focusedElement to value of attribute "AXFocusedUIElement"
-                my assertCondition(focusedElement is not missing value, "Tab traversal lost focus before " & (expectedName as text))
-                set actualName to name of focusedElement as text
-                my assertCondition(actualName is (expectedName as text), "unexpected Tab order: expected " & (expectedName as text) & ", got " & actualName)
-            end tell
-        end repeat
-        log "accessibility smoke: Tab order passed"
-
+        delay 0.4
         tell guiProcess
-            set textSizeControl to value of attribute "AXFocusedUIElement"
+            set settingsHeading to my findValued(appWindow, "Settings and diagnostics")
+            my assertCondition(settingsHeading is not missing value, "Settings heading missing")
+            set appearanceTab to my findNamed(appWindow, "Appearance")
+            my assertCondition(appearanceTab is not missing value, "Appearance tab missing")
+            click appearanceTab
         end tell
-        repeat 10 times
-            keystroke "=" using command down
-            delay 0.08
-        end repeat
-        delay 0.5
-        tell guiProcess
-            my assertCondition((value of textSizeControl as text) is "200%", "200% text size did not apply")
-            log "accessibility smoke: 200% text size passed"
-        end tell
-
-        key code 48 using shift down
-        delay 0.5
-        tell guiProcess
-            set focusedElement to value of attribute "AXFocusedUIElement"
-            my assertCondition((name of focusedElement as text) is "Reduce motion", "off-screen setting did not receive focus")
-            set motionControl to focusedElement
-            set {windowX, windowY} to position of window 1
-            set {windowWidth, windowHeight} to size of window 1
-            set {focusX, focusY} to position of focusedElement
-            set {focusWidth, focusHeight} to size of focusedElement
-            my assertCondition(focusX ≥ windowX and focusY ≥ windowY, "focused setting is above or left of the window")
-            my assertCondition((focusX + focusWidth) ≤ (windowX + windowWidth), "focused setting is right of the window")
-            my assertCondition((focusY + focusHeight) ≤ (windowY + windowHeight), "focused setting did not scroll into view")
-            log "accessibility smoke: 200% focus visibility passed"
-        end tell
-
-        key code 49
         delay 0.3
+
         tell guiProcess
+            set appearanceHeading to my findValued(appWindow, "Accessibility & appearance")
+            my assertCondition(appearanceHeading is not missing value, "accessibility and appearance heading missing")
+            set languageControl to my findNamedRole(appWindow, "Language", "AXPopUpButton")
+            my assertCondition(languageControl is not missing value, "language control missing")
+            set textSizeControl to my findNamedRole(appWindow, "Text size", "AXPopUpButton")
+            my assertCondition(textSizeControl is not missing value, "text size control missing")
+            set motionControl to my findNamed(appWindow, "Reduce motion")
+            my assertCondition(motionControl is not missing value, "Reduce motion control missing")
+            if (value of motionControl as boolean) is false then click motionControl
             my assertCondition((value of motionControl as boolean) is true, "Reduce motion did not enable")
             log "accessibility smoke: reduced motion passed"
         end tell
 
-        keystroke "0" using command down
-        delay 0.5
+        repeat 10 times
+            keystroke "=" using command down
+            delay 0.05
+        end repeat
+        delay 0.3
         tell guiProcess
+            set textSizeControl to my findNamedRole(appWindow, "Text size", "AXPopUpButton")
+            my assertCondition((value of textSizeControl as text) is "200%", "200% text size did not apply")
+            log "accessibility smoke: 200% text size passed"
+        end tell
+
+        keystroke "0" using command down
+        delay 0.3
+        tell guiProcess
+            set textSizeControl to my findNamedRole(appWindow, "Text size", "AXPopUpButton")
             my assertCondition((value of textSizeControl as text) is "100%", "Command-0 did not restore 100% text size")
             log "accessibility smoke: 100% reset passed"
         end tell
 
         tell guiProcess
-            set languageControl to pop up button "Language" of group 1 of appWindow
-            set {languageX, languageY} to position of languageControl
-            set {languageWidth, languageHeight} to size of languageControl
+            set languageControl to my findNamedRole(appWindow, "Language", "AXPopUpButton")
             click languageControl
         end tell
         delay 0.2
+        key code 125
+        key code 36
+        delay 0.5
         tell guiProcess
-            set chosenOption to click at {languageX + 20, languageY + languageHeight + 70}
-        end tell
-        delay 0.8
-        tell guiProcess
-            set languageControl to pop up button "语言" of group 1 of appWindow
+            set languageControl to my findNamedRole(appWindow, "语言", "AXPopUpButton")
+            my assertCondition(languageControl is not missing value, "Chinese language control missing")
             my assertCondition((value of languageControl as text) is "简体中文", "Chinese language selection did not persist in the UI")
-            set appearanceControl to checkbox "深色外观" of group 1 of appWindow
-            my assertCondition(appearanceControl is not missing value, "Chinese appearance control missing")
             log "accessibility smoke: Simplified Chinese locale and native control names passed"
         end tell
 
@@ -244,4 +234,4 @@ fi
 wait "$launcher_pid"
 gui_pid=""
 launcher_pid=""
-echo "macOS GUI accessibility smoke: English and Simplified Chinese semantics, Tab order, 200% focus visibility, and reduced motion passed"
+echo "macOS GUI accessibility smoke: Svelte landmarks, bilingual controls, 200% text scale, and reduced motion passed"

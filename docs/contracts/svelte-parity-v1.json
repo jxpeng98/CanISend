@@ -1,0 +1,285 @@
+{
+  "format": "canisend.svelte-parity/v1",
+  "updated_at": "2026-07-28",
+  "cutover_ready": true,
+  "legacy_egui_required": false,
+  "entries": [
+    {
+      "operation": "product.version",
+      "status": "implemented",
+      "tauri_commands": ["product_summary"],
+      "svelte_views": ["apps/canisend-desktop/src/App.svelte"],
+      "tests": ["apps/canisend-desktop/src/lib/bridge.test.ts"]
+    },
+    {
+      "operation": "product.doctor",
+      "status": "implemented",
+      "tauri_commands": ["run_doctor"],
+      "svelte_views": ["apps/canisend-desktop/src/App.svelte"],
+      "tests": ["crates/canisend-desktop/src/commands.rs"]
+    },
+    {
+      "operation": "product.update.check",
+      "status": "implemented",
+      "tauri_commands": ["check_for_updates"],
+      "svelte_views": ["apps/canisend-desktop/src/lib/views/SettingsView.svelte"],
+      "tests": ["crates/canisend-desktop/src/system.rs"]
+    },
+    {
+      "operation": "workspace.init",
+      "status": "implemented",
+      "tauri_commands": ["create_workspace"],
+      "svelte_views": ["apps/canisend-desktop/src/lib/views/WorkspacesView.svelte"],
+      "tests": ["crates/canisend-desktop/src/commands.rs"]
+    },
+    {
+      "operation": "workspace.status",
+      "status": "implemented",
+      "tauri_commands": ["select_workspace", "workspace_status"],
+      "svelte_views": ["apps/canisend-desktop/src/lib/views/WorkspacesView.svelte"],
+      "tests": ["crates/canisend-desktop/src/commands.rs"]
+    },
+    {
+      "operation": "workspace.check",
+      "status": "implemented",
+      "tauri_commands": ["check_workspace"],
+      "svelte_views": ["apps/canisend-desktop/src/lib/views/WorkspacesView.svelte"],
+      "tests": ["crates/canisend-desktop/src/commands.rs"]
+    },
+    {
+      "operation": "workspace.backup",
+      "status": "implemented",
+      "tauri_commands": ["backup_workspace"],
+      "svelte_views": ["apps/canisend-desktop/src/lib/views/WorkspacesView.svelte"],
+      "tests": ["crates/canisend-desktop/src/commands.rs"]
+    },
+    {
+      "operation": "workspace.restore",
+      "status": "implemented",
+      "tauri_commands": ["restore_workspace"],
+      "svelte_views": ["apps/canisend-desktop/src/lib/views/WorkspacesView.svelte"],
+      "tests": ["crates/canisend-desktop/src/commands.rs"]
+    },
+    {
+      "operation": "workspace.repair",
+      "status": "implemented",
+      "tauri_commands": ["repair_workspace"],
+      "svelte_views": ["apps/canisend-desktop/src/lib/views/WorkspacesView.svelte"],
+      "tests": ["crates/canisend-desktop/src/commands.rs"]
+    },
+    {
+      "operation": "job.create",
+      "status": "implemented",
+      "tauri_commands": ["create_job"],
+      "svelte_views": ["apps/canisend-desktop/src/lib/views/ApplicationsView.svelte"],
+      "tests": ["crates/canisend-desktop/src/commands.rs"]
+    },
+    {
+      "operation": "job.import",
+      "status": "implemented",
+      "tauri_commands": ["import_local_job_source", "import_url_job_source"],
+      "svelte_views": ["apps/canisend-desktop/src/lib/views/ApplicationsView.svelte"],
+      "tests": ["crates/canisend-desktop/src/commands.rs"]
+    },
+    {
+      "operation": "job.list",
+      "status": "implemented",
+      "tauri_commands": ["list_jobs"],
+      "svelte_views": ["apps/canisend-desktop/src/lib/views/ApplicationsView.svelte"],
+      "tests": ["crates/canisend-desktop/src/commands.rs"]
+    },
+    {
+      "operation": "job.show",
+      "status": "implemented",
+      "tauri_commands": ["show_job"],
+      "svelte_views": ["apps/canisend-desktop/src/lib/views/ApplicationsView.svelte"],
+      "tests": ["crates/canisend-desktop/src/commands.rs"]
+    },
+    {
+      "operation": "job.archive",
+      "status": "implemented",
+      "tauri_commands": ["archive_job"],
+      "svelte_views": ["apps/canisend-desktop/src/lib/views/ApplicationsView.svelte"],
+      "tests": ["crates/canisend-desktop/src/commands.rs"]
+    },
+    {
+      "operation": "workflow.start",
+      "status": "implemented",
+      "tauri_commands": ["start_workflow"],
+      "svelte_views": ["apps/canisend-desktop/src/lib/views/WorkflowView.svelte"],
+      "tests": ["crates/canisend-desktop/src/workflow.rs"]
+    },
+    {
+      "operation": "workflow.status",
+      "status": "implemented",
+      "tauri_commands": ["workflow_controls"],
+      "svelte_views": ["apps/canisend-desktop/src/lib/views/WorkflowView.svelte"],
+      "tests": ["crates/canisend-desktop/src/workflow.rs"]
+    },
+    {
+      "operation": "workflow.begin",
+      "status": "implemented",
+      "tauri_commands": ["begin_workflow_stage"],
+      "svelte_views": ["apps/canisend-desktop/src/lib/views/WorkflowView.svelte"],
+      "tests": ["crates/canisend-desktop/src/workflow.rs"]
+    },
+    {
+      "operation": "workflow.complete",
+      "status": "implemented",
+      "tauri_commands": ["complete_workflow_stage"],
+      "svelte_views": ["apps/canisend-desktop/src/lib/views/WorkflowView.svelte"],
+      "tests": ["crates/canisend-desktop/src/workflow.rs"]
+    },
+    {
+      "operation": "workflow.rerun",
+      "status": "implemented",
+      "tauri_commands": ["preview_workflow_rerun", "commit_workflow_rerun"],
+      "svelte_views": ["apps/canisend-desktop/src/lib/views/WorkflowView.svelte"],
+      "tests": ["crates/canisend-desktop/src/workflow.rs"]
+    },
+    {
+      "operation": "cli.install.status",
+      "status": "implemented",
+      "tauri_commands": ["desktop_cli_defaults", "cli_install_status"],
+      "svelte_views": ["apps/canisend-desktop/src/lib/views/SettingsView.svelte"],
+      "tests": ["crates/canisend-desktop/src/system.rs"]
+    },
+    {
+      "operation": "cli.install",
+      "status": "implemented",
+      "tauri_commands": ["install_cli"],
+      "svelte_views": ["apps/canisend-desktop/src/lib/views/SettingsView.svelte"],
+      "tests": ["crates/canisend-app/src/cli_install.rs", "crates/canisend-desktop/src/system.rs"]
+    },
+    {
+      "operation": "cli.uninstall",
+      "status": "implemented",
+      "tauri_commands": ["uninstall_cli"],
+      "svelte_views": ["apps/canisend-desktop/src/lib/views/SettingsView.svelte"],
+      "tests": ["crates/canisend-app/src/cli_install.rs", "crates/canisend-desktop/src/system.rs"]
+    },
+    {
+      "operation": "profile.*",
+      "status": "implemented",
+      "tauri_commands": [
+        "list_profile_sources",
+        "import_profile_source",
+        "profile_evidence_template",
+        "confirm_profile_evidence"
+      ],
+      "svelte_views": ["apps/canisend-desktop/src/lib/views/ProfileView.svelte"],
+      "tests": ["crates/canisend-desktop/src/profile.rs"]
+    },
+    {
+      "operation": "discovery.*",
+      "status": "implemented",
+      "tauri_commands": [
+        "discovery_adapters",
+        "preview_discovery_file",
+        "preview_discovery_network",
+        "commit_discovery_preview",
+        "discard_discovery_preview",
+        "list_discovery_sources",
+        "list_discovery_leads",
+        "show_discovery_lead",
+        "suggest_discovery_duplicates",
+        "promote_discovery_lead"
+      ],
+      "svelte_views": ["apps/canisend-desktop/src/lib/views/OpportunitiesView.svelte"],
+      "tests": ["crates/canisend-desktop/src/discovery.rs"]
+    },
+    {
+      "operation": "task.*",
+      "status": "implemented",
+      "tauri_commands": [
+        "latest_task",
+        "prepare_task",
+        "export_task_inputs",
+        "preview_task_completion",
+        "commit_task_completion_preview",
+        "cancel_task",
+        "prepare_task_again"
+      ],
+      "svelte_views": ["apps/canisend-desktop/src/lib/views/WorkflowView.svelte"],
+      "tests": ["crates/canisend-desktop/src/workflow.rs"]
+    },
+    {
+      "operation": "criteria.*",
+      "status": "implemented",
+      "tauri_commands": ["criteria_template", "confirm_criteria"],
+      "svelte_views": ["apps/canisend-desktop/src/lib/views/WorkflowView.svelte"],
+      "tests": ["crates/canisend-desktop/src/profile.rs"]
+    },
+    {
+      "operation": "match.*",
+      "status": "implemented",
+      "tauri_commands": ["current_matches"],
+      "svelte_views": ["apps/canisend-desktop/src/lib/views/WorkflowView.svelte"],
+      "tests": ["crates/canisend-desktop/src/profile.rs"]
+    },
+    {
+      "operation": "plan.*",
+      "status": "implemented",
+      "tauri_commands": ["plan_template", "current_plan", "confirm_plan"],
+      "svelte_views": ["apps/canisend-desktop/src/lib/views/WorkflowView.svelte"],
+      "tests": ["crates/canisend-desktop/src/profile.rs"]
+    },
+    {
+      "operation": "document.*",
+      "status": "implemented",
+      "tauri_commands": ["document_workspace"],
+      "svelte_views": ["apps/canisend-desktop/src/lib/views/DeliveryView.svelte"],
+      "tests": ["crates/canisend-desktop/src/delivery.rs"]
+    },
+    {
+      "operation": "review.*",
+      "status": "implemented",
+      "tauri_commands": ["review_workspace", "confirm_review"],
+      "svelte_views": ["apps/canisend-desktop/src/lib/views/DeliveryView.svelte"],
+      "tests": ["crates/canisend-desktop/src/delivery.rs"]
+    },
+    {
+      "operation": "package.*",
+      "status": "implemented",
+      "tauri_commands": [
+        "check_package",
+        "current_package",
+        "export_package",
+        "current_package_export",
+        "reconcile_package",
+        "replace_package_projection",
+        "copy_package_projection"
+      ],
+      "svelte_views": ["apps/canisend-desktop/src/lib/views/DeliveryView.svelte"],
+      "tests": ["crates/canisend-desktop/src/delivery.rs"]
+    },
+    {
+      "operation": "render.*",
+      "status": "implemented",
+      "tauri_commands": ["build_render", "current_render", "export_render"],
+      "svelte_views": ["apps/canisend-desktop/src/lib/views/DeliveryView.svelte"],
+      "tests": ["crates/canisend-desktop/src/delivery.rs"]
+    },
+    {
+      "operation": "agent.*",
+      "status": "implemented",
+      "tauri_commands": ["agent_capabilities", "agent_context", "export_agent_pack"],
+      "svelte_views": ["apps/canisend-desktop/src/lib/views/AgentView.svelte"],
+      "tests": ["crates/canisend-desktop/src/agent.rs"]
+    },
+    {
+      "operation": "schema.*",
+      "status": "implemented",
+      "tauri_commands": ["inspection_catalog", "schema_detail"],
+      "svelte_views": ["apps/canisend-desktop/src/lib/views/SettingsView.svelte"],
+      "tests": ["crates/canisend-desktop/src/system.rs"]
+    },
+    {
+      "operation": "resource.*",
+      "status": "implemented",
+      "tauri_commands": ["inspection_catalog", "resource_detail", "export_resource_catalog"],
+      "svelte_views": ["apps/canisend-desktop/src/lib/views/SettingsView.svelte"],
+      "tests": ["crates/canisend-desktop/src/system.rs"]
+    }
+  ]
+}

@@ -48,11 +48,7 @@ for file in \
   "$info" \
   "$icon" \
   "$legal/LICENSE" \
-  "$legal/THIRD_PARTY_NOTICES.md" \
-  "$legal/EGUI-FONT-HACK-LICENSE" \
-  "$legal/EGUI-FONT-EMOJI-ICON-LICENSE" \
-  "$legal/EGUI-FONT-NOTO-EMOJI-OFL" \
-  "$legal/EGUI-FONT-UBUNTU-LICENSE"
+  "$legal/THIRD_PARTY_NOTICES.md"
 do
   if [[ ! -f "$file" || -L "$file" ]]; then
     echo "macOS GUI verification: required regular file is missing: $file" >&2

@@ -1,6 +1,6 @@
 [package]
-name = "canisend-desktop"
-description = "Tauri desktop runtime for the CanISend Svelte application"
+name = "canisend-gui"
+description = "Tauri and Svelte desktop application for CanISend"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -10,8 +10,11 @@ repository.workspace = true
 publish.workspace = true
 
 [[bin]]
-name = "canisend-desktop"
+name = "canisend-gui"
 path = "src/main.rs"
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]
 
 [build-dependencies]
 tauri-build.workspace = true
@@ -25,6 +28,7 @@ serde_json.workspace = true
 [target.'cfg(target_os = "macos")'.dependencies]
 tauri.workspace = true
 tauri-plugin-dialog.workspace = true
+tauri-plugin-window-state.workspace = true
 
 [lints]
 workspace = true

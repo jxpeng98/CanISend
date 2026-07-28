@@ -2,10 +2,10 @@
 
 #[cfg(target_os = "macos")]
 fn main() {
-    canisend_desktop::run();
+    canisend_gui::run();
 }
 
 #[cfg(not(target_os = "macos"))]
 fn main() {
-    eprintln!("The CanISend Svelte desktop preview currently supports macOS only.");
+    eprintln!("The CanISend desktop application currently supports macOS only.");
 }

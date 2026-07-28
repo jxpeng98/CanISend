@@ -81,15 +81,21 @@ on run arguments
                 set guiProcess to first process whose unix id is guiPid
                 if (count of windows of guiProcess) > 0 then
                     set appWindow to window 1 of guiProcess
-                    tell guiProcess
-                        if exists button "Overview" of group 1 of appWindow then return
-                    end tell
+                    try
+                        set outerGroup to UI element 1 of appWindow
+                        set webViewGroup to UI element 1 of outerGroup
+                        set scrollArea to UI element 1 of webViewGroup
+                        set webArea to UI element 1 of scrollArea
+                        set mainContent to UI element 2 of webArea
+                        set landmarkName to name of mainContent as text
+                        if landmarkName is "CanISend main content" or landmarkName is "CanISend 主要内容" then return
+                    end try
                 end if
             end if
             delay 0.01
         end repeat
     end tell
-    error "GUI did not expose Overview content within two seconds" number 1
+    error "GUI did not expose the stable Svelte main landmark within two seconds" number 1
 end run
 APPLESCRIPT
   then
@@ -145,7 +151,7 @@ jq -n \
     measured_at: $measured_at,
     reference_machine: $machine,
     macos_version: $macos_version,
-    readiness_probe: "native window with AccessKit Overview navigation control",
+    readiness_probe: "native WebView window with the CanISend main content landmark",
     trials: ($samples_ms | length),
     samples_ms: $samples_ms,
     minimum_ms: $minimum_ms,

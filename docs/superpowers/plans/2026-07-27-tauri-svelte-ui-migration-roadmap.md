@@ -122,32 +122,34 @@ and passes focused checks without changing the public egui package.
 
 ### TS3 — Discovery, profile, and workflow
 
-- [ ] Implement discovery sources, structured CSV/JSON batch preview/import, network refresh, leads,
+- [x] Implement discovery sources, structured CSV/JSON batch preview/import, network refresh, leads,
   suggestions, and promotion.
-- [ ] Implement profile sources, private-read consent, evidence review, criteria, match, and plan.
-- [ ] Implement workflow start/status/begin/complete/rerun.
-- [ ] Implement task preparation/export/completion/cancel and Agent v2 context.
+- [x] Implement profile sources, private-read consent, evidence review, criteria, match, and plan.
+- [x] Implement workflow start/status/begin/complete/rerun.
+- [x] Implement task preparation/export/completion/cancel and Agent v2 context.
 
 ### TS4 — Documents and delivery
 
-- [ ] Implement document workspace and acceptance.
-- [ ] Implement review findings and disposition confirmation.
-- [ ] Implement package checks, export, projection recovery, and render export.
-- [ ] Implement schema/resource inspection and bounded catalog export.
-- [ ] Implement CLI install/update/rollback/uninstall and manual update checks.
+- [x] Implement document workspace and acceptance.
+- [x] Implement review findings and disposition confirmation.
+- [x] Implement package checks, export, projection recovery, and render export.
+- [x] Implement schema/resource inspection and bounded catalog export.
+- [x] Implement CLI install/update/rollback/uninstall and manual update checks.
 
 ### TS5 — Parity, accessibility, and cutover
 
-- [ ] Pass all 35 operation-family contract entries with no deferred rows.
-- [ ] Add macOS VoiceOver semantics, keyboard traversal, file-dialog, drag/drop, and window-state
-  qualification.
-- [ ] Update startup measurement to wait for a stable accessible Svelte landmark.
-- [ ] Replace the release binary and packaging scripts atomically.
-- [ ] Remove egui, eframe, rfd, renderer code, old UI snapshots, and egui font notices.
+- [x] Pass all 35 operation-family contract entries with no deferred rows.
+- [x] Add macOS WebView landmark, heading, control, bilingual, zoom-shortcut, reduced-motion, and
+  window-state qualification.
+- [ ] Run the native release matrix's exhaustive Tab traversal, file-dialog, and window-drag
+  checks.
+- [x] Update startup measurement to wait for a stable accessible Svelte landmark.
+- [x] Replace the release binary and packaging scripts atomically.
+- [x] Remove egui, eframe, rfd, renderer code, old UI snapshots, and egui font notices.
 
 ### TS6 — Native qualification and Alpha checkpoint
 
-- [ ] Run the fast source gate and exact packaged Apple Silicon application tests.
+- [x] Run the fast source gate and exact packaged Apple Silicon application tests locally.
 - [ ] Run Intel macOS compile evidence plus five-target CLI release qualification.
 - [ ] Verify bundled assets, CSP, capabilities, ad-hoc signature, checksums, SBOM, and provenance.
 - [ ] Publish only after an explicit version and release authorization.
@@ -167,9 +169,11 @@ The native release workflow owns WebView application packaging, ad-hoc signing, 
 smoke tests, accessibility launch evidence, and candidate-to-public byte continuity. Windows and
 Linux UI packaging remain out of scope until macOS cutover is complete.
 
-## 7. Immediate execution
+## 7. Current execution boundary
 
-Begin TS3 without changing the current Alpha3 release executable. Structured CSV/JSON discovery
-batches belong to Opportunities because they create reviewable leads rather than a single job
-source; keep their preview/commit boundary intact when migrating that screen. Do not start Beta
-preparation while the parity manifest still describes the egui implementation.
+TS3 and TS4 are complete, and TS5 has atomically moved the public `canisend-gui` package to the
+Tauri/Svelte implementation. Structured CSV/JSON discovery batches remain in Opportunities with
+their exact preview/commit boundary. The local fast source gate, exact Apple Silicon archive,
+accessibility smoke, and five-trial startup budget passed. Hosted Intel, five-target, SBOM, and
+provenance qualification remain required before another release is authorized; this source
+cutover does not itself publish or promote Alpha3.

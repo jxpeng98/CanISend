@@ -3,12 +3,14 @@ use std::{
     path::{Path, PathBuf},
 };
 
+#[must_use]
 pub fn bundled_cli_path() -> Option<PathBuf> {
     std::env::current_exe()
         .ok()
         .and_then(|executable| bundled_cli_path_from(&executable))
 }
 
+#[must_use]
 pub fn default_cli_destination() -> PathBuf {
     let executable = if cfg!(windows) {
         "canisend.exe"
@@ -46,6 +48,7 @@ fn bundled_cli_path_from(executable: &Path) -> Option<PathBuf> {
 mod tests {
     use std::{
         fs,
+        path::PathBuf,
         sync::atomic::{AtomicU64, Ordering},
     };
 
@@ -61,9 +64,9 @@ mod tests {
         }
     }
 
-    fn root() -> std::path::PathBuf {
+    fn root() -> PathBuf {
         std::env::temp_dir().join(format!(
-            "canisend-gui-cli-{}-{}",
+            "canisend-app-desktop-cli-{}-{}",
             std::process::id(),
             NEXT.fetch_add(1, Ordering::Relaxed)
         ))
@@ -75,8 +78,8 @@ mod tests {
         let executable = root.join("target/release/canisend-gui");
         let cli = root.join("target/release").join(cli_name());
         fs::create_dir_all(executable.parent().expect("parent")).expect("directory");
-        fs::write(&executable, b"gui").expect("gui");
-        fs::write(&cli, b"cli").expect("cli");
+        fs::write(&executable, b"desktop").expect("desktop executable");
+        fs::write(&cli, b"cli").expect("cli executable");
 
         assert_eq!(bundled_cli_path_from(&executable), Some(cli));
         fs::remove_dir_all(root).expect("cleanup");
@@ -91,8 +94,8 @@ mod tests {
             .join(cli_name());
         fs::create_dir_all(executable.parent().expect("executable parent")).expect("macos");
         fs::create_dir_all(cli.parent().expect("cli parent")).expect("resources");
-        fs::write(&executable, b"gui").expect("gui");
-        fs::write(&cli, b"cli").expect("cli");
+        fs::write(&executable, b"desktop").expect("desktop executable");
+        fs::write(&cli, b"cli").expect("cli executable");
 
         assert_eq!(bundled_cli_path_from(&executable), Some(cli));
         fs::remove_dir_all(root).expect("cleanup");

@@ -4,11 +4,12 @@ CanISend runs the complete locked Rust workspace suite once in the candidate sou
 release jobs do not repeat the whole workspace test graph for every target. Their responsibility is
 to prove the behavior that depends on the exact target runner and packaged bytes.
 
-Development uses three parallel Apple Silicon jobs in `.github/workflows/fast-ci.yml`. The first
-owns locked Svelte dependencies, type checks, unit tests, and the production static-asset build.
-The second owns formatting, Clippy, and release-contract checks. The third owns the complete
-workspace suite, generated properties, debug CLI/GUI compilation, and the documented
-CLI/host-agent smoke. No job builds a release profile or uses a Windows/Linux runner.
+Development uses three Apple Silicon jobs in `.github/workflows/fast-ci.yml`. The first owns locked
+Svelte dependencies, type checks, unit tests, and one production static-asset build. It uploads
+those exact assets; the formatting/Clippy/release-contract job and the complete
+workspace/property/debug-build job consume the same artifact before compiling the Tauri binary.
+The two Rust jobs then run in parallel. No job builds a release profile or uses a Windows/Linux
+runner.
 
 The initial and exact-cache warm measurements are recorded in
 [`fast-ci-stage6.json`](../performance/fast-ci-stage6.json). Their critical paths were 287 and 99

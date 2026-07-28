@@ -32,6 +32,7 @@ const RELEASE_QUALIFICATION_SCHEMA: &str = "canisend.release-qualification/v1";
 const RELEASE_HISTORY_SCHEMA: &str = "canisend.release-history/v1";
 const RELEASE_LINE_POLICY_SCHEMA: &str = "canisend.release-line-policy/v1";
 const RELEASE_LINE_PLAN_SCHEMA: &str = "canisend.release-line-plan/v1";
+const SVELTE_PARITY_SCHEMA: &str = "canisend.svelte-parity/v1";
 const STAGE_TRANSITION_POLICY_SCHEMA: &str = "canisend.stage-transition-policy/v1";
 const STAGE_TRANSITION_PLAN_SCHEMA: &str = "canisend.stage-transition-plan/v1";
 const FEATURE_FREEZE_PLAN_SCHEMA: &str = "canisend.feature-freeze-plan/v1";
@@ -77,6 +78,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
         [area, command] if area == "schemas" && command == "write" => write_schemas(),
         [area, command] if area == "resources" && command == "check" => check_resources(),
         [area, command] if area == "docs" && command == "check" => check_documentation(),
+        [area, command] if area == "desktop" && command == "parity" => check_svelte_parity(),
         [area, command] if area == "release" && command == "check" => {
             check_schemas()?;
             check_resources()?;
@@ -98,6 +100,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
             check_release_feedback()?;
             check_release_qualification()?;
             check_cli_gui_parity()?;
+            check_svelte_parity()?;
             check_alpha_package_contract()?;
             check_native_test_ownership()?;
             check_release_contract()
@@ -3458,7 +3461,7 @@ fn check_native_test_ownership() -> Result<(), String> {
                 "cargo test --workspace --locked",
                 "cargo test -p canisend-contracts --locked --test property_contract",
                 "cargo run -p xtask --locked -- release check",
-                "cargo build --locked -p canisend-cli -p canisend-gui"
+                "cargo build --locked -p canisend-cli -p canisend-gui --features canisend-gui/custom-protocol"
             ],
             "target_seconds_after_cache_warmup": 300,
             "windows_linux_native_tests": false,
@@ -3602,11 +3605,15 @@ fn check_native_test_ownership() -> Result<(), String> {
         "pnpm check",
         "pnpm test",
         "pnpm build",
+        "Upload production desktop UI",
+        "Download exact production desktop UI",
+        "needs: desktop-ui",
         "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings",
         "cargo test --workspace --locked",
         "cargo test -p canisend-contracts --locked --test property_contract",
         "cargo run -p xtask --locked -- release check",
         "cargo build --locked -p canisend-cli -p canisend-gui",
+        "--features canisend-gui/custom-protocol",
         "./scripts/smoke_host_agent.sh ./target/debug/canisend",
         "Target: 300 seconds or less after cache warm-up",
     ] {
@@ -3618,8 +3625,13 @@ fn check_native_test_ownership() -> Result<(), String> {
     }
     if fast_ci.matches("runs-on: macos-15").count() != 3 {
         return Err(
-            "fast CI must contain exactly three parallel macOS jobs, including desktop UI"
+            "fast CI must contain exactly three macOS jobs, including the shared desktop UI build"
                 .to_owned(),
+        );
+    }
+    if fast_ci.matches("needs: desktop-ui").count() != 2 {
+        return Err(
+            "both macOS Rust jobs must consume the exact production desktop UI build".to_owned(),
         );
     }
     for forbidden in [
@@ -4075,6 +4087,259 @@ fn check_cli_gui_parity() -> Result<(), String> {
             implemented.len()
         );
     }
+    Ok(())
+}
+
+fn check_svelte_parity() -> Result<(), String> {
+    let root = repository_root();
+    let legacy_path = root.join("docs/contracts/cli-gui-parity-v1.json");
+    let legacy: Value = serde_json::from_slice(
+        &fs::read(&legacy_path)
+            .map_err(|error| format!("CLI/GUI parity manifest is missing: {error}"))?,
+    )
+    .map_err(|error| format!("CLI/GUI parity manifest is invalid JSON: {error}"))?;
+    let legacy_entries = legacy["entries"]
+        .as_array()
+        .ok_or_else(|| "CLI/GUI parity manifest entries must be an array".to_owned())?;
+    let legacy_operations = legacy_entries
+        .iter()
+        .map(|entry| {
+            entry["operation"]
+                .as_str()
+                .ok_or_else(|| "CLI/GUI parity entry is missing operation".to_owned())
+        })
+        .collect::<Result<BTreeSet<_>, _>>()?;
+
+    let path = root.join("docs/contracts/svelte-parity-v1.json");
+    let document: Value = serde_json::from_slice(
+        &fs::read(&path).map_err(|error| format!("Svelte parity ledger is missing: {error}"))?,
+    )
+    .map_err(|error| format!("Svelte parity ledger is invalid JSON: {error}"))?;
+    if document["format"].as_str() != Some(SVELTE_PARITY_SCHEMA) {
+        return Err(format!(
+            "Svelte parity ledger format must be {SVELTE_PARITY_SCHEMA}"
+        ));
+    }
+    let cutover_ready = document["cutover_ready"]
+        .as_bool()
+        .ok_or_else(|| "Svelte parity ledger must define cutover_ready".to_owned())?;
+    let legacy_required = document["legacy_egui_required"]
+        .as_bool()
+        .ok_or_else(|| "Svelte parity ledger must define legacy_egui_required".to_owned())?;
+    if cutover_ready == legacy_required {
+        return Err(
+            "Svelte cutover_ready and legacy_egui_required must be exact opposites".to_owned(),
+        );
+    }
+    let entries = document["entries"]
+        .as_array()
+        .ok_or_else(|| "Svelte parity ledger entries must be an array".to_owned())?;
+    let desktop_source = root.join("crates/canisend-desktop/src");
+    let mut command_files = fs::read_dir(&desktop_source)
+        .map_err(|error| format!("cannot inspect Tauri command sources: {error}"))?
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| path.extension().is_some_and(|extension| extension == "rs"))
+        .collect::<Vec<_>>();
+    command_files.sort();
+    let command_sources = command_files
+        .into_iter()
+        .map(|source| {
+            fs::read_to_string(&source).map_err(|error| {
+                format!(
+                    "cannot read Tauri command source {}: {error}",
+                    source.display()
+                )
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?
+        .join("\n");
+    let mut operations = BTreeSet::new();
+    let mut implemented = 0_usize;
+    for entry in entries {
+        let operation = entry["operation"]
+            .as_str()
+            .ok_or_else(|| "Svelte parity entry is missing operation".to_owned())?;
+        if !operations.insert(operation) {
+            return Err(format!("duplicate Svelte parity operation: {operation}"));
+        }
+        match entry["status"].as_str() {
+            Some("implemented") => {
+                implemented += 1;
+                for field in ["tauri_commands", "svelte_views", "tests"] {
+                    let evidence = entry[field]
+                        .as_array()
+                        .filter(|items| !items.is_empty())
+                        .ok_or_else(|| {
+                            format!(
+                                "implemented Svelte parity entry {operation} needs {field} evidence"
+                            )
+                        })?;
+                    for item in evidence {
+                        let value = item.as_str().ok_or_else(|| {
+                            format!("Svelte parity {operation} {field} evidence must be a string")
+                        })?;
+                        if field == "tauri_commands" {
+                            let declaration = format!("fn {value}(");
+                            let registration = format!("::{value}");
+                            if !command_sources.contains(&declaration)
+                                || !command_sources.contains(&registration)
+                            {
+                                return Err(format!(
+                                    "Svelte parity command evidence `{value}` for {operation} is not declared and registered"
+                                ));
+                            }
+                        } else {
+                            let evidence_path = Path::new(value);
+                            if evidence_path.is_absolute()
+                                || evidence_path.components().any(|component| {
+                                    matches!(component, std::path::Component::ParentDir)
+                                })
+                                || !root.join(evidence_path).is_file()
+                            {
+                                return Err(format!(
+                                    "Svelte parity evidence `{value}` for {operation} is not a repository file"
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+            Some("pending") => {
+                if entry["target_stage"]
+                    .as_str()
+                    .is_none_or(|stage| !matches!(stage, "TS3" | "TS4" | "TS5"))
+                {
+                    return Err(format!(
+                        "pending Svelte parity entry {operation} needs a TS3, TS4, or TS5 target"
+                    ));
+                }
+            }
+            Some(other) => {
+                return Err(format!(
+                    "Svelte parity entry {operation} has unknown status {other}"
+                ));
+            }
+            None => return Err(format!("Svelte parity entry {operation} is missing status")),
+        }
+    }
+    if operations != legacy_operations {
+        let missing = legacy_operations
+            .difference(&operations)
+            .collect::<Vec<_>>();
+        let extra = operations
+            .difference(&legacy_operations)
+            .collect::<Vec<_>>();
+        return Err(format!(
+            "Svelte parity operation set differs from CLI/GUI authority; missing {missing:?}, extra {extra:?}"
+        ));
+    }
+    if cutover_ready && implemented != entries.len() {
+        return Err(
+            "Svelte cutover cannot be ready while any operation family remains pending".to_owned(),
+        );
+    }
+    if cutover_ready {
+        let workspace_manifest = fs::read_to_string(root.join("Cargo.toml"))
+            .map_err(|error| format!("cannot inspect workspace manifest for cutover: {error}"))?;
+        for forbidden in ["eframe =", "rfd =", "\"crates/canisend-gui\""] {
+            if workspace_manifest.contains(forbidden) {
+                return Err(format!(
+                    "Svelte cutover still contains legacy workspace entry `{forbidden}`"
+                ));
+            }
+        }
+        if root.join("crates/canisend-gui/Cargo.toml").exists() {
+            return Err("Svelte cutover still contains the legacy egui crate".to_owned());
+        }
+
+        let desktop_manifest = fs::read_to_string(root.join("crates/canisend-desktop/Cargo.toml"))
+            .map_err(|error| format!("cannot inspect Svelte desktop manifest: {error}"))?;
+        for required in [
+            "name = \"canisend-gui\"",
+            "tauri.workspace = true",
+            "tauri-plugin-dialog.workspace = true",
+            "tauri-plugin-window-state.workspace = true",
+            "custom-protocol = [\"tauri/custom-protocol\"]",
+        ] {
+            if !desktop_manifest.contains(required) {
+                return Err(format!(
+                    "Svelte cutover desktop manifest is missing `{required}`"
+                ));
+            }
+        }
+
+        let tauri_config = fs::read_to_string(root.join("crates/canisend-desktop/tauri.conf.json"))
+            .map_err(|error| format!("cannot inspect Svelte desktop configuration: {error}"))?;
+        for required in [
+            "\"productName\": \"CanISend\"",
+            "\"identifier\": \"io.github.jxpeng98.canisend\"",
+            "\"frontendDist\": \"../../apps/canisend-desktop/dist\"",
+        ] {
+            if !tauri_config.contains(required) {
+                return Err(format!(
+                    "Svelte cutover desktop configuration is missing `{required}`"
+                ));
+            }
+        }
+
+        let vite_config = fs::read_to_string(root.join("apps/canisend-desktop/vite.config.ts"))
+            .map_err(|error| format!("cannot inspect Svelte Vite configuration: {error}"))?;
+        if !vite_config.contains("base: \"./\"") {
+            return Err(
+                "Svelte cutover Vite configuration must use relative production asset URLs"
+                    .to_owned(),
+            );
+        }
+
+        let stage_script = fs::read_to_string(root.join("scripts/stage_macos_gui_app.sh"))
+            .map_err(|error| format!("cannot inspect macOS GUI staging: {error}"))?;
+        for forbidden in ["epaint", "EGUI-FONT"] {
+            if stage_script.contains(forbidden) {
+                return Err(format!(
+                    "Svelte cutover staging still contains legacy renderer reference `{forbidden}`"
+                ));
+            }
+        }
+
+        let fast_ci = fs::read_to_string(root.join(".github/workflows/fast-ci.yml"))
+            .map_err(|error| format!("cannot inspect fast CI for Svelte cutover: {error}"))?;
+        for required in [
+            "Upload production desktop UI",
+            "Download exact production desktop UI",
+            "canisend-desktop-ui-${{ github.sha }}",
+        ] {
+            if !fast_ci.contains(required) {
+                return Err(format!(
+                    "Svelte cutover fast CI is missing frontend handoff `{required}`"
+                ));
+            }
+        }
+
+        for workflow in [
+            ".github/workflows/release.yml",
+            ".github/workflows/intel-gui-compile.yml",
+        ] {
+            let body = fs::read_to_string(root.join(workflow))
+                .map_err(|error| format!("cannot inspect {workflow}: {error}"))?;
+            for required in [
+                "pnpm --dir apps/canisend-desktop install --frozen-lockfile",
+                "pnpm --dir apps/canisend-desktop build",
+                "-p canisend-gui",
+                "--features canisend-gui/custom-protocol",
+            ] {
+                if !body.contains(required) {
+                    return Err(format!(
+                        "Svelte cutover workflow {workflow} is missing `{required}`"
+                    ));
+                }
+            }
+        }
+    }
+    println!(
+        "Svelte parity: ok ({implemented}/{} implemented, cutover_ready={cutover_ready})",
+        entries.len()
+    );
     Ok(())
 }
 

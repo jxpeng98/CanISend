@@ -39,22 +39,9 @@ for binary in "$gui_binary" "$cli_binary"; do
     exit 1
   fi
 done
-for command in cargo codesign jq plutil shasum; do
+for command in codesign jq plutil shasum; do
   if ! command -v "$command" >/dev/null 2>&1; then
     echo "macOS GUI bundle: required command is missing: $command" >&2
-    exit 1
-  fi
-done
-
-epaint_manifest="$(
-  cd "$repo_root"
-  cargo metadata --format-version 1 --locked \
-    | jq -er '.packages[] | select(.name == "epaint_default_fonts" and .version == "0.35.0") | .manifest_path'
-)"
-epaint_fonts="$(dirname "$epaint_manifest")/fonts"
-for font_notice in Hack-Regular.txt emoji-icon-font-mit-license.txt OFL.txt UFL.txt; do
-  if [[ ! -f "$epaint_fonts/$font_notice" || -L "$epaint_fonts/$font_notice" ]]; then
-    echo "macOS GUI bundle: epaint font notice is missing: $font_notice" >&2
     exit 1
   fi
 done
@@ -75,10 +62,6 @@ cp "$repo_root/packaging/macos/Info.plist" "$contents/Info.plist"
 cp "$repo_root/packaging/macos/AppIcon.icns" "$resources/AppIcon.icns"
 cp "$repo_root/LICENSE" "$legal/LICENSE"
 cp "$repo_root/THIRD_PARTY_NOTICES.md" "$legal/THIRD_PARTY_NOTICES.md"
-cp "$epaint_fonts/Hack-Regular.txt" "$legal/EGUI-FONT-HACK-LICENSE"
-cp "$epaint_fonts/emoji-icon-font-mit-license.txt" "$legal/EGUI-FONT-EMOJI-ICON-LICENSE"
-cp "$epaint_fonts/OFL.txt" "$legal/EGUI-FONT-NOTO-EMOJI-OFL"
-cp "$epaint_fonts/UFL.txt" "$legal/EGUI-FONT-UBUNTU-LICENSE"
 cp "$repo_root/docs/guides/desktop-gui.md" "$resources/DESKTOP-GUI.md"
 cp "$repo_root/docs/guides/privacy-and-consent.md" "$resources/PRIVACY.md"
 chmod 755 "$macos/canisend-gui" "$cli_destination"

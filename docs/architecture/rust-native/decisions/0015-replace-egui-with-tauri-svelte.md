@@ -68,3 +68,13 @@ release qualification builds the frontend once before the Tauri executable.
 The Beta transition is postponed until the Svelte desktop reaches parity and the egui runtime is
 removed. The first releasable migration checkpoint is expected to be another explicitly authorized
 Alpha, not an automatic Beta.
+
+## Cutover record
+
+On 2026-07-28 the Svelte ledger reached all 35 operation families. The Tauri package assumed the
+public `canisend-gui` package and executable name, the old egui crate and renderer dependencies were
+removed, and macOS packaging/CI began embedding one locked Svelte production build. This completes
+the source cutover. The local exact Apple Silicon archive, ad-hoc signature, accessibility, and
+startup checks passed after qualifying Tauri's custom-protocol feature and relative frontend asset
+base. Hosted Intel compilation, five-target CLI qualification, and candidate publication remain
+TS6 release work and are not implied by this decision.

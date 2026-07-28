@@ -57,14 +57,29 @@ jobs:
       - name: Build production desktop UI
         run: pnpm build
 
+      - name: Upload production desktop UI
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: canisend-desktop-ui-${{ github.sha }}
+          path: apps/canisend-desktop/dist
+          if-no-files-found: error
+          retention-days: 1
+
   macos-quality:
     name: macos-quality
+    needs: desktop-ui
     runs-on: macos-15
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
+
+      - name: Download exact production desktop UI
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: canisend-desktop-ui-${{ github.sha }}
+          path: apps/canisend-desktop/dist
 
       - name: Install pinned Rust toolchain
         uses: dtolnay/rust-toolchain@1.97.0
@@ -122,12 +137,19 @@ jobs:
 
   macos-tests:
     name: macos-tests
+    needs: desktop-ui
     runs-on: macos-15
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
+
+      - name: Download exact production desktop UI
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: canisend-desktop-ui-${{ github.sha }}
+          path: apps/canisend-desktop/dist
 
       - name: Install pinned Rust toolchain
         uses: dtolnay/rust-toolchain@1.97.0
@@ -155,7 +177,9 @@ jobs:
         run: cargo test -p canisend-contracts --locked --test property_contract
 
       - name: Build macOS development CLI and GUI
-        run: cargo build --locked -p canisend-cli -p canisend-gui
+        run: >-
+          cargo build --locked -p canisend-cli -p canisend-gui
+          --features canisend-gui/custom-protocol
 
       - name: Smoke macOS development CLI
         shell: bash

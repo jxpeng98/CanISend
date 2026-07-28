@@ -13,13 +13,13 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct DesktopCommandError {
-    code: String,
-    message: String,
-    retryable: bool,
+    pub(crate) code: String,
+    pub(crate) message: String,
+    pub(crate) retryable: bool,
 }
 
 impl DesktopCommandError {
-    fn application(error: ApplicationError) -> Self {
+    pub(crate) fn application(error: ApplicationError) -> Self {
         let failure = error.classify();
         let code = serde_json::to_value(failure.code)
             .ok()
@@ -40,7 +40,7 @@ impl DesktopCommandError {
         }
     }
 
-    fn consent(message: &str) -> Self {
+    pub(crate) fn consent(message: &str) -> Self {
         Self {
             code: "consent-required".to_owned(),
             message: message.to_owned(),
@@ -48,8 +48,16 @@ impl DesktopCommandError {
         }
     }
 
+    pub(crate) fn state(message: impl Into<String>) -> Self {
+        Self {
+            code: "desktop-state-failure".to_owned(),
+            message: message.into(),
+            retryable: false,
+        }
+    }
+
     #[cfg(target_os = "macos")]
-    fn worker(message: String) -> Self {
+    pub(crate) fn worker(message: String) -> Self {
         Self {
             code: "desktop-worker-failure".to_owned(),
             message,
@@ -277,7 +285,7 @@ fn import_url_job_source_impl(
 }
 
 #[cfg(target_os = "macos")]
-async fn run_worker<T, F>(task: F) -> Result<T, DesktopCommandError>
+pub(crate) async fn run_worker<T, F>(task: F) -> Result<T, DesktopCommandError>
 where
     T: Send + 'static,
     F: FnOnce() -> Result<T, DesktopCommandError> + Send + 'static,

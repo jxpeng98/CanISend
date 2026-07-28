@@ -1,10 +1,10 @@
-# CanISend desktop GUI preview
+# CanISend desktop GUI
 
-The native desktop interface is now available as a macOS-first development preview. It operates the
-same Rust v2 workspace as the `canisend` CLI and does not use CLI process output for workflow
-operations. The Command line page has one bounded exception: it invokes only the exact installed
-`canisend` path with fixed version arguments and a short timeout. It never invokes a shell or
-inspects Python, package managers, or their environments.
+The macOS-first desktop interface uses Svelte 5 inside a Tauri 2 WebView and operates the same Rust
+v2 workspace as the `canisend` CLI. All application operations call the shared `canisend-app`
+facade through typed Tauri commands; the frontend never parses CLI output or reads `.canisend`
+internals. The Terminal CLI settings use only bounded install/status services and never invoke a
+shell or inspect Python, package managers, or their environments.
 
 The GUI is not part of the historical qualified `0.7` release archives. It is the first
 implementation slice for the unified `1.0` product line, beginning with `1.0.0-alpha.1`.
@@ -14,13 +14,19 @@ implementation slice for the unified `1.0` product line, beginning with `1.0.0-a
 From the repository root:
 
 ```console
-cargo build -p canisend-cli -p canisend-gui --release --locked
+pnpm --dir apps/canisend-desktop install --frozen-lockfile
+pnpm --dir apps/canisend-desktop build
+cargo build -p canisend-cli -p canisend-gui --release --locked \
+  --features canisend-gui/custom-protocol
 ./target/release/canisend-gui
 ```
 
-Build both executables so the GUI can discover the sibling native CLI. The current release build is
-a native arm64 Mach-O executable. It opens one window with Overview, Jobs, Discovery, Profile,
-Agent integration, Workspaces, Command line, and Diagnostics navigation.
+Build the locked Svelte assets before the Rust executables so Tauri embeds those exact frontend
+bytes. The explicit `custom-protocol` feature is mandatory for direct Cargo builds: without it,
+Tauri intentionally uses `devUrl` instead of embedded assets. Build both executables so the GUI can
+discover the sibling native CLI. The native arm64 application opens one window with Today,
+Opportunities, Applications, Application workspace, Documents & delivery, Profile, Agent
+integration, Workspaces, and Settings navigation.
 
 ## First run
 
@@ -42,7 +48,7 @@ authoritative SQLite/blob store as the CLI.
 
 ## Discover and promote jobs
 
-Open **Discovery** to review local lead batches or refresh one supported public source:
+Open **Opportunities** to review local lead batches or refresh one supported public source:
 
 1. Choose CSV or JSON for a user-reviewed local batch. Host-agent discovery uses the same bounded
    JSON contract and must be selected explicitly.
@@ -90,7 +96,7 @@ never launches the exported host or exposes a general shell.
 
 ## Inspect schemas and export the public catalog
 
-Open **Diagnostics**, then use **Schemas & resources** to load the verified public catalogs. This
+Open **Settings**, choose **Schema and resource inspection**, then load the verified public catalogs. This
 does not require a workspace. The two tabs show the complete totals and let you filter schema or
 resource metadata while keeping IDs, canonical URIs or embedded paths, versions, sizes, and
 SHA-256 digests selectable for copying. Integrity is always stated in text and is never conveyed
@@ -204,10 +210,11 @@ shared workspace and can be inspected through either the GUI or CLI after reopen
 
 ## Accessibility and appearance
 
-The navigation rail exposes native AccessKit names and roles, and every dialog moves initial focus
-to its first required control. Use Tab and Shift-Tab to traverse the workspace switcher,
-navigation, appearance settings, and page actions. Custom navigation and job-row controls draw an
-amber focus ring; at high text scale, focused navigation controls scroll into view.
+The Svelte document exposes semantic navigation, main-content, heading, status, alert, label, and
+dialog relationships through the macOS WebView accessibility tree. Use Tab and Shift-Tab to
+traverse the workspace switcher, navigation, appearance settings, and page actions. Interactive
+controls have visible focus indicators and retain labelled keyboard operation at every supported
+text scale.
 
 The **Accessibility & appearance** section provides:
 
@@ -217,10 +224,10 @@ The **Accessibility & appearance** section provides:
 - **Reduce motion**, which disables widget and scroll animation; and
 - 100%, 125%, 150%, or 200% text size.
 
-Language, appearance, density, reduced-motion, window, and text-scale state persist across normal restarts.
-The standard Command-plus, Command-minus, and Command-0 zoom shortcuts also work. Diagnostics
-reports the active text size, window-system display scale, and reduced-motion state without
-including job, profile, draft, or provider bodies.
+Language, appearance, density, reduced-motion, window, and text-scale state persist across normal
+restarts. Tauri's window-state plugin owns window size and position; local browser storage contains
+only the five display preferences and never workspace data. The standard Command-plus,
+Command-minus, and Command-0 zoom shortcuts also work.
 
 After staging an app, developers with macOS Accessibility automation permission can run the bounded
 smoke against an isolated HOME:
@@ -230,14 +237,14 @@ smoke against an isolated HOME:
 ```
 
 The smoke independently verifies the app manifest and ad-hoc signature, then checks English and
-Simplified Chinese native control names, AccessKit landmarks/headings, exact Tab order, 200% focus
-visibility, reduced motion, and Command-0 reset.
+Simplified Chinese WebView control names, Svelte landmarks/headings, 200% text scaling, reduced
+motion, and Command-0 reset.
 Real IME composition and native directory/file selection remain native release-matrix checks
 because they change global input-source or Finder UI state and do not belong in the fast edit loop.
 
 ## Install the CLI from the GUI
 
-Open **Command line** to inspect the exact CLI bundled with the GUI, the user-level destination
+Open **Settings**, then **Terminal CLI**, to inspect the exact CLI bundled with the GUI, the user-level destination
 `~/.local/bin/canisend`, whether that directory is on `PATH`, and which `canisend` command the
 GUI process environment resolves first. A Finder-launched app may see a different `PATH` from an
 interactive login shell, so the page also provides terminal verification commands.
@@ -357,7 +364,7 @@ the workspace, SQLite database, blobs, projections, exports, or backups.
 ## Implemented preview coverage
 
 - Persistent native light/dark appearance, compact density, 100–200% text scaling, reduced motion,
-  AccessKit landmarks/headings/live regions, visible keyboard focus, and background-operation
+  WebView landmarks/headings/live regions, visible keyboard focus, and background-operation
   feedback.
 - Native CanISend version detection, one-click user-level install/migration/update/uninstall,
   rollback restoration, PATH diagnostics, online release checks, and copyable terminal checks.

@@ -4,6 +4,9 @@ import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
+  // Tauri serves production assets from its custom protocol rather than an
+  // HTTP origin. Relative URLs keep the bundled entry points resolvable there.
+  base: "./",
   plugins: [tailwindcss(), svelte()],
   resolve: {
     alias: {

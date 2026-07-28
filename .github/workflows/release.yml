@@ -332,6 +332,21 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
+      - name: Install pinned pnpm for Intel GUI
+        if: matrix.target == 'x86_64-apple-darwin' && needs.release-identity.outputs.stage != 'alpha'
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.17.0
+          run_install: false
+
+      - name: Install pinned Node.js for Intel GUI
+        if: matrix.target == 'x86_64-apple-darwin' && needs.release-identity.outputs.stage != 'alpha'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 26.5.0
+          cache: pnpm
+          cache-dependency-path: apps/canisend-desktop/pnpm-lock.yaml
+
       - name: Parse Windows release signing verifier
         if: matrix.target == 'x86_64-pc-windows-msvc'
         shell: pwsh
@@ -423,9 +438,12 @@ jobs:
 
       - name: Build compile-only Intel macOS GUI
         if: matrix.target == 'x86_64-apple-darwin' && needs.release-identity.outputs.stage != 'alpha'
-        run: >-
-          cargo build --release --locked --target x86_64-apple-darwin
-          -p canisend-gui
+        shell: bash
+        run: |
+          pnpm --dir apps/canisend-desktop install --frozen-lockfile
+          pnpm --dir apps/canisend-desktop build
+          cargo build --release --locked --target x86_64-apple-darwin \
+            -p canisend-gui --features canisend-gui/custom-protocol
 
       - name: Record Intel macOS GUI compilation evidence
         if: matrix.target == 'x86_64-apple-darwin' && needs.release-identity.outputs.stage != 'alpha'
@@ -630,6 +648,24 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
+      - name: Install pinned pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.17.0
+          run_install: false
+
+      - name: Install pinned Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 26.5.0
+          cache: pnpm
+          cache-dependency-path: apps/canisend-desktop/pnpm-lock.yaml
+
+      - name: Build locked production desktop UI
+        run: |
+          pnpm --dir apps/canisend-desktop install --frozen-lockfile
+          pnpm --dir apps/canisend-desktop build
+
       - name: Install pinned Rust toolchain
         uses: dtolnay/rust-toolchain@1.97.0
         with:
@@ -668,6 +704,7 @@ jobs:
           cargo build --profile ${{ needs.release-identity.outputs.cargo_profile }}
           --locked --target aarch64-apple-darwin
           -p canisend-cli -p canisend-gui
+          --features canisend-gui/custom-protocol
 
       - name: Record desktop build timing boundary
         id: timing_build

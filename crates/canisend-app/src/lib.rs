@@ -5,6 +5,7 @@ mod application;
 mod catalog;
 mod cli_install;
 mod decision;
+mod desktop_cli;
 mod discovery;
 mod document;
 mod error;
@@ -36,6 +37,7 @@ pub use catalog::{
 pub use cli_install::{
     CliInstallState, CliInstallStatus, CliVersionRelation, TerminalInstallConsent,
 };
+pub use desktop_cli::{bundled_cli_path, default_cli_destination};
 pub use discovery::{
     DiscoveryAdapterCatalogReadModel, DiscoveryImportRequest, DiscoveryLeadListReadModel,
     DiscoveryNetworkAdapter, DiscoveryPromotionReadModel, DiscoveryRefreshRequest,
