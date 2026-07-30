@@ -3,6 +3,7 @@
 mod agent;
 mod agent_session;
 mod application;
+mod assistance;
 mod catalog;
 mod cli_install;
 mod content;
@@ -39,6 +40,12 @@ pub use agent_session::{
 };
 pub use application::{
     Application, NetworkFetchConsent, PrivateExportConsent, PrivateReadConsent, ProviderSendConsent,
+};
+pub use assistance::{
+    AgentAssistanceReadModel, AgentContentGraphReadModel, AgentContentProvenanceReadModel,
+    AgentContentReferenceReadModel, AgentExecutionBoundaryReadModel, AgentProposalCommitBoundary,
+    AgentProposalKind, AgentProposalState, AgentProposalTargetReadModel,
+    AgentRecommendationReadModel, AgentWorkspaceSection,
 };
 pub use catalog::{
     InspectionCatalogReadModel, ResourceCatalogExportReadModel, ResourceCatalogExportRequest,

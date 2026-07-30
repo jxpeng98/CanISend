@@ -151,6 +151,8 @@ enum AgentCommand {
     Capabilities(OutputArgs),
     /// Return the body-free public execution context.
     Context(AgentContextArgs),
+    /// Return body-free, job-scoped guidance for the smallest applicable workflow skill.
+    Assist(AgentAssistArgs),
     /// Export self-contained integration assets for an agent host.
     Assets {
         #[command(subcommand)]
@@ -404,6 +406,15 @@ struct AgentContextArgs {
     /// Select one job for body-free stage blockers and next actions.
     #[arg(long)]
     job: Option<String>,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
+struct AgentAssistArgs {
+    /// Select the application whose revisions and content relationships guide the Agent.
+    #[arg(long)]
+    job: String,
     #[command(flatten)]
     output: OutputArgs,
 }
@@ -1231,6 +1242,9 @@ impl Cli {
             Command::Agent {
                 command: AgentCommand::Context(arguments),
             } => arguments.output.json,
+            Command::Agent {
+                command: AgentCommand::Assist(arguments),
+            } => arguments.output.json,
             Command::Mcp {
                 command: McpCommand::Serve,
             } => false,
@@ -1446,6 +1460,9 @@ fn execute(cli: Cli) -> CommandResult<CommandOutput> {
         Command::Agent {
             command: AgentCommand::Context(arguments),
         } => context(workspace, arguments.job.as_deref()),
+        Command::Agent {
+            command: AgentCommand::Assist(arguments),
+        } => assistance(workspace, &arguments.job),
         Command::Agent {
             command:
                 AgentCommand::Assets {
@@ -1792,6 +1809,38 @@ fn context(
         ],
     )?;
     output.response.next_actions = data.next_actions.clone();
+    Ok(output)
+}
+
+fn assistance(
+    workspace_path: Option<PathBuf>,
+    selected_job_id: &str,
+) -> CommandResult<CommandOutput> {
+    let root = app_adapter::workspace_root(workspace_path, "agent.assistance")?;
+    let receipt = Application::agent_assistance(&root, selected_job_id)
+        .map_err(|error| app_adapter::failure("agent.assistance", error))?;
+    let data = receipt.data;
+    let mut output = success(
+        "agent.assistance",
+        "available",
+        &data,
+        vec![
+            "CanISend body-free contextual assistance".to_owned(),
+            format!(
+                "Application: {} — {}",
+                data.dossier.job.title, data.dossier.job.institution
+            ),
+            format!("Recommended skill: {}", data.recommendation.skill_id),
+            format!("Proposal targets: {}", data.proposal_targets.len()),
+            format!(
+                "Content references: {} of {}",
+                data.content.entries.len(),
+                data.content.total_entries
+            ),
+            "Privacy: public metadata and artifact identities only".to_owned(),
+        ],
+    )?;
+    output.response.next_actions = receipt.next_actions;
     Ok(output)
 }
 
@@ -3990,8 +4039,8 @@ mod tests {
 
     use super::{
         AgentAssetsExportArgs, AgentHostName, Cli, CommandFailure, ExitClass, OutputArgs,
-        TaskExecutionModeName, TaskOperationName, agent_assets_export, capabilities, context,
-        human_failure_lines, human_success_lines,
+        TaskExecutionModeName, TaskOperationName, agent_assets_export, assistance, capabilities,
+        context, human_failure_lines, human_success_lines,
     };
 
     #[test]
@@ -4084,6 +4133,23 @@ mod tests {
             context_lines[4],
             "Next: canisend job create --title TITLE --institution INSTITUTION --json — Create a direct-intake job or import discovery leads"
         );
+
+        let job = Application::create_job(&root, "Lecturer", "University X")
+            .expect("job")
+            .data;
+        let assistance = assistance(Some(root.clone()), job.id.as_str())
+            .unwrap_or_else(|_| panic!("assistance output must succeed"));
+        let assistance_lines = human_success_lines(&assistance);
+        assert_eq!(
+            assistance_lines[0],
+            "CanISend body-free contextual assistance"
+        );
+        assert_eq!(assistance_lines[1], "Application: Lecturer — University X");
+        assert_eq!(
+            assistance_lines[2],
+            "Recommended skill: canisend-job-intake"
+        );
+        assert_eq!(assistance_lines[3], "Proposal targets: 5");
 
         fs::create_dir(&packs).expect("pack parent");
         let destination = packs.join("generic");

@@ -227,6 +227,53 @@ fn agent_context_preserves_missing_workspace_remediation() {
 }
 
 #[test]
+fn agent_assistance_requires_a_job_and_returns_body_free_proposal_boundaries() {
+    let workspace = TestDirectory::new("agent-assistance");
+    run_json(&[
+        "--workspace",
+        workspace.text(),
+        "workspace",
+        "init",
+        "--json",
+    ]);
+    let created = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "job",
+        "create",
+        "--title",
+        "Lecturer",
+        "--institution",
+        "University X",
+        "--json",
+    ]);
+    let job_id = created["data"]["id"].as_str().expect("job ID");
+    let assistance = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "agent",
+        "assist",
+        "--job",
+        job_id,
+        "--json",
+    ]);
+
+    assert_eq!(assistance["operation"], "agent.assistance");
+    assert_eq!(
+        assistance["data"]["recommendation"]["skill_id"],
+        "canisend-job-intake"
+    );
+    assert_eq!(
+        assistance["data"]["proposal_targets"]
+            .as_array()
+            .map(Vec::len),
+        Some(5)
+    );
+    assert_eq!(assistance["data"]["privacy"], "public");
+    assert!(!assistance.to_string().contains("\"locator\""));
+}
+
+#[test]
 fn agent_host_pack_export_is_versioned_and_self_contained() {
     let parent = TestDirectory::new("agent-pack-parent");
     fs::create_dir_all(parent.path()).expect("pack parent");

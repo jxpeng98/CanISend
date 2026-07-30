@@ -7,10 +7,10 @@ use std::{
 };
 
 use canisend_app::{
-    ActionReceipt, AgentCapabilitiesReadModel, AgentContextReadModel, AgentHandoffReadModel,
-    AgentHandoffRequest, AgentHost, AgentMcpConfigurationReadModel, AgentMcpConfigurationRequest,
-    AgentPackExportReadModel, AgentPackExportRequest, AgentSkillsInstallReadModel,
-    AgentSkillsInstallRequest, Application, bundled_cli_path,
+    ActionReceipt, AgentAssistanceReadModel, AgentCapabilitiesReadModel, AgentContextReadModel,
+    AgentHandoffReadModel, AgentHandoffRequest, AgentHost, AgentMcpConfigurationReadModel,
+    AgentMcpConfigurationRequest, AgentPackExportReadModel, AgentPackExportRequest,
+    AgentSkillsInstallReadModel, AgentSkillsInstallRequest, Application, bundled_cli_path,
 };
 use serde::Deserialize;
 
@@ -21,6 +21,13 @@ use crate::commands::{DesktopCommandError, run_worker};
 pub(crate) struct AgentContextRequest {
     workspace: Option<PathBuf>,
     selected_job_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct AgentAssistanceRequest {
+    workspace: PathBuf,
+    job_id: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -102,6 +109,18 @@ pub(crate) async fn agent_context(
             request.selected_job_id.as_deref(),
         )
         .map_err(DesktopCommandError::application)
+    })
+    .await
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+pub(crate) async fn agent_assistance(
+    request: AgentAssistanceRequest,
+) -> Result<ActionReceipt<AgentAssistanceReadModel>, DesktopCommandError> {
+    run_worker(move || {
+        Application::agent_assistance(&request.workspace, &request.job_id)
+            .map_err(DesktopCommandError::application)
     })
     .await
 }
@@ -297,6 +316,30 @@ mod tests {
         assert_eq!(context.operation, "agent.context");
         assert!(context.data.workspace.is_none());
         assert!(!context.data.blockers.is_empty());
+    }
+
+    #[test]
+    fn assistance_request_requires_an_explicit_workspace_and_job() {
+        let request: AgentAssistanceRequest = serde_json::from_value(serde_json::json!({
+            "workspace": "/tmp/workspace",
+            "job_id": "018f2498-7b2a-7f62-8a5c-5e1e7dfb4e11"
+        }))
+        .expect("assistance request");
+        assert_eq!(request.workspace, PathBuf::from("/tmp/workspace"));
+        assert!(
+            serde_json::from_value::<AgentAssistanceRequest>(serde_json::json!({
+                "workspace": "/tmp/workspace"
+            }))
+            .is_err()
+        );
+        assert!(
+            serde_json::from_value::<AgentAssistanceRequest>(serde_json::json!({
+                "workspace": "/tmp/workspace",
+                "job_id": "018f2498-7b2a-7f62-8a5c-5e1e7dfb4e11",
+                "include_private_bodies": true
+            }))
+            .is_err()
+        );
     }
 
     #[test]

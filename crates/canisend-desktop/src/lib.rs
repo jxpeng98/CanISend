@@ -31,6 +31,7 @@ pub fn run() {
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .invoke_handler(tauri::generate_handler![
             agent::agent_capabilities,
+            agent::agent_assistance,
             agent::agent_context,
             agent::copy_agent_mcp_configuration,
             agent::copy_agent_handoff,

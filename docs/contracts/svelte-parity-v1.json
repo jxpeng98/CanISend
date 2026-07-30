@@ -321,6 +321,7 @@
       "status": "implemented",
       "tauri_commands": [
         "agent_capabilities",
+        "agent_assistance",
         "agent_context",
         "prepare_agent_handoff",
         "copy_agent_handoff",

@@ -1,4 +1,5 @@
 import type {
+  AgentAssistanceReadModel,
   AgentCapabilitiesReadModel,
   AgentContextReadModel,
   AgentHandoffReadModel,
@@ -33,6 +34,7 @@ type AgentUiState = {
   startNew: boolean;
   capabilities: AgentCapabilitiesReadModel | null;
   context: AgentContextReadModel | null;
+  assistance: AgentAssistanceReadModel | null;
   runtimeCatalog: AgentRuntimeCatalog | null;
   handoff: AgentHandoffReadModel | null;
   skillsInstallation: AgentSkillsInstallReadModel | null;
@@ -58,6 +60,7 @@ export const agentUiState = $state<AgentUiState>({
   startNew: false,
   capabilities: null,
   context: null,
+  assistance: null,
   runtimeCatalog: null,
   handoff: null,
   skillsInstallation: null,
@@ -79,6 +82,7 @@ export function scopeAgentUiState(workspacePath: string | null): void {
   agentUiState.workspacePath = workspacePath;
   agentUiState.selectedJobId = "";
   agentUiState.context = null;
+  agentUiState.assistance = null;
   agentUiState.runtimeCatalog = null;
   agentUiState.handoff = null;
   agentUiState.skillsInstallation = null;
@@ -98,6 +102,7 @@ export function switchAgentConversationScope(
   runtime: AgentRuntimeKind,
   jobId: string,
 ): void {
+  const jobScopeChanged = agentUiState.selectedJobId !== jobId;
   agentUiState.conversationCache[agentUiState.activeConversationKey] = {
     prompt: agentUiState.prompt,
     confirmedProviderSend: agentUiState.confirmedProviderSend,
@@ -117,6 +122,7 @@ export function switchAgentConversationScope(
   agentUiState.lastTurn = target?.lastTurn ?? null;
   agentUiState.formError = null;
   agentUiState.handoff = null;
+  if (jobScopeChanged) agentUiState.assistance = null;
   agentUiState.skillsInstallation = null;
   agentUiState.mcpConfiguration = null;
   agentUiState.activeConversationKey = targetKey;

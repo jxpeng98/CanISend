@@ -36,6 +36,12 @@
     type WorkspaceReadModel,
   } from "$lib/bridge";
   import type { Messages } from "$lib/i18n";
+  import {
+    buildJsonDiff,
+    collectRevisionReferences,
+    type JsonDiffSummary,
+    type RevisionReferenceSummary,
+  } from "$lib/proposal-review";
   import type {
     WorkflowDetail,
     WorkflowRoute,
@@ -150,6 +156,12 @@
   let decisionKind = $state<DecisionKind>("evidence");
   let decisionEditable = $state(false);
   let decisionJson = $state("");
+  let decisionBaseline = $state<unknown>(null);
+  let decisionPreview = $state<{
+    candidate: unknown;
+    diff: JsonDiffSummary;
+    references: RevisionReferenceSummary[];
+  } | null>(null);
   let task = $state<TaskStateData | null>(null);
   let taskOperation = $state<TaskOperation>("job-parse");
   let taskMode = $state<TaskExecutionMode>("host-agent");
@@ -166,6 +178,8 @@
       loadedJobId = nextKey;
       workflow = null;
       decisionJson = "";
+      decisionBaseline = null;
+      decisionPreview = null;
       decisionEditable = false;
       task = null;
       rerunPreview = null;
@@ -274,8 +288,38 @@
     );
     if (data !== null) {
       decisionJson = JSON.stringify(data, null, 2);
+      decisionBaseline = data;
+      decisionPreview = null;
       decisionEditable = decisionKind !== "matches";
     }
+  }
+
+  function previewDecision(): void {
+    formError = null;
+    if (
+      !selectedJobId ||
+      !privateSessionConsent ||
+      decisionKind === "matches" ||
+      !decisionEditable
+    ) {
+      return;
+    }
+    try {
+      const candidate: unknown = JSON.parse(decisionJson);
+      decisionPreview = {
+        candidate,
+        diff: buildJsonDiff(decisionBaseline, candidate),
+        references: collectRevisionReferences(candidate),
+      };
+      decisionEditable = false;
+    } catch {
+      formError = copy.invalidJson;
+    }
+  }
+
+  function editDecision(): void {
+    decisionPreview = null;
+    decisionEditable = true;
   }
 
   async function confirmDecision(): Promise<void> {
@@ -283,19 +327,24 @@
     if (
       !selectedJobId ||
       !privateSessionConsent ||
-      decisionKind === "matches"
+      decisionKind === "matches" ||
+      !decisionPreview
     ) {
       return;
     }
     try {
-      const candidate: unknown = JSON.parse(decisionJson);
       const data = await onConfirmDecision(
         selectedJobId,
         decisionKind,
-        candidate,
+        decisionPreview.candidate,
         privateSessionConsent,
       );
-      if (data !== null) decisionJson = JSON.stringify(data, null, 2);
+      if (data !== null) {
+        decisionJson = JSON.stringify(data, null, 2);
+        decisionBaseline = data;
+        decisionPreview = null;
+        decisionEditable = false;
+      }
     } catch {
       formError = copy.invalidJson;
     }
@@ -612,6 +661,8 @@
                   bind:value={decisionKind}
                   onchange={() => {
                     decisionJson = "";
+                    decisionBaseline = null;
+                    decisionPreview = null;
                     decisionEditable = false;
                     navigateWithinWorkflow(decisionDetail(decisionKind));
                   }}
@@ -655,12 +706,109 @@
               />
             </div>
             <Button
+              variant="outline"
               class="min-h-11"
               disabled={busy || !decisionEditable || !decisionJson || !privateSessionConsent}
-              onclick={confirmDecision}
+              onclick={previewDecision}
             >
-              {copy.confirmCandidate}
+              {copy.previewProposal}
             </Button>
+            {#if decisionPreview}
+              <div class="space-y-4 rounded-xl border border-primary/35 bg-primary/5 p-4">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <Badge variant="secondary">{copy.reviewBeforeCommit}</Badge>
+                    <p class="mt-2 text-sm font-semibold">
+                      {copy.proposalDiff}
+                    </p>
+                    <p class="mt-1 text-xs leading-5 text-muted-foreground">
+                      {copy.proposalPreviewNotCommit}
+                    </p>
+                  </div>
+                  <Badge variant="outline">
+                    {decisionPreview.diff.totalChanges} {copy.changedFields}
+                  </Badge>
+                </div>
+
+                <div class="max-h-72 overflow-auto rounded-lg border bg-background">
+                  {#each decisionPreview.diff.changes as change (change.path)}
+                    <div class="border-b p-3 last:border-b-0">
+                      <p class="break-all font-mono text-[11px] font-semibold">
+                        {change.path}
+                      </p>
+                      <div class="mt-2 grid gap-2 lg:grid-cols-2">
+                        <div class="rounded-md bg-muted/40 p-2">
+                          <p class="text-[10px] font-medium text-muted-foreground">
+                            {copy.before}
+                          </p>
+                          <p class="mt-1 break-words font-mono text-[11px]">
+                            {change.before}
+                          </p>
+                        </div>
+                        <div class="rounded-md bg-primary/5 p-2">
+                          <p class="text-[10px] font-medium text-muted-foreground">
+                            {copy.after}
+                          </p>
+                          <p class="mt-1 break-words font-mono text-[11px]">
+                            {change.after}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  {:else}
+                    <p class="p-4 text-xs text-muted-foreground">{copy.noProposalChanges}</p>
+                  {/each}
+                </div>
+                {#if decisionPreview.diff.truncated || decisionPreview.diff.comparisonLimited}
+                  <p class="text-xs text-muted-foreground">{copy.diffTruncated}</p>
+                {/if}
+
+                <div class="grid gap-4 lg:grid-cols-2">
+                  <div class="rounded-lg border bg-background p-3">
+                    <p class="text-xs font-semibold">{copy.revisionProvenance}</p>
+                    <div class="mt-2 space-y-2">
+                      {#each decisionPreview.references as reference (`${reference.path}:${reference.id}:${reference.revision}`)}
+                        <p class="break-all font-mono text-[10px] leading-4 text-muted-foreground">
+                          {reference.kind} · {reference.id} · r{reference.revision}
+                        </p>
+                      {:else}
+                        <p class="text-xs text-muted-foreground">
+                          {copy.noEmbeddedRevisionReferences}
+                        </p>
+                      {/each}
+                    </div>
+                  </div>
+                  <div class="rounded-lg border bg-background p-3">
+                    <p class="text-xs font-semibold">{copy.validationAtCommit}</p>
+                    <ul class="mt-2 list-disc space-y-1.5 pl-4 text-xs leading-5 text-muted-foreground">
+                      <li>{copy.validateCandidateSchema}</li>
+                      <li>{copy.validateCurrentRevisions}</li>
+                      <li>{copy.validateSourceScope}</li>
+                    </ul>
+                  </div>
+                </div>
+
+                <div class="rounded-lg border bg-background p-3">
+                  <p class="text-xs font-semibold">{copy.intendedStateChange}</p>
+                  <p class="mt-1 text-xs leading-5 text-muted-foreground">
+                    {copy.decisionMutationDescription}
+                  </p>
+                </div>
+
+                <div class="flex flex-wrap justify-end gap-2">
+                  <Button variant="outline" disabled={busy} onclick={editDecision}>
+                    {copy.editProposal}
+                  </Button>
+                  <Button
+                    class="min-h-11"
+                    disabled={busy}
+                    onclick={confirmDecision}
+                  >
+                    {copy.confirmCandidate}
+                  </Button>
+                </div>
+              </div>
+            {/if}
           </Card.Content>
         </Card.Root>
       </Tabs.Content>
@@ -852,10 +1000,78 @@
                   {copy.previewCompletion}
                 </Button>
                 {#if taskCompletionPreview}
-                  <div class="rounded-xl border border-primary/35 bg-accent/25 p-4">
-                    <Badge variant="secondary">{copy.reviewBeforeCommit}</Badge>
-                    <p class="mt-3 text-sm text-muted-foreground">
-                      {taskCompletionPreview.preview.summary}
+                  <div class="space-y-4 rounded-xl border border-primary/35 bg-accent/25 p-4">
+                    <div class="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <Badge variant="secondary">{copy.validatedPreview}</Badge>
+                        <p class="mt-3 text-sm text-muted-foreground">
+                          {taskCompletionPreview.preview.summary}
+                        </p>
+                      </div>
+                      <Badge variant="outline">
+                        {taskCompletionPreview.preview.data.state.descriptor.operation}
+                      </Badge>
+                    </div>
+                    <div class="grid gap-3 lg:grid-cols-3">
+                      <div class="rounded-lg border bg-background p-3">
+                        <p class="text-[10px] font-medium text-muted-foreground">
+                          {copy.jobRevision}
+                        </p>
+                        <p class="mt-1 font-mono text-xs">
+                          r{taskCompletionPreview.preview.data.state.descriptor.job_revision}
+                        </p>
+                      </div>
+                      <div class="rounded-lg border bg-background p-3">
+                        <p class="text-[10px] font-medium text-muted-foreground">
+                          {copy.outputArtifact}
+                        </p>
+                        <p class="mt-1 font-mono text-xs">
+                          {taskCompletionPreview.preview.data.state.descriptor.allowed_output_kind}
+                        </p>
+                      </div>
+                      <div class="rounded-lg border bg-background p-3">
+                        <p class="text-[10px] font-medium text-muted-foreground">
+                          {copy.declaredInputs}
+                        </p>
+                        <p class="mt-1 font-mono text-xs">
+                          {taskCompletionPreview.preview.data.state.descriptor.input_artifacts.length}
+                        </p>
+                      </div>
+                    </div>
+                    <details class="rounded-lg border bg-background p-3">
+                      <summary class="cursor-pointer text-xs font-semibold">
+                        {copy.revisionProvenance}
+                      </summary>
+                      <div class="mt-2 space-y-2">
+                        {#each taskCompletionPreview.preview.data.state.descriptor.input_artifacts as artifact (`${artifact.id}:${artifact.revision}`)}
+                          <p class="break-all font-mono text-[10px] leading-4 text-muted-foreground">
+                            {artifact.kind} · {artifact.id} · r{artifact.revision} · {artifact.sha256}
+                          </p>
+                        {:else}
+                          <p class="text-xs text-muted-foreground">
+                            {copy.noEmbeddedRevisionReferences}
+                          </p>
+                        {/each}
+                      </div>
+                    </details>
+                    <div class="grid gap-3 lg:grid-cols-2">
+                      <div class="rounded-lg border bg-background p-3">
+                        <p class="text-xs font-semibold">{copy.validationAtCommit}</p>
+                        <ul class="mt-2 list-disc space-y-1.5 pl-4 text-xs leading-5 text-muted-foreground">
+                          <li>{copy.validateCandidateSchema}</li>
+                          <li>{copy.validateCurrentRevisions}</li>
+                          <li>{copy.validateTaskLease}</li>
+                        </ul>
+                      </div>
+                      <div class="rounded-lg border bg-background p-3">
+                        <p class="text-xs font-semibold">{copy.intendedStateChange}</p>
+                        <p class="mt-2 text-xs leading-5 text-muted-foreground">
+                          {copy.taskMutationDescription}
+                        </p>
+                      </div>
+                    </div>
+                    <p class="text-xs leading-5 text-muted-foreground">
+                      {copy.reviewExactCompletion}
                     </p>
                     <Button class="mt-4 min-h-11" disabled={busy} onclick={commitCompletion}>
                       {copy.commitCompletion}

@@ -25,6 +25,12 @@
     type WorkspaceReadModel,
   } from "$lib/bridge";
   import type { Messages } from "$lib/i18n";
+  import {
+    buildJsonDiff,
+    collectRevisionReferences,
+    type JsonDiffSummary,
+    type RevisionReferenceSummary,
+  } from "$lib/proposal-review";
   import type { WorkflowDetail } from "$lib/workflow-navigation";
 
   type Props = {
@@ -84,6 +90,12 @@
   let privateSessionConsent = $state(false);
   let evidenceJson = $state("");
   let evidenceKey = $state("");
+  let evidenceBaseline = $state<unknown>(null);
+  let evidencePreview = $state<{
+    candidate: unknown;
+    diff: JsonDiffSummary;
+    references: RevisionReferenceSummary[];
+  } | null>(null);
   let formError = $state<string | null>(null);
   let initializationMarkdown = $state("");
   let previousInitializationTemplate = $state("");
@@ -105,6 +117,8 @@
     if (nextKey !== evidenceKey) {
       evidenceKey = nextKey;
       evidenceJson = evidence ? JSON.stringify(evidence, null, 2) : "";
+      evidenceBaseline = evidence;
+      evidencePreview = null;
     }
   });
 
@@ -164,7 +178,7 @@
     await onLoadEvidence(selectedJobId, privateSessionConsent);
   }
 
-  async function confirmEvidence(): Promise<void> {
+  function previewEvidence(): void {
     formError = null;
     if (!selectedJobId || !privateSessionConsent) {
       formError = copy.privateWorkspaceConsent;
@@ -172,9 +186,34 @@
     }
     try {
       const candidate: unknown = JSON.parse(evidenceJson);
-      await onConfirmEvidence(selectedJobId, candidate, privateSessionConsent);
+      evidencePreview = {
+        candidate,
+        diff: buildJsonDiff(evidenceBaseline, candidate),
+        references: collectRevisionReferences(candidate),
+      };
     } catch {
       formError = copy.invalidJson;
+    }
+  }
+
+  function editEvidence(): void {
+    evidencePreview = null;
+  }
+
+  async function confirmEvidence(): Promise<void> {
+    formError = null;
+    if (!selectedJobId || !privateSessionConsent || !evidencePreview) {
+      formError = copy.privateWorkspaceConsent;
+      return;
+    }
+    if (
+      await onConfirmEvidence(
+        selectedJobId,
+        evidencePreview.candidate,
+        privateSessionConsent,
+      )
+    ) {
+      evidencePreview = null;
     }
   }
 </script>
@@ -407,19 +446,104 @@
               class="min-h-[430px] resize-y font-mono text-xs leading-5"
               bind:value={evidenceJson}
               spellcheck={false}
-              disabled={!evidence}
+              disabled={!evidence || evidencePreview !== null}
             />
           </div>
           {#if formError}
             <p class="text-sm text-destructive" role="alert">{formError}</p>
           {/if}
           <Button
+            variant="outline"
             class="min-h-11"
-            disabled={busy || !evidence || !privateSessionConsent || !evidenceJson}
-            onclick={confirmEvidence}
+            disabled={busy ||
+              !evidence ||
+              !privateSessionConsent ||
+              !evidenceJson ||
+              evidencePreview !== null}
+            onclick={previewEvidence}
           >
-            {busy ? copy.working : copy.confirmEvidence}
+            {busy ? copy.working : copy.previewProposal}
           </Button>
+          {#if evidencePreview}
+            <div class="space-y-4 rounded-xl border border-primary/35 bg-primary/5 p-4">
+              <div class="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <Badge variant="secondary">{copy.reviewBeforeCommit}</Badge>
+                  <p class="mt-2 text-sm font-semibold">{copy.proposalDiff}</p>
+                  <p class="mt-1 text-xs leading-5 text-muted-foreground">
+                    {copy.proposalPreviewNotCommit}
+                  </p>
+                </div>
+                <Badge variant="outline">
+                  {evidencePreview.diff.totalChanges} {copy.changedFields}
+                </Badge>
+              </div>
+
+              <div class="max-h-72 overflow-auto rounded-lg border bg-background">
+                {#each evidencePreview.diff.changes as change (change.path)}
+                  <div class="border-b p-3 last:border-b-0">
+                    <p class="break-all font-mono text-[11px] font-semibold">{change.path}</p>
+                    <div class="mt-2 grid gap-2 lg:grid-cols-2">
+                      <div class="rounded-md bg-muted/40 p-2">
+                        <p class="text-[10px] font-medium text-muted-foreground">{copy.before}</p>
+                        <p class="mt-1 break-words font-mono text-[11px]">{change.before}</p>
+                      </div>
+                      <div class="rounded-md bg-primary/5 p-2">
+                        <p class="text-[10px] font-medium text-muted-foreground">{copy.after}</p>
+                        <p class="mt-1 break-words font-mono text-[11px]">{change.after}</p>
+                      </div>
+                    </div>
+                  </div>
+                {:else}
+                  <p class="p-4 text-xs text-muted-foreground">{copy.noProposalChanges}</p>
+                {/each}
+              </div>
+              {#if evidencePreview.diff.truncated || evidencePreview.diff.comparisonLimited}
+                <p class="text-xs text-muted-foreground">{copy.diffTruncated}</p>
+              {/if}
+
+              <div class="grid gap-4 lg:grid-cols-2">
+                <div class="rounded-lg border bg-background p-3">
+                  <p class="text-xs font-semibold">{copy.revisionProvenance}</p>
+                  <div class="mt-2 space-y-2">
+                    {#each evidencePreview.references as reference (`${reference.path}:${reference.id}:${reference.revision}`)}
+                      <p class="break-all font-mono text-[10px] leading-4 text-muted-foreground">
+                        {reference.kind} · {reference.id} · r{reference.revision}
+                      </p>
+                    {:else}
+                      <p class="text-xs text-muted-foreground">
+                        {copy.noEmbeddedRevisionReferences}
+                      </p>
+                    {/each}
+                  </div>
+                </div>
+                <div class="rounded-lg border bg-background p-3">
+                  <p class="text-xs font-semibold">{copy.validationAtCommit}</p>
+                  <ul class="mt-2 list-disc space-y-1.5 pl-4 text-xs leading-5 text-muted-foreground">
+                    <li>{copy.validateCandidateSchema}</li>
+                    <li>{copy.validateCurrentRevisions}</li>
+                    <li>{copy.validateSourceScope}</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div class="rounded-lg border bg-background p-3">
+                <p class="text-xs font-semibold">{copy.intendedStateChange}</p>
+                <p class="mt-1 text-xs leading-5 text-muted-foreground">
+                  {copy.evidenceMutationDescription}
+                </p>
+              </div>
+
+              <div class="flex flex-wrap justify-end gap-2">
+                <Button variant="outline" disabled={busy} onclick={editEvidence}>
+                  {copy.editProposal}
+                </Button>
+                <Button class="min-h-11" disabled={busy} onclick={confirmEvidence}>
+                  {busy ? copy.working : copy.confirmEvidence}
+                </Button>
+              </div>
+            </div>
+          {/if}
         </Card.Content>
       </Card.Root>
     </div>

@@ -736,6 +736,82 @@ export interface AgentContextReadModel {
   next_actions: Array<{ action: string; description: string }>;
 }
 
+export type AgentWorkspaceSection =
+  | "overview"
+  | "job-criteria"
+  | "evidence-fit"
+  | "materials"
+  | "review-export";
+
+export type AgentProposalKind =
+  | "criteria"
+  | "evidence"
+  | "matches"
+  | "plan"
+  | "draft";
+
+export type AgentProposalState =
+  | "blocked"
+  | "ready"
+  | "proposed"
+  | "current"
+  | "stale";
+
+export interface AgentAssistanceReadModel {
+  workspace: string;
+  selected_job_id: string;
+  dossier: ApplicationDossierReadModel;
+  context: AgentContextReadModel;
+  content: {
+    total_entries: number;
+    truncated: boolean;
+    entries: Array<{
+      artifact: ArtifactReference;
+      title: string;
+      category: ContentCategory;
+      stage: WorkflowStage;
+      status: ContentCatalogStatus;
+      privacy: ContentPrivacyClassification;
+      provenance: {
+        actor: "user" | "host-agent" | "configured-provider" | "system";
+        reason: string;
+        source_id: string | null;
+        source_scope: "job" | "profile" | null;
+        source_role: "original" | "normalized" | null;
+        source_kind: string | null;
+        content_type: string | null;
+      };
+      relationships: ArtifactReference[];
+    }>;
+  };
+  recommendation: {
+    skill_id: string;
+    section: AgentWorkspaceSection;
+    reason: string;
+    next_action: { action: string; description: string } | null;
+  };
+  proposal_targets: Array<{
+    kind: AgentProposalKind;
+    stage: WorkflowStage;
+    section: AgentWorkspaceSection;
+    state: AgentProposalState;
+    operation: string;
+    current_artifacts: ArtifactReference[];
+    upstream_artifacts: ArtifactReference[];
+    validation_rules: string[];
+    intended_mutation: string;
+    commit_boundary: "user-confirmation" | "task-preview-commit";
+  }>;
+  execution_boundary: {
+    recommended_integration: "external-host";
+    session_authority: "external-agent-host";
+    state_authority: "canisend";
+    in_app_runtime: "optional-read-only";
+    transcript_persisted_by_canisend: false;
+  };
+  privacy: "public";
+}
+
 export interface AgentPackExportReadModel {
   directory: string;
   manifest_path: string;
@@ -758,12 +834,14 @@ export interface AgentHandoffReadModel {
   start_command: string;
   capabilities_command: string;
   context_command: string;
+  assistance_command: string | null;
   bootstrap_prompt: string;
-  recommended_skill: "canisend-application";
+  recommended_skill: string;
   recommended_integration: "external-host";
   session_authority: string;
   state_authority: "canisend";
   context: AgentContextReadModel;
+  assistance: AgentAssistanceReadModel | null;
 }
 
 export interface AgentSkillsInstallReadModel {
@@ -1674,6 +1752,18 @@ export async function getAgentContext(
     request: {
       workspace: workspace || null,
       selected_job_id: selectedJobId || null,
+    },
+  });
+}
+
+export async function getAgentAssistance(
+  workspace: string,
+  jobId: string,
+): Promise<ActionReceipt<AgentAssistanceReadModel>> {
+  return invoke("agent_assistance", {
+    request: {
+      workspace,
+      job_id: jobId,
     },
   });
 }

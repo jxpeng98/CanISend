@@ -23,6 +23,7 @@ import {
   copyAgentHandoff,
   copyAgentMcpConfiguration,
   exportPackage,
+  getAgentAssistance,
   getApplicationDossier,
   getContentCatalog,
   installAgentSkills,
@@ -298,6 +299,17 @@ describe("typed Tauri command requests", () => {
         host: "claude",
         workspace: "/tmp/workspace",
         selected_job_id: "job-id",
+      },
+    });
+  });
+
+  it("loads body-free contextual assistance for an explicit application", async () => {
+    await getAgentAssistance("/tmp/workspace", "job-id");
+
+    expect(mocks.invoke).toHaveBeenCalledWith("agent_assistance", {
+      request: {
+        workspace: "/tmp/workspace",
+        job_id: "job-id",
       },
     });
   });

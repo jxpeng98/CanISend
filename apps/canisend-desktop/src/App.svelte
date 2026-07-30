@@ -22,6 +22,7 @@
   import { Button } from "$lib/components/ui/button/index.js";
   import * as Card from "$lib/components/ui/card/index.js";
   import { Separator } from "$lib/components/ui/separator/index.js";
+  import { agentUiState } from "$lib/agent-state.svelte";
   import WorkspaceContextBar from "$lib/components/WorkspaceContextBar.svelte";
   import {
     archiveJob,
@@ -60,6 +61,7 @@
     exportRender,
     exportResourceCatalog,
     exportTaskInputs,
+    getAgentAssistance,
     getAgentCapabilities,
     getAgentContext,
     getAgentRuntimeCatalog,
@@ -121,6 +123,7 @@
     suggestDiscoveryDuplicates,
     uninstallCli,
     type ActionReceipt,
+    type AgentAssistanceReadModel,
     type AgentCapabilitiesReadModel,
     type AgentContextReadModel,
     type AgentHandoffReadModel,
@@ -727,6 +730,10 @@
       );
       contentCatalog = catalogReceipt.data;
       contentSearchResult = null;
+      if (agentUiState.selectedJobId === jobId) {
+        agentUiState.assistance = null;
+        agentUiState.handoff = null;
+      }
     } catch (error) {
       captureBridgeError(error);
     }
@@ -1556,6 +1563,27 @@
   ): Promise<AgentContextReadModel | null> {
     const result = await runAction(() =>
       getAgentContext(activeWorkspace?.path, jobId),
+    );
+    if (!result) return null;
+    notice = result.summary;
+    return result.data;
+  }
+
+  async function handleLoadAgentAssistance(
+    jobId: string,
+  ): Promise<AgentAssistanceReadModel | null> {
+    if (!activeWorkspace) return null;
+    const result = await runAction(
+      () => getAgentAssistance(activeWorkspace!.path, jobId),
+      {
+        operation: "agent.assistance",
+        route: {
+          view: "agent",
+          detail: "agent-handoff",
+          jobId,
+        },
+        jobId,
+      },
     );
     if (!result) return null;
     notice = result.summary;
@@ -2716,6 +2744,7 @@
             onNavigate={navigateTo}
             onLoadCapabilities={handleLoadAgentCapabilities}
             onLoadContext={handleLoadAgentContext}
+            onLoadAssistance={handleLoadAgentAssistance}
             onPrepareHandoff={handlePrepareAgentHandoff}
             onInstallSkills={handleInstallAgentSkills}
             onCopyHandoff={handleCopyAgentHandoff}

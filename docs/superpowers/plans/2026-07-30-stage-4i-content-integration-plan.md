@@ -1,6 +1,6 @@
 # CanISend Stage 4I–4M content integration and experience plan
 
-**Status:** Stage 4I, Stage 4J, and Stage 4K complete in source; Stage 4L is the
+**Status:** Stage 4I, Stage 4J, Stage 4K, and Stage 4L complete in source; Stage 4M is the
 next follow-on slice.
 
 **Product decision:** CanISend remains the local-first application state, validation, and
@@ -170,12 +170,20 @@ and next action. Every receipt deep-links to its affected content and recommende
 
 ## Stage 4L — Contextual Agent assistance
 
-- Generate a body-free context packet from the Dossier and Content Catalog relationships.
-- Recommend the smallest applicable project skill and exact CanISend action.
-- Keep external-host handoff primary and the in-App runtime bridge optional/read-only.
-- Add revision-bound proposals for criteria, evidence, matches, plans, and drafts.
-- Show proposal diff, provenance, validation, and intended state change before confirmation.
-- Refresh the Dossier after commit so UI and Agent continue from the same next action.
+- [x] Generate a bounded body-free context packet from the Dossier and sanitized Content Catalog
+  relationships.
+- [x] Recommend the smallest applicable project skill, application section, and exact CanISend
+  action.
+- [x] Keep external-host handoff primary and the in-App runtime bridge optional/read-only.
+- [x] Represent revision-bound proposal state for criteria, evidence, matches, plans, and drafts.
+- [x] Show proposal diff, revision provenance, validation, commit boundary, and intended state
+  change before confirmation.
+- [x] Refresh the Dossier and Catalog after commit, and invalidate stale Agent guidance so UI and
+  Agent continue from the same next action.
+- [x] Keep the 13-tool MCP surface and 40 generated schemas frozen; expose the additive read model
+  through the application facade, CLI, Tauri, and TypeScript bridge.
+- [x] Complete focused/source gates and record
+  [Stage 4L evidence](../../notes/rust-native/2026-07-30-stage4l-contextual-agent-assistance.md).
 
 CanISend does not store a parallel chat history. Codex/Claude session continuity and host tools
 remain owned by those hosts.

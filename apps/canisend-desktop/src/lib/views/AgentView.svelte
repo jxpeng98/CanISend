@@ -1,5 +1,6 @@
 <script lang="ts">
   import {
+    ArrowRight,
     Bot,
     Check,
     CircleOff,
@@ -13,6 +14,7 @@
     RefreshCw,
     Send,
     ShieldCheck,
+    Sparkles,
   } from "@lucide/svelte";
   import { onMount } from "svelte";
 
@@ -34,6 +36,7 @@
   import { Textarea } from "$lib/components/ui/textarea/index.js";
   import {
     chooseExportDirectory,
+    type AgentAssistanceReadModel,
     type AgentCapabilitiesReadModel,
     type AgentContextReadModel,
     type AgentHandoffReadModel,
@@ -48,6 +51,7 @@
   } from "$lib/bridge";
   import type { Messages } from "$lib/i18n";
   import {
+    routeForApplicationSection,
     routeForAgentAction,
     type WorkflowDetail,
     type WorkflowRoute,
@@ -70,6 +74,9 @@
     onNavigate: (route: WorkflowRoute) => Promise<void>;
     onLoadCapabilities: () => Promise<AgentCapabilitiesReadModel | null>;
     onLoadContext: (jobId?: string) => Promise<AgentContextReadModel | null>;
+    onLoadAssistance: (
+      jobId: string,
+    ) => Promise<AgentAssistanceReadModel | null>;
     onPrepareHandoff: (
       host: AgentHost,
       jobId?: string,
@@ -120,6 +127,7 @@
     onNavigate,
     onLoadCapabilities,
     onLoadContext,
+    onLoadAssistance,
     onPrepareHandoff,
     onInstallSkills,
     onCopyHandoff,
@@ -133,7 +141,9 @@
 
   let copied = $state<CopyTarget | null>(null);
   let cancellingTurn = $state(false);
+  let assistanceLoading = $state(false);
   let observedGlobalScope = $state("");
+  let observedAssistanceScope = $state("");
 
   const runtimeProbe = $derived(
     agentUiState.runtimeCatalog?.runtimes.find(
@@ -161,6 +171,13 @@
     if (focus === "agent-handoff" || focus === "agent-task") {
       agentUiState.integrationMode = "handoff";
     }
+    const assistanceScope = `${activeWorkspace?.path ?? ""}:${agentUiState.selectedJobId}`;
+    if (assistanceScope !== observedAssistanceScope) {
+      observedAssistanceScope = assistanceScope;
+      if (activeWorkspace && agentUiState.selectedJobId) {
+        void loadAssistance();
+      }
+    }
   });
 
   onMount(() => {
@@ -181,10 +198,12 @@
     }
     switchAgentConversationScope(agentUiState.runtime, jobId);
     agentUiState.context = null;
+    agentUiState.assistance = null;
     agentUiState.handoff = null;
     agentUiState.skillsInstallation = null;
     agentUiState.mcpConfiguration = null;
     agentUiState.runtimeCatalog = await onLoadRuntimes(jobId || undefined);
+    if (jobId) await loadAssistance();
   }
 
   function changeHost(host: AgentHost): void {
@@ -218,6 +237,7 @@
     if (!handoff) return;
     agentUiState.handoff = handoff;
     agentUiState.context = handoff.context;
+    agentUiState.assistance = handoff.assistance;
   }
 
   async function copyHandoff(target: HandoffCopyTarget): Promise<void> {
@@ -278,6 +298,20 @@
     agentUiState.context = await onLoadContext(
       agentUiState.selectedJobId || undefined,
     );
+  }
+
+  async function loadAssistance(): Promise<void> {
+    const jobId = agentUiState.selectedJobId;
+    if (!activeWorkspace || !jobId || assistanceLoading) return;
+    assistanceLoading = true;
+    try {
+      const assistance = await onLoadAssistance(jobId);
+      if (agentUiState.selectedJobId !== jobId) return;
+      agentUiState.assistance = assistance;
+      if (assistance) agentUiState.context = assistance.context;
+    } finally {
+      assistanceLoading = false;
+    }
   }
 
   async function sendMessage(): Promise<void> {
@@ -365,6 +399,26 @@
       ? `${value.slice(0, 8)}…${value.slice(-6)}`
       : value;
   }
+
+  function proposalLabel(
+    value: AgentAssistanceReadModel["proposal_targets"][number]["kind"],
+  ): string {
+    if (value === "criteria") return copy.criteria;
+    if (value === "evidence") return copy.evidence;
+    if (value === "matches") return copy.matches;
+    if (value === "plan") return copy.plan;
+    return copy.applicationWorkspaceSectionLabel.materials;
+  }
+
+  function proposalStateLabel(
+    value: AgentAssistanceReadModel["proposal_targets"][number]["state"],
+  ): string {
+    if (value === "blocked") return copy.proposalBlocked;
+    if (value === "ready") return copy.proposalReady;
+    if (value === "proposed") return copy.proposalProposed;
+    if (value === "current") return copy.proposalCurrent;
+    return copy.proposalStale;
+  }
 </script>
 
 <section class="space-y-6">
@@ -413,6 +467,226 @@
       </p>
     </div>
   </div>
+
+  <Card.Root class="border-primary/25 shadow-none">
+    <Card.Header>
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div class="max-w-3xl">
+          <div class="mb-2 flex flex-wrap items-center gap-2">
+            <Badge variant="secondary">{copy.contextualAssistanceLabel}</Badge>
+            <Badge variant="outline">{copy.bodyFree}</Badge>
+          </div>
+          <Card.Title>{copy.contextualAssistance}</Card.Title>
+          <Card.Description class="mt-1.5">
+            {copy.contextualAssistanceDescription}
+          </Card.Description>
+        </div>
+        <Button
+          variant="outline"
+          class="min-h-11"
+          disabled={!desktopRuntime ||
+            !activeWorkspace ||
+            !agentUiState.selectedJobId ||
+            busy ||
+            assistanceLoading}
+          onclick={loadAssistance}
+        >
+          <RefreshCw
+            size={16}
+            strokeWidth={1.8}
+            class={assistanceLoading ? "animate-spin motion-reduce:animate-none" : ""}
+            data-icon="inline-start"
+            aria-hidden="true"
+          />
+          {assistanceLoading ? copy.loading : copy.refreshGuidance}
+        </Button>
+      </div>
+    </Card.Header>
+    <Card.Content class="space-y-5">
+      {#if !agentUiState.selectedJobId}
+        <div class="rounded-xl border border-dashed bg-muted/10 p-5 text-sm text-muted-foreground">
+          {copy.selectApplicationForGuidance}
+        </div>
+      {:else if assistanceLoading && !agentUiState.assistance}
+        <div class="flex min-h-28 items-center justify-center gap-2 text-sm text-muted-foreground" role="status">
+          <RefreshCw
+            size={17}
+            strokeWidth={1.8}
+            class="animate-spin motion-reduce:animate-none"
+            aria-hidden="true"
+          />
+          {copy.loadingGuidance}
+        </div>
+      {:else if agentUiState.assistance}
+        <div class="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(300px,0.85fr)]">
+          <div class="rounded-xl border bg-primary/5 p-5">
+            <div class="flex items-start gap-3">
+              <Sparkles
+                size={19}
+                strokeWidth={1.8}
+                class="mt-0.5 shrink-0 text-primary"
+                aria-hidden="true"
+              />
+              <div class="min-w-0">
+                <p class="text-xs font-medium text-muted-foreground">
+                  {copy.smallestApplicableSkill}
+                </p>
+                <p class="mt-1 break-all font-mono text-sm font-semibold">
+                  {agentUiState.assistance.recommendation.skill_id}
+                </p>
+                <p class="mt-2 text-xs leading-5 text-muted-foreground">
+                  {agentUiState.assistance.recommendation.reason}
+                </p>
+                <div class="mt-3 flex flex-wrap gap-2">
+                  <Badge variant="outline">
+                    {copy.applicationWorkspaceSectionLabel[
+                      agentUiState.assistance.recommendation.section
+                    ]}
+                  </Badge>
+                  <Badge variant="outline">
+                    {copy.stateInCanisend}
+                  </Badge>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="rounded-xl border p-5">
+            <p class="text-xs font-medium text-muted-foreground">
+              {copy.contentRelationshipGraph}
+            </p>
+            <p class="mt-2 text-2xl font-semibold tracking-tight">
+              {agentUiState.assistance.content.entries.length}
+              <span class="text-sm font-normal text-muted-foreground">
+                / {agentUiState.assistance.content.total_entries}
+              </span>
+            </p>
+            <p class="mt-2 text-xs leading-5 text-muted-foreground">
+              {copy.contentRelationshipGraphDescription}
+            </p>
+            {#if agentUiState.assistance.content.truncated}
+              <Badge variant="outline" class="mt-3">{copy.truncatedMetadata}</Badge>
+            {/if}
+          </div>
+        </div>
+
+        {#if agentUiState.assistance.recommendation.next_action}
+          <div class="rounded-xl border p-4">
+            <p class="text-xs font-medium text-muted-foreground">
+              {copy.exactRecommendedAction}
+            </p>
+            <p class="mt-2 text-sm font-semibold">
+              {agentUiState.assistance.recommendation.next_action.description}
+            </p>
+            <p class="mt-2 overflow-x-auto font-mono text-xs leading-5 text-muted-foreground">
+              {agentUiState.assistance.recommendation.next_action.action}
+            </p>
+            <Button
+              variant="outline"
+              class="mt-4 min-h-11"
+              onclick={() =>
+                void onNavigate({
+                  ...routeForAgentAction(
+                    agentUiState.assistance?.recommendation.next_action?.action ?? "",
+                  ),
+                  jobId: agentUiState.selectedJobId,
+                })}
+            >
+              {copy.openRelatedStep}
+              <ArrowRight size={16} strokeWidth={1.8} data-icon="inline-end" aria-hidden="true" />
+            </Button>
+          </div>
+        {/if}
+
+        <div>
+          <div class="mb-3">
+            <h2 class="text-sm font-semibold">{copy.revisionBoundProposals}</h2>
+            <p class="mt-1 text-xs leading-5 text-muted-foreground">
+              {copy.revisionBoundProposalsDescription}
+            </p>
+          </div>
+          <div class="grid gap-3 lg:grid-cols-2 xl:grid-cols-5">
+            {#each agentUiState.assistance.proposal_targets as target (target.kind)}
+              <div class="flex min-w-0 flex-col rounded-xl border p-4">
+                <div class="flex flex-wrap items-start justify-between gap-2">
+                  <p class="text-sm font-semibold">{proposalLabel(target.kind)}</p>
+                  <Badge variant={target.state === "current" ? "secondary" : "outline"}>
+                    {proposalStateLabel(target.state)}
+                  </Badge>
+                </div>
+                <p class="mt-3 text-xs leading-5 text-muted-foreground">
+                  {target.intended_mutation}
+                </p>
+                <div class="mt-3 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                  <span>{target.current_artifacts.length} {copy.currentArtifacts}</span>
+                  <span>·</span>
+                  <span>{target.upstream_artifacts.length} {copy.upstreamArtifacts}</span>
+                </div>
+                <details class="mt-3 text-xs">
+                  <summary class="cursor-pointer font-medium text-primary">
+                    {copy.validationAndBoundary}
+                  </summary>
+                  <ul class="mt-2 list-disc space-y-1.5 pl-4 leading-5 text-muted-foreground">
+                    {#each target.validation_rules as rule (rule)}
+                      <li>{rule}</li>
+                    {/each}
+                  </ul>
+                  <p class="mt-2 font-mono text-[11px] text-muted-foreground">
+                    {target.commit_boundary}
+                  </p>
+                </details>
+                <Button
+                  variant="ghost"
+                  class="mt-auto min-h-11 justify-start px-0 pt-4"
+                  onclick={() =>
+                    void onNavigate(
+                      routeForApplicationSection(
+                        target.section,
+                        agentUiState.selectedJobId,
+                      ),
+                    )}
+                >
+                  {copy.openRelatedStep}
+                  <ArrowRight size={15} strokeWidth={1.8} data-icon="inline-end" aria-hidden="true" />
+                </Button>
+              </div>
+            {/each}
+          </div>
+        </div>
+
+        {#if agentUiState.assistance.content.entries.length}
+          <details class="rounded-xl border p-4">
+            <summary class="cursor-pointer text-sm font-semibold">
+              {copy.inspectContentIdentities}
+            </summary>
+            <div class="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+              {#each agentUiState.assistance.content.entries.slice(0, 6) as entry (entry.artifact.id)}
+                <div class="rounded-lg border bg-muted/15 p-3">
+                  <div class="flex items-start justify-between gap-2">
+                    <p class="text-xs font-semibold">{entry.title}</p>
+                    <Badge variant="outline">{entry.status}</Badge>
+                  </div>
+                  <p class="mt-2 break-all font-mono text-[10px] text-muted-foreground">
+                    {entry.artifact.kind} · {entry.artifact.id} · r{entry.artifact.revision}
+                  </p>
+                  <p class="mt-2 text-[11px] leading-5 text-muted-foreground">
+                    {entry.provenance.actor} · {entry.provenance.reason}
+                  </p>
+                  <p class="mt-1 text-[11px] text-muted-foreground">
+                    {entry.relationships.length} {copy.relationships}
+                  </p>
+                </div>
+              {/each}
+            </div>
+          </details>
+        {/if}
+      {:else}
+        <div class="rounded-xl border border-dashed bg-muted/10 p-5 text-sm text-muted-foreground">
+          {copy.guidanceUnavailable}
+        </div>
+      {/if}
+    </Card.Content>
+  </Card.Root>
 
   <Tabs.Root bind:value={agentUiState.integrationMode}>
     <Tabs.List class="grid w-full max-w-xl grid-cols-2">
@@ -647,9 +921,14 @@
             <Separator />
             <div class="grid gap-6 xl:grid-cols-2">
               <div class="space-y-3">
-                <Label>{copy.contextCommand}</Label>
+                <Label>
+                  {agentUiState.handoff.assistance_command
+                    ? copy.assistanceCommand
+                    : copy.contextCommand}
+                </Label>
                 <div class="overflow-x-auto rounded-xl border bg-muted/30 p-4 font-mono text-xs leading-5">
-                  {agentUiState.handoff.context_command}
+                  {agentUiState.handoff.assistance_command ??
+                    agentUiState.handoff.context_command}
                 </div>
               </div>
               <div class="space-y-3">
