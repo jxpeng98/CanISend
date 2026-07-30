@@ -28,7 +28,56 @@ pub struct ProfileSourceImportReadModel {
     pub source: ProfileSourceRecord,
 }
 
+pub type ProfileInitializationReadModel = ProfileSourceImportReadModel;
+
 impl Application {
+    pub fn initialize_profile(
+        root: &Path,
+        markdown: &str,
+        sensitivity: PrivacyClassification,
+        _consent: PrivateReadConsent,
+    ) -> Result<ActionReceipt<ProfileInitializationReadModel>, ApplicationError> {
+        if !matches!(
+            sensitivity,
+            PrivacyClassification::Public | PrivacyClassification::PrivateLocal
+        ) {
+            return Err(ApplicationError::InvalidInput(
+                "profile source sensitivity must be public or private-local".to_owned(),
+            ));
+        }
+        let normalized = normalize_profile_markdown(markdown)?;
+        let mut workspace = open_workspace(root)?;
+        let mut service = ProfileService::new(&mut workspace.database, &workspace.blobs);
+        if !service.list_sources()?.is_empty() {
+            return Err(ApplicationError::InvalidInput(
+                "profile initialization is only available before the first source is added"
+                    .to_owned(),
+            ));
+        }
+        let source = service.import_source(
+            NewProfileSource {
+                kind: ProfileSourceKind::Markdown,
+                original_bytes: markdown.as_bytes().to_vec(),
+                normalized_text: normalized,
+                content_type: "text/markdown; charset=utf-8".to_owned(),
+                sensitivity,
+            },
+            ActorKind::User,
+        )?;
+        let profile_revision = service.revision()?;
+        let artifacts = [source.original.clone(), source.normalized_text.clone()];
+        Ok(ActionReceipt::new(
+            "profile.initialize",
+            "initialized",
+            "Initialized the local profile with a reviewed Markdown source",
+            ProfileInitializationReadModel {
+                profile_revision,
+                source,
+            },
+        )
+        .with_artifacts(artifacts))
+    }
+
     pub fn import_profile_source(
         root: &Path,
         path: &Path,
@@ -183,6 +232,34 @@ impl Application {
     }
 }
 
+fn normalize_profile_markdown(markdown: &str) -> Result<String, ApplicationError> {
+    const MAX_PROFILE_MARKDOWN_BYTES: usize = 256 * 1024;
+
+    if markdown.is_empty() || markdown.len() > MAX_PROFILE_MARKDOWN_BYTES {
+        return Err(ApplicationError::InvalidInput(format!(
+            "profile Markdown must contain 1 to {MAX_PROFILE_MARKDOWN_BYTES} bytes"
+        )));
+    }
+    if markdown
+        .chars()
+        .any(|character| character.is_control() && !matches!(character, '\n' | '\r' | '\t'))
+    {
+        return Err(ApplicationError::InvalidInput(
+            "profile Markdown contains unsupported control characters".to_owned(),
+        ));
+    }
+    let normalized = markdown.replace("\r\n", "\n").replace('\r', "\n");
+    if normalized
+        .lines()
+        .all(|line| line.trim().is_empty() || line.trim_start().starts_with('#'))
+    {
+        return Err(ApplicationError::InvalidInput(
+            "add at least one reviewed profile detail below the section headings".to_owned(),
+        ));
+    }
+    Ok(format!("{}\n", normalized.trim_end()))
+}
+
 fn evidence_receipt(
     operation: &'static str,
     status: &'static str,
@@ -256,6 +333,35 @@ mod tests {
 
         fs::remove_dir_all(root).expect("remove workspace");
         fs::remove_file(source_path).expect("remove source");
+    }
+
+    #[test]
+    fn profile_initialization_creates_one_private_markdown_source() {
+        let root = temporary_root("initialize");
+        Application::initialize_workspace(&root).expect("initialize workspace");
+        let initialized = Application::initialize_profile(
+            &root,
+            "# Academic profile\n\nResearch economist.\n",
+            PrivacyClassification::PrivateLocal,
+            PrivateReadConsent::granted_by_user(),
+        )
+        .expect("initialize profile");
+        assert_eq!(initialized.operation, "profile.initialize");
+        assert_eq!(initialized.data.profile_revision, 1);
+        assert_eq!(
+            initialized.data.source.kind,
+            canisend_contracts::ProfileSourceKind::Markdown
+        );
+        assert!(
+            Application::initialize_profile(
+                &root,
+                "# Second\n\nDuplicate initialization.\n",
+                PrivacyClassification::PrivateLocal,
+                PrivateReadConsent::granted_by_user(),
+            )
+            .is_err()
+        );
+        fs::remove_dir_all(root).expect("remove workspace");
     }
 
     #[test]

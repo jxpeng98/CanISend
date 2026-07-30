@@ -156,12 +156,46 @@ export interface JobDetailReadModel {
   workspace: string;
   job: JobRecord;
   sources: SourceRecord[];
-  workflow: unknown | null;
+  workflow: WorkflowStatusData | null;
 }
 
 export interface SourceImportReadModel {
   job: JobRecord;
   source: SourceRecord;
+}
+
+export interface JobIntakePreviewReadModel {
+  preview_token: string;
+  preview: ActionReceipt<{
+    workspace: string;
+    job: JobRecord;
+    expected_job_revision: number;
+    provenance: {
+      source_kind: "local-file" | "url";
+      requested_locator: string;
+      final_url: string | null;
+      redirect_chain: string[];
+      original_sha256: string;
+    };
+    extraction: {
+      content_type: string;
+      original_bytes: number;
+      normalized_text_bytes: number;
+      normalized_lines: number;
+      pdf_pages: number | null;
+      semantic_fields_pending: boolean;
+    };
+    validation_issues: Array<{
+      code: string;
+      severity: "information" | "warning";
+      message: string;
+    }>;
+    intended_mutations: Array<{
+      subject: string;
+      action: string;
+      description: string;
+    }>;
+  }>;
 }
 
 export type DiscoverySourceKind =
@@ -306,6 +340,8 @@ export interface ProfileSourceImportReadModel {
   profile_revision: number;
   source: ProfileSourceRecord;
 }
+
+export type ProfileInitializationReadModel = ProfileSourceImportReadModel;
 
 export interface EvidenceCatalogRecord {
   id: string;
@@ -529,6 +565,83 @@ export interface AgentPackExportReadModel {
   };
 }
 
+export interface AgentHandoffReadModel {
+  host: "codex" | "claude" | "generic";
+  workspace: string;
+  selected_job_id: string | null;
+  launch_command: string;
+  capabilities_command: string;
+  context_command: string;
+  bootstrap_prompt: string;
+  recommended_integration: "external-host";
+  session_authority: string;
+  state_authority: "canisend";
+  context: AgentContextReadModel;
+}
+
+export interface AgentMcpConfigurationReadModel {
+  host: "codex" | "claude" | "generic";
+  workspace: string;
+  executable: string;
+  server_name: "canisend";
+  transport: "stdio";
+  protocol_version: string;
+  configuration_target: string;
+  registration_command: string | null;
+  configuration_snippet: string;
+  verification_command: string;
+  tools: string[];
+  read_only_tools: string[];
+  guarded_write_tools: string[];
+  state_authority: string;
+  session_authority: string;
+}
+
+export type AgentRuntimeKind = "codex" | "claude";
+
+export interface AgentSessionEntry {
+  workspace: string;
+  runtime: AgentRuntimeKind;
+  job_id: string | null;
+  external_session_id: string;
+  created_at_unix: number;
+  updated_at_unix: number;
+}
+
+export interface AgentRuntimeProbe {
+  runtime: AgentRuntimeKind;
+  available: boolean;
+  executable: string | null;
+  version: string | null;
+  resume_strategy: "external-session-id";
+  authentication_state: "host-managed-unverified";
+  host_configuration_state: "host-managed-unverified";
+  probe_evidence: "executable-and-version-only";
+  interaction_mode: "read-only";
+}
+
+export interface AgentRuntimeCatalog {
+  runtimes: AgentRuntimeProbe[];
+  sessions: AgentSessionEntry[];
+  session_storage: string;
+}
+
+export interface AgentTurnResult {
+  runtime: AgentRuntimeKind;
+  session: AgentSessionEntry;
+  response: string;
+  resumed: boolean;
+  event_count: number;
+  tool_activity: string[];
+}
+
+export interface AgentTurnCancelResult {
+  runtime: AgentRuntimeKind;
+  workspace: string;
+  selected_job_id: string | null;
+  cancellation_requested: boolean;
+}
+
 export interface DocumentWorkspaceReadModel {
   documents: Array<{
     id: string;
@@ -646,6 +759,8 @@ export interface CliInstallStatus {
   installed: boolean;
   managed: boolean;
   path_configured: boolean;
+  path_active: boolean;
+  path_configuration_file: string | null;
   active_command: string | null;
   active_is_managed: boolean;
   previous_installation_preserved: boolean;
@@ -822,6 +937,54 @@ export async function importUrlJobSource(
   });
 }
 
+export async function previewLocalJobSource(
+  workspace: string,
+  jobId: string,
+  source: string,
+  confirmedPrivateRead: boolean,
+): Promise<JobIntakePreviewReadModel> {
+  return invoke("preview_local_job_source", {
+    request: {
+      workspace,
+      job_id: jobId,
+      source,
+      confirmed_private_read: confirmedPrivateRead,
+    },
+  });
+}
+
+export async function previewUrlJobSource(
+  workspace: string,
+  jobId: string,
+  url: string,
+  confirmedNetworkFetch: boolean,
+): Promise<JobIntakePreviewReadModel> {
+  return invoke("preview_url_job_source", {
+    request: {
+      workspace,
+      job_id: jobId,
+      url,
+      confirmed_network_fetch: confirmedNetworkFetch,
+    },
+  });
+}
+
+export async function commitJobSourcePreview(
+  previewToken: string,
+): Promise<ActionReceipt<SourceImportReadModel>> {
+  return invoke("commit_job_source_preview", {
+    request: { preview_token: previewToken },
+  });
+}
+
+export async function discardJobSourcePreview(
+  previewToken: string,
+): Promise<void> {
+  return invoke("discard_job_source_preview", {
+    request: { preview_token: previewToken },
+  });
+}
+
 export async function getDiscoveryAdapters(): Promise<
   ActionReceipt<DiscoveryAdapterCatalogReadModel>
 > {
@@ -940,6 +1103,22 @@ export async function importProfileSource(options: {
     request: {
       workspace: options.workspace,
       source: options.source,
+      sensitivity: options.sensitivity,
+      confirmed_private_read: options.confirmedPrivateRead,
+    },
+  });
+}
+
+export async function initializeProfile(options: {
+  workspace: string;
+  markdown: string;
+  sensitivity: PrivacyClassification;
+  confirmedPrivateRead: boolean;
+}): Promise<ActionReceipt<ProfileInitializationReadModel>> {
+  return invoke("initialize_profile", {
+    request: {
+      workspace: options.workspace,
+      markdown: options.markdown,
       sensitivity: options.sensitivity,
       confirmed_private_read: options.confirmedPrivateRead,
     },
@@ -1243,6 +1422,101 @@ export async function exportAgentPack(
   });
 }
 
+export async function prepareAgentHandoff(
+  host: "codex" | "claude" | "generic",
+  workspace: string,
+  selectedJobId?: string,
+): Promise<ActionReceipt<AgentHandoffReadModel>> {
+  return invoke("prepare_agent_handoff", {
+    request: {
+      host,
+      workspace,
+      selected_job_id: selectedJobId || null,
+    },
+  });
+}
+
+export async function copyAgentHandoff(
+  host: "codex" | "claude" | "generic",
+  workspace: string,
+  selectedJobId: string | undefined,
+  field: "launch-command" | "bootstrap-prompt",
+): Promise<void> {
+  return invoke("copy_agent_handoff", {
+    request: {
+      host,
+      workspace,
+      selected_job_id: selectedJobId || null,
+      field,
+    },
+  });
+}
+
+export async function prepareAgentMcpConfiguration(
+  host: "codex" | "claude" | "generic",
+  workspace: string,
+): Promise<ActionReceipt<AgentMcpConfigurationReadModel>> {
+  return invoke("prepare_agent_mcp_configuration", {
+    request: { host, workspace },
+  });
+}
+
+export async function copyAgentMcpConfiguration(
+  host: "codex" | "claude" | "generic",
+  workspace: string,
+  field: "registration-command" | "configuration-snippet",
+): Promise<void> {
+  return invoke("copy_agent_mcp_configuration", {
+    request: { host, workspace, field },
+  });
+}
+
+export async function getAgentRuntimeCatalog(
+  workspace?: string,
+  selectedJobId?: string,
+): Promise<AgentRuntimeCatalog> {
+  return invoke("agent_runtime_catalog", {
+    request: {
+      workspace: workspace || null,
+      selected_job_id: selectedJobId || null,
+    },
+  });
+}
+
+export async function runAgentTurn(options: {
+  workspace: string;
+  selectedJobId?: string;
+  runtime: AgentRuntimeKind;
+  prompt: string;
+  startNew: boolean;
+  confirmedProviderSend: boolean;
+}): Promise<AgentTurnResult> {
+  return invoke("run_agent_turn", {
+    request: {
+      workspace: options.workspace,
+      selected_job_id: options.selectedJobId || null,
+      runtime: options.runtime,
+      prompt: options.prompt,
+      start_new: options.startNew,
+      confirmed_provider_send: options.confirmedProviderSend,
+    },
+  });
+}
+
+export async function cancelAgentTurn(options: {
+  workspace: string;
+  selectedJobId?: string;
+  runtime: AgentRuntimeKind;
+}): Promise<AgentTurnCancelResult> {
+  return invoke("cancel_agent_turn", {
+    request: {
+      workspace: options.workspace,
+      selected_job_id: options.selectedJobId || null,
+      runtime: options.runtime,
+    },
+  });
+}
+
 export async function getDocumentWorkspace(
   workspace: string,
   jobId: string,
@@ -1424,6 +1698,18 @@ export async function uninstallCli(options: {
   });
 }
 
+export async function configureCliPath(options: {
+  destination?: string;
+  confirmedTerminalInstall: boolean;
+}): Promise<ActionReceipt<CliInstallStatus>> {
+  return invoke("configure_cli_path", {
+    request: {
+      destination: options.destination || null,
+      confirmed_terminal_install: options.confirmedTerminalInstall,
+    },
+  });
+}
+
 export async function checkForUpdates(
   confirmedNetworkFetch: boolean,
 ): Promise<ActionReceipt<UpdateCheckReadModel>> {
@@ -1536,6 +1822,15 @@ export function commandErrorMessage(error: unknown): string {
     return error;
   }
   return "The desktop command failed without a structured error.";
+}
+
+export function commandErrorCode(error: unknown): string | null {
+  return typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    typeof error.code === "string"
+    ? error.code
+    : null;
 }
 
 export function commandErrorRetryable(error: unknown): boolean {

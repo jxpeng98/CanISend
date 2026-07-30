@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 use canisend_app::{
-    ActionReceipt, Application, PrivateReadConsent, ProfileSourceImportReadModel,
-    ProfileSourceListReadModel,
+    ActionReceipt, Application, PrivateReadConsent, ProfileInitializationReadModel,
+    ProfileSourceImportReadModel, ProfileSourceListReadModel,
 };
 use canisend_contracts::{
     ApplicationPlanCandidate, ApplicationPlanRecord, CriteriaSetRecord, EvidenceCatalogRecord,
@@ -26,6 +26,15 @@ pub(crate) struct ProfileWorkspaceRequest {
 pub(crate) struct ProfileSourceImportRequest {
     workspace: PathBuf,
     source: PathBuf,
+    sensitivity: PrivacyClassification,
+    confirmed_private_read: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct ProfileInitializationRequest {
+    workspace: PathBuf,
+    markdown: String,
     sensitivity: PrivacyClassification,
     confirmed_private_read: bool,
 }
@@ -76,6 +85,19 @@ fn import_profile_source_impl(
     Application::import_profile_source(
         &request.workspace,
         &request.source,
+        request.sensitivity,
+        consent,
+    )
+    .map_err(DesktopCommandError::application)
+}
+
+fn initialize_profile_impl(
+    request: ProfileInitializationRequest,
+) -> Result<ActionReceipt<ProfileInitializationReadModel>, DesktopCommandError> {
+    let consent = require_private_read(request.confirmed_private_read)?;
+    Application::initialize_profile(
+        &request.workspace,
+        &request.markdown,
         request.sensitivity,
         consent,
     )
@@ -186,6 +208,14 @@ pub(crate) async fn import_profile_source(
 
 #[cfg(target_os = "macos")]
 #[tauri::command]
+pub(crate) async fn initialize_profile(
+    request: ProfileInitializationRequest,
+) -> Result<ActionReceipt<ProfileInitializationReadModel>, DesktopCommandError> {
+    run_worker(move || initialize_profile_impl(request)).await
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
 pub(crate) async fn profile_evidence_template(
     request: PrivateJobRequest,
 ) -> Result<ActionReceipt<EvidenceCatalogRecord>, DesktopCommandError> {
@@ -282,6 +312,15 @@ mod tests {
         })
         .expect_err("profile import needs consent");
         assert_eq!(import.code, "consent-required");
+
+        let initialize = initialize_profile_impl(ProfileInitializationRequest {
+            workspace: missing.clone(),
+            markdown: "# Profile\n\nResearcher.\n".to_owned(),
+            sensitivity: PrivacyClassification::PrivateLocal,
+            confirmed_private_read: false,
+        })
+        .expect_err("profile initialization needs consent");
+        assert_eq!(initialize.code, "consent-required");
 
         let candidate = confirm_criteria_impl(CandidateConfirmRequest {
             workspace: missing,

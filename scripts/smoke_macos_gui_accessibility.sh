@@ -11,11 +11,13 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
 fi
 
 script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+repo_root="$(CDPATH= cd -- "$script_dir/.." && pwd)"
 source "$script_dir/lib/native_paths.sh"
 app="$(canisend_absolute_path "$1")"
 manifest="$app.manifest.json"
 gui="$app/Contents/MacOS/canisend-gui"
-for command in open osascript; do
+cli="$app/Contents/Resources/bin/canisend"
+for command in jq open osascript; do
   command -v "$command" >/dev/null
 done
 if [[ ! -d "$app" || -L "$app" ]]; then
@@ -24,6 +26,10 @@ if [[ ! -d "$app" || -L "$app" ]]; then
 fi
 if [[ ! -f "$gui" || -L "$gui" ]]; then
   echo "macOS GUI accessibility smoke: GUI executable is missing: $gui" >&2
+  exit 1
+fi
+if [[ ! -f "$cli" || -L "$cli" ]]; then
+  echo "macOS GUI accessibility smoke: bundled CLI is missing: $cli" >&2
   exit 1
 fi
 
@@ -44,9 +50,31 @@ cleanup() {
 }
 trap cleanup EXIT
 mkdir -p "$fixture_root/home"
+mkdir -p "$fixture_root/home/.local/share/mise/shims"
+cp "$repo_root/fixtures/runtime/fake-codex-runtime.sh" \
+  "$fixture_root/home/.local/share/mise/shims/codex"
+chmod 700 "$fixture_root/home/.local/share/mise/shims/codex"
+workspace="$fixture_root/workspace"
+"$cli" --workspace "$workspace" workspace init --json >/dev/null
+workspace="$(CDPATH= cd -- "$workspace" && pwd -P)"
+registry="$fixture_root/home/Library/Application Support/CanISend/workspaces.json"
+mkdir -p "$(dirname "$registry")"
+jq -n \
+  --arg workspace "$workspace" \
+  '{
+    format: "canisend.workspace-registry/v1",
+    default_path: $workspace,
+    entries: [{
+      alias: "Accessibility smoke",
+      path: $workspace,
+      pinned: false,
+      last_opened_unix: 1
+    }]
+  }' > "$registry"
 
 open -n -W \
   --env "HOME=$fixture_root/home" \
+  --env "PATH=$fixture_root/home/.local/share/mise/shims:/usr/bin:/bin" \
   --stdout "$fixture_root/gui.log" \
   --stderr "$fixture_root/gui.log" \
   "$app" &
@@ -148,6 +176,11 @@ on run arguments
             my assertCondition(navigationElement is not missing value, "navigation landmark missing")
             my assertCondition((value of attribute "AXRole" of navigationElement as text) is "AXGroup", "navigation role mismatch")
 
+            set todayControl to my findNamed(appWindow, "Today")
+            my assertCondition(todayControl is not missing value, "Today navigation control missing")
+            click todayControl
+            delay 0.3
+
             set mainElement to my findNamed(appWindow, "CanISend main content")
             my assertCondition(mainElement is not missing value, "main content landmark missing")
 
@@ -166,6 +199,171 @@ on run arguments
         tell guiProcess
             set settingsHeading to my findValued(appWindow, "Settings and diagnostics")
             my assertCondition(settingsHeading is not missing value, "Settings heading missing")
+
+            set pathControl to missing value
+            repeat 40 times
+                set pathControl to my findNamedRole(appWindow, "Add to PATH", "AXButton")
+                if pathControl is not missing value then exit repeat
+                delay 0.1
+            end repeat
+            my assertCondition(pathControl is not missing value, "automatic CLI status did not expose Add to PATH")
+            set terminalConsent to my findNamedRole(appWindow, "I confirm CanISend may modify this explicit terminal executable destination.", "AXCheckBox")
+            my assertCondition(terminalConsent is not missing value, "terminal mutation consent control missing")
+            click terminalConsent
+            click pathControl
+            log "accessibility smoke: automatic CLI status and PATH action passed"
+        end tell
+        delay 0.5
+        tell guiProcess
+            set profileControl to my findNamedRole(appWindow, "Profile", "AXButton")
+            my assertCondition(profileControl is not missing value, "Profile navigation control missing")
+            click profileControl
+        end tell
+        delay 0.5
+        tell guiProcess
+            set profileConsent to my findNamedRole(appWindow, "I confirm CanISend may store this reviewed profile text in the active local workspace.", "AXCheckBox")
+            my assertCondition(profileConsent is not missing value, "profile initialization consent control missing")
+            if (value of profileConsent as boolean) is false then click profileConsent
+            my assertCondition((value of profileConsent as boolean) is true, "profile initialization consent did not enable")
+            set initializeProfileControl to my findNamedRole(appWindow, "Initialize profile", "AXButton")
+            my assertCondition(initializeProfileControl is not missing value, "profile initialization action missing")
+            my assertCondition((value of attribute "AXEnabled" of initializeProfileControl as boolean) is true, "profile initialization action is disabled")
+            click initializeProfileControl
+            log "accessibility smoke: profile initialization action passed"
+        end tell
+        repeat 40 times
+            delay 0.1
+            tell guiProcess
+                set initializeProfileControl to my findNamedRole(appWindow, "Initialize profile", "AXButton")
+            end tell
+            if initializeProfileControl is missing value then exit repeat
+        end repeat
+        my assertCondition(initializeProfileControl is missing value, "profile initialization did not complete")
+        tell guiProcess
+            set agentControl to my findNamedRole(appWindow, "Agent integration", "AXButton")
+            my assertCondition(agentControl is not missing value, "Agent navigation control missing")
+            click agentControl
+        end tell
+        delay 0.5
+        tell guiProcess
+            set externalHostControl to my findNamed(appWindow, "Agent host")
+            my assertCondition(externalHostControl is not missing value, "external Agent host tab is not the default surface")
+            set prepareMcpControl to my findNamedRole(appWindow, "Prepare MCP configuration", "AXButton")
+            my assertCondition(prepareMcpControl is not missing value, "MCP configuration action missing")
+            my assertCondition((value of attribute "AXEnabled" of prepareMcpControl as boolean) is true, "MCP configuration action is disabled")
+            click prepareMcpControl
+        end tell
+        set readOnlyToolCount to missing value
+        set guardedWriteToolCount to missing value
+        repeat 40 times
+            delay 0.1
+            tell guiProcess
+                set readOnlyToolCount to my findValued(appWindow, "9 read-only / preview tools")
+                set guardedWriteToolCount to my findValued(appWindow, "4 approval-gated writes")
+            end tell
+            if readOnlyToolCount is not missing value and guardedWriteToolCount is not missing value then exit repeat
+        end repeat
+        my assertCondition(readOnlyToolCount is not missing value, "MCP read-only/preview tool count missing")
+        my assertCondition(guardedWriteToolCount is not missing value, "MCP approval-gated write count missing")
+        log "accessibility smoke: external-first MCP permission categories passed"
+        tell guiProcess
+            set inAppControl to missing value
+            repeat 40 times
+                set inAppControl to my findNamed(appWindow, "In-App read-only")
+                if inAppControl is not missing value then exit repeat
+                delay 0.1
+            end repeat
+            my assertCondition(inAppControl is not missing value, "in-App Agent bridge tab missing")
+            click inAppControl
+        end tell
+        delay 0.4
+        tell guiProcess
+            set agentMessage to my findNamedRole(appWindow, "Conversation", "AXTextArea")
+            my assertCondition(agentMessage is not missing value, "Agent message control missing")
+            set runtimeDetectedStatus to my findValued(appWindow, "CLI detected")
+            my assertCondition(runtimeDetectedStatus is not missing value, "runtime evidence did not report CLI detection")
+            set sessionBindingStatus to my findValued(appWindow, "External session ID binding")
+            my assertCondition(sessionBindingStatus is not missing value, "runtime evidence did not report the external session binding strategy")
+            set runtimeEvidence to my findValued(appWindow, "Detection proves only the executable path and version. Sign-in, search, MCP, skills, and plugins are not inspected by CanISend and are confirmed only when the host runs.")
+            my assertCondition(runtimeEvidence is not missing value, "runtime evidence overclaimed authentication or host configuration")
+            set inferredSignInStatus to my findValued(appWindow, "Local sign-in")
+            my assertCondition(inferredSignInStatus is missing value, "runtime discovery incorrectly inferred local sign-in")
+            click agentMessage
+            keystroke "Wait for the local cancellation fixture."
+            set providerConsent to my findNamedRole(appWindow, "I confirm this local runtime may read the selected workspace and send necessary context to its configured provider. The host stores its own transcript.", "AXCheckBox")
+            my assertCondition(providerConsent is not missing value, "Agent provider consent control missing")
+            if (value of providerConsent as boolean) is false then click providerConsent
+            my assertCondition((value of providerConsent as boolean) is true, "Agent provider consent did not enable")
+            set sendControl to missing value
+            repeat 40 times
+                set sendControl to my findNamedRole(appWindow, "Send message", "AXButton")
+                if sendControl is not missing value and (value of attribute "AXEnabled" of sendControl as boolean) is true then exit repeat
+                delay 0.1
+            end repeat
+            my assertCondition(sendControl is not missing value, "Agent send action missing")
+            my assertCondition((value of attribute "AXEnabled" of sendControl as boolean) is true, "Agent runtime did not make the send action available")
+            click sendControl
+        end tell
+        log "accessibility smoke: bounded runtime evidence passed"
+        set cancelTurnControl to missing value
+        repeat 40 times
+            delay 0.1
+            tell guiProcess
+                set cancelTurnControl to my findNamedRole(appWindow, "Cancel turn", "AXButton")
+            end tell
+            if cancelTurnControl is not missing value then exit repeat
+        end repeat
+        my assertCondition(cancelTurnControl is not missing value, "Agent cancel action did not appear")
+        tell guiProcess
+            click cancelTurnControl
+        end tell
+        set cancellationNotice to missing value
+        repeat 40 times
+            delay 0.1
+            tell guiProcess
+                set cancellationNotice to my findValued(appWindow, "The local Agent turn was cancelled. No partial response was saved.")
+            end tell
+            if cancellationNotice is not missing value then exit repeat
+        end repeat
+        my assertCondition(cancellationNotice is not missing value, "Agent cancellation did not complete")
+        log "accessibility smoke: scoped Agent turn cancellation passed"
+        set newConversationControl to missing value
+        repeat 40 times
+            delay 0.1
+            tell guiProcess
+                set newConversationControl to my findNamedRole(appWindow, "New conversation", "AXButton")
+            end tell
+            if newConversationControl is not missing value and (value of attribute "AXEnabled" of newConversationControl as boolean) is true then exit repeat
+        end repeat
+        my assertCondition(newConversationControl is not missing value, "New Agent conversation action did not return after cancellation")
+        my assertCondition((value of attribute "AXEnabled" of newConversationControl as boolean) is true, "Agent scope remained busy after cancellation")
+        tell guiProcess
+            click newConversationControl
+            set agentMessage to my findNamedRole(appWindow, "Conversation", "AXTextArea")
+            click agentMessage
+            keystroke "Complete the local session fixture."
+            set sendControl to my findNamedRole(appWindow, "Send message", "AXButton")
+            my assertCondition(sendControl is not missing value, "Agent send action missing after starting a new conversation")
+            my assertCondition((value of attribute "AXEnabled" of sendControl as boolean) is true, "Agent send action is disabled after starting a new conversation")
+            click sendControl
+        end tell
+        set firstTurnResponse to missing value
+        repeat 40 times
+            delay 0.1
+            tell guiProcess
+                set firstTurnResponse to my findValued(appWindow, "Fixture first turn completed.")
+            end tell
+            if firstTurnResponse is not missing value then exit repeat
+        end repeat
+        my assertCondition(firstTurnResponse is not missing value, "successful Agent fixture turn did not complete")
+        log "accessibility smoke: first Agent session turn passed"
+        tell guiProcess
+            set settingsControl to my findNamedRole(appWindow, "Settings", "AXButton")
+            my assertCondition(settingsControl is not missing value, "Settings navigation control missing after profile initialization")
+            click settingsControl
+        end tell
+        delay 0.4
+        tell guiProcess
             set appearanceTab to my findNamed(appWindow, "Appearance")
             my assertCondition(appearanceTab is not missing value, "Appearance tab missing")
             click appearanceTab
@@ -234,4 +432,208 @@ fi
 wait "$launcher_pid"
 gui_pid=""
 launcher_pid=""
-echo "macOS GUI accessibility smoke: Svelte landmarks, bilingual controls, 200% text scale, and reduced motion passed"
+
+open -n -W \
+  --env "HOME=$fixture_root/home" \
+  --env "PATH=$fixture_root/home/.local/share/mise/shims:/usr/bin:/bin" \
+  --stdout "$fixture_root/restart-gui.log" \
+  --stderr "$fixture_root/restart-gui.log" \
+  "$app" &
+launcher_pid="$!"
+if ! gui_pid="$(osascript - <<'APPLESCRIPT'
+tell application "System Events"
+    repeat 100 times
+        set guiProcesses to every application process whose bundle identifier is "io.github.jxpeng98.canisend"
+        if (count of guiProcesses) is 1 then return unix id of item 1 of guiProcesses
+        delay 0.1
+    end repeat
+end tell
+error "GUI process did not reappear uniquely" number 1
+APPLESCRIPT
+)"; then
+  echo "macOS GUI accessibility smoke: packaged app did not relaunch" >&2
+  sed -n '1,160p' "$fixture_root/restart-gui.log" >&2
+  exit 1
+fi
+
+if ! osascript - "$gui_pid" <<'APPLESCRIPT'
+on findNamed(parentElement, targetName)
+    tell application "System Events"
+        try
+            if (name of parentElement as text) is targetName then return parentElement
+        end try
+        try
+            repeat with childElement in UI elements of parentElement
+                set foundElement to my findNamed(childElement, targetName)
+                if foundElement is not missing value then return foundElement
+            end repeat
+        end try
+    end tell
+    return missing value
+end findNamed
+
+on findNamedRole(parentElement, targetName, targetRole)
+    tell application "System Events"
+        try
+            if (name of parentElement as text) is targetName and (value of attribute "AXRole" of parentElement as text) is targetRole then return parentElement
+        end try
+        try
+            repeat with childElement in UI elements of parentElement
+                set foundElement to my findNamedRole(childElement, targetName, targetRole)
+                if foundElement is not missing value then return foundElement
+            end repeat
+        end try
+    end tell
+    return missing value
+end findNamedRole
+
+on findValued(parentElement, targetValue)
+    tell application "System Events"
+        try
+            if (value of parentElement as text) is targetValue then return parentElement
+        end try
+        try
+            repeat with childElement in UI elements of parentElement
+                set foundElement to my findValued(childElement, targetValue)
+                if foundElement is not missing value then return foundElement
+            end repeat
+        end try
+    end tell
+    return missing value
+end findValued
+
+on run arguments
+    set guiPid to item 1 of arguments as integer
+    tell application "System Events"
+        set guiProcess to missing value
+        repeat 100 times
+            if exists (first process whose unix id is guiPid) then
+                set guiProcess to first process whose unix id is guiPid
+                if (count of windows of guiProcess) > 0 then exit repeat
+            end if
+            delay 0.1
+        end repeat
+        if guiProcess is missing value then error "GUI process did not relaunch" number 1
+        tell guiProcess
+            set frontmost to true
+            set appWindow to window 1
+            set restoredSettings to missing value
+            repeat 40 times
+                set restoredSettings to my findValued(appWindow, "设置与诊断")
+                if restoredSettings is not missing value then exit repeat
+                delay 0.1
+            end repeat
+            if restoredSettings is missing value then error "Chinese Settings route did not restore" number 1
+
+            set switchToEnglish to my findNamed(appWindow, "English")
+            if switchToEnglish is missing value then error "English locale switch missing after restart" number 1
+            click switchToEnglish
+            delay 0.4
+
+            set agentControl to my findNamedRole(appWindow, "Agent integration", "AXButton")
+            if agentControl is missing value then error "Agent navigation missing after restart" number 1
+            click agentControl
+            delay 0.5
+
+            set inAppControl to missing value
+            repeat 40 times
+                set inAppControl to my findNamed(appWindow, "In-App read-only")
+                if inAppControl is not missing value then exit repeat
+                delay 0.1
+            end repeat
+            if inAppControl is missing value then error "in-App Agent bridge missing after restart" number 1
+            click inAppControl
+            delay 0.4
+
+            set agentMessage to my findNamedRole(appWindow, "Conversation", "AXTextArea")
+            if agentMessage is missing value then error "Agent message control missing after restart" number 1
+            click agentMessage
+            keystroke "Resume the local session fixture."
+            set providerConsent to my findNamedRole(appWindow, "I confirm this local runtime may read the selected workspace and send necessary context to its configured provider. The host stores its own transcript.", "AXCheckBox")
+            if providerConsent is missing value then error "Agent provider consent missing after restart" number 1
+            if (value of providerConsent as boolean) is false then click providerConsent
+
+            set sendControl to missing value
+            repeat 40 times
+                set sendControl to my findNamedRole(appWindow, "Send message", "AXButton")
+                if sendControl is not missing value and (value of attribute "AXEnabled" of sendControl as boolean) is true then exit repeat
+                delay 0.1
+            end repeat
+            if sendControl is missing value or (value of attribute "AXEnabled" of sendControl as boolean) is false then error "Agent resume action unavailable after restart" number 1
+            click sendControl
+        end tell
+
+        set resumedResponse to missing value
+        repeat 40 times
+            delay 0.1
+            tell guiProcess
+                set resumedResponse to my findValued(appWindow, "Fixture resumed turn completed.")
+            end tell
+            if resumedResponse is not missing value then exit repeat
+        end repeat
+        if resumedResponse is missing value then error "Agent session did not resume after restart" number 1
+        tell guiProcess
+            keystroke "q" using command down
+            log "accessibility smoke: packaged route, locale, and Agent session restart passed"
+        end tell
+    end tell
+end run
+APPLESCRIPT
+then
+  echo "macOS GUI accessibility smoke: restart route automation failed" >&2
+  sed -n '1,160p' "$fixture_root/restart-gui.log" >&2
+  exit 1
+fi
+wait "$launcher_pid"
+gui_pid=""
+launcher_pid=""
+
+session_registry="$fixture_root/home/Library/Application Support/CanISend/agent-sessions.json"
+if [[ ! -f "$session_registry" || -L "$session_registry" ]] \
+  || ! jq -e \
+    --arg workspace "$workspace" \
+    '
+      .format == "canisend.agent-session-registry/v1"
+      and (.entries | length) == 1
+      and .entries[0].workspace == $workspace
+      and .entries[0].runtime == "codex"
+      and .entries[0].job_id == null
+      and .entries[0].external_session_id == "fixture-session-1"
+    ' "$session_registry" >/dev/null; then
+  echo "macOS GUI accessibility smoke: Agent session registry did not retain the exact scope" >&2
+  exit 1
+fi
+runtime_invocations="$fixture_root/home/.canisend-fake-codex-invocations"
+if [[ ! -f "$runtime_invocations" || -L "$runtime_invocations" ]] \
+  || [[ "$(wc -l < "$runtime_invocations" | tr -d ' ')" != "2" ]] \
+  || ! grep -Fqx \
+    'exec --json --sandbox read-only --skip-git-repo-check -' \
+    "$runtime_invocations" \
+  || ! grep -Fqx \
+    'exec --sandbox read-only resume --json --skip-git-repo-check fixture-session-1 -' \
+    "$runtime_invocations"; then
+  echo "macOS GUI accessibility smoke: Agent runtime did not create then resume the exact session" >&2
+  exit 1
+fi
+if [[ -e "$fixture_root/home/.codex" || -L "$fixture_root/home/.codex" ]]; then
+  echo "macOS GUI accessibility smoke: test escaped the isolated fake Codex runtime" >&2
+  exit 1
+fi
+if [[ ! -f "$fixture_root/home/.zprofile" || -L "$fixture_root/home/.zprofile" ]]; then
+  echo "macOS GUI accessibility smoke: PATH action did not create a regular .zprofile" >&2
+  exit 1
+fi
+if ! grep -Fqx '# >>> CanISend CLI PATH >>>' "$fixture_root/home/.zprofile" \
+  || ! grep -Fqx '# <<< CanISend CLI PATH <<<' "$fixture_root/home/.zprofile"; then
+  echo "macOS GUI accessibility smoke: PATH action did not create the managed profile block" >&2
+  exit 1
+fi
+profile_json="$("$cli" --workspace "$workspace" profile source list --json)"
+if ! printf '%s' "$profile_json" \
+  | jq -e '.ok == true and .data.profile_revision == 1 and (.data.sources | length) == 1' \
+    >/dev/null; then
+  echo "macOS GUI accessibility smoke: profile initialization did not persist one revisioned source" >&2
+  printf '%s\n' "$profile_json" >&2
+  exit 1
+fi
+echo "macOS GUI accessibility smoke: Svelte landmarks, CLI PATH repair, profile initialization, external-first MCP permission categories, bounded runtime evidence, scoped Agent cancellation, exact session resume, route/locale restart, bilingual controls, 200% text scale, and reduced motion passed"

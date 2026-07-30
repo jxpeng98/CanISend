@@ -8,6 +8,7 @@ embedded renderer and storage engine.
 
 - `typst-as-lib` 0.16.0: MIT.
 - Typst compiler crates 0.15.1, including `typst`, `typst-kit`, and `typst-pdf`: Apache-2.0.
+- Model Context Protocol Rust SDK (`rmcp` and `rmcp-macros`) 3.0.1: Apache-2.0.
 - `typst-assets` 0.15.1: Apache-2.0, with additional asset notices supplied by the upstream crate.
 
 The native release bundle includes exact copies of `typst-assets`' upstream `LICENSE` and `NOTICE`. The notice covers

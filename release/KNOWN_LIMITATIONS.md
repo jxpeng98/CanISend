@@ -35,10 +35,23 @@ preserve the `0.6.x` command tree, or implement `canisend.agent/v1`.
   future work until explicitly supported.
 - The GUI supports English and Simplified Chinese. CLI and Agent v2 structured contracts remain
   locale-neutral; terminal human-readable output is English in this Alpha.
-- Workspace restore/repair and generic workflow begin/complete/rerun are available in the GUI.
-  Stage-specific artifact creation, criteria, profile evidence, match, dedicated plan
-  confirmation, document, review, package, render, and export mutations remain available through
-  the CLI or Agent v2 until their GUI surfaces are complete.
+- The GUI covers all 35 declared operation families and connects them through one persistent
+  workspace/application header and six-stage journey. Some advanced candidate editors expose
+  versioned JSON directly and therefore still require familiarity with the public schemas.
+- Body-free desktop navigation memory contains the canonical workspace path, public job ID,
+  active route, and latest action summary. It is local convenience state, not a transcript or
+  authoritative workflow state, and clearing WebView storage removes it without changing a
+  workspace.
+- External Codex or Claude handoff is the primary Agent experience and requires the selected host
+  to be installed/configured separately. The optional in-App runtime bridge remains read-only;
+  host-only desktop plugins/connectors are not automatically inherited by a CLI process. Its
+  response is shown after the bounded CLI turn completes rather than streamed token by token;
+  the running local process can be cancelled without saving a partial response.
+- Runtime discovery confirms only a bounded executable path and version probe. It does not verify
+  sign-in, provider entitlement, MCP, search, skills, plugins, or connector availability; these
+  remain owned by the selected host and are confirmed only when it runs.
+- CanISend does not embed a model provider, duplicate host transcripts, or guarantee that every
+  third-party host exposes the same search, plugin, connector, approval, or session behavior.
 
 ## Release trust boundary
 

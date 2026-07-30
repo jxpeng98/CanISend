@@ -1,6 +1,6 @@
 use std::{
     env, fs,
-    io::{self, Read},
+    io::{self, Read, Write},
     path::{Path, PathBuf},
     process::{Command, Stdio},
     thread,
@@ -18,6 +18,9 @@ const MANIFEST_NAME: &str = ".canisend-install-v1.json";
 const MAX_CLI_BYTES: u64 = 256 * 1024 * 1024;
 const MAX_VERSION_OUTPUT_BYTES: u64 = 64 * 1024;
 const VERSION_PROBE_TIMEOUT: Duration = Duration::from_millis(750);
+const MAX_SHELL_PROFILE_BYTES: u64 = 1024 * 1024;
+const PATH_BLOCK_START: &str = "# >>> CanISend CLI PATH >>>";
+const PATH_BLOCK_END: &str = "# <<< CanISend CLI PATH <<<";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TerminalInstallConsent(());
@@ -63,6 +66,8 @@ pub struct CliInstallStatus {
     pub installed: bool,
     pub managed: bool,
     pub path_configured: bool,
+    pub path_active: bool,
+    pub path_configuration_file: Option<PathBuf>,
     pub active_command: Option<PathBuf>,
     pub active_is_managed: bool,
     pub previous_installation_preserved: bool,
@@ -160,7 +165,14 @@ pub(crate) fn inspect(
         && active_command
             .as_deref()
             .is_some_and(|active| paths_refer_to_same_file(active, destination));
-    let path_configured = destination.parent().is_some_and(directory_is_on_path);
+    let path_active = destination.parent().is_some_and(directory_is_on_path);
+    let path_configuration_file = default_shell_profile();
+    let path_configured = path_active
+        || destination.parent().is_some_and(|directory| {
+            path_configuration_file
+                .as_deref()
+                .is_some_and(|profile| profile_configures_path(profile, directory))
+        });
     let status = CliInstallStatus {
         state,
         bundled_version,
@@ -172,6 +184,8 @@ pub(crate) fn inspect(
         installed,
         managed,
         path_configured,
+        path_active,
+        path_configuration_file,
         active_command,
         active_is_managed,
         previous_installation_preserved,
@@ -182,6 +196,38 @@ pub(crate) fn inspect(
         status_summary(&status),
         status,
     ))
+}
+
+pub(crate) fn configure_path(
+    source: Option<&Path>,
+    destination: &Path,
+    _consent: TerminalInstallConsent,
+) -> Result<ActionReceipt<CliInstallStatus>, ApplicationError> {
+    validate_destination(destination)?;
+    let profile = default_shell_profile().ok_or_else(|| {
+        ApplicationError::CliInstall(
+            "Automatic PATH configuration is currently supported for macOS and Unix shells"
+                .to_owned(),
+        )
+    })?;
+    configure_path_file(destination, &profile)?;
+    let status = inspect(source, destination)?.data;
+    let warning = (!status.path_active).then(|| {
+        "Open a new terminal window before expecting the updated PATH to become active".to_owned()
+    });
+    Ok(ActionReceipt::new(
+        "cli.path.configure",
+        "configured",
+        format!(
+            "Configured {} for future terminal sessions",
+            destination.parent().map_or_else(
+                || destination.display().to_string(),
+                |path| path.display().to_string()
+            )
+        ),
+        status,
+    )
+    .with_warnings(warning))
 }
 
 pub(crate) fn install(
@@ -650,6 +696,110 @@ fn directory_is_on_path(directory: &Path) -> bool {
         .any(|entry| entry == directory || paths_refer_to_same_file(&entry, directory))
 }
 
+fn default_shell_profile() -> Option<PathBuf> {
+    let home = env::var_os("HOME").map(PathBuf::from)?;
+    #[cfg(target_os = "macos")]
+    {
+        return Some(home.join(".zprofile"));
+    }
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        return Some(home.join(".profile"));
+    }
+    #[allow(unreachable_code)]
+    None
+}
+
+fn profile_configures_path(profile: &Path, directory: &Path) -> bool {
+    let Ok(metadata) = fs::symlink_metadata(profile) else {
+        return false;
+    };
+    if metadata.file_type().is_symlink()
+        || !metadata.is_file()
+        || metadata.len() > MAX_SHELL_PROFILE_BYTES
+    {
+        return false;
+    }
+    let Ok(text) = fs::read_to_string(profile) else {
+        return false;
+    };
+    path_export_line(directory)
+        .is_ok_and(|line| text.lines().any(|candidate| candidate.trim() == line))
+}
+
+fn configure_path_file(destination: &Path, profile: &Path) -> Result<(), ApplicationError> {
+    let directory = destination
+        .parent()
+        .ok_or_else(|| ApplicationError::CliInstall("CLI destination has no parent".to_owned()))?;
+    let export_line = path_export_line(directory)?;
+    let block = format!("{PATH_BLOCK_START}\n{export_line}\n{PATH_BLOCK_END}\n");
+    if let Ok(metadata) = fs::symlink_metadata(profile) {
+        if metadata.file_type().is_symlink() || !metadata.is_file() {
+            return Err(ApplicationError::CliInstall(
+                "Shell profile must be a regular non-symlink file".to_owned(),
+            ));
+        }
+        if metadata.len() > MAX_SHELL_PROFILE_BYTES {
+            return Err(ApplicationError::CliInstall(format!(
+                "Shell profile exceeds the {MAX_SHELL_PROFILE_BYTES}-byte limit"
+            )));
+        }
+        let existing = fs::read_to_string(profile).map_err(cli_io)?;
+        if existing.lines().any(|line| line.trim() == export_line) {
+            return Ok(());
+        }
+        if existing.contains(PATH_BLOCK_START) || existing.contains(PATH_BLOCK_END) {
+            return Err(ApplicationError::CliInstall(
+                "Existing CanISend PATH block is incomplete or points to another directory"
+                    .to_owned(),
+            ));
+        }
+        let mut file = fs::OpenOptions::new()
+            .append(true)
+            .open(profile)
+            .map_err(cli_io)?;
+        if !existing.is_empty() && !existing.ends_with('\n') {
+            file.write_all(b"\n").map_err(cli_io)?;
+        }
+        file.write_all(block.as_bytes()).map_err(cli_io)?;
+        file.sync_all().map_err(cli_io)?;
+        return Ok(());
+    }
+    let parent = profile.parent().ok_or_else(|| {
+        ApplicationError::CliInstall("Shell profile has no parent directory".to_owned())
+    })?;
+    fs::create_dir_all(parent).map_err(cli_io)?;
+    let mut options = fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    let mut file = options.open(profile).map_err(cli_io)?;
+    file.write_all(block.as_bytes()).map_err(cli_io)?;
+    file.sync_all().map_err(cli_io)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut permissions = file.metadata().map_err(cli_io)?.permissions();
+        permissions.set_mode(0o600);
+        fs::set_permissions(profile, permissions).map_err(cli_io)?;
+    }
+    Ok(())
+}
+
+fn path_export_line(directory: &Path) -> Result<String, ApplicationError> {
+    let directory = directory.to_str().ok_or_else(|| {
+        ApplicationError::CliInstall("CLI PATH directory must be valid UTF-8".to_owned())
+    })?;
+    if directory.is_empty()
+        || directory
+            .chars()
+            .any(|character| character.is_control() || matches!(character, '"' | '\\' | '$' | '`'))
+    {
+        return Err(ApplicationError::CliInstall(
+            "CLI PATH directory contains characters that cannot be written safely".to_owned(),
+        ));
+    }
+    Ok(format!("export PATH=\"{directory}:$PATH\""))
+}
+
 fn paths_refer_to_same_file(left: &Path, right: &Path) -> bool {
     match (left.canonicalize(), right.canonicalize()) {
         (Ok(left), Ok(right)) => left == right,
@@ -698,8 +848,9 @@ mod tests {
     };
 
     use super::{
-        CliInstallState, CliVersionRelation, TerminalInstallConsent, compare_versions, inspect,
-        install, parse_version_output, uninstall,
+        CliInstallState, CliVersionRelation, TerminalInstallConsent, compare_versions,
+        configure_path_file, inspect, install, parse_version_output, profile_configures_path,
+        uninstall,
     };
 
     static NEXT: AtomicU64 = AtomicU64::new(1);
@@ -955,5 +1106,30 @@ mod tests {
         );
         assert!(destination.is_dir());
         fs::remove_dir_all(root).expect("cleanup");
+    }
+
+    #[test]
+    fn path_configuration_is_bounded_idempotent_and_never_follows_symlinks() {
+        let root = root("path-config");
+        fs::create_dir_all(root.join("bin")).expect("bin");
+        let destination = root.join("bin/canisend");
+        let profile = root.join(".zprofile");
+
+        configure_path_file(&destination, &profile).expect("configure path");
+        let first = fs::read_to_string(&profile).expect("profile");
+        configure_path_file(&destination, &profile).expect("configure idempotently");
+        assert_eq!(fs::read_to_string(&profile).expect("profile again"), first);
+        assert!(profile_configures_path(
+            &profile,
+            destination.parent().expect("parent")
+        ));
+
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(&profile, root.join("linked-profile"))
+                .expect("profile symlink");
+            assert!(configure_path_file(&destination, &root.join("linked-profile")).is_err());
+        }
+        fs::remove_dir_all(root).expect("remove fixture");
     }
 }

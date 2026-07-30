@@ -3,7 +3,7 @@
   "updated_at": "2026-07-27",
   "gui_release_line": "1.0",
   "alpha_scope": {
-    "version": "1.0.0-alpha.4",
+    "version": "1.0.0-alpha.5",
     "allowed_statuses": ["implemented", "deferred-beta"],
     "deferred_beta_meaning": "Available through the CLI or Agent v2 in Alpha when the underlying operation exists; ordinary GUI mutation coverage is required before Beta.",
     "planned_statuses_allowed": false

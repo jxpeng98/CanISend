@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "CanISend",
-  "version": "1.0.0-alpha.4",
+  "version": "1.0.0-alpha.5",
   "identifier": "io.github.jxpeng98.canisend",
   "build": {
     "beforeDevCommand": "pnpm --dir ../../apps/canisend-desktop dev",

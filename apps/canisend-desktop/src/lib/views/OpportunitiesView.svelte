@@ -207,7 +207,7 @@
   {:else}
     <div class="grid gap-6 2xl:grid-cols-[minmax(320px,0.8fr)_minmax(0,1.2fr)]">
       <div class="space-y-6">
-        <Card.Root class="shadow-none">
+        <Card.Root id="lead-list" class="scroll-mt-44 shadow-none">
           <Card.Header>
             <Card.Title>{copy.discoveryLeads}</Card.Title>
             <Card.Description>{activeWorkspace.path}</Card.Description>

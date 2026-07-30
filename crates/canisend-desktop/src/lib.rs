@@ -3,11 +3,15 @@
 #[cfg(target_os = "macos")]
 mod agent;
 #[cfg(target_os = "macos")]
+mod agent_runtime;
+#[cfg(target_os = "macos")]
 mod commands;
 #[cfg(target_os = "macos")]
 mod delivery;
 #[cfg(target_os = "macos")]
 mod discovery;
+#[cfg(target_os = "macos")]
+mod job_intake;
 #[cfg(target_os = "macos")]
 mod profile;
 #[cfg(target_os = "macos")]
@@ -19,14 +23,23 @@ mod workflow;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(agent_runtime::AgentRuntimeState::default())
         .manage(discovery::DiscoveryPreviewStore::default())
+        .manage(job_intake::JobIntakePreviewStore::default())
         .manage(workflow::WorkflowPreviewStore::default())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .invoke_handler(tauri::generate_handler![
             agent::agent_capabilities,
             agent::agent_context,
+            agent::copy_agent_mcp_configuration,
+            agent::copy_agent_handoff,
             agent::export_agent_pack,
+            agent::prepare_agent_handoff,
+            agent::prepare_agent_mcp_configuration,
+            agent_runtime::agent_runtime_catalog,
+            agent_runtime::cancel_agent_turn,
+            agent_runtime::run_agent_turn,
             commands::archive_job,
             commands::backup_workspace,
             commands::check_workspace,
@@ -68,6 +81,10 @@ pub fn run() {
             discovery::promote_discovery_lead,
             discovery::show_discovery_lead,
             discovery::suggest_discovery_duplicates,
+            job_intake::commit_job_source_preview,
+            job_intake::discard_job_source_preview,
+            job_intake::preview_local_job_source,
+            job_intake::preview_url_job_source,
             profile::confirm_criteria,
             profile::confirm_plan,
             profile::confirm_profile_evidence,
@@ -75,11 +92,13 @@ pub fn run() {
             profile::current_matches,
             profile::current_plan,
             profile::import_profile_source,
+            profile::initialize_profile,
             profile::list_profile_sources,
             profile::plan_template,
             profile::profile_evidence_template,
             system::check_for_updates,
             system::cli_install_status,
+            system::configure_cli_path,
             system::desktop_cli_defaults,
             system::export_resource_catalog,
             system::inspection_catalog,

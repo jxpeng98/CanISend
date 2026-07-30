@@ -20,18 +20,19 @@
   import {
     chooseProfileSource,
     type EvidenceCatalogRecord,
-    type JobRecord,
     type PrivacyClassification,
     type ProfileSourceRecord,
     type WorkspaceReadModel,
   } from "$lib/bridge";
   import type { Messages } from "$lib/i18n";
+  import type { WorkflowDetail } from "$lib/workflow-navigation";
 
   type Props = {
     copy: Messages;
     desktopRuntime: boolean;
     activeWorkspace: WorkspaceReadModel | null;
-    jobs: JobRecord[];
+    selectedJobId: string;
+    focus: WorkflowDetail | null;
     sources: ProfileSourceRecord[];
     profileRevision: number;
     evidence: EvidenceCatalogRecord | null;
@@ -40,6 +41,11 @@
     onRefresh: () => Promise<boolean>;
     onImport: (options: {
       source: string;
+      sensitivity: PrivacyClassification;
+      confirmedPrivateRead: boolean;
+    }) => Promise<boolean>;
+    onInitialize: (options: {
+      markdown: string;
       sensitivity: PrivacyClassification;
       confirmedPrivateRead: boolean;
     }) => Promise<boolean>;
@@ -58,7 +64,8 @@
     copy,
     desktopRuntime,
     activeWorkspace,
-    jobs,
+    selectedJobId,
+    focus,
     sources,
     profileRevision,
     evidence,
@@ -66,6 +73,7 @@
     busy,
     onRefresh,
     onImport,
+    onInitialize,
     onLoadEvidence,
     onConfirmEvidence,
   }: Props = $props();
@@ -73,16 +81,23 @@
   let sourcePath = $state("");
   let sensitivity = $state<PrivacyClassification>("private-local");
   let importConsent = $state(false);
-  let selectedJobId = $state("");
   let privateSessionConsent = $state(false);
   let evidenceJson = $state("");
   let evidenceKey = $state("");
   let formError = $state<string | null>(null);
+  let initializationMarkdown = $state("");
+  let previousInitializationTemplate = $state("");
+  let initializationConsent = $state(false);
 
   $effect(() => {
-    if (!selectedJobId || !jobs.some((job) => job.id === selectedJobId)) {
-      selectedJobId = jobs[0]?.id ?? "";
+    const nextTemplate = copy.profileInitializationTemplate;
+    if (
+      !previousInitializationTemplate ||
+      initializationMarkdown === previousInitializationTemplate
+    ) {
+      initializationMarkdown = nextTemplate;
     }
+    previousInitializationTemplate = nextTemplate;
   });
 
   $effect(() => {
@@ -116,6 +131,23 @@
     ) {
       sourcePath = "";
       importConsent = false;
+    }
+  }
+
+  async function initializeProfile(): Promise<void> {
+    formError = null;
+    if (!initializationConsent) {
+      formError = copy.profileInitializationConsent;
+      return;
+    }
+    if (
+      await onInitialize({
+        markdown: initializationMarkdown,
+        sensitivity: "private-local",
+        confirmedPrivateRead: initializationConsent,
+      })
+    ) {
+      initializationConsent = false;
     }
   }
 
@@ -180,7 +212,55 @@
   {:else}
     <div class="grid gap-6 2xl:grid-cols-[minmax(320px,0.78fr)_minmax(0,1.22fr)]">
       <div class="space-y-6">
-        <Card.Root class="shadow-none">
+        {#if !loading && sources.length === 0}
+          <Card.Root class="border-primary/25 bg-primary/5 shadow-none">
+            <Card.Header>
+              <Card.Title>{copy.initializeProfile}</Card.Title>
+              <Card.Description>{copy.initializeProfileDescription}</Card.Description>
+            </Card.Header>
+            <Card.Content class="space-y-4">
+              <div class="space-y-2">
+                <Label for="profile-initialization">{copy.profileMarkdown}</Label>
+                <Textarea
+                  id="profile-initialization"
+                  class="min-h-72 resize-y text-sm leading-6"
+                  bind:value={initializationMarkdown}
+                />
+              </div>
+              <div class="rounded-xl border bg-background/70 p-3 text-xs leading-5 text-muted-foreground">
+                {copy.profileStorageDescription}
+              </div>
+              <div class="flex items-start gap-3 rounded-xl border bg-background/70 p-3">
+                <Checkbox
+                  id="profile-initialization-consent"
+                  bind:checked={initializationConsent}
+                  class="mt-0.5"
+                />
+                <Label
+                  for="profile-initialization-consent"
+                  class="text-xs leading-5 font-normal"
+                >
+                  {copy.profileInitializationConsent}
+                </Label>
+              </div>
+              <Button
+                class="min-h-11"
+                disabled={busy || !initializationConsent || !initializationMarkdown.trim()}
+                onclick={initializeProfile}
+              >
+                {busy ? copy.working : copy.initializeProfile}
+              </Button>
+            </Card.Content>
+          </Card.Root>
+        {/if}
+
+        <Card.Root
+          id="profile-sources"
+          class={[
+            "scroll-mt-44 shadow-none transition-colors",
+            focus === "profile-sources" ? "ring-2 ring-primary/35" : "",
+          ]}
+        >
           <Card.Header>
             <div class="flex items-start justify-between gap-4">
               <div>
@@ -275,7 +355,13 @@
         </Card.Root>
       </div>
 
-      <Card.Root class="shadow-none">
+      <Card.Root
+        id="profile-evidence"
+        class={[
+          "scroll-mt-44 shadow-none transition-colors",
+          focus === "profile-evidence" ? "ring-2 ring-primary/35" : "",
+        ]}
+      >
         <Card.Header>
           <div class="flex items-start justify-between gap-4">
             <div>
@@ -290,19 +376,7 @@
           </div>
         </Card.Header>
         <Card.Content class="space-y-4">
-          <div class="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-            <div class="space-y-2">
-              <Label for="profile-job">{copy.selectApplication}</Label>
-              <select
-                id="profile-job"
-                class="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm"
-                bind:value={selectedJobId}
-              >
-                {#each jobs as job (job.id)}
-                  <option value={job.id}>{job.title} — {job.institution}</option>
-                {/each}
-              </select>
-            </div>
+          <div class="flex justify-end">
             <Button
               variant="outline"
               class="min-h-11"

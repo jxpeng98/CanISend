@@ -15,6 +15,19 @@ model provider may read or transmit data only at explicit, bounded consent point
 JSON success/error envelopes contain metadata, IDs, hashes, counts, blockers, and next actions by default. Commands
 that need full bodies export a declared set to a new or empty external directory after consent.
 
+## Desktop workflow memory
+
+The desktop persists a small body-free navigation record in its WebView storage so reopening the App can restore the
+active screen, selected workspace/application, exact sub-screen, and most recent successful action. It may contain a
+canonical workspace path, public job ID, operation name, short action-receipt summary, route, and timestamp. It never
+contains advert/profile bodies, draft text, task inputs, provider prompts or responses, transcripts, tokens, or
+credentials.
+
+This record is a convenience pointer, not authoritative state. The App validates and bounds it before use, ignores a
+job that no longer belongs to the selected workspace, and reloads the current job/workflow from the Rust facade.
+Switching workspaces does not offer a resume action from another workspace. Clearing WebView storage removes the
+navigation memory without deleting or changing a CanISend workspace.
+
 ## Host-agent mode
 
 `--mode host-agent` means the already active Codex, Claude, or other host performs reasoning. Preparing a task does
@@ -28,6 +41,16 @@ canisend --workspace ./applications task inputs TASK_ID \
 
 The exported manifest freezes exact artifact IDs, revisions, and SHA-256 values. The host should read only that
 directory and return candidate JSON through `task complete`.
+
+External-host handoff is the recommended desktop integration. Codex or Claude owns its session, transcript, search,
+plugins, connectors, and approvals; CanISend owns application state. The optional in-App bridge stores only a
+body-free external session binding and remains read-only. The guarded MCP adapter exposes typed inspection and
+preview-confirm operations but does not grant arbitrary filesystem or shell writes.
+
+Cancelling an in-App bridge turn terminates only the exact workspace/runtime/job-scoped local process. CanISend does
+not parse or persist partial output, and a cancelled new turn cannot replace the last successful external session
+binding. The host may still retain provider-side activity according to its own policy if transmission occurred
+before cancellation.
 
 ## Configured-provider mode
 

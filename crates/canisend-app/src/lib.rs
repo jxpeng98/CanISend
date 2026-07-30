@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 mod agent;
+mod agent_session;
 mod application;
 mod catalog;
 mod cli_install;
@@ -24,8 +25,13 @@ mod workflow;
 mod workspace;
 
 pub use agent::{
-    AgentCapabilitiesReadModel, AgentContextReadModel, AgentHost, AgentPackExportReadModel,
-    AgentPackExportRequest,
+    AgentCapabilitiesReadModel, AgentContextReadModel, AgentHandoffReadModel, AgentHandoffRequest,
+    AgentHost, AgentMcpConfigurationReadModel, AgentMcpConfigurationRequest,
+    AgentPackExportReadModel, AgentPackExportRequest, CANISEND_MCP_GUARDED_WRITE_TOOLS,
+    CANISEND_MCP_PROTOCOL_VERSION, CANISEND_MCP_READ_ONLY_TOOLS, CANISEND_MCP_TOOLS,
+};
+pub use agent_session::{
+    AgentRuntimeKind, AgentSessionEntry, AgentSessionRegistry, default_agent_session_registry_path,
 };
 pub use application::{
     Application, NetworkFetchConsent, PrivateExportConsent, PrivateReadConsent, ProviderSendConsent,
@@ -45,9 +51,16 @@ pub use discovery::{
 };
 pub use document::DocumentWorkspaceReadModel;
 pub use error::{ApplicationError, ApplicationFailure};
-pub use job::{JobDetailReadModel, JobListReadModel, SourceImportReadModel};
+pub use job::{
+    JobDetailReadModel, JobIntakeExtractionReadModel, JobIntakeIssueSeverity,
+    JobIntakeMutationReadModel, JobIntakePreviewReadModel, JobIntakeProvenanceReadModel,
+    JobIntakeSourceKind, JobIntakeValidationIssue, JobListReadModel, PreparedJobSource,
+    SourceImportReadModel,
+};
 pub use package::{PackageExportRequest, ProjectionCopyAsNewRequest, ProjectionReplaceRequest};
-pub use profile::{ProfileSourceImportReadModel, ProfileSourceListReadModel};
+pub use profile::{
+    ProfileInitializationReadModel, ProfileSourceImportReadModel, ProfileSourceListReadModel,
+};
 pub use receipt::ActionReceipt;
 pub use registry::{
     WorkspaceEntry, WorkspaceRegistry, default_registry_path, validate_workspace_alias,

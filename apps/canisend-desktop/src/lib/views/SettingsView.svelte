@@ -10,6 +10,7 @@
     Terminal,
     Trash2,
   } from "@lucide/svelte";
+  import { onMount } from "svelte";
 
   import { Badge } from "$lib/components/ui/badge/index.js";
   import { Button } from "$lib/components/ui/button/index.js";
@@ -55,6 +56,10 @@
       destination?: string;
       confirmedTerminalInstall: boolean;
     }) => Promise<CliInstallStatus | null>;
+    onConfigureCliPath: (options: {
+      destination?: string;
+      confirmedTerminalInstall: boolean;
+    }) => Promise<CliInstallStatus | null>;
     onCheckUpdates: (
       confirmedNetworkFetch: boolean,
     ) => Promise<UpdateCheckReadModel | null>;
@@ -82,6 +87,7 @@
     onCheckCli,
     onInstallCli,
     onUninstallCli,
+    onConfigureCliPath,
     onCheckUpdates,
     onLoadCatalog,
     onLoadSchema,
@@ -138,6 +144,18 @@
     uninstallOpen = false;
   }
 
+  async function configurePath(): Promise<void> {
+    formError = null;
+    if (!terminalConsent) {
+      formError = copy.terminalInstallConsent;
+      return;
+    }
+    cliStatus = await onConfigureCliPath({
+      destination: cliDestination || undefined,
+      confirmedTerminalInstall: terminalConsent,
+    });
+  }
+
   async function checkUpdates(): Promise<void> {
     formError = null;
     if (!updateConsent) {
@@ -175,6 +193,10 @@
     }
     await onExportCatalog(catalogDestination);
   }
+
+  onMount(() => {
+    if (desktopRuntime) void loadCli();
+  });
 </script>
 
 <section class="space-y-6">
@@ -306,9 +328,46 @@
               </div>
               <div class="rounded-xl border p-4">
                 <p class="text-xs text-muted-foreground">{copy.pathConfigured}</p>
-                <p class="mt-2 text-sm font-semibold">{cliStatus.path_configured ? "Yes" : "No"}</p>
+                <p class="mt-2 text-sm font-semibold">
+                  {cliStatus.path_active
+                    ? copy.pathActive
+                    : cliStatus.path_configured
+                      ? copy.pathPending
+                      : copy.pathNotConfigured}
+                </p>
               </div>
             </div>
+            {#if !cliStatus.path_configured}
+              <div class="flex flex-col justify-between gap-3 rounded-xl border border-primary/25 bg-primary/5 p-4 md:flex-row md:items-center">
+                <div>
+                  <p class="text-sm font-semibold">{copy.addToPath}</p>
+                  <p class="mt-1 text-xs leading-5 text-muted-foreground">
+                    {copy.addToPathDescription}
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  class="min-h-11 shrink-0"
+                  disabled={!desktopRuntime || busy || !terminalConsent}
+                  onclick={configurePath}
+                >
+                  <Terminal
+                    size={16}
+                    strokeWidth={1.8}
+                    data-icon="inline-start"
+                    aria-hidden="true"
+                  />
+                  {copy.addToPath}
+                </Button>
+              </div>
+            {:else if cliStatus.path_configuration_file}
+              <div class="rounded-xl border bg-muted/20 p-4">
+                <p class="text-xs text-muted-foreground">{copy.pathConfigurationFile}</p>
+                <p class="mt-2 break-all font-mono text-xs">
+                  {cliStatus.path_configuration_file}
+                </p>
+              </div>
+            {/if}
           {/if}
 
           <div class="rounded-xl border bg-muted/20 p-4">

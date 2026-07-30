@@ -26,7 +26,6 @@
     chooseExportDirectory,
     chooseTaskCompletion,
     type ExecutionMode,
-    type JobRecord,
     type TaskCompletionPreviewReadModel,
     type TaskExecutionMode,
     type TaskOperation,
@@ -37,6 +36,10 @@
     type WorkspaceReadModel,
   } from "$lib/bridge";
   import type { Messages } from "$lib/i18n";
+  import type {
+    WorkflowDetail,
+    WorkflowRoute,
+  } from "$lib/workflow-navigation";
 
   type DecisionKind = "evidence" | "criteria" | "matches" | "plan";
 
@@ -44,8 +47,11 @@
     copy: Messages;
     desktopRuntime: boolean;
     activeWorkspace: WorkspaceReadModel | null;
-    jobs: JobRecord[];
+    selectedJobId: string;
+    focus: WorkflowDetail | null;
     busy: boolean;
+    onNavigate: (route: WorkflowRoute) => Promise<void>;
+    onOpenTaskResult: (operation: TaskOperation | string) => Promise<void>;
     onLoadWorkflow: (jobId: string) => Promise<WorkflowControlReadModel | null>;
     onStartWorkflow: (jobId: string) => Promise<WorkflowControlReadModel | null>;
     onBeginStage: (
@@ -109,8 +115,11 @@
     copy,
     desktopRuntime,
     activeWorkspace,
-    jobs,
+    selectedJobId,
+    focus,
     busy,
+    onNavigate,
+    onOpenTaskResult,
     onLoadWorkflow,
     onStartWorkflow,
     onBeginStage,
@@ -130,7 +139,6 @@
   }: Props = $props();
 
   let section = $state("workflow");
-  let selectedJobId = $state("");
   let loadedJobId = $state("");
   let workflow = $state<WorkflowControlReadModel | null>(null);
   let selectedStage = $state<WorkflowStage>("parse");
@@ -153,12 +161,6 @@
   let formError = $state<string | null>(null);
 
   $effect(() => {
-    if (!selectedJobId || !jobs.some((job) => job.id === selectedJobId)) {
-      selectedJobId = jobs[0]?.id ?? "";
-    }
-  });
-
-  $effect(() => {
     const nextKey = `${activeWorkspace?.path ?? ""}:${selectedJobId}`;
     if (nextKey !== loadedJobId) {
       loadedJobId = nextKey;
@@ -168,6 +170,20 @@
       task = null;
       rerunPreview = null;
       taskCompletionPreview = null;
+    }
+  });
+
+  $effect(() => {
+    if (focus === "agent-task") {
+      section = "task";
+    } else if (focus?.startsWith("decision-")) {
+      section = "decisions";
+      if (focus === "decision-criteria") decisionKind = "criteria";
+      if (focus === "decision-evidence") decisionKind = "evidence";
+      if (focus === "decision-matches") decisionKind = "matches";
+      if (focus === "decision-plan") decisionKind = "plan";
+    } else if (focus === "workflow-stages") {
+      section = "workflow";
     }
   });
 
@@ -373,19 +389,6 @@
         {copy.workflowDescription}
       </p>
     </div>
-    <div class="min-w-72 space-y-2">
-      <Label for="workflow-job">{copy.selectApplication}</Label>
-      <select
-        id="workflow-job"
-        class="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm"
-        bind:value={selectedJobId}
-        disabled={!activeWorkspace || busy}
-      >
-        {#each jobs as job (job.id)}
-          <option value={job.id}>{job.title} — {job.institution}</option>
-        {/each}
-      </select>
-    </div>
   </div>
 
   {#if !activeWorkspace || !selectedJobId}
@@ -408,7 +411,11 @@
         <Tabs.Trigger value="task">{copy.taskCenter}</Tabs.Trigger>
       </Tabs.List>
 
-      <Tabs.Content value="workflow" class="space-y-6 pt-4">
+      <Tabs.Content
+        id="workflow-stages"
+        value="workflow"
+        class="scroll-mt-44 space-y-6 pt-4"
+      >
         <div class="flex flex-wrap gap-2">
           <Button variant="outline" class="min-h-11" disabled={busy} onclick={refreshWorkflow}>
             <RefreshCw size={16} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
@@ -537,7 +544,10 @@
       </Tabs.Content>
 
       <Tabs.Content value="decisions" class="space-y-6 pt-4">
-        <Card.Root class="shadow-none">
+        <Card.Root
+          id={`decision-${decisionKind}`}
+          class="scroll-mt-44 shadow-none"
+        >
           <Card.Header>
             <Card.Title>{copy.decisions}</Card.Title>
             <Card.Description>{copy.privateWorkspaceConsent}</Card.Description>
@@ -613,7 +623,14 @@
         </Card.Root>
       </Tabs.Content>
 
-      <Tabs.Content value="task" class="space-y-6 pt-4">
+      <Tabs.Content
+        id="agent-task"
+        value="task"
+        class={[
+          "scroll-mt-44 space-y-6 pt-4",
+          focus === "agent-task" ? "rounded-xl ring-2 ring-primary/25" : "",
+        ]}
+      >
         <div class="grid gap-6 xl:grid-cols-[minmax(320px,0.8fr)_minmax(0,1.2fr)]">
           <div class="space-y-6">
             <Card.Root class="shadow-none">
@@ -683,6 +700,28 @@
                   </dl>
                   <Separator class="my-4" />
                   <div class="flex flex-wrap gap-2">
+                    {#if task.status === "prepared"}
+                      <Button
+                        disabled={busy}
+                        onclick={() =>
+                          void onNavigate({
+                            view: "agent",
+                            detail: "agent-task",
+                            jobId: selectedJobId,
+                          })}
+                      >
+                        {copy.continueInAgent}
+                      </Button>
+                    {/if}
+                    {#if task.status === "committed" && task.result}
+                      <Button
+                        disabled={busy}
+                        onclick={() =>
+                          task && void onOpenTaskResult(task.descriptor.operation)}
+                      >
+                        {copy.openAgentResult}
+                      </Button>
+                    {/if}
                     <Button
                       variant="outline"
                       disabled={busy || task.status !== "prepared"}

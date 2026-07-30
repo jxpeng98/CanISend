@@ -40,6 +40,13 @@ pub(crate) struct DesktopCliUninstallRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub(crate) struct DesktopCliPathRequest {
+    destination: Option<PathBuf>,
+    confirmed_terminal_install: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct UpdateRequest {
     confirmed_network_fetch: bool,
 }
@@ -101,6 +108,23 @@ fn uninstall_cli_impl(
     .map_err(DesktopCommandError::application)
 }
 
+fn configure_cli_path_impl(
+    request: DesktopCliPathRequest,
+) -> Result<ActionReceipt<CliInstallStatus>, DesktopCommandError> {
+    if !request.confirmed_terminal_install {
+        return Err(DesktopCommandError::consent(
+            "Confirm terminal PATH configuration before changing the shell profile.",
+        ));
+    }
+    let source = bundled_cli_path();
+    Application::configure_cli_path(
+        source.as_deref(),
+        &destination_or_default(request.destination),
+        TerminalInstallConsent::granted_by_user(),
+    )
+    .map_err(DesktopCommandError::application)
+}
+
 fn check_for_updates_impl(
     request: UpdateRequest,
 ) -> Result<ActionReceipt<UpdateCheckReadModel>, DesktopCommandError> {
@@ -152,6 +176,14 @@ pub(crate) async fn uninstall_cli(
     request: DesktopCliUninstallRequest,
 ) -> Result<ActionReceipt<CliInstallStatus>, DesktopCommandError> {
     run_worker(move || uninstall_cli_impl(request)).await
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+pub(crate) async fn configure_cli_path(
+    request: DesktopCliPathRequest,
+) -> Result<ActionReceipt<CliInstallStatus>, DesktopCommandError> {
+    run_worker(move || configure_cli_path_impl(request)).await
 }
 
 #[cfg(target_os = "macos")]
@@ -231,6 +263,13 @@ mod tests {
         })
         .expect_err("update check needs consent");
         assert_eq!(update.code, "consent-required");
+
+        let path = configure_cli_path_impl(DesktopCliPathRequest {
+            destination: Some(PathBuf::from("/missing/canisend")),
+            confirmed_terminal_install: false,
+        })
+        .expect_err("PATH configuration needs consent");
+        assert_eq!(path.code, "consent-required");
     }
 
     #[test]

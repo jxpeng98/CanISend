@@ -471,6 +471,47 @@ fn native_workspace_commands_initialize_check_backup_and_restore() {
 }
 
 #[test]
+fn profile_source_list_preserves_the_shared_revisioned_read_model() {
+    let workspace = TestDirectory::new("profile-list-workspace");
+    let input = TestDirectory::new("profile-list-input");
+    fs::create_dir_all(input.path()).expect("input directory");
+    let profile = input.path().join("profile.md");
+    fs::write(&profile, "# Academic profile\n\nResearch economist.\n").expect("write profile");
+
+    run_json(&[
+        "--workspace",
+        workspace.text(),
+        "workspace",
+        "init",
+        "--json",
+    ]);
+    run_json(&[
+        "--workspace",
+        workspace.text(),
+        "profile",
+        "source",
+        "add",
+        "--file",
+        profile.to_str().expect("profile path is UTF-8"),
+        "--json",
+    ]);
+    let listed = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "profile",
+        "source",
+        "list",
+        "--json",
+    ]);
+
+    assert_eq!(listed["operation"], "profile.source.list");
+    assert_eq!(listed["data"]["profile_revision"], 1);
+    assert_eq!(listed["data"]["workspace"].as_str(), Some(workspace.text()));
+    assert_eq!(listed["data"]["sources"].as_array().map(Vec::len), Some(1));
+    assert_eq!(listed["data"]["sources"][0]["revision"], 1);
+}
+
+#[test]
 fn native_job_commands_import_original_and_normalized_local_text() {
     let workspace = TestDirectory::new("job-workspace");
     let input = TestDirectory::new("job-input");

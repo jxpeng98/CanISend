@@ -2,11 +2,14 @@
   import {
     Archive,
     BriefcaseBusiness,
+    CheckCircle2,
     FileText,
     FileUp,
     Link,
     Plus,
     RefreshCw,
+    ShieldCheck,
+    TriangleAlert,
   } from "@lucide/svelte";
 
   import { Badge } from "$lib/components/ui/badge/index.js";
@@ -22,10 +25,12 @@
   import {
     chooseJobSource,
     type JobDetailReadModel,
+    type JobIntakePreviewReadModel,
     type JobRecord,
     type WorkspaceReadModel,
   } from "$lib/bridge";
   import type { Messages } from "$lib/i18n";
+  import type { WorkflowDetail } from "$lib/workflow-navigation";
 
   type Props = {
     copy: Messages;
@@ -33,14 +38,18 @@
     activeWorkspace: WorkspaceReadModel | null;
     jobs: JobRecord[];
     selectedJob: JobDetailReadModel | null;
+    focus: WorkflowDetail | null;
+    preview: JobIntakePreviewReadModel | null;
     loading: boolean;
     busy: boolean;
     onRefresh: () => Promise<boolean>;
     onCreate: (title: string, institution: string) => Promise<boolean>;
     onSelect: (jobId: string) => Promise<boolean>;
     onArchive: (jobId: string) => Promise<boolean>;
-    onImportLocal: (source: string, confirmed: boolean) => Promise<boolean>;
-    onImportUrl: (url: string, confirmed: boolean) => Promise<boolean>;
+    onPreviewLocal: (source: string, confirmed: boolean) => Promise<boolean>;
+    onPreviewUrl: (url: string, confirmed: boolean) => Promise<boolean>;
+    onCommitPreview: () => Promise<boolean>;
+    onDiscardPreview: () => Promise<boolean>;
   };
 
   let {
@@ -49,14 +58,18 @@
     activeWorkspace,
     jobs,
     selectedJob,
+    focus,
+    preview,
     loading,
     busy,
     onRefresh,
     onCreate,
     onSelect,
     onArchive,
-    onImportLocal,
-    onImportUrl,
+    onPreviewLocal,
+    onPreviewUrl,
+    onCommitPreview,
+    onDiscardPreview,
   }: Props = $props();
 
   let createOpen = $state(false);
@@ -97,7 +110,7 @@
       formError = copy.privateReadConsent;
       return;
     }
-    if (await onImportLocal(localSource, privateReadConfirmed)) {
+    if (await onPreviewLocal(localSource, privateReadConfirmed)) {
       localSource = "";
       privateReadConfirmed = false;
     }
@@ -113,7 +126,7 @@
       formError = copy.networkFetchConsent;
       return;
     }
-    if (await onImportUrl(sourceUrl.trim(), networkFetchConfirmed)) {
+    if (await onPreviewUrl(sourceUrl.trim(), networkFetchConfirmed)) {
       sourceUrl = "";
       networkFetchConfirmed = false;
     }
@@ -123,6 +136,12 @@
     if (selectedJob && (await onArchive(selectedJob.job.id))) {
       archiveOpen = false;
     }
+  }
+
+  function formatBytes(value: number): string {
+    if (value < 1024) return `${value} B`;
+    if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+    return `${(value / (1024 * 1024)).toFixed(1)} MB`;
   }
 </script>
 
@@ -284,13 +303,146 @@
         </Card.Root>
 
         {#if selectedJob}
-          <Card.Root class="shadow-none">
+          <Card.Root
+            id="source-intake"
+            class={[
+              "scroll-mt-44 shadow-none transition-colors",
+              focus === "source-intake" ? "ring-2 ring-primary/35" : "",
+            ]}
+          >
             <Card.Header>
               <Card.Title>{copy.sourceIntake}</Card.Title>
-              <Card.Description>{copy.applicationsDescription}</Card.Description>
+              <Card.Description>{copy.sourceIntakeDescription}</Card.Description>
             </Card.Header>
             <Card.Content>
-              <Tabs.Root bind:value={intakeTab}>
+              {#if preview}
+                <div class="space-y-5" aria-live="polite">
+                  <div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+                    <div class="flex items-start gap-3">
+                      <div class="grid size-10 shrink-0 place-items-center rounded-xl bg-accent text-accent-foreground">
+                        <ShieldCheck size={18} strokeWidth={1.8} aria-hidden="true" />
+                      </div>
+                      <div>
+                        <div class="flex flex-wrap items-center gap-2">
+                          <h3 class="text-sm font-semibold">{copy.sourcePreviewTitle}</h3>
+                          <Badge variant="secondary">{copy.reviewBeforeCommit}</Badge>
+                        </div>
+                        <p class="mt-1 text-xs leading-5 text-muted-foreground">
+                          {copy.sourcePreviewDescription}
+                        </p>
+                      </div>
+                    </div>
+                    <Badge variant="outline">
+                      {preview.preview.data.provenance.source_kind === "url"
+                        ? copy.sourceUrl
+                        : copy.localFile}
+                    </Badge>
+                  </div>
+
+                  <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <div class="rounded-xl border bg-muted/20 p-3">
+                      <p class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                        {copy.contentType}
+                      </p>
+                      <p class="mt-1 break-words text-sm font-medium">
+                        {preview.preview.data.extraction.content_type}
+                      </p>
+                    </div>
+                    <div class="rounded-xl border bg-muted/20 p-3">
+                      <p class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                        {copy.sourceSize}
+                      </p>
+                      <p class="mt-1 text-sm font-medium">
+                        {formatBytes(preview.preview.data.extraction.original_bytes)}
+                      </p>
+                    </div>
+                    <div class="rounded-xl border bg-muted/20 p-3">
+                      <p class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                        {copy.normalizedLines}
+                      </p>
+                      <p class="mt-1 text-sm font-medium">
+                        {preview.preview.data.extraction.normalized_lines}
+                      </p>
+                    </div>
+                    <div class="rounded-xl border bg-muted/20 p-3">
+                      <p class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                        {copy.pdfPages}
+                      </p>
+                      <p class="mt-1 text-sm font-medium">
+                        {preview.preview.data.extraction.pdf_pages ?? copy.notApplicable}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div class="space-y-2">
+                    <p class="text-xs font-medium text-muted-foreground">{copy.sourceProvenance}</p>
+                    <p class="break-all rounded-xl border bg-muted/20 p-3 text-xs leading-5">
+                      {preview.preview.data.provenance.final_url ??
+                        preview.preview.data.provenance.requested_locator}
+                    </p>
+                    <p class="break-all font-mono text-[11px] leading-5 text-muted-foreground">
+                      SHA-256 · {preview.preview.data.provenance.original_sha256}
+                    </p>
+                  </div>
+
+                  <div class="grid gap-4 lg:grid-cols-2">
+                    <div class="space-y-2">
+                      <p class="text-xs font-medium text-muted-foreground">
+                        {copy.validationIssues}
+                      </p>
+                      {#each preview.preview.data.validation_issues as issue (issue.code)}
+                        <div class="flex items-start gap-2 rounded-xl border p-3">
+                          {#if issue.severity === "warning"}
+                            <TriangleAlert
+                              size={16}
+                              strokeWidth={1.8}
+                              class="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400"
+                              aria-hidden="true"
+                            />
+                          {:else}
+                            <CheckCircle2
+                              size={16}
+                              strokeWidth={1.8}
+                              class="mt-0.5 shrink-0 text-[var(--success)]"
+                              aria-hidden="true"
+                            />
+                          {/if}
+                          <p class="text-xs leading-5">{issue.message}</p>
+                        </div>
+                      {/each}
+                    </div>
+                    <div class="space-y-2">
+                      <p class="text-xs font-medium text-muted-foreground">
+                        {copy.intendedChanges}
+                      </p>
+                      {#each preview.preview.data.intended_mutations as mutation (mutation.action)}
+                        <div class="rounded-xl border p-3">
+                          <p class="text-xs font-semibold">{mutation.action}</p>
+                          <p class="mt-1 text-xs leading-5 text-muted-foreground">
+                            {mutation.description}
+                          </p>
+                        </div>
+                      {/each}
+                    </div>
+                  </div>
+
+                  <Separator />
+                  <div class="flex flex-col gap-2 sm:flex-row">
+                    <Button class="min-h-11" disabled={busy} onclick={onCommitPreview}>
+                      {busy ? copy.working : copy.commitPreview}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      class="min-h-11"
+                      disabled={busy}
+                      onclick={onDiscardPreview}
+                    >
+                      {copy.discardPreview}
+                    </Button>
+                  </div>
+                </div>
+              {:else}
+                <Tabs.Root bind:value={intakeTab}>
                 <Tabs.List class="grid w-full grid-cols-2">
                   <Tabs.Trigger value="local">
                     <FileUp size={16} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
@@ -329,7 +481,7 @@
                     disabled={busy || !localSource || !privateReadConfirmed}
                     onclick={submitLocalSource}
                   >
-                    {busy ? copy.working : copy.importLocalSource}
+                    {busy ? copy.working : copy.previewLocalSource}
                   </Button>
                 </Tabs.Content>
                 <Tabs.Content value="url" class="space-y-4 pt-4">
@@ -361,10 +513,11 @@
                     disabled={busy || !sourceUrl.trim() || !networkFetchConfirmed}
                     onclick={submitUrlSource}
                   >
-                    {busy ? copy.working : copy.fetchUrlSource}
+                    {busy ? copy.working : copy.previewUrlSource}
                   </Button>
                 </Tabs.Content>
               </Tabs.Root>
+              {/if}
             </Card.Content>
           </Card.Root>
         {/if}

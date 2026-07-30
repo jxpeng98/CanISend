@@ -1,4 +1,4 @@
-# CanISend 1.0.0-alpha.4
+# CanISend 1.0.0-alpha.5
 
 ## Highlights
 
@@ -12,11 +12,30 @@ The macOS GUI supports persistent English and Simplified Chinese interfaces, nat
 text scaling, light/dark appearance, reduced motion, and the complete application workflow. Apple Silicon users can
 install from the new read-only DMG with an Applications drag target or retain the portable ZIP distribution.
 
+The desktop presents that workflow as one six-stage application journey with a shared workspace/application context,
+restored job selection, one recommended next action, and body-free recent-action continuity. Agent next actions and
+reviewed task results return to the exact criteria, profile, document, review, package, or render surface instead of
+opening disconnected tabs.
+
+Terminal settings now check the bundled/installed CLI automatically and expose the consent-gated Add to PATH action
+when needed. First-run profile initialization uses a localized editable Markdown scaffold and persists through the
+same revisioned application read model returned by the GUI and CLI. Optional in-App Agent turns can be cancelled by
+their exact workspace/runtime/job scope without saving a partial response. Selecting a different workspace returns
+the Agent screen to the recommended external-host flow and clears rendered conversation state from the previous
+workspace. New and resumed Codex bridge turns explicitly enforce the read-only sandbox.
+
 The product provides local-first job intake from user-supplied files, text PDFs, and public URLs; discovery imports;
 evidence and criteria workflows; matching; application planning; structured drafting and review; readiness checks;
 editable exports; and embedded PDF rendering. Codex, Claude, and custom hosts integrate through the versioned
 `canisend.agent/v2` JSON protocol and generated agent packs. CanISend prepares application materials but never
 submits an application.
+
+External Codex/Claude handoff remains the recommended reasoning surface. A portable MCP adapter exposes thirteen
+typed tools, including four approval-gated mutations; the optional in-App runtime bridge remains read-only. CanISend
+does not embed a model provider or duplicate the host-owned conversation transcript. The App identifies the nine
+read-only/preview tools separately from the four approval-gated writes, and a stale binding for a moved or deleted
+workspace cannot prevent active workspaces from using their own host sessions. Runtime discovery reports only
+observed executable/version evidence and never infers sign-in or host-tool configuration.
 
 ## Compatibility
 

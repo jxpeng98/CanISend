@@ -52,6 +52,11 @@ enum Command {
         #[command(subcommand)]
         command: AgentCommand,
     },
+    /// Serve the read-only CanISend tool surface over Model Context Protocol.
+    Mcp {
+        #[command(subcommand)]
+        command: McpCommand,
+    },
     /// Inspect generated public JSON Schemas.
     Schema {
         #[command(subcommand)]
@@ -140,6 +145,12 @@ enum AgentCommand {
         #[command(subcommand)]
         command: AgentAssetsCommand,
     },
+}
+
+#[derive(Debug, Subcommand)]
+enum McpCommand {
+    /// Serve versioned read-only tools over newline-delimited JSON-RPC on stdio.
+    Serve,
 }
 
 #[derive(Debug, Subcommand)]
@@ -1046,6 +1057,9 @@ impl Cli {
             Command::Agent {
                 command: AgentCommand::Context(arguments),
             } => arguments.output.json,
+            Command::Mcp {
+                command: McpCommand::Serve,
+            } => false,
             Command::Agent {
                 command:
                     AgentCommand::Assets {
@@ -1212,6 +1226,20 @@ impl CommandFailure {
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
+    if matches!(
+        &cli.command,
+        Command::Mcp {
+            command: McpCommand::Serve
+        }
+    ) {
+        return match canisend_mcp::serve_stdio(cli.workspace.as_deref()) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(error) => {
+                eprintln!("canisend mcp serve: {error}");
+                ExitCode::FAILURE
+            }
+        };
+    }
     let json_output = wants_json(cli.explicit_json());
     match execute(cli) {
         Ok(output) => render_success(output, json_output),
@@ -1236,6 +1264,9 @@ fn execute(cli: Cli) -> CommandResult<CommandOutput> {
                     command: AgentAssetsCommand::Export(arguments),
                 },
         } => agent_assets_export(arguments),
+        Command::Mcp {
+            command: McpCommand::Serve,
+        } => unreachable!("MCP server is dispatched before command rendering"),
         Command::Schema {
             command: SchemaCommand::List(_),
         } => schema_list(),
@@ -1895,15 +1926,15 @@ fn profile_source_add(
 
 fn profile_source_list(workspace_path: Option<PathBuf>) -> CommandResult<CommandOutput> {
     let root = app_adapter::workspace_root(workspace_path, "profile.source.list")?;
-    let sources = Application::list_profile_sources(&root)
+    let profile = Application::list_profile_sources(&root)
         .map_err(|error| app_adapter::failure("profile.source.list", error))?
-        .data
-        .sources;
+        .data;
+    let source_count = profile.sources.len();
     success(
         "profile.source.list",
         "available",
-        &json!({"sources": sources}),
-        vec![format!("Profile sources: {}", sources.len())],
+        &profile,
+        vec![format!("Profile sources: {source_count}")],
     )
 }
 

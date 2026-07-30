@@ -1,8 +1,15 @@
-use std::path::PathBuf;
+use std::{
+    io::Write,
+    path::PathBuf,
+    process::{Command, Stdio},
+    thread,
+    time::{Duration, Instant},
+};
 
 use canisend_app::{
-    ActionReceipt, AgentCapabilitiesReadModel, AgentContextReadModel, AgentHost,
-    AgentPackExportReadModel, AgentPackExportRequest, Application,
+    ActionReceipt, AgentCapabilitiesReadModel, AgentContextReadModel, AgentHandoffReadModel,
+    AgentHandoffRequest, AgentHost, AgentMcpConfigurationReadModel, AgentMcpConfigurationRequest,
+    AgentPackExportReadModel, AgentPackExportRequest, Application, bundled_cli_path,
 };
 use serde::Deserialize;
 
@@ -20,6 +27,52 @@ pub(crate) struct AgentContextRequest {
 pub(crate) struct AgentExportRequest {
     host: AgentHost,
     destination: PathBuf,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct PrepareAgentHandoffRequest {
+    host: AgentHost,
+    workspace: PathBuf,
+    selected_job_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub(crate) enum AgentHandoffClipboardField {
+    LaunchCommand,
+    BootstrapPrompt,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct CopyAgentHandoffRequest {
+    host: AgentHost,
+    workspace: PathBuf,
+    selected_job_id: Option<String>,
+    field: AgentHandoffClipboardField,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct PrepareAgentMcpConfigurationRequest {
+    host: AgentHost,
+    workspace: PathBuf,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub(crate) enum AgentMcpClipboardField {
+    RegistrationCommand,
+    ConfigurationSnippet,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct CopyAgentMcpConfigurationRequest {
+    host: AgentHost,
+    workspace: PathBuf,
+    field: AgentMcpClipboardField,
 }
 
 #[cfg(target_os = "macos")]
@@ -42,6 +95,152 @@ pub(crate) async fn agent_context(
         .map_err(DesktopCommandError::application)
     })
     .await
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+pub(crate) async fn prepare_agent_handoff(
+    request: PrepareAgentHandoffRequest,
+) -> Result<ActionReceipt<AgentHandoffReadModel>, DesktopCommandError> {
+    run_worker(move || {
+        Application::prepare_agent_handoff(&AgentHandoffRequest {
+            host: request.host,
+            workspace: request.workspace,
+            selected_job_id: request.selected_job_id,
+        })
+        .map_err(DesktopCommandError::application)
+    })
+    .await
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+pub(crate) async fn copy_agent_handoff(
+    request: CopyAgentHandoffRequest,
+) -> Result<(), DesktopCommandError> {
+    run_worker(move || copy_agent_handoff_impl(request)).await
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+pub(crate) async fn prepare_agent_mcp_configuration(
+    request: PrepareAgentMcpConfigurationRequest,
+) -> Result<ActionReceipt<AgentMcpConfigurationReadModel>, DesktopCommandError> {
+    run_worker(move || prepare_agent_mcp_configuration_impl(request)).await
+}
+
+#[cfg(target_os = "macos")]
+fn prepare_agent_mcp_configuration_impl(
+    request: PrepareAgentMcpConfigurationRequest,
+) -> Result<ActionReceipt<AgentMcpConfigurationReadModel>, DesktopCommandError> {
+    let executable = bundled_cli_path().ok_or_else(|| {
+        DesktopCommandError::state(
+            "The version-matched CanISend CLI is not available inside this App",
+        )
+    })?;
+    Application::prepare_agent_mcp_configuration(&AgentMcpConfigurationRequest {
+        host: request.host,
+        workspace: request.workspace,
+        executable,
+    })
+    .map_err(DesktopCommandError::application)
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+pub(crate) async fn copy_agent_mcp_configuration(
+    request: CopyAgentMcpConfigurationRequest,
+) -> Result<(), DesktopCommandError> {
+    run_worker(move || {
+        let prepared = prepare_agent_mcp_configuration_impl(PrepareAgentMcpConfigurationRequest {
+            host: request.host,
+            workspace: request.workspace,
+        })?
+        .data;
+        let text = match request.field {
+            AgentMcpClipboardField::RegistrationCommand => {
+                prepared.registration_command.ok_or_else(|| {
+                    DesktopCommandError::state("This host has no registration command")
+                })?
+            }
+            AgentMcpClipboardField::ConfigurationSnippet => prepared.configuration_snippet,
+        };
+        copy_to_macos_clipboard(&text)
+    })
+    .await
+}
+
+#[cfg(target_os = "macos")]
+fn copy_agent_handoff_impl(request: CopyAgentHandoffRequest) -> Result<(), DesktopCommandError> {
+    let handoff = Application::prepare_agent_handoff(&AgentHandoffRequest {
+        host: request.host,
+        workspace: request.workspace,
+        selected_job_id: request.selected_job_id,
+    })
+    .map_err(DesktopCommandError::application)?
+    .data;
+    let text = match request.field {
+        AgentHandoffClipboardField::LaunchCommand => handoff.launch_command,
+        AgentHandoffClipboardField::BootstrapPrompt => handoff.bootstrap_prompt,
+    };
+    copy_to_macos_clipboard(&text)
+}
+
+#[cfg(target_os = "macos")]
+fn copy_to_macos_clipboard(text: &str) -> Result<(), DesktopCommandError> {
+    if text.len() > 32 * 1024 {
+        return Err(DesktopCommandError::state(
+            "Agent integration clipboard content exceeds the 32 KiB limit",
+        ));
+    }
+    let mut child = Command::new("/usr/bin/pbcopy")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|error| {
+            DesktopCommandError::state(format!("Cannot start the macOS clipboard service: {error}"))
+        })?;
+    let mut stdin = child
+        .stdin
+        .take()
+        .ok_or_else(|| DesktopCommandError::state("Clipboard input is unavailable"))?;
+    if let Err(error) = stdin.write_all(text.as_bytes()) {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err(DesktopCommandError::state(format!(
+            "Cannot write the agent integration content to the clipboard: {error}"
+        )));
+    }
+    drop(stdin);
+    let started = Instant::now();
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) if status.success() => return Ok(()),
+            Ok(Some(_)) => {
+                return Err(DesktopCommandError::state(
+                    "The macOS clipboard service rejected the agent integration content",
+                ));
+            }
+            Ok(None) if started.elapsed() < Duration::from_secs(2) => {
+                thread::sleep(Duration::from_millis(10));
+            }
+            Ok(None) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(DesktopCommandError::state(
+                    "The macOS clipboard service timed out",
+                ));
+            }
+            Err(error) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(DesktopCommandError::state(format!(
+                    "Cannot monitor the macOS clipboard service: {error}"
+                )));
+            }
+        }
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -73,5 +272,47 @@ mod tests {
         assert_eq!(context.operation, "agent.context");
         assert!(context.data.workspace.is_none());
         assert!(!context.data.blockers.is_empty());
+    }
+
+    #[test]
+    fn clipboard_request_accepts_only_a_regenerated_handoff_field() {
+        let request: CopyAgentHandoffRequest = serde_json::from_value(serde_json::json!({
+            "host": "codex",
+            "workspace": "/tmp/workspace",
+            "selected_job_id": null,
+            "field": "bootstrap-prompt"
+        }))
+        .expect("clipboard request");
+        assert_eq!(request.field, AgentHandoffClipboardField::BootstrapPrompt);
+        assert!(
+            serde_json::from_value::<CopyAgentHandoffRequest>(serde_json::json!({
+                "host": "codex",
+                "workspace": "/tmp/workspace",
+                "selected_job_id": null,
+                "field": "bootstrap-prompt",
+                "text": "untrusted arbitrary clipboard body"
+            }))
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn mcp_clipboard_request_accepts_only_a_regenerated_configuration_field() {
+        let request: CopyAgentMcpConfigurationRequest = serde_json::from_value(serde_json::json!({
+            "host": "claude",
+            "workspace": "/tmp/workspace",
+            "field": "configuration-snippet"
+        }))
+        .expect("MCP clipboard request");
+        assert_eq!(request.field, AgentMcpClipboardField::ConfigurationSnippet);
+        assert!(
+            serde_json::from_value::<CopyAgentMcpConfigurationRequest>(serde_json::json!({
+                "host": "claude",
+                "workspace": "/tmp/workspace",
+                "field": "configuration-snippet",
+                "text": "untrusted arbitrary clipboard body"
+            }))
+            .is_err()
+        );
     }
 }

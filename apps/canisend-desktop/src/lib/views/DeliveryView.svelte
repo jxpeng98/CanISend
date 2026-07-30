@@ -21,7 +21,6 @@
   import { Textarea } from "$lib/components/ui/textarea/index.js";
   import type {
     DocumentWorkspaceReadModel,
-    JobRecord,
     PackageExportManifestRecord,
     PackageManifestRecord,
     ProjectionReconcileRecord,
@@ -30,12 +29,14 @@
     WorkspaceReadModel,
   } from "$lib/bridge";
   import type { Messages } from "$lib/i18n";
+  import type { WorkflowDetail } from "$lib/workflow-navigation";
 
   type Props = {
     copy: Messages;
     desktopRuntime: boolean;
     activeWorkspace: WorkspaceReadModel | null;
-    jobs: JobRecord[];
+    selectedJobId: string;
+    focus: WorkflowDetail | null;
     busy: boolean;
     onLoadDocuments: (
       jobId: string,
@@ -85,7 +86,8 @@
     copy,
     desktopRuntime,
     activeWorkspace,
-    jobs,
+    selectedJobId,
+    focus,
     busy,
     onLoadDocuments,
     onLoadReview,
@@ -103,7 +105,6 @@
   }: Props = $props();
 
   let section = $state("documents");
-  let selectedJobId = $state("");
   let loadedKey = $state("");
   let privateReadConsent = $state(false);
   let privateExportConsent = $state(false);
@@ -119,12 +120,6 @@
   let renderManifest = $state<RenderManifestRecord | null>(null);
   let renderDestination = $state("");
   let formError = $state<string | null>(null);
-
-  $effect(() => {
-    if (!selectedJobId || !jobs.some((job) => job.id === selectedJobId)) {
-      selectedJobId = jobs[0]?.id ?? "";
-    }
-  });
 
   $effect(() => {
     const nextKey = `${activeWorkspace?.path ?? ""}:${selectedJobId}`;
@@ -148,6 +143,13 @@
       selectedProjectionPath = "";
       preservedDestination = "";
     }
+  });
+
+  $effect(() => {
+    if (focus === "delivery-review") section = "review";
+    if (focus === "delivery-package") section = "package";
+    if (focus === "delivery-render") section = "render";
+    if (focus === "delivery-documents") section = "documents";
   });
 
   async function loadDocuments(): Promise<void> {
@@ -262,19 +264,6 @@
         {copy.deliveryDescription}
       </p>
     </div>
-    <div class="min-w-72 space-y-2">
-      <Label for="delivery-job">{copy.selectApplication}</Label>
-      <select
-        id="delivery-job"
-        class="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm"
-        bind:value={selectedJobId}
-        disabled={!activeWorkspace || busy}
-      >
-        {#each jobs as job (job.id)}
-          <option value={job.id}>{job.title} — {job.institution}</option>
-        {/each}
-      </select>
-    </div>
   </div>
 
   {#if !activeWorkspace || !selectedJobId}
@@ -313,7 +302,14 @@
         <Tabs.Trigger value="render">{copy.render}</Tabs.Trigger>
       </Tabs.List>
 
-      <Tabs.Content value="documents" class="pt-4">
+      <Tabs.Content
+        id="delivery-documents"
+        value="documents"
+        class={[
+          "scroll-mt-44 pt-4",
+          focus === "delivery-documents" ? "rounded-xl ring-2 ring-primary/25" : "",
+        ]}
+      >
         <Card.Root class="shadow-none">
           <Card.Header>
             <div class="flex items-start justify-between gap-4">
@@ -360,7 +356,14 @@
         </Card.Root>
       </Tabs.Content>
 
-      <Tabs.Content value="review" class="pt-4">
+      <Tabs.Content
+        id="delivery-review"
+        value="review"
+        class={[
+          "scroll-mt-44 pt-4",
+          focus === "delivery-review" ? "rounded-xl ring-2 ring-primary/25" : "",
+        ]}
+      >
         <div class="grid gap-6 xl:grid-cols-[minmax(320px,0.75fr)_minmax(0,1.25fr)]">
           <Card.Root class="shadow-none">
             <Card.Header>
@@ -421,7 +424,14 @@
         </div>
       </Tabs.Content>
 
-      <Tabs.Content value="package" class="space-y-6 pt-4">
+      <Tabs.Content
+        id="delivery-package"
+        value="package"
+        class={[
+          "scroll-mt-44 space-y-6 pt-4",
+          focus === "delivery-package" ? "rounded-xl ring-2 ring-primary/25" : "",
+        ]}
+      >
         <Card.Root class="shadow-none">
           <Card.Header>
             <Card.Title>{copy.readiness}</Card.Title>
@@ -535,7 +545,14 @@
         </Card.Root>
       </Tabs.Content>
 
-      <Tabs.Content value="render" class="pt-4">
+      <Tabs.Content
+        id="delivery-render"
+        value="render"
+        class={[
+          "scroll-mt-44 pt-4",
+          focus === "delivery-render" ? "rounded-xl ring-2 ring-primary/25" : "",
+        ]}
+      >
         <Card.Root class="shadow-none">
           <Card.Header>
             <Card.Title>{copy.render}</Card.Title>

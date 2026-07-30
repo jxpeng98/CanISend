@@ -4,6 +4,175 @@ CanISend is designed to run beside Codex, Claude, or another agent host. The nat
 revisioning, privacy scopes, workflow state, storage, and rendering. The host agent owns conversation and bounded
 semantic reasoning.
 
+## Recommended: continue in the agent host
+
+The desktop Agent screen prepares a body-free handoff for the selected workspace, optional job, and Codex or Claude.
+It returns:
+
+- a safely quoted terminal command that opens the selected workspace in the host CLI;
+- a body-free starting message that establishes the product boundary;
+- exact `agent capabilities` and job-scoped `agent context` commands; and
+- current blockers and next actions from the same Rust application facade used by the GUI and CLI.
+
+Copy the command into Terminal, then paste the starting message into the host. The Codex or Claude session remains the
+conversation authority and keeps its own search, MCP, skills, plugins, connectors, approvals, and transcript.
+CanISend remains the application-state authority. Every mutation must return through the versioned CLI or Agent v2
+task loop. MCP inspection stays body-free; its guarded job-intake and task tools use explicit consent, preview,
+single-use confirmation tokens, and application-facade commits. The host must never edit `.canisend`, SQLite, blobs,
+or managed projections directly.
+
+The handoff contains canonical paths, public IDs, commands, and body-free status only. It does not contain advert,
+profile, evidence, draft, or review bodies, and preparing it does not contact a provider.
+
+### Return to the connected App workflow
+
+The desktop keeps one global workspace and application context across Opportunities, Applications, Profile,
+Application workspace, Agent integration, and Documents & delivery. Its stage rail recommends the first unmet
+durable requirement rather than treating those screens as unrelated tabs. Agent-context next actions and committed
+task results deep-link back to the exact source, criteria, evidence, match, plan, document, review, package, or render
+surface.
+
+The App remembers only the active screen/detail, canonical workspace path, selected public job ID, and the most
+recent body-free action summary. This convenience state is not an application transcript and is never authoritative:
+the Rust workspace, revisions, task leases, and receipts remain the source of truth. Changing workspaces hides a
+recent action that belongs to a different workspace.
+
+## Optional: use the in-App read-only bridge
+
+For quick inspection, the desktop can discover an installed `codex` or `claude` executable and run a consent-gated,
+read-only turn. This is a convenience bridge, not CanISend's primary agent surface:
+
+- Discovery proves only the executable path and bounded `--version` output. It does not inspect or
+  claim successful sign-in, provider access, MCP, skills, plugins, search, or other host
+  configuration.
+- Codex uses JSONL `exec` events and resumes the recorded thread ID.
+- Claude uses print-mode JSON and resumes the recorded session ID.
+- The selected workspace is the process working directory.
+- Search, MCP servers, skills, and plugins are available only when that CLI runtime exposes them through its normal
+  local configuration.
+- A connector that exists only in a separate desktop host is not automatically inherited.
+- The bridge can inspect and advise, but it cannot mutate CanISend state.
+
+CanISend stores a body-free binding for each `(workspace, runtime, optional job)` scope. On macOS the registry is
+`~/Library/Application Support/CanISend/agent-sessions.json`. It contains the canonical workspace path, runtime,
+optional job ID, external session ID, and timestamps. It does not contain prompts, responses, transcripts, tokens, or
+credentials. Codex or Claude remains the authority for its own local transcript. Switching tabs preserves the
+in-memory App view; closing the App discards that rendered view, while the external session binding permits the next
+turn to resume the host-owned conversation.
+
+Starting a new conversation replaces only the binding for the selected scope after the new host session succeeds. A
+workspace-level conversation and each job-level conversation therefore remain independent.
+
+An in-App turn can be cancelled while its local CLI process is running. Cancellation is scoped to the exact
+workspace, runtime, and optional job, terminates only that process, and does not parse or save a partial response. A
+cancelled new conversation does not replace an existing session binding. This control is for the optional bridge;
+conversation and task controls in the external host remain owned by that host.
+
+### Privacy and execution boundary
+
+Every turn requires explicit provider-send consent. The request is passed to the local runtime through standard input,
+not a shell or command-line argument. Executable discovery is limited to fixed command names and known user/system
+locations; there is no arbitrary executable field. Runtime output, diagnostics, duration, and concurrent turns are
+bounded. Imported job adverts and profile sources are identified as untrusted data in the bridge prompt.
+
+The local runtime may send necessary context to the provider configured in that runtime. CanISend does not gain access
+to the provider credential and does not implement a provider HTTP client in this mode.
+
+### Current and target interaction modes
+
+| Mode | Session continuity | Host tools | CanISend writes |
+| --- | --- | --- | --- |
+| External-host handoff (recommended) | Managed entirely by Codex or Claude | Full capability of that host surface | Only through versioned CanISend operations |
+| Local bridge (optional) | Stored Codex thread/Claude session ID plus host transcript | Whatever the selected CLI exposes | None; read-only |
+| CanISend MCP adapter | Managed entirely by the external host | Thirteen portable, versioned tools | Four guarded writes; two require a matching preview token |
+| Direct model API (not implemented) | CanISend would have to own history and truncation | No automatic access to consumer-app plugins | Would require a separate credential and consent design |
+
+### Connect the guarded MCP adapter
+
+The desktop Agent screen generates a host-specific registration command and configuration snippet for the selected
+workspace. The adapter runs inside the same version-matched `canisend` binary:
+
+```console
+canisend --workspace /absolute/path/to/workspace mcp serve
+```
+
+Codex project configuration uses `.codex/config.toml`:
+
+```toml
+[mcp_servers.canisend]
+command = "/absolute/path/to/canisend"
+args = ["--workspace", "/absolute/path/to/workspace", "mcp", "serve"]
+enabled = true
+default_tools_approval_mode = "writes"
+```
+
+Claude project configuration uses `.mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "canisend": {
+      "type": "stdio",
+      "command": "/absolute/path/to/canisend",
+      "args": ["--workspace", "/absolute/path/to/workspace", "mcp", "serve"]
+    }
+  }
+}
+```
+
+The adapter negotiates MCP `2025-11-25` over stdio and exposes, in deterministic order:
+
+- `canisend_capabilities`
+- `canisend_context`
+- `canisend_job_detail`
+- `canisend_job_intake_commit`
+- `canisend_job_intake_preview`
+- `canisend_jobs_list`
+- `canisend_profile_sources`
+- `canisend_task_completion_commit`
+- `canisend_task_completion_preview`
+- `canisend_task_inputs`
+- `canisend_task_latest`
+- `canisend_task_prepare`
+- `canisend_workflow_status`
+
+Seven routine inspection tools are read-only and idempotent. Job-intake and task-completion preview tools are
+read-only but intentionally non-idempotent because each creates an in-memory single-use token; URL intake is the only
+open-world tool. The four write tools are explicitly declared non-read-only and non-destructive so the host can apply
+its write-approval policy:
+
+- `canisend_job_intake_commit` consumes an exact source preview;
+- `canisend_task_prepare` freezes current revisions into a task lease;
+- `canisend_task_inputs` exports only declared inputs after explicit consent; and
+- `canisend_task_completion_commit` consumes an exact validated completion preview.
+
+The desktop configuration card reports these categories separately as nine read-only/preview
+tools and four approval-gated writes. The complete thirteen-tool list remains deterministic and
+versioned; the display categories are generated from the same Rust application contract used by
+the MCP protocol test.
+
+Inputs and serialized outputs are bounded, application failures preserve the typed CanISend error classification,
+and routine job/profile responses exclude source bodies. Preview tokens are scoped to one MCP process, capped,
+single-use, and restored only when an application commit fails. The adapter calls the same Rust application facade as
+CLI and GUI; it contains no duplicate business rules.
+
+#### Give the agent a job link or PDF
+
+Select or create the target job, then tell the host which URL or absolute local file you want to add. The host calls
+`canisend_job_intake_preview` with the matching explicit consent. CanISend reads/fetches the source once and returns:
+
+- target job and expected revision;
+- source kind, requested/final locator, redirects, content type, size, page/line counts, and SHA-256;
+- duplicate-content and semantic-review notices; and
+- the exact intended source attachment and job-revision change.
+
+No source body is returned in the preview. After reviewing it, approve
+`canisend_job_intake_commit` in the host. Commit uses the bytes already held by the preview and fails if the target job
+revision changed. The desktop Applications screen follows the same preview/confirm sequence.
+
+A richer [Codex App Server](https://developers.openai.com/codex/app-server/) or Claude stream client remains an
+optional later convenience and is not a prerequisite for the product workflow.
+
 ## Export a self-contained host pack
 
 ```console

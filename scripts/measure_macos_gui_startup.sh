@@ -11,6 +11,7 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
 fi
 
 script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+repo_root="$(CDPATH= cd -- "$script_dir/.." && pwd)"
 source "$script_dir/lib/native_paths.sh"
 app="$(canisend_absolute_path "$1")"
 output="$(canisend_absolute_path "$2")"
@@ -68,11 +69,30 @@ samples_file="$fixture_root/samples"
 : > "$samples_file"
 for trial in $(seq 1 "$trials"); do
   home="$fixture_root/home-$trial"
-  mkdir -p "$home"
+  runtime_bin="$home/.local/share/mise/shims"
+  mkdir -p "$runtime_bin"
+  cp "$repo_root/fixtures/runtime/fake-codex-runtime.sh" "$runtime_bin/codex"
+  chmod 700 "$runtime_bin/codex"
   started_ms="$(perl -MTime::HiRes=time -e 'printf "%.3f", time() * 1000')"
-  HOME="$home" "$gui" >"$fixture_root/gui-$trial.log" 2>&1 &
+  HOME="$home" PATH="$runtime_bin:/usr/bin:/bin" \
+    "$gui" >"$fixture_root/gui-$trial.log" 2>&1 &
   gui_pid="$!"
   if ! osascript - "$gui_pid" <<'APPLESCRIPT'
+on findNamed(parentElement, targetName)
+    tell application "System Events"
+        try
+            if (name of parentElement as text) is targetName then return parentElement
+        end try
+        try
+            repeat with childElement in UI elements of parentElement
+                set foundElement to my findNamed(childElement, targetName)
+                if foundElement is not missing value then return foundElement
+            end repeat
+        end try
+    end tell
+    return missing value
+end findNamed
+
 on run arguments
     set guiPid to item 1 of arguments as integer
     tell application "System Events"
@@ -81,15 +101,11 @@ on run arguments
                 set guiProcess to first process whose unix id is guiPid
                 if (count of windows of guiProcess) > 0 then
                     set appWindow to window 1 of guiProcess
-                    try
-                        set outerGroup to UI element 1 of appWindow
-                        set webViewGroup to UI element 1 of outerGroup
-                        set scrollArea to UI element 1 of webViewGroup
-                        set webArea to UI element 1 of scrollArea
-                        set mainContent to UI element 2 of webArea
-                        set landmarkName to name of mainContent as text
-                        if landmarkName is "CanISend main content" or landmarkName is "CanISend 主要内容" then return
-                    end try
+                    set mainContent to my findNamed(appWindow, "CanISend main content")
+                    if mainContent is missing value then
+                        set mainContent to my findNamed(appWindow, "CanISend 主要内容")
+                    end if
+                    if mainContent is not missing value then return
                 end if
             end if
             delay 0.01

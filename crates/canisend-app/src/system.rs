@@ -124,6 +124,14 @@ impl Application {
         cli_install::uninstall(source, destination, consent)
     }
 
+    pub fn configure_cli_path(
+        source: Option<&Path>,
+        destination: &Path,
+        consent: TerminalInstallConsent,
+    ) -> Result<ActionReceipt<CliInstallStatus>, ApplicationError> {
+        cli_install::configure_path(source, destination, consent)
+    }
+
     pub fn check_for_updates(
         consent: NetworkFetchConsent,
     ) -> Result<ActionReceipt<UpdateCheckReadModel>, ApplicationError> {
