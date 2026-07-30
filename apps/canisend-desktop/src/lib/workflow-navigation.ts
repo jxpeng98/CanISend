@@ -41,6 +41,13 @@ export interface WorkflowRoute {
   jobId?: string;
 }
 
+export type ApplicationWorkspaceSection =
+  | "overview"
+  | "job-criteria"
+  | "evidence-fit"
+  | "materials"
+  | "review-export";
+
 export interface LastSuccessfulAction {
   operation: string;
   summary: string;
@@ -222,6 +229,56 @@ export function rememberedJob(
   const remembered = memory.selectedJobs[workspacePath];
   if (remembered && jobs.some((job) => job.id === remembered)) return remembered;
   return jobs[0]?.id ?? null;
+}
+
+export function routeForApplicationSection(
+  section: ApplicationWorkspaceSection,
+  jobId?: string,
+): WorkflowRoute {
+  const route =
+    section === "overview"
+      ? { view: "applications" as const }
+      : section === "job-criteria"
+        ? { view: "workflow" as const, detail: "decision-criteria" as const }
+        : section === "evidence-fit"
+          ? { view: "workflow" as const, detail: "decision-matches" as const }
+          : section === "materials"
+            ? { view: "delivery" as const, detail: "delivery-documents" as const }
+            : { view: "delivery" as const, detail: "delivery-review" as const };
+  return jobId ? { ...route, jobId } : route;
+}
+
+export function applicationSectionForRoute(
+  route: Pick<WorkflowRoute, "view" | "detail">,
+): ApplicationWorkspaceSection | null {
+  if (route.view === "applications") {
+    return route.detail === "source-intake" ? "job-criteria" : "overview";
+  }
+  if (route.view === "profile" && route.detail === "profile-evidence") {
+    return "evidence-fit";
+  }
+  if (route.view === "workflow") {
+    if (
+      route.detail === "decision-evidence" ||
+      route.detail === "decision-matches" ||
+      route.detail === "decision-plan"
+    ) {
+      return "evidence-fit";
+    }
+    return "job-criteria";
+  }
+  if (route.view === "delivery") {
+    return route.detail === "delivery-documents"
+      ? "materials"
+      : "review-export";
+  }
+  return null;
+}
+
+export function isApplicationWorkspaceRoute(
+  route: Pick<WorkflowRoute, "view" | "detail">,
+): boolean {
+  return applicationSectionForRoute(route) !== null;
 }
 
 export function routeForWorkflowStage(stage: WorkflowStage): WorkflowRoute {

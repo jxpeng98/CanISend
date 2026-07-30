@@ -257,7 +257,7 @@
         <Card.Root
           id="profile-sources"
           class={[
-            "scroll-mt-44 shadow-none transition-colors",
+            "scroll-mt-64 shadow-none transition-colors",
             focus === "profile-sources" ? "ring-2 ring-primary/35" : "",
           ]}
         >
@@ -358,7 +358,7 @@
       <Card.Root
         id="profile-evidence"
         class={[
-          "scroll-mt-44 shadow-none transition-colors",
+          "scroll-mt-64 shadow-none transition-colors",
           focus === "profile-evidence" ? "ring-2 ring-primary/35" : "",
         ]}
       >

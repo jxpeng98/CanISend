@@ -116,10 +116,11 @@ The current CLI provides:
   embedded rendering, and binary size, with a committed reproducible baseline.
 
 The `canisend-gui` macOS development app uses Svelte over the same Rust application facade as the
-CLI. It provides workspace and application context, opportunity discovery, reviewed file/URL/PDF
-intake, profile evidence, the durable workflow, Agent handoff/runtime controls, documents and
-delivery, a body-free Content Catalog with consent-gated ephemeral full-text search, recovery,
-updates, and managed terminal CLI installation. See the
+CLI. Its primary journey combines Overview, Job & criteria, Evidence & fit, Materials, and Review
+& export inside one selected Application Workspace with persistent Dossier context and resumable
+receipt routes. It also provides opportunity discovery, reviewed file/URL/PDF intake, reusable
+profile evidence, Agent handoff/runtime controls, a body-free Content Catalog with consent-gated
+ephemeral full-text search, recovery, updates, and managed terminal CLI installation. See the
 [desktop GUI preview guide](docs/guides/desktop-gui.md) for current coverage and limits.
 
 The R9 native matrix verifies embedded fonts, edge-case Unicode/layout, missing-system-font isolation, bundled

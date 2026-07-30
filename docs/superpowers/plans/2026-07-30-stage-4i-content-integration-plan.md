@@ -1,7 +1,7 @@
 # CanISend Stage 4I–4M content integration and experience plan
 
-**Status:** Stage 4I and Stage 4J complete in source; Stage 4K is next
-follow-on work.
+**Status:** Stage 4I, Stage 4J, and Stage 4K complete in source; Stage 4L is the
+next follow-on slice.
 
 **Product decision:** CanISend remains the local-first application state, validation, and
 visualization layer. External Codex, Claude, or another host remains the primary Agent runtime.
@@ -130,15 +130,43 @@ Make URL, PDF, local file, CSV, JSON, and Agent-provided intake converge on a sh
 
 Replace independent feature tabs as the primary journey with a selected-application workspace:
 
-1. Overview
-2. Job & criteria
-3. Evidence & fit
-4. Materials
-5. Review & export
+- [x] Overview
+- [x] Job & criteria
+- [x] Evidence & fit
+- [x] Materials
+- [x] Review & export
 
 Global Workspaces, Opportunities, Profile, Agent Integration, and Settings remain supporting
 surfaces. A persistent context bar shows workspace, application, deadline, current stage, blocker,
 and next action. Every receipt deep-links to its affected content and recommended continuation.
+
+### K1. Navigation convergence
+
+- [x] Remove Workflow and Documents & delivery from the primary sidebar without removing their
+  underlying revision-bound controls.
+- [x] Map legacy detail routes and Content Catalog deep links into the five workspace sections.
+- [x] Keep internal Workflow and Delivery tab changes synchronized with global navigation memory.
+- [x] Restore the selected workspace, application, section, detail, and last successful action
+  across normal restarts.
+
+### K2. Persistent application context
+
+- [x] Show the selected workspace and application plus Dossier deadline, current stage, progress,
+  lifecycle state, first relevant blocker, and authoritative next action.
+- [x] Keep the five application sections keyboard reachable with explicit text and mature Lucide
+  icons; retain the existing skip link and focus indicators.
+- [x] Support the 960-pixel minimum desktop window without overflowing the context controls.
+- [x] Increase deep-link scroll offsets so fixed navigation never obscures the destination.
+
+### K3. Continuation and performance
+
+- [x] Bind successful creation, promotion, intake, workflow, review, package, and render receipts
+  to their affected application route.
+- [x] Select a newly created or promoted application before recording its continuation route.
+- [x] Lazy-load Workflow, Delivery, Agent, and Content Library surfaces with visible,
+  reduced-motion-safe loading and retry states.
+- [x] Complete the source gate and record
+  [Stage 4K evidence](../../notes/rust-native/2026-07-30-stage4k-application-workspace.md).
 
 ## Stage 4L — Contextual Agent assistance
 

@@ -5,9 +5,9 @@
     BriefcaseBusiness,
     Database,
     FileUp,
-    GitBranch,
     Languages,
     LayoutDashboard,
+    LoaderCircle,
     Moon,
     Plus,
     Search,
@@ -175,13 +175,12 @@
   import { upcomingDeadlineApplications } from "$lib/application-dossier";
   import { messages, type Language } from "$lib/i18n";
   import ApplicationsView from "$lib/views/ApplicationsView.svelte";
-  import DeliveryView from "$lib/views/DeliveryView.svelte";
   import OpportunitiesView from "$lib/views/OpportunitiesView.svelte";
   import ProfileView from "$lib/views/ProfileView.svelte";
   import SettingsView from "$lib/views/SettingsView.svelte";
-  import WorkflowView from "$lib/views/WorkflowView.svelte";
   import WorkspacesView from "$lib/views/WorkspacesView.svelte";
   import {
+    applicationSectionForRoute,
     defaultNavigationMemory,
     parseNavigationMemory,
     recommendWorkflowRoute,
@@ -204,6 +203,10 @@
     textScale: number;
   };
   type AgentViewComponent = typeof import("$lib/views/AgentView.svelte").default;
+  type WorkflowViewComponent =
+    typeof import("$lib/views/WorkflowView.svelte").default;
+  type DeliveryViewComponent =
+    typeof import("$lib/views/DeliveryView.svelte").default;
 
   let language = $state<Language>("en");
   let darkMode = $state(false);
@@ -217,13 +220,21 @@
   let navigationReady = $state(false);
   let lastSuccessfulAction = $state<LastSuccessfulAction | null>(null);
   let AgentView = $state<AgentViewComponent | null>(null);
+  let WorkflowView = $state<WorkflowViewComponent | null>(null);
+  let DeliveryView = $state<DeliveryViewComponent | null>(null);
   let agentViewLoading = $state(false);
+  let workflowViewLoading = $state(false);
+  let deliveryViewLoading = $state(false);
+  let agentViewFailed = $state(false);
+  let workflowViewFailed = $state(false);
+  let deliveryViewFailed = $state(false);
   let agentTurnRunning = $state(false);
   let product = $state<ProductSummary | null>(null);
   let doctor = $state<ActionReceipt<DoctorSummary> | null>(null);
   let bridgeError = $state<string | null>(null);
   let bridgeErrorCanRetry = $state(false);
   let notice = $state<string | null>(null);
+  let noticeRoute = $state<WorkflowRoute | null>(null);
   let doctorRunning = $state(false);
   let busy = $state(false);
   let workspaceLoading = $state(true);
@@ -272,48 +283,30 @@
       profileSourceCount: profileSources.length,
     }),
   );
-  const journeyNavigation = $derived([
+  const workNavigation = $derived([
     {
       id: "opportunities" as const,
       label: copy.opportunities,
       icon: Search,
       enabled: true,
-      stage: 1,
     },
     {
       id: "applications" as const,
-      label: copy.applications,
+      label: copy.applicationWorkspace,
       icon: BriefcaseBusiness,
       enabled: true,
-      stage: 2,
     },
     {
       id: "profile" as const,
       label: copy.profile,
       icon: UserRound,
       enabled: true,
-      stage: 3,
-    },
-    {
-      id: "workflow" as const,
-      label: copy.workflow,
-      icon: GitBranch,
-      enabled: true,
-      stage: 4,
     },
     {
       id: "agent" as const,
       label: copy.agent,
       icon: Bot,
       enabled: true,
-      stage: 5,
-    },
-    {
-      id: "delivery" as const,
-      label: copy.delivery,
-      icon: FileUp,
-      enabled: true,
-      stage: 6,
     },
   ]);
   const utilityNavigation = $derived([
@@ -332,17 +325,47 @@
       icon: LayoutDashboard,
       enabled: true,
     },
-    ...journeyNavigation,
+    ...workNavigation,
     ...utilityNavigation,
   ]);
-  const journeyStages = $derived(
-    journeyNavigation.map((item) => ({
-      number: item.stage,
-      label: item.label,
-      view: item.id,
-      recommended: recommendation.route.view === item.id,
-    })),
+  const currentApplicationSection = $derived(
+    applicationSectionForRoute({
+      view: activeView,
+      detail: activeDetail ?? undefined,
+    }),
   );
+  const currentViewLabel = $derived(
+    currentApplicationSection &&
+      (activeView === "applications" ||
+        activeView === "workflow" ||
+        activeView === "delivery")
+      ? `${copy.applicationWorkspace} · ${
+          copy.applicationWorkspaceSectionLabel[currentApplicationSection]
+        }`
+      : navigation.find((item) => item.id === activeView)?.label ?? copy.today,
+  );
+
+  function isWorkNavigationActive(id: NavigationId): boolean {
+    if (id === "applications") {
+      return (
+        activeView === "applications" ||
+        activeView === "workflow" ||
+        activeView === "delivery"
+      );
+    }
+    return activeView === id;
+  }
+
+  function isRecommendedNavigation(id: NavigationId): boolean {
+    if (id === "applications") {
+      return (
+        recommendation.route.view === "applications" ||
+        recommendation.route.view === "workflow" ||
+        recommendation.route.view === "delivery"
+      );
+    }
+    return recommendation.route.view === id;
+  }
 
   $effect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
@@ -397,17 +420,74 @@
   });
 
   $effect(() => {
-    if (activeView !== "agent" || AgentView || agentViewLoading) return;
+    if (
+      activeView !== "agent" ||
+      AgentView ||
+      agentViewLoading ||
+      agentViewFailed
+    ) {
+      return;
+    }
     agentViewLoading = true;
     void import("$lib/views/AgentView.svelte")
       .then((module) => {
         AgentView = module.default;
       })
       .catch((error: unknown) => {
+        agentViewFailed = true;
         captureBridgeError(error);
+        bridgeErrorCanRetry = true;
       })
       .finally(() => {
         agentViewLoading = false;
+      });
+  });
+
+  $effect(() => {
+    if (
+      activeView !== "workflow" ||
+      WorkflowView ||
+      workflowViewLoading ||
+      workflowViewFailed
+    ) {
+      return;
+    }
+    workflowViewLoading = true;
+    void import("$lib/views/WorkflowView.svelte")
+      .then((module) => {
+        WorkflowView = module.default;
+      })
+      .catch((error: unknown) => {
+        workflowViewFailed = true;
+        captureBridgeError(error);
+        bridgeErrorCanRetry = true;
+      })
+      .finally(() => {
+        workflowViewLoading = false;
+      });
+  });
+
+  $effect(() => {
+    if (
+      activeView !== "delivery" ||
+      DeliveryView ||
+      deliveryViewLoading ||
+      deliveryViewFailed
+    ) {
+      return;
+    }
+    deliveryViewLoading = true;
+    void import("$lib/views/DeliveryView.svelte")
+      .then((module) => {
+        DeliveryView = module.default;
+      })
+      .catch((error: unknown) => {
+        deliveryViewFailed = true;
+        captureBridgeError(error);
+        bridgeErrorCanRetry = true;
+      })
+      .finally(() => {
+        deliveryViewLoading = false;
       });
   });
 
@@ -520,6 +600,7 @@
       ...(context.route ?? { view: activeView, detail: activeDetail ?? undefined }),
       jobId: context.route?.jobId ?? jobId ?? undefined,
     };
+    noticeRoute = route;
     lastSuccessfulAction = {
       operation: context.operation,
       summary: extractActionSummary(
@@ -555,6 +636,7 @@
     bridgeError = null;
     bridgeErrorCanRetry = false;
     notice = null;
+    noticeRoute = null;
     try {
       const result = await operation();
       if (success) recordSuccessfulAction(success, result);
@@ -977,16 +1059,24 @@
 
   async function handlePromoteDiscoveryLead(leadId: string): Promise<boolean> {
     if (!activeWorkspace) return false;
-    const result = await runAction(
-      () => promoteDiscoveryLead(activeWorkspace!.path, leadId),
-      {
-        operation: "discovery.promote",
-        route: { view: "applications", detail: "source-intake" },
-        jobId: null,
-      },
+    const result = await runAction(() =>
+      promoteDiscoveryLead(activeWorkspace!.path, leadId),
     );
     if (!result) return false;
     await loadWorkspaceCollections();
+    await handleSelectJob(result.data.job.id);
+    recordSuccessfulAction(
+      {
+        operation: "discovery.promote",
+        route: {
+          view: "applications",
+          detail: "source-intake",
+          jobId: result.data.job.id,
+        },
+        jobId: result.data.job.id,
+      },
+      result,
+    );
     notice = result.summary;
     return true;
   }
@@ -2018,17 +2108,24 @@
 
   async function handleCreateJob(title: string, institution: string): Promise<boolean> {
     if (!activeWorkspace) return false;
-    const result = await runAction(
-      () => createJob(activeWorkspace!.path, title, institution),
-      {
-        operation: "job.create",
-        route: { view: "applications", detail: "source-intake" },
-        jobId: null,
-      },
+    const result = await runAction(() =>
+      createJob(activeWorkspace!.path, title, institution),
     );
     if (!result) return false;
     await loadJobsForActive();
     await handleSelectJob(result.data.id);
+    recordSuccessfulAction(
+      {
+        operation: "job.create",
+        route: {
+          view: "applications",
+          detail: "source-intake",
+          jobId: result.data.id,
+        },
+        jobId: result.data.id,
+      },
+      result,
+    );
     notice = result.summary;
     return true;
   }
@@ -2125,18 +2222,21 @@
   async function handleCommitJobSourcePreview(): Promise<boolean> {
     if (!activeWorkspace || !jobIntakePreview) return false;
     const jobId = jobIntakePreview.preview.data.job.id;
-    const result = await runAction(
-      () => commitJobSourcePreview(jobIntakePreview!.preview_token),
-      {
-        operation: "job.source.import",
-        route: { view: "profile", detail: "profile-sources", jobId },
-        jobId,
-      },
+    const result = await runAction(() =>
+      commitJobSourcePreview(jobIntakePreview!.preview_token),
     );
     if (!result) return false;
     jobIntakePreview = null;
     await loadJobsForActive();
     await handleSelectJob(jobId);
+    recordSuccessfulAction(
+      {
+        operation: "job.source.import",
+        route: { view: "profile", detail: "profile-sources", jobId },
+        jobId,
+      },
+      result,
+    );
     notice = result.summary;
     return true;
   }
@@ -2168,7 +2268,16 @@
   async function retryCurrentView(): Promise<void> {
     bridgeError = null;
     bridgeErrorCanRetry = false;
-    if (activeView === "applications") {
+    if (activeView === "agent" && agentViewFailed) {
+      agentViewFailed = false;
+      await tick();
+    } else if (activeView === "workflow" && workflowViewFailed) {
+      workflowViewFailed = false;
+      await tick();
+    } else if (activeView === "delivery" && deliveryViewFailed) {
+      deliveryViewFailed = false;
+      await tick();
+    } else if (activeView === "applications") {
       await handleRefreshJobs();
     } else if (activeView === "opportunities") {
       await handleRefreshDiscovery();
@@ -2181,7 +2290,7 @@
 </script>
 
 <svelte:head>
-  <title>{copy.appName} — {navigation.find((item) => item.id === activeView)?.label}</title>
+  <title>{copy.appName} — {currentViewLabel}</title>
 </svelte:head>
 
 <div
@@ -2225,19 +2334,19 @@
       </Button>
 
       <p class="px-3 pb-1 pt-4 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-        {copy.applicationJourney}
+        {copy.work}
       </p>
-      {#each journeyNavigation as item}
+      {#each workNavigation as item}
         {@const Icon = item.icon}
         <Button
-          variant={activeView === item.id ? "secondary" : "ghost"}
+          variant={isWorkNavigationActive(item.id) ? "secondary" : "ghost"}
           class={[
             "min-h-11 w-full justify-start gap-3 px-3 text-sm",
-            recommendation.route.view === item.id && activeView !== item.id
+            isRecommendedNavigation(item.id) && !isWorkNavigationActive(item.id)
               ? "ring-1 ring-primary/25"
               : "",
           ]}
-          aria-current={activeView === item.id ? "page" : undefined}
+          aria-current={isWorkNavigationActive(item.id) ? "page" : undefined}
           disabled={!item.enabled}
           onclick={() => {
             if (item.enabled) void navigateTo({ view: item.id });
@@ -2245,18 +2354,17 @@
         >
           <span
             class={[
-              "grid size-6 place-items-center rounded-md border text-[10px] font-semibold",
-              activeView === item.id
+              "grid size-7 place-items-center rounded-md border",
+              isWorkNavigationActive(item.id)
                 ? "border-primary/25 bg-primary/10 text-primary"
                 : "border-sidebar-border text-muted-foreground",
             ]}
             aria-hidden="true"
           >
-            {item.stage}
+            <Icon size={16} strokeWidth={1.8} />
           </span>
-          <Icon size={16} strokeWidth={1.8} aria-hidden="true" />
           <span>{item.label}</span>
-          {#if recommendation.route.view === item.id}
+          {#if isRecommendedNavigation(item.id)}
             <span
               class="ml-auto size-2 rounded-full bg-primary"
               title={copy.nextRecommended}
@@ -2328,7 +2436,7 @@
         data-tauri-drag-region
       >
         <p class="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-          {navigation.find((item) => item.id === activeView)?.label}
+          {currentViewLabel}
         </p>
         <div class="flex items-center gap-2">
           <Button
@@ -2366,8 +2474,10 @@
         {activeWorkspace}
         {jobs}
         {selectedJob}
-        currentViewLabel={navigation.find((item) => item.id === activeView)?.label ?? copy.today}
-        stages={journeyStages}
+        dossier={selectedDossier}
+        {activeView}
+        {activeDetail}
+        {recommendation}
         lastAction={lastSuccessfulAction?.workspacePath ===
           (activeWorkspace?.path ?? null)
           ? lastSuccessfulAction
@@ -2399,10 +2509,20 @@
         </div>
       {:else if notice}
         <div
-          class="mb-6 rounded-xl border border-[var(--success)]/40 bg-[var(--success)]/10 px-4 py-3 text-sm"
+          class="mb-6 flex items-center justify-between gap-4 rounded-xl border border-[var(--success)]/40 bg-[var(--success)]/10 px-4 py-3 text-sm"
           role="status"
         >
-          {notice}
+          <span>{notice}</span>
+          {#if noticeRoute}
+            <Button
+              variant="outline"
+              size="sm"
+              class="min-h-10 shrink-0 bg-background/70"
+              onclick={() => void navigateTo(noticeRoute!)}
+            >
+              {copy.openAffectedContent}
+            </Button>
+          {/if}
         </div>
       {/if}
 
@@ -2476,54 +2596,93 @@
           onContinue={() => navigateTo(recommendation.route)}
         />
       {:else if activeView === "workflow"}
-        <WorkflowView
-          {copy}
-          {desktopRuntime}
-          {activeWorkspace}
-          {selectedJobId}
-          focus={activeView === "workflow" ? activeDetail : null}
-          {busy}
-          onNavigate={navigateTo}
-          onOpenTaskResult={handleOpenTaskResult}
-          onLoadWorkflow={handleLoadWorkflow}
-          onStartWorkflow={handleStartWorkflow}
-          onBeginStage={handleBeginWorkflowStage}
-          onCompleteStage={handleCompleteWorkflowStage}
-          onPreviewRerun={handlePreviewWorkflowRerun}
-          onCommitRerun={handleCommitWorkflowRerun}
-          onDiscardPreview={handleDiscardWorkflowPreview}
-          onLoadDecision={handleLoadDecision}
-          onConfirmDecision={handleConfirmDecision}
-          onLoadLatestTask={handleLoadLatestTask}
-          onPrepareTask={handlePrepareTask}
-          onExportTaskInputs={handleExportTaskInputs}
-          onPreviewTaskCompletion={handlePreviewTaskCompletion}
-          onCommitTaskCompletion={handleCommitTaskCompletion}
-          onCancelTask={handleCancelTask}
-          onPrepareTaskAgain={handlePrepareTaskAgain}
-        />
+        {#if WorkflowView}
+          <WorkflowView
+            {copy}
+            {desktopRuntime}
+            {activeWorkspace}
+            {selectedJobId}
+            focus={activeDetail}
+            {busy}
+            onNavigate={navigateTo}
+            onOpenTaskResult={handleOpenTaskResult}
+            onLoadWorkflow={handleLoadWorkflow}
+            onStartWorkflow={handleStartWorkflow}
+            onBeginStage={handleBeginWorkflowStage}
+            onCompleteStage={handleCompleteWorkflowStage}
+            onPreviewRerun={handlePreviewWorkflowRerun}
+            onCommitRerun={handleCommitWorkflowRerun}
+            onDiscardPreview={handleDiscardWorkflowPreview}
+            onLoadDecision={handleLoadDecision}
+            onConfirmDecision={handleConfirmDecision}
+            onLoadLatestTask={handleLoadLatestTask}
+            onPrepareTask={handlePrepareTask}
+            onExportTaskInputs={handleExportTaskInputs}
+            onPreviewTaskCompletion={handlePreviewTaskCompletion}
+            onCommitTaskCompletion={handleCommitTaskCompletion}
+            onCancelTask={handleCancelTask}
+            onPrepareTaskAgain={handlePrepareTaskAgain}
+          />
+        {:else}
+          <div
+            class="flex min-h-72 items-center justify-center gap-2 text-sm text-muted-foreground"
+            role="status"
+          >
+            {#if workflowViewFailed}
+              <span>{copy.viewLoadFailed}</span>
+            {:else}
+              <LoaderCircle
+                size={17}
+                strokeWidth={1.8}
+                class="animate-spin motion-reduce:animate-none"
+                aria-hidden="true"
+              />
+              <span>{copy.loading}</span>
+            {/if}
+          </div>
+        {/if}
       {:else if activeView === "delivery"}
-        <DeliveryView
-          {copy}
-          {desktopRuntime}
-          {activeWorkspace}
-          {selectedJobId}
-          focus={activeView === "delivery" ? activeDetail : null}
-          {busy}
-          onLoadDocuments={handleLoadDocuments}
-          onLoadReview={handleLoadReview}
-          onConfirmReview={handleConfirmReview}
-          onCheckPackage={handleCheckPackage}
-          onLoadPackage={handleLoadPackage}
-          onExportPackage={handleExportPackage}
-          onLoadPackageExport={handleLoadPackageExport}
-          onReconcilePackage={handleReconcilePackage}
-          onReplaceProjection={handleReplaceProjection}
-          onCopyProjection={handleCopyProjection}
-          onBuildRender={handleBuildRender}
-          onLoadRender={handleLoadRender}
-          onExportRender={handleExportRender}
-        />
+        {#if DeliveryView}
+          <DeliveryView
+            {copy}
+            {desktopRuntime}
+            {activeWorkspace}
+            {selectedJobId}
+            focus={activeDetail}
+            {busy}
+            onNavigate={navigateTo}
+            onLoadDocuments={handleLoadDocuments}
+            onLoadReview={handleLoadReview}
+            onConfirmReview={handleConfirmReview}
+            onCheckPackage={handleCheckPackage}
+            onLoadPackage={handleLoadPackage}
+            onExportPackage={handleExportPackage}
+            onLoadPackageExport={handleLoadPackageExport}
+            onReconcilePackage={handleReconcilePackage}
+            onReplaceProjection={handleReplaceProjection}
+            onCopyProjection={handleCopyProjection}
+            onBuildRender={handleBuildRender}
+            onLoadRender={handleLoadRender}
+            onExportRender={handleExportRender}
+          />
+        {:else}
+          <div
+            class="flex min-h-72 items-center justify-center gap-2 text-sm text-muted-foreground"
+            role="status"
+          >
+            {#if deliveryViewFailed}
+              <span>{copy.viewLoadFailed}</span>
+            {:else}
+              <LoaderCircle
+                size={17}
+                strokeWidth={1.8}
+                class="animate-spin motion-reduce:animate-none"
+                aria-hidden="true"
+              />
+              <span>{copy.loading}</span>
+            {/if}
+          </div>
+        {/if}
       {:else if activeView === "profile"}
         <ProfileView
           {copy}
@@ -2568,8 +2727,21 @@
             onExport={handleExportAgentPack}
           />
         {:else}
-          <div class="flex min-h-72 items-center justify-center" aria-live="polite">
-            <p class="text-sm text-muted-foreground">{copy.loading}</p>
+          <div
+            class="flex min-h-72 items-center justify-center gap-2 text-sm text-muted-foreground"
+            role="status"
+          >
+            {#if agentViewFailed}
+              <span>{copy.viewLoadFailed}</span>
+            {:else}
+              <LoaderCircle
+                size={17}
+                strokeWidth={1.8}
+                class="animate-spin motion-reduce:animate-none"
+                aria-hidden="true"
+              />
+              <span>{copy.loading}</span>
+            {/if}
           </div>
         {/if}
       {:else if activeView === "settings"}

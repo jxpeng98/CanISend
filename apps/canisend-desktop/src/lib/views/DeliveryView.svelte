@@ -29,7 +29,10 @@
     WorkspaceReadModel,
   } from "$lib/bridge";
   import type { Messages } from "$lib/i18n";
-  import type { WorkflowDetail } from "$lib/workflow-navigation";
+  import type {
+    WorkflowDetail,
+    WorkflowRoute,
+  } from "$lib/workflow-navigation";
 
   type Props = {
     copy: Messages;
@@ -38,6 +41,7 @@
     selectedJobId: string;
     focus: WorkflowDetail | null;
     busy: boolean;
+    onNavigate: (route: WorkflowRoute) => Promise<void>;
     onLoadDocuments: (
       jobId: string,
       confirmedPrivateRead: boolean,
@@ -89,6 +93,7 @@
     selectedJobId,
     focus,
     busy,
+    onNavigate,
     onLoadDocuments,
     onLoadReview,
     onConfirmReview,
@@ -253,15 +258,34 @@
       privateExportConsent,
     );
   }
+
+  function navigateWithinDelivery(detail: WorkflowDetail): void {
+    void onNavigate({
+      view: "delivery",
+      detail,
+      jobId: selectedJobId || undefined,
+    });
+  }
+
+  const workspaceTitle = $derived(
+    section === "documents"
+      ? copy.materialsWorkspaceTitle
+      : copy.reviewExportTitle,
+  );
+  const workspaceDescription = $derived(
+    section === "documents"
+      ? copy.materialsWorkspaceDescription
+      : copy.reviewExportDescription,
+  );
 </script>
 
 <section class="space-y-6">
   <div class="flex flex-col justify-between gap-4 xl:flex-row xl:items-end">
     <div>
-      <Badge variant="secondary" class="mb-3">{copy.delivery}</Badge>
-      <h1 class="text-3xl font-semibold tracking-[-0.03em]">{copy.deliveryTitle}</h1>
+      <Badge variant="secondary" class="mb-3">{copy.applicationWorkspace}</Badge>
+      <h1 class="text-3xl font-semibold tracking-[-0.03em]">{workspaceTitle}</h1>
       <p class="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-        {copy.deliveryDescription}
+        {workspaceDescription}
       </p>
     </div>
   </div>
@@ -296,17 +320,37 @@
 
     <Tabs.Root bind:value={section}>
       <Tabs.List class="grid w-full max-w-3xl grid-cols-4">
-        <Tabs.Trigger value="documents">{copy.documents}</Tabs.Trigger>
-        <Tabs.Trigger value="review">{copy.review}</Tabs.Trigger>
-        <Tabs.Trigger value="package">{copy.package}</Tabs.Trigger>
-        <Tabs.Trigger value="render">{copy.render}</Tabs.Trigger>
+        <Tabs.Trigger
+          value="documents"
+          onclick={() => navigateWithinDelivery("delivery-documents")}
+        >
+          {copy.documents}
+        </Tabs.Trigger>
+        <Tabs.Trigger
+          value="review"
+          onclick={() => navigateWithinDelivery("delivery-review")}
+        >
+          {copy.review}
+        </Tabs.Trigger>
+        <Tabs.Trigger
+          value="package"
+          onclick={() => navigateWithinDelivery("delivery-package")}
+        >
+          {copy.package}
+        </Tabs.Trigger>
+        <Tabs.Trigger
+          value="render"
+          onclick={() => navigateWithinDelivery("delivery-render")}
+        >
+          {copy.render}
+        </Tabs.Trigger>
       </Tabs.List>
 
       <Tabs.Content
         id="delivery-documents"
         value="documents"
         class={[
-          "scroll-mt-44 pt-4",
+          "scroll-mt-64 pt-4",
           focus === "delivery-documents" ? "rounded-xl ring-2 ring-primary/25" : "",
         ]}
       >
@@ -360,7 +404,7 @@
         id="delivery-review"
         value="review"
         class={[
-          "scroll-mt-44 pt-4",
+          "scroll-mt-64 pt-4",
           focus === "delivery-review" ? "rounded-xl ring-2 ring-primary/25" : "",
         ]}
       >
@@ -428,7 +472,7 @@
         id="delivery-package"
         value="package"
         class={[
-          "scroll-mt-44 space-y-6 pt-4",
+          "scroll-mt-64 space-y-6 pt-4",
           focus === "delivery-package" ? "rounded-xl ring-2 ring-primary/25" : "",
         ]}
       >
@@ -549,7 +593,7 @@
         id="delivery-render"
         value="render"
         class={[
-          "scroll-mt-44 pt-4",
+          "scroll-mt-64 pt-4",
           focus === "delivery-render" ? "rounded-xl ring-2 ring-primary/25" : "",
         ]}
       >

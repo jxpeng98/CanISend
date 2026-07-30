@@ -25,8 +25,9 @@ Build the locked Svelte assets before the Rust executables so Tauri embeds those
 bytes. The explicit `custom-protocol` feature is mandatory for direct Cargo builds: without it,
 Tauri intentionally uses `devUrl` instead of embedded assets. Build both executables so the GUI can
 discover the sibling native CLI. The native arm64 application opens one window with Today,
-Opportunities, Applications, Application workspace, Documents & delivery, Profile, Agent
-integration, Workspaces, and Settings navigation.
+Opportunities, Application workspace, Profile, Agent integration, Workspaces, and Settings as its
+primary navigation. Application workspace then provides five connected sections: Overview,
+Job & criteria, Evidence & fit, Materials, and Review & export.
 
 ## First run
 
@@ -35,16 +36,34 @@ integration, Workspaces, and Settings navigation.
    **Register existing** and select a Rust v2 workspace containing `canisend.toml`.
 3. Give the workspace a local display name. The name and canonical path are stored in the GUI
    registry; private workspace bodies are not copied into the registry.
-4. Open **Jobs**, choose **Add job**, and enter the title and institution.
-5. Open the job, choose **Import source**, then select:
+4. Open **Application workspace**, choose **New application**, and enter the title and institution.
+5. In **Overview**, choose **Import source**, then select:
    - a local Markdown, text, JSON, or text-based PDF after confirming private local read access; or
    - a user-supplied public HTTP(S) URL after confirming the network fetch.
-6. Choose **Start workflow**. The job view shows the ten durable stages, current state, and blockers.
+6. Follow **Continue to next action**, or open **Job & criteria** to start the durable workflow and
+   inspect its ten stages, current state, and blockers.
 7. Open **Profile** to import a local Markdown, text, or JSON profile source. Choose its sensitivity
    before confirming a private read.
 
 Every file, URL, PDF, workspace, job, and workflow mutation uses the same bounded Rust services and
 authoritative SQLite/blob store as the CLI.
+
+## Navigate one application workspace
+
+Workflow and Documents & delivery remain internal revision-bound controls, but they are no longer
+separate primary destinations. Select an application once in the persistent context bar, then use:
+
+1. **Overview** for the Dossier, Content Library, source list, and reviewed source intake.
+2. **Job & criteria** for advert analysis, workflow stages, selection criteria, and Agent tasks.
+3. **Evidence & fit** for evidence, matches, gaps, prohibited claims, and the application plan.
+4. **Materials** for the accepted document set and exact document revisions.
+5. **Review & export** for findings, readiness, projections, rendering, and final local export.
+
+The same context bar shows the workspace, application, deadline, current stage, progress, first
+relevant blocker, and authoritative next action. Changing an internal tab updates the global route;
+normal restarts restore the selected workspace, application, exact section, and detail. Successful
+mutation receipts include **Open result**, while the last successful action remains resumable from
+the context bar.
 
 ## Discover and promote jobs
 
@@ -70,10 +89,10 @@ reviewed and refuses a stale job revision.
 
 ## Find workspace content
 
-Open **Applications**, then use **Content library** to inspect current workspace artifacts without
-opening every job individually. The default catalog contains metadata only: category, stage,
-status, privacy, provenance, current source locator, related job, dependencies, size, and creation
-time. It does not expose source or document bodies.
+Open **Application workspace → Overview**, then use **Content library** to inspect current workspace
+artifacts without opening every job individually. The default catalog contains metadata only:
+category, stage, status, privacy, provenance, current source locator, related job, dependencies,
+size, and creation time. It does not expose source or document bodies.
 
 Filter the catalog by the current application or the whole workspace, category, stage, status,
 privacy, or creation date. Search is explicit rather than keystroke-triggered. Metadata search
@@ -90,8 +109,8 @@ workspace or authoritative content invalidates stale results.
 
 ## Prepare and complete Agent tasks
 
-The selected job's Workflow view includes an **Agent task** panel. It exposes only operations ready
-under the authoritative stage graph:
+The selected application's **Job & criteria** section includes an **Agent task** panel. It exposes
+only operations ready under the authoritative stage graph:
 
 1. Choose the bounded operation and either Host agent or Configured provider when the current stage
    permits that mode.
@@ -173,12 +192,12 @@ revision-bound match without synthesizing one.
 
 ## Review evidence and make an application decision
 
-The Profile and selected-job views expose one revision-bound decision path:
+Profile and the selected Application workspace expose one revision-bound decision path:
 
 1. On **Profile**, select a job and load proposed, editable, or currently confirmed evidence.
 2. Review kind, summary, quoted source, sensitivity, and confirmation/exclusion state. Source
    identity and byte spans remain read-only. Confirming a revision previews its downstream effect.
-3. On the selected job, load proposed, editable, or confirmed criteria. Review requirement,
+3. In **Job & criteria**, load proposed, editable, or confirmed criteria. Review requirement,
    importance, kind, confidence, and source identity before confirming.
 4. Inspect the current criterion-to-evidence match. Strength, rationale, evidence identities, gaps,
    and prohibited claims are read-only. If no match exists, the page identifies the workflow/task
@@ -195,8 +214,8 @@ Chinese labels.
 
 ## Inspect the accepted document set
 
-Open a selected job and choose **Documents**. Document bodies stay hidden until you explicitly
-confirm private local reading. After confirmation, the page shows:
+Open a selected application and choose **Materials**. Document bodies stay hidden until you
+explicitly confirm private local reading. After confirmation, the page shows:
 
 - the accepted document-set and application-plan artifact identities;
 - every exact document artifact revision in that set;

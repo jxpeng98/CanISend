@@ -201,7 +201,7 @@
 <section class="space-y-6">
   <div class="flex flex-col justify-between gap-4 xl:flex-row xl:items-end">
     <div>
-      <Badge variant="secondary" class="mb-3">{copy.applications}</Badge>
+      <Badge variant="secondary" class="mb-3">{copy.applicationWorkspace}</Badge>
       <h1 class="text-3xl font-semibold tracking-[-0.03em]">{copy.applicationsTitle}</h1>
       <p class="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
         {copy.applicationsDescription}
@@ -516,7 +516,7 @@
           <Card.Root
             id="source-intake"
             class={[
-              "scroll-mt-44 shadow-none transition-colors",
+              "scroll-mt-64 shadow-none transition-colors",
               focus === "source-intake" ? "ring-2 ring-primary/35" : "",
             ]}
           >

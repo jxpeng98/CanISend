@@ -378,15 +378,41 @@
     if (kind === "matches") return copy.matches;
     return copy.plan;
   }
+
+  function decisionDetail(kind: DecisionKind): WorkflowDetail {
+    if (kind === "criteria") return "decision-criteria";
+    if (kind === "matches") return "decision-matches";
+    if (kind === "plan") return "decision-plan";
+    return "decision-evidence";
+  }
+
+  function navigateWithinWorkflow(detail: WorkflowDetail): void {
+    void onNavigate({
+      view: "workflow",
+      detail,
+      jobId: selectedJobId || undefined,
+    });
+  }
+
+  const workspaceTitle = $derived(
+    section === "decisions" && decisionKind !== "criteria"
+      ? copy.evidenceFitTitle
+      : copy.jobCriteriaTitle,
+  );
+  const workspaceDescription = $derived(
+    section === "decisions" && decisionKind !== "criteria"
+      ? copy.evidenceFitDescription
+      : copy.jobCriteriaDescription,
+  );
 </script>
 
 <section class="space-y-6">
   <div class="flex flex-col justify-between gap-4 xl:flex-row xl:items-end">
     <div>
-      <Badge variant="secondary" class="mb-3">{copy.workflow}</Badge>
-      <h1 class="text-3xl font-semibold tracking-[-0.03em]">{copy.workflowTitle}</h1>
+      <Badge variant="secondary" class="mb-3">{copy.applicationWorkspace}</Badge>
+      <h1 class="text-3xl font-semibold tracking-[-0.03em]">{workspaceTitle}</h1>
       <p class="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-        {copy.workflowDescription}
+        {workspaceDescription}
       </p>
     </div>
   </div>
@@ -406,15 +432,30 @@
   {:else}
     <Tabs.Root bind:value={section}>
       <Tabs.List class="grid w-full max-w-2xl grid-cols-3">
-        <Tabs.Trigger value="workflow">{copy.workflowStages}</Tabs.Trigger>
-        <Tabs.Trigger value="decisions">{copy.decisions}</Tabs.Trigger>
-        <Tabs.Trigger value="task">{copy.taskCenter}</Tabs.Trigger>
+        <Tabs.Trigger
+          value="workflow"
+          onclick={() => navigateWithinWorkflow("workflow-stages")}
+        >
+          {copy.workflowStages}
+        </Tabs.Trigger>
+        <Tabs.Trigger
+          value="decisions"
+          onclick={() => navigateWithinWorkflow(decisionDetail(decisionKind))}
+        >
+          {copy.decisions}
+        </Tabs.Trigger>
+        <Tabs.Trigger
+          value="task"
+          onclick={() => navigateWithinWorkflow("agent-task")}
+        >
+          {copy.taskCenter}
+        </Tabs.Trigger>
       </Tabs.List>
 
       <Tabs.Content
         id="workflow-stages"
         value="workflow"
-        class="scroll-mt-44 space-y-6 pt-4"
+        class="scroll-mt-64 space-y-6 pt-4"
       >
         <div class="flex flex-wrap gap-2">
           <Button variant="outline" class="min-h-11" disabled={busy} onclick={refreshWorkflow}>
@@ -546,7 +587,7 @@
       <Tabs.Content value="decisions" class="space-y-6 pt-4">
         <Card.Root
           id={`decision-${decisionKind}`}
-          class="scroll-mt-44 shadow-none"
+          class="scroll-mt-64 shadow-none"
         >
           <Card.Header>
             <Card.Title>{copy.decisions}</Card.Title>
@@ -572,6 +613,7 @@
                   onchange={() => {
                     decisionJson = "";
                     decisionEditable = false;
+                    navigateWithinWorkflow(decisionDetail(decisionKind));
                   }}
                 >
                   <option value="evidence">{copy.evidence}</option>
@@ -627,7 +669,7 @@
         id="agent-task"
         value="task"
         class={[
-          "scroll-mt-44 space-y-6 pt-4",
+          "scroll-mt-64 space-y-6 pt-4",
           focus === "agent-task" ? "rounded-xl ring-2 ring-primary/25" : "",
         ]}
       >
