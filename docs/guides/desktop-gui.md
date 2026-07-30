@@ -62,6 +62,32 @@ Open **Opportunities** to review local lead batches or refresh one supported pub
 5. Promote one reviewed lead explicitly. The resulting job keeps the discovery provenance and
    provides the safe next action for importing its advert.
 
+Job-source and opportunity previews use the same intake review summary. Before committing, the
+summary identifies the source and detected content type, extraction outcome, possible duplicate,
+target record, intended mutations, confirmed consent scope, and exact commit boundary. A preview
+never merges records automatically. The commit uses the exact bytes or normalized report that was
+reviewed and refuses a stale job revision.
+
+## Find workspace content
+
+Open **Applications**, then use **Content library** to inspect current workspace artifacts without
+opening every job individually. The default catalog contains metadata only: category, stage,
+status, privacy, provenance, current source locator, related job, dependencies, size, and creation
+time. It does not expose source or document bodies.
+
+Filter the catalog by the current application or the whole workspace, category, stage, status,
+privacy, or creation date. Search is explicit rather than keystroke-triggered. Metadata search
+does not require private-read consent. To search eligible private text bodies, select
+**Include private bodies** and separately confirm the private-read boundary before starting the
+search. Secret artifacts, original source files, and PDFs are never body-indexed. Body reads are
+digest-verified and bounded; the temporary in-memory index is discarded when the command
+finishes.
+
+Each result states whether the match came from metadata or a consented private body. A short body
+snippet appears only for the latter. Choose **Open** to return to the related application and
+appropriate workflow area. Content-library state survives normal tab changes, while changing
+workspace or authoritative content invalidates stale results.
+
 ## Prepare and complete Agent tasks
 
 The selected job's Workflow view includes an **Agent task** panel. It exposes only operations ready

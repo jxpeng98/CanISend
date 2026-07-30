@@ -128,6 +128,37 @@
       "tests": ["crates/canisend-desktop/src/commands.rs"]
     },
     {
+      "operation": "application.dossier",
+      "status": "implemented",
+      "tauri_commands": ["list_application_dossiers", "application_dossier"],
+      "svelte_views": [
+        "apps/canisend-desktop/src/App.svelte",
+        "apps/canisend-desktop/src/lib/views/ApplicationsView.svelte"
+      ],
+      "tests": [
+        "apps/canisend-desktop/src/lib/application-dossier.test.ts",
+        "apps/canisend-desktop/src/lib/bridge.commands.test.ts",
+        "crates/canisend-desktop/src/commands.rs"
+      ]
+    },
+    {
+      "operation": "content.*",
+      "status": "implemented",
+      "tauri_commands": ["content_catalog", "search_content"],
+      "svelte_views": [
+        "apps/canisend-desktop/src/App.svelte",
+        "apps/canisend-desktop/src/lib/components/ContentLibraryPanel.svelte",
+        "apps/canisend-desktop/src/lib/views/ApplicationsView.svelte"
+      ],
+      "tests": [
+        "apps/canisend-desktop/src/lib/bridge.commands.test.ts",
+        "crates/canisend-app/src/content.rs",
+        "crates/canisend-cli/tests/binary_contract.rs",
+        "crates/canisend-desktop/src/commands.rs",
+        "crates/canisend-store/src/catalog.rs"
+      ]
+    },
+    {
       "operation": "workflow.start",
       "status": "implemented",
       "tauri_commands": ["start_workflow"],

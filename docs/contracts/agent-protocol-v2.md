@@ -215,8 +215,20 @@ canisend agent assets export --host claude --destination DIRECTORY --json
 canisend agent assets export --host generic --destination DIRECTORY --json
 ```
 
-Each 31-file pack contains its host entrypoint, task prompts and examples, and the contracts required through PDF
-export, including projection, reconciliation, package-export, rendered-document, and render-manifest schemas.
+Host-discoverable workflow skills can also be installed or safely upgraded in an existing workspace:
+
+```text
+canisend --workspace WORKSPACE agent assets install --host codex --json
+canisend --workspace WORKSPACE agent assets install --host claude --json
+```
+
+The four skills split context-first orchestration, job intake, evidence-backed materials, and final review. Codex
+uses `.agents/skills` and includes `agents/openai.yaml`; Claude uses `.claude/skills`. Installation is idempotent and
+digest-bound, upgrades only files matching the prior managed manifest, and rejects modified or symlinked targets.
+
+The 39-file Codex pack and 35-file Claude/generic packs contain the host entrypoint, skills, task prompts and
+examples, and the contracts required through PDF export, including projection, reconciliation, package-export,
+rendered-document, and render-manifest schemas.
 `canisend-agent-pack.json` records
 pack, product, protocol, and resource versions plus every resource ID, path, size, and SHA-256 digest.
 
@@ -224,6 +236,40 @@ Job intake is available through `job create`, `job import JOB_ID --file PATH`, `
 `job list`, `job show`, and `job archive`. Import success returns source and artifact references without returning the
 private source body. A URL flag is an explicit user-requested fetch; redirects remain subject to the same public
 address policy as the initial URL.
+
+Application-level inspection is available through:
+
+```text
+canisend --workspace WORKSPACE application list --json
+canisend --workspace WORKSPACE application show --job JOB_ID --json
+```
+
+These application commands compose existing authoritative job, discovery, profile, source, and workflow state into
+one body-free read model. They report origin metadata, progress, the blocker relevant to the current stage, and exact
+`next_actions`. They store no duplicate application state and return no advert, profile, evidence, draft, or review
+bodies. The selected-job `agent context` derives its guidance from the same dossier. This additive CLI read surface
+does not change the frozen Agent v2 capability registry or public schema inventory.
+
+Workspace content inspection is available through:
+
+```text
+canisend --workspace WORKSPACE content list --job JOB_ID --category materials --json
+canisend --workspace WORKSPACE content search QUERY --job JOB_ID --json
+canisend --workspace WORKSPACE content search QUERY --include-private-bodies \
+  --allow-private-read --json
+```
+
+`content list` and the default `content search` operate only on body-free metadata derived from current
+authoritative artifact heads. Filters cover application, category, workflow stage, lifecycle status, privacy, and
+UTC creation bounds. Entries retain exact artifact revision/hash, provenance, related applications, dependencies,
+freshness, and privacy classification.
+
+Private full-text search is a separate, explicitly initiated `read-private-inputs` operation. Consent and request
+bounds are validated before workspace access. Eligible UTF-8 bodies are capped per item and per operation, `secret`
+artifacts are excluded, and matching snippets are returned only for the approved search. The deterministic inverted
+index exists only in memory and is discarded after the command; no migration, persistent search database, or second
+private content copy is created. The catalog can therefore be rebuilt directly from authoritative records after
+recovery. This additive CLI surface is not advertised as a new frozen Agent v2 capability or MCP tool.
 
 Discovery is available through:
 
@@ -244,6 +290,13 @@ CSV mapping requires `title`, `organization`, and `url`; it accepts explicit opt
 extensions. JSON and host-agent imports use `canisend.discovery-batch/v2`. `--dry-run` performs no workspace access.
 Network refresh is user-invoked and adapter-bound; it is not a crawler. Promotion creates a job record and returns a
 next action for `job import JOB_ID --url URL`, keeping advert retrieval inside the direct-intake consent boundary.
+
+The desktop preview layer presents local files, URLs, PDFs, CSV, JSON, host-agent batches, and bounded network
+sources through one typed intake review summary. The summary identifies the source and detected type, extraction
+counts, duplicate signal, target, intended mutations, satisfied consent scope, and commit boundary. Direct job
+intake commits the exact prepared bytes held in Rust memory and rejects a changed job revision. Discovery intake
+commits the exact reviewed normalized report held in Rust memory and never rereads the source. Duplicate suggestions
+remain explicit and are never merged automatically.
 
 ## Contract generation
 

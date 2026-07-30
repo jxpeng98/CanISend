@@ -1,8 +1,10 @@
 use std::path::{Path, PathBuf};
 
 use canisend_app::{
-    ActionReceipt, Application, ApplicationError, BackupReadModel, DoctorSummary,
-    JobDetailReadModel, JobListReadModel, NetworkFetchConsent, PrivateReadConsent, ProductSummary,
+    ActionReceipt, Application, ApplicationDossierListReadModel, ApplicationDossierReadModel,
+    ApplicationError, BackupReadModel, ContentCatalogFilter, ContentCatalogReadModel,
+    ContentSearchReadModel, ContentSearchRequest, DoctorSummary, JobDetailReadModel,
+    JobListReadModel, NetworkFetchConsent, PrivateReadConsent, ProductSummary,
     SourceImportReadModel, WorkspaceHealthReadModel, WorkspaceReadModel, WorkspaceRegistry,
     WorkspaceRepairReadModel, WorkspaceRestoreReadModel, default_registry_path,
     validate_workspace_alias,
@@ -148,6 +150,26 @@ pub(crate) struct UrlSourceImportRequest {
     confirmed_network_fetch: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct ContentCatalogRequest {
+    workspace: PathBuf,
+    #[serde(default)]
+    filter: ContentCatalogFilter,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct ContentSearchCommandRequest {
+    workspace: PathBuf,
+    query: String,
+    #[serde(default)]
+    filter: ContentCatalogFilter,
+    include_private_bodies: bool,
+    confirmed_private_read: bool,
+    limit: usize,
+}
+
 pub(crate) fn product_summary_impl() -> ProductSummary {
     Application::product_summary()
 }
@@ -280,6 +302,50 @@ fn import_url_job_source_impl(
         &request.job_id,
         &request.url,
         NetworkFetchConsent::granted_by_user(),
+    )
+    .map_err(DesktopCommandError::application)
+}
+
+fn list_application_dossiers_impl(
+    request: JobListRequest,
+) -> Result<ActionReceipt<ApplicationDossierListReadModel>, DesktopCommandError> {
+    Application::list_application_dossiers(&request.workspace, request.include_archived)
+        .map_err(DesktopCommandError::application)
+}
+
+fn application_dossier_impl(
+    request: JobRequest,
+) -> Result<ActionReceipt<ApplicationDossierReadModel>, DesktopCommandError> {
+    Application::application_dossier(&request.workspace, &request.job_id)
+        .map_err(DesktopCommandError::application)
+}
+
+fn content_catalog_impl(
+    request: ContentCatalogRequest,
+) -> Result<ActionReceipt<ContentCatalogReadModel>, DesktopCommandError> {
+    Application::content_catalog(&request.workspace, request.filter)
+        .map_err(DesktopCommandError::application)
+}
+
+fn search_content_impl(
+    request: ContentSearchCommandRequest,
+) -> Result<ActionReceipt<ContentSearchReadModel>, DesktopCommandError> {
+    if request.include_private_bodies && !request.confirmed_private_read {
+        return Err(DesktopCommandError::consent(
+            "Confirm private local content access before searching artifact bodies.",
+        ));
+    }
+    let consent = (request.include_private_bodies && request.confirmed_private_read)
+        .then(PrivateReadConsent::granted_by_user);
+    Application::search_content(
+        &request.workspace,
+        ContentSearchRequest {
+            query: request.query,
+            filter: request.filter,
+            include_private_bodies: request.include_private_bodies,
+            limit: request.limit,
+        },
+        consent,
     )
     .map_err(DesktopCommandError::application)
 }
@@ -436,6 +502,38 @@ pub(crate) async fn show_job(
 
 #[cfg(target_os = "macos")]
 #[tauri::command]
+pub(crate) async fn list_application_dossiers(
+    request: JobListRequest,
+) -> Result<ActionReceipt<ApplicationDossierListReadModel>, DesktopCommandError> {
+    run_worker(move || list_application_dossiers_impl(request)).await
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+pub(crate) async fn application_dossier(
+    request: JobRequest,
+) -> Result<ActionReceipt<ApplicationDossierReadModel>, DesktopCommandError> {
+    run_worker(move || application_dossier_impl(request)).await
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+pub(crate) async fn content_catalog(
+    request: ContentCatalogRequest,
+) -> Result<ActionReceipt<ContentCatalogReadModel>, DesktopCommandError> {
+    run_worker(move || content_catalog_impl(request)).await
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+pub(crate) async fn search_content(
+    request: ContentSearchCommandRequest,
+) -> Result<ActionReceipt<ContentSearchReadModel>, DesktopCommandError> {
+    run_worker(move || search_content_impl(request)).await
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
 pub(crate) async fn archive_job(
     request: JobRequest,
 ) -> Result<ActionReceipt<JobRecord>, DesktopCommandError> {
@@ -536,6 +634,18 @@ mod tests {
         })
         .expect("import local source");
         assert_eq!(imported.data.job.source_ids.len(), 1);
+        let dossier = application_dossier_impl(JobRequest {
+            workspace: root.clone(),
+            job_id: job.id.to_string(),
+        })
+        .expect("application dossier");
+        assert_eq!(dossier.data.source_count, 1);
+        let dossiers = list_application_dossiers_impl(JobListRequest {
+            workspace: root.clone(),
+            include_archived: false,
+        })
+        .expect("application dossiers");
+        assert_eq!(dossiers.data.applications.len(), 1);
 
         let selected =
             select_workspace_impl(&registry_path, WorkspacePathRequest { path: root.clone() })
@@ -567,5 +677,20 @@ mod tests {
         })
         .expect_err("network fetch must require consent");
         assert_eq!(network_error.code, "consent-required");
+    }
+
+    #[test]
+    fn content_search_requires_private_consent_before_workspace_access() {
+        let error = search_content_impl(ContentSearchCommandRequest {
+            workspace: PathBuf::from("/missing/workspace"),
+            query: "private evidence".to_owned(),
+            filter: ContentCatalogFilter::default(),
+            include_private_bodies: true,
+            confirmed_private_read: false,
+            limit: 25,
+        })
+        .expect_err("private body search must require consent");
+
+        assert_eq!(error.code, "consent-required");
     }
 }

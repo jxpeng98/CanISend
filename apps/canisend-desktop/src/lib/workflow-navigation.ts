@@ -1,4 +1,6 @@
 import type {
+  ApplicationDossierReadModel,
+  ContentCatalogEntryReadModel,
   JobDetailReadModel,
   JobRecord,
   TaskOperation,
@@ -253,6 +255,23 @@ export function routeForWorkflowStage(stage: WorkflowStage): WorkflowRoute {
   return { view: "delivery", detail: "delivery-render" };
 }
 
+export function routeForContentEntry(
+  entry: Pick<
+    ContentCatalogEntryReadModel,
+    "category" | "stage" | "subject_jobs"
+  >,
+  fallbackJobId?: string,
+): WorkflowRoute {
+  if (entry.category === "profile") {
+    return { view: "profile", detail: "profile-sources" };
+  }
+  const jobId =
+    entry.subject_jobs.find((job) => !job.archived)?.id ||
+    entry.subject_jobs[0]?.id ||
+    fallbackJobId;
+  return { ...routeForWorkflowStage(entry.stage), jobId };
+}
+
 export function routeForTaskOperation(operation: TaskOperation | string): WorkflowRoute {
   if (operation === "evidence-normalize") {
     return { view: "profile", detail: "profile-evidence" };
@@ -314,6 +333,7 @@ export function recommendWorkflowRoute(input: {
   workspacePath: string | null;
   jobs: JobRecord[];
   selectedJob: JobDetailReadModel | null;
+  dossier?: ApplicationDossierReadModel | null;
   profileSourceCount: number;
 }): WorkflowRecommendation {
   if (!input.workspacePath) {
@@ -330,35 +350,45 @@ export function recommendWorkflowRoute(input: {
   }
 
   const jobId = input.selectedJob.job.id;
-  if (input.selectedJob.job.source_ids.length === 0) {
+  if (
+    input.dossier?.state === "needs-source" ||
+    input.selectedJob.job.source_ids.length === 0
+  ) {
     return {
       route: { view: "applications", detail: "source-intake", jobId },
       reason: "attach-source",
     };
   }
-  if (input.profileSourceCount === 0) {
+  if ((input.dossier?.profile_source_count ?? input.profileSourceCount) === 0) {
     return {
       route: { view: "profile", detail: "profile-sources", jobId },
       reason: "build-profile",
     };
   }
-  if (!input.selectedJob.workflow) {
+  if (!input.dossier?.workflow && !input.selectedJob.workflow) {
     return {
       route: { view: "workflow", detail: "workflow-stages", jobId },
       reason: "start-workflow",
     };
   }
 
-  const nextStage = input.selectedJob.workflow.stages.find(
-    (stage) => stage.status !== "complete",
-  );
+  const nextStage =
+    input.dossier?.current_stage ??
+    (
+      input.dossier?.workflow?.stages ??
+      input.selectedJob.workflow?.stages ??
+      []
+    ).find((stage) => stage.status !== "complete")?.stage;
   if (nextStage) {
     return {
-      route: { ...routeForWorkflowStage(nextStage.stage), jobId },
+      route: { ...routeForWorkflowStage(nextStage), jobId },
       reason: "continue-workflow",
     };
   }
-  if (input.selectedJob.workflow.status === "complete") {
+  if (
+    input.dossier?.state === "complete" ||
+    input.selectedJob.workflow?.status === "complete"
+  ) {
     return {
       route: { view: "delivery", detail: "delivery-package", jobId },
       reason: "complete",

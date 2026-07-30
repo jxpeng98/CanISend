@@ -247,9 +247,21 @@ fn agent_host_pack_export_is_versioned_and_self_contained() {
         exported["data"]["manifest"]["files"]
             .as_array()
             .map(Vec::len),
-        Some(31)
+        Some(39)
     );
     assert!(pack.join("AGENTS.md").is_file());
+    assert!(
+        pack.join(".agents/skills/canisend-application/SKILL.md")
+            .is_file()
+    );
+    assert!(
+        pack.join(".agents/skills/canisend-application/agents/openai.yaml")
+            .is_file()
+    );
+    assert!(
+        pack.join(".agents/skills/canisend-job-intake/SKILL.md")
+            .is_file()
+    );
     assert!(pack.join("prompts/job-parse.md").is_file());
     assert!(pack.join("prompts/evidence-normalize.md").is_file());
     assert!(pack.join("prompts/evidence-match.md").is_file());
@@ -332,6 +344,51 @@ fn agent_host_pack_export_is_versioned_and_self_contained() {
         fs::read(manifest).expect("unchanged manifest"),
         manifest_before
     );
+}
+
+#[test]
+fn agent_skills_install_uses_host_discovery_layout_and_is_idempotent() {
+    let workspace = TestDirectory::new("agent-skills-workspace");
+    let initialized = run_json(&[
+        "--workspace",
+        workspace.path().to_str().expect("workspace path"),
+        "workspace",
+        "init",
+        "--json",
+    ]);
+    assert_eq!(initialized["status"], "initialized");
+
+    let installed = run_json(&[
+        "--workspace",
+        workspace.path().to_str().expect("workspace path"),
+        "agent",
+        "assets",
+        "install",
+        "--host",
+        "codex",
+        "--json",
+    ]);
+    assert_eq!(installed["operation"], "agent.skills.install");
+    assert_eq!(installed["status"], "installed");
+    assert_eq!(installed["data"]["files"].as_array().map(Vec::len), Some(8));
+    assert!(
+        workspace
+            .path()
+            .join(".agents/skills/canisend-application/SKILL.md")
+            .is_file()
+    );
+
+    let unchanged = run_json(&[
+        "--workspace",
+        workspace.path().to_str().expect("workspace path"),
+        "agent",
+        "assets",
+        "install",
+        "--host",
+        "codex",
+        "--json",
+    ]);
+    assert_eq!(unchanged["status"], "up-to-date");
 }
 
 #[test]
@@ -509,6 +566,228 @@ fn profile_source_list_preserves_the_shared_revisioned_read_model() {
     assert_eq!(listed["data"]["workspace"].as_str(), Some(workspace.text()));
     assert_eq!(listed["data"]["sources"].as_array().map(Vec::len), Some(1));
     assert_eq!(listed["data"]["sources"][0]["revision"], 1);
+}
+
+#[test]
+fn application_dossier_commands_share_a_body_free_progress_contract() {
+    let workspace = TestDirectory::new("application-dossier-workspace");
+    let input = TestDirectory::new("application-dossier-input");
+    fs::create_dir_all(input.path()).expect("input directory");
+    let advert = input.path().join("advert.md");
+    let private_sentinel = "PRIVATE-APPLICATION-DOSSIER-SENTINEL";
+    fs::write(
+        &advert,
+        format!("# Lecturer in Economics\n\n{private_sentinel}\n"),
+    )
+    .expect("write advert");
+
+    run_json(&[
+        "--workspace",
+        workspace.text(),
+        "workspace",
+        "init",
+        "--json",
+    ]);
+    let created = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "job",
+        "create",
+        "--title",
+        "Lecturer in Economics",
+        "--institution",
+        "University X",
+        "--json",
+    ]);
+    let job_id = created["data"]["id"].as_str().expect("job ID");
+    run_json(&[
+        "--workspace",
+        workspace.text(),
+        "job",
+        "import",
+        job_id,
+        "--file",
+        advert.to_str().expect("advert path is UTF-8"),
+        "--json",
+    ]);
+
+    let listed = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "application",
+        "list",
+        "--json",
+    ]);
+    assert_eq!(listed["operation"], "application.dossier.list");
+    assert_eq!(listed["data"]["workspace"].as_str(), Some(workspace.text()));
+    assert_eq!(listed["data"]["include_archived"], false);
+    assert_eq!(
+        listed["data"]["applications"].as_array().map(Vec::len),
+        Some(1)
+    );
+
+    let shown = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "application",
+        "show",
+        "--job",
+        job_id,
+        "--json",
+    ]);
+    assert_eq!(shown["operation"], "application.dossier.show");
+    assert_eq!(shown["data"]["job"]["id"], job_id);
+    assert_eq!(shown["data"]["source_count"], 1);
+    assert_eq!(shown["data"]["state"], "ready-to-start");
+    assert_eq!(
+        shown["next_actions"][0]["action"],
+        "canisend profile source add --file PROFILE.md --json"
+    );
+    assert_eq!(
+        listed["data"]["applications"][0]["next_actions"],
+        shown["data"]["next_actions"]
+    );
+    let encoded = serde_json::to_string(&shown).expect("dossier JSON");
+    assert!(!encoded.contains(private_sentinel));
+}
+
+#[test]
+fn content_commands_keep_catalogs_body_free_and_full_text_consent_scoped() {
+    let workspace = TestDirectory::new("content-catalog-workspace");
+    let input = TestDirectory::new("content-catalog-input");
+    fs::create_dir_all(input.path()).expect("input directory");
+    let advert = input.path().join("advert.md");
+    let private_sentinel = "PRIVATE-CONTENT-SEARCH-SENTINEL";
+    fs::write(
+        &advert,
+        format!("# Lecturer in Economics\n\n{private_sentinel}\n"),
+    )
+    .expect("write advert");
+
+    run_json(&[
+        "--workspace",
+        workspace.text(),
+        "workspace",
+        "init",
+        "--json",
+    ]);
+    let created = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "job",
+        "create",
+        "--title",
+        "Lecturer in Economics",
+        "--institution",
+        "University X",
+        "--json",
+    ]);
+    let job_id = created["data"]["id"].as_str().expect("job ID");
+    run_json(&[
+        "--workspace",
+        workspace.text(),
+        "job",
+        "import",
+        job_id,
+        "--file",
+        advert.to_str().expect("advert path is UTF-8"),
+        "--json",
+    ]);
+
+    let catalog = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "content",
+        "list",
+        "--job",
+        job_id,
+        "--category",
+        "source",
+        "--json",
+    ]);
+    assert_eq!(catalog["operation"], "content.catalog.list");
+    assert_eq!(catalog["data"]["total_entries"], 2);
+    assert!(
+        catalog["data"]["entries"]
+            .as_array()
+            .is_some_and(|entries| entries.iter().all(|entry| entry["category"] == "source"))
+    );
+    assert!(
+        !serde_json::to_string(&catalog)
+            .expect("catalog JSON")
+            .contains(private_sentinel)
+    );
+
+    let metadata = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "content",
+        "search",
+        "Economics",
+        "--job",
+        job_id,
+        "--json",
+    ]);
+    assert_eq!(metadata["operation"], "content.search");
+    assert_eq!(metadata["data"]["include_private_bodies"], false);
+    assert_eq!(metadata["data"]["index"]["private_body_entries"], 0);
+    assert!(
+        metadata["data"]["total_matches"]
+            .as_u64()
+            .is_some_and(|matches| matches >= 1)
+    );
+    assert!(
+        !serde_json::to_string(&metadata)
+            .expect("metadata search JSON")
+            .contains(private_sentinel)
+    );
+
+    let missing = TestDirectory::new("missing-private-content-search");
+    let consent_required = run(&[
+        "--workspace",
+        missing.text(),
+        "content",
+        "search",
+        private_sentinel,
+        "--include-private-bodies",
+        "--json",
+    ]);
+    assert_eq!(consent_required.status.code(), Some(3));
+    assert!(consent_required.stderr.is_empty());
+    let consent_required: Value =
+        serde_json::from_slice(&consent_required.stdout).expect("consent failure JSON");
+    assert_eq!(consent_required["operation"], "content.search");
+    assert_eq!(consent_required["error"]["code"], "consent.required");
+
+    let private_search = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "content",
+        "search",
+        private_sentinel,
+        "--job",
+        job_id,
+        "--include-private-bodies",
+        "--allow-private-read",
+        "--json",
+    ]);
+    assert_eq!(private_search["data"]["include_private_bodies"], true);
+    assert_eq!(private_search["data"]["index"]["private_body_entries"], 1);
+    assert_eq!(private_search["data"]["total_matches"], 1);
+    assert_eq!(
+        private_search["data"]["results"][0]["entry"]["artifact"]["kind"],
+        "source-normalized-text"
+    );
+    assert!(
+        private_search["data"]["results"][0]["matched_fields"]
+            .as_array()
+            .is_some_and(|fields| fields.iter().any(|field| field == "private-body"))
+    );
+    assert!(
+        private_search["data"]["results"][0]["snippet"]
+            .as_str()
+            .is_some_and(|snippet| snippet.contains(private_sentinel))
+    );
 }
 
 #[test]

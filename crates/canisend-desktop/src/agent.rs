@@ -9,7 +9,8 @@ use std::{
 use canisend_app::{
     ActionReceipt, AgentCapabilitiesReadModel, AgentContextReadModel, AgentHandoffReadModel,
     AgentHandoffRequest, AgentHost, AgentMcpConfigurationReadModel, AgentMcpConfigurationRequest,
-    AgentPackExportReadModel, AgentPackExportRequest, Application, bundled_cli_path,
+    AgentPackExportReadModel, AgentPackExportRequest, AgentSkillsInstallReadModel,
+    AgentSkillsInstallRequest, Application, bundled_cli_path,
 };
 use serde::Deserialize;
 
@@ -41,6 +42,7 @@ pub(crate) struct PrepareAgentHandoffRequest {
 #[serde(rename_all = "kebab-case")]
 pub(crate) enum AgentHandoffClipboardField {
     LaunchCommand,
+    StartCommand,
     BootstrapPrompt,
 }
 
@@ -56,6 +58,13 @@ pub(crate) struct CopyAgentHandoffRequest {
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct PrepareAgentMcpConfigurationRequest {
+    host: AgentHost,
+    workspace: PathBuf,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct InstallAgentSkillsRequest {
     host: AgentHost,
     workspace: PathBuf,
 }
@@ -107,6 +116,21 @@ pub(crate) async fn prepare_agent_handoff(
             host: request.host,
             workspace: request.workspace,
             selected_job_id: request.selected_job_id,
+        })
+        .map_err(DesktopCommandError::application)
+    })
+    .await
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+pub(crate) async fn install_agent_skills(
+    request: InstallAgentSkillsRequest,
+) -> Result<ActionReceipt<AgentSkillsInstallReadModel>, DesktopCommandError> {
+    run_worker(move || {
+        Application::install_agent_skills(&AgentSkillsInstallRequest {
+            host: request.host,
+            workspace: request.workspace,
         })
         .map_err(DesktopCommandError::application)
     })
@@ -181,6 +205,7 @@ fn copy_agent_handoff_impl(request: CopyAgentHandoffRequest) -> Result<(), Deskt
     .data;
     let text = match request.field {
         AgentHandoffClipboardField::LaunchCommand => handoff.launch_command,
+        AgentHandoffClipboardField::StartCommand => handoff.start_command,
         AgentHandoffClipboardField::BootstrapPrompt => handoff.bootstrap_prompt,
     };
     copy_to_macos_clipboard(&text)
@@ -284,6 +309,17 @@ mod tests {
         }))
         .expect("clipboard request");
         assert_eq!(request.field, AgentHandoffClipboardField::BootstrapPrompt);
+        let start_request: CopyAgentHandoffRequest = serde_json::from_value(serde_json::json!({
+            "host": "codex",
+            "workspace": "/tmp/workspace",
+            "selected_job_id": "job-id",
+            "field": "start-command"
+        }))
+        .expect("start command request");
+        assert_eq!(
+            start_request.field,
+            AgentHandoffClipboardField::StartCommand
+        );
         assert!(
             serde_json::from_value::<CopyAgentHandoffRequest>(serde_json::json!({
                 "host": "codex",

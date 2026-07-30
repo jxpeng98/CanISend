@@ -9,8 +9,9 @@ use std::{
 };
 
 use canisend_app::{
-    ActionReceipt, Application, JobIntakePreviewReadModel, NetworkFetchConsent, PreparedJobSource,
-    PrivateReadConsent, SourceImportReadModel,
+    ActionReceipt, Application, IntakeReviewReadModel, JobIntakePreviewReadModel,
+    NetworkFetchConsent, PreparedJobSource, PrivateReadConsent, SourceImportReadModel,
+    job_intake_review,
 };
 use serde::{Deserialize, Serialize};
 
@@ -102,6 +103,7 @@ impl JobIntakePreviewStore {
 pub(crate) struct JobIntakePreviewTokenReadModel {
     preview_token: String,
     preview: ActionReceipt<JobIntakePreviewReadModel>,
+    intake: IntakeReviewReadModel,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -182,10 +184,12 @@ pub(crate) async fn preview_local_job_source(
 ) -> Result<JobIntakePreviewTokenReadModel, DesktopCommandError> {
     let prepared = run_worker(move || prepare_local_job_source_impl(request)).await?;
     let preview = prepared.preview().clone();
+    let intake = job_intake_review(&preview.data);
     let preview_token = state.insert(prepared)?;
     Ok(JobIntakePreviewTokenReadModel {
         preview_token,
         preview,
+        intake,
     })
 }
 
@@ -197,10 +201,12 @@ pub(crate) async fn preview_url_job_source(
 ) -> Result<JobIntakePreviewTokenReadModel, DesktopCommandError> {
     let prepared = run_worker(move || prepare_url_job_source_impl(request)).await?;
     let preview = prepared.preview().clone();
+    let intake = job_intake_review(&preview.data);
     let preview_token = state.insert(prepared)?;
     Ok(JobIntakePreviewTokenReadModel {
         preview_token,
         preview,
+        intake,
     })
 }
 
@@ -279,6 +285,28 @@ mod tests {
         assert_eq!(store.len(), MAX_PENDING_PREVIEWS);
         assert!(store.take(&latest).is_ok());
         assert!(store.take(&latest).is_err());
+        fs::remove_dir_all(workspace).expect("remove workspace");
+        fs::remove_file(source).expect("remove source");
+    }
+
+    #[test]
+    fn job_preview_projects_the_shared_exact_bytes_intake_contract() {
+        let (workspace, source, prepared) = prepared_fixture("shared-review");
+        let review = job_intake_review(&prepared.preview().data);
+
+        assert_eq!(
+            review.source.kind,
+            canisend_app::IntakeSourceKind::LocalFile
+        );
+        assert_eq!(
+            review.commit_boundary,
+            canisend_app::IntakeCommitBoundary::ExactPreparedBytes
+        );
+        assert_eq!(
+            review.target.id,
+            Some(prepared.preview().data.job.id.clone())
+        );
+
         fs::remove_dir_all(workspace).expect("remove workspace");
         fs::remove_file(source).expect("remove source");
     }

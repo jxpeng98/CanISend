@@ -63,6 +63,13 @@ canisend agent assets export --host codex \
 ```
 
 Export to a new directory; do not overwrite a pack that an active host session may still be using.
+For project-discoverable skills, run the idempotent installer instead. It upgrades only unchanged
+CanISend-managed files and refuses to replace local edits:
+
+```console
+canisend --workspace ./applications agent assets install --host codex --json
+canisend --workspace ./applications agent assets install --host claude --json
+```
 
 ## Roll back safely
 

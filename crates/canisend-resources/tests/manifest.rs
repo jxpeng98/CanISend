@@ -1,8 +1,9 @@
 use std::{fs, str::FromStr};
 
 use canisend_resources::{
-    AgentHost, AgentPackManifest, ResourceCatalogManifest, ResourceId, ResourceKind,
-    export_agent_pack, export_all, export_catalog, get, manifest, verify,
+    AgentHost, AgentPackManifest, AgentSkillsInstallState, AgentSkillsManifest,
+    ResourceCatalogManifest, ResourceId, ResourceKind, export_agent_pack, export_all,
+    export_catalog, get, install_agent_skills, manifest, verify,
 };
 use sha2::{Digest, Sha256};
 
@@ -108,7 +109,24 @@ fn host_packs_are_self_contained_versioned_and_integrity_manifested() {
         assert_eq!(manifest, exported.manifest);
         assert_eq!(manifest.format, "canisend.agent-pack/v2");
         assert_eq!(manifest.protocol, "canisend.agent/v2");
-        assert_eq!(manifest.files.len(), 31);
+        let expected_files = if host == AgentHost::Codex { 39 } else { 35 };
+        assert_eq!(manifest.files.len(), expected_files);
+        let skill_root = match host {
+            AgentHost::Codex => ".agents/skills",
+            AgentHost::Claude => ".claude/skills",
+            AgentHost::Generic => "skills",
+        };
+        assert!(
+            root.join(skill_root)
+                .join("canisend-application/SKILL.md")
+                .is_file()
+        );
+        assert_eq!(
+            root.join(skill_root)
+                .join("canisend-application/agents/openai.yaml")
+                .is_file(),
+            host == AgentHost::Codex
+        );
         for entry in &manifest.files {
             let bytes = fs::read(root.join(&entry.path)).expect("pack file");
             assert_eq!(bytes.len(), entry.size);
@@ -118,4 +136,73 @@ fn host_packs_are_self_contained_versioned_and_integrity_manifested() {
     }
     assert!(export_agent_pack(AgentHost::Generic, &parent.join(".canisend/pack")).is_err());
     fs::remove_dir_all(parent).expect("cleanup");
+}
+
+#[test]
+fn agent_skills_install_is_idempotent_upgradeable_and_edit_safe() {
+    let root =
+        std::env::temp_dir().join(format!("canisend-agent-skills-test-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir(&root).expect("workspace root");
+
+    let installed = install_agent_skills(AgentHost::Codex, &root).expect("install skills");
+    assert_eq!(installed.state, AgentSkillsInstallState::Installed);
+    assert_eq!(installed.files.len(), 8);
+    assert!(
+        root.join(".agents/skills/canisend-application/SKILL.md")
+            .is_file()
+    );
+    assert!(
+        root.join(".agents/skills/canisend-application/agents/openai.yaml")
+            .is_file()
+    );
+
+    let unchanged = install_agent_skills(AgentHost::Codex, &root).expect("check skills");
+    assert_eq!(unchanged.state, AgentSkillsInstallState::UpToDate);
+
+    let managed_path = root.join(".agents/skills/canisend-job-intake/SKILL.md");
+    let old_bytes = b"previous managed skill";
+    fs::write(&managed_path, old_bytes).expect("old managed bytes");
+    let mut old_manifest: AgentSkillsManifest =
+        serde_json::from_slice(&fs::read(&installed.manifest_path).expect("manifest bytes"))
+            .expect("manifest JSON");
+    let entry = old_manifest
+        .files
+        .iter_mut()
+        .find(|file| file.path.ends_with("canisend-job-intake/SKILL.md"))
+        .expect("managed entry");
+    entry.sha256 = hex::encode(Sha256::digest(old_bytes));
+    fs::write(
+        &installed.manifest_path,
+        serde_json::to_vec_pretty(&old_manifest).expect("old manifest bytes"),
+    )
+    .expect("old manifest");
+    let updated = install_agent_skills(AgentHost::Codex, &root).expect("upgrade skills");
+    assert_eq!(updated.state, AgentSkillsInstallState::Updated);
+    assert_ne!(fs::read(&managed_path).expect("updated skill"), old_bytes);
+
+    fs::write(&managed_path, b"user modified skill").expect("user edit");
+    assert!(install_agent_skills(AgentHost::Codex, &root).is_err());
+    assert_eq!(
+        fs::read(&managed_path).expect("preserved user edit"),
+        b"user modified skill"
+    );
+
+    let claude_root = root.join("claude-workspace");
+    fs::create_dir(&claude_root).expect("Claude root");
+    let claude =
+        install_agent_skills(AgentHost::Claude, &claude_root).expect("Claude skills install");
+    assert_eq!(claude.files.len(), 4);
+    assert!(
+        claude_root
+            .join(".claude/skills/canisend-application/SKILL.md")
+            .is_file()
+    );
+    assert!(
+        !claude_root
+            .join(".claude/skills/canisend-application/agents/openai.yaml")
+            .exists()
+    );
+
+    fs::remove_dir_all(root).expect("cleanup");
 }

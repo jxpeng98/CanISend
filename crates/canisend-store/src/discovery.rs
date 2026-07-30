@@ -244,6 +244,27 @@ impl<'a> DiscoveryService<'a> {
         load_lead(self.database.connection(), lead_id)
     }
 
+    pub fn promoted_lead_for_job(
+        &self,
+        job_id: &EntityId,
+    ) -> Result<Option<DiscoveryLeadRecord>, StoreError> {
+        let lead_id = self
+            .database
+            .connection()
+            .query_row(
+                "SELECT id FROM job_leads
+                 WHERE promoted_job_id = ?1
+                 ORDER BY status_changed_at DESC, id
+                 LIMIT 1",
+                params![job_id.as_str()],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?;
+        lead_id
+            .map(|id| load_lead(self.database.connection(), &EntityId::try_new(id)?))
+            .transpose()
+    }
+
     pub fn suggestions(
         &self,
         lead_id: &EntityId,
@@ -988,6 +1009,12 @@ mod tests {
             .expect("idempotent promotion");
         assert_eq!(promoted.id, repeated.id);
         assert_eq!(promoted.title, "Lecturer in Applied Economics");
+        let origin = discovery
+            .promoted_lead_for_job(&promoted.id)
+            .expect("origin lookup")
+            .expect("promoted origin");
+        assert_eq!(origin.id, active_id);
+        assert_eq!(origin.url, "https://example.edu/1");
         assert_eq!(discovery.list_sources().expect("sources").len(), 2);
         drop(workspace);
         std::fs::remove_dir_all(root).expect("remove workspace");

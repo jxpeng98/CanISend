@@ -159,13 +159,105 @@ export interface JobDetailReadModel {
   workflow: WorkflowStatusData | null;
 }
 
+export type ApplicationDossierState =
+  | "needs-source"
+  | "ready-to-start"
+  | "in-progress"
+  | "awaiting-user"
+  | "blocked"
+  | "complete"
+  | "archived";
+
+export interface ApplicationDossierReadModel {
+  workspace: string;
+  job: JobRecord;
+  metadata: {
+    origin: "direct" | "discovery";
+    discovery_lead_id: string | null;
+    discovery_source_id: string | null;
+    location: string | null;
+    deadline: string | null;
+    source_url: string | null;
+    freshness: "current" | "stale" | "unknown" | null;
+    last_seen_at: string | null;
+  };
+  source_count: number;
+  profile_source_count: number;
+  state: ApplicationDossierState;
+  current_stage: WorkflowStage | null;
+  completed_stages: number;
+  total_stages: number;
+  workflow: WorkflowStatusData | null;
+  blockers: Array<{
+    code: string;
+    description: string;
+    stage: WorkflowStage | null;
+  }>;
+  next_actions: Array<{ action: string; description: string }>;
+}
+
+export interface ApplicationDossierListReadModel {
+  workspace: string;
+  include_archived: boolean;
+  applications: ApplicationDossierReadModel[];
+}
+
 export interface SourceImportReadModel {
   job: JobRecord;
   source: SourceRecord;
 }
 
+export interface IntakeReviewReadModel {
+  source: {
+    kind:
+      | "url"
+      | "pdf"
+      | "local-file"
+      | "csv"
+      | "json"
+      | "agent"
+      | "network";
+    locator: string;
+    detected_type: string;
+    sha256: string | null;
+  };
+  extraction: {
+    original_bytes: number | null;
+    normalized_text_bytes: number | null;
+    normalized_lines: number | null;
+    pdf_pages: number | null;
+    accepted_items: number;
+    rejected_items: number;
+    semantic_fields_pending: boolean;
+  };
+  duplicate_signal: {
+    state: "none-known" | "exact-match" | "review-after-commit";
+    count: number;
+    automatic_merge: boolean;
+  };
+  target: {
+    kind: "application" | "opportunity-library";
+    id: string | null;
+    label: string;
+  };
+  intended_mutations: Array<{
+    subject: string;
+    action: string;
+    description: string;
+  }>;
+  required_consent:
+    | "read-private-inputs"
+    | "send-to-configured-provider"
+    | "fetch-user-supplied-url"
+    | "export-private-artifacts"
+    | "use-system-fonts";
+  consent_confirmed: boolean;
+  commit_boundary: "exact-prepared-bytes" | "exact-normalized-report";
+}
+
 export interface JobIntakePreviewReadModel {
   preview_token: string;
+  intake: IntakeReviewReadModel;
   preview: ActionReceipt<{
     workspace: string;
     job: JobRecord;
@@ -260,6 +352,7 @@ export interface DiscoveryImportReport {
 export interface DiscoveryPreviewReadModel {
   preview_token: string;
   kind: "import" | "refresh";
+  intake: IntakeReviewReadModel;
   preview: ActionReceipt<DiscoveryImportReport>;
 }
 
@@ -438,6 +531,98 @@ export interface ArtifactReference {
   sha256: string;
 }
 
+export type ContentCategory =
+  | "source"
+  | "profile"
+  | "job-analysis"
+  | "evidence"
+  | "planning"
+  | "materials"
+  | "review"
+  | "delivery";
+
+export type ContentCatalogStatus =
+  | "imported"
+  | "proposed"
+  | "confirmed"
+  | "generated"
+  | "stale";
+
+export type ContentPrivacyClassification =
+  | "public"
+  | "private-local"
+  | "provider-bound"
+  | "secret";
+
+export interface ContentCatalogFilter {
+  job_id?: string | null;
+  category?: ContentCategory | null;
+  stage?: WorkflowStage | null;
+  status?: ContentCatalogStatus | null;
+  privacy?: ContentPrivacyClassification | null;
+  created_after?: string | null;
+  created_before?: string | null;
+}
+
+export interface ContentCatalogEntryReadModel {
+  artifact: ArtifactReference;
+  title: string;
+  category: ContentCategory;
+  stage: WorkflowStage;
+  status: ContentCatalogStatus;
+  privacy: ContentPrivacyClassification;
+  size: number;
+  created_at: string;
+  provenance: {
+    actor: "user" | "host-agent" | "configured-provider" | "system";
+    reason: string;
+    source_id: string | null;
+    source_scope: "job" | "profile" | null;
+    source_role: "original" | "normalized" | null;
+    source_kind: string | null;
+    content_type: string | null;
+    locator: string | null;
+  };
+  subject_jobs: Array<{
+    id: string;
+    title: string;
+    institution: string;
+    archived: boolean;
+  }>;
+  relationships: ArtifactReference[];
+  private_body_searchable: boolean;
+}
+
+export interface ContentCatalogReadModel {
+  workspace: string;
+  total_entries: number;
+  entries: ContentCatalogEntryReadModel[];
+  filter: Required<ContentCatalogFilter>;
+}
+
+export interface ContentSearchReadModel {
+  workspace: string;
+  query: string;
+  include_private_bodies: boolean;
+  total_matches: number;
+  results: Array<{
+    entry: ContentCatalogEntryReadModel;
+    score: number;
+    matched_fields: Array<"metadata" | "private-body">;
+    snippet: string | null;
+  }>;
+  index: {
+    strategy: string;
+    metadata_entries: number;
+    private_body_entries: number;
+    private_body_bytes: number;
+    skipped_oversized_entries: number;
+    skipped_secret_entries: number;
+    truncated: boolean;
+  };
+  filter: Required<ContentCatalogFilter>;
+}
+
 export interface WorkflowStatusData {
   run_id: string;
   job_id: string;
@@ -570,13 +755,29 @@ export interface AgentHandoffReadModel {
   workspace: string;
   selected_job_id: string | null;
   launch_command: string;
+  start_command: string;
   capabilities_command: string;
   context_command: string;
   bootstrap_prompt: string;
+  recommended_skill: "canisend-application";
   recommended_integration: "external-host";
   session_authority: string;
   state_authority: "canisend";
   context: AgentContextReadModel;
+}
+
+export interface AgentSkillsInstallReadModel {
+  workspace: string;
+  directory: string;
+  manifest_path: string;
+  state: "installed" | "updated" | "up-to-date";
+  files: Array<{
+    resource_id: string;
+    resource_version: string;
+    path: string;
+    size: number;
+    sha256: string;
+  }>;
 }
 
 export interface AgentMcpConfigurationReadModel {
@@ -893,6 +1094,70 @@ export async function showJob(
 ): Promise<ActionReceipt<JobDetailReadModel>> {
   return invoke("show_job", {
     request: { workspace, job_id: jobId },
+  });
+}
+
+export async function listApplicationDossiers(
+  workspace: string,
+  includeArchived = false,
+): Promise<ActionReceipt<ApplicationDossierListReadModel>> {
+  return invoke("list_application_dossiers", {
+    request: { workspace, include_archived: includeArchived },
+  });
+}
+
+export async function getApplicationDossier(
+  workspace: string,
+  jobId: string,
+): Promise<ActionReceipt<ApplicationDossierReadModel>> {
+  return invoke("application_dossier", {
+    request: { workspace, job_id: jobId },
+  });
+}
+
+function contentFilterRequest(
+  filter: ContentCatalogFilter = {},
+): Required<ContentCatalogFilter> {
+  return {
+    job_id: filter.job_id ?? null,
+    category: filter.category ?? null,
+    stage: filter.stage ?? null,
+    status: filter.status ?? null,
+    privacy: filter.privacy ?? null,
+    created_after: filter.created_after ?? null,
+    created_before: filter.created_before ?? null,
+  };
+}
+
+export async function getContentCatalog(
+  workspace: string,
+  filter: ContentCatalogFilter = {},
+): Promise<ActionReceipt<ContentCatalogReadModel>> {
+  return invoke("content_catalog", {
+    request: {
+      workspace,
+      filter: contentFilterRequest(filter),
+    },
+  });
+}
+
+export async function searchContent(options: {
+  workspace: string;
+  query: string;
+  filter?: ContentCatalogFilter;
+  includePrivateBodies: boolean;
+  confirmedPrivateRead: boolean;
+  limit?: number;
+}): Promise<ActionReceipt<ContentSearchReadModel>> {
+  return invoke("search_content", {
+    request: {
+      workspace: options.workspace,
+      query: options.query,
+      filter: contentFilterRequest(options.filter),
+      include_private_bodies: options.includePrivateBodies,
+      confirmed_private_read: options.confirmedPrivateRead,
+      limit: options.limit ?? 50,
+    },
   });
 }
 
@@ -1440,7 +1705,7 @@ export async function copyAgentHandoff(
   host: "codex" | "claude" | "generic",
   workspace: string,
   selectedJobId: string | undefined,
-  field: "launch-command" | "bootstrap-prompt",
+  field: "launch-command" | "start-command" | "bootstrap-prompt",
 ): Promise<void> {
   return invoke("copy_agent_handoff", {
     request: {
@@ -1449,6 +1714,15 @@ export async function copyAgentHandoff(
       selected_job_id: selectedJobId || null,
       field,
     },
+  });
+}
+
+export async function installAgentSkills(
+  host: "codex" | "claude" | "generic",
+  workspace: string,
+): Promise<ActionReceipt<AgentSkillsInstallReadModel>> {
+  return invoke("install_agent_skills", {
+    request: { host, workspace },
   });
 }
 

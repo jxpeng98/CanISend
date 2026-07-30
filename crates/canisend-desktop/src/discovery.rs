@@ -12,9 +12,9 @@ use canisend_app::{
     ActionReceipt, Application, DiscoveryAdapterCatalogReadModel, DiscoveryImportRequest,
     DiscoveryLeadListReadModel, DiscoveryNetworkAdapter, DiscoveryPromotionReadModel,
     DiscoveryRefreshRequest, DiscoverySourceListReadModel, DiscoverySuggestionReadModel,
-    NetworkFetchConsent, PrivateReadConsent,
+    IntakeReviewReadModel, NetworkFetchConsent, PrivateReadConsent, discovery_intake_review,
 };
-use canisend_contracts::{DiscoveryImportReport, DiscoveryLeadRecord};
+use canisend_contracts::{ConsentScope, DiscoveryImportReport, DiscoveryLeadRecord};
 use serde::{Deserialize, Serialize};
 
 use crate::commands::{DesktopCommandError, run_worker};
@@ -126,6 +126,7 @@ pub(crate) struct DiscoveryPreviewReadModel {
     preview_token: String,
     kind: DiscoveryPreviewKind,
     preview: ActionReceipt<DiscoveryImportReport>,
+    intake: IntakeReviewReadModel,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -191,13 +192,14 @@ pub(crate) struct DiscoveryDiscardRequest {
 
 fn preview_discovery_file_impl(
     request: DiscoveryFilePreviewRequest,
-) -> Result<ActionReceipt<DiscoveryImportReport>, DesktopCommandError> {
+) -> Result<(ActionReceipt<DiscoveryImportReport>, IntakeReviewReadModel), DesktopCommandError> {
     if !request.confirmed_private_read {
         return Err(DesktopCommandError::consent(
             "Confirm access to the selected private discovery file before previewing it.",
         ));
     }
-    Application::preview_discovery_import(
+    let locator = request.path.to_string_lossy().into_owned();
+    let preview = Application::preview_discovery_import(
         &DiscoveryImportRequest {
             path: request.path,
             source_name: request.source_name,
@@ -206,18 +208,22 @@ fn preview_discovery_file_impl(
         },
         PrivateReadConsent::granted_by_user(),
     )
-    .map_err(DesktopCommandError::application)
+    .map_err(DesktopCommandError::application)?;
+    let intake = discovery_intake_review(&preview.data, locator, ConsentScope::ReadPrivateInputs)
+        .map_err(DesktopCommandError::application)?;
+    Ok((preview, intake))
 }
 
 fn preview_discovery_network_impl(
     request: DiscoveryNetworkPreviewRequest,
-) -> Result<ActionReceipt<DiscoveryImportReport>, DesktopCommandError> {
+) -> Result<(ActionReceipt<DiscoveryImportReport>, IntakeReviewReadModel), DesktopCommandError> {
     if !request.confirmed_network_fetch {
         return Err(DesktopCommandError::consent(
             "Confirm the network request before previewing this discovery source.",
         ));
     }
-    Application::preview_discovery_refresh(
+    let locator = request.endpoint.clone();
+    let preview = Application::preview_discovery_refresh(
         &DiscoveryRefreshRequest {
             adapter: request.adapter,
             endpoint: request.endpoint,
@@ -226,7 +232,11 @@ fn preview_discovery_network_impl(
         },
         NetworkFetchConsent::granted_by_user(),
     )
-    .map_err(DesktopCommandError::application)
+    .map_err(DesktopCommandError::application)?;
+    let intake =
+        discovery_intake_review(&preview.data, locator, ConsentScope::FetchUserSuppliedUrl)
+            .map_err(DesktopCommandError::application)?;
+    Ok((preview, intake))
 }
 
 fn preview_token() -> Result<String, DesktopCommandError> {
@@ -253,12 +263,13 @@ pub(crate) async fn preview_discovery_file(
     state: tauri::State<'_, DiscoveryPreviewStore>,
     request: DiscoveryFilePreviewRequest,
 ) -> Result<DiscoveryPreviewReadModel, DesktopCommandError> {
-    let preview = run_worker(move || preview_discovery_file_impl(request)).await?;
+    let (preview, intake) = run_worker(move || preview_discovery_file_impl(request)).await?;
     let preview_token = state.insert(DiscoveryPreviewKind::Import, preview.data.clone())?;
     Ok(DiscoveryPreviewReadModel {
         preview_token,
         kind: DiscoveryPreviewKind::Import,
         preview,
+        intake,
     })
 }
 
@@ -268,12 +279,13 @@ pub(crate) async fn preview_discovery_network(
     state: tauri::State<'_, DiscoveryPreviewStore>,
     request: DiscoveryNetworkPreviewRequest,
 ) -> Result<DiscoveryPreviewReadModel, DesktopCommandError> {
-    let preview = run_worker(move || preview_discovery_network_impl(request)).await?;
+    let (preview, intake) = run_worker(move || preview_discovery_network_impl(request)).await?;
     let preview_token = state.insert(DiscoveryPreviewKind::Refresh, preview.data.clone())?;
     Ok(DiscoveryPreviewReadModel {
         preview_token,
         kind: DiscoveryPreviewKind::Refresh,
         preview,
+        intake,
     })
 }
 
@@ -431,7 +443,7 @@ mod tests {
         .expect("write CSV");
         Application::initialize_workspace(&workspace).expect("initialize workspace");
 
-        let preview = preview_discovery_file_impl(DiscoveryFilePreviewRequest {
+        let (preview, intake) = preview_discovery_file_impl(DiscoveryFilePreviewRequest {
             path: source.clone(),
             source_name: Some("Reviewed leads".to_owned()),
             source_url: None,
@@ -440,6 +452,11 @@ mod tests {
         })
         .expect("preview CSV");
         assert_eq!(preview.data.accepted, 1);
+        assert_eq!(intake.source.kind, canisend_app::IntakeSourceKind::Csv);
+        assert_eq!(
+            intake.commit_boundary,
+            canisend_app::IntakeCommitBoundary::ExactNormalizedReport
+        );
         fs::write(
             &source,
             "title,organization,url\nChanged,Other,https://example.edu/changed\n",

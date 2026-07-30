@@ -23,13 +23,18 @@ import {
   copyAgentHandoff,
   copyAgentMcpConfiguration,
   exportPackage,
+  getApplicationDossier,
+  getContentCatalog,
+  installAgentSkills,
   installCli,
+  listApplicationDossiers,
   prepareAgentHandoff,
   prepareAgentMcpConfiguration,
   previewDiscoveryFile,
   previewLocalJobSource,
   previewUrlJobSource,
   runAgentTurn,
+  searchContent,
 } from "./bridge";
 
 describe("typed Tauri command requests", () => {
@@ -94,6 +99,76 @@ describe("typed Tauri command requests", () => {
 
     expect(mocks.invoke).toHaveBeenCalledWith("commit_job_source_preview", {
       request: { preview_token: "job-intake-preview-123" },
+    });
+  });
+
+  it("loads unified application dossiers through body-free desktop commands", async () => {
+    await listApplicationDossiers("/tmp/workspace", false);
+    await getApplicationDossier("/tmp/workspace", "job-id");
+
+    expect(mocks.invoke).toHaveBeenNthCalledWith(
+      1,
+      "list_application_dossiers",
+      {
+        request: {
+          workspace: "/tmp/workspace",
+          include_archived: false,
+        },
+      },
+    );
+    expect(mocks.invoke).toHaveBeenNthCalledWith(2, "application_dossier", {
+      request: {
+        workspace: "/tmp/workspace",
+        job_id: "job-id",
+      },
+    });
+  });
+
+  it("keeps content filters typed and private body consent explicit", async () => {
+    await getContentCatalog("/tmp/workspace", {
+      job_id: "job-id",
+      category: "materials",
+    });
+    await searchContent({
+      workspace: "/tmp/workspace",
+      query: "teaching portfolio",
+      filter: { status: "confirmed" },
+      includePrivateBodies: true,
+      confirmedPrivateRead: true,
+      limit: 20,
+    });
+
+    expect(mocks.invoke).toHaveBeenNthCalledWith(1, "content_catalog", {
+      request: {
+        workspace: "/tmp/workspace",
+        filter: {
+          job_id: "job-id",
+          category: "materials",
+          stage: null,
+          status: null,
+          privacy: null,
+          created_after: null,
+          created_before: null,
+        },
+      },
+    });
+    expect(mocks.invoke).toHaveBeenNthCalledWith(2, "search_content", {
+      request: {
+        workspace: "/tmp/workspace",
+        query: "teaching portfolio",
+        filter: {
+          job_id: null,
+          category: null,
+          stage: null,
+          status: "confirmed",
+          privacy: null,
+          created_after: null,
+          created_before: null,
+        },
+        include_private_bodies: true,
+        confirmed_private_read: true,
+        limit: 20,
+      },
     });
   });
 
@@ -241,6 +316,17 @@ describe("typed Tauri command requests", () => {
         workspace: "/tmp/workspace",
         selected_job_id: "job-id",
         field: "bootstrap-prompt",
+      },
+    });
+  });
+
+  it("installs host-discoverable CanISend skills into the workspace", async () => {
+    await installAgentSkills("codex", "/tmp/workspace");
+
+    expect(mocks.invoke).toHaveBeenCalledWith("install_agent_skills", {
+      request: {
+        host: "codex",
+        workspace: "/tmp/workspace",
       },
     });
   });

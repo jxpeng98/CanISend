@@ -5,11 +5,14 @@ mod agent_session;
 mod application;
 mod catalog;
 mod cli_install;
+mod content;
 mod decision;
 mod desktop_cli;
 mod discovery;
 mod document;
+mod dossier;
 mod error;
+mod intake;
 mod job;
 mod package;
 mod plan;
@@ -27,8 +30,9 @@ mod workspace;
 pub use agent::{
     AgentCapabilitiesReadModel, AgentContextReadModel, AgentHandoffReadModel, AgentHandoffRequest,
     AgentHost, AgentMcpConfigurationReadModel, AgentMcpConfigurationRequest,
-    AgentPackExportReadModel, AgentPackExportRequest, CANISEND_MCP_GUARDED_WRITE_TOOLS,
-    CANISEND_MCP_PROTOCOL_VERSION, CANISEND_MCP_READ_ONLY_TOOLS, CANISEND_MCP_TOOLS,
+    AgentPackExportReadModel, AgentPackExportRequest, AgentSkillsInstallReadModel,
+    AgentSkillsInstallRequest, CANISEND_MCP_GUARDED_WRITE_TOOLS, CANISEND_MCP_PROTOCOL_VERSION,
+    CANISEND_MCP_READ_ONLY_TOOLS, CANISEND_MCP_TOOLS,
 };
 pub use agent_session::{
     AgentRuntimeKind, AgentSessionEntry, AgentSessionRegistry, default_agent_session_registry_path,
@@ -43,6 +47,13 @@ pub use catalog::{
 pub use cli_install::{
     CliInstallState, CliInstallStatus, CliVersionRelation, TerminalInstallConsent,
 };
+pub use content::{
+    ContentCatalogEntryReadModel, ContentCatalogFilter, ContentCatalogReadModel,
+    ContentCatalogStatus, ContentCategory, ContentIndexReadModel, ContentMatchField,
+    ContentProvenanceReadModel, ContentSearchReadModel, ContentSearchRequest,
+    ContentSearchResultReadModel, ContentSourceRole, ContentSourceScope,
+    ContentSubjectJobReadModel,
+};
 pub use desktop_cli::{bundled_cli_path, default_cli_destination};
 pub use discovery::{
     DiscoveryAdapterCatalogReadModel, DiscoveryImportRequest, DiscoveryLeadListReadModel,
@@ -50,7 +61,18 @@ pub use discovery::{
     DiscoverySourceListReadModel, DiscoverySuggestionReadModel,
 };
 pub use document::DocumentWorkspaceReadModel;
+pub use dossier::{
+    ApplicationDossierBlockerReadModel, ApplicationDossierListReadModel,
+    ApplicationDossierReadModel, ApplicationDossierState, ApplicationMetadataReadModel,
+    ApplicationOrigin,
+};
 pub use error::{ApplicationError, ApplicationFailure};
+pub use intake::{
+    IntakeCommitBoundary, IntakeDuplicateSignalReadModel, IntakeDuplicateState,
+    IntakeExtractionReadModel, IntakeMutationReadModel, IntakeReviewReadModel,
+    IntakeSourceIdentityReadModel, IntakeSourceKind, IntakeTargetKind, IntakeTargetReadModel,
+    discovery_intake_review, job_intake_review,
+};
 pub use job::{
     JobDetailReadModel, JobIntakeExtractionReadModel, JobIntakeIssueSeverity,
     JobIntakeMutationReadModel, JobIntakePreviewReadModel, JobIntakeProvenanceReadModel,

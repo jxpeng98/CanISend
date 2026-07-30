@@ -1,12 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import type { JobDetailReadModel, JobRecord } from "./bridge";
+import type {
+  ApplicationDossierReadModel,
+  JobDetailReadModel,
+  JobRecord,
+} from "./bridge";
 import {
   defaultNavigationMemory,
   parseNavigationMemory,
   recommendWorkflowRoute,
   rememberedJob,
   routeForAgentAction,
+  routeForContentEntry,
   routeForTaskOperation,
   routeForWorkflowStage,
 } from "./workflow-navigation";
@@ -87,6 +92,34 @@ describe("connected workflow routing", () => {
       view: "delivery",
       detail: "delivery-review",
     });
+    expect(
+      routeForContentEntry({
+        category: "materials",
+        stage: "draft",
+        subject_jobs: [
+          {
+            id: "job-1",
+            title: "Lecturer",
+            institution: "University X",
+            archived: false,
+          },
+        ],
+      }),
+    ).toEqual({
+      view: "delivery",
+      detail: "delivery-documents",
+      jobId: "job-1",
+    });
+    expect(
+      routeForContentEntry({
+        category: "profile",
+        stage: "evidence",
+        subject_jobs: [],
+      }),
+    ).toEqual({
+      view: "profile",
+      detail: "profile-sources",
+    });
   });
 
   it("recommends the first unmet durable workflow requirement", () => {
@@ -148,6 +181,42 @@ describe("connected workflow routing", () => {
     ).toMatchObject({
       reason: "continue-workflow",
       route: { view: "workflow", detail: "decision-criteria", jobId: "job-1" },
+    });
+
+    const dossier: ApplicationDossierReadModel = {
+      workspace: "/tmp/canisend",
+      job: sourcedJob,
+      metadata: {
+        origin: "direct",
+        discovery_lead_id: null,
+        discovery_source_id: null,
+        location: null,
+        deadline: null,
+        source_url: null,
+        freshness: null,
+        last_seen_at: null,
+      },
+      source_count: 1,
+      profile_source_count: 1,
+      state: "in-progress",
+      current_stage: "review",
+      completed_stages: 8,
+      total_stages: 11,
+      workflow: workflowDetail.workflow,
+      blockers: [],
+      next_actions: [],
+    };
+    expect(
+      recommendWorkflowRoute({
+        workspacePath: "/tmp/canisend",
+        jobs: [sourcedJob],
+        selectedJob: workflowDetail,
+        dossier,
+        profileSourceCount: 0,
+      }),
+    ).toMatchObject({
+      reason: "continue-workflow",
+      route: { view: "delivery", detail: "delivery-review", jobId: "job-1" },
     });
   });
 });

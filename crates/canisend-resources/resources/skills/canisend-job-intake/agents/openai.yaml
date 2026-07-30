@@ -1,0 +1,5 @@
+interface:
+  display_name: "CanISend Job Intake"
+  short_description: "Import and parse an academic job advert safely"
+  brand_color: "#2563EB"
+  default_prompt: "Use $canisend-job-intake to import and review this academic job advert in CanISend."

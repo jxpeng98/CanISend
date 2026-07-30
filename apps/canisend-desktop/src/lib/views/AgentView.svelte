@@ -41,6 +41,7 @@
     type AgentPackExportReadModel,
     type AgentRuntimeCatalog,
     type AgentRuntimeKind,
+    type AgentSkillsInstallReadModel,
     type AgentTurnResult,
     type JobRecord,
     type WorkspaceReadModel,
@@ -53,8 +54,8 @@
   } from "$lib/workflow-navigation";
 
   type AgentHost = "codex" | "claude" | "generic";
-  type HandoffCopyTarget = "command" | "prompt";
-  type CopyTarget = "command" | "prompt" | "mcp-command" | "mcp-config";
+  type HandoffCopyTarget = "start" | "prompt";
+  type CopyTarget = "start" | "prompt" | "mcp-command" | "mcp-config";
 
   type Props = {
     copy: Messages;
@@ -73,10 +74,13 @@
       host: AgentHost,
       jobId?: string,
     ) => Promise<AgentHandoffReadModel | null>;
+    onInstallSkills: (
+      host: AgentHost,
+    ) => Promise<AgentSkillsInstallReadModel | null>;
     onCopyHandoff: (
       host: AgentHost,
       jobId: string | undefined,
-      field: "launch-command" | "bootstrap-prompt",
+      field: "launch-command" | "start-command" | "bootstrap-prompt",
     ) => Promise<boolean>;
     onPrepareMcpConfiguration: (
       host: AgentHost,
@@ -117,6 +121,7 @@
     onLoadCapabilities,
     onLoadContext,
     onPrepareHandoff,
+    onInstallSkills,
     onCopyHandoff,
     onPrepareMcpConfiguration,
     onCopyMcpConfiguration,
@@ -177,6 +182,7 @@
     switchAgentConversationScope(agentUiState.runtime, jobId);
     agentUiState.context = null;
     agentUiState.handoff = null;
+    agentUiState.skillsInstallation = null;
     agentUiState.mcpConfiguration = null;
     agentUiState.runtimeCatalog = await onLoadRuntimes(jobId || undefined);
   }
@@ -184,6 +190,7 @@
   function changeHost(host: AgentHost): void {
     agentUiState.host = host;
     agentUiState.handoff = null;
+    agentUiState.skillsInstallation = null;
     agentUiState.mcpConfiguration = null;
     if (host !== "generic") {
       switchAgentConversationScope(host, agentUiState.selectedJobId);
@@ -201,6 +208,9 @@
       agentUiState.formError = copy.noWorkspace;
       return;
     }
+    const installation = await onInstallSkills(agentUiState.host);
+    if (!installation) return;
+    agentUiState.skillsInstallation = installation;
     const handoff = await onPrepareHandoff(
       agentUiState.host,
       agentUiState.selectedJobId || undefined,
@@ -213,7 +223,7 @@
   async function copyHandoff(target: HandoffCopyTarget): Promise<void> {
     if (!activeWorkspace) return;
     const field =
-      target === "command" ? "launch-command" : "bootstrap-prompt";
+      target === "start" ? "start-command" : "bootstrap-prompt";
     const copiedSuccessfully = await onCopyHandoff(
       agentUiState.host,
       agentUiState.selectedJobId || undefined,
@@ -340,6 +350,14 @@
     if (value === "codex") return copy.codex;
     if (value === "claude") return copy.claude;
     return copy.generic;
+  }
+
+  function skillStateLabel(
+    value: AgentSkillsInstallReadModel["state"],
+  ): string {
+    if (value === "installed") return copy.skillsInstalled;
+    if (value === "updated") return copy.skillsUpdated;
+    return copy.skillsUpToDate;
   }
 
   function shortSessionId(value: string): string {
@@ -505,7 +523,7 @@
                 data-icon="inline-start"
                 aria-hidden="true"
               />
-              {busy ? copy.working : copy.prepareHandoff}
+              {busy ? copy.working : copy.prepareAiWorkspace}
             </Button>
           </Card.Content>
         </Card.Root>
@@ -569,6 +587,15 @@
                 </Card.Description>
               </div>
               <div class="flex flex-wrap gap-2">
+                <Badge>
+                  {agentUiState.handoff.recommended_skill}
+                </Badge>
+                {#if agentUiState.skillsInstallation}
+                  <Badge variant="secondary">
+                    {copy.skillsReady} ·
+                    {skillStateLabel(agentUiState.skillsInstallation.state)}
+                  </Badge>
+                {/if}
                 <Badge variant="outline">
                   {copy.stateInCanisend}
                 </Badge>
@@ -578,47 +605,72 @@
               </div>
             </div>
           </Card.Header>
-          <Card.Content class="grid gap-6 xl:grid-cols-2">
+          <Card.Content class="space-y-6">
             <div class="space-y-3">
               <div class="flex items-center justify-between gap-3">
-                <Label for="handoff-command">{copy.launchCommand}</Label>
+                <div>
+                  <Label for="handoff-command">{copy.oneStepStart}</Label>
+                  <p class="mt-1 text-xs text-muted-foreground">
+                    {copy.oneStepStartDescription}
+                  </p>
+                </div>
                 <Button
-                  variant="outline"
                   size="sm"
-                  onclick={() => void copyHandoff("command")}
+                  onclick={() => void copyHandoff("start")}
                 >
                   <Copy size={14} strokeWidth={1.8} aria-hidden="true" />
-                  {copied === "command" ? copy.copied : copy.copyCommand}
+                  {copied === "start" ? copy.copied : copy.copyStartCommand}
                 </Button>
               </div>
               <div
                 id="handoff-command"
                 class="min-h-20 overflow-x-auto rounded-xl border bg-muted/30 p-4 font-mono text-xs leading-5"
               >
-                {agentUiState.handoff.launch_command}
+                {agentUiState.handoff.start_command}
               </div>
-              <p class="text-xs leading-5 text-muted-foreground">
-                {agentUiState.handoff.context_command}
-              </p>
             </div>
-            <div class="space-y-3">
-              <div class="flex items-center justify-between gap-3">
-                <Label for="handoff-prompt">{copy.bootstrapPrompt}</Label>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onclick={() => void copyHandoff("prompt")}
-                >
-                  <Copy size={14} strokeWidth={1.8} aria-hidden="true" />
-                  {copied === "prompt" ? copy.copied : copy.copyPrompt}
-                </Button>
+
+            {#if agentUiState.handoff.context.next_actions[0]}
+              <div class="rounded-xl border bg-primary/5 p-4">
+                <p class="text-xs font-medium text-muted-foreground">
+                  {copy.currentNextAction}
+                </p>
+                <p class="mt-2 text-sm font-semibold">
+                  {agentUiState.handoff.context.next_actions[0].description}
+                </p>
+                <p class="mt-2 overflow-x-auto font-mono text-xs text-muted-foreground">
+                  {agentUiState.handoff.context.next_actions[0].action}
+                </p>
               </div>
-              <Textarea
-                id="handoff-prompt"
-                class="min-h-44 resize-y font-mono text-xs leading-5"
-                value={agentUiState.handoff.bootstrap_prompt}
-                readonly
-              />
+            {/if}
+
+            <Separator />
+            <div class="grid gap-6 xl:grid-cols-2">
+              <div class="space-y-3">
+                <Label>{copy.contextCommand}</Label>
+                <div class="overflow-x-auto rounded-xl border bg-muted/30 p-4 font-mono text-xs leading-5">
+                  {agentUiState.handoff.context_command}
+                </div>
+              </div>
+              <div class="space-y-3">
+                <div class="flex items-center justify-between gap-3">
+                  <Label for="handoff-prompt">{copy.bootstrapPrompt}</Label>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onclick={() => void copyHandoff("prompt")}
+                  >
+                    <Copy size={14} strokeWidth={1.8} aria-hidden="true" />
+                    {copied === "prompt" ? copy.copied : copy.copyPrompt}
+                  </Button>
+                </div>
+                <Textarea
+                  id="handoff-prompt"
+                  class="min-h-36 resize-y font-mono text-xs leading-5"
+                  value={agentUiState.handoff.bootstrap_prompt}
+                  readonly
+                />
+              </div>
             </div>
           </Card.Content>
         </Card.Root>

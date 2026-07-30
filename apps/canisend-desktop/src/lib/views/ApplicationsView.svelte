@@ -1,11 +1,15 @@
 <script lang="ts">
   import {
     Archive,
+    ArrowRight,
     BriefcaseBusiness,
+    CalendarDays,
     CheckCircle2,
+    CircleDot,
     FileText,
     FileUp,
     Link,
+    MapPin,
     Plus,
     RefreshCw,
     ShieldCheck,
@@ -22,8 +26,15 @@
   import { Separator } from "$lib/components/ui/separator/index.js";
   import { Skeleton } from "$lib/components/ui/skeleton/index.js";
   import * as Tabs from "$lib/components/ui/tabs/index.js";
+  import IntakeReviewSummary from "$lib/components/IntakeReviewSummary.svelte";
   import {
     chooseJobSource,
+    type ApplicationDossierReadModel,
+    type ApplicationDossierState,
+    type ContentCatalogEntryReadModel,
+    type ContentCatalogFilter,
+    type ContentCatalogReadModel,
+    type ContentSearchReadModel,
     type JobDetailReadModel,
     type JobIntakePreviewReadModel,
     type JobRecord,
@@ -32,15 +43,23 @@
   import type { Messages } from "$lib/i18n";
   import type { WorkflowDetail } from "$lib/workflow-navigation";
 
+  type ContentLibraryPanelComponent =
+    typeof import("$lib/components/ContentLibraryPanel.svelte").default;
+
   type Props = {
     copy: Messages;
     desktopRuntime: boolean;
     activeWorkspace: WorkspaceReadModel | null;
     jobs: JobRecord[];
     selectedJob: JobDetailReadModel | null;
+    dossiers: ApplicationDossierReadModel[];
+    dossier: ApplicationDossierReadModel | null;
+    contentCatalog: ContentCatalogReadModel | null;
+    contentSearchResult: ContentSearchReadModel | null;
     focus: WorkflowDetail | null;
     preview: JobIntakePreviewReadModel | null;
     loading: boolean;
+    contentLoading: boolean;
     busy: boolean;
     onRefresh: () => Promise<boolean>;
     onCreate: (title: string, institution: string) => Promise<boolean>;
@@ -50,6 +69,15 @@
     onPreviewUrl: (url: string, confirmed: boolean) => Promise<boolean>;
     onCommitPreview: () => Promise<boolean>;
     onDiscardPreview: () => Promise<boolean>;
+    onRefreshContent: () => Promise<boolean>;
+    onSearchContent: (options: {
+      query: string;
+      filter: ContentCatalogFilter;
+      includePrivateBodies: boolean;
+      confirmedPrivateRead: boolean;
+    }) => Promise<boolean>;
+    onOpenContent: (entry: ContentCatalogEntryReadModel) => Promise<void>;
+    onContinue: () => Promise<void>;
   };
 
   let {
@@ -58,9 +86,14 @@
     activeWorkspace,
     jobs,
     selectedJob,
+    dossiers,
+    dossier,
+    contentCatalog,
+    contentSearchResult,
     focus,
     preview,
     loading,
+    contentLoading,
     busy,
     onRefresh,
     onCreate,
@@ -70,6 +103,10 @@
     onPreviewUrl,
     onCommitPreview,
     onDiscardPreview,
+    onRefreshContent,
+    onSearchContent,
+    onOpenContent,
+    onContinue,
   }: Props = $props();
 
   let createOpen = $state(false);
@@ -82,6 +119,24 @@
   let sourceUrl = $state("");
   let privateReadConfirmed = $state(false);
   let networkFetchConfirmed = $state(false);
+  let ContentLibraryPanel = $state<ContentLibraryPanelComponent | null>(null);
+  let contentPanelLoading = $state(false);
+  let contentPanelFailed = $state(false);
+
+  $effect(() => {
+    if (ContentLibraryPanel || contentPanelLoading || contentPanelFailed) return;
+    contentPanelLoading = true;
+    void import("$lib/components/ContentLibraryPanel.svelte")
+      .then((module) => {
+        ContentLibraryPanel = module.default;
+      })
+      .catch(() => {
+        contentPanelFailed = true;
+      })
+      .finally(() => {
+        contentPanelLoading = false;
+      });
+  });
 
   async function submitCreate(): Promise<void> {
     formError = null;
@@ -138,10 +193,8 @@
     }
   }
 
-  function formatBytes(value: number): string {
-    if (value < 1024) return `${value} B`;
-    if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
-    return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+  function dossierStateLabel(state: ApplicationDossierState): string {
+    return copy.applicationDossierState[state];
   }
 </script>
 
@@ -217,6 +270,7 @@
             </div>
           {:else}
             {#each jobs as job (job.id)}
+              {@const application = dossiers.find((dossier) => dossier.job.id === job.id)}
               <button
                 type="button"
                 class={`w-full rounded-xl border p-4 text-left transition-colors hover:bg-muted/30 ${
@@ -230,7 +284,16 @@
                     <h2 class="truncate text-sm font-semibold">{job.title}</h2>
                     <p class="mt-1 truncate text-xs text-muted-foreground">{job.institution}</p>
                   </div>
-                  <Badge variant="outline">{job.source_ids.length} {copy.sourceCount}</Badge>
+                  <div class="flex shrink-0 flex-col items-end gap-1.5">
+                    {#if application}
+                      <Badge variant="outline">
+                        {dossierStateLabel(application.state)}
+                      </Badge>
+                    {/if}
+                    <span class="text-[11px] text-muted-foreground">
+                      {application?.metadata.deadline ?? `${job.source_ids.length} ${copy.sourceCount}`}
+                    </span>
+                  </div>
                 </div>
               </button>
             {/each}
@@ -239,6 +302,153 @@
       </Card.Root>
 
       <div class="space-y-6">
+        {#if dossier}
+          <Card.Root class="shadow-none">
+            <Card.Header>
+              <div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+                <div>
+                  <Card.Title>{copy.applicationOverview}</Card.Title>
+                  <Card.Description class="mt-1.5">
+                    {copy.applicationOverviewDescription}
+                  </Card.Description>
+                </div>
+                <Badge variant="secondary">{dossierStateLabel(dossier.state)}</Badge>
+              </div>
+            </Card.Header>
+            <Card.Content class="space-y-5">
+              <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div class="rounded-xl border bg-muted/20 p-3">
+                  <p class="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <CircleDot size={14} strokeWidth={1.8} aria-hidden="true" />
+                    {copy.workflowProgress}
+                  </p>
+                  <p class="mt-2 text-sm font-semibold">
+                    {dossier.completed_stages} / {dossier.total_stages}
+                  </p>
+                </div>
+                <div class="rounded-xl border bg-muted/20 p-3">
+                  <p class="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <CircleDot size={14} strokeWidth={1.8} aria-hidden="true" />
+                    {copy.currentStage}
+                  </p>
+                  <p class="mt-2 text-sm font-semibold">
+                    {dossier.current_stage
+                      ? copy.workflowStageLabel[dossier.current_stage]
+                      : copy.allStagesComplete}
+                  </p>
+                </div>
+                <div class="rounded-xl border bg-muted/20 p-3">
+                  <p class="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <CalendarDays size={14} strokeWidth={1.8} aria-hidden="true" />
+                    {copy.deadline}
+                  </p>
+                  <p class="mt-2 text-sm font-semibold">
+                    {dossier.metadata.deadline ?? copy.noDeadlineRecorded}
+                  </p>
+                </div>
+                <div class="rounded-xl border bg-muted/20 p-3">
+                  <p class="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <MapPin size={14} strokeWidth={1.8} aria-hidden="true" />
+                    {copy.location}
+                  </p>
+                  <p class="mt-2 truncate text-sm font-semibold">
+                    {dossier.metadata.location ?? copy.notApplicable}
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <div
+                  class="h-2 overflow-hidden rounded-full bg-muted"
+                  role="progressbar"
+                  aria-label={copy.workflowProgress}
+                  aria-valuemin="0"
+                  aria-valuemax={dossier.total_stages}
+                  aria-valuenow={dossier.completed_stages}
+                >
+                  <div
+                    class="h-full rounded-full bg-primary transition-[width] duration-200 motion-reduce:transition-none"
+                    style={`width: ${
+                      dossier.total_stages
+                        ? (dossier.completed_stages / dossier.total_stages) * 100
+                        : 0
+                    }%`}
+                  ></div>
+                </div>
+              </div>
+
+              {#if dossier.blockers[0]}
+                <div class="flex items-start gap-3 rounded-xl border border-amber-500/35 bg-amber-500/5 p-4">
+                  <TriangleAlert
+                    size={17}
+                    strokeWidth={1.8}
+                    class="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400"
+                    aria-hidden="true"
+                  />
+                  <div>
+                    <p class="text-xs font-semibold">{copy.attention}</p>
+                    <p class="mt-1 text-xs leading-5 text-muted-foreground">
+                      {dossier.blockers[0].description}
+                    </p>
+                  </div>
+                </div>
+              {/if}
+
+              <div class="flex flex-col justify-between gap-4 rounded-xl border bg-accent/30 p-4 sm:flex-row sm:items-center">
+                <div>
+                  <p class="text-xs font-medium text-muted-foreground">{copy.nextAction}</p>
+                  <p class="mt-1 max-w-2xl text-sm font-semibold">
+                    {dossier.next_actions[0]?.description ?? copy.noNextAction}
+                  </p>
+                </div>
+                <Button
+                  class="min-h-11 shrink-0"
+                  disabled={busy || !dossier.next_actions.length}
+                  onclick={onContinue}
+                >
+                  {copy.continueApplication}
+                  <ArrowRight
+                    size={16}
+                    strokeWidth={1.8}
+                    data-icon="inline-end"
+                    aria-hidden="true"
+                  />
+                </Button>
+              </div>
+            </Card.Content>
+          </Card.Root>
+        {/if}
+
+        {#if ContentLibraryPanel}
+          <ContentLibraryPanel
+            {copy}
+            catalog={contentCatalog}
+            searchResult={contentSearchResult}
+            selectedJobId={selectedJob?.job.id ?? ""}
+            loading={contentLoading}
+            {busy}
+            onRefresh={onRefreshContent}
+            onSearch={onSearchContent}
+            onOpen={onOpenContent}
+          />
+        {:else}
+          <Card.Root class="shadow-none">
+            <Card.Content class="grid min-h-40 place-items-center p-6">
+              {#if contentPanelFailed}
+                <p class="text-sm text-destructive" role="alert">
+                  {copy.contentLibraryLoadFailed}
+                </p>
+              {:else}
+                <div class="w-full max-w-lg space-y-3" role="status" aria-label={copy.loading}>
+                  <Skeleton class="h-5 w-1/3" />
+                  <Skeleton class="h-11 w-full" />
+                  <Skeleton class="h-20 w-full" />
+                </div>
+              {/if}
+            </Card.Content>
+          </Card.Root>
+        {/if}
+
         <Card.Root class="shadow-none">
           <Card.Header>
             <div class="flex items-start justify-between gap-4">
@@ -339,91 +549,32 @@
                     </Badge>
                   </div>
 
-                  <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                    <div class="rounded-xl border bg-muted/20 p-3">
-                      <p class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                        {copy.contentType}
-                      </p>
-                      <p class="mt-1 break-words text-sm font-medium">
-                        {preview.preview.data.extraction.content_type}
-                      </p>
-                    </div>
-                    <div class="rounded-xl border bg-muted/20 p-3">
-                      <p class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                        {copy.sourceSize}
-                      </p>
-                      <p class="mt-1 text-sm font-medium">
-                        {formatBytes(preview.preview.data.extraction.original_bytes)}
-                      </p>
-                    </div>
-                    <div class="rounded-xl border bg-muted/20 p-3">
-                      <p class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                        {copy.normalizedLines}
-                      </p>
-                      <p class="mt-1 text-sm font-medium">
-                        {preview.preview.data.extraction.normalized_lines}
-                      </p>
-                    </div>
-                    <div class="rounded-xl border bg-muted/20 p-3">
-                      <p class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                        {copy.pdfPages}
-                      </p>
-                      <p class="mt-1 text-sm font-medium">
-                        {preview.preview.data.extraction.pdf_pages ?? copy.notApplicable}
-                      </p>
-                    </div>
-                  </div>
+                  <IntakeReviewSummary {copy} review={preview.intake} />
 
                   <div class="space-y-2">
-                    <p class="text-xs font-medium text-muted-foreground">{copy.sourceProvenance}</p>
-                    <p class="break-all rounded-xl border bg-muted/20 p-3 text-xs leading-5">
-                      {preview.preview.data.provenance.final_url ??
-                        preview.preview.data.provenance.requested_locator}
+                    <p class="text-xs font-medium text-muted-foreground">
+                      {copy.validationIssues}
                     </p>
-                    <p class="break-all font-mono text-[11px] leading-5 text-muted-foreground">
-                      SHA-256 · {preview.preview.data.provenance.original_sha256}
-                    </p>
-                  </div>
-
-                  <div class="grid gap-4 lg:grid-cols-2">
-                    <div class="space-y-2">
-                      <p class="text-xs font-medium text-muted-foreground">
-                        {copy.validationIssues}
-                      </p>
-                      {#each preview.preview.data.validation_issues as issue (issue.code)}
-                        <div class="flex items-start gap-2 rounded-xl border p-3">
-                          {#if issue.severity === "warning"}
-                            <TriangleAlert
-                              size={16}
-                              strokeWidth={1.8}
-                              class="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400"
-                              aria-hidden="true"
-                            />
-                          {:else}
-                            <CheckCircle2
-                              size={16}
-                              strokeWidth={1.8}
-                              class="mt-0.5 shrink-0 text-[var(--success)]"
-                              aria-hidden="true"
-                            />
-                          {/if}
-                          <p class="text-xs leading-5">{issue.message}</p>
-                        </div>
-                      {/each}
-                    </div>
-                    <div class="space-y-2">
-                      <p class="text-xs font-medium text-muted-foreground">
-                        {copy.intendedChanges}
-                      </p>
-                      {#each preview.preview.data.intended_mutations as mutation (mutation.action)}
-                        <div class="rounded-xl border p-3">
-                          <p class="text-xs font-semibold">{mutation.action}</p>
-                          <p class="mt-1 text-xs leading-5 text-muted-foreground">
-                            {mutation.description}
-                          </p>
-                        </div>
-                      {/each}
-                    </div>
+                    {#each preview.preview.data.validation_issues as issue (issue.code)}
+                      <div class="flex items-start gap-2 rounded-xl border p-3">
+                        {#if issue.severity === "warning"}
+                          <TriangleAlert
+                            size={16}
+                            strokeWidth={1.8}
+                            class="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400"
+                            aria-hidden="true"
+                          />
+                        {:else}
+                          <CheckCircle2
+                            size={16}
+                            strokeWidth={1.8}
+                            class="mt-0.5 shrink-0 text-[var(--success)]"
+                            aria-hidden="true"
+                          />
+                        {/if}
+                        <p class="text-xs leading-5">{issue.message}</p>
+                      </div>
+                    {/each}
                   </div>
 
                   <Separator />

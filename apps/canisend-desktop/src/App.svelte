@@ -63,7 +63,9 @@
     getAgentCapabilities,
     getAgentContext,
     getAgentRuntimeCatalog,
+    getApplicationDossier,
     getCliInstallStatus,
+    getContentCatalog,
     getCriteriaTemplate,
     getCurrentPackage,
     getCurrentPackageExport,
@@ -84,8 +86,10 @@
     getWorkflowControls,
     importProfileSource,
     initializeProfile,
+    installAgentSkills,
     installCli,
     isDesktopRuntime,
+    listApplicationDossiers,
     listJobs,
     listProfileSources,
     listDiscoveryLeads,
@@ -109,6 +113,7 @@
     restoreWorkspace,
     runDoctor,
     runAgentTurn,
+    searchContent,
     selectWorkspace,
     showDiscoveryLead,
     showJob,
@@ -123,8 +128,14 @@
     type AgentPackExportReadModel,
     type AgentRuntimeCatalog,
     type AgentRuntimeKind,
+    type AgentSkillsInstallReadModel,
     type AgentTurnResult,
+    type ApplicationDossierReadModel,
     type CliInstallStatus,
+    type ContentCatalogEntryReadModel,
+    type ContentCatalogFilter,
+    type ContentCatalogReadModel,
+    type ContentSearchReadModel,
     type DoctorSummary,
     type DiscoveryAdapterCapabilities,
     type DiscoveryLeadRecord,
@@ -161,6 +172,7 @@
     type WorkspaceHealthReadModel,
     type WorkspaceReadModel,
   } from "$lib/bridge";
+  import { upcomingDeadlineApplications } from "$lib/application-dossier";
   import { messages, type Language } from "$lib/i18n";
   import ApplicationsView from "$lib/views/ApplicationsView.svelte";
   import DeliveryView from "$lib/views/DeliveryView.svelte";
@@ -174,6 +186,7 @@
     parseNavigationMemory,
     recommendWorkflowRoute,
     rememberedJob,
+    routeForContentEntry,
     routeForTaskOperation,
     routeForWorkflowStage,
     type LastSuccessfulAction,
@@ -215,6 +228,7 @@
   let busy = $state(false);
   let workspaceLoading = $state(true);
   let jobsLoading = $state(false);
+  let contentLoading = $state(false);
   let discoveryLoading = $state(false);
   let profileLoading = $state(false);
   let registrySnapshot = $state<RegistrySnapshot | null>(null);
@@ -222,6 +236,9 @@
   let workspaceHealth = $state<WorkspaceHealthReadModel | null>(null);
   let jobs = $state<JobRecord[]>([]);
   let selectedJob = $state<JobDetailReadModel | null>(null);
+  let applicationDossiers = $state<ApplicationDossierReadModel[]>([]);
+  let contentCatalog = $state<ContentCatalogReadModel | null>(null);
+  let contentSearchResult = $state<ContentSearchReadModel | null>(null);
   let jobIntakePreview = $state<JobIntakePreviewReadModel | null>(null);
   let discoveryAdapters = $state<DiscoveryAdapterCapabilities[]>([]);
   let discoverySources = $state<DiscoverySourceRecord[]>([]);
@@ -239,11 +256,19 @@
 
   const copy = $derived(messages[language]);
   const selectedJobId = $derived(selectedJob?.job.id ?? "");
+  const selectedDossier = $derived(
+    applicationDossiers.find((dossier) => dossier.job.id === selectedJobId) ?? null,
+  );
+  const upcomingDeadlineItems = $derived(
+    upcomingDeadlineApplications(applicationDossiers),
+  );
+  const nearestDeadlineItem = $derived(upcomingDeadlineItems[0] ?? null);
   const recommendation = $derived(
     recommendWorkflowRoute({
       workspacePath: activeWorkspace?.path ?? null,
       jobs,
       selectedJob,
+      dossier: selectedDossier,
       profileSourceCount: profileSources.length,
     }),
   );
@@ -553,6 +578,8 @@
     };
     workspaceHealth = null;
     jobIntakePreview = null;
+    contentCatalog = null;
+    contentSearchResult = null;
     notice = session.action.summary;
   }
 
@@ -560,13 +587,24 @@
     if (!activeWorkspace) {
       jobs = [];
       selectedJob = null;
+      applicationDossiers = [];
+      contentCatalog = null;
+      contentSearchResult = null;
       jobIntakePreview = null;
       return;
     }
     jobsLoading = true;
+    contentLoading = true;
     try {
-      const receipt = await listJobs(activeWorkspace.path, false);
+      const [receipt, dossierReceipt, catalogReceipt] = await Promise.all([
+        listJobs(activeWorkspace.path, false),
+        listApplicationDossiers(activeWorkspace.path, false),
+        getContentCatalog(activeWorkspace.path),
+      ]);
       jobs = receipt.data.jobs;
+      applicationDossiers = dossierReceipt.data.applications;
+      contentCatalog = catalogReceipt.data;
+      contentSearchResult = null;
       const currentBelongsToWorkspace =
         selectedJob?.workspace === activeWorkspace.path &&
         jobs.some((job) => job.id === selectedJob?.job.id);
@@ -589,13 +627,24 @@
       captureBridgeError(error);
     } finally {
       jobsLoading = false;
+      contentLoading = false;
     }
   }
 
   async function refreshSelectedJobSnapshot(jobId: string): Promise<void> {
     if (!activeWorkspace || selectedJob?.job.id !== jobId) return;
     try {
-      selectedJob = (await showJob(activeWorkspace.path, jobId)).data;
+      const [jobReceipt, dossierReceipt, catalogReceipt] = await Promise.all([
+        showJob(activeWorkspace.path, jobId),
+        getApplicationDossier(activeWorkspace.path, jobId),
+        getContentCatalog(activeWorkspace.path),
+      ]);
+      selectedJob = jobReceipt.data;
+      applicationDossiers = applicationDossiers.map((dossier) =>
+        dossier.job.id === jobId ? dossierReceipt.data : dossier,
+      );
+      contentCatalog = catalogReceipt.data;
+      contentSearchResult = null;
     } catch (error) {
       captureBridgeError(error);
     }
@@ -767,6 +816,9 @@
       workspaceHealth = null;
       jobs = [];
       selectedJob = null;
+      applicationDossiers = [];
+      contentCatalog = null;
+      contentSearchResult = null;
       jobIntakePreview = null;
       clearDiscoverySession();
       clearProfileSession();
@@ -965,6 +1017,7 @@
     );
     if (!result) return false;
     await loadProfileForActive();
+    await loadJobsForActive();
     notice = result.summary;
     return true;
   }
@@ -989,6 +1042,7 @@
     );
     if (!result) return false;
     await loadProfileForActive();
+    await loadJobsForActive();
     notice = result.summary;
     return true;
   }
@@ -1034,6 +1088,7 @@
     );
     if (!result) return false;
     profileEvidence = result.data;
+    await refreshSelectedJobSnapshot(jobId);
     notice = result.summary;
     return true;
   }
@@ -1357,6 +1412,7 @@
       },
     );
     if (!result) return null;
+    await refreshSelectedJobSnapshot(jobId);
     notice = result.committed.summary;
     return result.latest.data;
   }
@@ -1448,10 +1504,22 @@
     return result.data;
   }
 
+  async function handleInstallAgentSkills(
+    host: "codex" | "claude" | "generic",
+  ): Promise<AgentSkillsInstallReadModel | null> {
+    if (!activeWorkspace) return null;
+    const result = await runAction(() =>
+      installAgentSkills(host, activeWorkspace!.path),
+    );
+    if (!result) return null;
+    notice = result.summary;
+    return result.data;
+  }
+
   async function handleCopyAgentHandoff(
     host: "codex" | "claude" | "generic",
     jobId: string | undefined,
-    field: "launch-command" | "bootstrap-prompt",
+    field: "launch-command" | "start-command" | "bootstrap-prompt",
   ): Promise<boolean> {
     if (!activeWorkspace) return false;
     const result = await runAction(async () => {
@@ -1637,6 +1705,7 @@
       },
     );
     if (!result) return null;
+    await refreshSelectedJobSnapshot(jobId);
     notice = result.confirmed.summary;
     return result.refreshed.data;
   }
@@ -1649,6 +1718,7 @@
       checkPackage(activeWorkspace!.path, jobId),
     );
     if (!result) return null;
+    await refreshSelectedJobSnapshot(jobId);
     notice = result.summary;
     return result.data;
   }
@@ -1759,6 +1829,7 @@
       },
     );
     if (!result) return null;
+    await refreshSelectedJobSnapshot(jobId);
     notice = result.summary;
     return result.data;
   }
@@ -1896,6 +1967,49 @@
     return true;
   }
 
+  async function handleRefreshContent(): Promise<boolean> {
+    if (!activeWorkspace) return false;
+    contentLoading = true;
+    bridgeError = null;
+    bridgeErrorCanRetry = false;
+    try {
+      const receipt = await getContentCatalog(activeWorkspace.path);
+      contentCatalog = receipt.data;
+      contentSearchResult = null;
+      return true;
+    } catch (error) {
+      captureBridgeError(error);
+      return false;
+    } finally {
+      contentLoading = false;
+    }
+  }
+
+  async function handleSearchContent(options: {
+    query: string;
+    filter: ContentCatalogFilter;
+    includePrivateBodies: boolean;
+    confirmedPrivateRead: boolean;
+  }): Promise<boolean> {
+    if (!activeWorkspace) return false;
+    const result = await runAction(() =>
+      searchContent({
+        workspace: activeWorkspace!.path,
+        ...options,
+      }),
+    );
+    if (!result) return false;
+    contentSearchResult = result.data;
+    notice = result.summary;
+    return true;
+  }
+
+  async function handleOpenContent(
+    entry: ContentCatalogEntryReadModel,
+  ): Promise<void> {
+    await navigateTo(routeForContentEntry(entry, selectedJobId || undefined));
+  }
+
   async function handleRefreshJobs(): Promise<boolean> {
     bridgeError = null;
     await loadJobsForActive();
@@ -1928,9 +2042,23 @@
       await discardJobSourcePreview(jobIntakePreview.preview_token).catch(() => undefined);
       jobIntakePreview = null;
     }
-    const result = await runAction(() => showJob(activeWorkspace!.path, jobId));
+    const result = await runAction(() =>
+      Promise.all([
+        showJob(activeWorkspace!.path, jobId),
+        getApplicationDossier(activeWorkspace!.path, jobId),
+      ]),
+    );
     if (!result) return false;
-    selectedJob = result.data;
+    selectedJob = result[0].data;
+    if (
+      contentSearchResult?.filter.job_id &&
+      contentSearchResult.filter.job_id !== jobId
+    ) {
+      contentSearchResult = null;
+    }
+    applicationDossiers = applicationDossiers.map((dossier) =>
+      dossier.job.id === jobId ? result[1].data : dossier,
+    );
     navigationMemory = {
       ...navigationMemory,
       selectedJobs: {
@@ -2325,9 +2453,14 @@
           {activeWorkspace}
           {jobs}
           {selectedJob}
+          dossiers={applicationDossiers}
+          dossier={selectedDossier}
+          {contentCatalog}
+          {contentSearchResult}
           focus={activeView === "applications" ? activeDetail : null}
           preview={jobIntakePreview}
           loading={jobsLoading}
+          {contentLoading}
           {busy}
           onRefresh={handleRefreshJobs}
           onCreate={handleCreateJob}
@@ -2337,6 +2470,10 @@
           onPreviewUrl={handlePreviewUrlSource}
           onCommitPreview={handleCommitJobSourcePreview}
           onDiscardPreview={handleDiscardJobSourcePreview}
+          onRefreshContent={handleRefreshContent}
+          onSearchContent={handleSearchContent}
+          onOpenContent={handleOpenContent}
+          onContinue={() => navigateTo(recommendation.route)}
         />
       {:else if activeView === "workflow"}
         <WorkflowView
@@ -2421,6 +2558,7 @@
             onLoadCapabilities={handleLoadAgentCapabilities}
             onLoadContext={handleLoadAgentContext}
             onPrepareHandoff={handlePrepareAgentHandoff}
+            onInstallSkills={handleInstallAgentSkills}
             onCopyHandoff={handleCopyAgentHandoff}
             onPrepareMcpConfiguration={handlePrepareAgentMcpConfiguration}
             onCopyMcpConfiguration={handleCopyAgentMcpConfiguration}
@@ -2508,10 +2646,12 @@
           <Card.Root class="shadow-none">
             <Card.Header class="p-[var(--shell-card-padding)] pb-2">
               <Card.Description>{copy.upcomingDeadlines}</Card.Description>
-              <Card.Title class="text-3xl">—</Card.Title>
+              <Card.Title class="text-3xl">{upcomingDeadlineItems.length}</Card.Title>
             </Card.Header>
             <Card.Content class="p-[var(--shell-card-padding)] pt-0 text-sm text-muted-foreground">
-              {copy.deadlineDescription}
+              {nearestDeadlineItem
+                ? `${copy.nextDeadline}: ${nearestDeadlineItem.metadata.deadline} — ${nearestDeadlineItem.job.title}`
+                : copy.noUpcomingDeadlines}
             </Card.Content>
           </Card.Root>
           <Card.Root class="shadow-none">
@@ -2544,7 +2684,11 @@
           <Card.Root class="shadow-none">
             <Card.Header>
               <Card.Title>{copy.nextActions}</Card.Title>
-              <Card.Description>{copy.chooseWorkspaceDescription}</Card.Description>
+              <Card.Description>
+                {selectedDossier
+                  ? `${selectedDossier.job.title} — ${selectedDossier.job.institution}`
+                  : copy.chooseWorkspaceDescription}
+              </Card.Description>
             </Card.Header>
             <Card.Content>
               <div class="flex min-h-48 flex-col items-center justify-center rounded-xl border border-dashed bg-muted/25 px-8 text-center">
@@ -2555,7 +2699,8 @@
                   {copy.recommendationTitle[recommendation.reason]}
                 </h2>
                 <p class="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-                  {copy.recommendationDescription[recommendation.reason]}
+                  {selectedDossier?.next_actions[0]?.description ??
+                    copy.recommendationDescription[recommendation.reason]}
                 </p>
                 <Button
                   class="mt-5 min-h-11"

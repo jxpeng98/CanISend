@@ -6,23 +6,39 @@ semantic reasoning.
 
 ## Recommended: continue in the agent host
 
-The desktop Agent screen prepares a body-free handoff for the selected workspace, optional job, and Codex or Claude.
-It returns:
+The desktop Agent screen prepares the selected workspace, optional job, and Codex or Claude in one explicit action.
+It safely installs or upgrades four CanISend-owned workflow skills in the host's project discovery directory, then
+returns:
 
-- a safely quoted terminal command that opens the selected workspace in the host CLI;
-- a body-free starting message that establishes the product boundary;
+- a safely quoted one-step terminal command that opens the selected workspace and supplies the body-free start point;
+- the same optimized starting message for manual use;
+- the recommended `canisend-application` orchestration skill;
 - exact `agent capabilities` and job-scoped `agent context` commands; and
 - current blockers and next actions from the same Rust application facade used by the GUI and CLI.
 
-Copy the command into Terminal, then paste the starting message into the host. The Codex or Claude session remains the
-conversation authority and keeps its own search, MCP, skills, plugins, connectors, approvals, and transcript.
+Copy the one-step command into Terminal. Codex receives `$canisend-application`; Claude receives
+`/canisend-application`. The orchestration skill reads the current context first, routes only the relevant focused
+skill, continues through safe reads and previews, and pauses at explicit consent, approval, decision, or blocker
+boundaries. The Codex or Claude session remains the conversation authority and keeps its own search, MCP, skills,
+plugins, connectors, approvals, and transcript.
 CanISend remains the application-state authority. Every mutation must return through the versioned CLI or Agent v2
 task loop. MCP inspection stays body-free; its guarded job-intake and task tools use explicit consent, preview,
 single-use confirmation tokens, and application-facade commits. The host must never edit `.canisend`, SQLite, blobs,
 or managed projections directly.
 
-The handoff contains canonical paths, public IDs, commands, and body-free status only. It does not contain advert,
-profile, evidence, draft, or review bodies, and preparing it does not contact a provider.
+The managed skill set is:
+
+- `canisend-application` — context-first orchestration and stage routing;
+- `canisend-job-intake` — link/PDF/local intake, parse, and criteria;
+- `canisend-application-materials` — evidence, matching, decision, and drafting; and
+- `canisend-application-review` — review, package, reconciliation, render, and export.
+
+Codex project skills live under `.agents/skills`; Claude project skills live under `.claude/skills`. A small
+`canisend-skills.json` manifest records only CanISend-managed file digests. Re-running setup upgrades an unchanged
+managed skill, is a no-op when current, and refuses to overwrite a user-modified skill.
+
+The handoff contains managed workflow instructions, canonical paths, public IDs, commands, and body-free status only.
+It does not contain advert, profile, evidence, draft, or review bodies, and preparing it does not contact a provider.
 
 ### Return to the connected App workflow
 
@@ -175,15 +191,25 @@ optional later convenience and is not a prerequisite for the product workflow.
 
 ## Export a self-contained host pack
 
+Install or safely update discoverable skills directly in an existing workspace:
+
+```console
+canisend --workspace ./applications agent assets install --host codex
+canisend --workspace ./applications agent assets install --host claude
+```
+
+Use export when a standalone copy is needed:
+
 ```console
 canisend agent assets export --host codex --destination ./canisend-codex-pack
 canisend agent assets export --host claude --destination ./canisend-claude-pack
 canisend agent assets export --host generic --destination ./canisend-generic-pack
 ```
 
-Each pack includes host instructions, operation prompts, public schemas, examples, and an integrity manifest. It is
-versioned for `canisend.agent/v2` and does not depend on source-repository files after export. Give the selected pack
-to the host according to that platform's local instruction mechanism.
+Each pack includes host instructions, the four discoverable workflow skills, operation prompts, public schemas,
+examples, and an integrity manifest. Codex packs contain 39 files; Claude and generic packs contain 35 files. The
+pack is versioned for `canisend.agent/v2` and does not depend on source-repository files after export. Give the
+selected pack to the host according to that platform's local instruction mechanism.
 
 ## Discover current state
 
@@ -191,12 +217,24 @@ An agent should never infer capabilities from prose alone:
 
 ```console
 canisend agent capabilities --json
+canisend --workspace ./applications application list --json
+canisend --workspace ./applications application show --job JOB_ID --json
+canisend --workspace ./applications content list --job JOB_ID --json
+canisend --workspace ./applications content search QUERY --job JOB_ID --json
 canisend --workspace ./applications agent context --job JOB_ID --json
 canisend --workspace ./applications workflow status --job JOB_ID --json
 ```
 
-Treat only `available` capabilities as executable. Context is intentionally body-free; it tells the host which job,
-stage, blockers, task modes, consents, and next actions exist without disclosing private text.
+Treat only `available` capabilities as executable. The application dossier is the shared, body-free read model used
+by the CLI, desktop, and selected-job Agent context. It projects discovery origin, location, deadline, source count,
+workflow progress, the relevant current blocker, and exact next actions without copying or disclosing imported
+bodies. Context adds host execution guidance around that same authoritative state.
+
+The content catalog is the related body-free artifact map used by the desktop Content Library. Metadata search can
+help a host locate a source, confirmed decision, material, or delivery output without exporting a body. Private
+full-text search is not an MCP tool and is never implied by Agent Context; invoke it only after the user explicitly
+approves `--include-private-bodies --allow-private-read`. Its bounded index is rebuilt in memory and discarded after
+the command.
 
 ## Bounded task loop
 

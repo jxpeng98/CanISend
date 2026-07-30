@@ -1,0 +1,5 @@
+interface:
+  display_name: "CanISend Application Materials"
+  short_description: "Create evidence-backed academic application materials"
+  brand_color: "#2563EB"
+  default_prompt: "Use $canisend-application-materials to prepare the next evidence-backed material for this application."

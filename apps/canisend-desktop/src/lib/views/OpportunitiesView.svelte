@@ -21,6 +21,7 @@
   import { Separator } from "$lib/components/ui/separator/index.js";
   import { Skeleton } from "$lib/components/ui/skeleton/index.js";
   import * as Tabs from "$lib/components/ui/tabs/index.js";
+  import IntakeReviewSummary from "$lib/components/IntakeReviewSummary.svelte";
   import {
     chooseDiscoverySource,
     type DiscoveryAdapterCapabilities,
@@ -373,16 +374,7 @@
                     {copy.reviewBeforeCommitDescription}
                   </p>
                 </div>
-                <div class="grid grid-cols-2 gap-3">
-                  <div class="rounded-xl border bg-background p-3">
-                    <p class="text-xs text-muted-foreground">{copy.acceptedRows}</p>
-                    <p class="mt-1 text-2xl font-semibold">{preview.preview.data.accepted}</p>
-                  </div>
-                  <div class="rounded-xl border bg-background p-3">
-                    <p class="text-xs text-muted-foreground">{copy.rejectedRows}</p>
-                    <p class="mt-1 text-2xl font-semibold">{preview.preview.data.rejected}</p>
-                  </div>
-                </div>
+                <IntakeReviewSummary {copy} review={preview.intake} />
                 {#if preview.preview.data.diagnostics.length}
                   <div>
                     <p class="text-xs font-semibold">{copy.importDiagnostics}</p>

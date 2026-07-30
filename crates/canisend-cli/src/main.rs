@@ -10,7 +10,8 @@ use std::{
 };
 
 use canisend_app::{
-    AgentHost, AgentPackExportRequest, Application, ApplicationError, DiscoveryImportRequest,
+    AgentHost, AgentPackExportRequest, Application, ApplicationError, ContentCatalogFilter,
+    ContentCatalogStatus, ContentCategory, ContentSearchRequest, DiscoveryImportRequest,
     DiscoveryNetworkAdapter, DiscoveryRefreshRequest, NetworkFetchConsent, PackageExportRequest,
     PrivateExportConsent, PrivateReadConsent, ProjectionCopyAsNewRequest, ProjectionReplaceRequest,
     ProviderSendConsent, RenderExportRequest, TaskExecutionMode, TaskInputExportRequest,
@@ -76,6 +77,16 @@ enum Command {
     Job {
         #[command(subcommand)]
         command: JobCommand,
+    },
+    /// Inspect unified application dossiers assembled from authoritative workspace state.
+    Application {
+        #[command(subcommand)]
+        command: ApplicationCommand,
+    },
+    /// Browse and search the body-free content catalog or explicitly approved private text.
+    Content {
+        #[command(subcommand)]
+        command: ContentCommand,
     },
     /// Import and inspect reusable profile evidence sources.
     Profile {
@@ -157,6 +168,8 @@ enum McpCommand {
 enum AgentAssetsCommand {
     /// Export a versioned host pack into a new or empty directory.
     Export(AgentAssetsExportArgs),
+    /// Install or safely upgrade CanISend workflow skills in this workspace.
+    Install(AgentAssetsInstallArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -201,6 +214,22 @@ enum JobCommand {
     Show(JobIdArgs),
     /// Archive a job without deleting its history.
     Archive(JobIdArgs),
+}
+
+#[derive(Debug, Subcommand)]
+enum ApplicationCommand {
+    /// List body-free application dossiers with metadata and current progress.
+    List(ApplicationListArgs),
+    /// Show one body-free application dossier and its exact next actions.
+    Show(ApplicationJobArgs),
+}
+
+#[derive(Debug, Subcommand)]
+enum ContentCommand {
+    /// List body-free content metadata and provenance.
+    List(ContentListArgs),
+    /// Search metadata, or explicitly include bounded private full text.
+    Search(ContentSearchArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -399,6 +428,15 @@ struct AgentAssetsExportArgs {
 }
 
 #[derive(Debug, Args)]
+struct AgentAssetsInstallArgs {
+    /// Agent host whose project skill discovery layout should be used.
+    #[arg(long, value_enum)]
+    host: AgentHostName,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
 struct SchemaShowArgs {
     /// Schema ID such as canisend.job/v2, or its short slug such as job.
     id: String,
@@ -472,6 +510,142 @@ struct JobIdArgs {
     job_id: String,
     #[command(flatten)]
     output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
+struct ApplicationListArgs {
+    #[arg(long)]
+    include_archived: bool,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
+struct ApplicationJobArgs {
+    /// Canonical UUIDv7 job ID.
+    #[arg(long)]
+    job: String,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
+struct ContentFilterArgs {
+    /// Limit results to content related to one canonical job ID.
+    #[arg(long)]
+    job: Option<String>,
+    /// Limit results to one user-facing content category.
+    #[arg(long, value_enum)]
+    category: Option<ContentCategoryName>,
+    /// Limit results to one workflow stage.
+    #[arg(long, value_enum)]
+    stage: Option<WorkflowStageName>,
+    /// Limit results to one lifecycle status.
+    #[arg(long, value_enum)]
+    status: Option<ContentStatusName>,
+    /// Limit results to one privacy classification.
+    #[arg(long, value_enum)]
+    privacy: Option<ContentPrivacyName>,
+    /// Include artifacts created at or after this UTC RFC 3339 timestamp.
+    #[arg(long, value_name = "UTC_TIMESTAMP")]
+    created_after: Option<String>,
+    /// Include artifacts created at or before this UTC RFC 3339 timestamp.
+    #[arg(long, value_name = "UTC_TIMESTAMP")]
+    created_before: Option<String>,
+}
+
+#[derive(Debug, Args)]
+struct ContentListArgs {
+    #[command(flatten)]
+    filter: ContentFilterArgs,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
+struct ContentSearchArgs {
+    /// Bounded search text. An empty query applies only the selected filters.
+    query: String,
+    #[command(flatten)]
+    filter: ContentFilterArgs,
+    /// Build a bounded in-memory index from eligible private artifact bodies.
+    #[arg(long)]
+    include_private_bodies: bool,
+    /// Confirm read-private-inputs consent for this one local search.
+    #[arg(long, requires = "include_private_bodies")]
+    allow_private_read: bool,
+    /// Maximum returned results.
+    #[arg(long, default_value_t = 50)]
+    limit: usize,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum ContentCategoryName {
+    Source,
+    Profile,
+    JobAnalysis,
+    Evidence,
+    Planning,
+    Materials,
+    Review,
+    Delivery,
+}
+
+impl From<ContentCategoryName> for ContentCategory {
+    fn from(value: ContentCategoryName) -> Self {
+        match value {
+            ContentCategoryName::Source => Self::Source,
+            ContentCategoryName::Profile => Self::Profile,
+            ContentCategoryName::JobAnalysis => Self::JobAnalysis,
+            ContentCategoryName::Evidence => Self::Evidence,
+            ContentCategoryName::Planning => Self::Planning,
+            ContentCategoryName::Materials => Self::Materials,
+            ContentCategoryName::Review => Self::Review,
+            ContentCategoryName::Delivery => Self::Delivery,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum ContentStatusName {
+    Imported,
+    Proposed,
+    Confirmed,
+    Generated,
+    Stale,
+}
+
+impl From<ContentStatusName> for ContentCatalogStatus {
+    fn from(value: ContentStatusName) -> Self {
+        match value {
+            ContentStatusName::Imported => Self::Imported,
+            ContentStatusName::Proposed => Self::Proposed,
+            ContentStatusName::Confirmed => Self::Confirmed,
+            ContentStatusName::Generated => Self::Generated,
+            ContentStatusName::Stale => Self::Stale,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum ContentPrivacyName {
+    Public,
+    PrivateLocal,
+    ProviderBound,
+    Secret,
+}
+
+impl From<ContentPrivacyName> for PrivacyClassification {
+    fn from(value: ContentPrivacyName) -> Self {
+        match value {
+            ContentPrivacyName::Public => Self::Public,
+            ContentPrivacyName::PrivateLocal => Self::PrivateLocal,
+            ContentPrivacyName::ProviderBound => Self::ProviderBound,
+            ContentPrivacyName::Secret => Self::Secret,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -1066,6 +1240,12 @@ impl Cli {
                         command: AgentAssetsCommand::Export(arguments),
                     },
             } => arguments.output.json,
+            Command::Agent {
+                command:
+                    AgentCommand::Assets {
+                        command: AgentAssetsCommand::Install(arguments),
+                    },
+            } => arguments.output.json,
             Command::Schema {
                 command: SchemaCommand::Show(arguments),
             } => arguments.output.json,
@@ -1089,6 +1269,14 @@ impl Cli {
                 JobCommand::Show(arguments) | JobCommand::Archive(arguments) => {
                     arguments.output.json
                 }
+            },
+            Command::Application { command } => match command {
+                ApplicationCommand::List(arguments) => arguments.output.json,
+                ApplicationCommand::Show(arguments) => arguments.output.json,
+            },
+            Command::Content { command } => match command {
+                ContentCommand::List(arguments) => arguments.output.json,
+                ContentCommand::Search(arguments) => arguments.output.json,
             },
             Command::Profile { command } => match command {
                 ProfileCommand::Source { command } => match command {
@@ -1264,6 +1452,12 @@ fn execute(cli: Cli) -> CommandResult<CommandOutput> {
                     command: AgentAssetsCommand::Export(arguments),
                 },
         } => agent_assets_export(arguments),
+        Command::Agent {
+            command:
+                AgentCommand::Assets {
+                    command: AgentAssetsCommand::Install(arguments),
+                },
+        } => agent_assets_install(workspace, arguments),
         Command::Mcp {
             command: McpCommand::Serve,
         } => unreachable!("MCP server is dispatched before command rendering"),
@@ -1309,6 +1503,18 @@ fn execute(cli: Cli) -> CommandResult<CommandOutput> {
         Command::Job {
             command: JobCommand::Archive(arguments),
         } => job_archive(workspace, &arguments.job_id),
+        Command::Application {
+            command: ApplicationCommand::List(arguments),
+        } => application_list(workspace, arguments.include_archived),
+        Command::Application {
+            command: ApplicationCommand::Show(arguments),
+        } => application_show(workspace, &arguments.job),
+        Command::Content {
+            command: ContentCommand::List(arguments),
+        } => content_list(workspace, arguments),
+        Command::Content {
+            command: ContentCommand::Search(arguments),
+        } => content_search(workspace, arguments),
         Command::Profile {
             command:
                 ProfileCommand::Source {
@@ -1612,6 +1818,39 @@ fn agent_assets_export(arguments: AgentAssetsExportArgs) -> CommandResult<Comman
     )
 }
 
+fn agent_assets_install(
+    workspace_path: Option<PathBuf>,
+    arguments: AgentAssetsInstallArgs,
+) -> CommandResult<CommandOutput> {
+    let host = match arguments.host {
+        AgentHostName::Codex => AgentHost::Codex,
+        AgentHostName::Claude => AgentHost::Claude,
+        AgentHostName::Generic => AgentHost::Generic,
+    };
+    let workspace = workspace_path.unwrap_or_else(|| PathBuf::from("."));
+    let installed = Application::install_agent_skills(&canisend_app::AgentSkillsInstallRequest {
+        host,
+        workspace,
+    })
+    .map_err(|error| app_adapter::failure("agent.skills.install", error))?
+    .data;
+    success(
+        "agent.skills.install",
+        match installed.state {
+            canisend_resources::AgentSkillsInstallState::Installed => "installed",
+            canisend_resources::AgentSkillsInstallState::Updated => "updated",
+            canisend_resources::AgentSkillsInstallState::UpToDate => "up-to-date",
+        },
+        &installed,
+        vec![
+            format!("CanISend workflow skills: {:?}", installed.state),
+            format!("Directory: {}", installed.directory.display()),
+            format!("Manifest: {}", installed.manifest_path.display()),
+            format!("Resources: {}", installed.files.len()),
+        ],
+    )
+}
+
 fn schema_list() -> CommandResult<CommandOutput> {
     let data = Application::schema_catalog()
         .map_err(|error| app_adapter::failure("schema.list", error))?
@@ -1891,6 +2130,169 @@ fn job_archive(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<C
         &record,
         vec![format!("Archived job: {}", record.id)],
     )
+}
+
+fn application_list(
+    workspace_path: Option<PathBuf>,
+    include_archived: bool,
+) -> CommandResult<CommandOutput> {
+    let root = app_adapter::workspace_root(workspace_path, "application.dossier.list")?;
+    let list = Application::list_application_dossiers(&root, include_archived)
+        .map_err(|error| app_adapter::failure("application.dossier.list", error))?
+        .data;
+    let human = if list.applications.is_empty() {
+        vec!["No application dossiers found".to_owned()]
+    } else {
+        list.applications
+            .iter()
+            .map(|dossier| {
+                let deadline = dossier
+                    .metadata
+                    .deadline
+                    .as_deref()
+                    .unwrap_or("no deadline");
+                format!(
+                    "{}  {} — {}  [{:?}; {}/{}; {}]",
+                    dossier.job.id,
+                    dossier.job.title,
+                    dossier.job.institution,
+                    dossier.state,
+                    dossier.completed_stages,
+                    dossier.total_stages,
+                    deadline
+                )
+            })
+            .collect()
+    };
+    success("application.dossier.list", "available", &list, human)
+}
+
+fn application_show(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<CommandOutput> {
+    let _ = parse_entity_id("application.dossier.show", job_id)?;
+    let root = app_adapter::workspace_root(workspace_path, "application.dossier.show")?;
+    let receipt = Application::application_dossier(&root, job_id)
+        .map_err(|error| app_adapter::failure("application.dossier.show", error))?;
+    let dossier = receipt.data;
+    let mut human = vec![
+        format!("{} — {}", dossier.job.title, dossier.job.institution),
+        format!("State: {:?}", dossier.state),
+        format!(
+            "Progress: {}/{} stages",
+            dossier.completed_stages, dossier.total_stages
+        ),
+        format!(
+            "Deadline: {}",
+            dossier
+                .metadata
+                .deadline
+                .as_deref()
+                .unwrap_or("not recorded")
+        ),
+    ];
+    if let Some(next) = dossier.next_actions.first() {
+        human.push(format!("Next: {}", next.description));
+    }
+    let mut output = success("application.dossier.show", "available", &dossier, human)?;
+    output.response.next_actions = receipt.next_actions;
+    Ok(output)
+}
+
+fn content_list(
+    workspace_path: Option<PathBuf>,
+    arguments: ContentListArgs,
+) -> CommandResult<CommandOutput> {
+    let root = app_adapter::workspace_root(workspace_path, "content.catalog.list")?;
+    let receipt = Application::content_catalog(&root, content_filter(arguments.filter))
+        .map_err(|error| app_adapter::failure("content.catalog.list", error))?;
+    let catalog = receipt.data;
+    let human = if catalog.entries.is_empty() {
+        vec!["No content matches the selected filters".to_owned()]
+    } else {
+        catalog
+            .entries
+            .iter()
+            .map(|entry| {
+                format!(
+                    "{}  {}  [{:?}; {:?}; {:?}]",
+                    entry.artifact.id, entry.title, entry.category, entry.status, entry.privacy
+                )
+            })
+            .collect()
+    };
+    let status = if catalog.entries.is_empty() {
+        "empty"
+    } else {
+        "available"
+    };
+    success("content.catalog.list", status, &catalog, human)
+}
+
+fn content_search(
+    workspace_path: Option<PathBuf>,
+    arguments: ContentSearchArgs,
+) -> CommandResult<CommandOutput> {
+    let include_private_bodies = arguments.include_private_bodies;
+    let allow_private_read = arguments.allow_private_read;
+    let request = ContentSearchRequest {
+        query: arguments.query,
+        filter: content_filter(arguments.filter),
+        include_private_bodies,
+        limit: arguments.limit,
+    };
+    let consent = allow_private_read.then(PrivateReadConsent::granted_by_user);
+
+    // Preserve validation ordering: missing consent is reported before any
+    // workspace discovery or filesystem access.
+    let root = if include_private_bodies && !allow_private_read {
+        PathBuf::from(".")
+    } else {
+        app_adapter::workspace_root(workspace_path, "content.search")?
+    };
+    let receipt = Application::search_content(&root, request, consent)
+        .map_err(|error| app_adapter::failure("content.search", error))?;
+    let search = receipt.data;
+    let mut human = vec![
+        format!("Matches: {}", search.total_matches),
+        format!(
+            "Index: {} metadata, {} private bodies",
+            search.index.metadata_entries, search.index.private_body_entries
+        ),
+    ];
+    human.extend(search.results.iter().map(|result| {
+        let snippet = result
+            .snippet
+            .as_deref()
+            .map(|value| format!(" — {value}"))
+            .unwrap_or_default();
+        format!(
+            "{}  {}  [score {}; {:?}]{}",
+            result.entry.artifact.id,
+            result.entry.title,
+            result.score,
+            result.matched_fields,
+            snippet
+        )
+    }));
+    let status = if search.results.is_empty() {
+        "empty"
+    } else {
+        "available"
+    };
+    let mut output = success("content.search", status, &search, human)?;
+    output.response.warnings = receipt.warnings;
+    Ok(output)
+}
+
+fn content_filter(arguments: ContentFilterArgs) -> ContentCatalogFilter {
+    ContentCatalogFilter {
+        job_id: arguments.job,
+        category: arguments.category.map(Into::into),
+        stage: arguments.stage.map(Into::into),
+        status: arguments.status.map(Into::into),
+        privacy: arguments.privacy.map(Into::into),
+        created_after: arguments.created_after,
+        created_before: arguments.created_before,
+    }
 }
 
 fn profile_source_add(
@@ -3700,7 +4102,7 @@ mod tests {
                     "Manifest: {}",
                     destination.join("canisend-agent-pack.json").display()
                 ),
-                "Resources: 31".to_owned(),
+                "Resources: 35".to_owned(),
             ]
         );
 

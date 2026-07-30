@@ -3,6 +3,7 @@
 mod artifact;
 mod backup;
 mod blob;
+mod catalog;
 mod context;
 mod criteria;
 mod database;
@@ -29,6 +30,10 @@ use std::{
 pub use artifact::ArtifactService;
 pub use backup::{BackupResult, verify_backup};
 pub use blob::{BlobAudit, BlobStore, DEFAULT_MAX_BLOB_BYTES};
+pub use catalog::{
+    CatalogArtifactMetadata, CatalogSourceMetadata, CatalogSourceRole, CatalogSourceScope,
+    CatalogSubjectJob, ContentCatalogService, MAX_CONTENT_CATALOG_ENTRIES,
+};
 pub use context::AgentContextService;
 pub use criteria::CriteriaService;
 pub use database::{DATABASE_SCHEMA_VERSION, Database};

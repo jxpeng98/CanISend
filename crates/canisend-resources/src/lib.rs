@@ -109,6 +109,34 @@ pub struct AgentPackExportData {
     pub manifest: AgentPackManifest,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum AgentSkillsInstallState {
+    Installed,
+    Updated,
+    UpToDate,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentSkillsManifest {
+    pub format: String,
+    pub product_version: String,
+    pub resource_format: String,
+    pub host: AgentHost,
+    pub files: Vec<AgentPackFile>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentSkillsInstallData {
+    pub workspace: PathBuf,
+    pub directory: PathBuf,
+    pub manifest_path: PathBuf,
+    pub state: AgentSkillsInstallState,
+    pub files: Vec<AgentPackFile>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ResourceCatalogFile {
@@ -281,100 +309,137 @@ pub fn export_agent_pack(
         AgentHost::Claude => ("agent.claude.guide", "CLAUDE.md"),
         AgentHost::Generic => ("agent.generic.guide", "README.md"),
     };
-    let resources = [
-        guide,
-        ("prompt.job-parse", "prompts/job-parse.md"),
-        ("prompt.evidence-normalize", "prompts/evidence-normalize.md"),
-        ("prompt.evidence-match", "prompts/evidence-match.md"),
-        ("prompt.document-draft", "prompts/document-draft.md"),
-        ("prompt.document-review", "prompts/document-review.md"),
-        ("example.task-complete", "examples/task-complete.json"),
+    let mut resources = vec![
+        (guide.0, guide.1.to_owned()),
+        ("prompt.job-parse", "prompts/job-parse.md".to_owned()),
+        (
+            "prompt.evidence-normalize",
+            "prompts/evidence-normalize.md".to_owned(),
+        ),
+        (
+            "prompt.evidence-match",
+            "prompts/evidence-match.md".to_owned(),
+        ),
+        (
+            "prompt.document-draft",
+            "prompts/document-draft.md".to_owned(),
+        ),
+        (
+            "prompt.document-review",
+            "prompts/document-review.md".to_owned(),
+        ),
+        (
+            "example.task-complete",
+            "examples/task-complete.json".to_owned(),
+        ),
         (
             "schema.task-descriptor",
-            "schemas/v2/task-descriptor.schema.json",
+            "schemas/v2/task-descriptor.schema.json".to_owned(),
         ),
         (
             "schema.task-completion",
-            "schemas/v2/task-completion.schema.json",
+            "schemas/v2/task-completion.schema.json".to_owned(),
         ),
-        ("schema.parsed-job", "schemas/v2/parsed-job.schema.json"),
-        ("schema.criterion", "schemas/v2/criterion.schema.json"),
-        ("schema.criteria", "schemas/v2/criteria.schema.json"),
+        (
+            "schema.parsed-job",
+            "schemas/v2/parsed-job.schema.json".to_owned(),
+        ),
+        (
+            "schema.criterion",
+            "schemas/v2/criterion.schema.json".to_owned(),
+        ),
+        (
+            "schema.criteria",
+            "schemas/v2/criteria.schema.json".to_owned(),
+        ),
         (
             "schema.evidence-proposals",
-            "schemas/v2/evidence-proposals.schema.json",
+            "schemas/v2/evidence-proposals.schema.json".to_owned(),
         ),
         (
             "schema.evidence-catalog",
-            "schemas/v2/evidence-catalog.schema.json",
+            "schemas/v2/evidence-catalog.schema.json".to_owned(),
         ),
-        ("schema.evidence", "schemas/v2/evidence.schema.json"),
+        (
+            "schema.evidence",
+            "schemas/v2/evidence.schema.json".to_owned(),
+        ),
         (
             "schema.evidence-match-proposals",
-            "schemas/v2/evidence-match-proposals.schema.json",
+            "schemas/v2/evidence-match-proposals.schema.json".to_owned(),
         ),
         (
             "schema.evidence-matches",
-            "schemas/v2/evidence-matches.schema.json",
+            "schemas/v2/evidence-matches.schema.json".to_owned(),
         ),
         (
             "schema.application-plan-candidate",
-            "schemas/v2/application-plan-candidate.schema.json",
+            "schemas/v2/application-plan-candidate.schema.json".to_owned(),
         ),
         (
             "schema.application-plan",
-            "schemas/v2/application-plan.schema.json",
+            "schemas/v2/application-plan.schema.json".to_owned(),
         ),
         (
             "schema.document-candidate",
-            "schemas/v2/document-candidate.schema.json",
+            "schemas/v2/document-candidate.schema.json".to_owned(),
         ),
-        ("schema.document", "schemas/v2/document.schema.json"),
-        ("schema.document-set", "schemas/v2/document-set.schema.json"),
+        (
+            "schema.document",
+            "schemas/v2/document.schema.json".to_owned(),
+        ),
+        (
+            "schema.document-set",
+            "schemas/v2/document-set.schema.json".to_owned(),
+        ),
         (
             "schema.review-candidate",
-            "schemas/v2/review-candidate.schema.json",
+            "schemas/v2/review-candidate.schema.json".to_owned(),
         ),
         (
             "schema.review-findings",
-            "schemas/v2/review-findings.schema.json",
+            "schemas/v2/review-findings.schema.json".to_owned(),
         ),
         (
             "schema.review-disposition-candidate",
-            "schemas/v2/review-disposition-candidate.schema.json",
+            "schemas/v2/review-disposition-candidate.schema.json".to_owned(),
         ),
         (
             "schema.package-manifest",
-            "schemas/v2/package-manifest.schema.json",
+            "schemas/v2/package-manifest.schema.json".to_owned(),
         ),
         (
             "schema.package-export-manifest",
-            "schemas/v2/package-export-manifest.schema.json",
+            "schemas/v2/package-export-manifest.schema.json".to_owned(),
         ),
-        ("schema.projection", "schemas/v2/projection.schema.json"),
+        (
+            "schema.projection",
+            "schemas/v2/projection.schema.json".to_owned(),
+        ),
         (
             "schema.projection-reconcile",
-            "schemas/v2/projection-reconcile.schema.json",
+            "schemas/v2/projection-reconcile.schema.json".to_owned(),
         ),
         (
             "schema.rendered-document",
-            "schemas/v2/rendered-document.schema.json",
+            "schemas/v2/rendered-document.schema.json".to_owned(),
         ),
         (
             "schema.render-manifest",
-            "schemas/v2/render-manifest.schema.json",
+            "schemas/v2/render-manifest.schema.json".to_owned(),
         ),
     ];
+    resources.extend(agent_skill_resource_paths(host));
     let mut files = Vec::with_capacity(resources.len());
     for (resource_id, relative_path) in resources {
         let resource_id = ResourceId::from_str(resource_id)?;
         let resource = get(resource_id);
-        let destination = root.join(relative_path);
+        let destination = root.join(&relative_path);
         write_new_file(root, &destination, resource.bytes)?;
         files.push(AgentPackFile {
             resource_id: resource.descriptor.id.to_owned(),
             resource_version: resource.descriptor.version.to_owned(),
-            path: relative_path.to_owned(),
+            path: relative_path,
             size: resource.descriptor.size,
             sha256: resource.descriptor.sha256.to_owned(),
         });
@@ -397,6 +462,281 @@ pub fn export_agent_pack(
         manifest_path,
         manifest,
     })
+}
+
+pub fn install_agent_skills(
+    host: AgentHost,
+    workspace: &Path,
+) -> Result<AgentSkillsInstallData, ResourceError> {
+    verify().map_err(ResourceError::Integrity)?;
+    ensure_managed_workspace(workspace)?;
+    let resources = agent_skill_resource_paths(host);
+    let manifest_relative_path = match host {
+        AgentHost::Codex => ".agents/canisend-skills.json",
+        AgentHost::Claude => ".claude/canisend-skills.json",
+        AgentHost::Generic => "canisend-skills.json",
+    };
+    let manifest_path = workspace.join(manifest_relative_path);
+    let existing = read_agent_skills_manifest(&manifest_path, host)?;
+    let previous_files = existing
+        .as_ref()
+        .map(|manifest| {
+            manifest
+                .files
+                .iter()
+                .map(|file| (file.path.as_str(), file.sha256.as_str()))
+                .collect::<std::collections::BTreeMap<_, _>>()
+        })
+        .unwrap_or_default();
+
+    let mut files = Vec::with_capacity(resources.len());
+    let mut changed = existing.is_none();
+    for (resource_id, relative_path) in &resources {
+        validate_resource_path(relative_path)?;
+        let resource_id = ResourceId::from_str(resource_id)?;
+        let resource = get(resource_id);
+        let destination = workspace.join(relative_path);
+        if let Ok(metadata) = fs::symlink_metadata(&destination) {
+            if metadata.file_type().is_symlink() || !metadata.is_file() {
+                return Err(ResourceError::UnsafeExportPath(destination));
+            }
+            let current = fs::read(&destination).map_err(|source| ResourceError::ExportIo {
+                path: destination.clone(),
+                source,
+            })?;
+            let current_sha = hex::encode(Sha256::digest(&current));
+            if current_sha != resource.descriptor.sha256 {
+                if previous_files.get(relative_path.as_str()).copied() != Some(current_sha.as_str())
+                {
+                    return Err(ResourceError::UnsafeExportPath(destination));
+                }
+                changed = true;
+            }
+        } else {
+            changed = true;
+        }
+        files.push(AgentPackFile {
+            resource_id: resource.descriptor.id.to_owned(),
+            resource_version: resource.descriptor.version.to_owned(),
+            path: relative_path.clone(),
+            size: resource.descriptor.size,
+            sha256: resource.descriptor.sha256.to_owned(),
+        });
+    }
+
+    for ((resource_id, relative_path), file) in resources.iter().zip(&files) {
+        let resource = get(ResourceId::from_str(resource_id)?);
+        let destination = workspace.join(relative_path);
+        let current_matches = fs::read(&destination)
+            .map(|bytes| hex::encode(Sha256::digest(bytes)) == file.sha256)
+            .unwrap_or(false);
+        if !current_matches {
+            write_managed_file(workspace, &destination, resource.bytes)?;
+        }
+    }
+
+    let manifest = AgentSkillsManifest {
+        format: "canisend.agent-skills/v1".to_owned(),
+        product_version: env!("CARGO_PKG_VERSION").to_owned(),
+        resource_format: RESOURCE_FORMAT.to_owned(),
+        host,
+        files: files.clone(),
+    };
+    let manifest_matches = existing.as_ref() == Some(&manifest);
+    if !manifest_matches {
+        let mut bytes = serde_json::to_vec_pretty(&manifest)
+            .map_err(|_| ResourceError::UnsafeExportPath(manifest_path.clone()))?;
+        bytes.push(b'\n');
+        write_managed_file(workspace, &manifest_path, &bytes)?;
+    }
+
+    let directory = match host {
+        AgentHost::Codex => workspace.join(".agents/skills"),
+        AgentHost::Claude => workspace.join(".claude/skills"),
+        AgentHost::Generic => workspace.join("skills"),
+    };
+    let state = if existing.is_none() {
+        AgentSkillsInstallState::Installed
+    } else if changed || !manifest_matches {
+        AgentSkillsInstallState::Updated
+    } else {
+        AgentSkillsInstallState::UpToDate
+    };
+    Ok(AgentSkillsInstallData {
+        workspace: workspace.to_path_buf(),
+        directory,
+        manifest_path,
+        state,
+        files,
+    })
+}
+
+fn agent_skill_resource_paths(host: AgentHost) -> Vec<(&'static str, String)> {
+    const SKILLS: [(&str, &str, &str); 4] = [
+        (
+            "canisend-application",
+            "skill.canisend-application",
+            "skill.canisend-application.openai",
+        ),
+        (
+            "canisend-job-intake",
+            "skill.canisend-job-intake",
+            "skill.canisend-job-intake.openai",
+        ),
+        (
+            "canisend-application-materials",
+            "skill.canisend-application-materials",
+            "skill.canisend-application-materials.openai",
+        ),
+        (
+            "canisend-application-review",
+            "skill.canisend-application-review",
+            "skill.canisend-application-review.openai",
+        ),
+    ];
+    let root = match host {
+        AgentHost::Codex => ".agents/skills",
+        AgentHost::Claude => ".claude/skills",
+        AgentHost::Generic => "skills",
+    };
+    let mut resources = Vec::with_capacity(if host == AgentHost::Codex { 8 } else { 4 });
+    for (name, skill_id, openai_id) in SKILLS {
+        resources.push((skill_id, format!("{root}/{name}/SKILL.md")));
+        if host == AgentHost::Codex {
+            resources.push((openai_id, format!("{root}/{name}/agents/openai.yaml")));
+        }
+    }
+    resources
+}
+
+fn read_agent_skills_manifest(
+    manifest_path: &Path,
+    host: AgentHost,
+) -> Result<Option<AgentSkillsManifest>, ResourceError> {
+    let metadata = match fs::symlink_metadata(manifest_path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(source) => {
+            return Err(ResourceError::ExportIo {
+                path: manifest_path.to_path_buf(),
+                source,
+            });
+        }
+    };
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err(ResourceError::UnsafeExportPath(manifest_path.to_path_buf()));
+    }
+    let bytes = fs::read(manifest_path).map_err(|source| ResourceError::ExportIo {
+        path: manifest_path.to_path_buf(),
+        source,
+    })?;
+    let manifest: AgentSkillsManifest = serde_json::from_slice(&bytes)
+        .map_err(|_| ResourceError::UnsafeExportPath(manifest_path.to_path_buf()))?;
+    if manifest.format != "canisend.agent-skills/v1" || manifest.host != host {
+        return Err(ResourceError::UnsafeExportPath(manifest_path.to_path_buf()));
+    }
+    let mut paths = BTreeSet::new();
+    for file in &manifest.files {
+        validate_resource_path(&file.path)?;
+        if !paths.insert(file.path.as_str()) || file.sha256.len() != 64 {
+            return Err(ResourceError::UnsafeExportPath(manifest_path.to_path_buf()));
+        }
+    }
+    Ok(Some(manifest))
+}
+
+fn ensure_managed_workspace(workspace: &Path) -> Result<(), ResourceError> {
+    if workspace.components().any(|component| {
+        component
+            .as_os_str()
+            .to_string_lossy()
+            .eq_ignore_ascii_case(".canisend")
+    }) {
+        return Err(ResourceError::UnsafeExportPath(workspace.to_path_buf()));
+    }
+    let metadata = fs::symlink_metadata(workspace).map_err(|source| ResourceError::ExportIo {
+        path: workspace.to_path_buf(),
+        source,
+    })?;
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err(ResourceError::UnsafeExportPath(workspace.to_path_buf()));
+    }
+    Ok(())
+}
+
+fn write_managed_file(root: &Path, destination: &Path, bytes: &[u8]) -> Result<(), ResourceError> {
+    let parent = destination
+        .parent()
+        .ok_or_else(|| ResourceError::UnsafeExportPath(destination.to_path_buf()))?;
+    let relative = parent
+        .strip_prefix(root)
+        .map_err(|_| ResourceError::UnsafeExportPath(destination.to_path_buf()))?;
+    let mut current = root.to_path_buf();
+    for component in relative.components() {
+        current.push(component);
+        ensure_directory(&current)?;
+    }
+    if let Ok(metadata) = fs::symlink_metadata(destination)
+        && (metadata.file_type().is_symlink() || !metadata.is_file())
+    {
+        return Err(ResourceError::UnsafeExportPath(destination.to_path_buf()));
+    }
+    let file_name = destination
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| ResourceError::UnsafeExportPath(destination.to_path_buf()))?;
+    let temporary = parent.join(format!(".{file_name}.canisend-{}-tmp", std::process::id()));
+    let mut file = OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(&temporary)
+        .map_err(|source| ResourceError::ExportIo {
+            path: temporary.clone(),
+            source,
+        })?;
+    if let Err(source) = file.write_all(bytes).and_then(|()| file.sync_all()) {
+        drop(file);
+        let _ = fs::remove_file(&temporary);
+        return Err(ResourceError::ExportIo {
+            path: temporary,
+            source,
+        });
+    }
+    drop(file);
+    set_private_file_permissions(&temporary)?;
+    if destination.exists() {
+        let backup = parent.join(format!(
+            ".{file_name}.canisend-{}-backup",
+            std::process::id()
+        ));
+        if backup.exists() {
+            let _ = fs::remove_file(&temporary);
+            return Err(ResourceError::UnsafeExportPath(backup));
+        }
+        fs::rename(destination, &backup).map_err(|source| {
+            let _ = fs::remove_file(&temporary);
+            ResourceError::ExportIo {
+                path: destination.to_path_buf(),
+                source,
+            }
+        })?;
+        if let Err(source) = fs::rename(&temporary, destination) {
+            let _ = fs::rename(&backup, destination);
+            let _ = fs::remove_file(&temporary);
+            return Err(ResourceError::ExportIo {
+                path: destination.to_path_buf(),
+                source,
+            });
+        }
+        let _ = fs::remove_file(backup);
+    } else if let Err(source) = fs::rename(&temporary, destination) {
+        let _ = fs::remove_file(&temporary);
+        return Err(ResourceError::ExportIo {
+            path: destination.to_path_buf(),
+            source,
+        });
+    }
+    Ok(())
 }
 
 fn ensure_empty_pack_root(root: &Path) -> Result<(), ResourceError> {

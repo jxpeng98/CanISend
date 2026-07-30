@@ -115,9 +115,11 @@ The current CLI provides:
 - Main/release performance gates for startup, large-workspace status, HTML/PDF intake, complete workflow execution,
   embedded rendering, and binary size, with a committed reproducible baseline.
 
-The experimental `canisend-gui` development binary currently provides a native app shell,
-body-free workspace registry, background operation queue, workspace create/check/backup, job
-create/import/archive, workflow timeline, and managed terminal CLI installation on macOS. See the
+The `canisend-gui` macOS development app uses Svelte over the same Rust application facade as the
+CLI. It provides workspace and application context, opportunity discovery, reviewed file/URL/PDF
+intake, profile evidence, the durable workflow, Agent handoff/runtime controls, documents and
+delivery, a body-free Content Catalog with consent-gated ephemeral full-text search, recovery,
+updates, and managed terminal CLI installation. See the
 [desktop GUI preview guide](docs/guides/desktop-gui.md) for current coverage and limits.
 
 The R9 native matrix verifies embedded fonts, edge-case Unicode/layout, missing-system-font isolation, bundled
@@ -144,6 +146,15 @@ cargo build --release --locked
 ./target/release/canisend --workspace ./my-workspace job import JOB_ID \
   --url https://example.edu/job-advert --json
 ./target/release/canisend --workspace ./my-workspace job show JOB_ID --json
+./target/release/canisend --workspace ./my-workspace application list --json
+./target/release/canisend --workspace ./my-workspace application show \
+  --job JOB_ID --json
+./target/release/canisend --workspace ./my-workspace content list \
+  --job JOB_ID --json
+./target/release/canisend --workspace ./my-workspace content search Economics \
+  --job JOB_ID --json
+./target/release/canisend --workspace ./my-workspace content search "teaching portfolio" \
+  --job JOB_ID --include-private-bodies --allow-private-read --json
 ./target/release/canisend --workspace ./my-workspace profile source add \
   --file ./profile-evidence.json --json
 ./target/release/canisend --workspace ./my-workspace profile source list --json
@@ -158,6 +169,8 @@ cargo build --release --locked
   --source-name "University X" --json
 ./target/release/canisend --workspace ./my-workspace discovery list --json
 ./target/release/canisend --workspace ./my-workspace discovery promote LEAD_ID --json
+./target/release/canisend --workspace ./my-workspace agent assets install \
+  --host codex --json
 ./target/release/canisend agent assets export --host codex \
   --destination ./codex-canisend-pack --json
 ./target/release/canisend --workspace ./my-workspace agent context --job JOB_ID --json
