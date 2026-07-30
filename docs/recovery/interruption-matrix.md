@@ -2,7 +2,7 @@
 
 **Applies to:** CanISend workspace format v2
 
-**Reviewed:** 2026-07-18
+**Reviewed:** 2026-07-30
 
 CanISend treats SQLite rows and immutable blobs as authoritative state. Files under `jobs/`,
 `profile/`, and `agent/` are projections or scoped exports and are not backup authority. A command
@@ -23,6 +23,9 @@ to a verified blob.
 | Restore before derived projections exist | Verified backup contains SQLite and blobs but omits derived files | Restore regenerates raw, Markdown, JSON, and Typst projections before atomic destination publication | `recovery_verified_backup_restores_into_new_workspace`; `projection::tests::recovery_restore_rebuilds_managed_projections_from_authoritative_blobs` |
 | Concurrent completion of one host-agent task | Two independent processes submit the same lease and candidate together | Exactly one non-idempotent commit, one idempotent replay, and one output artifact | `recovery_concurrent_host_agents_commit_one_idempotent_result` |
 | Completion after input revision changes | A source is imported after task preparation | Completion fails as stale and cannot commit the candidate | `agent_tasks_validate_commit_idempotently_and_detect_changed_jobs` |
+| Intake confirmation after job revision changes | A second source commit lands after the first source preview | The old preview fails with a dependency conflict; current assistance is rebuilt from revision 2 | `stale_intake_preview_fails_and_assistance_rebuilds_from_current_revisions` |
+| Catalog reopen and concurrent readers | Four readers rebuild the Catalog and metadata index from the same workspace | Every Catalog is identical; readers do not contend; no private-body index survives a subsequent metadata-only search | `catalog_rebuild_is_deterministic_ephemeral_and_concurrent` |
+| Malformed local search or navigation memory | A control character, unbounded limit, oversized memory value, invalid route, or invalid date is supplied | Input is rejected or the malformed optional field is discarded without losing valid workspace/application continuity | `catalog_rebuild_is_deterministic_ephemeral_and_concurrent`; `workflow-navigation.test.ts` |
 | Workspace check after blob loss or replacement | One referenced blob is removed and another is replaced with different bytes | Check fails closed and identifies both reference digests as invalid | `recovery_check_detects_missing_and_corrupted_referenced_blobs` |
 | Workspace open after database corruption | SQLite content is replaced with invalid bytes | Open fails; no repair is attempted over the damaged authority | `database::tests::migration_failure_rolls_back_and_corrupt_database_fails_closed` |
 
@@ -47,6 +50,29 @@ Restore never overwrites an existing destination. Edited projection files are pr
 `workspace repair`, but cannot be recovered from a backup because projections are intentionally not
 authoritative. The regenerated file is the deterministic projection of the recorded artifact
 revision.
+
+## Read-model and search recovery
+
+Application Dossiers, the Content Catalog, Agent assistance, Agent handoff context, and metadata
+search are read models. They are rebuilt from the current SQLite rows and immutable blob identities
+each time the application facade is called; none is a second state authority.
+
+The optional private full-text index is even narrower: after explicit private-read consent,
+CanISend verifies eligible blobs, builds a bounded index in process memory, returns bounded
+snippets, and drops the entire index when that call ends. It is never written to SQLite,
+projections, the workspace registry, navigation memory, diagnostics, handoff files, or backups.
+
+Consequently:
+
+- no migration, backup copy, projection repair, or downgrade transform exists for these read
+  models;
+- reopening the workspace or refreshing the current application is the recovery action;
+- a mutation invalidates UI guidance, and the next Dossier/Catalog/assistance call observes the
+  new authoritative revision;
+- a malformed optional registry or navigation field is rejected or discarded without modifying
+  workspace authority; and
+- rollback follows the executable/schema procedure in
+  [Upgrade, Roll Back, and Uninstall](../guides/upgrade-and-rollback.md), not a read-model rollback.
 
 ## Operator procedure
 

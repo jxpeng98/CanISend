@@ -71,6 +71,12 @@ canisend --workspace ./applications agent assets install --host codex --json
 canisend --workspace ./applications agent assets install --host claude --json
 ```
 
+The Application Dossier, Content Catalog, contextual Agent guidance, and metadata/private search
+indexes do not add a migration. They are rebuilt from current SQLite rows and immutable artifact
+identities. A private search index is memory-only and discarded after the consented call. There is
+therefore no read-model migration, backup payload, or rollback step; refreshing the application
+rebuilds it under the currently running binary.
+
 ## Roll back safely
 
 First determine whether the new binary opened any real workspace.
@@ -104,6 +110,11 @@ matrix—not an assumption—must prove that exact version pair.
 User-edited Markdown or Typst projections are not migration authority. Preserve them separately before choosing
 between an upgraded workspace and a restored pre-upgrade workspace; never copy an edited projection into SQLite or
 the content-addressed blob store.
+
+Do not attempt to preserve or copy GUI navigation memory, Catalog results, returned search
+snippets, Dossier JSON, or Agent assistance as rollback authority. After selecting the restored
+workspace, CanISend recreates these views from the accepted old workspace. Codex and Claude
+transcripts remain owned by those hosts and follow their own retention and session procedures.
 
 ## Uninstall
 

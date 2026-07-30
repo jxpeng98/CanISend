@@ -4,6 +4,13 @@ The authoritative workspace is `canisend.toml`, SQLite state, and referenced imm
 `jobs/`, `profile/`, and `agent/` are projections or scoped exports; they can be rebuilt where deterministic and are
 not backup authority.
 
+Application Dossiers, the Content Catalog, Agent guidance, and search indexes are not additional
+workspace files. Dossiers, Catalog entries, metadata search, and body-free Agent guidance are
+rebuilt from current authoritative records whenever they are requested. A consented private
+full-text index exists only in bounded process memory for one search and is discarded afterwards.
+Backups therefore include the authoritative source artifacts but never copy a Catalog database,
+Agent transcript, private search index, returned snippet, or GUI navigation cache.
+
 ## Create a verified backup
 
 Stop other writers, check the workspace, and choose a new or empty destination:
@@ -50,6 +57,11 @@ reports `blob.reference_invalid`, stop writing and restore a verified backup. Do
 manually.
 
 The same bounded repair is available as **Workspaces → Repair active** in the macOS GUI.
+
+If a Dossier, Catalog result, or Agent recommendation appears stale after an interrupted UI
+operation, refresh or reopen the selected application. Do not run `workspace repair` merely to
+refresh a read model. If the underlying workspace passes `workspace check`, deterministic
+read-model rebuild is sufficient; if the check fails, follow the restore procedure above.
 
 For the complete failure model and test evidence, see the
 [recovery and interruption matrix](../recovery/interruption-matrix.md).

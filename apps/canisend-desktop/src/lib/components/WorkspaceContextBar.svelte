@@ -152,7 +152,7 @@
         {#if (snapshot?.registry.entries.length ?? 0) > 0}
           <select
             id="global-workspace"
-            class="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm font-medium"
+            class="min-h-11 w-full rounded-lg border border-input bg-background px-3 text-sm font-medium"
             value={activeWorkspace?.path ?? ""}
             disabled={busy}
             onchange={(event) => void onSelectWorkspace(event.currentTarget.value)}
@@ -164,7 +164,7 @@
         {:else}
           <button
             type="button"
-            class="flex h-10 w-full items-center rounded-lg border border-dashed px-3 text-left text-sm text-muted-foreground transition-colors hover:bg-muted/30"
+            class="flex min-h-11 w-full items-center rounded-lg border border-dashed px-3 text-left text-sm text-muted-foreground transition-colors hover:bg-muted/30"
             onclick={() => void onNavigate({ view: "workspaces" })}
           >
             {copy.chooseWorkspace}
@@ -190,7 +190,7 @@
         {#if activeWorkspace && jobs.length > 0}
           <select
             id="global-application"
-            class="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm font-medium"
+            class="min-h-11 w-full rounded-lg border border-input bg-background px-3 text-sm font-medium"
             value={selectedJob?.job.id ?? ""}
             disabled={busy}
             onchange={(event) => void onSelectJob(event.currentTarget.value)}
@@ -202,7 +202,7 @@
         {:else}
           <button
             type="button"
-            class="flex h-10 w-full items-center rounded-lg border border-dashed px-3 text-left text-sm text-muted-foreground transition-colors hover:bg-muted/30 disabled:cursor-not-allowed disabled:opacity-60"
+            class="flex min-h-11 w-full items-center rounded-lg border border-dashed px-3 text-left text-sm text-muted-foreground transition-colors hover:bg-muted/30 disabled:cursor-not-allowed disabled:opacity-60"
             disabled={!activeWorkspace}
             onclick={() => void onNavigate({ view: "applications" })}
           >
@@ -267,7 +267,7 @@
               <button
                 type="button"
                 class={[
-                  "flex min-h-10 items-center gap-2 rounded-lg px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  "flex min-h-11 items-center gap-2 rounded-lg px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                   activeSection === section.id
                     ? "bg-primary text-primary-foreground"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -293,7 +293,7 @@
         </div>
         <Button
           size="sm"
-          class="min-h-10 shrink-0"
+          class="min-h-11 shrink-0"
           disabled={busy}
           onclick={() => void onNavigate(recommendation.route)}
         >
@@ -340,7 +340,7 @@
             <Button
               variant="ghost"
               size="sm"
-              class="min-h-8 shrink-0"
+              class="min-h-11 shrink-0"
               onclick={() => void onNavigate(lastAction.route)}
             >
               {copy.resumeLastAction}

@@ -42,6 +42,9 @@ function detail(overrides: Partial<JobDetailReadModel> = {}): JobDetailReadModel
 describe("navigation memory", () => {
   it("rejects malformed or unbounded persisted state", () => {
     expect(parseNavigationMemory("{broken")).toEqual(defaultNavigationMemory());
+    expect(parseNavigationMemory("x".repeat(32_769))).toEqual(
+      defaultNavigationMemory(),
+    );
     expect(
       parseNavigationMemory(
         JSON.stringify({
@@ -58,6 +61,33 @@ describe("navigation memory", () => {
       activeDetail: null,
       workspacePath: null,
       selectedJobs: { "/tmp/canisend": "job-1" },
+    });
+  });
+
+  it("drops an invalid last action without losing valid workspace continuity", () => {
+    const restored = parseNavigationMemory(
+      JSON.stringify({
+        version: 1,
+        activeView: "applications",
+        activeDetail: null,
+        workspacePath: "/tmp/canisend",
+        selectedJobs: { "/tmp/canisend": "job-1" },
+        lastAction: {
+          operation: "package.export",
+          summary: "Exported package",
+          route: { view: "not-a-view", jobId: "job-1" },
+          workspacePath: "/tmp/canisend",
+          jobId: "job-1",
+          occurredAt: "not-a-date",
+        },
+      }),
+    );
+
+    expect(restored).toMatchObject({
+      activeView: "applications",
+      workspacePath: "/tmp/canisend",
+      selectedJobs: { "/tmp/canisend": "job-1" },
+      lastAction: null,
     });
   });
 

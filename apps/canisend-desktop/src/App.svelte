@@ -2327,7 +2327,7 @@
 >
   <a
     href="#main-content"
-    class="fixed left-3 top-3 z-50 -translate-y-20 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-transform focus:translate-y-0"
+    class="fixed left-3 top-3 z-50 min-h-11 -translate-y-20 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-transform focus:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
   >
     {copy.skipToContent}
   </a>
@@ -2470,7 +2470,7 @@
           <Button
             variant="ghost"
             size="icon-lg"
-            class="min-h-10 min-w-10"
+            class="min-h-11 min-w-11"
             aria-label={language === "en" ? copy.switchChinese : copy.switchEnglish}
             title={language === "en" ? copy.switchChinese : copy.switchEnglish}
             onclick={() => (language = language === "en" ? "zh-CN" : "en")}
@@ -2480,7 +2480,7 @@
           <Button
             variant="ghost"
             size="icon-lg"
-            class="min-h-10 min-w-10"
+            class="min-h-11 min-w-11"
             aria-label={darkMode ? copy.lightMode : copy.darkMode}
             title={darkMode ? copy.lightMode : copy.darkMode}
             onclick={() => (darkMode = !darkMode)}
@@ -2491,7 +2491,7 @@
               <Moon size={18} strokeWidth={1.8} aria-hidden="true" />
             {/if}
           </Button>
-          <Button variant="outline" class="min-h-10" onclick={() => (compact = !compact)}>
+          <Button variant="outline" class="min-h-11" onclick={() => (compact = !compact)}>
             {compact ? copy.comfortable : copy.compact}
           </Button>
         </div>
@@ -2527,7 +2527,7 @@
           {#if bridgeErrorCanRetry}
             <Button
               variant="outline"
-              class="min-h-10 shrink-0"
+              class="min-h-11 shrink-0"
               disabled={busy}
               onclick={retryCurrentView}
             >
@@ -2545,7 +2545,7 @@
             <Button
               variant="outline"
               size="sm"
-              class="min-h-10 shrink-0 bg-background/70"
+              class="min-h-11 shrink-0 bg-background/70"
               onclick={() => void navigateTo(noticeRoute!)}
             >
               {copy.openAffectedContent}

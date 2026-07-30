@@ -25,4 +25,34 @@ describe("desktop translations", () => {
       expect(locale.workspaces).not.toHaveLength(0);
     }
   });
+
+  it("translates critical loading, recovery, empty, and guidance states", () => {
+    for (const locale of Object.values(messages)) {
+      const criticalStates = [
+        locale.skipToContent,
+        locale.loading,
+        locale.viewLoadFailed,
+        locale.retry,
+        locale.noApplications,
+        locale.noApplicationsDescription,
+        locale.contentNoResults,
+        locale.contentNoResultsDescription,
+        locale.loadingGuidance,
+        locale.guidanceUnavailable,
+        locale.noConversation,
+        locale.noConversationDescription,
+      ];
+      for (const value of criticalStates) {
+        expect(value.trim().length).toBeGreaterThan(0);
+      }
+    }
+    expect(
+      [
+        messages["zh-CN"].loading,
+        messages["zh-CN"].viewLoadFailed,
+        messages["zh-CN"].noApplications,
+        messages["zh-CN"].guidanceUnavailable,
+      ].every((value) => /\p{Script=Han}/u.test(value)),
+    ).toBe(true);
+  });
 });

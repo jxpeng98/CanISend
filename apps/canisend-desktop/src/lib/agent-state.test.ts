@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
+import type { AgentAssistanceReadModel } from "./bridge";
 import {
   agentUiState,
   scopeAgentUiState,
+  switchAgentConversationScope,
 } from "./agent-state.svelte";
 
 describe("Agent UI architecture boundary", () => {
@@ -14,8 +16,17 @@ describe("Agent UI architecture boundary", () => {
     agentUiState.prompt = "";
     agentUiState.confirmedProviderSend = false;
     agentUiState.startNew = false;
+    agentUiState.capabilities = null;
+    agentUiState.context = null;
+    agentUiState.assistance = null;
+    agentUiState.runtimeCatalog = null;
+    agentUiState.handoff = null;
+    agentUiState.skillsInstallation = null;
+    agentUiState.mcpConfiguration = null;
     agentUiState.messages = [];
     agentUiState.lastTurn = null;
+    agentUiState.formError = null;
+    agentUiState.nextMessageId = 1;
     agentUiState.activeConversationKey = "codex:workspace";
     agentUiState.conversationCache = {};
   });
@@ -56,5 +67,55 @@ describe("Agent UI architecture boundary", () => {
     expect(agentUiState.confirmedProviderSend).toBe(false);
     expect(agentUiState.messages).toEqual([]);
     expect(agentUiState.conversationCache).toEqual({});
+  });
+
+  it("preserves current guidance while changing runtime for the same application", () => {
+    const assistance = {
+      selected_job_id: "job-a",
+    } as AgentAssistanceReadModel;
+    agentUiState.workspacePath = "/tmp/workspace-a";
+    agentUiState.selectedJobId = "job-a";
+    agentUiState.activeConversationKey = "codex:job-a";
+    agentUiState.assistance = assistance;
+    agentUiState.messages = [{ id: 1, role: "assistant", text: "Codex state" }];
+
+    switchAgentConversationScope("claude", "job-a");
+
+    expect(agentUiState.assistance).toBe(assistance);
+    expect(agentUiState.runtime).toBe("claude");
+    expect(agentUiState.messages).toEqual([]);
+
+    switchAgentConversationScope("codex", "job-a");
+
+    expect(agentUiState.assistance).toBe(assistance);
+    expect(agentUiState.messages).toEqual([
+      { id: 1, role: "assistant", text: "Codex state" },
+    ]);
+  });
+
+  it("isolates application conversations and restores their local rendered state", () => {
+    agentUiState.workspacePath = "/tmp/workspace-a";
+    agentUiState.selectedJobId = "job-a";
+    agentUiState.activeConversationKey = "codex:job-a";
+    agentUiState.assistance = {
+      selected_job_id: "job-a",
+    } as AgentAssistanceReadModel;
+    agentUiState.prompt = "Continue application A";
+    agentUiState.messages = [{ id: 1, role: "user", text: "Application A" }];
+
+    switchAgentConversationScope("codex", "job-b");
+
+    expect(agentUiState.assistance).toBeNull();
+    expect(agentUiState.prompt).toBe("");
+    expect(agentUiState.messages).toEqual([]);
+    agentUiState.messages = [{ id: 2, role: "user", text: "Application B" }];
+
+    switchAgentConversationScope("codex", "job-a");
+
+    expect(agentUiState.assistance).toBeNull();
+    expect(agentUiState.prompt).toBe("Continue application A");
+    expect(agentUiState.messages).toEqual([
+      { id: 1, role: "user", text: "Application A" },
+    ]);
   });
 });

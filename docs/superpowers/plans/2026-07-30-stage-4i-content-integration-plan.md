@@ -190,12 +190,17 @@ remain owned by those hosts.
 
 ## Stage 4M — Qualification and product hardening
 
-- Add catalog rebuild/reopen, stale revision, concurrent edit, and malformed-input regressions.
-- Prove no private bodies enter Dossier, registry, diagnostics, handoff, or routine search metadata.
-- Add accessibility, keyboard, bilingual, empty/error/loading, and navigation-continuity coverage.
-- Measure Dossier list and indexed-search latency on bounded large local fixtures.
-- Update migration, backup, recovery, and rollback documentation for any new projection.
-- Run native package qualification only at an explicitly authorized release checkpoint.
+- [x] Add catalog rebuild/reopen, stale revision, concurrent edit, and malformed-input regressions.
+- [x] Prove no private bodies enter Dossier, registry, diagnostics, handoff, or routine search
+  metadata.
+- [x] Add accessibility, keyboard, bilingual, empty/error/loading, and navigation-continuity
+  coverage.
+- [x] Measure Dossier list and indexed-search latency on bounded large local fixtures.
+- [x] Confirm no new persistent projection exists and update migration, backup, recovery, and
+  rollback documentation.
+- [x] Complete the final source gate and record
+  [Stage 4M evidence](../../notes/rust-native/2026-07-30-stage4m-product-hardening.md).
+- [x] Keep native package qualification reserved for an explicitly authorized release checkpoint.
 
 ## Ordered delivery
 
