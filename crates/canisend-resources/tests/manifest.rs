@@ -2,8 +2,9 @@ use std::{fs, str::FromStr};
 
 use canisend_resources::{
     AgentHost, AgentPackManifest, AgentSkillsInstallState, AgentSkillsManifest,
-    ResourceCatalogManifest, ResourceId, ResourceKind, export_agent_pack, export_all,
-    export_catalog, get, install_agent_skills, manifest, verify,
+    AgentSkillsStatusState, AgentSkillsUninstallState, ResourceCatalogManifest, ResourceId,
+    ResourceKind, export_agent_pack, export_all, export_catalog, get, inspect_agent_skills,
+    install_agent_skills, manifest, uninstall_agent_skills, verify,
 };
 use sha2::{Digest, Sha256};
 
@@ -177,12 +178,27 @@ fn agent_skills_install_is_idempotent_upgradeable_and_edit_safe() {
         serde_json::to_vec_pretty(&old_manifest).expect("old manifest bytes"),
     )
     .expect("old manifest");
+    let upgrade_status =
+        inspect_agent_skills(AgentHost::Codex, &root).expect("inspect upgrade status");
+    assert_eq!(
+        upgrade_status.state,
+        AgentSkillsStatusState::UpdateAvailable
+    );
+    assert_eq!(upgrade_status.skills.len(), 4);
     let updated = install_agent_skills(AgentHost::Codex, &root).expect("upgrade skills");
     assert_eq!(updated.state, AgentSkillsInstallState::Updated);
     assert_ne!(fs::read(&managed_path).expect("updated skill"), old_bytes);
 
     fs::write(&managed_path, b"user modified skill").expect("user edit");
+    let modified = inspect_agent_skills(AgentHost::Codex, &root).expect("inspect user edit");
+    assert_eq!(modified.state, AgentSkillsStatusState::UserModified);
     assert!(install_agent_skills(AgentHost::Codex, &root).is_err());
+    assert!(uninstall_agent_skills(AgentHost::Codex, &root).is_err());
+    assert!(
+        root.join(".agents/skills/canisend-application/SKILL.md")
+            .is_file(),
+        "uninstall preflight must not partially remove earlier managed files"
+    );
     assert_eq!(
         fs::read(&managed_path).expect("preserved user edit"),
         b"user modified skill"
@@ -203,6 +219,78 @@ fn agent_skills_install_is_idempotent_upgradeable_and_edit_safe() {
             .join(".claude/skills/canisend-application/agents/openai.yaml")
             .exists()
     );
+    let claude_status =
+        inspect_agent_skills(AgentHost::Claude, &claude_root).expect("Claude skills status");
+    assert_eq!(claude_status.state, AgentSkillsStatusState::UpToDate);
+    assert!(
+        claude_status
+            .skills
+            .iter()
+            .all(|skill| skill.file_count == 1
+                && skill.installed_file_count == 1
+                && skill.state == AgentSkillsStatusState::UpToDate)
+    );
+    let removed =
+        uninstall_agent_skills(AgentHost::Claude, &claude_root).expect("remove Claude skills");
+    assert_eq!(removed.state, AgentSkillsUninstallState::Removed);
+    assert_eq!(removed.removed_files, 4);
+    assert!(!claude.manifest_path.exists());
+    assert_eq!(
+        inspect_agent_skills(AgentHost::Claude, &claude_root)
+            .expect("inspect removed skills")
+            .state,
+        AgentSkillsStatusState::NotInstalled
+    );
+
+    let unmanaged_root = root.join("unmanaged-workspace");
+    fs::create_dir_all(unmanaged_root.join("skills/canisend-application"))
+        .expect("unmanaged skill directory");
+    fs::write(
+        unmanaged_root.join("skills/canisend-application/SKILL.md"),
+        b"unmanaged",
+    )
+    .expect("unmanaged skill");
+    assert_eq!(
+        inspect_agent_skills(AgentHost::Generic, &unmanaged_root)
+            .expect("inspect unmanaged skills")
+            .state,
+        AgentSkillsStatusState::Unmanaged
+    );
+    assert!(uninstall_agent_skills(AgentHost::Generic, &unmanaged_root).is_err());
 
     fs::remove_dir_all(root).expect("cleanup");
+}
+
+#[cfg(unix)]
+#[test]
+fn agent_skills_management_rejects_symlinked_host_directories() {
+    use std::os::unix::fs::symlink;
+
+    let root = std::env::temp_dir().join(format!(
+        "canisend-agent-skills-symlink-test-{}",
+        std::process::id()
+    ));
+    let outside = std::env::temp_dir().join(format!(
+        "canisend-agent-skills-outside-test-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&root);
+    let _ = fs::remove_dir_all(&outside);
+    fs::create_dir(&root).expect("workspace root");
+    fs::create_dir(&outside).expect("outside root");
+    symlink(&outside, root.join(".agents")).expect("symlinked host directory");
+
+    assert!(inspect_agent_skills(AgentHost::Codex, &root).is_err());
+    assert!(install_agent_skills(AgentHost::Codex, &root).is_err());
+    assert!(uninstall_agent_skills(AgentHost::Codex, &root).is_err());
+    assert!(
+        fs::read_dir(&outside)
+            .expect("outside directory")
+            .next()
+            .is_none(),
+        "management must not read or write through an intermediate symlink"
+    );
+
+    fs::remove_dir_all(root).expect("cleanup workspace");
+    fs::remove_dir_all(outside).expect("cleanup outside");
 }

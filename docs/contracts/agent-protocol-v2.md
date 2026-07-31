@@ -220,11 +220,15 @@ Host-discoverable workflow skills can also be installed or safely upgraded in an
 ```text
 canisend --workspace WORKSPACE agent assets install --host codex --json
 canisend --workspace WORKSPACE agent assets install --host claude --json
+canisend --workspace WORKSPACE agent assets status --host codex --json
+canisend --workspace WORKSPACE agent assets uninstall --host codex --json
 ```
 
 The four skills split context-first orchestration, job intake, evidence-backed materials, and final review. Codex
 uses `.agents/skills` and includes `agents/openai.yaml`; Claude uses `.claude/skills`. Installation is idempotent and
 digest-bound, upgrades only files matching the prior managed manifest, and rejects modified or symlinked targets.
+Status reports each bundled skill and its managed-file integrity without reading private application bodies.
+Uninstall preflights the complete manifest and removes only unchanged managed files.
 
 The 39-file Codex pack and 35-file Claude/generic packs contain the host entrypoint, skills, task prompts and
 examples, and the contracts required through PDF export, including projection, reconciliation, package-export,

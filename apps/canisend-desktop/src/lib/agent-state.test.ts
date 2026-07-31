@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import type { AgentAssistanceReadModel } from "./bridge";
+import type {
+  AgentAssistanceReadModel,
+  AgentSkillsStatusReadModel,
+} from "./bridge";
 import {
   agentUiState,
   scopeAgentUiState,
@@ -22,6 +25,7 @@ describe("Agent UI architecture boundary", () => {
     agentUiState.runtimeCatalog = null;
     agentUiState.handoff = null;
     agentUiState.skillsInstallation = null;
+    agentUiState.skillsStatus = null;
     agentUiState.mcpConfiguration = null;
     agentUiState.messages = [];
     agentUiState.lastTurn = null;
@@ -91,6 +95,21 @@ describe("Agent UI architecture boundary", () => {
     expect(agentUiState.messages).toEqual([
       { id: 1, role: "assistant", text: "Codex state" },
     ]);
+  });
+
+  it("preserves workspace-scoped Skill status while changing application scope", () => {
+    const skillsStatus = {
+      host: "codex",
+      state: "up-to-date",
+    } as AgentSkillsStatusReadModel;
+    agentUiState.workspacePath = "/tmp/workspace-a";
+    agentUiState.selectedJobId = "job-a";
+    agentUiState.activeConversationKey = "codex:job-a";
+    agentUiState.skillsStatus = skillsStatus;
+
+    switchAgentConversationScope("codex", "job-b");
+
+    expect(agentUiState.skillsStatus).toBe(skillsStatus);
   });
 
   it("isolates application conversations and restores their local rendered state", () => {

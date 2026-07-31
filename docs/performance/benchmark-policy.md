@@ -77,6 +77,8 @@ The macOS GUI gate runs separately against a staged, verified, ad-hoc-signed App
 Each launch gets a new disposable `HOME`. The timer stops only after macOS exposes the Overview navigation control,
 so the result includes process startup, system CJK font loading, window creation, and first usable UI state. The
 measurement script also binds the signed GUI and bundled CLI hashes and rejects either the startup or size budget.
+The [macOS App size strategy](macos-app-size-strategy.md) explains the measured two-executable
+composition and the qualified single-executable reduction path.
 
 ## Threshold changes
 

@@ -170,8 +170,12 @@ enum McpCommand {
 enum AgentAssetsCommand {
     /// Export a versioned host pack into a new or empty directory.
     Export(AgentAssetsExportArgs),
+    /// Inspect bundled and installed CanISend workflow skills.
+    Status(AgentAssetsInstallArgs),
     /// Install or safely upgrade CanISend workflow skills in this workspace.
     Install(AgentAssetsInstallArgs),
+    /// Remove only unchanged files owned by the CanISend skills manifest.
+    Uninstall(AgentAssetsInstallArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -1257,7 +1261,10 @@ impl Cli {
             Command::Agent {
                 command:
                     AgentCommand::Assets {
-                        command: AgentAssetsCommand::Install(arguments),
+                        command:
+                            AgentAssetsCommand::Status(arguments)
+                            | AgentAssetsCommand::Install(arguments)
+                            | AgentAssetsCommand::Uninstall(arguments),
                     },
             } => arguments.output.json,
             Command::Schema {
@@ -1472,9 +1479,21 @@ fn execute(cli: Cli) -> CommandResult<CommandOutput> {
         Command::Agent {
             command:
                 AgentCommand::Assets {
+                    command: AgentAssetsCommand::Status(arguments),
+                },
+        } => agent_assets_status(workspace, arguments),
+        Command::Agent {
+            command:
+                AgentCommand::Assets {
                     command: AgentAssetsCommand::Install(arguments),
                 },
         } => agent_assets_install(workspace, arguments),
+        Command::Agent {
+            command:
+                AgentCommand::Assets {
+                    command: AgentAssetsCommand::Uninstall(arguments),
+                },
+        } => agent_assets_uninstall(workspace, arguments),
         Command::Mcp {
             command: McpCommand::Serve,
         } => unreachable!("MCP server is dispatched before command rendering"),
@@ -1898,6 +1917,75 @@ fn agent_assets_install(
             format!("Resources: {}", installed.files.len()),
         ],
     )
+}
+
+fn agent_assets_status(
+    workspace_path: Option<PathBuf>,
+    arguments: AgentAssetsInstallArgs,
+) -> CommandResult<CommandOutput> {
+    let host = agent_host(arguments.host);
+    let workspace = workspace_path.unwrap_or_else(|| PathBuf::from("."));
+    let receipt = Application::agent_skills_status(&canisend_app::AgentSkillsStatusRequest {
+        host,
+        workspace,
+    })
+    .map_err(|error| app_adapter::failure("agent.skills.status", error))?;
+    let data = receipt.data;
+    let status = match data.state {
+        canisend_resources::AgentSkillsStatusState::NotInstalled => "not-installed",
+        canisend_resources::AgentSkillsStatusState::UpToDate => "up-to-date",
+        canisend_resources::AgentSkillsStatusState::UpdateAvailable => "update-available",
+        canisend_resources::AgentSkillsStatusState::Incomplete => "incomplete",
+        canisend_resources::AgentSkillsStatusState::UserModified => "user-modified",
+        canisend_resources::AgentSkillsStatusState::Unmanaged => "unmanaged",
+    };
+    success(
+        "agent.skills.status",
+        status,
+        &data,
+        vec![
+            format!("CanISend workflow skills: {:?}", data.state),
+            format!("Directory: {}", data.directory.display()),
+            format!("Bundled version: {}", data.bundled_product_version),
+            format!("Skills: {}", data.skills.len()),
+        ],
+    )
+}
+
+fn agent_assets_uninstall(
+    workspace_path: Option<PathBuf>,
+    arguments: AgentAssetsInstallArgs,
+) -> CommandResult<CommandOutput> {
+    let host = agent_host(arguments.host);
+    let workspace = workspace_path.unwrap_or_else(|| PathBuf::from("."));
+    let receipt = Application::uninstall_agent_skills(&canisend_app::AgentSkillsUninstallRequest {
+        host,
+        workspace,
+    })
+    .map_err(|error| app_adapter::failure("agent.skills.uninstall", error))?;
+    let data = receipt.data;
+    let status = match data.state {
+        canisend_resources::AgentSkillsUninstallState::NotInstalled => "not-installed",
+        canisend_resources::AgentSkillsUninstallState::Removed => "removed",
+    };
+    success(
+        "agent.skills.uninstall",
+        status,
+        &data,
+        vec![
+            format!("CanISend workflow skills: {:?}", data.state),
+            format!("Directory: {}", data.directory.display()),
+            format!("Removed files: {}", data.removed_files),
+        ],
+    )
+}
+
+fn agent_host(host: AgentHostName) -> AgentHost {
+    match host {
+        AgentHostName::Codex => AgentHost::Codex,
+        AgentHostName::Claude => AgentHost::Claude,
+        AgentHostName::Generic => AgentHost::Generic,
+    }
 }
 
 fn schema_list() -> CommandResult<CommandOutput> {

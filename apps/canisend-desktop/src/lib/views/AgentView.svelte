@@ -15,6 +15,7 @@
     Send,
     ShieldCheck,
     Sparkles,
+    Trash2,
   } from "@lucide/svelte";
   import { onMount } from "svelte";
 
@@ -29,6 +30,7 @@
   import { Button } from "$lib/components/ui/button/index.js";
   import * as Card from "$lib/components/ui/card/index.js";
   import { Checkbox } from "$lib/components/ui/checkbox/index.js";
+  import * as Dialog from "$lib/components/ui/dialog/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
   import { Label } from "$lib/components/ui/label/index.js";
   import { Separator } from "$lib/components/ui/separator/index.js";
@@ -45,6 +47,8 @@
     type AgentRuntimeCatalog,
     type AgentRuntimeKind,
     type AgentSkillsInstallReadModel,
+    type AgentSkillsStatusReadModel,
+    type AgentSkillsUninstallReadModel,
     type AgentTurnResult,
     type JobRecord,
     type WorkspaceReadModel,
@@ -84,6 +88,12 @@
     onInstallSkills: (
       host: AgentHost,
     ) => Promise<AgentSkillsInstallReadModel | null>;
+    onLoadSkills: (
+      host: AgentHost,
+    ) => Promise<AgentSkillsStatusReadModel | null>;
+    onUninstallSkills: (
+      host: AgentHost,
+    ) => Promise<AgentSkillsUninstallReadModel | null>;
     onCopyHandoff: (
       host: AgentHost,
       jobId: string | undefined,
@@ -129,7 +139,9 @@
     onLoadContext,
     onLoadAssistance,
     onPrepareHandoff,
+    onLoadSkills,
     onInstallSkills,
+    onUninstallSkills,
     onCopyHandoff,
     onPrepareMcpConfiguration,
     onCopyMcpConfiguration,
@@ -142,8 +154,11 @@
   let copied = $state<CopyTarget | null>(null);
   let cancellingTurn = $state(false);
   let assistanceLoading = $state(false);
+  let skillsLoading = $state(false);
+  let uninstallSkillsOpen = $state(false);
   let observedGlobalScope = $state("");
   let observedAssistanceScope = $state("");
+  let observedSkillsScope = $state("");
 
   const runtimeProbe = $derived(
     agentUiState.runtimeCatalog?.runtimes.find(
@@ -157,6 +172,15 @@
   );
   const selectedJob = $derived(
     jobs.find((job) => job.id === agentUiState.selectedJobId) ?? null,
+  );
+  const skillManagementBlocked = $derived(
+    agentUiState.skillsStatus?.state === "user-modified" ||
+      agentUiState.skillsStatus?.state === "unmanaged",
+  );
+  const skillsCanRemove = $derived(
+    agentUiState.skillsStatus !== null &&
+      agentUiState.skillsStatus.state !== "not-installed" &&
+      !skillManagementBlocked,
   );
 
   $effect(() => {
@@ -177,6 +201,11 @@
       if (activeWorkspace && agentUiState.selectedJobId) {
         void loadAssistance();
       }
+    }
+    const skillsScope = `${activeWorkspace?.path ?? ""}:${agentUiState.host}`;
+    if (skillsScope !== observedSkillsScope) {
+      observedSkillsScope = skillsScope;
+      if (activeWorkspace) void loadSkills();
     }
   });
 
@@ -210,6 +239,7 @@
     agentUiState.host = host;
     agentUiState.handoff = null;
     agentUiState.skillsInstallation = null;
+    agentUiState.skillsStatus = null;
     agentUiState.mcpConfiguration = null;
     if (host !== "generic") {
       switchAgentConversationScope(host, agentUiState.selectedJobId);
@@ -230,6 +260,7 @@
     const installation = await onInstallSkills(agentUiState.host);
     if (!installation) return;
     agentUiState.skillsInstallation = installation;
+    agentUiState.skillsStatus = await onLoadSkills(agentUiState.host);
     const handoff = await onPrepareHandoff(
       agentUiState.host,
       agentUiState.selectedJobId || undefined,
@@ -292,6 +323,37 @@
 
   async function loadCapabilities(): Promise<void> {
     agentUiState.capabilities = await onLoadCapabilities();
+  }
+
+  async function loadSkills(): Promise<void> {
+    if (!activeWorkspace || skillsLoading) return;
+    const host = agentUiState.host;
+    skillsLoading = true;
+    try {
+      const status = await onLoadSkills(host);
+      if (agentUiState.host === host) agentUiState.skillsStatus = status;
+    } finally {
+      skillsLoading = false;
+    }
+  }
+
+  async function installOrUpdateSkills(): Promise<void> {
+    if (!activeWorkspace) return;
+    agentUiState.formError = null;
+    const installation = await onInstallSkills(agentUiState.host);
+    if (!installation) return;
+    agentUiState.skillsInstallation = installation;
+    await loadSkills();
+  }
+
+  async function uninstallSkills(): Promise<void> {
+    if (!activeWorkspace) return;
+    agentUiState.formError = null;
+    const removed = await onUninstallSkills(agentUiState.host);
+    if (!removed) return;
+    uninstallSkillsOpen = false;
+    agentUiState.skillsInstallation = null;
+    await loadSkills();
   }
 
   async function loadContext(): Promise<void> {
@@ -392,6 +454,36 @@
     if (value === "installed") return copy.skillsInstalled;
     if (value === "updated") return copy.skillsUpdated;
     return copy.skillsUpToDate;
+  }
+
+  function skillsStatusLabel(
+    value: AgentSkillsStatusReadModel["state"],
+  ): string {
+    if (value === "not-installed") return copy.skillsNotInstalled;
+    if (value === "up-to-date") return copy.skillsUpToDate;
+    if (value === "update-available") return copy.skillsUpdateAvailable;
+    if (value === "incomplete") return copy.skillsIncomplete;
+    if (value === "user-modified") return copy.skillsUserModified;
+    return copy.skillsUnmanaged;
+  }
+
+  function skillTitle(id: string): string {
+    if (id === "canisend-application") return copy.skillApplication;
+    if (id === "canisend-job-intake") return copy.skillJobIntake;
+    if (id === "canisend-application-materials")
+      return copy.skillApplicationMaterials;
+    if (id === "canisend-application-review") return copy.skillApplicationReview;
+    return id;
+  }
+
+  function skillDescription(id: string): string {
+    if (id === "canisend-application") return copy.skillApplicationDescription;
+    if (id === "canisend-job-intake") return copy.skillJobIntakeDescription;
+    if (id === "canisend-application-materials")
+      return copy.skillApplicationMaterialsDescription;
+    if (id === "canisend-application-review")
+      return copy.skillApplicationReviewDescription;
+    return copy.skillsManagerDescription;
   }
 
   function shortSessionId(value: string): string {
@@ -849,6 +941,158 @@
           </Card.Content>
         </Card.Root>
       </div>
+
+      <Card.Root class="shadow-none">
+        <Card.Header>
+          <div class="flex flex-wrap items-start justify-between gap-4">
+            <div class="max-w-3xl">
+              <div class="mb-2 flex flex-wrap items-center gap-2">
+                <Badge variant="secondary">{hostLabel(agentUiState.host)}</Badge>
+                {#if agentUiState.skillsStatus}
+                  <Badge
+                    variant={skillManagementBlocked ? "destructive" : "outline"}
+                    aria-live="polite"
+                  >
+                    {skillsStatusLabel(agentUiState.skillsStatus.state)}
+                  </Badge>
+                {/if}
+              </div>
+              <Card.Title>{copy.skillsManager}</Card.Title>
+              <Card.Description class="mt-1.5">
+                {copy.skillsManagerDescription}
+              </Card.Description>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                class="min-h-11"
+                disabled={!desktopRuntime || !activeWorkspace || busy || skillsLoading}
+                onclick={loadSkills}
+              >
+                <RefreshCw
+                  size={16}
+                  strokeWidth={1.8}
+                  class={skillsLoading ? "animate-spin motion-reduce:animate-none" : ""}
+                  data-icon="inline-start"
+                  aria-hidden="true"
+                />
+                {skillsLoading ? copy.loading : copy.checkSkills}
+              </Button>
+              <Button
+                class="min-h-11"
+                disabled={!desktopRuntime ||
+                  !activeWorkspace ||
+                  busy ||
+                  skillsLoading ||
+                  skillManagementBlocked ||
+                  agentUiState.skillsStatus?.state === "up-to-date"}
+                onclick={installOrUpdateSkills}
+              >
+                <ShieldCheck
+                  size={16}
+                  strokeWidth={1.8}
+                  data-icon="inline-start"
+                  aria-hidden="true"
+                />
+                {agentUiState.skillsStatus?.state === "not-installed"
+                  ? copy.installSkills
+                  : copy.updateOrRepairSkills}
+              </Button>
+              <Button
+                variant="outline"
+                class="min-h-11 text-destructive hover:text-destructive"
+                disabled={!desktopRuntime || !activeWorkspace || busy || !skillsCanRemove}
+                onclick={() => (uninstallSkillsOpen = true)}
+              >
+                <Trash2
+                  size={16}
+                  strokeWidth={1.8}
+                  data-icon="inline-start"
+                  aria-hidden="true"
+                />
+                {copy.removeSkills}
+              </Button>
+            </div>
+          </div>
+        </Card.Header>
+        <Card.Content class="space-y-5">
+          {#if skillsLoading && !agentUiState.skillsStatus}
+            <div
+              class="flex min-h-28 items-center justify-center gap-2 text-sm text-muted-foreground"
+              role="status"
+            >
+              <RefreshCw
+                size={17}
+                strokeWidth={1.8}
+                class="animate-spin motion-reduce:animate-none"
+                aria-hidden="true"
+              />
+              {copy.loadingSkills}
+            </div>
+          {:else if agentUiState.skillsStatus}
+            {#if skillManagementBlocked}
+              <div class="rounded-xl border border-destructive/30 bg-destructive/5 p-4" role="alert">
+                <p class="text-sm font-semibold text-destructive">
+                  {agentUiState.skillsStatus.state === "user-modified"
+                    ? copy.skillsModifiedWarning
+                    : copy.skillsUnmanagedWarning}
+                </p>
+                <p class="mt-1 text-xs leading-5 text-muted-foreground">
+                  {copy.skillsPreservedDescription}
+                </p>
+              </div>
+            {/if}
+
+            <div class="grid gap-3 md:grid-cols-2">
+              {#each agentUiState.skillsStatus.skills as skill (skill.id)}
+                <article class="rounded-xl border bg-muted/10 p-4">
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                      <h3 class="text-sm font-semibold">{skillTitle(skill.id)}</h3>
+                      <p class="mt-1 break-all font-mono text-[10px] text-muted-foreground">
+                        {skill.id}
+                      </p>
+                    </div>
+                    <Badge
+                      variant={skill.state === "user-modified" ||
+                      skill.state === "unmanaged"
+                        ? "destructive"
+                        : "outline"}
+                    >
+                      {skillsStatusLabel(skill.state)}
+                    </Badge>
+                  </div>
+                  <p class="mt-3 text-xs leading-5 text-muted-foreground">
+                    {skillDescription(skill.id)}
+                  </p>
+                  <div class="mt-3 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                    <span>
+                      {skill.installed_file_count}/{skill.file_count} {copy.managedFiles}
+                    </span>
+                    <span aria-hidden="true">·</span>
+                    <span>{skill.resource_version}</span>
+                  </div>
+                </article>
+              {/each}
+            </div>
+
+            <div class="grid gap-3 rounded-xl border bg-muted/15 p-4 text-xs sm:grid-cols-2">
+              <div>
+                <p class="font-medium text-muted-foreground">{copy.skillsInstallLocation}</p>
+                <p class="mt-1 break-all font-mono">{agentUiState.skillsStatus.directory}</p>
+              </div>
+              <div>
+                <p class="font-medium text-muted-foreground">{copy.managedManifest}</p>
+                <p class="mt-1 break-all font-mono">{agentUiState.skillsStatus.manifest_path}</p>
+              </div>
+            </div>
+          {:else}
+            <div class="rounded-xl border border-dashed bg-muted/10 p-5 text-sm text-muted-foreground">
+              {copy.skillsStatusUnavailable}
+            </div>
+          {/if}
+        </Card.Content>
+      </Card.Root>
 
       {#if agentUiState.handoff}
         <Card.Root class="border-primary/30 shadow-none">
@@ -1372,8 +1616,9 @@
             <select
               id="agent-host-pack"
               class="min-h-11 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              bind:value={agentUiState.host}
-              onchange={() => (agentUiState.handoff = null)}
+              value={agentUiState.host}
+              onchange={(event) =>
+                changeHost(event.currentTarget.value as AgentHost)}
             >
               <option value="codex">{copy.codex}</option>
               <option value="claude">{copy.claude}</option>
@@ -1430,3 +1675,28 @@
     <p class="text-sm text-destructive" role="alert">{agentUiState.formError}</p>
   {/if}
 </section>
+
+<Dialog.Root bind:open={uninstallSkillsOpen}>
+  <Dialog.Content>
+    <Dialog.Header>
+      <Dialog.Title>{copy.removeSkills}</Dialog.Title>
+      <Dialog.Description>{copy.removeSkillsDescription}</Dialog.Description>
+    </Dialog.Header>
+    <div class="rounded-xl border bg-muted/20 p-3">
+      <p class="text-xs font-medium text-muted-foreground">
+        {hostLabel(agentUiState.host)}
+      </p>
+      <p class="mt-1 break-all font-mono text-xs">
+        {agentUiState.skillsStatus?.directory ?? activeWorkspace?.path ?? ""}
+      </p>
+    </div>
+    <Dialog.Footer>
+      <Button variant="outline" onclick={() => (uninstallSkillsOpen = false)}>
+        {copy.cancel}
+      </Button>
+      <Button variant="destructive" disabled={busy} onclick={uninstallSkills}>
+        {copy.removeSkills}
+      </Button>
+    </Dialog.Footer>
+  </Dialog.Content>
+</Dialog.Root>

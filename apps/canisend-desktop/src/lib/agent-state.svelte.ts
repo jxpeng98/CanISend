@@ -8,6 +8,7 @@ import type {
   AgentRuntimeCatalog,
   AgentRuntimeKind,
   AgentSkillsInstallReadModel,
+  AgentSkillsStatusReadModel,
   AgentTurnResult,
 } from "$lib/bridge";
 
@@ -38,6 +39,7 @@ type AgentUiState = {
   runtimeCatalog: AgentRuntimeCatalog | null;
   handoff: AgentHandoffReadModel | null;
   skillsInstallation: AgentSkillsInstallReadModel | null;
+  skillsStatus: AgentSkillsStatusReadModel | null;
   mcpConfiguration: AgentMcpConfigurationReadModel | null;
   integrationMode: "handoff" | "in-app";
   messages: AgentChatMessage[];
@@ -64,6 +66,7 @@ export const agentUiState = $state<AgentUiState>({
   runtimeCatalog: null,
   handoff: null,
   skillsInstallation: null,
+  skillsStatus: null,
   mcpConfiguration: null,
   integrationMode: "handoff",
   messages: [],
@@ -86,6 +89,7 @@ export function scopeAgentUiState(workspacePath: string | null): void {
   agentUiState.runtimeCatalog = null;
   agentUiState.handoff = null;
   agentUiState.skillsInstallation = null;
+  agentUiState.skillsStatus = null;
   agentUiState.mcpConfiguration = null;
   agentUiState.integrationMode = "handoff";
   agentUiState.messages = [];

@@ -593,6 +593,44 @@ export const messages = {
     skillsInstalled: "Installed",
     skillsUpdated: "Updated",
     skillsUpToDate: "Up to date",
+    skillsManager: "Built-in Skills",
+    skillsManagerDescription:
+      "Inspect and manage the four version-matched CanISend Skills discovered by this workspace in the selected agent host.",
+    checkSkills: "Check Skills",
+    loadingSkills: "Checking managed Skills…",
+    installSkills: "Install Skills",
+    updateOrRepairSkills: "Update or repair",
+    removeSkills: "Remove managed Skills",
+    removeSkillsDescription:
+      "CanISend removes only unchanged files listed in its manifest. User-modified or unmanaged files are always preserved.",
+    skillsNotInstalled: "Not installed",
+    skillsUpdateAvailable: "Update available",
+    skillsIncomplete: "Repair needed",
+    skillsUserModified: "User modified",
+    skillsUnmanaged: "Unmanaged files",
+    skillsModifiedWarning:
+      "One or more managed Skill files were changed outside CanISend.",
+    skillsUnmanagedWarning:
+      "Skill files exist without a CanISend ownership manifest.",
+    skillsPreservedDescription:
+      "Automatic update and removal are disabled so your files are not overwritten. Review or move those files before trying again.",
+    managedFiles: "managed files",
+    skillsInstallLocation: "Host discovery directory",
+    managedManifest: "CanISend ownership manifest",
+    skillsStatusUnavailable:
+      "Skill status is not loaded. Select a workspace and check the selected host.",
+    skillApplication: "Application orchestrator",
+    skillApplicationDescription:
+      "Reads the current next action and routes work to the smallest focused CanISend Skill.",
+    skillJobIntake: "Job intake",
+    skillJobIntakeDescription:
+      "Handles links, PDFs, advert parsing, provenance, and selection criteria.",
+    skillApplicationMaterials: "Application materials",
+    skillApplicationMaterialsDescription:
+      "Coordinates evidence, fit, decisions, and grounded application drafts.",
+    skillApplicationReview: "Application review",
+    skillApplicationReviewDescription:
+      "Guides cross-document review, readiness, rendering, reconciliation, and export.",
     copyCommand: "Copy command",
     copyStartCommand: "Copy one-step command",
     copyPrompt: "Copy message",
@@ -1322,6 +1360,41 @@ export const messages = {
     skillsInstalled: "已安装",
     skillsUpdated: "已升级",
     skillsUpToDate: "已是最新",
+    skillsManager: "内置 Skills",
+    skillsManagerDescription:
+      "检查并管理当前工作区可被所选 Agent 宿主发现、且与 CanISend 版本匹配的四个内置 Skills。",
+    checkSkills: "检查 Skills",
+    loadingSkills: "正在检查受管 Skills…",
+    installSkills: "安装 Skills",
+    updateOrRepairSkills: "升级或修复",
+    removeSkills: "移除受管 Skills",
+    removeSkillsDescription:
+      "CanISend 只会移除清单中记录且内容未被修改的文件；用户修改或非受管文件始终会保留。",
+    skillsNotInstalled: "尚未安装",
+    skillsUpdateAvailable: "有可用升级",
+    skillsIncomplete: "需要修复",
+    skillsUserModified: "用户已修改",
+    skillsUnmanaged: "存在非受管文件",
+    skillsModifiedWarning: "一个或多个受管 Skill 文件已在 CanISend 之外被修改。",
+    skillsUnmanagedWarning: "目录中存在 Skill 文件，但没有 CanISend 所有权清单。",
+    skillsPreservedDescription:
+      "为避免覆盖你的内容，自动升级和移除已停用。请先检查或移动这些文件后再重试。",
+    managedFiles: "个受管文件",
+    skillsInstallLocation: "宿主发现目录",
+    managedManifest: "CanISend 所有权清单",
+    skillsStatusUnavailable: "Skills 状态尚未载入。请选择工作区并检查所选宿主。",
+    skillApplication: "申请编排",
+    skillApplicationDescription:
+      "读取当前下一步，并把工作路由到最小且最聚焦的 CanISend Skill。",
+    skillJobIntake: "职位导入",
+    skillJobIntakeDescription:
+      "处理链接、PDF、职位广告解析、来源记录和选拔标准。",
+    skillApplicationMaterials: "申请材料",
+    skillApplicationMaterialsDescription:
+      "协调个人证据、匹配度、申请决策和有依据的申请材料草稿。",
+    skillApplicationReview: "申请审查",
+    skillApplicationReviewDescription:
+      "指导跨文档审查、就绪检查、渲染、对账与导出。",
     copyCommand: "复制命令",
     copyStartCommand: "复制一键启动命令",
     copyPrompt: "复制消息",

@@ -32,8 +32,9 @@ pub use agent::{
     AgentCapabilitiesReadModel, AgentContextReadModel, AgentHandoffReadModel, AgentHandoffRequest,
     AgentHost, AgentMcpConfigurationReadModel, AgentMcpConfigurationRequest,
     AgentPackExportReadModel, AgentPackExportRequest, AgentSkillsInstallReadModel,
-    AgentSkillsInstallRequest, CANISEND_MCP_GUARDED_WRITE_TOOLS, CANISEND_MCP_PROTOCOL_VERSION,
-    CANISEND_MCP_READ_ONLY_TOOLS, CANISEND_MCP_TOOLS,
+    AgentSkillsInstallRequest, AgentSkillsStatusReadModel, AgentSkillsStatusRequest,
+    AgentSkillsUninstallReadModel, AgentSkillsUninstallRequest, CANISEND_MCP_GUARDED_WRITE_TOOLS,
+    CANISEND_MCP_PROTOCOL_VERSION, CANISEND_MCP_READ_ONLY_TOOLS, CANISEND_MCP_TOOLS,
 };
 pub use agent_session::{
     AgentRuntimeKind, AgentSessionEntry, AgentSessionRegistry, default_agent_session_registry_path,

@@ -10,7 +10,9 @@ use canisend_app::{
     ActionReceipt, AgentAssistanceReadModel, AgentCapabilitiesReadModel, AgentContextReadModel,
     AgentHandoffReadModel, AgentHandoffRequest, AgentHost, AgentMcpConfigurationReadModel,
     AgentMcpConfigurationRequest, AgentPackExportReadModel, AgentPackExportRequest,
-    AgentSkillsInstallReadModel, AgentSkillsInstallRequest, Application, bundled_cli_path,
+    AgentSkillsInstallReadModel, AgentSkillsInstallRequest, AgentSkillsStatusReadModel,
+    AgentSkillsStatusRequest, AgentSkillsUninstallReadModel, AgentSkillsUninstallRequest,
+    Application, bundled_cli_path,
 };
 use serde::Deserialize;
 
@@ -148,6 +150,36 @@ pub(crate) async fn install_agent_skills(
 ) -> Result<ActionReceipt<AgentSkillsInstallReadModel>, DesktopCommandError> {
     run_worker(move || {
         Application::install_agent_skills(&AgentSkillsInstallRequest {
+            host: request.host,
+            workspace: request.workspace,
+        })
+        .map_err(DesktopCommandError::application)
+    })
+    .await
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+pub(crate) async fn agent_skills_status(
+    request: InstallAgentSkillsRequest,
+) -> Result<ActionReceipt<AgentSkillsStatusReadModel>, DesktopCommandError> {
+    run_worker(move || {
+        Application::agent_skills_status(&AgentSkillsStatusRequest {
+            host: request.host,
+            workspace: request.workspace,
+        })
+        .map_err(DesktopCommandError::application)
+    })
+    .await
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+pub(crate) async fn uninstall_agent_skills(
+    request: InstallAgentSkillsRequest,
+) -> Result<ActionReceipt<AgentSkillsUninstallReadModel>, DesktopCommandError> {
+    run_worker(move || {
+        Application::uninstall_agent_skills(&AgentSkillsUninstallRequest {
             host: request.host,
             workspace: request.workspace,
         })

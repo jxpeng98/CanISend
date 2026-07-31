@@ -71,6 +71,10 @@ canisend --workspace ./applications agent assets install --host codex --json
 canisend --workspace ./applications agent assets install --host claude --json
 ```
 
+Inspect the managed state before or after an upgrade with `agent assets status`. To remove the
+project integration, use `agent assets uninstall`; it deletes only unchanged files recorded in the
+CanISend manifest and refuses to remove user-modified or unmanaged skills.
+
 The Application Dossier, Content Catalog, contextual Agent guidance, and metadata/private search
 indexes do not add a migration. They are rebuilt from current SQLite rows and immutable artifact
 identities. A private search index is memory-only and discarded after the consented call. There is

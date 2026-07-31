@@ -124,7 +124,9 @@ fn classify_resource(error: &ResourceError) -> Classification {
             None,
             None,
         ),
-        ResourceError::UnsafeExportPath(_) => {
+        ResourceError::UnsafeExportPath(_)
+        | ResourceError::ManagedSkillModified(_)
+        | ResourceError::UnmanagedSkillFiles(_) => {
             ("invalid", ErrorCode::InputPathRejected, false, None, None)
         }
         ResourceError::ExportIo { .. } => {

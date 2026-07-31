@@ -436,6 +436,40 @@ fn agent_skills_install_uses_host_discovery_layout_and_is_idempotent() {
         "--json",
     ]);
     assert_eq!(unchanged["status"], "up-to-date");
+
+    let status = run_json(&[
+        "--workspace",
+        workspace.path().to_str().expect("workspace path"),
+        "agent",
+        "assets",
+        "status",
+        "--host",
+        "codex",
+        "--json",
+    ]);
+    assert_eq!(status["operation"], "agent.skills.status");
+    assert_eq!(status["status"], "up-to-date");
+    assert_eq!(status["data"]["skills"].as_array().map(Vec::len), Some(4));
+
+    let removed = run_json(&[
+        "--workspace",
+        workspace.path().to_str().expect("workspace path"),
+        "agent",
+        "assets",
+        "uninstall",
+        "--host",
+        "codex",
+        "--json",
+    ]);
+    assert_eq!(removed["operation"], "agent.skills.uninstall");
+    assert_eq!(removed["status"], "removed");
+    assert_eq!(removed["data"]["removed_files"], 8);
+    assert!(
+        !workspace
+            .path()
+            .join(".agents/skills/canisend-application/SKILL.md")
+            .exists()
+    );
 }
 
 #[test]

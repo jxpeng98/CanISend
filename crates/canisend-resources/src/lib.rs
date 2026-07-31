@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     fs,
     fs::OpenOptions,
     io::Write,
@@ -53,6 +53,10 @@ pub enum ResourceError {
     Integrity(String),
     #[error("resource export path is unsafe: {0}")]
     UnsafeExportPath(PathBuf),
+    #[error("managed Agent skill was modified outside CanISend: {0}")]
+    ManagedSkillModified(PathBuf),
+    #[error("Agent skill files are not owned by a CanISend manifest: {0}")]
+    UnmanagedSkillFiles(PathBuf),
     #[error("resource export failed at {path}: {source}")]
     ExportIo {
         path: PathBuf,
@@ -135,6 +139,58 @@ pub struct AgentSkillsInstallData {
     pub manifest_path: PathBuf,
     pub state: AgentSkillsInstallState,
     pub files: Vec<AgentPackFile>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum AgentSkillsStatusState {
+    NotInstalled,
+    UpToDate,
+    UpdateAvailable,
+    Incomplete,
+    UserModified,
+    Unmanaged,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentSkillStatus {
+    pub id: String,
+    pub resource_version: String,
+    pub state: AgentSkillsStatusState,
+    pub file_count: usize,
+    pub installed_file_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentSkillsStatusData {
+    pub workspace: PathBuf,
+    pub directory: PathBuf,
+    pub manifest_path: PathBuf,
+    pub host: AgentHost,
+    pub bundled_product_version: String,
+    pub installed_product_version: Option<String>,
+    pub state: AgentSkillsStatusState,
+    pub skills: Vec<AgentSkillStatus>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum AgentSkillsUninstallState {
+    NotInstalled,
+    Removed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentSkillsUninstallData {
+    pub workspace: PathBuf,
+    pub directory: PathBuf,
+    pub manifest_path: PathBuf,
+    pub host: AgentHost,
+    pub state: AgentSkillsUninstallState,
+    pub removed_files: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -477,6 +533,7 @@ pub fn install_agent_skills(
         AgentHost::Generic => "canisend-skills.json",
     };
     let manifest_path = workspace.join(manifest_relative_path);
+    ensure_managed_parent_chain(workspace, &manifest_path)?;
     let existing = read_agent_skills_manifest(&manifest_path, host)?;
     let previous_files = existing
         .as_ref()
@@ -488,27 +545,42 @@ pub fn install_agent_skills(
                 .collect::<std::collections::BTreeMap<_, _>>()
         })
         .unwrap_or_default();
+    let current_paths = resources
+        .iter()
+        .map(|(_, path)| path.as_str())
+        .collect::<BTreeSet<_>>();
+    let stale_files = existing
+        .as_ref()
+        .map(|manifest| {
+            manifest
+                .files
+                .iter()
+                .filter(|file| !current_paths.contains(file.path.as_str()))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    for file in &stale_files {
+        let destination = workspace.join(&file.path);
+        let Some(current_sha) = managed_file_sha256(workspace, &destination)? else {
+            continue;
+        };
+        if current_sha != file.sha256 {
+            return Err(ResourceError::ManagedSkillModified(destination));
+        }
+    }
 
     let mut files = Vec::with_capacity(resources.len());
-    let mut changed = existing.is_none();
+    let mut changed = existing.is_none() || !stale_files.is_empty();
     for (resource_id, relative_path) in &resources {
         validate_resource_path(relative_path)?;
         let resource_id = ResourceId::from_str(resource_id)?;
         let resource = get(resource_id);
         let destination = workspace.join(relative_path);
-        if let Ok(metadata) = fs::symlink_metadata(&destination) {
-            if metadata.file_type().is_symlink() || !metadata.is_file() {
-                return Err(ResourceError::UnsafeExportPath(destination));
-            }
-            let current = fs::read(&destination).map_err(|source| ResourceError::ExportIo {
-                path: destination.clone(),
-                source,
-            })?;
-            let current_sha = hex::encode(Sha256::digest(&current));
+        if let Some(current_sha) = managed_file_sha256(workspace, &destination)? {
             if current_sha != resource.descriptor.sha256 {
                 if previous_files.get(relative_path.as_str()).copied() != Some(current_sha.as_str())
                 {
-                    return Err(ResourceError::UnsafeExportPath(destination));
+                    return Err(ResourceError::ManagedSkillModified(destination));
                 }
                 changed = true;
             }
@@ -527,11 +599,19 @@ pub fn install_agent_skills(
     for ((resource_id, relative_path), file) in resources.iter().zip(&files) {
         let resource = get(ResourceId::from_str(resource_id)?);
         let destination = workspace.join(relative_path);
-        let current_matches = fs::read(&destination)
-            .map(|bytes| hex::encode(Sha256::digest(bytes)) == file.sha256)
-            .unwrap_or(false);
+        let current_matches = managed_file_sha256(workspace, &destination)?
+            .is_some_and(|sha256| sha256 == file.sha256);
         if !current_matches {
             write_managed_file(workspace, &destination, resource.bytes)?;
+        }
+    }
+    for file in stale_files {
+        let destination = workspace.join(&file.path);
+        if managed_file_sha256(workspace, &destination)?.is_some() {
+            fs::remove_file(&destination).map_err(|source| ResourceError::ExportIo {
+                path: destination,
+                source,
+            })?;
         }
     }
 
@@ -571,42 +651,383 @@ pub fn install_agent_skills(
     })
 }
 
+pub fn inspect_agent_skills(
+    host: AgentHost,
+    workspace: &Path,
+) -> Result<AgentSkillsStatusData, ResourceError> {
+    verify().map_err(ResourceError::Integrity)?;
+    ensure_managed_workspace(workspace)?;
+    let resources = agent_skill_resource_paths(host);
+    let (directory, manifest_path) = agent_skills_paths(host, workspace);
+    ensure_managed_parent_chain(workspace, &manifest_path)?;
+    let existing = read_agent_skills_manifest(&manifest_path, host)?;
+    let previous_files = existing
+        .as_ref()
+        .map(|manifest| {
+            manifest
+                .files
+                .iter()
+                .map(|file| (file.path.as_str(), file.sha256.as_str()))
+                .collect::<BTreeMap<_, _>>()
+        })
+        .unwrap_or_default();
+    let bundled_version = env!("CARGO_PKG_VERSION");
+    let installed_version = existing
+        .as_ref()
+        .map(|manifest| manifest.product_version.clone());
+    let version_changed = existing.as_ref().is_some_and(|manifest| {
+        manifest.product_version != bundled_version || manifest.resource_format != RESOURCE_FORMAT
+    });
+    let expected_files = resources
+        .iter()
+        .map(|(resource_id, path)| {
+            let resource = get(ResourceId::from_str(resource_id)?);
+            Ok((path.as_str(), resource.descriptor.sha256))
+        })
+        .collect::<Result<BTreeMap<_, _>, ResourceError>>()?;
+    let manifest_changed = existing.as_ref().is_some_and(|manifest| {
+        manifest.files.len() != expected_files.len()
+            || manifest.files.iter().any(|file| {
+                expected_files.get(file.path.as_str()).copied() != Some(file.sha256.as_str())
+            })
+    });
+
+    let mut skills = Vec::with_capacity(AGENT_SKILLS.len());
+    let mut any_installed = false;
+    for (skill_id, _, _) in AGENT_SKILLS {
+        let files = resources
+            .iter()
+            .filter(|(resource_id, _)| {
+                skill_id_for_resource(resource_id).is_ok_and(|id| id == skill_id)
+            })
+            .collect::<Vec<_>>();
+        let mut installed_file_count = 0;
+        let mut missing = false;
+        let mut update_available = version_changed || manifest_changed;
+        let mut user_modified = false;
+        let mut resource_version = None;
+        for (resource_id, relative_path) in &files {
+            let resource = get(ResourceId::from_str(resource_id)?);
+            resource_version.get_or_insert(resource.descriptor.version);
+            let destination = workspace.join(relative_path);
+            match inspect_skill_file(
+                workspace,
+                &destination,
+                resource.descriptor.sha256,
+                previous_files.get(relative_path.as_str()).copied(),
+            )? {
+                SkillFileState::Missing => missing = true,
+                SkillFileState::Current => {
+                    installed_file_count += 1;
+                    any_installed = true;
+                }
+                SkillFileState::ManagedOld => {
+                    installed_file_count += 1;
+                    any_installed = true;
+                    update_available = true;
+                }
+                SkillFileState::UserModified => {
+                    installed_file_count += 1;
+                    any_installed = true;
+                    user_modified = true;
+                }
+            }
+        }
+        let state = if existing.is_none() {
+            if installed_file_count == 0 {
+                AgentSkillsStatusState::NotInstalled
+            } else {
+                AgentSkillsStatusState::Unmanaged
+            }
+        } else if user_modified {
+            AgentSkillsStatusState::UserModified
+        } else if missing {
+            AgentSkillsStatusState::Incomplete
+        } else if update_available {
+            AgentSkillsStatusState::UpdateAvailable
+        } else {
+            AgentSkillsStatusState::UpToDate
+        };
+        skills.push(AgentSkillStatus {
+            id: skill_id.to_owned(),
+            resource_version: resource_version.unwrap_or(RESOURCE_VERSION).to_owned(),
+            state,
+            file_count: files.len(),
+            installed_file_count,
+        });
+    }
+
+    let current_paths = agent_skill_resource_paths(host)
+        .into_iter()
+        .map(|(_, path)| path)
+        .collect::<BTreeSet<_>>();
+    let mut stale_managed = false;
+    let mut stale_modified = false;
+    if let Some(manifest) = &existing {
+        for file in manifest
+            .files
+            .iter()
+            .filter(|file| !current_paths.contains(&file.path))
+        {
+            let destination = workspace.join(&file.path);
+            if let Some(current_sha) = managed_file_sha256(workspace, &destination)? {
+                stale_managed = true;
+                if current_sha != file.sha256 {
+                    stale_modified = true;
+                }
+            }
+        }
+    }
+
+    let state = if existing.is_none() {
+        if any_installed {
+            AgentSkillsStatusState::Unmanaged
+        } else {
+            AgentSkillsStatusState::NotInstalled
+        }
+    } else if stale_modified
+        || skills
+            .iter()
+            .any(|skill| skill.state == AgentSkillsStatusState::UserModified)
+    {
+        AgentSkillsStatusState::UserModified
+    } else if skills
+        .iter()
+        .any(|skill| skill.state == AgentSkillsStatusState::Incomplete)
+    {
+        AgentSkillsStatusState::Incomplete
+    } else if stale_managed
+        || skills
+            .iter()
+            .any(|skill| skill.state == AgentSkillsStatusState::UpdateAvailable)
+    {
+        AgentSkillsStatusState::UpdateAvailable
+    } else {
+        AgentSkillsStatusState::UpToDate
+    };
+    Ok(AgentSkillsStatusData {
+        workspace: workspace.to_path_buf(),
+        directory,
+        manifest_path,
+        host,
+        bundled_product_version: bundled_version.to_owned(),
+        installed_product_version: installed_version,
+        state,
+        skills,
+    })
+}
+
+pub fn uninstall_agent_skills(
+    host: AgentHost,
+    workspace: &Path,
+) -> Result<AgentSkillsUninstallData, ResourceError> {
+    verify().map_err(ResourceError::Integrity)?;
+    ensure_managed_workspace(workspace)?;
+    let status = inspect_agent_skills(host, workspace)?;
+    if status.state == AgentSkillsStatusState::Unmanaged {
+        return Err(ResourceError::UnmanagedSkillFiles(status.directory));
+    }
+    let Some(manifest) = read_agent_skills_manifest(&status.manifest_path, host)? else {
+        return Ok(AgentSkillsUninstallData {
+            workspace: workspace.to_path_buf(),
+            directory: status.directory,
+            manifest_path: status.manifest_path,
+            host,
+            state: AgentSkillsUninstallState::NotInstalled,
+            removed_files: 0,
+        });
+    };
+
+    for file in &manifest.files {
+        let destination = workspace.join(&file.path);
+        let Some(current_sha) = managed_file_sha256(workspace, &destination)? else {
+            continue;
+        };
+        if current_sha != file.sha256 {
+            return Err(ResourceError::ManagedSkillModified(destination));
+        }
+    }
+    let mut removed_files = 0;
+    for file in &manifest.files {
+        let destination = workspace.join(&file.path);
+        if let Some(current_sha) = managed_file_sha256(workspace, &destination)? {
+            if current_sha != file.sha256 {
+                return Err(ResourceError::ManagedSkillModified(destination));
+            }
+            fs::remove_file(&destination).map_err(|source| ResourceError::ExportIo {
+                path: destination,
+                source,
+            })?;
+            removed_files += 1;
+        }
+    }
+    fs::remove_file(&status.manifest_path).map_err(|source| ResourceError::ExportIo {
+        path: status.manifest_path.clone(),
+        source,
+    })?;
+    prune_agent_skill_directories(host, workspace);
+    Ok(AgentSkillsUninstallData {
+        workspace: workspace.to_path_buf(),
+        directory: status.directory,
+        manifest_path: status.manifest_path,
+        host,
+        state: AgentSkillsUninstallState::Removed,
+        removed_files,
+    })
+}
+
+const AGENT_SKILLS: [(&str, &str, &str); 4] = [
+    (
+        "canisend-application",
+        "skill.canisend-application",
+        "skill.canisend-application.openai",
+    ),
+    (
+        "canisend-job-intake",
+        "skill.canisend-job-intake",
+        "skill.canisend-job-intake.openai",
+    ),
+    (
+        "canisend-application-materials",
+        "skill.canisend-application-materials",
+        "skill.canisend-application-materials.openai",
+    ),
+    (
+        "canisend-application-review",
+        "skill.canisend-application-review",
+        "skill.canisend-application-review.openai",
+    ),
+];
+
 fn agent_skill_resource_paths(host: AgentHost) -> Vec<(&'static str, String)> {
-    const SKILLS: [(&str, &str, &str); 4] = [
-        (
-            "canisend-application",
-            "skill.canisend-application",
-            "skill.canisend-application.openai",
-        ),
-        (
-            "canisend-job-intake",
-            "skill.canisend-job-intake",
-            "skill.canisend-job-intake.openai",
-        ),
-        (
-            "canisend-application-materials",
-            "skill.canisend-application-materials",
-            "skill.canisend-application-materials.openai",
-        ),
-        (
-            "canisend-application-review",
-            "skill.canisend-application-review",
-            "skill.canisend-application-review.openai",
-        ),
-    ];
     let root = match host {
         AgentHost::Codex => ".agents/skills",
         AgentHost::Claude => ".claude/skills",
         AgentHost::Generic => "skills",
     };
     let mut resources = Vec::with_capacity(if host == AgentHost::Codex { 8 } else { 4 });
-    for (name, skill_id, openai_id) in SKILLS {
+    for (name, skill_id, openai_id) in AGENT_SKILLS {
         resources.push((skill_id, format!("{root}/{name}/SKILL.md")));
         if host == AgentHost::Codex {
             resources.push((openai_id, format!("{root}/{name}/agents/openai.yaml")));
         }
     }
     resources
+}
+
+fn agent_skills_paths(host: AgentHost, workspace: &Path) -> (PathBuf, PathBuf) {
+    match host {
+        AgentHost::Codex => (
+            workspace.join(".agents/skills"),
+            workspace.join(".agents/canisend-skills.json"),
+        ),
+        AgentHost::Claude => (
+            workspace.join(".claude/skills"),
+            workspace.join(".claude/canisend-skills.json"),
+        ),
+        AgentHost::Generic => (
+            workspace.join("skills"),
+            workspace.join("canisend-skills.json"),
+        ),
+    }
+}
+
+fn skill_id_for_resource(resource_id: &str) -> Result<&'static str, ResourceError> {
+    AGENT_SKILLS
+        .iter()
+        .find(|(_, skill_id, openai_id)| resource_id == *skill_id || resource_id == *openai_id)
+        .map(|(name, _, _)| *name)
+        .ok_or_else(|| ResourceError::InvalidSelection(resource_id.to_owned()))
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SkillFileState {
+    Missing,
+    Current,
+    ManagedOld,
+    UserModified,
+}
+
+fn inspect_skill_file(
+    root: &Path,
+    path: &Path,
+    bundled_sha256: &str,
+    previous_sha256: Option<&str>,
+) -> Result<SkillFileState, ResourceError> {
+    let Some(current_sha256) = managed_file_sha256(root, path)? else {
+        return Ok(SkillFileState::Missing);
+    };
+    if current_sha256 == bundled_sha256 {
+        Ok(SkillFileState::Current)
+    } else if previous_sha256 == Some(current_sha256.as_str()) {
+        Ok(SkillFileState::ManagedOld)
+    } else {
+        Ok(SkillFileState::UserModified)
+    }
+}
+
+fn managed_file_sha256(root: &Path, path: &Path) -> Result<Option<String>, ResourceError> {
+    if !ensure_managed_parent_chain(root, path)? {
+        return Ok(None);
+    }
+    let metadata = match fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(source) => {
+            return Err(ResourceError::ExportIo {
+                path: path.to_path_buf(),
+                source,
+            });
+        }
+    };
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Ok(Some(String::new()));
+    }
+    let bytes = fs::read(path).map_err(|source| ResourceError::ExportIo {
+        path: path.to_path_buf(),
+        source,
+    })?;
+    Ok(Some(hex::encode(Sha256::digest(bytes))))
+}
+
+fn ensure_managed_parent_chain(root: &Path, path: &Path) -> Result<bool, ResourceError> {
+    let relative = path
+        .strip_prefix(root)
+        .map_err(|_| ResourceError::UnsafeExportPath(path.to_path_buf()))?;
+    let parent = relative
+        .parent()
+        .ok_or_else(|| ResourceError::UnsafeExportPath(path.to_path_buf()))?;
+    let mut current = root.to_path_buf();
+    for component in parent.components() {
+        current.push(component);
+        let metadata = match fs::symlink_metadata(&current) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+            Err(source) => {
+                return Err(ResourceError::ExportIo {
+                    path: current,
+                    source,
+                });
+            }
+        };
+        if metadata.file_type().is_symlink() || !metadata.is_dir() {
+            return Err(ResourceError::UnsafeExportPath(current));
+        }
+    }
+    Ok(true)
+}
+
+fn prune_agent_skill_directories(host: AgentHost, workspace: &Path) {
+    let root = match host {
+        AgentHost::Codex => workspace.join(".agents/skills"),
+        AgentHost::Claude => workspace.join(".claude/skills"),
+        AgentHost::Generic => workspace.join("skills"),
+    };
+    for (name, _, _) in AGENT_SKILLS {
+        let directory = root.join(name);
+        let _ = fs::remove_dir(directory.join("agents"));
+        let _ = fs::remove_dir(directory);
+    }
 }
 
 fn read_agent_skills_manifest(

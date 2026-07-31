@@ -9,8 +9,11 @@ use canisend_core::{CapabilityRegistry, StageRegistry};
 use canisend_io::discovery_adapter_capabilities;
 pub use canisend_resources::AgentHost;
 use canisend_resources::{
-    AgentPackExportData, AgentSkillsInstallData, export_agent_pack as export_embedded_agent_pack,
+    AgentPackExportData, AgentSkillsInstallData, AgentSkillsStatusData, AgentSkillsUninstallData,
+    export_agent_pack as export_embedded_agent_pack,
+    inspect_agent_skills as inspect_embedded_agent_skills,
     install_agent_skills as install_embedded_agent_skills,
+    uninstall_agent_skills as uninstall_embedded_agent_skills,
 };
 use canisend_store::{AgentContextService, StoreError, Workspace};
 use serde::{Deserialize, Serialize};
@@ -24,6 +27,8 @@ pub type AgentCapabilitiesReadModel = CapabilitiesData;
 pub type AgentContextReadModel = AgentContextData;
 pub type AgentPackExportReadModel = AgentPackExportData;
 pub type AgentSkillsInstallReadModel = AgentSkillsInstallData;
+pub type AgentSkillsStatusReadModel = AgentSkillsStatusData;
+pub type AgentSkillsUninstallReadModel = AgentSkillsUninstallData;
 
 pub const CANISEND_MCP_PROTOCOL_VERSION: &str = "2025-11-25";
 pub const CANISEND_MCP_TOOLS: [&str; 13] = [
@@ -128,6 +133,9 @@ pub struct AgentSkillsInstallRequest {
     pub host: AgentHost,
     pub workspace: PathBuf,
 }
+
+pub type AgentSkillsStatusRequest = AgentSkillsInstallRequest;
+pub type AgentSkillsUninstallRequest = AgentSkillsInstallRequest;
 
 impl AgentPackExportRequest {
     #[must_use]
@@ -473,6 +481,52 @@ impl Application {
             installed,
         ))
     }
+
+    pub fn agent_skills_status(
+        request: &AgentSkillsStatusRequest,
+    ) -> Result<ActionReceipt<AgentSkillsStatusReadModel>, ApplicationError> {
+        canisend_resources::verify().map_err(ApplicationError::ResourceIntegrity)?;
+        let workspace = Self::workspace_status(&request.workspace)?.data.path;
+        let status = inspect_embedded_agent_skills(request.host, &workspace)?;
+        Ok(ActionReceipt::new(
+            "agent.skills.status",
+            match status.state {
+                canisend_resources::AgentSkillsStatusState::NotInstalled => "not-installed",
+                canisend_resources::AgentSkillsStatusState::UpToDate => "up-to-date",
+                canisend_resources::AgentSkillsStatusState::UpdateAvailable => "update-available",
+                canisend_resources::AgentSkillsStatusState::Incomplete => "incomplete",
+                canisend_resources::AgentSkillsStatusState::UserModified => "user-modified",
+                canisend_resources::AgentSkillsStatusState::Unmanaged => "unmanaged",
+            },
+            format!(
+                "Inspected {} bundled CanISend workflow skills for {}",
+                status.skills.len(),
+                request.host.as_str()
+            ),
+            status,
+        ))
+    }
+
+    pub fn uninstall_agent_skills(
+        request: &AgentSkillsUninstallRequest,
+    ) -> Result<ActionReceipt<AgentSkillsUninstallReadModel>, ApplicationError> {
+        canisend_resources::verify().map_err(ApplicationError::ResourceIntegrity)?;
+        let workspace = Self::workspace_status(&request.workspace)?.data.path;
+        let removed = uninstall_embedded_agent_skills(request.host, &workspace)?;
+        Ok(ActionReceipt::new(
+            "agent.skills.uninstall",
+            match removed.state {
+                canisend_resources::AgentSkillsUninstallState::NotInstalled => "not-installed",
+                canisend_resources::AgentSkillsUninstallState::Removed => "removed",
+            },
+            format!(
+                "Removed {} unchanged CanISend workflow skill files for {}",
+                removed.removed_files,
+                request.host.as_str()
+            ),
+            removed,
+        ))
+    }
 }
 
 fn shell_quote_path(path: &Path) -> Result<String, ApplicationError> {
@@ -602,6 +656,7 @@ mod tests {
     };
 
     use canisend_contracts::{ErrorCode, PrivacyClassification};
+    use canisend_resources::{AgentSkillsStatusState, AgentSkillsUninstallState};
     use sha2::{Digest, Sha256};
 
     use super::{
@@ -810,6 +865,24 @@ mod tests {
         })
         .expect("check workflow skills");
         assert_eq!(unchanged.status, "up-to-date");
+        let status = Application::agent_skills_status(&AgentSkillsInstallRequest {
+            host: AgentHost::Codex,
+            workspace: root.clone(),
+        })
+        .expect("inspect workflow skills");
+        assert_eq!(status.operation, "agent.skills.status");
+        assert_eq!(status.status, "up-to-date");
+        assert_eq!(status.data.state, AgentSkillsStatusState::UpToDate);
+        assert_eq!(status.data.skills.len(), 4);
+        let removed = Application::uninstall_agent_skills(&AgentSkillsInstallRequest {
+            host: AgentHost::Codex,
+            workspace: root.clone(),
+        })
+        .expect("remove workflow skills");
+        assert_eq!(removed.operation, "agent.skills.uninstall");
+        assert_eq!(removed.status, "removed");
+        assert_eq!(removed.data.state, AgentSkillsUninstallState::Removed);
+        assert_eq!(removed.data.removed_files, 8);
 
         let pack_parent = temporary_root("packs");
         fs::create_dir(&pack_parent).expect("pack parent");

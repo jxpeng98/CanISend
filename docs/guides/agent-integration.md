@@ -37,6 +37,20 @@ Codex project skills live under `.agents/skills`; Claude project skills live und
 `canisend-skills.json` manifest records only CanISend-managed file digests. Re-running setup upgrades an unchanged
 managed skill, is a no-op when current, and refuses to overwrite a user-modified skill.
 
+The desktop **Built-in Skills** manager shows all four skills for the selected host, their managed-file counts,
+version-matched state, discovery directory, and ownership manifest. It distinguishes not installed, current,
+update available, incomplete, user-modified, and unmanaged states. Install/update repairs only unchanged
+manifest-owned files. Removal performs a complete preflight and deletes only files whose SHA-256 still matches the
+manifest; user-modified and unmanaged files are preserved and block the operation.
+
+The equivalent CLI operations use the same application facade:
+
+```console
+canisend --workspace ./applications agent assets status --host codex --json
+canisend --workspace ./applications agent assets install --host codex --json
+canisend --workspace ./applications agent assets uninstall --host codex --json
+```
+
 The handoff contains managed workflow instructions, canonical paths, public IDs, commands, and body-free status only.
 It does not contain advert, profile, evidence, draft, or review bodies, and preparing it does not contact a provider.
 

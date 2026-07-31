@@ -24,6 +24,7 @@ import {
   copyAgentMcpConfiguration,
   exportPackage,
   getAgentAssistance,
+  getAgentSkillsStatus,
   getApplicationDossier,
   getContentCatalog,
   installAgentSkills,
@@ -36,6 +37,7 @@ import {
   previewUrlJobSource,
   runAgentTurn,
   searchContent,
+  uninstallAgentSkills,
 } from "./bridge";
 
 describe("typed Tauri command requests", () => {
@@ -338,6 +340,24 @@ describe("typed Tauri command requests", () => {
     expect(mocks.invoke).toHaveBeenCalledWith("install_agent_skills", {
       request: {
         host: "codex",
+        workspace: "/tmp/workspace",
+      },
+    });
+  });
+
+  it("inspects and safely removes host-discoverable CanISend skills", async () => {
+    await getAgentSkillsStatus("claude", "/tmp/workspace");
+    expect(mocks.invoke).toHaveBeenLastCalledWith("agent_skills_status", {
+      request: {
+        host: "claude",
+        workspace: "/tmp/workspace",
+      },
+    });
+
+    await uninstallAgentSkills("claude", "/tmp/workspace");
+    expect(mocks.invoke).toHaveBeenLastCalledWith("uninstall_agent_skills", {
+      request: {
+        host: "claude",
         workspace: "/tmp/workspace",
       },
     });

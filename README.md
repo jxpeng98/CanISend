@@ -172,6 +172,10 @@ cargo build --release --locked
 ./target/release/canisend --workspace ./my-workspace discovery promote LEAD_ID --json
 ./target/release/canisend --workspace ./my-workspace agent assets install \
   --host codex --json
+./target/release/canisend --workspace ./my-workspace agent assets status \
+  --host codex --json
+./target/release/canisend --workspace ./my-workspace agent assets uninstall \
+  --host codex --json
 ./target/release/canisend agent assets export --host codex \
   --destination ./codex-canisend-pack --json
 ./target/release/canisend --workspace ./my-workspace agent context --job JOB_ID --json

@@ -65,6 +65,7 @@
     getAgentCapabilities,
     getAgentContext,
     getAgentRuntimeCatalog,
+    getAgentSkillsStatus,
     getApplicationDossier,
     getCliInstallStatus,
     getContentCatalog,
@@ -122,6 +123,7 @@
     startWorkflow,
     suggestDiscoveryDuplicates,
     uninstallCli,
+    uninstallAgentSkills,
     type ActionReceipt,
     type AgentAssistanceReadModel,
     type AgentCapabilitiesReadModel,
@@ -132,6 +134,8 @@
     type AgentRuntimeCatalog,
     type AgentRuntimeKind,
     type AgentSkillsInstallReadModel,
+    type AgentSkillsStatusReadModel,
+    type AgentSkillsUninstallReadModel,
     type AgentTurnResult,
     type ApplicationDossierReadModel,
     type CliInstallStatus,
@@ -1634,6 +1638,29 @@
     return result.data;
   }
 
+  async function handleLoadAgentSkills(
+    host: "codex" | "claude" | "generic",
+  ): Promise<AgentSkillsStatusReadModel | null> {
+    if (!activeWorkspace) return null;
+    const result = await runAction(() =>
+      getAgentSkillsStatus(host, activeWorkspace!.path),
+    );
+    if (!result) return null;
+    return result.data;
+  }
+
+  async function handleUninstallAgentSkills(
+    host: "codex" | "claude" | "generic",
+  ): Promise<AgentSkillsUninstallReadModel | null> {
+    if (!activeWorkspace) return null;
+    const result = await runAction(() =>
+      uninstallAgentSkills(host, activeWorkspace!.path),
+    );
+    if (!result) return null;
+    notice = result.summary;
+    return result.data;
+  }
+
   async function handleCopyAgentHandoff(
     host: "codex" | "claude" | "generic",
     jobId: string | undefined,
@@ -2746,7 +2773,9 @@
             onLoadContext={handleLoadAgentContext}
             onLoadAssistance={handleLoadAgentAssistance}
             onPrepareHandoff={handlePrepareAgentHandoff}
+            onLoadSkills={handleLoadAgentSkills}
             onInstallSkills={handleInstallAgentSkills}
+            onUninstallSkills={handleUninstallAgentSkills}
             onCopyHandoff={handleCopyAgentHandoff}
             onPrepareMcpConfiguration={handlePrepareAgentMcpConfiguration}
             onCopyMcpConfiguration={handleCopyAgentMcpConfiguration}

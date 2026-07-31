@@ -134,6 +134,12 @@ bodies. The page shows product and format versions, capability and stage registr
 adapters, and either a workspace summary or one optional active-job summary. Blockers and bounded
 next actions are plain text with copy controls; copying never executes a command.
 
+The **Built-in Skills** card follows the current workspace and selected Codex, Claude, or generic
+host. It lists the four version-matched CanISend workflow skills, install state, managed-file
+counts, discovery directory, and ownership manifest. **Install Skills** and **Update or repair**
+write only new or unchanged manifest-owned files. **Remove managed Skills** first verifies every
+remaining file and stops without deleting anything if a user edit or unmanaged file is present.
+
 Choose Codex, Claude, or Generic, then select a destination. Export is enabled only after the GUI
 previews the destination as new or empty; the application layer verifies it again before writing.
 On success the page shows the manifest path, resource count, and exact exported files. The GUI

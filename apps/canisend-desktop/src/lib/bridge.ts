@@ -858,6 +858,40 @@ export interface AgentSkillsInstallReadModel {
   }>;
 }
 
+export type AgentSkillsStatusState =
+  | "not-installed"
+  | "up-to-date"
+  | "update-available"
+  | "incomplete"
+  | "user-modified"
+  | "unmanaged";
+
+export interface AgentSkillsStatusReadModel {
+  workspace: string;
+  directory: string;
+  manifest_path: string;
+  host: "codex" | "claude" | "generic";
+  bundled_product_version: string;
+  installed_product_version: string | null;
+  state: AgentSkillsStatusState;
+  skills: Array<{
+    id: string;
+    resource_version: string;
+    state: AgentSkillsStatusState;
+    file_count: number;
+    installed_file_count: number;
+  }>;
+}
+
+export interface AgentSkillsUninstallReadModel {
+  workspace: string;
+  directory: string;
+  manifest_path: string;
+  host: "codex" | "claude" | "generic";
+  state: "not-installed" | "removed";
+  removed_files: number;
+}
+
 export interface AgentMcpConfigurationReadModel {
   host: "codex" | "claude" | "generic";
   workspace: string;
@@ -1812,6 +1846,24 @@ export async function installAgentSkills(
   workspace: string,
 ): Promise<ActionReceipt<AgentSkillsInstallReadModel>> {
   return invoke("install_agent_skills", {
+    request: { host, workspace },
+  });
+}
+
+export async function getAgentSkillsStatus(
+  host: "codex" | "claude" | "generic",
+  workspace: string,
+): Promise<ActionReceipt<AgentSkillsStatusReadModel>> {
+  return invoke("agent_skills_status", {
+    request: { host, workspace },
+  });
+}
+
+export async function uninstallAgentSkills(
+  host: "codex" | "claude" | "generic",
+  workspace: string,
+): Promise<ActionReceipt<AgentSkillsUninstallReadModel>> {
+  return invoke("uninstall_agent_skills", {
     request: { host, workspace },
   });
 }
