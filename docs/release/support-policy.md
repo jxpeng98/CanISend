@@ -1,6 +1,6 @@
-# CanISend 0.7 Support Policy
+# CanISend 1.0 Support Policy
 
-This is the pre-Stable support policy for the Rust-native `0.7` line. The machine-readable authority is
+This is the pre-Stable support policy for the Rust-native `1.0` line. The machine-readable authority is
 [`release/support-policy.json`](../../release/support-policy.json). It remains `pre-stable-draft` during Alpha, Beta,
 and RC; the Stable source gate requires it to become `published` when the workspace version loses its prerelease
 suffix.
@@ -9,19 +9,20 @@ suffix.
 
 - A prerelease is **current-only-until-superseded** by the next Alpha, Beta, RC, or Stable build. It is not an LTS
   channel.
-- After Stable, support is **current-minor-latest-patch**: only the latest `0.7.x` patch is maintained and users may
+- After Stable, support is **current-minor-latest-patch**: only the latest `1.0.x` patch is maintained and users may
   need to update before a defect can be reproduced or fixed.
 - The Python `0.6` line is archived and unsupported. It is a historical source reference, not a runtime,
   compatibility, migration, or security-maintenance channel.
 - There is no long-term-support release and **No service-level agreement**. Security and data-loss reports are still
   triaged through [`SECURITY.md`](../../SECURITY.md) and may block a release.
 
-Any later stable minor line must publish its own policy and release-specific migration handoff before it supersedes
-`0.7`. A Git tag or locally rebuilt binary outside the declared release channels does not create support status.
+Any later stable line must publish its own policy and release-specific migration handoff before it
+supersedes 1.0. A Git tag or locally rebuilt binary outside the declared release channels does not
+create support status.
 
 ## Supported native targets
 
-The exact machine authority is [`release/targets.json`](../../release/targets.json). The `0.7` line qualifies five
+The exact machine authority is [`release/targets.json`](../../release/targets.json). The `1.0` line qualifies five
 archives:
 
 | Platform | Target | Archive |
@@ -32,17 +33,23 @@ archives:
 | Linux x86_64 static musl | `x86_64-unknown-linux-musl` | `.tar.gz` |
 | Windows x86_64 | `x86_64-pc-windows-msvc` | `.zip` |
 
-Linux arm64 is unsupported in `0.7`. A target triple means the published archive and its native release-matrix
+Linux arm64 is unsupported in `1.0`. A target triple means the published archive and its native release-matrix
 runner are qualified; it does not imply support for every historical operating-system version, alternative libc,
 emulator, compatibility layer, or modified executable. The installation guide explains archive selection and the
 release-verification guide defines the required checksum, provenance, and signing checks.
+
+The desktop application is distributed for Apple Silicon macOS during Alpha. Beta and later also
+require exact-candidate Intel macOS GUI compilation evidence, but that compile-only record is not a
+native Intel desktop runtime claim. Windows and Linux GUI packages remain outside the 1.0 support
+line until separately implemented and qualified; the standalone CLI archives above remain the
+cross-platform surface.
 
 End users need no Python, Node.js, Java, external Typst executable, external SQLite installation, Rust toolchain, or
 runtime package download. Building from source is a development path and is not equivalent to a supported archive.
 
 ## Contract support
 
-| Surface | Supported `0.7` contract | Compatibility boundary |
+| Surface | Supported `1.0` contract | Compatibility boundary |
 |---|---|---|
 | Agent protocol | `canisend.agent/v2` | Breaking shape or semantic changes require a new protocol and schema major. |
 | Public JSON Schema | `2.0.0` | The Beta freeze binds the complete generated schema inventory and normalized snapshots. |
@@ -60,7 +67,7 @@ bodies by default and are supported only with the matching CanISend release cont
 
 ## Workspace support and rollback
 
-Database migrations 1 through 13 are frozen. Any later `0.7` migration must be contiguous and append-only. CanISend
+Database migrations 1 through 13 are frozen. Any later `1.0` migration must be contiguous and append-only. CanISend
 rejects a future database schema or incomplete migration history without mutating it; it does not silently repair,
 delete, or rewrite migration authority.
 
@@ -71,9 +78,16 @@ and keep the upgraded workspace for diagnosis. The full procedure is in the
 
 ## Supported input and security boundary
 
-The `0.7` line supports local text, text-extractable PDF, supplied URL/HTML, RSS/Atom discovery, and the adapters
-advertised by `agent capabilities`. Scanned/image-only PDFs without extractable text, browser automation, automatic
-portal submission, GUI operation, and Linux arm64 are outside this support line.
+The `1.0` line supports local text, text-extractable PDF, supplied URL/HTML, reviewed CSV/JSON and
+host-Agent imports, RSS/Atom discovery, the adapters advertised by `agent capabilities`, and the
+Apple Silicon macOS desktop workflow described above. Scanned/image-only PDFs without extractable
+text, browser/portal automation, automatic application submission, Windows/Linux desktop
+packages, and Linux arm64 archives are outside this support line.
+
+External Codex and Claude handoff is the primary reasoning surface. Their credentials,
+conversations, provider entitlements, search, plugins, connectors, and retention remain owned by
+those hosts. CanISend supplies body-free context and guarded tools but does not promise that every
+host exposes identical capabilities.
 
 CanISend has no default telemetry. Public issues must not contain private advert, profile, application, workspace,
 provider, or credential content. Provider send and private export remain explicit consent boundaries; installation

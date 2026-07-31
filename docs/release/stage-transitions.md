@@ -1,8 +1,8 @@
 # Native release stage transitions
 
 [`release/stage-transition-policy.json`](../../release/stage-transition-policy.json) defines the only supported
-forward transitions for the 0.7 Rust-native line: Alpha to Beta, Beta to RC, sequential RC iteration, and RC to
-Stable. The transition tool
+forward transitions for the active 1.0 Rust-native line: Alpha to Beta, Beta to RC, sequential RC
+iteration, and RC to Stable. The transition tool
 changes current product state without rewriting the immutable Alpha readiness, contract-freeze, feedback, or
 package-candidate evidence that explains how the release reached that state.
 
@@ -11,13 +11,14 @@ package-candidate evidence that explains how the release reached that state.
 The command is read-only unless the final `--write` flag is present:
 
 ```console
-cargo run -p xtask --locked -- release prepare-stage v0.7.0-beta.1
+cargo run -p xtask --locked -- release prepare-stage v1.0.0-beta.1
 ```
 
 It prints `canisend.stage-transition-plan/v1` JSON containing the source and target stages plus the before/after
-SHA-256 digest of every controlled file. Review the complete file set. A transition cannot skip a stage, change the
-0.7 release line, attach build metadata, or use a target other than the first Beta/RC version. Once RC.1 evidence is
-committed, `prepare-stage v0.7.0-rc.2` is allowed; RC iteration must increase exactly by one and preserves the
+SHA-256 digest of every controlled file. Review the complete file set. A transition cannot skip a
+stage, change the 1.0 release line, attach build metadata, or use a target other than the first
+Beta/RC version. Once RC.1 evidence is committed, `prepare-stage v1.0.0-rc.2` is allowed; RC
+iteration must increase exactly by one and preserves the
 qualification ledger's earlier clean-tag records. Beta same-stage iteration and RC number skipping are rejected.
 Any explicit release-notes review is reset during sequential RC iteration: the earlier review still exists in Git
 history, but it cannot authorize a candidate whose manifest, assets, issues, or package-channel state may differ.
@@ -44,7 +45,7 @@ pass `xtask release verify-beta-readiness` before an explicitly requested clean-
 After the preview is reviewed, rerun it from a clean worktree:
 
 ```console
-cargo run -p xtask --locked -- release prepare-stage v0.7.0-beta.1 --write
+cargo run -p xtask --locked -- release prepare-stage v1.0.0-beta.1 --write
 cargo run -p xtask --locked -- release check
 git diff --check
 ```
@@ -68,8 +69,8 @@ After the final public RC, capture only public issue number/state and release as
 is dry-run-first and never reads issue titles, bodies, comments, attachments, or private product data:
 
 ```console
-./scripts/refresh_release_feedback.sh jxpeng98/CanISend v0.7.0-rc.2
-./scripts/refresh_release_feedback.sh jxpeng98/CanISend v0.7.0-rc.2 --write
+./scripts/refresh_release_feedback.sh jxpeng98/CanISend v1.0.0-rc.2
+./scripts/refresh_release_feedback.sh jxpeng98/CanISend v1.0.0-rc.2 --write
 ```
 
 The reviewed write changes the feedback snapshot stage to `rc`, generates the measured roadmap block from the same
@@ -85,6 +86,10 @@ The following sources intentionally retain earlier version identifiers:
 - `release/beta-readiness.json` identifies the public native Alpha used for blocker review;
 - `release/beta-contract-freeze.json` binds the Beta contract to the qualified Alpha surface;
 - `release/feedback-snapshot.json` records the release actually observed at capture time;
-- `packaging/candidates/alpha` preserves nonpublishing candidates generated from exact Alpha assets.
+- `packaging/candidates/alpha` preserves nonpublishing candidates generated from exact Alpha
+  assets; and
+- `release/history/0.7` plus `packaging/candidates/v0.7.0-alpha.1` remain immutable previous-line
+  evidence.
 
-An unrestricted replacement of `0.7.0-alpha.1` would corrupt those records and is not an acceptable transition.
+Historical 0.7 identifiers must remain only in their archived evidence. Active transition commands
+and support guidance must use the current 1.0 line.

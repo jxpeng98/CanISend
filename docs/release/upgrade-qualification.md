@@ -40,7 +40,7 @@ its attestations, use a clean checkout and preview the only permitted ledger mut
 
 ```console
 cargo run -p xtask --locked -- release record-upgrade-qualification \
-  v0.7.0-beta.1 v0.7.0-rc.1 DOWNLOADED_EVIDENCE_DIRECTORY
+  v1.0.0-beta.1 v1.0.0-rc.1 DOWNLOADED_EVIDENCE_DIRECTORY
 ```
 
 Only after the dry-run hashes and exact five-record evidence agree may the maintainer repeat the command with

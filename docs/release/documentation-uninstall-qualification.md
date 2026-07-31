@@ -33,7 +33,7 @@ assets and five-record evidence artifact. Preview the ledger change from a clean
 
 ```console
 cargo run -p xtask --locked -- release record-documentation-qualification \
-  v0.7.0-rc.1 DOWNLOADED_ASSET_DIRECTORY DOWNLOADED_EVIDENCE_DIRECTORY
+  v1.0.0-rc.1 DOWNLOADED_ASSET_DIRECTORY DOWNLOADED_EVIDENCE_DIRECTORY
 ```
 
 The command requires the evidence run ID to equal the `signed_matrix_run` already recorded for that exact RC tag,

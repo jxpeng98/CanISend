@@ -468,8 +468,85 @@ fn check_documentation() -> Result<(), String> {
             smoke.display()
         ));
     }
-    println!("documentation: ok ({} guides)", required.len());
+    let release_runbooks = check_active_release_runbooks(&root)?;
+    println!(
+        "documentation: ok ({} guides, {release_runbooks} active release runbooks)",
+        required.len()
+    );
     Ok(())
+}
+
+fn check_active_release_runbooks(root: &Path) -> Result<usize, String> {
+    let version = Version::parse(env!("CARGO_PKG_VERSION"))
+        .map_err(|error| format!("workspace version is invalid: {error}"))?;
+    let release = format!("v{}.{}.{}", version.major, version.minor, version.patch);
+    let release_line = format!("{}.{}", version.major, version.minor);
+    let beta = format!("{release}-beta.1");
+    let rc_one = format!("{release}-rc.1");
+    let rc_two = format!("{release}-rc.2");
+    let runbooks = [
+        (
+            "docs/release/stage-transitions.md",
+            vec![beta.clone(), rc_two.clone()],
+        ),
+        (
+            "docs/release/qualification-ledger.md",
+            vec![beta.clone(), rc_one.clone(), rc_two],
+        ),
+        (
+            "docs/release/package-manager-qualification.md",
+            vec![beta.clone(), rc_one.clone()],
+        ),
+        (
+            "docs/release/upgrade-qualification.md",
+            vec![beta.clone(), rc_one.clone()],
+        ),
+        (
+            "docs/release/documentation-uninstall-qualification.md",
+            vec![rc_one],
+        ),
+        (
+            "docs/release/support-policy.md",
+            vec![
+                format!("# CanISend {release_line} Support Policy"),
+                format!("Rust-native `{release_line}` line"),
+            ],
+        ),
+        (
+            "docs/release/signing-operations.md",
+            vec![format!("not `{release_line}` release prerequisites")],
+        ),
+    ];
+    for (relative, required) in &runbooks {
+        let path = root.join(relative);
+        let body = fs::read_to_string(&path)
+            .map_err(|error| format!("active release runbook `{relative}` is missing: {error}"))?;
+        check_local_markdown_links(root, &path, &body)?;
+        for value in required {
+            if !body.contains(value) {
+                return Err(format!(
+                    "active release runbook `{relative}` is missing current-line example `{value}`"
+                ));
+            }
+        }
+        for stale in ["v0.7.0-beta.", "v0.7.0-rc."] {
+            if body.contains(stale) {
+                return Err(format!(
+                    "active release runbook `{relative}` still contains stale example `{stale}`"
+                ));
+            }
+        }
+    }
+    let support = fs::read_to_string(root.join("docs/release/support-policy.md"))
+        .map_err(|error| format!("support policy documentation is missing: {error}"))?;
+    for stale in ["CanISend 0.7", "`0.7`", "0.7.x"] {
+        if support.contains(stale) {
+            return Err(format!(
+                "active support policy still contains stale release-line text `{stale}`"
+            ));
+        }
+    }
+    Ok(runbooks.len())
 }
 
 fn check_release_notes_policy() -> Result<(), String> {
@@ -1023,9 +1100,15 @@ fn check_stage_transition_policy() -> Result<(), String> {
     let documentation = fs::read_to_string(&documentation_path)
         .map_err(|error| format!("stage-transition runbook is missing: {error}"))?;
     check_local_markdown_links(&root, &documentation_path, &documentation)?;
+    let version = Version::parse(env!("CARGO_PKG_VERSION"))
+        .map_err(|error| format!("workspace version is invalid: {error}"))?;
+    let beta_example = format!(
+        "prepare-stage v{}.{}.{}-beta.1",
+        version.major, version.minor, version.patch
+    );
     for required in [
         "release/stage-transition-policy.json",
-        "prepare-stage v0.7.0-beta.1",
+        beta_example.as_str(),
         "--write",
         "release/beta-readiness.json",
         "refresh_beta_readiness.sh",
@@ -5136,7 +5219,10 @@ fn check_support_policy() -> Result<(), String> {
         )
     })?;
     check_local_markdown_links(&root, &document_path, &document)?;
+    let release_line = format!("{}.{}", version.major, version.minor);
+    let support_heading = format!("# CanISend {release_line} Support Policy");
     for required in [
+        support_heading.as_str(),
         AGENT_PROTOCOL,
         PUBLIC_SCHEMA_VERSION,
         canisend_resources::RESOURCE_VERSION,
@@ -10428,7 +10514,7 @@ mod tests {
         let transitioned = replace_exact_count(
             &notes,
             &current_heading,
-            "# CanISend 0.7.0-rc.999",
+            "# CanISend 9.9.9-rc.999",
             1,
             "test release-note heading",
         )
@@ -10441,10 +10527,11 @@ mod tests {
                 .1
         );
 
-        let stale = notes.replace(
-            "CanISend 0.7 is a greenfield Rust-native release.",
-            "The alpha is a greenfield Rust-native release.",
-        );
+        let body = notes
+            .split_once('\n')
+            .expect("release notes contain a heading")
+            .1;
+        let stale = format!("{current_heading}\nThe alpha release is stage-specific.\n{body}");
         let sections = [
             "Highlights",
             "Compatibility",
@@ -10476,7 +10563,7 @@ mod tests {
         assert!(
             validate_release_notes(
                 &root,
-                &Version::parse("0.7.0-alpha.1").expect("Alpha version"),
+                &Version::parse(env!("CARGO_PKG_VERSION")).expect("workspace version"),
                 &stale,
                 &sections,
                 &guidance,
@@ -10521,14 +10608,22 @@ mod tests {
     }
 
     #[test]
+    fn active_release_runbooks_track_the_current_release_line() {
+        assert_eq!(
+            check_active_release_runbooks(&repository_root()).expect("active release runbooks"),
+            7
+        );
+    }
+
+    #[test]
     fn support_policy_matches_current_contracts_and_release_line() {
         check_support_policy().expect("support policy");
     }
 
     #[test]
     fn support_policy_cannot_remain_draft_for_stable_version() {
-        let prerelease = Version::parse("0.7.0-rc.1").expect("RC version");
-        let stable = Version::parse("0.7.0").expect("Stable version");
+        let prerelease = Version::parse("1.0.0-rc.1").expect("RC version");
+        let stable = Version::parse("1.0.0").expect("Stable version");
         assert_eq!(
             support_policy_publication_status(&prerelease),
             "pre-stable-draft"

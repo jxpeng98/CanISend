@@ -23,7 +23,7 @@ the authorized tag, downloaded again, and verified with GitHub artifact attestat
 
 ```console
 cargo run -p xtask --locked -- release record-beta-qualification \
-  v0.7.0-beta.1 GITHUB_RUN_ID DOWNLOADED_ASSET_DIRECTORY
+  v1.0.0-beta.1 GITHUB_RUN_ID DOWNLOADED_ASSET_DIRECTORY
 ```
 
 The command re-verifies `SHA256SUMS`, the complete manifest, five archives, three canonical archive-bound signing
@@ -41,7 +41,7 @@ For each public sequential RC, download and independently verify its exact asset
 
 ```console
 cargo run -p xtask --locked -- release record-rc-qualification \
-  v0.7.0-rc.1 GITHUB_RUN_ID DOWNLOADED_ASSET_DIRECTORY
+  v1.0.0-rc.1 GITHUB_RUN_ID DOWNLOADED_ASSET_DIRECTORY
 ```
 
 This applies the same complete signed-asset verification and clean-worktree `--write` boundary as Beta. The current
@@ -58,7 +58,7 @@ only its verified five-record evidence bundle and independently inspect the publ
 
 ```console
 cargo run -p xtask --locked -- release record-upgrade-qualification \
-  v0.7.0-beta.1 v0.7.0-rc.1 DOWNLOADED_EVIDENCE_DIRECTORY
+  v1.0.0-beta.1 v1.0.0-rc.1 DOWNLOADED_EVIDENCE_DIRECTORY
 ```
 
 The verifier requires one GitHub run, one shared manifest pair, distinct target archives, exact platform mappings,
@@ -76,7 +76,7 @@ inspect the public run and attestations, then preview:
 
 ```console
 cargo run -p xtask --locked -- release record-documentation-qualification \
-  v0.7.0-rc.1 DOWNLOADED_ASSET_DIRECTORY DOWNLOADED_EVIDENCE_DIRECTORY
+  v1.0.0-rc.1 DOWNLOADED_ASSET_DIRECTORY DOWNLOADED_EVIDENCE_DIRECTORY
 ```
 
 The command re-verifies the complete signed release, binds every record to its manifest archive digest, and requires
@@ -91,7 +91,7 @@ kit. After the WinGet lifecycle runs in a fresh Sandbox and all four records fro
 
 ```console
 cargo run -p xtask --locked -- release record-package-qualification \
-  v0.7.0-beta.1 v0.7.0-rc.1 DOWNLOADED_EVIDENCE_DIRECTORY
+  v1.0.0-beta.1 v1.0.0-rc.1 DOWNLOADED_EVIDENCE_DIRECTORY
 ```
 
 The dry-run-first command requires the ledger's exact qualified Beta, frozen RC state, and a successful recorded
@@ -108,7 +108,7 @@ login:
 
 ```console
 cargo run -p xtask --locked -- release record-release-notes-qualification \
-  v0.7.0-rc.2 DOWNLOADED_ASSET_DIRECTORY REVIEWER
+  v1.0.0-rc.2 DOWNLOADED_ASSET_DIRECTORY REVIEWER
 ```
 
 The command re-verifies the full release, requires the checked-in and published `RELEASE_NOTES.md` bytes to match,
@@ -137,11 +137,17 @@ The ledger is necessary but not sufficient: referenced GitHub runs, public relea
 community platform-signing evidence, native signature results, and package-manager validations must still be
 independently inspected. An invented run ID or status string is not qualification evidence.
 
-## Current boundary
+## Pre-Beta boundary
 
-The current Alpha ledger is `pre-beta`. It records five-target native archive lifecycle preparation from GitHub
-Actions run `29637471699` and deterministic package-manager candidates. `prepared-native` proves the version-neutral
-documentation/uninstall control on Alpha archives; it is deliberately weaker than `passed`, which requires the
-signed RC-stage matrix named by the Stable gate. Beta signing, clean RC tags, version-pair migration, native channel
-lifecycle, final RC notes review, and Stable authorization remain pending. This matches the live repository signing audit and
-deliberately prevents an unsigned or unevidenced Stable version bump.
+The planned Beta transition starts from a `1.0.0-alpha.5` source ledger in `pre-beta`. Its public
+readiness checkpoint is
+`v1.0.0-alpha.4`; its Beta-readiness record and previous native qualification remain historical
+inputs, not qualification for the changed Alpha.5 source. Consented Codex and Claude provider
+dogfood plus exact clean-tag Alpha.5 qualification remain required before an explicitly authorized
+Beta transition.
+
+`prepared-local` proves only that the documentation/uninstall control exists locally; it is
+deliberately weaker than `passed`, which requires the signed RC-stage matrix named by the Stable
+gate. Beta signing, a qualified public Beta, the feature-freeze activation, clean RC tags,
+version-pair migration, native channel lifecycle, final RC notes review, and Stable authorization
+remain pending.

@@ -73,6 +73,6 @@ SmartScreen, antivirus, or execution policy globally.
 ## Future paid tier
 
 Apple Developer ID/notarization and a publicly trusted Windows certificate remain possible future enhancements, but
-they are not `0.7` release prerequisites. Introducing either requires a reviewed policy/schema change, secret and
+they are not `1.0` release prerequisites. Introducing either requires a reviewed policy/schema change, secret and
 identity operations, native clean-machine qualification, and documentation that distinguishes new public-trust
 artifacts from existing community builds.

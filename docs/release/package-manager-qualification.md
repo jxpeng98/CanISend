@@ -49,7 +49,7 @@ Before running a package lifecycle, download both complete public release asset 
 
 ```bash
 cargo run -p xtask --locked -- release verify-package-candidates \
-  v0.7.0-beta.1 BETA_ASSETS v0.7.0-rc.1 RC_ASSETS
+  v1.0.0-beta.1 BETA_ASSETS v1.0.0-rc.1 RC_ASSETS
 ```
 
 This command re-verifies every checksum and manifest field in both historical releases, including mandatory
@@ -61,7 +61,7 @@ After collecting the four JSON records, verify them with:
 
 ```bash
 cargo run -p xtask --locked -- release verify-package-evidence \
-  v0.7.0-beta.1 v0.7.0-rc.1 EVIDENCE_DIRECTORY
+  v1.0.0-beta.1 v1.0.0-rc.1 EVIDENCE_DIRECTORY
 ```
 
 The verifier independently enforces the Beta-to-RC stage pair, same release line, exact record environments, shared
@@ -72,7 +72,7 @@ skipped/tolerated failures, preview the only permitted ledger mutation from a cl
 
 ```bash
 cargo run -p xtask --locked -- release record-package-qualification \
-  v0.7.0-beta.1 v0.7.0-rc.1 EVIDENCE_DIRECTORY
+  v1.0.0-beta.1 v1.0.0-rc.1 EVIDENCE_DIRECTORY
 ```
 
 The command reruns the strict four-record verifier, requires the ledger's qualified Beta tag and an already
