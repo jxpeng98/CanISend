@@ -12,13 +12,18 @@
     ShieldCheck,
   } from "@lucide/svelte";
 
+  import * as Page from "$lib/components/patterns/page/index.js";
   import { Badge } from "$lib/components/ui/badge/index.js";
+  import * as Accordion from "$lib/components/ui/accordion/index.js";
+  import * as Alert from "$lib/components/ui/alert/index.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import * as Card from "$lib/components/ui/card/index.js";
   import { Checkbox } from "$lib/components/ui/checkbox/index.js";
   import * as Dialog from "$lib/components/ui/dialog/index.js";
+  import * as Empty from "$lib/components/ui/empty/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
   import { Label } from "$lib/components/ui/label/index.js";
+  import * as NativeSelect from "$lib/components/ui/native-select/index.js";
   import { Separator } from "$lib/components/ui/separator/index.js";
   import * as Tabs from "$lib/components/ui/tabs/index.js";
   import { Textarea } from "$lib/components/ui/textarea/index.js";
@@ -455,32 +460,34 @@
   );
 </script>
 
-<section class="space-y-6">
-  <div class="flex flex-col justify-between gap-4 xl:flex-row xl:items-end">
-    <div>
-      <Badge variant="secondary" class="mb-3">{copy.applicationWorkspace}</Badge>
-      <h1 class="text-3xl font-semibold tracking-[-0.03em]">{workspaceTitle}</h1>
-      <p class="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-        {workspaceDescription}
-      </p>
-    </div>
-  </div>
+<Page.Root>
+  <Page.Header
+    eyebrow={copy.applicationWorkspace}
+    title={workspaceTitle}
+    description={workspaceDescription}
+  />
 
   {#if !activeWorkspace || !selectedJobId}
-    <Card.Root class="shadow-none">
-      <Card.Content class="flex min-h-80 flex-col items-center justify-center px-8 text-center">
-        <GitBranch size={24} strokeWidth={1.8} class="text-muted-foreground" aria-hidden="true" />
-        <h2 class="mt-4 text-base font-semibold">
-          {activeWorkspace ? copy.noApplications : copy.noWorkspace}
-        </h2>
-        <p class="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-          {activeWorkspace ? copy.noApplicationsDescription : copy.chooseWorkspaceDescription}
-        </p>
+    <Card.Root>
+      <Card.Content>
+        <Empty.Root class="min-h-32">
+          <Empty.Header>
+            <Empty.Media variant="icon">
+              <GitBranch size={24} strokeWidth={1.8} aria-hidden="true" />
+            </Empty.Media>
+            <Empty.Title class="text-base">
+              {activeWorkspace ? copy.noApplications : copy.noWorkspace}
+            </Empty.Title>
+            <Empty.Description>
+              {activeWorkspace ? copy.noApplicationsDescription : copy.chooseWorkspaceDescription}
+            </Empty.Description>
+          </Empty.Header>
+        </Empty.Root>
       </Card.Content>
     </Card.Root>
   {:else}
     <Tabs.Root bind:value={section}>
-      <Tabs.List class="grid w-full max-w-2xl grid-cols-3">
+      <Tabs.List class="responsive-tabs max-w-2xl" data-columns="3">
         <Tabs.Trigger
           value="workflow"
           onclick={() => navigateWithinWorkflow("workflow-stages")}
@@ -504,22 +511,22 @@
       <Tabs.Content
         id="workflow-stages"
         value="workflow"
-        class="scroll-mt-64 space-y-6 pt-4"
+        class="scroll-mt-64 space-y-[var(--density-section-gap)] pt-[var(--density-section-gap)]"
       >
         <div class="flex flex-wrap gap-2">
-          <Button variant="outline" class="min-h-11" disabled={busy} onclick={refreshWorkflow}>
+          <Button variant="outline" class="min-h-9" disabled={busy} onclick={refreshWorkflow}>
             <RefreshCw size={16} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
             {copy.refresh}
           </Button>
-          <Button class="min-h-11" disabled={busy} onclick={startWorkflow}>
+          <Button class="min-h-9" disabled={busy} onclick={startWorkflow}>
             <Play size={16} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
             {copy.startWorkflow}
           </Button>
         </div>
 
         {#if workflow}
-          <div class="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
-            <Card.Root class="shadow-none">
+          <div class="grid gap-[var(--density-section-gap)] xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
+            <Card.Root>
               <Card.Header>
                 <Card.Title>{copy.workflowStages}</Card.Title>
                 <Card.Description>
@@ -529,11 +536,12 @@
               <Card.Content>
                 <div class="grid gap-2 md:grid-cols-2">
                   {#each workflow.status.stages as stage (stage.stage)}
-                    <button
-                      type="button"
-                      class={`rounded-xl border p-4 text-left transition-colors hover:bg-muted/30 ${
-                        selectedStage === stage.stage ? "border-primary bg-accent/45" : ""
-                      }`}
+                    <Button
+                      variant="outline"
+                      class={[
+                        "h-auto min-h-9 w-full flex-col items-stretch gap-2 p-[var(--density-panel-padding)] text-left",
+                        selectedStage === stage.stage ? "border-primary bg-accent/45" : "",
+                      ]}
                       onclick={() => (selectedStage = stage.stage)}
                     >
                       <div class="flex items-center justify-between gap-3">
@@ -545,33 +553,34 @@
                       <p class="mt-2 truncate text-xs text-muted-foreground">
                         {stage.execution_mode ?? "—"}
                       </p>
-                    </button>
+                    </Button>
                   {/each}
                 </div>
               </Card.Content>
             </Card.Root>
 
-            <div class="space-y-6">
-              <Card.Root class="shadow-none">
+            <div class="space-y-[var(--density-section-gap)]">
+              <Card.Root>
                 <Card.Header>
                   <Card.Title class="capitalize">{selectedStage}</Card.Title>
                   <Card.Description>{selectedStageState?.status ?? "—"}</Card.Description>
                 </Card.Header>
-                <Card.Content class="space-y-4">
+                <Card.Content class="space-y-[var(--density-section-gap)]">
                   <div class="space-y-2">
                     <Label for="workflow-mode">{copy.executionMode}</Label>
-                    <select
+                    <NativeSelect.Root
                       id="workflow-mode"
-                      class="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm"
+                      size="desktop"
+                      class="w-full"
                       bind:value={executionMode}
                     >
                       {#each selectedDescriptor?.execution_modes ?? [] as mode}
-                        <option value={mode}>{mode}</option>
+                        <NativeSelect.Option value={mode}>{mode}</NativeSelect.Option>
                       {/each}
-                    </select>
+                    </NativeSelect.Root>
                   </div>
                   <Button
-                    class="min-h-11 w-full"
+                    class="min-h-9 w-full"
                     disabled={busy || !selectedDescriptor?.execution_modes.length}
                     onclick={beginStage}
                   >
@@ -585,7 +594,7 @@
                   </div>
                   <Button
                     variant="outline"
-                    class="min-h-11 w-full"
+                    class="min-h-9 w-full"
                     disabled={busy || !artifactId.trim()}
                     onclick={completeStage}
                   >
@@ -594,7 +603,7 @@
                   </Button>
                   <Button
                     variant="outline"
-                    class="min-h-11 w-full"
+                    class="min-h-9 w-full"
                     disabled={busy || selectedStage === "intake"}
                     onclick={previewRerun}
                   >
@@ -604,18 +613,16 @@
                 </Card.Content>
               </Card.Root>
 
-              <Card.Root class="shadow-none">
+              <Card.Root>
                 <Card.Header>
                   <Card.Title>{copy.blockers}</Card.Title>
                 </Card.Header>
                 <Card.Content class="space-y-2">
                   {#each workflow.status.blockers as blocker (blocker.code)}
-                    <div class="rounded-xl border border-destructive/25 bg-destructive/5 p-3">
-                      <p class="text-xs font-semibold">{blocker.code}</p>
-                      <p class="mt-1 text-xs leading-5 text-muted-foreground">
-                        {blocker.description}
-                      </p>
-                    </div>
+                    <Alert.Root variant="destructive">
+                      <Alert.Title>{blocker.code}</Alert.Title>
+                      <Alert.Description>{blocker.description}</Alert.Description>
+                    </Alert.Root>
                   {:else}
                     <p class="text-sm text-muted-foreground">{copy.noBlockers}</p>
                   {/each}
@@ -624,26 +631,30 @@
             </div>
           </div>
         {:else}
-          <Card.Root class="shadow-none">
-            <Card.Content class="flex min-h-72 flex-col items-center justify-center text-center">
-              <GitBranch size={22} strokeWidth={1.8} class="text-muted-foreground" aria-hidden="true" />
-              <p class="mt-3 text-sm text-muted-foreground">{copy.noWorkflow}</p>
+          <Card.Root>
+            <Card.Content>
+              <Empty.Root class="min-h-32">
+                <Empty.Header>
+                  <Empty.Media variant="icon"><GitBranch size={22} strokeWidth={1.8} aria-hidden="true" /></Empty.Media>
+                  <Empty.Description>{copy.noWorkflow}</Empty.Description>
+                </Empty.Header>
+              </Empty.Root>
             </Card.Content>
           </Card.Root>
         {/if}
       </Tabs.Content>
 
-      <Tabs.Content value="decisions" class="space-y-6 pt-4">
+      <Tabs.Content value="decisions" class="space-y-[var(--density-section-gap)] pt-[var(--density-section-gap)]">
         <Card.Root
           id={`decision-${decisionKind}`}
-          class="scroll-mt-64 shadow-none"
+          class="scroll-mt-64 "
         >
           <Card.Header>
             <Card.Title>{copy.decisions}</Card.Title>
             <Card.Description>{copy.privateWorkspaceConsent}</Card.Description>
           </Card.Header>
-          <Card.Content class="space-y-4">
-            <div class="flex items-start gap-3 rounded-xl border bg-muted/20 p-3">
+          <Card.Content class="space-y-[var(--density-section-gap)]">
+            <div class="flex items-start gap-3 rounded-lg border bg-muted/20 p-3">
               <Checkbox id="workflow-private-session" bind:checked={privateSessionConsent} class="mt-0.5" />
               <Label for="workflow-private-session" class="text-xs leading-5 font-normal">
                 <span class="flex items-center gap-2">
@@ -652,12 +663,13 @@
                 </span>
               </Label>
             </div>
-            <div class="grid gap-4 lg:grid-cols-[220px_auto_auto_1fr] lg:items-end">
+            <div class="grid gap-[var(--density-section-gap)] lg:grid-cols-[220px_auto_auto_1fr] lg:items-end">
               <div class="space-y-2">
                 <Label for="decision-kind">{copy.decisions}</Label>
-                <select
+                <NativeSelect.Root
                   id="decision-kind"
-                  class="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm"
+                  size="desktop"
+                  class="w-full"
                   bind:value={decisionKind}
                   onchange={() => {
                     decisionJson = "";
@@ -667,15 +679,15 @@
                     navigateWithinWorkflow(decisionDetail(decisionKind));
                   }}
                 >
-                  <option value="evidence">{copy.evidence}</option>
-                  <option value="criteria">{copy.criteria}</option>
-                  <option value="matches">{copy.matches}</option>
-                  <option value="plan">{copy.plan}</option>
-                </select>
+                  <NativeSelect.Option value="evidence">{copy.evidence}</NativeSelect.Option>
+                  <NativeSelect.Option value="criteria">{copy.criteria}</NativeSelect.Option>
+                  <NativeSelect.Option value="matches">{copy.matches}</NativeSelect.Option>
+                  <NativeSelect.Option value="plan">{copy.plan}</NativeSelect.Option>
+                </NativeSelect.Root>
               </div>
               <Button
                 variant="outline"
-                class="min-h-11"
+                class="min-h-9"
                 disabled={busy || !privateSessionConsent}
                 onclick={() => loadDecision(false)}
               >
@@ -684,7 +696,7 @@
               {#if decisionKind === "plan"}
                 <Button
                   variant="outline"
-                  class="min-h-11"
+                  class="min-h-9"
                   disabled={busy || !privateSessionConsent}
                   onclick={() => loadDecision(true)}
                 >
@@ -699,7 +711,7 @@
               <Label for="decision-json">{copy.candidateJson}</Label>
               <Textarea
                 id="decision-json"
-                class="min-h-[430px] resize-y font-mono text-xs leading-5"
+                class="min-h-[300px] resize-y font-mono text-xs leading-5"
                 bind:value={decisionJson}
                 spellcheck={false}
                 disabled={!decisionJson || !decisionEditable}
@@ -707,14 +719,14 @@
             </div>
             <Button
               variant="outline"
-              class="min-h-11"
+              class="min-h-9"
               disabled={busy || !decisionEditable || !decisionJson || !privateSessionConsent}
               onclick={previewDecision}
             >
               {copy.previewProposal}
             </Button>
             {#if decisionPreview}
-              <div class="space-y-4 rounded-xl border border-primary/35 bg-primary/5 p-4">
+              <Page.Panel tone="primary" class="space-y-[var(--density-section-gap)]">
                 <div class="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <Badge variant="secondary">{copy.reviewBeforeCommit}</Badge>
@@ -756,14 +768,14 @@
                       </div>
                     </div>
                   {:else}
-                    <p class="p-4 text-xs text-muted-foreground">{copy.noProposalChanges}</p>
+                    <p class="p-[var(--density-panel-padding)] text-xs text-muted-foreground">{copy.noProposalChanges}</p>
                   {/each}
                 </div>
                 {#if decisionPreview.diff.truncated || decisionPreview.diff.comparisonLimited}
                   <p class="text-xs text-muted-foreground">{copy.diffTruncated}</p>
                 {/if}
 
-                <div class="grid gap-4 lg:grid-cols-2">
+                <div class="grid gap-[var(--density-section-gap)] lg:grid-cols-2">
                   <div class="rounded-lg border bg-background p-3">
                     <p class="text-xs font-semibold">{copy.revisionProvenance}</p>
                     <div class="mt-2 space-y-2">
@@ -800,14 +812,14 @@
                     {copy.editProposal}
                   </Button>
                   <Button
-                    class="min-h-11"
+                    class="min-h-9"
                     disabled={busy}
                     onclick={confirmDecision}
                   >
                     {copy.confirmCandidate}
                   </Button>
                 </div>
-              </div>
+              </Page.Panel>
             {/if}
           </Card.Content>
         </Card.Root>
@@ -817,23 +829,24 @@
         id="agent-task"
         value="task"
         class={[
-          "scroll-mt-64 space-y-6 pt-4",
-          focus === "agent-task" ? "rounded-xl ring-2 ring-primary/25" : "",
+          "scroll-mt-64 space-y-[var(--density-section-gap)] pt-[var(--density-section-gap)]",
+          focus === "agent-task" ? "rounded-lg ring-2 ring-primary/25" : "",
         ]}
       >
-        <div class="grid gap-6 xl:grid-cols-[minmax(320px,0.8fr)_minmax(0,1.2fr)]">
-          <div class="space-y-6">
-            <Card.Root class="shadow-none">
+        <div class="grid gap-[var(--density-section-gap)] xl:grid-cols-[minmax(320px,0.8fr)_minmax(0,1.2fr)]">
+          <div class="space-y-[var(--density-section-gap)]">
+            <Card.Root>
               <Card.Header>
                 <Card.Title>{copy.prepareTask}</Card.Title>
                 <Card.Description>{copy.workflowDescription}</Card.Description>
               </Card.Header>
-              <Card.Content class="space-y-4">
+              <Card.Content class="space-y-[var(--density-section-gap)]">
                 <div class="space-y-2">
                   <Label for="task-operation">{copy.taskOperation}</Label>
-                  <select
+                  <NativeSelect.Root
                     id="task-operation"
-                    class="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm"
+                    size="desktop"
+                    class="w-full"
                     bind:value={taskOperation}
                   >
                     {#each [
@@ -846,34 +859,35 @@
                       "cv-draft",
                       "document-review",
                     ] as operation}
-                      <option value={operation}>{operation}</option>
+                      <NativeSelect.Option value={operation}>{operation}</NativeSelect.Option>
                     {/each}
-                  </select>
+                  </NativeSelect.Root>
                 </div>
                 <div class="space-y-2">
                   <Label for="task-mode">{copy.taskMode}</Label>
-                  <select
+                  <NativeSelect.Root
                     id="task-mode"
-                    class="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm"
+                    size="desktop"
+                    class="w-full"
                     bind:value={taskMode}
                   >
-                    <option value="host-agent">host-agent</option>
-                    <option value="configured-provider">configured-provider</option>
-                  </select>
+                    <NativeSelect.Option value="host-agent">host-agent</NativeSelect.Option>
+                    <NativeSelect.Option value="configured-provider">configured-provider</NativeSelect.Option>
+                  </NativeSelect.Root>
                 </div>
                 <div class="flex flex-wrap gap-2">
-                  <Button class="min-h-11" disabled={busy} onclick={prepareTask}>
+                  <Button class="min-h-9" disabled={busy} onclick={prepareTask}>
                     <Bot size={16} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
                     {copy.prepareTask}
                   </Button>
-                  <Button variant="outline" class="min-h-11" disabled={busy} onclick={refreshTask}>
+                  <Button variant="outline" class="min-h-9" disabled={busy} onclick={refreshTask}>
                     {copy.refresh}
                   </Button>
                 </div>
               </Card.Content>
             </Card.Root>
 
-            <Card.Root class="shadow-none">
+            <Card.Root>
               <Card.Header>
                 <Card.Title>{copy.taskStatus}</Card.Title>
                 <Card.Description>{task?.descriptor.operation ?? copy.noTask}</Card.Description>
@@ -934,13 +948,13 @@
             </Card.Root>
           </div>
 
-          <div class="space-y-6">
-            <Card.Root class="shadow-none">
+          <div class="space-y-[var(--density-section-gap)]">
+            <Card.Root>
               <Card.Header>
                 <Card.Title>{copy.exportInputs}</Card.Title>
                 <Card.Description>{copy.privateWorkspaceConsent}</Card.Description>
               </Card.Header>
-              <Card.Content class="space-y-4">
+              <Card.Content class="space-y-[var(--density-section-gap)]">
                 <div class="space-y-2">
                   <Label for="task-export-destination">{copy.exportDestination}</Label>
                   <div class="flex gap-2">
@@ -951,14 +965,14 @@
                     </Button>
                   </div>
                 </div>
-                <div class="flex items-start gap-3 rounded-xl border bg-muted/20 p-3">
+                <div class="flex items-start gap-3 rounded-lg border bg-muted/20 p-3">
                   <Checkbox id="task-private-consent" bind:checked={taskPrivateConsent} class="mt-0.5" />
                   <Label for="task-private-consent" class="text-xs leading-5 font-normal">
                     {copy.privateWorkspaceConsent}
                   </Label>
                 </div>
                 {#if taskMode === "configured-provider" || task?.descriptor.execution_mode === "configured-provider"}
-                  <div class="flex items-start gap-3 rounded-xl border bg-muted/20 p-3">
+                  <div class="flex items-start gap-3 rounded-lg border bg-muted/20 p-3">
                     <Checkbox id="task-provider-consent" bind:checked={providerSendConsent} class="mt-0.5" />
                     <Label for="task-provider-consent" class="text-xs leading-5 font-normal">
                       {copy.providerSendConsent}
@@ -966,7 +980,7 @@
                   </div>
                 {/if}
                 <Button
-                  class="min-h-11"
+                  class="min-h-9"
                   disabled={!desktopRuntime || busy || !task || !taskExportDestination || !taskPrivateConsent}
                   onclick={exportInputs}
                 >
@@ -975,12 +989,12 @@
               </Card.Content>
             </Card.Root>
 
-            <Card.Root class="shadow-none">
+            <Card.Root>
               <Card.Header>
                 <Card.Title>{copy.previewCompletion}</Card.Title>
                 <Card.Description>{copy.reviewExactCompletion}</Card.Description>
               </Card.Header>
-              <Card.Content class="space-y-4">
+              <Card.Content class="space-y-[var(--density-section-gap)]">
                 <div class="space-y-2">
                   <Label for="task-completion-file">{copy.taskCompletionFile}</Label>
                   <div class="flex gap-2">
@@ -993,14 +1007,14 @@
                 </div>
                 <Button
                   variant="outline"
-                  class="min-h-11"
+                  class="min-h-9"
                   disabled={!desktopRuntime || busy || !taskCompletionFile || !taskPrivateConsent}
                   onclick={previewCompletion}
                 >
                   {copy.previewCompletion}
                 </Button>
                 {#if taskCompletionPreview}
-                  <div class="space-y-4 rounded-xl border border-primary/35 bg-accent/25 p-4">
+                  <Page.Panel tone="accent" class="space-y-[var(--density-section-gap)]">
                     <div class="flex flex-wrap items-start justify-between gap-3">
                       <div>
                         <Badge variant="secondary">{copy.validatedPreview}</Badge>
@@ -1038,11 +1052,12 @@
                         </p>
                       </div>
                     </div>
-                    <details class="rounded-lg border bg-background p-3">
-                      <summary class="cursor-pointer text-xs font-semibold">
-                        {copy.revisionProvenance}
-                      </summary>
-                      <div class="mt-2 space-y-2">
+                    <Accordion.Root type="single">
+                      <Accordion.Item value="revision-provenance" class="rounded-lg border bg-background px-3">
+                        <Accordion.Trigger class="text-xs font-semibold">
+                          {copy.revisionProvenance}
+                        </Accordion.Trigger>
+                        <Accordion.Content class="space-y-2 pb-3">
                         {#each taskCompletionPreview.preview.data.state.descriptor.input_artifacts as artifact (`${artifact.id}:${artifact.revision}`)}
                           <p class="break-all font-mono text-[10px] leading-4 text-muted-foreground">
                             {artifact.kind} · {artifact.id} · r{artifact.revision} · {artifact.sha256}
@@ -1052,8 +1067,9 @@
                             {copy.noEmbeddedRevisionReferences}
                           </p>
                         {/each}
-                      </div>
-                    </details>
+                        </Accordion.Content>
+                      </Accordion.Item>
+                    </Accordion.Root>
                     <div class="grid gap-3 lg:grid-cols-2">
                       <div class="rounded-lg border bg-background p-3">
                         <p class="text-xs font-semibold">{copy.validationAtCommit}</p>
@@ -1073,10 +1089,10 @@
                     <p class="text-xs leading-5 text-muted-foreground">
                       {copy.reviewExactCompletion}
                     </p>
-                    <Button class="mt-4 min-h-11" disabled={busy} onclick={commitCompletion}>
+                    <Button class="mt-[var(--density-section-gap)] min-h-9" disabled={busy} onclick={commitCompletion}>
                       {copy.commitCompletion}
                     </Button>
-                  </div>
+                  </Page.Panel>
                 {/if}
               </Card.Content>
             </Card.Root>
@@ -1087,9 +1103,11 @@
   {/if}
 
   {#if formError}
-    <p class="text-sm text-destructive" role="alert">{formError}</p>
+    <Alert.Root variant="destructive">
+      <Alert.Description>{formError}</Alert.Description>
+    </Alert.Root>
   {/if}
-</section>
+</Page.Root>
 
 <Dialog.Root bind:open={rerunOpen}>
   <Dialog.Content>
@@ -1098,8 +1116,8 @@
       <Dialog.Description>{copy.rerunDescription}</Dialog.Description>
     </Dialog.Header>
     {#if rerunPreview}
-      <div class="space-y-4">
-        <div class="rounded-xl border bg-muted/20 p-4">
+      <div class="space-y-[var(--density-section-gap)]">
+        <div class="rounded-lg border bg-muted/20 p-[var(--density-panel-padding)]">
           <p class="text-sm font-medium">{rerunPreview.preview.summary}</p>
           <p class="mt-3 text-xs font-semibold">{copy.affectedStages}</p>
           <div class="mt-2 flex flex-wrap gap-2">

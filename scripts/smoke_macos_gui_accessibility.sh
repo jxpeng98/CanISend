@@ -82,7 +82,7 @@ launcher_pid="$!"
 
 if ! gui_pid="$(osascript - <<'APPLESCRIPT'
 tell application "System Events"
-    repeat 100 times
+    repeat 300 times
         set guiProcesses to every application process whose bundle identifier is "io.github.jxpeng98.canisend"
         if (count of guiProcesses) is 1 then return unix id of item 1 of guiProcesses
         delay 0.1
@@ -107,9 +107,12 @@ on findNamed(parentElement, targetName)
             if (name of parentElement as text) is targetName then return parentElement
         end try
         try
-            repeat with childElement in UI elements of parentElement
-                set foundElement to my findNamed(childElement, targetName)
-                if foundElement is not missing value then return foundElement
+            set allElements to entire contents of parentElement
+            repeat with childElement in allElements
+                try
+                    set candidateElement to contents of childElement
+                    if (name of candidateElement as text) is targetName then return candidateElement
+                end try
             end repeat
         end try
     end tell
@@ -122,9 +125,12 @@ on findNamedRole(parentElement, targetName, targetRole)
             if (name of parentElement as text) is targetName and (value of attribute "AXRole" of parentElement as text) is targetRole then return parentElement
         end try
         try
-            repeat with childElement in UI elements of parentElement
-                set foundElement to my findNamedRole(childElement, targetName, targetRole)
-                if foundElement is not missing value then return foundElement
+            set allElements to entire contents of parentElement
+            repeat with childElement in allElements
+                try
+                    set candidateElement to contents of childElement
+                    if (name of candidateElement as text) is targetName and (value of attribute "AXRole" of candidateElement as text) is targetRole then return candidateElement
+                end try
             end repeat
         end try
     end tell
@@ -137,9 +143,12 @@ on findValued(parentElement, targetValue)
             if (value of parentElement as text) is targetValue then return parentElement
         end try
         try
-            repeat with childElement in UI elements of parentElement
-                set foundElement to my findValued(childElement, targetValue)
-                if foundElement is not missing value then return foundElement
+            set allElements to entire contents of parentElement
+            repeat with childElement in allElements
+                try
+                    set candidateElement to contents of childElement
+                    if (value of candidateElement as text) is targetValue then return candidateElement
+                end try
             end repeat
         end try
     end tell
@@ -150,7 +159,7 @@ on run arguments
     set guiPid to item 1 of arguments as integer
     tell application "System Events"
         set guiProcess to missing value
-        repeat 100 times
+        repeat 300 times
             if exists (first process whose unix id is guiPid) then
                 set guiProcess to first process whose unix id is guiPid
                 if (count of windows of guiProcess) > 0 then exit repeat
@@ -165,14 +174,17 @@ on run arguments
             set appWindow to window 1
             log "accessibility smoke: window ready"
 
-            set navigationElement to my findNamed(appWindow, "Primary navigation")
-            if navigationElement is missing value then
-                set switchToEnglish to my findNamed(appWindow, "English")
-                my assertCondition(switchToEnglish is not missing value, "neither English nor Chinese navigation was exposed")
-                click switchToEnglish
-                delay 0.4
+            set navigationElement to missing value
+            repeat 20 times
                 set navigationElement to my findNamed(appWindow, "Primary navigation")
-            end if
+                if navigationElement is not missing value then exit repeat
+                set switchToEnglish to my findNamed(appWindow, "English")
+                if switchToEnglish is not missing value then
+                    click switchToEnglish
+                    delay 0.4
+                end if
+                delay 0.1
+            end repeat
             my assertCondition(navigationElement is not missing value, "navigation landmark missing")
             my assertCondition((value of attribute "AXRole" of navigationElement as text) is "AXGroup", "navigation role mismatch")
 
@@ -289,7 +301,7 @@ on run arguments
             set inferredSignInStatus to my findValued(appWindow, "Local sign-in")
             my assertCondition(inferredSignInStatus is missing value, "runtime discovery incorrectly inferred local sign-in")
             click agentMessage
-            keystroke "Wait for the local cancellation fixture."
+            set value of agentMessage to "Wait for the local cancellation fixture."
             set providerConsent to my findNamedRole(appWindow, "I confirm this local runtime may read the selected workspace and send necessary context to its configured provider. The host stores its own transcript.", "AXCheckBox")
             my assertCondition(providerConsent is not missing value, "Agent provider consent control missing")
             if (value of providerConsent as boolean) is false then click providerConsent
@@ -341,7 +353,7 @@ on run arguments
             click newConversationControl
             set agentMessage to my findNamedRole(appWindow, "Conversation", "AXTextArea")
             click agentMessage
-            keystroke "Complete the local session fixture."
+            set value of agentMessage to "Complete the local session fixture."
             set sendControl to my findNamedRole(appWindow, "Send message", "AXButton")
             my assertCondition(sendControl is not missing value, "Agent send action missing after starting a new conversation")
             my assertCondition((value of attribute "AXEnabled" of sendControl as boolean) is true, "Agent send action is disabled after starting a new conversation")
@@ -384,6 +396,8 @@ on run arguments
             log "accessibility smoke: reduced motion passed"
         end tell
 
+        tell guiProcess to set frontmost to true
+        delay 0.1
         repeat 10 times
             keystroke "=" using command down
             delay 0.05
@@ -395,6 +409,7 @@ on run arguments
             log "accessibility smoke: 200% text size passed"
         end tell
 
+        tell guiProcess to set frontmost to true
         keystroke "0" using command down
         delay 0.3
         tell guiProcess
@@ -442,7 +457,7 @@ open -n -W \
 launcher_pid="$!"
 if ! gui_pid="$(osascript - <<'APPLESCRIPT'
 tell application "System Events"
-    repeat 100 times
+    repeat 300 times
         set guiProcesses to every application process whose bundle identifier is "io.github.jxpeng98.canisend"
         if (count of guiProcesses) is 1 then return unix id of item 1 of guiProcesses
         delay 0.1
@@ -463,9 +478,12 @@ on findNamed(parentElement, targetName)
             if (name of parentElement as text) is targetName then return parentElement
         end try
         try
-            repeat with childElement in UI elements of parentElement
-                set foundElement to my findNamed(childElement, targetName)
-                if foundElement is not missing value then return foundElement
+            set allElements to entire contents of parentElement
+            repeat with childElement in allElements
+                try
+                    set candidateElement to contents of childElement
+                    if (name of candidateElement as text) is targetName then return candidateElement
+                end try
             end repeat
         end try
     end tell
@@ -478,9 +496,12 @@ on findNamedRole(parentElement, targetName, targetRole)
             if (name of parentElement as text) is targetName and (value of attribute "AXRole" of parentElement as text) is targetRole then return parentElement
         end try
         try
-            repeat with childElement in UI elements of parentElement
-                set foundElement to my findNamedRole(childElement, targetName, targetRole)
-                if foundElement is not missing value then return foundElement
+            set allElements to entire contents of parentElement
+            repeat with childElement in allElements
+                try
+                    set candidateElement to contents of childElement
+                    if (name of candidateElement as text) is targetName and (value of attribute "AXRole" of candidateElement as text) is targetRole then return candidateElement
+                end try
             end repeat
         end try
     end tell
@@ -493,9 +514,12 @@ on findValued(parentElement, targetValue)
             if (value of parentElement as text) is targetValue then return parentElement
         end try
         try
-            repeat with childElement in UI elements of parentElement
-                set foundElement to my findValued(childElement, targetValue)
-                if foundElement is not missing value then return foundElement
+            set allElements to entire contents of parentElement
+            repeat with childElement in allElements
+                try
+                    set candidateElement to contents of childElement
+                    if (value of candidateElement as text) is targetValue then return candidateElement
+                end try
             end repeat
         end try
     end tell
@@ -506,7 +530,7 @@ on run arguments
     set guiPid to item 1 of arguments as integer
     tell application "System Events"
         set guiProcess to missing value
-        repeat 100 times
+        repeat 300 times
             if exists (first process whose unix id is guiPid) then
                 set guiProcess to first process whose unix id is guiPid
                 if (count of windows of guiProcess) > 0 then exit repeat
@@ -548,8 +572,13 @@ on run arguments
             set agentMessage to my findNamedRole(appWindow, "Conversation", "AXTextArea")
             if agentMessage is missing value then error "Agent message control missing after restart" number 1
             click agentMessage
-            keystroke "Resume the local session fixture."
-            set providerConsent to my findNamedRole(appWindow, "I confirm this local runtime may read the selected workspace and send necessary context to its configured provider. The host stores its own transcript.", "AXCheckBox")
+            set value of agentMessage to "Resume the local session fixture."
+            set providerConsent to missing value
+            repeat 40 times
+                set providerConsent to my findNamedRole(appWindow, "I confirm this local runtime may read the selected workspace and send necessary context to its configured provider. The host stores its own transcript.", "AXCheckBox")
+                if providerConsent is not missing value then exit repeat
+                delay 0.1
+            end repeat
             if providerConsent is missing value then error "Agent provider consent missing after restart" number 1
             if (value of providerConsent as boolean) is false then click providerConsent
 

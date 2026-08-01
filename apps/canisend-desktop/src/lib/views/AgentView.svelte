@@ -26,14 +26,21 @@
     scopeAgentUiState,
     switchAgentConversationScope,
   } from "$lib/agent-state.svelte";
+  import * as Page from "$lib/components/patterns/page/index.js";
   import { Badge } from "$lib/components/ui/badge/index.js";
+  import * as Accordion from "$lib/components/ui/accordion/index.js";
+  import * as Alert from "$lib/components/ui/alert/index.js";
+  import * as AlertDialog from "$lib/components/ui/alert-dialog/index.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import * as Card from "$lib/components/ui/card/index.js";
   import { Checkbox } from "$lib/components/ui/checkbox/index.js";
-  import * as Dialog from "$lib/components/ui/dialog/index.js";
+  import * as Empty from "$lib/components/ui/empty/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
+  import * as Item from "$lib/components/ui/item/index.js";
   import { Label } from "$lib/components/ui/label/index.js";
+  import * as NativeSelect from "$lib/components/ui/native-select/index.js";
   import { Separator } from "$lib/components/ui/separator/index.js";
+  import LoadingPanel from "$lib/components/patterns/LoadingPanel.svelte";
   import * as Tabs from "$lib/components/ui/tabs/index.js";
   import { Textarea } from "$lib/components/ui/textarea/index.js";
   import {
@@ -513,56 +520,72 @@
   }
 </script>
 
-<section class="space-y-6">
-  <div class="flex flex-col justify-between gap-4 xl:flex-row xl:items-end">
-    <div>
-      <Badge variant="secondary" class="mb-3">{copy.agent}</Badge>
-      <h1 class="text-3xl font-semibold tracking-[-0.03em]">{copy.agentTitle}</h1>
-      <p class="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-        {copy.agentDescription}
-      </p>
-    </div>
-    <Button
-      variant="outline"
-      class="min-h-11 shrink-0"
-      disabled={!desktopRuntime || busy}
-      onclick={refreshRuntimes}
-    >
-      <RefreshCw size={16} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
-      {copy.refreshRuntimes}
-    </Button>
-  </div>
+{#snippet headerActions()}
+  <Button
+    variant="outline"
+    class="page-action shrink-0"
+    disabled={!desktopRuntime || busy}
+    onclick={refreshRuntimes}
+  >
+    <RefreshCw size={16} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
+    {copy.refreshRuntimes}
+  </Button>
+{/snippet}
 
-  <div class="grid gap-3 md:grid-cols-3">
-    <div class="rounded-xl border bg-muted/20 p-4">
-      <p class="text-xs font-medium text-muted-foreground">
-        1 · {copy.controlPlane}
-      </p>
-      <p class="mt-2 truncate text-sm font-semibold">
-        {activeWorkspace?.path ?? copy.noWorkspace}
-      </p>
-    </div>
-    <div class="rounded-xl border bg-muted/20 p-4">
-      <p class="text-xs font-medium text-muted-foreground">
-        2 · {copy.reasoningPlane}
-      </p>
-      <p class="mt-2 text-sm font-semibold">{hostLabel(agentUiState.host)}</p>
-    </div>
-    <div class="rounded-xl border bg-muted/20 p-4">
-      <p class="text-xs font-medium text-muted-foreground">
-        3 · {copy.workspaceScope}
-      </p>
-      <p class="mt-2 truncate text-sm font-semibold">
-        {selectedJob
-          ? `${selectedJob.title} — ${selectedJob.institution}`
-          : copy.wholeWorkspace}
-      </p>
-    </div>
-  </div>
+<Page.Root>
+  <Page.Header
+    eyebrow={copy.agent}
+    title={copy.agentTitle}
+    description={copy.agentDescription}
+    actions={headerActions}
+  />
 
-  <Card.Root class="border-primary/25 shadow-none">
+  <Item.Group class="grid gap-3 md:grid-cols-3">
+    <Item.Root variant="muted" class="items-start p-[var(--density-panel-padding)]">
+      <Item.Content>
+        <Item.Title class="text-xs text-muted-foreground">
+          1 · {copy.controlPlane}
+        </Item.Title>
+        <Item.Description
+          class="line-clamp-1 text-sm font-semibold text-foreground"
+          title={activeWorkspace?.path ?? copy.noWorkspace}
+        >
+          {activeWorkspace?.path ?? copy.noWorkspace}
+        </Item.Description>
+      </Item.Content>
+    </Item.Root>
+    <Item.Root variant="muted" class="items-start p-[var(--density-panel-padding)]">
+      <Item.Content>
+        <Item.Title class="text-xs text-muted-foreground">
+          2 · {copy.reasoningPlane}
+        </Item.Title>
+        <Item.Description class="text-sm font-semibold text-foreground">
+          {hostLabel(agentUiState.host)}
+        </Item.Description>
+      </Item.Content>
+    </Item.Root>
+    <Item.Root variant="muted" class="items-start p-[var(--density-panel-padding)]">
+      <Item.Content>
+        <Item.Title class="text-xs text-muted-foreground">
+          3 · {copy.workspaceScope}
+        </Item.Title>
+        <Item.Description
+          class="line-clamp-1 text-sm font-semibold text-foreground"
+          title={selectedJob
+            ? `${selectedJob.title} — ${selectedJob.institution}`
+            : copy.wholeWorkspace}
+        >
+          {selectedJob
+            ? `${selectedJob.title} — ${selectedJob.institution}`
+            : copy.wholeWorkspace}
+        </Item.Description>
+      </Item.Content>
+    </Item.Root>
+  </Item.Group>
+
+  <Card.Root class="border-primary/25">
     <Card.Header>
-      <div class="flex flex-wrap items-start justify-between gap-4">
+      <div class="flex flex-wrap items-start justify-between gap-[var(--density-section-gap)]">
         <div class="max-w-3xl">
           <div class="mb-2 flex flex-wrap items-center gap-2">
             <Badge variant="secondary">{copy.contextualAssistanceLabel}</Badge>
@@ -575,7 +598,7 @@
         </div>
         <Button
           variant="outline"
-          class="min-h-11"
+          class="min-h-9"
           disabled={!desktopRuntime ||
             !activeWorkspace ||
             !agentUiState.selectedJobId ||
@@ -594,24 +617,16 @@
         </Button>
       </div>
     </Card.Header>
-    <Card.Content class="space-y-5">
+    <Card.Content class="space-y-[var(--density-section-gap)]">
       {#if !agentUiState.selectedJobId}
-        <div class="rounded-xl border border-dashed bg-muted/10 p-5 text-sm text-muted-foreground">
-          {copy.selectApplicationForGuidance}
-        </div>
+        <Empty.Root class="min-h-20 border bg-muted/10">
+          <Empty.Header><Empty.Description>{copy.selectApplicationForGuidance}</Empty.Description></Empty.Header>
+        </Empty.Root>
       {:else if assistanceLoading && !agentUiState.assistance}
-        <div class="flex min-h-28 items-center justify-center gap-2 text-sm text-muted-foreground" role="status">
-          <RefreshCw
-            size={17}
-            strokeWidth={1.8}
-            class="animate-spin motion-reduce:animate-none"
-            aria-hidden="true"
-          />
-          {copy.loadingGuidance}
-        </div>
+        <LoadingPanel label={copy.loadingGuidance} class="min-h-20" />
       {:else if agentUiState.assistance}
-        <div class="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(300px,0.85fr)]">
-          <div class="rounded-xl border bg-primary/5 p-5">
+        <div class="grid gap-[var(--density-section-gap)] xl:grid-cols-[minmax(0,1.15fr)_minmax(300px,0.85fr)]">
+          <div class="rounded-lg border bg-primary/5 p-5">
             <div class="flex items-start gap-3">
               <Sparkles
                 size={19}
@@ -643,7 +658,7 @@
             </div>
           </div>
 
-          <div class="rounded-xl border p-5">
+          <div class="rounded-lg border p-5">
             <p class="text-xs font-medium text-muted-foreground">
               {copy.contentRelationshipGraph}
             </p>
@@ -663,7 +678,7 @@
         </div>
 
         {#if agentUiState.assistance.recommendation.next_action}
-          <div class="rounded-xl border p-4">
+          <div class="rounded-lg border p-[var(--density-panel-padding)]">
             <p class="text-xs font-medium text-muted-foreground">
               {copy.exactRecommendedAction}
             </p>
@@ -675,7 +690,7 @@
             </p>
             <Button
               variant="outline"
-              class="mt-4 min-h-11"
+              class="mt-[var(--density-section-gap)] min-h-9"
               onclick={() =>
                 void onNavigate({
                   ...routeForAgentAction(
@@ -699,7 +714,7 @@
           </div>
           <div class="grid gap-3 lg:grid-cols-2 xl:grid-cols-5">
             {#each agentUiState.assistance.proposal_targets as target (target.kind)}
-              <div class="flex min-w-0 flex-col rounded-xl border p-4">
+              <div class="flex min-w-0 flex-col rounded-lg border p-[var(--density-panel-padding)]">
                 <div class="flex flex-wrap items-start justify-between gap-2">
                   <p class="text-sm font-semibold">{proposalLabel(target.kind)}</p>
                   <Badge variant={target.state === "current" ? "secondary" : "outline"}>
@@ -714,22 +729,26 @@
                   <span>·</span>
                   <span>{target.upstream_artifacts.length} {copy.upstreamArtifacts}</span>
                 </div>
-                <details class="mt-3 text-xs">
-                  <summary class="cursor-pointer font-medium text-primary">
-                    {copy.validationAndBoundary}
-                  </summary>
-                  <ul class="mt-2 list-disc space-y-1.5 pl-4 leading-5 text-muted-foreground">
-                    {#each target.validation_rules as rule (rule)}
-                      <li>{rule}</li>
-                    {/each}
-                  </ul>
-                  <p class="mt-2 font-mono text-[11px] text-muted-foreground">
-                    {target.commit_boundary}
-                  </p>
-                </details>
+                <Accordion.Root type="single" class="mt-3 text-xs">
+                  <Accordion.Item value="boundary">
+                    <Accordion.Trigger class="py-2 text-xs text-primary">
+                      {copy.validationAndBoundary}
+                    </Accordion.Trigger>
+                    <Accordion.Content class="pb-2">
+                      <ul class="list-disc space-y-1.5 pl-4 leading-5 text-muted-foreground">
+                        {#each target.validation_rules as rule (rule)}
+                          <li>{rule}</li>
+                        {/each}
+                      </ul>
+                      <p class="mt-2 font-mono text-[11px] text-muted-foreground">
+                        {target.commit_boundary}
+                      </p>
+                    </Accordion.Content>
+                  </Accordion.Item>
+                </Accordion.Root>
                 <Button
                   variant="ghost"
-                  class="mt-auto min-h-11 justify-start px-0 pt-4"
+                  class="mt-auto min-h-9 justify-start px-0 pt-[var(--density-section-gap)]"
                   onclick={() =>
                     void onNavigate(
                       routeForApplicationSection(
@@ -747,11 +766,11 @@
         </div>
 
         {#if agentUiState.assistance.content.entries.length}
-          <details class="rounded-xl border p-4">
-            <summary class="cursor-pointer text-sm font-semibold">
-              {copy.inspectContentIdentities}
-            </summary>
-            <div class="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+          <Accordion.Root type="single">
+            <Accordion.Item value="content-identities" class="rounded-lg border px-4">
+              <Accordion.Trigger>{copy.inspectContentIdentities}</Accordion.Trigger>
+              <Accordion.Content class="pb-[var(--density-section-gap)]">
+                <div class="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
               {#each agentUiState.assistance.content.entries.slice(0, 6) as entry (entry.artifact.id)}
                 <div class="rounded-lg border bg-muted/15 p-3">
                   <div class="flex items-start justify-between gap-2">
@@ -769,19 +788,21 @@
                   </p>
                 </div>
               {/each}
-            </div>
-          </details>
+                </div>
+              </Accordion.Content>
+            </Accordion.Item>
+          </Accordion.Root>
         {/if}
       {:else}
-        <div class="rounded-xl border border-dashed bg-muted/10 p-5 text-sm text-muted-foreground">
-          {copy.guidanceUnavailable}
-        </div>
+        <Empty.Root class="min-h-20 border bg-muted/10">
+          <Empty.Header><Empty.Description>{copy.guidanceUnavailable}</Empty.Description></Empty.Header>
+        </Empty.Root>
       {/if}
     </Card.Content>
   </Card.Root>
 
   <Tabs.Root bind:value={agentUiState.integrationMode}>
-    <Tabs.List class="grid w-full max-w-xl grid-cols-2">
+    <Tabs.List class="responsive-tabs max-w-xl" data-columns="2">
       <Tabs.Trigger value="handoff">
         <MessagesSquare data-icon="inline-start" aria-hidden="true" />
         {copy.externalHostTab}
@@ -796,16 +817,16 @@
       id={focus === "agent-task" ? "agent-task" : "agent-handoff"}
       value="handoff"
       class={[
-        "scroll-mt-44 space-y-6 pt-4",
+        "scroll-mt-44 space-y-[var(--density-section-gap)] pt-[var(--density-section-gap)]",
         focus === "agent-handoff" || focus === "agent-task"
-          ? "rounded-xl ring-2 ring-primary/25"
+          ? "rounded-lg ring-2 ring-primary/25"
           : "",
       ]}
     >
-      <div class="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
-        <Card.Root class="shadow-none">
+      <div class="grid gap-[var(--density-section-gap)] xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
+        <Card.Root>
           <Card.Header>
-            <div class="flex flex-wrap items-start justify-between gap-4">
+            <div class="flex flex-wrap items-start justify-between gap-[var(--density-section-gap)]">
               <div>
                 <Card.Title>{copy.externalHost}</Card.Title>
                 <Card.Description class="mt-1.5">
@@ -815,24 +836,24 @@
               <Badge>{copy.recommended}</Badge>
             </div>
           </Card.Header>
-          <Card.Content class="space-y-5">
+          <Card.Content class="space-y-[var(--density-section-gap)]">
             <div class="grid gap-3 sm:grid-cols-2">
               {#each ["codex", "claude"] as host}
-                <button
-                  type="button"
+                <Button
+                  variant="outline"
                   class={[
-                    "rounded-xl border p-4 text-left transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    "h-auto min-h-9 w-full flex-col items-stretch gap-2 whitespace-normal p-[var(--density-panel-padding)] text-left",
                     agentUiState.host === host ? "border-primary bg-primary/5" : "",
                   ]}
                   aria-pressed={agentUiState.host === host}
                   onclick={() => changeHost(host as AgentHost)}
                 >
-                  <div class="flex items-center justify-between gap-3">
+                  <div class="flex flex-wrap items-center justify-between gap-3">
                     <p class="text-sm font-semibold">
                       {host === "codex" ? copy.codex : copy.claude}
                     </p>
                     {#if agentUiState.runtimeCatalog?.runtimes.find((item) => item.runtime === host)?.available}
-                      <span class="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--success)]">
+                      <span class="inline-flex items-center gap-1.5 text-xs font-medium text-success">
                         <Check size={14} strokeWidth={2} aria-hidden="true" />
                         {copy.runtimeAvailable}
                       </span>
@@ -846,40 +867,38 @@
                   <p class="mt-2 text-xs leading-5 text-muted-foreground">
                     {host === "codex" ? "Codex CLI" : "Claude Code"}
                   </p>
-                </button>
+                </Button>
               {/each}
             </div>
 
             <div class="space-y-2">
               <Label for="handoff-job">{copy.selectApplication}</Label>
-              <select
+              <NativeSelect.Root
                 id="handoff-job"
-                class="min-h-11 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                size="desktop"
+                class="w-full"
                 value={agentUiState.selectedJobId}
                 disabled={!activeWorkspace || busy}
                 onchange={(event) => void changeScope(event.currentTarget.value)}
               >
-                <option value="">{copy.wholeWorkspace}</option>
+                <NativeSelect.Option value="">{copy.wholeWorkspace}</NativeSelect.Option>
                 {#each jobs as job (job.id)}
-                  <option value={job.id}>{job.title} — {job.institution}</option>
+                  <NativeSelect.Option value={job.id}>{job.title} — {job.institution}</NativeSelect.Option>
                 {/each}
-              </select>
+              </NativeSelect.Root>
             </div>
 
-            <div class="flex items-start gap-3 rounded-xl border bg-muted/20 p-4">
+            <Alert.Root variant="success">
               <ShieldCheck
                 size={18}
                 strokeWidth={1.8}
-                class="mt-0.5 shrink-0 text-[var(--success)]"
                 aria-hidden="true"
               />
-              <p class="text-xs leading-5 text-muted-foreground">
-                {copy.handoffPrivacy}
-              </p>
-            </div>
+              <Alert.Description>{copy.handoffPrivacy}</Alert.Description>
+            </Alert.Root>
 
             <Button
-              class="min-h-11 w-full sm:w-auto"
+              class="min-h-9 w-full sm:w-auto"
               disabled={!desktopRuntime || !activeWorkspace || busy}
               onclick={prepareHandoff}
             >
@@ -894,29 +913,18 @@
           </Card.Content>
         </Card.Root>
 
-        <Card.Root class="shadow-none">
+        <Card.Root>
           <Card.Header>
             <Card.Title>{copy.stateInCanisend}</Card.Title>
             <Card.Description>{copy.sessionInHost}</Card.Description>
           </Card.Header>
-          <Card.Content class="space-y-4">
-            <div class="rounded-xl border border-[var(--success)]/30 bg-[var(--success)]/8 p-4">
-              <div class="flex items-start gap-3">
-                <Database
-                  size={18}
-                  strokeWidth={1.8}
-                  class="mt-0.5 shrink-0"
-                  aria-hidden="true"
-                />
-                <div>
-                  <p class="text-sm font-semibold">{copy.controlPlane}</p>
-                  <p class="mt-1 text-xs leading-5 text-muted-foreground">
-                    {copy.controlPlaneDescription}
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div class="rounded-xl border p-4">
+          <Card.Content class="space-y-[var(--density-section-gap)]">
+            <Alert.Root variant="success">
+              <Database size={18} strokeWidth={1.8} aria-hidden="true" />
+              <Alert.Title>{copy.controlPlane}</Alert.Title>
+              <Alert.Description>{copy.controlPlaneDescription}</Alert.Description>
+            </Alert.Root>
+            <div class="rounded-lg border p-[var(--density-panel-padding)]">
               <div class="flex items-start gap-3">
                 <MessagesSquare
                   size={18}
@@ -942,9 +950,9 @@
         </Card.Root>
       </div>
 
-      <Card.Root class="shadow-none">
+      <Card.Root>
         <Card.Header>
-          <div class="flex flex-wrap items-start justify-between gap-4">
+          <div class="flex flex-wrap items-start justify-between gap-[var(--density-section-gap)]">
             <div class="max-w-3xl">
               <div class="mb-2 flex flex-wrap items-center gap-2">
                 <Badge variant="secondary">{hostLabel(agentUiState.host)}</Badge>
@@ -965,7 +973,7 @@
             <div class="flex flex-wrap gap-2">
               <Button
                 variant="outline"
-                class="min-h-11"
+                class="min-h-9"
                 disabled={!desktopRuntime || !activeWorkspace || busy || skillsLoading}
                 onclick={loadSkills}
               >
@@ -979,7 +987,7 @@
                 {skillsLoading ? copy.loading : copy.checkSkills}
               </Button>
               <Button
-                class="min-h-11"
+                class="min-h-9"
                 disabled={!desktopRuntime ||
                   !activeWorkspace ||
                   busy ||
@@ -1000,7 +1008,7 @@
               </Button>
               <Button
                 variant="outline"
-                class="min-h-11 text-destructive hover:text-destructive"
+                class="min-h-9 text-destructive hover:text-destructive"
                 disabled={!desktopRuntime || !activeWorkspace || busy || !skillsCanRemove}
                 onclick={() => (uninstallSkillsOpen = true)}
               >
@@ -1015,37 +1023,24 @@
             </div>
           </div>
         </Card.Header>
-        <Card.Content class="space-y-5">
+        <Card.Content class="space-y-[var(--density-section-gap)]">
           {#if skillsLoading && !agentUiState.skillsStatus}
-            <div
-              class="flex min-h-28 items-center justify-center gap-2 text-sm text-muted-foreground"
-              role="status"
-            >
-              <RefreshCw
-                size={17}
-                strokeWidth={1.8}
-                class="animate-spin motion-reduce:animate-none"
-                aria-hidden="true"
-              />
-              {copy.loadingSkills}
-            </div>
+            <LoadingPanel label={copy.loadingSkills} class="min-h-20" />
           {:else if agentUiState.skillsStatus}
             {#if skillManagementBlocked}
-              <div class="rounded-xl border border-destructive/30 bg-destructive/5 p-4" role="alert">
-                <p class="text-sm font-semibold text-destructive">
+              <Alert.Root variant="destructive">
+                <Alert.Title>
                   {agentUiState.skillsStatus.state === "user-modified"
                     ? copy.skillsModifiedWarning
                     : copy.skillsUnmanagedWarning}
-                </p>
-                <p class="mt-1 text-xs leading-5 text-muted-foreground">
-                  {copy.skillsPreservedDescription}
-                </p>
-              </div>
+                </Alert.Title>
+                <Alert.Description>{copy.skillsPreservedDescription}</Alert.Description>
+              </Alert.Root>
             {/if}
 
             <div class="grid gap-3 md:grid-cols-2">
               {#each agentUiState.skillsStatus.skills as skill (skill.id)}
-                <article class="rounded-xl border bg-muted/10 p-4">
+                <article class="rounded-lg border bg-muted/10 p-[var(--density-panel-padding)]">
                   <div class="flex items-start justify-between gap-3">
                     <div class="min-w-0">
                       <h3 class="text-sm font-semibold">{skillTitle(skill.id)}</h3>
@@ -1076,7 +1071,7 @@
               {/each}
             </div>
 
-            <div class="grid gap-3 rounded-xl border bg-muted/15 p-4 text-xs sm:grid-cols-2">
+            <div class="grid gap-3 rounded-lg border bg-muted/15 p-[var(--density-panel-padding)] text-xs sm:grid-cols-2">
               <div>
                 <p class="font-medium text-muted-foreground">{copy.skillsInstallLocation}</p>
                 <p class="mt-1 break-all font-mono">{agentUiState.skillsStatus.directory}</p>
@@ -1087,17 +1082,17 @@
               </div>
             </div>
           {:else}
-            <div class="rounded-xl border border-dashed bg-muted/10 p-5 text-sm text-muted-foreground">
-              {copy.skillsStatusUnavailable}
-            </div>
+            <Empty.Root class="min-h-20 border bg-muted/10">
+              <Empty.Header><Empty.Description>{copy.skillsStatusUnavailable}</Empty.Description></Empty.Header>
+            </Empty.Root>
           {/if}
         </Card.Content>
       </Card.Root>
 
       {#if agentUiState.handoff}
-        <Card.Root class="border-primary/30 shadow-none">
+        <Card.Root class="border-primary/30">
           <Card.Header>
-            <div class="flex flex-wrap items-start justify-between gap-4">
+            <div class="flex flex-wrap items-start justify-between gap-[var(--density-section-gap)]">
               <div>
                 <Card.Title>{copy.handoffReady}</Card.Title>
                 <Card.Description class="mt-1.5">
@@ -1123,7 +1118,7 @@
               </div>
             </div>
           </Card.Header>
-          <Card.Content class="space-y-6">
+          <Card.Content class="space-y-[var(--density-section-gap)]">
             <div class="space-y-3">
               <div class="flex items-center justify-between gap-3">
                 <div>
@@ -1142,14 +1137,14 @@
               </div>
               <div
                 id="handoff-command"
-                class="min-h-20 overflow-x-auto rounded-xl border bg-muted/30 p-4 font-mono text-xs leading-5"
+                class="min-h-20 overflow-x-auto rounded-lg border bg-muted/30 p-[var(--density-panel-padding)] font-mono text-xs leading-5"
               >
                 {agentUiState.handoff.start_command}
               </div>
             </div>
 
             {#if agentUiState.handoff.context.next_actions[0]}
-              <div class="rounded-xl border bg-primary/5 p-4">
+              <div class="rounded-lg border bg-primary/5 p-[var(--density-panel-padding)]">
                 <p class="text-xs font-medium text-muted-foreground">
                   {copy.currentNextAction}
                 </p>
@@ -1163,14 +1158,14 @@
             {/if}
 
             <Separator />
-            <div class="grid gap-6 xl:grid-cols-2">
+            <div class="grid gap-[var(--density-section-gap)] xl:grid-cols-2">
               <div class="space-y-3">
                 <Label>
                   {agentUiState.handoff.assistance_command
                     ? copy.assistanceCommand
                     : copy.contextCommand}
                 </Label>
-                <div class="overflow-x-auto rounded-xl border bg-muted/30 p-4 font-mono text-xs leading-5">
+                <div class="overflow-x-auto rounded-lg border bg-muted/30 p-[var(--density-panel-padding)] font-mono text-xs leading-5">
                   {agentUiState.handoff.assistance_command ??
                     agentUiState.handoff.context_command}
                 </div>
@@ -1199,9 +1194,9 @@
         </Card.Root>
       {/if}
 
-      <Card.Root class="shadow-none">
+      <Card.Root>
         <Card.Header>
-          <div class="flex flex-wrap items-start justify-between gap-4">
+          <div class="flex flex-wrap items-start justify-between gap-[var(--density-section-gap)]">
             <div>
               <Card.Title>{copy.mcpIntegration}</Card.Title>
               <Card.Description class="mt-1.5">
@@ -1211,8 +1206,8 @@
             <Badge variant="outline">{copy.guardedToolSurface}</Badge>
           </div>
         </Card.Header>
-        <Card.Content class="space-y-5">
-          <div class="flex items-start gap-3 rounded-xl border bg-muted/20 p-4">
+        <Card.Content class="space-y-[var(--density-section-gap)]">
+          <div class="flex items-start gap-3 rounded-lg border bg-muted/20 p-[var(--density-panel-padding)]">
             <PlugZap
               size={18}
               strokeWidth={1.8}
@@ -1226,7 +1221,7 @@
 
           <Button
             variant="outline"
-            class="min-h-11"
+            class="min-h-9"
             disabled={!desktopRuntime || !activeWorkspace || busy}
             onclick={prepareMcpConfiguration}
           >
@@ -1275,7 +1270,7 @@
                 </div>
                 <div
                   id="mcp-registration-command"
-                  class="overflow-x-auto rounded-xl border bg-muted/30 p-4 font-mono text-xs leading-5"
+                  class="overflow-x-auto rounded-lg border bg-muted/30 p-[var(--density-panel-padding)] font-mono text-xs leading-5"
                 >
                   {agentUiState.mcpConfiguration.registration_command}
                 </div>
@@ -1303,7 +1298,7 @@
               </div>
               <Textarea
                 id="mcp-configuration-snippet"
-                class="min-h-44 resize-y font-mono text-xs leading-5"
+                class="min-h-32 resize-y font-mono text-xs leading-5"
                 value={agentUiState.mcpConfiguration.configuration_snippet}
                 readonly
               />
@@ -1319,23 +1314,17 @@
       </Card.Root>
     </Tabs.Content>
 
-    <Tabs.Content value="in-app" class="space-y-6 pt-4">
-      <div class="rounded-xl border border-dashed bg-muted/10 p-4">
-        <div class="flex items-start gap-3">
-          <PlugZap size={18} strokeWidth={1.8} class="mt-0.5 shrink-0" aria-hidden="true" />
-          <div>
-            <p class="text-sm font-semibold">{copy.optionalRuntimeBridge}</p>
-            <p class="mt-1 text-xs leading-5 text-muted-foreground">
-              {copy.optionalRuntimeBridgeDescription}
-            </p>
-          </div>
-        </div>
-      </div>
+    <Tabs.Content value="in-app" class="space-y-[var(--density-section-gap)] pt-[var(--density-section-gap)]">
+      <Alert.Root variant="info">
+        <PlugZap size={18} strokeWidth={1.8} aria-hidden="true" />
+        <Alert.Title>{copy.optionalRuntimeBridge}</Alert.Title>
+        <Alert.Description>{copy.optionalRuntimeBridgeDescription}</Alert.Description>
+      </Alert.Root>
 
-      <div class="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
-        <Card.Root class="shadow-none">
+      <div class="grid gap-[var(--density-section-gap)] xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
+        <Card.Root>
           <Card.Header>
-            <div class="flex flex-wrap items-start justify-between gap-4">
+            <div class="flex flex-wrap items-start justify-between gap-[var(--density-section-gap)]">
               <div>
                 <Card.Title>{copy.conversation}</Card.Title>
                 <Card.Description class="mt-1.5">
@@ -1352,15 +1341,15 @@
               </div>
             </div>
           </Card.Header>
-          <Card.Content class="space-y-4">
+          <Card.Content class="space-y-[var(--density-section-gap)]">
             <div
-              class="min-h-56 max-h-96 space-y-4 overflow-y-auto rounded-xl border bg-muted/10 p-4"
+              class="min-h-40 max-h-80 space-y-3 overflow-y-auto rounded-lg border bg-muted/10 p-3"
               aria-live="polite"
             >
               {#each agentUiState.messages as message (message.id)}
                 <div
                   class={[
-                    "max-w-[88%] rounded-xl px-4 py-3 text-sm leading-6",
+                    "max-w-[88%] rounded-lg px-4 py-3 text-sm leading-6",
                     message.role === "user"
                       ? "ml-auto bg-primary text-primary-foreground"
                       : "border bg-background",
@@ -1369,17 +1358,12 @@
                   <p class="whitespace-pre-wrap">{message.text}</p>
                 </div>
               {:else}
-                <div class="grid min-h-48 place-items-center text-center">
-                  <div>
-                    <Bot
-                      size={22}
-                      strokeWidth={1.8}
-                      class="mx-auto"
-                      aria-hidden="true"
-                    />
-                    <p class="mt-3 text-sm font-semibold">{copy.noConversation}</p>
-                  </div>
-                </div>
+                <Empty.Root class="min-h-32 border-0">
+                  <Empty.Header>
+                    <Empty.Media variant="icon"><Bot size={22} strokeWidth={1.8} aria-hidden="true" /></Empty.Media>
+                    <Empty.Title>{copy.noConversation}</Empty.Title>
+                  </Empty.Header>
+                </Empty.Root>
               {/each}
             </div>
 
@@ -1399,15 +1383,16 @@
               <Label for="agent-message">{copy.conversation}</Label>
               <Textarea
                 id="agent-message"
-                class="min-h-24 resize-y"
+                class="min-h-20 resize-y"
                 placeholder={copy.messagePlaceholder}
                 bind:value={agentUiState.prompt}
                 disabled={!activeWorkspace || busy}
               />
             </div>
-            <div class="flex items-start gap-3 rounded-xl border bg-muted/20 p-3">
+            <div class="flex items-start gap-3 rounded-lg border bg-muted/20 p-3">
               <Checkbox
                 id="agent-provider-consent"
+                aria-label={copy.providerConsent}
                 bind:checked={agentUiState.confirmedProviderSend}
                 class="mt-0.5"
               />
@@ -1418,7 +1403,7 @@
             <div class="flex flex-wrap justify-between gap-2">
               <Button
                 variant="outline"
-                class="min-h-11"
+                class="min-h-9"
                 disabled={busy || turnRunning}
                 onclick={beginNewAgentConversation}
               >
@@ -1433,7 +1418,7 @@
               {#if turnRunning}
                 <Button
                   variant="destructive"
-                  class="min-h-11"
+                  class="min-h-9"
                   disabled={cancellingTurn}
                   onclick={cancelTurn}
                 >
@@ -1447,7 +1432,7 @@
                 </Button>
               {:else}
                 <Button
-                  class="min-h-11"
+                  class="min-h-9"
                   disabled={!desktopRuntime ||
                     !activeWorkspace ||
                     busy ||
@@ -1464,17 +1449,17 @@
           </Card.Content>
         </Card.Root>
 
-        <Card.Root class="shadow-none">
+        <Card.Root>
           <Card.Header>
             <Card.Title>{copy.localAgentRuntime}</Card.Title>
             <Card.Description>{copy.localAgentRuntimeDescription}</Card.Description>
           </Card.Header>
           <Card.Content class="space-y-3">
             {#each agentUiState.runtimeCatalog?.runtimes ?? [] as runtime (runtime.runtime)}
-              <button
-                type="button"
+              <Button
+                variant="outline"
                 class={[
-                  "w-full rounded-xl border p-4 text-left transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  "h-auto min-h-9 w-full flex-col items-stretch gap-2 p-[var(--density-panel-padding)] text-left",
                   agentUiState.runtime === runtime.runtime ? "border-primary bg-primary/5" : "",
                 ]}
                 aria-pressed={agentUiState.runtime === runtime.runtime}
@@ -1491,7 +1476,7 @@
                 <p class="mt-2 truncate font-mono text-[11px] text-muted-foreground">
                   {runtime.version ?? runtime.executable ?? "—"}
                 </p>
-              </button>
+              </Button>
             {/each}
             {#if runtimeProbe?.available}
               <Separator />
@@ -1518,13 +1503,13 @@
     </Tabs.Content>
   </Tabs.Root>
 
-  <div class="grid gap-6 xl:grid-cols-2">
-    <Card.Root class="shadow-none">
+  <div class="grid gap-[var(--density-section-gap)] xl:grid-cols-2">
+    <Card.Root>
       <Card.Header>
         <Card.Title>{copy.bodyFreeContext}</Card.Title>
         <Card.Description>{copy.workspaceScopeDescription}</Card.Description>
       </Card.Header>
-      <Card.Content class="space-y-4">
+      <Card.Content class="space-y-[var(--density-section-gap)]">
         <div class="flex flex-wrap gap-2">
           <Button
             variant="outline"
@@ -1546,7 +1531,7 @@
         {#if agentUiState.context}
           <div class="space-y-2">
             {#each agentUiState.context.blockers as blocker (blocker.code)}
-              <div class="rounded-xl border p-3">
+              <div class="rounded-lg border p-3">
                 <p class="text-xs font-semibold">{blocker.code}</p>
                 <p class="mt-1 text-xs leading-5 text-muted-foreground">
                   {blocker.description}
@@ -1561,9 +1546,9 @@
             <div class="space-y-2">
               <p class="text-xs font-semibold">{copy.agentNextActions}</p>
               {#each agentUiState.context.next_actions as action, index (`${action.action}-${index}`)}
-                <button
-                  type="button"
-                  class="w-full rounded-xl border p-3 text-left transition-colors hover:border-primary/35 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                <Button
+                  variant="outline"
+                  class="h-auto min-h-9 w-full flex-col items-start gap-1 p-3 text-left"
                   onclick={() =>
                     void onNavigate({
                       ...routeForAgentAction(action.action),
@@ -1577,13 +1562,13 @@
                   <span class="mt-2 block text-[11px] font-medium text-primary">
                     {copy.openRelatedStep}
                   </span>
-                </button>
+                </Button>
               {/each}
             </div>
           {/if}
         {/if}
         {#if agentUiState.capabilities}
-          <div class="rounded-xl border bg-muted/20 p-3">
+          <div class="rounded-lg border bg-muted/20 p-3">
             <div class="flex items-center justify-between gap-3 text-xs">
               <span class="text-muted-foreground">{copy.protocol}</span>
               <span class="font-semibold">{agentUiState.capabilities.protocol}</span>
@@ -1599,9 +1584,9 @@
       </Card.Content>
     </Card.Root>
 
-    <Card.Root class="shadow-none">
+    <Card.Root>
       <Card.Header>
-        <div class="flex items-start justify-between gap-4">
+        <div class="flex items-start justify-between gap-[var(--density-section-gap)]">
           <div>
             <Card.Title>{copy.workspaceBridge}</Card.Title>
             <Card.Description class="mt-1.5">{copy.exportAgentPack}</Card.Description>
@@ -1609,21 +1594,22 @@
           <FileOutput size={18} strokeWidth={1.8} aria-hidden="true" />
         </div>
       </Card.Header>
-      <Card.Content class="space-y-4">
-        <div class="grid gap-4 sm:grid-cols-[160px_minmax(0,1fr)]">
+      <Card.Content class="space-y-[var(--density-section-gap)]">
+        <div class="grid gap-[var(--density-section-gap)] sm:grid-cols-[160px_minmax(0,1fr)]">
           <div class="space-y-2">
             <Label for="agent-host-pack">{copy.agentHost}</Label>
-            <select
+            <NativeSelect.Root
               id="agent-host-pack"
-              class="min-h-11 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              size="desktop"
+              class="w-full"
               value={agentUiState.host}
               onchange={(event) =>
                 changeHost(event.currentTarget.value as AgentHost)}
             >
-              <option value="codex">{copy.codex}</option>
-              <option value="claude">{copy.claude}</option>
-              <option value="generic">{copy.generic}</option>
-            </select>
+              <NativeSelect.Option value="codex">{copy.codex}</NativeSelect.Option>
+              <NativeSelect.Option value="claude">{copy.claude}</NativeSelect.Option>
+              <NativeSelect.Option value="generic">{copy.generic}</NativeSelect.Option>
+            </NativeSelect.Root>
           </div>
           <div class="space-y-2">
             <Label for="agent-destination">{copy.exportDestination}</Label>
@@ -1635,7 +1621,7 @@
               />
               <Button
                 variant="outline"
-                size="icon"
+                size="icon-desktop"
                 aria-label={copy.chooseDirectory}
                 disabled={!desktopRuntime || busy}
                 onclick={chooseDestination}
@@ -1646,43 +1632,43 @@
           </div>
         </div>
         <Button
-          class="min-h-11"
+          class="min-h-9"
           disabled={!desktopRuntime || busy || !agentUiState.destination}
           onclick={exportPack}
         >
           {copy.exportAgentPack}
         </Button>
         {#if agentUiState.exported}
-          <div class="rounded-xl border border-[var(--success)]/35 bg-[var(--success)]/8 p-4">
-            <div class="flex items-center justify-between gap-4">
-              <p class="text-sm font-semibold">
-                {hostLabel(agentUiState.exported.manifest.host)}
-              </p>
+          <Alert.Root variant="success">
+            <Alert.Title>{hostLabel(agentUiState.exported.manifest.host)}</Alert.Title>
+            <Alert.Description class="truncate font-mono">
+              {agentUiState.exported.manifest_path}
+            </Alert.Description>
+            <Alert.Action>
               <Badge variant="outline">
                 {agentUiState.exported.manifest.files.length} {copy.exportedFiles}
               </Badge>
-            </div>
-            <p class="mt-2 truncate font-mono text-xs text-muted-foreground">
-              {agentUiState.exported.manifest_path}
-            </p>
-          </div>
+            </Alert.Action>
+          </Alert.Root>
         {/if}
       </Card.Content>
     </Card.Root>
   </div>
 
   {#if agentUiState.formError}
-    <p class="text-sm text-destructive" role="alert">{agentUiState.formError}</p>
+    <Alert.Root variant="destructive">
+      <Alert.Description>{agentUiState.formError}</Alert.Description>
+    </Alert.Root>
   {/if}
-</section>
+</Page.Root>
 
-<Dialog.Root bind:open={uninstallSkillsOpen}>
-  <Dialog.Content>
-    <Dialog.Header>
-      <Dialog.Title>{copy.removeSkills}</Dialog.Title>
-      <Dialog.Description>{copy.removeSkillsDescription}</Dialog.Description>
-    </Dialog.Header>
-    <div class="rounded-xl border bg-muted/20 p-3">
+<AlertDialog.Root bind:open={uninstallSkillsOpen}>
+  <AlertDialog.Content>
+    <AlertDialog.Header>
+      <AlertDialog.Title>{copy.removeSkills}</AlertDialog.Title>
+      <AlertDialog.Description>{copy.removeSkillsDescription}</AlertDialog.Description>
+    </AlertDialog.Header>
+    <div class="rounded-lg border bg-muted/20 p-3">
       <p class="text-xs font-medium text-muted-foreground">
         {hostLabel(agentUiState.host)}
       </p>
@@ -1690,13 +1676,13 @@
         {agentUiState.skillsStatus?.directory ?? activeWorkspace?.path ?? ""}
       </p>
     </div>
-    <Dialog.Footer>
-      <Button variant="outline" onclick={() => (uninstallSkillsOpen = false)}>
+    <AlertDialog.Footer>
+      <AlertDialog.Cancel onclick={() => (uninstallSkillsOpen = false)}>
         {copy.cancel}
-      </Button>
-      <Button variant="destructive" disabled={busy} onclick={uninstallSkills}>
+      </AlertDialog.Cancel>
+      <AlertDialog.Action variant="destructive" disabled={busy} onclick={uninstallSkills}>
         {copy.removeSkills}
-      </Button>
-    </Dialog.Footer>
-  </Dialog.Content>
-</Dialog.Root>
+      </AlertDialog.Action>
+    </AlertDialog.Footer>
+  </AlertDialog.Content>
+</AlertDialog.Root>

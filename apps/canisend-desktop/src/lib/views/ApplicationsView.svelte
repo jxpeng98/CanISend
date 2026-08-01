@@ -16,17 +16,23 @@
     TriangleAlert,
   } from "@lucide/svelte";
 
+  import * as Page from "$lib/components/patterns/page/index.js";
   import { Badge } from "$lib/components/ui/badge/index.js";
+  import * as Alert from "$lib/components/ui/alert/index.js";
+  import * as AlertDialog from "$lib/components/ui/alert-dialog/index.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import * as Card from "$lib/components/ui/card/index.js";
   import { Checkbox } from "$lib/components/ui/checkbox/index.js";
   import * as Dialog from "$lib/components/ui/dialog/index.js";
+  import * as Empty from "$lib/components/ui/empty/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
   import { Label } from "$lib/components/ui/label/index.js";
   import { Separator } from "$lib/components/ui/separator/index.js";
+  import { Progress } from "$lib/components/ui/progress/index.js";
   import { Skeleton } from "$lib/components/ui/skeleton/index.js";
   import * as Tabs from "$lib/components/ui/tabs/index.js";
   import IntakeReviewSummary from "$lib/components/IntakeReviewSummary.svelte";
+  import LoadingPanel from "$lib/components/patterns/LoadingPanel.svelte";
   import {
     chooseJobSource,
     type ApplicationDossierReadModel,
@@ -198,54 +204,54 @@
   }
 </script>
 
-<section class="space-y-6">
-  <div class="flex flex-col justify-between gap-4 xl:flex-row xl:items-end">
-    <div>
-      <Badge variant="secondary" class="mb-3">{copy.applicationWorkspace}</Badge>
-      <h1 class="text-3xl font-semibold tracking-[-0.03em]">{copy.applicationsTitle}</h1>
-      <p class="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-        {copy.applicationsDescription}
-      </p>
-    </div>
-    <div class="flex gap-2">
-      <Button
-        variant="outline"
-        class="min-h-11"
-        disabled={!activeWorkspace || busy}
-        onclick={onRefresh}
-      >
-        <RefreshCw size={17} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
-        {copy.refresh}
-      </Button>
-      <Button
-        class="min-h-11"
-        disabled={!desktopRuntime || !activeWorkspace || busy}
-        onclick={() => {
-          formError = null;
-          createOpen = true;
-        }}
-      >
-        <Plus size={17} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
-        {copy.createApplication}
-      </Button>
-    </div>
-  </div>
+{#snippet headerActions()}
+  <Button
+    variant="outline"
+    class="page-action"
+    disabled={!activeWorkspace || busy}
+    onclick={onRefresh}
+  >
+    <RefreshCw size={17} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
+    {copy.refresh}
+  </Button>
+  <Button
+    class="page-action"
+    disabled={!desktopRuntime || !activeWorkspace || busy}
+    onclick={() => {
+      formError = null;
+      createOpen = true;
+    }}
+  >
+    <Plus size={17} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
+    {copy.createApplication}
+  </Button>
+{/snippet}
+
+<Page.Root>
+  <Page.Header
+    eyebrow={copy.applicationWorkspace}
+    title={copy.applicationsTitle}
+    description={copy.applicationsDescription}
+    actions={headerActions}
+  />
 
   {#if !activeWorkspace}
-    <Card.Root class="shadow-none">
-      <Card.Content class="flex min-h-80 flex-col items-center justify-center px-8 text-center">
-        <div class="grid size-12 place-items-center rounded-xl bg-accent text-accent-foreground">
-          <BriefcaseBusiness size={21} strokeWidth={1.8} aria-hidden="true" />
-        </div>
-        <h2 class="mt-4 text-base font-semibold">{copy.noWorkspace}</h2>
-        <p class="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-          {copy.chooseWorkspaceDescription}
-        </p>
+    <Card.Root>
+      <Card.Content>
+        <Empty.Root class="min-h-32">
+          <Empty.Header>
+            <Empty.Media variant="icon" class="size-12 rounded-lg bg-accent text-accent-foreground">
+              <BriefcaseBusiness size={21} strokeWidth={1.8} aria-hidden="true" />
+            </Empty.Media>
+            <Empty.Title class="text-base">{copy.noWorkspace}</Empty.Title>
+            <Empty.Description>{copy.chooseWorkspaceDescription}</Empty.Description>
+          </Empty.Header>
+        </Empty.Root>
       </Card.Content>
     </Card.Root>
   {:else}
-    <div class="grid gap-6 xl:grid-cols-[minmax(300px,0.75fr)_minmax(0,1.25fr)]">
-      <Card.Root class="shadow-none">
+    <Page.Grid class="xl:grid-cols-[minmax(300px,0.75fr)_minmax(0,1.25fr)]">
+      <Card.Root>
         <Card.Header>
           <Card.Title>{copy.applications}</Card.Title>
           <Card.Description class="truncate" title={activeWorkspace.path}>
@@ -255,27 +261,30 @@
         <Card.Content class="space-y-2">
           {#if loading}
             {#each [1, 2, 3] as row}
-              <div class="space-y-2 rounded-xl border p-4">
+              <div class="space-y-2 rounded-lg border p-[var(--density-panel-padding)]">
                 <Skeleton class="h-4 w-2/3" />
                 <Skeleton class="h-3 w-1/2" />
               </div>
             {/each}
           {:else if !jobs.length}
-            <div class="flex min-h-64 flex-col items-center justify-center rounded-xl border border-dashed bg-muted/20 p-6 text-center">
-              <BriefcaseBusiness size={22} strokeWidth={1.8} class="text-muted-foreground" aria-hidden="true" />
-              <h2 class="mt-3 text-sm font-semibold">{copy.noApplications}</h2>
-              <p class="mt-2 text-xs leading-5 text-muted-foreground">
-                {copy.noApplicationsDescription}
-              </p>
-            </div>
+            <Empty.Root class="min-h-32 border bg-muted/20">
+              <Empty.Header>
+                <Empty.Media variant="icon">
+                  <BriefcaseBusiness size={22} strokeWidth={1.8} aria-hidden="true" />
+                </Empty.Media>
+                <Empty.Title>{copy.noApplications}</Empty.Title>
+                <Empty.Description>{copy.noApplicationsDescription}</Empty.Description>
+              </Empty.Header>
+            </Empty.Root>
           {:else}
             {#each jobs as job (job.id)}
               {@const application = dossiers.find((dossier) => dossier.job.id === job.id)}
-              <button
-                type="button"
-                class={`w-full rounded-xl border p-4 text-left transition-colors hover:bg-muted/30 ${
-                  selectedJob?.job.id === job.id ? "border-primary bg-accent/45" : ""
-                }`}
+              <Button
+                variant="outline"
+                class={[
+                  "h-auto min-h-9 w-full items-start justify-between p-[var(--density-panel-padding)] text-left",
+                  selectedJob?.job.id === job.id ? "border-primary bg-accent/45" : "",
+                ]}
                 aria-current={selectedJob?.job.id === job.id ? "true" : undefined}
                 onclick={() => onSelect(job.id)}
               >
@@ -295,15 +304,15 @@
                     </span>
                   </div>
                 </div>
-              </button>
+              </Button>
             {/each}
           {/if}
         </Card.Content>
       </Card.Root>
 
-      <div class="space-y-6">
+      <Page.Stack>
         {#if dossier}
-          <Card.Root class="shadow-none">
+          <Card.Root>
             <Card.Header>
               <div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
                 <div>
@@ -315,9 +324,9 @@
                 <Badge variant="secondary">{dossierStateLabel(dossier.state)}</Badge>
               </div>
             </Card.Header>
-            <Card.Content class="space-y-5">
+            <Card.Content class="space-y-[var(--density-section-gap)]">
               <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <div class="rounded-xl border bg-muted/20 p-3">
+                <div class="rounded-lg border bg-muted/20 p-3">
                   <p class="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <CircleDot size={14} strokeWidth={1.8} aria-hidden="true" />
                     {copy.workflowProgress}
@@ -326,7 +335,7 @@
                     {dossier.completed_stages} / {dossier.total_stages}
                   </p>
                 </div>
-                <div class="rounded-xl border bg-muted/20 p-3">
+                <div class="rounded-lg border bg-muted/20 p-3">
                   <p class="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <CircleDot size={14} strokeWidth={1.8} aria-hidden="true" />
                     {copy.currentStage}
@@ -337,7 +346,7 @@
                       : copy.allStagesComplete}
                   </p>
                 </div>
-                <div class="rounded-xl border bg-muted/20 p-3">
+                <div class="rounded-lg border bg-muted/20 p-3">
                   <p class="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <CalendarDays size={14} strokeWidth={1.8} aria-hidden="true" />
                     {copy.deadline}
@@ -346,7 +355,7 @@
                     {dossier.metadata.deadline ?? copy.noDeadlineRecorded}
                   </p>
                 </div>
-                <div class="rounded-xl border bg-muted/20 p-3">
+                <div class="rounded-lg border bg-muted/20 p-3">
                   <p class="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <MapPin size={14} strokeWidth={1.8} aria-hidden="true" />
                     {copy.location}
@@ -357,44 +366,26 @@
                 </div>
               </div>
 
-              <div>
-                <div
-                  class="h-2 overflow-hidden rounded-full bg-muted"
-                  role="progressbar"
-                  aria-label={copy.workflowProgress}
-                  aria-valuemin="0"
-                  aria-valuemax={dossier.total_stages}
-                  aria-valuenow={dossier.completed_stages}
-                >
-                  <div
-                    class="h-full rounded-full bg-primary transition-[width] duration-200 motion-reduce:transition-none"
-                    style={`width: ${
-                      dossier.total_stages
-                        ? (dossier.completed_stages / dossier.total_stages) * 100
-                        : 0
-                    }%`}
-                  ></div>
-                </div>
-              </div>
+              <Progress
+                class="h-2"
+                value={dossier.completed_stages}
+                max={dossier.total_stages || 1}
+                aria-label={copy.workflowProgress}
+              />
 
               {#if dossier.blockers[0]}
-                <div class="flex items-start gap-3 rounded-xl border border-amber-500/35 bg-amber-500/5 p-4">
+                <Alert.Root variant="warning">
                   <TriangleAlert
                     size={17}
                     strokeWidth={1.8}
-                    class="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400"
                     aria-hidden="true"
                   />
-                  <div>
-                    <p class="text-xs font-semibold">{copy.attention}</p>
-                    <p class="mt-1 text-xs leading-5 text-muted-foreground">
-                      {dossier.blockers[0].description}
-                    </p>
-                  </div>
-                </div>
+                  <Alert.Title>{copy.attention}</Alert.Title>
+                  <Alert.Description>{dossier.blockers[0].description}</Alert.Description>
+                </Alert.Root>
               {/if}
 
-              <div class="flex flex-col justify-between gap-4 rounded-xl border bg-accent/30 p-4 sm:flex-row sm:items-center">
+              <div class="flex flex-col justify-between gap-[var(--density-section-gap)] rounded-lg border bg-accent/30 p-[var(--density-panel-padding)] sm:flex-row sm:items-center">
                 <div>
                   <p class="text-xs font-medium text-muted-foreground">{copy.nextAction}</p>
                   <p class="mt-1 max-w-2xl text-sm font-semibold">
@@ -402,7 +393,7 @@
                   </p>
                 </div>
                 <Button
-                  class="min-h-11 shrink-0"
+                  class="min-h-9 shrink-0"
                   disabled={busy || !dossier.next_actions.length}
                   onclick={onContinue}
                 >
@@ -432,26 +423,22 @@
             onOpen={onOpenContent}
           />
         {:else}
-          <Card.Root class="shadow-none">
-            <Card.Content class="grid min-h-40 place-items-center p-6">
+          <Card.Root>
+            <Card.Content class="grid min-h-32 place-items-center p-[var(--density-panel-padding)]">
               {#if contentPanelFailed}
-                <p class="text-sm text-destructive" role="alert">
-                  {copy.contentLibraryLoadFailed}
-                </p>
+                <Alert.Root variant="destructive">
+                  <Alert.Description>{copy.contentLibraryLoadFailed}</Alert.Description>
+                </Alert.Root>
               {:else}
-                <div class="w-full max-w-lg space-y-3" role="status" aria-label={copy.loading}>
-                  <Skeleton class="h-5 w-1/3" />
-                  <Skeleton class="h-11 w-full" />
-                  <Skeleton class="h-20 w-full" />
-                </div>
+                <LoadingPanel label={copy.loading} class="w-full" />
               {/if}
             </Card.Content>
           </Card.Root>
         {/if}
 
-        <Card.Root class="shadow-none">
+        <Card.Root>
           <Card.Header>
-            <div class="flex items-start justify-between gap-4">
+            <div class="flex items-start justify-between gap-[var(--density-section-gap)]">
               <div>
                 <Card.Title>{selectedJob?.job.title ?? copy.applicationDetails}</Card.Title>
                 <Card.Description class="mt-1.5">
@@ -481,7 +468,7 @@
                 {#if selectedJob.sources.length}
                   <div class="space-y-2">
                     {#each selectedJob.sources as source (source.id)}
-                      <div class="flex items-start gap-3 rounded-xl border p-3">
+                      <div class="flex items-start gap-3 rounded-lg border p-3">
                         <div class="grid size-9 shrink-0 place-items-center rounded-lg bg-accent text-accent-foreground">
                           {#if source.kind === "user-url"}
                             <Link size={16} strokeWidth={1.8} aria-hidden="true" />
@@ -499,15 +486,15 @@
                     {/each}
                   </div>
                 {:else}
-                  <p class="rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">
-                    {copy.noSources}
-                  </p>
+                  <Empty.Root class="min-h-20 border">
+                    <Empty.Header><Empty.Title>{copy.noSources}</Empty.Title></Empty.Header>
+                  </Empty.Root>
                 {/if}
               </div>
             {:else}
-              <div class="flex min-h-40 items-center justify-center rounded-xl border border-dashed text-sm text-muted-foreground">
-                {copy.chooseApplication}
-              </div>
+              <Empty.Root class="min-h-32 border">
+                <Empty.Header><Empty.Description>{copy.chooseApplication}</Empty.Description></Empty.Header>
+              </Empty.Root>
             {/if}
           </Card.Content>
         </Card.Root>
@@ -516,7 +503,7 @@
           <Card.Root
             id="source-intake"
             class={[
-              "scroll-mt-64 shadow-none transition-colors",
+              "scroll-mt-64  transition-colors",
               focus === "source-intake" ? "ring-2 ring-primary/35" : "",
             ]}
           >
@@ -526,10 +513,10 @@
             </Card.Header>
             <Card.Content>
               {#if preview}
-                <div class="space-y-5" aria-live="polite">
+                <div class="space-y-[var(--density-section-gap)]" aria-live="polite">
                   <div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
                     <div class="flex items-start gap-3">
-                      <div class="grid size-10 shrink-0 place-items-center rounded-xl bg-accent text-accent-foreground">
+                      <div class="grid size-10 shrink-0 place-items-center rounded-lg bg-accent text-accent-foreground">
                         <ShieldCheck size={18} strokeWidth={1.8} aria-hidden="true" />
                       </div>
                       <div>
@@ -556,35 +543,33 @@
                       {copy.validationIssues}
                     </p>
                     {#each preview.preview.data.validation_issues as issue (issue.code)}
-                      <div class="flex items-start gap-2 rounded-xl border p-3">
+                      <Alert.Root variant={issue.severity === "warning" ? "warning" : "success"}>
                         {#if issue.severity === "warning"}
                           <TriangleAlert
                             size={16}
                             strokeWidth={1.8}
-                            class="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400"
                             aria-hidden="true"
                           />
                         {:else}
                           <CheckCircle2
                             size={16}
                             strokeWidth={1.8}
-                            class="mt-0.5 shrink-0 text-[var(--success)]"
                             aria-hidden="true"
                           />
                         {/if}
-                        <p class="text-xs leading-5">{issue.message}</p>
-                      </div>
+                        <Alert.Description>{issue.message}</Alert.Description>
+                      </Alert.Root>
                     {/each}
                   </div>
 
                   <Separator />
                   <div class="flex flex-col gap-2 sm:flex-row">
-                    <Button class="min-h-11" disabled={busy} onclick={onCommitPreview}>
+                    <Button class="min-h-9" disabled={busy} onclick={onCommitPreview}>
                       {busy ? copy.working : copy.commitPreview}
                     </Button>
                     <Button
                       variant="outline"
-                      class="min-h-11"
+                      class="min-h-9"
                       disabled={busy}
                       onclick={onDiscardPreview}
                     >
@@ -594,7 +579,7 @@
                 </div>
               {:else}
                 <Tabs.Root bind:value={intakeTab}>
-                <Tabs.List class="grid w-full grid-cols-2">
+                <Tabs.List class="responsive-tabs" data-columns="2">
                   <Tabs.Trigger value="local">
                     <FileUp size={16} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
                     {copy.localFile}
@@ -604,7 +589,7 @@
                     {copy.sourceUrl}
                   </Tabs.Trigger>
                 </Tabs.List>
-                <Tabs.Content value="local" class="space-y-4 pt-4">
+                <Tabs.Content value="local" class="space-y-[var(--density-section-gap)] pt-[var(--density-section-gap)]">
                   <div class="space-y-2">
                     <Label for="local-source">{copy.sourceFile}</Label>
                     <div class="flex gap-2">
@@ -614,7 +599,7 @@
                       </Button>
                     </div>
                   </div>
-                  <div class="flex items-start gap-3 rounded-xl border bg-muted/20 p-3">
+                  <div class="flex items-start gap-3 rounded-lg border bg-muted/20 p-3">
                     <Checkbox
                       id="private-read-consent"
                       bind:checked={privateReadConfirmed}
@@ -625,17 +610,19 @@
                     </Label>
                   </div>
                   {#if formError && intakeTab === "local"}
-                    <p class="text-sm text-destructive" role="alert">{formError}</p>
+                    <Alert.Root variant="destructive">
+                      <Alert.Description>{formError}</Alert.Description>
+                    </Alert.Root>
                   {/if}
                   <Button
-                    class="min-h-11"
+                    class="min-h-9"
                     disabled={busy || !localSource || !privateReadConfirmed}
                     onclick={submitLocalSource}
                   >
                     {busy ? copy.working : copy.previewLocalSource}
                   </Button>
                 </Tabs.Content>
-                <Tabs.Content value="url" class="space-y-4 pt-4">
+                <Tabs.Content value="url" class="space-y-[var(--density-section-gap)] pt-[var(--density-section-gap)]">
                   <div class="space-y-2">
                     <Label for="source-url">{copy.sourceUrl}</Label>
                     <Input
@@ -646,7 +633,7 @@
                       autocomplete="url"
                     />
                   </div>
-                  <div class="flex items-start gap-3 rounded-xl border bg-muted/20 p-3">
+                  <div class="flex items-start gap-3 rounded-lg border bg-muted/20 p-3">
                     <Checkbox
                       id="network-fetch-consent"
                       bind:checked={networkFetchConfirmed}
@@ -657,10 +644,12 @@
                     </Label>
                   </div>
                   {#if formError && intakeTab === "url"}
-                    <p class="text-sm text-destructive" role="alert">{formError}</p>
+                    <Alert.Root variant="destructive">
+                      <Alert.Description>{formError}</Alert.Description>
+                    </Alert.Root>
                   {/if}
                   <Button
-                    class="min-h-11"
+                    class="min-h-9"
                     disabled={busy || !sourceUrl.trim() || !networkFetchConfirmed}
                     onclick={submitUrlSource}
                   >
@@ -672,10 +661,10 @@
             </Card.Content>
           </Card.Root>
         {/if}
-      </div>
-    </div>
+      </Page.Stack>
+    </Page.Grid>
   {/if}
-</section>
+</Page.Root>
 
 <Dialog.Root bind:open={createOpen}>
   <Dialog.Content class="sm:max-w-lg">
@@ -684,7 +673,7 @@
       <Dialog.Description>{copy.createApplicationDescription}</Dialog.Description>
     </Dialog.Header>
     <form
-      class="space-y-4"
+      class="space-y-[var(--density-section-gap)]"
       onsubmit={(event) => {
         event.preventDefault();
         submitCreate();
@@ -699,7 +688,9 @@
         <Input id="job-institution" bind:value={institution} autocomplete="organization" />
       </div>
       {#if formError}
-        <p class="text-sm text-destructive" role="alert">{formError}</p>
+        <Alert.Root variant="destructive">
+          <Alert.Description>{formError}</Alert.Description>
+        </Alert.Root>
       {/if}
       <Dialog.Footer>
         <Button type="button" variant="outline" onclick={() => (createOpen = false)}>
@@ -711,21 +702,21 @@
   </Dialog.Content>
 </Dialog.Root>
 
-<Dialog.Root bind:open={archiveOpen}>
-  <Dialog.Content>
-    <Dialog.Header>
-      <Dialog.Title>{copy.archiveApplication}</Dialog.Title>
-      <Dialog.Description>{copy.archiveApplicationDescription}</Dialog.Description>
-    </Dialog.Header>
-    <div class="rounded-xl border bg-muted/20 p-3">
+<AlertDialog.Root bind:open={archiveOpen}>
+  <AlertDialog.Content>
+    <AlertDialog.Header>
+      <AlertDialog.Title>{copy.archiveApplication}</AlertDialog.Title>
+      <AlertDialog.Description>{copy.archiveApplicationDescription}</AlertDialog.Description>
+    </AlertDialog.Header>
+    <div class="rounded-lg border bg-muted/20 p-3">
       <p class="text-sm font-medium">{selectedJob?.job.title}</p>
       <p class="mt-1 text-xs text-muted-foreground">{selectedJob?.job.institution}</p>
     </div>
-    <Dialog.Footer>
-      <Button variant="outline" onclick={() => (archiveOpen = false)}>{copy.cancel}</Button>
-      <Button variant="destructive" disabled={busy} onclick={confirmArchive}>
+    <AlertDialog.Footer>
+      <AlertDialog.Cancel onclick={() => (archiveOpen = false)}>{copy.cancel}</AlertDialog.Cancel>
+      <AlertDialog.Action variant="destructive" disabled={busy} onclick={confirmArchive}>
         {copy.archiveApplication}
-      </Button>
-    </Dialog.Footer>
-  </Dialog.Content>
-</Dialog.Root>
+      </AlertDialog.Action>
+    </AlertDialog.Footer>
+  </AlertDialog.Content>
+</AlertDialog.Root>

@@ -1,5 +1,6 @@
 import tailwindcss from "@tailwindcss/vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
+import { svelteTesting } from "@testing-library/svelte/vite";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
@@ -7,7 +8,7 @@ export default defineConfig({
   // Tauri serves production assets from its custom protocol rather than an
   // HTTP origin. Relative URLs keep the bundled entry points resolvable there.
   base: "./",
-  plugins: [tailwindcss(), svelte()],
+  plugins: [tailwindcss(), svelte(), svelteTesting()],
   resolve: {
     alias: {
       $lib: fileURLToPath(new URL("./src/lib", import.meta.url)),

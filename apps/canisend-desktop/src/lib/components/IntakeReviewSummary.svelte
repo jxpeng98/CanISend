@@ -25,9 +25,9 @@
   }
 </script>
 
-<div class="space-y-4">
+<div class="space-y-[var(--density-section-gap)]">
   <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-    <div class="min-w-0 rounded-xl border bg-background p-3">
+    <div class="min-w-0 rounded-lg border bg-background p-3">
       <p class="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
         <FileCheck2 size={14} strokeWidth={1.8} aria-hidden="true" />
         {copy.intakeSourceIdentity}
@@ -40,7 +40,7 @@
       </p>
     </div>
 
-    <div class="rounded-xl border bg-background p-3">
+    <div class="rounded-lg border bg-background p-3">
       <p class="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
         <CheckCircle2 size={14} strokeWidth={1.8} aria-hidden="true" />
         {copy.intakeDetectedType}
@@ -53,7 +53,7 @@
       {/if}
     </div>
 
-    <div class="rounded-xl border bg-background p-3">
+    <div class="rounded-lg border bg-background p-3">
       <p class="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
         <Target size={14} strokeWidth={1.8} aria-hidden="true" />
         {copy.intakeTarget}
@@ -66,7 +66,7 @@
       </p>
     </div>
 
-    <div class="rounded-xl border bg-background p-3">
+    <div class="rounded-lg border bg-background p-3">
       <p class="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
         <GitCompareArrows size={14} strokeWidth={1.8} aria-hidden="true" />
         {copy.intakeDuplicateSignal}
@@ -114,7 +114,7 @@
   </div>
 
   <div class="grid gap-3 lg:grid-cols-2">
-    <div class="rounded-xl border bg-muted/20 p-3">
+    <div class="rounded-lg border bg-muted/20 p-3">
       <p class="flex items-center gap-1.5 text-xs font-semibold">
         <ShieldCheck size={15} strokeWidth={1.8} aria-hidden="true" />
         {copy.intakeConsentBoundary}
@@ -123,7 +123,7 @@
         {copy.intakeConsentScopeLabel[review.required_consent]}
       </p>
     </div>
-    <div class="rounded-xl border bg-muted/20 p-3">
+    <div class="rounded-lg border bg-muted/20 p-3">
       <p class="flex items-center gap-1.5 text-xs font-semibold">
         <FileCheck2 size={15} strokeWidth={1.8} aria-hidden="true" />
         {copy.intakeCommitBoundary}
@@ -138,7 +138,7 @@
     <p class="text-xs font-medium text-muted-foreground">{copy.intendedChanges}</p>
     <div class="mt-2 grid gap-2 lg:grid-cols-2">
       {#each review.intended_mutations as mutation (mutation.subject + mutation.action)}
-        <div class="rounded-xl border p-3">
+        <div class="rounded-lg border p-3">
           <p class="text-xs font-semibold">{mutation.action}</p>
           <p class="mt-1 text-xs leading-5 text-muted-foreground">
             {mutation.description}

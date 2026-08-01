@@ -12,11 +12,16 @@
     Wrench,
   } from "@lucide/svelte";
 
+  import * as Page from "$lib/components/patterns/page/index.js";
   import { Badge } from "$lib/components/ui/badge/index.js";
+  import * as Alert from "$lib/components/ui/alert/index.js";
+  import * as AlertDialog from "$lib/components/ui/alert-dialog/index.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import * as Card from "$lib/components/ui/card/index.js";
   import * as Dialog from "$lib/components/ui/dialog/index.js";
+  import * as Empty from "$lib/components/ui/empty/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
+  import * as Item from "$lib/components/ui/item/index.js";
   import { Label } from "$lib/components/ui/label/index.js";
   import { Separator } from "$lib/components/ui/separator/index.js";
   import { Skeleton } from "$lib/components/ui/skeleton/index.js";
@@ -173,145 +178,150 @@
   }
 </script>
 
-<section class="space-y-6">
-  <div class="flex flex-col justify-between gap-4 xl:flex-row xl:items-end">
-    <div>
-      <Badge variant="secondary" class="mb-3">{copy.workspaces}</Badge>
-      <h1 class="text-3xl font-semibold tracking-[-0.03em]">{copy.workspaces}</h1>
-      <p class="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-        {copy.workspaceListDescription}
-      </p>
-    </div>
-    <div class="flex flex-wrap gap-2">
-      <Button variant="outline" class="min-h-11" disabled={busy} onclick={onRefresh}>
-        <RefreshCw size={17} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
-        {copy.refresh}
-      </Button>
-      <Button
-        variant="outline"
-        class="min-h-11"
-        disabled={!desktopRuntime || busy}
-        onclick={() => {
-          formError = null;
-          connectOpen = true;
-        }}
-      >
-        <Link size={17} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
-        {copy.connectWorkspace}
-      </Button>
-      <Button
-        variant="outline"
-        class="min-h-11"
-        disabled={!desktopRuntime || busy}
-        onclick={() => {
-          formError = null;
-          restoreOpen = true;
-        }}
-      >
-        <Archive size={17} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
-        {copy.restoreBackup}
-      </Button>
-      <Button
-        class="min-h-11"
-        disabled={!desktopRuntime || busy}
-        onclick={() => {
-          formError = null;
-          createOpen = true;
-        }}
-      >
-        <Plus size={17} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
-        {copy.createWorkspace}
-      </Button>
-    </div>
-  </div>
+{#snippet headerActions()}
+  <Button variant="outline" class="page-action" disabled={busy} onclick={onRefresh}>
+    <RefreshCw size={17} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
+    {copy.refresh}
+  </Button>
+  <Button
+    variant="outline"
+    class="page-action"
+    disabled={!desktopRuntime || busy}
+    onclick={() => {
+      formError = null;
+      connectOpen = true;
+    }}
+  >
+    <Link size={17} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
+    {copy.connectWorkspace}
+  </Button>
+  <Button
+    variant="outline"
+    class="page-action"
+    disabled={!desktopRuntime || busy}
+    onclick={() => {
+      formError = null;
+      restoreOpen = true;
+    }}
+  >
+    <Archive size={17} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
+    {copy.restoreBackup}
+  </Button>
+  <Button
+    class="page-action"
+    disabled={!desktopRuntime || busy}
+    onclick={() => {
+      formError = null;
+      createOpen = true;
+    }}
+  >
+    <Plus size={17} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
+    {copy.createWorkspace}
+  </Button>
+{/snippet}
+
+<Page.Root>
+  <Page.Header
+    eyebrow={copy.workspaces}
+    title={copy.workspaces}
+    description={copy.workspaceListDescription}
+    actions={headerActions}
+  />
 
   {#if !desktopRuntime}
-    <div class="rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
-      {copy.unsupportedPreview}
-    </div>
+    <Alert.Root variant="warning">
+      <Alert.Description>{copy.unsupportedPreview}</Alert.Description>
+    </Alert.Root>
   {/if}
 
-  <div class="grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
-    <Card.Root class="shadow-none">
+  <Page.Grid class="xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
+    <Card.Root>
       <Card.Header>
         <Card.Title>{copy.workspaces}</Card.Title>
         <Card.Description>{snapshot?.registry_path ?? copy.localFirst}</Card.Description>
       </Card.Header>
       <Card.Content class="space-y-3">
         {#if loading}
-          {#each [1, 2, 3] as row}
-            <div class="flex items-center gap-3 rounded-xl border p-4">
-              <Skeleton class="size-10 rounded-xl" />
-              <div class="flex-1 space-y-2">
-                <Skeleton class="h-4 w-40" />
-                <Skeleton class="h-3 w-3/4" />
-              </div>
-            </div>
-          {/each}
+          <Item.Group class="gap-3" aria-label={copy.loading}>
+            {#each [1, 2, 3] as row}
+              <Item.Root variant="outline" class="p-[var(--density-panel-padding)]" aria-hidden="true">
+                <Item.Media>
+                  <Skeleton class="size-10 rounded-lg" />
+                </Item.Media>
+                <Item.Content class="space-y-1">
+                  <Skeleton class="h-4 w-40 max-w-full" />
+                  <Skeleton class="h-3 w-3/4" />
+                </Item.Content>
+              </Item.Root>
+            {/each}
+          </Item.Group>
         {:else if !snapshot?.registry.entries.length}
-          <div class="flex min-h-72 flex-col items-center justify-center rounded-xl border border-dashed bg-muted/20 px-8 text-center">
-            <div class="grid size-11 place-items-center rounded-xl bg-accent text-accent-foreground">
-              <Database size={20} strokeWidth={1.8} aria-hidden="true" />
-            </div>
-            <h2 class="mt-4 text-base font-semibold">{copy.noRegisteredWorkspaces}</h2>
-            <p class="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-              {copy.noRegisteredWorkspacesDescription}
-            </p>
-          </div>
+          <Empty.Root class="min-h-32 border bg-muted/20">
+            <Empty.Header>
+              <Empty.Media variant="icon" class="size-11 rounded-lg bg-accent text-accent-foreground">
+                <Database size={20} strokeWidth={1.8} aria-hidden="true" />
+              </Empty.Media>
+              <Empty.Title class="text-base">{copy.noRegisteredWorkspaces}</Empty.Title>
+              <Empty.Description>{copy.noRegisteredWorkspacesDescription}</Empty.Description>
+            </Empty.Header>
+          </Empty.Root>
         {:else}
-          {#each snapshot.registry.entries as entry (entry.path)}
-            <article
-              class="flex flex-col gap-4 rounded-xl border p-4 transition-colors hover:bg-muted/25 sm:flex-row sm:items-center"
-            >
-              <div class="grid size-10 shrink-0 place-items-center rounded-xl bg-accent text-accent-foreground">
-                <Database size={18} strokeWidth={1.8} aria-hidden="true" />
-              </div>
-              <div class="min-w-0 flex-1">
-                <div class="flex flex-wrap items-center gap-2">
-                  <h2 class="truncate text-sm font-semibold">{entry.alias}</h2>
+          <Item.Group class="gap-3">
+            {#each snapshot.registry.entries as entry (entry.path)}
+              <Item.Root variant="outline" class="gap-[var(--density-section-gap)] p-[var(--density-panel-padding)] hover:bg-muted/25">
+                <Item.Media
+                  variant="icon"
+                  class="size-10 rounded-lg bg-accent text-accent-foreground"
+                >
+                  <Database size={18} strokeWidth={1.8} aria-hidden="true" />
+                </Item.Media>
+                <Item.Content>
+                  <Item.Title class="flex-wrap">
+                    <h2 class="truncate text-sm font-semibold">{entry.alias}</h2>
                   {#if activeWorkspace?.path === entry.path}
                     <Badge variant="secondary">{copy.selected}</Badge>
                   {/if}
-                </div>
-                <p class="mt-1 truncate text-xs text-muted-foreground" title={entry.path}>
+                  </Item.Title>
+                  <Item.Description class="truncate text-xs" title={entry.path}>
                   {entry.path}
-                </p>
-              </div>
-              <div class="flex shrink-0 gap-2">
-                <Button
-                  variant="outline"
-                  class="min-h-10"
-                  disabled={busy || activeWorkspace?.path === entry.path}
-                  onclick={() => onSelect(entry.path)}
-                >
-                  {copy.selectWorkspace}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  class="min-h-10 min-w-10 text-muted-foreground hover:text-destructive"
-                  aria-label={`${copy.removeWorkspace}: ${entry.alias}`}
-                  title={copy.removeWorkspace}
-                  disabled={busy}
-                  onclick={() => reviewRemove(entry.path)}
-                >
-                  <Trash2 size={17} strokeWidth={1.8} aria-hidden="true" />
-                </Button>
-              </div>
-            </article>
-          {/each}
+                  </Item.Description>
+                </Item.Content>
+                <Item.Actions class="shrink-0">
+                  <Button
+                    variant="outline"
+                    class="min-h-10"
+                    disabled={busy || activeWorkspace?.path === entry.path}
+                    onclick={() => onSelect(entry.path)}
+                  >
+                    {copy.selectWorkspace}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-desktop"
+                    class="text-muted-foreground hover:text-destructive"
+                    aria-label={`${copy.removeWorkspace}: ${entry.alias}`}
+                    title={copy.removeWorkspace}
+                    disabled={busy}
+                    onclick={() => reviewRemove(entry.path)}
+                  >
+                    <Trash2 size={17} strokeWidth={1.8} aria-hidden="true" />
+                  </Button>
+                </Item.Actions>
+              </Item.Root>
+            {/each}
+          </Item.Group>
         {/if}
       </Card.Content>
     </Card.Root>
 
-    <Card.Root class="shadow-none">
+    <Card.Root>
       <Card.Header>
         <Card.Title>{copy.workspaceHealth}</Card.Title>
         <Card.Description>
           {activeWorkspace?.path ?? copy.noWorkspace}
         </Card.Description>
       </Card.Header>
-      <Card.Content class="space-y-5">
+      <Card.Content class="space-y-[var(--density-section-gap)]">
         {#if activeWorkspace}
           <dl class="grid grid-cols-[1fr_auto] gap-x-4 gap-y-3 text-sm">
             <dt class="text-muted-foreground">{copy.workspaceJobs}</dt>
@@ -325,35 +335,33 @@
           </dl>
           <Separator />
           {#if health}
-            <div
-              class={`rounded-xl border p-3 ${
-                health.check.ok ? "border-[var(--success)]" : "border-destructive"
-              }`}
+            <Alert.Root
+              variant={health.check.ok ? "success" : "destructive"}
               aria-live="polite"
             >
-              <div class="flex items-center gap-2 text-sm font-medium">
-                <ShieldCheck size={17} strokeWidth={1.8} aria-hidden="true" />
+              <ShieldCheck size={17} strokeWidth={1.8} aria-hidden="true" />
+              <Alert.Title>
                 {health.check.ok ? copy.integrityHealthy : copy.integrityIssues}
-              </div>
+              </Alert.Title>
               {#if health.check.issues.length}
-                <p class="mt-2 text-xs leading-5 text-muted-foreground">
+                <Alert.Description>
                   {health.check.issues[0].message}
-                </p>
+                </Alert.Description>
               {/if}
-            </div>
+            </Alert.Root>
           {/if}
           <div class="grid gap-2 sm:grid-cols-2">
-            <Button variant="outline" class="min-h-11" disabled={busy} onclick={onCheck}>
+            <Button variant="outline" class="min-h-9" disabled={busy} onclick={onCheck}>
               <HeartPulse size={17} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
               {copy.checkIntegrity}
             </Button>
-            <Button variant="outline" class="min-h-11" disabled={busy} onclick={chooseBackup}>
+            <Button variant="outline" class="min-h-9" disabled={busy} onclick={chooseBackup}>
               <Archive size={17} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
               {copy.createBackup}
             </Button>
             <Button
               variant="outline"
-              class="min-h-11 sm:col-span-2"
+              class="min-h-9 sm:col-span-2"
               disabled={busy}
               onclick={onRepair}
             >
@@ -362,15 +370,19 @@
             </Button>
           </div>
         {:else}
-          <div class="flex min-h-72 flex-col items-center justify-center rounded-xl border border-dashed px-6 text-center">
-            <FolderOpen size={22} strokeWidth={1.8} class="text-muted-foreground" aria-hidden="true" />
-            <p class="mt-3 text-sm font-medium">{copy.noWorkspace}</p>
-          </div>
+          <Empty.Root class="min-h-32 border">
+            <Empty.Header>
+              <Empty.Media variant="icon">
+                <FolderOpen size={22} strokeWidth={1.8} aria-hidden="true" />
+              </Empty.Media>
+              <Empty.Title>{copy.noWorkspace}</Empty.Title>
+            </Empty.Header>
+          </Empty.Root>
         {/if}
       </Card.Content>
     </Card.Root>
-  </div>
-</section>
+  </Page.Grid>
+</Page.Root>
 
 <Dialog.Root bind:open={createOpen}>
   <Dialog.Content class="sm:max-w-lg">
@@ -379,7 +391,7 @@
       <Dialog.Description>{copy.createWorkspaceDescription}</Dialog.Description>
     </Dialog.Header>
     <form
-      class="space-y-4"
+      class="space-y-[var(--density-section-gap)]"
       onsubmit={(event) => {
         event.preventDefault();
         submitCreate();
@@ -399,7 +411,9 @@
         </div>
       </div>
       {#if formError}
-        <p class="text-sm text-destructive" role="alert">{formError}</p>
+        <Alert.Root variant="destructive">
+          <Alert.Description>{formError}</Alert.Description>
+        </Alert.Root>
       {/if}
       <Dialog.Footer>
         <Button type="button" variant="outline" onclick={() => (createOpen = false)}>
@@ -418,7 +432,7 @@
       <Dialog.Description>{copy.connectWorkspaceDescription}</Dialog.Description>
     </Dialog.Header>
     <form
-      class="space-y-4"
+      class="space-y-[var(--density-section-gap)]"
       onsubmit={(event) => {
         event.preventDefault();
         submitConnect();
@@ -438,7 +452,9 @@
         </div>
       </div>
       {#if formError}
-        <p class="text-sm text-destructive" role="alert">{formError}</p>
+        <Alert.Root variant="destructive">
+          <Alert.Description>{formError}</Alert.Description>
+        </Alert.Root>
       {/if}
       <Dialog.Footer>
         <Button type="button" variant="outline" onclick={() => (connectOpen = false)}>
@@ -457,7 +473,7 @@
       <Dialog.Description>{copy.restoreBackupDescription}</Dialog.Description>
     </Dialog.Header>
     <form
-      class="space-y-4"
+      class="space-y-[var(--density-section-gap)]"
       onsubmit={(event) => {
         event.preventDefault();
         submitRestore();
@@ -491,7 +507,9 @@
         </div>
       </div>
       {#if formError}
-        <p class="text-sm text-destructive" role="alert">{formError}</p>
+        <Alert.Root variant="destructive">
+          <Alert.Description>{formError}</Alert.Description>
+        </Alert.Root>
       {/if}
       <Dialog.Footer>
         <Button type="button" variant="outline" onclick={() => (restoreOpen = false)}>
@@ -503,18 +521,18 @@
   </Dialog.Content>
 </Dialog.Root>
 
-<Dialog.Root bind:open={removeOpen}>
-  <Dialog.Content>
-    <Dialog.Header>
-      <Dialog.Title>{copy.removeWorkspace}</Dialog.Title>
-      <Dialog.Description>{copy.workspaceListDescription}</Dialog.Description>
-    </Dialog.Header>
+<AlertDialog.Root bind:open={removeOpen}>
+  <AlertDialog.Content>
+    <AlertDialog.Header>
+      <AlertDialog.Title>{copy.removeWorkspace}</AlertDialog.Title>
+      <AlertDialog.Description>{copy.workspaceListDescription}</AlertDialog.Description>
+    </AlertDialog.Header>
     <p class="break-all rounded-lg bg-muted p-3 text-xs text-muted-foreground">{pendingRemove}</p>
-    <Dialog.Footer>
-      <Button variant="outline" onclick={() => (removeOpen = false)}>{copy.cancel}</Button>
-      <Button variant="destructive" disabled={busy} onclick={confirmRemove}>
+    <AlertDialog.Footer>
+      <AlertDialog.Cancel onclick={() => (removeOpen = false)}>{copy.cancel}</AlertDialog.Cancel>
+      <AlertDialog.Action variant="destructive" disabled={busy} onclick={confirmRemove}>
         {copy.removeWorkspace}
-      </Button>
-    </Dialog.Footer>
-  </Dialog.Content>
-</Dialog.Root>
+      </AlertDialog.Action>
+    </AlertDialog.Footer>
+  </AlertDialog.Content>
+</AlertDialog.Root>

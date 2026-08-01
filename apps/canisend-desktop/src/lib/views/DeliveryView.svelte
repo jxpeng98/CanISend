@@ -10,10 +10,13 @@
     ShieldCheck,
   } from "@lucide/svelte";
 
+  import * as Page from "$lib/components/patterns/page/index.js";
   import { Badge } from "$lib/components/ui/badge/index.js";
+  import * as Alert from "$lib/components/ui/alert/index.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import * as Card from "$lib/components/ui/card/index.js";
   import { Checkbox } from "$lib/components/ui/checkbox/index.js";
+  import * as Empty from "$lib/components/ui/empty/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
   import { Label } from "$lib/components/ui/label/index.js";
   import { Separator } from "$lib/components/ui/separator/index.js";
@@ -279,29 +282,31 @@
   );
 </script>
 
-<section class="space-y-6">
-  <div class="flex flex-col justify-between gap-4 xl:flex-row xl:items-end">
-    <div>
-      <Badge variant="secondary" class="mb-3">{copy.applicationWorkspace}</Badge>
-      <h1 class="text-3xl font-semibold tracking-[-0.03em]">{workspaceTitle}</h1>
-      <p class="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-        {workspaceDescription}
-      </p>
-    </div>
-  </div>
+<Page.Root>
+  <Page.Header
+    eyebrow={copy.applicationWorkspace}
+    title={workspaceTitle}
+    description={workspaceDescription}
+  />
 
   {#if !activeWorkspace || !selectedJobId}
-    <Card.Root class="shadow-none">
-      <Card.Content class="flex min-h-80 flex-col items-center justify-center px-8 text-center">
-        <Archive size={24} strokeWidth={1.8} class="text-muted-foreground" aria-hidden="true" />
-        <h2 class="mt-4 text-base font-semibold">
-          {activeWorkspace ? copy.noApplications : copy.noWorkspace}
-        </h2>
+    <Card.Root>
+      <Card.Content>
+        <Empty.Root class="min-h-32">
+          <Empty.Header>
+            <Empty.Media variant="icon">
+              <Archive size={24} strokeWidth={1.8} aria-hidden="true" />
+            </Empty.Media>
+            <Empty.Title class="text-base">
+              {activeWorkspace ? copy.noApplications : copy.noWorkspace}
+            </Empty.Title>
+          </Empty.Header>
+        </Empty.Root>
       </Card.Content>
     </Card.Root>
   {:else}
-    <div class="flex flex-wrap gap-3 rounded-xl border bg-muted/20 p-3">
-      <div class="flex min-w-[300px] flex-1 items-start gap-3">
+    <div class="flex flex-wrap gap-3 rounded-lg border bg-muted/20 p-3">
+      <div class="flex min-w-0 flex-[1_1_20rem] items-start gap-3">
         <Checkbox id="delivery-private-read" bind:checked={privateReadConsent} class="mt-0.5" />
         <Label for="delivery-private-read" class="text-xs leading-5 font-normal">
           <span class="flex items-center gap-2">
@@ -310,7 +315,7 @@
           </span>
         </Label>
       </div>
-      <div class="flex min-w-[300px] flex-1 items-start gap-3">
+      <div class="flex min-w-0 flex-[1_1_20rem] items-start gap-3">
         <Checkbox id="delivery-private-export" bind:checked={privateExportConsent} class="mt-0.5" />
         <Label for="delivery-private-export" class="text-xs leading-5 font-normal">
           {copy.privateExportConsent}
@@ -319,7 +324,7 @@
     </div>
 
     <Tabs.Root bind:value={section}>
-      <Tabs.List class="grid w-full max-w-3xl grid-cols-4">
+      <Tabs.List class="responsive-tabs max-w-3xl" data-columns="4">
         <Tabs.Trigger
           value="documents"
           onclick={() => navigateWithinDelivery("delivery-documents")}
@@ -350,13 +355,13 @@
         id="delivery-documents"
         value="documents"
         class={[
-          "scroll-mt-64 pt-4",
-          focus === "delivery-documents" ? "rounded-xl ring-2 ring-primary/25" : "",
+          "scroll-mt-64 pt-[var(--density-section-gap)]",
+          focus === "delivery-documents" ? "rounded-lg ring-2 ring-primary/25" : "",
         ]}
       >
-        <Card.Root class="shadow-none">
+        <Card.Root>
           <Card.Header>
-            <div class="flex items-start justify-between gap-4">
+            <div class="flex items-start justify-between gap-[var(--density-section-gap)]">
               <div>
                 <Card.Title>{copy.documentWorkspace}</Card.Title>
                 <Card.Description class="mt-1.5">
@@ -365,7 +370,7 @@
               </div>
               <Button
                 variant="outline"
-                class="min-h-11"
+                class="min-h-9"
                 disabled={busy || !privateReadConsent}
                 onclick={loadDocuments}
               >
@@ -377,7 +382,7 @@
           <Card.Content>
             <div class="grid gap-3 lg:grid-cols-2">
               {#each documents?.documents ?? [] as document (document.id)}
-                <div class="rounded-xl border p-4">
+                <div class="rounded-lg border p-[var(--density-panel-padding)]">
                   <div class="flex items-start justify-between gap-3">
                     <div>
                       <h2 class="text-sm font-semibold">{document.title}</h2>
@@ -385,15 +390,19 @@
                     </div>
                     <Badge variant="outline">r{document.revision}</Badge>
                   </div>
-                  <p class="mt-4 text-xs text-muted-foreground">
+                  <p class="mt-[var(--density-section-gap)] text-xs text-muted-foreground">
                     {document.sections.length} {copy.sections} · {document.placeholders.length} {copy.placeholders}
                   </p>
                 </div>
               {:else}
-                <div class="col-span-full flex min-h-64 flex-col items-center justify-center rounded-xl border border-dashed text-center">
-                  <FileText size={22} strokeWidth={1.8} class="text-muted-foreground" aria-hidden="true" />
-                  <p class="mt-3 text-sm text-muted-foreground">{copy.noDocuments}</p>
-                </div>
+                <Empty.Root class="col-span-full min-h-32 border">
+                  <Empty.Header>
+                    <Empty.Media variant="icon">
+                      <FileText size={22} strokeWidth={1.8} aria-hidden="true" />
+                    </Empty.Media>
+                    <Empty.Description>{copy.noDocuments}</Empty.Description>
+                  </Empty.Header>
+                </Empty.Root>
               {/each}
             </div>
           </Card.Content>
@@ -404,12 +413,12 @@
         id="delivery-review"
         value="review"
         class={[
-          "scroll-mt-64 pt-4",
-          focus === "delivery-review" ? "rounded-xl ring-2 ring-primary/25" : "",
+          "scroll-mt-64 pt-[var(--density-section-gap)]",
+          focus === "delivery-review" ? "rounded-lg ring-2 ring-primary/25" : "",
         ]}
       >
-        <div class="grid gap-6 xl:grid-cols-[minmax(320px,0.75fr)_minmax(0,1.25fr)]">
-          <Card.Root class="shadow-none">
+        <div class="grid gap-[var(--density-section-gap)] xl:grid-cols-[minmax(320px,0.75fr)_minmax(0,1.25fr)]">
+          <Card.Root>
             <Card.Header>
               <Card.Title>{copy.reviewFindings}</Card.Title>
               <Card.Description>{review?.current.findings.length ?? 0}</Card.Description>
@@ -417,14 +426,14 @@
             <Card.Content class="space-y-3">
               <Button
                 variant="outline"
-                class="min-h-11"
+                class="min-h-9"
                 disabled={busy || !privateReadConsent}
                 onclick={loadReview}
               >
                 {copy.loadReview}
               </Button>
               {#each review?.current.findings ?? [] as finding (finding.id)}
-                <div class="rounded-xl border p-4">
+                <div class="rounded-lg border p-[var(--density-panel-padding)]">
                   <div class="flex items-center justify-between gap-3">
                     <p class="text-xs font-semibold">{finding.code}</p>
                     <Badge variant={finding.severity === "blocker" ? "destructive" : "outline"}>
@@ -437,27 +446,27 @@
                   </p>
                 </div>
               {:else}
-                <p class="rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">
-                  {copy.noFindings}
-                </p>
+                <Empty.Root class="min-h-20 border">
+                  <Empty.Header><Empty.Title>{copy.noFindings}</Empty.Title></Empty.Header>
+                </Empty.Root>
               {/each}
             </Card.Content>
           </Card.Root>
 
-          <Card.Root class="shadow-none">
+          <Card.Root>
             <Card.Header>
               <Card.Title>{copy.dispositionCandidate}</Card.Title>
               <Card.Description>{copy.reviewBeforeCommitDescription}</Card.Description>
             </Card.Header>
-            <Card.Content class="space-y-4">
+            <Card.Content class="space-y-[var(--density-section-gap)]">
               <Textarea
-                class="min-h-[460px] resize-y font-mono text-xs leading-5"
+                class="min-h-[320px] resize-y font-mono text-xs leading-5"
                 bind:value={reviewJson}
                 spellcheck={false}
                 disabled={!review}
               />
               <Button
-                class="min-h-11"
+                class="min-h-9"
                 disabled={busy || !review || !reviewJson || !privateReadConsent}
                 onclick={confirmReview}
               >
@@ -472,18 +481,18 @@
         id="delivery-package"
         value="package"
         class={[
-          "scroll-mt-64 space-y-6 pt-4",
-          focus === "delivery-package" ? "rounded-xl ring-2 ring-primary/25" : "",
+          "scroll-mt-64 space-y-[var(--density-section-gap)] pt-[var(--density-section-gap)]",
+          focus === "delivery-package" ? "rounded-lg ring-2 ring-primary/25" : "",
         ]}
       >
-        <Card.Root class="shadow-none">
+        <Card.Root>
           <Card.Header>
             <Card.Title>{copy.readiness}</Card.Title>
             <Card.Description>
               {packageManifest?.readiness.state ?? copy.checkPackage}
             </Card.Description>
           </Card.Header>
-          <Card.Content class="space-y-4">
+          <Card.Content class="space-y-[var(--density-section-gap)]">
             <div class="flex flex-wrap gap-2">
               <Button disabled={busy} onclick={async () => (packageManifest = await onCheckPackage(selectedJobId))}>
                 <CheckCircle2 size={16} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
@@ -495,28 +504,28 @@
             </div>
             {#if packageManifest}
               <div class="grid gap-3 md:grid-cols-3">
-                <div class="rounded-xl border p-4">
+                <div class="rounded-lg border p-[var(--density-panel-padding)]">
                   <p class="text-xs text-muted-foreground">{copy.readiness}</p>
                   <p class="mt-2 text-lg font-semibold">{packageManifest.readiness.state}</p>
                 </div>
-                <div class="rounded-xl border p-4">
+                <div class="rounded-lg border p-[var(--density-panel-padding)]">
                   <p class="text-xs text-muted-foreground">{copy.documents}</p>
                   <p class="mt-2 text-lg font-semibold">{packageManifest.documents.length}</p>
                 </div>
-                <div class="rounded-xl border p-4">
+                <div class="rounded-lg border p-[var(--density-panel-padding)]">
                   <p class="text-xs text-muted-foreground">{copy.readinessReasons}</p>
                   <p class="mt-2 text-lg font-semibold">{packageManifest.readiness.reasons.length}</p>
                 </div>
               </div>
             {/if}
             <Separator />
-            <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+            <div class="grid gap-[var(--density-section-gap)] lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
               <div class="space-y-2">
                 <Label for="package-destination">{copy.relativeDestination}</Label>
                 <Input id="package-destination" bind:value={packageDestination} />
               </div>
               <Button
-                class="min-h-11"
+                class="min-h-9"
                 disabled={!desktopRuntime || busy || !privateExportConsent || !packageDestination}
                 onclick={exportPackage}
               >
@@ -527,9 +536,9 @@
           </Card.Content>
         </Card.Root>
 
-        <Card.Root class="shadow-none">
+        <Card.Root>
           <Card.Header>
-            <div class="flex items-start justify-between gap-4">
+            <div class="flex items-start justify-between gap-[var(--density-section-gap)]">
               <div>
                 <Card.Title>{copy.projections}</Card.Title>
                 <Card.Description>{packageExport?.projections.length ?? reconciliations.length}</Card.Description>
@@ -545,14 +554,17 @@
               </div>
             </div>
           </Card.Header>
-          <Card.Content class="space-y-4">
+          <Card.Content class="space-y-[var(--density-section-gap)]">
             <div class="grid gap-2 lg:grid-cols-2">
               {#each reconciliations as record (record.projection.relative_path)}
-                <button
-                  type="button"
-                  class={`rounded-xl border p-4 text-left ${
-                    selectedProjectionPath === record.projection.relative_path ? "border-primary bg-accent/45" : ""
-                  }`}
+                <Button
+                  variant="outline"
+                  class={[
+                    "h-auto min-h-9 w-full justify-between p-[var(--density-panel-padding)] text-left",
+                    selectedProjectionPath === record.projection.relative_path
+                      ? "border-primary bg-accent/45"
+                      : "",
+                  ]}
                   onclick={() => selectProjection(record.projection.relative_path)}
                 >
                   <div class="flex items-center justify-between gap-3">
@@ -561,17 +573,17 @@
                       {record.projection.edit_status}
                     </Badge>
                   </div>
-                </button>
+                </Button>
               {/each}
             </div>
             {#if selectedProjectionPath}
-              <div class="rounded-xl border bg-muted/20 p-4">
+              <div class="rounded-lg border bg-muted/20 p-[var(--density-panel-padding)]">
                 <p class="break-all font-mono text-xs">{selectedProjectionPath}</p>
-                <div class="mt-4 space-y-2">
+                <div class="mt-[var(--density-section-gap)] space-y-2">
                   <Label for="preserved-destination">{copy.preservedDestination}</Label>
                   <Input id="preserved-destination" bind:value={preservedDestination} />
                 </div>
-                <div class="mt-4 flex flex-wrap gap-2">
+                <div class="mt-[var(--density-section-gap)] flex flex-wrap gap-2">
                   <Button variant="outline" disabled={busy} onclick={replaceProjection}>
                     {copy.replaceProjection}
                   </Button>
@@ -593,16 +605,16 @@
         id="delivery-render"
         value="render"
         class={[
-          "scroll-mt-64 pt-4",
-          focus === "delivery-render" ? "rounded-xl ring-2 ring-primary/25" : "",
+          "scroll-mt-64 pt-[var(--density-section-gap)]",
+          focus === "delivery-render" ? "rounded-lg ring-2 ring-primary/25" : "",
         ]}
       >
-        <Card.Root class="shadow-none">
+        <Card.Root>
           <Card.Header>
             <Card.Title>{copy.render}</Card.Title>
             <Card.Description>{renderManifest?.rendered_at ?? copy.buildRender}</Card.Description>
           </Card.Header>
-          <Card.Content class="space-y-5">
+          <Card.Content class="space-y-[var(--density-section-gap)]">
             <div class="flex flex-wrap gap-2">
               <Button disabled={busy} onclick={async () => (renderManifest = await onBuildRender(selectedJobId))}>
                 <FileCheck2 size={16} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
@@ -614,7 +626,7 @@
             </div>
             <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               {#each renderManifest?.documents ?? [] as document (document.kind)}
-                <div class="rounded-xl border p-4">
+                <div class="rounded-lg border p-[var(--density-panel-padding)]">
                   <p class="text-sm font-semibold">{document.kind}</p>
                   <p class="mt-2 text-xs text-muted-foreground">
                     {document.page_count} {copy.pages} · {document.warning_count} {copy.warnings}
@@ -623,13 +635,13 @@
               {/each}
             </div>
             <Separator />
-            <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+            <div class="grid gap-[var(--density-section-gap)] lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
               <div class="space-y-2">
                 <Label for="render-destination">{copy.relativeDestination}</Label>
                 <Input id="render-destination" bind:value={renderDestination} />
               </div>
               <Button
-                class="min-h-11"
+                class="min-h-9"
                 disabled={!desktopRuntime || busy || !privateExportConsent || !renderDestination}
                 onclick={exportRender}
               >
@@ -643,6 +655,8 @@
   {/if}
 
   {#if formError}
-    <p class="text-sm text-destructive" role="alert">{formError}</p>
+    <Alert.Root variant="destructive">
+      <Alert.Description>{formError}</Alert.Description>
+    </Alert.Root>
   {/if}
-</section>
+</Page.Root>

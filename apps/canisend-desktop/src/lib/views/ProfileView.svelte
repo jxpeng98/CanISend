@@ -8,12 +8,16 @@
     UserRound,
   } from "@lucide/svelte";
 
+  import * as Page from "$lib/components/patterns/page/index.js";
   import { Badge } from "$lib/components/ui/badge/index.js";
+  import * as Alert from "$lib/components/ui/alert/index.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import * as Card from "$lib/components/ui/card/index.js";
   import { Checkbox } from "$lib/components/ui/checkbox/index.js";
+  import * as Empty from "$lib/components/ui/empty/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
   import { Label } from "$lib/components/ui/label/index.js";
+  import * as NativeSelect from "$lib/components/ui/native-select/index.js";
   import { Separator } from "$lib/components/ui/separator/index.js";
   import { Skeleton } from "$lib/components/ui/skeleton/index.js";
   import { Textarea } from "$lib/components/ui/textarea/index.js";
@@ -218,58 +222,62 @@
   }
 </script>
 
-<section class="space-y-6">
-  <div class="flex flex-col justify-between gap-4 xl:flex-row xl:items-end">
-    <div>
-      <Badge variant="secondary" class="mb-3">{copy.profile}</Badge>
-      <h1 class="text-3xl font-semibold tracking-[-0.03em]">{copy.profileTitle}</h1>
-      <p class="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-        {copy.profileDescription}
-      </p>
-    </div>
-    <Button
-      variant="outline"
-      class="min-h-11"
-      disabled={!activeWorkspace || busy}
-      onclick={onRefresh}
-    >
-      <RefreshCw size={17} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
-      {copy.refresh}
-    </Button>
-  </div>
+{#snippet headerActions()}
+  <Button
+    variant="outline"
+    class="page-action"
+    disabled={!activeWorkspace || busy}
+    onclick={onRefresh}
+  >
+    <RefreshCw size={17} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
+    {copy.refresh}
+  </Button>
+{/snippet}
+
+<Page.Root>
+  <Page.Header
+    eyebrow={copy.profile}
+    title={copy.profileTitle}
+    description={copy.profileDescription}
+    actions={headerActions}
+  />
 
   {#if !activeWorkspace}
-    <Card.Root class="shadow-none">
-      <Card.Content class="flex min-h-80 flex-col items-center justify-center px-8 text-center">
-        <UserRound size={24} strokeWidth={1.8} class="text-muted-foreground" aria-hidden="true" />
-        <h2 class="mt-4 text-base font-semibold">{copy.noWorkspace}</h2>
-        <p class="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-          {copy.chooseWorkspaceDescription}
-        </p>
+    <Card.Root>
+      <Card.Content>
+        <Empty.Root class="min-h-32">
+          <Empty.Header>
+            <Empty.Media variant="icon">
+              <UserRound size={24} strokeWidth={1.8} aria-hidden="true" />
+            </Empty.Media>
+            <Empty.Title class="text-base">{copy.noWorkspace}</Empty.Title>
+            <Empty.Description>{copy.chooseWorkspaceDescription}</Empty.Description>
+          </Empty.Header>
+        </Empty.Root>
       </Card.Content>
     </Card.Root>
   {:else}
-    <div class="grid gap-6 2xl:grid-cols-[minmax(320px,0.78fr)_minmax(0,1.22fr)]">
-      <div class="space-y-6">
+    <Page.Grid class="2xl:grid-cols-[minmax(320px,0.78fr)_minmax(0,1.22fr)]">
+      <Page.Stack>
         {#if !loading && sources.length === 0}
-          <Card.Root class="border-primary/25 bg-primary/5 shadow-none">
+          <Card.Root class="border-primary/25 bg-primary/5">
             <Card.Header>
               <Card.Title>{copy.initializeProfile}</Card.Title>
               <Card.Description>{copy.initializeProfileDescription}</Card.Description>
             </Card.Header>
-            <Card.Content class="space-y-4">
+            <Card.Content class="space-y-[var(--density-section-gap)]">
               <div class="space-y-2">
                 <Label for="profile-initialization">{copy.profileMarkdown}</Label>
                 <Textarea
                   id="profile-initialization"
-                  class="min-h-72 resize-y text-sm leading-6"
+                  class="min-h-56 resize-y text-sm leading-6"
                   bind:value={initializationMarkdown}
                 />
               </div>
-              <div class="rounded-xl border bg-background/70 p-3 text-xs leading-5 text-muted-foreground">
+              <div class="rounded-lg border bg-background/70 p-3 text-xs leading-5 text-muted-foreground">
                 {copy.profileStorageDescription}
               </div>
-              <div class="flex items-start gap-3 rounded-xl border bg-background/70 p-3">
+              <div class="flex items-start gap-3 rounded-lg border bg-background/70 p-3">
                 <Checkbox
                   id="profile-initialization-consent"
                   bind:checked={initializationConsent}
@@ -283,7 +291,7 @@
                 </Label>
               </div>
               <Button
-                class="min-h-11"
+                class="min-h-9"
                 disabled={busy || !initializationConsent || !initializationMarkdown.trim()}
                 onclick={initializeProfile}
               >
@@ -296,19 +304,19 @@
         <Card.Root
           id="profile-sources"
           class={[
-            "scroll-mt-64 shadow-none transition-colors",
+            "scroll-mt-64  transition-colors",
             focus === "profile-sources" ? "ring-2 ring-primary/35" : "",
           ]}
         >
           <Card.Header>
-            <div class="flex items-start justify-between gap-4">
+            <div class="flex items-start justify-between gap-[var(--density-section-gap)]">
               <div>
                 <Card.Title>{copy.profileSources}</Card.Title>
                 <Card.Description class="mt-1.5">
                   {copy.profileRevision} {profileRevision}
                 </Card.Description>
               </div>
-              <div class="grid size-10 place-items-center rounded-xl bg-accent text-accent-foreground">
+              <div class="grid size-10 place-items-center rounded-lg bg-accent text-accent-foreground">
                 <FileText size={18} strokeWidth={1.8} aria-hidden="true" />
               </div>
             </div>
@@ -316,14 +324,14 @@
           <Card.Content class="space-y-2">
             {#if loading}
               {#each [1, 2, 3] as row}
-                <div class="space-y-2 rounded-xl border p-4">
+                <div class="space-y-2 rounded-lg border p-[var(--density-panel-padding)]">
                   <Skeleton class="h-4 w-2/3" />
                   <Skeleton class="h-3 w-1/2" />
                 </div>
               {/each}
             {:else if sources.length}
               {#each sources as source (source.id)}
-                <div class="rounded-xl border p-4">
+                <div class="rounded-lg border p-[var(--density-panel-padding)]">
                   <div class="flex items-start justify-between gap-3">
                     <div class="min-w-0">
                       <p class="truncate text-sm font-semibold">{source.kind}</p>
@@ -339,23 +347,25 @@
                 </div>
               {/each}
             {:else}
-              <div class="flex min-h-52 flex-col items-center justify-center rounded-xl border border-dashed bg-muted/20 p-6 text-center">
-                <FileText size={22} strokeWidth={1.8} class="text-muted-foreground" aria-hidden="true" />
-                <h2 class="mt-3 text-sm font-semibold">{copy.noProfileSources}</h2>
-                <p class="mt-2 text-xs leading-5 text-muted-foreground">
-                  {copy.noProfileSourcesDescription}
-                </p>
-              </div>
+              <Empty.Root class="min-h-40 border bg-muted/20">
+                <Empty.Header>
+                  <Empty.Media variant="icon">
+                    <FileText size={22} strokeWidth={1.8} aria-hidden="true" />
+                  </Empty.Media>
+                  <Empty.Title>{copy.noProfileSources}</Empty.Title>
+                  <Empty.Description>{copy.noProfileSourcesDescription}</Empty.Description>
+                </Empty.Header>
+              </Empty.Root>
             {/if}
           </Card.Content>
         </Card.Root>
 
-        <Card.Root class="shadow-none">
+        <Card.Root>
           <Card.Header>
             <Card.Title>{copy.importProfileSource}</Card.Title>
             <Card.Description>{copy.noProfileSourcesDescription}</Card.Description>
           </Card.Header>
-          <Card.Content class="space-y-4">
+          <Card.Content class="space-y-[var(--density-section-gap)]">
             <div class="space-y-2">
               <Label for="profile-source-file">{copy.sourceFile}</Label>
               <div class="flex gap-2">
@@ -368,23 +378,24 @@
             </div>
             <div class="space-y-2">
               <Label for="profile-sensitivity">{copy.profileSensitivity}</Label>
-              <select
+              <NativeSelect.Root
                 id="profile-sensitivity"
-                class="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm"
+                size="desktop"
+                class="w-full"
                 bind:value={sensitivity}
               >
-                <option value="private-local">{copy.privateProfileSource}</option>
-                <option value="public">{copy.publicProfileSource}</option>
-              </select>
+                <NativeSelect.Option value="private-local">{copy.privateProfileSource}</NativeSelect.Option>
+                <NativeSelect.Option value="public">{copy.publicProfileSource}</NativeSelect.Option>
+              </NativeSelect.Root>
             </div>
-            <div class="flex items-start gap-3 rounded-xl border bg-muted/20 p-3">
+            <div class="flex items-start gap-3 rounded-lg border bg-muted/20 p-3">
               <Checkbox id="profile-import-consent" bind:checked={importConsent} class="mt-0.5" />
               <Label for="profile-import-consent" class="text-xs leading-5 font-normal">
                 {copy.profileImportConsent}
               </Label>
             </div>
             <Button
-              class="min-h-11"
+              class="min-h-9"
               disabled={!desktopRuntime || busy || !sourcePath || !importConsent}
               onclick={submitImport}
             >
@@ -392,40 +403,40 @@
             </Button>
           </Card.Content>
         </Card.Root>
-      </div>
+      </Page.Stack>
 
       <Card.Root
         id="profile-evidence"
         class={[
-          "scroll-mt-64 shadow-none transition-colors",
+          "scroll-mt-64  transition-colors",
           focus === "profile-evidence" ? "ring-2 ring-primary/35" : "",
         ]}
       >
         <Card.Header>
-          <div class="flex items-start justify-between gap-4">
+          <div class="flex items-start justify-between gap-[var(--density-section-gap)]">
             <div>
               <Card.Title>{copy.evidenceReview}</Card.Title>
               <Card.Description class="mt-1.5">
                 {evidence ? `${evidence.items.length} ${copy.items} · r${evidence.revision}` : copy.loadEvidenceCandidate}
               </Card.Description>
             </div>
-            <div class="grid size-10 place-items-center rounded-xl bg-accent text-accent-foreground">
+            <div class="grid size-10 place-items-center rounded-lg bg-accent text-accent-foreground">
               <FileCheck2 size={18} strokeWidth={1.8} aria-hidden="true" />
             </div>
           </div>
         </Card.Header>
-        <Card.Content class="space-y-4">
+        <Card.Content class="space-y-[var(--density-section-gap)]">
           <div class="flex justify-end">
             <Button
               variant="outline"
-              class="min-h-11"
+              class="min-h-9"
               disabled={busy || !selectedJobId || !privateSessionConsent}
               onclick={loadEvidence}
             >
               {copy.loadEvidenceCandidate}
             </Button>
           </div>
-          <div class="flex items-start gap-3 rounded-xl border bg-muted/20 p-3">
+          <div class="flex items-start gap-3 rounded-lg border bg-muted/20 p-3">
             <Checkbox
               id="profile-private-session"
               bind:checked={privateSessionConsent}
@@ -443,18 +454,20 @@
             <Label for="evidence-candidate">{copy.candidateJson}</Label>
             <Textarea
               id="evidence-candidate"
-              class="min-h-[430px] resize-y font-mono text-xs leading-5"
+              class="min-h-[300px] resize-y font-mono text-xs leading-5"
               bind:value={evidenceJson}
               spellcheck={false}
               disabled={!evidence || evidencePreview !== null}
             />
           </div>
           {#if formError}
-            <p class="text-sm text-destructive" role="alert">{formError}</p>
+            <Alert.Root variant="destructive">
+              <Alert.Description>{formError}</Alert.Description>
+            </Alert.Root>
           {/if}
           <Button
             variant="outline"
-            class="min-h-11"
+            class="min-h-9"
             disabled={busy ||
               !evidence ||
               !privateSessionConsent ||
@@ -465,7 +478,7 @@
             {busy ? copy.working : copy.previewProposal}
           </Button>
           {#if evidencePreview}
-            <div class="space-y-4 rounded-xl border border-primary/35 bg-primary/5 p-4">
+            <Page.Panel tone="primary" class="space-y-[var(--density-section-gap)]">
               <div class="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <Badge variant="secondary">{copy.reviewBeforeCommit}</Badge>
@@ -495,14 +508,14 @@
                     </div>
                   </div>
                 {:else}
-                  <p class="p-4 text-xs text-muted-foreground">{copy.noProposalChanges}</p>
+                  <p class="p-[var(--density-panel-padding)] text-xs text-muted-foreground">{copy.noProposalChanges}</p>
                 {/each}
               </div>
               {#if evidencePreview.diff.truncated || evidencePreview.diff.comparisonLimited}
                 <p class="text-xs text-muted-foreground">{copy.diffTruncated}</p>
               {/if}
 
-              <div class="grid gap-4 lg:grid-cols-2">
+              <div class="grid gap-[var(--density-section-gap)] lg:grid-cols-2">
                 <div class="rounded-lg border bg-background p-3">
                   <p class="text-xs font-semibold">{copy.revisionProvenance}</p>
                   <div class="mt-2 space-y-2">
@@ -538,14 +551,14 @@
                 <Button variant="outline" disabled={busy} onclick={editEvidence}>
                   {copy.editProposal}
                 </Button>
-                <Button class="min-h-11" disabled={busy} onclick={confirmEvidence}>
+                <Button class="min-h-9" disabled={busy} onclick={confirmEvidence}>
                   {busy ? copy.working : copy.confirmEvidence}
                 </Button>
               </div>
-            </div>
+            </Page.Panel>
           {/if}
         </Card.Content>
       </Card.Root>
-    </div>
+    </Page.Grid>
   {/if}
-</section>
+</Page.Root>

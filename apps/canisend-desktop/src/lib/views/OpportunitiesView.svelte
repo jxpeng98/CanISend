@@ -11,13 +11,17 @@
     Search,
   } from "@lucide/svelte";
 
+  import * as Page from "$lib/components/patterns/page/index.js";
   import { Badge } from "$lib/components/ui/badge/index.js";
+  import * as Alert from "$lib/components/ui/alert/index.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import * as Card from "$lib/components/ui/card/index.js";
   import { Checkbox } from "$lib/components/ui/checkbox/index.js";
   import * as Dialog from "$lib/components/ui/dialog/index.js";
+  import * as Empty from "$lib/components/ui/empty/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
   import { Label } from "$lib/components/ui/label/index.js";
+  import * as NativeSelect from "$lib/components/ui/native-select/index.js";
   import { Separator } from "$lib/components/ui/separator/index.js";
   import { Skeleton } from "$lib/components/ui/skeleton/index.js";
   import * as Tabs from "$lib/components/ui/tabs/index.js";
@@ -173,42 +177,44 @@
   }
 </script>
 
-<section class="space-y-6">
-  <div class="flex flex-col justify-between gap-4 xl:flex-row xl:items-end">
-    <div>
-      <Badge variant="secondary" class="mb-3">{copy.opportunities}</Badge>
-      <h1 class="text-3xl font-semibold tracking-[-0.03em]">{copy.opportunitiesTitle}</h1>
-      <p class="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-        {copy.opportunitiesDescription}
-      </p>
-    </div>
-    <Button
-      variant="outline"
-      class="min-h-11"
-      disabled={!activeWorkspace || busy}
-      onclick={onRefresh}
-    >
-      <RefreshCw size={17} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
-      {copy.refresh}
-    </Button>
-  </div>
+{#snippet headerActions()}
+  <Button
+    variant="outline"
+    class="page-action"
+    disabled={!activeWorkspace || busy}
+    onclick={onRefresh}
+  >
+    <RefreshCw size={17} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
+    {copy.refresh}
+  </Button>
+{/snippet}
+
+<Page.Root>
+  <Page.Header
+    eyebrow={copy.opportunities}
+    title={copy.opportunitiesTitle}
+    description={copy.opportunitiesDescription}
+    actions={headerActions}
+  />
 
   {#if !activeWorkspace}
-    <Card.Root class="shadow-none">
-      <Card.Content class="flex min-h-80 flex-col items-center justify-center px-8 text-center">
-        <div class="grid size-12 place-items-center rounded-xl bg-accent text-accent-foreground">
-          <Search size={21} strokeWidth={1.8} aria-hidden="true" />
-        </div>
-        <h2 class="mt-4 text-base font-semibold">{copy.noWorkspace}</h2>
-        <p class="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-          {copy.chooseWorkspaceDescription}
-        </p>
+    <Card.Root>
+      <Card.Content>
+        <Empty.Root class="min-h-32">
+          <Empty.Header>
+            <Empty.Media variant="icon" class="size-12 rounded-lg bg-accent text-accent-foreground">
+              <Search size={21} strokeWidth={1.8} aria-hidden="true" />
+            </Empty.Media>
+            <Empty.Title class="text-base">{copy.noWorkspace}</Empty.Title>
+            <Empty.Description>{copy.chooseWorkspaceDescription}</Empty.Description>
+          </Empty.Header>
+        </Empty.Root>
       </Card.Content>
     </Card.Root>
   {:else}
-    <div class="grid gap-6 2xl:grid-cols-[minmax(320px,0.8fr)_minmax(0,1.2fr)]">
-      <div class="space-y-6">
-        <Card.Root id="lead-list" class="scroll-mt-44 shadow-none">
+    <Page.Grid class="2xl:grid-cols-[minmax(320px,0.8fr)_minmax(0,1.2fr)]">
+      <Page.Stack>
+        <Card.Root id="lead-list" class="scroll-mt-44">
           <Card.Header>
             <Card.Title>{copy.discoveryLeads}</Card.Title>
             <Card.Description>{activeWorkspace.path}</Card.Description>
@@ -216,24 +222,29 @@
           <Card.Content class="space-y-2">
             {#if loading}
               {#each [1, 2, 3] as row}
-                <div class="space-y-2 rounded-xl border p-4">
+                <div class="space-y-2 rounded-lg border p-[var(--density-panel-padding)]">
                   <Skeleton class="h-4 w-2/3" />
                   <Skeleton class="h-3 w-1/2" />
                 </div>
               {/each}
             {:else if !leads.length}
-              <div class="flex min-h-64 flex-col items-center justify-center rounded-xl border border-dashed bg-muted/20 p-6 text-center">
-                <FileSearch size={22} strokeWidth={1.8} class="text-muted-foreground" aria-hidden="true" />
-                <h2 class="mt-3 text-sm font-semibold">{copy.noLeads}</h2>
-                <p class="mt-2 text-xs leading-5 text-muted-foreground">{copy.noLeadsDescription}</p>
-              </div>
+              <Empty.Root class="min-h-32 border bg-muted/20">
+                <Empty.Header>
+                  <Empty.Media variant="icon">
+                    <FileSearch size={22} strokeWidth={1.8} aria-hidden="true" />
+                  </Empty.Media>
+                  <Empty.Title>{copy.noLeads}</Empty.Title>
+                  <Empty.Description>{copy.noLeadsDescription}</Empty.Description>
+                </Empty.Header>
+              </Empty.Root>
             {:else}
               {#each leads as lead (lead.id)}
-                <button
-                  type="button"
-                  class={`w-full rounded-xl border p-4 text-left transition-colors hover:bg-muted/30 ${
-                    selectedLead?.id === lead.id ? "border-primary bg-accent/45" : ""
-                  }`}
+                <Button
+                  variant="outline"
+                  class={[
+                    "h-auto min-h-9 w-full flex-col items-stretch gap-3 p-[var(--density-panel-padding)] text-left",
+                    selectedLead?.id === lead.id ? "border-primary bg-accent/45" : "",
+                  ]}
                   aria-current={selectedLead?.id === lead.id ? "true" : undefined}
                   onclick={() => onSelect(lead.id)}
                 >
@@ -251,13 +262,13 @@
                       {[lead.location, lead.deadline].filter(Boolean).join(" · ")}
                     </p>
                   {/if}
-                </button>
+                </Button>
               {/each}
             {/if}
           </Card.Content>
         </Card.Root>
 
-        <Card.Root class="shadow-none">
+        <Card.Root>
           <Card.Header>
             <Card.Title>{copy.discoverySources}</Card.Title>
             <Card.Description>{sources.length}</Card.Description>
@@ -265,7 +276,7 @@
           <Card.Content class="space-y-2">
             {#if sources.length}
               {#each sources as source (source.id)}
-                <div class="flex items-center gap-3 rounded-xl border p-3">
+                <div class="flex items-center gap-3 rounded-lg border p-3">
                   <div class="grid size-9 shrink-0 place-items-center rounded-lg bg-accent text-accent-foreground">
                     <DatabaseZap size={16} strokeWidth={1.8} aria-hidden="true" />
                   </div>
@@ -278,18 +289,20 @@
                 </div>
               {/each}
             {:else}
-              <p class="rounded-xl border border-dashed p-4 text-center text-sm text-muted-foreground">
-                {copy.noDiscoverySources}
-              </p>
+              <Empty.Root class="min-h-20 border">
+                <Empty.Header>
+                  <Empty.Title>{copy.noDiscoverySources}</Empty.Title>
+                </Empty.Header>
+              </Empty.Root>
             {/if}
           </Card.Content>
         </Card.Root>
-      </div>
+      </Page.Stack>
 
-      <div class="space-y-6">
-        <Card.Root class="shadow-none">
+      <Page.Stack>
+        <Card.Root>
           <Card.Header>
-            <div class="flex items-start justify-between gap-4">
+            <div class="flex items-start justify-between gap-[var(--density-section-gap)]">
               <div>
                 <Card.Title>{selectedLead?.title ?? copy.leadDetails}</Card.Title>
                 <Card.Description class="mt-1.5">
@@ -334,7 +347,7 @@
                 {#if suggestions?.suggestions.length}
                   <div class="mt-3 space-y-2">
                     {#each suggestions.suggestions as suggestion (suggestion.lead.id)}
-                      <div class="flex items-center justify-between gap-4 rounded-xl border p-3">
+                      <div class="flex items-center justify-between gap-[var(--density-section-gap)] rounded-lg border p-3">
                         <div class="min-w-0">
                           <p class="truncate text-sm font-medium">{suggestion.lead.title}</p>
                           <p class="mt-1 truncate text-xs text-muted-foreground">
@@ -352,22 +365,26 @@
                 {/if}
               </div>
             {:else}
-              <div class="flex min-h-52 flex-col items-center justify-center rounded-xl border border-dashed text-center">
-                <MapPin size={21} strokeWidth={1.8} class="text-muted-foreground" aria-hidden="true" />
-                <p class="mt-3 max-w-sm text-sm text-muted-foreground">{copy.chooseLead}</p>
-              </div>
+              <Empty.Root class="min-h-40 border">
+                <Empty.Header>
+                  <Empty.Media variant="icon">
+                    <MapPin size={21} strokeWidth={1.8} aria-hidden="true" />
+                  </Empty.Media>
+                  <Empty.Description>{copy.chooseLead}</Empty.Description>
+                </Empty.Header>
+              </Empty.Root>
             {/if}
           </Card.Content>
         </Card.Root>
 
-        <Card.Root class="shadow-none">
+        <Card.Root>
           <Card.Header>
             <Card.Title>{copy.sourceIntake}</Card.Title>
             <Card.Description>{copy.opportunitiesDescription}</Card.Description>
           </Card.Header>
           <Card.Content>
             {#if preview}
-              <div class="space-y-4 rounded-xl border border-primary/35 bg-accent/25 p-4">
+              <Page.Panel tone="accent" class="space-y-[var(--density-section-gap)]">
                 <div>
                   <Badge variant="secondary">{copy.reviewBeforeCommit}</Badge>
                   <p class="mt-3 text-sm leading-6 text-muted-foreground">
@@ -386,17 +403,17 @@
                   </div>
                 {/if}
                 <div class="flex flex-wrap gap-2">
-                  <Button class="min-h-11" disabled={busy} onclick={onCommitPreview}>
+                  <Button class="min-h-9" disabled={busy} onclick={onCommitPreview}>
                     {busy ? copy.working : copy.commitPreview}
                   </Button>
-                  <Button variant="outline" class="min-h-11" disabled={busy} onclick={onDiscardPreview}>
+                  <Button variant="outline" class="min-h-9" disabled={busy} onclick={onDiscardPreview}>
                     {copy.discardPreview}
                   </Button>
                 </div>
-              </div>
+              </Page.Panel>
             {:else}
               <Tabs.Root bind:value={intakeTab}>
-                <Tabs.List class="grid w-full grid-cols-2">
+                <Tabs.List class="responsive-tabs" data-columns="2">
                   <Tabs.Trigger value="batch">
                     <FileUp size={16} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
                     {copy.discoveryImport}
@@ -406,7 +423,7 @@
                     {copy.discoveryRefresh}
                   </Tabs.Trigger>
                 </Tabs.List>
-                <Tabs.Content value="batch" class="space-y-4 pt-4">
+                <Tabs.Content value="batch" class="space-y-[var(--density-section-gap)] pt-[var(--density-section-gap)]">
                   <div class="space-y-2">
                     <Label for="discovery-batch">{copy.discoveryBatch}</Label>
                     <div class="flex gap-2">
@@ -416,7 +433,7 @@
                       </Button>
                     </div>
                   </div>
-                  <div class="grid gap-4 sm:grid-cols-2">
+                  <div class="grid gap-[var(--density-section-gap)] sm:grid-cols-2">
                     <div class="space-y-2">
                       <Label for="discovery-batch-name">{copy.discoveryBatchName}</Label>
                       <Input id="discovery-batch-name" bind:value={batchName} />
@@ -426,13 +443,13 @@
                       <Input id="discovery-batch-url" type="url" bind:value={batchUrl} />
                     </div>
                   </div>
-                  <div class="flex items-start gap-3 rounded-xl border bg-muted/20 p-3">
+                  <div class="flex items-start gap-3 rounded-lg border bg-muted/20 p-3">
                     <Checkbox id="host-agent-batch" bind:checked={hostAgent} class="mt-0.5" />
                     <Label for="host-agent-batch" class="text-xs leading-5 font-normal">
                       {copy.hostAgentBatch}
                     </Label>
                   </div>
-                  <div class="flex items-start gap-3 rounded-xl border bg-muted/20 p-3">
+                  <div class="flex items-start gap-3 rounded-lg border bg-muted/20 p-3">
                     <Checkbox
                       id="discovery-private-consent"
                       bind:checked={privateReadConfirmed}
@@ -443,29 +460,32 @@
                     </Label>
                   </div>
                   {#if formError && intakeTab === "batch"}
-                    <p class="text-sm text-destructive" role="alert">{formError}</p>
+                    <Alert.Root variant="destructive">
+                      <Alert.Description>{formError}</Alert.Description>
+                    </Alert.Root>
                   {/if}
                   <Button
-                    class="min-h-11"
+                    class="min-h-9"
                     disabled={!desktopRuntime || busy || !batchPath || !privateReadConfirmed}
                     onclick={submitBatchPreview}
                   >
                     {busy ? copy.working : copy.previewBatch}
                   </Button>
                 </Tabs.Content>
-                <Tabs.Content value="network" class="space-y-4 pt-4">
-                  <div class="grid gap-4 sm:grid-cols-2">
+                <Tabs.Content value="network" class="space-y-[var(--density-section-gap)] pt-[var(--density-section-gap)]">
+                  <div class="grid gap-[var(--density-section-gap)] sm:grid-cols-2">
                     <div class="space-y-2">
                       <Label for="discovery-adapter">{copy.discoveryAdapter}</Label>
-                      <select
+                      <NativeSelect.Root
                         id="discovery-adapter"
-                        class="h-8 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                        size="desktop"
+                        class="w-full"
                         bind:value={adapter}
                       >
                         {#each networkAdapters as option (option.kind)}
-                          <option value={option.kind}>{adapterLabel(option.kind as DiscoveryNetworkAdapter)}</option>
+                          <NativeSelect.Option value={option.kind}>{adapterLabel(option.kind as DiscoveryNetworkAdapter)}</NativeSelect.Option>
                         {/each}
-                      </select>
+                      </NativeSelect.Root>
                     </div>
                     <div class="space-y-2">
                       <Label for="discovery-source-name">{copy.sourceName}</Label>
@@ -480,7 +500,7 @@
                     <Label for="discovery-organization">{copy.optionalOrganization}</Label>
                     <Input id="discovery-organization" bind:value={organization} />
                   </div>
-                  <div class="flex items-start gap-3 rounded-xl border bg-muted/20 p-3">
+                  <div class="flex items-start gap-3 rounded-lg border bg-muted/20 p-3">
                     <Checkbox
                       id="discovery-network-consent"
                       bind:checked={networkFetchConfirmed}
@@ -491,10 +511,12 @@
                     </Label>
                   </div>
                   {#if formError && intakeTab === "network"}
-                    <p class="text-sm text-destructive" role="alert">{formError}</p>
+                    <Alert.Root variant="destructive">
+                      <Alert.Description>{formError}</Alert.Description>
+                    </Alert.Root>
                   {/if}
                   <Button
-                    class="min-h-11"
+                    class="min-h-9"
                     disabled={!desktopRuntime || busy || !endpoint.trim() || !sourceName.trim() || !networkFetchConfirmed}
                     onclick={submitNetworkPreview}
                   >
@@ -505,10 +527,10 @@
             {/if}
           </Card.Content>
         </Card.Root>
-      </div>
-    </div>
+      </Page.Stack>
+    </Page.Grid>
   {/if}
-</section>
+</Page.Root>
 
 <Dialog.Root bind:open={promoteOpen}>
   <Dialog.Content>
@@ -516,7 +538,7 @@
       <Dialog.Title>{copy.promoteLead}</Dialog.Title>
       <Dialog.Description>{copy.promoteLeadDescription}</Dialog.Description>
     </Dialog.Header>
-    <div class="rounded-xl border bg-muted/20 p-3">
+    <div class="rounded-lg border bg-muted/20 p-3">
       <p class="text-sm font-medium">{selectedLead?.title}</p>
       <p class="mt-1 text-xs text-muted-foreground">{selectedLead?.organization}</p>
     </div>

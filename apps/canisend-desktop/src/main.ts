@@ -37,8 +37,14 @@ window.addEventListener("unhandledrejection", (event) =>
   renderStartupFailure(event.reason),
 );
 
-try {
-  mount(App, { target });
-} catch (error) {
-  renderStartupFailure(error);
+async function mountRoot(): Promise<void> {
+  const galleryRequested =
+    import.meta.env.DEV &&
+    new URLSearchParams(window.location.search).get("ui-system") === "1";
+  const Root = galleryRequested
+    ? (await import("$lib/components/patterns/UiSystemGallery.svelte")).default
+    : App;
+  mount(Root, { target });
 }
+
+void mountRoot().catch(renderStartupFailure);

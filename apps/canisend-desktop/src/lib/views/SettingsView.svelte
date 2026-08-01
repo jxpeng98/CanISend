@@ -12,14 +12,19 @@
   } from "@lucide/svelte";
   import { onMount } from "svelte";
 
+  import * as Page from "$lib/components/patterns/page/index.js";
   import { Badge } from "$lib/components/ui/badge/index.js";
+  import * as Alert from "$lib/components/ui/alert/index.js";
+  import * as AlertDialog from "$lib/components/ui/alert-dialog/index.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import * as Card from "$lib/components/ui/card/index.js";
   import { Checkbox } from "$lib/components/ui/checkbox/index.js";
-  import * as Dialog from "$lib/components/ui/dialog/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
+  import * as Item from "$lib/components/ui/item/index.js";
   import { Label } from "$lib/components/ui/label/index.js";
+  import * as NativeSelect from "$lib/components/ui/native-select/index.js";
   import { Separator } from "$lib/components/ui/separator/index.js";
+  import { Switch } from "$lib/components/ui/switch/index.js";
   import * as Tabs from "$lib/components/ui/tabs/index.js";
   import { Textarea } from "$lib/components/ui/textarea/index.js";
   import {
@@ -199,111 +204,131 @@
   });
 </script>
 
-<section class="space-y-6">
-  <div>
-    <Badge variant="secondary" class="mb-3">{copy.settings}</Badge>
-    <h1 class="text-3xl font-semibold tracking-[-0.03em]">{copy.settingsTitle}</h1>
-    <p class="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-      {copy.settingsDescription}
-    </p>
-  </div>
+<Page.Root>
+  <Page.Header
+    eyebrow={copy.settings}
+    title={copy.settingsTitle}
+    description={copy.settingsDescription}
+  />
 
   <Tabs.Root bind:value={section}>
-    <Tabs.List class="grid w-full max-w-3xl grid-cols-4">
+    <Tabs.List class="responsive-tabs max-w-3xl" data-columns="4">
       <Tabs.Trigger value="appearance">{copy.appearance}</Tabs.Trigger>
       <Tabs.Trigger value="cli">{copy.cliLifecycle}</Tabs.Trigger>
       <Tabs.Trigger value="updates">{copy.checkUpdates}</Tabs.Trigger>
       <Tabs.Trigger value="inspection">{copy.inspection}</Tabs.Trigger>
     </Tabs.List>
 
-    <Tabs.Content value="appearance" class="pt-4">
-      <Card.Root class="shadow-none">
+    <Tabs.Content value="appearance" class="pt-[var(--density-section-gap)]">
+      <Card.Root>
         <Card.Header>
           <Card.Title>{copy.accessibilityAppearance}</Card.Title>
           <Card.Description>{copy.accessibilityAppearanceDescription}</Card.Description>
         </Card.Header>
-        <Card.Content class="grid gap-5 md:grid-cols-2">
+        <Card.Content class="grid gap-[var(--density-section-gap)] md:grid-cols-2">
           <div class="space-y-2">
             <Label for="appearance-language">{copy.language}</Label>
-            <select
+            <NativeSelect.Root
               id="appearance-language"
-              class="flex min-h-11 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              size="desktop"
+              class="w-full"
               value={language}
               onchange={(event) =>
                 onLanguageChange(event.currentTarget.value as "en" | "zh-CN")}
             >
-              <option value="en">{copy.english}</option>
-              <option value="zh-CN">{copy.simplifiedChinese}</option>
-            </select>
+              <NativeSelect.Option value="en">{copy.english}</NativeSelect.Option>
+              <NativeSelect.Option value="zh-CN">{copy.simplifiedChinese}</NativeSelect.Option>
+            </NativeSelect.Root>
           </div>
           <div class="space-y-2">
             <Label for="appearance-text-size">{copy.textSize}</Label>
-            <select
+            <NativeSelect.Root
               id="appearance-text-size"
-              class="flex min-h-11 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              size="desktop"
+              class="w-full"
               value={textScale}
               onchange={(event) => onTextScaleChange(Number(event.currentTarget.value))}
             >
               {#each [100, 125, 150, 200] as scale}
-                <option value={scale}>{scale}%</option>
+                <NativeSelect.Option value={scale}>{scale}%</NativeSelect.Option>
               {/each}
-            </select>
+            </NativeSelect.Root>
           </div>
-          <div class="flex items-start gap-3 rounded-xl border bg-muted/20 p-4">
-            <Checkbox
-              id="appearance-dark"
-              checked={darkMode}
-              onCheckedChange={(value) => onDarkModeChange(value === true)}
-              class="mt-0.5"
-            />
-            <Label for="appearance-dark" class="font-normal">{copy.darkMode}</Label>
-          </div>
-          <div class="flex items-start gap-3 rounded-xl border bg-muted/20 p-4">
-            <Checkbox
-              id="appearance-compact"
-              checked={compact}
-              onCheckedChange={(value) => onCompactChange(value === true)}
-              class="mt-0.5"
-            />
-            <Label for="appearance-compact" class="font-normal">{copy.compact}</Label>
-          </div>
-          <div class="flex items-start gap-3 rounded-xl border bg-muted/20 p-4 md:col-span-2">
-            <Checkbox
-              id="appearance-motion"
-              checked={reducedMotion}
-              onCheckedChange={(value) => onReducedMotionChange(value === true)}
-              class="mt-0.5"
-            />
-            <Label for="appearance-motion" class="font-normal">{copy.reduceMotion}</Label>
-          </div>
+          <Item.Group class="grid gap-[var(--density-section-gap)] md:col-span-2 md:grid-cols-2">
+            <Item.Root variant="muted" class="items-start gap-3 p-[var(--density-panel-padding)]">
+              <Item.Media>
+                <Switch
+                  id="appearance-dark"
+                  checked={darkMode}
+                  onCheckedChange={(value) => onDarkModeChange(value === true)}
+                  class="mt-0.5"
+                />
+              </Item.Media>
+              <Item.Content>
+                <Item.Title>
+                  <Label for="appearance-dark" class="font-normal">{copy.darkMode}</Label>
+                </Item.Title>
+              </Item.Content>
+            </Item.Root>
+            <Item.Root variant="muted" class="items-start gap-3 p-[var(--density-panel-padding)]">
+              <Item.Media>
+                <Switch
+                  id="appearance-compact"
+                  checked={compact}
+                  onCheckedChange={(value) => onCompactChange(value === true)}
+                  class="mt-0.5"
+                />
+              </Item.Media>
+              <Item.Content>
+                <Item.Title>
+                  <Label for="appearance-compact" class="font-normal">{copy.compact}</Label>
+                </Item.Title>
+              </Item.Content>
+            </Item.Root>
+            <Item.Root variant="muted" class="items-start gap-3 p-[var(--density-panel-padding)] md:col-span-2">
+              <Item.Media>
+                <Switch
+                  id="appearance-motion"
+                  checked={reducedMotion}
+                  onCheckedChange={(value) => onReducedMotionChange(value === true)}
+                  class="mt-0.5"
+                />
+              </Item.Media>
+              <Item.Content>
+                <Item.Title>
+                  <Label for="appearance-motion" class="font-normal">{copy.reduceMotion}</Label>
+                </Item.Title>
+              </Item.Content>
+            </Item.Root>
+          </Item.Group>
         </Card.Content>
       </Card.Root>
     </Tabs.Content>
 
-    <Tabs.Content value="cli" class="pt-4">
-      <Card.Root class="shadow-none">
+    <Tabs.Content value="cli" class="pt-[var(--density-section-gap)]">
+      <Card.Root>
         <Card.Header>
-          <div class="flex items-start justify-between gap-4">
+          <div class="flex items-start justify-between gap-[var(--density-section-gap)]">
             <div>
               <Card.Title>{copy.cliLifecycle}</Card.Title>
               <Card.Description class="mt-1.5">
                 {cliStatus?.state ?? copy.checkCli}
               </Card.Description>
             </div>
-            <div class="grid size-10 place-items-center rounded-xl bg-accent text-accent-foreground">
+            <div class="grid size-10 place-items-center rounded-lg bg-accent text-accent-foreground">
               <Terminal size={18} strokeWidth={1.8} aria-hidden="true" />
             </div>
           </div>
         </Card.Header>
-        <Card.Content class="space-y-5">
-          <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
+        <Card.Content class="space-y-[var(--density-section-gap)]">
+          <div class="grid gap-[var(--density-section-gap)] xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
             <div class="space-y-2">
               <Label for="cli-destination">{copy.cliDestination}</Label>
               <Input id="cli-destination" bind:value={cliDestination} />
             </div>
             <Button
               variant="outline"
-              class="min-h-11"
+              class="min-h-9"
               disabled={!desktopRuntime || busy}
               onclick={loadCli}
             >
@@ -313,32 +338,40 @@
           </div>
 
           {#if cliStatus}
-            <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              <div class="rounded-xl border p-4">
-                <p class="text-xs text-muted-foreground">{copy.status}</p>
-                <p class="mt-2 text-sm font-semibold">{cliStatus.state}</p>
-              </div>
-              <div class="rounded-xl border p-4">
-                <p class="text-xs text-muted-foreground">{copy.bundledCli}</p>
-                <p class="mt-2 text-sm font-semibold">{cliStatus.bundled_version}</p>
-              </div>
-              <div class="rounded-xl border p-4">
-                <p class="text-xs text-muted-foreground">{copy.installedCli}</p>
-                <p class="mt-2 text-sm font-semibold">{cliStatus.installed_version ?? "—"}</p>
-              </div>
-              <div class="rounded-xl border p-4">
-                <p class="text-xs text-muted-foreground">{copy.pathConfigured}</p>
-                <p class="mt-2 text-sm font-semibold">
+            <Item.Group class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <Item.Root variant="outline" class="items-start p-[var(--density-panel-padding)]">
+                <Item.Content>
+                  <Item.Title class="text-xs text-muted-foreground">{copy.status}</Item.Title>
+                  <Item.Description class="text-sm font-semibold text-foreground">{cliStatus.state}</Item.Description>
+                </Item.Content>
+              </Item.Root>
+              <Item.Root variant="outline" class="items-start p-[var(--density-panel-padding)]">
+                <Item.Content>
+                  <Item.Title class="text-xs text-muted-foreground">{copy.bundledCli}</Item.Title>
+                  <Item.Description class="text-sm font-semibold text-foreground">{cliStatus.bundled_version}</Item.Description>
+                </Item.Content>
+              </Item.Root>
+              <Item.Root variant="outline" class="items-start p-[var(--density-panel-padding)]">
+                <Item.Content>
+                  <Item.Title class="text-xs text-muted-foreground">{copy.installedCli}</Item.Title>
+                  <Item.Description class="text-sm font-semibold text-foreground">{cliStatus.installed_version ?? "—"}</Item.Description>
+                </Item.Content>
+              </Item.Root>
+              <Item.Root variant="outline" class="items-start p-[var(--density-panel-padding)]">
+                <Item.Content>
+                  <Item.Title class="text-xs text-muted-foreground">{copy.pathConfigured}</Item.Title>
+                  <Item.Description class="text-sm font-semibold text-foreground">
                   {cliStatus.path_active
                     ? copy.pathActive
                     : cliStatus.path_configured
                       ? copy.pathPending
                       : copy.pathNotConfigured}
-                </p>
-              </div>
-            </div>
+                  </Item.Description>
+                </Item.Content>
+              </Item.Root>
+            </Item.Group>
             {#if !cliStatus.path_configured}
-              <div class="flex flex-col justify-between gap-3 rounded-xl border border-primary/25 bg-primary/5 p-4 md:flex-row md:items-center">
+              <div class="flex flex-col justify-between gap-3 rounded-lg border border-primary/25 bg-primary/5 p-[var(--density-panel-padding)] md:flex-row md:items-center">
                 <div>
                   <p class="text-sm font-semibold">{copy.addToPath}</p>
                   <p class="mt-1 text-xs leading-5 text-muted-foreground">
@@ -347,7 +380,7 @@
                 </div>
                 <Button
                   variant="outline"
-                  class="min-h-11 shrink-0"
+                  class="min-h-9 shrink-0"
                   disabled={!desktopRuntime || busy || !terminalConsent}
                   onclick={configurePath}
                 >
@@ -361,7 +394,7 @@
                 </Button>
               </div>
             {:else if cliStatus.path_configuration_file}
-              <div class="rounded-xl border bg-muted/20 p-4">
+              <div class="rounded-lg border bg-muted/20 p-[var(--density-panel-padding)]">
                 <p class="text-xs text-muted-foreground">{copy.pathConfigurationFile}</p>
                 <p class="mt-2 break-all font-mono text-xs">
                   {cliStatus.path_configuration_file}
@@ -370,20 +403,20 @@
             {/if}
           {/if}
 
-          <div class="rounded-xl border bg-muted/20 p-4">
+          <div class="rounded-lg border bg-muted/20 p-[var(--density-panel-padding)]">
             <p class="text-xs text-muted-foreground">{copy.bundledCli}</p>
             <p class="mt-2 break-all font-mono text-xs">
               {cliDefaults?.bundled_source ?? cliStatus?.source_path ?? "—"}
             </p>
           </div>
 
-          <div class="flex items-start gap-3 rounded-xl border bg-muted/20 p-3">
+          <div class="flex items-start gap-3 rounded-lg border bg-muted/20 p-3">
             <Checkbox id="cli-replace" bind:checked={replaceExisting} class="mt-0.5" />
             <Label for="cli-replace" class="text-xs leading-5 font-normal">
               {copy.replaceExistingCli}
             </Label>
           </div>
-          <div class="flex items-start gap-3 rounded-xl border bg-muted/20 p-3">
+          <div class="flex items-start gap-3 rounded-lg border bg-muted/20 p-3">
             <Checkbox id="cli-consent" bind:checked={terminalConsent} class="mt-0.5" />
             <Label for="cli-consent" class="text-xs leading-5 font-normal">
               <span class="flex items-center gap-2">
@@ -394,7 +427,7 @@
           </div>
           <div class="flex flex-wrap gap-2">
             <Button
-              class="min-h-11"
+              class="min-h-9"
               disabled={!desktopRuntime || busy || !terminalConsent}
               onclick={installCli}
             >
@@ -403,7 +436,7 @@
             </Button>
             <Button
               variant="destructive"
-              class="min-h-11"
+              class="min-h-9"
               disabled={!desktopRuntime || busy || !cliStatus?.managed || !terminalConsent}
               onclick={() => (uninstallOpen = true)}
             >
@@ -415,53 +448,63 @@
       </Card.Root>
     </Tabs.Content>
 
-    <Tabs.Content value="updates" class="pt-4">
-      <Card.Root class="shadow-none">
+    <Tabs.Content value="updates" class="pt-[var(--density-section-gap)]">
+      <Card.Root>
         <Card.Header>
-          <div class="flex items-start justify-between gap-4">
+          <div class="flex items-start justify-between gap-[var(--density-section-gap)]">
             <div>
               <Card.Title>{copy.checkUpdates}</Card.Title>
               <Card.Description class="mt-1.5">
                 {update?.channel ?? copy.updateConsent}
               </Card.Description>
             </div>
-            <div class="grid size-10 place-items-center rounded-xl bg-accent text-accent-foreground">
+            <div class="grid size-10 place-items-center rounded-lg bg-accent text-accent-foreground">
               <PackageCheck size={18} strokeWidth={1.8} aria-hidden="true" />
             </div>
           </div>
         </Card.Header>
-        <Card.Content class="space-y-5">
-          <div class="flex items-start gap-3 rounded-xl border bg-muted/20 p-3">
+        <Card.Content class="space-y-[var(--density-section-gap)]">
+          <div class="flex items-start gap-3 rounded-lg border bg-muted/20 p-3">
             <Checkbox id="update-consent" bind:checked={updateConsent} class="mt-0.5" />
             <Label for="update-consent" class="text-xs leading-5 font-normal">
               {copy.updateConsent}
             </Label>
           </div>
           <Button
-            class="min-h-11"
+            class="min-h-9"
             disabled={!desktopRuntime || busy || !updateConsent}
             onclick={checkUpdates}
           >
             {copy.checkUpdates}
           </Button>
           {#if update}
-            <div class="grid gap-3 md:grid-cols-3">
-              <div class="rounded-xl border p-4">
-                <p class="text-xs text-muted-foreground">{copy.version}</p>
-                <p class="mt-2 text-lg font-semibold">{update.current_version}</p>
-              </div>
-              <div class="rounded-xl border p-4">
-                <p class="text-xs text-muted-foreground">{copy.latestVersion}</p>
-                <p class="mt-2 text-lg font-semibold">{update.latest_version}</p>
-              </div>
-              <div class="rounded-xl border p-4">
-                <p class="text-xs text-muted-foreground">{copy.status}</p>
-                <p class="mt-2 text-lg font-semibold">
+            <Item.Group class="grid gap-3 md:grid-cols-3">
+              <Item.Root variant="outline" class="items-start p-[var(--density-panel-padding)]">
+                <Item.Content>
+                  <Item.Title class="text-xs text-muted-foreground">{copy.version}</Item.Title>
+                  <Item.Description class="text-lg font-semibold text-foreground">
+                    {update.current_version}
+                  </Item.Description>
+                </Item.Content>
+              </Item.Root>
+              <Item.Root variant="outline" class="items-start p-[var(--density-panel-padding)]">
+                <Item.Content>
+                  <Item.Title class="text-xs text-muted-foreground">{copy.latestVersion}</Item.Title>
+                  <Item.Description class="text-lg font-semibold text-foreground">
+                    {update.latest_version}
+                  </Item.Description>
+                </Item.Content>
+              </Item.Root>
+              <Item.Root variant="outline" class="items-start p-[var(--density-panel-padding)]">
+                <Item.Content>
+                  <Item.Title class="text-xs text-muted-foreground">{copy.status}</Item.Title>
+                  <Item.Description class="text-lg font-semibold text-foreground">
                   {update.update_available ? copy.updateAvailable : copy.upToDate}
-                </p>
-              </div>
-            </div>
-            <div class="rounded-xl border bg-muted/20 p-4">
+                  </Item.Description>
+                </Item.Content>
+              </Item.Root>
+            </Item.Group>
+            <div class="rounded-lg border bg-muted/20 p-[var(--density-panel-padding)]">
               <p class="text-sm font-medium">{update.release_name}</p>
               <p class="mt-2 break-all font-mono text-xs text-muted-foreground">
                 {update.release_url}
@@ -472,26 +515,26 @@
       </Card.Root>
     </Tabs.Content>
 
-    <Tabs.Content value="inspection" class="pt-4">
-      <div class="grid gap-6 xl:grid-cols-[minmax(340px,0.85fr)_minmax(0,1.15fr)]">
-        <Card.Root class="shadow-none">
+    <Tabs.Content value="inspection" class="pt-[var(--density-section-gap)]">
+      <div class="grid gap-[var(--density-section-gap)] xl:grid-cols-[minmax(340px,0.85fr)_minmax(0,1.15fr)]">
+        <Card.Root>
           <Card.Header>
-            <div class="flex items-start justify-between gap-4">
+            <div class="flex items-start justify-between gap-[var(--density-section-gap)]">
               <div>
                 <Card.Title>{copy.inspection}</Card.Title>
                 <Card.Description class="mt-1.5">
                   {(catalog?.schemas.schemas.length ?? 0) + (catalog?.resources.length ?? 0)}
                 </Card.Description>
               </div>
-              <div class="grid size-10 place-items-center rounded-xl bg-accent text-accent-foreground">
+              <div class="grid size-10 place-items-center rounded-lg bg-accent text-accent-foreground">
                 <Boxes size={18} strokeWidth={1.8} aria-hidden="true" />
               </div>
             </div>
           </Card.Header>
-          <Card.Content class="space-y-4">
+          <Card.Content class="space-y-[var(--density-section-gap)]">
             <Button
               variant="outline"
-              class="min-h-11"
+              class="min-h-9"
               disabled={!desktopRuntime || busy}
               onclick={loadCatalog}
             >
@@ -501,16 +544,16 @@
               <h2 class="text-sm font-semibold">{copy.schemas}</h2>
               <div class="mt-2 max-h-64 space-y-2 overflow-y-auto">
                 {#each catalog?.schemas.schemas ?? [] as schema (schema.id)}
-                  <button
-                    type="button"
-                    class="w-full rounded-xl border p-3 text-left hover:bg-muted/30"
+                  <Button
+                    variant="outline"
+                    class="h-auto min-h-9 w-full flex-col items-start gap-1 p-3 text-left"
                     onclick={() => loadSchema(schema.id)}
                   >
                     <p class="truncate text-xs font-semibold">{schema.id}</p>
                     <p class="mt-1 truncate font-mono text-[10px] text-muted-foreground">
                       {schema.sha256}
                     </p>
-                  </button>
+                  </Button>
                 {/each}
               </div>
             </div>
@@ -519,43 +562,43 @@
               <h2 class="text-sm font-semibold">{copy.resources}</h2>
               <div class="mt-2 max-h-64 space-y-2 overflow-y-auto">
                 {#each catalog?.resources ?? [] as resource (resource.entry.id)}
-                  <button
-                    type="button"
-                    class="w-full rounded-xl border p-3 text-left hover:bg-muted/30"
+                  <Button
+                    variant="outline"
+                    class="h-auto min-h-9 w-full justify-between p-3 text-left"
                     onclick={() => loadResource(resource.entry.id)}
                   >
                     <div class="flex items-center justify-between gap-3">
                       <p class="truncate text-xs font-semibold">{resource.entry.id}</p>
                       <Badge variant="outline">{resource.entry.kind}</Badge>
                     </div>
-                  </button>
+                  </Button>
                 {/each}
               </div>
             </div>
           </Card.Content>
         </Card.Root>
 
-        <div class="space-y-6">
-          <Card.Root class="shadow-none">
+        <div class="space-y-[var(--density-section-gap)]">
+          <Card.Root>
             <Card.Header>
               <Card.Title>{copy.inspection}</Card.Title>
               <Card.Description>{copy.integrityDigest}</Card.Description>
             </Card.Header>
             <Card.Content>
               <Textarea
-                class="min-h-[390px] resize-y font-mono text-xs leading-5"
+                class="min-h-[280px] resize-y font-mono text-xs leading-5"
                 value={selectedDetail}
                 readonly
                 spellcheck={false}
               />
             </Card.Content>
           </Card.Root>
-          <Card.Root class="shadow-none">
+          <Card.Root>
             <Card.Header>
               <Card.Title>{copy.exportCatalog}</Card.Title>
               <Card.Description>{copy.catalogDestination}</Card.Description>
             </Card.Header>
-            <Card.Content class="space-y-4">
+            <Card.Content class="space-y-[var(--density-section-gap)]">
               <div class="flex gap-2">
                 <Input bind:value={catalogDestination} />
                 <Button variant="outline" class="shrink-0" onclick={chooseCatalogDestination}>
@@ -564,7 +607,7 @@
                 </Button>
               </div>
               <Button
-                class="min-h-11"
+                class="min-h-9"
                 disabled={!desktopRuntime || busy || !catalog || !catalogDestination}
                 onclick={exportCatalog}
               >
@@ -578,24 +621,26 @@
   </Tabs.Root>
 
   {#if formError}
-    <p class="text-sm text-destructive" role="alert">{formError}</p>
+    <Alert.Root variant="destructive">
+      <Alert.Description>{formError}</Alert.Description>
+    </Alert.Root>
   {/if}
-</section>
+</Page.Root>
 
-<Dialog.Root bind:open={uninstallOpen}>
-  <Dialog.Content>
-    <Dialog.Header>
-      <Dialog.Title>{copy.uninstallCli}</Dialog.Title>
-      <Dialog.Description>{copy.terminalInstallConsent}</Dialog.Description>
-    </Dialog.Header>
-    <div class="rounded-xl border bg-muted/20 p-3">
+<AlertDialog.Root bind:open={uninstallOpen}>
+  <AlertDialog.Content>
+    <AlertDialog.Header>
+      <AlertDialog.Title>{copy.uninstallCli}</AlertDialog.Title>
+      <AlertDialog.Description>{copy.terminalInstallConsent}</AlertDialog.Description>
+    </AlertDialog.Header>
+    <div class="rounded-lg border bg-muted/20 p-3">
       <p class="break-all font-mono text-xs">{cliDestination}</p>
     </div>
-    <Dialog.Footer>
-      <Button variant="outline" onclick={() => (uninstallOpen = false)}>{copy.cancel}</Button>
-      <Button variant="destructive" disabled={busy} onclick={uninstallCli}>
+    <AlertDialog.Footer>
+      <AlertDialog.Cancel onclick={() => (uninstallOpen = false)}>{copy.cancel}</AlertDialog.Cancel>
+      <AlertDialog.Action variant="destructive" disabled={busy} onclick={uninstallCli}>
         {copy.uninstallCli}
-      </Button>
-    </Dialog.Footer>
-  </Dialog.Content>
-</Dialog.Root>
+      </AlertDialog.Action>
+    </AlertDialog.Footer>
+  </AlertDialog.Content>
+</AlertDialog.Root>

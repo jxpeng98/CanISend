@@ -78,20 +78,26 @@ for trial in $(seq 1 "$trials"); do
     "$gui" >"$fixture_root/gui-$trial.log" 2>&1 &
   gui_pid="$!"
   if ! osascript - "$gui_pid" <<'APPLESCRIPT'
-on findNamed(parentElement, targetName)
+on findMainLandmark(appWindow)
     tell application "System Events"
         try
-            if (name of parentElement as text) is targetName then return parentElement
-        end try
-        try
-            repeat with childElement in UI elements of parentElement
-                set foundElement to my findNamed(childElement, targetName)
-                if foundElement is not missing value then return foundElement
+            set nativeRoot to UI element 1 of appWindow
+            set contentRoot to UI element 1 of nativeRoot
+            set scrollArea to UI element 1 of contentRoot
+            set webArea to UI element 1 of scrollArea
+            repeat with childElement in UI elements of webArea
+                try
+                    set candidateElement to contents of childElement
+                    set candidateName to name of candidateElement as text
+                    if candidateName is "CanISend main content" or candidateName is "CanISend 主要内容" then
+                        return candidateElement
+                    end if
+                end try
             end repeat
         end try
     end tell
     return missing value
-end findNamed
+end findMainLandmark
 
 on run arguments
     set guiPid to item 1 of arguments as integer
@@ -101,10 +107,7 @@ on run arguments
                 set guiProcess to first process whose unix id is guiPid
                 if (count of windows of guiProcess) > 0 then
                     set appWindow to window 1 of guiProcess
-                    set mainContent to my findNamed(appWindow, "CanISend main content")
-                    if mainContent is missing value then
-                        set mainContent to my findNamed(appWindow, "CanISend 主要内容")
-                    end if
+                    set mainContent to my findMainLandmark(appWindow)
                     if mainContent is not missing value then return
                 end if
             end if

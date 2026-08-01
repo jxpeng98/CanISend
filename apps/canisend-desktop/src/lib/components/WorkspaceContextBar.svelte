@@ -3,6 +3,7 @@
     ArrowRight,
     BriefcaseBusiness,
     CalendarDays,
+    ChevronDown,
     ClipboardList,
     Clock3,
     Database,
@@ -16,6 +17,9 @@
 
   import { Badge } from "$lib/components/ui/badge/index.js";
   import { Button } from "$lib/components/ui/button/index.js";
+  import * as Collapsible from "$lib/components/ui/collapsible/index.js";
+  import * as NativeSelect from "$lib/components/ui/native-select/index.js";
+  import { Progress } from "$lib/components/ui/progress/index.js";
   import type {
     ApplicationDossierReadModel,
     JobDetailReadModel,
@@ -68,6 +72,8 @@
     onSelectJob,
     onNavigate,
   }: Props = $props();
+
+  let detailsOpen = $state(false);
 
   const workspaceAlias = $derived(
     snapshot?.registry.entries.find((entry) => entry.path === activeWorkspace?.path)
@@ -132,16 +138,16 @@
   }
 </script>
 
-<section
-  class="border-b bg-background px-5 py-3 lg:px-8"
-  aria-label={copy.workspaceContext}
-  data-testid="workspace-context-bar"
->
-  <div class="mx-auto flex max-w-[1480px] flex-col gap-3">
-    <div
-      class="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(160px,0.75fr)_minmax(240px,1.25fr)_minmax(420px,1.45fr)] xl:items-end"
-    >
-      <div class="space-y-1.5">
+<Collapsible.Root bind:open={detailsOpen}>
+  <section
+    class="min-w-0 border-b bg-background px-4 py-[var(--workspace-context-block)] transition-[padding] duration-200 ease-out motion-reduce:transition-none sm:px-5 lg:px-6"
+    aria-label={copy.workspaceContext}
+    data-testid="workspace-context-bar"
+  >
+    <div class="mx-auto flex max-w-[1480px] flex-col gap-[var(--workspace-context-gap)] rounded-lg border bg-card p-[var(--workspace-context-padding)] shadow-sm transition-[gap,padding] duration-200 ease-out motion-reduce:transition-none">
+      <div class="flex min-w-0 flex-col gap-2 lg:flex-row lg:items-end">
+        <div class="workspace-context-grid min-w-0 flex-1 gap-[var(--workspace-context-gap)]">
+      <div class="min-w-0 space-y-1.5">
         <label
           for="global-workspace"
           class="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground"
@@ -150,29 +156,31 @@
           {copy.currentWorkspace}
         </label>
         {#if (snapshot?.registry.entries.length ?? 0) > 0}
-          <select
+          <NativeSelect.Root
             id="global-workspace"
-            class="min-h-11 w-full rounded-lg border border-input bg-background px-3 text-sm font-medium"
+            size="desktop"
+            class="w-full font-medium"
             value={activeWorkspace?.path ?? ""}
             disabled={busy}
             onchange={(event) => void onSelectWorkspace(event.currentTarget.value)}
           >
             {#each snapshot?.registry.entries ?? [] as entry (entry.path)}
-              <option value={entry.path}>{entry.alias}</option>
+              <NativeSelect.Option value={entry.path}>{entry.alias}</NativeSelect.Option>
             {/each}
-          </select>
+          </NativeSelect.Root>
         {:else}
-          <button
-            type="button"
-            class="flex min-h-11 w-full items-center rounded-lg border border-dashed px-3 text-left text-sm text-muted-foreground transition-colors hover:bg-muted/30"
+          <Button
+            variant="outline"
+            size="desktop"
+            class="h-auto min-h-9 w-full min-w-0 justify-start whitespace-normal border-dashed py-2 text-left leading-snug text-muted-foreground"
             onclick={() => void onNavigate({ view: "workspaces" })}
           >
             {copy.chooseWorkspace}
-          </button>
+          </Button>
         {/if}
       </div>
 
-      <div class="space-y-1.5">
+      <div class="min-w-0 space-y-1.5">
         <div class="flex items-center justify-between gap-2">
           <label
             for="global-application"
@@ -188,34 +196,60 @@
           {/if}
         </div>
         {#if activeWorkspace && jobs.length > 0}
-          <select
+          <NativeSelect.Root
             id="global-application"
-            class="min-h-11 w-full rounded-lg border border-input bg-background px-3 text-sm font-medium"
+            size="desktop"
+            class="w-full font-medium"
             value={selectedJob?.job.id ?? ""}
             disabled={busy}
             onchange={(event) => void onSelectJob(event.currentTarget.value)}
           >
             {#each jobs as job (job.id)}
-              <option value={job.id}>{job.title} — {job.institution}</option>
+              <NativeSelect.Option value={job.id}>{job.title} — {job.institution}</NativeSelect.Option>
             {/each}
-          </select>
+          </NativeSelect.Root>
         {:else}
-          <button
-            type="button"
-            class="flex min-h-11 w-full items-center rounded-lg border border-dashed px-3 text-left text-sm text-muted-foreground transition-colors hover:bg-muted/30 disabled:cursor-not-allowed disabled:opacity-60"
+          <Button
+            variant="outline"
+            size="desktop"
+            class="h-auto min-h-9 w-full min-w-0 justify-start whitespace-normal border-dashed py-2 text-left leading-snug text-muted-foreground"
             disabled={!activeWorkspace}
             onclick={() => void onNavigate({ view: "applications" })}
           >
             {activeWorkspace ? copy.noApplications : copy.noApplicationSelected}
-          </button>
+          </Button>
         {/if}
       </div>
 
-      <dl
-        class="grid grid-cols-3 gap-2 sm:col-span-2 xl:col-span-1"
-        aria-label={copy.applicationSnapshot}
-      >
-        <div class="min-w-0 rounded-lg border bg-muted/20 px-3 py-2">
+        </div>
+
+        {#if activeView !== "today"}
+          <Collapsible.Trigger>
+            {#snippet child({ props })}
+              <Button
+                variant="ghost"
+                size="desktop"
+                class="w-full shrink-0 justify-between text-muted-foreground lg:w-auto"
+                {...props}
+              >
+                {copy.applicationSnapshot}
+                <ChevronDown
+                  size={16}
+                  strokeWidth={1.8}
+                  class={detailsOpen ? "rotate-180 transition-transform" : "transition-transform"}
+                  data-icon="inline-end"
+                  aria-hidden="true"
+                />
+              </Button>
+            {/snippet}
+          </Collapsible.Trigger>
+        {/if}
+      </div>
+
+      {#if activeView !== "today"}
+        <Collapsible.Content class="space-y-2.5 border-t pt-2.5">
+          <dl class="workspace-snapshot-grid gap-2" aria-label={copy.applicationSnapshot}>
+        <div class="min-w-0 rounded-lg bg-muted/55 px-2.5 py-2">
           <dt class="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground">
             <CalendarDays size={12} strokeWidth={1.8} aria-hidden="true" />
             {copy.deadline}
@@ -224,76 +258,62 @@
             {dossier?.metadata.deadline ?? copy.noDeadlineRecorded}
           </dd>
         </div>
-        <div class="min-w-0 rounded-lg border bg-muted/20 px-3 py-2">
+        <div class="min-w-0 rounded-lg bg-muted/55 px-2.5 py-2">
           <dt class="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground">
             <Gauge size={12} strokeWidth={1.8} aria-hidden="true" />
             {copy.currentStage}
           </dt>
           <dd class="mt-1 truncate text-xs font-semibold">{currentStageLabel}</dd>
         </div>
-        <div class="min-w-0 rounded-lg border bg-muted/20 px-3 py-2">
+        <div class="min-w-0 rounded-lg bg-muted/55 px-2.5 py-2">
           <dt class="text-[10px] font-medium text-muted-foreground">
             {copy.workflowProgress}
           </dt>
           <dd class="mt-1 flex items-center gap-2 text-xs font-semibold">
             <span>{progressPercent}%</span>
-            <span
-              class="h-1.5 min-w-8 flex-1 overflow-hidden rounded-full bg-muted"
-              role="progressbar"
+            <Progress
+              class="h-1.5 min-w-8 flex-1"
+              value={progressPercent}
               aria-label={copy.workflowProgress}
-              aria-valuemin="0"
-              aria-valuemax="100"
-              aria-valuenow={progressPercent}
-            >
-              <span
-                class="block h-full rounded-full bg-primary transition-[width] duration-200 motion-reduce:transition-none"
-                style={`width: ${progressPercent}%`}
-              ></span>
-            </span>
+            />
           </dd>
         </div>
-      </dl>
-    </div>
+          </dl>
 
-    <div class="flex flex-col justify-between gap-3 xl:flex-row xl:items-center">
-      <nav
-        class="min-w-0 overflow-x-auto"
-        aria-label={copy.applicationWorkspaceNavigation}
-      >
-        <ol class="flex min-w-max items-center gap-1">
+          <div class="flex flex-col justify-between gap-2 2xl:flex-row 2xl:items-center">
+      <nav class="min-w-0 flex-1" aria-label={copy.applicationWorkspaceNavigation}>
+        <ol class="workspace-section-grid gap-1.5 rounded-lg bg-muted/55 p-1">
           {#each sections as section, index (section.id)}
             {@const Icon = section.icon}
-            <li class="flex items-center">
-              <button
-                type="button"
-                class={[
-                  "flex min-h-11 items-center gap-2 rounded-lg px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                  activeSection === section.id
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                ]}
+            <li class="flex min-w-0 items-stretch">
+              <Button
+                variant={activeSection === section.id ? "secondary" : "ghost"}
+                size="desktop"
+                class="h-auto min-h-9 w-full min-w-0 justify-start gap-1.5 whitespace-normal px-2.5 py-1.5 text-left text-xs leading-snug"
                 aria-current={activeSection === section.id ? "page" : undefined}
                 disabled={!selectedJob && section.id !== "overview"}
                 onclick={() => openSection(section.id)}
               >
                 <Icon size={15} strokeWidth={1.8} aria-hidden="true" />
                 <span>{index + 1}. {section.label}</span>
-              </button>
+              </Button>
             </li>
           {/each}
         </ol>
       </nav>
 
-      <div class="flex min-w-0 items-center gap-3">
+      <div class="workspace-next-action gap-2">
         <div class="min-w-0">
-          <p class="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+          <p class="text-[10px] font-medium uppercase tracking-[0.1em] text-muted-foreground">
             {copy.nextAction}
           </p>
-          <p class="max-w-md truncate text-xs font-medium">{nextActionDescription}</p>
+          <p class="max-w-md text-xs font-medium leading-5 line-clamp-2" title={nextActionDescription}>
+            {nextActionDescription}
+          </p>
         </div>
         <Button
-          size="sm"
-          class="min-h-11 shrink-0"
+          size="desktop"
+          class="workspace-next-action-button shrink-0"
           disabled={busy}
           onclick={() => void onNavigate(recommendation.route)}
         >
@@ -306,16 +326,16 @@
           />
         </Button>
       </div>
-    </div>
+          </div>
 
-    {#if dossier?.blockers[0] || lastAction}
-      <div class="flex flex-col justify-between gap-2 border-t pt-2 lg:flex-row lg:items-center">
+          {#if dossier?.blockers[0] || lastAction}
+            <div class="flex flex-col justify-between gap-2 border-t pt-2 lg:flex-row lg:items-center">
         <div class="flex min-w-0 items-center gap-2">
           {#if dossier?.blockers[0]}
             <TriangleAlert
               size={14}
               strokeWidth={1.8}
-              class="shrink-0 text-amber-600 dark:text-amber-400"
+              class="shrink-0 text-warning"
               aria-hidden="true"
             />
             <p class="truncate text-xs text-muted-foreground">
@@ -339,17 +359,20 @@
             </p>
             <Button
               variant="ghost"
-              size="sm"
-              class="min-h-11 shrink-0"
+              size="desktop"
+              class="shrink-0"
               onclick={() => void onNavigate(lastAction.route)}
             >
               {copy.resumeLastAction}
             </Button>
           </div>
         {/if}
-      </div>
-    {/if}
+            </div>
+          {/if}
+        </Collapsible.Content>
+      {/if}
 
-    <p class="sr-only">{workspaceAlias}</p>
-  </div>
-</section>
+      <p class="sr-only">{workspaceAlias}</p>
+    </div>
+  </section>
+</Collapsible.Root>

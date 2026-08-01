@@ -11,11 +11,15 @@
   } from "@lucide/svelte";
 
   import { Badge } from "$lib/components/ui/badge/index.js";
+  import * as Alert from "$lib/components/ui/alert/index.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import * as Card from "$lib/components/ui/card/index.js";
   import { Checkbox } from "$lib/components/ui/checkbox/index.js";
+  import * as Empty from "$lib/components/ui/empty/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
   import { Label } from "$lib/components/ui/label/index.js";
+  import * as NativeSelect from "$lib/components/ui/native-select/index.js";
+  import LoadingPanel from "$lib/components/patterns/LoadingPanel.svelte";
   import type {
     ContentCatalogEntryReadModel,
     ContentCatalogFilter,
@@ -209,11 +213,11 @@
   }
 </script>
 
-<Card.Root id="content-library" class="scroll-mt-44 shadow-none">
+<Card.Root id="content-library" class="scroll-mt-44">
   <Card.Header>
     <div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
       <div class="flex items-start gap-3">
-        <div class="grid size-10 shrink-0 place-items-center rounded-xl bg-accent text-accent-foreground">
+        <div class="grid size-10 shrink-0 place-items-center rounded-lg bg-accent text-accent-foreground">
           <LibraryBig size={18} strokeWidth={1.8} aria-hidden="true" />
         </div>
         <div>
@@ -225,7 +229,7 @@
       </div>
       <Button
         variant="outline"
-        class="min-h-11 shrink-0"
+        class="min-h-9 shrink-0"
         disabled={loading || busy}
         onclick={refreshCatalog}
       >
@@ -241,70 +245,74 @@
     </div>
   </Card.Header>
 
-  <Card.Content class="space-y-5">
-    <form class="space-y-4" onsubmit={(event) => {
+  <Card.Content class="space-y-[var(--density-section-gap)]">
+    <form class="space-y-[var(--density-section-gap)]" onsubmit={(event) => {
       event.preventDefault();
       void submitSearch();
     }}>
       <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <div class="space-y-2">
           <Label for="content-scope">{copy.contentScope}</Label>
-          <select
+          <NativeSelect.Root
             id="content-scope"
             bind:value={scope}
             onchange={invalidateSearch}
-            class="flex min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+            size="desktop"
+            class="w-full"
           >
-            <option value="application" disabled={!selectedJobId}>
+            <NativeSelect.Option value="application" disabled={!selectedJobId}>
               {copy.contentCurrentApplication}
-            </option>
-            <option value="workspace">{copy.contentEntireWorkspace}</option>
-          </select>
+            </NativeSelect.Option>
+            <NativeSelect.Option value="workspace">{copy.contentEntireWorkspace}</NativeSelect.Option>
+          </NativeSelect.Root>
         </div>
 
         <div class="space-y-2">
           <Label for="content-category">{copy.contentCategory}</Label>
-          <select
+          <NativeSelect.Root
             id="content-category"
             bind:value={category}
             onchange={invalidateSearch}
-            class="flex min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            size="desktop"
+            class="w-full"
           >
-            <option value="all">{copy.contentAllCategories}</option>
+            <NativeSelect.Option value="all">{copy.contentAllCategories}</NativeSelect.Option>
             {#each Object.entries(copy.contentCategoryLabel) as [value, label]}
-              <option value={value}>{label}</option>
+              <NativeSelect.Option value={value}>{label}</NativeSelect.Option>
             {/each}
-          </select>
+          </NativeSelect.Root>
         </div>
 
         <div class="space-y-2">
           <Label for="content-status">{copy.contentLifecycle}</Label>
-          <select
+          <NativeSelect.Root
             id="content-status"
             bind:value={status}
             onchange={invalidateSearch}
-            class="flex min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            size="desktop"
+            class="w-full"
           >
-            <option value="all">{copy.contentAllStatuses}</option>
+            <NativeSelect.Option value="all">{copy.contentAllStatuses}</NativeSelect.Option>
             {#each Object.entries(copy.contentStatusLabel) as [value, label]}
-              <option value={value}>{label}</option>
+              <NativeSelect.Option value={value}>{label}</NativeSelect.Option>
             {/each}
-          </select>
+          </NativeSelect.Root>
         </div>
 
         <div class="space-y-2">
           <Label for="content-privacy">{copy.contentPrivacy}</Label>
-          <select
+          <NativeSelect.Root
             id="content-privacy"
             bind:value={privacy}
             onchange={invalidateSearch}
-            class="flex min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            size="desktop"
+            class="w-full"
           >
-            <option value="all">{copy.contentAllPrivacy}</option>
+            <NativeSelect.Option value="all">{copy.contentAllPrivacy}</NativeSelect.Option>
             {#each Object.entries(copy.contentPrivacyLabel) as [value, label]}
-              <option value={value}>{label}</option>
+              <NativeSelect.Option value={value}>{label}</NativeSelect.Option>
             {/each}
-          </select>
+          </NativeSelect.Root>
         </div>
       </div>
 
@@ -314,7 +322,7 @@
           <Input
             id="content-created-after"
             type="date"
-            class="min-h-11"
+            class="min-h-9"
             bind:value={createdAfter}
             oninput={invalidateSearch}
           />
@@ -324,7 +332,7 @@
           <Input
             id="content-created-before"
             type="date"
-            class="min-h-11"
+            class="min-h-9"
             bind:value={createdBefore}
             oninput={invalidateSearch}
           />
@@ -341,7 +349,7 @@
           />
           <Input
             aria-label={copy.contentSearch}
-            class="min-h-11 pl-9"
+            class="min-h-9 pl-9"
             maxlength={200}
             placeholder={copy.contentSearchPlaceholder}
             bind:value={query}
@@ -350,7 +358,7 @@
         </div>
         <Button
           type="submit"
-          class="min-h-11 shrink-0"
+          class="min-h-9 shrink-0"
           disabled={loading || busy || (includePrivateBodies && !confirmedPrivateRead)}
         >
           <FileSearch size={16} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
@@ -358,7 +366,7 @@
         </Button>
       </div>
 
-      <div class="rounded-xl border bg-muted/20 p-4">
+      <div class="rounded-lg border bg-muted/20 p-[var(--density-panel-padding)]">
         <div class="flex items-start gap-3">
           <Checkbox
             id="content-private-bodies"
@@ -390,7 +398,9 @@
       </div>
 
       {#if formError}
-        <p class="text-sm text-destructive" role="alert">{formError}</p>
+        <Alert.Root variant="destructive">
+          <Alert.Description>{formError}</Alert.Description>
+        </Alert.Root>
       {/if}
     </form>
 
@@ -418,23 +428,21 @@
     </div>
 
     {#if loading}
-      <div class="grid min-h-40 place-items-center rounded-xl border border-dashed" role="status">
-        <p class="text-sm text-muted-foreground">{copy.loading}</p>
-      </div>
+      <LoadingPanel label={copy.loading} class="min-h-32 border" />
     {:else if !displayItems.length}
-      <div class="grid min-h-40 place-items-center rounded-xl border border-dashed p-6 text-center">
-        <div>
-          <LibraryBig size={22} strokeWidth={1.8} class="mx-auto text-muted-foreground" aria-hidden="true" />
-          <p class="mt-3 text-sm font-semibold">{copy.contentNoResults}</p>
-          <p class="mt-1 max-w-md text-xs leading-5 text-muted-foreground">
-            {copy.contentNoResultsDescription}
-          </p>
-        </div>
-      </div>
+      <Empty.Root class="min-h-32 border">
+        <Empty.Header>
+          <Empty.Media variant="icon">
+            <LibraryBig size={22} strokeWidth={1.8} aria-hidden="true" />
+          </Empty.Media>
+          <Empty.Title>{copy.contentNoResults}</Empty.Title>
+          <Empty.Description>{copy.contentNoResultsDescription}</Empty.Description>
+        </Empty.Header>
+      </Empty.Root>
     {:else}
       <div class="space-y-2">
         {#each displayItems as item (item.entry.artifact.id)}
-          <article class="rounded-xl border p-4">
+          <article class="rounded-lg border p-[var(--density-panel-padding)]">
             <div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
               <div class="flex min-w-0 items-start gap-3">
                 <div class="grid size-9 shrink-0 place-items-center rounded-lg bg-accent text-accent-foreground">

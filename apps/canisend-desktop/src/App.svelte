@@ -1,15 +1,11 @@
 <script lang="ts">
   import {
-    Activity,
     Bot,
     BriefcaseBusiness,
     Database,
-    FileUp,
     Languages,
     LayoutDashboard,
-    LoaderCircle,
     Moon,
-    Plus,
     Search,
     Settings2,
     ShieldCheck,
@@ -19,9 +15,11 @@
   import { onMount, tick } from "svelte";
 
   import { Badge } from "$lib/components/ui/badge/index.js";
+  import * as Alert from "$lib/components/ui/alert/index.js";
   import { Button } from "$lib/components/ui/button/index.js";
-  import * as Card from "$lib/components/ui/card/index.js";
   import { Separator } from "$lib/components/ui/separator/index.js";
+  import * as Sidebar from "$lib/components/ui/sidebar/index.js";
+  import LoadingPanel from "$lib/components/patterns/LoadingPanel.svelte";
   import { agentUiState } from "$lib/agent-state.svelte";
   import WorkspaceContextBar from "$lib/components/WorkspaceContextBar.svelte";
   import {
@@ -181,11 +179,6 @@
   } from "$lib/bridge";
   import { upcomingDeadlineApplications } from "$lib/application-dossier";
   import { messages, type Language } from "$lib/i18n";
-  import ApplicationsView from "$lib/views/ApplicationsView.svelte";
-  import OpportunitiesView from "$lib/views/OpportunitiesView.svelte";
-  import ProfileView from "$lib/views/ProfileView.svelte";
-  import SettingsView from "$lib/views/SettingsView.svelte";
-  import WorkspacesView from "$lib/views/WorkspacesView.svelte";
   import {
     applicationSectionForRoute,
     defaultNavigationMemory,
@@ -210,10 +203,19 @@
     textScale: number;
   };
   type AgentViewComponent = typeof import("$lib/views/AgentView.svelte").default;
+  type ApplicationsViewComponent =
+    typeof import("$lib/views/ApplicationsView.svelte").default;
   type WorkflowViewComponent =
     typeof import("$lib/views/WorkflowView.svelte").default;
   type DeliveryViewComponent =
     typeof import("$lib/views/DeliveryView.svelte").default;
+  type OpportunitiesViewComponent =
+    typeof import("$lib/views/OpportunitiesView.svelte").default;
+  type ProfileViewComponent = typeof import("$lib/views/ProfileView.svelte").default;
+  type SettingsViewComponent = typeof import("$lib/views/SettingsView.svelte").default;
+  type WorkspacesViewComponent =
+    typeof import("$lib/views/WorkspacesView.svelte").default;
+  type TodayViewComponent = typeof import("$lib/views/TodayView.svelte").default;
 
   let language = $state<Language>("en");
   let darkMode = $state(false);
@@ -227,14 +229,32 @@
   let navigationReady = $state(false);
   let lastSuccessfulAction = $state<LastSuccessfulAction | null>(null);
   let AgentView = $state<AgentViewComponent | null>(null);
+  let ApplicationsView = $state<ApplicationsViewComponent | null>(null);
   let WorkflowView = $state<WorkflowViewComponent | null>(null);
   let DeliveryView = $state<DeliveryViewComponent | null>(null);
+  let OpportunitiesView = $state<OpportunitiesViewComponent | null>(null);
+  let ProfileView = $state<ProfileViewComponent | null>(null);
+  let SettingsView = $state<SettingsViewComponent | null>(null);
+  let WorkspacesView = $state<WorkspacesViewComponent | null>(null);
+  let TodayView = $state<TodayViewComponent | null>(null);
   let agentViewLoading = $state(false);
+  let applicationsViewLoading = $state(false);
   let workflowViewLoading = $state(false);
   let deliveryViewLoading = $state(false);
+  let opportunitiesViewLoading = $state(false);
+  let profileViewLoading = $state(false);
+  let settingsViewLoading = $state(false);
+  let workspacesViewLoading = $state(false);
+  let todayViewLoading = $state(false);
   let agentViewFailed = $state(false);
+  let applicationsViewFailed = $state(false);
   let workflowViewFailed = $state(false);
   let deliveryViewFailed = $state(false);
+  let opportunitiesViewFailed = $state(false);
+  let profileViewFailed = $state(false);
+  let settingsViewFailed = $state(false);
+  let workspacesViewFailed = $state(false);
+  let todayViewFailed = $state(false);
   let agentTurnRunning = $state(false);
   let product = $state<ProductSummary | null>(null);
   let doctor = $state<ActionReceipt<DoctorSummary> | null>(null);
@@ -424,6 +444,145 @@
       if (activeView !== view || activeDetail !== detail) return;
       document.getElementById(detail)?.scrollIntoView({ block: "start" });
     });
+  });
+
+  $effect(() => {
+    if (activeView !== "today" || TodayView || todayViewLoading || todayViewFailed) {
+      return;
+    }
+    todayViewLoading = true;
+    void import("$lib/views/TodayView.svelte")
+      .then((module) => {
+        TodayView = module.default;
+      })
+      .catch((error: unknown) => {
+        todayViewFailed = true;
+        captureBridgeError(error);
+        bridgeErrorCanRetry = true;
+      })
+      .finally(() => {
+        todayViewLoading = false;
+      });
+  });
+
+  $effect(() => {
+    if (
+      activeView !== "workspaces" ||
+      WorkspacesView ||
+      workspacesViewLoading ||
+      workspacesViewFailed
+    ) {
+      return;
+    }
+    workspacesViewLoading = true;
+    void import("$lib/views/WorkspacesView.svelte")
+      .then((module) => {
+        WorkspacesView = module.default;
+      })
+      .catch((error: unknown) => {
+        workspacesViewFailed = true;
+        captureBridgeError(error);
+        bridgeErrorCanRetry = true;
+      })
+      .finally(() => {
+        workspacesViewLoading = false;
+      });
+  });
+
+  $effect(() => {
+    if (
+      activeView !== "opportunities" ||
+      OpportunitiesView ||
+      opportunitiesViewLoading ||
+      opportunitiesViewFailed
+    ) {
+      return;
+    }
+    opportunitiesViewLoading = true;
+    void import("$lib/views/OpportunitiesView.svelte")
+      .then((module) => {
+        OpportunitiesView = module.default;
+      })
+      .catch((error: unknown) => {
+        opportunitiesViewFailed = true;
+        captureBridgeError(error);
+        bridgeErrorCanRetry = true;
+      })
+      .finally(() => {
+        opportunitiesViewLoading = false;
+      });
+  });
+
+  $effect(() => {
+    if (
+      activeView !== "applications" ||
+      ApplicationsView ||
+      applicationsViewLoading ||
+      applicationsViewFailed
+    ) {
+      return;
+    }
+    applicationsViewLoading = true;
+    void import("$lib/views/ApplicationsView.svelte")
+      .then((module) => {
+        ApplicationsView = module.default;
+      })
+      .catch((error: unknown) => {
+        applicationsViewFailed = true;
+        captureBridgeError(error);
+        bridgeErrorCanRetry = true;
+      })
+      .finally(() => {
+        applicationsViewLoading = false;
+      });
+  });
+
+  $effect(() => {
+    if (
+      activeView !== "profile" ||
+      ProfileView ||
+      profileViewLoading ||
+      profileViewFailed
+    ) {
+      return;
+    }
+    profileViewLoading = true;
+    void import("$lib/views/ProfileView.svelte")
+      .then((module) => {
+        ProfileView = module.default;
+      })
+      .catch((error: unknown) => {
+        profileViewFailed = true;
+        captureBridgeError(error);
+        bridgeErrorCanRetry = true;
+      })
+      .finally(() => {
+        profileViewLoading = false;
+      });
+  });
+
+  $effect(() => {
+    if (
+      activeView !== "settings" ||
+      SettingsView ||
+      settingsViewLoading ||
+      settingsViewFailed
+    ) {
+      return;
+    }
+    settingsViewLoading = true;
+    void import("$lib/views/SettingsView.svelte")
+      .then((module) => {
+        SettingsView = module.default;
+      })
+      .catch((error: unknown) => {
+        settingsViewFailed = true;
+        captureBridgeError(error);
+        bridgeErrorCanRetry = true;
+      })
+      .finally(() => {
+        settingsViewLoading = false;
+      });
   });
 
   $effect(() => {
@@ -2323,14 +2482,32 @@
   async function retryCurrentView(): Promise<void> {
     bridgeError = null;
     bridgeErrorCanRetry = false;
-    if (activeView === "agent" && agentViewFailed) {
+    if (activeView === "today" && todayViewFailed) {
+      todayViewFailed = false;
+      await tick();
+    } else if (activeView === "agent" && agentViewFailed) {
       agentViewFailed = false;
+      await tick();
+    } else if (activeView === "applications" && applicationsViewFailed) {
+      applicationsViewFailed = false;
       await tick();
     } else if (activeView === "workflow" && workflowViewFailed) {
       workflowViewFailed = false;
       await tick();
     } else if (activeView === "delivery" && deliveryViewFailed) {
       deliveryViewFailed = false;
+      await tick();
+    } else if (activeView === "opportunities" && opportunitiesViewFailed) {
+      opportunitiesViewFailed = false;
+      await tick();
+    } else if (activeView === "profile" && profileViewFailed) {
+      profileViewFailed = false;
+      await tick();
+    } else if (activeView === "settings" && settingsViewFailed) {
+      settingsViewFailed = false;
+      await tick();
+    } else if (activeView === "workspaces" && workspacesViewFailed) {
+      workspacesViewFailed = false;
       await tick();
     } else if (activeView === "applications") {
       await handleRefreshJobs();
@@ -2348,178 +2525,195 @@
   <title>{copy.appName} — {currentViewLabel}</title>
 </svelte:head>
 
-<div
+<Sidebar.DesktopProvider
   class="desktop-shell min-h-screen bg-background text-foreground"
+  style="--sidebar-width: 14rem;"
   data-density={compact ? "compact" : "comfortable"}
 >
   <a
     href="#main-content"
-    class="fixed left-3 top-3 z-50 min-h-11 -translate-y-20 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-transform focus:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
+    class="fixed left-3 top-3 z-50 min-h-9 -translate-y-20 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-transform focus:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
   >
     {copy.skipToContent}
   </a>
-  <aside
-    class="fixed inset-y-0 left-0 z-20 flex w-64 flex-col overflow-y-auto border-r border-sidebar-border bg-sidebar px-3 py-4 text-sidebar-foreground"
+  <Sidebar.DesktopRoot
+    role="complementary"
+    class="sticky top-0 h-svh shrink-0 overflow-hidden border-r border-sidebar-border px-2.5 py-[var(--sidebar-padding-block)] transition-[padding] duration-200 ease-out motion-reduce:transition-none"
     aria-label={copy.appName}
   >
-    <div class="flex min-h-14 items-center gap-3 px-2">
-      <div
-        class="grid size-10 place-items-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground"
-        aria-hidden="true"
-      >
-        <BriefcaseBusiness size={20} strokeWidth={1.8} />
-      </div>
-      <div class="min-w-0">
-        <p class="truncate text-sm font-semibold tracking-tight">{copy.appName}</p>
-        <p class="truncate text-xs text-muted-foreground">{copy.appTagline}</p>
-      </div>
-    </div>
-
-    <Separator class="my-4 bg-sidebar-border" />
-
-    <nav class="space-y-1" aria-label={copy.primaryNavigation}>
-      <Button
-        variant={activeView === "today" ? "secondary" : "ghost"}
-        class="min-h-11 w-full justify-start gap-3 px-3 text-sm"
-        aria-current={activeView === "today" ? "page" : undefined}
-        onclick={() => void navigateTo({ view: "today" })}
-      >
-        <LayoutDashboard size={18} strokeWidth={1.8} aria-hidden="true" />
-        <span>{copy.today}</span>
-      </Button>
-
-      <p class="px-3 pb-1 pt-4 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-        {copy.work}
-      </p>
-      {#each workNavigation as item}
-        {@const Icon = item.icon}
-        <Button
-          variant={isWorkNavigationActive(item.id) ? "secondary" : "ghost"}
-          class={[
-            "min-h-11 w-full justify-start gap-3 px-3 text-sm",
-            isRecommendedNavigation(item.id) && !isWorkNavigationActive(item.id)
-              ? "ring-1 ring-primary/25"
-              : "",
-          ]}
-          aria-current={isWorkNavigationActive(item.id) ? "page" : undefined}
-          disabled={!item.enabled}
-          onclick={() => {
-            if (item.enabled) void navigateTo({ view: item.id });
-          }}
+    <Sidebar.Header class="p-0">
+      <div class="flex min-h-[var(--sidebar-header-height)] items-center gap-2 px-2 transition-[min-height] duration-200 ease-out motion-reduce:transition-none">
+        <div
+          class="grid size-9 place-items-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground"
+          aria-hidden="true"
         >
-          <span
-            class={[
-              "grid size-7 place-items-center rounded-md border",
-              isWorkNavigationActive(item.id)
-                ? "border-primary/25 bg-primary/10 text-primary"
-                : "border-sidebar-border text-muted-foreground",
-            ]}
-            aria-hidden="true"
-          >
-            <Icon size={16} strokeWidth={1.8} />
-          </span>
-          <span>{item.label}</span>
-          {#if isRecommendedNavigation(item.id)}
-            <span
-              class="ml-auto size-2 rounded-full bg-primary"
-              title={copy.nextRecommended}
-              aria-label={copy.nextRecommended}
-            ></span>
-          {/if}
-        </Button>
-      {/each}
+          <BriefcaseBusiness size={18} strokeWidth={1.8} />
+        </div>
+        <div class="min-w-0">
+          <p class="truncate text-sm font-semibold tracking-tight">{copy.appName}</p>
+          <p class="truncate text-xs text-muted-foreground">{copy.appTagline}</p>
+        </div>
+      </div>
+      <Separator class="my-1.5 bg-sidebar-border" />
+    </Sidebar.Header>
 
-      <p class="px-3 pb-1 pt-4 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-        {copy.system}
-      </p>
-      {#each utilityNavigation as item}
-        {@const Icon = item.icon}
-        <Button
-          variant={activeView === item.id ? "secondary" : "ghost"}
-          class="min-h-11 w-full justify-start gap-3 px-3 text-sm"
-          aria-current={activeView === item.id ? "page" : undefined}
-          onclick={() => void navigateTo({ view: item.id })}
-        >
-          <Icon size={18} strokeWidth={1.8} aria-hidden="true" />
-          <span>{item.label}</span>
-        </Button>
-      {/each}
-    </nav>
+    <Sidebar.Content class="pr-1">
+      <nav class="min-w-0 space-y-1" aria-label={copy.primaryNavigation}>
+        <Sidebar.Menu>
+          <Sidebar.MenuItem>
+            <Sidebar.DesktopMenuButton
+              size="lg"
+              isActive={activeView === "today"}
+              aria-current={activeView === "today" ? "page" : undefined}
+              onclick={() => void navigateTo({ view: "today" })}
+            >
+              <LayoutDashboard size={18} strokeWidth={1.8} aria-hidden="true" />
+              <span title={copy.today}>{copy.today}</span>
+            </Sidebar.DesktopMenuButton>
+          </Sidebar.MenuItem>
+        </Sidebar.Menu>
 
-    <div class="mt-auto space-y-3">
+        <p class="px-2 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+          {copy.work}
+        </p>
+        <Sidebar.Menu>
+          {#each workNavigation as item}
+            {@const Icon = item.icon}
+            <Sidebar.MenuItem>
+              <Sidebar.DesktopMenuButton
+                size="lg"
+                isActive={isWorkNavigationActive(item.id)}
+                class={isRecommendedNavigation(item.id) && !isWorkNavigationActive(item.id)
+                  ? "ring-1 ring-primary/25"
+                  : ""}
+                aria-current={isWorkNavigationActive(item.id) ? "page" : undefined}
+                disabled={!item.enabled}
+                onclick={() => {
+                  if (item.enabled) void navigateTo({ view: item.id });
+                }}
+              >
+                <Icon size={17} strokeWidth={1.8} aria-hidden="true" />
+                <span class="min-w-0" title={item.label}>{item.label}</span>
+                {#if isRecommendedNavigation(item.id)}
+                  <span
+                    class="ml-auto size-2 rounded-full bg-primary"
+                    title={copy.nextRecommended}
+                    aria-label={copy.nextRecommended}
+                  ></span>
+                {/if}
+              </Sidebar.DesktopMenuButton>
+            </Sidebar.MenuItem>
+          {/each}
+        </Sidebar.Menu>
+
+        <p class="px-2 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+          {copy.system}
+        </p>
+        <Sidebar.Menu>
+          {#each utilityNavigation as item}
+            {@const Icon = item.icon}
+            <Sidebar.MenuItem>
+              <Sidebar.DesktopMenuButton
+                size="lg"
+                isActive={activeView === item.id}
+                aria-current={activeView === item.id ? "page" : undefined}
+                onclick={() => void navigateTo({ view: item.id })}
+              >
+                <Icon size={18} strokeWidth={1.8} aria-hidden="true" />
+                <span class="min-w-0" title={item.label}>{item.label}</span>
+              </Sidebar.DesktopMenuButton>
+            </Sidebar.MenuItem>
+          {/each}
+        </Sidebar.Menu>
+      </nav>
+    </Sidebar.Content>
+
+    <Sidebar.Footer class="mt-auto space-y-[var(--density-panel-gap)] p-0 pt-2">
       {#if activeWorkspace}
-        <button
-          type="button"
-          class="w-full rounded-xl border border-sidebar-border bg-background/55 p-3 text-left transition-colors hover:bg-background"
-          onclick={() => void navigateTo({ view: "workspaces" })}
-        >
-          <div class="mb-1 flex items-center gap-2 text-xs font-medium">
-            <Database size={15} strokeWidth={1.8} aria-hidden="true" />
-            <span>{copy.activeWorkspace}</span>
-          </div>
-          <p class="truncate text-xs text-muted-foreground">
-            {registrySnapshot?.registry.entries.find(
-              (entry) => entry.path === activeWorkspace?.path,
-            )?.alias ?? activeWorkspace.path}
-          </p>
-        </button>
+        <Sidebar.Menu>
+          <Sidebar.MenuItem>
+            <Sidebar.DesktopMenuButton
+              variant="outline"
+              size="lg"
+              class="h-auto min-h-14 flex-col items-start gap-1 p-2.5"
+              onclick={() => void navigateTo({ view: "workspaces" })}
+            >
+              <span class="flex items-center gap-2 text-xs font-medium">
+                <Database size={15} strokeWidth={1.8} aria-hidden="true" />
+                <span>{copy.activeWorkspace}</span>
+              </span>
+              <span class="w-full truncate text-xs font-normal text-muted-foreground">
+                {registrySnapshot?.registry.entries.find(
+                  (entry) => entry.path === activeWorkspace?.path,
+                )?.alias ?? activeWorkspace.path}
+              </span>
+            </Sidebar.DesktopMenuButton>
+          </Sidebar.MenuItem>
+        </Sidebar.Menu>
       {:else}
-        <div class="rounded-xl border border-sidebar-border bg-background/55 p-3">
-          <div class="mb-2 flex items-center gap-2 text-xs font-medium">
-            <ShieldCheck size={15} strokeWidth={1.8} aria-hidden="true" />
-            <span>{copy.localFirst}</span>
-          </div>
-          <p class="text-xs leading-5 text-muted-foreground">{copy.localDescription}</p>
+        <div
+          class="flex min-h-9 items-center gap-2 rounded-lg border border-sidebar-border bg-background/55 px-2.5 py-2"
+          title={copy.localDescription}
+        >
+          <ShieldCheck size={15} strokeWidth={1.8} class="shrink-0" aria-hidden="true" />
+          <span class="truncate text-xs font-medium">{copy.localFirst}</span>
         </div>
       {/if}
       <div class="flex items-center justify-between px-1 text-[11px] text-muted-foreground">
         <span>{product?.version ?? "1.0.0-alpha.5"}</span>
         <Badge variant="outline" class="text-[10px]">Svelte</Badge>
       </div>
-    </div>
-  </aside>
+    </Sidebar.Footer>
+  </Sidebar.DesktopRoot>
 
-  <main
+  <Sidebar.Inset
     id="main-content"
-    class="ml-64 min-h-screen"
+    class="min-h-screen bg-background"
     aria-label={copy.mainContent}
     data-testid="canisend-svelte-shell"
   >
-    <div class="sticky top-0 z-10 bg-background/94 backdrop-blur">
+    <div class="sticky top-0 z-10 bg-background/95 backdrop-blur-xl">
       <header
-        class="flex min-h-14 items-center justify-between border-b px-5 lg:px-8"
+        class="flex min-h-[var(--app-header-height)] min-w-0 items-center justify-between gap-2 border-b px-4 transition-[min-height] duration-200 ease-out motion-reduce:transition-none sm:px-5 lg:px-6"
         data-tauri-drag-region
       >
-        <p class="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+        <p class="min-w-0 truncate text-sm font-medium tracking-tight text-foreground" title={currentViewLabel}>
           {currentViewLabel}
         </p>
-        <div class="flex items-center gap-2">
+        <div class="flex shrink-0 items-center gap-2">
           <Button
             variant="ghost"
-            size="icon-lg"
-            class="min-h-11 min-w-11"
+            size="icon-desktop"
             aria-label={language === "en" ? copy.switchChinese : copy.switchEnglish}
             title={language === "en" ? copy.switchChinese : copy.switchEnglish}
             onclick={() => (language = language === "en" ? "zh-CN" : "en")}
           >
-            <Languages size={18} strokeWidth={1.8} aria-hidden="true" />
+            <Languages size={16} strokeWidth={1.8} aria-hidden="true" />
           </Button>
           <Button
             variant="ghost"
-            size="icon-lg"
-            class="min-h-11 min-w-11"
+            size="icon-desktop"
             aria-label={darkMode ? copy.lightMode : copy.darkMode}
             title={darkMode ? copy.lightMode : copy.darkMode}
             onclick={() => (darkMode = !darkMode)}
           >
             {#if darkMode}
-              <Sun size={18} strokeWidth={1.8} aria-hidden="true" />
+              <Sun size={16} strokeWidth={1.8} aria-hidden="true" />
             {:else}
-              <Moon size={18} strokeWidth={1.8} aria-hidden="true" />
+              <Moon size={16} strokeWidth={1.8} aria-hidden="true" />
             {/if}
           </Button>
-          <Button variant="outline" class="min-h-11" onclick={() => (compact = !compact)}>
-            {compact ? copy.comfortable : copy.compact}
+          <Button
+            variant="outline"
+            size="desktop"
+            class="app-toolbar-density relative"
+            title={compact ? copy.comfortable : copy.compact}
+            onclick={() => (compact = !compact)}
+          >
+            <Settings2 size={16} strokeWidth={1.8} aria-hidden="true" />
+            <span class="app-toolbar-density-label">
+              {compact ? copy.comfortable : copy.compact}
+            </span>
           </Button>
         </div>
       </header>
@@ -2544,112 +2738,134 @@
       />
     </div>
 
-    <div class="mx-auto max-w-[1480px] px-5 py-6 lg:px-8 lg:py-8">
+    <div class="mx-auto w-full min-w-0 max-w-[1480px] px-4 py-[var(--page-padding-block)] transition-[padding] duration-200 ease-out motion-reduce:transition-none sm:px-5 lg:px-6">
       {#if bridgeError}
-        <div
-          class="mb-6 flex items-center justify-between gap-4 rounded-xl border border-destructive/35 bg-destructive/8 px-4 py-3 text-sm text-destructive"
-          role="alert"
-        >
-          <span>{bridgeError}</span>
+        <Alert.Root variant="destructive" class="mb-[var(--density-section-gap)] min-h-12 py-2">
+          <Alert.Description>{bridgeError}</Alert.Description>
           {#if bridgeErrorCanRetry}
-            <Button
-              variant="outline"
-              class="min-h-11 shrink-0"
-              disabled={busy}
-              onclick={retryCurrentView}
-            >
-              {copy.retry}
-            </Button>
+            <Alert.Action class="right-2 top-1.5">
+              <Button
+                variant="outline"
+                size="desktop"
+                disabled={busy}
+                onclick={retryCurrentView}
+              >
+                {copy.retry}
+              </Button>
+            </Alert.Action>
           {/if}
-        </div>
+        </Alert.Root>
       {:else if notice}
-        <div
-          class="mb-6 flex items-center justify-between gap-4 rounded-xl border border-[var(--success)]/40 bg-[var(--success)]/10 px-4 py-3 text-sm"
-          role="status"
-        >
-          <span>{notice}</span>
+        <Alert.Root variant="success" class="mb-[var(--density-section-gap)] min-h-12 py-2" role="status">
+          <Alert.Description>{notice}</Alert.Description>
           {#if noticeRoute}
-            <Button
-              variant="outline"
-              size="sm"
-              class="min-h-11 shrink-0 bg-background/70"
-              onclick={() => void navigateTo(noticeRoute!)}
-            >
-              {copy.openAffectedContent}
-            </Button>
+            <Alert.Action class="right-2 top-1.5">
+              <Button
+                variant="outline"
+                size="desktop"
+                class="bg-background/70"
+                onclick={() => void navigateTo(noticeRoute!)}
+              >
+                {copy.openAffectedContent}
+              </Button>
+            </Alert.Action>
           {/if}
-        </div>
+        </Alert.Root>
       {/if}
 
       {#if activeView === "workspaces"}
-        <WorkspacesView
-          {copy}
-          {desktopRuntime}
-          snapshot={registrySnapshot}
-          {activeWorkspace}
-          health={workspaceHealth}
-          loading={workspaceLoading}
-          {busy}
-          onRefresh={() => refreshWorkspaces(false)}
-          onSelect={handleSelectWorkspace}
-          onCreate={handleCreateWorkspace}
-          onConnect={handleConnectWorkspace}
-          onRemove={handleRemoveWorkspace}
-          onCheck={handleCheckWorkspace}
-          onBackup={handleBackupWorkspace}
-          onRestore={handleRestoreWorkspace}
-          onRepair={handleRepairWorkspace}
-        />
+        {#if WorkspacesView}
+          <WorkspacesView
+            {copy}
+            {desktopRuntime}
+            snapshot={registrySnapshot}
+            {activeWorkspace}
+            health={workspaceHealth}
+            loading={workspaceLoading}
+            {busy}
+            onRefresh={() => refreshWorkspaces(false)}
+            onSelect={handleSelectWorkspace}
+            onCreate={handleCreateWorkspace}
+            onConnect={handleConnectWorkspace}
+            onRemove={handleRemoveWorkspace}
+            onCheck={handleCheckWorkspace}
+            onBackup={handleBackupWorkspace}
+            onRestore={handleRestoreWorkspace}
+            onRepair={handleRepairWorkspace}
+          />
+        {:else if workspacesViewFailed}
+          <Alert.Root variant="destructive" class="min-h-12">
+            <Alert.Description>{copy.viewLoadFailed}</Alert.Description>
+          </Alert.Root>
+        {:else}
+          <LoadingPanel label={copy.loading} class="min-h-32" />
+        {/if}
       {:else if activeView === "opportunities"}
-        <OpportunitiesView
-          {copy}
-          {desktopRuntime}
-          {activeWorkspace}
-          adapters={discoveryAdapters}
-          sources={discoverySources}
-          leads={discoveryLeads}
-          selectedLead={selectedDiscoveryLead}
-          suggestions={discoverySuggestions}
-          preview={discoveryPreview}
-          loading={discoveryLoading}
-          {busy}
-          onRefresh={handleRefreshDiscovery}
-          onSelect={handleSelectDiscoveryLead}
-          onPreviewFile={handlePreviewDiscoveryFile}
-          onPreviewNetwork={handlePreviewDiscoveryNetwork}
-          onCommitPreview={handleCommitDiscoveryPreview}
-          onDiscardPreview={handleDiscardDiscoveryPreview}
-          onPromote={handlePromoteDiscoveryLead}
-        />
+        {#if OpportunitiesView}
+          <OpportunitiesView
+            {copy}
+            {desktopRuntime}
+            {activeWorkspace}
+            adapters={discoveryAdapters}
+            sources={discoverySources}
+            leads={discoveryLeads}
+            selectedLead={selectedDiscoveryLead}
+            suggestions={discoverySuggestions}
+            preview={discoveryPreview}
+            loading={discoveryLoading}
+            {busy}
+            onRefresh={handleRefreshDiscovery}
+            onSelect={handleSelectDiscoveryLead}
+            onPreviewFile={handlePreviewDiscoveryFile}
+            onPreviewNetwork={handlePreviewDiscoveryNetwork}
+            onCommitPreview={handleCommitDiscoveryPreview}
+            onDiscardPreview={handleDiscardDiscoveryPreview}
+            onPromote={handlePromoteDiscoveryLead}
+          />
+        {:else if opportunitiesViewFailed}
+          <Alert.Root variant="destructive" class="min-h-12">
+            <Alert.Description>{copy.viewLoadFailed}</Alert.Description>
+          </Alert.Root>
+        {:else}
+          <LoadingPanel label={copy.loading} class="min-h-32" />
+        {/if}
       {:else if activeView === "applications"}
-        <ApplicationsView
-          {copy}
-          {desktopRuntime}
-          {activeWorkspace}
-          {jobs}
-          {selectedJob}
-          dossiers={applicationDossiers}
-          dossier={selectedDossier}
-          {contentCatalog}
-          {contentSearchResult}
-          focus={activeView === "applications" ? activeDetail : null}
-          preview={jobIntakePreview}
-          loading={jobsLoading}
-          {contentLoading}
-          {busy}
-          onRefresh={handleRefreshJobs}
-          onCreate={handleCreateJob}
-          onSelect={handleSelectJob}
-          onArchive={handleArchiveJob}
-          onPreviewLocal={handlePreviewLocalSource}
-          onPreviewUrl={handlePreviewUrlSource}
-          onCommitPreview={handleCommitJobSourcePreview}
-          onDiscardPreview={handleDiscardJobSourcePreview}
-          onRefreshContent={handleRefreshContent}
-          onSearchContent={handleSearchContent}
-          onOpenContent={handleOpenContent}
-          onContinue={() => navigateTo(recommendation.route)}
-        />
+        {#if ApplicationsView}
+          <ApplicationsView
+            {copy}
+            {desktopRuntime}
+            {activeWorkspace}
+            {jobs}
+            {selectedJob}
+            dossiers={applicationDossiers}
+            dossier={selectedDossier}
+            {contentCatalog}
+            {contentSearchResult}
+            focus={activeView === "applications" ? activeDetail : null}
+            preview={jobIntakePreview}
+            loading={jobsLoading}
+            {contentLoading}
+            {busy}
+            onRefresh={handleRefreshJobs}
+            onCreate={handleCreateJob}
+            onSelect={handleSelectJob}
+            onArchive={handleArchiveJob}
+            onPreviewLocal={handlePreviewLocalSource}
+            onPreviewUrl={handlePreviewUrlSource}
+            onCommitPreview={handleCommitJobSourcePreview}
+            onDiscardPreview={handleDiscardJobSourcePreview}
+            onRefreshContent={handleRefreshContent}
+            onSearchContent={handleSearchContent}
+            onOpenContent={handleOpenContent}
+            onContinue={() => navigateTo(recommendation.route)}
+          />
+        {:else if applicationsViewFailed}
+          <Alert.Root variant="destructive" class="min-h-12">
+            <Alert.Description>{copy.viewLoadFailed}</Alert.Description>
+          </Alert.Root>
+        {:else}
+          <LoadingPanel label={copy.loading} class="min-h-32" />
+        {/if}
       {:else if activeView === "workflow"}
         {#if WorkflowView}
           <WorkflowView
@@ -2678,23 +2894,12 @@
             onCancelTask={handleCancelTask}
             onPrepareTaskAgain={handlePrepareTaskAgain}
           />
+        {:else if workflowViewFailed}
+          <Alert.Root variant="destructive" class="min-h-12">
+            <Alert.Description>{copy.viewLoadFailed}</Alert.Description>
+          </Alert.Root>
         {:else}
-          <div
-            class="flex min-h-72 items-center justify-center gap-2 text-sm text-muted-foreground"
-            role="status"
-          >
-            {#if workflowViewFailed}
-              <span>{copy.viewLoadFailed}</span>
-            {:else}
-              <LoaderCircle
-                size={17}
-                strokeWidth={1.8}
-                class="animate-spin motion-reduce:animate-none"
-                aria-hidden="true"
-              />
-              <span>{copy.loading}</span>
-            {/if}
-          </div>
+          <LoadingPanel label={copy.loading} class="min-h-32" />
         {/if}
       {:else if activeView === "delivery"}
         {#if DeliveryView}
@@ -2720,42 +2925,39 @@
             onLoadRender={handleLoadRender}
             onExportRender={handleExportRender}
           />
+        {:else if deliveryViewFailed}
+          <Alert.Root variant="destructive" class="min-h-12">
+            <Alert.Description>{copy.viewLoadFailed}</Alert.Description>
+          </Alert.Root>
         {:else}
-          <div
-            class="flex min-h-72 items-center justify-center gap-2 text-sm text-muted-foreground"
-            role="status"
-          >
-            {#if deliveryViewFailed}
-              <span>{copy.viewLoadFailed}</span>
-            {:else}
-              <LoaderCircle
-                size={17}
-                strokeWidth={1.8}
-                class="animate-spin motion-reduce:animate-none"
-                aria-hidden="true"
-              />
-              <span>{copy.loading}</span>
-            {/if}
-          </div>
+          <LoadingPanel label={copy.loading} class="min-h-32" />
         {/if}
       {:else if activeView === "profile"}
-        <ProfileView
-          {copy}
-          {desktopRuntime}
-          {activeWorkspace}
-          {selectedJobId}
-          focus={activeView === "profile" ? activeDetail : null}
-          sources={profileSources}
-          {profileRevision}
-          evidence={profileEvidence}
-          loading={profileLoading}
-          {busy}
-          onRefresh={handleRefreshProfile}
-          onImport={handleImportProfileSource}
-          onInitialize={handleInitializeProfile}
-          onLoadEvidence={handleLoadProfileEvidence}
-          onConfirmEvidence={handleConfirmProfileEvidence}
-        />
+        {#if ProfileView}
+          <ProfileView
+            {copy}
+            {desktopRuntime}
+            {activeWorkspace}
+            {selectedJobId}
+            focus={activeView === "profile" ? activeDetail : null}
+            sources={profileSources}
+            {profileRevision}
+            evidence={profileEvidence}
+            loading={profileLoading}
+            {busy}
+            onRefresh={handleRefreshProfile}
+            onImport={handleImportProfileSource}
+            onInitialize={handleInitializeProfile}
+            onLoadEvidence={handleLoadProfileEvidence}
+            onConfirmEvidence={handleConfirmProfileEvidence}
+          />
+        {:else if profileViewFailed}
+          <Alert.Root variant="destructive" class="min-h-12">
+            <Alert.Description>{copy.viewLoadFailed}</Alert.Description>
+          </Alert.Root>
+        {:else}
+          <LoadingPanel label={copy.loading} class="min-h-32" />
+        {/if}
       {:else if activeView === "agent"}
         {#if AgentView}
           <AgentView
@@ -2784,205 +2986,73 @@
             onCancelTurn={handleCancelAgentTurn}
             onExport={handleExportAgentPack}
           />
+        {:else if agentViewFailed}
+          <Alert.Root variant="destructive" class="min-h-12">
+            <Alert.Description>{copy.viewLoadFailed}</Alert.Description>
+          </Alert.Root>
         {:else}
-          <div
-            class="flex min-h-72 items-center justify-center gap-2 text-sm text-muted-foreground"
-            role="status"
-          >
-            {#if agentViewFailed}
-              <span>{copy.viewLoadFailed}</span>
-            {:else}
-              <LoaderCircle
-                size={17}
-                strokeWidth={1.8}
-                class="animate-spin motion-reduce:animate-none"
-                aria-hidden="true"
-              />
-              <span>{copy.loading}</span>
-            {/if}
-          </div>
+          <LoadingPanel label={copy.loading} class="min-h-32" />
         {/if}
       {:else if activeView === "settings"}
-        <SettingsView
-          {copy}
-          {desktopRuntime}
-          {busy}
-          {language}
-          {darkMode}
-          {compact}
-          {reducedMotion}
-          {textScale}
-          onLanguageChange={(value) => (language = value)}
-          onDarkModeChange={(value) => (darkMode = value)}
-          onCompactChange={(value) => (compact = value)}
-          onReducedMotionChange={(value) => (reducedMotion = value)}
-          onTextScaleChange={(value) => (textScale = value)}
-          onLoadCliDefaults={handleLoadCliDefaults}
-          onCheckCli={handleCheckCli}
-          onInstallCli={handleInstallCli}
-          onUninstallCli={handleUninstallCli}
-          onConfigureCliPath={handleConfigureCliPath}
-          onCheckUpdates={handleCheckUpdates}
-          onLoadCatalog={handleLoadCatalog}
-          onLoadSchema={handleLoadSchema}
-          onLoadResource={handleLoadResource}
-          onExportCatalog={handleExportCatalog}
-        />
+        {#if SettingsView}
+          <SettingsView
+            {copy}
+            {desktopRuntime}
+            {busy}
+            {language}
+            {darkMode}
+            {compact}
+            {reducedMotion}
+            {textScale}
+            onLanguageChange={(value) => (language = value)}
+            onDarkModeChange={(value) => (darkMode = value)}
+            onCompactChange={(value) => (compact = value)}
+            onReducedMotionChange={(value) => (reducedMotion = value)}
+            onTextScaleChange={(value) => (textScale = value)}
+            onLoadCliDefaults={handleLoadCliDefaults}
+            onCheckCli={handleCheckCli}
+            onInstallCli={handleInstallCli}
+            onUninstallCli={handleUninstallCli}
+            onConfigureCliPath={handleConfigureCliPath}
+            onCheckUpdates={handleCheckUpdates}
+            onLoadCatalog={handleLoadCatalog}
+            onLoadSchema={handleLoadSchema}
+            onLoadResource={handleLoadResource}
+            onExportCatalog={handleExportCatalog}
+          />
+        {:else if settingsViewFailed}
+          <Alert.Root variant="destructive" class="min-h-12">
+            <Alert.Description>{copy.viewLoadFailed}</Alert.Description>
+          </Alert.Root>
+        {:else}
+          <LoadingPanel label={copy.loading} class="min-h-32" />
+        {/if}
       {:else}
-        <section class="flex flex-col items-start justify-between gap-6 2xl:flex-row 2xl:gap-8">
-          <div class="max-w-3xl">
-            <Badge variant="secondary" class="mb-4">{copy.today}</Badge>
-            <h1 class="text-balance text-4xl font-semibold tracking-[-0.035em]">
-              {copy.pageTitle}
-            </h1>
-            <p class="mt-4 max-w-2xl text-pretty text-base leading-7 text-muted-foreground">
-              {copy.pageDescription}
-            </p>
-          </div>
-          <div class="flex shrink-0 flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              class="min-h-11"
-              disabled={!activeWorkspace}
-              onclick={() => void navigateTo({ view: "applications", detail: "source-intake" })}
-            >
-              <FileUp size={17} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
-              {copy.importSource}
-            </Button>
-            <Button
-              class="min-h-11"
-              disabled={!activeWorkspace}
-              onclick={() => void navigateTo({ view: "applications" })}
-            >
-              <Plus size={17} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
-              {copy.newApplication}
-            </Button>
-          </div>
-        </section>
-
-        <section
-          class="mt-8 grid gap-[var(--shell-block-gap)] md:grid-cols-2 xl:grid-cols-4"
-          aria-label={copy.today}
-        >
-          <Card.Root class="shadow-none">
-            <Card.Header class="p-[var(--shell-card-padding)] pb-2">
-              <Card.Description>{copy.activeApplications}</Card.Description>
-              <Card.Title class="text-3xl">{jobs.length}</Card.Title>
-            </Card.Header>
-            <Card.Content class="p-[var(--shell-card-padding)] pt-0 text-sm text-muted-foreground">
-              {activeWorkspace ? copy.applicationsDescription : copy.activeDescription}
-            </Card.Content>
-          </Card.Root>
-          <Card.Root class="shadow-none">
-            <Card.Header class="p-[var(--shell-card-padding)] pb-2">
-              <Card.Description>{copy.upcomingDeadlines}</Card.Description>
-              <Card.Title class="text-3xl">{upcomingDeadlineItems.length}</Card.Title>
-            </Card.Header>
-            <Card.Content class="p-[var(--shell-card-padding)] pt-0 text-sm text-muted-foreground">
-              {nearestDeadlineItem
-                ? `${copy.nextDeadline}: ${nearestDeadlineItem.metadata.deadline} — ${nearestDeadlineItem.job.title}`
-                : copy.noUpcomingDeadlines}
-            </Card.Content>
-          </Card.Root>
-          <Card.Root class="shadow-none">
-            <Card.Header class="p-[var(--shell-card-padding)] pb-2">
-              <Card.Description>{copy.workflowHealth}</Card.Description>
-              <Card.Title class="flex items-center gap-2 text-base">
-                <span class="size-2 rounded-full bg-[var(--success)]"></span>
-                {workspaceHealth?.check.ok === false ? copy.integrityIssues : copy.healthy}
-              </Card.Title>
-            </Card.Header>
-            <Card.Content class="p-[var(--shell-card-padding)] pt-0 text-sm text-muted-foreground">
-              {copy.healthDescription}
-            </Card.Content>
-          </Card.Root>
-          <Card.Root class="shadow-none">
-            <Card.Header class="p-[var(--shell-card-padding)] pb-2">
-              <Card.Description>{copy.localFirst}</Card.Description>
-              <Card.Title class="flex items-center gap-2 text-base">
-                <ShieldCheck size={18} strokeWidth={1.8} aria-hidden="true" />
-                {copy.healthy}
-              </Card.Title>
-            </Card.Header>
-            <Card.Content class="p-[var(--shell-card-padding)] pt-0 text-sm text-muted-foreground">
-              {copy.localDescription}
-            </Card.Content>
-          </Card.Root>
-        </section>
-
-        <section class="mt-8 grid gap-6 xl:grid-cols-[1.3fr_0.9fr]">
-          <Card.Root class="shadow-none">
-            <Card.Header>
-              <Card.Title>{copy.nextActions}</Card.Title>
-              <Card.Description>
-                {selectedDossier
-                  ? `${selectedDossier.job.title} — ${selectedDossier.job.institution}`
-                  : copy.chooseWorkspaceDescription}
-              </Card.Description>
-            </Card.Header>
-            <Card.Content>
-              <div class="flex min-h-48 flex-col items-center justify-center rounded-xl border border-dashed bg-muted/25 px-8 text-center">
-                <div class="grid size-11 place-items-center rounded-xl bg-accent text-accent-foreground">
-                  <Database size={20} strokeWidth={1.8} aria-hidden="true" />
-                </div>
-                <h2 class="mt-4 text-base font-semibold">
-                  {copy.recommendationTitle[recommendation.reason]}
-                </h2>
-                <p class="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-                  {selectedDossier?.next_actions[0]?.description ??
-                    copy.recommendationDescription[recommendation.reason]}
-                </p>
-                <Button
-                  class="mt-5 min-h-11"
-                  onclick={() => void navigateTo(recommendation.route)}
-                >
-                  {copy.continueNextAction}
-                </Button>
-              </div>
-            </Card.Content>
-          </Card.Root>
-
-          <Card.Root class="shadow-none">
-            <Card.Header>
-              <div class="flex items-center justify-between gap-4">
-                <div>
-                  <Card.Title>{copy.diagnostics}</Card.Title>
-                  <Card.Description class="mt-1.5">{copy.diagnosticsDescription}</Card.Description>
-                </div>
-                <div class="grid size-10 shrink-0 place-items-center rounded-xl bg-accent text-accent-foreground">
-                  <Activity size={19} strokeWidth={1.8} aria-hidden="true" />
-                </div>
-              </div>
-            </Card.Header>
-            <Card.Content class="space-y-4">
-              <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
-                <dt class="text-muted-foreground">{copy.version}</dt>
-                <dd class="truncate text-right font-medium">{product?.version ?? "—"}</dd>
-                <dt class="text-muted-foreground">{copy.protocol}</dt>
-                <dd class="truncate text-right font-medium">{product?.protocol ?? "—"}</dd>
-                <dt class="text-muted-foreground">{copy.platform}</dt>
-                <dd class="truncate text-right font-medium">
-                  {product ? `${product.target_os} / ${product.target_arch}` : "—"}
-                </dd>
-              </dl>
-              <Separator />
-              <div class="flex items-center justify-between gap-4">
-                <p class="text-sm text-muted-foreground" aria-live="polite">
-                  {doctor?.summary ?? copy.diagnosticsReady}
-                </p>
-                <Button
-                  variant="outline"
-                  class="min-h-11 shrink-0"
-                  disabled={doctorRunning || !desktopRuntime}
-                  onclick={handleDoctor}
-                >
-                  {doctorRunning ? copy.runningDiagnostics : copy.runDiagnostics}
-                </Button>
-              </div>
-            </Card.Content>
-          </Card.Root>
-        </section>
+        {#if TodayView}
+          <TodayView
+            {copy}
+            {desktopRuntime}
+            {activeWorkspace}
+            jobCount={jobs.length}
+            upcomingDeadlineCount={upcomingDeadlineItems.length}
+            {nearestDeadlineItem}
+            {workspaceHealth}
+            {selectedDossier}
+            {recommendation}
+            {product}
+            {doctor}
+            {doctorRunning}
+            onNavigate={navigateTo}
+            onDoctor={handleDoctor}
+          />
+        {:else if todayViewFailed}
+          <Alert.Root variant="destructive" class="min-h-12">
+            <Alert.Description>{copy.viewLoadFailed}</Alert.Description>
+          </Alert.Root>
+        {:else}
+          <LoadingPanel label={copy.loading} class="min-h-32" />
+        {/if}
       {/if}
     </div>
-  </main>
-</div>
+  </Sidebar.Inset>
+</Sidebar.DesktopProvider>
