@@ -58,6 +58,14 @@ impl DesktopCommandError {
         }
     }
 
+    pub(crate) fn system_open(message: impl Into<String>) -> Self {
+        Self {
+            code: "system-open-failure".to_owned(),
+            message: message.into(),
+            retryable: true,
+        }
+    }
+
     pub(crate) fn worker(message: String) -> Self {
         Self {
             code: "desktop-worker-failure".to_owned(),

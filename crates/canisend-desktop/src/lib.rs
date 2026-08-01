@@ -66,6 +66,7 @@ pub fn run() {
             delivery::document_workspace,
             delivery::export_package,
             delivery::export_render,
+            delivery::export_render_and_open,
             delivery::preview_render,
             delivery::reconcile_package,
             delivery::replace_package_projection,

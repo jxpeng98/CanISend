@@ -762,6 +762,7 @@ export const messages = {
     previewPdf: "Preview PDF",
     exactPdfPreview: "Final PDF preview",
     previewReady: "Final PDF preview ready",
+    openSystemViewer: "Export and open in system viewer",
     previewUnavailable:
       "If the embedded viewer is unavailable, export this same validated PDF and open it with the system viewer.",
     documentKindLabels: {
@@ -1534,6 +1535,7 @@ export const messages = {
     previewPdf: "预览 PDF",
     exactPdfPreview: "最终 PDF 预览",
     previewReady: "最终 PDF 已可预览",
+    openSystemViewer: "导出并使用系统阅读器打开",
     previewUnavailable:
       "如果内嵌查看器不可用，请导出这份相同的已验证 PDF，并使用系统阅读器打开。",
     documentKindLabels: {

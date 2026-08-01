@@ -57,6 +57,7 @@
     exportAgentPack,
     exportPackage,
     exportRender,
+    exportRenderAndOpen,
     exportResourceCatalog,
     exportTaskInputs,
     getAgentAssistance,
@@ -2196,6 +2197,33 @@
     return true;
   }
 
+  async function handleOpenRender(
+    jobId: string,
+    destination: string,
+    kind: DocumentKind,
+    confirmedPrivateExport: boolean,
+  ): Promise<boolean> {
+    if (!activeWorkspace) return false;
+    const result = await runAction(
+      () =>
+        exportRenderAndOpen(
+          activeWorkspace!.path,
+          jobId,
+          destination,
+          kind,
+          confirmedPrivateExport,
+        ),
+      {
+        operation: "render.export",
+        route: { view: "delivery", detail: "delivery-render", jobId },
+        jobId,
+      },
+    );
+    if (!result) return false;
+    notice = result.summary;
+    return true;
+  }
+
   async function handleLoadCliDefaults(): Promise<DesktopCliDefaults | null> {
     const result = await runAction(getDesktopCliDefaults);
     return result;
@@ -2946,6 +2974,7 @@
             onLoadRender={handleLoadRender}
             onPreviewRender={handlePreviewRender}
             onExportRender={handleExportRender}
+            onOpenRender={handleOpenRender}
           />
         {:else if deliveryViewFailed}
           <Alert.Root variant="destructive" class="min-h-12">

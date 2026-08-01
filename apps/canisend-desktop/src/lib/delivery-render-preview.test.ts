@@ -69,6 +69,7 @@ describe("delivery final PDF preview", () => {
   it("previews the current validated PDF only after private-read consent", async () => {
     const user = userEvent.setup();
     const onPreviewRender = vi.fn(async () => new Uint8Array([37, 80, 68, 70]));
+    const onOpenRender = vi.fn(async () => true);
 
     render(DeliveryView, {
       copy: messages.en,
@@ -92,6 +93,7 @@ describe("delivery final PDF preview", () => {
       onLoadRender: vi.fn(async () => manifest),
       onPreviewRender,
       onExportRender: vi.fn(async () => true),
+      onOpenRender,
     });
 
     await waitFor(() =>
@@ -119,5 +121,16 @@ describe("delivery final PDF preview", () => {
       ).getAttribute("src"),
     ).toBe("blob:canisend-render-preview");
     expect(screen.getByText(PDF_SHA)).toBeTruthy();
+
+    await user.click(screen.getByLabelText(messages.en.privateExportConsent));
+    await user.click(
+      screen.getByRole("button", { name: messages.en.openSystemViewer }),
+    );
+    expect(onOpenRender).toHaveBeenCalledWith(
+      JOB_ID,
+      `jobs/${JOB_ID}/rendered`,
+      "cv",
+      true,
+    );
   });
 });

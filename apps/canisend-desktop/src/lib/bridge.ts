@@ -1060,6 +1060,13 @@ export interface RenderManifestRecord {
   revision: number;
 }
 
+export interface RenderExportReadModel {
+  render_manifest: RenderManifestRecord;
+  destination: string;
+  files: string[];
+  submission_performed: false;
+}
+
 export interface DesktopCliDefaults {
   bundled_source: string | null;
   destination: string;
@@ -2093,12 +2100,30 @@ export async function exportRender(
   jobId: string,
   destination: string,
   confirmedPrivateExport: boolean,
-): Promise<ActionReceipt<Record<string, unknown>>> {
+): Promise<ActionReceipt<RenderExportReadModel>> {
   return invoke("export_render", {
     request: {
       workspace,
       job_id: jobId,
       destination,
+      confirmed_private_export: confirmedPrivateExport,
+    },
+  });
+}
+
+export async function exportRenderAndOpen(
+  workspace: string,
+  jobId: string,
+  destination: string,
+  kind: DocumentKind,
+  confirmedPrivateExport: boolean,
+): Promise<ActionReceipt<RenderExportReadModel>> {
+  return invoke("export_render_and_open", {
+    request: {
+      workspace,
+      job_id: jobId,
+      destination,
+      kind,
       confirmed_private_export: confirmedPrivateExport,
     },
   });

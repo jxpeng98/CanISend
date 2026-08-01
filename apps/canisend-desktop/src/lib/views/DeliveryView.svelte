@@ -2,6 +2,7 @@
   import {
     Archive,
     CheckCircle2,
+    ExternalLink,
     FileCheck2,
     FileOutput,
     FileText,
@@ -98,6 +99,12 @@
       destination: string,
       confirmedPrivateExport: boolean,
     ) => Promise<boolean>;
+    onOpenRender: (
+      jobId: string,
+      destination: string,
+      kind: DocumentKind,
+      confirmedPrivateExport: boolean,
+    ) => Promise<boolean>;
   };
 
   let {
@@ -122,6 +129,7 @@
     onLoadRender,
     onPreviewRender,
     onExportRender,
+    onOpenRender,
   }: Props = $props();
 
   let section = $state("documents");
@@ -291,6 +299,21 @@
     await onExportRender(
       selectedJobId,
       renderDestination,
+      privateExportConsent,
+    );
+  }
+
+  async function openRenderedPdf(): Promise<void> {
+    formError = null;
+    if (!previewDocument) return;
+    if (!privateExportConsent) {
+      formError = copy.privateExportConsent;
+      return;
+    }
+    await onOpenRender(
+      selectedJobId,
+      renderDestination,
+      previewDocument.kind,
       privateExportConsent,
     );
   }
@@ -739,15 +762,25 @@
                   >
                     {previewDocument.pdf_artifact.sha256}
                   </span>
+                  <Button
+                    variant="outline"
+                    size="icon-sm"
+                    disabled={!desktopRuntime ||
+                      busy ||
+                      !privateExportConsent ||
+                      !renderDestination}
+                    aria-label={copy.openSystemViewer}
+                    title={copy.previewUnavailable}
+                    onclick={openRenderedPdf}
+                  >
+                    <ExternalLink size={15} strokeWidth={1.8} aria-hidden="true" />
+                  </Button>
                 </div>
                 <iframe
                   src={previewUrl}
                   title={`${copy.exactPdfPreview}: ${copy.documentKindLabels[previewDocument.kind]}`}
                   class="h-[min(70vh,48rem)] min-h-[28rem] w-full bg-white"
                 ></iframe>
-                <p class="border-t px-3 py-2 text-xs text-muted-foreground">
-                  {copy.previewUnavailable}
-                </p>
               </section>
               <output class="sr-only" aria-live="polite">
                 {copy.previewReady}: {copy.documentKindLabels[previewDocument.kind]}

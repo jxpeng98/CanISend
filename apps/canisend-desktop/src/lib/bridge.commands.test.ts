@@ -23,6 +23,7 @@ import {
   copyAgentHandoff,
   copyAgentMcpConfiguration,
   exportPackage,
+  exportRenderAndOpen,
   getAgentAssistance,
   getAgentSkillsStatus,
   getApplicationDossier,
@@ -243,6 +244,26 @@ describe("typed Tauri command requests", () => {
         job_id: "job-id",
         kind: "cover-letter",
         confirmed_private_read: true,
+      },
+    });
+  });
+
+  it("opens only a selected job-scoped render behind private-export consent", async () => {
+    await exportRenderAndOpen(
+      "/tmp/workspace",
+      "job-id",
+      "jobs/job-id/rendered",
+      "cv",
+      true,
+    );
+
+    expect(mocks.invoke).toHaveBeenCalledWith("export_render_and_open", {
+      request: {
+        workspace: "/tmp/workspace",
+        job_id: "job-id",
+        destination: "jobs/job-id/rendered",
+        kind: "cv",
+        confirmed_private_export: true,
       },
     });
   });

@@ -67,13 +67,23 @@ remain in Phase 3.
 
 ## Phase 3: native preview qualification and viewer fallback
 
-Status: pending native matrix execution.
+Status: secure system-viewer fallback implemented; native matrix execution remains pending.
 
 - macOS: qualify the blob-backed PDF iframe in the packaged WKWebView app.
 - Windows: qualify the same bytes in WebView2.
 - Linux glibc and musl packaging: qualify WebKitGTK PDF support separately.
 - If a platform WebView cannot display PDFs, export/open the same validated PDF with the system
   viewer. Do not silently render HTML or switch templates.
+- The desktop fallback requires explicit private-export consent, reuses the existing job-scoped
+  render export, resolves the exact requested PDF inside the real workspace, and verifies its byte
+  count and SHA-256 before launching the configured system handler. The frontend is not granted a
+  general-purpose path opener.
+- Use `open` 5.4.0 without its legacy `insecure` Windows feature so the fallback remains a small,
+  cross-platform Rust dependency and launcher options stay separated from the validated path where
+  the operating system supports that boundary.
+- A local macOS arm64 `release` comparison measured the complete fallback at 60,529,536 bytes versus
+  the pre-change 60,446,320-byte host: +83,216 bytes (+0.14%). Windows and Linux package deltas remain
+  part of the scheduled native matrix rather than being inferred from macOS.
 - Add PDF.js only if native qualification proves that direct in-App preview is unreliable. This
   keeps the default package small and avoids bundling a second PDF renderer prematurely.
 - If Typst compilation fails, keep the structured source and managed `.typ`, report bounded

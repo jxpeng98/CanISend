@@ -1,4 +1,7 @@
-use std::path::PathBuf;
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 use canisend_app::{
     ActionReceipt, Application, DocumentWorkspaceReadModel, PackageExportRequest,
@@ -11,6 +14,7 @@ use canisend_contracts::{
 };
 use serde::Deserialize;
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 
 use crate::commands::{DesktopCommandError, run_worker};
 
@@ -55,6 +59,16 @@ pub(crate) struct PrivateExportRequest {
     workspace: PathBuf,
     job_id: String,
     destination: String,
+    confirmed_private_export: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct OpenRenderRequest {
+    workspace: PathBuf,
+    job_id: String,
+    destination: String,
+    kind: DocumentKind,
     confirmed_private_export: bool,
 }
 
@@ -155,6 +169,120 @@ fn export_render_impl(
         .map_err(DesktopCommandError::application)?;
     Application::export_render(&request.workspace, application_request, Some(consent))
         .map_err(DesktopCommandError::application)
+}
+
+fn validated_exported_pdf_path(
+    workspace: &Path,
+    export: &RenderExportReadModel,
+    kind: DocumentKind,
+) -> Result<PathBuf, DesktopCommandError> {
+    let document = export
+        .render_manifest
+        .documents
+        .iter()
+        .find(|document| document.kind == kind)
+        .ok_or_else(|| {
+            DesktopCommandError::state("The current render does not contain the requested PDF")
+        })?;
+    let expected_relative = format!(
+        "{}/{}.pdf",
+        export.destination.as_str(),
+        document_kind_slug(kind)
+    );
+    let relative = export
+        .files
+        .iter()
+        .find(|path| path.as_str() == expected_relative)
+        .ok_or_else(|| {
+            DesktopCommandError::state(
+                "The render export did not report the requested job-scoped PDF",
+            )
+        })?;
+
+    let workspace_metadata = fs::symlink_metadata(workspace).map_err(|error| {
+        DesktopCommandError::state(format!("Cannot inspect the selected workspace: {error}"))
+    })?;
+    if workspace_metadata.file_type().is_symlink() || !workspace_metadata.is_dir() {
+        return Err(DesktopCommandError::state(
+            "The selected workspace must be a real directory",
+        ));
+    }
+
+    let exported_path = workspace.join(relative.as_str());
+    let exported_metadata = fs::symlink_metadata(&exported_path).map_err(|error| {
+        DesktopCommandError::state(format!("Cannot inspect the exported PDF: {error}"))
+    })?;
+    if exported_metadata.file_type().is_symlink() || !exported_metadata.is_file() {
+        return Err(DesktopCommandError::state(
+            "The exported PDF must be a regular file",
+        ));
+    }
+    if exported_metadata.len() != document.byte_count {
+        return Err(DesktopCommandError::state(
+            "The exported PDF size no longer matches the validated render",
+        ));
+    }
+
+    let canonical_workspace = fs::canonicalize(workspace).map_err(|error| {
+        DesktopCommandError::state(format!("Cannot resolve the selected workspace: {error}"))
+    })?;
+    let canonical_export = fs::canonicalize(&exported_path).map_err(|error| {
+        DesktopCommandError::state(format!("Cannot resolve the exported PDF: {error}"))
+    })?;
+    if !canonical_export.starts_with(&canonical_workspace) {
+        return Err(DesktopCommandError::state(
+            "The exported PDF resolved outside the selected workspace",
+        ));
+    }
+
+    let bytes = fs::read(&canonical_export).map_err(|error| {
+        DesktopCommandError::state(format!("Cannot verify the exported PDF: {error}"))
+    })?;
+    let actual_sha256 = hex::encode(Sha256::digest(&bytes));
+    if actual_sha256 != document.pdf_artifact.sha256.as_str() {
+        return Err(DesktopCommandError::state(
+            "The exported PDF no longer matches the validated render",
+        ));
+    }
+    Ok(canonical_export)
+}
+
+fn export_render_and_open_impl<F>(
+    request: OpenRenderRequest,
+    opener: F,
+) -> Result<ActionReceipt<RenderExportReadModel>, DesktopCommandError>
+where
+    F: FnOnce(&Path) -> Result<(), String>,
+{
+    let workspace = request.workspace.clone();
+    let kind = request.kind;
+    let mut receipt = export_render_impl(PrivateExportRequest {
+        workspace,
+        job_id: request.job_id,
+        destination: request.destination,
+        confirmed_private_export: request.confirmed_private_export,
+    })?;
+    let path = validated_exported_pdf_path(&request.workspace, &receipt.data, kind)?;
+    opener(&path).map_err(|error| {
+        DesktopCommandError::system_open(format!(
+            "The PDF was exported, but the system viewer could not be opened: {error}"
+        ))
+    })?;
+    receipt.status = "opened".to_owned();
+    receipt.summary = format!(
+        "Exported validated render files and opened the {} PDF in the system viewer",
+        document_kind_slug(kind)
+    );
+    Ok(receipt)
+}
+
+const fn document_kind_slug(kind: DocumentKind) -> &'static str {
+    match kind {
+        DocumentKind::CoverLetter => "cover-letter",
+        DocumentKind::ResearchStatement => "research-statement",
+        DocumentKind::TeachingStatement => "teaching-statement",
+        DocumentKind::Cv => "cv",
+    }
 }
 
 fn preview_render_impl(
@@ -304,6 +432,18 @@ pub(crate) async fn export_render(
     run_worker(move || export_render_impl(request)).await
 }
 
+#[tauri::command]
+pub(crate) async fn export_render_and_open(
+    request: OpenRenderRequest,
+) -> Result<ActionReceipt<RenderExportReadModel>, DesktopCommandError> {
+    run_worker(move || {
+        export_render_and_open_impl(request, |path| {
+            open::that_detached(path).map_err(|error| error.to_string())
+        })
+    })
+    .await
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::atomic::{AtomicU64, Ordering};
@@ -360,6 +500,90 @@ mod tests {
         })
         .expect_err("render export needs consent");
         assert_eq!(export.code, "consent-required");
+
+        let open = export_render_and_open_impl(
+            OpenRenderRequest {
+                workspace: temporary_root("open-missing"),
+                job_id: "not-an-id".to_owned(),
+                destination: "jobs/not-an-id/rendered".to_owned(),
+                kind: DocumentKind::Cv,
+                confirmed_private_export: false,
+            },
+            |_| panic!("viewer must not open without private-export consent"),
+        )
+        .expect_err("system viewer needs export consent");
+        assert_eq!(open.code, "consent-required");
+    }
+
+    #[test]
+    fn system_viewer_path_must_match_the_exact_exported_pdf() {
+        let workspace = temporary_root("viewer-path");
+        let job_id = "019f2f55-7c00-7000-8000-000000000101";
+        let directory = workspace.join(format!("jobs/{job_id}/rendered"));
+        fs::create_dir_all(&directory).expect("create export fixture");
+        let bytes = b"%PDF exact validated fixture";
+        let sha256 = hex::encode(Sha256::digest(bytes));
+        let pdf_path = directory.join("cv.pdf");
+        fs::write(&pdf_path, bytes).expect("write PDF fixture");
+        let export: RenderExportReadModel = serde_json::from_value(json!({
+            "render_manifest": {
+                "id": "019f2f55-7c00-7000-8000-000000000800",
+                "job_id": job_id,
+                "package_artifact": {
+                    "kind": "package-manifest",
+                    "id": "019f2f55-7c00-7000-8000-000000000700",
+                    "revision": 1,
+                    "sha256": "a".repeat(64)
+                },
+                "documents": [{
+                    "kind": "cv",
+                    "document_artifact": {
+                        "kind": "cv",
+                        "id": "019f2f55-7c00-7000-8000-000000000701",
+                        "revision": 1,
+                        "sha256": "b".repeat(64)
+                    },
+                    "typst_artifact": {
+                        "kind": "typst-source",
+                        "id": "019f2f55-7c00-7000-8000-000000000702",
+                        "revision": 1,
+                        "sha256": "c".repeat(64)
+                    },
+                    "pdf_artifact": {
+                        "kind": "pdf",
+                        "id": "019f2f55-7c00-7000-8000-000000000703",
+                        "revision": 1,
+                        "sha256": sha256
+                    },
+                    "page_count": 1,
+                    "byte_count": bytes.len(),
+                    "warning_count": 0,
+                    "elapsed_millis": 1
+                }],
+                "rendered_at": "2026-08-01T12:00:00Z",
+                "submission_performed": false,
+                "revision": 1
+            },
+            "destination": format!("jobs/{job_id}/rendered"),
+            "files": [
+                format!("jobs/{job_id}/rendered/cv.pdf"),
+                format!("jobs/{job_id}/rendered/render-manifest.json")
+            ],
+            "submission_performed": false
+        }))
+        .expect("valid render export fixture");
+
+        assert_eq!(
+            validated_exported_pdf_path(&workspace, &export, DocumentKind::Cv)
+                .expect("exact exported PDF"),
+            fs::canonicalize(&pdf_path).expect("canonical PDF fixture")
+        );
+
+        let mut changed = bytes.to_vec();
+        changed[0] ^= 1;
+        fs::write(&pdf_path, changed).expect("corrupt PDF fixture");
+        assert!(validated_exported_pdf_path(&workspace, &export, DocumentKind::Cv).is_err());
+        fs::remove_dir_all(workspace).expect("remove export fixture");
     }
 
     #[test]
