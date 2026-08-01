@@ -12,6 +12,12 @@ The macOS GUI supports persistent English and Simplified Chinese interfaces, nat
 text scaling, light/dark appearance, reduced motion, and the complete application workflow. Apple Silicon users can
 install from the new read-only DMG with an Applications drag target or retain the portable ZIP distribution.
 
+The desktop now shares one checked-in shadcn-svelte Nova component system across the shell and every product page.
+Its restrained default radius, denser panels and spacing, clearer selected-tab surfaces, reusable page patterns,
+and overflow-safe responsive text make more of each workflow visible without crowding the interface. Comfortable
+and compact density now produce intentionally distinct layouts, while focus, keyboard, reduced-motion, bilingual,
+and 200% text behavior remain covered by the browser and packaged-App accessibility matrices.
+
 The desktop presents that workflow as one six-stage application journey with a shared workspace/application context,
 restored job selection, one recommended next action, and body-free recent-action continuity. Agent next actions and
 reviewed task results return to the exact criteria, profile, document, review, package, or render surface instead of

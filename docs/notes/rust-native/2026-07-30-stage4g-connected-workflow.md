@@ -4,15 +4,18 @@
 
 **Baseline:** `v1.0.0-alpha.4` at `b42817e812a4444dbcd2dd9f5c4c3c2ed50a96a9`.
 
-**Candidate:** local annotated tag `v1.0.0-alpha.5`.
+**Preliminary source marker:** local-only annotated tag `v1.0.0-alpha.5` at
+`376887fcc3ccb6a6d76d79d4431de1a19a280ad6`.
 
 ## Outcome
 
 The connected Svelte workflow passed its focused source gates and a local Apple Silicon macOS
 package lifecycle. The workspace, exact internal dependency pins, lockfiles, desktop metadata,
 release notes, workflow default, package contract, GUI parity scope, and measured performance
-baseline all identify `1.0.0-alpha.5`. The reviewed source is bound locally by the sequential
-annotated tag `v1.0.0-alpha.5`.
+baseline all identify `1.0.0-alpha.5`. The preliminary local tag bound that exact Stage 4G source
+for review, but it was never pushed and is not a publication identity. Later Alpha.5 development
+supersedes it; the public tag must be created only after a successful non-publishing candidate
+binds the final source commit and exact release bytes.
 
 This record proves that the tagged source can produce and run the expected ad-hoc-signed ZIP and
 DMG on the development Mac. It is local qualification, not public release evidence: the tag has
@@ -106,5 +109,8 @@ maximum, 60,470,016-byte GUI executable, and 113,577,984-byte apparent App bundl
 - Run consented real-account Codex and Claude turns through their normal local configuration;
   automated tests already prove exact host-owned session resume with fixed local runtimes and
   never transmit private workspace context.
-- Push the annotated tag only after explicit authorization, then qualify the exact candidate bytes
-  in the five-target native GitHub release matrix before creating a public GitHub release.
+- Dispatch the five-target native GitHub matrix for the future Alpha.5 tag at the final clean
+  source commit, without creating or pushing the public tag.
+- After the candidate passes and its complete release artifact remains available, recreate the
+  annotated local tag at that exact commit, push it, and let tag promotion reverify and publish
+  only the candidate's original bytes.
