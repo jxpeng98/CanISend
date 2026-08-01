@@ -140,14 +140,15 @@ missing companion manifest. Verify the mounted app with the commands below, then
 
 The portable desktop ZIP has exactly two top-level entries: `CanISend.app` and
 `CanISend.app.manifest.json`. Reject an archive with another top-level entry, a symbolic link, or
-a different filename. After extracting, compare the companion manifest's SHA-256 values with the
-final signed GUI, bundled CLI, `Info.plist`, and `BUNDLE.json`, then verify the application:
+a different filename. After extracting, confirm the package contains exactly one executable and
+compare the companion manifest's SHA-256 values with the final signed unified host, `Info.plist`,
+and `BUNDLE.json`, then verify the application:
 
 ```console
 codesign --verify --deep --strict --verbose=4 ./CanISend.app
 codesign --display --verbose=4 ./CanISend.app
-./CanISend.app/Contents/Resources/bin/canisend version --json
-./CanISend.app/Contents/Resources/bin/canisend doctor --json
+./CanISend.app/Contents/MacOS/canisend-gui version --json
+./CanISend.app/Contents/MacOS/canisend-gui doctor --json
 ```
 
 The signature display must report an ad-hoc signature. The bundle metadata and qualification

@@ -2,6 +2,7 @@
   import type { Snippet } from "svelte";
   import type { HTMLAttributes } from "svelte/elements";
 
+  import ContextHelp from "$lib/components/patterns/ContextHelp.svelte";
   import { Badge } from "$lib/components/ui/badge/index.js";
   import { cn, type WithElementRef } from "$lib/utils.js";
 
@@ -31,12 +32,12 @@
 >
   <div data-slot="page-intro" class="min-w-0 max-w-4xl">
     <Badge variant="secondary" class="mb-2 px-2.5 py-0.5">{eyebrow}</Badge>
-    <h1 class="page-title text-balance">{title}</h1>
-    {#if description}
-      <p class="mt-2 max-w-3xl text-pretty text-sm leading-5 text-muted-foreground">
-        {description}
-      </p>
-    {/if}
+    <div class="flex min-w-0 items-center gap-1.5">
+      <h1 class="page-title min-w-0 text-balance">{title}</h1>
+      {#if description}
+        <ContextHelp content={description} side="bottom" />
+      {/if}
+    </div>
   </div>
 
   {#if actions}

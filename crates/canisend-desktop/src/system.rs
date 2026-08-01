@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use canisend_app::{
     ActionReceipt, Application, CliInstallStatus, InspectionCatalogReadModel, NetworkFetchConsent,
     ResourceCatalogExportReadModel, ResourceCatalogExportRequest, ResourceDetailReadModel,
-    TerminalInstallConsent, UpdateCheckReadModel, bundled_cli_path, default_cli_destination,
+    TerminalInstallConsent, UpdateCheckReadModel, default_cli_destination, desktop_cli_source_path,
 };
 use canisend_contracts::SchemaCatalogEntry;
 use serde::{Deserialize, Serialize};
@@ -77,9 +77,9 @@ fn install_cli_impl(
             "Confirm terminal installation before writing or replacing the CanISend CLI.",
         ));
     }
-    let source = bundled_cli_path().ok_or_else(|| {
+    let source = desktop_cli_source_path().ok_or_else(|| {
         DesktopCommandError::state(
-            "This development application does not contain a bundled CanISend CLI.",
+            "The verified CanISend desktop host is not available for CLI installation.",
         )
     })?;
     Application::install_cli(
@@ -99,7 +99,7 @@ fn uninstall_cli_impl(
             "Confirm terminal uninstall before removing the managed CanISend CLI.",
         ));
     }
-    let source = bundled_cli_path();
+    let source = desktop_cli_source_path();
     Application::uninstall_cli(
         source.as_deref(),
         &destination_or_default(request.destination),
@@ -116,7 +116,7 @@ fn configure_cli_path_impl(
             "Confirm terminal PATH configuration before changing the shell profile.",
         ));
     }
-    let source = bundled_cli_path();
+    let source = desktop_cli_source_path();
     Application::configure_cli_path(
         source.as_deref(),
         &destination_or_default(request.destination),
@@ -137,22 +137,20 @@ fn check_for_updates_impl(
         .map_err(DesktopCommandError::application)
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) fn desktop_cli_defaults() -> DesktopCliDefaults {
     DesktopCliDefaults {
-        bundled_source: bundled_cli_path(),
+        bundled_source: desktop_cli_source_path(),
         destination: default_cli_destination(),
     }
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn cli_install_status(
     request: DesktopCliRequest,
 ) -> Result<ActionReceipt<CliInstallStatus>, DesktopCommandError> {
     run_worker(move || {
-        let source = bundled_cli_path();
+        let source = desktop_cli_source_path();
         Application::cli_install_status(
             source.as_deref(),
             &destination_or_default(request.destination),
@@ -162,7 +160,6 @@ pub(crate) async fn cli_install_status(
     .await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn install_cli(
     request: DesktopCliInstallRequest,
@@ -170,7 +167,6 @@ pub(crate) async fn install_cli(
     run_worker(move || install_cli_impl(request)).await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn uninstall_cli(
     request: DesktopCliUninstallRequest,
@@ -178,7 +174,6 @@ pub(crate) async fn uninstall_cli(
     run_worker(move || uninstall_cli_impl(request)).await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn configure_cli_path(
     request: DesktopCliPathRequest,
@@ -186,7 +181,6 @@ pub(crate) async fn configure_cli_path(
     run_worker(move || configure_cli_path_impl(request)).await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn check_for_updates(
     request: UpdateRequest,
@@ -194,14 +188,12 @@ pub(crate) async fn check_for_updates(
     run_worker(move || check_for_updates_impl(request)).await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn inspection_catalog()
 -> Result<ActionReceipt<InspectionCatalogReadModel>, DesktopCommandError> {
     run_worker(|| Application::inspection_catalog().map_err(DesktopCommandError::application)).await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn schema_detail(
     request: CatalogDetailRequest,
@@ -212,7 +204,6 @@ pub(crate) async fn schema_detail(
     .await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn resource_detail(
     request: CatalogDetailRequest,
@@ -223,7 +214,6 @@ pub(crate) async fn resource_detail(
     .await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn export_resource_catalog(
     request: CatalogExportRequest,

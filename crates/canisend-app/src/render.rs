@@ -1,11 +1,13 @@
 use std::path::Path;
 
-use canisend_contracts::{EntityId, RenderManifestRecord, SafeRelativePath};
+use canisend_contracts::{
+    DocumentKind, EntityId, RenderManifestRecord, RenderedDocumentRecord, SafeRelativePath,
+};
 use canisend_store::RenderService;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ActionReceipt, Application, ApplicationError, PrivateExportConsent,
+    ActionReceipt, Application, ApplicationError, PrivateExportConsent, PrivateReadConsent,
     application::{open_workspace, parse_entity_id},
     package::{parse_job_path, private_export_consent_required},
 };
@@ -35,6 +37,13 @@ pub struct RenderExportReadModel {
     pub destination: SafeRelativePath,
     pub files: Vec<SafeRelativePath>,
     pub submission_performed: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RenderPreviewReadModel {
+    pub document: RenderedDocumentRecord,
+    pub pdf_bytes: Vec<u8>,
 }
 
 impl Application {
@@ -76,6 +85,34 @@ impl Application {
         .with_artifacts([artifact]))
     }
 
+    pub fn preview_render(
+        root: &Path,
+        job_id: &str,
+        kind: DocumentKind,
+        _consent: PrivateReadConsent,
+    ) -> Result<ActionReceipt<RenderPreviewReadModel>, ApplicationError> {
+        let job_id = parse_entity_id(job_id)?;
+        let mut workspace = open_workspace(root)?;
+        let workspace_root = workspace.paths.root.clone();
+        let (document, pdf_bytes) =
+            RenderService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
+                .preview(&job_id, kind)?;
+        let artifact = document.pdf_artifact.clone();
+        Ok(ActionReceipt::new(
+            "render.preview",
+            "available",
+            format!(
+                "Loaded the exact validated {} PDF for local preview",
+                document_kind_name(kind)
+            ),
+            RenderPreviewReadModel {
+                document,
+                pdf_bytes,
+            },
+        )
+        .with_artifacts([artifact]))
+    }
+
     pub fn export_render(
         root: &Path,
         request: RenderExportRequest,
@@ -110,6 +147,15 @@ impl Application {
     }
 }
 
+const fn document_kind_name(kind: DocumentKind) -> &'static str {
+    match kind {
+        DocumentKind::CoverLetter => "cover-letter",
+        DocumentKind::ResearchStatement => "research-statement",
+        DocumentKind::TeachingStatement => "teaching-statement",
+        DocumentKind::Cv => "cv",
+    }
+}
+
 fn render_receipt(
     operation: &'static str,
     status: &'static str,
@@ -140,9 +186,9 @@ fn render_receipt(
 
 #[cfg(test)]
 mod tests {
-    use canisend_contracts::ErrorCode;
+    use canisend_contracts::{DocumentKind, ErrorCode};
 
-    use crate::{Application, PrivateExportConsent, RenderExportRequest};
+    use crate::{Application, PrivateExportConsent, PrivateReadConsent, RenderExportRequest};
 
     const JOB_ID: &str = "019f2f55-7c00-7000-8000-000000000101";
 
@@ -173,6 +219,24 @@ mod tests {
             Some(PrivateExportConsent::granted_by_user()),
         )
         .expect_err("missing workspace with consent");
+        assert_eq!(error.classify().code, ErrorCode::WorkspaceNotFound);
+    }
+
+    #[test]
+    fn render_preview_validates_identity_before_private_workspace_access() {
+        let missing = std::env::temp_dir().join(format!(
+            "canisend-app-render-preview-{}",
+            std::process::id()
+        ));
+        let consent = PrivateReadConsent::granted_by_user();
+        let error =
+            Application::preview_render(&missing, "not-an-entity-id", DocumentKind::Cv, consent)
+                .expect_err("invalid preview job ID");
+        assert_eq!(error.classify().code, ErrorCode::InputInvalid);
+        assert!(!missing.exists());
+
+        let error = Application::preview_render(&missing, JOB_ID, DocumentKind::Cv, consent)
+            .expect_err("missing preview workspace");
         assert_eq!(error.classify().code, ErrorCode::WorkspaceNotFound);
     }
 }

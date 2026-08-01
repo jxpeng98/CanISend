@@ -22,6 +22,9 @@ serde_json.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
 
+[target.'cfg(windows)'.dependencies]
+winreg.workspace = true
+
 [dev-dependencies]
 [lints]
 workspace = true

@@ -21,6 +21,39 @@ the embedded font families and other compiler assets, including:
 CanISend does not modify or rename these fonts. PDFs created with the fonts are not themselves placed under the font
 licenses.
 
+## Embedded ModernPro templates
+
+- `modernpro-cv` 2.0.0 by Academic Template Collective: MIT. The embedded source is based on the versioned Typst
+  Universe archive with SHA-256
+  `1d108f538571e804f96b59dc1f3c0b0e0dc275b3eb35c6368fd7cc89775851f0`.
+- `modernpro-coverletter` 1.0.0 by Academic Template Collective: MIT. The embedded source is based on the versioned
+  Typst Universe archive with SHA-256
+  `d3c5e8031e8a74ab4ae6e3163b0f37d6ecebc972dd7a4b3b41fc99ff07585130`.
+
+The CanISend copies add an offline structured-data adapter and a bounded configuration-precedence
+fix so the selected embedded font wins over an unavailable upstream fallback. They use the already
+embedded Libertinus font assets. Optional contact icons remain data-driven, so no additional icon
+package or font is bundled.
+
+Copyright (c) 2023 Academic Template Collective
+
+Copyright (c) 2024 Academic Template Collective
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
+associated documentation files (the "Software"), to deal in the Software without restriction,
+including without limitation the rights to use, copy, modify, merge, publish, distribute,
+sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or
+substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
+NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT
+OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 ## SQLite storage
 
 - SQLite amalgamation: public domain dedication published by the SQLite project.

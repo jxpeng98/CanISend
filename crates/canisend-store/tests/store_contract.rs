@@ -1238,6 +1238,21 @@ fn evidence_and_match_tasks_enforce_stable_revision_bound_identities() {
                 .as_str()
                 .starts_with(&format!("jobs/{}/rendered/", job.id))
     }));
+    for document in &render_manifest.documents {
+        let (preview_document, preview_bytes) =
+            RenderService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
+                .preview(&job.id, document.kind)
+                .expect("read exact current PDF for preview");
+        assert_eq!(preview_document, *document);
+        let exported_path = workspace_root
+            .join(rendered_directory.as_str())
+            .join(format!("{}.pdf", rendered_document_slug(document.kind)));
+        assert_eq!(
+            preview_bytes,
+            fs::read(exported_path).expect("read exported preview-equivalent PDF"),
+            "preview and export must use the exact same PDF bytes"
+        );
+    }
     assert!(matches!(
         RenderService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
             .export(&job.id, &rendered_directory),
@@ -1966,6 +1981,15 @@ fn document_artifact_kind(kind: DocumentKind) -> ArtifactKind {
         DocumentKind::ResearchStatement => ArtifactKind::ResearchStatement,
         DocumentKind::TeachingStatement => ArtifactKind::TeachingStatement,
         DocumentKind::Cv => ArtifactKind::Cv,
+    }
+}
+
+const fn rendered_document_slug(kind: DocumentKind) -> &'static str {
+    match kind {
+        DocumentKind::CoverLetter => "cover-letter",
+        DocumentKind::ResearchStatement => "research-statement",
+        DocumentKind::TeachingStatement => "teaching-statement",
+        DocumentKind::Cv => "cv",
     }
 }
 

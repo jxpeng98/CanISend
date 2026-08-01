@@ -1,0 +1,11 @@
+{
+  "format": "canisend.performance/v1",
+  "target": "aarch64-macos",
+  "release_binary_bytes": 34762976,
+  "version_startup_median_ms": 8,
+  "capabilities_startup_median_ms": 9,
+  "status_100_jobs_median_ms": 11,
+  "html_1_mib_intake_median_ms": 146,
+  "pdf_50_page_intake_median_ms": 37,
+  "typst_render_median_ms": 11
+}

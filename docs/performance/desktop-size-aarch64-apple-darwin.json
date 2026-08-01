@@ -1,0 +1,31 @@
+{
+  "budgets": {
+    "application_payload_bytes": 75497472,
+    "frontend_bytes": 1572864,
+    "full_native_host_count": 1,
+    "unified_host_bytes": 67108864
+  },
+  "bytes": {
+    "application_payload": 63645908,
+    "download_artifact": 26692774,
+    "frontend": 939675,
+    "unified_host": 63391984
+  },
+  "native_hosts": [
+    {
+      "bytes": 63391984,
+      "path": "Contents/MacOS/canisend-gui"
+    }
+  ],
+  "package_class": "standard",
+  "package_format": "app",
+  "passed": true,
+  "profile": "release-alpha",
+  "recorded_at": "2026-08-01T11:34:18.968209Z",
+  "schema": "canisend.desktop-size/v1",
+  "sha256": {
+    "download_artifact": "7a2a5a3ba1f473b86f63911c9b7c6121cbb843d38eb19000eb48641dc71f259b",
+    "unified_host": "4c0bd051f2c7175d99b7059ef3245b60300c3a0bc9d3f23d13fe6e00a7eb5e50"
+  },
+  "target": "aarch64-apple-darwin"
+}

@@ -1,0 +1,72 @@
+{
+  "authoritative_release_evidence": false,
+  "build": {
+    "codegen_units": 1,
+    "lto": "fat",
+    "opt_level": "z",
+    "panic": "abort",
+    "profile": "release",
+    "strip": "symbols"
+  },
+  "candidate": "size-z-fat",
+  "host": {
+    "budget_bytes": 67108864,
+    "bytes": 41422368,
+    "passed_budget": true,
+    "path": "profile-matrix/size-z-fat/aarch64-apple-darwin/release/canisend-gui",
+    "sha256": "d257d786cf04b0425e943865b756e24249b7733a50b1489340c855011422823f"
+  },
+  "recorded_at": "2026-08-01T17:25:16.401759Z",
+  "schema": "canisend.desktop-profile-record/v1",
+  "source": {
+    "cargo_lock_sha256": "57e8f0ea8d4e702e26b86ee750731d75e512455235a5dbe5a18a04824716ed49",
+    "commit": "aeb5b75b83b504d7cc6ef93f4b714420661ca0b5",
+    "dirty": true,
+    "pnpm_lock_sha256": "771c0c4542532b69e324c48f3959a34f3cbd1d581a1ac69f66c1735e9442f0ca",
+    "template_contract_sha256": "3d0897b36b8f655bdbd154410068dc9643ea48db79b1acde95b93e1c358bc4bd"
+  },
+  "target": "aarch64-apple-darwin",
+  "templates": [
+    {
+      "bytes": 721,
+      "font_contract": {
+        "families": [
+          "Libertinus Serif"
+        ],
+        "inherits_renderer_default": false,
+        "styles": [
+          "normal"
+        ],
+        "weights": [
+          "regular",
+          "semibold"
+        ]
+      },
+      "path": "templates/application-document.typ",
+      "resource_id": "template.application-document",
+      "resource_version": "2.0.0",
+      "sha256": "b19149cea8baa10bfbd815108de69319773ff826bb223f89b8f269bd01b56631"
+    },
+    {
+      "bytes": 197,
+      "font_contract": {
+        "families": [],
+        "inherits_renderer_default": true,
+        "styles": [
+          "normal"
+        ],
+        "weights": [
+          "regular"
+        ]
+      },
+      "path": "templates/cover-letter.typ",
+      "resource_id": "template.cover-letter",
+      "resource_version": "2.0.0",
+      "sha256": "e2c6127e18d18619f5ef8df8fe79f0ad7670e11e624e5adf5defd0cf61418146"
+    }
+  ],
+  "toolchain": {
+    "cargo": "cargo 1.97.0 (c980f4866 2026-06-30)",
+    "rustc_verbose": "rustc 1.97.0 (2d8144b78 2026-07-07)\nbinary: rustc\ncommit-hash: 2d8144b7880597b6e6d3dfd63a9a9efae3f533d3\ncommit-date: 2026-07-07\nhost: aarch64-apple-darwin\nrelease: 1.97.0\nLLVM version: 22.1.6"
+  }
+}

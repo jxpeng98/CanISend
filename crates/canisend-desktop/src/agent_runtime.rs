@@ -168,7 +168,6 @@ impl Drop for ScopeLease {
     }
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn agent_runtime_catalog(
     request: AgentRuntimeCatalogRequest,
@@ -176,7 +175,6 @@ pub(crate) async fn agent_runtime_catalog(
     run_worker(move || runtime_catalog_impl(request)).await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn run_agent_turn(
     state: tauri::State<'_, AgentRuntimeState>,
@@ -186,7 +184,6 @@ pub(crate) async fn run_agent_turn(
     run_worker(move || run_agent_turn_impl(request, active)).await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn cancel_agent_turn(
     state: tauri::State<'_, AgentRuntimeState>,
@@ -414,13 +411,18 @@ fn find_runtime(runtime: AgentRuntimeKind) -> Option<PathBuf> {
 }
 
 fn runtime_candidates(runtime: AgentRuntimeKind) -> Vec<PathBuf> {
-    let name = runtime.as_str();
+    let name = runtime_executable_name_for_platform(runtime, cfg!(windows));
     let mut candidates = env::var_os("PATH")
         .into_iter()
         .flat_map(|path| env::split_paths(&path).collect::<Vec<_>>())
-        .map(|directory| directory.join(name))
+        .map(|directory| directory.join(&name))
         .collect::<Vec<_>>();
-    if let Some(home) = env::var_os("HOME").map(PathBuf::from) {
+    let home = if cfg!(windows) {
+        env::var_os("USERPROFILE").or_else(|| env::var_os("HOME"))
+    } else {
+        env::var_os("HOME")
+    };
+    if let Some(home) = home.map(PathBuf::from) {
         for relative in [
             ".local/share/mise/shims",
             ".local/bin",
@@ -429,20 +431,30 @@ fn runtime_candidates(runtime: AgentRuntimeKind) -> Vec<PathBuf> {
             ".volta/bin",
             ".bun/bin",
         ] {
-            candidates.push(home.join(relative).join(name));
+            candidates.push(home.join(relative).join(&name));
         }
     }
+    #[cfg(target_os = "macos")]
     if runtime == AgentRuntimeKind::Codex {
         candidates.push(PathBuf::from(
             "/Applications/ChatGPT.app/Contents/Resources/codex",
         ));
     }
+    #[cfg(unix)]
     for directory in ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"] {
-        candidates.push(PathBuf::from(directory).join(name));
+        candidates.push(PathBuf::from(directory).join(&name));
     }
     let mut seen = HashSet::new();
     candidates.retain(|candidate| seen.insert(candidate.clone()));
     candidates
+}
+
+fn runtime_executable_name_for_platform(runtime: AgentRuntimeKind, windows: bool) -> String {
+    if windows {
+        format!("{}.exe", runtime.as_str())
+    } else {
+        runtime.as_str().to_owned()
+    }
 }
 
 fn usable_executable(path: &Path) -> bool {
@@ -989,7 +1001,8 @@ mod tests {
     use super::{
         AgentTurnCancelRequest, ProcessLimits, agent_scope_key, cancel_agent_turn_impl,
         integration_prompt, parse_claude_output, parse_codex_output_with_fallback, run_process,
-        runtime_arguments, runtime_candidates, runtime_probe_from_observation,
+        runtime_arguments, runtime_candidates, runtime_executable_name_for_platform,
+        runtime_probe_from_observation,
     };
     use canisend_app::{AgentRuntimeKind, Application};
 
@@ -1043,6 +1056,19 @@ mod tests {
         assert!(prompt.contains("019f4876-016d-7b41-b959-f4f2543ffd9f"));
     }
 
+    #[test]
+    fn runtime_executable_names_follow_platform_conventions() {
+        assert_eq!(
+            runtime_executable_name_for_platform(AgentRuntimeKind::Codex, false),
+            "codex"
+        );
+        assert_eq!(
+            runtime_executable_name_for_platform(AgentRuntimeKind::Claude, true),
+            "claude.exe"
+        );
+    }
+
+    #[cfg(target_os = "macos")]
     #[test]
     fn runtime_discovery_includes_gui_safe_macos_locations() {
         let codex = runtime_candidates(AgentRuntimeKind::Codex);

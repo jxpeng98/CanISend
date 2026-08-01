@@ -176,7 +176,6 @@ fn prepare_url_job_source_impl(
     .map_err(DesktopCommandError::application)
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn preview_local_job_source(
     state: tauri::State<'_, JobIntakePreviewStore>,
@@ -193,7 +192,6 @@ pub(crate) async fn preview_local_job_source(
     })
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn preview_url_job_source(
     state: tauri::State<'_, JobIntakePreviewStore>,
@@ -210,7 +208,6 @@ pub(crate) async fn preview_url_job_source(
     })
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn commit_job_source_preview(
     state: tauri::State<'_, JobIntakePreviewStore>,
@@ -228,7 +225,6 @@ pub(crate) async fn commit_job_source_preview(
     result
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) fn discard_job_source_preview(
     state: tauri::State<'_, JobIntakePreviewStore>,

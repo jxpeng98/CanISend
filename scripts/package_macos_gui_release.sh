@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -ne 3 ]]; then
-  echo "usage: $0 GUI_BINARY CLI_BINARY OUTPUT_DIRECTORY" >&2
+if [[ $# -ne 2 ]]; then
+  echo "usage: $0 UNIFIED_HOST_BINARY OUTPUT_DIRECTORY" >&2
   exit 2
 fi
 if [[ "$(uname -s)" != "Darwin" ]]; then
@@ -14,13 +14,11 @@ if [[ "$(uname -m)" != "arm64" ]]; then
   exit 1
 fi
 
-gui_binary="$1"
-cli_binary="$2"
-output="$3"
+host_binary="$1"
+output="$2"
 script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 source "$script_dir/lib/native_paths.sh"
-gui_binary="$(canisend_absolute_path "$gui_binary")"
-cli_binary="$(canisend_absolute_path "$cli_binary")"
+host_binary="$(canisend_absolute_path "$host_binary")"
 output="$(canisend_absolute_path "$output")"
 
 for command in ditto hdiutil jq unzip; do
@@ -29,14 +27,12 @@ for command in ditto hdiutil jq unzip; do
     exit 1
   fi
 done
-for binary in "$gui_binary" "$cli_binary"; do
-  if [[ ! -f "$binary" || -L "$binary" ]]; then
-    echo "macOS GUI package: binary must be a regular non-symlink file: $binary" >&2
-    exit 1
-  fi
-done
+if [[ ! -f "$host_binary" || -L "$host_binary" ]]; then
+  echo "macOS GUI package: host must be a regular non-symlink file: $host_binary" >&2
+  exit 1
+fi
 
-version_json="$("$cli_binary" version --json)"
+version_json="$("$host_binary" version --json)"
 version="$(printf '%s' "$version_json" | jq -er '.data.version')"
 archive_name="CanISend-$version-aarch64-apple-darwin.zip"
 archive="$output/$archive_name"
@@ -60,7 +56,7 @@ stage="$fixture_root/stage"
 app="$stage/CanISend.app"
 manifest="$stage/CanISend.app.manifest.json"
 mkdir -p "$stage"
-"$script_dir/stage_macos_gui_app.sh" "$gui_binary" "$cli_binary" "$app"
+"$script_dir/stage_macos_gui_app.sh" "$host_binary" "$app"
 test -f "$manifest"
 
 # Resource forks and extended attributes are intentionally excluded. All executable

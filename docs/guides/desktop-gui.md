@@ -33,9 +33,10 @@ command uses the terminal contract without opening a WebView:
 ```
 
 The separately named `canisend` binary remains available for CLI-only archives and existing
-installations. Until the Stage 4P package cutover is qualified, published macOS Apps also retain
-their version-matched `Contents/Resources/bin/canisend`; the desktop prefers that file and safely
-falls back to its own unified executable when the separate file is absent.
+installations. A macOS App contains only `Contents/MacOS/canisend-gui`; Settings copies that exact
+signed and version-matched host to `~/.local/bin/canisend` after explicit consent. The installed
+name selects CLI mode without arguments, while an explicit CLI or MCP command works from either
+name.
 
 ## Build a temporary macOS design preview
 
@@ -297,8 +298,9 @@ Open **Review & export** for the selected job:
    edit through a separate confirmation or provide a distinct path that preserves the edit before
    restoring the generated projection. Neither action changes an authoritative artifact.
 5. Build PDFs with the embedded trusted renderer. Editable Typst projections are not renderer
-   inputs. Inspect the manifest, artifact revisions, page and byte counts, warnings, and elapsed
-   time.
+   inputs. Confirm private local reading, then choose a rendered document to preview the exact
+   validated PDF blob that will be exported. Inspect the manifest, artifact revisions, page and
+   byte counts, warnings, and elapsed time.
 6. Choose a separate destination below `jobs/JOB_ID/`, confirm private PDF export, and review every
    created path. The GUI never opens an application portal or submits an application.
 
@@ -359,20 +361,20 @@ interactive login shell, so the page also provides terminal verification command
 - If the managed binary or install record was changed outside CanISend, overwrite and uninstall
   fail closed so the user-owned change is preserved.
 
-The GUI does not edit `.zprofile`, `.zshrc`, or another shell configuration file. If
-`~/.local/bin` is not visible, the page provides a copyable PATH line; apply it intentionally and
-open a new terminal. It also warns when a different package-manager shim takes precedence over the
-new binary.
+After separate explicit consent, **Add to PATH** writes one bounded, idempotent CanISend block to
+the supported user shell profile and never follows a symlinked or oversized profile. Open a new
+terminal for that change to become active. The page also warns when a different package-manager
+shim takes precedence over the managed binary.
 
 **Check for updates** contacts only the public CanISend GitHub Releases API after the user presses
 the button. It compares the desktop/bundled version with the latest compatible Stable or Preview
 release, displays the result, and provides a copyable release link. It does not run automatically,
 send private application data, download an update, or execute an installer.
 
-For a packaged macOS application, the version-matched source belongs at:
+For a packaged macOS application, the version-matched GUI/CLI/MCP source is:
 
 ```text
-CanISend.app/Contents/Resources/bin/canisend
+CanISend.app/Contents/MacOS/canisend-gui
 ```
 
 Developers can stage the current ad-hoc-signed preview bundle with:
@@ -380,24 +382,21 @@ Developers can stage the current ad-hoc-signed preview bundle with:
 ```console
 ./scripts/stage_macos_gui_app.sh \
   ./target/release/canisend-gui \
-  ./target/release/canisend \
   /path/to/CanISend.app
 ```
 
-The script copies both exact executables, licenses, and privacy/GUI guidance before applying free
-ad-hoc integrity signatures to the nested executables and outer app. It then writes
-`CanISend.app.manifest.json` beside the app with SHA-256 digests of the final signed GUI, bundled
-CLI, `Info.plist`, and internal bundle metadata. The integrity manifest must stay outside the app:
-signing the outer bundle changes its main executable, so embedding that final executable digest
-would create a self-reference and invalidate either the digest or the signature. The script does
-not provide Developer ID identity or notarization.
+The script copies the exact unified host, licenses, and privacy/GUI guidance before applying free
+ad-hoc integrity signatures to the host and outer app. It writes `CanISend.app.manifest.json`
+beside the app with the final host entry modes and SHA-256 digests for the host, `Info.plist`, and
+internal bundle metadata. It rejects a second executable and enforces the 64 MiB host and 72 MiB
+application-payload budgets. The integrity manifest stays outside the app to avoid a signed-bundle
+self-reference. The script does not provide Developer ID identity or notarization.
 
-Create the frozen Apple Silicon ZIP and DMG directly from the two release binaries with:
+Create the frozen Apple Silicon ZIP and DMG directly from the unified release host with:
 
 ```console
 ./scripts/package_macos_gui_release.sh \
   ./target/release/canisend-gui \
-  ./target/release/canisend \
   /path/to/release-assets
 ```
 

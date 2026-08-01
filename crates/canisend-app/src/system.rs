@@ -60,13 +60,21 @@ impl Application {
     pub fn doctor() -> Result<ActionReceipt<DoctorSummary>, ApplicationError> {
         canisend_resources::verify().map_err(ApplicationError::ResourceIntegrity)?;
         let template = std::str::from_utf8(
-            canisend_resources::get(canisend_resources::ResourceId::TemplateCoverLetter).bytes,
+            canisend_resources::get(canisend_resources::ResourceId::TemplateModernproCoverletter)
+                .bytes,
         )
         .map_err(|_| {
             ApplicationError::ResourceIntegrity("embedded Typst template is not UTF-8".to_owned())
         })?;
         let probe_source = format!(
-            "{template}\n#application_cover_letter([CanISend], [Native self-check], [Embedded rendering verified.])"
+            r#"{template}
+#canisend_render_document((
+  title: "CanISend native self-check",
+  kind: "cover-letter",
+  generated-date: "2026-08-01",
+  sections: ((heading: none, body: "Embedded rendering verified."),),
+  fields: ((key: "candidate-name", value: "CanISend"),),
+))"#
         );
         EmbeddedTypstCompiler::new().compile_pdf(&probe_source)?;
         let rendered = render_acceptance_probe()?;

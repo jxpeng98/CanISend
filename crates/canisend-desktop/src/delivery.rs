@@ -6,7 +6,7 @@ use canisend_app::{
     RenderExportReadModel, RenderExportRequest, ReviewWorkspaceReadModel,
 };
 use canisend_contracts::{
-    PackageExportManifestRecord, PackageManifestRecord, ProjectionReconcileRecord,
+    DocumentKind, PackageExportManifestRecord, PackageManifestRecord, ProjectionReconcileRecord,
     RenderManifestRecord, ReviewFindingsRecord,
 };
 use serde::Deserialize;
@@ -28,6 +28,15 @@ pub(crate) struct DeliveryJobRequest {
 pub(crate) struct PrivateDeliveryJobRequest {
     workspace: PathBuf,
     job_id: String,
+    confirmed_private_read: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct RenderPreviewRequest {
+    workspace: PathBuf,
+    job_id: String,
+    kind: DocumentKind,
     confirmed_private_read: bool,
 }
 
@@ -148,7 +157,14 @@ fn export_render_impl(
         .map_err(DesktopCommandError::application)
 }
 
-#[cfg(target_os = "macos")]
+fn preview_render_impl(
+    request: RenderPreviewRequest,
+) -> Result<ActionReceipt<canisend_app::RenderPreviewReadModel>, DesktopCommandError> {
+    let consent = require_private_read(request.confirmed_private_read)?;
+    Application::preview_render(&request.workspace, &request.job_id, request.kind, consent)
+        .map_err(DesktopCommandError::application)
+}
+
 #[tauri::command]
 pub(crate) async fn document_workspace(
     request: PrivateDeliveryJobRequest,
@@ -156,7 +172,6 @@ pub(crate) async fn document_workspace(
     run_worker(move || document_workspace_impl(request)).await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn review_workspace(
     request: PrivateDeliveryJobRequest,
@@ -164,7 +179,6 @@ pub(crate) async fn review_workspace(
     run_worker(move || review_workspace_impl(request)).await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn confirm_review(
     request: ReviewConfirmRequest,
@@ -172,7 +186,6 @@ pub(crate) async fn confirm_review(
     run_worker(move || confirm_review_impl(request)).await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn check_package(
     request: DeliveryJobRequest,
@@ -184,7 +197,6 @@ pub(crate) async fn check_package(
     .await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn current_package(
     request: DeliveryJobRequest,
@@ -196,7 +208,6 @@ pub(crate) async fn current_package(
     .await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn export_package(
     request: PrivateExportRequest,
@@ -204,7 +215,6 @@ pub(crate) async fn export_package(
     run_worker(move || export_package_impl(request)).await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn current_package_export(
     request: DeliveryJobRequest,
@@ -216,7 +226,6 @@ pub(crate) async fn current_package_export(
     .await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn reconcile_package(
     request: DeliveryJobRequest,
@@ -228,7 +237,6 @@ pub(crate) async fn reconcile_package(
     .await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn replace_package_projection(
     request: ProjectionRequest,
@@ -242,7 +250,6 @@ pub(crate) async fn replace_package_projection(
     .await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn copy_package_projection(
     request: ProjectionCopyRequest,
@@ -260,7 +267,6 @@ pub(crate) async fn copy_package_projection(
     .await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn build_render(
     request: DeliveryJobRequest,
@@ -272,7 +278,6 @@ pub(crate) async fn build_render(
     .await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn current_render(
     request: DeliveryJobRequest,
@@ -284,7 +289,14 @@ pub(crate) async fn current_render(
     .await
 }
 
-#[cfg(target_os = "macos")]
+#[tauri::command]
+pub(crate) async fn preview_render(
+    request: RenderPreviewRequest,
+) -> Result<tauri::ipc::Response, DesktopCommandError> {
+    let receipt = run_worker(move || preview_render_impl(request)).await?;
+    Ok(tauri::ipc::Response::new(receipt.data.pdf_bytes))
+}
+
 #[tauri::command]
 pub(crate) async fn export_render(
     request: PrivateExportRequest,
@@ -330,6 +342,15 @@ mod tests {
         })
         .expect_err("review confirmation needs consent");
         assert_eq!(review.code, "consent-required");
+
+        let preview = preview_render_impl(RenderPreviewRequest {
+            workspace: missing.clone(),
+            job_id: "not-an-id".to_owned(),
+            kind: DocumentKind::Cv,
+            confirmed_private_read: false,
+        })
+        .expect_err("render preview needs consent");
+        assert_eq!(preview.code, "consent-required");
 
         let export = export_render_impl(PrivateExportRequest {
             workspace: missing,

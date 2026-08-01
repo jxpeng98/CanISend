@@ -1,0 +1,391 @@
+name: desktop-platform-qualification
+
+on:
+  schedule:
+    - cron: "41 4 * * 2"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-platform-qualification-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows-standard:
+    name: windows-standard-one-host
+    runs-on: windows-2025
+    env:
+      CARGO_PROFILE_RELEASE_OPT_LEVEL: z
+      CARGO_PROFILE_RELEASE_LTO: fat
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install pinned pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.17.0
+          run_install: false
+
+      - name: Install pinned Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 26.5.0
+          cache: pnpm
+          cache-dependency-path: apps/canisend-desktop/pnpm-lock.yaml
+
+      - name: Install locked desktop UI dependencies
+        run: pnpm --dir apps/canisend-desktop install --frozen-lockfile
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@1.97.0
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Cache Windows desktop build
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          key: scheduled-windows-standard-desktop
+          cache-targets: false
+
+      - name: Test portable desktop and CLI lifecycle contracts
+        shell: pwsh
+        run: >-
+          cargo test --locked
+          -p canisend-io -p canisend-app -p canisend-gui
+          --target x86_64-pc-windows-msvc
+
+      - name: Measure latest-template Windows profile matrix
+        shell: pwsh
+        run: |
+          ./scripts/measure_desktop_profile_matrix.ps1 `
+            -Target 'x86_64-pc-windows-msvc' `
+            -EvidenceDirectory "$env:RUNNER_TEMP/desktop-windows-profile-matrix" `
+            -BuildRoot "$env:RUNNER_TEMP/desktop-windows-profile-builds"
+
+      - name: Build one-host Windows desktop without bundling
+        shell: pwsh
+        run: |
+          $tauri = (Resolve-Path -LiteralPath 'apps/canisend-desktop/node_modules/.bin/tauri.cmd').Path
+          Push-Location crates/canisend-desktop
+          try {
+            & $tauri build `
+              --target x86_64-pc-windows-msvc `
+              --features custom-protocol `
+              --no-bundle `
+              --ci
+          } finally {
+            Pop-Location
+          }
+
+      - name: Self-sign exact unified Windows host
+        shell: pwsh
+        run: |
+          ./scripts/sign_windows_self_signed.ps1 `
+            -Binary 'target/x86_64-pc-windows-msvc/release/canisend-gui.exe' `
+            -Target 'x86_64-pc-windows-msvc' `
+            -EvidenceJson "$env:RUNNER_TEMP/desktop-windows-evidence/host-signing.json"
+
+      - name: Smoke GUI, renamed CLI, and MCP modes
+        shell: pwsh
+        run: |
+          $host = (Resolve-Path -LiteralPath 'target/x86_64-pc-windows-msvc/release/canisend-gui.exe').Path
+          $process = Start-Process -FilePath $host -ArgumentList '--gui' -PassThru
+          try {
+            $ready = $false
+            foreach ($attempt in 1..200) {
+              $process.Refresh()
+              if ($process.HasExited) {
+                throw "Windows desktop host exited before its GUI became available"
+              }
+              if ($process.MainWindowHandle -ne 0) {
+                $ready = $true
+                break
+              }
+              Start-Sleep -Milliseconds 100
+            }
+            if (-not $ready) {
+              throw "Windows desktop host did not create a native window"
+            }
+          } finally {
+            if (-not $process.HasExited) {
+              Stop-Process -Id $process.Id -Force
+            }
+          }
+
+          $cliRoot = Join-Path $env:RUNNER_TEMP 'installed-cli'
+          New-Item -ItemType Directory -Force -Path $cliRoot | Out-Null
+          $cli = Join-Path $cliRoot 'canisend.exe'
+          Copy-Item -LiteralPath $host -Destination $cli
+          $version = & $cli version --json | ConvertFrom-Json
+          if (-not $version.ok) {
+            throw "Renamed Windows unified host failed its version command"
+          }
+          $doctor = & $cli doctor --json | ConvertFrom-Json
+          if (-not $doctor.ok) {
+            throw "Renamed Windows unified host failed its doctor command"
+          }
+          $mcpHelp = & $cli mcp --help | Out-String
+          if (-not $mcpHelp.Contains('Model Context Protocol')) {
+            throw "Renamed Windows unified host did not expose MCP mode"
+          }
+          $signature = Get-AuthenticodeSignature -LiteralPath $cli
+          if (-not $signature.SignerCertificate) {
+            throw "Renamed Windows unified host lost its Authenticode signature"
+          }
+
+      - name: Bundle per-user NSIS and MSI standard installers
+        shell: pwsh
+        run: |
+          $tauri = (Resolve-Path -LiteralPath 'apps/canisend-desktop/node_modules/.bin/tauri.cmd').Path
+          Push-Location crates/canisend-desktop
+          try {
+            & $tauri bundle `
+              --target x86_64-pc-windows-msvc `
+              --features custom-protocol `
+              --bundles nsis,msi
+          } finally {
+            Pop-Location
+          }
+
+      - name: Extract installed MSI payload and enforce one-host budgets
+        shell: pwsh
+        run: |
+          $bundleRoot = Resolve-Path 'target/x86_64-pc-windows-msvc/release/bundle'
+          $msi = @(Get-ChildItem -LiteralPath (Join-Path $bundleRoot 'msi') -Filter '*.msi')
+          $nsis = @(Get-ChildItem -LiteralPath (Join-Path $bundleRoot 'nsis') -Filter '*-setup.exe')
+          if ($msi.Count -ne 1 -or $nsis.Count -ne 1) {
+            throw "Expected exactly one MSI and one NSIS standard installer"
+          }
+          $candidates = Join-Path $env:RUNNER_TEMP 'desktop-windows-candidates'
+          New-Item -ItemType Directory -Force -Path $candidates | Out-Null
+          $standardNsis = Join-Path $candidates 'CanISend-standard-setup.exe'
+          Copy-Item -LiteralPath $nsis[0].FullName -Destination $standardNsis
+          $payload = Join-Path $env:RUNNER_TEMP 'windows-installed-payload'
+          New-Item -ItemType Directory -Force -Path $payload | Out-Null
+          $arguments = @('/a', $msi[0].FullName, '/qn', "TARGETDIR=$payload")
+          $extract = Start-Process msiexec.exe -ArgumentList $arguments -PassThru -Wait
+          if ($extract.ExitCode -ne 0) {
+            throw "MSI administrative extraction failed with exit code $($extract.ExitCode)"
+          }
+          $hosts = @(Get-ChildItem -LiteralPath $payload -Recurse -File -Filter 'canisend-gui.exe')
+          if ($hosts.Count -ne 1) {
+            throw "Expected one unified host in the extracted MSI payload"
+          }
+          $evidence = Join-Path $env:RUNNER_TEMP 'desktop-windows-evidence'
+          New-Item -ItemType Directory -Force -Path $evidence | Out-Null
+          cargo run -p xtask --locked -- desktop size-record `
+            x86_64-pc-windows-msvc release msi `
+            $hosts[0].FullName $payload apps/canisend-desktop/dist `
+            $msi[0].FullName (Join-Path $evidence 'msi-size.json')
+          cargo run -p xtask --locked -- desktop size-record `
+            x86_64-pc-windows-msvc release nsis `
+            $hosts[0].FullName $payload apps/canisend-desktop/dist `
+            $standardNsis (Join-Path $evidence 'nsis-size.json')
+
+      - name: Bundle separately measured offline WebView2 installer
+        shell: pwsh
+        run: |
+          $tauri = (Resolve-Path -LiteralPath 'apps/canisend-desktop/node_modules/.bin/tauri.cmd').Path
+          Push-Location crates/canisend-desktop
+          try {
+            & $tauri bundle `
+              --target x86_64-pc-windows-msvc `
+              --features custom-protocol `
+              --bundles nsis `
+              --config tauri.windows-offline.conf.json
+          } finally {
+            Pop-Location
+          }
+          $offline = @(Get-ChildItem `
+            -LiteralPath 'target/x86_64-pc-windows-msvc/release/bundle/nsis' `
+            -Filter '*-setup.exe')
+          if ($offline.Count -ne 1) {
+            throw "Expected exactly one offline NSIS installer"
+          }
+          $offlineCandidate = Join-Path `
+            $env:RUNNER_TEMP `
+            'desktop-windows-candidates/CanISend-offline-setup.exe'
+          Copy-Item -LiteralPath $offline[0].FullName -Destination $offlineCandidate
+          $payload = Join-Path $env:RUNNER_TEMP 'windows-installed-payload'
+          $host = @(Get-ChildItem -LiteralPath $payload -Recurse -File -Filter 'canisend-gui.exe')
+          if ($host.Count -ne 1) {
+            throw "Expected one unified host in the recorded Windows payload"
+          }
+          cargo run -p xtask --locked -- desktop size-record `
+            x86_64-pc-windows-msvc release nsis-offline `
+            $host[0].FullName $payload apps/canisend-desktop/dist `
+            $offlineCandidate `
+            (Join-Path $env:RUNNER_TEMP 'desktop-windows-evidence/nsis-offline-size.json')
+
+      - name: Upload nonpublishing Windows desktop candidates
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: desktop-windows-standard-${{ github.sha }}-${{ github.run_id }}
+          path: |
+            target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
+            ${{ runner.temp }}/desktop-windows-candidates/*.exe
+            ${{ runner.temp }}/desktop-windows-evidence/*.json
+            ${{ runner.temp }}/desktop-windows-profile-matrix/*.json
+          if-no-files-found: error
+          retention-days: 14
+
+  linux-standard-and-portable:
+    name: linux-standard-and-portable-one-host
+    runs-on: ubuntu-22.04
+    env:
+      CARGO_PROFILE_RELEASE_OPT_LEVEL: z
+      CARGO_PROFILE_RELEASE_LTO: fat
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install Linux desktop build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            cpio \
+            patchelf \
+            rpm \
+            xvfb
+
+      - name: Install pinned pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.17.0
+          run_install: false
+
+      - name: Install pinned Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 26.5.0
+          cache: pnpm
+          cache-dependency-path: apps/canisend-desktop/pnpm-lock.yaml
+
+      - name: Install locked desktop UI dependencies
+        run: pnpm --dir apps/canisend-desktop install --frozen-lockfile
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@1.97.0
+        with:
+          targets: x86_64-unknown-linux-gnu
+
+      - name: Cache Linux desktop build
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          key: scheduled-linux-desktop
+          cache-targets: false
+
+      - name: Test portable desktop and CLI lifecycle contracts
+        run: >-
+          cargo test --locked
+          -p canisend-io -p canisend-app -p canisend-gui
+          --target x86_64-unknown-linux-gnu
+
+      - name: Measure latest-template Linux profile matrix
+        run: |
+          ./scripts/measure_desktop_profile_matrix.sh \
+            x86_64-unknown-linux-gnu \
+            "$RUNNER_TEMP/desktop-linux-profile-matrix" \
+            "$RUNNER_TEMP/desktop-linux-profile-builds"
+
+      - name: Build one-host Linux desktop without bundling
+        run: |
+          tauri="$(pwd)/apps/canisend-desktop/node_modules/.bin/tauri"
+          cd crates/canisend-desktop
+          "$tauri" build \
+            --target x86_64-unknown-linux-gnu \
+            --features custom-protocol \
+            --no-bundle \
+            --ci
+
+      - name: Smoke GUI, renamed CLI, and MCP modes
+        run: |
+          host="target/x86_64-unknown-linux-gnu/release/canisend-gui"
+          test -x "$host"
+          set +e
+          timeout 10s xvfb-run --auto-servernum "$host" --gui
+          gui_status=$?
+          set -e
+          test "$gui_status" -eq 124
+
+          cli_root="$RUNNER_TEMP/installed-cli"
+          mkdir -p "$cli_root"
+          cp "$host" "$cli_root/canisend"
+          chmod 755 "$cli_root/canisend"
+          "$cli_root/canisend" version --json | jq -e '.ok == true' >/dev/null
+          "$cli_root/canisend" doctor --json | jq -e '.ok == true' >/dev/null
+          "$cli_root/canisend" mcp --help | grep -Fq 'Model Context Protocol'
+
+      - name: Bundle DEB, RPM, and separately budgeted AppImage
+        run: |
+          tauri="$(pwd)/apps/canisend-desktop/node_modules/.bin/tauri"
+          cd crates/canisend-desktop
+          "$tauri" bundle \
+            --target x86_64-unknown-linux-gnu \
+            --features custom-protocol \
+            --bundles deb,rpm,appimage
+
+      - name: Extract DEB payload and enforce one-host budgets
+        run: |
+          bundle_root="target/x86_64-unknown-linux-gnu/release/bundle"
+          deb="$(find "$bundle_root/deb" -maxdepth 1 -type f -name '*.deb' -print -quit)"
+          rpm="$(find "$bundle_root/rpm" -maxdepth 1 -type f -name '*.rpm' -print -quit)"
+          appimage="$(find "$bundle_root/appimage" -maxdepth 1 -type f -name '*.AppImage' -print -quit)"
+          test -f "$deb"
+          test -f "$rpm"
+          test -f "$appimage"
+          payload="$RUNNER_TEMP/linux-installed-payload"
+          mkdir -p "$payload"
+          dpkg-deb -x "$deb" "$payload"
+          host="$(find "$payload" -type f -name 'canisend-gui' -print -quit)"
+          test -f "$host"
+          evidence="$RUNNER_TEMP/desktop-linux-evidence"
+          mkdir -p "$evidence"
+          cargo run -p xtask --locked -- desktop size-record \
+            x86_64-unknown-linux-gnu release deb \
+            "$host" "$payload" apps/canisend-desktop/dist \
+            "$deb" "$evidence/deb-size.json"
+
+          rpm_payload="$RUNNER_TEMP/linux-rpm-installed-payload"
+          rpm_archive="$RUNNER_TEMP/linux-rpm-installed-payload.cpio"
+          mkdir -p "$rpm_payload"
+          rpm2cpio "$rpm" > "$rpm_archive"
+          cpio --directory "$rpm_payload" --extract --make-directories --quiet < "$rpm_archive"
+          rpm_host="$(find "$rpm_payload" -type f -name 'canisend-gui' -print -quit)"
+          test -f "$rpm_host"
+          cargo run -p xtask --locked -- desktop size-record \
+            x86_64-unknown-linux-gnu release rpm \
+            "$rpm_host" "$rpm_payload" apps/canisend-desktop/dist \
+            "$rpm" "$evidence/rpm-size.json"
+
+          appimage="$(realpath "$appimage")"
+          appimage_extract="$RUNNER_TEMP/linux-appimage-extract"
+          mkdir -p "$appimage_extract"
+          pushd "$appimage_extract"
+          "$appimage" --appimage-extract >/dev/null
+          popd
+          appimage_host="$(find "$appimage_extract/squashfs-root" -type f -name 'canisend-gui' -print -quit)"
+          test -f "$appimage_host"
+          cmp --silent "$host" "$appimage_host"
+          cargo run -p xtask --locked -- desktop size-record \
+            x86_64-unknown-linux-gnu release appimage \
+            "$host" "$payload" apps/canisend-desktop/dist \
+            "$appimage" "$evidence/appimage-size.json"
+
+      - name: Upload nonpublishing Linux desktop candidates
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: desktop-linux-${{ github.sha }}-${{ github.run_id }}
+          path: |
+            target/x86_64-unknown-linux-gnu/release/bundle/deb/*.deb
+            target/x86_64-unknown-linux-gnu/release/bundle/rpm/*.rpm
+            target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.AppImage
+            ${{ runner.temp }}/desktop-linux-evidence/*.json
+            ${{ runner.temp }}/desktop-linux-profile-matrix/*.json
+          if-no-files-found: error
+          retention-days: 14

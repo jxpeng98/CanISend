@@ -90,13 +90,12 @@ fi
 printf 'Building embedded Svelte assets...\n'
 pnpm --dir "$frontend_root" build
 
-printf 'Building local macOS GUI and bundled CLI binaries...\n'
+printf 'Building the unified local macOS host...\n'
 cargo build \
   --manifest-path "$manifest" \
   --locked \
   --profile "$profile" \
   --package canisend-gui \
-  --package canisend-cli \
   --features canisend-gui/custom-protocol
 
 target_directory="$(
@@ -106,14 +105,11 @@ target_directory="$(
     --no-deps \
     --format-version 1 | jq -er '.target_directory'
 )"
-gui_binary="$target_directory/$profile/canisend-gui"
-cli_binary="$target_directory/$profile/canisend"
-for binary in "$gui_binary" "$cli_binary"; do
-  if [[ ! -f "$binary" || -L "$binary" || ! -x "$binary" ]]; then
-    printf 'Expected built executable is missing: %s\n' "$binary" >&2
-    exit 1
-  fi
-done
+host_binary="$target_directory/$profile/canisend-gui"
+if [[ ! -f "$host_binary" || -L "$host_binary" || ! -x "$host_binary" ]]; then
+  printf 'Expected unified host is missing: %s\n' "$host_binary" >&2
+  exit 1
+fi
 
 preview_root="$(/usr/bin/mktemp -d -t CanISend.design-preview)"
 preview_root="$(CDPATH= cd -- "$preview_root" && pwd -P)"
@@ -136,25 +132,25 @@ receipt="$preview_root/canisend-design-preview.receipt.json"
 mkdir -p "$preview_home/.codex" "$preview_home/.claude"
 
 printf 'Staging and verifying the temporary App...\n'
-"$script_dir/stage_macos_gui_app.sh" "$gui_binary" "$cli_binary" "$app"
+"$script_dir/stage_macos_gui_app.sh" "$host_binary" "$app"
 if [[ ! -f "$manifest_path" ]]; then
   printf 'Design Preview integrity manifest is missing: %s\n' "$manifest_path" >&2
   exit 1
 fi
 
-bundled_cli="$app/Contents/Resources/bin/canisend"
+unified_host="$app/Contents/MacOS/canisend-gui"
 printf 'Creating an isolated design-review workspace...\n'
-HOME="$preview_home" "$bundled_cli" \
+HOME="$preview_home" "$unified_host" \
   --workspace "$workspace" workspace init --json \
   > "$preview_root/workspace-init.json"
 workspace="$(CDPATH= cd -- "$workspace" && pwd -P)"
 
-HOME="$preview_home" "$bundled_cli" \
+HOME="$preview_home" "$unified_host" \
   --workspace "$workspace" job create \
   --title "Senior Lecturer in Evidence-Based Research and Academic Programme Leadership" \
   --institution "Northbridge University School of Social Sciences" \
   --json > "$preview_root/job-primary.json"
-HOME="$preview_home" "$bundled_cli" \
+HOME="$preview_home" "$unified_host" \
   --workspace "$workspace" job create \
   --title "Postdoctoral Research Fellow" \
   --institution "Institute for Public Policy" \
@@ -183,7 +179,7 @@ source_dirty="false"
 if [[ -n "$(git -C "$repo_root" status --short)" ]]; then
   source_dirty="true"
 fi
-version="$("$bundled_cli" version --json | jq -er '.data.version')"
+version="$("$unified_host" version --json | jq -er '.data.version')"
 
 jq -n \
   --arg version "$version" \

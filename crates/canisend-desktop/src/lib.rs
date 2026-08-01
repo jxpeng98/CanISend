@@ -1,25 +1,15 @@
 #![forbid(unsafe_code)]
 
-#[cfg(target_os = "macos")]
 mod agent;
-#[cfg(target_os = "macos")]
 mod agent_runtime;
-#[cfg(target_os = "macos")]
 mod commands;
-#[cfg(target_os = "macos")]
 mod delivery;
-#[cfg(target_os = "macos")]
 mod discovery;
-#[cfg(target_os = "macos")]
 mod job_intake;
-#[cfg(target_os = "macos")]
 mod profile;
-#[cfg(target_os = "macos")]
 mod system;
-#[cfg(target_os = "macos")]
 mod workflow;
 
-#[cfg(target_os = "macos")]
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -76,6 +66,7 @@ pub fn run() {
             delivery::document_workspace,
             delivery::export_package,
             delivery::export_render,
+            delivery::preview_render,
             delivery::reconcile_package,
             delivery::replace_package_projection,
             delivery::review_workspace,

@@ -3,7 +3,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
     fs,
-    io::Write,
+    io::{Read, Write},
     path::{Path, PathBuf},
     process::{Command, ExitCode},
 };
@@ -20,6 +20,9 @@ use time::{Duration, OffsetDateTime, format_description::well_known::Rfc3339};
 const RELEASE_TARGET_SCHEMA: &str = "canisend.release-targets/v1";
 const RELEASE_MANIFEST_SCHEMA: &str = "canisend.release-manifest/v1";
 const NATIVE_TEST_OWNERSHIP_SCHEMA: &str = "canisend.native-test-ownership/v1";
+const TYPST_TEMPLATE_CONTRACT_SCHEMA: &str = "canisend.typst-template-contract/v2";
+const DESKTOP_PROFILE_RECORD_SCHEMA: &str = "canisend.desktop-profile-record/v1";
+const DESKTOP_PROFILE_SUMMARY_SCHEMA: &str = "canisend.desktop-profile-summary/v1";
 const SCCACHE_STATS_SCHEMA: &str = "canisend.sccache-stats/v1";
 const BETA_READINESS_SCHEMA: &str = "canisend.beta-readiness/v1";
 const BETA_CONTRACT_FREEZE_SCHEMA: &str = "canisend.beta-contract-freeze/v1";
@@ -79,6 +82,43 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
         [area, command] if area == "resources" && command == "check" => check_resources(),
         [area, command] if area == "docs" && command == "check" => check_documentation(),
         [area, command] if area == "desktop" && command == "parity" => check_svelte_parity(),
+        [area, command] if area == "desktop" && command == "template-audit" => {
+            check_typst_template_contract()
+        }
+        [area, command, target, candidate, opt_level, lto, host, output]
+            if area == "desktop" && command == "profile-record" =>
+        {
+            write_desktop_profile_record(
+                target,
+                candidate,
+                opt_level,
+                lto,
+                Path::new(host),
+                Path::new(output),
+            )
+        }
+        [area, command, release, size_s, size_z, size_z_fat, output]
+            if area == "desktop" && command == "profile-summary" =>
+        {
+            write_desktop_profile_summary(
+                [release, size_s, size_z, size_z_fat].map(Path::new),
+                Path::new(output),
+            )
+        }
+        [area, command, target, profile, package_format, host, payload, frontend, artifact, output]
+            if area == "desktop" && command == "size-record" =>
+        {
+            write_desktop_size_record(
+                target,
+                profile,
+                package_format,
+                Path::new(host),
+                Path::new(payload),
+                (frontend != "-").then(|| Path::new(frontend)),
+                (artifact != "-").then(|| Path::new(artifact)),
+                Path::new(output),
+            )
+        }
         [area, command] if area == "release" && command == "check" => {
             check_schemas()?;
             check_resources()?;
@@ -317,7 +357,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
             )
         }
         _ => Err(
-            "usage: cargo run -p xtask -- schemas <check|write> | <resources|docs> check | \
+            "usage: cargo run -p xtask -- schemas <check|write> | <resources|docs> check | desktop <parity|template-audit|profile-record TARGET CANDIDATE OPT_LEVEL LTO HOST OUTPUT|profile-summary RELEASE SIZE_S SIZE_Z SIZE_Z_FAT OUTPUT|size-record TARGET PROFILE FORMAT HOST PAYLOAD FRONTEND|- ARTIFACT|- OUTPUT> | \
              release <check|freeze-candidate|validate-tag TAG|verify-beta-readiness FILE|verify-feedback-candidate SNAPSHOT ROADMAP|prepare-stage TAG [--write]|activate-feature-freeze COMMIT [--write]|record-beta-qualification TAG RUN_ID ASSETS [--write]|record-rc-qualification TAG RUN_ID ASSETS [--write]|record-release-notes-qualification TAG ASSETS REVIEWER [--write]|record-upgrade-qualification FROM_TAG TO_TAG EVIDENCE [--write]|record-documentation-qualification TAG ASSETS EVIDENCE [--write]|record-package-qualification FROM_TAG TO_TAG EVIDENCE [--write]|sbom OUTPUT|assemble TAG COMMIT ARTIFACTS OUTPUT|verify TAG DIRECTORY|verify-candidate TAG COMMIT DIRECTORY|channels TAG ASSETS OUTPUT|bind-signing-evidence TAG TARGET EVIDENCE BINARY ARCHIVE|verify-package-candidates FROM_TAG FROM_ASSETS TO_TAG TO_ASSETS|verify-package-evidence FROM_TAG TO_TAG DIRECTORY|verify-upgrade-evidence FROM_TAG TO_TAG DIRECTORY|verify-documentation-evidence TAG ASSETS EVIDENCE>"
                 .to_owned(),
         ),
@@ -386,6 +426,485 @@ fn repository_root() -> PathBuf {
         .to_path_buf()
 }
 
+const DESKTOP_HOST_BUDGET_BYTES: u64 = 67_108_864;
+const DESKTOP_PAYLOAD_BUDGET_BYTES: u64 = 75_497_472;
+const DESKTOP_FRONTEND_BUDGET_BYTES: u64 = 1_572_864;
+const LARGE_NATIVE_FILE_BYTES: u64 = 10 * 1024 * 1024;
+const DESKTOP_PROFILE_MINIMUM_SAVING_BYTES: u64 = 1024 * 1024;
+const DESKTOP_PROFILE_MINIMUM_SAVING_PERCENT: u64 = 2;
+
+fn desktop_profile_configuration(candidate: &str) -> Option<(&'static str, &'static str)> {
+    match candidate {
+        "release" => Some(("3", "thin")),
+        "size-s-thin" => Some(("s", "thin")),
+        "size-z-thin" => Some(("z", "thin")),
+        "size-z-fat" => Some(("z", "fat")),
+        _ => None,
+    }
+}
+
+fn command_stdout(program: &str, arguments: &[&str]) -> Result<String, String> {
+    let output = Command::new(program)
+        .args(arguments)
+        .output()
+        .map_err(|error| format!("could not execute `{program}`: {error}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "`{program} {}` failed: {}",
+            arguments.join(" "),
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    String::from_utf8(output.stdout)
+        .map(|value| value.trim().to_owned())
+        .map_err(|_| format!("`{program}` output is not UTF-8"))
+}
+
+fn desktop_source_identity() -> Result<Value, String> {
+    let root = repository_root();
+    let commit_lines = run_git_lines(&root, &["rev-parse", "HEAD"])?;
+    let commit = commit_lines
+        .first()
+        .filter(|value| value.len() == 40 && value.bytes().all(|byte| byte.is_ascii_hexdigit()))
+        .ok_or_else(|| "Git HEAD is not a full commit digest".to_owned())?;
+    let dirty =
+        !run_git_lines(&root, &["status", "--porcelain", "--untracked-files=all"])?.is_empty();
+    let cargo_lock = root.join("Cargo.lock");
+    let pnpm_lock = root.join("apps/canisend-desktop/pnpm-lock.yaml");
+    let template_contract = typst_template_contract_path();
+    Ok(json!({
+        "commit": commit,
+        "dirty": dirty,
+        "cargo_lock_sha256": sha256_file(&cargo_lock)?,
+        "pnpm_lock_sha256": sha256_file(&pnpm_lock)?,
+        "template_contract_sha256": sha256_file(&template_contract)?
+    }))
+}
+
+fn write_desktop_profile_record(
+    target: &str,
+    candidate: &str,
+    opt_level: &str,
+    lto: &str,
+    host: &Path,
+    output: &Path,
+) -> Result<(), String> {
+    check_typst_template_contract()?;
+    if !release_targets()?
+        .iter()
+        .any(|release_target| release_target.triple == target)
+    {
+        return Err(format!(
+            "desktop profile record has unsupported target `{target}`"
+        ));
+    }
+    let expected = desktop_profile_configuration(candidate)
+        .ok_or_else(|| format!("unsupported desktop profile candidate `{candidate}`"))?;
+    if (opt_level, lto) != expected {
+        return Err(format!(
+            "desktop profile candidate `{candidate}` requires opt-level `{}` and LTO `{}`",
+            expected.0, expected.1
+        ));
+    }
+    if output.exists() || output.is_symlink() {
+        return Err(format!(
+            "desktop profile record output must not exist: {}",
+            output.display()
+        ));
+    }
+    reject_symlink(host)?;
+    let host = host
+        .canonicalize()
+        .map_err(|error| format!("could not resolve desktop profile host: {error}"))?;
+    let host_file_name = host
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| "desktop profile host file name is not UTF-8".to_owned())?;
+    let logical_host_path = format!("profile-matrix/{candidate}/{target}/release/{host_file_name}");
+    let host_bytes = file_size(&host)?;
+    let recorded_at = OffsetDateTime::now_utc()
+        .format(&Rfc3339)
+        .map_err(|error| format!("could not format desktop profile timestamp: {error}"))?;
+    let contract = expected_typst_template_contract()?;
+    let record = json!({
+        "schema": DESKTOP_PROFILE_RECORD_SCHEMA,
+        "authoritative_release_evidence": false,
+        "target": target,
+        "candidate": candidate,
+        "recorded_at": recorded_at,
+        "source": desktop_source_identity()?,
+        "toolchain": {
+            "cargo": command_stdout("cargo", &["--version"] )?,
+            "rustc_verbose": command_stdout("rustc", &["--version", "--verbose"] )?
+        },
+        "build": {
+            "profile": "release",
+            "opt_level": opt_level,
+            "lto": lto,
+            "codegen_units": 1,
+            "panic": "abort",
+            "strip": "symbols"
+        },
+        "templates": contract["templates"].clone(),
+        "host": {
+            "path": logical_host_path,
+            "bytes": host_bytes,
+            "sha256": sha256_file(&host)?,
+            "budget_bytes": DESKTOP_HOST_BUDGET_BYTES,
+            "passed_budget": host_bytes <= DESKTOP_HOST_BUDGET_BYTES
+        }
+    });
+    write_pretty_json(output, &record)?;
+    if host_bytes > DESKTOP_HOST_BUDGET_BYTES {
+        return Err(format!(
+            "desktop profile host exceeds the {}-byte budget; inspect {}",
+            DESKTOP_HOST_BUDGET_BYTES,
+            output.display()
+        ));
+    }
+    println!("desktop profile: {target} {candidate} = {host_bytes} bytes");
+    Ok(())
+}
+
+fn read_desktop_profile_record(path: &Path) -> Result<Value, String> {
+    let body = fs::read_to_string(path)
+        .map_err(|error| format!("could not read profile record {}: {error}", path.display()))?;
+    let record: Value = serde_json::from_str(&body)
+        .map_err(|error| format!("profile record {} is invalid JSON: {error}", path.display()))?;
+    if record["schema"] != DESKTOP_PROFILE_RECORD_SCHEMA {
+        return Err(format!(
+            "profile record {} has an unsupported schema",
+            path.display()
+        ));
+    }
+    Ok(record)
+}
+
+fn write_desktop_profile_summary(records: [&Path; 4], output: &Path) -> Result<(), String> {
+    if output.exists() || output.is_symlink() {
+        return Err(format!(
+            "desktop profile summary output must not exist: {}",
+            output.display()
+        ));
+    }
+    let mut by_candidate = BTreeMap::new();
+    for path in records {
+        let record = read_desktop_profile_record(path)?;
+        let candidate = record["candidate"]
+            .as_str()
+            .ok_or_else(|| format!("profile record {} has no candidate", path.display()))?
+            .to_owned();
+        if by_candidate.insert(candidate.clone(), record).is_some() {
+            return Err(format!("duplicate desktop profile candidate `{candidate}`"));
+        }
+    }
+    let expected_candidates = ["release", "size-s-thin", "size-z-thin", "size-z-fat"];
+    if by_candidate
+        .keys()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>()
+        != expected_candidates.into_iter().collect()
+    {
+        return Err("desktop profile summary requires the exact four candidate records".to_owned());
+    }
+    let reference = &by_candidate["release"];
+    let target = reference["target"]
+        .as_str()
+        .ok_or_else(|| "release profile record has no target".to_owned())?;
+    let source = &reference["source"];
+    let reference_bytes = reference["host"]["bytes"]
+        .as_u64()
+        .ok_or_else(|| "release profile record has no host byte count".to_owned())?;
+    let material_threshold = DESKTOP_PROFILE_MINIMUM_SAVING_BYTES
+        .max(reference_bytes.saturating_mul(DESKTOP_PROFILE_MINIMUM_SAVING_PERCENT) / 100);
+    let mut results = Vec::with_capacity(expected_candidates.len());
+    let mut winner: Option<(&str, u64)> = None;
+    for candidate in expected_candidates {
+        let record = &by_candidate[candidate];
+        if record["target"] != target || record["source"] != *source {
+            return Err(format!(
+                "desktop profile candidate `{candidate}` was not built from the same target and source identity"
+            ));
+        }
+        let bytes = record["host"]["bytes"].as_u64().ok_or_else(|| {
+            format!("desktop profile candidate `{candidate}` has no host byte count")
+        })?;
+        let passed_budget = record["host"]["passed_budget"].as_bool() == Some(true);
+        let saving = reference_bytes.saturating_sub(bytes);
+        let saving_basis_points = saving
+            .saturating_mul(10_000)
+            .checked_div(reference_bytes)
+            .unwrap_or(0);
+        if passed_budget && winner.is_none_or(|(_, winner_bytes)| bytes < winner_bytes) {
+            winner = Some((candidate, bytes));
+        }
+        results.push(json!({
+            "candidate": candidate,
+            "bytes": bytes,
+            "saving_bytes_vs_release": saving,
+            "saving_basis_points_vs_release": saving_basis_points,
+            "passed_budget": passed_budget
+        }));
+    }
+    let (winner_candidate, winner_bytes) = winner.ok_or_else(|| {
+        "desktop profile matrix has no candidate within the host budget".to_owned()
+    })?;
+    let winner_saving = reference_bytes.saturating_sub(winner_bytes);
+    let material_size_candidate =
+        winner_candidate != "release" && winner_saving >= material_threshold;
+    let summary = json!({
+        "schema": DESKTOP_PROFILE_SUMMARY_SCHEMA,
+        "authoritative_release_evidence": false,
+        "target": target,
+        "source": source,
+        "reference_bytes": reference_bytes,
+        "materiality": {
+            "minimum_saving_bytes": material_threshold,
+            "minimum_percent": DESKTOP_PROFILE_MINIMUM_SAVING_PERCENT
+        },
+        "winner": {
+            "candidate": winner_candidate,
+            "bytes": winner_bytes,
+            "saving_bytes_vs_release": winner_saving,
+            "material_size_candidate": material_size_candidate,
+            "requires_native_functional_qualification": winner_candidate != "release"
+        },
+        "candidates": results
+    });
+    write_pretty_json(output, &summary)?;
+    println!(
+        "desktop profile summary: {target} winner {winner_candidate} at {winner_bytes} bytes (saving {winner_saving})"
+    );
+    Ok(())
+}
+
+fn desktop_package_class(package_format: &str) -> (&'static str, bool) {
+    match package_format {
+        "appimage" => ("portable", true),
+        "nsis-offline" => ("offline", true),
+        _ => ("standard", false),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn write_desktop_size_record(
+    target: &str,
+    profile: &str,
+    package_format: &str,
+    host: &Path,
+    payload: &Path,
+    frontend: Option<&Path>,
+    artifact: Option<&Path>,
+    output: &Path,
+) -> Result<(), String> {
+    check_typst_template_contract()?;
+    if !release_targets()?
+        .iter()
+        .any(|candidate| candidate.triple == target)
+    {
+        return Err(format!(
+            "desktop size record has unsupported target `{target}`"
+        ));
+    }
+    if !matches!(profile, "release-alpha" | "release") {
+        return Err("desktop size record profile must be release-alpha or release".to_owned());
+    }
+    if !matches!(
+        package_format,
+        "app" | "dmg" | "zip" | "nsis" | "nsis-offline" | "msi" | "deb" | "rpm" | "appimage"
+    ) {
+        return Err(format!(
+            "desktop size record has unsupported package format `{package_format}`"
+        ));
+    }
+    if output.exists() || output.is_symlink() {
+        return Err(format!(
+            "desktop size record output must not exist: {}",
+            output.display()
+        ));
+    }
+    reject_symlink(host)?;
+    let payload = canonical_regular_directory(payload, "desktop application payload")?;
+    let host = host
+        .canonicalize()
+        .map_err(|error| format!("could not resolve unified host: {error}"))?;
+    if !host.starts_with(&payload) {
+        return Err("desktop unified host must be inside the measured payload".to_owned());
+    }
+
+    let (payload_bytes, native_hosts) = inspect_desktop_payload(&payload)?;
+    let host_bytes = file_size(&host)?;
+    let host_relative = relative_slash_path(&payload, &host)?;
+    if native_hosts.len() != 1 || native_hosts[0].0 != host_relative {
+        return Err(format!(
+            "desktop payload must contain exactly the declared unified host; found {native_hosts:?}"
+        ));
+    }
+
+    let frontend_bytes = frontend
+        .map(|path| {
+            let path = canonical_regular_directory(path, "desktop frontend")?;
+            inspect_desktop_payload(&path).map(|(bytes, _)| bytes)
+        })
+        .transpose()?;
+    if let Some(artifact) = artifact {
+        reject_symlink(artifact)?;
+    }
+    let artifact_bytes = artifact.map(file_size).transpose()?;
+    let artifact_sha256 = artifact.map(sha256_file).transpose()?;
+    let passed = host_bytes <= DESKTOP_HOST_BUDGET_BYTES
+        && payload_bytes <= DESKTOP_PAYLOAD_BUDGET_BYTES
+        && frontend_bytes.is_none_or(|bytes| bytes <= DESKTOP_FRONTEND_BUDGET_BYTES);
+    let recorded_at = OffsetDateTime::now_utc()
+        .format(&Rfc3339)
+        .map_err(|error| format!("could not format desktop size timestamp: {error}"))?;
+    let (package_class, runtime_inclusive) = desktop_package_class(package_format);
+    let rust_opt_level = std::env::var("CARGO_PROFILE_RELEASE_OPT_LEVEL")
+        .unwrap_or_else(|_| "profile-default".to_owned());
+    let rust_lto =
+        std::env::var("CARGO_PROFILE_RELEASE_LTO").unwrap_or_else(|_| "profile-default".to_owned());
+    let record = json!({
+        "schema": "canisend.desktop-size/v1",
+        "target": target,
+        "profile": profile,
+        "source": desktop_source_identity()?,
+        "build_optimization": {
+            "rust_opt_level": rust_opt_level,
+            "rust_lto": rust_lto,
+            "codegen_units": 1,
+            "panic": "abort",
+            "strip": "symbols"
+        },
+        "templates": expected_typst_template_contract()?["templates"].clone(),
+        "package_format": package_format,
+        "package_class": package_class,
+        "runtime_inclusive": runtime_inclusive,
+        "recorded_at": recorded_at,
+        "budgets": {
+            "unified_host_bytes": DESKTOP_HOST_BUDGET_BYTES,
+            "application_payload_bytes": DESKTOP_PAYLOAD_BUDGET_BYTES,
+            "frontend_bytes": DESKTOP_FRONTEND_BUDGET_BYTES,
+            "full_native_host_count": 1
+        },
+        "bytes": {
+            "unified_host": host_bytes,
+            "application_payload": payload_bytes,
+            "frontend": frontend_bytes,
+            "download_artifact": artifact_bytes
+        },
+        "sha256": {
+            "unified_host": sha256_file(&host)?,
+            "download_artifact": artifact_sha256
+        },
+        "native_hosts": native_hosts
+            .iter()
+            .map(|(path, bytes)| json!({"path": path, "bytes": bytes}))
+            .collect::<Vec<_>>(),
+        "passed": passed
+    });
+    write_pretty_json(output, &record)?;
+    if !passed {
+        return Err(format!(
+            "desktop size budget exceeded; inspect {}",
+            output.display()
+        ));
+    }
+    println!(
+        "desktop size: {target} {package_format} has one {host_bytes}-byte host in a {payload_bytes}-byte payload"
+    );
+    Ok(())
+}
+
+fn canonical_regular_directory(path: &Path, context: &str) -> Result<PathBuf, String> {
+    let metadata = fs::symlink_metadata(path)
+        .map_err(|error| format!("could not inspect {context} {}: {error}", path.display()))?;
+    if !metadata.is_dir() || metadata.file_type().is_symlink() {
+        return Err(format!(
+            "{context} is not a regular directory: {}",
+            path.display()
+        ));
+    }
+    path.canonicalize()
+        .map_err(|error| format!("could not resolve {context} {}: {error}", path.display()))
+}
+
+fn inspect_desktop_payload(root: &Path) -> Result<(u64, Vec<(String, u64)>), String> {
+    let mut bytes = 0_u64;
+    let mut native_hosts = Vec::new();
+    inspect_desktop_payload_directory(root, root, &mut bytes, &mut native_hosts)?;
+    native_hosts.sort();
+    Ok((bytes, native_hosts))
+}
+
+fn inspect_desktop_payload_directory(
+    root: &Path,
+    directory: &Path,
+    bytes: &mut u64,
+    native_hosts: &mut Vec<(String, u64)>,
+) -> Result<(), String> {
+    for entry in fs::read_dir(directory)
+        .map_err(|error| format!("could not inspect {}: {error}", directory.display()))?
+    {
+        let entry = entry.map_err(|error| format!("could not inspect payload entry: {error}"))?;
+        let path = entry.path();
+        let metadata = fs::symlink_metadata(&path)
+            .map_err(|error| format!("could not inspect {}: {error}", path.display()))?;
+        if metadata.file_type().is_symlink() {
+            return Err(format!(
+                "desktop application payload contains a symlink: {}",
+                path.display()
+            ));
+        }
+        if metadata.is_dir() {
+            inspect_desktop_payload_directory(root, &path, bytes, native_hosts)?;
+        } else if metadata.is_file() {
+            *bytes = bytes
+                .checked_add(metadata.len())
+                .ok_or_else(|| "desktop payload byte count overflowed".to_owned())?;
+            if metadata.len() >= LARGE_NATIVE_FILE_BYTES && has_native_executable_magic(&path)? {
+                native_hosts.push((relative_slash_path(root, &path)?, metadata.len()));
+            }
+        } else {
+            return Err(format!(
+                "desktop application payload contains a non-regular entry: {}",
+                path.display()
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn relative_slash_path(root: &Path, path: &Path) -> Result<String, String> {
+    path.strip_prefix(root)
+        .map(|relative| relative.to_string_lossy().replace('\\', "/"))
+        .map_err(|error| format!("could not relativize desktop payload path: {error}"))
+}
+
+fn has_native_executable_magic(path: &Path) -> Result<bool, String> {
+    let mut file = fs::File::open(path)
+        .map_err(|error| format!("could not inspect native file {}: {error}", path.display()))?;
+    let mut magic = [0_u8; 4];
+    let read = file
+        .read(&mut magic)
+        .map_err(|error| format!("could not inspect native file {}: {error}", path.display()))?;
+    if read < 2 {
+        return Ok(false);
+    }
+    Ok(magic.starts_with(b"MZ")
+        || magic == [0x7f, b'E', b'L', b'F']
+        || matches!(
+            magic,
+            [0xfe, 0xed, 0xfa, 0xce]
+                | [0xce, 0xfa, 0xed, 0xfe]
+                | [0xfe, 0xed, 0xfa, 0xcf]
+                | [0xcf, 0xfa, 0xed, 0xfe]
+                | [0xca, 0xfe, 0xba, 0xbe]
+                | [0xbe, 0xba, 0xfe, 0xca]
+                | [0xca, 0xfe, 0xba, 0xbf]
+                | [0xbf, 0xba, 0xfe, 0xca]
+        ))
+}
+
 fn json_files(directory: &Path) -> Result<BTreeSet<String>, String> {
     if !directory.exists() {
         return Ok(BTreeSet::new());
@@ -412,7 +931,215 @@ fn check_resources() -> Result<(), String> {
     if canisend_resources::manifest().is_empty() {
         return Err("embedded resource manifest is empty".to_owned());
     }
+    check_typst_template_contract()?;
     println!("resources: ok");
+    Ok(())
+}
+
+fn typst_template_contract_path() -> PathBuf {
+    repository_root().join("release/typst-template-contract.json")
+}
+
+fn locked_package_version(package_name: &str) -> Result<String, String> {
+    let lock_path = repository_root().join("Cargo.lock");
+    let body = fs::read_to_string(&lock_path)
+        .map_err(|error| format!("could not read {}: {error}", lock_path.display()))?;
+    let lock: toml::Value =
+        toml::from_str(&body).map_err(|error| format!("Cargo.lock is invalid TOML: {error}"))?;
+    let packages = lock
+        .get("package")
+        .and_then(toml::Value::as_array)
+        .ok_or_else(|| "Cargo.lock does not contain packages".to_owned())?;
+    let versions = packages
+        .iter()
+        .filter(|package| package.get("name").and_then(toml::Value::as_str) == Some(package_name))
+        .filter_map(|package| package.get("version").and_then(toml::Value::as_str))
+        .collect::<BTreeSet<_>>();
+    if versions.len() != 1 {
+        return Err(format!(
+            "Cargo.lock must contain exactly one `{package_name}` version, found {versions:?}"
+        ));
+    }
+    Ok(versions
+        .into_iter()
+        .next()
+        .expect("one locked version")
+        .to_owned())
+}
+
+fn typst_template_descriptor_value(
+    descriptor: canisend_resources::ResourceDescriptor,
+) -> Result<Value, String> {
+    let (bundle_id, document_kinds, fallback_for, adapter_revision, upstream, font_contract) =
+        match descriptor.id {
+            "template.application-document" => (
+                "canisend-default",
+                json!([]),
+                json!(["cv", "research-statement", "teaching-statement"]),
+                0,
+                Value::Null,
+                json!({
+                    "families": ["Libertinus Serif"],
+                    "inherits_renderer_default": false,
+                    "styles": ["normal"],
+                    "weights": ["regular", "semibold"]
+                }),
+            ),
+            "template.cover-letter" => (
+                "canisend-default",
+                json!([]),
+                json!(["cover-letter"]),
+                0,
+                Value::Null,
+                json!({
+                    "families": ["Libertinus Serif"],
+                    "inherits_renderer_default": false,
+                    "styles": ["normal"],
+                    "weights": ["regular", "semibold"]
+                }),
+            ),
+            "template.modernpro-cv" => (
+                "modernpro-cv",
+                json!(["cv"]),
+                json!([]),
+                2,
+                json!({
+                    "archive_sha256": "1d108f538571e804f96b59dc1f3c0b0e0dc275b3eb35c6368fd7cc89775851f0",
+                    "archive_url": "https://packages.typst.org/preview/modernpro-cv-2.0.0.tar.gz",
+                    "license": "MIT",
+                    "package": "modernpro-cv",
+                    "repository": "https://github.com/jxpeng98/Typst-CV-Resume",
+                    "source_entrypoint": "modernpro-cv.typ",
+                    "source_patches": [{
+                        "id": "prefer-explicit-configuration",
+                        "reason": "Honor the configured embedded font before the unavailable upstream fallback"
+                    }],
+                    "version": "2.0.0"
+                }),
+                json!({
+                    "families": ["Libertinus Serif"],
+                    "inherits_renderer_default": false,
+                    "styles": ["normal", "italic"],
+                    "upstream_default_families": ["PT Serif", "Libertinus Serif"],
+                    "weights": ["light", "regular", "medium", "semibold", "bold"]
+                }),
+            ),
+            "template.modernpro-coverletter" => (
+                "modernpro-coverletter",
+                json!(["cover-letter", "research-statement", "teaching-statement"]),
+                json!([]),
+                2,
+                json!({
+                    "archive_sha256": "d3c5e8031e8a74ab4ae6e3163b0f37d6ecebc972dd7a4b3b41fc99ff07585130",
+                    "archive_url": "https://packages.typst.org/preview/modernpro-coverletter-1.0.0.tar.gz",
+                    "license": "MIT",
+                    "package": "modernpro-coverletter",
+                    "repository": "https://github.com/jxpeng98/typst-coverletter",
+                    "source_entrypoint": "modernpro-coverletter.typ",
+                    "source_patches": [{
+                        "id": "prefer-explicit-configuration",
+                        "reason": "Honor the configured embedded font before the unavailable upstream fallback"
+                    }],
+                    "version": "1.0.0"
+                }),
+                json!({
+                    "families": ["Libertinus Serif"],
+                    "inherits_renderer_default": false,
+                    "styles": ["normal"],
+                    "upstream_default_families": ["PT Serif", "Libertinus Serif"],
+                    "weights": ["light", "regular", "bold"]
+                }),
+            ),
+            other => return Err(format!("uncontracted embedded Typst template `{other}`")),
+        };
+    Ok(json!({
+        "adapter_revision": adapter_revision,
+        "bundle_id": bundle_id,
+        "document_kinds": document_kinds,
+        "entrypoint": "canisend_render_document",
+        "fallback_for": fallback_for,
+        "resource_id": descriptor.id,
+        "path": descriptor.path,
+        "resource_version": descriptor.version,
+        "bytes": descriptor.size,
+        "sha256": descriptor.sha256,
+        "font_contract": font_contract,
+        "upstream": upstream
+    }))
+}
+
+fn expected_typst_template_contract() -> Result<Value, String> {
+    let mut templates = canisend_resources::manifest()
+        .into_iter()
+        .filter(|descriptor| descriptor.kind == canisend_resources::ResourceKind::Template)
+        .map(typst_template_descriptor_value)
+        .collect::<Result<Vec<_>, _>>()?;
+    templates.sort_by(|left, right| {
+        left["resource_id"]
+            .as_str()
+            .cmp(&right["resource_id"].as_str())
+    });
+    Ok(json!({
+        "schema": TYPST_TEMPLATE_CONTRACT_SCHEMA,
+        "contract_version": 2,
+        "baseline": "modernpro-universe-pinned-v2",
+        "renderer": {
+            "typst_as_lib": locked_package_version("typst-as-lib")?,
+            "typst_assets": locked_package_version("typst-assets")?,
+            "typst_pdf": locked_package_version("typst-pdf")?,
+            "font_pack": "typst-assets-full",
+            "font_source": "typst_assets::fonts()",
+            "system_font_discovery": false,
+            "external_file_access": false,
+            "external_package_resolution": false,
+            "network_access": false
+        },
+        "coverage": {
+            "scripts": ["latin", "greek", "cyrillic"],
+            "math": true,
+            "symbols": true,
+            "urls": true,
+            "lists": true,
+            "tables": true,
+            "explicit_page_breaks": true,
+            "media": []
+        },
+        "fixtures": [
+            "cover-letter-template",
+            "all-document-kinds",
+            "all-document-section-kinds",
+            "unicode-math-url-list-table-two-page",
+            "missing-font-bounded-fallback",
+            "restricted-world-file-and-package-rejection"
+        ],
+        "warning_policy": "zero-for-product-template-fixtures",
+        "templates": templates
+    }))
+}
+
+fn check_typst_template_contract() -> Result<(), String> {
+    canisend_resources::verify()?;
+    let path = typst_template_contract_path();
+    let body = fs::read_to_string(&path).map_err(|error| {
+        format!(
+            "Typst template contract is missing at {}: {error}",
+            path.display()
+        )
+    })?;
+    let actual: Value = serde_json::from_str(&body)
+        .map_err(|error| format!("Typst template contract is invalid JSON: {error}"))?;
+    let expected = expected_typst_template_contract()?;
+    if actual != expected {
+        return Err(format!(
+            "Typst template contract differs from embedded resources, locked renderer versions, or the committed capability policy: {}",
+            path.display()
+        ));
+    }
+    println!(
+        "desktop templates: ok ({} template resources, contract {})",
+        actual["templates"].as_array().map_or(0, Vec::len),
+        sha256(body.as_bytes())
+    );
     Ok(())
 }
 
@@ -3646,6 +4373,10 @@ fn check_native_test_ownership() -> Result<(), String> {
                 "scope": "non-publishing Intel GUI compile regression"
             },
             {
+                "owner": "desktop-platform-qualification/scheduled",
+                "scope": "non-publishing Windows and Linux latest-template profile matrices, one-host desktop packages, runtime smoke, and size evidence"
+            },
+            {
                 "owner": "fuzz/scheduled",
                 "scope": "extended malformed-input fuzzing"
             }
@@ -3766,6 +4497,8 @@ fn check_native_test_ownership() -> Result<(), String> {
         "Install musl linker",
         "Package exact ad-hoc-signed macOS ZIP and DMG",
         "Smoke exact extracted macOS application archive",
+        "Enforce one-host desktop payload budget",
+        "desktop size-record",
         "Smoke exact read-only macOS application DMG",
     ] {
         if !workflow.contains(required) {
@@ -3829,6 +4562,57 @@ fn check_native_test_ownership() -> Result<(), String> {
             "release workflow must upload CLI and desktop timing evidence exactly once each"
                 .to_owned(),
         );
+    }
+
+    let desktop_qualification_path =
+        root.join(".github/workflows/desktop-platform-qualification.yml");
+    let desktop_qualification = fs::read_to_string(&desktop_qualification_path)
+        .map_err(|error| format!("desktop platform qualification workflow is missing: {error}"))?;
+    for required in [
+        "name: desktop-platform-qualification",
+        "runs-on: windows-2025",
+        "runs-on: ubuntu-22.04",
+        "CARGO_PROFILE_RELEASE_OPT_LEVEL: z",
+        "CARGO_PROFILE_RELEASE_LTO: fat",
+        "Measure latest-template Windows profile matrix",
+        "./scripts/measure_desktop_profile_matrix.ps1",
+        "Measure latest-template Linux profile matrix",
+        "./scripts/measure_desktop_profile_matrix.sh",
+        "Build one-host Windows desktop without bundling",
+        "Self-sign exact unified Windows host",
+        "Bundle per-user NSIS and MSI standard installers",
+        "Build one-host Linux desktop without bundling",
+        "Bundle DEB, RPM, and separately budgeted AppImage",
+        "Smoke GUI, renamed CLI, and MCP modes",
+        "desktop size-record",
+        "x86_64-pc-windows-msvc release msi",
+        "x86_64-pc-windows-msvc release nsis",
+        "x86_64-pc-windows-msvc release nsis-offline",
+        "x86_64-unknown-linux-gnu release deb",
+        "x86_64-unknown-linux-gnu release rpm",
+        "x86_64-unknown-linux-gnu release appimage",
+        "rpm2cpio",
+        "--appimage-extract",
+        "cmp --silent",
+        "retention-days: 14",
+    ] {
+        if !desktop_qualification.contains(required) {
+            return Err(format!(
+                "desktop platform qualification is missing invariant `{required}`"
+            ));
+        }
+    }
+    for forbidden in [
+        "contents: write",
+        "packages: write",
+        "releases: write",
+        "git push",
+    ] {
+        if desktop_qualification.contains(forbidden) {
+            return Err(format!(
+                "desktop platform qualification must remain nonpublishing; found `{forbidden}`"
+            ));
+        }
     }
 
     let timing_script = fs::read_to_string(root.join("scripts/write_native_release_timing.sh"))
@@ -3927,7 +4711,7 @@ fn check_native_test_ownership() -> Result<(), String> {
         }
     }
     println!(
-        "native test ownership: ok (one source suite, {} CLI targets, ZIP+DMG desktop package, non-authoritative compiler cache)",
+        "native test ownership: ok (one source suite, {} CLI targets, macOS ZIP+DMG plus scheduled Windows/Linux desktop packages, non-authoritative compiler cache)",
         policy_targets.len()
     );
     Ok(())
@@ -4441,10 +5225,10 @@ fn check_alpha_package_contract() -> Result<(), String> {
         &fs::read(&path).map_err(|error| format!("Alpha package contract is missing: {error}"))?,
     )
     .map_err(|error| format!("Alpha package contract is invalid JSON: {error}"))?;
-    if contract.get("schema").and_then(Value::as_str) != Some("canisend.alpha-package-contract/v1")
+    if contract.get("schema").and_then(Value::as_str) != Some("canisend.alpha-package-contract/v2")
     {
         return Err(
-            "Alpha package contract schema must be canisend.alpha-package-contract/v1".to_owned(),
+            "Alpha package contract schema must be canisend.alpha-package-contract/v2".to_owned(),
         );
     }
     let version = env!("CARGO_PKG_VERSION");
@@ -4521,20 +5305,16 @@ fn check_alpha_package_contract() -> Result<(), String> {
             "/Applications".to_owned(),
         ),
         (
-            "/desktop_macos/gui_executable",
+            "/desktop_macos/unified_host_executable",
             "Contents/MacOS/canisend-gui".to_owned(),
         ),
         (
-            "/desktop_macos/bundled_cli_executable",
-            "Contents/Resources/bin/canisend".to_owned(),
-        ),
-        (
             "/desktop_macos/bundle_schema",
-            "canisend.macos-app-bundle/v2".to_owned(),
+            "canisend.macos-app-bundle/v3".to_owned(),
         ),
         (
             "/desktop_macos/companion_schema",
-            "canisend.macos-app-integrity/v1".to_owned(),
+            "canisend.macos-app-integrity/v2".to_owned(),
         ),
     ] {
         let actual = contract.pointer(pointer).and_then(Value::as_str);
@@ -4544,6 +5324,28 @@ fn check_alpha_package_contract() -> Result<(), String> {
                 actual.unwrap_or("<missing>")
             ));
         }
+    }
+    if contract
+        .pointer("/desktop_macos/full_native_host_count")
+        .and_then(Value::as_u64)
+        != Some(1)
+        || contract
+            .pointer("/desktop_macos/application_payload_budget_bytes")
+            .and_then(Value::as_u64)
+            != Some(75_497_472)
+        || contract
+            .pointer("/desktop_macos/host_entry_modes")
+            .and_then(Value::as_array)
+            != Some(&vec![
+                Value::String("gui".to_owned()),
+                Value::String("cli".to_owned()),
+                Value::String("mcp".to_owned()),
+            ])
+    {
+        return Err(
+            "Alpha macOS package must freeze one unified GUI/CLI/MCP host and the 72 MiB payload budget"
+                .to_owned(),
+        );
     }
     let top_level = contract
         .pointer("/desktop_macos/archive_top_level")
@@ -4653,20 +5455,20 @@ fn check_alpha_package_contract() -> Result<(), String> {
             format!("macOS GUI Alpha performance baseline is invalid JSON: {error}")
         })?;
     if performance.get("schema").and_then(Value::as_str)
-        != Some("canisend.macos-gui-performance/v1")
+        != Some("canisend.macos-gui-performance/v2")
         || performance.get("version").and_then(Value::as_str) != Some(version)
         || performance.get("profile").and_then(Value::as_str) != Some("release-alpha")
         || performance.get("passed").and_then(Value::as_bool) != Some(true)
     {
         return Err(
-            "macOS GUI Alpha performance baseline must match the version and record a passing v1 measurement"
+            "macOS GUI Alpha performance baseline must match the version and record a passing v2 unified-host measurement"
                 .to_owned(),
         );
     }
     for (pointer, expected) in [
         ("/budgets/maximum_startup_ms", 2_000_u64),
-        ("/budgets/gui_executable_bytes", 67_108_864),
-        ("/budgets/app_bundle_apparent_bytes", 134_217_728),
+        ("/budgets/unified_host_bytes", 67_108_864),
+        ("/budgets/application_payload_bytes", 75_497_472),
     ] {
         if performance.pointer(pointer).and_then(Value::as_u64) != Some(expected) {
             return Err(format!(
@@ -4679,18 +5481,53 @@ fn check_alpha_package_contract() -> Result<(), String> {
         .and_then(Value::as_f64)
         .ok_or_else(|| "macOS GUI Alpha baseline maximum_ms is missing".to_owned())?;
     let gui_bytes = performance
-        .pointer("/bytes/gui_executable")
+        .pointer("/bytes/unified_host")
         .and_then(Value::as_u64)
         .ok_or_else(|| "macOS GUI Alpha baseline GUI byte count is missing".to_owned())?;
     let bundle_bytes = performance
-        .pointer("/bytes/app_bundle_apparent")
+        .pointer("/bytes/application_payload")
         .and_then(Value::as_u64)
         .ok_or_else(|| "macOS GUI Alpha baseline App byte count is missing".to_owned())?;
-    if maximum_ms > 2_000.0 || gui_bytes > 67_108_864 || bundle_bytes > 134_217_728 {
+    if maximum_ms > 2_000.0 || gui_bytes > 67_108_864 || bundle_bytes > 75_497_472 {
         return Err("macOS GUI Alpha performance baseline exceeds a frozen budget".to_owned());
     }
+    let size_path = root.join("docs/performance/desktop-size-aarch64-apple-darwin.json");
+    let size: Value = serde_json::from_slice(
+        &fs::read(&size_path)
+            .map_err(|error| format!("macOS unified-host size baseline is missing: {error}"))?,
+    )
+    .map_err(|error| format!("macOS unified-host size baseline is invalid JSON: {error}"))?;
+    if size["schema"] != "canisend.desktop-size/v1"
+        || size["target"] != "aarch64-apple-darwin"
+        || size["profile"] != "release-alpha"
+        || size["package_format"] != "app"
+        || size["package_class"] != "standard"
+        || size["passed"] != true
+        || size["budgets"]["unified_host_bytes"] != 67_108_864_u64
+        || size["budgets"]["application_payload_bytes"] != 75_497_472_u64
+        || size["budgets"]["frontend_bytes"] != 1_572_864_u64
+        || size["budgets"]["full_native_host_count"] != 1_u64
+        || size["bytes"]["unified_host"] != gui_bytes
+        || size["bytes"]["application_payload"]
+            .as_u64()
+            .is_none_or(|bytes| bytes > 75_497_472)
+        || size["bytes"]["frontend"]
+            .as_u64()
+            .is_none_or(|bytes| bytes > 1_572_864)
+        || size["native_hosts"]
+            != json!([{
+                "bytes": gui_bytes,
+                "path": "Contents/MacOS/canisend-gui"
+            }])
+        || size["sha256"]["unified_host"] != performance["sha256"]["unified_host"]
+    {
+        return Err(
+            "macOS unified-host size baseline must bind one host and the frozen standard-package budgets"
+                .to_owned(),
+        );
+    }
     println!(
-        "Alpha package contract: ok ({} CLI assets, macOS ZIP and DMG desktop artifacts, no Intel GUI release evidence, GUI performance baseline)",
+        "Alpha package contract: ok ({} CLI assets, one-host macOS ZIP and DMG desktop artifacts, no Intel GUI release evidence, GUI performance and payload baselines)",
         assets.len()
     );
     Ok(())
@@ -10417,6 +11254,40 @@ mod tests {
         assert_eq!(ReleaseStage::Beta.cargo_profile(), "release");
         assert_eq!(ReleaseStage::ReleaseCandidate.cargo_profile(), "release");
         assert_eq!(ReleaseStage::Stable.cargo_profile(), "release");
+    }
+
+    #[test]
+    fn desktop_package_classes_separate_runtime_inclusive_artifacts() {
+        assert_eq!(desktop_package_class("deb"), ("standard", false));
+        assert_eq!(desktop_package_class("nsis"), ("standard", false));
+        assert_eq!(desktop_package_class("nsis-offline"), ("offline", true));
+        assert_eq!(desktop_package_class("appimage"), ("portable", true));
+    }
+
+    #[test]
+    fn typst_template_contract_matches_embedded_latest_templates() {
+        check_typst_template_contract().expect("latest Typst template contract");
+    }
+
+    #[test]
+    fn desktop_profile_matrix_has_four_isolated_candidates() {
+        assert_eq!(
+            desktop_profile_configuration("release"),
+            Some(("3", "thin"))
+        );
+        assert_eq!(
+            desktop_profile_configuration("size-s-thin"),
+            Some(("s", "thin"))
+        );
+        assert_eq!(
+            desktop_profile_configuration("size-z-thin"),
+            Some(("z", "thin"))
+        );
+        assert_eq!(
+            desktop_profile_configuration("size-z-fat"),
+            Some(("z", "fat"))
+        );
+        assert_eq!(desktop_profile_configuration("unknown"), None);
     }
 
     #[test]

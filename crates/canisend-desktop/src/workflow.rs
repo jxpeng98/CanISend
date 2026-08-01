@@ -256,7 +256,6 @@ fn task_completion_preview_impl(
     .map_err(DesktopCommandError::application)
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn start_workflow(
     request: WorkspaceJobRequest,
@@ -268,7 +267,6 @@ pub(crate) async fn start_workflow(
     .await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn workflow_controls(
     request: WorkspaceJobRequest,
@@ -280,7 +278,6 @@ pub(crate) async fn workflow_controls(
     .await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn begin_workflow_stage(
     request: WorkflowBeginTransport,
@@ -295,7 +292,6 @@ pub(crate) async fn begin_workflow_stage(
     .await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn complete_workflow_stage(
     request: WorkflowCompleteTransport,
@@ -310,7 +306,6 @@ pub(crate) async fn complete_workflow_stage(
     .await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn preview_workflow_rerun(
     state: tauri::State<'_, WorkflowPreviewStore>,
@@ -338,7 +333,6 @@ pub(crate) async fn preview_workflow_rerun(
     })
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn commit_workflow_rerun(
     state: tauri::State<'_, WorkflowPreviewStore>,
@@ -364,7 +358,6 @@ pub(crate) async fn commit_workflow_rerun(
     result
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) fn discard_workflow_preview(
     state: tauri::State<'_, WorkflowPreviewStore>,
@@ -373,7 +366,6 @@ pub(crate) fn discard_workflow_preview(
     state.discard(&request.preview_token)
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn latest_task(
     request: WorkspaceJobRequest,
@@ -385,7 +377,6 @@ pub(crate) async fn latest_task(
     .await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn prepare_task(
     request: TaskPrepareTransport,
@@ -400,7 +391,6 @@ pub(crate) async fn prepare_task(
     .await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn export_task_inputs(
     request: TaskExportTransport,
@@ -408,7 +398,6 @@ pub(crate) async fn export_task_inputs(
     run_worker(move || task_export_impl(request)).await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn preview_task_completion(
     state: tauri::State<'_, WorkflowPreviewStore>,
@@ -426,7 +415,6 @@ pub(crate) async fn preview_task_completion(
     })
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn commit_task_completion_preview(
     state: tauri::State<'_, WorkflowPreviewStore>,
@@ -452,7 +440,6 @@ pub(crate) async fn commit_task_completion_preview(
     result
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn cancel_task(
     request: TaskRequest,
@@ -464,7 +451,6 @@ pub(crate) async fn cancel_task(
     .await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn prepare_task_again(
     request: TaskRequest,

@@ -35,15 +35,14 @@ if find "$app" -type l -print -quit | grep -q .; then
   exit 1
 fi
 
-gui="$app/Contents/MacOS/canisend-gui"
-cli="$app/Contents/Resources/bin/canisend"
+host="$app/Contents/MacOS/canisend-gui"
+legacy_cli="$app/Contents/Resources/bin/canisend"
 metadata="$app/Contents/Resources/BUNDLE.json"
 info="$app/Contents/Info.plist"
 icon="$app/Contents/Resources/AppIcon.icns"
 legal="$app/Contents/Resources/legal"
 for file in \
-  "$gui" \
-  "$cli" \
+  "$host" \
   "$metadata" \
   "$info" \
   "$icon" \
@@ -55,10 +54,24 @@ do
     exit 1
   fi
 done
+if [[ -e "$legacy_cli" || -L "$legacy_cli" ]]; then
+  echo "macOS GUI verification: duplicated legacy CLI must not be packaged: $legacy_cli" >&2
+  exit 1
+fi
+executable_files="$(find "$app/Contents" -type f -perm -111 -print | sort)"
+if [[ "$executable_files" != "$host" ]]; then
+  echo "macOS GUI verification: App must contain exactly one executable host" >&2
+  printf '%s\n' "$executable_files" >&2
+  exit 1
+fi
+if [[ "$(file -b "$host")" != "Mach-O"* ]]; then
+  echo "macOS GUI verification: unified host is not a Mach-O executable" >&2
+  exit 1
+fi
 
 jq -e '
-  .schema == "canisend.macos-app-integrity/v1"
-  and (keys == ["bundle", "executables", "schema", "version"])
+  .schema == "canisend.macos-app-integrity/v2"
+  and (keys == ["bundle", "host", "schema", "version"])
   and (.version | type == "string" and length > 0)
   and (.bundle | keys == ["info_plist", "metadata", "name", "signing"])
   and (.bundle.name | type == "string" and length > 0)
@@ -69,15 +82,13 @@ jq -e '
   }
   and (.bundle.metadata | keys == ["path", "sha256"])
   and (.bundle.info_plist | keys == ["path", "sha256"])
-  and (.executables | keys == ["cli", "gui"])
-  and (.executables.gui | keys == ["path", "sha256"])
-  and (.executables.cli | keys == ["path", "sha256"])
+  and (.host | keys == ["entry_modes", "path", "sha256"])
   and .bundle.metadata.path == "Contents/Resources/BUNDLE.json"
   and .bundle.info_plist.path == "Contents/Info.plist"
-  and .executables.gui.path == "Contents/MacOS/canisend-gui"
-  and .executables.cli.path == "Contents/Resources/bin/canisend"
+  and .host.path == "Contents/MacOS/canisend-gui"
+  and .host.entry_modes == ["gui", "cli", "mcp"]
   and ([.bundle.metadata.sha256, .bundle.info_plist.sha256,
-        .executables.gui.sha256, .executables.cli.sha256]
+        .host.sha256]
        | all(type == "string" and test("^[0-9a-f]{64}$")))
 ' "$manifest" >/dev/null
 
@@ -87,24 +98,22 @@ test "$(jq -er '.bundle.metadata.sha256' "$manifest")" = \
   "$(shasum -a 256 "$metadata" | awk '{print $1}')"
 test "$(jq -er '.bundle.info_plist.sha256' "$manifest")" = \
   "$(shasum -a 256 "$info" | awk '{print $1}')"
-test "$(jq -er '.executables.gui.sha256' "$manifest")" = \
-  "$(shasum -a 256 "$gui" | awk '{print $1}')"
-test "$(jq -er '.executables.cli.sha256' "$manifest")" = \
-  "$(shasum -a 256 "$cli" | awk '{print $1}')"
+test "$(jq -er '.host.sha256' "$manifest")" = \
+  "$(shasum -a 256 "$host" | awk '{print $1}')"
 
 jq -e \
   --arg version "$version" \
   '. == {
-    schema: "canisend.macos-app-bundle/v2",
+    schema: "canisend.macos-app-bundle/v3",
     version: $version,
     signing: {
       kind: "apple-adhoc",
       developer_id: false,
       notarized: false
     },
-    executables: {
-      gui: {path: "Contents/MacOS/canisend-gui"},
-      cli: {path: "Contents/Resources/bin/canisend"}
+    host: {
+      path: "Contents/MacOS/canisend-gui",
+      entry_modes: ["gui", "cli", "mcp"]
     },
     integrity_manifest: {
       placement: "external-companion",
@@ -118,7 +127,18 @@ if [[ "$(file -b "$icon")" != "Mac OS X icon"* ]]; then
   echo "macOS GUI verification: AppIcon.icns is not a valid macOS icon" >&2
   exit 1
 fi
-test "$("$cli" version --json | jq -er '.data.version')" = "$version"
+test "$("$host" version --json | jq -er '.data.version')" = "$version"
+host_bytes="$(stat -f '%z' "$host")"
+bundle_bytes="$(du -sk "$app" | awk '{print $1 * 1024}')"
+if (( host_bytes > 67108864 )); then
+  echo "macOS GUI verification: unified host exceeds the 64 MiB budget" >&2
+  exit 1
+fi
+if (( bundle_bytes > 75497472 )); then
+  echo "macOS GUI verification: App payload exceeds the provisional 72 MiB budget" >&2
+  exit 1
+fi
+codesign --verify --strict --verbose=4 "$host"
 codesign --verify --deep --strict --verbose=4 "$app"
 
-echo "macOS GUI verification: final signed bytes, layout, version, and ad-hoc signature passed"
+echo "macOS GUI verification: one unified host, final bytes, version, size, and signatures passed"

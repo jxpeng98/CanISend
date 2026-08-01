@@ -6,9 +6,20 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import UiInteractionHarness from "./test-fixtures/UiInteractionHarness.svelte";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  document.body.removeAttribute("style");
+});
 
 describe("shadcn-svelte interaction contract", () => {
+  it("exposes optional guidance through a keyboard-accessible help trigger", () => {
+    render(UiInteractionHarness);
+
+    const trigger = screen.getByRole("button", { name: "Workflow help" });
+    expect(trigger.hasAttribute("data-context-help")).toBe(true);
+    expect(trigger.getAttribute("aria-label")).toBe("Workflow help");
+  });
+
   it("propagates native select values and supports keyboard tab navigation", async () => {
     const user = userEvent.setup();
     render(UiInteractionHarness);
@@ -39,6 +50,15 @@ describe("shadcn-svelte interaction contract", () => {
 
     await user.click(trigger);
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("exposes secondary actions through a semantic shared menu trigger", () => {
+    render(UiInteractionHarness);
+
+    const trigger = screen.getByRole("button", { name: "Harness actions" });
+    expect(trigger.getAttribute("aria-haspopup")).toBe("menu");
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+    expect(trigger.getAttribute("data-slot")).toBe("dropdown-menu-trigger");
   });
 
   it("traps destructive confirmation and returns focus after cancel or confirm", async () => {

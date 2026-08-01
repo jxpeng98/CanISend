@@ -16,6 +16,7 @@
     TriangleAlert,
   } from "@lucide/svelte";
 
+  import ActionMenu from "$lib/components/patterns/ActionMenu.svelte";
   import * as Page from "$lib/components/patterns/page/index.js";
   import { Badge } from "$lib/components/ui/badge/index.js";
   import * as Alert from "$lib/components/ui/alert/index.js";
@@ -24,6 +25,7 @@
   import * as Card from "$lib/components/ui/card/index.js";
   import { Checkbox } from "$lib/components/ui/checkbox/index.js";
   import * as Dialog from "$lib/components/ui/dialog/index.js";
+  import * as DropdownMenu from "$lib/components/ui/dropdown-menu/index.js";
   import * as Empty from "$lib/components/ui/empty/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
   import { Label } from "$lib/components/ui/label/index.js";
@@ -232,7 +234,7 @@
     eyebrow={copy.applicationWorkspace}
     title={copy.applicationsTitle}
     description={copy.applicationsDescription}
-    actions={headerActions}
+    actions={activeWorkspace ? headerActions : undefined}
   />
 
   {#if !activeWorkspace}
@@ -446,15 +448,15 @@
                 </Card.Description>
               </div>
               {#if selectedJob}
-                <Button
-                  variant="outline"
-                  class="min-h-10 shrink-0"
-                  disabled={busy}
-                  onclick={() => (archiveOpen = true)}
-                >
-                  <Archive size={16} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
-                  {copy.archiveApplication}
-                </Button>
+                <ActionMenu label={copy.moreActions} disabled={busy}>
+                  <DropdownMenu.Item
+                    variant="destructive"
+                    onclick={() => (archiveOpen = true)}
+                  >
+                    <Archive size={16} strokeWidth={1.8} aria-hidden="true" />
+                    {copy.archiveApplication}
+                  </DropdownMenu.Item>
+                </ActionMenu>
               {/if}
             </div>
           </Card.Header>

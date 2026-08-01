@@ -34,6 +34,7 @@ import {
   prepareAgentMcpConfiguration,
   previewDiscoveryFile,
   previewLocalJobSource,
+  previewRender,
   previewUrlJobSource,
   runAgentTurn,
   searchContent,
@@ -221,6 +222,27 @@ describe("typed Tauri command requests", () => {
         job_id: "job-id",
         destination: "jobs/job-id/application",
         confirmed_private_export: true,
+      },
+    });
+  });
+
+  it("reads a current render preview as raw bytes behind private-read consent", async () => {
+    mocks.invoke.mockResolvedValueOnce(new Uint8Array([37, 80, 68, 70]).buffer);
+
+    const bytes = await previewRender(
+      "/tmp/workspace",
+      "job-id",
+      "cover-letter",
+      true,
+    );
+
+    expect([...bytes]).toEqual([37, 80, 68, 70]);
+    expect(mocks.invoke).toHaveBeenCalledWith("preview_render", {
+      request: {
+        workspace: "/tmp/workspace",
+        job_id: "job-id",
+        kind: "cover-letter",
+        confirmed_private_read: true,
       },
     });
   });

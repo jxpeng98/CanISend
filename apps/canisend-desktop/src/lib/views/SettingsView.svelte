@@ -12,6 +12,7 @@
   } from "@lucide/svelte";
   import { onMount } from "svelte";
 
+  import ActionMenu from "$lib/components/patterns/ActionMenu.svelte";
   import * as Page from "$lib/components/patterns/page/index.js";
   import { Badge } from "$lib/components/ui/badge/index.js";
   import * as Alert from "$lib/components/ui/alert/index.js";
@@ -19,6 +20,7 @@
   import { Button } from "$lib/components/ui/button/index.js";
   import * as Card from "$lib/components/ui/card/index.js";
   import { Checkbox } from "$lib/components/ui/checkbox/index.js";
+  import * as DropdownMenu from "$lib/components/ui/dropdown-menu/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
   import * as Item from "$lib/components/ui/item/index.js";
   import { Label } from "$lib/components/ui/label/index.js";
@@ -321,20 +323,9 @@
           </div>
         </Card.Header>
         <Card.Content class="space-y-[var(--density-section-gap)]">
-          <div class="grid gap-[var(--density-section-gap)] xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
-            <div class="space-y-2">
-              <Label for="cli-destination">{copy.cliDestination}</Label>
-              <Input id="cli-destination" bind:value={cliDestination} />
-            </div>
-            <Button
-              variant="outline"
-              class="min-h-9"
-              disabled={!desktopRuntime || busy}
-              onclick={loadCli}
-            >
-              <RefreshCw size={16} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
-              {copy.checkCli}
-            </Button>
+          <div class="space-y-2">
+            <Label for="cli-destination">{copy.cliDestination}</Label>
+            <Input id="cli-destination" bind:value={cliDestination} />
           </div>
 
           {#if cliStatus}
@@ -434,15 +425,21 @@
               <Download size={16} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
               {copy.installCli}
             </Button>
-            <Button
-              variant="destructive"
-              class="min-h-9"
-              disabled={!desktopRuntime || busy || !cliStatus?.managed || !terminalConsent}
-              onclick={() => (uninstallOpen = true)}
-            >
-              <Trash2 size={16} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
-              {copy.uninstallCli}
-            </Button>
+            <ActionMenu label={copy.moreActions} disabled={busy}>
+              <DropdownMenu.Item disabled={!desktopRuntime} onclick={loadCli}>
+                <RefreshCw size={16} strokeWidth={1.8} aria-hidden="true" />
+                {copy.checkCli}
+              </DropdownMenu.Item>
+              <DropdownMenu.Separator />
+              <DropdownMenu.Item
+                variant="destructive"
+                disabled={!desktopRuntime || !cliStatus?.managed || !terminalConsent}
+                onclick={() => (uninstallOpen = true)}
+              >
+                <Trash2 size={16} strokeWidth={1.8} aria-hidden="true" />
+                {copy.uninstallCli}
+              </DropdownMenu.Item>
+            </ActionMenu>
           </div>
         </Card.Content>
       </Card.Root>

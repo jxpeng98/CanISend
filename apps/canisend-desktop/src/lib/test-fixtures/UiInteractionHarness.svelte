@@ -1,12 +1,16 @@
 <script lang="ts">
   import * as Accordion from "$lib/components/ui/accordion/index.js";
   import * as AlertDialog from "$lib/components/ui/alert-dialog/index.js";
+  import ActionMenu from "$lib/components/patterns/ActionMenu.svelte";
+  import ContextHelp from "$lib/components/patterns/ContextHelp.svelte";
+  import * as DropdownMenu from "$lib/components/ui/dropdown-menu/index.js";
   import * as NativeSelect from "$lib/components/ui/native-select/index.js";
   import * as Tabs from "$lib/components/ui/tabs/index.js";
 
   let selected = $state("ready");
   let confirmed = $state(0);
   let confirmationOpen = $state(false);
+  let menuAction = $state("none");
 </script>
 
 <label for="harness-status">Status</label>
@@ -15,6 +19,18 @@
   <NativeSelect.Option value="blocked">Blocked</NativeSelect.Option>
 </NativeSelect.Root>
 <output aria-label="Selected status">{selected}</output>
+
+<ContextHelp
+  label="Workflow help"
+  content="Only optional guidance is hidden in this popup."
+/>
+
+<ActionMenu label="Harness actions">
+  <DropdownMenu.Item onclick={() => (menuAction = "refreshed")}>
+    Refresh context
+  </DropdownMenu.Item>
+</ActionMenu>
+<output aria-label="Menu action">{menuAction}</output>
 
 <Tabs.Root value="overview">
   <Tabs.List aria-label="Harness sections">

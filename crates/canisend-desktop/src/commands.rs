@@ -58,7 +58,6 @@ impl DesktopCommandError {
         }
     }
 
-    #[cfg(target_os = "macos")]
     pub(crate) fn worker(message: String) -> Self {
         Self {
             code: "desktop-worker-failure".to_owned(),
@@ -350,7 +349,6 @@ fn search_content_impl(
     .map_err(DesktopCommandError::application)
 }
 
-#[cfg(target_os = "macos")]
 pub(crate) async fn run_worker<T, F>(task: F) -> Result<T, DesktopCommandError>
 where
     T: Send + 'static,
@@ -361,25 +359,21 @@ where
         .map_err(|error| DesktopCommandError::worker(error.to_string()))?
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) fn product_summary() -> ProductSummary {
     product_summary_impl()
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn run_doctor() -> Result<ActionReceipt<DoctorSummary>, DesktopCommandError> {
     run_worker(doctor_impl).await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn list_workspaces() -> Result<RegistrySnapshot, DesktopCommandError> {
     run_worker(|| registry_snapshot_impl(&default_registry_path())).await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn create_workspace(
     request: WorkspaceCreateRequest,
@@ -387,7 +381,6 @@ pub(crate) async fn create_workspace(
     run_worker(move || create_workspace_impl(&default_registry_path(), request)).await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn connect_workspace(
     request: WorkspaceCreateRequest,
@@ -395,7 +388,6 @@ pub(crate) async fn connect_workspace(
     run_worker(move || connect_workspace_impl(&default_registry_path(), request)).await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn select_workspace(
     request: WorkspacePathRequest,
@@ -403,7 +395,6 @@ pub(crate) async fn select_workspace(
     run_worker(move || select_workspace_impl(&default_registry_path(), request)).await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn remove_workspace(
     request: WorkspacePathRequest,
@@ -411,7 +402,6 @@ pub(crate) async fn remove_workspace(
     run_worker(move || remove_workspace_impl(&default_registry_path(), request)).await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn workspace_status(
     request: WorkspacePathRequest,
@@ -422,7 +412,6 @@ pub(crate) async fn workspace_status(
     .await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn check_workspace(
     request: WorkspacePathRequest,
@@ -433,7 +422,6 @@ pub(crate) async fn check_workspace(
     .await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn backup_workspace(
     request: WorkspaceBackupRequest,
@@ -445,7 +433,6 @@ pub(crate) async fn backup_workspace(
     .await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn restore_workspace(
     request: WorkspaceRestoreRequest,
@@ -453,7 +440,6 @@ pub(crate) async fn restore_workspace(
     run_worker(move || restore_workspace_impl(&default_registry_path(), request)).await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn repair_workspace(
     request: WorkspacePathRequest,
@@ -464,7 +450,6 @@ pub(crate) async fn repair_workspace(
     .await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn list_jobs(
     request: JobListRequest,
@@ -476,7 +461,6 @@ pub(crate) async fn list_jobs(
     .await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn create_job(
     request: JobCreateRequest,
@@ -488,7 +472,6 @@ pub(crate) async fn create_job(
     .await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn show_job(
     request: JobRequest,
@@ -500,7 +483,6 @@ pub(crate) async fn show_job(
     .await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn list_application_dossiers(
     request: JobListRequest,
@@ -508,7 +490,6 @@ pub(crate) async fn list_application_dossiers(
     run_worker(move || list_application_dossiers_impl(request)).await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn application_dossier(
     request: JobRequest,
@@ -516,7 +497,6 @@ pub(crate) async fn application_dossier(
     run_worker(move || application_dossier_impl(request)).await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn content_catalog(
     request: ContentCatalogRequest,
@@ -524,7 +504,6 @@ pub(crate) async fn content_catalog(
     run_worker(move || content_catalog_impl(request)).await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn search_content(
     request: ContentSearchCommandRequest,
@@ -532,7 +511,6 @@ pub(crate) async fn search_content(
     run_worker(move || search_content_impl(request)).await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn archive_job(
     request: JobRequest,
@@ -544,7 +522,6 @@ pub(crate) async fn archive_job(
     .await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn import_local_job_source(
     request: LocalSourceImportRequest,
@@ -552,7 +529,6 @@ pub(crate) async fn import_local_job_source(
     run_worker(move || import_local_job_source_impl(request)).await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn import_url_job_source(
     request: UrlSourceImportRequest,

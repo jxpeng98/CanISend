@@ -15,8 +15,7 @@ repo_root="$(CDPATH= cd -- "$script_dir/.." && pwd)"
 source "$script_dir/lib/native_paths.sh"
 app="$(canisend_absolute_path "$1")"
 manifest="$app.manifest.json"
-gui="$app/Contents/MacOS/canisend-gui"
-cli="$app/Contents/Resources/bin/canisend"
+host="$app/Contents/MacOS/canisend-gui"
 for command in jq open osascript; do
   command -v "$command" >/dev/null
 done
@@ -24,12 +23,8 @@ if [[ ! -d "$app" || -L "$app" ]]; then
   echo "macOS GUI accessibility smoke: app must be a regular directory: $app" >&2
   exit 1
 fi
-if [[ ! -f "$gui" || -L "$gui" ]]; then
-  echo "macOS GUI accessibility smoke: GUI executable is missing: $gui" >&2
-  exit 1
-fi
-if [[ ! -f "$cli" || -L "$cli" ]]; then
-  echo "macOS GUI accessibility smoke: bundled CLI is missing: $cli" >&2
+if [[ ! -f "$host" || -L "$host" ]]; then
+  echo "macOS GUI accessibility smoke: unified host is missing: $host" >&2
   exit 1
 fi
 
@@ -55,7 +50,7 @@ cp "$repo_root/fixtures/runtime/fake-codex-runtime.sh" \
   "$fixture_root/home/.local/share/mise/shims/codex"
 chmod 700 "$fixture_root/home/.local/share/mise/shims/codex"
 workspace="$fixture_root/workspace"
-"$cli" --workspace "$workspace" workspace init --json >/dev/null
+"$host" --workspace "$workspace" workspace init --json >/dev/null
 workspace="$(CDPATH= cd -- "$workspace" && pwd -P)"
 registry="$fixture_root/home/Library/Application Support/CanISend/workspaces.json"
 mkdir -p "$(dirname "$registry")"
@@ -222,8 +217,27 @@ on run arguments
             set terminalConsent to my findNamedRole(appWindow, "I confirm CanISend may modify this explicit terminal executable destination.", "AXCheckBox")
             my assertCondition(terminalConsent is not missing value, "terminal mutation consent control missing")
             click terminalConsent
+            set installControl to my findNamedRole(appWindow, "Install or upgrade CLI", "AXButton")
+            my assertCondition(installControl is not missing value, "CLI install action missing")
+            my assertCondition((value of attribute "AXEnabled" of installControl as boolean) is true, "CLI install action is disabled")
+            click installControl
+        end tell
+        set installControl to missing value
+        repeat 100 times
+            delay 0.1
+            tell guiProcess
+                set installControl to my findNamedRole(appWindow, "Install or upgrade CLI", "AXButton")
+            end tell
+            if installControl is not missing value and (value of attribute "AXEnabled" of installControl as boolean) is true then exit repeat
+        end repeat
+        my assertCondition(installControl is not missing value, "CLI install action disappeared")
+        my assertCondition((value of attribute "AXEnabled" of installControl as boolean) is true, "CLI install action did not complete")
+        tell guiProcess
+            set pathControl to my findNamedRole(appWindow, "Add to PATH", "AXButton")
+            my assertCondition(pathControl is not missing value, "Add to PATH action missing after CLI installation")
+            my assertCondition((value of attribute "AXEnabled" of pathControl as boolean) is true, "Add to PATH action is disabled after CLI installation")
             click pathControl
-            log "accessibility smoke: automatic CLI status and PATH action passed"
+            log "accessibility smoke: GUI-managed CLI installation and PATH action passed"
         end tell
         delay 0.5
         tell guiProcess
@@ -648,6 +662,28 @@ if [[ -e "$fixture_root/home/.codex" || -L "$fixture_root/home/.codex" ]]; then
   echo "macOS GUI accessibility smoke: test escaped the isolated fake Codex runtime" >&2
   exit 1
 fi
+installed_cli="$fixture_root/home/.local/bin/canisend"
+if [[ ! -f "$installed_cli" || -L "$installed_cli" ]]; then
+  echo "macOS GUI accessibility smoke: GUI did not install a regular CLI executable" >&2
+  exit 1
+fi
+if ! cmp -s "$host" "$installed_cli"; then
+  echo "macOS GUI accessibility smoke: installed CLI differs from the unified desktop host" >&2
+  exit 1
+fi
+if ! "$installed_cli" version --json | jq -e '.ok == true' >/dev/null; then
+  echo "macOS GUI accessibility smoke: installed unified CLI version command failed" >&2
+  exit 1
+fi
+if ! "$installed_cli" --workspace "$workspace" doctor --json | jq -e '.ok == true' >/dev/null; then
+  echo "macOS GUI accessibility smoke: installed unified CLI doctor command failed" >&2
+  exit 1
+fi
+cli_help="$({ "$installed_cli" 2>&1 || true; })"
+if ! printf '%s\n' "$cli_help" | grep -Fq 'Usage: canisend'; then
+  echo "macOS GUI accessibility smoke: installed unified CLI did not default to CLI help" >&2
+  exit 1
+fi
 if [[ ! -f "$fixture_root/home/.zprofile" || -L "$fixture_root/home/.zprofile" ]]; then
   echo "macOS GUI accessibility smoke: PATH action did not create a regular .zprofile" >&2
   exit 1
@@ -657,7 +693,7 @@ if ! grep -Fqx '# >>> CanISend CLI PATH >>>' "$fixture_root/home/.zprofile" \
   echo "macOS GUI accessibility smoke: PATH action did not create the managed profile block" >&2
   exit 1
 fi
-profile_json="$("$cli" --workspace "$workspace" profile source list --json)"
+profile_json="$("$host" --workspace "$workspace" profile source list --json)"
 if ! printf '%s' "$profile_json" \
   | jq -e '.ok == true and .data.profile_revision == 1 and (.data.sources | length) == 1' \
     >/dev/null; then
@@ -665,4 +701,4 @@ if ! printf '%s' "$profile_json" \
   printf '%s\n' "$profile_json" >&2
   exit 1
 fi
-echo "macOS GUI accessibility smoke: Svelte landmarks, CLI PATH repair, profile initialization, external-first MCP permission categories, bounded runtime evidence, scoped Agent cancellation, exact session resume, route/locale restart, bilingual controls, 200% text scale, and reduced motion passed"
+echo "macOS GUI accessibility smoke: Svelte landmarks, unified-host CLI install and PATH repair, profile initialization, external-first MCP permission categories, bounded runtime evidence, scoped Agent cancellation, exact session resume, route/locale restart, bilingual controls, 200% text scale, and reduced motion passed"

@@ -76,13 +76,14 @@ exactly `CanISend.app` and `CanISend.app.manifest.json`. Because this free chann
 ID signed or notarized, macOS may require the normal per-application Open Anyway confirmation
 after verification. Never disable Gatekeeper globally.
 
-The application includes a version-matched CLI at
-`CanISend.app/Contents/Resources/bin/canisend`. It does not require a separately installed CLI.
+The application includes the complete version-matched CLI and MCP dispatcher in
+`CanISend.app/Contents/MacOS/canisend-gui`. It does not package a second CLI executable or require
+a separately installed CLI for GUI operations.
 
 ## Install the CLI from the desktop GUI
 
-The macOS-first GUI provides a **Command line** page that installs its version-matched bundled Rust
-CLI to `~/.local/bin/canisend`. Installation is user-scoped and does not require a language
+The macOS-first GUI provides a **Command line** page that copies its signed, version-matched unified
+host to `~/.local/bin/canisend`. Installation is user-scoped and does not require a language
 runtime, package manager, Rust toolchain, Homebrew, or administrator access.
 
 The page detects only the CanISend version at the exact destination; it does not inspect Python,

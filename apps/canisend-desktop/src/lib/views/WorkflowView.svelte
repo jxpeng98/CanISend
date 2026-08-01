@@ -1054,7 +1054,7 @@
                     </div>
                     <Accordion.Root type="single">
                       <Accordion.Item value="revision-provenance" class="rounded-lg border bg-background px-3">
-                        <Accordion.Trigger class="text-xs font-semibold">
+                        <Accordion.Trigger level={2} class="text-xs font-semibold">
                           {copy.revisionProvenance}
                         </Accordion.Trigger>
                         <Accordion.Content class="space-y-2 pb-3">

@@ -66,13 +66,47 @@ async function expectNoLayoutOverflow(page: Page): Promise<void> {
         overflow: element.scrollWidth - element.clientWidth,
       }));
 
+    const controlOffenders = Array.from(
+      document.querySelectorAll<HTMLElement>(
+        "#main-content button:not([data-slot='checkbox']):not([data-slot='switch']), #main-content a[data-slot='button'], #main-content [role='tab']",
+      ),
+    )
+      .filter((element) => {
+        const bounds = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        if (
+          style.display === "none" ||
+          style.visibility === "hidden" ||
+          bounds.width <= 0 ||
+          bounds.height <= 0
+        ) {
+          return false;
+        }
+        return (
+          element.scrollWidth - element.clientWidth > 2 ||
+          element.scrollHeight - element.clientHeight > 2
+        );
+      })
+      .slice(0, 20)
+      .map((element) => ({
+        tag: element.tagName.toLowerCase(),
+        text: (element.textContent ?? "").trim().replace(/\s+/gu, " ").slice(0, 100),
+        horizontalOverflow: element.scrollWidth - element.clientWidth,
+        verticalOverflow: element.scrollHeight - element.clientHeight,
+      }));
+
     return {
       pageOverflow: document.documentElement.scrollWidth > viewportWidth + 1,
       offenders,
+      controlOffenders,
     };
   });
 
-  expect(report).toEqual({ pageOverflow: false, offenders: [] });
+  expect(report).toEqual({
+    pageOverflow: false,
+    offenders: [],
+    controlOffenders: [],
+  });
 }
 
 test("English light application shell meets automated accessibility rules", async ({
@@ -87,6 +121,15 @@ test("English light application shell meets automated accessibility rules", asyn
   });
   await expectNoAccessibilityViolations(page);
   await expectNoLayoutOverflow(page);
+
+  const pageHelp = page.locator(
+    '[data-slot="page-header"] [data-context-help]',
+  );
+  await expect(pageHelp).toHaveCount(1);
+  await pageHelp.hover();
+  await expect(page.locator('[data-slot="tooltip-content"]')).toContainText(
+    "Track the evidence, decisions, documents, and next action",
+  );
 });
 
 test("Chinese dark compact shell at 200 percent meets automated accessibility rules", async ({
@@ -166,6 +209,34 @@ test("density toggle changes the full application rhythm", async ({ page }) => {
   });
 });
 
+test("toolbar appearance and language buttons update the application state", async ({
+  page,
+}) => {
+  await openApplication(page, {
+    language: "en",
+    darkMode: false,
+    compact: false,
+    reducedMotion: false,
+    textScale: 100,
+  });
+
+  await page.getByRole("button", { name: "Dark mode", exact: true }).click();
+  await expect(page.locator("html")).toHaveClass(/\bdark\b/u);
+  await expect(
+    page.getByRole("button", { name: "Light mode", exact: true }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "简体中文", exact: true }).click();
+  await expect(page.getByRole("button", { name: "English", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("heading", {
+      name: "用更清晰的流程，准备更有说服力的申请。",
+      level: 1,
+    }),
+  ).toBeVisible();
+  await expectNoLayoutOverflow(page);
+});
+
 test("deferred product views remain reachable from primary navigation", async ({ page }) => {
   const runtimeErrors: string[] = [];
   page.on("pageerror", (error) => runtimeErrors.push(error.message));
@@ -194,6 +265,81 @@ test("deferred product views remain reachable from primary navigation", async ({
   }
 
   expect(runtimeErrors).toEqual([]);
+});
+
+test("secondary workspace and Agent actions use progressive disclosure", async ({
+  page,
+}) => {
+  await openApplication(page, {
+    language: "en",
+    darkMode: false,
+    compact: true,
+    reducedMotion: false,
+    textScale: 100,
+  });
+
+  await page.getByRole("button", { name: "Today", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Import source" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "New application" })).toHaveCount(0);
+  const diagnostics = page.getByRole("button", {
+    name: "System diagnostics",
+    exact: true,
+  });
+  await diagnostics.click();
+  await expect(page.getByRole("button", { name: "Run diagnostics" })).toBeVisible();
+  await diagnostics.click();
+
+  for (const [navigationName, hiddenActions] of [
+    ["Opportunities", ["Refresh"]],
+    ["Application workspace", ["Refresh", "Create application"]],
+    ["Profile", ["Refresh"]],
+  ] as const) {
+    await page.getByRole("button", { name: navigationName, exact: true }).click();
+    for (const hiddenAction of hiddenActions) {
+      await expect(page.getByRole("button", { name: hiddenAction, exact: true })).toHaveCount(0);
+    }
+  }
+
+  await page.getByRole("button", { name: "Workspaces", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Create workspace" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Connect existing" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Restore backup" })).toHaveCount(0);
+
+  const workspaceActions = page.getByRole("button", {
+    name: "Workspace actions",
+    exact: true,
+  });
+  await workspaceActions.click();
+  await expect(page.getByRole("menuitem", { name: "Refresh", exact: true })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Connect existing" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Restore backup" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(workspaceActions).toBeFocused();
+
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByRole("tab", { name: "Terminal CLI", exact: true }).click();
+  const cliActions = page.getByRole("button", { name: "More actions", exact: true });
+  await expect(cliActions).toHaveCount(1);
+  await cliActions.click();
+  await expect(page.getByRole("menuitem", { name: "Check CLI", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("menuitem", { name: "Uninstall managed CLI", exact: true }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(cliActions).toBeFocused();
+
+  await page.getByRole("button", { name: "Agent integration", exact: true }).click();
+  for (const hiddenAction of [
+    "Refresh runtimes",
+    "Refresh guidance",
+    "Prepare AI workspace",
+    "Check Skills",
+    "Prepare MCP configuration",
+  ]) {
+    await expect(page.getByRole("button", { name: hiddenAction, exact: true })).toHaveCount(0);
+  }
+  await expect(page.getByRole("button", { name: "Advanced Agent tools" })).toHaveCount(0);
+  await expectNoLayoutOverflow(page);
 });
 
 test("restored workflow routes render the correct application section", async ({ page }) => {
@@ -325,7 +471,36 @@ test("sidebar and workspace context keep one clear interactive state", async ({ 
   await expectNoLayoutOverflow(page);
 });
 
+test("primary navigation starts each page at its visible header", async ({ page }) => {
+  await openApplication(page, {
+    language: "en",
+    darkMode: false,
+    compact: false,
+    reducedMotion: false,
+    textScale: 100,
+  });
+
+  await page.getByRole("button", { name: "Agent integration", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Connected agent workspace", level: 1 }),
+  ).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  await expect(
+    page.getByRole("heading", { name: "Settings and diagnostics", level: 1 }),
+  ).toBeVisible();
+});
+
 test("all primary views reflow in Chinese at 200 percent text", async ({ page }) => {
+  const runtimeErrors: string[] = [];
+  page.on("pageerror", (error) => runtimeErrors.push(error.message));
+  page.on("console", (message) => {
+    if (message.type() === "error") runtimeErrors.push(message.text());
+  });
+
   await page.setViewportSize({ width: 960, height: 680 });
   await openApplication(page, {
     language: "zh-CN",
@@ -349,4 +524,6 @@ test("all primary views reflow in Chinese at 200 percent text", async ({ page })
     await expect(page.getByRole("heading", { name: headingName, level: 1 })).toBeVisible();
     await expectNoLayoutOverflow(page);
   }
+
+  expect(runtimeErrors).toEqual([]);
 });

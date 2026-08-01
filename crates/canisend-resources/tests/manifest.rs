@@ -31,6 +31,32 @@ fn embedded_manifest_matches_resource_bytes() {
 }
 
 #[test]
+fn modernpro_templates_are_pinned_self_contained_and_adapter_backed() {
+    for (id, version, package_marker) in [
+        (
+            ResourceId::TemplateModernproCv,
+            "2.0.0",
+            "// modernpro-cv.typ",
+        ),
+        (
+            ResourceId::TemplateModernproCoverletter,
+            "1.0.0",
+            "// modernpro-coverletter.typ",
+        ),
+    ] {
+        let resource = get(id);
+        assert_eq!(resource.descriptor.kind, ResourceKind::Template);
+        assert_eq!(resource.descriptor.version, version);
+        let source = std::str::from_utf8(resource.bytes).expect("ModernPro template UTF-8");
+        assert!(source.contains(package_marker));
+        assert!(source.contains("#let canisend_render_document(data)"));
+        assert!(source.contains("CanISend compatibility patch"));
+        assert!(!source.contains("#import \"@preview/"));
+        assert!(!source.contains("#read("));
+    }
+}
+
+#[test]
 fn export_all_reproduces_declared_resource_tree() {
     let root = std::env::temp_dir().join(format!("canisend-resource-test-{}", std::process::id()));
     if root.exists() {

@@ -62,7 +62,7 @@ pub use content::{
     ContentSearchResultReadModel, ContentSourceRole, ContentSourceScope,
     ContentSubjectJobReadModel,
 };
-pub use desktop_cli::{bundled_cli_path, default_cli_destination};
+pub use desktop_cli::{default_cli_destination, desktop_cli_source_path};
 pub use discovery::{
     DiscoveryAdapterCatalogReadModel, DiscoveryImportRequest, DiscoveryLeadListReadModel,
     DiscoveryNetworkAdapter, DiscoveryPromotionReadModel, DiscoveryRefreshRequest,
@@ -95,7 +95,7 @@ pub use receipt::ActionReceipt;
 pub use registry::{
     WorkspaceEntry, WorkspaceRegistry, default_registry_path, validate_workspace_alias,
 };
-pub use render::{RenderExportReadModel, RenderExportRequest};
+pub use render::{RenderExportReadModel, RenderExportRequest, RenderPreviewReadModel};
 pub use review::ReviewWorkspaceReadModel;
 pub use system::{DoctorSummary, ProductSummary};
 pub use task::{

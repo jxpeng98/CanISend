@@ -26,6 +26,7 @@ hex.workspace = true
 thiserror.workspace = true
 time.workspace = true
 typst-as-lib.workspace = true
+typst-assets.workspace = true
 typst-pdf.workspace = true
 url.workspace = true
 

@@ -4,10 +4,10 @@ use std::{
 };
 
 #[must_use]
-pub fn bundled_cli_path() -> Option<PathBuf> {
+pub fn desktop_cli_source_path() -> Option<PathBuf> {
     std::env::current_exe()
         .ok()
-        .and_then(|executable| bundled_cli_path_from(&executable))
+        .and_then(|executable| desktop_cli_source_path_from(&executable))
 }
 
 #[must_use]
@@ -17,34 +17,20 @@ pub fn default_cli_destination() -> PathBuf {
     } else {
         "canisend"
     };
-    if let Some(home) = std::env::var_os("HOME") {
+    if cfg!(windows)
+        && let Some(local_app_data) = std::env::var_os("LOCALAPPDATA")
+    {
+        return PathBuf::from(local_app_data)
+            .join("CanISend/bin")
+            .join(executable);
+    }
+    if let Some(home) = std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" }) {
         return PathBuf::from(home).join(".local/bin").join(executable);
     }
     std::env::temp_dir().join("canisend/bin").join(executable)
 }
 
-fn bundled_cli_path_from(executable: &Path) -> Option<PathBuf> {
-    let parent = executable.parent()?;
-    let cli_name = if cfg!(windows) {
-        "canisend.exe"
-    } else {
-        "canisend"
-    };
-    let mut candidates = Vec::with_capacity(2);
-    if parent.file_name().and_then(|name| name.to_str()) == Some("MacOS")
-        && let Some(contents) = parent.parent()
-    {
-        candidates.push(contents.join("Resources/bin").join(cli_name));
-    }
-    candidates.push(parent.join(cli_name));
-    if let Some(candidate) = candidates.into_iter().find(|candidate| {
-        fs::symlink_metadata(candidate).is_ok_and(|metadata| {
-            metadata.is_file() && !metadata.file_type().is_symlink() && candidate != executable
-        })
-    }) {
-        return Some(candidate);
-    }
-
+fn desktop_cli_source_path_from(executable: &Path) -> Option<PathBuf> {
     is_unified_desktop_executable(executable).then(|| executable.to_path_buf())
 }
 
@@ -67,17 +53,9 @@ mod tests {
         sync::atomic::{AtomicU64, Ordering},
     };
 
-    use super::bundled_cli_path_from;
+    use super::desktop_cli_source_path_from;
 
     static NEXT: AtomicU64 = AtomicU64::new(1);
-
-    fn cli_name() -> &'static str {
-        if cfg!(windows) {
-            "canisend.exe"
-        } else {
-            "canisend"
-        }
-    }
 
     fn root() -> PathBuf {
         std::env::temp_dir().join(format!(
@@ -88,31 +66,35 @@ mod tests {
     }
 
     #[test]
-    fn finds_sibling_cli_for_development_build() {
+    fn ignores_a_separate_sibling_cli_and_uses_the_unified_host() {
         let root = root();
         let executable = root.join("target/release/canisend-gui");
-        let cli = root.join("target/release").join(cli_name());
+        let cli = root.join("target/release/canisend");
         fs::create_dir_all(executable.parent().expect("parent")).expect("directory");
         fs::write(&executable, b"desktop").expect("desktop executable");
         fs::write(&cli, b"cli").expect("cli executable");
 
-        assert_eq!(bundled_cli_path_from(&executable), Some(cli));
+        assert_eq!(
+            desktop_cli_source_path_from(&executable),
+            Some(executable.clone())
+        );
         fs::remove_dir_all(root).expect("cleanup");
     }
 
     #[test]
-    fn prefers_app_bundle_resource_cli() {
+    fn ignores_a_legacy_app_resource_cli_and_uses_the_unified_host() {
         let root = root();
         let executable = root.join("CanISend.app/Contents/MacOS/canisend-gui");
-        let cli = root
-            .join("CanISend.app/Contents/Resources/bin")
-            .join(cli_name());
+        let cli = root.join("CanISend.app/Contents/Resources/bin/canisend");
         fs::create_dir_all(executable.parent().expect("executable parent")).expect("macos");
         fs::create_dir_all(cli.parent().expect("cli parent")).expect("resources");
         fs::write(&executable, b"desktop").expect("desktop executable");
         fs::write(&cli, b"cli").expect("cli executable");
 
-        assert_eq!(bundled_cli_path_from(&executable), Some(cli));
+        assert_eq!(
+            desktop_cli_source_path_from(&executable),
+            Some(executable.clone())
+        );
         fs::remove_dir_all(root).expect("cleanup");
     }
 
@@ -124,7 +106,7 @@ mod tests {
         fs::write(&development_executable, b"desktop and cli").expect("unified executable");
 
         assert_eq!(
-            bundled_cli_path_from(&development_executable),
+            desktop_cli_source_path_from(&development_executable),
             Some(development_executable.clone())
         );
 
@@ -132,7 +114,7 @@ mod tests {
         fs::create_dir_all(app_executable.parent().expect("parent")).expect("app directory");
         fs::write(&app_executable, b"desktop and cli").expect("unified app executable");
         assert_eq!(
-            bundled_cli_path_from(&app_executable),
+            desktop_cli_source_path_from(&app_executable),
             Some(app_executable.clone())
         );
 
@@ -145,7 +127,7 @@ mod tests {
         let arbitrary = root.join("target/release/another-host");
         fs::create_dir_all(arbitrary.parent().expect("parent")).expect("directory");
         fs::write(&arbitrary, b"not CanISend").expect("host executable");
-        assert_eq!(bundled_cli_path_from(&arbitrary), None);
+        assert_eq!(desktop_cli_source_path_from(&arbitrary), None);
 
         #[cfg(unix)]
         {
@@ -155,7 +137,7 @@ mod tests {
             let linked_gui = root.join("target/release/canisend-gui");
             fs::write(&target, b"real executable").expect("target executable");
             symlink(&target, &linked_gui).expect("GUI symlink");
-            assert_eq!(bundled_cli_path_from(&linked_gui), None);
+            assert_eq!(desktop_cli_source_path_from(&linked_gui), None);
         }
 
         fs::remove_dir_all(root).expect("cleanup");

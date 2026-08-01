@@ -12,6 +12,7 @@
     Wrench,
   } from "@lucide/svelte";
 
+  import ActionMenu from "$lib/components/patterns/ActionMenu.svelte";
   import * as Page from "$lib/components/patterns/page/index.js";
   import { Badge } from "$lib/components/ui/badge/index.js";
   import * as Alert from "$lib/components/ui/alert/index.js";
@@ -19,6 +20,7 @@
   import { Button } from "$lib/components/ui/button/index.js";
   import * as Card from "$lib/components/ui/card/index.js";
   import * as Dialog from "$lib/components/ui/dialog/index.js";
+  import * as DropdownMenu from "$lib/components/ui/dropdown-menu/index.js";
   import * as Empty from "$lib/components/ui/empty/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
   import * as Item from "$lib/components/ui/item/index.js";
@@ -179,34 +181,32 @@
 </script>
 
 {#snippet headerActions()}
-  <Button variant="outline" class="page-action" disabled={busy} onclick={onRefresh}>
-    <RefreshCw size={17} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
-    {copy.refresh}
-  </Button>
-  <Button
-    variant="outline"
-    class="page-action"
-    disabled={!desktopRuntime || busy}
-    onclick={() => {
-      formError = null;
-      connectOpen = true;
-    }}
-  >
-    <Link size={17} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
-    {copy.connectWorkspace}
-  </Button>
-  <Button
-    variant="outline"
-    class="page-action"
-    disabled={!desktopRuntime || busy}
-    onclick={() => {
-      formError = null;
-      restoreOpen = true;
-    }}
-  >
-    <Archive size={17} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
-    {copy.restoreBackup}
-  </Button>
+  <ActionMenu label={copy.workspaceActions} showLabel disabled={busy}>
+    <DropdownMenu.Item onclick={onRefresh}>
+      <RefreshCw size={16} strokeWidth={1.8} aria-hidden="true" />
+      {copy.refresh}
+    </DropdownMenu.Item>
+    <DropdownMenu.Item
+      disabled={!desktopRuntime}
+      onclick={() => {
+        formError = null;
+        connectOpen = true;
+      }}
+    >
+      <Link size={16} strokeWidth={1.8} aria-hidden="true" />
+      {copy.connectWorkspace}
+    </DropdownMenu.Item>
+    <DropdownMenu.Item
+      disabled={!desktopRuntime}
+      onclick={() => {
+        formError = null;
+        restoreOpen = true;
+      }}
+    >
+      <Archive size={16} strokeWidth={1.8} aria-hidden="true" />
+      {copy.restoreBackup}
+    </DropdownMenu.Item>
+  </ActionMenu>
   <Button
     class="page-action"
     disabled={!desktopRuntime || busy}
@@ -350,24 +350,21 @@
               {/if}
             </Alert.Root>
           {/if}
-          <div class="grid gap-2 sm:grid-cols-2">
+          <div class="flex flex-wrap items-center gap-2">
             <Button variant="outline" class="min-h-9" disabled={busy} onclick={onCheck}>
               <HeartPulse size={17} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
               {copy.checkIntegrity}
             </Button>
-            <Button variant="outline" class="min-h-9" disabled={busy} onclick={chooseBackup}>
-              <Archive size={17} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
-              {copy.createBackup}
-            </Button>
-            <Button
-              variant="outline"
-              class="min-h-9 sm:col-span-2"
-              disabled={busy}
-              onclick={onRepair}
-            >
-              <Wrench size={17} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
-              {copy.repairWorkspace}
-            </Button>
+            <ActionMenu label={copy.moreActions} disabled={busy}>
+              <DropdownMenu.Item onclick={chooseBackup}>
+                <Archive size={16} strokeWidth={1.8} aria-hidden="true" />
+                {copy.createBackup}
+              </DropdownMenu.Item>
+              <DropdownMenu.Item onclick={onRepair}>
+                <Wrench size={16} strokeWidth={1.8} aria-hidden="true" />
+                {copy.repairWorkspace}
+              </DropdownMenu.Item>
+            </ActionMenu>
           </div>
         {:else}
           <Empty.Root class="min-h-32 border">

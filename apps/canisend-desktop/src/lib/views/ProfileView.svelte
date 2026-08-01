@@ -239,7 +239,7 @@
     eyebrow={copy.profile}
     title={copy.profileTitle}
     description={copy.profileDescription}
-    actions={headerActions}
+    actions={activeWorkspace ? headerActions : undefined}
   />
 
   {#if !activeWorkspace}

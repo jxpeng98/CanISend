@@ -1,5 +1,5 @@
 {
-  "schema": "canisend.alpha-package-contract/v1",
+  "schema": "canisend.alpha-package-contract/v2",
   "version": "1.0.0-alpha.5",
   "tag": "v1.0.0-alpha.5",
   "standalone_cli": {
@@ -45,12 +45,14 @@
     ],
     "applications_link": "/Applications",
     "bundle": "CanISend.app",
-    "gui_executable": "Contents/MacOS/canisend-gui",
-    "bundled_cli_executable": "Contents/Resources/bin/canisend",
+    "unified_host_executable": "Contents/MacOS/canisend-gui",
+    "host_entry_modes": ["gui", "cli", "mcp"],
+    "full_native_host_count": 1,
+    "application_payload_budget_bytes": 75497472,
     "bundle_metadata": "Contents/Resources/BUNDLE.json",
-    "bundle_schema": "canisend.macos-app-bundle/v2",
+    "bundle_schema": "canisend.macos-app-bundle/v3",
     "companion_manifest": "CanISend.app.manifest.json",
-    "companion_schema": "canisend.macos-app-integrity/v1",
+    "companion_schema": "canisend.macos-app-integrity/v2",
     "signing": "apple-adhoc",
     "developer_id": false,
     "notarized": false

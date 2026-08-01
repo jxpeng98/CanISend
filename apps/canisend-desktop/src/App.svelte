@@ -99,6 +99,7 @@
     previewDiscoveryFile,
     previewDiscoveryNetwork,
     previewLocalJobSource,
+    previewRender,
     previewTaskCompletion,
     previewUrlJobSource,
     previewWorkflowRerun,
@@ -149,6 +150,7 @@
     type DiscoverySourceRecord,
     type DiscoverySuggestionReadModel,
     type DesktopCliDefaults,
+    type DocumentKind,
     type DocumentWorkspaceReadModel,
     type EvidenceCatalogRecord,
     type ExecutionMode,
@@ -439,10 +441,13 @@
   $effect(() => {
     const detail = activeDetail;
     const view = activeView;
-    if (!detail) return;
     void tick().then(() => {
       if (activeView !== view || activeDetail !== detail) return;
-      document.getElementById(detail)?.scrollIntoView({ block: "start" });
+      if (detail) {
+        document.getElementById(detail)?.scrollIntoView({ block: "start" });
+        return;
+      }
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
     });
   });
 
@@ -2150,6 +2155,22 @@
     return result.data;
   }
 
+  async function handlePreviewRender(
+    jobId: string,
+    kind: DocumentKind,
+    confirmedPrivateRead: boolean,
+  ): Promise<Uint8Array | null> {
+    if (!activeWorkspace) return null;
+    return runAction(() =>
+      previewRender(
+        activeWorkspace!.path,
+        jobId,
+        kind,
+        confirmedPrivateRead,
+      ),
+    );
+  }
+
   async function handleExportRender(
     jobId: string,
     destination: string,
@@ -2923,6 +2944,7 @@
             onCopyProjection={handleCopyProjection}
             onBuildRender={handleBuildRender}
             onLoadRender={handleLoadRender}
+            onPreviewRender={handlePreviewRender}
             onExportRender={handleExportRender}
           />
         {:else if deliveryViewFailed}

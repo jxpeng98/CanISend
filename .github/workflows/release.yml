@@ -699,11 +699,11 @@ jobs:
         shell: bash
         run: echo "epoch=$(date +%s)" >> "$GITHUB_OUTPUT"
 
-      - name: Build version-matched macOS GUI and CLI
+      - name: Build unified macOS GUI, CLI, and MCP host
         run: >-
           cargo build --profile ${{ needs.release-identity.outputs.cargo_profile }}
           --locked --target aarch64-apple-darwin
-          -p canisend-cli -p canisend-gui
+          -p canisend-gui
           --features canisend-gui/custom-protocol
 
       - name: Record desktop build timing boundary
@@ -738,7 +738,6 @@ jobs:
           profile="${{ needs.release-identity.outputs.cargo_profile }}"
           ./scripts/package_macos_gui_release.sh \
             "target/aarch64-apple-darwin/$profile/canisend-gui" \
-            "target/aarch64-apple-darwin/$profile/canisend" \
             "$RUNNER_TEMP/macos-gui-release"
 
       - name: Record desktop package timing boundary
@@ -760,6 +759,23 @@ jobs:
             "macos-15" \
             "${{ needs.release-identity.outputs.cargo_profile }}" \
             "$evidence"
+
+      - name: Enforce one-host desktop payload budget
+        shell: bash
+        run: |
+          version="${{ needs.release-identity.outputs.tag }}"
+          version="${version#v}"
+          archive="$RUNNER_TEMP/macos-gui-release/CanISend-$version-aarch64-apple-darwin.zip"
+          app="$RUNNER_TEMP/macos-gui-smoke/extracted/CanISend.app"
+          cargo run -p xtask --locked -- desktop size-record \
+            aarch64-apple-darwin \
+            "${{ needs.release-identity.outputs.cargo_profile }}" \
+            app \
+            "$app/Contents/MacOS/canisend-gui" \
+            "$app" \
+            apps/canisend-desktop/dist \
+            "$archive" \
+            "$RUNNER_TEMP/macos-gui-release/CanISend-$version-aarch64-apple-darwin-size.json"
 
       - name: Smoke exact read-only macOS application DMG
         shell: bash
@@ -806,6 +822,7 @@ jobs:
             ${{ runner.temp }}/macos-gui-release/CanISend-*.zip
             ${{ runner.temp }}/macos-gui-release/CanISend-*.dmg
             ${{ runner.temp }}/macos-gui-release/CanISend-*-qualification.json
+            ${{ runner.temp }}/macos-gui-release/CanISend-*-size.json
             ${{ runner.temp }}/release-timing/*.json
             ${{ runner.temp }}/sccache-stats/*.json
           if-no-files-found: error

@@ -35,6 +35,13 @@ function violations(pattern: RegExp): string[] {
   );
 }
 
+function componentOpeningTags(source: string, component: string): string[] {
+  return Array.from(
+    source.matchAll(new RegExp(`<${component}\\b[\\s\\S]*?>`, "gu")),
+    (match) => match[0],
+  );
+}
+
 describe("shadcn-svelte migration guard", () => {
   it("routes primary page shells through shared Page compositions", () => {
     expect(pageViewSources.length).toBeGreaterThan(0);
@@ -51,6 +58,45 @@ describe("shadcn-svelte migration guard", () => {
     expect(
       violations(/<(?:button|input|textarea|select|details|summary)\b[^>]*>/gu),
     ).toEqual([]);
+  });
+
+  it("keeps every feature Button connected to an action or delegated trigger", () => {
+    const inertButtons = featureSources.flatMap(({ file, source }) =>
+      componentOpeningTags(source, "Button")
+        .filter(
+          (tag) =>
+            !/\bonclick\s*=/u.test(tag) &&
+            !/\btype\s*=\s*["']submit["']/u.test(tag) &&
+            !/\bhref\s*=/u.test(tag) &&
+            !/\{\.\.\.props\}/u.test(tag),
+        )
+        .map((tag) => `${file}: ${tag.replace(/\s+/gu, " ")}`),
+    );
+
+    expect(inertButtons).toEqual([]);
+  });
+
+  it("keeps every feature action-menu item connected to an action", () => {
+    const inertMenuItems = featureSources.flatMap(({ file, source }) =>
+      Array.from(
+        source.matchAll(/<DropdownMenu\.Item\b[\s\S]*?>/gu),
+        (match) => match[0],
+      )
+        .filter((tag) => !/\bonclick\s*=/u.test(tag))
+        .map((tag) => `${file}: ${tag.replace(/\s+/gu, " ")}`),
+    );
+
+    expect(inertMenuItems).toEqual([]);
+  });
+
+  it("keeps page-level disclosures on a consistent heading level", () => {
+    const implicitAccordionHeadings = pageViewSources.flatMap(({ file, source }) =>
+      componentOpeningTags(source, "Accordion.Trigger")
+        .filter((tag) => !/\blevel\s*=\s*\{2\}/u.test(tag))
+        .map((tag) => `${file}: ${tag.replace(/\s+/gu, " ")}`),
+    );
+
+    expect(implicitAccordionHeadings).toEqual([]);
   });
 
   it("keeps status meaning on semantic tokens", () => {

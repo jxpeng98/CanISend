@@ -194,7 +194,7 @@
     eyebrow={copy.opportunities}
     title={copy.opportunitiesTitle}
     description={copy.opportunitiesDescription}
-    actions={headerActions}
+    actions={activeWorkspace ? headerActions : undefined}
   />
 
   {#if !activeWorkspace}

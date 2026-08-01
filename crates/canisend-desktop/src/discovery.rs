@@ -251,13 +251,11 @@ fn preview_token() -> Result<String, DesktopCommandError> {
     ))
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) fn discovery_adapters() -> ActionReceipt<DiscoveryAdapterCatalogReadModel> {
     Application::discovery_adapters()
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn preview_discovery_file(
     state: tauri::State<'_, DiscoveryPreviewStore>,
@@ -273,7 +271,6 @@ pub(crate) async fn preview_discovery_file(
     })
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn preview_discovery_network(
     state: tauri::State<'_, DiscoveryPreviewStore>,
@@ -289,7 +286,6 @@ pub(crate) async fn preview_discovery_network(
     })
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn commit_discovery_preview(
     state: tauri::State<'_, DiscoveryPreviewStore>,
@@ -316,7 +312,6 @@ pub(crate) async fn commit_discovery_preview(
     result
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) fn discard_discovery_preview(
     state: tauri::State<'_, DiscoveryPreviewStore>,
@@ -325,7 +320,6 @@ pub(crate) fn discard_discovery_preview(
     state.discard(&request.preview_token)
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn list_discovery_sources(
     request: DiscoveryWorkspaceRequest,
@@ -337,7 +331,6 @@ pub(crate) async fn list_discovery_sources(
     .await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn list_discovery_leads(
     request: DiscoveryListRequest,
@@ -349,7 +342,6 @@ pub(crate) async fn list_discovery_leads(
     .await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn show_discovery_lead(
     request: DiscoveryLeadRequest,
@@ -361,7 +353,6 @@ pub(crate) async fn show_discovery_lead(
     .await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn suggest_discovery_duplicates(
     request: DiscoverySuggestionRequest,
@@ -374,7 +365,6 @@ pub(crate) async fn suggest_discovery_duplicates(
     .await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn promote_discovery_lead(
     request: DiscoveryLeadRequest,

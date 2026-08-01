@@ -531,6 +531,12 @@ export interface ArtifactReference {
   sha256: string;
 }
 
+export type DocumentKind =
+  | "cover-letter"
+  | "research-statement"
+  | "teaching-statement"
+  | "cv";
+
 export type ContentCategory =
   | "source"
   | "profile"
@@ -1034,16 +1040,21 @@ export interface ProjectionReconcileRecord {
   reconciled_at: string;
 }
 
+export interface RenderedDocumentRecord {
+  kind: DocumentKind;
+  document_artifact: ArtifactReference;
+  typst_artifact: ArtifactReference;
+  pdf_artifact: ArtifactReference;
+  page_count: number;
+  byte_count: number;
+  warning_count: number;
+  elapsed_millis: number;
+}
+
 export interface RenderManifestRecord {
   id: string;
   job_id: string;
-  documents: Array<{
-    kind: string;
-    page_count: number;
-    byte_count: number;
-    warning_count: number;
-    elapsed_millis: number;
-  }>;
+  documents: RenderedDocumentRecord[];
   rendered_at: string;
   submission_performed: false;
   revision: number;
@@ -2058,6 +2069,23 @@ export async function getCurrentRender(
   jobId: string,
 ): Promise<ActionReceipt<RenderManifestRecord>> {
   return invoke("current_render", deliveryJobRequest(workspace, jobId));
+}
+
+export async function previewRender(
+  workspace: string,
+  jobId: string,
+  kind: DocumentKind,
+  confirmedPrivateRead: boolean,
+): Promise<Uint8Array> {
+  const response = await invoke<ArrayBuffer>("preview_render", {
+    request: {
+      workspace,
+      job_id: jobId,
+      kind,
+      confirmed_private_read: confirmedPrivateRead,
+    },
+  });
+  return new Uint8Array(response);
 }
 
 export async function exportRender(

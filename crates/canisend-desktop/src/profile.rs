@@ -186,7 +186,6 @@ fn confirm_plan_impl(
     .map_err(DesktopCommandError::application)
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn list_profile_sources(
     request: ProfileWorkspaceRequest,
@@ -198,7 +197,6 @@ pub(crate) async fn list_profile_sources(
     .await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn import_profile_source(
     request: ProfileSourceImportRequest,
@@ -206,7 +204,6 @@ pub(crate) async fn import_profile_source(
     run_worker(move || import_profile_source_impl(request)).await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn initialize_profile(
     request: ProfileInitializationRequest,
@@ -214,7 +211,6 @@ pub(crate) async fn initialize_profile(
     run_worker(move || initialize_profile_impl(request)).await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn profile_evidence_template(
     request: PrivateJobRequest,
@@ -222,7 +218,6 @@ pub(crate) async fn profile_evidence_template(
     run_worker(move || profile_evidence_template_impl(request)).await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn confirm_profile_evidence(
     request: CandidateConfirmRequest,
@@ -230,7 +225,6 @@ pub(crate) async fn confirm_profile_evidence(
     run_worker(move || confirm_profile_evidence_impl(request)).await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn criteria_template(
     request: PrivateJobRequest,
@@ -238,7 +232,6 @@ pub(crate) async fn criteria_template(
     run_worker(move || criteria_template_impl(request)).await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn confirm_criteria(
     request: CandidateConfirmRequest,
@@ -246,7 +239,6 @@ pub(crate) async fn confirm_criteria(
     run_worker(move || confirm_criteria_impl(request)).await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn current_matches(
     request: PrivateJobRequest,
@@ -254,7 +246,6 @@ pub(crate) async fn current_matches(
     run_worker(move || current_matches_impl(request)).await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn plan_template(
     request: PrivateJobRequest,
@@ -262,7 +253,6 @@ pub(crate) async fn plan_template(
     run_worker(move || plan_template_impl(request)).await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn current_plan(
     request: PrivateJobRequest,
@@ -270,7 +260,6 @@ pub(crate) async fn current_plan(
     run_worker(move || current_plan_impl(request)).await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn confirm_plan(
     request: CandidateConfirmRequest,

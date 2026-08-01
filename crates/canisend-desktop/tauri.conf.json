@@ -4,9 +4,9 @@
   "version": "1.0.0-alpha.5",
   "identifier": "io.github.jxpeng98.canisend",
   "build": {
-    "beforeDevCommand": "pnpm --dir ../../apps/canisend-desktop dev",
+    "beforeDevCommand": "pnpm --dir ../apps/canisend-desktop dev",
     "devUrl": "http://127.0.0.1:1420",
-    "beforeBuildCommand": "pnpm --dir ../../apps/canisend-desktop build",
+    "beforeBuildCommand": "pnpm --dir ../apps/canisend-desktop build",
     "frontendDist": "../../apps/canisend-desktop/dist"
   },
   "app": {
@@ -25,7 +25,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; object-src 'none'; frame-src 'none'"
+      "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; object-src 'none'; frame-src blob:"
     }
   },
   "bundle": {

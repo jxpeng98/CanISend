@@ -117,8 +117,8 @@ fi
 app="$mount_point/CanISend.app"
 manifest="$mount_point/CanISend.app.manifest.json"
 "$script_dir/verify_macos_gui_app.sh" "$app" "$manifest"
-cli="$app/Contents/Resources/bin/canisend"
-version="$("$cli" version --json | jq -er 'select(.ok == true) | .data.version')"
+host="$app/Contents/MacOS/canisend-gui"
+version="$("$host" version --json | jq -er 'select(.ok == true) | .data.version')"
 expected_name="CanISend-$version-aarch64-apple-darwin.dmg"
 if [[ "$(basename "$dmg")" != "$expected_name" ]]; then
   echo "macOS GUI DMG smoke: image must be named $expected_name" >&2

@@ -5,17 +5,21 @@
     FileCheck2,
     FileOutput,
     FileText,
+    Eye,
     RefreshCw,
     RotateCcw,
     ShieldCheck,
   } from "@lucide/svelte";
+  import { onDestroy } from "svelte";
 
+  import ActionMenu from "$lib/components/patterns/ActionMenu.svelte";
   import * as Page from "$lib/components/patterns/page/index.js";
   import { Badge } from "$lib/components/ui/badge/index.js";
   import * as Alert from "$lib/components/ui/alert/index.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import * as Card from "$lib/components/ui/card/index.js";
   import { Checkbox } from "$lib/components/ui/checkbox/index.js";
+  import * as DropdownMenu from "$lib/components/ui/dropdown-menu/index.js";
   import * as Empty from "$lib/components/ui/empty/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
   import { Label } from "$lib/components/ui/label/index.js";
@@ -24,10 +28,12 @@
   import { Textarea } from "$lib/components/ui/textarea/index.js";
   import type {
     DocumentWorkspaceReadModel,
+    DocumentKind,
     PackageExportManifestRecord,
     PackageManifestRecord,
     ProjectionReconcileRecord,
     RenderManifestRecord,
+    RenderedDocumentRecord,
     ReviewWorkspaceReadModel,
     WorkspaceReadModel,
   } from "$lib/bridge";
@@ -82,6 +88,11 @@
     ) => Promise<ProjectionReconcileRecord | null>;
     onBuildRender: (jobId: string) => Promise<RenderManifestRecord | null>;
     onLoadRender: (jobId: string) => Promise<RenderManifestRecord | null>;
+    onPreviewRender: (
+      jobId: string,
+      kind: DocumentKind,
+      confirmedPrivateRead: boolean,
+    ) => Promise<Uint8Array | null>;
     onExportRender: (
       jobId: string,
       destination: string,
@@ -109,6 +120,7 @@
     onCopyProjection,
     onBuildRender,
     onLoadRender,
+    onPreviewRender,
     onExportRender,
   }: Props = $props();
 
@@ -127,7 +139,27 @@
   let preservedDestination = $state("");
   let renderManifest = $state<RenderManifestRecord | null>(null);
   let renderDestination = $state("");
+  let previewUrl = $state<string | null>(null);
+  let previewKind = $state<DocumentKind | null>(null);
+  let previewSha256 = $state<string | null>(null);
   let formError = $state<string | null>(null);
+
+  const previewDocument = $derived(
+    renderManifest?.documents.find(
+      (document) =>
+        document.kind === previewKind &&
+        document.pdf_artifact.sha256 === previewSha256,
+    ) ?? null,
+  );
+
+  function clearRenderPreview(): void {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    previewUrl = null;
+    previewKind = null;
+    previewSha256 = null;
+  }
+
+  onDestroy(clearRenderPreview);
 
   $effect(() => {
     const nextKey = `${activeWorkspace?.path ?? ""}:${selectedJobId}`;
@@ -140,6 +172,7 @@
       packageExport = null;
       reconciliations = [];
       renderManifest = null;
+      clearRenderPreview();
       privateReadConsent = false;
       privateExportConsent = false;
       packageDestination = selectedJobId
@@ -260,6 +293,40 @@
       renderDestination,
       privateExportConsent,
     );
+  }
+
+  async function buildRenderedPdfs(): Promise<void> {
+    clearRenderPreview();
+    renderManifest = await onBuildRender(selectedJobId);
+  }
+
+  async function loadRenderedPdfs(): Promise<void> {
+    clearRenderPreview();
+    renderManifest = await onLoadRender(selectedJobId);
+  }
+
+  async function showRenderPreview(document: RenderedDocumentRecord): Promise<void> {
+    formError = null;
+    if (!privateReadConsent) {
+      formError = copy.privateWorkspaceConsent;
+      return;
+    }
+    const bytes = await onPreviewRender(
+      selectedJobId,
+      document.kind,
+      privateReadConsent,
+    );
+    if (!bytes) return;
+    clearRenderPreview();
+    const buffer = bytes.buffer.slice(
+      bytes.byteOffset,
+      bytes.byteOffset + bytes.byteLength,
+    ) as ArrayBuffer;
+    previewUrl = URL.createObjectURL(
+      new Blob([buffer], { type: "application/pdf" }),
+    );
+    previewKind = document.kind;
+    previewSha256 = document.pdf_artifact.sha256;
   }
 
   function navigateWithinDelivery(detail: WorkflowDetail): void {
@@ -498,9 +565,12 @@
                 <CheckCircle2 size={16} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
                 {copy.checkPackage}
               </Button>
-              <Button variant="outline" disabled={busy} onclick={async () => (packageManifest = await onLoadPackage(selectedJobId))}>
-                {copy.loadPackage}
-              </Button>
+              <ActionMenu label={copy.moreActions} disabled={busy}>
+                <DropdownMenu.Item onclick={async () => (packageManifest = await onLoadPackage(selectedJobId))}>
+                  <RefreshCw size={16} strokeWidth={1.8} aria-hidden="true" />
+                  {copy.loadPackage}
+                </DropdownMenu.Item>
+              </ActionMenu>
             </div>
             {#if packageManifest}
               <div class="grid gap-3 md:grid-cols-3">
@@ -543,14 +613,17 @@
                 <Card.Title>{copy.projections}</Card.Title>
                 <Card.Description>{packageExport?.projections.length ?? reconciliations.length}</Card.Description>
               </div>
-              <div class="flex flex-wrap gap-2">
-                <Button variant="outline" disabled={busy} onclick={async () => (packageExport = await onLoadPackageExport(selectedJobId))}>
-                  {copy.loadExports}
-                </Button>
+              <div class="flex flex-wrap items-center gap-2">
                 <Button variant="outline" disabled={busy} onclick={reconcile}>
                   <RotateCcw size={16} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
                   {copy.reconcileProjections}
                 </Button>
+                <ActionMenu label={copy.moreActions} disabled={busy}>
+                  <DropdownMenu.Item onclick={async () => (packageExport = await onLoadPackageExport(selectedJobId))}>
+                    <RefreshCw size={16} strokeWidth={1.8} aria-hidden="true" />
+                    {copy.loadExports}
+                  </DropdownMenu.Item>
+                </ActionMenu>
               </div>
             </div>
           </Card.Header>
@@ -616,24 +689,70 @@
           </Card.Header>
           <Card.Content class="space-y-[var(--density-section-gap)]">
             <div class="flex flex-wrap gap-2">
-              <Button disabled={busy} onclick={async () => (renderManifest = await onBuildRender(selectedJobId))}>
+              <Button disabled={busy} onclick={buildRenderedPdfs}>
                 <FileCheck2 size={16} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
                 {copy.buildRender}
               </Button>
-              <Button variant="outline" disabled={busy} onclick={async () => (renderManifest = await onLoadRender(selectedJobId))}>
-                {copy.loadRender}
-              </Button>
+              <ActionMenu label={copy.moreActions} disabled={busy}>
+                <DropdownMenu.Item onclick={loadRenderedPdfs}>
+                  <RefreshCw size={16} strokeWidth={1.8} aria-hidden="true" />
+                  {copy.loadRender}
+                </DropdownMenu.Item>
+              </ActionMenu>
             </div>
             <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               {#each renderManifest?.documents ?? [] as document (document.kind)}
-                <div class="rounded-lg border p-[var(--density-panel-padding)]">
-                  <p class="text-sm font-semibold">{document.kind}</p>
-                  <p class="mt-2 text-xs text-muted-foreground">
-                    {document.page_count} {copy.pages} · {document.warning_count} {copy.warnings}
-                  </p>
-                </div>
+                <Button
+                  variant={previewDocument?.kind === document.kind ? "secondary" : "outline"}
+                  class="h-auto min-w-0 justify-between p-[var(--density-panel-padding)] text-left"
+                  disabled={busy || !privateReadConsent}
+                  aria-pressed={previewDocument?.kind === document.kind}
+                  title={!privateReadConsent ? copy.privateWorkspaceConsent : copy.previewPdf}
+                  onclick={() => showRenderPreview(document)}
+                >
+                  <span class="min-w-0">
+                    <span class="block truncate text-sm font-semibold">
+                      {copy.documentKindLabels[document.kind]}
+                    </span>
+                    <span class="mt-1 block text-xs text-muted-foreground">
+                      {document.page_count} {copy.pages} · {document.warning_count} {copy.warnings}
+                    </span>
+                  </span>
+                  <Eye size={16} strokeWidth={1.8} aria-hidden="true" />
+                  <span class="sr-only">{copy.previewPdf}</span>
+                </Button>
               {/each}
             </div>
+            {#if previewUrl && previewDocument}
+              <section
+                class="overflow-hidden rounded-lg border bg-muted/20"
+                aria-label={copy.exactPdfPreview}
+              >
+                <div class="flex min-w-0 flex-wrap items-center gap-2 border-b px-3 py-2">
+                  <Badge variant="secondary">
+                    {copy.documentKindLabels[previewDocument.kind]}
+                  </Badge>
+                  <span class="text-xs font-medium">{copy.exactPdfPreview}</span>
+                  <span
+                    class="min-w-0 flex-1 truncate text-right font-mono text-[10px] text-muted-foreground"
+                    title={previewDocument.pdf_artifact.sha256}
+                  >
+                    {previewDocument.pdf_artifact.sha256}
+                  </span>
+                </div>
+                <iframe
+                  src={previewUrl}
+                  title={`${copy.exactPdfPreview}: ${copy.documentKindLabels[previewDocument.kind]}`}
+                  class="h-[min(70vh,48rem)] min-h-[28rem] w-full bg-white"
+                ></iframe>
+                <p class="border-t px-3 py-2 text-xs text-muted-foreground">
+                  {copy.previewUnavailable}
+                </p>
+              </section>
+              <output class="sr-only" aria-live="polite">
+                {copy.previewReady}: {copy.documentKindLabels[previewDocument.kind]}
+              </output>
+            {/if}
             <Separator />
             <div class="grid gap-[var(--density-section-gap)] lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
               <div class="space-y-2">

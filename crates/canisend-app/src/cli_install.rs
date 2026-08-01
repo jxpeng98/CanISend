@@ -10,6 +10,12 @@ use std::{
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+#[cfg(windows)]
+use winreg::{
+    RegKey, RegValue,
+    enums::{HKEY_CURRENT_USER, KEY_QUERY_VALUE, KEY_SET_VALUE, RegType},
+    types::FromRegValue,
+};
 
 use crate::{ActionReceipt, ApplicationError};
 
@@ -21,6 +27,12 @@ const VERSION_PROBE_TIMEOUT: Duration = Duration::from_millis(750);
 const MAX_SHELL_PROFILE_BYTES: u64 = 1024 * 1024;
 const PATH_BLOCK_START: &str = "# >>> CanISend CLI PATH >>>";
 const PATH_BLOCK_END: &str = "# <<< CanISend CLI PATH <<<";
+#[cfg(windows)]
+const WINDOWS_USER_ENVIRONMENT_KEY: &str = "Environment";
+#[cfg(windows)]
+const WINDOWS_USER_PATH_VALUE: &str = "Path";
+#[cfg(any(windows, test))]
+const MAX_WINDOWS_USER_PATH_CHARS: usize = 32_767;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TerminalInstallConsent(());
@@ -166,12 +178,12 @@ pub(crate) fn inspect(
             .as_deref()
             .is_some_and(|active| paths_refer_to_same_file(active, destination));
     let path_active = destination.parent().is_some_and(directory_is_on_path);
-    let path_configuration_file = default_shell_profile();
+    let path_configuration_file = default_path_configuration();
     let path_configured = path_active
         || destination.parent().is_some_and(|directory| {
             path_configuration_file
                 .as_deref()
-                .is_some_and(|profile| profile_configures_path(profile, directory))
+                .is_some_and(|configuration| persistent_path_configures(configuration, directory))
         });
     let status = CliInstallStatus {
         state,
@@ -204,16 +216,21 @@ pub(crate) fn configure_path(
     _consent: TerminalInstallConsent,
 ) -> Result<ActionReceipt<CliInstallStatus>, ApplicationError> {
     validate_destination(destination)?;
-    let profile = default_shell_profile().ok_or_else(|| {
+    let configuration = default_path_configuration().ok_or_else(|| {
         ApplicationError::CliInstall(
-            "Automatic PATH configuration is currently supported for macOS and Unix shells"
-                .to_owned(),
+            "Automatic PATH configuration is not supported on this platform".to_owned(),
         )
     })?;
-    configure_path_file(destination, &profile)?;
+    configure_persistent_path(destination, &configuration)?;
     let status = inspect(source, destination)?.data;
     let warning = (!status.path_active).then(|| {
-        "Open a new terminal window before expecting the updated PATH to become active".to_owned()
+        if cfg!(windows) {
+            "Sign out or restart Windows before expecting the updated PATH to become active"
+                .to_owned()
+        } else {
+            "Open a new terminal window before expecting the updated PATH to become active"
+                .to_owned()
+        }
     });
     Ok(ActionReceipt::new(
         "cli.path.configure",
@@ -696,7 +713,8 @@ fn directory_is_on_path(directory: &Path) -> bool {
         .any(|entry| entry == directory || paths_refer_to_same_file(&entry, directory))
 }
 
-fn default_shell_profile() -> Option<PathBuf> {
+#[cfg(unix)]
+fn default_path_configuration() -> Option<PathBuf> {
     let home = env::var_os("HOME").map(PathBuf::from)?;
     #[cfg(target_os = "macos")]
     {
@@ -710,6 +728,61 @@ fn default_shell_profile() -> Option<PathBuf> {
     None
 }
 
+#[cfg(windows)]
+fn default_path_configuration() -> Option<PathBuf> {
+    Some(PathBuf::from(r"HKCU\Environment\Path"))
+}
+
+#[cfg(not(any(unix, windows)))]
+fn default_path_configuration() -> Option<PathBuf> {
+    None
+}
+
+#[cfg(unix)]
+fn persistent_path_configures(configuration: &Path, directory: &Path) -> bool {
+    profile_configures_path(configuration, directory)
+}
+
+#[cfg(windows)]
+fn persistent_path_configures(_configuration: &Path, directory: &Path) -> bool {
+    windows_user_path()
+        .ok()
+        .flatten()
+        .is_some_and(|path| windows_path_contains(&path, &directory.to_string_lossy()))
+}
+
+#[cfg(not(any(unix, windows)))]
+fn persistent_path_configures(_configuration: &Path, _directory: &Path) -> bool {
+    false
+}
+
+#[cfg(unix)]
+fn configure_persistent_path(
+    destination: &Path,
+    configuration: &Path,
+) -> Result<(), ApplicationError> {
+    configure_path_file(destination, configuration)
+}
+
+#[cfg(windows)]
+fn configure_persistent_path(
+    destination: &Path,
+    _configuration: &Path,
+) -> Result<(), ApplicationError> {
+    configure_windows_user_path(destination)
+}
+
+#[cfg(not(any(unix, windows)))]
+fn configure_persistent_path(
+    _destination: &Path,
+    _configuration: &Path,
+) -> Result<(), ApplicationError> {
+    Err(ApplicationError::CliInstall(
+        "Automatic PATH configuration is not supported on this platform".to_owned(),
+    ))
+}
+
+#[cfg(unix)]
 fn profile_configures_path(profile: &Path, directory: &Path) -> bool {
     let Ok(metadata) = fs::symlink_metadata(profile) else {
         return false;
@@ -727,6 +800,7 @@ fn profile_configures_path(profile: &Path, directory: &Path) -> bool {
         .is_ok_and(|line| text.lines().any(|candidate| candidate.trim() == line))
 }
 
+#[cfg(unix)]
 fn configure_path_file(destination: &Path, profile: &Path) -> Result<(), ApplicationError> {
     let directory = destination
         .parent()
@@ -784,6 +858,7 @@ fn configure_path_file(destination: &Path, profile: &Path) -> Result<(), Applica
     Ok(())
 }
 
+#[cfg(unix)]
 fn path_export_line(directory: &Path) -> Result<String, ApplicationError> {
     let directory = directory.to_str().ok_or_else(|| {
         ApplicationError::CliInstall("CLI PATH directory must be valid UTF-8".to_owned())
@@ -798,6 +873,127 @@ fn path_export_line(directory: &Path) -> Result<String, ApplicationError> {
         ));
     }
     Ok(format!("export PATH=\"{directory}:$PATH\""))
+}
+
+#[cfg(windows)]
+fn is_windows_path_registry_type(value_type: &RegType) -> bool {
+    value_type == &RegType::REG_SZ || value_type == &RegType::REG_EXPAND_SZ
+}
+
+#[cfg(windows)]
+fn windows_user_path() -> io::Result<Option<String>> {
+    let current_user = RegKey::predef(HKEY_CURRENT_USER);
+    let environment =
+        match current_user.open_subkey_with_flags(WINDOWS_USER_ENVIRONMENT_KEY, KEY_QUERY_VALUE) {
+            Ok(environment) => environment,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(error),
+        };
+    match environment.get_raw_value(WINDOWS_USER_PATH_VALUE) {
+        Ok(value) if is_windows_path_registry_type(&value.vtype) => {
+            String::from_reg_value(&value).map(Some)
+        }
+        Ok(_) => Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "HKCU Environment Path is not a string registry value",
+        )),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+
+#[cfg(windows)]
+fn configure_windows_user_path(destination: &Path) -> Result<(), ApplicationError> {
+    let directory = destination
+        .parent()
+        .ok_or_else(|| ApplicationError::CliInstall("CLI destination has no parent".to_owned()))?;
+    let directory = directory.to_str().ok_or_else(|| {
+        ApplicationError::CliInstall("CLI PATH directory must be valid Unicode".to_owned())
+    })?;
+    let current_user = RegKey::predef(HKEY_CURRENT_USER);
+    let (environment, _) = current_user
+        .create_subkey_with_flags(
+            WINDOWS_USER_ENVIRONMENT_KEY,
+            KEY_QUERY_VALUE | KEY_SET_VALUE,
+        )
+        .map_err(cli_io)?;
+    let (current, value_type) = match environment.get_raw_value(WINDOWS_USER_PATH_VALUE) {
+        Ok(value) if is_windows_path_registry_type(&value.vtype) => {
+            let current = String::from_reg_value(&value).map_err(cli_io)?;
+            (current, value.vtype.clone())
+        }
+        Ok(_) => {
+            return Err(ApplicationError::CliInstall(
+                "HKCU Environment Path is not a string registry value".to_owned(),
+            ));
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            (String::new(), RegType::REG_EXPAND_SZ)
+        }
+        Err(error) => return Err(cli_io(error)),
+    };
+    let updated = windows_path_with_entry(&current, directory)?;
+    if updated == current {
+        return Ok(());
+    }
+    let mut bytes = Vec::with_capacity((updated.encode_utf16().count() + 1) * 2);
+    for unit in updated.encode_utf16().chain(std::iter::once(0)) {
+        bytes.extend_from_slice(&unit.to_le_bytes());
+    }
+    environment
+        .set_raw_value(
+            WINDOWS_USER_PATH_VALUE,
+            &RegValue {
+                bytes,
+                vtype: value_type,
+            },
+        )
+        .map_err(cli_io)
+}
+
+#[cfg(any(windows, test))]
+fn windows_path_with_entry(current: &str, directory: &str) -> Result<String, ApplicationError> {
+    if directory.is_empty()
+        || directory
+            .chars()
+            .any(|character| character.is_control() || character == ';')
+    {
+        return Err(ApplicationError::CliInstall(
+            "CLI PATH directory cannot be represented in the Windows user PATH".to_owned(),
+        ));
+    }
+    if windows_path_contains(current, directory) {
+        return Ok(current.to_owned());
+    }
+    let separator = (!current.is_empty() && !current.ends_with(';')).then_some(';');
+    let additional_chars = directory.encode_utf16().count() + usize::from(separator.is_some());
+    if current.encode_utf16().count() + additional_chars > MAX_WINDOWS_USER_PATH_CHARS {
+        return Err(ApplicationError::CliInstall(format!(
+            "Windows user PATH would exceed {MAX_WINDOWS_USER_PATH_CHARS} UTF-16 code units"
+        )));
+    }
+    let mut updated = String::with_capacity(current.len() + directory.len() + 1);
+    updated.push_str(current);
+    if let Some(separator) = separator {
+        updated.push(separator);
+    }
+    updated.push_str(directory);
+    Ok(updated)
+}
+
+#[cfg(any(windows, test))]
+fn windows_path_contains(current: &str, directory: &str) -> bool {
+    let expected = directory
+        .trim()
+        .trim_matches('"')
+        .trim_end_matches(['\\', '/']);
+    current.split(';').any(|entry| {
+        entry
+            .trim()
+            .trim_matches('"')
+            .trim_end_matches(['\\', '/'])
+            .eq_ignore_ascii_case(expected)
+    })
 }
 
 fn paths_refer_to_same_file(left: &Path, right: &Path) -> bool {
@@ -848,10 +1044,11 @@ mod tests {
     };
 
     use super::{
-        CliInstallState, CliVersionRelation, TerminalInstallConsent, compare_versions,
-        configure_path_file, inspect, install, parse_version_output, profile_configures_path,
-        uninstall,
+        CliInstallState, CliVersionRelation, TerminalInstallConsent, compare_versions, inspect,
+        install, parse_version_output, uninstall, windows_path_contains, windows_path_with_entry,
     };
+    #[cfg(unix)]
+    use super::{configure_path_file, profile_configures_path};
 
     static NEXT: AtomicU64 = AtomicU64::new(1);
 
@@ -1108,6 +1305,7 @@ mod tests {
         fs::remove_dir_all(root).expect("cleanup");
     }
 
+    #[cfg(unix)]
     #[test]
     fn path_configuration_is_bounded_idempotent_and_never_follows_symlinks() {
         let root = root("path-config");
@@ -1131,5 +1329,21 @@ mod tests {
             assert!(configure_path_file(&destination, &root.join("linked-profile")).is_err());
         }
         fs::remove_dir_all(root).expect("remove fixture");
+    }
+
+    #[test]
+    fn windows_path_configuration_is_case_insensitive_bounded_and_idempotent() {
+        let current = r"C:\Windows;C:\Users\Example\Tools";
+        assert!(windows_path_contains(current, r"c:\users\example\tools\"));
+        assert_eq!(
+            windows_path_with_entry(current, r"C:\Users\Example\Tools").expect("existing entry"),
+            current
+        );
+        assert_eq!(
+            windows_path_with_entry(current, r"C:\Users\Example\CanISend\bin").expect("new entry"),
+            r"C:\Windows;C:\Users\Example\Tools;C:\Users\Example\CanISend\bin"
+        );
+        assert!(windows_path_with_entry(current, "C:\\bad;entry").is_err());
+        assert!(windows_path_with_entry(&"x".repeat(32_767), "y").is_err());
     }
 }

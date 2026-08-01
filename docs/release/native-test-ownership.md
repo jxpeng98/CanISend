@@ -29,6 +29,7 @@ of the named native package gates.
 | macOS CLI jobs | native architecture plus stage-required ad-hoc signing |
 | Intel macOS candidate job | standalone CLI for every stage; exact-commit GUI compilation evidence for Beta and later |
 | Scheduled Intel GUI workflow | weekly/manual Alpha development compile regression; never release evidence or a support claim |
+| Scheduled Windows/Linux desktop workflow | latest Typst template audit; four-candidate desktop profile matrix; native one-host NSIS/MSI, DEB/RPM/AppImage builds; GUI/CLI/MCP smoke; and size records; nonpublishing until promoted into the candidate matrix |
 | Windows CLI job | PowerShell parser plus stage-required self-signed Authenticode verification |
 | Linux GNU job | release performance and full synthetic workflow budgets |
 | Linux musl job | musl linker and execution of the extracted static-target archive |
@@ -37,11 +38,18 @@ of the named native package gates.
 | macOS Rust fast CI | development formatting, Clippy, complete workspace tests, generated properties, debug CLI/GUI build, recovery/render coverage, and CLI/host-agent smoke |
 | Windows release tests | PowerShell parsers plus bounded recovery, concurrency, embedded-font, complex-layout, and revision-bound render contracts |
 | Native release source and package gates | Linux full suite, dependency policy, GNU performance/synthetic budgets, Linux/Windows exact package smoke, and signing checks |
-| Scheduled workflows | Intel GUI compilation and bounded malformed-input fuzzing outside the edit loop |
+| Scheduled workflows | Intel GUI compilation, Windows/Linux desktop package qualification, and bounded malformed-input fuzzing outside the edit loop |
 
 Windows and Linux tests are release-only. The candidate Windows gate and Linux source gate begin
 alongside the native package jobs; assembly waits for every owner, so parallelization changes
 feedback time without allowing a failed source or platform test to authorize an artifact.
+
+The scheduled desktop owners compare `release`, `size-s-thin`, `size-z-thin`, and `size-z-fat`
+against the exact upgraded Typst template contract before packaging. The smallest material result
+is still only a candidate. The workflow currently packages the leading `size-z-fat` candidate so
+that the exact host passes that target's GUI, renamed CLI, MCP, rendering, package lifecycle, and
+integrity gates before the production profile changes. A native failure retains that target's
+existing production profile.
 
 Alpha candidates use the explicit `release-alpha` profile. Beta, RC, Stable, and the scheduled
 Intel GUI compile keep the canonical `release` profile. The stage selector is emitted only after

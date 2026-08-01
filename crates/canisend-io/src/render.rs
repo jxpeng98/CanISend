@@ -4,9 +4,9 @@ use std::{
 };
 
 use canisend_contracts::{ArtifactReference, DocumentKind, DocumentRecord};
-use canisend_resources::{ResourceId, get};
+use canisend_resources::{ResourceDescriptor, ResourceId, get};
 use thiserror::Error;
-use typst_as_lib::{TypstAsLibError, TypstEngine, typst_kit_options::TypstKitFontOptions};
+use typst_as_lib::{TypstAsLibError, TypstEngine};
 
 pub const MAX_TYPST_SOURCE_BYTES: usize = 1024 * 1024;
 pub const MAX_RENDER_PDF_BYTES: usize = 16 * 1024 * 1024;
@@ -50,6 +50,40 @@ pub enum TypstProjectionError {
     SourceTooLarge { max_bytes: usize },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DocumentTemplateDescriptor {
+    pub bundle_id: &'static str,
+    pub entrypoint: &'static str,
+    pub resource: ResourceDescriptor,
+}
+
+const fn document_template_resource(kind: DocumentKind) -> ResourceId {
+    match kind {
+        DocumentKind::Cv => ResourceId::TemplateModernproCv,
+        DocumentKind::CoverLetter
+        | DocumentKind::ResearchStatement
+        | DocumentKind::TeachingStatement => ResourceId::TemplateModernproCoverletter,
+    }
+}
+
+const fn document_template_bundle(kind: DocumentKind) -> &'static str {
+    match kind {
+        DocumentKind::Cv => "modernpro-cv",
+        DocumentKind::CoverLetter
+        | DocumentKind::ResearchStatement
+        | DocumentKind::TeachingStatement => "modernpro-coverletter",
+    }
+}
+
+#[must_use]
+pub fn document_template_descriptor(kind: DocumentKind) -> DocumentTemplateDescriptor {
+    DocumentTemplateDescriptor {
+        bundle_id: document_template_bundle(kind),
+        entrypoint: "canisend_render_document",
+        resource: get(document_template_resource(kind)).descriptor,
+    }
+}
+
 pub fn project_document_typst(
     source_artifact: &ArtifactReference,
     document: &DocumentRecord,
@@ -62,13 +96,25 @@ pub fn project_document_typst(
     if unresolved > 0 {
         return Err(TypstProjectionError::UnresolvedTemplateFields { count: unresolved });
     }
-    let template = std::str::from_utf8(get(ResourceId::TemplateApplicationDocument).bytes)
+    let template_descriptor = document_template_descriptor(document.kind);
+    let template_resource = document_template_resource(document.kind);
+    let template = std::str::from_utf8(get(template_resource).bytes)
         .map_err(|_| TypstProjectionError::TemplateEncoding)?;
     let mut output = String::with_capacity(template.len() + 2048);
     output.push_str(template);
     output.push_str(
         "\n\n// Managed CanISend Typst projection. Structured artifacts remain authoritative.\n",
     );
+    writeln!(
+        output,
+        "// template: bundle:{} resource:{} version:{} sha256:{} entrypoint:{}",
+        template_descriptor.bundle_id,
+        template_descriptor.resource.id,
+        template_descriptor.resource.version,
+        template_descriptor.resource.sha256,
+        template_descriptor.entrypoint,
+    )
+    .expect("writing to String cannot fail");
     writeln!(
         output,
         "// source-artifact: {}@{} sha256:{}",
@@ -98,6 +144,12 @@ pub fn project_document_typst(
     .expect("writing to String cannot fail");
     writeln!(output, "  title: {},", typst_string(&document.title))
         .expect("writing to String cannot fail");
+    writeln!(
+        output,
+        "  generated-date: {},",
+        typst_string(&document.generation.created_at.as_str()[..10])
+    )
+    .expect("writing to String cannot fail");
     output.push_str("  sections: (\n");
     for section in &document.sections {
         writeln!(
@@ -259,11 +311,7 @@ impl EmbeddedTypstCompiler {
         let started = Instant::now();
         let engine = TypstEngine::builder()
             .main_file(source)
-            .search_fonts_with(
-                TypstKitFontOptions::default()
-                    .include_system_fonts(false)
-                    .include_embedded_fonts(true),
-            )
+            .fonts(typst_assets::fonts())
             .build();
         let compiled = engine.compile();
         let warning_count = compiled.warnings.len();
@@ -345,16 +393,26 @@ mod tests {
 
     use super::{
         EmbeddedRenderError, EmbeddedTypstCompiler, MAX_RENDER_PDF_BYTES, MAX_TYPST_SOURCE_BYTES,
-        TypstProjectionError, project_document_typst, render_acceptance_probe,
-        validate_rendered_pdf,
+        TypstProjectionError, document_template_descriptor, project_document_typst,
+        render_acceptance_probe, validate_rendered_pdf,
     };
 
     #[test]
     fn embedded_template_and_fonts_render_without_external_files() {
-        let template = std::str::from_utf8(get(ResourceId::TemplateCoverLetter).bytes)
+        let template = std::str::from_utf8(get(ResourceId::TemplateModernproCoverletter).bytes)
             .expect("embedded Typst template is UTF-8");
         let source = format!(
-            "{template}\n#application_cover_letter([Ada Lovelace], [University X], [Evidence-backed application.])"
+            r#"{template}
+#canisend_render_document((
+  title: "Application for Example Role",
+  kind: "cover-letter",
+  generated-date: "2026-08-01",
+  sections: ((heading: none, body: "Evidence-backed application."),),
+  fields: (
+    (key: "candidate-name", value: "Ada Lovelace"),
+    (key: "recipient-institution", value: "University X"),
+  ),
+))"#
         );
         let rendered = EmbeddedTypstCompiler::new()
             .compile_pdf(&source)
@@ -446,10 +504,118 @@ Missing user font behavior remains deterministic."#,
             let rendered = EmbeddedTypstCompiler::new()
                 .compile_pdf(&source)
                 .expect("escaped projection compiles");
+            assert_eq!(rendered.warning_count(), 0);
             let text = pdf_extract::extract_text_from_mem(rendered.bytes())
                 .expect("extract projected PDF text");
-            assert!(text.contains("CanISend injection sentinel"));
+            assert!(
+                text.to_ascii_lowercase()
+                    .contains("canisend injection sentinel")
+            );
             assert!(text.contains("#read"));
+        }
+    }
+
+    #[test]
+    fn document_kinds_select_the_pinned_modernpro_bundle_entrypoints() {
+        for kind in DocumentKind::ALL {
+            let descriptor = document_template_descriptor(kind);
+            assert_eq!(descriptor.entrypoint, "canisend_render_document");
+            let (expected_bundle, expected_resource, expected_version) = match kind {
+                DocumentKind::Cv => ("modernpro-cv", "template.modernpro-cv", "2.0.0"),
+                DocumentKind::CoverLetter
+                | DocumentKind::ResearchStatement
+                | DocumentKind::TeachingStatement => (
+                    "modernpro-coverletter",
+                    "template.modernpro-coverletter",
+                    "1.0.0",
+                ),
+            };
+            assert_eq!(descriptor.bundle_id, expected_bundle);
+            assert_eq!(descriptor.resource.id, expected_resource);
+            assert_eq!(descriptor.resource.version, expected_version);
+
+            let source = project_document_typst(
+                &artifact_reference(ArtifactKind::CoverLetter, 10),
+                &document(kind, true),
+            )
+            .expect("template-routed projection");
+            assert!(source.contains(&format!("resource:{expected_resource}")));
+            assert!(source.contains(&format!(
+                "version:{} sha256:{}",
+                descriptor.resource.version, descriptor.resource.sha256
+            )));
+            assert!(source.contains("generated-date: \"2026-07-18\""));
+            assert!(!source.contains("#import \"@preview/"));
+        }
+    }
+
+    #[test]
+    fn active_statement_template_renders_every_section_kind_without_warnings() {
+        const SECTION_KINDS: [DocumentSectionKind; 11] = [
+            DocumentSectionKind::Opening,
+            DocumentSectionKind::Fit,
+            DocumentSectionKind::Research,
+            DocumentSectionKind::Teaching,
+            DocumentSectionKind::Service,
+            DocumentSectionKind::Experience,
+            DocumentSectionKind::Education,
+            DocumentSectionKind::Publications,
+            DocumentSectionKind::Skills,
+            DocumentSectionKind::Closing,
+            DocumentSectionKind::Other,
+        ];
+
+        let mut document = document(DocumentKind::ResearchStatement, true);
+        document.title = "Latest template contract — résumé".to_owned();
+        document.sections = SECTION_KINDS
+            .into_iter()
+            .enumerate()
+            .map(|(index, kind)| DocumentSectionRecord {
+                id: entity(100 + index as u64),
+                kind,
+                heading: Some(format!("Section {}", index + 1)),
+                body: format!(
+                    "Evidence {} covers résumé, Ελληνικά, Кириллица, symbols § ±, and https://example.edu/jobs/{}.",
+                    index + 1,
+                    index + 1
+                ),
+                claims: Vec::new(),
+                revision: Revision::try_new(1).expect("revision"),
+            })
+            .collect();
+        let source = project_document_typst(
+            &artifact_reference(ArtifactKind::ResearchStatement, 20),
+            &document,
+        )
+        .expect("latest application template projection");
+        let rendered = EmbeddedTypstCompiler::new()
+            .compile_pdf(&source)
+            .expect("latest application template render");
+
+        assert_eq!(rendered.warning_count(), 0);
+        assert!(rendered.page_count() >= 1);
+        let text = pdf_extract::extract_text_from_mem(rendered.bytes())
+            .expect("extract latest-template contract text");
+        assert!(text.contains("Latest template contract"));
+        assert!(text.contains("résumé"));
+        assert!(text.contains("Ελληνικά"));
+        assert!(text.contains("Кириллица"));
+        assert!(text.contains("https://example.edu/jobs/11"));
+    }
+
+    #[test]
+    fn modernpro_projection_is_byte_stable_for_identical_structured_input() {
+        let source_artifact = artifact_reference(ArtifactKind::CoverLetter, 40);
+        for kind in DocumentKind::ALL {
+            let source = project_document_typst(&source_artifact, &document(kind, true))
+                .expect("deterministic ModernPro projection");
+            let first = EmbeddedTypstCompiler::new()
+                .compile_pdf(&source)
+                .expect("first deterministic render");
+            let second = EmbeddedTypstCompiler::new()
+                .compile_pdf(&source)
+                .expect("second deterministic render");
+            assert_eq!(first.bytes(), second.bytes(), "render drift for {kind:?}");
         }
     }
 
@@ -481,7 +647,7 @@ Missing user font behavior remains deterministic."#,
                 id: entity(5),
                 kind: DocumentSectionKind::Other,
                 heading: Some("Quoted heading".to_owned()),
-                body: "Literal #read(\"/private/canisend-injection-sentinel\") \\\\ [safe] 学术"
+                body: "Literal #read(\"/private/canisend-injection-sentinel\") \\\\ [safe] résumé"
                     .to_owned(),
                 claims: Vec::new(),
                 revision: Revision::try_new(1).expect("revision"),

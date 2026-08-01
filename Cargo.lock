@@ -478,6 +478,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "thiserror 2.0.18",
+ "winreg",
 ]
 
 [[package]]
@@ -552,6 +553,7 @@ dependencies = [
  "thiserror 2.0.18",
  "time",
  "typst-as-lib",
+ "typst-assets",
  "typst-pdf",
  "url",
 ]
@@ -6214,7 +6216,6 @@ dependencies = [
  "ecow",
  "thiserror 2.0.18",
  "typst",
- "typst-kit",
 ]
 
 [[package]]
@@ -6267,28 +6268,6 @@ dependencies = [
  "typst-timing",
  "typst-utils",
  "unicode-math-class",
-]
-
-[[package]]
-name = "typst-kit"
-version = "0.15.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "27ee52e27dfab0da5ac3d19e7e43a21fbc7ff83af9301119468bae89fa857a8b"
-dependencies = [
- "dirs",
- "ecow",
- "fontdb",
- "once_cell",
- "parking_lot",
- "rustc-hash",
- "serde",
- "serde_json",
- "typst-assets",
- "typst-library",
- "typst-syntax",
- "typst-timing",
- "typst-utils",
- "url",
 ]
 
 [[package]]

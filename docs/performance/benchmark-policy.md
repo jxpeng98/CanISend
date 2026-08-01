@@ -6,6 +6,9 @@
 
 **macOS GUI Alpha baseline:** [macos-gui-alpha-baseline.json](macos-gui-alpha-baseline.json)
 
+**Desktop payload baseline:**
+[desktop-size-aarch64-apple-darwin.json](desktop-size-aarch64-apple-darwin.json)
+
 CanISend performance gates measure the optimized native product, not Cargo compilation. A cold release build is
 allowed to populate the shared Cargo cache before measurement. The benchmark contract is ignored by normal `cargo
 test` runs and is activated explicitly by main and release workflows.
@@ -28,8 +31,8 @@ from these two optimization policies are not silently mixed.
 | `release_binary_bytes` | Stripped/LTO release CLI executable | 67,108,864 bytes |
 | `full_synthetic_workflow_ms` | Exact service workflow from intake through four documents, review, package, PDF render, export, and invalidation | 15,000 ms |
 | `macos_gui_maximum_startup_ms` | Five isolated-user launches of the exact signed App until the native AccessKit Overview control exists | 2,000 ms |
-| `macos_gui_executable_bytes` | Ad-hoc-signed release GUI executable inside the App | 67,108,864 bytes |
-| `macos_app_bundle_apparent_bytes` | Apparent size of the staged App, including the version-matched CLI | 134,217,728 bytes |
+| `macos_unified_host_bytes` | Ad-hoc-signed GUI/CLI/MCP host inside the App | 67,108,864 bytes |
+| `macos_application_payload_bytes` | App payload containing exactly one full native host | 75,497,472 bytes |
 | `dossier_list_max_ms` | Five in-process reads of 128 application Dossiers after warm-up | 2,000 ms |
 | `indexed_search_max_ms` | Five deterministic metadata-index rebuilds over at least 256 Catalog entries | 1,000 ms |
 
@@ -74,11 +77,35 @@ The macOS GUI gate runs separately against a staged, verified, ad-hoc-signed App
   release-alpha
 ```
 
+An isolated size-profile experiment whose workspace version belongs to another release stage may
+append `--nonpublishing-profile-candidate`. That explicit mode records
+`authoritative_release_evidence: false`; it cannot replace the stage-matched release measurement.
+
 Each launch gets a new disposable `HOME`. The timer stops only after macOS exposes the Overview navigation control,
 so the result includes process startup, system CJK font loading, window creation, and first usable UI state. The
-measurement script also binds the signed GUI and bundled CLI hashes and rejects either the startup or size budget.
-The [macOS App size strategy](macos-app-size-strategy.md) explains the measured two-executable
-composition and the qualified single-executable reduction path.
+measurement script also binds the signed unified-host hash and App payload size and rejects either the startup or size budget.
+The [macOS App size strategy](macos-app-size-strategy.md) preserves the historical two-executable
+baseline and records the measured single-host cutover.
+
+Standard desktop packages also use the cross-platform payload recorder:
+
+```console
+cargo run -p xtask --locked -- desktop size-record \
+  TARGET PROFILE FORMAT HOST PAYLOAD FRONTEND_OR_DASH ARTIFACT_OR_DASH OUTPUT.json
+```
+
+The recorder rejects symlinks, requires the declared PE/ELF/Mach-O host to be inside the measured
+payload, fails if another large native host is present, and records frontend and artifact bytes
+separately. Windows offline installers and Linux AppImage containers require their own
+runtime-inclusive records; they are not compared with the standard 72 MiB application-payload
+budget.
+
+The scheduled desktop-platform qualification workflow currently evaluates a release candidate with
+`CARGO_PROFILE_RELEASE_OPT_LEVEL=z`. Size records expose this as
+`build_optimization.rust_opt_level`; records without an override use `profile-default`. The
+candidate does not change the production release profile until native Windows/Linux qualification
+and the exact macOS GUI startup gate pass. See the
+[further size reduction plan](unified-host-further-size-reduction-plan.md).
 
 ## Threshold changes
 

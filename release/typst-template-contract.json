@@ -1,0 +1,198 @@
+{
+  "schema": "canisend.typst-template-contract/v2",
+  "contract_version": 2,
+  "baseline": "modernpro-universe-pinned-v2",
+  "renderer": {
+    "typst_as_lib": "0.16.0",
+    "typst_assets": "0.15.1",
+    "typst_pdf": "0.15.1",
+    "font_pack": "typst-assets-full",
+    "font_source": "typst_assets::fonts()",
+    "system_font_discovery": false,
+    "external_file_access": false,
+    "external_package_resolution": false,
+    "network_access": false
+  },
+  "coverage": {
+    "scripts": [
+      "latin",
+      "greek",
+      "cyrillic"
+    ],
+    "math": true,
+    "symbols": true,
+    "urls": true,
+    "lists": true,
+    "tables": true,
+    "explicit_page_breaks": true,
+    "media": []
+  },
+  "fixtures": [
+    "cover-letter-template",
+    "all-document-kinds",
+    "all-document-section-kinds",
+    "unicode-math-url-list-table-two-page",
+    "missing-font-bounded-fallback",
+    "restricted-world-file-and-package-rejection"
+  ],
+  "warning_policy": "zero-for-product-template-fixtures",
+  "templates": [
+    {
+      "adapter_revision": 0,
+      "bundle_id": "canisend-default",
+      "document_kinds": [],
+      "entrypoint": "canisend_render_document",
+      "fallback_for": [
+        "cv",
+        "research-statement",
+        "teaching-statement"
+      ],
+      "resource_id": "template.application-document",
+      "path": "templates/application-document.typ",
+      "resource_version": "2.0.0",
+      "bytes": 721,
+      "sha256": "b19149cea8baa10bfbd815108de69319773ff826bb223f89b8f269bd01b56631",
+      "font_contract": {
+        "families": [
+          "Libertinus Serif"
+        ],
+        "inherits_renderer_default": false,
+        "styles": [
+          "normal"
+        ],
+        "weights": [
+          "regular",
+          "semibold"
+        ]
+      },
+      "upstream": null
+    },
+    {
+      "adapter_revision": 0,
+      "bundle_id": "canisend-default",
+      "document_kinds": [],
+      "entrypoint": "canisend_render_document",
+      "fallback_for": [
+        "cover-letter"
+      ],
+      "resource_id": "template.cover-letter",
+      "path": "templates/cover-letter.typ",
+      "resource_version": "2.0.0",
+      "bytes": 1058,
+      "sha256": "b0d250d9536b93273827982a624482727bcb24fe9dab52ff7da89fc1a1f7346d",
+      "font_contract": {
+        "families": [
+          "Libertinus Serif"
+        ],
+        "inherits_renderer_default": false,
+        "styles": [
+          "normal"
+        ],
+        "weights": [
+          "regular",
+          "semibold"
+        ]
+      },
+      "upstream": null
+    },
+    {
+      "adapter_revision": 2,
+      "bundle_id": "modernpro-coverletter",
+      "document_kinds": [
+        "cover-letter",
+        "research-statement",
+        "teaching-statement"
+      ],
+      "entrypoint": "canisend_render_document",
+      "fallback_for": [],
+      "resource_id": "template.modernpro-coverletter",
+      "path": "templates/modernpro-coverletter.typ",
+      "resource_version": "1.0.0",
+      "bytes": 27979,
+      "sha256": "2b1061732e83f7039cc8488f62c7d82cd91b52ca2ac499496cb953e075ecb493",
+      "font_contract": {
+        "families": [
+          "Libertinus Serif"
+        ],
+        "inherits_renderer_default": false,
+        "styles": [
+          "normal"
+        ],
+        "upstream_default_families": [
+          "PT Serif",
+          "Libertinus Serif"
+        ],
+        "weights": [
+          "light",
+          "regular",
+          "bold"
+        ]
+      },
+      "upstream": {
+        "archive_sha256": "d3c5e8031e8a74ab4ae6e3163b0f37d6ecebc972dd7a4b3b41fc99ff07585130",
+        "archive_url": "https://packages.typst.org/preview/modernpro-coverletter-1.0.0.tar.gz",
+        "license": "MIT",
+        "package": "modernpro-coverletter",
+        "repository": "https://github.com/jxpeng98/typst-coverletter",
+        "source_entrypoint": "modernpro-coverletter.typ",
+        "source_patches": [
+          {
+            "id": "prefer-explicit-configuration",
+            "reason": "Honor the configured embedded font before the unavailable upstream fallback"
+          }
+        ],
+        "version": "1.0.0"
+      }
+    },
+    {
+      "adapter_revision": 2,
+      "bundle_id": "modernpro-cv",
+      "document_kinds": [
+        "cv"
+      ],
+      "entrypoint": "canisend_render_document",
+      "fallback_for": [],
+      "resource_id": "template.modernpro-cv",
+      "path": "templates/modernpro-cv.typ",
+      "resource_version": "2.0.0",
+      "bytes": 28548,
+      "sha256": "64595fc9dd942a2afcb7f1d87fa3d4a631859246f986d6ca88dde01a0c65d708",
+      "font_contract": {
+        "families": [
+          "Libertinus Serif"
+        ],
+        "inherits_renderer_default": false,
+        "styles": [
+          "normal",
+          "italic"
+        ],
+        "upstream_default_families": [
+          "PT Serif",
+          "Libertinus Serif"
+        ],
+        "weights": [
+          "light",
+          "regular",
+          "medium",
+          "semibold",
+          "bold"
+        ]
+      },
+      "upstream": {
+        "archive_sha256": "1d108f538571e804f96b59dc1f3c0b0e0dc275b3eb35c6368fd7cc89775851f0",
+        "archive_url": "https://packages.typst.org/preview/modernpro-cv-2.0.0.tar.gz",
+        "license": "MIT",
+        "package": "modernpro-cv",
+        "repository": "https://github.com/jxpeng98/Typst-CV-Resume",
+        "source_entrypoint": "modernpro-cv.typ",
+        "source_patches": [
+          {
+            "id": "prefer-explicit-configuration",
+            "reason": "Honor the configured embedded font before the unavailable upstream fallback"
+          }
+        ],
+        "version": "2.0.0"
+      }
+    }
+  ]
+}

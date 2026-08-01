@@ -133,9 +133,8 @@ if find "$smoke_root/extracted" -type l -print -quit | grep -q .; then
 fi
 
 "$script_dir/verify_macos_gui_app.sh" "$app" "$manifest"
-gui="$app/Contents/MacOS/canisend-gui"
-cli="$app/Contents/Resources/bin/canisend"
-version="$("$cli" version --json | jq -er 'select(.ok == true) | .data.version')"
+host="$app/Contents/MacOS/canisend-gui"
+version="$("$host" version --json | jq -er 'select(.ok == true) | .data.version')"
 expected_name="CanISend-$version-aarch64-apple-darwin.zip"
 if [[ "$(basename "$archive")" != "$expected_name" ]]; then
   echo "macOS GUI archive smoke: archive must be named $expected_name" >&2
@@ -146,8 +145,8 @@ if [[ "$qualification" == true && "$tag" != "v$version" ]]; then
   exit 1
 fi
 
-"$cli" doctor --json > "$smoke_root/doctor.json"
-"$cli" agent capabilities --json > "$smoke_root/capabilities.json"
+"$host" doctor --json > "$smoke_root/doctor.json"
+"$host" agent capabilities --json > "$smoke_root/capabilities.json"
 jq -e '
   .ok == true
   and .data.python_required == false
@@ -155,15 +154,15 @@ jq -e '
   and .data.runtime_package_downloads == false
 ' "$smoke_root/doctor.json" >/dev/null
 "$script_dir/smoke_documented_quickstart.sh" \
-  "$cli" \
+  "$host" \
   "$smoke_root/documented-workflow"
 "$script_dir/smoke_host_agent.sh" \
-  "$cli" \
+  "$host" \
   "$smoke_root/host-agent-workflow"
 
 home="$smoke_root/home"
 mkdir -p "$home"
-HOME="$home" "$gui" >"$smoke_root/gui.log" 2>&1 &
+HOME="$home" "$host" >"$smoke_root/gui.log" 2>&1 &
 gui_pid="$!"
 cleanup_gui() {
   if kill -0 "$gui_pid" 2>/dev/null; then

@@ -151,6 +151,10 @@
       "scope": "non-publishing Intel GUI compile regression"
     },
     {
+      "owner": "desktop-platform-qualification/scheduled",
+      "scope": "non-publishing Windows and Linux latest-template profile matrices, one-host desktop packages, runtime smoke, and size evidence"
+    },
+    {
       "owner": "fuzz/scheduled",
       "scope": "extended malformed-input fuzzing"
     }

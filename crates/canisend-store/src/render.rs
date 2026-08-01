@@ -229,6 +229,26 @@ impl<'a> RenderService<'a> {
         self.current_for_package(job_id, &package_artifact)
     }
 
+    pub fn preview(
+        &mut self,
+        job_id: &EntityId,
+        kind: DocumentKind,
+    ) -> Result<(RenderedDocumentRecord, Vec<u8>), StoreError> {
+        let (_, manifest) = self.current(job_id)?;
+        let document = manifest
+            .documents
+            .into_iter()
+            .find(|document| document.kind == kind)
+            .ok_or_else(|| {
+                StoreError::WorkflowConflict(format!(
+                    "current render does not contain {}",
+                    document_kind_slug(kind)
+                ))
+            })?;
+        let bytes = self.read_validated_pdf(&document)?;
+        Ok((document, bytes))
+    }
+
     pub fn export(
         &mut self,
         job_id: &EntityId,
@@ -245,17 +265,7 @@ impl<'a> RenderService<'a> {
         let (manifest_artifact, manifest) = self.current(job_id)?;
         let mut files = Vec::with_capacity(manifest.documents.len() + 1);
         for document in &manifest.documents {
-            let bytes = self
-                .blobs
-                .read_verified(&document.pdf_artifact.sha256, DEFAULT_MAX_BLOB_BYTES)?;
-            let page_count = validate_rendered_pdf(&bytes)?;
-            if page_count != document.page_count
-                || u64::try_from(bytes.len()).ok() != Some(document.byte_count)
-            {
-                return Err(StoreError::DependencyConflict(
-                    "rendered PDF metadata does not match its validated blob".to_owned(),
-                ));
-            }
+            let bytes = self.read_validated_pdf(document)?;
             files.push((
                 join_path(
                     destination,
@@ -293,6 +303,21 @@ impl<'a> RenderService<'a> {
             manifest,
             files.into_iter().map(|(path, _)| path).collect(),
         ))
+    }
+
+    fn read_validated_pdf(&self, document: &RenderedDocumentRecord) -> Result<Vec<u8>, StoreError> {
+        let bytes = self
+            .blobs
+            .read_verified(&document.pdf_artifact.sha256, DEFAULT_MAX_BLOB_BYTES)?;
+        let page_count = validate_rendered_pdf(&bytes)?;
+        if page_count != document.page_count
+            || u64::try_from(bytes.len()).ok() != Some(document.byte_count)
+        {
+            return Err(StoreError::DependencyConflict(
+                "rendered PDF metadata does not match its validated blob".to_owned(),
+            ));
+        }
+        Ok(bytes)
     }
 
     fn current_for_package(

@@ -12,7 +12,7 @@ use canisend_app::{
     AgentMcpConfigurationRequest, AgentPackExportReadModel, AgentPackExportRequest,
     AgentSkillsInstallReadModel, AgentSkillsInstallRequest, AgentSkillsStatusReadModel,
     AgentSkillsStatusRequest, AgentSkillsUninstallReadModel, AgentSkillsUninstallRequest,
-    Application, bundled_cli_path,
+    Application, desktop_cli_source_path,
 };
 use serde::Deserialize;
 
@@ -93,14 +93,12 @@ pub(crate) struct CopyAgentMcpConfigurationRequest {
     field: AgentMcpClipboardField,
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn agent_capabilities()
 -> Result<ActionReceipt<AgentCapabilitiesReadModel>, DesktopCommandError> {
     run_worker(|| Application::agent_capabilities().map_err(DesktopCommandError::application)).await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn agent_context(
     request: AgentContextRequest,
@@ -115,7 +113,6 @@ pub(crate) async fn agent_context(
     .await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn agent_assistance(
     request: AgentAssistanceRequest,
@@ -127,7 +124,6 @@ pub(crate) async fn agent_assistance(
     .await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn prepare_agent_handoff(
     request: PrepareAgentHandoffRequest,
@@ -143,7 +139,6 @@ pub(crate) async fn prepare_agent_handoff(
     .await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn install_agent_skills(
     request: InstallAgentSkillsRequest,
@@ -158,7 +153,6 @@ pub(crate) async fn install_agent_skills(
     .await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn agent_skills_status(
     request: InstallAgentSkillsRequest,
@@ -173,7 +167,6 @@ pub(crate) async fn agent_skills_status(
     .await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn uninstall_agent_skills(
     request: InstallAgentSkillsRequest,
@@ -188,7 +181,6 @@ pub(crate) async fn uninstall_agent_skills(
     .await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn copy_agent_handoff(
     request: CopyAgentHandoffRequest,
@@ -196,7 +188,6 @@ pub(crate) async fn copy_agent_handoff(
     run_worker(move || copy_agent_handoff_impl(request)).await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn prepare_agent_mcp_configuration(
     request: PrepareAgentMcpConfigurationRequest,
@@ -204,13 +195,12 @@ pub(crate) async fn prepare_agent_mcp_configuration(
     run_worker(move || prepare_agent_mcp_configuration_impl(request)).await
 }
 
-#[cfg(target_os = "macos")]
 fn prepare_agent_mcp_configuration_impl(
     request: PrepareAgentMcpConfigurationRequest,
 ) -> Result<ActionReceipt<AgentMcpConfigurationReadModel>, DesktopCommandError> {
-    let executable = bundled_cli_path().ok_or_else(|| {
+    let executable = desktop_cli_source_path().ok_or_else(|| {
         DesktopCommandError::state(
-            "The version-matched CanISend CLI is not available inside this App",
+            "The version-matched CanISend desktop host is not available inside this App",
         )
     })?;
     Application::prepare_agent_mcp_configuration(&AgentMcpConfigurationRequest {
@@ -221,7 +211,6 @@ fn prepare_agent_mcp_configuration_impl(
     .map_err(DesktopCommandError::application)
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn copy_agent_mcp_configuration(
     request: CopyAgentMcpConfigurationRequest,
@@ -245,7 +234,6 @@ pub(crate) async fn copy_agent_mcp_configuration(
     .await
 }
 
-#[cfg(target_os = "macos")]
 fn copy_agent_handoff_impl(request: CopyAgentHandoffRequest) -> Result<(), DesktopCommandError> {
     let handoff = Application::prepare_agent_handoff(&AgentHandoffRequest {
         host: request.host,
@@ -262,7 +250,6 @@ fn copy_agent_handoff_impl(request: CopyAgentHandoffRequest) -> Result<(), Deskt
     copy_to_macos_clipboard(&text)
 }
 
-#[cfg(target_os = "macos")]
 fn copy_to_macos_clipboard(text: &str) -> Result<(), DesktopCommandError> {
     if text.len() > 32 * 1024 {
         return Err(DesktopCommandError::state(
@@ -319,7 +306,6 @@ fn copy_to_macos_clipboard(text: &str) -> Result<(), DesktopCommandError> {
     }
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) async fn export_agent_pack(
     request: AgentExportRequest,

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -ne 3 ]]; then
-  echo "usage: $0 CanISend.app OUTPUT.json PROFILE" >&2
+if [[ $# -lt 3 || $# -gt 4 ]]; then
+  echo "usage: $0 CanISend.app OUTPUT.json PROFILE [--nonpublishing-profile-candidate]" >&2
   exit 2
 fi
 if [[ "$(uname -s)" != "Darwin" ]]; then
@@ -16,12 +16,19 @@ source "$script_dir/lib/native_paths.sh"
 app="$(canisend_absolute_path "$1")"
 output="$(canisend_absolute_path "$2")"
 profile="$3"
+nonpublishing_profile_candidate=false
+if [[ $# -eq 4 ]]; then
+  if [[ "$4" != "--nonpublishing-profile-candidate" ]]; then
+    echo "macOS GUI startup: unknown candidate mode: $4" >&2
+    exit 2
+  fi
+  nonpublishing_profile_candidate=true
+fi
 manifest="$app.manifest.json"
-gui="$app/Contents/MacOS/canisend-gui"
-cli="$app/Contents/Resources/bin/canisend"
+host="$app/Contents/MacOS/canisend-gui"
 budget_ms=2000
-gui_budget_bytes=67108864
-bundle_budget_bytes=134217728
+host_budget_bytes=67108864
+payload_budget_bytes=75497472
 trials=5
 
 case "$profile" in
@@ -32,20 +39,20 @@ case "$profile" in
     ;;
 esac
 
-for command in jq osascript perl shasum; do
+for command in jq open osascript perl shasum; do
   if ! command -v "$command" >/dev/null 2>&1; then
     echo "macOS GUI startup: required command is missing: $command" >&2
     exit 1
   fi
 done
 "$script_dir/verify_macos_gui_app.sh" "$app" "$manifest"
-version="$("$cli" version --json | jq -er '.data.version')"
+version="$("$host" version --json | jq -er '.data.version')"
 if [[ "$version" == *-alpha.* ]]; then
   expected_profile="release-alpha"
 else
   expected_profile="release"
 fi
-if [[ "$profile" != "$expected_profile" ]]; then
+if [[ "$profile" != "$expected_profile" && "$nonpublishing_profile_candidate" != true ]]; then
   echo "macOS GUI startup: profile does not match the packaged release stage" >&2
   exit 1
 fi
@@ -56,10 +63,14 @@ fi
 
 fixture_root="$(mktemp -d "${TMPDIR:-/tmp}/canisend-gui-startup.XXXXXX")"
 gui_pid=""
+launcher_pid=""
 cleanup() {
   if [[ -n "$gui_pid" ]] && kill -0 "$gui_pid" 2>/dev/null; then
     kill "$gui_pid" 2>/dev/null || true
-    wait "$gui_pid" 2>/dev/null || true
+  fi
+  if [[ -n "$launcher_pid" ]] && kill -0 "$launcher_pid" 2>/dev/null; then
+    kill "$launcher_pid" 2>/dev/null || true
+    wait "$launcher_pid" 2>/dev/null || true
   fi
   rm -rf "$fixture_root"
 }
@@ -74,9 +85,28 @@ for trial in $(seq 1 "$trials"); do
   cp "$repo_root/fixtures/runtime/fake-codex-runtime.sh" "$runtime_bin/codex"
   chmod 700 "$runtime_bin/codex"
   started_ms="$(perl -MTime::HiRes=time -e 'printf "%.3f", time() * 1000')"
-  HOME="$home" PATH="$runtime_bin:/usr/bin:/bin" \
-    "$gui" >"$fixture_root/gui-$trial.log" 2>&1 &
-  gui_pid="$!"
+  open -n -W \
+    --env "HOME=$home" \
+    --env "PATH=$runtime_bin:/usr/bin:/bin" \
+    --stdout "$fixture_root/gui-$trial.log" \
+    --stderr "$fixture_root/gui-$trial.log" \
+    "$app" &
+  launcher_pid="$!"
+  if ! gui_pid="$(osascript - <<'APPLESCRIPT'
+tell application "System Events"
+    repeat 200 times
+        set guiProcesses to every application process whose bundle identifier is "io.github.jxpeng98.canisend"
+        if (count of guiProcesses) is 1 then return unix id of item 1 of guiProcesses
+        delay 0.01
+    end repeat
+end tell
+error "GUI process did not appear uniquely within two seconds" number 1
+APPLESCRIPT
+)"; then
+    echo "macOS GUI startup: trial $trial process did not appear" >&2
+    sed -n '1,120p' "$fixture_root/gui-$trial.log" >&2
+    exit 1
+  fi
   if ! osascript - "$gui_pid" <<'APPLESCRIPT'
 on findMainLandmark(appWindow)
     tell application "System Events"
@@ -127,8 +157,9 @@ APPLESCRIPT
     'BEGIN { printf "%.3f", finished - started }')"
   printf '%s\n' "$elapsed_ms" >> "$samples_file"
   kill "$gui_pid"
-  wait "$gui_pid" 2>/dev/null || true
+  wait "$launcher_pid" 2>/dev/null || true
   gui_pid=""
+  launcher_pid=""
 done
 
 samples_json="$(jq -Rsc 'split("\n") | map(select(length > 0) | tonumber)' "$samples_file")"
@@ -136,11 +167,9 @@ median_ms="$(jq -n --argjson samples "$samples_json" \
   '$samples | sort | .[(length / 2 | floor)]')"
 maximum_ms="$(jq -n --argjson samples "$samples_json" '$samples | max')"
 minimum_ms="$(jq -n --argjson samples "$samples_json" '$samples | min')"
-gui_bytes="$(stat -f '%z' "$gui")"
-cli_bytes="$(stat -f '%z' "$cli")"
-bundle_bytes="$(du -sk "$app" | awk '{print $1 * 1024}')"
-gui_sha256="$(shasum -a 256 "$gui" | awk '{print $1}')"
-cli_sha256="$(shasum -a 256 "$cli" | awk '{print $1}')"
+host_bytes="$(stat -f '%z' "$host")"
+payload_bytes="$(du -sk "$app" | awk '{print $1 * 1024}')"
+host_sha256="$(shasum -a 256 "$host" | awk '{print $1}')"
 machine="$(system_profiler SPHardwareDataType 2>/dev/null | awk -F: \
   '/Model Name|Model Identifier|Chip|Memory/ {gsub(/^[ \t]+/, "", $2); printf "%s%s", separator, $2; separator="; "}')"
 macos_version="$(sw_vers -productVersion)"
@@ -151,20 +180,19 @@ jq -n \
   --arg measured_at "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
   --arg machine "$machine" \
   --arg macos_version "$macos_version" \
-  --arg gui_sha256 "$gui_sha256" \
-  --arg cli_sha256 "$cli_sha256" \
+  --arg host_sha256 "$host_sha256" \
+  --argjson nonpublishing_profile_candidate "$nonpublishing_profile_candidate" \
   --argjson samples_ms "$samples_json" \
   --argjson minimum_ms "$minimum_ms" \
   --argjson median_ms "$median_ms" \
   --argjson maximum_ms "$maximum_ms" \
   --argjson budget_ms "$budget_ms" \
-  --argjson gui_budget_bytes "$gui_budget_bytes" \
-  --argjson bundle_budget_bytes "$bundle_budget_bytes" \
-  --argjson gui_bytes "$gui_bytes" \
-  --argjson cli_bytes "$cli_bytes" \
-  --argjson bundle_bytes "$bundle_bytes" \
-  '{
-    schema: "canisend.macos-gui-performance/v1",
+  --argjson host_budget_bytes "$host_budget_bytes" \
+  --argjson payload_budget_bytes "$payload_budget_bytes" \
+  --argjson host_bytes "$host_bytes" \
+  --argjson payload_bytes "$payload_bytes" \
+  '({
+    schema: "canisend.macos-gui-performance/v2",
     version: $version,
     profile: $profile,
     measured_at: $measured_at,
@@ -178,27 +206,28 @@ jq -n \
     maximum_ms: $maximum_ms,
     budgets: {
       maximum_startup_ms: $budget_ms,
-      gui_executable_bytes: $gui_budget_bytes,
-      app_bundle_apparent_bytes: $bundle_budget_bytes
+      unified_host_bytes: $host_budget_bytes,
+      application_payload_bytes: $payload_budget_bytes
     },
     passed: (
       $maximum_ms <= $budget_ms
-      and $gui_bytes <= $gui_budget_bytes
-      and $bundle_bytes <= $bundle_budget_bytes
+      and $host_bytes <= $host_budget_bytes
+      and $payload_bytes <= $payload_budget_bytes
     ),
     bytes: {
-      gui_executable: $gui_bytes,
-      bundled_cli_executable: $cli_bytes,
-      app_bundle_apparent: $bundle_bytes
+      unified_host: $host_bytes,
+      application_payload: $payload_bytes
     },
     sha256: {
-      gui_executable: $gui_sha256,
-      bundled_cli_executable: $cli_sha256
+      unified_host: $host_sha256
     }
-  }' > "$output"
+  } + if $nonpublishing_profile_candidate then {
+    qualification_scope: "nonpublishing-profile-candidate",
+    authoritative_release_evidence: false
+  } else {} end)' > "$output"
 
 if ! jq -e '.passed == true' "$output" >/dev/null; then
   echo "macOS GUI startup: startup or size budget exceeded; inspect $output" >&2
   exit 1
 fi
-echo "macOS GUI startup: ${median_ms}ms median, ${maximum_ms}ms maximum; ${gui_bytes} byte GUI"
+echo "macOS GUI startup: ${median_ms}ms median, ${maximum_ms}ms maximum; ${host_bytes} byte unified host"

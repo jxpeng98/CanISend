@@ -49,9 +49,11 @@ tauri-build = "2.6.3"
 tauri-plugin-dialog = "2.7.2"
 tauri-plugin-window-state = "2.4.1"
 toml = "0.8.23"
-typst-as-lib = { version = "=0.16.0", default-features = false, features = ["typst-kit-fonts", "typst-kit-embed-fonts"] }
+typst-as-lib = { version = "=0.16.0", default-features = false }
+typst-assets = { version = "=0.15.1", default-features = false, features = ["fonts"] }
 typst-pdf = "=0.15.1"
 url = "2.5.8"
+winreg = "0.55.0"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

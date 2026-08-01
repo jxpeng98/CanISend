@@ -15,6 +15,22 @@ const loadingPanel = readFileSync(
   new URL("./components/patterns/LoadingPanel.svelte", import.meta.url),
   "utf8",
 );
+const pageHeader = readFileSync(
+  new URL("./components/patterns/page/page-header.svelte", import.meta.url),
+  "utf8",
+);
+const contextHelp = readFileSync(
+  new URL("./components/patterns/ContextHelp.svelte", import.meta.url),
+  "utf8",
+);
+const actionMenu = readFileSync(
+  new URL("./components/patterns/ActionMenu.svelte", import.meta.url),
+  "utf8",
+);
+const dropdownMenuItem = readFileSync(
+  new URL("./components/ui/dropdown-menu/dropdown-menu-item.svelte", import.meta.url),
+  "utf8",
+);
 const button = readFileSync(
   new URL("./components/ui/button/button.svelte", import.meta.url),
   "utf8",
@@ -70,7 +86,9 @@ describe("desktop accessibility contract", () => {
   it("centralizes semantic controls and compact desktop target sizes", () => {
     expect(button).toContain("<button");
     expect(button).toContain('data-slot="button"');
-    expect(button).toContain('default: "h-(--control-height) gap-1.5');
+    expect(button).toContain('default: "min-h-(--control-height) gap-1.5');
+    expect(button).toContain("max-w-full min-w-0");
+    expect(button).toContain("whitespace-normal");
     expect(nativeSelect).toContain("<select");
     expect(nativeSelect).toContain('data-slot="native-select"');
     expect(nativeSelect).toContain("data-[size=desktop]:h-(--control-height)");
@@ -85,5 +103,22 @@ describe("desktop accessibility contract", () => {
     const nonSemanticHandlers =
       /<(?:div|span|p|section|article)\b[^>]*\b(?:onclick|onkeydown)=/giu;
     expect(primarySurfaces.match(nonSemanticHandlers) ?? []).toEqual([]);
+  });
+
+  it("keeps optional page guidance concise and keyboard discoverable", () => {
+    expect(pageHeader).toContain("<ContextHelp");
+    expect(pageHeader).not.toContain('<p class="mt-2');
+    expect(contextHelp).toContain('"data-context-help": ""');
+    expect(contextHelp).toContain('"aria-label": label');
+    expect(contextHelp).toContain("<Tooltip.Content");
+  });
+
+  it("keeps progressive disclosure on shared semantic menu controls", () => {
+    expect(actionMenu).toContain("<DropdownMenu.Root>");
+    expect(actionMenu).toContain("<DropdownMenu.Trigger>");
+    expect(actionMenu).toContain("buttonVariants({");
+    expect(actionMenu).toContain('"aria-label": label');
+    expect(dropdownMenuItem).toContain("DropdownMenuPrimitive.Item");
+    expect(dropdownMenuItem).toContain('data-slot="dropdown-menu-item"');
   });
 });
