@@ -16,15 +16,61 @@ From the repository root:
 ```console
 pnpm --dir apps/canisend-desktop install --frozen-lockfile
 pnpm --dir apps/canisend-desktop build
-cargo build -p canisend-cli -p canisend-gui --release --locked \
+cargo build -p canisend-gui --release --locked \
   --features canisend-gui/custom-protocol
 ./target/release/canisend-gui
 ```
 
 Build the locked Svelte assets before the Rust executables so Tauri embeds those exact frontend
 bytes. The explicit `custom-protocol` feature is mandatory for direct Cargo builds: without it,
-Tauri intentionally uses `devUrl` instead of embedded assets. Build both executables so the GUI can
-discover the sibling native CLI. The native arm64 application opens one window with Today,
+Tauri intentionally uses `devUrl` instead of embedded assets. The GUI executable also contains the
+shared CLI/MCP dispatcher. A no-argument or Finder launch opens the desktop, while an explicit
+command uses the terminal contract without opening a WebView:
+
+```console
+./target/release/canisend-gui version --json
+./target/release/canisend-gui --workspace /path/to/workspace mcp serve
+```
+
+The separately named `canisend` binary remains available for CLI-only archives and existing
+installations. Until the Stage 4P package cutover is qualified, published macOS Apps also retain
+their version-matched `Contents/Resources/bin/canisend`; the desktop prefers that file and safely
+falls back to its own unified executable when the separate file is absent.
+
+## Build a temporary macOS design preview
+
+Use the local Design Preview workflow to review the exact embedded Svelte UI in a real macOS App
+without touching the normal user profile:
+
+```console
+pnpm --dir apps/canisend-desktop macos:preview -- --open
+```
+
+The workflow runs Svelte diagnostics plus the Playwright visual, reflow, and accessibility suite;
+builds the embedded frontend and `release-alpha` Rust binaries; stages an ad-hoc-signed
+`CanISend.app`; verifies its companion integrity manifest; and launches it with a temporary HOME.
+The isolated fixture contains two synthetic applications, including one deliberately long title
+and institution, so sidebar, selector, card, tab, and text-wrapping behavior can be inspected with
+real native WebView rendering. It never reads or changes the normal CanISend workspace registry,
+Codex home, or Claude configuration.
+
+The preview waits for the App to close and then removes its temporary directory. Preserve the App,
+isolated HOME, logs, receipt, and fixture workspace when investigating a problem:
+
+```console
+pnpm --dir apps/canisend-desktop macos:preview -- --open --keep
+```
+
+Omit `--open` to build and preserve the temporary App without launching it. During a rapid local
+iteration, `--skip-ui-tests` skips only the pre-build UI checks; the frontend build, native build,
+ad-hoc signing, bundle layout verification, and isolated fixture creation still run. A skipped
+test run is not completion evidence for a UI change.
+
+The generated receipt uses `canisend.macos-design-preview/v1`, records the source commit and dirty
+worktree state, and fixes `publication_allowed` to `false`. This preview is not Developer ID signed
+or notarized and must not be distributed or substituted for native release qualification.
+
+The native arm64 application opens one window with Today,
 Opportunities, Application workspace, Profile, Agent integration, Workspaces, and Settings as its
 primary navigation. Application workspace then provides five connected sections: Overview,
 Job & criteria, Evidence & fit, Materials, and Review & export.

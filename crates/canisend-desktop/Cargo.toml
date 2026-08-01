@@ -26,6 +26,7 @@ serde.workspace = true
 serde_json.workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
+canisend-cli = { path = "../canisend-cli", version = "=1.0.0-alpha.5" }
 tauri.workspace = true
 tauri-plugin-dialog.workspace = true
 tauri-plugin-window-state.workspace = true

@@ -522,6 +522,7 @@ name = "canisend-gui"
 version = "1.0.0-alpha.5"
 dependencies = [
  "canisend-app",
+ "canisend-cli",
  "canisend-contracts",
  "serde",
  "serde_json",

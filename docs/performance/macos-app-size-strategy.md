@@ -36,10 +36,11 @@ substitute for removing native duplication.
 
 The material reduction path is to package one native executable that can provide both entry modes:
 
-1. Extract the Clap parser, command dispatcher, JSON renderer, and MCP dispatch from the current CLI
-   binary into a reusable `canisend-cli` library API.
-2. Link that dispatcher into the Tauri executable. A normal Finder launch with no CLI command opens
-   the GUI; an explicit CLI argument dispatches the CLI without starting a WebView.
+1. **Complete in source:** extract the Clap parser, command dispatcher, JSON renderer, and MCP
+   dispatch from the current CLI binary into a reusable `canisend-cli` library API.
+2. **Complete in source:** link that dispatcher into the Tauri executable. A normal Finder launch
+   with no CLI command opens the GUI; an explicit CLI argument dispatches the CLI without starting
+   a WebView.
 3. Change terminal installation and MCP configuration to copy/use that version-matched executable.
 4. Remove the second bundled executable only after CLI, GUI, MCP, upgrade/rollback, archive,
    signing, and accessibility contracts pass against the unified file.
@@ -49,6 +50,12 @@ The material reduction path is to package one native executable that can provide
 Because most dependencies are already linked into the GUI, the target is one roughly 60–70 MiB App
 instead of two roughly 53–60 MiB executables. This is an engineering target, not a release claim;
 the new budget must be set from an exact signed candidate.
+
+The first Apple Silicon `release-alpha` source measurement after steps 1–2 is `63,696,000` bytes for
+the unified executable. Adding the previous bundle's `271,664` bytes of non-executable content
+would produce an indicative `63,967,664`-byte App, 43.68% below the checked-in Alpha.5 baseline.
+This is not yet a staged, signed, or qualified package measurement: the current release scripts
+still include the second CLI and the 128 MiB budget remains authoritative until steps 3–5 pass.
 
 ## Secondary investigation
 
