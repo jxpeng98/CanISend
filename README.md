@@ -11,12 +11,24 @@
 
 # 这也能投 / CanISend
 
-CanISend is a local-first Rust-native product for evidence-backed academic and professional
-application preparation. It combines a standalone CLI and Agent v2 interface with a macOS-first
-native GUI over the same typed application services and local workspace.
+CanISend is becoming a local-first, evidence-constrained framework for preparing applications and
+other evidence-bound submissions. Its domain-neutral kernel will combine versioned workflow
+packs with user-controlled sources to support Requirements, confirmed Evidence, fit, planning,
+pack-defined Deliverables, review, rendering, export, backup, recovery, and auditable Agent
+collaboration through one set of application services.
+
+The current Alpha implementation remains centered on academic-job applications and Agent v2.
+Under [ADR-RN-0018](docs/architecture/rust-native/decisions/0018-adopt-a-generic-evidence-application-framework.md),
+that journey becomes the `org.canisend.academic-job` reference pack; 1.0 also requires an
+`org.canisend.generic-application` starter pack plus neutral Agent/Workspace v3 contracts. This is
+a planned compatibility transition, not a claim that the current public Alpha is already generic.
 
 The active product no longer uses Python or Pytest. The final Python implementation remains available only through
 the Git tag `archive/python-v0.6.0b1-final`.
+
+The [generic framework 1.0 roadmap](docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md) is the
+top-level execution authority. The [transition plan](docs/superpowers/plans/2026-08-02-generic-framework-transition-plan.md)
+defines the pack, migration, compatibility, and dual-pack implementation slices.
 
 ## User guides
 
@@ -126,7 +138,7 @@ ephemeral full-text search, recovery, updates, and managed terminal CLI installa
 The native matrices verify embedded fonts, edge-case Unicode/layout, missing-system-font
 isolation, bundled licenses/notices, render timing, package budgets, lifecycle, and release
 integrity. Current work and release gates are governed by the
-[CanISend 1.0 delivery roadmap](docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md); the
+[CanISend generic framework 1.0 delivery roadmap](docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md); the
 [plan registry](docs/superpowers/plans/README.md) separates active, supporting, completed, and
 historical plans.
 

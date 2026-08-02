@@ -4,6 +4,10 @@
 
 **Date:** 2026-07-25
 
+**Scope amendment:** [ADR-RN-0018](0018-adopt-a-generic-evidence-application-framework.md) keeps
+the 1.0 Alpha release decision but changes the 1.0 product target from an academic-only workbench
+to a generic evidence-application framework with an academic reference pack.
+
 ## Context
 
 CanISend has a complete Rust-native CLI and Agent v2 application-preparation pipeline. A macOS-first

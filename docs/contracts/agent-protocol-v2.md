@@ -6,6 +6,11 @@
 
 **Transport:** local command invocation with JSON on stdout
 
+**Framework transition:** This is the current job-specific Alpha contract. ADR-RN-0018 freezes it
+as a bounded compatibility surface for the future `org.canisend.academic-job` pack. The canonical
+generic contract will be `canisend.agent/v3`; v2 will not address non-academic workflow packs and
+must fail closed rather than infer neutral IDs. This notice does not change the shipped v2 schema.
+
 ## Output boundary
 
 Commands invoked with `--json` emit exactly one JSON object followed by one newline on stdout. When stdout is not a

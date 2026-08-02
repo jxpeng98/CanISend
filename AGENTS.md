@@ -2,9 +2,13 @@
 
 ## Product scope
 
-CanISend is a local-first Rust application for preparing academic job applications. Work in this repository is
-ordinary product engineering, release engineering, data-integrity testing, and defensive software assurance over
-code and infrastructure owned by this project.
+CanISend is a local-first Rust framework for preparing evidence-bound applications and
+submissions. Its domain-neutral kernel enforces evidence, consent, review, export, recovery, and
+audit invariants; declarative workflow packs provide domain vocabulary, stages, Deliverables,
+templates, and validators. The academic-job journey is the first built-in reference pack, not the
+kernel's ontology. Work in this repository is ordinary product engineering, release engineering,
+data-integrity testing, and defensive software assurance over code and infrastructure owned by
+this project.
 
 ## Defensive assurance boundary
 

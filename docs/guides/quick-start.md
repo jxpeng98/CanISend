@@ -1,7 +1,10 @@
 # Quick start
 
-This path imports an academic job advert and prepares it for a user or agent host. Commands use human-readable output;
-add `--json` when a program needs the stable `canisend.agent/v2` envelope.
+This current-Alpha path imports an academic job advert and prepares it for a user or agent host.
+It will become the `org.canisend.academic-job` reference-pack quick start during the v3 migration;
+until then, the commands below intentionally document the shipped job-specific surface. Commands
+use human-readable output; add `--json` when a program needs the stable `canisend.agent/v2`
+envelope.
 
 ## 1. Verify and initialize
 
