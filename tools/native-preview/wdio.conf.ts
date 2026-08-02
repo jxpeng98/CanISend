@@ -23,10 +23,13 @@ const evidenceDirectory = resolve(
     "./native-preview-evidence",
 );
 mkdirSync(evidenceDirectory, { recursive: true });
+const embeddedPort = Number(process.env.TAURI_WEBDRIVER_PORT ?? "4445");
 
 export const config = {
   tsConfigPath: "./tsconfig.json",
   runner: "local",
+  hostname: "127.0.0.1",
+  port: embeddedPort,
   runnerEnv: {
     WDIO_USE_NATIVE_FETCH: "1",
   },
@@ -51,7 +54,7 @@ export const config = {
         captureBackendLogs: false,
         captureFrontendLogs: false,
         driverProvider: "embedded",
-        embeddedPort: Number(process.env.TAURI_WEBDRIVER_PORT ?? "4445"),
+        embeddedPort,
         startTimeout: 90_000,
         statusPollTimeout: 10_000,
       },
