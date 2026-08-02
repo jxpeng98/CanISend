@@ -1,0 +1,228 @@
+{
+  "format": "canisend.workflow-pack/v1",
+  "id": "org.canisend.academic-job",
+  "version": "1.0.0",
+  "schema_version": "1.0.0",
+  "publisher": {
+    "id": "org.canisend",
+    "name": "CanISend",
+    "homepage": "https://github.com/jxpeng98/canisend"
+  },
+  "compatibility": {
+    "kernel": ">=1.0.0-alpha.5, <2.0.0",
+    "agent": ">=3.0.0-alpha.1, <4.0.0",
+    "workspace": ">=3.0.0-alpha.1, <4.0.0"
+  },
+  "default_locale": "en",
+  "locales": {
+    "en": {
+      "application_singular": "Academic application",
+      "application_plural": "Academic applications",
+      "opportunity_singular": "Academic position",
+      "opportunity_plural": "Academic positions",
+      "requirement_plural": "Selection criteria",
+      "evidence_plural": "Profile evidence",
+      "deliverable_plural": "Application materials"
+    },
+    "zh-Hans": {
+      "application_singular": "学术职位申请",
+      "application_plural": "学术职位申请",
+      "opportunity_singular": "学术职位",
+      "opportunity_plural": "学术职位",
+      "requirement_plural": "遴选标准",
+      "evidence_plural": "个人证据",
+      "deliverable_plural": "申请材料"
+    }
+  },
+  "application": {
+    "opportunity_fields": [
+      {
+        "id": "institution",
+        "labels": {"en": "Institution", "zh-Hans": "机构"},
+        "field_type": "short-text",
+        "required": true,
+        "options": []
+      }
+    ],
+    "application_fields": []
+  },
+  "workflow": {
+    "stages": [
+      {
+        "id": "intake",
+        "labels": {"en": "Intake", "zh-Hans": "导入"},
+        "depends_on": [],
+        "output": "sources",
+        "execution_modes": ["manual-import"]
+      },
+      {
+        "id": "parse",
+        "labels": {"en": "Parse position", "zh-Hans": "解析职位"},
+        "depends_on": ["intake"],
+        "output": "none",
+        "execution_modes": ["host-agent", "configured-provider"]
+      },
+      {
+        "id": "criteria",
+        "labels": {"en": "Confirm criteria", "zh-Hans": "确认标准"},
+        "depends_on": ["parse"],
+        "output": "requirements",
+        "execution_modes": ["user-decision"]
+      },
+      {
+        "id": "evidence",
+        "labels": {"en": "Build evidence", "zh-Hans": "整理证据"},
+        "depends_on": [],
+        "output": "evidence",
+        "execution_modes": ["host-agent", "configured-provider"]
+      },
+      {
+        "id": "match",
+        "labels": {"en": "Match evidence", "zh-Hans": "匹配证据"},
+        "depends_on": ["criteria", "evidence"],
+        "output": "matches",
+        "execution_modes": ["host-agent", "configured-provider"]
+      },
+      {
+        "id": "plan",
+        "labels": {"en": "Confirm plan", "zh-Hans": "确认计划"},
+        "depends_on": ["match"],
+        "output": "plan",
+        "execution_modes": ["user-decision"]
+      },
+      {
+        "id": "draft",
+        "labels": {"en": "Draft materials", "zh-Hans": "起草材料"},
+        "depends_on": ["plan"],
+        "output": "deliverables",
+        "execution_modes": ["host-agent", "configured-provider"]
+      },
+      {
+        "id": "review",
+        "labels": {"en": "Review materials", "zh-Hans": "审查材料"},
+        "depends_on": ["draft"],
+        "output": "review",
+        "execution_modes": ["host-agent", "configured-provider", "user-decision"]
+      },
+      {
+        "id": "package",
+        "labels": {"en": "Package materials", "zh-Hans": "打包材料"},
+        "depends_on": ["review"],
+        "output": "package",
+        "execution_modes": ["deterministic"]
+      },
+      {
+        "id": "render",
+        "labels": {"en": "Render and export", "zh-Hans": "渲染与导出"},
+        "depends_on": ["package"],
+        "output": "render",
+        "execution_modes": ["deterministic"]
+      }
+    ],
+    "terminal_stage": "render"
+  },
+  "requirements": {
+    "categories": [
+      {"id": "qualification", "labels": {"en": "Qualifications", "zh-Hans": "资历"}, "fields": []},
+      {"id": "teaching", "labels": {"en": "Teaching", "zh-Hans": "教学"}, "fields": []},
+      {"id": "research", "labels": {"en": "Research", "zh-Hans": "研究"}, "fields": []},
+      {"id": "communication", "labels": {"en": "Communication", "zh-Hans": "沟通"}, "fields": []},
+      {"id": "leadership", "labels": {"en": "Leadership", "zh-Hans": "领导力"}, "fields": []},
+      {"id": "service", "labels": {"en": "Service", "zh-Hans": "学术服务"}, "fields": []},
+      {"id": "employment", "labels": {"en": "Employment", "zh-Hans": "工作经历"}, "fields": []},
+      {"id": "other", "labels": {"en": "Other", "zh-Hans": "其他"}, "fields": []}
+    ]
+  },
+  "evidence": {
+    "categories": [
+      {"id": "qualification", "labels": {"en": "Qualifications", "zh-Hans": "资历"}, "fields": []},
+      {"id": "teaching", "labels": {"en": "Teaching", "zh-Hans": "教学"}, "fields": []},
+      {"id": "research", "labels": {"en": "Research", "zh-Hans": "研究"}, "fields": []},
+      {"id": "communication", "labels": {"en": "Communication", "zh-Hans": "沟通"}, "fields": []},
+      {"id": "leadership", "labels": {"en": "Leadership", "zh-Hans": "领导力"}, "fields": []},
+      {"id": "service", "labels": {"en": "Service", "zh-Hans": "学术服务"}, "fields": []},
+      {"id": "employment", "labels": {"en": "Employment", "zh-Hans": "工作经历"}, "fields": []},
+      {"id": "other", "labels": {"en": "Other", "zh-Hans": "其他"}, "fields": []}
+    ]
+  },
+  "deliverables": {
+    "kinds": [
+      {
+        "id": "cover-letter",
+        "labels": {"en": "Cover letter", "zh-Hans": "求职信"},
+        "minimum": 1,
+        "maximum": 1,
+        "template": "templates/modernpro-coverletter.typ",
+        "renderer": "canisend.renderer.typst",
+        "validators": ["traceability", "unsupported-claims", "placeholder-free", "citation-integrity", "review-complete"]
+      },
+      {
+        "id": "research-statement",
+        "labels": {"en": "Research statement", "zh-Hans": "研究陈述"},
+        "minimum": 0,
+        "maximum": 1,
+        "template": "templates/modernpro-coverletter.typ",
+        "renderer": "canisend.renderer.typst",
+        "validators": ["traceability", "unsupported-claims", "placeholder-free", "citation-integrity", "review-complete"]
+      },
+      {
+        "id": "teaching-statement",
+        "labels": {"en": "Teaching statement", "zh-Hans": "教学陈述"},
+        "minimum": 0,
+        "maximum": 1,
+        "template": "templates/modernpro-coverletter.typ",
+        "renderer": "canisend.renderer.typst",
+        "validators": ["traceability", "unsupported-claims", "placeholder-free", "citation-integrity", "review-complete"]
+      },
+      {
+        "id": "cv",
+        "labels": {"en": "Academic CV", "zh-Hans": "学术简历"},
+        "minimum": 1,
+        "maximum": 1,
+        "template": "templates/modernpro-cv.typ",
+        "renderer": "canisend.renderer.typst",
+        "validators": ["traceability", "unsupported-claims", "placeholder-free", "citation-integrity", "review-complete"]
+      }
+    ]
+  },
+  "capabilities": {
+    "intake_adapters": [
+      "canisend.intake.local-file",
+      "canisend.intake.user-url",
+      "canisend.intake.text-pdf",
+      "canisend.discovery.rss-atom",
+      "canisend.discovery.jobs-ac-uk",
+      "canisend.discovery.greenhouse",
+      "canisend.discovery.lever"
+    ],
+    "renderers": ["canisend.renderer.typst"],
+    "validators": [
+      "canisend.validator.evidence-traceability",
+      "canisend.validator.unsupported-claims",
+      "canisend.validator.placeholder-free",
+      "canisend.validator.citation-integrity",
+      "canisend.validator.review-complete"
+    ]
+  },
+  "validation": {
+    "definitions": [
+      {"id": "traceability", "capability": "canisend.validator.evidence-traceability", "parameters": {}},
+      {"id": "unsupported-claims", "capability": "canisend.validator.unsupported-claims", "parameters": {}},
+      {"id": "placeholder-free", "capability": "canisend.validator.placeholder-free", "parameters": {}},
+      {"id": "citation-integrity", "capability": "canisend.validator.citation-integrity", "parameters": {}},
+      {"id": "review-complete", "capability": "canisend.validator.review-complete", "parameters": {}}
+    ],
+    "readiness": ["traceability", "unsupported-claims", "placeholder-free", "citation-integrity", "review-complete"]
+  },
+  "resources": [
+    {"id": "job-parse-prompt", "kind": "prompt", "path": "prompts/job-parse.md", "version": "2.0.0", "size_bytes": 871, "sha256": "4099df7fc9be26f0075b9c526fd9b3004184c03502971a99b09de8c9432c9fcf"},
+    {"id": "evidence-normalize-prompt", "kind": "prompt", "path": "prompts/evidence-normalize.md", "version": "2.0.0", "size_bytes": 1115, "sha256": "ba0cb8511102fbba77dd70f3ef80d33e35c1a9fffda2c22c02de03f611d3a796"},
+    {"id": "evidence-match-prompt", "kind": "prompt", "path": "prompts/evidence-match.md", "version": "2.0.0", "size_bytes": 1071, "sha256": "9fff43e5eb1dd3ed56ac34d243d3964d864ebfd7bb9d2e31806b24904f2c1480"},
+    {"id": "document-draft-prompt", "kind": "prompt", "path": "prompts/document-draft.md", "version": "2.0.0", "size_bytes": 2020, "sha256": "fa63f2e28ec8959b1359d2682d665807c1bce47eb49fe2b78fcde04e47c4121d"},
+    {"id": "document-review-prompt", "kind": "prompt", "path": "prompts/document-review.md", "version": "2.0.0", "size_bytes": 1783, "sha256": "8342ee4e3445237cc84687d0ca441979d640464a1d9b175504e525319b6e75e7"},
+    {"id": "modernpro-coverletter", "kind": "template", "path": "templates/modernpro-coverletter.typ", "version": "1.0.0", "size_bytes": 27979, "sha256": "2b1061732e83f7039cc8488f62c7d82cd91b52ca2ac499496cb953e075ecb493"},
+    {"id": "modernpro-cv", "kind": "template", "path": "templates/modernpro-cv.typ", "version": "2.0.0", "size_bytes": 28548, "sha256": "64595fc9dd942a2afcb7f1d87fa3d4a631859246f986d6ca88dde01a0c65d708"}
+  ],
+  "migrations": [],
+  "content_digest": "3baa6d1a3ddf057ba1e5aaf02d8cabb037366b3651f5566bfcf2b2bb166a8d07"
+}

@@ -6,10 +6,10 @@
 
 **Canonical schemas:** `schemas/v3/*.schema.json` in the embedded resource catalog
 
-**Runtime status:** Additive neutral model, transactional repository, and backup-backed semantic
-migration foundation. Job/Agent v2 remains the compatibility runtime until the academic Pack and
-canonical v3 adapters land. Neutral Store projections and dependency-scoped Pack migration are
-implemented; Agent v3/shared-surface operations remain separate roadmap tasks.
+**Runtime status:** Additive neutral model, transactional repository, backup-backed semantic
+migration, and a verified built-in academic reference Pack. Job/Agent v2 remains the compatibility
+runtime until canonical v3 adapters land. Neutral Store projections and dependency-scoped Pack
+migration are implemented; Agent v3/shared-surface operations remain separate roadmap tasks.
 
 ## Boundary
 

@@ -1,10 +1,11 @@
 use std::{fs, str::FromStr};
 
 use canisend_resources::{
-    AgentHost, AgentPackManifest, AgentSkillsInstallState, AgentSkillsManifest,
-    AgentSkillsStatusState, AgentSkillsUninstallState, ResourceCatalogManifest, ResourceId,
-    ResourceKind, export_agent_pack, export_all, export_catalog, get, inspect_agent_skills,
-    install_agent_skills, manifest, uninstall_agent_skills, verify,
+    ACADEMIC_JOB_WORKFLOW_PACK_ID, AgentHost, AgentPackManifest, AgentSkillsInstallState,
+    AgentSkillsManifest, AgentSkillsStatusState, AgentSkillsUninstallState,
+    ResourceCatalogManifest, ResourceId, ResourceKind, academic_job_workflow_pack,
+    export_agent_pack, export_all, export_catalog, get, inspect_agent_skills, install_agent_skills,
+    manifest, uninstall_agent_skills, verify,
 };
 use sha2::{Digest, Sha256};
 
@@ -28,6 +29,24 @@ fn embedded_manifest_matches_resource_bytes() {
         );
         assert_eq!(get(id).descriptor.id, id.as_str());
     }
+}
+
+#[test]
+fn academic_workflow_pack_manifest_and_bodies_are_embedded_as_one_bundle() {
+    let manifest = get(ResourceId::WorkflowPackOrgCanisendAcademicJob);
+    assert_eq!(manifest.descriptor.kind, ResourceKind::WorkflowPack);
+    assert_eq!(manifest.descriptor.version, "1.0.0");
+    let value: serde_json::Value =
+        serde_json::from_slice(manifest.bytes).expect("academic Pack Manifest JSON");
+    assert_eq!(value["id"], ACADEMIC_JOB_WORKFLOW_PACK_ID);
+    assert_eq!(
+        value["content_digest"],
+        "3baa6d1a3ddf057ba1e5aaf02d8cabb037366b3651f5566bfcf2b2bb166a8d07"
+    );
+    let bundle = academic_job_workflow_pack();
+    assert_eq!(bundle.id(), ACADEMIC_JOB_WORKFLOW_PACK_ID);
+    assert_eq!(bundle.manifest_bytes(), manifest.bytes);
+    assert_eq!(bundle.resources().len(), 7);
 }
 
 #[test]

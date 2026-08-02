@@ -18,7 +18,7 @@ use canisend_contracts::{
     Revision, SemanticValidate, Sha256Digest, UtcTimestamp, WORKSPACE_FORMAT, WorkflowPackItemId,
     validate_external_candidate,
 };
-use canisend_core::VerifiedWorkflowPackBundle;
+use canisend_core::{VerifiedWorkflowPackBundle, WorkflowPackOrigin};
 use rusqlite::{Connection, OptionalExtension, Transaction, params, types::ValueRef};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value;
@@ -441,9 +441,11 @@ fn migration_plan_digest(
 fn academic_pack_binding(
     pack: &VerifiedWorkflowPackBundle,
 ) -> Result<ApplicationPackBindingV3, StoreError> {
-    if pack.snapshot().id().as_str() != ACADEMIC_JOB_PACK_ID {
+    if pack.snapshot().id().as_str() != ACADEMIC_JOB_PACK_ID
+        || pack.snapshot().origin() != &WorkflowPackOrigin::BuiltIn
+    {
         return Err(StoreError::WorkspaceMigrationConflict(format!(
-            "Workspace v2 can migrate only to the verified {ACADEMIC_JOB_PACK_ID} Pack"
+            "Workspace v2 can migrate only to the verified built-in {ACADEMIC_JOB_PACK_ID} Pack"
         )));
     }
     let declared_deliverables = pack
@@ -472,6 +474,13 @@ fn academic_pack_binding(
         .iter()
         .map(|category| category.id.as_str())
         .collect::<BTreeSet<_>>();
+    let declared_evidence = pack
+        .manifest()
+        .evidence
+        .categories
+        .iter()
+        .map(|category| category.id.as_str())
+        .collect::<BTreeSet<_>>();
     for required in [
         "qualification",
         "teaching",
@@ -485,6 +494,11 @@ fn academic_pack_binding(
         if !declared_requirements.contains(required) {
             return Err(StoreError::WorkspaceMigrationConflict(format!(
                 "verified academic Pack does not declare legacy Requirement category {required}"
+            )));
+        }
+        if !declared_evidence.contains(required) {
+            return Err(StoreError::WorkspaceMigrationConflict(format!(
+                "verified academic Pack does not declare legacy Evidence category {required}"
             )));
         }
     }
@@ -1830,27 +1844,20 @@ fn row_exists(connection: &Connection, sql: &str, parameter: &str) -> Result<boo
 #[cfg(test)]
 mod tests {
     use std::{
-        collections::BTreeMap,
         fs,
         path::{Path, PathBuf},
         sync::atomic::{AtomicU64, Ordering},
     };
 
     use canisend_contracts::{
-        ExecutionMode, ExpectedInputRevision, PrivacyClassification, SemanticVersion, SourceKind,
-        TaskCompletionRequest, WorkflowPackApplicationDefinition, WorkflowPackCapabilities,
-        WorkflowPackCategoryDefinition, WorkflowPackCompatibility, WorkflowPackDeliverableCatalog,
-        WorkflowPackDeliverableDefinition, WorkflowPackFieldDefinition, WorkflowPackFieldType,
-        WorkflowPackFormat, WorkflowPackId, WorkflowPackLocaleId, WorkflowPackLocalizedText,
-        WorkflowPackManifest, WorkflowPackPublisher, WorkflowPackPublisherId,
-        WorkflowPackStageDefinition, WorkflowPackStageOutput, WorkflowPackTaxonomy,
-        WorkflowPackValidationPolicy, WorkflowPackValidatorDefinition, WorkflowPackVocabulary,
-        WorkflowPackWorkflowDefinition,
+        ExecutionMode, ExpectedInputRevision, PrivacyClassification, SourceKind,
+        TaskCompletionRequest,
     };
     use canisend_core::{
-        WorkflowPackCapabilityRegistry, WorkflowPackOrigin, WorkflowPackRuntime,
-        calculate_workflow_pack_content_digest,
+        WorkflowPackByteLoader, WorkflowPackCapabilityRegistry, WorkflowPackOrigin,
+        WorkflowPackRuntime,
     };
+    use canisend_resources::academic_job_workflow_pack;
 
     use super::*;
     use crate::{
@@ -2035,6 +2042,20 @@ mod tests {
             ApplicationModelRepository::new(&mut workspace.database).authority(),
             Err(StoreError::ApplicationModelUnavailable)
         ));
+    }
+
+    #[test]
+    fn external_same_id_pack_cannot_activate_v3_authority() {
+        let root = TestDirectory::new("external-pack-root");
+        let mut workspace = Workspace::init(root.path()).expect("Workspace");
+        JobService::new(&mut workspace.database, &workspace.blobs)
+            .create("Role", "Institution", ActorKind::User)
+            .expect("Job");
+        let error = WorkspaceV3MigrationService::new(&mut workspace)
+            .preview(&academic_pack_with_origin(WorkflowPackOrigin::External))
+            .expect_err("external Pack cannot acquire built-in compatibility authority");
+        assert!(matches!(error, StoreError::WorkspaceMigrationConflict(_)));
+        assert_no_v3_migration_writes(&mut workspace);
     }
 
     #[test]
@@ -2498,160 +2519,20 @@ mod tests {
     }
 
     fn academic_pack() -> VerifiedWorkflowPackBundle {
-        let validator_capability = canisend_contracts::WorkflowPackCapabilityId::try_new(
-            "canisend.validator.evidence-traceability",
-        )
-        .expect("validator capability");
-        let validator_id = item("traceability");
-        let mut manifest = WorkflowPackManifest {
-            format: WorkflowPackFormat::V1,
-            id: WorkflowPackId::try_new(ACADEMIC_JOB_PACK_ID).expect("Pack ID"),
-            version: SemanticVersion::try_new("1.0.0").expect("version"),
-            schema_version: SemanticVersion::try_new("1.0.0").expect("schema version"),
-            publisher: WorkflowPackPublisher {
-                id: WorkflowPackPublisherId::try_new("org.canisend").expect("publisher ID"),
-                name: "CanISend".to_owned(),
-                homepage: None,
-            },
-            compatibility: WorkflowPackCompatibility {
-                kernel: ">=1.0.0-alpha.5, <2.0.0".to_owned(),
-                agent: ">=3.0.0-alpha.1, <4.0.0".to_owned(),
-                workspace: ">=3.0.0-alpha.1, <4.0.0".to_owned(),
-            },
-            default_locale: locale("en"),
-            locales: BTreeMap::from([(
-                locale("en"),
-                WorkflowPackVocabulary {
-                    application_singular: "Application".to_owned(),
-                    application_plural: "Applications".to_owned(),
-                    opportunity_singular: "Opportunity".to_owned(),
-                    opportunity_plural: "Opportunities".to_owned(),
-                    requirement_plural: "Requirements".to_owned(),
-                    evidence_plural: "Evidence".to_owned(),
-                    deliverable_plural: "Deliverables".to_owned(),
-                },
-            )]),
-            application: WorkflowPackApplicationDefinition {
-                opportunity_fields: ["title", "institution"]
-                    .into_iter()
-                    .map(|id| WorkflowPackFieldDefinition {
-                        id: item(id),
-                        labels: labels(id),
-                        field_type: WorkflowPackFieldType::ShortText,
-                        required: true,
-                        options: Vec::new(),
-                    })
-                    .collect(),
-                application_fields: Vec::new(),
-            },
-            workflow: WorkflowPackWorkflowDefinition {
-                stages: vec![
-                    WorkflowPackStageDefinition {
-                        id: item("intake"),
-                        labels: labels("Intake"),
-                        depends_on: Vec::new(),
-                        output: WorkflowPackStageOutput::Sources,
-                        execution_modes: vec![ExecutionMode::ManualImport],
-                    },
-                    WorkflowPackStageDefinition {
-                        id: item("export"),
-                        labels: labels("Export"),
-                        depends_on: vec![item("intake")],
-                        output: WorkflowPackStageOutput::Render,
-                        execution_modes: vec![ExecutionMode::Deterministic],
-                    },
-                ],
-                terminal_stage: item("export"),
-            },
-            requirements: WorkflowPackTaxonomy {
-                categories: [
-                    "qualification",
-                    "teaching",
-                    "research",
-                    "communication",
-                    "leadership",
-                    "service",
-                    "employment",
-                    "other",
-                ]
-                .into_iter()
-                .map(category)
-                .collect(),
-            },
-            evidence: taxonomy("teaching"),
-            deliverables: WorkflowPackDeliverableCatalog {
-                kinds: [
-                    "cover-letter",
-                    "research-statement",
-                    "teaching-statement",
-                    "cv",
-                ]
-                .into_iter()
-                .map(|kind| WorkflowPackDeliverableDefinition {
-                    id: item(kind),
-                    labels: labels(kind),
-                    minimum: 0,
-                    maximum: 1,
-                    template: None,
-                    renderer: None,
-                    validators: vec![validator_id.clone()],
-                })
-                .collect(),
-            },
-            capabilities: WorkflowPackCapabilities {
-                intake_adapters: Vec::new(),
-                renderers: Vec::new(),
-                validators: vec![validator_capability.clone()],
-            },
-            validation: WorkflowPackValidationPolicy {
-                definitions: vec![WorkflowPackValidatorDefinition {
-                    id: validator_id.clone(),
-                    capability: validator_capability,
-                    parameters: BTreeMap::new(),
-                }],
-                readiness: vec![validator_id],
-            },
-            resources: Vec::new(),
-            migrations: Vec::new(),
-            content_digest: Sha256Digest::try_new("0".repeat(64)).expect("placeholder digest"),
-        };
-        let resources = BTreeMap::new();
-        manifest.content_digest = calculate_workflow_pack_content_digest(&manifest, &resources)
-            .expect("Pack content digest");
-        VerifiedWorkflowPackBundle::verify(
-            &serde_json::to_value(&manifest).expect("manifest JSON"),
-            resources,
-            WorkflowPackOrigin::BuiltIn,
+        academic_pack_with_origin(WorkflowPackOrigin::BuiltIn)
+    }
+
+    fn academic_pack_with_origin(origin: WorkflowPackOrigin) -> VerifiedWorkflowPackBundle {
+        let embedded = academic_job_workflow_pack();
+        WorkflowPackByteLoader::verify(
+            embedded.manifest_bytes(),
+            embedded.into_resources(),
+            origin,
             &WorkflowPackRuntime::parse("1.0.0-alpha.5", "3.0.0-alpha.1", "3.0.0-alpha.1")
                 .expect("runtime"),
             &WorkflowPackCapabilityRegistry::built_in(),
         )
         .expect("verified academic Pack")
-    }
-
-    fn taxonomy(id: &str) -> WorkflowPackTaxonomy {
-        WorkflowPackTaxonomy {
-            categories: vec![category(id)],
-        }
-    }
-
-    fn category(id: &str) -> WorkflowPackCategoryDefinition {
-        WorkflowPackCategoryDefinition {
-            id: item(id),
-            labels: labels(id),
-            fields: Vec::new(),
-        }
-    }
-
-    fn item(value: &str) -> WorkflowPackItemId {
-        WorkflowPackItemId::try_new(value).expect("item ID")
-    }
-
-    fn locale(value: &str) -> WorkflowPackLocaleId {
-        WorkflowPackLocaleId::try_new(value).expect("locale ID")
-    }
-
-    fn labels(value: &str) -> WorkflowPackLocalizedText {
-        WorkflowPackLocalizedText(BTreeMap::from([(locale("en"), value.to_owned())]))
+        .into_bundle()
     }
 }

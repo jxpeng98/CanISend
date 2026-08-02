@@ -9,7 +9,7 @@ use std::{
     str::FromStr,
 };
 
-use canisend_contracts::{AGENT_PROTOCOL, RESOURCE_FORMAT};
+use canisend_contracts::{AGENT_PROTOCOL, RESOURCE_FORMAT, SafeRelativePath};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
@@ -24,6 +24,7 @@ pub enum ResourceKind {
     Prompt,
     Schema,
     Template,
+    WorkflowPack,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -221,6 +222,37 @@ pub struct ResourceCatalogExportData {
     pub manifest: ResourceCatalogManifest,
 }
 
+pub const ACADEMIC_JOB_WORKFLOW_PACK_ID: &str = "org.canisend.academic-job";
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EmbeddedWorkflowPack {
+    id: &'static str,
+    manifest_bytes: &'static [u8],
+    resources: BTreeMap<SafeRelativePath, Vec<u8>>,
+}
+
+impl EmbeddedWorkflowPack {
+    #[must_use]
+    pub const fn id(&self) -> &'static str {
+        self.id
+    }
+
+    #[must_use]
+    pub const fn manifest_bytes(&self) -> &'static [u8] {
+        self.manifest_bytes
+    }
+
+    #[must_use]
+    pub const fn resources(&self) -> &BTreeMap<SafeRelativePath, Vec<u8>> {
+        &self.resources
+    }
+
+    #[must_use]
+    pub fn into_resources(self) -> BTreeMap<SafeRelativePath, Vec<u8>> {
+        self.resources
+    }
+}
+
 include!(concat!(env!("OUT_DIR"), "/resource_manifest.rs"));
 
 #[must_use]
@@ -237,6 +269,34 @@ pub fn get(id: ResourceId) -> &'static EmbeddedResource {
         .iter()
         .find(|resource| resource.id == id)
         .expect("generated ResourceId always has one embedded resource")
+}
+
+#[must_use]
+pub fn academic_job_workflow_pack() -> EmbeddedWorkflowPack {
+    let resources = [
+        ResourceId::PromptJobParse,
+        ResourceId::PromptEvidenceNormalize,
+        ResourceId::PromptEvidenceMatch,
+        ResourceId::PromptDocumentDraft,
+        ResourceId::PromptDocumentReview,
+        ResourceId::TemplateModernproCoverletter,
+        ResourceId::TemplateModernproCv,
+    ]
+    .into_iter()
+    .map(|id| {
+        let resource = get(id);
+        (
+            SafeRelativePath::try_new(resource.descriptor.path)
+                .expect("embedded Pack resource paths are build-time validated"),
+            resource.bytes.to_vec(),
+        )
+    })
+    .collect();
+    EmbeddedWorkflowPack {
+        id: ACADEMIC_JOB_WORKFLOW_PACK_ID,
+        manifest_bytes: get(ResourceId::WorkflowPackOrgCanisendAcademicJob).bytes,
+        resources,
+    }
 }
 
 pub fn verify() -> Result<(), String> {
@@ -267,6 +327,25 @@ pub fn verify() -> Result<(), String> {
             };
             if resource.descriptor.version != schema_version {
                 return Err(format!("embedded schema version mismatch: {}", resource.id));
+            }
+        }
+        if resource.descriptor.kind == ResourceKind::WorkflowPack {
+            let manifest: serde_json::Value =
+                serde_json::from_slice(resource.bytes).map_err(|error| {
+                    format!(
+                        "embedded workflow Pack is invalid JSON: {}: {error}",
+                        resource.id
+                    )
+                })?;
+            if manifest.get("format").and_then(serde_json::Value::as_str)
+                != Some("canisend.workflow-pack/v1")
+                || manifest.get("version").and_then(serde_json::Value::as_str)
+                    != Some(resource.descriptor.version)
+            {
+                return Err(format!(
+                    "embedded workflow Pack metadata mismatch: {}",
+                    resource.id
+                ));
             }
         }
     }

@@ -10,10 +10,12 @@
 
 ## Admission boundary
 
-Migration accepts only a fully verified `org.canisend.academic-job` workflow-pack bundle. The Pack
-must declare all eight legacy Requirement categories and all four legacy Deliverable kinds. Pack
-ID, version, and content digest are copied to every new Application snapshot and every immutable
-legacy binding.
+Migration accepts only the fully verified, built-in `org.canisend.academic-job` workflow-pack
+bundle. The Application facade resolves the checked-in bundle internally; an external same-ID
+bundle cannot acquire compatibility authority. The Pack must declare all eight legacy Requirement
+and Evidence categories, the institution metadata field, and all four legacy Deliverable kinds.
+Pack ID, version, and content digest are copied to every new Application snapshot and every
+immutable legacy binding.
 
 The migration refuses to preview or execute when v3 authority is already active, the source
 format is not v2, SQLite integrity fails, a referenced Blob is absent or digest-invalid, a legacy

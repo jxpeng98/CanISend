@@ -88,7 +88,7 @@ fn validate_declaration(declaration: &ResourceDeclaration) -> Result<(), String>
     }
     if !matches!(
         declaration.kind.as_str(),
-        "agent" | "example" | "prompt" | "schema" | "template"
+        "agent" | "example" | "prompt" | "schema" | "template" | "workflow-pack"
     ) {
         return Err(format!("invalid resource kind: {}", declaration.kind));
     }
@@ -212,6 +212,7 @@ fn render_source(
         ("prompt", "Prompt"),
         ("schema", "Schema"),
         ("template", "Template"),
+        ("workflow-pack", "WorkflowPack"),
     ]);
     writeln!(
         source,

@@ -204,6 +204,7 @@ const fn resource_kind_name(kind: ResourceKind) -> &'static str {
         ResourceKind::Prompt => "prompt",
         ResourceKind::Schema => "schema",
         ResourceKind::Template => "template",
+        ResourceKind::WorkflowPack => "workflow-pack",
     }
 }
 
@@ -243,7 +244,10 @@ mod tests {
         assert!(first.data.resources.iter().all(|detail| {
             !detail.path.is_empty()
                 && detail.entry.sha256.as_str().len() == 64
-                && !detail.path.contains(".canisend")
+                && !detail
+                    .path
+                    .split('/')
+                    .any(|component| component == ".canisend")
         }));
         let round_trip: ActionReceipt<InspectionCatalogReadModel> =
             serde_json::from_slice(&serde_json::to_vec(&first).expect("encode catalog"))

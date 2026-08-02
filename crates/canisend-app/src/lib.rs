@@ -28,6 +28,7 @@ mod system;
 mod task;
 mod update;
 mod workflow;
+mod workflow_pack;
 mod workspace;
 
 pub use agent::{
@@ -118,6 +119,7 @@ pub use workflow::{
     WorkflowBeginRequest, WorkflowCompleteRequest, WorkflowControlReadModel, WorkflowRerunPreview,
     WorkflowRerunRequest,
 };
+pub use workflow_pack::built_in_academic_job_pack;
 pub use workspace::{
     BackupReadModel, WorkspaceHealthReadModel, WorkspaceInitPolicy, WorkspaceReadModel,
     WorkspaceRepairReadModel, WorkspaceRestoreReadModel,

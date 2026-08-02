@@ -25,5 +25,8 @@ thiserror.workspace = true
 time.workspace = true
 toml.workspace = true
 
+[dev-dependencies]
+canisend-resources = { path = "../canisend-resources", version = "=1.0.0-alpha.5" }
+
 [lints]
 workspace = true

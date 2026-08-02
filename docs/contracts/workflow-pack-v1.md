@@ -8,8 +8,9 @@
 catalog
 
 **Runtime status:** Additive contract, bounded byte verification, Trust Report, locale resolver,
-and verified-bundle registry foundation. The current Alpha Job/Agent v2 runtime does not read Pack
-directories, install external workflow packs, or project Pack vocabulary into the GUI yet.
+verified-bundle registry foundation, and one embedded built-in academic reference Pack. The current
+Alpha Job/Agent v2 runtime does not read Pack directories, install external workflow packs, or
+project Pack vocabulary into the GUI yet.
 
 ## Boundary
 
@@ -196,6 +197,19 @@ bytes are limited before Manifest references or declared sizes are trusted.
 
 Templates remain data passed to a future kernel-registered bounded renderer. A template resource
 does not grant filesystem, network, package-resolution, system-font, or process-execution access.
+
+The host embedded-resource catalog has a separate `workflow-pack` class for a Pack manifest. It is
+not a fifth Pack-body resource kind and grants no capability. The built-in
+`org.canisend.academic-job` manifest is embedded under that class, while its seven exact prompt and
+template bodies remain ordinary declared Pack resources and are reverified by the same byte loader.
+
+## Built-in reference Pack
+
+[`org.canisend.academic-job`](academic-job-workflow-pack-v1.md) is the first built-in Pack. Its
+checked-in Manifest, exact embedded resources, bilingual labels, capabilities, content digest, and
+canonical v2 parity fixtures form one reviewed reference bundle. Application-level Workspace
+v2→v3 migration resolves that exact built-in bundle rather than accepting caller-selected Pack
+data. This does not enable external installation or make academic vocabulary part of the kernel.
 
 ## Registry and snapshot rule
 
