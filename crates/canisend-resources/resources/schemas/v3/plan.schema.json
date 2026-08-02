@@ -1,0 +1,226 @@
+{
+  "$defs": {
+    "ActorKind": {
+      "enum": [
+        "user",
+        "host-agent",
+        "configured-provider",
+        "system"
+      ],
+      "type": "string"
+    },
+    "ApplicationPackBindingV3": {
+      "additionalProperties": false,
+      "properties": {
+        "content_digest": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "content_digest"
+      ],
+      "type": "object"
+    },
+    "ExecutionMode": {
+      "enum": [
+        "deterministic",
+        "host-agent",
+        "configured-provider",
+        "user-decision",
+        "manual-import"
+      ],
+      "type": "string"
+    },
+    "PlanBlockerSeverityV3": {
+      "enum": [
+        "blocking",
+        "warning"
+      ],
+      "type": "string"
+    },
+    "PlanBlockerV3": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "requirement": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RequirementRevisionReferenceV3"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "severity": {
+          "$ref": "#/$defs/PlanBlockerSeverityV3"
+        }
+      },
+      "required": [
+        "code",
+        "severity",
+        "description"
+      ],
+      "type": "object"
+    },
+    "PlanStateV3": {
+      "enum": [
+        "draft",
+        "confirmed"
+      ],
+      "type": "string"
+    },
+    "PlannedDeliverableDispositionV3": {
+      "enum": [
+        "required",
+        "optional",
+        "omitted"
+      ],
+      "type": "string"
+    },
+    "PlannedDeliverableV3": {
+      "additionalProperties": false,
+      "properties": {
+        "constraints": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "disposition": {
+          "$ref": "#/$defs/PlannedDeliverableDispositionV3"
+        },
+        "execution_mode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExecutionMode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "type": "string"
+        },
+        "rationale": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "disposition",
+        "rationale",
+        "constraints"
+      ],
+      "type": "object"
+    },
+    "RequirementRevisionReferenceV3": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "revision"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://schemas.canisend.dev/v3/plan.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "application_id": {
+      "type": "string"
+    },
+    "blockers": {
+      "items": {
+        "$ref": "#/$defs/PlanBlockerV3"
+      },
+      "type": "array"
+    },
+    "decided_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "decided_by": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ActorKind"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "decision": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "deliverables": {
+      "items": {
+        "$ref": "#/$defs/PlannedDeliverableV3"
+      },
+      "type": "array"
+    },
+    "id": {
+      "type": "string"
+    },
+    "pack": {
+      "$ref": "#/$defs/ApplicationPackBindingV3"
+    },
+    "requirement_inputs": {
+      "items": {
+        "$ref": "#/$defs/RequirementRevisionReferenceV3"
+      },
+      "type": "array"
+    },
+    "revision": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "state": {
+      "$ref": "#/$defs/PlanStateV3"
+    }
+  },
+  "required": [
+    "id",
+    "application_id",
+    "pack",
+    "state",
+    "requirement_inputs",
+    "deliverables",
+    "blockers",
+    "revision"
+  ],
+  "title": "PlanRecordV3",
+  "type": "object",
+  "x-canisend-id": "canisend.plan/v3",
+  "x-canisend-version": "3.0.0"
+}

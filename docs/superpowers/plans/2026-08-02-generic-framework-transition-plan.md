@@ -210,6 +210,12 @@ Repository evidence currently available:
 | GF2-PROJ-001 | P0 | Add `applications/APPLICATION_ID/` projections and legacy recognition | Edited/unmanaged/symlink/conflict/copy/replace/repair paths preserve current safety invariants |
 | GF2-INVALID-001 | P0 | Bind dependencies and stale state to pack ID/version/digest | Pack migration invalidates only affected downstream outputs |
 
+Repository evidence currently available:
+
+| Task | Evidence | Remaining state boundary |
+|---|---|---|
+| GF2-MODEL-001 | [Application-model v3 contract](../../contracts/application-model-v3.md) and [implementation record](../../notes/rust-native/2026-08-02-gf2-application-model.md) | Bind the contracts to Workspace v3 repositories, migration, dependency invalidation, and canonical Agent v3 operations; create/link its work item and inspect committed evidence before marking Verified |
+
 ### GF3 — Extract the academic reference pack
 
 | ID | Priority | Deliverable | Verification |

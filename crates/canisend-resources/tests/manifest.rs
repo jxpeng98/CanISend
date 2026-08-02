@@ -52,6 +52,57 @@ fn workflow_pack_schema_is_embedded_with_its_own_contract_version() {
 }
 
 #[test]
+fn application_model_v3_schemas_are_embedded_as_an_independent_registry() {
+    let expected = [
+        (
+            ResourceId::SchemaV3ApplicationPackBinding,
+            canisend_contracts::ApplicationModelSchemaId::PackBinding,
+        ),
+        (
+            ResourceId::SchemaV3Opportunity,
+            canisend_contracts::ApplicationModelSchemaId::Opportunity,
+        ),
+        (
+            ResourceId::SchemaV3Application,
+            canisend_contracts::ApplicationModelSchemaId::Application,
+        ),
+        (
+            ResourceId::SchemaV3Requirement,
+            canisend_contracts::ApplicationModelSchemaId::Requirement,
+        ),
+        (
+            ResourceId::SchemaV3Plan,
+            canisend_contracts::ApplicationModelSchemaId::Plan,
+        ),
+        (
+            ResourceId::SchemaV3Deliverable,
+            canisend_contracts::ApplicationModelSchemaId::Deliverable,
+        ),
+        (
+            ResourceId::SchemaV3ApplicationModel,
+            canisend_contracts::ApplicationModelSchemaId::ApplicationModel,
+        ),
+    ];
+
+    for (resource_id, schema_id) in expected {
+        let resource = get(resource_id);
+        assert_eq!(resource.descriptor.kind, ResourceKind::Schema);
+        assert_eq!(
+            resource.descriptor.version,
+            canisend_contracts::APPLICATION_MODEL_SCHEMA_VERSION
+        );
+        assert_eq!(
+            resource.descriptor.path,
+            format!("schemas/v3/{}", schema_id.file_name())
+        );
+        let schema: serde_json::Value =
+            serde_json::from_slice(resource.bytes).expect("application-model schema JSON");
+        assert_eq!(schema["$id"], schema_id.canonical_uri());
+        assert_eq!(schema["x-canisend-id"], schema_id.as_str());
+    }
+}
+
+#[test]
 fn modernpro_templates_are_pinned_self_contained_and_adapter_backed() {
     for (id, version, package_marker) in [
         (

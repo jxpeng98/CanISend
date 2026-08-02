@@ -1,0 +1,762 @@
+{
+  "$defs": {
+    "ActorKind": {
+      "enum": [
+        "user",
+        "host-agent",
+        "configured-provider",
+        "system"
+      ],
+      "type": "string"
+    },
+    "ApplicationFieldValueV3": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "short-text",
+              "type": "string"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "long-text",
+              "type": "string"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "integer",
+              "type": "string"
+            },
+            "value": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "boolean",
+              "type": "string"
+            },
+            "value": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "type",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "date",
+              "type": "string"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "url",
+              "type": "string"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "string-list",
+              "type": "string"
+            },
+            "value": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "type",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "choice",
+              "type": "string"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "value"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "ApplicationLifecycleV3": {
+      "enum": [
+        "draft",
+        "active",
+        "paused",
+        "completed",
+        "archived"
+      ],
+      "type": "string"
+    },
+    "ApplicationModelFormatV3": {
+      "enum": [
+        "canisend.application-model/v3"
+      ],
+      "type": "string"
+    },
+    "ApplicationPackBindingV3": {
+      "additionalProperties": false,
+      "properties": {
+        "content_digest": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "content_digest"
+      ],
+      "type": "object"
+    },
+    "ApplicationRecordV3": {
+      "additionalProperties": false,
+      "properties": {
+        "created_at": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "lifecycle": {
+          "$ref": "#/$defs/ApplicationLifecycleV3"
+        },
+        "metadata": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ApplicationFieldValueV3"
+          },
+          "type": "object"
+        },
+        "opportunity_id": {
+          "type": "string"
+        },
+        "pack": {
+          "$ref": "#/$defs/ApplicationPackBindingV3"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "updated_at": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "opportunity_id",
+        "pack",
+        "metadata",
+        "lifecycle",
+        "created_at",
+        "updated_at",
+        "revision"
+      ],
+      "type": "object"
+    },
+    "ContentRevisionReferenceV3": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sha256": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "revision",
+        "sha256"
+      ],
+      "type": "object"
+    },
+    "ContentSpanV3": {
+      "additionalProperties": false,
+      "properties": {
+        "content": {
+          "$ref": "#/$defs/ContentRevisionReferenceV3"
+        },
+        "end_byte": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "start_byte": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "content",
+        "start_byte",
+        "end_byte"
+      ],
+      "type": "object"
+    },
+    "DeliverableRecordV3": {
+      "additionalProperties": false,
+      "properties": {
+        "application_id": {
+          "type": "string"
+        },
+        "content": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContentRevisionReferenceV3"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidence_inputs": {
+          "items": {
+            "$ref": "#/$defs/EntityRevisionReferenceV3"
+          },
+          "type": "array"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "media_type": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "pack": {
+          "$ref": "#/$defs/ApplicationPackBindingV3"
+        },
+        "plan": {
+          "$ref": "#/$defs/PlanRevisionReferenceV3"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "state": {
+          "$ref": "#/$defs/DeliverableStateV3"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "application_id",
+        "pack",
+        "plan",
+        "kind",
+        "title",
+        "state",
+        "evidence_inputs",
+        "revision"
+      ],
+      "type": "object"
+    },
+    "DeliverableStateV3": {
+      "enum": [
+        "planned",
+        "draft",
+        "review-required",
+        "approved",
+        "stale"
+      ],
+      "type": "string"
+    },
+    "EntityRevisionReferenceV3": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "revision"
+      ],
+      "type": "object"
+    },
+    "ExecutionMode": {
+      "enum": [
+        "deterministic",
+        "host-agent",
+        "configured-provider",
+        "user-decision",
+        "manual-import"
+      ],
+      "type": "string"
+    },
+    "OpportunityRecordV3": {
+      "additionalProperties": false,
+      "properties": {
+        "archived": {
+          "type": "boolean"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "metadata": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ApplicationFieldValueV3"
+          },
+          "type": "object"
+        },
+        "pack": {
+          "$ref": "#/$defs/ApplicationPackBindingV3"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "source_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "pack",
+        "title",
+        "metadata",
+        "source_ids",
+        "created_at",
+        "revision",
+        "archived"
+      ],
+      "type": "object"
+    },
+    "PlanBlockerSeverityV3": {
+      "enum": [
+        "blocking",
+        "warning"
+      ],
+      "type": "string"
+    },
+    "PlanBlockerV3": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "requirement": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RequirementRevisionReferenceV3"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "severity": {
+          "$ref": "#/$defs/PlanBlockerSeverityV3"
+        }
+      },
+      "required": [
+        "code",
+        "severity",
+        "description"
+      ],
+      "type": "object"
+    },
+    "PlanRecordV3": {
+      "additionalProperties": false,
+      "properties": {
+        "application_id": {
+          "type": "string"
+        },
+        "blockers": {
+          "items": {
+            "$ref": "#/$defs/PlanBlockerV3"
+          },
+          "type": "array"
+        },
+        "decided_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "decided_by": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ActorKind"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "decision": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "deliverables": {
+          "items": {
+            "$ref": "#/$defs/PlannedDeliverableV3"
+          },
+          "type": "array"
+        },
+        "id": {
+          "type": "string"
+        },
+        "pack": {
+          "$ref": "#/$defs/ApplicationPackBindingV3"
+        },
+        "requirement_inputs": {
+          "items": {
+            "$ref": "#/$defs/RequirementRevisionReferenceV3"
+          },
+          "type": "array"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "state": {
+          "$ref": "#/$defs/PlanStateV3"
+        }
+      },
+      "required": [
+        "id",
+        "application_id",
+        "pack",
+        "state",
+        "requirement_inputs",
+        "deliverables",
+        "blockers",
+        "revision"
+      ],
+      "type": "object"
+    },
+    "PlanRevisionReferenceV3": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "revision"
+      ],
+      "type": "object"
+    },
+    "PlanStateV3": {
+      "enum": [
+        "draft",
+        "confirmed"
+      ],
+      "type": "string"
+    },
+    "PlannedDeliverableDispositionV3": {
+      "enum": [
+        "required",
+        "optional",
+        "omitted"
+      ],
+      "type": "string"
+    },
+    "PlannedDeliverableV3": {
+      "additionalProperties": false,
+      "properties": {
+        "constraints": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "disposition": {
+          "$ref": "#/$defs/PlannedDeliverableDispositionV3"
+        },
+        "execution_mode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExecutionMode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "type": "string"
+        },
+        "rationale": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "disposition",
+        "rationale",
+        "constraints"
+      ],
+      "type": "object"
+    },
+    "RequirementConfirmationV3": {
+      "enum": [
+        "proposed",
+        "confirmed",
+        "excluded"
+      ],
+      "type": "string"
+    },
+    "RequirementPriorityV3": {
+      "enum": [
+        "mandatory",
+        "recommended",
+        "informational"
+      ],
+      "type": "string"
+    },
+    "RequirementRecordV3": {
+      "additionalProperties": false,
+      "properties": {
+        "application_id": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string"
+        },
+        "confirmation": {
+          "$ref": "#/$defs/RequirementConfirmationV3"
+        },
+        "confirmed_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "confirmed_by": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ActorKind"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "pack": {
+          "$ref": "#/$defs/ApplicationPackBindingV3"
+        },
+        "priority": {
+          "$ref": "#/$defs/RequirementPriorityV3"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "source_span": {
+          "$ref": "#/$defs/ContentSpanV3"
+        },
+        "statement": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "application_id",
+        "pack",
+        "category",
+        "statement",
+        "priority",
+        "source_span",
+        "confirmation",
+        "revision"
+      ],
+      "type": "object"
+    },
+    "RequirementRevisionReferenceV3": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "revision"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://schemas.canisend.dev/v3/application-model.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "application": {
+      "$ref": "#/$defs/ApplicationRecordV3"
+    },
+    "deliverables": {
+      "items": {
+        "$ref": "#/$defs/DeliverableRecordV3"
+      },
+      "type": "array"
+    },
+    "format": {
+      "$ref": "#/$defs/ApplicationModelFormatV3"
+    },
+    "opportunity": {
+      "$ref": "#/$defs/OpportunityRecordV3"
+    },
+    "pack": {
+      "$ref": "#/$defs/ApplicationPackBindingV3"
+    },
+    "plan": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PlanRecordV3"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "requirements": {
+      "items": {
+        "$ref": "#/$defs/RequirementRecordV3"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "format",
+    "pack",
+    "opportunity",
+    "application",
+    "requirements",
+    "deliverables"
+  ],
+  "title": "ApplicationModelSnapshotV3",
+  "type": "object",
+  "x-canisend-id": "canisend.application-model/v3",
+  "x-canisend-version": "3.0.0"
+}

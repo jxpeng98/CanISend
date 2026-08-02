@@ -1,0 +1,160 @@
+{
+  "$defs": {
+    "ActorKind": {
+      "enum": [
+        "user",
+        "host-agent",
+        "configured-provider",
+        "system"
+      ],
+      "type": "string"
+    },
+    "ApplicationPackBindingV3": {
+      "additionalProperties": false,
+      "properties": {
+        "content_digest": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "content_digest"
+      ],
+      "type": "object"
+    },
+    "ContentRevisionReferenceV3": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sha256": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "revision",
+        "sha256"
+      ],
+      "type": "object"
+    },
+    "ContentSpanV3": {
+      "additionalProperties": false,
+      "properties": {
+        "content": {
+          "$ref": "#/$defs/ContentRevisionReferenceV3"
+        },
+        "end_byte": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "start_byte": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "content",
+        "start_byte",
+        "end_byte"
+      ],
+      "type": "object"
+    },
+    "RequirementConfirmationV3": {
+      "enum": [
+        "proposed",
+        "confirmed",
+        "excluded"
+      ],
+      "type": "string"
+    },
+    "RequirementPriorityV3": {
+      "enum": [
+        "mandatory",
+        "recommended",
+        "informational"
+      ],
+      "type": "string"
+    }
+  },
+  "$id": "https://schemas.canisend.dev/v3/requirement.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "application_id": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string"
+    },
+    "confirmation": {
+      "$ref": "#/$defs/RequirementConfirmationV3"
+    },
+    "confirmed_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "confirmed_by": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ActorKind"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "id": {
+      "type": "string"
+    },
+    "pack": {
+      "$ref": "#/$defs/ApplicationPackBindingV3"
+    },
+    "priority": {
+      "$ref": "#/$defs/RequirementPriorityV3"
+    },
+    "revision": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "source_span": {
+      "$ref": "#/$defs/ContentSpanV3"
+    },
+    "statement": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "application_id",
+    "pack",
+    "category",
+    "statement",
+    "priority",
+    "source_span",
+    "confirmation",
+    "revision"
+  ],
+  "title": "RequirementRecordV3",
+  "type": "object",
+  "x-canisend-id": "canisend.requirement/v3",
+  "x-canisend-version": "3.0.0"
+}

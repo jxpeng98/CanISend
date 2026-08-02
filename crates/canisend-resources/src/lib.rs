@@ -252,12 +252,20 @@ pub fn verify() -> Result<(), String> {
             ));
         }
         if resource.descriptor.kind == ResourceKind::Schema {
-            let expected_version = if resource.descriptor.id == "schema.workflow-pack-manifest" {
-                canisend_contracts::WORKFLOW_PACK_SCHEMA_VERSION
-            } else {
-                canisend_contracts::PUBLIC_SCHEMA_VERSION
+            let schema: serde_json::Value =
+                serde_json::from_slice(resource.bytes).map_err(|error| {
+                    format!("embedded schema is invalid JSON: {}: {error}", resource.id)
+                })?;
+            let Some(schema_version) = schema
+                .get("x-canisend-version")
+                .and_then(serde_json::Value::as_str)
+            else {
+                return Err(format!(
+                    "embedded schema has no contract version: {}",
+                    resource.id
+                ));
             };
-            if resource.descriptor.version != expected_version {
+            if resource.descriptor.version != schema_version {
                 return Err(format!("embedded schema version mismatch: {}", resource.id));
             }
         }

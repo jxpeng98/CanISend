@@ -1,0 +1,25 @@
+{
+  "$id": "https://schemas.canisend.dev/v3/application-pack-binding.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "content_digest": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "version",
+    "content_digest"
+  ],
+  "title": "ApplicationPackBindingV3",
+  "type": "object",
+  "x-canisend-id": "canisend.application-pack-binding/v3",
+  "x-canisend-version": "3.0.0"
+}

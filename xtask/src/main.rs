@@ -9,8 +9,9 @@ use std::{
 };
 
 use canisend_contracts::{
-    AGENT_PROTOCOL, PUBLIC_SCHEMA_VERSION, WORKSPACE_FORMAT, generate_public_schemas,
-    generate_workflow_pack_schema, verify_public_schemas, verify_workflow_pack_schema,
+    AGENT_PROTOCOL, PUBLIC_SCHEMA_VERSION, WORKSPACE_FORMAT, generate_application_model_schemas,
+    generate_public_schemas, generate_workflow_pack_schema, verify_application_model_schemas,
+    verify_public_schemas, verify_workflow_pack_schema,
 };
 use semver::Version;
 use serde_json::{Map, Value, json};
@@ -376,6 +377,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
 
 fn check_schemas() -> Result<(), String> {
     verify_public_schemas()?;
+    verify_application_model_schemas()?;
     verify_workflow_pack_schema()?;
     let expected = generate_public_schemas();
     let directory = schema_directory();
@@ -398,6 +400,32 @@ fn check_schemas() -> Result<(), String> {
     if actual_names != expected_names {
         return Err(format!(
             "generated schema file set differs: expected {expected_names:?}, found {actual_names:?}"
+        ));
+    }
+    let application_model = generate_application_model_schemas();
+    let application_model_directory = application_model_schema_directory();
+    let mut expected_application_model_names = BTreeSet::new();
+    for schema in application_model {
+        let file_name = schema.id.file_name();
+        expected_application_model_names.insert(file_name.clone());
+        let path = application_model_directory.join(file_name);
+        let actual = fs::read_to_string(&path).map_err(|error| {
+            format!(
+                "generated application-model schema is missing at {}: {error}",
+                path.display()
+            )
+        })?;
+        if actual != schema.canonical_json() {
+            return Err(format!(
+                "generated application-model schema drift at {}; run `cargo run -p xtask -- schemas write`",
+                path.display()
+            ));
+        }
+    }
+    let actual_application_model_names = json_files(&application_model_directory)?;
+    if actual_application_model_names != expected_application_model_names {
+        return Err(format!(
+            "generated application-model schema file set differs: expected {expected_application_model_names:?}, found {actual_application_model_names:?}"
         ));
     }
     let workflow_pack = generate_workflow_pack_schema();
@@ -423,14 +451,16 @@ fn check_schemas() -> Result<(), String> {
         ));
     }
     println!(
-        "schemas: ok ({} public + 1 workflow-pack)",
-        expected_names.len()
+        "schemas: ok ({} public + {} application-v3 + 1 workflow-pack)",
+        expected_names.len(),
+        expected_application_model_names.len()
     );
     Ok(())
 }
 
 fn write_schemas() -> Result<(), String> {
     verify_public_schemas()?;
+    verify_application_model_schemas()?;
     verify_workflow_pack_schema()?;
     let directory = schema_directory();
     fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
@@ -448,6 +478,23 @@ fn write_schemas() -> Result<(), String> {
         let path = directory.join(schema.id.file_name());
         fs::write(&path, schema.canonical_json()).map_err(|error| error.to_string())?;
     }
+    let application_model_directory = application_model_schema_directory();
+    fs::create_dir_all(&application_model_directory).map_err(|error| error.to_string())?;
+    let application_model = generate_application_model_schemas();
+    let expected_application_model_names = application_model
+        .iter()
+        .map(|schema| schema.id.file_name())
+        .collect::<BTreeSet<_>>();
+    for existing in json_files(&application_model_directory)? {
+        if !expected_application_model_names.contains(&existing) {
+            fs::remove_file(application_model_directory.join(existing))
+                .map_err(|error| error.to_string())?;
+        }
+    }
+    for schema in application_model {
+        let path = application_model_directory.join(schema.id.file_name());
+        fs::write(&path, schema.canonical_json()).map_err(|error| error.to_string())?;
+    }
     let workflow_pack = generate_workflow_pack_schema();
     let workflow_pack_directory = workflow_pack_schema_directory();
     fs::create_dir_all(&workflow_pack_directory).map_err(|error| error.to_string())?;
@@ -463,14 +510,19 @@ fn write_schemas() -> Result<(), String> {
     )
     .map_err(|error| error.to_string())?;
     println!(
-        "schemas: wrote {} public + 1 workflow-pack",
-        expected_names.len()
+        "schemas: wrote {} public + {} application-v3 + 1 workflow-pack",
+        expected_names.len(),
+        expected_application_model_names.len()
     );
     Ok(())
 }
 
 fn schema_directory() -> PathBuf {
     repository_root().join("crates/canisend-resources/resources/schemas/v2")
+}
+
+fn application_model_schema_directory() -> PathBuf {
+    repository_root().join("crates/canisend-resources/resources/schemas/v3")
 }
 
 fn workflow_pack_schema_directory() -> PathBuf {
