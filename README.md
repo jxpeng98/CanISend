@@ -65,8 +65,9 @@ The current CLI provides:
 - `canisend.agent/v2` success/error envelopes, stable error registry, and grouped exit policy.
 - Product/version/build inspection.
 - Forty deterministic Agent v2 Draft 2020-12 schemas generated from Rust types.
-- A separately versioned `canisend.workflow-pack/v1` manifest Schema and bounded semantic
-  validator; runtime pack installation is not yet enabled.
+- A separately versioned `canisend.workflow-pack/v1` manifest Schema, bounded semantic validator,
+  canonical bundle verifier, and exact-version in-memory registry; runtime Pack installation is
+  not yet enabled.
 - Fifty-two typed embedded schemas, prompts, templates, examples, and host assets with SHA-256 verification.
 - A truthful capability registry that marks unfinished functions as `planned`.
 - Agent context plus schema/resource diagnostics with deterministic JSON snapshots.

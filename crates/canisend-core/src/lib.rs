@@ -1,5 +1,9 @@
 #![forbid(unsafe_code)]
 
+mod workflow_pack;
+
+pub use workflow_pack::*;
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use canisend_contracts::{

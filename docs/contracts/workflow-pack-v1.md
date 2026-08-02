@@ -7,8 +7,8 @@
 **Canonical schema:** `schemas/workflow-pack/v1/manifest.schema.json` in the embedded resource
 catalog
 
-**Runtime status:** Additive contract foundation. The current Alpha Job/Agent v2 runtime does not
-load external workflow packs yet.
+**Runtime status:** Additive contract and verified-bundle registry foundation. The current Alpha
+Job/Agent v2 runtime does not load or install external workflow packs yet.
 
 ## Boundary
 
@@ -18,8 +18,8 @@ to kernel-registered capabilities, validators, localization, and declarative ID 
 
 A manifest cannot contain or select native libraries, shell scripts, JavaScript, WebAssembly,
 executables, provider credentials, database handles, or arbitrary network/filesystem access.
-Capability identifiers are references only. A future registry must match them against a
-kernel-owned allowlist before a pack becomes usable.
+Capability identifiers are references only. `canisend-core` matches them against a kernel-owned
+registry while verifying a bundle; a match grants access only to that pre-registered capability.
 
 ## Identity and compatibility
 
@@ -32,10 +32,27 @@ kernel-owned allowlist before a pack becomes usable.
 - Every localized label contains the declared default locale and cannot reference undeclared
   locales.
 
-`content_digest` is a strongly typed SHA-256 declaration. This contract slice validates its
-shape. GF1-REG-001 will define and enforce canonical bundle hashing, resource-byte verification,
-immutable snapshot storage, and pack substitution protection before the runtime installs or opens
-external packs.
+`content_digest` is a strongly typed SHA-256 binding over the normalized manifest and every exact
+declared resource byte. Bundle verification also checks resource set equality, resource size and
+SHA-256 declarations, runtime compatibility, and capability availability before producing a
+snapshot.
+
+### Canonical bundle digest
+
+The v1 digest algorithm is deliberately independent of input JSON object-key order:
+
+1. validate and deserialize the manifest as `canisend.workflow-pack/v1`;
+2. serialize it as compact JSON with every object key sorted recursively and replace
+   `content_digest` with 64 ASCII zeroes;
+3. initialize SHA-256 with the domain bytes `canisend.workflow-pack-bundle/v1\0`;
+4. append each following segment as an unsigned 64-bit big-endian byte length followed by the
+   exact segment bytes: `manifest`, normalized-manifest bytes, then for each resource in ascending
+   portable path order: `resource-path`, path bytes, `resource-bytes`, and exact resource bytes;
+5. encode the result as lowercase hexadecimal.
+
+Array order remains part of the manifest. Resource map/insertion order does not. The manifest's
+declared digest must equal the calculated digest; callers cannot select a different digest
+algorithm.
 
 ## Structural limits
 
@@ -78,9 +95,10 @@ The typed validator rejects:
 - duplicate or identity migration mappings; and
 - unsafe relative paths or malformed SHA-256 digests.
 
-Manifest validation does not grant trust. Resource bytes, the declared content digest, registered
-capability availability, publisher trust, pack installation, immutable snapshot binding, and
-migration approval remain separate registry/runtime gates.
+Manifest validation alone does not grant trust. Verified-bundle construction separately enforces
+resource bytes, the declared content digest, current runtime compatibility, and registered
+capability availability. Publisher trust, explicit installation, persistent snapshot binding, and
+migration approval remain separate runtime/storage gates.
 
 ## DAG rule
 
@@ -96,6 +114,19 @@ portable safe-relative-path primitive as other CanISend projections and cannot t
 
 Templates remain data passed to a future kernel-registered bounded renderer. A template resource
 does not grant filesystem, network, package-resolution, system-font, or process-execution access.
+
+## Registry and snapshot rule
+
+The core registry keys bundles by exact `(pack ID, pack version)` and resolves them only when the
+caller also supplies the expected content digest. It has no `latest` selector. Re-registering the
+same verified bytes is idempotent; attempting to replace a registered version with a different
+digest fails as version substitution. A same-digest/different-content state fails as a digest
+collision.
+
+The generated `canisend.workflow-pack-snapshot/v1` value records pack ID, version, origin,
+content digest, canonical manifest SHA-256, and the sorted resource identity/version/path/size/hash
+inventory. It is an immutable binding value for future Workspace persistence; the current
+in-memory registry does not yet install files or mutate a Workspace.
 
 ## Compatibility promise
 

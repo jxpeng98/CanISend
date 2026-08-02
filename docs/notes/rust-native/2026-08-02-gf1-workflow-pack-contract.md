@@ -50,12 +50,13 @@ invalid digests and compatibility ranges, missing locales, unselected capabiliti
 terminal-disconnected stages, missing templates, script resources, oversized declarations, and
 excessive JSON depth.
 
-## Next boundary
+## Subsequent boundary
 
-GF1-REG-001 should define canonical pack-bundle hashing, verify actual resource bytes against the
-manifest, match capability IDs against a kernel-owned registry, store immutable pack snapshots,
-and reject substitution or silent update. It must consume this contract rather than adding a
-second manifest shape.
+The additive GF1-REG-001 foundation now consumes this contract to verify canonical bundle hashes,
+actual resource bytes, runtime compatibility, registered capability IDs, immutable snapshot
+values, and substitution protection. Its separate
+[implementation record](2026-08-02-gf1-workflow-pack-registry.md) owns those claims and documents
+the still-disabled external installation and persistent Workspace binding boundary.
 
 ## Rollback
 
