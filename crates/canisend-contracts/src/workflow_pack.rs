@@ -26,6 +26,8 @@ pub const WORKFLOW_PACK_MAX_JSON_NODES: usize = 20_000;
 pub const WORKFLOW_PACK_MAX_RESOURCE_BYTES: u64 = 8 * 1024 * 1024;
 pub const WORKFLOW_PACK_MAX_TOTAL_RESOURCE_BYTES: u64 = 64 * 1024 * 1024;
 pub const WORKFLOW_PACK_MAX_STAGES: usize = 64;
+pub const WORKFLOW_PACK_MAX_DELIVERABLE_KINDS: usize = 64;
+pub const WORKFLOW_PACK_MAX_DELIVERABLE_CARDINALITY: u16 = 32;
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 #[error("{code}: {message}")]
@@ -94,6 +96,7 @@ workflow_pack_string!(WorkflowPackItemId, validate_item_id);
 workflow_pack_string!(WorkflowPackLocaleId, validate_locale_id);
 workflow_pack_string!(WorkflowPackCapabilityId, validate_capability_id);
 workflow_pack_string!(StageId, validate_stage_id);
+workflow_pack_string!(DeliverableKindId, validate_deliverable_kind_id);
 
 impl StageId {
     const SEPARATOR: char = ':';
@@ -125,6 +128,36 @@ impl StageId {
     }
 }
 
+impl DeliverableKindId {
+    const SEPARATOR: char = ':';
+
+    #[must_use]
+    pub fn from_parts(pack_id: &WorkflowPackId, local_id: &WorkflowPackItemId) -> Self {
+        Self(format!(
+            "{}{separator}{}",
+            pack_id.as_str(),
+            local_id.as_str(),
+            separator = Self::SEPARATOR,
+        ))
+    }
+
+    #[must_use]
+    pub fn pack_id_str(&self) -> &str {
+        self.0
+            .split_once(Self::SEPARATOR)
+            .expect("validated DeliverableKindId contains the separator")
+            .0
+    }
+
+    #[must_use]
+    pub fn local_id_str(&self) -> &str {
+        self.0
+            .split_once(Self::SEPARATOR)
+            .expect("validated DeliverableKindId contains the separator")
+            .1
+    }
+}
+
 fn validate_pack_id(value: &str) -> Result<(), WorkflowPackIdentityError> {
     validate_qualified_id(value, 3, "workflow_pack.id_invalid")
 }
@@ -138,12 +171,27 @@ fn validate_capability_id(value: &str) -> Result<(), WorkflowPackIdentityError> 
 }
 
 fn validate_stage_id(value: &str) -> Result<(), WorkflowPackIdentityError> {
-    let invalid = || {
-        WorkflowPackIdentityError::new(
-            "workflow_pack.stage_id_invalid",
-            "expected `<workflow-pack-id>:<local-stage-id>`",
-        )
-    };
+    validate_pack_owned_id(
+        value,
+        "workflow_pack.stage_id_invalid",
+        "expected `<workflow-pack-id>:<local-stage-id>`",
+    )
+}
+
+fn validate_deliverable_kind_id(value: &str) -> Result<(), WorkflowPackIdentityError> {
+    validate_pack_owned_id(
+        value,
+        "workflow_pack.deliverable_kind_id_invalid",
+        "expected `<workflow-pack-id>:<local-deliverable-kind-id>`",
+    )
+}
+
+fn validate_pack_owned_id(
+    value: &str,
+    code: &'static str,
+    message: &'static str,
+) -> Result<(), WorkflowPackIdentityError> {
+    let invalid = || WorkflowPackIdentityError::new(code, message);
     let Some((pack_id, local_id)) = value.split_once(':') else {
         return Err(invalid());
     };
@@ -948,11 +996,15 @@ fn validate_resources(manifest: &WorkflowPackManifest, violations: &mut Vec<Cont
 }
 
 fn validate_deliverables(manifest: &WorkflowPackManifest, violations: &mut Vec<ContractViolation>) {
-    if manifest.deliverables.kinds.is_empty() || manifest.deliverables.kinds.len() > 64 {
+    if manifest.deliverables.kinds.is_empty()
+        || manifest.deliverables.kinds.len() > WORKFLOW_PACK_MAX_DELIVERABLE_KINDS
+    {
         violations.push(ContractViolation::new(
             "workflow_pack.deliverable_count_invalid",
             "/deliverables/kinds",
-            "a workflow pack must define between 1 and 64 Deliverable kinds",
+            format!(
+                "a workflow pack must define between 1 and {WORKFLOW_PACK_MAX_DELIVERABLE_KINDS} Deliverable kinds"
+            ),
         ));
     }
     let resource_templates = manifest
@@ -990,12 +1042,14 @@ fn validate_deliverables(manifest: &WorkflowPackManifest, violations: &mut Vec<C
         );
         if deliverable.maximum == 0
             || deliverable.minimum > deliverable.maximum
-            || deliverable.maximum > 32
+            || deliverable.maximum > WORKFLOW_PACK_MAX_DELIVERABLE_CARDINALITY
         {
             violations.push(ContractViolation::new(
                 "workflow_pack.deliverable_cardinality_invalid",
                 format!("/deliverables/kinds/{index}"),
-                "Deliverable cardinality must satisfy 0 <= minimum <= maximum <= 32 and maximum > 0",
+                format!(
+                    "Deliverable cardinality must satisfy 0 <= minimum <= maximum <= {WORKFLOW_PACK_MAX_DELIVERABLE_CARDINALITY} and maximum > 0"
+                ),
             ));
         }
         if let Some(template) = &deliverable.template
@@ -1242,16 +1296,16 @@ mod tests {
     use serde_json::{Value, json};
 
     use super::{
-        CandidateValidationError, ExecutionMode, SafeRelativePath, SemanticVersion, Sha256Digest,
-        StageId, WorkflowPackApplicationDefinition, WorkflowPackCapabilities,
-        WorkflowPackCategoryDefinition, WorkflowPackCompatibility, WorkflowPackDeliverableCatalog,
-        WorkflowPackDeliverableDefinition, WorkflowPackFieldDefinition, WorkflowPackFieldType,
-        WorkflowPackFormat, WorkflowPackId, WorkflowPackItemId, WorkflowPackLocaleId,
-        WorkflowPackLocalizedText, WorkflowPackManifest, WorkflowPackPublisher,
-        WorkflowPackPublisherId, WorkflowPackResource, WorkflowPackResourceKind,
-        WorkflowPackStageDefinition, WorkflowPackStageOutput, WorkflowPackTaxonomy,
-        WorkflowPackValidationPolicy, WorkflowPackValidatorDefinition, WorkflowPackVocabulary,
-        WorkflowPackWorkflowDefinition, validate_workflow_pack_manifest,
+        CandidateValidationError, DeliverableKindId, ExecutionMode, SafeRelativePath,
+        SemanticVersion, Sha256Digest, StageId, WorkflowPackApplicationDefinition,
+        WorkflowPackCapabilities, WorkflowPackCategoryDefinition, WorkflowPackCompatibility,
+        WorkflowPackDeliverableCatalog, WorkflowPackDeliverableDefinition,
+        WorkflowPackFieldDefinition, WorkflowPackFieldType, WorkflowPackFormat, WorkflowPackId,
+        WorkflowPackItemId, WorkflowPackLocaleId, WorkflowPackLocalizedText, WorkflowPackManifest,
+        WorkflowPackPublisher, WorkflowPackPublisherId, WorkflowPackResource,
+        WorkflowPackResourceKind, WorkflowPackStageDefinition, WorkflowPackStageOutput,
+        WorkflowPackTaxonomy, WorkflowPackValidationPolicy, WorkflowPackValidatorDefinition,
+        WorkflowPackVocabulary, WorkflowPackWorkflowDefinition, validate_workflow_pack_manifest,
     };
 
     fn item(value: &str) -> WorkflowPackItemId {
@@ -1441,6 +1495,37 @@ mod tests {
             "org.canisend:review",
         ] {
             assert!(StageId::try_new(invalid).is_err(), "accepted {invalid}");
+        }
+    }
+
+    #[test]
+    fn deliverable_kind_id_is_pack_qualified_and_cross_pack_distinct() {
+        let first_pack = WorkflowPackId::try_new("org.canisend.first-pack").expect("first pack");
+        let second_pack = WorkflowPackId::try_new("org.canisend.second-pack").expect("second pack");
+        let local_id = item("statement");
+        let first = DeliverableKindId::from_parts(&first_pack, &local_id);
+        let second = DeliverableKindId::from_parts(&second_pack, &local_id);
+        assert_eq!(first.as_str(), "org.canisend.first-pack:statement");
+        assert_eq!(first.pack_id_str(), first_pack.as_str());
+        assert_eq!(first.local_id_str(), local_id.as_str());
+        assert_ne!(first, second);
+        assert_eq!(
+            serde_json::from_value::<DeliverableKindId>(
+                serde_json::to_value(&first).expect("Deliverable kind JSON")
+            )
+            .expect("Deliverable kind round trip"),
+            first
+        );
+        for invalid in [
+            "statement",
+            "org.canisend.first-pack:",
+            "org.canisend.first-pack:Statement",
+            "org.canisend.first-pack:statement:extra",
+        ] {
+            assert!(
+                DeliverableKindId::try_new(invalid).is_err(),
+                "accepted {invalid}"
+            );
         }
     }
 

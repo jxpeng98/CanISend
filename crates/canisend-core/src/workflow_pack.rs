@@ -715,7 +715,7 @@ mod tests {
     use serde_json::Value;
     use sha2::{Digest, Sha256};
 
-    use crate::WorkflowPackStageGraph;
+    use crate::{WorkflowPackDeliverableCatalogRuntime, WorkflowPackStageGraph};
 
     use super::{
         VerifiedWorkflowPackBundle, WorkflowPackBundleError, WorkflowPackCapabilityRegistry,
@@ -911,6 +911,13 @@ mod tests {
             "org.canisend.registry-test:export"
         );
         assert_eq!(graph.topological_order().len(), 2);
+        let deliverables = WorkflowPackDeliverableCatalogRuntime::from_verified_bundle(&first)
+            .expect("verified manifest compiles into a Deliverable catalog");
+        assert_eq!(deliverables.len(), 1);
+        assert_eq!(
+            deliverables.descriptors()[0].kind().as_str(),
+            "org.canisend.registry-test:statement"
+        );
         let snapshot_json = serde_json::to_value(first.snapshot()).expect("snapshot JSON");
         assert_eq!(snapshot_json["origin"], "external");
         assert_eq!(

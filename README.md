@@ -70,6 +70,8 @@ The current CLI provides:
   not yet enabled.
 - A deterministic Pack stage-graph compiler with Pack-qualified stable `StageId` values; the
   current fixed Agent/Workspace v2 workflow remains the compatibility runtime.
+- A Pack-qualified Deliverable catalog that binds cardinality, declaration order, templates,
+  Renderers, and Validators; fixed academic `DocumentKind` values remain v2 compatibility types.
 - Fifty-two typed embedded schemas, prompts, templates, examples, and host assets with SHA-256 verification.
 - A truthful capability registry that marks unfinished functions as `planned`.
 - Agent context plus schema/resource diagnostics with deterministic JSON snapshots.

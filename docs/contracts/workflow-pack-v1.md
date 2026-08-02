@@ -122,6 +122,30 @@ and scoped rerun behavior can remain deterministic.
 validation before graph compilation; a Pack cannot introduce a new execution mechanism or output
 authority by naming it in data.
 
+## Deliverable catalog rule
+
+Manifest Deliverable IDs are stable local kebab-case IDs. The kernel qualifies them as
+`<workflow-pack-id>:<local-deliverable-kind-id>`—for example,
+`org.canisend.generic-application:statement`—using `DeliverableKindId`. Equal local names in two
+Packs are distinct and cannot satisfy each other's planning or readiness counts.
+
+The order of `deliverables.kinds` is authoritative presentation and planning order and remains
+part of the Pack content digest. For every Kind, the core compiler independently enforces:
+
+- 1–64 kinds per Pack and unique qualified identity;
+- `0 <= minimum <= maximum <= 32`, with `maximum > 0`;
+- an optional template path resolving to a declared `template` resource;
+- an optional Renderer selected by the Pack, with verified-bundle construction separately
+  requiring admission by the kernel capability registry; and
+- unique Validator-instance references resolving to selected capabilities and their bounded
+  declarative parameters, after the same verified-bundle capability gate.
+
+The compiled template binding freezes resource ID, path, version, byte size, and SHA-256 from the
+verified bundle. Runtime count validation rejects foreign/unknown Kinds, a count below `minimum`,
+and a count above `maximum`, including duplicate instances of a singleton Kind. This is the v3
+catalog foundation; the four fixed academic `DocumentKind` values remain only in the current v2
+compatibility runtime until Workspace migration.
+
 ## Resource rule
 
 The v1 resource kinds are `prompt`, `template`, `example`, and `translation`. Paths use the same
