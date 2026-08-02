@@ -25,6 +25,7 @@ pub const WORKFLOW_PACK_MAX_JSON_DEPTH: usize = 32;
 pub const WORKFLOW_PACK_MAX_JSON_NODES: usize = 20_000;
 pub const WORKFLOW_PACK_MAX_RESOURCE_BYTES: u64 = 8 * 1024 * 1024;
 pub const WORKFLOW_PACK_MAX_TOTAL_RESOURCE_BYTES: u64 = 64 * 1024 * 1024;
+pub const WORKFLOW_PACK_MAX_STAGES: usize = 64;
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 #[error("{code}: {message}")]
@@ -92,6 +93,37 @@ workflow_pack_string!(WorkflowPackPublisherId, validate_publisher_id);
 workflow_pack_string!(WorkflowPackItemId, validate_item_id);
 workflow_pack_string!(WorkflowPackLocaleId, validate_locale_id);
 workflow_pack_string!(WorkflowPackCapabilityId, validate_capability_id);
+workflow_pack_string!(StageId, validate_stage_id);
+
+impl StageId {
+    const SEPARATOR: char = ':';
+
+    #[must_use]
+    pub fn from_parts(pack_id: &WorkflowPackId, local_id: &WorkflowPackItemId) -> Self {
+        Self(format!(
+            "{}{separator}{}",
+            pack_id.as_str(),
+            local_id.as_str(),
+            separator = Self::SEPARATOR,
+        ))
+    }
+
+    #[must_use]
+    pub fn pack_id_str(&self) -> &str {
+        self.0
+            .split_once(Self::SEPARATOR)
+            .expect("validated StageId contains the separator")
+            .0
+    }
+
+    #[must_use]
+    pub fn local_id_str(&self) -> &str {
+        self.0
+            .split_once(Self::SEPARATOR)
+            .expect("validated StageId contains the separator")
+            .1
+    }
+}
 
 fn validate_pack_id(value: &str) -> Result<(), WorkflowPackIdentityError> {
     validate_qualified_id(value, 3, "workflow_pack.id_invalid")
@@ -103,6 +135,25 @@ fn validate_publisher_id(value: &str) -> Result<(), WorkflowPackIdentityError> {
 
 fn validate_capability_id(value: &str) -> Result<(), WorkflowPackIdentityError> {
     validate_qualified_id(value, 2, "workflow_pack.capability_id_invalid")
+}
+
+fn validate_stage_id(value: &str) -> Result<(), WorkflowPackIdentityError> {
+    let invalid = || {
+        WorkflowPackIdentityError::new(
+            "workflow_pack.stage_id_invalid",
+            "expected `<workflow-pack-id>:<local-stage-id>`",
+        )
+    };
+    let Some((pack_id, local_id)) = value.split_once(':') else {
+        return Err(invalid());
+    };
+    if local_id.contains(':')
+        || validate_pack_id(pack_id).is_err()
+        || validate_item_id(local_id).is_err()
+    {
+        return Err(invalid());
+    }
+    Ok(())
 }
 
 fn validate_qualified_id(
@@ -987,11 +1038,11 @@ fn validate_deliverables(manifest: &WorkflowPackManifest, violations: &mut Vec<C
 
 fn validate_workflow(manifest: &WorkflowPackManifest, violations: &mut Vec<ContractViolation>) {
     let stages = &manifest.workflow.stages;
-    if stages.is_empty() || stages.len() > 64 {
+    if stages.is_empty() || stages.len() > WORKFLOW_PACK_MAX_STAGES {
         violations.push(ContractViolation::new(
             "workflow_pack.stage_count_invalid",
             "/workflow/stages",
-            "a workflow pack must define between 1 and 64 stages",
+            format!("a workflow pack must define between 1 and {WORKFLOW_PACK_MAX_STAGES} stages"),
         ));
         return;
     }
@@ -1192,7 +1243,7 @@ mod tests {
 
     use super::{
         CandidateValidationError, ExecutionMode, SafeRelativePath, SemanticVersion, Sha256Digest,
-        WorkflowPackApplicationDefinition, WorkflowPackCapabilities,
+        StageId, WorkflowPackApplicationDefinition, WorkflowPackCapabilities,
         WorkflowPackCategoryDefinition, WorkflowPackCompatibility, WorkflowPackDeliverableCatalog,
         WorkflowPackDeliverableDefinition, WorkflowPackFieldDefinition, WorkflowPackFieldType,
         WorkflowPackFormat, WorkflowPackId, WorkflowPackItemId, WorkflowPackLocaleId,
@@ -1366,6 +1417,34 @@ mod tests {
     }
 
     #[test]
+    fn stage_id_is_pack_qualified_canonical_and_strongly_validated() {
+        let pack_id = WorkflowPackId::try_new("org.canisend.test-pack").expect("pack ID");
+        let local_id = item("review");
+        let stage_id = StageId::from_parts(&pack_id, &local_id);
+        assert_eq!(stage_id.as_str(), "org.canisend.test-pack:review");
+        assert_eq!(stage_id.pack_id_str(), pack_id.as_str());
+        assert_eq!(stage_id.local_id_str(), local_id.as_str());
+        assert_eq!(
+            serde_json::to_value(&stage_id).expect("stage ID JSON"),
+            json!("org.canisend.test-pack:review")
+        );
+        assert_eq!(
+            serde_json::from_value::<StageId>(json!("org.canisend.test-pack:review"))
+                .expect("stage ID round trip"),
+            stage_id
+        );
+        for invalid in [
+            "review",
+            "org.canisend.test-pack:",
+            "org.canisend.test-pack:Review",
+            "org.canisend.test-pack:review:extra",
+            "org.canisend:review",
+        ] {
+            assert!(StageId::try_new(invalid).is_err(), "accepted {invalid}");
+        }
+    }
+
+    #[test]
     fn structural_validation_rejects_unknown_fields_and_resource_kinds() {
         let mut value = valid_value();
         value["unexpected"] = json!(true);
@@ -1380,6 +1459,24 @@ mod tests {
             validate_workflow_pack_manifest(&value),
             Err(CandidateValidationError::Structural(_))
         ));
+
+        for (pointer, invalid) in [
+            ("/workflow/stages/0/output", json!("database-write")),
+            (
+                "/workflow/stages/0/execution_modes/0",
+                json!("arbitrary-process"),
+            ),
+        ] {
+            let mut value = valid_value();
+            *value.pointer_mut(pointer).expect("stage fixture pointer") = invalid;
+            assert!(
+                matches!(
+                    validate_workflow_pack_manifest(&value),
+                    Err(CandidateValidationError::Structural(_))
+                ),
+                "accepted invalid stage field at {pointer}",
+            );
+        }
     }
 
     #[test]

@@ -715,6 +715,8 @@ mod tests {
     use serde_json::Value;
     use sha2::{Digest, Sha256};
 
+    use crate::WorkflowPackStageGraph;
+
     use super::{
         VerifiedWorkflowPackBundle, WorkflowPackBundleError, WorkflowPackCapabilityRegistry,
         WorkflowPackOrigin, WorkflowPackRegistry, WorkflowPackRegistryInsert, WorkflowPackRuntime,
@@ -902,6 +904,13 @@ mod tests {
         assert_eq!(first.snapshot().version(), &manifest.version);
         assert_eq!(first.snapshot().content_digest(), &manifest.content_digest);
         assert_eq!(first.snapshot().resources().len(), 1);
+        let graph = WorkflowPackStageGraph::from_verified_bundle(&first)
+            .expect("verified manifest compiles into a stage graph");
+        assert_eq!(
+            graph.terminal_stage().as_str(),
+            "org.canisend.registry-test:export"
+        );
+        assert_eq!(graph.topological_order().len(), 2);
         let snapshot_json = serde_json::to_value(first.snapshot()).expect("snapshot JSON");
         assert_eq!(snapshot_json["origin"], "external");
         assert_eq!(

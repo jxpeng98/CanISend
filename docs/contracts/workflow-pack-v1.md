@@ -106,6 +106,22 @@ Stages declare their prerequisites in `depends_on`. The graph must be acyclic, t
 must exist, and every declared stage must be an ancestor of that terminal stage. This prevents a
 pack from shipping unreachable side workflows that bypass final review/readiness sequencing.
 
+Manifest stage IDs are stable local kebab-case IDs. The kernel qualifies them as
+`<workflow-pack-id>:<local-stage-id>`—for example,
+`org.canisend.generic-application:review`—using the strongly validated `StageId` type. A stage
+from one Pack therefore cannot satisfy a dependency or runtime lookup in another Pack, even when
+both use the same local name.
+
+The core compiler independently rechecks the 1–64 stage bound, unique stages and dependencies,
+1–5 unique execution modes, declared dependencies, acyclicity, terminal existence, and terminal
+reachability. It produces a stable lexical Kahn topological order that does not depend on manifest
+stage declaration order. Descendant queries follow that order so later dependency invalidation
+and scoped rerun behavior can remain deterministic.
+
+`output` and `execution_modes` are closed kernel-owned enums. Unknown values fail Schema
+validation before graph compilation; a Pack cannot introduce a new execution mechanism or output
+authority by naming it in data.
+
 ## Resource rule
 
 The v1 resource kinds are `prompt`, `template`, `example`, and `translation`. Paths use the same

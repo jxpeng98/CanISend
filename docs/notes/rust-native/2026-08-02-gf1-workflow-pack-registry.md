@@ -64,8 +64,9 @@ cargo run -p xtask --locked -- release check
 GF1-REG-001 is not a license to load arbitrary directories. A later app/storage slice must add a
 byte-limited loader, explicit user install/update action, trusted-source policy, atomic immutable
 storage, persisted Application snapshot binding, and reopen verification. Pack migration remains
-separately user-approved and backup-backed. GF1-DAG-001 must next make the runtime consume the
-verified manifest's pack-qualified stages rather than the current fixed academic stage enum.
+separately user-approved and backup-backed. The additive GF1-DAG-001 compiler now consumes a
+verified manifest's Pack-qualified stages, but Workspace v3 graph execution remains disabled until
+the neutral persistence boundary exists.
 
 ## Rollback
 

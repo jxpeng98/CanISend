@@ -194,6 +194,7 @@ Repository evidence currently available:
 |---|---|---|
 | GF1-SCHEMA-001 | [Workflow-pack v1 contract](../../contracts/workflow-pack-v1.md) and [implementation record](../../notes/rust-native/2026-08-02-gf1-workflow-pack-contract.md) | Create/link its work item and inspect the committed focused/source-gate evidence before marking Verified |
 | GF1-REG-001 | [Verified registry implementation record](../../notes/rust-native/2026-08-02-gf1-workflow-pack-registry.md) and the shared [workflow-pack v1 contract](../../contracts/workflow-pack-v1.md) | Add explicit bounded loading and persistent Workspace snapshot binding; create/link its work item and inspect committed evidence before marking Verified |
+| GF1-DAG-001 | [Pack stage-graph implementation record](../../notes/rust-native/2026-08-02-gf1-workflow-pack-stage-graph.md) and the shared [workflow-pack v1 contract](../../contracts/workflow-pack-v1.md) | Bind the graph to Workspace v3 execution/invalidation; create/link its work item and inspect committed evidence before marking Verified |
 
 ### GF2 — Neutral kernel and Workspace v3
 

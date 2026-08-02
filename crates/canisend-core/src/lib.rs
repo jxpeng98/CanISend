@@ -1,7 +1,9 @@
 #![forbid(unsafe_code)]
 
+mod pack_stage_graph;
 mod workflow_pack;
 
+pub use pack_stage_graph::*;
 pub use workflow_pack::*;
 
 use std::collections::{BTreeMap, BTreeSet};
