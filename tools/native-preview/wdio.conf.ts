@@ -49,7 +49,9 @@ export const config = {
       "@wdio/tauri-service",
       {
         appBinaryPath,
-        autoDownloadEdgeDriver: false,
+        // GitHub's Windows images can update WebView2 ahead of their PATH driver. Let the
+        // qualification service resolve the exact matching driver for the detected runtime.
+        autoDownloadEdgeDriver: true,
         autoInstallTauriDriver: false,
         captureBackendLogs: false,
         captureFrontendLogs: false,

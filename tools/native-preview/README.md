@@ -19,6 +19,10 @@ The production boundary is deliberate. WebdriverIO has its own pnpm lock file he
 server is compiled only when Cargo feature `preview-qualification` is explicitly enabled. Neither
 side is present in a normal application build.
 
+On Windows, the qualification service detects the runner's WebView2 version and downloads its
+matching Microsoft Edge WebDriver when the runner image does not already provide one. This is a
+test-time tool only and is not copied into any CanISend package.
+
 `@wdio/tauri-service` 1.2.0 imports `installMockSyncOverride` but declares native-utils 2.4.0,
 whose published package does not export it. The isolated pnpm workspace therefore overrides only
 that transitive package to native-utils 2.5.0, the first published compatible implementation.
