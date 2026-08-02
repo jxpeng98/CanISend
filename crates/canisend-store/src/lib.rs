@@ -15,6 +15,7 @@ mod evidence;
 mod job;
 mod matching;
 mod migration_v3;
+mod pack_migration_v3;
 mod package;
 mod plan;
 mod profile;
@@ -58,6 +59,11 @@ pub use migration_v3::{
     ACADEMIC_JOB_PACK_ID, LEGACY_WORKSPACE_SCHEMA_VERSION, WORKSPACE_V3_MIGRATION_PREVIEW_FORMAT,
     WORKSPACE_V3_MIGRATION_RESULT_FORMAT, WorkspaceV3MigrationPreview, WorkspaceV3MigrationResult,
     WorkspaceV3MigrationService,
+};
+pub use pack_migration_v3::{
+    APPLICATION_PACK_MIGRATION_FORMAT_V3, ApplicationPackMigrationImpactV3,
+    ApplicationPackMigrationPreviewV3, ApplicationPackMigrationResultV3,
+    ApplicationPackMigrationService,
 };
 pub use package::PackageService;
 pub use plan::PlanService;

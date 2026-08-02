@@ -2,13 +2,14 @@
 
 **Authority format:** `canisend.workspace/v3`
 
-**Database schema:** 16
+**Database schema:** 17
 
 **Model format:** `canisend.application-model/v3`
 
 **Runtime status:** Repository, neutral app services, and an explicit dry-run-first,
-verified-backup v2→v3 migration service, and neutral Application projections are implemented. CLI,
-MCP, desktop migration/projection controls and canonical Agent v3 operations remain unavailable.
+verified-backup v2→v3 migration service, neutral Application projections, and exact Pack migration
+with dependency-scoped invalidation are implemented. CLI, MCP, desktop migration/projection/Pack
+controls and canonical Agent v3 operations remain unavailable.
 
 ## Boundary
 
@@ -16,12 +17,13 @@ Migration 14 is a contiguous append-only SQLite migration. It adds dormant Works
 application head/revision, and dependency tables without editing migrations 1–13 or transforming
 existing Job/Agent v2 records.
 
-Opening a Workspace with this binary upgrades its database schema through 16 as an ordinary
+Opening a Workspace with this binary upgrades its database schema through 17 as an ordinary
 structural migration. Migration 15 adds the migration ledger, one-to-one Job/Application links,
 and immutable legacy-row bindings. Migration 16 adds the neutral Application projection manifest.
-None of these structural migrations activates Workspace v3 or reinterprets v2 data. A binary that
-supports an older schema rejects that database as newer; downgrade uses a verified pre-migration
-backup restored to a new path.
+Migration 17 adds the immutable Application Pack-migration ledger. None of these structural
+migrations activates Workspace v3 or reinterprets v2 data. A binary that supports an older schema
+rejects that database as newer; downgrade uses a verified pre-migration backup restored to a new
+path.
 
 The repository refuses create, read, list, history, and commit operations unless the singleton
 authority row contains exactly `canisend.workspace/v3`. Only the migration service can activate
@@ -82,6 +84,14 @@ digests, and edit status. It is independent of v2 Artifact foreign keys and fixe
 The complete publication, reconciliation, legacy-recognition, and recovery behavior is defined in
 the [Application projection v3 contract](application-projections-v3.md).
 
+### `application_pack_v3_migrations`
+
+Records one failure-atomic Pack migration between immutable source and target Application
+revisions. Each row binds the same Pack ID, exact source/target versions and verified content
+digests, both manifest digests, reviewed preview digest, Plan invalidation result, stale
+Deliverable count, actor, reason, and commit time. The complete protocol is defined in the
+[Application Pack migration v3 contract](application-pack-migration-v3.md).
+
 ## Commit protocol
 
 Create and commit use SQLite `BEGIN IMMEDIATE` transactions. A create requires revision one for
@@ -114,8 +124,10 @@ A caller may provide a genuinely replanned or regenerated next revision bound to
 the repository does not overwrite it with stale state. Already stale records are not repeatedly
 advanced merely because another upstream revision changes.
 
-Pack ID/version/digest changes remain rejected here and are owned by GF2-INVALID-001 after the
-explicit Pack-migration workflow exists.
+Ordinary commits still reject Pack ID/version/digest changes. The dedicated migration service
+accepts only an exact current source binding and a verified, higher target version with the same
+Pack ID and an explicit predecessor migration. It advances all Pack-bound entities, rebinds
+unaffected current dependencies, and marks only dependency-reached Plan/Deliverable outputs stale.
 
 ## Concurrency and audit
 

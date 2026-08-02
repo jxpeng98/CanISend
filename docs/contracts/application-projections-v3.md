@@ -18,6 +18,8 @@ The bounded extension is selected from the declared media type. Unknown media ty
 Every manifest row binds the Application revision and snapshot digest, exact Pack ID/version/digest,
 optional Deliverable revision, source digest, generated digest, observed digest, and edit status.
 Projection files never become authoritative and projection operations never submit an Application.
+A catalog row also reports whether its immutable Application revision and Pack binding have been
+superseded by the current head.
 
 ## Publication and ownership
 
@@ -42,6 +44,12 @@ Inspection recalculates filesystem digests and records exactly one of `current`,
 - `replace` explicitly discards one managed edit and regenerates the canonical file.
 - `copy_as_new` requires an edited managed file, creates a new user-owned path below the same
   Application tree, and then regenerates the managed path.
+
+After Pack migration, prior manifest rows remain visible as superseded derived state until the
+current revision is projected. Workspace repair skips them, direct replacement fails stale, and an
+edited superseded file can be preserved only through explicit `copy_as_new`. Current publication
+rebinds each same managed path to the new exact revision and Pack digest; immutable Application
+revisions, not projection manifests, retain history.
 
 Neither reconciliation action changes authoritative revisions. A changed generation recipe or a
 missing/corrupt authoritative Blob fails closed instead of silently producing different bytes.

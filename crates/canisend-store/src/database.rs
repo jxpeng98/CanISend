@@ -7,7 +7,7 @@ use rusqlite::{
 
 use crate::{StoreError, now_utc};
 
-pub const DATABASE_SCHEMA_VERSION: u32 = 16;
+pub const DATABASE_SCHEMA_VERSION: u32 = 17;
 const INITIAL_MIGRATION: &str = include_str!("../migrations/0001_initial.sql");
 const INTAKE_MIGRATION: &str = include_str!("../migrations/0002_job_intake.sql");
 const DISCOVERY_MIGRATION: &str = include_str!("../migrations/0003_discovery.sql");
@@ -27,6 +27,8 @@ const APPLICATION_MODEL_V3_MIGRATION: &str =
 const WORKSPACE_V3_MIGRATION: &str = include_str!("../migrations/0015_workspace_v3_migration.sql");
 const APPLICATION_PROJECTIONS_V3_MIGRATION: &str =
     include_str!("../migrations/0016_application_projections_v3.sql");
+const APPLICATION_PACK_MIGRATIONS_V3_MIGRATION: &str =
+    include_str!("../migrations/0017_application_pack_migrations_v3.sql");
 
 pub struct Database {
     connection: Connection,
@@ -135,6 +137,11 @@ impl Database {
         if version == 15 {
             let applied_at = now_utc()?;
             self.apply_migration(16, APPLICATION_PROJECTIONS_V3_MIGRATION, &applied_at)?;
+            version = 16;
+        }
+        if version == 16 {
+            let applied_at = now_utc()?;
+            self.apply_migration(17, APPLICATION_PACK_MIGRATIONS_V3_MIGRATION, &applied_at)?;
         }
         Ok(())
     }
@@ -269,8 +276,15 @@ impl Database {
                  SELECT artifact_id AS subject_id FROM projection_manifests
                  WHERE status = 'repair-required'
                  UNION
-                 SELECT application_id AS subject_id FROM application_projection_v3_manifests
-                 WHERE status = 'repair-required'
+                 SELECT manifest.application_id AS subject_id
+                 FROM application_projection_v3_manifests AS manifest
+                 JOIN application_model_v3_heads AS head
+                   ON head.application_id = manifest.application_id
+                  AND head.head_revision = manifest.application_revision
+                  AND head.pack_id = manifest.pack_id
+                  AND head.pack_version = manifest.pack_version
+                  AND head.pack_digest = manifest.pack_digest
+                 WHERE manifest.status = 'repair-required'
              ) ORDER BY subject_id",
         )?;
         statement

@@ -42,6 +42,7 @@ pub struct ApplicationProjectionRecordV3 {
     pub generated_sha256: Sha256Digest,
     pub observed_sha256: Option<Sha256Digest>,
     pub edit_status: ProjectionEditStatus,
+    pub superseded: bool,
     pub updated_at: canisend_contracts::UtcTimestamp,
 }
 
@@ -172,6 +173,10 @@ impl<'a> ApplicationProjectionService<'a> {
             )?;
             projection.edit_status = status;
             projection.observed_sha256 = observed;
+            projection.superseded = projection.application_revision
+                != current.snapshot.application.revision
+                || projection.snapshot_sha256 != current.snapshot_sha256
+                || projection.pack != current.snapshot.pack;
             projection.updated_at = inspected_at.clone();
         }
         let legacy_projections = recognize_legacy_projections(
@@ -240,10 +245,13 @@ impl<'a> ApplicationProjectionService<'a> {
         let current = ApplicationModelRepository::new(self.database).get(application_id)?;
         let mut row = load_projection_row(self.database.connection(), relative_path)?
             .ok_or_else(|| StoreError::ProjectionNotFound(relative_path.to_string()))?;
-        if row.application_id != *application_id
-            || row.application_revision != current.snapshot.application.revision
+        if row.application_id != *application_id {
+            return Err(StoreError::ProjectionNotFound(relative_path.to_string()));
+        }
+        let superseded = row.application_revision != current.snapshot.application.revision
             || row.snapshot_sha256 != current.snapshot_sha256
-        {
+            || row.pack != current.snapshot.pack;
+        if superseded && copy_destination.is_none() {
             return Err(StoreError::TaskStale(
                 "Application projection does not bind the current Application revision".to_owned(),
             ));
@@ -288,6 +296,7 @@ impl<'a> ApplicationProjectionService<'a> {
         )?;
         row.edit_status = ProjectionEditStatus::Current;
         row.observed_sha256 = Some(row.generated_sha256.clone());
+        row.superseded = superseded;
         row.updated_at = reconciled_at.clone();
         Ok(ApplicationProjectionReconcileV3 {
             application_id: application_id.clone(),
@@ -393,6 +402,7 @@ fn generated_projection(
             generated_sha256,
             observed_sha256: None,
             edit_status: ProjectionEditStatus::Missing,
+            superseded: false,
             updated_at: updated_at.clone(),
         },
         bytes,
@@ -635,11 +645,20 @@ fn load_all_projection_rows(
 ) -> Result<Vec<ApplicationProjectionRecordV3>, StoreError> {
     query_projection_rows(
         connection,
-        "SELECT application_id, application_revision, snapshot_sha256,
-                pack_id, pack_version, pack_digest, relative_path, projection_kind,
-                deliverable_id, deliverable_revision, source_sha256, generated_sha256,
-                observed_sha256, status, updated_at
-         FROM application_projection_v3_manifests ORDER BY relative_path",
+        "SELECT manifest.application_id, manifest.application_revision, manifest.snapshot_sha256,
+                manifest.pack_id, manifest.pack_version, manifest.pack_digest,
+                manifest.relative_path, manifest.projection_kind,
+                manifest.deliverable_id, manifest.deliverable_revision,
+                manifest.source_sha256, manifest.generated_sha256,
+                manifest.observed_sha256, manifest.status, manifest.updated_at
+         FROM application_projection_v3_manifests AS manifest
+         JOIN application_model_v3_heads AS head
+           ON head.application_id = manifest.application_id
+          AND head.head_revision = manifest.application_revision
+          AND head.pack_id = manifest.pack_id
+          AND head.pack_version = manifest.pack_version
+          AND head.pack_digest = manifest.pack_digest
+         ORDER BY relative_path",
         [],
     )
 }
@@ -755,6 +774,7 @@ fn parse_projection_row(
         generated_sha256: Sha256Digest::try_new(generated_sha256)?,
         observed_sha256: observed_sha256.map(Sha256Digest::try_new).transpose()?,
         edit_status: enum_value(&status)?,
+        superseded: false,
         updated_at: canisend_contracts::UtcTimestamp::try_new(updated_at)?,
     })
 }

@@ -8,8 +8,8 @@
 
 **Runtime status:** Additive neutral model, transactional repository, and backup-backed semantic
 migration foundation. Job/Agent v2 remains the compatibility runtime until the academic Pack and
-canonical v3 adapters land. Neutral Store projections are implemented; Pack-migration invalidation
-and Agent v3/shared-surface operations remain separate roadmap tasks.
+canonical v3 adapters land. Neutral Store projections and dependency-scoped Pack migration are
+implemented; Agent v3/shared-surface operations remain separate roadmap tasks.
 
 ## Boundary
 
@@ -38,6 +38,12 @@ The aggregate validator rejects any record whose binding differs in any componen
 `<workflow-pack-id>:<local-deliverable-kind-id>` and fail when their namespace differs from the
 record's Pack binding. Other Pack taxonomy values use validated local item IDs interpreted only
 inside that exact binding.
+
+An ordinary Application commit cannot change any Pack-binding component. A dedicated migration
+may advance only to a verified higher version of the same Pack ID when that target declares the
+current version as a predecessor. The reviewed migration atomically rewrites every entity binding,
+maps declared taxonomy IDs, and preserves immutable source history. A direct Pack-ID replacement
+requires a future import/clone boundary rather than migration.
 
 ## Records
 

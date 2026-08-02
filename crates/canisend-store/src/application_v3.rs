@@ -769,7 +769,7 @@ fn ensure_ids_preserved<'a, T: Ord + std::fmt::Display + 'a>(
     Ok(())
 }
 
-fn validate_snapshot(snapshot: &ApplicationModelSnapshotV3) -> Result<(), StoreError> {
+pub(crate) fn validate_snapshot(snapshot: &ApplicationModelSnapshotV3) -> Result<(), StoreError> {
     let violations = snapshot.validate_semantics();
     if violations.is_empty() {
         Ok(())
@@ -778,7 +778,7 @@ fn validate_snapshot(snapshot: &ApplicationModelSnapshotV3) -> Result<(), StoreE
     }
 }
 
-fn serialize_snapshot(
+pub(crate) fn serialize_snapshot(
     snapshot: &ApplicationModelSnapshotV3,
 ) -> Result<(String, Sha256Digest), StoreError> {
     let snapshot_json = serde_json::to_string(snapshot)?;
@@ -787,7 +787,7 @@ fn serialize_snapshot(
     Ok((snapshot_json, snapshot_sha256))
 }
 
-fn load_current(
+pub(crate) fn load_current(
     connection: &Connection,
     application_id: &ApplicationId,
 ) -> Result<StoredApplicationModelV3, StoreError> {
@@ -904,7 +904,7 @@ pub(crate) fn load_application_model_revision(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn insert_revision(
+pub(crate) fn insert_revision(
     transaction: &Transaction<'_>,
     snapshot: &ApplicationModelSnapshotV3,
     snapshot_json: &str,
@@ -930,7 +930,7 @@ fn insert_revision(
     Ok(())
 }
 
-fn insert_content_blob_references(
+pub(crate) fn insert_content_blob_references(
     transaction: &Transaction<'_>,
     snapshot: &ApplicationModelSnapshotV3,
     committed_at: &UtcTimestamp,
@@ -954,7 +954,7 @@ fn insert_content_blob_references(
     Ok(())
 }
 
-fn insert_dependencies(
+pub(crate) fn insert_dependencies(
     transaction: &Transaction<'_>,
     snapshot: &ApplicationModelSnapshotV3,
 ) -> Result<(), StoreError> {
@@ -1050,7 +1050,7 @@ fn insert_dependency(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn insert_audit(
+pub(crate) fn insert_audit(
     transaction: &Transaction<'_>,
     event_id: &str,
     actor: &str,
@@ -1077,7 +1077,7 @@ fn insert_audit(
     Ok(())
 }
 
-fn validate_reason(value: &str) -> Result<&str, StoreError> {
+pub(crate) fn validate_reason(value: &str) -> Result<&str, StoreError> {
     WorkflowPackItemId::try_new(value).map_err(|_| {
         StoreError::InvalidInput(
             "application-model reason must be a bounded lowercase kebab-case code".to_owned(),
@@ -1086,7 +1086,7 @@ fn validate_reason(value: &str) -> Result<&str, StoreError> {
     Ok(value)
 }
 
-fn next_revision(revision: Revision) -> Result<Revision, StoreError> {
+pub(crate) fn next_revision(revision: Revision) -> Result<Revision, StoreError> {
     Revision::try_new(
         revision
             .get()
@@ -1104,7 +1104,7 @@ fn timestamp_after(left: &UtcTimestamp, right: &UtcTimestamp) -> Result<bool, St
     Ok(left > right)
 }
 
-fn enum_name<T: Serialize>(value: T) -> Result<String, StoreError> {
+pub(crate) fn enum_name<T: Serialize>(value: T) -> Result<String, StoreError> {
     serde_json::to_value(value)?
         .as_str()
         .map(ToOwned::to_owned)
@@ -1115,7 +1115,7 @@ fn enum_value<T: serde::de::DeserializeOwned>(value: &str) -> Result<T, StoreErr
     serde_json::from_value(serde_json::Value::String(value.to_owned())).map_err(StoreError::from)
 }
 
-fn to_i64(value: u64) -> Result<i64, StoreError> {
+pub(crate) fn to_i64(value: u64) -> Result<i64, StoreError> {
     i64::try_from(value)
         .map_err(|_| StoreError::Invariant("revision exceeds SQLite i64".to_owned()))
 }
