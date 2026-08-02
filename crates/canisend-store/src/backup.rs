@@ -109,6 +109,7 @@ impl Workspace {
             staging.join(".canisend/tmp"),
             staging.join(".canisend/backups"),
             staging.join("jobs"),
+            staging.join("applications"),
             staging.join("profile"),
             staging.join("agent"),
         ] {

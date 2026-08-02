@@ -107,6 +107,7 @@ impl Workspace {
             &paths.temporary,
             &paths.backups,
             &paths.root.join("jobs"),
+            &paths.root.join("applications"),
             &paths.root.join("profile"),
             &paths.root.join("agent"),
         ] {

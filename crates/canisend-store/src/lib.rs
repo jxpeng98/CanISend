@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+mod application_projection_v3;
 mod application_v3;
 mod artifact;
 mod backup;
@@ -29,6 +30,11 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+pub use application_projection_v3::{
+    APPLICATION_PROJECTION_FORMAT_V3, ApplicationLegacyProjectionV3,
+    ApplicationProjectionCatalogV3, ApplicationProjectionKindV3, ApplicationProjectionReconcileV3,
+    ApplicationProjectionRecordV3, ApplicationProjectionService,
+};
 pub use application_v3::{
     ApplicationModelCommitResultV3, ApplicationModelRepository, ApplicationModelRevisionV3,
     StoredApplicationModelV3, WORKSPACE_V3_FORMAT, WorkspaceV3AuthorityState,
@@ -156,7 +162,7 @@ pub enum StoreError {
     InvalidInput(String),
     #[error("artifact dependency is not current: {0}")]
     DependencyConflict(String),
-    #[error("projection path must be inside jobs/ or profile/")]
+    #[error("projection path is outside the managed application, job, or profile tree")]
     ProjectionPathRejected,
     #[error("managed projection contains user edits: {0}")]
     ProjectionEdited(String),

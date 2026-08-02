@@ -8,8 +8,8 @@
 
 **Runtime status:** Additive neutral model, transactional repository, and backup-backed semantic
 migration foundation. Job/Agent v2 remains the compatibility runtime until the academic Pack and
-canonical v3 adapters land; projections, Pack-migration invalidation, and Agent v3 operations are
-separate roadmap tasks.
+canonical v3 adapters land. Neutral Store projections are implemented; Pack-migration invalidation
+and Agent v3/shared-surface operations remain separate roadmap tasks.
 
 ## Boundary
 

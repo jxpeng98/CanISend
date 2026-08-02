@@ -117,6 +117,7 @@ impl<'a> ApplicationModelRepository<'a> {
             &reason,
             &committed_at,
         )?;
+        insert_content_blob_references(&transaction, &snapshot, &committed_at)?;
         insert_dependencies(&transaction, &snapshot)?;
         insert_audit(
             &transaction,
@@ -254,6 +255,7 @@ impl<'a> ApplicationModelRepository<'a> {
             &reason,
             &committed_at,
         )?;
+        insert_content_blob_references(&transaction, &snapshot, &committed_at)?;
         let updated = transaction.execute(
             "UPDATE application_model_v3_heads
              SET opportunity_id = ?2, head_revision = ?3, updated_at = ?4
@@ -858,6 +860,49 @@ fn load_current(
     })
 }
 
+pub(crate) fn load_application_model_revision(
+    connection: &Connection,
+    application_id: &ApplicationId,
+    revision: Revision,
+) -> Result<StoredApplicationModelV3, StoreError> {
+    let row: Option<(String, String, String)> = connection
+        .query_row(
+            "SELECT snapshot_json, snapshot_sha256, created_at
+             FROM application_model_v3_revisions
+             WHERE application_id = ?1 AND revision = ?2",
+            params![application_id.as_str(), to_i64(revision.get())?],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .optional()?;
+    let (snapshot_json, stored_digest, committed_at) = row.ok_or_else(|| {
+        StoreError::ApplicationModelNotFound(format!("{application_id}@{}", revision.get()))
+    })?;
+    let calculated_digest = hex::encode(Sha256::digest(snapshot_json.as_bytes()));
+    if calculated_digest != stored_digest {
+        return Err(StoreError::ApplicationModelIntegrity(format!(
+            "snapshot digest mismatch for Application {application_id}@{}",
+            revision.get()
+        )));
+    }
+    let value = serde_json::from_str(&snapshot_json)?;
+    let snapshot = validate_application_model_snapshot_v3(&value).map_err(|error| {
+        StoreError::ApplicationModelIntegrity(format!(
+            "stored snapshot contract validation failed: {error}"
+        ))
+    })?;
+    if snapshot.application.id != *application_id || snapshot.application.revision != revision {
+        return Err(StoreError::ApplicationModelIntegrity(format!(
+            "stored snapshot identity differs for Application {application_id}@{}",
+            revision.get()
+        )));
+    }
+    Ok(StoredApplicationModelV3 {
+        snapshot,
+        snapshot_sha256: Sha256Digest::try_new(stored_digest)?,
+        committed_at: UtcTimestamp::try_new(committed_at)?,
+    })
+}
+
 #[allow(clippy::too_many_arguments)]
 fn insert_revision(
     transaction: &Transaction<'_>,
@@ -882,6 +927,30 @@ fn insert_revision(
             committed_at.as_str(),
         ],
     )?;
+    Ok(())
+}
+
+fn insert_content_blob_references(
+    transaction: &Transaction<'_>,
+    snapshot: &ApplicationModelSnapshotV3,
+    committed_at: &UtcTimestamp,
+) -> Result<(), StoreError> {
+    for deliverable in &snapshot.deliverables {
+        let Some(content) = &deliverable.content else {
+            continue;
+        };
+        transaction.execute(
+            "INSERT OR IGNORE INTO blob_references(
+                sha256, owner_type, owner_id, owner_revision, created_at
+             ) VALUES (?1, 'application-v3-content', ?2, ?3, ?4)",
+            params![
+                content.sha256.as_str(),
+                content.id.as_str(),
+                to_i64(content.revision.get())?,
+                committed_at.as_str(),
+            ],
+        )?;
+    }
     Ok(())
 }
 

@@ -2,13 +2,13 @@
 
 **Authority format:** `canisend.workspace/v3`
 
-**Database schema:** 15
+**Database schema:** 16
 
 **Model format:** `canisend.application-model/v3`
 
 **Runtime status:** Repository, neutral app services, and an explicit dry-run-first,
-verified-backup v2→v3 migration service are implemented. CLI, MCP, desktop migration controls and
-canonical Agent v3 operations remain unavailable.
+verified-backup v2→v3 migration service, and neutral Application projections are implemented. CLI,
+MCP, desktop migration/projection controls and canonical Agent v3 operations remain unavailable.
 
 ## Boundary
 
@@ -16,11 +16,12 @@ Migration 14 is a contiguous append-only SQLite migration. It adds dormant Works
 application head/revision, and dependency tables without editing migrations 1–13 or transforming
 existing Job/Agent v2 records.
 
-Opening a Workspace with this binary upgrades its database schema through 15 as an ordinary
+Opening a Workspace with this binary upgrades its database schema through 16 as an ordinary
 structural migration. Migration 15 adds the migration ledger, one-to-one Job/Application links,
-and immutable legacy-row bindings. Neither structural migration activates Workspace v3 or
-reinterprets v2 data. A binary that supports only schema 13 or 14 rejects that database as newer;
-downgrade uses a verified pre-migration backup restored to a new path.
+and immutable legacy-row bindings. Migration 16 adds the neutral Application projection manifest.
+None of these structural migrations activates Workspace v3 or reinterprets v2 data. A binary that
+supports an older schema rejects that database as newer; downgrade uses a verified pre-migration
+backup restored to a new path.
 
 The repository refuses create, read, list, history, and commit operations unless the singleton
 authority row contains exactly `canisend.workspace/v3`. Only the migration service can activate
@@ -54,7 +55,9 @@ commit cannot change it; Pack change requires the dedicated migration/invalidati
 Stores immutable compact JSON snapshots, SHA-256 over the exact stored bytes, actor, bounded
 lowercase kebab-case reason code, and commit timestamp under `(application_id, revision)`. Reads recalculate the digest,
 run the v3 structural/semantic contract, and compare head identity, Pack, Opportunity, and
-revision metadata before returning data.
+revision metadata before returning data. Every materialized Deliverable content identity is also
+registered in the shared Blob-reference ledger in the same transaction, so check, backup, and
+restore cover v3 content even before a projection is requested.
 
 ### `application_model_v3_dependencies`
 
@@ -70,6 +73,14 @@ times. `workspace_v3_application_links` records the deterministic one-to-one leg
 Opportunity, and Application mapping. `workspace_v3_legacy_bindings` binds every source row from
 the frozen v2 table inventory to its row digest, optional Application, and exact academic Pack
 digest without copying private bodies or changing legacy rows.
+
+### `application_projection_v3_manifests`
+
+Stores managed `applications/APPLICATION_ID/` paths bound to an immutable Application revision,
+snapshot digest, exact Pack identity, optional Deliverable revision, source/generated/observed
+digests, and edit status. It is independent of v2 Artifact foreign keys and fixed document kinds.
+The complete publication, reconciliation, legacy-recognition, and recovery behavior is defined in
+the [Application projection v3 contract](application-projections-v3.md).
 
 ## Commit protocol
 
@@ -123,5 +134,6 @@ repository. User-facing writes record `ActorKind::User`; Agent v3 actor routing 
 the canonical v3 operation registry is implemented. On a current v2 Workspace every method fails
 closed at the authority gate before model mutation.
 
-These methods do not install Packs, migrate Workspaces, create projections, render, export, call a
-provider, use the network, or submit an application.
+These methods do not install Packs, migrate Workspaces, render, export, call a provider, use the
+network, or submit an application. Projection operations are a separate Store service and are not
+yet exposed by the neutral app-service surface.

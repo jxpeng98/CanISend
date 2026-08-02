@@ -4,8 +4,8 @@
 
 **Reviewed:** 2026-08-02
 
-CanISend treats SQLite rows and immutable blobs as authoritative state. Files under `jobs/`,
-`profile/`, and `agent/` are projections or scoped exports and are not backup authority. A command
+CanISend treats SQLite rows and immutable blobs as authoritative state. Files under `applications/`,
+`jobs/`, `profile/`, and `agent/` are projections or scoped exports and are not backup authority. A command
 may publish an immutable blob before its SQLite transaction commits; such a blob is deliberately
 retained as an auditable, unreferenced object. A committed database reference must always resolve
 to a verified blob.
@@ -33,6 +33,10 @@ to a verified blob.
 | Workspace v2→v3 competing writer | A second connection holds an immediate transaction through the migration attempt | Bounded `SQLITE_BUSY`/`SQLITE_LOCKED`, verified backup, no mixed authority, and successful retry after lock release | `migration_v3::tests::database_busy_leaves_verified_backup_and_retryable_v2_authority` |
 | Workspace v2→v3 edited projection | A legacy projection manifest is `edited` and its file contains user-owned bytes | Preview counts the conflict; migration changes neither the file bytes nor projection-state digest | `migration_v3::tests::edited_legacy_projection_is_counted_and_preserved_byte_for_byte` |
 | Older schema gate opens a newer Workspace | Compatibility check supports schema N−1 while the Workspace is schema N | Stable upgrade/restore refusal occurs before configuration or migration; v3 rows and authority remain unchanged | `database::tests::future_schema_and_incomplete_history_are_rejected_without_mutation`; `migration_v3::tests::older_schema_gate_refuses_v3_without_mutation_and_backup_restores_v2` |
+| Application v3 projection preflight | An unmanaged target, symbolic-link parent, or missing authoritative content Blob is present | Publication fails before v3 manifest ownership or writes outside the managed root | `application_projection_v3::tests::unmanaged_missing_blob_and_symlink_paths_fail_before_projection_ownership` |
+| Application v3 projection edit and repair | One managed file is edited and another is missing | Repair rebuilds only the missing file; replace/copy require explicit user action and never change Application authority | `application_projection_v3::tests::generic_projections_preserve_edits_copy_replace_and_repair` |
+| Application v3 backup restore | Derived files are omitted while materialized Deliverable content is referenced | Backup includes the verified content Blob; restore rebuilds every v3 projection in staging and repeated repair is idempotent | `application_projection_v3::tests::backup_restore_rebuilds_generic_projections_from_authoritative_content` |
+| Migrated academic projection recognition | A linked Job has one managed and one unmanaged legacy file | Only the manifest-backed path is reported read-only; neither file is re-owned or changed | `application_projection_v3::tests::migrated_academic_legacy_projection_is_recognized_but_never_reowned` |
 
 The complete workspace suite in `fast-ci` runs these contracts on Apple Silicon macOS during
 development. Release candidates run the same complete suite in the Linux source gate and the
@@ -47,7 +51,8 @@ and only then renames it to the requested destination. `workspace restore` follo
 1. verify every manifest entry and referenced blob in the source backup;
 2. copy the backup into a private staging directory;
 3. remove the backup-only manifest and create empty derived directories;
-4. open the staged workspace and rebuild missing projections from authoritative blobs;
+4. open the staged workspace and rebuild missing legacy and Application projections from
+   authoritative records and blobs;
 5. atomically rename the staged workspace to the requested destination;
 6. remove staging automatically on any failure before the rename.
 

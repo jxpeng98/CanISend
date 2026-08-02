@@ -278,6 +278,12 @@ impl<'a> ProjectionService<'a> {
                 || generate_from_row(self.blobs, &row),
             )?);
         }
+        repaired += crate::application_projection_v3::ApplicationProjectionService::new(
+            self.database,
+            self.blobs,
+            self.workspace_root,
+        )
+        .repair_all()?;
         Ok(repaired)
     }
 

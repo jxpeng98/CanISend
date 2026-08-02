@@ -1,8 +1,8 @@
 # Backup and recovery
 
 The authoritative workspace is `canisend.toml`, SQLite state, and referenced immutable SHA-256 blobs. Files under
-`jobs/`, `profile/`, and `agent/` are projections or scoped exports; they can be rebuilt where deterministic and are
-not backup authority.
+`applications/`, `jobs/`, `profile/`, and `agent/` are projections or scoped exports; they can be rebuilt where
+deterministic and are not backup authority.
 
 Application Dossiers, the Content Catalog, Agent guidance, and search indexes are not additional
 workspace files. Dossiers, Catalog entries, metadata search, and body-free Agent guidance are
@@ -36,8 +36,9 @@ canisend workspace restore ./applications-backup ./applications-restored
 canisend --workspace ./applications-restored workspace check
 ```
 
-Restore verifies the source, copies it to a unique staging directory, rebuilds missing raw/Markdown/JSON/Typst
-projections from authoritative blobs, and only then publishes the new destination. Failure removes staging.
+Restore verifies the source, copies it to a unique staging directory, rebuilds missing neutral Application and
+legacy raw/Markdown/JSON/Typst projections from authoritative records and blobs, and only then publishes the new
+destination. Failure removes staging.
 
 The macOS GUI exposes the same operation under **Workspaces → Restore backup**. It shows the backup
 and destination before confirmation, and adds the restored workspace to the GUI registry only

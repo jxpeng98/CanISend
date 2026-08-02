@@ -7,7 +7,7 @@ use rusqlite::{
 
 use crate::{StoreError, now_utc};
 
-pub const DATABASE_SCHEMA_VERSION: u32 = 15;
+pub const DATABASE_SCHEMA_VERSION: u32 = 16;
 const INITIAL_MIGRATION: &str = include_str!("../migrations/0001_initial.sql");
 const INTAKE_MIGRATION: &str = include_str!("../migrations/0002_job_intake.sql");
 const DISCOVERY_MIGRATION: &str = include_str!("../migrations/0003_discovery.sql");
@@ -25,6 +25,8 @@ const RENDER_HEADS_MIGRATION: &str = include_str!("../migrations/0013_render_hea
 const APPLICATION_MODEL_V3_MIGRATION: &str =
     include_str!("../migrations/0014_application_model_v3.sql");
 const WORKSPACE_V3_MIGRATION: &str = include_str!("../migrations/0015_workspace_v3_migration.sql");
+const APPLICATION_PROJECTIONS_V3_MIGRATION: &str =
+    include_str!("../migrations/0016_application_projections_v3.sql");
 
 pub struct Database {
     connection: Connection,
@@ -128,6 +130,11 @@ impl Database {
         if version == 14 {
             let applied_at = now_utc()?;
             self.apply_migration(15, WORKSPACE_V3_MIGRATION, &applied_at)?;
+            version = 15;
+        }
+        if version == 15 {
+            let applied_at = now_utc()?;
+            self.apply_migration(16, APPLICATION_PROJECTIONS_V3_MIGRATION, &applied_at)?;
         }
         Ok(())
     }
@@ -258,8 +265,13 @@ impl Database {
 
     pub(crate) fn projection_repairs(&self) -> Result<Vec<String>, StoreError> {
         let mut statement = self.connection.prepare(
-            "SELECT DISTINCT artifact_id FROM projection_manifests
-             WHERE status = 'repair-required' ORDER BY artifact_id",
+            "SELECT subject_id FROM (
+                 SELECT artifact_id AS subject_id FROM projection_manifests
+                 WHERE status = 'repair-required'
+                 UNION
+                 SELECT application_id AS subject_id FROM application_projection_v3_manifests
+                 WHERE status = 'repair-required'
+             ) ORDER BY subject_id",
         )?;
         statement
             .query_map([], |row| row.get(0))?
