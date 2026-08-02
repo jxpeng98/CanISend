@@ -989,7 +989,7 @@ mod tests {
     use std::{
         collections::BTreeMap,
         fs,
-        path::Path,
+        path::PathBuf,
         sync::{
             Arc, Mutex,
             atomic::{AtomicBool, Ordering},
@@ -1170,6 +1170,15 @@ mod tests {
 
     #[test]
     fn bounded_process_stops_when_cancellation_is_requested() {
+        #[cfg(windows)]
+        let (executable, arguments) = (
+            PathBuf::from(std::env::var_os("SystemRoot").expect("Windows system root"))
+                .join("System32/ping.exe"),
+            vec!["-t", "127.0.0.1"],
+        );
+        #[cfg(not(windows))]
+        let (executable, arguments) = (PathBuf::from("/usr/bin/yes"), Vec::new());
+
         let cancellation = Arc::new(AtomicBool::new(false));
         let signal = cancellation.clone();
         let trigger = thread::spawn(move || {
@@ -1177,8 +1186,8 @@ mod tests {
             signal.store(true, Ordering::SeqCst);
         });
         let error = run_process(
-            Path::new("/usr/bin/yes"),
-            &[],
+            &executable,
+            &arguments,
             None,
             None,
             None,
