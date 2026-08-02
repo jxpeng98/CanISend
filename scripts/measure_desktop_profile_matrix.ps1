@@ -45,13 +45,13 @@ try {
     Remove-Item Env:CARGO_PROFILE_RELEASE_OPT_LEVEL -ErrorAction SilentlyContinue
     Remove-Item Env:CARGO_PROFILE_RELEASE_LTO -ErrorAction SilentlyContinue
 
-    $host = Join-Path $candidateRoot "$Target/release/$hostName"
-    if (-not (Test-Path -LiteralPath $host -PathType Leaf)) {
-      throw "Desktop profile host is missing for $($candidate.Name): $host"
+    $hostPath = Join-Path $candidateRoot "$Target/release/$hostName"
+    if (-not (Test-Path -LiteralPath $hostPath -PathType Leaf)) {
+      throw "Desktop profile host is missing for $($candidate.Name): $hostPath"
     }
     $record = Join-Path $EvidenceDirectory ($candidate.Name + '.json')
     cargo run -p xtask --locked -- desktop profile-record `
-      $Target $candidate.Name $candidate.OptLevel $candidate.Lto $host $record
+      $Target $candidate.Name $candidate.OptLevel $candidate.Lto $hostPath $record
     if ($LASTEXITCODE -ne 0) {
       throw "Desktop profile record failed for $($candidate.Name)"
     }
