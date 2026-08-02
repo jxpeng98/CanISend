@@ -36,7 +36,8 @@ governance steps.
 
 ## Remaining boundary
 
-GF2-MIG-002 owns fault injection at every write boundary, low-space/DB-busy matrices, and stable
-old-binary downgrade remediation. GF2-PROJ-001 owns `applications/` projections and legacy path
-recognition. GF3-PACK-001 must provide the reviewed built-in academic Pack consumed by these app
-services before ordinary users can invoke migration.
+GF2-MIG-002 failure injection, low-space/DB-busy qualification, and stable old-binary remediation
+are recorded in the [failure qualification](2026-08-02-gf2-workspace-v3-failure-qualification.md).
+GF2-PROJ-001 owns `applications/` projections and legacy path recognition. GF3-PACK-001 must
+provide the reviewed built-in academic Pack consumed by these app services before ordinary users
+can invoke migration.

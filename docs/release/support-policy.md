@@ -71,6 +71,10 @@ Database migrations 1 through 13 are frozen. Any later `1.0` migration must be c
 rejects a future database schema or incomplete migration history without mutating it; it does not silently repair,
 delete, or rewrite migration authority.
 
+The future-schema check runs before connection configuration and returns a stable
+`upgrade-required` application failure with the found/supported schema versions and the verified
+pre-upgrade-backup recovery action.
+
 There is no supported in-place downgrade. Before upgrading, check and back up every workspace. If an older binary
 cannot accept a workspace opened by a newer binary, restore the verified pre-upgrade backup **restore into a new path**
 and keep the upgraded workspace for diagnosis. The full procedure is in the

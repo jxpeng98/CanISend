@@ -96,6 +96,10 @@ Do not assume that reinstalling the old executable makes the workspace compatibl
 migration, the older binary is designed to reject the future schema without mutation. There is no in-place downgrade
 command and no supported deletion of migration records.
 
+The refusal is emitted before the newer Workspace is configured or migrated and identifies both
+schema versions. Its recovery action is: upgrade CanISend, or restore a verified pre-upgrade backup
+to a new path. Do not repeatedly open or modify the newer Workspace with an incompatible binary.
+
 Restore the pre-upgrade backup into a **new** destination, keep the upgraded workspace untouched for diagnosis, and
 check the restored workspace with the old executable:
 
@@ -110,6 +114,10 @@ check the restored workspace with the old executable:
 Only redirect normal work to the restored path after the old binary accepts it. Never restore over either workspace.
 If Beta and RC have the same schema, an older binary may still open the workspace, but the release qualification
 matrix—not an assumption—must prove that exact version pair.
+
+A backup automatically created by a newer binary's semantic v2→v3 migration is not a substitute
+for this old-binary backup: it already contains the database schema used by the newer binary even
+though v2 semantic authority remains. Keep both backups and label their creating binary/version.
 
 User-edited Markdown or Typst projections are not migration authority. Preserve them separately before choosing
 between an upgraded workspace and a restored pre-upgrade workspace; never copy an edited projection into SQLite or

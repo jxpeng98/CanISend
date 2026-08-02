@@ -37,6 +37,29 @@ pub const ACADEMIC_JOB_PACK_ID: &str = "org.canisend.academic-job";
 pub const LEGACY_WORKSPACE_SCHEMA_VERSION: u32 = 13;
 const BACKUP_METADATA_ALLOWANCE_BYTES: u64 = 64 * 1024;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum MigrationWriteBoundary {
+    AuthorityActivated,
+    ApplicationModelInserted { ordinal: usize },
+    MigrationRecordInserted,
+    ApplicationLinkInserted { ordinal: usize },
+    LegacyBindingInserted { ordinal: usize },
+    MigrationAuditInserted,
+    PreCommitVerified,
+}
+
+trait MigrationWriteObserver {
+    fn after_write(&mut self, boundary: MigrationWriteBoundary) -> Result<(), StoreError>;
+}
+
+struct NoopMigrationWriteObserver;
+
+impl MigrationWriteObserver for NoopMigrationWriteObserver {
+    fn after_write(&mut self, _boundary: MigrationWriteBoundary) -> Result<(), StoreError> {
+        Ok(())
+    }
+}
+
 const LEGACY_TABLES: [&str; 32] = [
     "schema_migrations",
     "workspace_metadata",
@@ -135,6 +158,21 @@ impl<'a> WorkspaceV3MigrationService<'a> {
         expected_plan_sha256: &Sha256Digest,
         backup_destination: &Path,
     ) -> Result<WorkspaceV3MigrationResult, StoreError> {
+        self.migrate_observed(
+            pack,
+            expected_plan_sha256,
+            backup_destination,
+            &mut NoopMigrationWriteObserver,
+        )
+    }
+
+    fn migrate_observed(
+        &mut self,
+        pack: &VerifiedWorkflowPackBundle,
+        expected_plan_sha256: &Sha256Digest,
+        backup_destination: &Path,
+        observer: &mut impl MigrationWriteObserver,
+    ) -> Result<WorkspaceV3MigrationResult, StoreError> {
         let plan = self.build_plan(pack)?;
         if &plan.preview.migration_plan_sha256 != expected_plan_sha256 {
             return Err(StoreError::WorkspaceMigrationConflict(
@@ -185,8 +223,9 @@ impl<'a> WorkspaceV3MigrationService<'a> {
             "migrate-workspace-v2-to-v3",
             &completed_at,
         )?;
+        observer.after_write(MigrationWriteBoundary::AuthorityActivated)?;
         let mut application_ids = Vec::with_capacity(plan.snapshots.len());
-        for snapshot in &plan.snapshots {
+        for (ordinal, snapshot) in plan.snapshots.iter().enumerate() {
             insert_migrated_application_model(
                 &transaction,
                 snapshot,
@@ -195,6 +234,7 @@ impl<'a> WorkspaceV3MigrationService<'a> {
                 &completed_at,
             )?;
             application_ids.push(snapshot.application.id.clone());
+            observer.after_write(MigrationWriteBoundary::ApplicationModelInserted { ordinal })?;
         }
 
         insert_migration_record(
@@ -205,7 +245,8 @@ impl<'a> WorkspaceV3MigrationService<'a> {
             &started_at,
             &completed_at,
         )?;
-        for snapshot in &plan.snapshots {
+        observer.after_write(MigrationWriteBoundary::MigrationRecordInserted)?;
+        for (ordinal, snapshot) in plan.snapshots.iter().enumerate() {
             transaction.execute(
                 "INSERT INTO workspace_v3_application_links(
                     migration_id, legacy_job_id, opportunity_id, application_id
@@ -217,8 +258,9 @@ impl<'a> WorkspaceV3MigrationService<'a> {
                     snapshot.application.id.as_str(),
                 ],
             )?;
+            observer.after_write(MigrationWriteBoundary::ApplicationLinkInserted { ordinal })?;
         }
-        for row in &plan.inventory.rows {
+        for (ordinal, row) in plan.inventory.rows.iter().enumerate() {
             transaction.execute(
                 "INSERT INTO workspace_v3_legacy_bindings(
                     migration_id, source_table, source_key_sha256, row_sha256,
@@ -235,6 +277,7 @@ impl<'a> WorkspaceV3MigrationService<'a> {
                     plan.preview.pack.content_digest.as_str(),
                 ],
             )?;
+            observer.after_write(MigrationWriteBoundary::LegacyBindingInserted { ordinal })?;
         }
         transaction.execute(
             "INSERT INTO audit_events(
@@ -248,8 +291,10 @@ impl<'a> WorkspaceV3MigrationService<'a> {
                 completed_at.as_str(),
             ],
         )?;
+        observer.after_write(MigrationWriteBoundary::MigrationAuditInserted)?;
 
         verify_migrated_transaction(&transaction, &plan)?;
+        observer.after_write(MigrationWriteBoundary::PreCommitVerified)?;
         transaction.commit()?;
 
         let authority = WorkspaceV3AuthorityState {
@@ -1837,6 +1882,86 @@ mod tests {
         }
     }
 
+    #[derive(Default)]
+    struct RecordingObserver {
+        boundaries: Vec<MigrationWriteBoundary>,
+    }
+
+    impl MigrationWriteObserver for RecordingObserver {
+        fn after_write(&mut self, boundary: MigrationWriteBoundary) -> Result<(), StoreError> {
+            self.boundaries.push(boundary);
+            Ok(())
+        }
+    }
+
+    struct InterruptAt {
+        target: MigrationWriteBoundary,
+    }
+
+    impl MigrationWriteObserver for InterruptAt {
+        fn after_write(&mut self, boundary: MigrationWriteBoundary) -> Result<(), StoreError> {
+            if boundary == self.target {
+                return Err(StoreError::WorkspaceMigrationConflict(format!(
+                    "injected interruption at {boundary:?}"
+                )));
+            }
+            Ok(())
+        }
+    }
+
+    fn simple_migration_fixture(
+        label: &str,
+    ) -> (
+        TestDirectory,
+        Workspace,
+        VerifiedWorkflowPackBundle,
+        WorkspaceV3MigrationPreview,
+    ) {
+        let root = TestDirectory::new(label);
+        let mut workspace = Workspace::init(root.path()).expect("Workspace");
+        JobService::new(&mut workspace.database, &workspace.blobs)
+            .create("Role", "Institution", ActorKind::User)
+            .expect("Job");
+        let pack = academic_pack();
+        let preview = WorkspaceV3MigrationService::new(&mut workspace)
+            .preview(&pack)
+            .expect("migration preview");
+        (root, workspace, pack, preview)
+    }
+
+    fn assert_no_v3_migration_writes(workspace: &mut Workspace) {
+        for table in [
+            "workspace_v3_authority",
+            "application_model_v3_heads",
+            "application_model_v3_revisions",
+            "application_model_v3_dependencies",
+            "workspace_v3_migrations",
+            "workspace_v3_application_links",
+            "workspace_v3_legacy_bindings",
+        ] {
+            let count: i64 = workspace
+                .database
+                .connection()
+                .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| {
+                    row.get(0)
+                })
+                .expect("v3 table count");
+            assert_eq!(count, 0, "{table} retained a partial migration write");
+        }
+        let migration_audits: i64 = workspace
+            .database
+            .connection()
+            .query_row(
+                "SELECT COUNT(*) FROM audit_events
+                 WHERE action IN ('workspace-v3.activate', 'application-v3.create',
+                                  'workspace-v3.migrate')",
+                [],
+                |row| row.get(0),
+            )
+            .expect("migration audit count");
+        assert_eq!(migration_audits, 0);
+    }
+
     #[test]
     fn dry_run_is_body_free_and_stale_preview_fails_before_backup() {
         let root = TestDirectory::new("stale-root");
@@ -1910,6 +2035,322 @@ mod tests {
             ApplicationModelRepository::new(&mut workspace.database).authority(),
             Err(StoreError::ApplicationModelUnavailable)
         ));
+    }
+
+    #[test]
+    fn every_logical_write_boundary_rolls_back_and_retries_cleanly() {
+        let (_recording_root, mut recording_workspace, recording_pack, recording_preview) =
+            simple_migration_fixture("boundary-recording");
+        let recording_backup = TestDirectory::new("boundary-recording-backup");
+        let mut recorder = RecordingObserver::default();
+        WorkspaceV3MigrationService::new(&mut recording_workspace)
+            .migrate_observed(
+                &recording_pack,
+                &recording_preview.migration_plan_sha256,
+                recording_backup.path(),
+                &mut recorder,
+            )
+            .expect("record migration boundaries");
+        let expected_boundary_count = usize::try_from(recording_preview.legacy_inventory_count)
+            .expect("legacy inventory count fits usize")
+            + (2 * usize::try_from(recording_preview.application_count)
+                .expect("Application count fits usize"))
+            + 4;
+        assert_eq!(recorder.boundaries.len(), expected_boundary_count);
+        assert_eq!(
+            recorder.boundaries.first(),
+            Some(&MigrationWriteBoundary::AuthorityActivated)
+        );
+        assert_eq!(
+            recorder.boundaries.last(),
+            Some(&MigrationWriteBoundary::PreCommitVerified)
+        );
+
+        for target in recorder.boundaries {
+            let (_root, mut workspace, pack, preview) =
+                simple_migration_fixture("boundary-interruption");
+            let backup = TestDirectory::new("boundary-interruption-backup");
+            let retry_backup = TestDirectory::new("boundary-retry-backup");
+            let references_before = workspace.database.referenced_digests().expect("Blob refs");
+            let mut observer = InterruptAt {
+                target: target.clone(),
+            };
+            let error = WorkspaceV3MigrationService::new(&mut workspace)
+                .migrate_observed(
+                    &pack,
+                    &preview.migration_plan_sha256,
+                    backup.path(),
+                    &mut observer,
+                )
+                .expect_err("injected boundary must interrupt migration");
+            assert!(matches!(error, StoreError::WorkspaceMigrationConflict(_)));
+            verify_backup(backup.path()).expect("interrupted migration backup verifies");
+            assert_no_v3_migration_writes(&mut workspace);
+            assert_eq!(
+                workspace.database.referenced_digests().expect("Blob refs"),
+                references_before
+            );
+            let after = WorkspaceV3MigrationService::new(&mut workspace)
+                .preview(&pack)
+                .expect("v2 preview after rollback");
+            assert_eq!(after.migration_plan_sha256, preview.migration_plan_sha256);
+
+            WorkspaceV3MigrationService::new(&mut workspace)
+                .migrate(&pack, &after.migration_plan_sha256, retry_backup.path())
+                .expect("retry migration");
+            assert_eq!(
+                workspace.status().expect("retry status").workspace_format,
+                WORKSPACE_V3_FORMAT,
+                "retry after {target:?} did not produce valid v3 authority"
+            );
+        }
+    }
+
+    #[test]
+    fn database_busy_leaves_verified_backup_and_retryable_v2_authority() {
+        let (_root, mut workspace, pack, preview) = simple_migration_fixture("database-busy");
+        let backup = TestDirectory::new("database-busy-backup");
+        let retry_backup = TestDirectory::new("database-busy-retry-backup");
+        workspace
+            .database
+            .connection()
+            .busy_timeout(std::time::Duration::from_millis(5))
+            .expect("short busy timeout");
+        let mut blocker = rusqlite::Connection::open(&workspace.paths.database)
+            .expect("second database connection");
+        let blocker_transaction = blocker
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+            .expect("hold external writer lock");
+
+        let error = WorkspaceV3MigrationService::new(&mut workspace)
+            .migrate(&pack, &preview.migration_plan_sha256, backup.path())
+            .expect_err("writer lock must reject migration");
+        assert!(matches!(
+            &error,
+            StoreError::Sqlite(rusqlite::Error::SqliteFailure(code, _))
+                if matches!(
+                    code.code,
+                    rusqlite::ErrorCode::DatabaseBusy | rusqlite::ErrorCode::DatabaseLocked
+                )
+        ));
+        verify_backup(backup.path()).expect("busy-path backup verifies");
+        assert_no_v3_migration_writes(&mut workspace);
+
+        blocker_transaction.rollback().expect("release writer lock");
+        workspace
+            .database
+            .connection()
+            .busy_timeout(std::time::Duration::from_secs(2))
+            .expect("restore busy timeout");
+        WorkspaceV3MigrationService::new(&mut workspace)
+            .migrate(&pack, &preview.migration_plan_sha256, retry_backup.path())
+            .expect("retry after writer releases lock");
+        assert_eq!(
+            workspace.status().expect("status").workspace_format,
+            WORKSPACE_V3_FORMAT
+        );
+    }
+
+    #[test]
+    fn sqlite_full_rolls_back_without_mixed_authority() {
+        let (_root, mut workspace, pack, preview) = simple_migration_fixture("sqlite-full");
+        let backup = TestDirectory::new("sqlite-full-backup");
+        let retry_backup = TestDirectory::new("sqlite-full-retry-backup");
+        let page_count = {
+            let connection = workspace.database.connection();
+            connection
+                .execute(
+                    "CREATE TABLE local_migration_space_fixture(
+                        id INTEGER PRIMARY KEY, payload BLOB NOT NULL
+                     ) STRICT",
+                    [],
+                )
+                .expect("create bounded local space fixture");
+            let page_count: u32 = connection
+                .pragma_query_value(None, "page_count", |row| row.get(0))
+                .expect("page count");
+            connection
+                .pragma_update(None, "max_page_count", page_count)
+                .expect("bound database pages");
+            let mut observed_full = false;
+            for _ in 0..10_000 {
+                match connection.execute(
+                    "INSERT INTO local_migration_space_fixture(payload) VALUES (zeroblob(2048))",
+                    [],
+                ) {
+                    Ok(_) => {}
+                    Err(rusqlite::Error::SqliteFailure(code, _))
+                        if code.code == rusqlite::ErrorCode::DiskFull =>
+                    {
+                        observed_full = true;
+                        break;
+                    }
+                    Err(error) => panic!("unexpected local space fixture error: {error}"),
+                }
+            }
+            assert!(observed_full, "bounded database did not reach SQLITE_FULL");
+            page_count
+        };
+
+        let error = WorkspaceV3MigrationService::new(&mut workspace)
+            .migrate(&pack, &preview.migration_plan_sha256, backup.path())
+            .expect_err("full database must reject migration");
+        assert!(matches!(
+            &error,
+            StoreError::Sqlite(rusqlite::Error::SqliteFailure(code, _))
+                if code.code == rusqlite::ErrorCode::DiskFull
+        ));
+        verify_backup(backup.path()).expect("full-path backup verifies");
+        assert_no_v3_migration_writes(&mut workspace);
+
+        workspace
+            .database
+            .connection()
+            .pragma_update(None, "max_page_count", page_count + 1_024)
+            .expect("restore database capacity");
+        workspace
+            .database
+            .connection()
+            .execute("DROP TABLE local_migration_space_fixture", [])
+            .expect("drop local space fixture");
+        WorkspaceV3MigrationService::new(&mut workspace)
+            .migrate(&pack, &preview.migration_plan_sha256, retry_backup.path())
+            .expect("retry after capacity recovery");
+        assert_eq!(
+            workspace.status().expect("status").workspace_format,
+            WORKSPACE_V3_FORMAT
+        );
+    }
+
+    #[test]
+    fn edited_legacy_projection_is_counted_and_preserved_byte_for_byte() {
+        let root = TestDirectory::new("edited-projection");
+        let backup = TestDirectory::new("edited-projection-backup");
+        let mut workspace = Workspace::init(root.path()).expect("Workspace");
+        let job = JobService::new(&mut workspace.database, &workspace.blobs)
+            .create("Role", "Institution", ActorKind::User)
+            .expect("Job");
+        let source = JobService::new(&mut workspace.database, &workspace.blobs)
+            .import_source(
+                &job.id,
+                NewSource {
+                    kind: SourceKind::LocalFile,
+                    original_bytes: b"Original source".to_vec(),
+                    normalized_text: "Original source\n".to_owned(),
+                    source_url: None,
+                    final_url: None,
+                    content_type: "text/plain; charset=utf-8".to_owned(),
+                    redirect_chain: Vec::new(),
+                    privacy: PrivacyClassification::PrivateLocal,
+                },
+                ActorKind::User,
+            )
+            .expect("source");
+        let relative_path = format!("jobs/{}/migration-user-edit.txt", job.id);
+        let projection_path = root.path().join(&relative_path);
+        fs::create_dir_all(projection_path.parent().expect("projection parent"))
+            .expect("projection directory");
+        let user_bytes = b"USER-EDITED-PROJECTION\n";
+        fs::write(&projection_path, user_bytes).expect("edited projection");
+        workspace
+            .database
+            .connection()
+            .execute(
+                "INSERT INTO projection_manifests(
+                    artifact_id, revision, relative_path, sha256, projection_kind,
+                    generated_sha256, observed_sha256, status, last_error, updated_at
+                 ) VALUES (?1, ?2, ?3, ?4, 'raw', ?4, ?5, 'edited', NULL, ?6)",
+                params![
+                    source.original.id.as_str(),
+                    to_i64(source.original.revision.get()).expect("revision"),
+                    relative_path,
+                    source.original.sha256.as_str(),
+                    digest_bytes(user_bytes).expect("edited digest").as_str(),
+                    now_utc().expect("timestamp").as_str(),
+                ],
+            )
+            .expect("edited projection manifest");
+        let projection_before =
+            projection_state_digest(workspace.database.connection()).expect("projection digest");
+        let pack = academic_pack();
+        let preview = WorkspaceV3MigrationService::new(&mut workspace)
+            .preview(&pack)
+            .expect("preview");
+        assert_eq!(preview.projection_conflict_count, 1);
+
+        WorkspaceV3MigrationService::new(&mut workspace)
+            .migrate(&pack, &preview.migration_plan_sha256, backup.path())
+            .expect("migration preserves projection");
+        assert_eq!(
+            fs::read(&projection_path).expect("projection after migration"),
+            user_bytes
+        );
+        assert_eq!(
+            projection_state_digest(workspace.database.connection()).expect("projection digest"),
+            projection_before
+        );
+    }
+
+    #[test]
+    fn older_schema_gate_refuses_v3_without_mutation_and_backup_restores_v2() {
+        let (_root, mut workspace, pack, preview) = simple_migration_fixture("old-binary");
+        let backup = TestDirectory::new("old-binary-backup");
+        let restored = TestDirectory::new("old-binary-restored");
+        WorkspaceV3MigrationService::new(&mut workspace)
+            .migrate(&pack, &preview.migration_plan_sha256, backup.path())
+            .expect("migration");
+        let application_count_before: i64 = workspace
+            .database
+            .connection()
+            .query_row(
+                "SELECT COUNT(*) FROM application_model_v3_heads",
+                [],
+                |row| row.get(0),
+            )
+            .expect("Application count");
+        let error = crate::database::ensure_supported_schema(
+            workspace.database.connection(),
+            DATABASE_SCHEMA_VERSION - 1,
+        )
+        .expect_err("older schema gate must refuse migrated Workspace");
+        assert!(matches!(
+            error,
+            StoreError::WorkspaceVersionUnsupported {
+                found: DATABASE_SCHEMA_VERSION,
+                supported
+            } if supported == DATABASE_SCHEMA_VERSION - 1
+        ));
+        assert_eq!(
+            workspace
+                .status()
+                .expect("v3 remains valid")
+                .workspace_format,
+            WORKSPACE_V3_FORMAT
+        );
+        assert_eq!(
+            workspace
+                .database
+                .connection()
+                .query_row(
+                    "SELECT COUNT(*) FROM application_model_v3_heads",
+                    [],
+                    |row| { row.get::<_, i64>(0) }
+                )
+                .expect("Application count"),
+            application_count_before
+        );
+
+        drop(workspace);
+        let mut restored_workspace = Workspace::restore(backup.path(), restored.path())
+            .expect("restore migration backup with a compatible binary");
+        assert_eq!(
+            restored_workspace
+                .status()
+                .expect("restored status")
+                .workspace_format,
+            WORKSPACE_FORMAT
+        );
+        assert_no_v3_migration_writes(&mut restored_workspace);
     }
 
     #[test]

@@ -36,6 +36,7 @@ impl Database {
             path,
             OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE,
         )?;
+        ensure_supported_schema(&connection, DATABASE_SCHEMA_VERSION)?;
         let mut database = Self { connection };
         database.configure()?;
         database.migrate()?;
@@ -52,14 +53,7 @@ impl Database {
     }
 
     fn migrate(&mut self) -> Result<(), StoreError> {
-        let version: u32 = self
-            .connection
-            .pragma_query_value(None, "user_version", |row| row.get(0))?;
-        if version > DATABASE_SCHEMA_VERSION {
-            return Err(StoreError::Invariant(format!(
-                "database schema {version} is newer than supported {DATABASE_SCHEMA_VERSION}"
-            )));
-        }
+        let version = ensure_supported_schema(&self.connection, DATABASE_SCHEMA_VERSION)?;
         let mut version = version;
         if version == 0 {
             let applied_at = now_utc()?;
@@ -296,6 +290,17 @@ impl Database {
     }
 }
 
+pub(crate) fn ensure_supported_schema(
+    connection: &Connection,
+    supported: u32,
+) -> Result<u32, StoreError> {
+    let found = connection.pragma_query_value(None, "user_version", |row| row.get(0))?;
+    if found > supported {
+        return Err(StoreError::WorkspaceVersionUnsupported { found, supported });
+    }
+    Ok(found)
+}
+
 #[cfg(test)]
 mod tests {
     use std::{
@@ -307,7 +312,7 @@ mod tests {
     use rusqlite::TransactionBehavior;
 
     use super::{DATABASE_SCHEMA_VERSION, Database, INITIAL_MIGRATION};
-    use crate::now_utc;
+    use crate::{StoreError, now_utc};
 
     static NEXT: AtomicU64 = AtomicU64::new(1);
 
@@ -382,7 +387,25 @@ mod tests {
             .pragma_update(None, "user_version", DATABASE_SCHEMA_VERSION + 1)
             .expect("future schema version");
         drop(future);
-        assert!(Database::open(&future_path).is_err());
+        let error = match Database::open(&future_path) {
+            Ok(_) => panic!("future schema must fail closed"),
+            Err(error) => error,
+        };
+        assert!(matches!(
+            error,
+            StoreError::WorkspaceVersionUnsupported {
+                found,
+                supported: DATABASE_SCHEMA_VERSION
+            } if found == DATABASE_SCHEMA_VERSION + 1
+        ));
+        assert_eq!(
+            error.to_string(),
+            format!(
+                "workspace database schema {} is newer than supported {}; upgrade CanISend or restore a verified pre-upgrade backup to a new path",
+                DATABASE_SCHEMA_VERSION + 1,
+                DATABASE_SCHEMA_VERSION
+            )
+        );
         let future = rusqlite::Connection::open(&future_path).expect("reopen future database");
         let version: u32 = future
             .pragma_query_value(None, "user_version", |row| row.get(0))

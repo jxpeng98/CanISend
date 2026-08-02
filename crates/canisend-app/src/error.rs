@@ -219,6 +219,9 @@ fn classify_store(error: &StoreError) -> Classification {
         StoreError::WorkspaceMigrationConflict(_) => {
             ("conflict", ErrorCode::WorkspaceConflict, false)
         }
+        StoreError::WorkspaceVersionUnsupported { .. } => {
+            ("upgrade-required", ErrorCode::WorkspaceConflict, false)
+        }
         StoreError::ApplicationModelIntegrity(_) | StoreError::WorkspaceMigrationIntegrity(_) => (
             "integrity-failed",
             ErrorCode::InternalInvariantFailed,
@@ -310,6 +313,16 @@ fn classify_store(error: &StoreError) -> Classification {
                         .to_owned(),
             }),
         ),
+        StoreError::WorkspaceVersionUnsupported { .. } => (
+            None,
+            Some(NextAction {
+                action: "upgrade CanISend or restore the verified pre-upgrade backup to a new path"
+                    .to_owned(),
+                description:
+                    "Do not modify the newer Workspace or attempt an in-place database downgrade"
+                        .to_owned(),
+            }),
+        ),
         _ => (None, None),
     };
     (status, code, retryable, details, remediation)
@@ -335,6 +348,24 @@ mod tests {
         assert_eq!(missing.status, "not-found");
         assert!(!missing.retryable);
         assert!(missing.remediation.is_some());
+
+        let future = ApplicationError::from(StoreError::WorkspaceVersionUnsupported {
+            found: 15,
+            supported: 14,
+        })
+        .classify();
+        assert_eq!(future.code, ErrorCode::WorkspaceConflict);
+        assert_eq!(future.status, "upgrade-required");
+        assert!(!future.retryable);
+        assert!(
+            future
+                .message
+                .contains("restore a verified pre-upgrade backup")
+        );
+        assert_eq!(
+            future.remediation.expect("restore remediation").action,
+            "upgrade CanISend or restore the verified pre-upgrade backup to a new path"
+        );
 
         let pdf = ApplicationError::from(IoAdapterError::PdfTextUnavailable).classify();
         assert_eq!(pdf.code, ErrorCode::PdfTextUnavailable);

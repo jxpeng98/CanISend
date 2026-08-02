@@ -88,6 +88,10 @@ pub enum StoreError {
     },
     #[error("SQLite operation failed: {0}")]
     Sqlite(#[from] rusqlite::Error),
+    #[error(
+        "workspace database schema {found} is newer than supported {supported}; upgrade CanISend or restore a verified pre-upgrade backup to a new path"
+    )]
+    WorkspaceVersionUnsupported { found: u32, supported: u32 },
     #[error("workspace configuration is invalid: {0}")]
     ConfigDecode(#[from] toml::de::Error),
     #[error("workspace configuration could not be encoded: {0}")]

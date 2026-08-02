@@ -1,8 +1,8 @@
 # Recovery and interruption matrix
 
-**Applies to:** CanISend workspace format v2
+**Applies to:** CanISend workspace format v2 and the v2→v3 authority transition
 
-**Reviewed:** 2026-07-30
+**Reviewed:** 2026-08-02
 
 CanISend treats SQLite rows and immutable blobs as authoritative state. Files under `jobs/`,
 `profile/`, and `agent/` are projections or scoped exports and are not backup authority. A command
@@ -28,6 +28,11 @@ to a verified blob.
 | Malformed local search or navigation memory | A control character, unbounded limit, oversized memory value, invalid route, or invalid date is supplied | Input is rejected or the malformed optional field is discarded without losing valid workspace/application continuity | `catalog_rebuild_is_deterministic_ephemeral_and_concurrent`; `workflow-navigation.test.ts` |
 | Workspace check after blob loss or replacement | One referenced blob is removed and another is replaced with different bytes | Check fails closed and identifies both reference digests as invalid | `recovery_check_detects_missing_and_corrupted_referenced_blobs` |
 | Workspace open after database corruption | SQLite content is replaced with invalid bytes | Open fails; no repair is attempted over the damaged authority | `database::tests::migration_failure_rolls_back_and_corrupt_database_fails_closed` |
+| Workspace v2→v3 logical write boundary | Deterministic interruption after each authority, Application, ledger, link, binding, audit, and pre-commit verification boundary | The entire transaction rolls back, the verified backup remains, the v2 plan digest repeats, and retry reaches valid v3 authority | `migration_v3::tests::every_logical_write_boundary_rolls_back_and_retries_cleanly` |
+| Workspace v2→v3 database capacity | A bounded local fixture reaches real `SQLITE_FULL` before the migration write | No v3 row or migration audit remains; the backup verifies; restoring capacity allows exact-plan retry | `migration_v3::tests::sqlite_full_rolls_back_without_mixed_authority` |
+| Workspace v2→v3 competing writer | A second connection holds an immediate transaction through the migration attempt | Bounded `SQLITE_BUSY`/`SQLITE_LOCKED`, verified backup, no mixed authority, and successful retry after lock release | `migration_v3::tests::database_busy_leaves_verified_backup_and_retryable_v2_authority` |
+| Workspace v2→v3 edited projection | A legacy projection manifest is `edited` and its file contains user-owned bytes | Preview counts the conflict; migration changes neither the file bytes nor projection-state digest | `migration_v3::tests::edited_legacy_projection_is_counted_and_preserved_byte_for_byte` |
+| Older schema gate opens a newer Workspace | Compatibility check supports schema N−1 while the Workspace is schema N | Stable upgrade/restore refusal occurs before configuration or migration; v3 rows and authority remain unchanged | `database::tests::future_schema_and_incomplete_history_are_rejected_without_mutation`; `migration_v3::tests::older_schema_gate_refuses_v3_without_mutation_and_backup_restores_v2` |
 
 The complete workspace suite in `fast-ci` runs these contracts on Apple Silicon macOS during
 development. Release candidates run the same complete suite in the Linux source gate and the
@@ -50,6 +55,11 @@ Restore never overwrites an existing destination. Edited projection files are pr
 `workspace repair`, but cannot be recovered from a backup because projections are intentionally not
 authoritative. The regenerated file is the deterministic projection of the recorded artifact
 revision.
+
+The automatic backup created by v2→v3 semantic migration already uses the database schema of the
+migrating binary. It restores v2 semantic authority for that binary or a later compatible binary.
+Executable rollback to an older schema requires the separately retained backup created before the
+new binary first opened the Workspace.
 
 ## Read-model and search recovery
 

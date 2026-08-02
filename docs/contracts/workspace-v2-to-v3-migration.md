@@ -63,6 +63,13 @@ Any error before commit rolls back every SQLite migration write. The verified ba
 available. Existing v2 tables, artifact hashes, Blob bytes, `jobs/` projections, user edits, and
 unmanaged files are not rewritten, moved, copied, or deleted.
 
+The production transaction reports these logical write boundaries to an internal no-op observer:
+authority activation, each Application aggregate, migration ledger, each legacy/Application link,
+each legacy-row binding, migration audit, and the verified pre-commit boundary. Tests replace only
+that observer with a deterministic interruption; the transaction and write code are otherwise the
+production path. Every recorded boundary is interrupted in turn, checked for zero v3 rows/audits,
+previewed again with the same digest, and retried to valid v3 authority.
+
 ## Semantic mapping
 
 - Job metadata becomes Opportunity/Application metadata and lifecycle.
@@ -84,5 +91,25 @@ must be byte-for-byte unchanged.
 ## Recovery boundary
 
 Rollback never attempts an in-place downgrade. Restore the verified pre-migration backup to a new
-path and verify it before use. Full write-boundary failure injection and tailored old-binary
-remediation are owned by GF2-MIG-002; application projections are owned by GF2-PROJ-001.
+path and verify it before use. A migration-created backup captures the database schema already
+opened by the migrating binary, but retains v2 semantic authority; use it to recover with that
+binary or a later compatible binary. Rolling back the executable itself requires the separate,
+verified pre-upgrade backup created before the newer binary first opened the Workspace.
+
+A binary that encounters a newer database schema rejects it before setting journal, foreign-key,
+or synchronization pragmas and returns the stable diagnostic:
+
+```text
+workspace database schema FOUND is newer than supported SUPPORTED; upgrade CanISend or restore a verified pre-upgrade backup to a new path
+```
+
+The application failure is non-retryable `upgrade-required` with an explicit instruction not to
+modify the newer Workspace or attempt an in-place downgrade. The compatibility probe is read-only,
+and qualification verifies that v3 authority and Application counts remain unchanged.
+
+The failure matrix additionally holds a real competing immediate transaction and fills a bounded
+local SQLite fixture to `SQLITE_FULL`. Both failures leave no mixed v3 authority and succeed after
+the lock or capacity condition is removed. An edited legacy projection is included in the plan's
+conflict count and remains byte-for-byte and manifest-digest identical across migration.
+
+Application projections and legacy path recognition remain owned by GF2-PROJ-001.
