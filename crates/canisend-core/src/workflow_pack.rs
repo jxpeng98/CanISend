@@ -719,8 +719,10 @@ mod tests {
 
     use crate::{
         WorkflowPackByteLoader, WorkflowPackByteLoaderError, WorkflowPackDeliverableCatalogRuntime,
-        WorkflowPackExecutablePolicy, WorkflowPackInstallationStatus,
-        WorkflowPackPublisherAuthentication, WorkflowPackSignatureStatus, WorkflowPackStageGraph,
+        WorkflowPackExecutablePolicy, WorkflowPackHostLocale, WorkflowPackInstallationStatus,
+        WorkflowPackLocaleMatch, WorkflowPackLocalizationError, WorkflowPackLocalizationRuntime,
+        WorkflowPackPublisherAuthentication, WorkflowPackSelectionBindingMismatch,
+        WorkflowPackSignatureStatus, WorkflowPackStageGraph, WorkflowPackTextMatch,
         WorkflowPackTrustCheckStatus, WorkflowPackTrustStatus,
     };
 
@@ -971,6 +973,159 @@ mod tests {
             snapshot_json["resources"][0]["path"],
             "templates/statement.typ"
         );
+    }
+
+    #[test]
+    fn localization_resolves_host_locale_fallback_and_restart_deterministically() {
+        let (mut manifest, resources) = manifest_and_resources("1.0.0", b"template-v1");
+        let simplified_chinese = locale("zh-Hans");
+        manifest.locales.insert(
+            simplified_chinese.clone(),
+            WorkflowPackVocabulary {
+                application_singular: "申请".to_owned(),
+                application_plural: "申请".to_owned(),
+                opportunity_singular: "机会".to_owned(),
+                opportunity_plural: "机会".to_owned(),
+                requirement_plural: "要求".to_owned(),
+                evidence_plural: "证据".to_owned(),
+                deliverable_plural: "交付材料".to_owned(),
+            },
+        );
+        manifest.workflow.stages[0]
+            .labels
+            .0
+            .insert(simplified_chinese, "导入".to_owned());
+        manifest.content_digest = calculate_workflow_pack_content_digest(&manifest, &resources)
+            .expect("localized digest");
+        let bundle = verify(&manifest, resources).expect("localized verified bundle");
+        let localization = WorkflowPackLocalizationRuntime::from_verified_bundle(&bundle)
+            .expect("localization runtime");
+
+        let english = localization.select_host_locale(WorkflowPackHostLocale::English);
+        assert_eq!(english.selected_locale().as_str(), "en");
+        assert_eq!(english.match_kind(), WorkflowPackLocaleMatch::Exact);
+
+        let chinese = localization.select_host_locale(WorkflowPackHostLocale::SimplifiedChinese);
+        assert_eq!(chinese.requested_locale().as_str(), "zh-CN");
+        assert_eq!(chinese.selected_locale().as_str(), "zh-Hans");
+        assert_eq!(chinese.match_kind(), WorkflowPackLocaleMatch::Compatible);
+        assert_eq!(
+            localization
+                .vocabulary(&chinese)
+                .expect("Chinese vocabulary")
+                .application_singular,
+            "申请"
+        );
+
+        let localized_stage = localization
+            .resolve_text(&chinese, &bundle.manifest().workflow.stages[0].labels)
+            .expect("Chinese stage label");
+        assert_eq!(localized_stage.locale().as_str(), "zh-Hans");
+        assert_eq!(localized_stage.value(), "导入");
+        assert_eq!(
+            localized_stage.match_kind(),
+            WorkflowPackTextMatch::SelectedLocale
+        );
+        let fallback_stage = localization
+            .resolve_text(&chinese, &bundle.manifest().workflow.stages[1].labels)
+            .expect("default stage fallback");
+        assert_eq!(fallback_stage.locale().as_str(), "en");
+        assert_eq!(fallback_stage.value(), "Export");
+        assert_eq!(
+            fallback_stage.match_kind(),
+            WorkflowPackTextMatch::PackDefault
+        );
+
+        let persisted = serde_json::to_string(&WorkflowPackHostLocale::SimplifiedChinese)
+            .expect("persist host locale");
+        assert_eq!(persisted, "\"zh-CN\"");
+        let restored: WorkflowPackHostLocale =
+            serde_json::from_str(&persisted).expect("restore host locale");
+        let reopened = WorkflowPackLocalizationRuntime::from_verified_bundle(&bundle)
+            .expect("reopened localization runtime");
+        assert_eq!(chinese, reopened.select_host_locale(restored));
+        let selection_json = serde_json::to_string(&chinese).expect("selection JSON");
+        assert!(!selection_json.contains("申请"));
+        assert!(!selection_json.contains("导入"));
+    }
+
+    #[test]
+    fn localization_missing_default_and_cross_pack_selection_fail_closed() {
+        let (manifest, resources) = manifest_and_resources("1.0.0", b"template-v1");
+        let empty = WorkflowPackLocalizationRuntime::try_new(
+            WorkflowPackId::try_new("org.canisend.empty-locales").expect("pack ID"),
+            manifest.version.clone(),
+            manifest.content_digest.clone(),
+            manifest.default_locale.clone(),
+            BTreeMap::new(),
+        )
+        .expect_err("locale count must be bounded");
+        assert!(matches!(
+            empty,
+            WorkflowPackLocalizationError::LocaleCountInvalid { .. }
+        ));
+        let missing = WorkflowPackLocalizationRuntime::try_new(
+            WorkflowPackId::try_new("org.canisend.missing-default").expect("pack ID"),
+            manifest.version.clone(),
+            manifest.content_digest.clone(),
+            locale("zh-Hans"),
+            manifest.locales.clone(),
+        )
+        .expect_err("default locale must exist");
+        assert!(matches!(
+            missing,
+            WorkflowPackLocalizationError::DefaultLocaleMissing { .. }
+        ));
+
+        let bundle = verify(&manifest, resources).expect("verified bundle");
+        let first = WorkflowPackLocalizationRuntime::from_verified_bundle(&bundle)
+            .expect("first localization runtime");
+        let second = WorkflowPackLocalizationRuntime::try_new(
+            WorkflowPackId::try_new("org.canisend.other-pack").expect("other pack ID"),
+            manifest.version.clone(),
+            manifest.content_digest.clone(),
+            manifest.default_locale.clone(),
+            manifest.locales.clone(),
+        )
+        .expect("other localization runtime");
+        let foreign = second.select_host_locale(WorkflowPackHostLocale::English);
+        assert!(matches!(
+            first.vocabulary(&foreign),
+            Err(WorkflowPackLocalizationError::SelectionBindingMismatch {
+                mismatch: WorkflowPackSelectionBindingMismatch::PackId,
+                ..
+            })
+        ));
+
+        let stale = WorkflowPackLocalizationRuntime::try_new(
+            manifest.id.clone(),
+            manifest.version.clone(),
+            Sha256Digest::try_new("f".repeat(64)).expect("stale digest"),
+            manifest.default_locale.clone(),
+            manifest.locales.clone(),
+        )
+        .expect("stale localization runtime");
+        let stale_selection = stale.select_host_locale(WorkflowPackHostLocale::English);
+        assert!(matches!(
+            first.vocabulary(&stale_selection),
+            Err(WorkflowPackLocalizationError::SelectionBindingMismatch {
+                mismatch: WorkflowPackSelectionBindingMismatch::ContentDigest,
+                ..
+            })
+        ));
+
+        let english = first.select_host_locale(WorkflowPackHostLocale::English);
+        let missing_label_default =
+            WorkflowPackLocalizedText(BTreeMap::from([(locale("zh-Hans"), "仅中文".to_owned())]));
+        assert!(matches!(
+            first.resolve_text(&english, &missing_label_default),
+            Err(WorkflowPackLocalizationError::LocalizedTextDefaultMissing { .. })
+        ));
+
+        let unavailable = locale("zh-Hant");
+        let fallback = first.select_locale(&unavailable);
+        assert_eq!(fallback.selected_locale().as_str(), "en");
+        assert_eq!(fallback.match_kind(), WorkflowPackLocaleMatch::PackDefault);
     }
 
     #[test]

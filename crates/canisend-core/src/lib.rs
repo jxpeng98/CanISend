@@ -1,11 +1,13 @@
 #![forbid(unsafe_code)]
 
 mod pack_deliverable_catalog;
+mod pack_localization;
 mod pack_stage_graph;
 mod pack_trust;
 mod workflow_pack;
 
 pub use pack_deliverable_catalog::*;
+pub use pack_localization::*;
 pub use pack_stage_graph::*;
 pub use pack_trust::*;
 pub use workflow_pack::*;

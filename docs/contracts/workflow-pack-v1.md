@@ -7,9 +7,9 @@
 **Canonical schema:** `schemas/workflow-pack/v1/manifest.schema.json` in the embedded resource
 catalog
 
-**Runtime status:** Additive contract, bounded byte verification, Trust Report, and verified-bundle
-registry foundation. The current Alpha Job/Agent v2 runtime does not read Pack directories or
-install external workflow packs yet.
+**Runtime status:** Additive contract, bounded byte verification, Trust Report, locale resolver,
+and verified-bundle registry foundation. The current Alpha Job/Agent v2 runtime does not read Pack
+directories, install external workflow packs, or project Pack vocabulary into the GUI yet.
 
 ## Boundary
 
@@ -32,6 +32,8 @@ registry while verifying a bundle; a match grants access only to that pre-regist
 - Item IDs use bounded lowercase kebab case and remain stable within the publisher namespace.
 - Every localized label contains the declared default locale and cannot reference undeclared
   locales.
+- Localized variants preserve the names and occurrence counts of default-locale placeholders.
+- Visible Pack text cannot contain bidirectional formatting, isolate, or override controls.
 
 `content_digest` is a strongly typed SHA-256 binding over the normalized manifest and every exact
 declared resource byte. Bundle verification also checks resource set equality, resource size and
@@ -86,7 +88,8 @@ The typed validator rejects:
 
 - unsupported schema versions or invalid publisher namespaces;
 - invalid semantic-version requirements;
-- missing fallback locales, empty/oversized labels, unknown locales, and duplicate IDs;
+- missing fallback locales, empty/oversized labels, unknown locales, placeholder mismatch,
+  bidirectional control characters, and duplicate IDs;
 - invalid field option shapes;
 - missing, duplicate, self-referential, cyclic, or terminal-disconnected workflow stages;
 - empty or duplicate execution modes;
@@ -102,6 +105,37 @@ Manifest validation alone does not grant trust. Verified-bundle construction sep
 resource bytes, the declared content digest, current runtime compatibility, and registered
 capability availability. Publisher trust, explicit installation, persistent snapshot binding, and
 migration approval remain separate runtime/storage gates.
+
+## Localization rule
+
+Pack vocabulary and localized labels resolve only after exact bundle verification. The core
+`WorkflowPackLocalizationRuntime` binds every locale selection to the Pack ID, version, and content
+digest, so a selection from another Pack or snapshot fails closed.
+
+The current desktop preference remains the existing closed `en`/`zh-CN` setting. Pack resolution
+uses these deterministic candidates in order:
+
+| Desktop preference | Pack locale candidates | Final fallback |
+|---|---|---|
+| `en` | `en` | declared Pack default |
+| `zh-CN` | `zh-CN`, `zh-Hans`, `zh` | declared Pack default |
+
+An arbitrary requested Pack locale resolves by exact ID, then its primary-language ID when one is
+declared, then the Pack default. After a locale is selected, an individual label uses that locale
+when present and otherwise uses its required default-locale value. Both decisions report whether
+the result was exact, compatible, or a Pack-default fallback. Locale selections serialize without
+vocabulary or label bodies and reproduce the same result after the persisted desktop locale is
+restored.
+
+Placeholders use `{lowercase-kebab-case}` with a 64-byte key limit; `{{` and `}}` escape literal
+braces. Every localized variant must preserve the default variant's placeholder names and
+occurrence counts, although order may differ. The contract accepts ordinary multilingual Unicode,
+including combining marks and right-to-left scripts, while rejecting embedded bidi formatting,
+isolate, and override controls that could visually reorder trusted UI context.
+
+This foundation returns localized text plus body-free selection/fallback metadata only. It does
+not interpolate untrusted values, infer a locale from private content, parse free-form translation
+resources, or change the current v2 desktop copy.
 
 ## DAG rule
 

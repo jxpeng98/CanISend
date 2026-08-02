@@ -72,6 +72,8 @@ The current CLI provides:
   current fixed Agent/Workspace v2 workflow remains the compatibility runtime.
 - A Pack-qualified Deliverable catalog that binds cardinality, declaration order, templates,
   Renderers, and Validators; fixed academic `DocumentKind` values remain v2 compatibility types.
+- A digest-bound Pack localization runtime that maps the existing `en`/`zh-CN` preference to exact,
+  compatible, or Pack-default vocabulary and labels without leaking one Pack's selection to another.
 - A pre-parse bounded Pack byte verifier with UTF-8 data-only resource policy and body-free Trust
   Reports; publisher authentication, signatures, and external installation remain unavailable.
 - Fifty-two typed embedded schemas, prompts, templates, examples, and host assets with SHA-256 verification.

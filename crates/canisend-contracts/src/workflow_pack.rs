@@ -26,6 +26,7 @@ pub const WORKFLOW_PACK_MAX_JSON_NODES: usize = 20_000;
 pub const WORKFLOW_PACK_MAX_RESOURCE_BYTES: u64 = 8 * 1024 * 1024;
 pub const WORKFLOW_PACK_MAX_TOTAL_RESOURCE_BYTES: u64 = 64 * 1024 * 1024;
 pub const WORKFLOW_PACK_MAX_RESOURCES: usize = 512;
+pub const WORKFLOW_PACK_MAX_LOCALES: usize = 16;
 pub const WORKFLOW_PACK_MAX_STAGES: usize = 64;
 pub const WORKFLOW_PACK_MAX_DELIVERABLE_KINDS: usize = 64;
 pub const WORKFLOW_PACK_MAX_DELIVERABLE_CARDINALITY: u16 = 32;
@@ -629,6 +630,81 @@ fn required_bounded_text(
             format!("value must contain 1-{maximum} non-control bytes"),
         ));
     }
+    if value.chars().any(is_disallowed_bidi_control) {
+        violations.push(ContractViolation::new(
+            "workflow_pack.text_bidi_control_invalid",
+            pointer,
+            "value cannot contain bidirectional formatting or override controls",
+        ));
+    }
+}
+
+fn is_disallowed_bidi_control(character: char) -> bool {
+    matches!(
+        character,
+        '\u{061c}'
+            | '\u{200e}'
+            | '\u{200f}'
+            | '\u{202a}'..='\u{202e}'
+            | '\u{2066}'..='\u{206f}'
+    )
+}
+
+fn placeholder_signature(value: &str) -> Option<BTreeMap<String, usize>> {
+    let bytes = value.as_bytes();
+    let mut placeholders = BTreeMap::new();
+    let mut index = 0;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'{' if bytes.get(index + 1) == Some(&b'{') => index += 2,
+            b'}' if bytes.get(index + 1) == Some(&b'}') => index += 2,
+            b'{' => {
+                let relative_end = bytes
+                    .get(index + 1..)?
+                    .iter()
+                    .position(|byte| *byte == b'}')?;
+                let end = index + relative_end + 1;
+                let key = std::str::from_utf8(bytes.get(index + 1..end)?).ok()?;
+                if !valid_placeholder_key(key) {
+                    return None;
+                }
+                *placeholders.entry(key.to_owned()).or_insert(0) += 1;
+                index = end + 1;
+            }
+            b'}' => return None,
+            _ => index += 1,
+        }
+    }
+    Some(placeholders)
+}
+
+fn valid_placeholder_key(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    !bytes.is_empty()
+        && bytes.len() <= 64
+        && bytes[0].is_ascii_lowercase()
+        && bytes
+            .last()
+            .is_some_and(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())
+        && bytes
+            .iter()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || *byte == b'-')
+}
+
+fn validate_placeholder_text(
+    value: &str,
+    pointer: &str,
+    violations: &mut Vec<ContractViolation>,
+) -> Option<BTreeMap<String, usize>> {
+    let signature = placeholder_signature(value);
+    if signature.is_none() {
+        violations.push(ContractViolation::new(
+            "workflow_pack.placeholder_syntax_invalid",
+            pointer,
+            "placeholders must use balanced {lowercase-kebab-case} tokens; double braces escape literal braces",
+        ));
+    }
+    signature
 }
 
 fn validate_compatibility(
@@ -651,11 +727,13 @@ fn validate_compatibility(
 }
 
 fn validate_locales(manifest: &WorkflowPackManifest, violations: &mut Vec<ContractViolation>) {
-    if manifest.locales.is_empty() || manifest.locales.len() > 16 {
+    if manifest.locales.is_empty() || manifest.locales.len() > WORKFLOW_PACK_MAX_LOCALES {
         violations.push(ContractViolation::new(
             "workflow_pack.locale_count_invalid",
             "/locales",
-            "a workflow pack must define between 1 and 16 locales",
+            format!(
+                "a workflow pack must define between 1 and {WORKFLOW_PACK_MAX_LOCALES} locales"
+            ),
         ));
     }
     if !manifest.locales.contains_key(&manifest.default_locale) {
@@ -666,21 +744,64 @@ fn validate_locales(manifest: &WorkflowPackManifest, violations: &mut Vec<Contra
         ));
     }
     for (locale, vocabulary) in &manifest.locales {
-        for (field, value) in [
-            ("application_singular", &vocabulary.application_singular),
-            ("application_plural", &vocabulary.application_plural),
-            ("opportunity_singular", &vocabulary.opportunity_singular),
-            ("opportunity_plural", &vocabulary.opportunity_plural),
-            ("requirement_plural", &vocabulary.requirement_plural),
-            ("evidence_plural", &vocabulary.evidence_plural),
-            ("deliverable_plural", &vocabulary.deliverable_plural),
-        ] {
+        for (field, value) in vocabulary_fields(vocabulary) {
             required_bounded_text(
                 value,
                 &format!("/locales/{locale}/{field}"),
                 256,
                 violations,
             );
+        }
+    }
+    validate_vocabulary_placeholders(manifest, violations);
+}
+
+fn vocabulary_fields(vocabulary: &WorkflowPackVocabulary) -> [(&'static str, &str); 7] {
+    [
+        ("application_singular", &vocabulary.application_singular),
+        ("application_plural", &vocabulary.application_plural),
+        ("opportunity_singular", &vocabulary.opportunity_singular),
+        ("opportunity_plural", &vocabulary.opportunity_plural),
+        ("requirement_plural", &vocabulary.requirement_plural),
+        ("evidence_plural", &vocabulary.evidence_plural),
+        ("deliverable_plural", &vocabulary.deliverable_plural),
+    ]
+}
+
+fn validate_vocabulary_placeholders(
+    manifest: &WorkflowPackManifest,
+    violations: &mut Vec<ContractViolation>,
+) {
+    let Some(default_vocabulary) = manifest.locales.get(&manifest.default_locale) else {
+        return;
+    };
+    let default_fields = vocabulary_fields(default_vocabulary);
+    let default_signatures = default_fields
+        .iter()
+        .map(|(field, value)| {
+            validate_placeholder_text(
+                value,
+                &format!("/locales/{}/{field}", manifest.default_locale),
+                violations,
+            )
+        })
+        .collect::<Vec<_>>();
+    for (locale, vocabulary) in &manifest.locales {
+        if locale == &manifest.default_locale {
+            continue;
+        }
+        for (index, (field, value)) in vocabulary_fields(vocabulary).into_iter().enumerate() {
+            let pointer = format!("/locales/{locale}/{field}");
+            let signature = validate_placeholder_text(value, &pointer, violations);
+            if let (Some(expected), Some(actual)) = (&default_signatures[index], signature)
+                && expected != &actual
+            {
+                violations.push(ContractViolation::new(
+                    "workflow_pack.placeholder_mismatch",
+                    pointer,
+                    "localized variants must preserve the default locale placeholder names and counts",
+                ));
+            }
         }
     }
 }
@@ -708,6 +829,25 @@ fn validate_localized_text(
             ));
         }
         required_bounded_text(value, &format!("{pointer}/{locale}"), 512, violations);
+    }
+    let signatures = text
+        .0
+        .iter()
+        .filter_map(|(locale, value)| {
+            validate_placeholder_text(value, &format!("{pointer}/{locale}"), violations)
+                .map(|signature| (locale, signature))
+        })
+        .collect::<BTreeMap<_, _>>();
+    if let Some(expected) = signatures.get(default_locale) {
+        for (locale, actual) in &signatures {
+            if *locale != default_locale && actual != expected {
+                violations.push(ContractViolation::new(
+                    "workflow_pack.placeholder_mismatch",
+                    format!("{pointer}/{locale}"),
+                    "localized variants must preserve the default locale placeholder names and counts",
+                ));
+            }
+        }
     }
 }
 
@@ -1603,6 +1743,77 @@ mod tests {
                 "missing {expected}"
             );
         }
+    }
+
+    #[test]
+    fn localization_validation_preserves_placeholders_and_safe_unicode() {
+        let mut valid = valid_value();
+        valid["locales"]["zh-Hans"] = json!({
+            "application_singular": "申请",
+            "application_plural": "申请",
+            "opportunity_singular": "机会",
+            "opportunity_plural": "机会",
+            "requirement_plural": "要求",
+            "evidence_plural": "证据",
+            "deliverable_plural": "交付材料"
+        });
+        valid["locales"]["ar"] = json!({
+            "application_singular": "طلب",
+            "application_plural": "طلبات",
+            "opportunity_singular": "فرصة",
+            "opportunity_plural": "فرص",
+            "requirement_plural": "متطلبات",
+            "evidence_plural": "أدلة",
+            "deliverable_plural": "مخرجات"
+        });
+        valid["application"]["opportunity_fields"][0]["labels"] = json!({
+            "en": "Role for {organization} — A\u{0301}",
+            "zh-Hans": "{organization} 的职位"
+        });
+        validate_workflow_pack_manifest(&valid).expect("safe Unicode and matching placeholders");
+
+        let mut mismatch = valid.clone();
+        mismatch["application"]["opportunity_fields"][0]["labels"]["zh-Hans"] =
+            json!("{institution} 的职位");
+        assert!(
+            semantic_codes(&mismatch)
+                .iter()
+                .any(|code| code == "workflow_pack.placeholder_mismatch")
+        );
+
+        let mut count_mismatch = valid.clone();
+        count_mismatch["application"]["opportunity_fields"][0]["labels"]["zh-Hans"] =
+            json!("{organization} 的 {organization} 职位");
+        assert!(
+            semantic_codes(&count_mismatch)
+                .iter()
+                .any(|code| code == "workflow_pack.placeholder_mismatch")
+        );
+
+        let mut malformed = valid.clone();
+        malformed["application"]["opportunity_fields"][0]["labels"]["en"] =
+            json!("Role for {Organization}");
+        assert!(
+            semantic_codes(&malformed)
+                .iter()
+                .any(|code| code == "workflow_pack.placeholder_syntax_invalid")
+        );
+
+        let mut escaped = valid.clone();
+        escaped["application"]["opportunity_fields"][0]["labels"] = json!({
+            "en": "Use {{literal}} for {organization}",
+            "zh-Hans": "将 {{literal}} 用于 {organization}"
+        });
+        validate_workflow_pack_manifest(&escaped).expect("escaped braces");
+
+        let mut bidi_override = valid;
+        bidi_override["application"]["opportunity_fields"][0]["labels"]["en"] =
+            json!("Role \u{202e}hidden");
+        assert!(
+            semantic_codes(&bidi_override)
+                .iter()
+                .any(|code| code == "workflow_pack.text_bidi_control_invalid")
+        );
     }
 
     #[test]
