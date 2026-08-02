@@ -17,7 +17,7 @@
   },
   "schema": "canisend.beta-contract-freeze/v1",
   "workspace": {
-    "current_database_schema_version": 14,
+    "current_database_schema_version": 15,
     "format": "canisend.workspace/v2",
     "frozen_migration_tree_sha256": "9809f29755d6ceadfc3340b00d83c8c48478e0039bf588fbdafaaf1787dfefb0",
     "frozen_migrations_through": 13,

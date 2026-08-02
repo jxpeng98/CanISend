@@ -312,14 +312,39 @@ pub(crate) fn activate_workspace_v3_authority(
     let actor_name = enum_name(actor)?;
     let (workspace_id, _) = database.workspace_identity()?;
     let transaction = database.immediate_transaction()?;
-    let existing = transaction
+    insert_workspace_v3_authority(
+        &transaction,
+        &workspace_id,
+        event_id.as_str(),
+        &actor_name,
+        &reason,
+        &activated_at,
+    )?;
+    transaction.commit()?;
+    Ok(WorkspaceV3AuthorityState {
+        workspace_format: WORKSPACE_V3_FORMAT.to_owned(),
+        activated_at,
+        reason,
+    })
+}
+
+pub(crate) fn insert_workspace_v3_authority(
+    transaction: &Transaction<'_>,
+    workspace_id: &canisend_contracts::EntityId,
+    event_id: &str,
+    actor: &str,
+    reason: &str,
+    activated_at: &UtcTimestamp,
+) -> Result<(), StoreError> {
+    if transaction
         .query_row(
-            "SELECT workspace_format FROM workspace_v3_authority WHERE singleton = 1",
+            "SELECT 1 FROM workspace_v3_authority WHERE singleton = 1",
             [],
-            |row| row.get::<_, String>(0),
+            |_| Ok(()),
         )
-        .optional()?;
-    if existing.is_some() {
+        .optional()?
+        .is_some()
+    {
         return Err(StoreError::ApplicationModelConflict(
             "Workspace v3 authority is already active".to_owned(),
         ));
@@ -334,18 +359,71 @@ pub(crate) fn activate_workspace_v3_authority(
             id, actor, action, subject_id, subject_revision, reason, created_at
          ) VALUES (?1, ?2, 'workspace-v3.activate', ?3, NULL, ?4, ?5)",
         params![
-            event_id.as_str(),
-            actor_name,
+            event_id,
+            actor,
             workspace_id.as_str(),
             reason,
             activated_at.as_str()
         ],
     )?;
-    transaction.commit()?;
-    Ok(WorkspaceV3AuthorityState {
-        workspace_format: WORKSPACE_V3_FORMAT.to_owned(),
-        activated_at,
+    Ok(())
+}
+
+pub(crate) fn insert_migrated_application_model(
+    transaction: &Transaction<'_>,
+    snapshot: &ApplicationModelSnapshotV3,
+    actor: ActorKind,
+    reason: &str,
+    committed_at: &UtcTimestamp,
+) -> Result<StoredApplicationModelV3, StoreError> {
+    if snapshot.application.revision.get() != 1 {
+        return Err(StoreError::ApplicationModelConflict(
+            "a migrated Application must begin at aggregate revision one".to_owned(),
+        ));
+    }
+    validate_snapshot(snapshot)?;
+    let reason = validate_reason(reason)?;
+    let actor = enum_name(actor)?;
+    let (snapshot_json, snapshot_sha256) = serialize_snapshot(snapshot)?;
+    transaction.execute(
+        "INSERT INTO application_model_v3_heads(
+            application_id, opportunity_id, pack_id, pack_version, pack_digest,
+            head_revision, created_at, updated_at
+         ) VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6, ?7)",
+        params![
+            snapshot.application.id.as_str(),
+            snapshot.opportunity.id.as_str(),
+            snapshot.pack.id.as_str(),
+            snapshot.pack.version.as_str(),
+            snapshot.pack.content_digest.as_str(),
+            snapshot.application.created_at.as_str(),
+            snapshot.application.updated_at.as_str(),
+        ],
+    )?;
+    insert_revision(
+        transaction,
+        snapshot,
+        &snapshot_json,
+        &snapshot_sha256,
+        &actor,
         reason,
+        committed_at,
+    )?;
+    insert_dependencies(transaction, snapshot)?;
+    insert_audit(
+        transaction,
+        generate_id()?.as_str(),
+        &actor,
+        "application-v3.create",
+        &snapshot.application.id,
+        snapshot.application.revision,
+        reason,
+        committed_at,
+    )?;
+    Ok(StoredApplicationModelV3 {
+        snapshot: snapshot.clone(),
+        snapshot_sha256,
+        committed_at: committed_at.clone(),
     })
 }
 

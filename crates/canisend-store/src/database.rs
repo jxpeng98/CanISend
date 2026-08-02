@@ -7,7 +7,7 @@ use rusqlite::{
 
 use crate::{StoreError, now_utc};
 
-pub const DATABASE_SCHEMA_VERSION: u32 = 14;
+pub const DATABASE_SCHEMA_VERSION: u32 = 15;
 const INITIAL_MIGRATION: &str = include_str!("../migrations/0001_initial.sql");
 const INTAKE_MIGRATION: &str = include_str!("../migrations/0002_job_intake.sql");
 const DISCOVERY_MIGRATION: &str = include_str!("../migrations/0003_discovery.sql");
@@ -24,6 +24,7 @@ const EXPORT_PROJECTIONS_MIGRATION: &str =
 const RENDER_HEADS_MIGRATION: &str = include_str!("../migrations/0013_render_heads.sql");
 const APPLICATION_MODEL_V3_MIGRATION: &str =
     include_str!("../migrations/0014_application_model_v3.sql");
+const WORKSPACE_V3_MIGRATION: &str = include_str!("../migrations/0015_workspace_v3_migration.sql");
 
 pub struct Database {
     connection: Connection,
@@ -128,6 +129,11 @@ impl Database {
         if version == 13 {
             let applied_at = now_utc()?;
             self.apply_migration(14, APPLICATION_MODEL_V3_MIGRATION, &applied_at)?;
+            version = 14;
+        }
+        if version == 14 {
+            let applied_at = now_utc()?;
+            self.apply_migration(15, WORKSPACE_V3_MIGRATION, &applied_at)?;
         }
         Ok(())
     }
@@ -190,9 +196,18 @@ impl Database {
 
     pub fn status(&self) -> Result<WorkspaceStatusData, StoreError> {
         let (workspace_id, created_at) = self.workspace_identity()?;
+        let workspace_format = self
+            .connection
+            .query_row(
+                "SELECT workspace_format FROM workspace_v3_authority WHERE singleton = 1",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?
+            .unwrap_or_else(|| WORKSPACE_FORMAT.to_owned());
         Ok(WorkspaceStatusData {
             workspace_id,
-            workspace_format: WORKSPACE_FORMAT.to_owned(),
+            workspace_format,
             created_at,
             database_schema_version: self.connection.pragma_query_value(
                 None,

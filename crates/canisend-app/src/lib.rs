@@ -16,6 +16,7 @@ mod dossier;
 mod error;
 mod intake;
 mod job;
+mod migration_v3;
 mod package;
 mod plan;
 mod profile;
@@ -92,6 +93,10 @@ pub use job::{
     JobIntakeMutationReadModel, JobIntakePreviewReadModel, JobIntakeProvenanceReadModel,
     JobIntakeSourceKind, JobIntakeValidationIssue, JobListReadModel, PreparedJobSource,
     SourceImportReadModel,
+};
+pub use migration_v3::{
+    WorkspaceV3MigrationPreview, WorkspaceV3MigrationReadModel, WorkspaceV3MigrationRequest,
+    WorkspaceV3MigrationResult,
 };
 pub use package::{PackageExportRequest, ProjectionCopyAsNewRequest, ProjectionReplaceRequest};
 pub use profile::{

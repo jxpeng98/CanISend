@@ -216,7 +216,10 @@ fn classify_store(error: &StoreError) -> Classification {
         StoreError::ApplicationModelUnavailable | StoreError::ApplicationModelConflict(_) => {
             ("conflict", ErrorCode::WorkspaceConflict, false)
         }
-        StoreError::ApplicationModelIntegrity(_) => (
+        StoreError::WorkspaceMigrationConflict(_) => {
+            ("conflict", ErrorCode::WorkspaceConflict, false)
+        }
+        StoreError::ApplicationModelIntegrity(_) | StoreError::WorkspaceMigrationIntegrity(_) => (
             "integrity-failed",
             ErrorCode::InternalInvariantFailed,
             false,

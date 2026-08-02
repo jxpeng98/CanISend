@@ -13,6 +13,7 @@ mod document;
 mod evidence;
 mod job;
 mod matching;
+mod migration_v3;
 mod package;
 mod plan;
 mod profile;
@@ -47,6 +48,11 @@ pub use document::DocumentService;
 pub use evidence::EvidenceService;
 pub use job::{JobService, NewSource};
 pub use matching::MatchService;
+pub use migration_v3::{
+    ACADEMIC_JOB_PACK_ID, LEGACY_WORKSPACE_SCHEMA_VERSION, WORKSPACE_V3_MIGRATION_PREVIEW_FORMAT,
+    WORKSPACE_V3_MIGRATION_RESULT_FORMAT, WorkspaceV3MigrationPreview, WorkspaceV3MigrationResult,
+    WorkspaceV3MigrationService,
+};
 pub use package::PackageService;
 pub use plan::PlanService;
 pub use profile::{NewProfileSource, ProfileService};
@@ -116,6 +122,10 @@ pub enum StoreError {
     ApplicationModelConflict(String),
     #[error("application model integrity verification failed: {0}")]
     ApplicationModelIntegrity(String),
+    #[error("Workspace v2 to v3 migration conflicts with current state: {0}")]
+    WorkspaceMigrationConflict(String),
+    #[error("Workspace v2 to v3 migration integrity verification failed: {0}")]
+    WorkspaceMigrationIntegrity(String),
     #[error("profile source was not found: {0}")]
     ProfileSourceNotFound(String),
     #[error("discovery source was not found: {0}")]

@@ -2,13 +2,13 @@
 
 **Authority format:** `canisend.workspace/v3`
 
-**Database schema:** 14
+**Database schema:** 15
 
 **Model format:** `canisend.application-model/v3`
 
-**Runtime status:** Repository and neutral app-service foundation implemented. Authority
-activation and semantic v2-to-v3 migration are intentionally unavailable to ordinary runtime
-callers.
+**Runtime status:** Repository, neutral app services, and an explicit dry-run-first,
+verified-backup v2→v3 migration service are implemented. CLI, MCP, desktop migration controls and
+canonical Agent v3 operations remain unavailable.
 
 ## Boundary
 
@@ -16,15 +16,19 @@ Migration 14 is a contiguous append-only SQLite migration. It adds dormant Works
 application head/revision, and dependency tables without editing migrations 1–13 or transforming
 existing Job/Agent v2 records.
 
-Opening a Workspace with this binary upgrades its database schema to 14 as an ordinary structural
-migration. This does not activate Workspace v3 or reinterpret v2 data. A binary that supports
-only schema 13 will reject that database as newer; downgrade requires the project's documented
-verified-backup/restore path.
+Opening a Workspace with this binary upgrades its database schema through 15 as an ordinary
+structural migration. Migration 15 adds the migration ledger, one-to-one Job/Application links,
+and immutable legacy-row bindings. Neither structural migration activates Workspace v3 or
+reinterprets v2 data. A binary that supports only schema 13 or 14 rejects that database as newer;
+downgrade uses a verified pre-migration backup restored to a new path.
 
 The repository refuses create, read, list, history, and commit operations unless the singleton
-authority row contains exactly `canisend.workspace/v3`. The activation function is crate-private
-and reserved for the future failure-atomic GF2 migration. Current v2 app services cannot create a
-mixed-authority Workspace.
+authority row contains exactly `canisend.workspace/v3`. Only the migration service can activate
+that row for an existing v2 Workspace. The status read model reports v3 after activation while the
+outer v2 configuration remains a transitional storage locator for current adapters.
+
+The complete migration protocol is defined in the
+[Workspace v2→v3 migration contract](workspace-v2-to-v3-migration.md).
 
 ## Tables
 
@@ -57,6 +61,15 @@ revision metadata before returning data.
 Stores revision-specific Plan→Requirement and Deliverable→Plan/Evidence edges. Edges are attached
 to an immutable Application revision. Stale records continue to point at the historical upstream
 revisions that produced them.
+
+### Migration ledger and compatibility bindings
+
+`workspace_v3_migrations` records exact source/target versions, Pack identity, reviewed plan
+digest, source-inventory digest, Blob counts/bytes, verified-backup manifest digest, and bounded
+times. `workspace_v3_application_links` records the deterministic one-to-one legacy Job,
+Opportunity, and Application mapping. `workspace_v3_legacy_bindings` binds every source row from
+the frozen v2 table inventory to its row digest, optional Application, and exact academic Pack
+digest without copying private bodies or changing legacy rows.
 
 ## Commit protocol
 

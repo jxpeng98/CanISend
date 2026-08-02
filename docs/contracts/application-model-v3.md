@@ -6,9 +6,9 @@
 
 **Canonical schemas:** `schemas/v3/*.schema.json` in the embedded resource catalog
 
-**Runtime status:** Additive neutral model and transactional repository foundation. The current
-Job/Agent/Workspace v2 runtime remains authoritative; Workspace v3 authority activation,
-v2-to-v3 semantic migration, projections, Pack migration invalidation, and Agent v3 operations are
+**Runtime status:** Additive neutral model, transactional repository, and backup-backed semantic
+migration foundation. Job/Agent v2 remains the compatibility runtime until the academic Pack and
+canonical v3 adapters land; projections, Pack-migration invalidation, and Agent v3 operations are
 separate roadmap tasks.
 
 ## Boundary
@@ -152,8 +152,8 @@ Deliverable values.
 
 ## Compatibility promise
 
-This additive contract does not change `canisend.agent/v2`, `canisend.workspace/v2`, existing Job
-data, Job projections, or fixed academic document behavior. Schema migration 14 adds dormant v3
-tables, but the repository refuses all model operations until a `canisend.workspace/v3` authority
-row exists. Only the later failure-atomic migration may activate that row. Agent v2 and `job`
-compatibility remain bounded to the future academic reference Pack.
+This additive contract does not change `canisend.agent/v2`, existing Job data, Job projections, or
+fixed academic document behavior. Schema migration 14 adds dormant v3 model tables; migration 15
+adds the migration ledger and immutable legacy bindings. Only the explicit dry-run-first,
+verified-backup migration may create the `canisend.workspace/v3` authority row. Agent v2 and `job`
+compatibility remain bounded to the academic reference Pack.
