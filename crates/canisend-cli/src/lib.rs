@@ -2676,7 +2676,10 @@ fn discovery_import(
 }
 
 fn discovery_adapters() -> CommandResult<CommandOutput> {
-    let adapters = Application::discovery_adapters().data.adapters;
+    let adapters = Application::discovery_adapters()
+        .map_err(|error| app_adapter::failure("discovery.adapters", error))?
+        .data
+        .adapters;
     let human = adapters
         .iter()
         .map(|adapter| {

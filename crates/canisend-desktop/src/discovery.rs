@@ -252,8 +252,9 @@ fn preview_token() -> Result<String, DesktopCommandError> {
 }
 
 #[tauri::command]
-pub(crate) fn discovery_adapters() -> ActionReceipt<DiscoveryAdapterCatalogReadModel> {
-    Application::discovery_adapters()
+pub(crate) fn discovery_adapters()
+-> Result<ActionReceipt<DiscoveryAdapterCatalogReadModel>, DesktopCommandError> {
+    Application::discovery_adapters().map_err(DesktopCommandError::application)
 }
 
 #[tauri::command]

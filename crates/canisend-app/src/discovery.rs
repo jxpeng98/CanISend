@@ -1,13 +1,15 @@
 use std::path::{Path, PathBuf};
 
 use canisend_contracts::{
-    ActorKind, DiscoveryAdapterCapabilities, DiscoveryImportReport, DiscoveryLeadRecord,
-    DiscoveryLeadSuggestion, DiscoverySourceKind, DiscoverySourceRecord, JobRecord, NextAction,
+    ActorKind, ApplicationPackBindingV3, DiscoveryAdapterCapabilities, DiscoveryImportReport,
+    DiscoveryLeadRecord, DiscoveryLeadSuggestion, DiscoverySourceKind, DiscoverySourceRecord,
+    JobRecord, NextAction, WorkflowPackCapabilityId,
 };
+use canisend_core::VerifiedWorkflowPackBundle;
 use canisend_io::{
     DiscoveryAdapter, DiscoveryFileKind, GreenhouseAdapter, HttpFetcher, JobsAcUkAdapter,
-    LeverAdapter, RssAtomAdapter, discovery_adapter_capabilities, parse_csv_batch,
-    parse_host_agent_batch, parse_json_batch, read_discovery_file,
+    LeverAdapter, RssAtomAdapter, discovery_adapter_capability_id, discovery_adapter_registrations,
+    parse_csv_batch, parse_host_agent_batch, parse_json_batch, read_discovery_file,
 };
 use canisend_store::{DiscoveryService, current_utc_timestamp};
 use serde::{Deserialize, Serialize};
@@ -15,6 +17,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     ActionReceipt, Application, ApplicationError, NetworkFetchConsent, PrivateReadConsent,
     application::{open_workspace, parse_entity_id},
+    built_in_academic_job_pack,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -64,6 +67,20 @@ pub struct DiscoveryAdapterCatalogReadModel {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct PackDiscoveryAdapterReadModel {
+    pub capability_id: WorkflowPackCapabilityId,
+    pub capabilities: DiscoveryAdapterCapabilities,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PackDiscoveryAdapterCatalogReadModel {
+    pub pack: ApplicationPackBindingV3,
+    pub adapters: Vec<PackDiscoveryAdapterReadModel>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct DiscoverySourceListReadModel {
     pub workspace: PathBuf,
     pub sources: Vec<DiscoverySourceRecord>,
@@ -92,13 +109,51 @@ pub struct DiscoveryPromotionReadModel {
 }
 
 impl Application {
-    pub fn discovery_adapters() -> ActionReceipt<DiscoveryAdapterCatalogReadModel> {
-        let adapters = discovery_adapter_capabilities();
+    pub fn discovery_adapters()
+    -> Result<ActionReceipt<DiscoveryAdapterCatalogReadModel>, ApplicationError> {
+        let pack = built_in_academic_job_pack()?;
+        let qualified = Self::discovery_adapters_for_pack(&pack);
+        let adapters = qualified
+            .data
+            .adapters
+            .into_iter()
+            .map(|adapter| adapter.capabilities)
+            .collect::<Vec<_>>();
+        Ok(ActionReceipt::new(
+            "discovery.adapters",
+            "available",
+            format!(
+                "Loaded {} discovery adapter(s) declared by the built-in academic Pack",
+                adapters.len()
+            ),
+            DiscoveryAdapterCatalogReadModel { adapters },
+        ))
+    }
+
+    #[must_use]
+    pub fn discovery_adapters_for_pack(
+        pack: &VerifiedWorkflowPackBundle,
+    ) -> ActionReceipt<PackDiscoveryAdapterCatalogReadModel> {
+        let adapters = discovery_adapter_registrations()
+            .into_iter()
+            .filter(|registration| pack_declares_adapter(pack, &registration.capability_id))
+            .map(|registration| PackDiscoveryAdapterReadModel {
+                capability_id: registration.capability_id,
+                capabilities: registration.capabilities,
+            })
+            .collect::<Vec<_>>();
         ActionReceipt::new(
             "discovery.adapters",
             "available",
-            format!("Loaded {} compiled discovery adapter(s)", adapters.len()),
-            DiscoveryAdapterCatalogReadModel { adapters },
+            format!(
+                "Loaded {} optional Opportunity-source adapter(s) declared by Pack {}",
+                adapters.len(),
+                pack.snapshot().id()
+            ),
+            PackDiscoveryAdapterCatalogReadModel {
+                pack: pack_binding(pack),
+                adapters,
+            },
         )
     }
 
@@ -180,8 +235,18 @@ impl Application {
 
     pub fn preview_discovery_refresh(
         request: &DiscoveryRefreshRequest,
+        consent: NetworkFetchConsent,
+    ) -> Result<ActionReceipt<DiscoveryImportReport>, ApplicationError> {
+        let pack = built_in_academic_job_pack()?;
+        Self::preview_discovery_refresh_for_pack(&pack, request, consent)
+    }
+
+    pub fn preview_discovery_refresh_for_pack(
+        pack: &VerifiedWorkflowPackBundle,
+        request: &DiscoveryRefreshRequest,
         _consent: NetworkFetchConsent,
     ) -> Result<ActionReceipt<DiscoveryImportReport>, ApplicationError> {
+        require_declared_adapter(pack, request.adapter.source_kind())?;
         let adapter = discovery_adapter(request);
         let report = adapter.refresh(
             &HttpFetcher::new(),
@@ -200,6 +265,15 @@ impl Application {
         root: &Path,
         report: DiscoveryImportReport,
     ) -> Result<ActionReceipt<DiscoveryImportReport>, ApplicationError> {
+        let pack = built_in_academic_job_pack()?;
+        Self::commit_discovery_refresh_for_pack(root, &pack, report)
+    }
+
+    pub fn commit_discovery_refresh_for_pack(
+        root: &Path,
+        pack: &VerifiedWorkflowPackBundle,
+        report: DiscoveryImportReport,
+    ) -> Result<ActionReceipt<DiscoveryImportReport>, ApplicationError> {
         let source_kind = report_source_kind(&report)?;
         if !matches!(
             source_kind,
@@ -212,6 +286,7 @@ impl Application {
                 "network discovery refresh report has an incompatible source kind".to_owned(),
             ));
         }
+        require_declared_adapter(pack, source_kind)?;
         let mut workspace = open_workspace(root)?;
         let report = DiscoveryService::new(&mut workspace.database)
             .import_report(report, ActorKind::User)?;
@@ -322,6 +397,52 @@ impl Application {
     }
 }
 
+fn pack_binding(pack: &VerifiedWorkflowPackBundle) -> ApplicationPackBindingV3 {
+    ApplicationPackBindingV3 {
+        id: pack.snapshot().id().clone(),
+        version: pack.snapshot().version().clone(),
+        content_digest: pack.snapshot().content_digest().clone(),
+    }
+}
+
+fn pack_declares_adapter(
+    pack: &VerifiedWorkflowPackBundle,
+    capability_id: &WorkflowPackCapabilityId,
+) -> bool {
+    pack.manifest()
+        .capabilities
+        .intake_adapters
+        .contains(capability_id)
+}
+
+fn require_declared_adapter(
+    pack: &VerifiedWorkflowPackBundle,
+    source_kind: DiscoverySourceKind,
+) -> Result<(), ApplicationError> {
+    let capability_id = discovery_adapter_capability_id(source_kind).ok_or_else(|| {
+        ApplicationError::InvalidInput(format!(
+            "discovery source kind {source_kind:?} has no registered Opportunity-source adapter"
+        ))
+    })?;
+    if !pack_declares_adapter(pack, &capability_id) {
+        return Err(ApplicationError::InvalidInput(format!(
+            "Pack {}@{} does not declare optional Opportunity-source capability {}",
+            pack.snapshot().id(),
+            pack.snapshot().version(),
+            capability_id
+        )));
+    }
+    discovery_adapter_registrations()
+        .into_iter()
+        .find(|registration| registration.capability_id == capability_id)
+        .map(|_| ())
+        .ok_or_else(|| {
+            ApplicationError::ResourceIntegrity(format!(
+                "registered discovery capability {capability_id} has no adapter descriptor"
+            ))
+        })
+}
+
 fn discovery_adapter(request: &DiscoveryRefreshRequest) -> Box<dyn DiscoveryAdapter> {
     match request.adapter {
         DiscoveryNetworkAdapter::RssAtom => Box::new(RssAtomAdapter::new(
@@ -377,11 +498,19 @@ mod tests {
     };
 
     use canisend_contracts::{
-        DiscoveryBatch, DiscoveryImportReport, DiscoverySourceKind, ErrorCode, UtcTimestamp,
+        DiscoveryBatch, DiscoveryImportReport, DiscoverySourceKind, ErrorCode, Sha256Digest,
+        UtcTimestamp,
+    };
+    use canisend_core::{
+        VerifiedWorkflowPackBundle, WorkflowPackCapabilityRegistry, WorkflowPackOrigin,
+        WorkflowPackRuntime, calculate_workflow_pack_content_digest,
     };
 
     use super::{DiscoveryImportRequest, DiscoveryNetworkAdapter, DiscoveryRefreshRequest};
-    use crate::{Application, ApplicationError, NetworkFetchConsent, PrivateReadConsent};
+    use crate::{
+        Application, ApplicationError, NetworkFetchConsent, PrivateReadConsent,
+        built_in_academic_job_pack,
+    };
 
     static NEXT: AtomicU64 = AtomicU64::new(1);
 
@@ -521,9 +650,27 @@ mod tests {
 
     #[test]
     fn adapter_catalog_is_bounded_and_unsafe_refresh_fails_without_workspace() {
-        let adapters = Application::discovery_adapters().data.adapters;
+        let adapters = Application::discovery_adapters()
+            .expect("verified academic adapter catalog")
+            .data
+            .adapters;
         assert_eq!(adapters.len(), 4);
         assert!(adapters.iter().all(|adapter| adapter.network));
+        let pack = built_in_academic_job_pack().expect("verified academic Pack");
+        assert_eq!(
+            Application::discovery_adapters_for_pack(&pack)
+                .data
+                .adapters
+                .iter()
+                .map(|adapter| adapter.capability_id.as_str())
+                .collect::<Vec<_>>(),
+            vec![
+                "canisend.discovery.rss-atom",
+                "canisend.discovery.jobs-ac-uk",
+                "canisend.discovery.greenhouse",
+                "canisend.discovery.lever",
+            ]
+        );
 
         let missing = temporary_root("network");
         let error = Application::preview_discovery_refresh(
@@ -538,5 +685,89 @@ mod tests {
         .expect_err("loopback refresh rejected");
         assert_eq!(error.classify().code, ErrorCode::InputInvalid);
         assert!(!missing.exists());
+    }
+
+    #[test]
+    fn pack_declaration_filters_catalog_and_fails_before_network_or_workspace_access() {
+        let pack = academic_pack_without("canisend.discovery.rss-atom");
+        let catalog = Application::discovery_adapters_for_pack(&pack).data;
+        assert_eq!(catalog.pack.id, *pack.snapshot().id());
+        assert_eq!(catalog.pack.version, *pack.snapshot().version());
+        assert_eq!(
+            catalog.pack.content_digest,
+            *pack.snapshot().content_digest()
+        );
+        assert_eq!(catalog.adapters.len(), 3);
+        assert!(
+            catalog
+                .adapters
+                .iter()
+                .all(|adapter| { adapter.capability_id.as_str() != "canisend.discovery.rss-atom" })
+        );
+
+        let request = DiscoveryRefreshRequest {
+            adapter: DiscoveryNetworkAdapter::RssAtom,
+            endpoint: "http://127.0.0.1:9/feed".to_owned(),
+            source_name: "Undeclared feed".to_owned(),
+            organization: None,
+        };
+        let preview_error = Application::preview_discovery_refresh_for_pack(
+            &pack,
+            &request,
+            NetworkFetchConsent::granted_by_user(),
+        )
+        .expect_err("undeclared adapter fails before destination resolution");
+        assert!(
+            preview_error
+                .to_string()
+                .contains("does not declare optional Opportunity-source capability")
+        );
+
+        let missing = temporary_root("undeclared-pack-commit");
+        let report = DiscoveryImportReport {
+            dry_run: true,
+            accepted: 0,
+            rejected: 0,
+            diagnostics: Vec::new(),
+            batch: Some(DiscoveryBatch {
+                source_kind: DiscoverySourceKind::RssAtom,
+                source_name: "Undeclared feed".to_owned(),
+                source_url: Some("https://example.invalid/feed".to_owned()),
+                cursor: None,
+                observed_at: UtcTimestamp::try_new("2026-08-03T00:00:00Z").expect("timestamp"),
+                leads: Vec::new(),
+            }),
+            receipt: None,
+        };
+        Application::commit_discovery_refresh_for_pack(&missing, &pack, report)
+            .expect_err("undeclared report fails before workspace access");
+        assert!(!missing.exists());
+    }
+
+    fn academic_pack_without(capability_id: &str) -> VerifiedWorkflowPackBundle {
+        let source = built_in_academic_job_pack().expect("verified academic Pack");
+        let mut manifest = source.manifest().clone();
+        manifest
+            .capabilities
+            .intake_adapters
+            .retain(|capability| capability.as_str() != capability_id);
+        let resources = source.resources().clone();
+        manifest.content_digest =
+            Sha256Digest::try_new("0".repeat(64)).expect("placeholder digest");
+        manifest.content_digest = calculate_workflow_pack_content_digest(&manifest, &resources)
+            .expect("reduced Pack digest");
+        VerifiedWorkflowPackBundle::verify(
+            &serde_json::to_value(manifest).expect("manifest JSON"),
+            resources,
+            WorkflowPackOrigin::BuiltIn,
+            &WorkflowPackRuntime::parse(
+                env!("CARGO_PKG_VERSION"),
+                "3.0.0-alpha.1",
+                "3.0.0-alpha.1",
+            )
+            .expect("runtime"),
+            &WorkflowPackCapabilityRegistry::built_in(),
+        )
+        .expect("verified reduced Pack")
     }
 }

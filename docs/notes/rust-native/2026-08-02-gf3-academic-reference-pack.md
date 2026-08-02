@@ -2,8 +2,9 @@
 
 **Date:** 2026-08-02
 
-**Status:** Implemented locally; GF3 adapter/compatibility/UI bindings, work-item linkage,
-committed source-gate inspection, and native qualification remain roadmap steps.
+**Status:** Implemented locally; GF3 adapter binding is implemented, while compatibility/UI
+bindings, work-item linkage, committed source-gate inspection, and native qualification remain
+roadmap steps.
 
 ## Delivered
 
@@ -34,7 +35,8 @@ committed source-gate inspection, and native qualification remain roadmap steps.
 
 ## Remaining boundary
 
-GF3-ADAPTER-001 must bind declared intake capabilities to the optional adapter catalog.
-GF3-COMPAT-001 must route Agent v2 and `job` operations through explicit academic-Pack mappings and
-fail closed for generic Packs. GF3-UI-001 must resolve Pack vocabulary and forms in English and
-Chinese. The generic starter Pack remains GF4 rather than being inferred from this domain Pack.
+GF3-ADAPTER-001 now binds declared network discovery capabilities to the optional adapter catalog
+and repeats eligibility before preview/commit. GF3-COMPAT-001 must route Agent v2 and `job`
+operations through explicit academic-Pack mappings and fail closed for generic Packs. GF3-UI-001
+must resolve Pack vocabulary and forms in English and Chinese. The generic starter Pack remains GF4
+rather than being inferred from this domain Pack.

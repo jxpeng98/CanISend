@@ -75,6 +75,7 @@ pub use discovery::{
     DiscoveryAdapterCatalogReadModel, DiscoveryImportRequest, DiscoveryLeadListReadModel,
     DiscoveryNetworkAdapter, DiscoveryPromotionReadModel, DiscoveryRefreshRequest,
     DiscoverySourceListReadModel, DiscoverySuggestionReadModel,
+    PackDiscoveryAdapterCatalogReadModel, PackDiscoveryAdapterReadModel,
 };
 pub use document::DocumentWorkspaceReadModel;
 pub use dossier::{

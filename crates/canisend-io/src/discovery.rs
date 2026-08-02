@@ -18,8 +18,9 @@ use crate::IoAdapterError;
 mod adapters;
 
 pub use adapters::{
-    DiscoveryAdapter, GreenhouseAdapter, JobsAcUkAdapter, LeverAdapter, RssAtomAdapter,
-    discovery_adapter_capabilities,
+    DiscoveryAdapter, DiscoveryAdapterRegistration, GreenhouseAdapter, JobsAcUkAdapter,
+    LeverAdapter, RssAtomAdapter, discovery_adapter_capabilities, discovery_adapter_capability_id,
+    discovery_adapter_registrations,
 };
 
 pub const MAX_DISCOVERY_BATCH_BYTES: usize = 4 * 1024 * 1024;

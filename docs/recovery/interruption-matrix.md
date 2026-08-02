@@ -2,7 +2,7 @@
 
 **Applies to:** CanISend workspace format v2 and the v2→v3 authority transition
 
-**Reviewed:** 2026-08-02
+**Reviewed:** 2026-08-03
 
 CanISend treats SQLite rows and immutable blobs as authoritative state. Files under `applications/`,
 `jobs/`, `profile/`, and `agent/` are projections or scoped exports and are not backup authority. A command
@@ -33,6 +33,7 @@ to a verified blob.
 | Workspace v2→v3 competing writer | A second connection holds an immediate transaction through the migration attempt | Bounded `SQLITE_BUSY`/`SQLITE_LOCKED`, verified backup, no mixed authority, and successful retry after lock release | `migration_v3::tests::database_busy_leaves_verified_backup_and_retryable_v2_authority` |
 | Workspace v2→v3 edited projection | A legacy projection manifest is `edited` and its file contains user-owned bytes | Preview counts the conflict; migration changes neither the file bytes nor projection-state digest | `migration_v3::tests::edited_legacy_projection_is_counted_and_preserved_byte_for_byte` |
 | Workspace v2→v3 Pack admission | A verified external bundle reuses the built-in academic Pack ID | Preview fails before authority, Application, ledger, link, binding, or audit mutation | `migration_v3::tests::external_same_id_pack_cannot_activate_v3_authority` |
+| Opportunity-source Pack admission | A verified Pack omits a compiled discovery capability while preview or commit requests its source kind | Catalog hides the adapter; preview fails before DNS/HTTP and commit fails before Workspace access or mutation | `discovery::tests::pack_declaration_filters_catalog_and_fails_before_network_or_workspace_access` |
 | Older schema gate opens a newer Workspace | Compatibility check supports schema N−1 while the Workspace is schema N | Stable upgrade/restore refusal occurs before configuration or migration; v3 rows and authority remain unchanged | `database::tests::future_schema_and_incomplete_history_are_rejected_without_mutation`; `migration_v3::tests::older_schema_gate_refuses_v3_without_mutation_and_backup_restores_v2` |
 | Application v3 projection preflight | An unmanaged target, symbolic-link parent, or missing authoritative content Blob is present | Publication fails before v3 manifest ownership or writes outside the managed root | `application_projection_v3::tests::unmanaged_missing_blob_and_symlink_paths_fail_before_projection_ownership` |
 | Application v3 projection edit and repair | One managed file is edited and another is missing | Repair rebuilds only the missing file; replace/copy require explicit user action and never change Application authority | `application_projection_v3::tests::generic_projections_preserve_edits_copy_replace_and_repair` |

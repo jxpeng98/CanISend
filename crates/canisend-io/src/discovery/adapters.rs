@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use canisend_contracts::{
     DiscoveryAdapterCapabilities, DiscoveryImportDiagnostic, DiscoveryImportReport,
     DiscoveryLeadCandidate, DiscoveryMetadataValue, DiscoverySourceKind, UtcTimestamp,
+    WorkflowPackCapabilityId,
 };
 use feed_rs::model::Entry;
 use serde::Deserialize;
@@ -53,17 +54,57 @@ pub trait DiscoveryAdapter {
     fn validate_endpoint(&self, source_url: &str) -> Result<(), IoAdapterError>;
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DiscoveryAdapterRegistration {
+    pub capability_id: WorkflowPackCapabilityId,
+    pub capabilities: DiscoveryAdapterCapabilities,
+}
+
+const DISCOVERY_ADAPTER_REGISTRATIONS: [(DiscoverySourceKind, &str); 4] = [
+    (DiscoverySourceKind::RssAtom, "canisend.discovery.rss-atom"),
+    (
+        DiscoverySourceKind::JobsAcUk,
+        "canisend.discovery.jobs-ac-uk",
+    ),
+    (
+        DiscoverySourceKind::Greenhouse,
+        "canisend.discovery.greenhouse",
+    ),
+    (DiscoverySourceKind::Lever, "canisend.discovery.lever"),
+];
+
+#[must_use]
+pub fn discovery_adapter_registrations() -> Vec<DiscoveryAdapterRegistration> {
+    DISCOVERY_ADAPTER_REGISTRATIONS
+        .into_iter()
+        .map(|(kind, capability_id)| DiscoveryAdapterRegistration {
+            capability_id: WorkflowPackCapabilityId::try_new(capability_id)
+                .expect("compiled discovery capability ID is valid"),
+            capabilities: capabilities(kind),
+        })
+        .collect()
+}
+
+#[must_use]
+pub fn discovery_adapter_capability_id(
+    kind: DiscoverySourceKind,
+) -> Option<WorkflowPackCapabilityId> {
+    DISCOVERY_ADAPTER_REGISTRATIONS
+        .into_iter()
+        .find_map(|(registered_kind, capability_id)| {
+            (registered_kind == kind).then(|| {
+                WorkflowPackCapabilityId::try_new(capability_id)
+                    .expect("compiled discovery capability ID is valid")
+            })
+        })
+}
+
 #[must_use]
 pub fn discovery_adapter_capabilities() -> Vec<DiscoveryAdapterCapabilities> {
-    [
-        DiscoverySourceKind::RssAtom,
-        DiscoverySourceKind::JobsAcUk,
-        DiscoverySourceKind::Greenhouse,
-        DiscoverySourceKind::Lever,
-    ]
-    .into_iter()
-    .map(capabilities)
-    .collect()
+    discovery_adapter_registrations()
+        .into_iter()
+        .map(|registration| registration.capabilities)
+        .collect()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -676,6 +717,7 @@ mod tests {
 
     use super::{
         DiscoveryAdapter, GreenhouseAdapter, JobsAcUkAdapter, LeverAdapter, RssAtomAdapter,
+        discovery_adapter_capability_id, discovery_adapter_registrations,
     };
 
     fn observed_at() -> UtcTimestamp {
@@ -755,6 +797,110 @@ mod tests {
             adapter
                 .validate_endpoint("https://evil.example/v0/postings/example?mode=json")
                 .is_err()
+        );
+    }
+
+    #[test]
+    fn registered_capabilities_have_one_exact_network_adapter_mapping() {
+        let registrations = discovery_adapter_registrations();
+        assert_eq!(registrations.len(), 4);
+        assert_eq!(
+            registrations
+                .iter()
+                .map(|registration| (
+                    registration.capabilities.kind,
+                    registration.capability_id.as_str(),
+                ))
+                .collect::<Vec<_>>(),
+            vec![
+                (DiscoverySourceKind::RssAtom, "canisend.discovery.rss-atom",),
+                (
+                    DiscoverySourceKind::JobsAcUk,
+                    "canisend.discovery.jobs-ac-uk",
+                ),
+                (
+                    DiscoverySourceKind::Greenhouse,
+                    "canisend.discovery.greenhouse",
+                ),
+                (DiscoverySourceKind::Lever, "canisend.discovery.lever",),
+            ]
+        );
+        assert!(registrations.iter().all(|registration| {
+            registration.capabilities.network
+                && registration.capabilities.supports_cursor
+                && registration.capabilities.preserves_removed
+                && discovery_adapter_capability_id(registration.capabilities.kind)
+                    == Some(registration.capability_id.clone())
+        }));
+        assert_eq!(
+            discovery_adapter_capability_id(DiscoverySourceKind::Csv),
+            None
+        );
+    }
+
+    #[test]
+    fn provider_destination_policy_rejects_insecure_cross_host_and_wrong_shape_urls() {
+        let jobs = JobsAcUkAdapter::new(None);
+        assert!(
+            jobs.validate_endpoint("http://www.jobs.ac.uk/rss/economics.xml")
+                .is_err()
+        );
+        assert!(
+            jobs.validate_endpoint("https://jobs.example/rss/economics.xml")
+                .is_err()
+        );
+
+        let greenhouse = GreenhouseAdapter::new("Example");
+        assert!(
+            greenhouse
+                .validate_endpoint("https://boards-api.greenhouse.io/v1/boards/example")
+                .is_err()
+        );
+        assert!(
+            greenhouse
+                .validate_endpoint("https://api.lever.co/v1/boards/example/jobs")
+                .is_err()
+        );
+
+        let lever = LeverAdapter::new("Example");
+        assert!(
+            lever
+                .validate_endpoint("https://api.lever.co/v0/postings/example")
+                .is_err()
+        );
+        assert!(
+            lever
+                .validate_endpoint("https://api.lever.co/v1/postings/example?mode=json")
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn provider_payload_limit_matches_the_registered_catalog_limit() {
+        let jobs = (0..=super::MAX_DISCOVERY_LEADS)
+            .map(|index| {
+                serde_json::json!({
+                    "id": index,
+                    "title": format!("Role {index}"),
+                    "absolute_url": format!("https://example.invalid/{index}"),
+                    "location": {"name": "Remote"},
+                })
+            })
+            .collect::<Vec<_>>();
+        let payload =
+            serde_json::to_vec(&serde_json::json!({"jobs": jobs})).expect("bounded test payload");
+        let error = GreenhouseAdapter::new("Example")
+            .parse(
+                &payload,
+                "https://boards-api.greenhouse.io/v1/boards/example/jobs",
+                observed_at(),
+            )
+            .expect_err("oversized lead batch");
+        assert!(error.to_string().contains("exceeds 1000 leads"));
+        assert!(
+            discovery_adapter_registrations()
+                .iter()
+                .all(|registration| { registration.capabilities.max_items_per_refresh == 1_000 })
         );
     }
 }

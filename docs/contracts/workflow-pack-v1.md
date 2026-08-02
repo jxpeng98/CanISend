@@ -22,6 +22,9 @@ A manifest cannot contain or select native libraries, shell scripts, JavaScript,
 executables, provider credentials, database handles, or arbitrary network/filesystem access.
 Capability identifiers are references only. `canisend-core` matches them against a kernel-owned
 registry while verifying a bundle; a match grants access only to that pre-registered capability.
+For Opportunity discovery, the application then intersects those selected IDs with the compiled
+[Opportunity-source adapter registry](opportunity-source-adapters-v1.md). Selection is checked
+again before preview and commit; it never bypasses consent, destination, parser, or storage policy.
 
 ## Identity and compatibility
 
@@ -209,7 +212,8 @@ template bodies remain ordinary declared Pack resources and are reverified by th
 checked-in Manifest, exact embedded resources, bilingual labels, capabilities, content digest, and
 canonical v2 parity fixtures form one reviewed reference bundle. Application-level Workspace
 v2→v3 migration resolves that exact built-in bundle rather than accepting caller-selected Pack
-data. This does not enable external installation or make academic vocabulary part of the kernel.
+data. Its optional discovery references also resolve through the Pack-qualified adapter catalog.
+This does not enable external installation or make academic vocabulary part of the kernel.
 
 ## Registry and snapshot rule
 
