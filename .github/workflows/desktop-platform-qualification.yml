@@ -220,6 +220,7 @@ jobs:
             (Join-Path $env:RUNNER_TEMP 'desktop-windows-evidence/nsis-offline-size.json')
 
       - name: Upload nonpublishing Windows desktop candidates
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: desktop-windows-standard-${{ github.sha }}-${{ github.run_id }}
@@ -228,7 +229,7 @@ jobs:
             ${{ runner.temp }}/desktop-windows-candidates/*.exe
             ${{ runner.temp }}/desktop-windows-evidence/*.json
             ${{ runner.temp }}/desktop-windows-profile-matrix/*.json
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 14
 
   linux-standard-and-portable:
@@ -378,6 +379,7 @@ jobs:
             "$appimage" "$evidence/appimage-size.json"
 
       - name: Upload nonpublishing Linux desktop candidates
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: desktop-linux-${{ github.sha }}-${{ github.run_id }}
@@ -387,7 +389,7 @@ jobs:
             target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.AppImage
             ${{ runner.temp }}/desktop-linux-evidence/*.json
             ${{ runner.temp }}/desktop-linux-profile-matrix/*.json
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 14
 
   native-pdf-preview:

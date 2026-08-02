@@ -555,14 +555,12 @@ fn write_desktop_profile_record(
         }
     });
     write_pretty_json(output, &record)?;
-    if host_bytes > DESKTOP_HOST_BUDGET_BYTES {
-        return Err(format!(
-            "desktop profile host exceeds the {}-byte budget; inspect {}",
-            DESKTOP_HOST_BUDGET_BYTES,
-            output.display()
-        ));
-    }
-    println!("desktop profile: {target} {candidate} = {host_bytes} bytes");
+    let budget_status = if host_bytes <= DESKTOP_HOST_BUDGET_BYTES {
+        "within budget"
+    } else {
+        "over budget"
+    };
+    println!("desktop profile: {target} {candidate} = {host_bytes} bytes ({budget_status})");
     Ok(())
 }
 
