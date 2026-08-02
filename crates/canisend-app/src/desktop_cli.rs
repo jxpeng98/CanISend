@@ -34,13 +34,16 @@ fn desktop_cli_source_path_from(executable: &Path) -> Option<PathBuf> {
     is_unified_desktop_executable(executable).then(|| executable.to_path_buf())
 }
 
-fn is_unified_desktop_executable(executable: &Path) -> bool {
-    let expected_name = if cfg!(windows) {
+fn desktop_executable_name() -> &'static str {
+    if cfg!(windows) {
         "canisend-gui.exe"
     } else {
         "canisend-gui"
-    };
-    executable.file_name().and_then(|name| name.to_str()) == Some(expected_name)
+    }
+}
+
+fn is_unified_desktop_executable(executable: &Path) -> bool {
+    executable.file_name().and_then(|name| name.to_str()) == Some(desktop_executable_name())
         && fs::symlink_metadata(executable)
             .is_ok_and(|metadata| metadata.is_file() && !metadata.file_type().is_symlink())
 }
@@ -53,7 +56,7 @@ mod tests {
         sync::atomic::{AtomicU64, Ordering},
     };
 
-    use super::desktop_cli_source_path_from;
+    use super::{desktop_cli_source_path_from, desktop_executable_name};
 
     static NEXT: AtomicU64 = AtomicU64::new(1);
 
@@ -68,7 +71,7 @@ mod tests {
     #[test]
     fn ignores_a_separate_sibling_cli_and_uses_the_unified_host() {
         let root = root();
-        let executable = root.join("target/release/canisend-gui");
+        let executable = root.join("target/release").join(desktop_executable_name());
         let cli = root.join("target/release/canisend");
         fs::create_dir_all(executable.parent().expect("parent")).expect("directory");
         fs::write(&executable, b"desktop").expect("desktop executable");
@@ -84,7 +87,9 @@ mod tests {
     #[test]
     fn ignores_a_legacy_app_resource_cli_and_uses_the_unified_host() {
         let root = root();
-        let executable = root.join("CanISend.app/Contents/MacOS/canisend-gui");
+        let executable = root
+            .join("CanISend.app/Contents/MacOS")
+            .join(desktop_executable_name());
         let cli = root.join("CanISend.app/Contents/Resources/bin/canisend");
         fs::create_dir_all(executable.parent().expect("executable parent")).expect("macos");
         fs::create_dir_all(cli.parent().expect("cli parent")).expect("resources");
@@ -101,7 +106,7 @@ mod tests {
     #[test]
     fn uses_unified_desktop_executable_when_no_separate_cli_exists() {
         let root = root();
-        let development_executable = root.join("target/release/canisend-gui");
+        let development_executable = root.join("target/release").join(desktop_executable_name());
         fs::create_dir_all(development_executable.parent().expect("parent")).expect("directory");
         fs::write(&development_executable, b"desktop and cli").expect("unified executable");
 
@@ -110,7 +115,9 @@ mod tests {
             Some(development_executable.clone())
         );
 
-        let app_executable = root.join("CanISend.app/Contents/MacOS/canisend-gui");
+        let app_executable = root
+            .join("CanISend.app/Contents/MacOS")
+            .join(desktop_executable_name());
         fs::create_dir_all(app_executable.parent().expect("parent")).expect("app directory");
         fs::write(&app_executable, b"desktop and cli").expect("unified app executable");
         assert_eq!(
