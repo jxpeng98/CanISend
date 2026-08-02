@@ -25,6 +25,7 @@ pub const WORKFLOW_PACK_MAX_JSON_DEPTH: usize = 32;
 pub const WORKFLOW_PACK_MAX_JSON_NODES: usize = 20_000;
 pub const WORKFLOW_PACK_MAX_RESOURCE_BYTES: u64 = 8 * 1024 * 1024;
 pub const WORKFLOW_PACK_MAX_TOTAL_RESOURCE_BYTES: u64 = 64 * 1024 * 1024;
+pub const WORKFLOW_PACK_MAX_RESOURCES: usize = 512;
 pub const WORKFLOW_PACK_MAX_STAGES: usize = 64;
 pub const WORKFLOW_PACK_MAX_DELIVERABLE_KINDS: usize = 64;
 pub const WORKFLOW_PACK_MAX_DELIVERABLE_CARDINALITY: u16 = 32;
@@ -934,11 +935,13 @@ fn validate_validators(manifest: &WorkflowPackManifest, violations: &mut Vec<Con
 }
 
 fn validate_resources(manifest: &WorkflowPackManifest, violations: &mut Vec<ContractViolation>) {
-    if manifest.resources.len() > 512 {
+    if manifest.resources.len() > WORKFLOW_PACK_MAX_RESOURCES {
         violations.push(ContractViolation::new(
             "workflow_pack.resource_count_invalid",
             "/resources",
-            "a workflow pack cannot declare more than 512 resources",
+            format!(
+                "a workflow pack cannot declare more than {WORKFLOW_PACK_MAX_RESOURCES} resources"
+            ),
         ));
     }
     let mut ids = BTreeSet::new();

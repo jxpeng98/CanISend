@@ -61,12 +61,13 @@ cargo run -p xtask --locked -- release check
 
 ## Remaining boundary
 
-GF1-REG-001 is not a license to load arbitrary directories. A later app/storage slice must add a
-byte-limited loader, explicit user install/update action, trusted-source policy, atomic immutable
-storage, persisted Application snapshot binding, and reopen verification. Pack migration remains
-separately user-approved and backup-backed. The additive GF1-DAG-001 compiler now consumes a
-verified manifest's Pack-qualified stages, but Workspace v3 graph execution remains disabled until
-the neutral persistence boundary exists.
+GF1-REG-001 is not a license to load arbitrary directories. The GF1-TRUST byte verifier now bounds
+already-supplied Manifest/resource bytes and reports their data-only status, but a later app/storage
+slice must still add a symlink-safe regular-file reader, explicit user install/update action,
+trusted-source policy, atomic immutable storage, persisted Application snapshot binding, and
+reopen verification. Pack migration remains separately user-approved and backup-backed. The
+additive GF1-DAG-001 compiler consumes a verified Manifest's Pack-qualified stages, but Workspace
+v3 graph execution remains disabled until the neutral persistence boundary exists.
 
 ## Rollback
 

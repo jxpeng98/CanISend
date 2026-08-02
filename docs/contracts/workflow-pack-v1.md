@@ -7,8 +7,9 @@
 **Canonical schema:** `schemas/workflow-pack/v1/manifest.schema.json` in the embedded resource
 catalog
 
-**Runtime status:** Additive contract and verified-bundle registry foundation. The current Alpha
-Job/Agent v2 runtime does not load or install external workflow packs yet.
+**Runtime status:** Additive contract, bounded byte verification, Trust Report, and verified-bundle
+registry foundation. The current Alpha Job/Agent v2 runtime does not read Pack directories or
+install external workflow packs yet.
 
 ## Boundary
 
@@ -75,7 +76,9 @@ algorithm.
 | ID mappings per migration | 512 |
 
 These are contract limits, not allocation advice. A byte-oriented loader must enforce its own
-read limit before JSON parsing and must re-run the typed structural and semantic validation.
+read limit before JSON parsing and must re-run the typed structural and semantic validation. The
+core byte verifier now applies those limits to already-supplied bytes; a future filesystem adapter
+must still bound reads and reject symlinks/non-regular files before constructing that candidate.
 
 ## Semantic validation
 
@@ -152,6 +155,11 @@ The v1 resource kinds are `prompt`, `template`, `example`, and `translation`. Pa
 portable safe-relative-path primitive as other CanISend projections and cannot target
 `.canisend`. Script and executable extensions are rejected independently of the declared kind.
 
+All v1 resource bodies are UTF-8 text data. Before typed bundle verification, the byte boundary
+rejects invalid UTF-8, disallowed control bytes, executable shebangs, and common ELF, PE, Mach-O,
+WebAssembly, and ZIP binary signatures. Actual resource count, individual byte size, and total
+bytes are limited before Manifest references or declared sizes are trusted.
+
 Templates remain data passed to a future kernel-registered bounded renderer. A template resource
 does not grant filesystem, network, package-resolution, system-font, or process-execution access.
 
@@ -167,6 +175,23 @@ The generated `canisend.workflow-pack-snapshot/v1` value records pack ID, versio
 content digest, canonical manifest SHA-256, and the sorted resource identity/version/path/size/hash
 inventory. It is an immutable binding value for future Workspace persistence; the current
 in-memory registry does not yet install files or mutate a Workspace.
+
+## Trust Report rule
+
+Successful byte verification produces a body-free
+`canisend.workflow-pack-trust-report/v1`. It records exact Pack identity/version/digest, origin,
+declared publisher ID, byte/count totals, selected registered capabilities, and the passed bounded
+validation gates. It always distinguishes the following facts:
+
+- the candidate is `verified-data-only`, not trusted executable code;
+- the publisher identity is declared metadata only and has not been authenticated;
+- workflow-pack v1 specifies no publisher signature;
+- Pack data receives no execution authority; and
+- external installation remains disabled.
+
+The report contains no Manifest resource body, prompt, template, translation, or example text.
+Digest and Schema verification prove exact-data integrity and compatibility; they do not prove the
+publisher's real-world identity, the quality of a Pack, or user approval to install or migrate it.
 
 ## Compatibility promise
 

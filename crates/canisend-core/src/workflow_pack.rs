@@ -74,7 +74,8 @@ fn parse_runtime_version(
     })
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum WorkflowPackCapabilityKind {
     IntakeAdapter,
     Renderer,
@@ -82,7 +83,8 @@ pub enum WorkflowPackCapabilityKind {
 }
 
 impl WorkflowPackCapabilityKind {
-    const fn as_str(self) -> &'static str {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
         match self {
             Self::IntakeAdapter => "intake-adapter",
             Self::Renderer => "renderer",
@@ -715,7 +717,12 @@ mod tests {
     use serde_json::Value;
     use sha2::{Digest, Sha256};
 
-    use crate::{WorkflowPackDeliverableCatalogRuntime, WorkflowPackStageGraph};
+    use crate::{
+        WorkflowPackByteLoader, WorkflowPackByteLoaderError, WorkflowPackDeliverableCatalogRuntime,
+        WorkflowPackExecutablePolicy, WorkflowPackInstallationStatus,
+        WorkflowPackPublisherAuthentication, WorkflowPackSignatureStatus, WorkflowPackStageGraph,
+        WorkflowPackTrustCheckStatus, WorkflowPackTrustStatus,
+    };
 
     use super::{
         VerifiedWorkflowPackBundle, WorkflowPackBundleError, WorkflowPackCapabilityRegistry,
@@ -893,6 +900,46 @@ mod tests {
     #[test]
     fn verified_bundle_binds_manifest_resources_runtime_and_snapshot() {
         let (manifest, resources) = manifest_and_resources("1.0.0", b"template-v1");
+        let manifest_bytes = serde_json::to_vec(&manifest).expect("manifest bytes");
+        let candidate = WorkflowPackByteLoader::verify(
+            &manifest_bytes,
+            resources.clone(),
+            WorkflowPackOrigin::External,
+            &runtime(),
+            &WorkflowPackCapabilityRegistry::built_in(),
+        )
+        .expect("verified byte candidate");
+        let report = candidate.trust_report();
+        assert_eq!(report.status(), WorkflowPackTrustStatus::VerifiedDataOnly);
+        assert_eq!(
+            report.publisher_authentication(),
+            WorkflowPackPublisherAuthentication::DeclaredOnly
+        );
+        assert_eq!(
+            report.signature_status(),
+            WorkflowPackSignatureStatus::NotSpecifiedByV1
+        );
+        assert_eq!(
+            report.installation_status(),
+            WorkflowPackInstallationStatus::Disabled
+        );
+        assert_eq!(
+            report.executable_policy(),
+            WorkflowPackExecutablePolicy::DataOnlyNoExecutionAuthority
+        );
+        assert_eq!(report.resource_count(), 1);
+        assert_eq!(report.resource_bytes(), 11);
+        assert_eq!(report.capability_references().len(), 2);
+        assert!(
+            report
+                .checks()
+                .iter()
+                .all(|check| check.status() == WorkflowPackTrustCheckStatus::Passed)
+        );
+        assert!(!report.contains_resource_bodies());
+        let report_json = serde_json::to_string(report).expect("trust report JSON");
+        assert!(!report_json.contains("template-v1"));
+
         let first = verify(&manifest, resources.clone()).expect("verified bundle");
         let second = verify(&manifest, resources).expect("repeat verified bundle");
         assert_eq!(first, second);
@@ -941,6 +988,57 @@ mod tests {
         assert!(matches!(
             verify(&manifest, resources),
             Err(WorkflowPackBundleError::ContentDigestMismatch { .. })
+        ));
+    }
+
+    #[test]
+    fn byte_loader_preserves_data_digest_and_capability_failures() {
+        let (manifest, mut resources) = manifest_and_resources("1.0.0", b"template-v1");
+        resources.insert(
+            path("templates/statement.typ"),
+            b"#!/bin/sh\necho no".to_vec(),
+        );
+        let manifest_bytes = serde_json::to_vec(&manifest).expect("manifest bytes");
+        assert!(matches!(
+            WorkflowPackByteLoader::verify(
+                &manifest_bytes,
+                resources,
+                WorkflowPackOrigin::External,
+                &runtime(),
+                &WorkflowPackCapabilityRegistry::built_in(),
+            ),
+            Err(WorkflowPackByteLoaderError::ResourceShebangRejected { .. })
+        ));
+
+        let (mut manifest, resources) = manifest_and_resources("1.0.0", b"template-v1");
+        manifest.content_digest = Sha256Digest::try_new("f".repeat(64)).expect("wrong digest");
+        let manifest_bytes = serde_json::to_vec(&manifest).expect("manifest bytes");
+        assert!(matches!(
+            WorkflowPackByteLoader::verify(
+                &manifest_bytes,
+                resources,
+                WorkflowPackOrigin::External,
+                &runtime(),
+                &WorkflowPackCapabilityRegistry::built_in(),
+            ),
+            Err(WorkflowPackByteLoaderError::Bundle(
+                WorkflowPackBundleError::ContentDigestMismatch { .. }
+            ))
+        ));
+
+        let (manifest, resources) = manifest_and_resources("1.0.0", b"template-v1");
+        let manifest_bytes = serde_json::to_vec(&manifest).expect("manifest bytes");
+        assert!(matches!(
+            WorkflowPackByteLoader::verify(
+                &manifest_bytes,
+                resources,
+                WorkflowPackOrigin::External,
+                &runtime(),
+                &WorkflowPackCapabilityRegistry::default(),
+            ),
+            Err(WorkflowPackByteLoaderError::Bundle(
+                WorkflowPackBundleError::CapabilityUnavailable { .. }
+            ))
         ));
     }
 
