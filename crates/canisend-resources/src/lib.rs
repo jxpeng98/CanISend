@@ -251,10 +251,15 @@ pub fn verify() -> Result<(), String> {
                 resource.id
             ));
         }
-        if resource.descriptor.kind == ResourceKind::Schema
-            && resource.descriptor.version != canisend_contracts::PUBLIC_SCHEMA_VERSION
-        {
-            return Err(format!("embedded schema version mismatch: {}", resource.id));
+        if resource.descriptor.kind == ResourceKind::Schema {
+            let expected_version = if resource.descriptor.id == "schema.workflow-pack-manifest" {
+                canisend_contracts::WORKFLOW_PACK_SCHEMA_VERSION
+            } else {
+                canisend_contracts::PUBLIC_SCHEMA_VERSION
+            };
+            if resource.descriptor.version != expected_version {
+                return Err(format!("embedded schema version mismatch: {}", resource.id));
+            }
         }
     }
     Ok(())

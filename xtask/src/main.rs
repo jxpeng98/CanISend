@@ -10,7 +10,7 @@ use std::{
 
 use canisend_contracts::{
     AGENT_PROTOCOL, PUBLIC_SCHEMA_VERSION, WORKSPACE_FORMAT, generate_public_schemas,
-    verify_public_schemas,
+    generate_workflow_pack_schema, verify_public_schemas, verify_workflow_pack_schema,
 };
 use semver::Version;
 use serde_json::{Map, Value, json};
@@ -376,6 +376,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
 
 fn check_schemas() -> Result<(), String> {
     verify_public_schemas()?;
+    verify_workflow_pack_schema()?;
     let expected = generate_public_schemas();
     let directory = schema_directory();
     let mut expected_names = BTreeSet::new();
@@ -399,12 +400,38 @@ fn check_schemas() -> Result<(), String> {
             "generated schema file set differs: expected {expected_names:?}, found {actual_names:?}"
         ));
     }
-    println!("schemas: ok ({})", expected_names.len());
+    let workflow_pack = generate_workflow_pack_schema();
+    let workflow_pack_directory = workflow_pack_schema_directory();
+    let workflow_pack_path = workflow_pack_directory.join(workflow_pack.file_name());
+    let workflow_pack_actual = fs::read_to_string(&workflow_pack_path).map_err(|error| {
+        format!(
+            "generated workflow-pack schema is missing at {}: {error}",
+            workflow_pack_path.display()
+        )
+    })?;
+    if workflow_pack_actual != workflow_pack.canonical_json() {
+        return Err(format!(
+            "generated workflow-pack schema drift at {}; run `cargo run -p xtask -- schemas write`",
+            workflow_pack_path.display()
+        ));
+    }
+    let workflow_pack_names = json_files(&workflow_pack_directory)?;
+    let expected_workflow_pack_names = BTreeSet::from([workflow_pack.file_name().to_owned()]);
+    if workflow_pack_names != expected_workflow_pack_names {
+        return Err(format!(
+            "generated workflow-pack schema file set differs: expected {expected_workflow_pack_names:?}, found {workflow_pack_names:?}"
+        ));
+    }
+    println!(
+        "schemas: ok ({} public + 1 workflow-pack)",
+        expected_names.len()
+    );
     Ok(())
 }
 
 fn write_schemas() -> Result<(), String> {
     verify_public_schemas()?;
+    verify_workflow_pack_schema()?;
     let directory = schema_directory();
     fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
     let schemas = generate_public_schemas();
@@ -421,12 +448,33 @@ fn write_schemas() -> Result<(), String> {
         let path = directory.join(schema.id.file_name());
         fs::write(&path, schema.canonical_json()).map_err(|error| error.to_string())?;
     }
-    println!("schemas: wrote {}", expected_names.len());
+    let workflow_pack = generate_workflow_pack_schema();
+    let workflow_pack_directory = workflow_pack_schema_directory();
+    fs::create_dir_all(&workflow_pack_directory).map_err(|error| error.to_string())?;
+    for existing in json_files(&workflow_pack_directory)? {
+        if existing != workflow_pack.file_name() {
+            fs::remove_file(workflow_pack_directory.join(existing))
+                .map_err(|error| error.to_string())?;
+        }
+    }
+    fs::write(
+        workflow_pack_directory.join(workflow_pack.file_name()),
+        workflow_pack.canonical_json(),
+    )
+    .map_err(|error| error.to_string())?;
+    println!(
+        "schemas: wrote {} public + 1 workflow-pack",
+        expected_names.len()
+    );
     Ok(())
 }
 
 fn schema_directory() -> PathBuf {
     repository_root().join("crates/canisend-resources/resources/schemas/v2")
+}
+
+fn workflow_pack_schema_directory() -> PathBuf {
+    repository_root().join("crates/canisend-resources/resources/schemas/workflow-pack/v1")
 }
 
 fn repository_root() -> PathBuf {

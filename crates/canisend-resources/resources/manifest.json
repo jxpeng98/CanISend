@@ -54,6 +54,7 @@
   {"id":"schema.task-descriptor","kind":"schema","path":"schemas/v2/task-descriptor.schema.json","version":"2.0.0"},
   {"id":"schema.version","kind":"schema","path":"schemas/v2/version.schema.json","version":"2.0.0"},
   {"id":"schema.workflow-status","kind":"schema","path":"schemas/v2/workflow-status.schema.json","version":"2.0.0"},
+  {"id":"schema.workflow-pack-manifest","kind":"schema","path":"schemas/workflow-pack/v1/manifest.schema.json","version":"1.0.0"},
   {"id":"schema.workspace-check","kind":"schema","path":"schemas/v2/workspace-check.schema.json","version":"2.0.0"},
   {"id":"schema.workspace-status","kind":"schema","path":"schemas/v2/workspace-status.schema.json","version":"2.0.0"},
   {"id":"template.application-document","kind":"template","path":"templates/application-document.typ","version":"2.0.0"},

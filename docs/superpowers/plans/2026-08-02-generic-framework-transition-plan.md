@@ -188,6 +188,12 @@ the parent roadmap.
 | GF1-TRUST-001 | P0 | Enforce data-only pack resources and registered capability references | Executable/resource escape, unsafe path, unknown adapter/renderer, and oversized resource fixtures fail |
 | GF1-I18N-001 | P1 | Resolve pack vocabulary through the existing English/Chinese localization layer | Missing fallback, placeholder mismatch, bidi/Unicode edge, and locale restart tests pass |
 
+Repository evidence currently available:
+
+| Task | Evidence | Remaining state boundary |
+|---|---|---|
+| GF1-SCHEMA-001 | [Workflow-pack v1 contract](../../contracts/workflow-pack-v1.md) and [implementation record](../../notes/rust-native/2026-08-02-gf1-workflow-pack-contract.md) | Create/link its work item and inspect the committed focused/source-gate evidence before marking Verified |
+
 ### GF2 — Neutral kernel and Workspace v3
 
 | ID | Priority | Deliverable | Verification |

@@ -13,8 +13,9 @@ use crate::{
     PackageManifestRecord, ParsedJobRecord, ProfileSourceRecord, ProjectionReconcileRecord,
     ProjectionRecord, ReadinessRecord, RenderManifestRecord, RenderedDocumentRecord,
     ReviewCandidate, ReviewDispositionCandidate, ReviewFindingsRecord, SourceRecord,
-    TaskCompletionRequest, TaskDescriptor, VersionData, WorkflowStatusData, WorkspaceCheckData,
-    WorkspaceStatusData,
+    TaskCompletionRequest, TaskDescriptor, VersionData, WORKFLOW_PACK_SCHEMA_ID,
+    WORKFLOW_PACK_SCHEMA_URI, WORKFLOW_PACK_SCHEMA_VERSION, WorkflowPackManifest,
+    WorkflowStatusData, WorkspaceCheckData, WorkspaceStatusData,
 };
 
 pub const PUBLIC_SCHEMA_VERSION: &str = "2.0.0";
@@ -218,6 +219,26 @@ pub struct GeneratedSchema {
     pub document: Value,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct GeneratedWorkflowPackSchema {
+    pub document: Value,
+}
+
+impl GeneratedWorkflowPackSchema {
+    #[must_use]
+    pub const fn file_name(&self) -> &'static str {
+        "manifest.schema.json"
+    }
+
+    #[must_use]
+    pub fn canonical_json(&self) -> String {
+        let mut output = serde_json::to_string_pretty(&sort_json(self.document.clone()))
+            .expect("generated workflow-pack schema serializes");
+        output.push('\n');
+        output
+    }
+}
+
 impl GeneratedSchema {
     #[must_use]
     pub fn canonical_json(&self) -> String {
@@ -306,22 +327,50 @@ pub fn verify_public_schemas() -> Result<(), String> {
     Ok(())
 }
 
+#[must_use]
+pub fn generate_workflow_pack_schema() -> GeneratedWorkflowPackSchema {
+    GeneratedWorkflowPackSchema {
+        document: generate_schema_document::<WorkflowPackManifest>(
+            WORKFLOW_PACK_SCHEMA_URI,
+            WORKFLOW_PACK_SCHEMA_ID,
+            WORKFLOW_PACK_SCHEMA_VERSION,
+        ),
+    }
+}
+
+pub fn verify_workflow_pack_schema() -> Result<(), String> {
+    let schema = generate_workflow_pack_schema();
+    if !jsonschema::meta::is_valid(&schema.document) {
+        return Err("generated workflow-pack schema does not satisfy its meta-schema".to_owned());
+    }
+    if schema.document["$id"] != WORKFLOW_PACK_SCHEMA_URI
+        || schema.document["x-canisend-id"] != WORKFLOW_PACK_SCHEMA_ID
+        || schema.document["x-canisend-version"] != WORKFLOW_PACK_SCHEMA_VERSION
+    {
+        return Err("generated workflow-pack schema metadata is incomplete".to_owned());
+    }
+    Ok(())
+}
+
 fn generate<T: JsonSchema>(id: PublicSchemaId) -> GeneratedSchema {
+    let document =
+        generate_schema_document::<T>(&id.canonical_uri(), id.as_str(), PUBLIC_SCHEMA_VERSION);
+    GeneratedSchema { id, document }
+}
+
+fn generate_schema_document<T: JsonSchema>(uri: &str, id: &str, version: &str) -> Value {
     let mut document = serde_json::to_value(schemars::schema_for!(T))
         .expect("generated schema serializes to JSON");
     let object = document
         .as_object_mut()
         .expect("generated JSON Schema root is an object");
-    object.insert("$id".to_owned(), Value::String(id.canonical_uri()));
-    object.insert(
-        "x-canisend-id".to_owned(),
-        Value::String(id.as_str().to_owned()),
-    );
+    object.insert("$id".to_owned(), Value::String(uri.to_owned()));
+    object.insert("x-canisend-id".to_owned(), Value::String(id.to_owned()));
     object.insert(
         "x-canisend-version".to_owned(),
-        Value::String(PUBLIC_SCHEMA_VERSION.to_owned()),
+        Value::String(version.to_owned()),
     );
-    GeneratedSchema { id, document }
+    document
 }
 
 fn sort_json(value: Value) -> Value {
@@ -345,7 +394,10 @@ fn sort_json(value: Value) -> Value {
 mod tests {
     use std::collections::BTreeSet;
 
-    use super::{PublicSchemaId, generate_public_schemas, verify_public_schemas};
+    use super::{
+        PublicSchemaId, generate_public_schemas, generate_workflow_pack_schema,
+        verify_public_schemas, verify_workflow_pack_schema,
+    };
 
     #[test]
     fn public_schema_registry_is_complete_and_deterministic() {
@@ -362,5 +414,15 @@ mod tests {
                 .len(),
             first.len()
         );
+    }
+
+    #[test]
+    fn workflow_pack_schema_is_versioned_and_deterministic() {
+        verify_workflow_pack_schema().expect("workflow-pack schema verifies");
+        let first = generate_workflow_pack_schema();
+        let second = generate_workflow_pack_schema();
+        assert_eq!(first, second);
+        assert_eq!(first.file_name(), "manifest.schema.json");
+        assert_eq!(first.canonical_json(), second.canonical_json());
     }
 }

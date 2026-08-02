@@ -1,0 +1,623 @@
+{
+  "$defs": {
+    "ExecutionMode": {
+      "enum": [
+        "deterministic",
+        "host-agent",
+        "configured-provider",
+        "user-decision",
+        "manual-import"
+      ],
+      "type": "string"
+    },
+    "WorkflowPackApplicationDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "application_fields": {
+          "items": {
+            "$ref": "#/$defs/WorkflowPackFieldDefinition"
+          },
+          "type": "array"
+        },
+        "opportunity_fields": {
+          "items": {
+            "$ref": "#/$defs/WorkflowPackFieldDefinition"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "opportunity_fields",
+        "application_fields"
+      ],
+      "type": "object"
+    },
+    "WorkflowPackCapabilities": {
+      "additionalProperties": false,
+      "properties": {
+        "intake_adapters": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "renderers": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "validators": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "intake_adapters",
+        "renderers",
+        "validators"
+      ],
+      "type": "object"
+    },
+    "WorkflowPackCategoryDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "fields": {
+          "items": {
+            "$ref": "#/$defs/WorkflowPackFieldDefinition"
+          },
+          "type": "array"
+        },
+        "id": {
+          "type": "string"
+        },
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "labels",
+        "fields"
+      ],
+      "type": "object"
+    },
+    "WorkflowPackCompatibility": {
+      "additionalProperties": false,
+      "properties": {
+        "agent": {
+          "type": "string"
+        },
+        "kernel": {
+          "type": "string"
+        },
+        "workspace": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kernel",
+        "agent",
+        "workspace"
+      ],
+      "type": "object"
+    },
+    "WorkflowPackDeliverableCatalog": {
+      "additionalProperties": false,
+      "properties": {
+        "kinds": {
+          "items": {
+            "$ref": "#/$defs/WorkflowPackDeliverableDefinition"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "kinds"
+      ],
+      "type": "object"
+    },
+    "WorkflowPackDeliverableDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "maximum": {
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "minimum": {
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "renderer": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "template": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "validators": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "labels",
+        "minimum",
+        "maximum",
+        "validators"
+      ],
+      "type": "object"
+    },
+    "WorkflowPackFieldDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "field_type": {
+          "$ref": "#/$defs/WorkflowPackFieldType"
+        },
+        "id": {
+          "type": "string"
+        },
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "options": {
+          "items": {
+            "$ref": "#/$defs/WorkflowPackFieldOption"
+          },
+          "type": "array"
+        },
+        "required": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "labels",
+        "field_type",
+        "required",
+        "options"
+      ],
+      "type": "object"
+    },
+    "WorkflowPackFieldOption": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "labels"
+      ],
+      "type": "object"
+    },
+    "WorkflowPackFieldType": {
+      "enum": [
+        "short-text",
+        "long-text",
+        "integer",
+        "boolean",
+        "date",
+        "url",
+        "string-list",
+        "choice"
+      ],
+      "type": "string"
+    },
+    "WorkflowPackFormat": {
+      "enum": [
+        "canisend.workflow-pack/v1"
+      ],
+      "type": "string"
+    },
+    "WorkflowPackIdMapping": {
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/WorkflowPackMigrationKind"
+        },
+        "to": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "from",
+        "to"
+      ],
+      "type": "object"
+    },
+    "WorkflowPackMigration": {
+      "additionalProperties": false,
+      "properties": {
+        "from_version": {
+          "type": "string"
+        },
+        "mappings": {
+          "items": {
+            "$ref": "#/$defs/WorkflowPackIdMapping"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "from_version",
+        "mappings"
+      ],
+      "type": "object"
+    },
+    "WorkflowPackMigrationKind": {
+      "enum": [
+        "stage",
+        "requirement-category",
+        "evidence-category",
+        "deliverable",
+        "resource",
+        "validator",
+        "field"
+      ],
+      "type": "string"
+    },
+    "WorkflowPackPublisher": {
+      "additionalProperties": false,
+      "properties": {
+        "homepage": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "type": "object"
+    },
+    "WorkflowPackResource": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/WorkflowPackResourceKind"
+        },
+        "path": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string"
+        },
+        "size_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "path",
+        "version",
+        "size_bytes",
+        "sha256"
+      ],
+      "type": "object"
+    },
+    "WorkflowPackResourceKind": {
+      "enum": [
+        "prompt",
+        "template",
+        "example",
+        "translation"
+      ],
+      "type": "string"
+    },
+    "WorkflowPackStageDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "depends_on": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "execution_modes": {
+          "items": {
+            "$ref": "#/$defs/ExecutionMode"
+          },
+          "type": "array"
+        },
+        "id": {
+          "type": "string"
+        },
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "output": {
+          "$ref": "#/$defs/WorkflowPackStageOutput"
+        }
+      },
+      "required": [
+        "id",
+        "labels",
+        "depends_on",
+        "output",
+        "execution_modes"
+      ],
+      "type": "object"
+    },
+    "WorkflowPackStageOutput": {
+      "enum": [
+        "none",
+        "sources",
+        "requirements",
+        "evidence",
+        "matches",
+        "plan",
+        "deliverables",
+        "review",
+        "package",
+        "render"
+      ],
+      "type": "string"
+    },
+    "WorkflowPackTaxonomy": {
+      "additionalProperties": false,
+      "properties": {
+        "categories": {
+          "items": {
+            "$ref": "#/$defs/WorkflowPackCategoryDefinition"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "categories"
+      ],
+      "type": "object"
+    },
+    "WorkflowPackValidationPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "definitions": {
+          "items": {
+            "$ref": "#/$defs/WorkflowPackValidatorDefinition"
+          },
+          "type": "array"
+        },
+        "readiness": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "definitions",
+        "readiness"
+      ],
+      "type": "object"
+    },
+    "WorkflowPackValidatorDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "capability": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "parameters": {
+          "additionalProperties": true,
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "capability",
+        "parameters"
+      ],
+      "type": "object"
+    },
+    "WorkflowPackVocabulary": {
+      "additionalProperties": false,
+      "properties": {
+        "application_plural": {
+          "type": "string"
+        },
+        "application_singular": {
+          "type": "string"
+        },
+        "deliverable_plural": {
+          "type": "string"
+        },
+        "evidence_plural": {
+          "type": "string"
+        },
+        "opportunity_plural": {
+          "type": "string"
+        },
+        "opportunity_singular": {
+          "type": "string"
+        },
+        "requirement_plural": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "application_singular",
+        "application_plural",
+        "opportunity_singular",
+        "opportunity_plural",
+        "requirement_plural",
+        "evidence_plural",
+        "deliverable_plural"
+      ],
+      "type": "object"
+    },
+    "WorkflowPackWorkflowDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "stages": {
+          "items": {
+            "$ref": "#/$defs/WorkflowPackStageDefinition"
+          },
+          "type": "array"
+        },
+        "terminal_stage": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "stages",
+        "terminal_stage"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://schemas.canisend.dev/workflow-pack/v1/manifest.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "application": {
+      "$ref": "#/$defs/WorkflowPackApplicationDefinition"
+    },
+    "capabilities": {
+      "$ref": "#/$defs/WorkflowPackCapabilities"
+    },
+    "compatibility": {
+      "$ref": "#/$defs/WorkflowPackCompatibility"
+    },
+    "content_digest": {
+      "type": "string"
+    },
+    "default_locale": {
+      "type": "string"
+    },
+    "deliverables": {
+      "$ref": "#/$defs/WorkflowPackDeliverableCatalog"
+    },
+    "evidence": {
+      "$ref": "#/$defs/WorkflowPackTaxonomy"
+    },
+    "format": {
+      "$ref": "#/$defs/WorkflowPackFormat"
+    },
+    "id": {
+      "type": "string"
+    },
+    "locales": {
+      "additionalProperties": {
+        "$ref": "#/$defs/WorkflowPackVocabulary"
+      },
+      "type": "object"
+    },
+    "migrations": {
+      "items": {
+        "$ref": "#/$defs/WorkflowPackMigration"
+      },
+      "type": "array"
+    },
+    "publisher": {
+      "$ref": "#/$defs/WorkflowPackPublisher"
+    },
+    "requirements": {
+      "$ref": "#/$defs/WorkflowPackTaxonomy"
+    },
+    "resources": {
+      "items": {
+        "$ref": "#/$defs/WorkflowPackResource"
+      },
+      "type": "array"
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "validation": {
+      "$ref": "#/$defs/WorkflowPackValidationPolicy"
+    },
+    "version": {
+      "type": "string"
+    },
+    "workflow": {
+      "$ref": "#/$defs/WorkflowPackWorkflowDefinition"
+    }
+  },
+  "required": [
+    "format",
+    "id",
+    "version",
+    "schema_version",
+    "publisher",
+    "compatibility",
+    "default_locale",
+    "locales",
+    "application",
+    "workflow",
+    "requirements",
+    "evidence",
+    "deliverables",
+    "capabilities",
+    "validation",
+    "resources",
+    "migrations",
+    "content_digest"
+  ],
+  "title": "WorkflowPackManifest",
+  "type": "object",
+  "x-canisend-id": "canisend.workflow-pack-manifest/v1",
+  "x-canisend-version": "1.0.0"
+}

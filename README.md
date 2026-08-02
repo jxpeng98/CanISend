@@ -64,8 +64,10 @@ The current CLI provides:
 - Validated UUIDv7, SHA-256, revision, UTC timestamp, and safe relative-path contract types.
 - `canisend.agent/v2` success/error envelopes, stable error registry, and grouped exit policy.
 - Product/version/build inspection.
-- Forty deterministic Draft 2020-12 schemas generated from Rust types.
-- Fifty-one typed embedded schemas, prompts, templates, examples, and host assets with SHA-256 verification.
+- Forty deterministic Agent v2 Draft 2020-12 schemas generated from Rust types.
+- A separately versioned `canisend.workflow-pack/v1` manifest Schema and bounded semantic
+  validator; runtime pack installation is not yet enabled.
+- Fifty-two typed embedded schemas, prompts, templates, examples, and host assets with SHA-256 verification.
 - A truthful capability registry that marks unfinished functions as `planned`.
 - Agent context plus schema/resource diagnostics with deterministic JSON snapshots.
 - Workspace discovery, explicit `--workspace` resolution, initialization, status, integrity checks, and repair.

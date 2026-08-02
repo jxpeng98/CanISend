@@ -31,6 +31,27 @@ fn embedded_manifest_matches_resource_bytes() {
 }
 
 #[test]
+fn workflow_pack_schema_is_embedded_with_its_own_contract_version() {
+    let resource = get(ResourceId::SchemaWorkflowPackManifest);
+    assert_eq!(resource.descriptor.kind, ResourceKind::Schema);
+    assert_eq!(
+        resource.descriptor.version,
+        canisend_contracts::WORKFLOW_PACK_SCHEMA_VERSION
+    );
+    assert_eq!(
+        resource.descriptor.path,
+        "schemas/workflow-pack/v1/manifest.schema.json"
+    );
+    let schema: serde_json::Value =
+        serde_json::from_slice(resource.bytes).expect("workflow-pack schema JSON");
+    assert_eq!(schema["$id"], canisend_contracts::WORKFLOW_PACK_SCHEMA_URI);
+    assert_eq!(
+        schema["x-canisend-id"],
+        canisend_contracts::WORKFLOW_PACK_SCHEMA_ID
+    );
+}
+
+#[test]
 fn modernpro_templates_are_pinned_self_contained_and_adapter_backed() {
     for (id, version, package_marker) in [
         (
