@@ -3,6 +3,7 @@
 mod agent;
 mod agent_session;
 mod application;
+mod application_v3;
 mod assistance;
 mod catalog;
 mod cli_install;
@@ -41,6 +42,11 @@ pub use agent_session::{
 };
 pub use application::{
     Application, NetworkFetchConsent, PrivateExportConsent, PrivateReadConsent, ProviderSendConsent,
+};
+pub use application_v3::{
+    ApplicationModelCommitRequestV3, ApplicationModelCommitResultV3,
+    ApplicationModelCreateRequestV3, ApplicationModelRevisionV3, StoredApplicationModelV3,
+    WorkspaceV3AuthorityState,
 };
 pub use assistance::{
     AgentAssistanceReadModel, AgentContentGraphReadModel, AgentContentProvenanceReadModel,

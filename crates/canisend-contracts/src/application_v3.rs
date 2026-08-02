@@ -12,6 +12,7 @@ use crate::{
 };
 
 pub const APPLICATION_MODEL_V3_FORMAT: &str = "canisend.application-model/v3";
+pub const WORKSPACE_V3_FORMAT: &str = "canisend.workspace/v3";
 pub const APPLICATION_MODEL_V3_MAX_METADATA_FIELDS: usize = 128;
 pub const APPLICATION_MODEL_V3_MAX_SOURCES: usize = 128;
 pub const APPLICATION_MODEL_V3_MAX_REQUIREMENTS: usize = 1_000;
@@ -198,6 +199,7 @@ pub struct RequirementRecordV3 {
 pub enum PlanStateV3 {
     Draft,
     Confirmed,
+    Stale,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -473,6 +475,20 @@ impl SemanticValidate for PlanRecordV3 {
                     ));
                 }
             }
+            PlanStateV3::Stale => {
+                let preserves_confirmed_decision = self.decision.is_some()
+                    && self.decided_by == Some(ActorKind::User)
+                    && self.decided_at.is_some();
+                let preserves_draft_decision =
+                    self.decided_by.is_none() && self.decided_at.is_none();
+                if !preserves_confirmed_decision && !preserves_draft_decision {
+                    violations.push(ContractViolation::new(
+                        "application_v3.plan_decision_invalid",
+                        "/state",
+                        "a stale Plan must preserve either a complete user decision or an undecided draft state",
+                    ));
+                }
+            }
         }
         violations
     }
@@ -609,22 +625,31 @@ impl SemanticValidate for ApplicationModelSnapshotV3 {
                 ));
             }
             for (index, reference) in plan.requirement_inputs.iter().enumerate() {
-                if !requirements
-                    .get(&reference.id)
-                    .is_some_and(|requirement| requirement.revision == reference.revision)
-                {
+                let reference_is_valid =
+                    requirements.get(&reference.id).is_some_and(|requirement| {
+                        if plan.state == PlanStateV3::Stale {
+                            reference.revision <= requirement.revision
+                        } else {
+                            reference.revision == requirement.revision
+                        }
+                    });
+                if !reference_is_valid {
                     violations.push(ContractViolation::new(
                         "application_v3.plan_requirement_revision_mismatch",
                         format!("/plan/requirement_inputs/{index}"),
-                        "Plan Requirement inputs must reference exact snapshot revisions",
+                        "current Plans require exact Requirement revisions; stale Plans may preserve earlier revisions",
                     ));
                 }
             }
             for (index, blocker) in plan.blockers.iter().enumerate() {
                 if let Some(reference) = &blocker.requirement
-                    && !requirements
-                        .get(&reference.id)
-                        .is_some_and(|requirement| requirement.revision == reference.revision)
+                    && !requirements.get(&reference.id).is_some_and(|requirement| {
+                        if plan.state == PlanStateV3::Stale {
+                            reference.revision <= requirement.revision
+                        } else {
+                            reference.revision == requirement.revision
+                        }
+                    })
                 {
                     violations.push(ContractViolation::new(
                         "application_v3.blocker_requirement_revision_mismatch",
@@ -662,17 +687,25 @@ impl SemanticValidate for ApplicationModelSnapshotV3 {
                 ));
             }
             if let Some(plan) = plan {
-                if deliverable.plan.id != plan.id || deliverable.plan.revision != plan.revision {
+                let plan_reference_is_valid = deliverable.plan.id == plan.id
+                    && if deliverable.state == DeliverableStateV3::Stale {
+                        deliverable.plan.revision <= plan.revision
+                    } else {
+                        deliverable.plan.revision == plan.revision
+                    };
+                if !plan_reference_is_valid {
                     violations.push(ContractViolation::new(
                         "application_v3.deliverable_plan_revision_mismatch",
                         format!("/deliverables/{index}/plan"),
-                        "Deliverable must reference the exact snapshot Plan revision",
+                        "current Deliverables require the exact Plan revision; stale Deliverables may preserve an earlier revision",
                     ));
                 }
-                if !plan.deliverables.iter().any(|planned| {
-                    planned.kind == deliverable.kind
-                        && planned.disposition != PlannedDeliverableDispositionV3::Omitted
-                }) {
+                if deliverable.state != DeliverableStateV3::Stale
+                    && !plan.deliverables.iter().any(|planned| {
+                        planned.kind == deliverable.kind
+                            && planned.disposition != PlannedDeliverableDispositionV3::Omitted
+                    })
+                {
                     violations.push(ContractViolation::new(
                         "application_v3.deliverable_kind_unplanned",
                         format!("/deliverables/{index}/kind"),
@@ -1128,6 +1161,24 @@ mod tests {
                 .iter()
                 .any(|code| code == "application_v3.deliverable_plan_revision_mismatch")
         );
+    }
+
+    #[test]
+    fn stale_outputs_preserve_the_historical_revisions_that_produced_them() {
+        let mut snapshot = confirmed_snapshot();
+        snapshot.requirements[0].statement = "Explain the revised public benefit.".to_owned();
+        snapshot.requirements[0].revision = revision(2);
+        snapshot.plan.as_mut().expect("plan").state = PlanStateV3::Stale;
+        snapshot.plan.as_mut().expect("plan").revision = revision(2);
+        snapshot.deliverables[0].state = DeliverableStateV3::Stale;
+        snapshot.deliverables[0].revision = revision(2);
+
+        assert!(snapshot.validate_semantics().is_empty());
+        assert_eq!(
+            snapshot.plan.as_ref().expect("plan").requirement_inputs[0].revision,
+            revision(1)
+        );
+        assert_eq!(snapshot.deliverables[0].plan.revision, revision(1));
     }
 
     #[test]

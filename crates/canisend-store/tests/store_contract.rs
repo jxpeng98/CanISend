@@ -17,10 +17,10 @@ use canisend_contracts::{
     TaskCompletionRequest, TaskStatus, WorkflowStage,
 };
 use canisend_store::{
-    ArtifactService, CriteriaService, DEFAULT_MAX_BLOB_BYTES, DocumentService, EvidenceService,
-    JobService, MatchService, NewProfileSource, NewSource, PackageService, PlanService,
-    ProfileService, ProjectionService, RenderService, ReviewService, StoreError, TaskService,
-    WorkflowService, Workspace, WorkspacePaths, verify_backup,
+    ArtifactService, CriteriaService, DATABASE_SCHEMA_VERSION, DEFAULT_MAX_BLOB_BYTES,
+    DocumentService, EvidenceService, JobService, MatchService, NewProfileSource, NewSource,
+    PackageService, PlanService, ProfileService, ProjectionService, RenderService, ReviewService,
+    StoreError, TaskService, WorkflowService, Workspace, WorkspacePaths, verify_backup,
 };
 use serde_json::{Value, json};
 
@@ -62,7 +62,7 @@ fn workspace_init_discovery_status_and_check_are_consistent() {
     assert_eq!(discovered.root, root.path());
     assert_eq!(
         workspace.status().expect("status").database_schema_version,
-        13
+        DATABASE_SCHEMA_VERSION
     );
     let check = workspace.check().expect("workspace check");
     assert!(check.ok);

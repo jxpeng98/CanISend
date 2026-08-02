@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+mod application_v3;
 mod artifact;
 mod backup;
 mod blob;
@@ -27,6 +28,10 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+pub use application_v3::{
+    ApplicationModelCommitResultV3, ApplicationModelRepository, ApplicationModelRevisionV3,
+    StoredApplicationModelV3, WORKSPACE_V3_FORMAT, WorkspaceV3AuthorityState,
+};
 pub use artifact::ArtifactService;
 pub use backup::{BackupResult, verify_backup};
 pub use blob::{BlobAudit, BlobStore, DEFAULT_MAX_BLOB_BYTES};
@@ -103,6 +108,14 @@ pub enum StoreError {
     JobNotFound(String),
     #[error("job is archived: {0}")]
     JobArchived(String),
+    #[error("Workspace v3 application authority is not active")]
+    ApplicationModelUnavailable,
+    #[error("application model was not found: {0}")]
+    ApplicationModelNotFound(String),
+    #[error("application model operation conflicts with current state: {0}")]
+    ApplicationModelConflict(String),
+    #[error("application model integrity verification failed: {0}")]
+    ApplicationModelIntegrity(String),
     #[error("profile source was not found: {0}")]
     ProfileSourceNotFound(String),
     #[error("discovery source was not found: {0}")]

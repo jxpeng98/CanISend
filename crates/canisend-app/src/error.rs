@@ -210,6 +210,17 @@ fn classify_store(error: &StoreError) -> Classification {
         StoreError::WorkspaceNotFound(_) => ("not-found", ErrorCode::WorkspaceNotFound, false),
         StoreError::JobNotFound(_) => ("not-found", ErrorCode::JobNotFound, false),
         StoreError::JobArchived(_) => ("archived", ErrorCode::JobArchived, false),
+        StoreError::ApplicationModelNotFound(_) => {
+            ("not-found", ErrorCode::WorkspaceConflict, false)
+        }
+        StoreError::ApplicationModelUnavailable | StoreError::ApplicationModelConflict(_) => {
+            ("conflict", ErrorCode::WorkspaceConflict, false)
+        }
+        StoreError::ApplicationModelIntegrity(_) => (
+            "integrity-failed",
+            ErrorCode::InternalInvariantFailed,
+            false,
+        ),
         StoreError::ProfileSourceNotFound(_) => {
             ("not-found", ErrorCode::ProfileSourceNotFound, false)
         }

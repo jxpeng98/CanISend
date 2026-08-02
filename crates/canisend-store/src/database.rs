@@ -7,7 +7,7 @@ use rusqlite::{
 
 use crate::{StoreError, now_utc};
 
-pub const DATABASE_SCHEMA_VERSION: u32 = 13;
+pub const DATABASE_SCHEMA_VERSION: u32 = 14;
 const INITIAL_MIGRATION: &str = include_str!("../migrations/0001_initial.sql");
 const INTAKE_MIGRATION: &str = include_str!("../migrations/0002_job_intake.sql");
 const DISCOVERY_MIGRATION: &str = include_str!("../migrations/0003_discovery.sql");
@@ -22,6 +22,8 @@ const PACKAGE_HEADS_MIGRATION: &str = include_str!("../migrations/0011_package_h
 const EXPORT_PROJECTIONS_MIGRATION: &str =
     include_str!("../migrations/0012_export_projections.sql");
 const RENDER_HEADS_MIGRATION: &str = include_str!("../migrations/0013_render_heads.sql");
+const APPLICATION_MODEL_V3_MIGRATION: &str =
+    include_str!("../migrations/0014_application_model_v3.sql");
 
 pub struct Database {
     connection: Connection,
@@ -121,6 +123,11 @@ impl Database {
         if version == 12 {
             let applied_at = now_utc()?;
             self.apply_migration(13, RENDER_HEADS_MIGRATION, &applied_at)?;
+            version = 13;
+        }
+        if version == 13 {
+            let applied_at = now_utc()?;
+            self.apply_migration(14, APPLICATION_MODEL_V3_MIGRATION, &applied_at)?;
         }
         Ok(())
     }
@@ -401,7 +408,7 @@ mod tests {
             .connection
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .expect("schema version");
-        assert_eq!(version, 13);
+        assert_eq!(version, DATABASE_SCHEMA_VERSION);
         let revision_column: i64 = database
             .connection
             .query_row(

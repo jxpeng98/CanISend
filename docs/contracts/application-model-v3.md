@@ -6,9 +6,10 @@
 
 **Canonical schemas:** `schemas/v3/*.schema.json` in the embedded resource catalog
 
-**Runtime status:** Additive neutral model foundation. The current Job/Agent/Workspace v2 runtime
-remains authoritative; Workspace v3 repositories, migration, projections, dependency
-invalidation, and Agent v3 operations are separate roadmap tasks.
+**Runtime status:** Additive neutral model and transactional repository foundation. The current
+Job/Agent/Workspace v2 runtime remains authoritative; Workspace v3 authority activation,
+v2-to-v3 semantic migration, projections, Pack migration invalidation, and Agent v3 operations are
+separate roadmap tasks.
 
 ## Boundary
 
@@ -70,7 +71,8 @@ Agent, configured provider, or system actor cannot acquire that authority.
 A Plan binds exact Requirement revisions, Pack-owned decision and Deliverable identifiers,
 bounded constraints and blockers, user decision authority, and its own revision. Draft Plans
 cannot carry final authority. Confirmed Plans require a Pack-owned decision plus an explicit user
-and timestamp.
+and timestamp. A stale Plan preserves its earlier Requirement revisions and either its complete
+confirmed user decision or its undecided draft state; it cannot pretend those inputs are current.
 
 The kernel owns execution-mode values. A Pack may select only one of those registered modes; it
 cannot introduce an executable mechanism by naming one in data. An omitted Deliverable cannot
@@ -78,13 +80,14 @@ select an executor.
 
 ### Deliverable
 
-A Deliverable binds one Application, the exact Plan revision, a Pack-qualified Deliverable kind,
-neutral title/state, optional exact content revision and SHA-256 digest, a bounded MIME type, and
-revision-bound Evidence inputs.
+A Deliverable binds one Application, the Plan revision that actually produced it, a
+Pack-qualified Deliverable kind, neutral title/state, optional exact content revision and SHA-256
+digest, a bounded MIME type, and revision-bound Evidence inputs.
 
 `planned` carries no materialized content. `draft`, `review-required`, `approved`, and `stale`
-require both exact content and a valid type/subtype media token. A materialized Deliverable must
-be included and not omitted by its exact snapshot Plan.
+require both exact content and a valid type/subtype media token. A current materialized
+Deliverable must be included and not omitted by its exact snapshot Plan. A stale Deliverable may
+preserve an earlier Plan revision and Kind so audit/history never rewrites what produced it.
 
 ## Pack-defined metadata
 
@@ -113,10 +116,11 @@ When records exist, validation rejects:
 - Opportunity/Application or record-level Pack mismatches;
 - Application-to-Opportunity or child-to-Application mismatches;
 - duplicate Requirement or Deliverable identities;
-- duplicate or unknown exact Requirement revision inputs;
-- blocker references to absent or stale Requirement revisions;
-- Deliverables without a Plan or bound to a stale Plan revision;
-- Deliverable kinds absent or omitted from the Plan;
+- duplicate, unknown, or future Requirement revision inputs;
+- current Plans whose Requirement/blocker references are not exact;
+- Deliverables without a Plan, current Deliverables bound to an older Plan, or stale
+  Deliverables bound to a future Plan;
+- current Deliverable kinds absent or omitted from the Plan;
 - cross-Pack Deliverable kinds;
 - non-user confirmations and decisions;
 - inconsistent Deliverable content state; and
@@ -148,7 +152,8 @@ Deliverable values.
 
 ## Compatibility promise
 
-This additive contract does not change `canisend.agent/v2`, `canisend.workspace/v2`, existing
-SQLite data, Job projections, or fixed academic document behavior. Later GF2 storage and migration
-slices must persist these exact Pack and revision bindings without mixed v2/v3 authority. Agent
-v2 and `job` compatibility remain bounded to the future academic reference Pack.
+This additive contract does not change `canisend.agent/v2`, `canisend.workspace/v2`, existing Job
+data, Job projections, or fixed academic document behavior. Schema migration 14 adds dormant v3
+tables, but the repository refuses all model operations until a `canisend.workspace/v3` authority
+row exists. Only the later failure-atomic migration may activate that row. Agent v2 and `job`
+compatibility remain bounded to the future academic reference Pack.

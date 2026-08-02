@@ -68,9 +68,9 @@ The current CLI provides:
 - A separately versioned `canisend.workflow-pack/v1` manifest Schema, bounded semantic validator,
   canonical bundle verifier, and exact-version in-memory registry; runtime Pack installation is
   not yet enabled.
-- Seven deterministic `canisend.application-model/v3` schemas for neutral Opportunity,
-  Application, Requirement, Plan, Deliverable, and exact Pack bindings; Workspace v3 persistence
-  and Agent v3 operations are not yet enabled.
+- Seven deterministic `canisend.application-model/v3` schemas plus an additive transactional
+  repository for neutral Opportunity, Application, Requirement, Plan, Deliverable, and exact Pack
+  bindings; Workspace v3 authority activation, migration, and Agent v3 operations are not enabled.
 - A deterministic Pack stage-graph compiler with Pack-qualified stable `StageId` values; the
   current fixed Agent/Workspace v2 workflow remains the compatibility runtime.
 - A Pack-qualified Deliverable catalog that binds cardinality, declaration order, templates,

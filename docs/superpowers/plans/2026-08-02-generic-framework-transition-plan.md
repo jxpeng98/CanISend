@@ -214,7 +214,8 @@ Repository evidence currently available:
 
 | Task | Evidence | Remaining state boundary |
 |---|---|---|
-| GF2-MODEL-001 | [Application-model v3 contract](../../contracts/application-model-v3.md) and [implementation record](../../notes/rust-native/2026-08-02-gf2-application-model.md) | Bind the contracts to Workspace v3 repositories, migration, dependency invalidation, and canonical Agent v3 operations; create/link its work item and inspect committed evidence before marking Verified |
+| GF2-MODEL-001 | [Application-model v3 contract](../../contracts/application-model-v3.md) and [implementation record](../../notes/rust-native/2026-08-02-gf2-application-model.md) | Repository binding is implemented under GF2-STORE-001; bind migration, Pack invalidation, and canonical Agent v3 operations, then create/link its work item and inspect committed evidence before marking Verified |
+| GF2-STORE-001 | [Workspace v3 storage contract](../../contracts/workspace-v3-storage.md) and [implementation record](../../notes/rust-native/2026-08-02-gf2-workspace-v3-store.md) | Activate authority only through the backup-backed v2→v3 migration, add Pack-migration invalidation and projections, and register canonical Agent v3 operations; create/link its work item and inspect committed evidence before marking Verified |
 
 ### GF3 — Extract the academic reference pack
 
