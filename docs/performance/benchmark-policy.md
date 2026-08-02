@@ -94,11 +94,14 @@ cargo run -p xtask --locked -- desktop size-record \
   TARGET PROFILE FORMAT HOST PAYLOAD FRONTEND_OR_DASH ARTIFACT_OR_DASH OUTPUT.json
 ```
 
-The recorder rejects symlinks, requires the declared PE/ELF/Mach-O host to be inside the measured
-payload, fails if another large native host is present, and records frontend and artifact bytes
-separately. Windows offline installers and Linux AppImage containers require their own
-runtime-inclusive records; they are not compared with the standard 72 MiB application-payload
-budget.
+The standard-package recorder rejects symlinks; the portable-package recorder accepts only
+symlinks that resolve inside the extracted payload. Both require the declared PE/ELF/Mach-O host
+inside the measured payload, fail if another CanISend host is present, and record frontend and
+artifact bytes separately. Windows offline installers and Linux AppImage containers require their
+own runtime-inclusive records; they are not compared with the standard 72 MiB application-payload
+budget. Runtime-inclusive extracted payloads are capped at 384 MiB, AppImage artifacts at 128 MiB,
+and offline Windows installers at 256 MiB. Portable payload symlinks must resolve inside the
+extracted root, and the record must still identify exactly one named CanISend host.
 
 The scheduled desktop-platform qualification workflow currently evaluates a release candidate with
 `CARGO_PROFILE_RELEASE_OPT_LEVEL=z`. Size records expose this as

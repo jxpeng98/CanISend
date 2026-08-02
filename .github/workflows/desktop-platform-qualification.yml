@@ -331,7 +331,7 @@ jobs:
             --features custom-protocol \
             --bundles deb,rpm,appimage
 
-      - name: Extract DEB payload and enforce one-host budgets
+      - name: Extract DEB, RPM, and AppImage payloads and enforce one-host budgets
         run: |
           bundle_root="target/x86_64-unknown-linux-gnu/release/bundle"
           deb="$(find "$bundle_root/deb" -maxdepth 1 -type f -name '*.deb' -print -quit)"
@@ -375,12 +375,15 @@ jobs:
           pushd "$appimage_extract"
           "$appimage" --appimage-extract >/dev/null
           popd
-          appimage_host="$(find "$appimage_extract/squashfs-root" -type f -name 'canisend-gui' -print -quit)"
+          appimage_payload="$appimage_extract/squashfs-root"
+          appimage_host="$(find "$appimage_payload" -type f -name 'canisend-gui' -print -quit)"
           test -f "$appimage_host"
-          cmp --silent "$host" "$appimage_host"
+          "$appimage_host" version --json | jq -e '.ok == true' >/dev/null
+          "$appimage_host" doctor --json | jq -e '.ok == true' >/dev/null
+          "$appimage_host" mcp --help | grep -Fq 'Model Context Protocol'
           cargo run -p xtask --locked -- desktop size-record \
             x86_64-unknown-linux-gnu release appimage \
-            "$host" "$payload" apps/canisend-desktop/dist \
+            "$appimage_host" "$appimage_payload" - \
             "$appimage" "$evidence/appimage-size.json"
 
       - name: Upload nonpublishing Linux desktop candidates

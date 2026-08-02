@@ -127,6 +127,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
             check_property_test_policy()?;
             check_fuzz_policy()?;
             check_internal_dependency_versions()?;
+            check_desktop_distribution_versions()?;
             check_beta_readiness()?;
             check_beta_contract_freeze()?;
             check_channel_candidates()?;
@@ -429,6 +430,9 @@ fn repository_root() -> PathBuf {
 const DESKTOP_HOST_BUDGET_BYTES: u64 = 67_108_864;
 const DESKTOP_PAYLOAD_BUDGET_BYTES: u64 = 75_497_472;
 const DESKTOP_FRONTEND_BUDGET_BYTES: u64 = 1_572_864;
+const DESKTOP_RUNTIME_PAYLOAD_BUDGET_BYTES: u64 = 402_653_184;
+const DESKTOP_APPIMAGE_BUDGET_BYTES: u64 = 134_217_728;
+const DESKTOP_OFFLINE_INSTALLER_BUDGET_BYTES: u64 = 268_435_456;
 const LARGE_NATIVE_FILE_BYTES: u64 = 10 * 1024 * 1024;
 const DESKTOP_PROFILE_MINIMUM_SAVING_BYTES: u64 = 1024 * 1024;
 const DESKTOP_PROFILE_MINIMUM_SAVING_PERCENT: u64 = 2;
@@ -730,7 +734,12 @@ fn write_desktop_size_record(
         return Err("desktop unified host must be inside the measured payload".to_owned());
     }
 
-    let (payload_bytes, native_hosts) = inspect_desktop_payload(&payload)?;
+    let (package_class, runtime_inclusive) = desktop_package_class(package_format);
+    let (payload_bytes, native_hosts) = if package_format == "appimage" {
+        inspect_portable_desktop_payload(&payload)?
+    } else {
+        inspect_desktop_payload(&payload)?
+    };
     let host_bytes = file_size(&host)?;
     let host_relative = relative_slash_path(&payload, &host)?;
     if native_hosts.len() != 1 || native_hosts[0].0 != host_relative {
@@ -750,13 +759,23 @@ fn write_desktop_size_record(
     }
     let artifact_bytes = artifact.map(file_size).transpose()?;
     let artifact_sha256 = artifact.map(sha256_file).transpose()?;
+    let payload_budget = if package_format == "appimage" {
+        DESKTOP_RUNTIME_PAYLOAD_BUDGET_BYTES
+    } else {
+        DESKTOP_PAYLOAD_BUDGET_BYTES
+    };
+    let artifact_budget = match package_format {
+        "appimage" => Some(DESKTOP_APPIMAGE_BUDGET_BYTES),
+        "nsis-offline" => Some(DESKTOP_OFFLINE_INSTALLER_BUDGET_BYTES),
+        _ => None,
+    };
     let passed = host_bytes <= DESKTOP_HOST_BUDGET_BYTES
-        && payload_bytes <= DESKTOP_PAYLOAD_BUDGET_BYTES
-        && frontend_bytes.is_none_or(|bytes| bytes <= DESKTOP_FRONTEND_BUDGET_BYTES);
+        && payload_bytes <= payload_budget
+        && frontend_bytes.is_none_or(|bytes| bytes <= DESKTOP_FRONTEND_BUDGET_BYTES)
+        && artifact_budget.is_none_or(|budget| artifact_bytes.is_some_and(|bytes| bytes <= budget));
     let recorded_at = OffsetDateTime::now_utc()
         .format(&Rfc3339)
         .map_err(|error| format!("could not format desktop size timestamp: {error}"))?;
-    let (package_class, runtime_inclusive) = desktop_package_class(package_format);
     let rust_opt_level = std::env::var("CARGO_PROFILE_RELEASE_OPT_LEVEL")
         .unwrap_or_else(|_| "profile-default".to_owned());
     let rust_lto =
@@ -780,8 +799,9 @@ fn write_desktop_size_record(
         "recorded_at": recorded_at,
         "budgets": {
             "unified_host_bytes": DESKTOP_HOST_BUDGET_BYTES,
-            "application_payload_bytes": DESKTOP_PAYLOAD_BUDGET_BYTES,
+            "application_payload_bytes": payload_budget,
             "frontend_bytes": DESKTOP_FRONTEND_BUDGET_BYTES,
+            "download_artifact_bytes": artifact_budget,
             "full_native_host_count": 1
         },
         "bytes": {
@@ -832,6 +852,68 @@ fn inspect_desktop_payload(root: &Path) -> Result<(u64, Vec<(String, u64)>), Str
     inspect_desktop_payload_directory(root, root, &mut bytes, &mut native_hosts)?;
     native_hosts.sort();
     Ok((bytes, native_hosts))
+}
+
+fn inspect_portable_desktop_payload(root: &Path) -> Result<(u64, Vec<(String, u64)>), String> {
+    let mut bytes = 0_u64;
+    let mut native_hosts = Vec::new();
+    inspect_portable_desktop_payload_directory(root, root, &mut bytes, &mut native_hosts)?;
+    native_hosts.sort();
+    Ok((bytes, native_hosts))
+}
+
+fn inspect_portable_desktop_payload_directory(
+    root: &Path,
+    directory: &Path,
+    bytes: &mut u64,
+    native_hosts: &mut Vec<(String, u64)>,
+) -> Result<(), String> {
+    for entry in fs::read_dir(directory)
+        .map_err(|error| format!("could not inspect {}: {error}", directory.display()))?
+    {
+        let entry = entry.map_err(|error| format!("could not inspect payload entry: {error}"))?;
+        let path = entry.path();
+        let metadata = fs::symlink_metadata(&path)
+            .map_err(|error| format!("could not inspect {}: {error}", path.display()))?;
+        if metadata.file_type().is_symlink() {
+            let target = path.canonicalize().map_err(|error| {
+                format!(
+                    "portable payload symlink does not resolve {}: {error}",
+                    path.display()
+                )
+            })?;
+            if !target.starts_with(root) {
+                return Err(format!(
+                    "portable payload symlink escapes the extracted root: {}",
+                    path.display()
+                ));
+            }
+            *bytes = bytes
+                .checked_add(metadata.len())
+                .ok_or_else(|| "desktop payload byte count overflowed".to_owned())?;
+        } else if metadata.is_dir() {
+            inspect_portable_desktop_payload_directory(root, &path, bytes, native_hosts)?;
+        } else if metadata.is_file() {
+            *bytes = bytes
+                .checked_add(metadata.len())
+                .ok_or_else(|| "desktop payload byte count overflowed".to_owned())?;
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            if matches!(
+                name.as_ref(),
+                "canisend" | "canisend-gui" | "canisend.exe" | "canisend-gui.exe"
+            ) && has_native_executable_magic(&path)?
+            {
+                native_hosts.push((relative_slash_path(root, &path)?, metadata.len()));
+            }
+        } else {
+            return Err(format!(
+                "portable desktop payload contains a non-regular entry: {}",
+                path.display()
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn inspect_desktop_payload_directory(
@@ -1718,6 +1800,42 @@ impl ReleaseStage {
     }
 }
 
+fn windows_msi_product_version(version: &Version) -> Result<String, String> {
+    if version.major > 255 || version.minor > 255 || version.patch > 255 {
+        return Err(
+            "MSI product versions support SemVer major, minor, and patch values up to 255"
+                .to_owned(),
+        );
+    }
+
+    let stage = ReleaseStage::from_version(version)?;
+    let iteration = match stage {
+        ReleaseStage::Alpha => Some(prerelease_iteration(version, "alpha")?),
+        ReleaseStage::Beta => Some(prerelease_iteration(version, "beta")?),
+        ReleaseStage::ReleaseCandidate => Some(prerelease_iteration(version, "rc")?),
+        ReleaseStage::Stable => None,
+    };
+    if iteration.is_some_and(|iteration| iteration > 63) {
+        return Err("MSI prerelease iterations must be between 1 and 63".to_owned());
+    }
+    let stage_build = match stage {
+        ReleaseStage::Alpha => iteration.expect("Alpha iteration was validated"),
+        ReleaseStage::Beta => 64 + iteration.expect("Beta iteration was validated"),
+        ReleaseStage::ReleaseCandidate => 128 + iteration.expect("RC iteration was validated"),
+        ReleaseStage::Stable => 255,
+    };
+
+    let build = version
+        .patch
+        .checked_mul(256)
+        .and_then(|patch| patch.checked_add(stage_build))
+        .ok_or_else(|| "MSI product version build field overflowed".to_owned())?;
+    if build > 65_535 {
+        return Err("MSI product version build field exceeds 65,535".to_owned());
+    }
+    Ok(format!("{}.{}.{}", version.major, version.minor, build))
+}
+
 struct RenderedStageTransition {
     from_version: Version,
     to_version: Version,
@@ -2208,7 +2326,65 @@ fn render_workspace_version_update(
         }
         files.insert(fuzz_lock.to_owned(), updated.into_bytes());
     }
+    insert_desktop_version_updates(root, &mut files, from_version, to_version)?;
     Ok(files)
+}
+
+fn insert_desktop_version_updates(
+    root: &Path,
+    files: &mut BTreeMap<String, Vec<u8>>,
+    from_version: &Version,
+    to_version: &Version,
+) -> Result<(), String> {
+    let from = from_version.to_string();
+    let to = to_version.to_string();
+    for (relative, context) in [
+        (
+            "apps/canisend-desktop/package.json",
+            "desktop package version",
+        ),
+        (
+            "crates/canisend-desktop/tauri.conf.json",
+            "Tauri application version",
+        ),
+    ] {
+        if !root.join(relative).is_file() {
+            continue;
+        }
+        let body = fs::read_to_string(root.join(relative))
+            .map_err(|error| format!("could not read {relative}: {error}"))?;
+        files.insert(
+            relative.to_owned(),
+            replace_exact_count(
+                &body,
+                &format!("\"version\": \"{from}\""),
+                &format!("\"version\": \"{to}\""),
+                1,
+                context,
+            )?
+            .into_bytes(),
+        );
+    }
+
+    let windows_relative = "crates/canisend-desktop/tauri.windows.conf.json";
+    if root.join(windows_relative).is_file() {
+        let body = fs::read_to_string(root.join(windows_relative))
+            .map_err(|error| format!("could not read {windows_relative}: {error}"))?;
+        let from_msi = windows_msi_product_version(from_version)?;
+        let to_msi = windows_msi_product_version(to_version)?;
+        files.insert(
+            windows_relative.to_owned(),
+            replace_exact_count(
+                &body,
+                &format!("\"version\": \"{from_msi}\""),
+                &format!("\"version\": \"{to_msi}\""),
+                1,
+                "Windows MSI product version",
+            )?
+            .into_bytes(),
+        );
+    }
+    Ok(())
 }
 
 fn initial_alpha_qualification_ledger() -> Value {
@@ -3817,6 +3993,8 @@ fn render_stage_transition(root: &Path, tag: &str) -> Result<RenderedStageTransi
         files.insert(fuzz_lock_relative.to_owned(), fuzz_lock.into_bytes());
     }
 
+    insert_desktop_version_updates(root, &mut files, &from_version, &to_version)?;
+
     let ledger_path = root.join("release/qualification-ledger.json");
     let mut ledger: Value = serde_json::from_slice(
         &fs::read(&ledger_path)
@@ -4168,6 +4346,54 @@ fn check_internal_dependency_versions() -> Result<(), String> {
         "internal dependency versions: ok ({} packages, {expected})",
         internal_packages.len()
     );
+    Ok(())
+}
+
+fn check_desktop_distribution_versions() -> Result<(), String> {
+    let root = repository_root();
+    let version = Version::parse(env!("CARGO_PKG_VERSION"))
+        .map_err(|error| format!("workspace version is invalid: {error}"))?;
+    let expected = version.to_string();
+
+    for (relative, pointer, context) in [
+        (
+            "apps/canisend-desktop/package.json",
+            "/version",
+            "desktop package version",
+        ),
+        (
+            "crates/canisend-desktop/tauri.conf.json",
+            "/version",
+            "Tauri application version",
+        ),
+    ] {
+        let document: Value = serde_json::from_slice(
+            &fs::read(root.join(relative))
+                .map_err(|error| format!("could not read {relative}: {error}"))?,
+        )
+        .map_err(|error| format!("{relative} is invalid JSON: {error}"))?;
+        if document.pointer(pointer).and_then(Value::as_str) != Some(expected.as_str()) {
+            return Err(format!("{context} must match workspace version {expected}"));
+        }
+    }
+
+    let windows_relative = "crates/canisend-desktop/tauri.windows.conf.json";
+    let windows: Value = serde_json::from_slice(
+        &fs::read(root.join(windows_relative))
+            .map_err(|error| format!("could not read {windows_relative}: {error}"))?,
+    )
+    .map_err(|error| format!("{windows_relative} is invalid JSON: {error}"))?;
+    let expected_msi = windows_msi_product_version(&version)?;
+    if windows
+        .pointer("/bundle/windows/wix/version")
+        .and_then(Value::as_str)
+        != Some(expected_msi.as_str())
+    {
+        return Err(format!(
+            "Windows MSI product version must be {expected_msi} for workspace version {expected}"
+        ));
+    }
+    println!("desktop distribution versions: ok ({expected}, Windows MSI {expected_msi})");
     Ok(())
 }
 
@@ -4593,7 +4819,10 @@ fn check_native_test_ownership() -> Result<(), String> {
         "rpm2cpio returned non-zero; validating the emitted CPIO archive",
         "test -s \"$rpm_archive\"",
         "--appimage-extract",
-        "cmp --silent",
+        "appimage_payload=\"$appimage_extract/squashfs-root\"",
+        "\"$appimage_host\" version --json",
+        "\"$appimage_host\" doctor --json",
+        "\"$appimage_host\" mcp --help",
         "retention-days: 14",
     ] {
         if !desktop_qualification.contains(required) {
@@ -11243,6 +11472,76 @@ mod tests {
     }
 
     #[test]
+    fn windows_msi_versions_preserve_release_order() {
+        for (version, expected) in [
+            ("1.0.0-alpha.5", "1.0.5"),
+            ("1.0.0-beta.1", "1.0.65"),
+            ("1.0.0-rc.1", "1.0.129"),
+            ("1.0.0", "1.0.255"),
+            ("1.0.1-alpha.1", "1.0.257"),
+        ] {
+            assert_eq!(
+                windows_msi_product_version(&Version::parse(version).expect("valid SemVer")),
+                Ok(expected.to_owned())
+            );
+        }
+        assert!(
+            windows_msi_product_version(&Version::parse("1.0.0-alpha.64").expect("valid SemVer"))
+                .is_err()
+        );
+        assert!(
+            windows_msi_product_version(&Version::parse("256.0.0").expect("valid SemVer")).is_err()
+        );
+    }
+
+    #[test]
+    fn desktop_version_updates_track_release_transitions() {
+        let root = std::env::temp_dir().join(format!(
+            "canisend-desktop-version-update-{}",
+            std::process::id()
+        ));
+        fs::create_dir_all(root.join("apps/canisend-desktop")).expect("create app fixture");
+        fs::create_dir_all(root.join("crates/canisend-desktop")).expect("create Tauri fixture");
+        fs::write(
+            root.join("apps/canisend-desktop/package.json"),
+            "{\n  \"version\": \"1.0.0-alpha.5\"\n}\n",
+        )
+        .expect("write package fixture");
+        fs::write(
+            root.join("crates/canisend-desktop/tauri.conf.json"),
+            "{\n  \"version\": \"1.0.0-alpha.5\"\n}\n",
+        )
+        .expect("write Tauri fixture");
+        fs::write(
+            root.join("crates/canisend-desktop/tauri.windows.conf.json"),
+            "{\n  \"bundle\": {\n    \"windows\": {\n      \"wix\": {\n        \"version\": \"1.0.5\"\n      }\n    }\n  }\n}\n",
+        )
+        .expect("write Windows fixture");
+
+        let mut files = BTreeMap::new();
+        insert_desktop_version_updates(
+            &root,
+            &mut files,
+            &Version::parse("1.0.0-alpha.5").expect("from version"),
+            &Version::parse("1.0.0-beta.1").expect("to version"),
+        )
+        .expect("render desktop version updates");
+        assert_eq!(files.len(), 3);
+        assert!(
+            String::from_utf8(files["apps/canisend-desktop/package.json"].clone())
+                .expect("package UTF-8")
+                .contains("1.0.0-beta.1")
+        );
+        assert!(
+            String::from_utf8(files["crates/canisend-desktop/tauri.windows.conf.json"].clone())
+                .expect("Windows config UTF-8")
+                .contains("\"version\": \"1.0.65\"")
+        );
+
+        fs::remove_dir_all(&root).expect("remove desktop version fixture");
+    }
+
+    #[test]
     fn intel_gui_release_evidence_starts_at_beta() {
         assert!(!ReleaseStage::Alpha.requires_intel_gui_release_evidence());
         assert!(ReleaseStage::Beta.requires_intel_gui_release_evidence());
@@ -11264,6 +11563,36 @@ mod tests {
         assert_eq!(desktop_package_class("nsis"), ("standard", false));
         assert_eq!(desktop_package_class("nsis-offline"), ("offline", true));
         assert_eq!(desktop_package_class("appimage"), ("portable", true));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn portable_payload_accepts_only_in_root_links_and_named_host() {
+        use std::os::unix::fs::symlink;
+
+        let parent =
+            std::env::temp_dir().join(format!("canisend-portable-payload-{}", std::process::id()));
+        let root = parent.join("squashfs-root");
+        let binary = root.join("usr/bin/canisend-gui");
+        let library = root.join("usr/lib/libwebkit.so");
+        fs::create_dir_all(binary.parent().expect("binary parent")).expect("create binary parent");
+        fs::create_dir_all(library.parent().expect("library parent"))
+            .expect("create library parent");
+        fs::write(&binary, b"\x7fELFcanisend").expect("write host fixture");
+        fs::write(&library, b"\x7fELFruntime").expect("write runtime fixture");
+        symlink("usr/bin/canisend-gui", root.join("AppRun")).expect("create in-root link");
+
+        let root = root.canonicalize().expect("canonical payload root");
+        let (_, hosts) = inspect_portable_desktop_payload(&root).expect("inspect portable payload");
+        assert_eq!(hosts.len(), 1);
+        assert_eq!(hosts[0].0, "usr/bin/canisend-gui");
+
+        let outside = parent.join("outside");
+        fs::write(&outside, b"outside").expect("write outside fixture");
+        symlink("../outside", root.join("escape")).expect("create escaping link");
+        assert!(inspect_portable_desktop_payload(&root).is_err());
+
+        fs::remove_dir_all(&parent).expect("remove portable payload fixture");
     }
 
     #[test]

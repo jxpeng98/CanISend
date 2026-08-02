@@ -196,6 +196,9 @@ target and package format:
 | --- | ---: |
 | Full unified native host | at most 67,108,864 bytes (existing 64 MiB gate) |
 | Standard CanISend application payload | at most 75,497,472 bytes (72 MiB) |
+| Runtime-inclusive extracted payload | at most 402,653,184 bytes (384 MiB) |
+| Portable Linux AppImage | at most 134,217,728 bytes (128 MiB) |
+| Offline Windows installer | at most 268,435,456 bytes (256 MiB) |
 | Number of full CanISend native hosts in a desktop package | exactly 1 |
 | Raw built frontend | at most 1,572,864 bytes (1.5 MiB) |
 | CLI/GUI parity entries implemented | 37 of 37 |
@@ -214,6 +217,17 @@ Additional rules:
    payload bytes. Runtime growth cannot hide product growth, and product growth cannot be blamed on
    the runtime.
 5. Size gates never authorize removing integrity, safety, privacy, accessibility, or render tests.
+
+Windows MSI packages keep the public SemVer in the application while using a numeric
+`major.minor.build` ProductVersion. The build field allocates 256 values to each SemVer patch:
+Alpha uses 1-63, Beta 65-127, RC 129-191, and Stable 255. This keeps Windows Installer upgrades
+monotonic without changing the version reported by the CLI or GUI.
+
+Tauri patches the unified host with package-type metadata while bundling. DEB, RPM, and AppImage
+hosts are therefore validated independently; byte equality across those formats is not a valid
+integrity assertion. AppImage validation extracts the actual portable payload, permits only
+resolving in-root symlinks, requires exactly one named CanISend host, exercises its CLI and MCP
+modes, and applies the separate runtime-inclusive budgets above.
 
 The macOS package contract now enforces the measured single-host boundary: at most 64 MiB for the
 host and 72 MiB for the App payload. Windows and Linux thresholds remain provisional until their
