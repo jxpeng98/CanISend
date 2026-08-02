@@ -16,6 +16,21 @@ tokens, application data, or copied private issue content.
 Changing the Cargo workspace version without changing the ledger to the corresponding state makes
 `xtask release check` fail. A prerelease ledger cannot set `stable_authorized: true`.
 
+## Derived current status
+
+Inspect the current source, latest reachable release tag, qualification stage, support surface,
+contract counts, and evidence drift without creating another status authority:
+
+```console
+cargo run -p xtask --locked -- release status --json
+```
+
+The output declares `authoritative: false` and names every source from which it was derived. It
+fails closed when Cargo, the public checkpoint, qualification ledger, package contract, operation
+contracts, or platform target sets contradict one another. Expected work between releases remains
+visible under `drift.items`; stale Beta-readiness, contract-freeze, or feedback checkpoints set
+`blocks_stage_transition: true` without rewriting their historical evidence.
+
 ## Recording qualified Beta evidence
 
 After the exact signed Beta assets have passed the nonpublishing matrix, been independently inspected, published by

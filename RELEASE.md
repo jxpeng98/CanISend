@@ -29,12 +29,18 @@ PyPI and TestPyPI are not release channels for the Rust product.
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace
+cargo run -p xtask --locked -- release status --json
 cargo run -p xtask -- release check
 cargo build --release --locked
 ./target/release/canisend version --json
 ./target/release/canisend doctor --json
 ./target/release/canisend agent capabilities --json
 ```
+
+`release status --json` is a read-only, non-authoritative projection over Cargo, Git tags, release
+ledgers, package contracts, support policy, and parity contracts. It rejects hard contradictions
+and separately lists expected source-ahead or stale-stage evidence that must be resolved before a
+stage transition.
 
 ## Publication requirements
 

@@ -32,6 +32,7 @@ const SIGNING_POLICY_SCHEMA: &str = "canisend.signing-policy/v2";
 const SUPPORT_POLICY_SCHEMA: &str = "canisend.support-policy/v1";
 const FEEDBACK_SNAPSHOT_SCHEMA: &str = "canisend.feedback-snapshot/v1";
 const RELEASE_QUALIFICATION_SCHEMA: &str = "canisend.release-qualification/v1";
+const RELEASE_STATUS_SCHEMA: &str = "canisend.release-status/v1";
 const RELEASE_HISTORY_SCHEMA: &str = "canisend.release-history/v1";
 const RELEASE_LINE_POLICY_SCHEMA: &str = "canisend.release-line-policy/v1";
 const RELEASE_LINE_PLAN_SCHEMA: &str = "canisend.release-line-plan/v1";
@@ -142,11 +143,17 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
             check_support_policy()?;
             check_release_feedback()?;
             check_release_qualification()?;
+            check_release_status()?;
             check_cli_gui_parity()?;
             check_svelte_parity()?;
             check_alpha_package_contract()?;
             check_native_test_ownership()?;
             check_release_contract()
+        }
+        [area, command, json_flag]
+            if area == "release" && command == "status" && json_flag == "--json" =>
+        {
+            print_release_status()
         }
         [area, command] if area == "release" && command == "freeze-candidate" => {
             let candidate = build_beta_contract_freeze()?;
@@ -361,7 +368,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
         }
         _ => Err(
             "usage: cargo run -p xtask -- schemas <check|write> | <resources|docs> check | desktop <parity|template-audit|profile-record TARGET CANDIDATE OPT_LEVEL LTO HOST OUTPUT|profile-summary RELEASE SIZE_S SIZE_Z SIZE_Z_FAT OUTPUT|size-record TARGET PROFILE FORMAT HOST PAYLOAD FRONTEND|- ARTIFACT|- OUTPUT> | \
-             release <check|freeze-candidate|validate-tag TAG|verify-beta-readiness FILE|verify-feedback-candidate SNAPSHOT ROADMAP|prepare-stage TAG [--write]|activate-feature-freeze COMMIT [--write]|record-beta-qualification TAG RUN_ID ASSETS [--write]|record-rc-qualification TAG RUN_ID ASSETS [--write]|record-release-notes-qualification TAG ASSETS REVIEWER [--write]|record-upgrade-qualification FROM_TAG TO_TAG EVIDENCE [--write]|record-documentation-qualification TAG ASSETS EVIDENCE [--write]|record-package-qualification FROM_TAG TO_TAG EVIDENCE [--write]|sbom OUTPUT|assemble TAG COMMIT ARTIFACTS OUTPUT|verify TAG DIRECTORY|verify-candidate TAG COMMIT DIRECTORY|channels TAG ASSETS OUTPUT|bind-signing-evidence TAG TARGET EVIDENCE BINARY ARCHIVE|verify-package-candidates FROM_TAG FROM_ASSETS TO_TAG TO_ASSETS|verify-package-evidence FROM_TAG TO_TAG DIRECTORY|verify-upgrade-evidence FROM_TAG TO_TAG DIRECTORY|verify-documentation-evidence TAG ASSETS EVIDENCE>"
+             release <check|status --json|freeze-candidate|validate-tag TAG|verify-beta-readiness FILE|verify-feedback-candidate SNAPSHOT ROADMAP|prepare-stage TAG [--write]|activate-feature-freeze COMMIT [--write]|record-beta-qualification TAG RUN_ID ASSETS [--write]|record-rc-qualification TAG RUN_ID ASSETS [--write]|record-release-notes-qualification TAG ASSETS REVIEWER [--write]|record-upgrade-qualification FROM_TAG TO_TAG EVIDENCE [--write]|record-documentation-qualification TAG ASSETS EVIDENCE [--write]|record-package-qualification FROM_TAG TO_TAG EVIDENCE [--write]|sbom OUTPUT|assemble TAG COMMIT ARTIFACTS OUTPUT|verify TAG DIRECTORY|verify-candidate TAG COMMIT DIRECTORY|channels TAG ASSETS OUTPUT|bind-signing-evidence TAG TARGET EVIDENCE BINARY ARCHIVE|verify-package-candidates FROM_TAG FROM_ASSETS TO_TAG TO_ASSETS|verify-package-evidence FROM_TAG TO_TAG DIRECTORY|verify-upgrade-evidence FROM_TAG TO_TAG DIRECTORY|verify-documentation-evidence TAG ASSETS EVIDENCE>"
                 .to_owned(),
         ),
     }
@@ -1681,6 +1688,33 @@ struct ReleaseTarget {
     executable: String,
     archive: String,
     signing: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct ReleaseStatusGitFacts {
+    head_commit: String,
+    worktree_dirty: bool,
+    public_tag: String,
+    public_version: Version,
+    public_commit: String,
+    source_commits_ahead: u64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct ReleaseStatusSources {
+    workspace_version: Version,
+    workspace_license: String,
+    qualification: Value,
+    support: Value,
+    targets: Value,
+    alpha_package: Value,
+    beta_readiness: Value,
+    beta_freeze: Value,
+    feedback: Value,
+    cli_gui_parity: Value,
+    svelte_parity: Value,
+    signing: Value,
+    git: ReleaseStatusGitFacts,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -6644,6 +6678,587 @@ fn feedback_publication_requirements(
     }
 }
 
+fn print_release_status() -> Result<(), String> {
+    let status = derive_release_status(&repository_root())?;
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&status)
+            .map_err(|error| format!("could not serialize derived release status: {error}"))?
+    );
+    Ok(())
+}
+
+fn check_release_status() -> Result<(), String> {
+    let status = derive_release_status(&repository_root())?;
+    let drift = &status["drift"];
+    let count = drift["count"]
+        .as_u64()
+        .ok_or_else(|| "derived release status has no drift count".to_owned())?;
+    let blocking = drift["blocking_count"]
+        .as_u64()
+        .ok_or_else(|| "derived release status has no blocking drift count".to_owned())?;
+    println!("release status: ok ({count} drift items, {blocking} stage-blocking)");
+    Ok(())
+}
+
+fn derive_release_status(root: &Path) -> Result<Value, String> {
+    let (workspace_version, workspace_license) = release_status_workspace_identity(root)?;
+    let sources = ReleaseStatusSources {
+        git: release_status_git_facts(root, &workspace_version)?,
+        workspace_version,
+        workspace_license,
+        qualification: read_release_status_json(
+            root,
+            "release/qualification-ledger.json",
+            "release qualification ledger",
+        )?,
+        support: read_release_status_json(root, "release/support-policy.json", "support policy")?,
+        targets: read_release_status_json(root, "release/targets.json", "release targets")?,
+        alpha_package: read_release_status_json(
+            root,
+            "release/alpha-package-contract.json",
+            "Alpha package contract",
+        )?,
+        beta_readiness: read_release_status_json(
+            root,
+            "release/beta-readiness.json",
+            "Beta readiness",
+        )?,
+        beta_freeze: read_release_status_json(
+            root,
+            "release/beta-contract-freeze.json",
+            "Beta contract freeze",
+        )?,
+        feedback: read_release_status_json(
+            root,
+            "release/feedback-snapshot.json",
+            "release feedback snapshot",
+        )?,
+        cli_gui_parity: read_release_status_json(
+            root,
+            "docs/contracts/cli-gui-parity-v1.json",
+            "CLI/GUI parity contract",
+        )?,
+        svelte_parity: read_release_status_json(
+            root,
+            "docs/contracts/svelte-parity-v1.json",
+            "Svelte parity contract",
+        )?,
+        signing: read_release_status_json(root, "release/signing-policy.json", "signing policy")?,
+    };
+    build_release_status_document(&sources)
+}
+
+fn read_release_status_json(root: &Path, relative: &str, context: &str) -> Result<Value, String> {
+    let path = root.join(relative);
+    serde_json::from_slice(
+        &fs::read(&path)
+            .map_err(|error| format!("{context} is missing at {}: {error}", path.display()))?,
+    )
+    .map_err(|error| format!("{context} is invalid JSON: {error}"))
+}
+
+fn release_status_workspace_identity(root: &Path) -> Result<(Version, String), String> {
+    let path = root.join("Cargo.toml");
+    let manifest: toml::Value = fs::read_to_string(&path)
+        .map_err(|error| {
+            format!(
+                "workspace manifest is missing at {}: {error}",
+                path.display()
+            )
+        })?
+        .parse()
+        .map_err(|error| format!("workspace manifest is invalid TOML: {error}"))?;
+    let package = &manifest["workspace"]["package"];
+    let version = Version::parse(
+        package["version"]
+            .as_str()
+            .ok_or_else(|| "workspace manifest has no package version".to_owned())?,
+    )
+    .map_err(|error| format!("workspace version is invalid SemVer: {error}"))?;
+    let license = package["license"]
+        .as_str()
+        .filter(|license| !license.is_empty())
+        .ok_or_else(|| "workspace manifest has no package license".to_owned())?
+        .to_owned();
+    Ok((version, license))
+}
+
+fn release_status_git_facts(
+    root: &Path,
+    workspace_version: &Version,
+) -> Result<ReleaseStatusGitFacts, String> {
+    let head_commit = run_git_lines(root, &["rev-parse", "HEAD"])?
+        .into_iter()
+        .next()
+        .ok_or_else(|| "Git HEAD did not resolve to a commit".to_owned())?;
+    validate_lower_hex("release-status HEAD commit", &head_commit, 40)?;
+    let pattern = format!("v{}.{}.*", workspace_version.major, workspace_version.minor);
+    let tags = run_git_lines(root, &["tag", "--merged", "HEAD", "--list", &pattern])?;
+    let (public_version, public_tag) = tags
+        .into_iter()
+        .filter_map(|tag| {
+            let version = tag
+                .strip_prefix('v')
+                .and_then(|value| Version::parse(value).ok())?;
+            ReleaseStage::from_version(&version).ok()?;
+            Some((version, tag))
+        })
+        .max_by(|left, right| left.0.cmp(&right.0))
+        .ok_or_else(|| format!("no reachable release tag matches `{pattern}`"))?;
+    let public_commit = run_git_lines(root, &["rev-list", "-n", "1", &public_tag])?
+        .into_iter()
+        .next()
+        .ok_or_else(|| format!("release tag `{public_tag}` did not resolve to a commit"))?;
+    validate_lower_hex(
+        "release-status public checkpoint commit",
+        &public_commit,
+        40,
+    )?;
+    let revision_range = format!("{public_tag}..HEAD");
+    let source_commits_ahead = run_git_lines(root, &["rev-list", "--count", &revision_range])?
+        .into_iter()
+        .next()
+        .ok_or_else(|| "Git did not report commits since the public checkpoint".to_owned())?
+        .parse::<u64>()
+        .map_err(|error| format!("Git commit count is invalid: {error}"))?;
+    let worktree_dirty =
+        !run_git_lines(root, &["status", "--porcelain", "--untracked-files=normal"])?.is_empty();
+    Ok(ReleaseStatusGitFacts {
+        head_commit,
+        worktree_dirty,
+        public_tag,
+        public_version,
+        public_commit,
+        source_commits_ahead,
+    })
+}
+
+fn build_release_status_document(sources: &ReleaseStatusSources) -> Result<Value, String> {
+    let version = &sources.workspace_version;
+    let stage = ReleaseStage::from_version(version)?;
+    let release_line = format!("{}.{}", version.major, version.minor);
+    let source_tag = format!("v{version}");
+
+    if sources.qualification["schema"] != RELEASE_QUALIFICATION_SCHEMA {
+        return Err("release-status qualification ledger schema is invalid".to_owned());
+    }
+    let ledger_stage = required_string(
+        &sources.qualification,
+        "workspace_stage",
+        "release-status qualification ledger",
+    )?;
+    let qualification_status = required_string(
+        &sources.qualification,
+        "status",
+        "release-status qualification ledger",
+    )?;
+    if ledger_stage != stage.as_str()
+        || qualification_status != qualification_status_for_stage(stage)
+    {
+        return Err(format!(
+            "release-status stage disagreement: Cargo is `{}`, ledger is `{ledger_stage}` / `{qualification_status}`",
+            stage.as_str()
+        ));
+    }
+    let stable_authorized = sources.qualification["stable_authorized"]
+        .as_bool()
+        .ok_or_else(|| {
+            "release-status qualification ledger has no Stable authorization".to_owned()
+        })?;
+
+    if sources.support["schema"] != SUPPORT_POLICY_SCHEMA {
+        return Err("release-status support policy schema is invalid".to_owned());
+    }
+    let support_line = required_string(&sources.support, "release_line", "support policy")?;
+    if support_line != release_line {
+        return Err(format!(
+            "release-status source/support disagreement: Cargo line is `{release_line}`, support line is `{support_line}`"
+        ));
+    }
+    let support_publication = required_string(
+        &sources.support,
+        "publication_status",
+        "release-status support policy",
+    )?;
+
+    if sources.targets["schema"] != RELEASE_TARGET_SCHEMA {
+        return Err("release-status target schema is invalid".to_owned());
+    }
+    let target_entries = sources.targets["targets"]
+        .as_array()
+        .ok_or_else(|| "release-status targets must be an array".to_owned())?;
+    let target_triples = target_entries
+        .iter()
+        .map(|entry| required_string(entry, "triple", "release-status target").map(str::to_owned))
+        .collect::<Result<BTreeSet<_>, _>>()?;
+    if target_triples.len() != target_entries.len() {
+        return Err("release-status targets contain duplicate triples".to_owned());
+    }
+    let support_target_count = sources.support["platforms"]["target_count"]
+        .as_u64()
+        .ok_or_else(|| "release-status support policy has no target count".to_owned())?;
+    if support_target_count != target_triples.len() as u64 {
+        return Err(format!(
+            "release-status platform disagreement: support declares {support_target_count} targets, target authority contains {}",
+            target_triples.len()
+        ));
+    }
+
+    if sources.alpha_package["schema"] != "canisend.alpha-package-contract/v2" {
+        return Err("release-status Alpha package contract schema is invalid".to_owned());
+    }
+    let package_version = Version::parse(required_string(
+        &sources.alpha_package,
+        "version",
+        "release-status Alpha package contract",
+    )?)
+    .map_err(|error| format!("Alpha package version is invalid SemVer: {error}"))?;
+    let package_tag = required_string(
+        &sources.alpha_package,
+        "tag",
+        "release-status Alpha package contract",
+    )?;
+    if package_version != *version || package_tag != source_tag {
+        return Err(format!(
+            "release-status source/package disagreement: Cargo is `{version}`, package contract is `{package_version}` / `{package_tag}`"
+        ));
+    }
+    let package_assets = sources.alpha_package["standalone_cli"]["assets"]
+        .as_array()
+        .ok_or_else(|| "release-status Alpha package contract has no CLI assets".to_owned())?;
+    let package_targets = package_assets
+        .iter()
+        .map(|asset| {
+            required_string(asset, "target", "release-status Alpha package asset")
+                .map(str::to_owned)
+        })
+        .collect::<Result<BTreeSet<_>, _>>()?;
+    if package_targets.len() != package_assets.len() || package_targets != target_triples {
+        return Err(
+            "release-status platform disagreement: package and target-authority sets differ"
+                .to_owned(),
+        );
+    }
+    let desktop_public_target = sources.alpha_package["desktop_macos"]["target"]
+        .as_str()
+        .filter(|target| !target.is_empty())
+        .ok_or_else(|| "release-status Alpha package has no public desktop target".to_owned())?;
+    if !target_triples.contains(desktop_public_target) {
+        return Err("release-status public desktop target is not a release target".to_owned());
+    }
+    let desktop_nonpublishing_target = sources.alpha_package["desktop_macos_intel"]["target"]
+        .as_str()
+        .filter(|target| !target.is_empty())
+        .ok_or_else(|| "release-status Alpha package has no Intel desktop target".to_owned())?;
+    if !target_triples.contains(desktop_nonpublishing_target)
+        || sources.alpha_package["desktop_macos_intel"]["status"] != "not-published"
+    {
+        return Err(
+            "release-status Intel desktop target must remain a nonpublishing release target"
+                .to_owned(),
+        );
+    }
+
+    let public_tag = &sources.git.public_tag;
+    if public_tag != &format!("v{}", sources.git.public_version) {
+        return Err("release-status public tag does not match its SemVer".to_owned());
+    }
+    if (
+        sources.git.public_version.major,
+        sources.git.public_version.minor,
+    ) != (version.major, version.minor)
+    {
+        return Err(format!(
+            "release-status source/public disagreement: source line is `{release_line}`, public checkpoint is `{public_tag}`"
+        ));
+    }
+    if sources.git.public_version > *version {
+        return Err(format!(
+            "release-status source/public disagreement: public checkpoint `{public_tag}` is newer than source `{source_tag}`"
+        ));
+    }
+    validate_lower_hex("release-status source commit", &sources.git.head_commit, 40)?;
+    validate_lower_hex(
+        "release-status public commit",
+        &sources.git.public_commit,
+        40,
+    )?;
+    if (sources.git.public_commit == sources.git.head_commit)
+        != (sources.git.source_commits_ahead == 0)
+    {
+        return Err(
+            "release-status Git checkpoint identity disagrees with its commit distance".to_owned(),
+        );
+    }
+
+    if sources.beta_readiness["schema"] != BETA_READINESS_SCHEMA {
+        return Err("release-status Beta readiness schema is invalid".to_owned());
+    }
+    if sources.beta_freeze["schema"] != BETA_CONTRACT_FREEZE_SCHEMA {
+        return Err("release-status Beta freeze schema is invalid".to_owned());
+    }
+    if sources.feedback["schema"] != FEEDBACK_SNAPSHOT_SCHEMA {
+        return Err("release-status feedback schema is invalid".to_owned());
+    }
+    if required_string(&sources.feedback, "release_line", "release-status feedback")?
+        != release_line
+    {
+        return Err("release-status feedback release line differs from Cargo".to_owned());
+    }
+    let readiness_tag = required_string(
+        &sources.beta_readiness["alpha_release"],
+        "tag",
+        "release-status Beta readiness",
+    )?;
+    let freeze_tag = required_string(
+        &sources.beta_freeze["baseline"],
+        "release",
+        "release-status Beta freeze",
+    )?;
+    let feedback_tag = release_status_feedback_tag(&sources.feedback)?;
+    for (context, tag) in [
+        ("Beta readiness", readiness_tag),
+        ("Beta freeze", freeze_tag),
+        ("feedback", feedback_tag),
+    ] {
+        let checkpoint = Version::parse(tag.strip_prefix('v').unwrap_or(tag))
+            .map_err(|error| format!("release-status {context} tag is invalid SemVer: {error}"))?;
+        if (checkpoint.major, checkpoint.minor) != (version.major, version.minor) {
+            return Err(format!(
+                "release-status {context} checkpoint `{tag}` is outside source line `{release_line}`"
+            ));
+        }
+    }
+
+    if sources.cli_gui_parity["format"] != "canisend.cli-gui-parity/v1" {
+        return Err("release-status CLI/GUI parity format is invalid".to_owned());
+    }
+    if sources.svelte_parity["format"] != SVELTE_PARITY_SCHEMA {
+        return Err("release-status Svelte parity format is invalid".to_owned());
+    }
+    let cli_operations = release_status_operation_set(&sources.cli_gui_parity, "CLI/GUI")?;
+    let svelte_operations = release_status_operation_set(&sources.svelte_parity, "Svelte")?;
+    if cli_operations != svelte_operations {
+        return Err("release-status operation-family authorities disagree".to_owned());
+    }
+    let svelte_cutover_ready = sources.svelte_parity["cutover_ready"]
+        .as_bool()
+        .ok_or_else(|| "release-status Svelte parity has no cutover state".to_owned())?;
+    if sources.signing["schema"] != SIGNING_POLICY_SCHEMA {
+        return Err("release-status signing policy schema is invalid".to_owned());
+    }
+    let signing_tier = required_string(
+        &sources.signing,
+        "trust_tier",
+        "release-status signing policy",
+    )?;
+
+    let mut drift = Vec::new();
+    if sources.git.public_version < *version {
+        push_release_status_drift(
+            &mut drift,
+            "source-version-ahead-of-public-checkpoint",
+            "pending",
+            &["Cargo.toml", "Git tags"],
+            &format!("source `{source_tag}` is newer than public `{public_tag}`"),
+        );
+    } else if sources.git.source_commits_ahead > 0 {
+        push_release_status_drift(
+            &mut drift,
+            "source-commit-ahead-of-public-checkpoint",
+            "pending",
+            &["Git HEAD", "Git tags"],
+            &format!(
+                "source is {} commits ahead of `{public_tag}`",
+                sources.git.source_commits_ahead
+            ),
+        );
+    }
+    if package_tag != public_tag {
+        push_release_status_drift(
+            &mut drift,
+            "package-contract-not-public",
+            "pending",
+            &["release/alpha-package-contract.json", "Git tags"],
+            &format!("package contract `{package_tag}` is not public checkpoint `{public_tag}`"),
+        );
+    }
+    for (code, authority, checkpoint) in [
+        (
+            "beta-readiness-not-current-public",
+            "release/beta-readiness.json",
+            readiness_tag,
+        ),
+        (
+            "beta-freeze-not-current-public",
+            "release/beta-contract-freeze.json",
+            freeze_tag,
+        ),
+        (
+            "feedback-not-current-public",
+            "release/feedback-snapshot.json",
+            feedback_tag,
+        ),
+    ] {
+        if checkpoint != public_tag {
+            push_release_status_drift(
+                &mut drift,
+                code,
+                "blocking",
+                &[authority, "Git tags"],
+                &format!("checkpoint `{checkpoint}` differs from public `{public_tag}`"),
+            );
+        }
+    }
+    let blocking_count = drift
+        .iter()
+        .filter(|item| item["severity"] == "blocking")
+        .count() as u64;
+
+    let release_candidates = sources.qualification["release_candidates"]
+        .as_array()
+        .ok_or_else(|| "release-status qualification ledger has no RC array".to_owned())?;
+    let target_list = target_triples.into_iter().collect::<Vec<_>>();
+    Ok(json!({
+        "schema": RELEASE_STATUS_SCHEMA,
+        "derived": true,
+        "authoritative": false,
+        "hard_consistent": true,
+        "authorities": {
+            "source": ["Cargo.toml", "Git HEAD"],
+            "public_checkpoint": "latest reachable SemVer Git tag on the active release line",
+            "qualification": "release/qualification-ledger.json",
+            "support": ["release/support-policy.json", "release/targets.json", "release/alpha-package-contract.json"],
+            "contracts": ["docs/contracts/cli-gui-parity-v1.json", "docs/contracts/svelte-parity-v1.json"],
+            "stage_evidence": ["release/beta-readiness.json", "release/beta-contract-freeze.json", "release/feedback-snapshot.json"]
+        },
+        "source": {
+            "version": version.to_string(),
+            "candidate_tag": source_tag,
+            "release_line": release_line,
+            "stage": stage.as_str(),
+            "license": sources.workspace_license,
+            "head_commit": sources.git.head_commit,
+            "worktree_dirty": sources.git.worktree_dirty
+        },
+        "public_checkpoint": {
+            "tag": public_tag,
+            "version": sources.git.public_version.to_string(),
+            "stage": ReleaseStage::from_version(&sources.git.public_version)?.as_str(),
+            "source_commit": sources.git.public_commit,
+            "source_commits_ahead": sources.git.source_commits_ahead,
+            "head_matches_checkpoint": sources.git.public_commit == sources.git.head_commit
+        },
+        "qualification": {
+            "workspace_stage": ledger_stage,
+            "status": qualification_status,
+            "stable_authorized": stable_authorized,
+            "feature_freeze": required_string(&sources.qualification["feature_freeze"], "status", "release-status feature freeze")?,
+            "beta": required_string(&sources.qualification["beta"], "status", "release-status Beta qualification")?,
+            "release_candidate_count": release_candidates.len()
+        },
+        "support": {
+            "publication_status": support_publication,
+            "release_line": support_line,
+            "cli_target_count": target_list.len(),
+            "cli_targets": target_list,
+            "desktop_public_targets": [desktop_public_target],
+            "desktop_nonpublishing_targets": [desktop_nonpublishing_target],
+            "desktop_nonpublishing_workflow": ".github/workflows/desktop-platform-qualification.yml",
+            "signing_trust_tier": signing_tier
+        },
+        "contracts": {
+            "agent_protocol": required_string(&sources.support["contracts"], "agent_protocol", "release-status support contracts")?,
+            "public_schema_version": required_string(&sources.support["contracts"], "public_schema_version", "release-status support contracts")?,
+            "workspace_format": required_string(&sources.support["workspace"], "format", "release-status support workspace")?,
+            "database_schema_version": sources.support["workspace"]["current_database_schema_version"],
+            "alpha_package_version": package_version.to_string(),
+            "alpha_package_tag": package_tag,
+            "operation_family_count": cli_operations.len(),
+            "svelte_cutover_ready": svelte_cutover_ready
+        },
+        "stage_evidence": {
+            "beta_readiness": {
+                "status": sources.beta_readiness["status"].as_str().unwrap_or("recorded"),
+                "checkpoint": readiness_tag,
+                "audited_at": sources.beta_readiness["audited_at"]
+            },
+            "beta_freeze": {
+                "status": sources.beta_freeze["status"].as_str().unwrap_or("recorded"),
+                "checkpoint": freeze_tag
+            },
+            "feedback": {
+                "status": required_string(&sources.feedback, "status", "release-status feedback")?,
+                "checkpoint": feedback_tag,
+                "roadmap": required_string(&sources.feedback["next_roadmap"], "path", "release-status feedback roadmap")?
+            }
+        },
+        "drift": {
+            "count": drift.len(),
+            "blocking_count": blocking_count,
+            "blocks_stage_transition": blocking_count > 0,
+            "items": drift
+        }
+    }))
+}
+
+fn release_status_feedback_tag(feedback: &Value) -> Result<&str, String> {
+    match (
+        feedback.pointer("/release/tag").and_then(Value::as_str),
+        feedback
+            .pointer("/expected_release/tag")
+            .and_then(Value::as_str),
+    ) {
+        (Some(tag), None) | (None, Some(tag)) if !tag.is_empty() => Ok(tag),
+        _ => Err(
+            "release-status feedback must contain exactly one release or expected-release tag"
+                .to_owned(),
+        ),
+    }
+}
+
+fn release_status_operation_set(
+    document: &Value,
+    context: &str,
+) -> Result<BTreeSet<String>, String> {
+    let entries = document["entries"]
+        .as_array()
+        .ok_or_else(|| format!("release-status {context} entries must be an array"))?;
+    let operations = entries
+        .iter()
+        .map(|entry| {
+            required_string(
+                entry,
+                "operation",
+                &format!("release-status {context} entry"),
+            )
+            .map(str::to_owned)
+        })
+        .collect::<Result<BTreeSet<_>, _>>()?;
+    if operations.len() != entries.len() {
+        return Err(format!(
+            "release-status {context} entries contain duplicate operations"
+        ));
+    }
+    Ok(operations)
+}
+
+fn push_release_status_drift(
+    drift: &mut Vec<Value>,
+    code: &str,
+    severity: &str,
+    authorities: &[&str],
+    detail: &str,
+) {
+    drift.push(json!({
+        "code": code,
+        "severity": severity,
+        "authorities": authorities,
+        "detail": detail
+    }));
+}
+
 fn check_release_qualification() -> Result<(), String> {
     let root = repository_root();
     let path = root.join("release/qualification-ledger.json");
@@ -11177,6 +11792,182 @@ fn write_pretty_json(path: &Path, value: &Value) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn sample_release_status_sources() -> ReleaseStatusSources {
+        let version = Version::parse("1.0.0-alpha.5").expect("sample source version");
+        let targets = [
+            "aarch64-apple-darwin",
+            "x86_64-apple-darwin",
+            "x86_64-pc-windows-msvc",
+            "x86_64-unknown-linux-gnu",
+            "x86_64-unknown-linux-musl",
+        ];
+        ReleaseStatusSources {
+            workspace_version: version.clone(),
+            workspace_license: "GPL-3.0-only".to_owned(),
+            qualification: json!({
+                "schema": RELEASE_QUALIFICATION_SCHEMA,
+                "workspace_stage": "alpha",
+                "status": "pre-beta",
+                "stable_authorized": false,
+                "feature_freeze": {"status": "planned"},
+                "beta": {"status": "pending"},
+                "release_candidates": []
+            }),
+            support: json!({
+                "schema": SUPPORT_POLICY_SCHEMA,
+                "release_line": "1.0",
+                "publication_status": "pre-stable-draft",
+                "platforms": {"target_count": targets.len()},
+                "contracts": {
+                    "agent_protocol": "canisend.agent/v2",
+                    "public_schema_version": "2.0.0"
+                },
+                "workspace": {
+                    "format": "canisend.workspace/v2",
+                    "current_database_schema_version": 13
+                }
+            }),
+            targets: json!({
+                "schema": RELEASE_TARGET_SCHEMA,
+                "targets": targets.map(|triple| json!({"triple": triple}))
+            }),
+            alpha_package: json!({
+                "schema": "canisend.alpha-package-contract/v2",
+                "version": version.to_string(),
+                "tag": format!("v{version}"),
+                "standalone_cli": {
+                    "assets": targets.map(|target| json!({"target": target}))
+                },
+                "desktop_macos": {"target": "aarch64-apple-darwin"},
+                "desktop_macos_intel": {
+                    "target": "x86_64-apple-darwin",
+                    "status": "not-published"
+                }
+            }),
+            beta_readiness: json!({
+                "schema": BETA_READINESS_SCHEMA,
+                "status": "recorded",
+                "alpha_release": {"tag": "v1.0.0-alpha.5"}
+            }),
+            beta_freeze: json!({
+                "schema": BETA_CONTRACT_FREEZE_SCHEMA,
+                "status": "recorded",
+                "baseline": {"release": "v1.0.0-alpha.5"}
+            }),
+            feedback: json!({
+                "schema": FEEDBACK_SNAPSHOT_SCHEMA,
+                "status": "recorded",
+                "release_line": "1.0",
+                "expected_release": {"tag": "v1.0.0-alpha.5"},
+                "next_roadmap": {"path": "docs/roadmap.md"}
+            }),
+            cli_gui_parity: json!({
+                "format": "canisend.cli-gui-parity/v1",
+                "entries": [
+                    {"operation": "product.version"},
+                    {"operation": "workspace.init"}
+                ]
+            }),
+            svelte_parity: json!({
+                "format": SVELTE_PARITY_SCHEMA,
+                "cutover_ready": true,
+                "entries": [
+                    {"operation": "product.version"},
+                    {"operation": "workspace.init"}
+                ]
+            }),
+            signing: json!({
+                "schema": SIGNING_POLICY_SCHEMA,
+                "trust_tier": "community-build"
+            }),
+            git: ReleaseStatusGitFacts {
+                head_commit: "1".repeat(40),
+                worktree_dirty: false,
+                public_tag: "v1.0.0-alpha.5".to_owned(),
+                public_version: version,
+                public_commit: "1".repeat(40),
+                source_commits_ahead: 0,
+            },
+        }
+    }
+
+    #[test]
+    fn release_status_derives_a_canonical_consistent_view() {
+        let status = build_release_status_document(&sample_release_status_sources())
+            .expect("canonical release status");
+        assert_eq!(status["schema"], RELEASE_STATUS_SCHEMA);
+        assert_eq!(status["authoritative"], false);
+        assert_eq!(status["hard_consistent"], true);
+        assert_eq!(status["support"]["cli_target_count"], 5);
+        assert_eq!(status["contracts"]["operation_family_count"], 2);
+        assert_eq!(status["drift"]["count"], 0);
+        assert_eq!(status["drift"]["blocks_stage_transition"], false);
+    }
+
+    #[test]
+    fn release_status_reports_pending_source_and_stale_stage_evidence() {
+        let mut sources = sample_release_status_sources();
+        sources.git.head_commit = "2".repeat(40);
+        sources.git.source_commits_ahead = 14;
+        sources.beta_readiness["alpha_release"]["tag"] = json!("v1.0.0-alpha.4");
+        sources.beta_freeze["baseline"]["release"] = json!("v1.0.0-alpha.4");
+        sources.feedback["expected_release"]["tag"] = json!("v1.0.0-alpha.1");
+
+        let status = build_release_status_document(&sources).expect("derived drift status");
+        let codes = status["drift"]["items"]
+            .as_array()
+            .expect("drift items")
+            .iter()
+            .map(|item| item["code"].as_str().expect("drift code"))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            codes,
+            [
+                "source-commit-ahead-of-public-checkpoint",
+                "beta-readiness-not-current-public",
+                "beta-freeze-not-current-public",
+                "feedback-not-current-public"
+            ]
+        );
+        assert_eq!(status["drift"]["blocking_count"], 3);
+        assert_eq!(status["drift"]["blocks_stage_transition"], true);
+    }
+
+    #[test]
+    fn release_status_rejects_public_checkpoint_newer_than_source() {
+        let mut sources = sample_release_status_sources();
+        sources.git.public_version = Version::parse("1.0.0-alpha.6").expect("newer public version");
+        sources.git.public_tag = "v1.0.0-alpha.6".to_owned();
+        assert!(
+            build_release_status_document(&sources)
+                .expect_err("future public checkpoint must fail")
+                .contains("newer than source")
+        );
+    }
+
+    #[test]
+    fn release_status_rejects_ledger_stage_disagreement() {
+        let mut sources = sample_release_status_sources();
+        sources.qualification["workspace_stage"] = json!("beta");
+        sources.qualification["status"] = json!("beta-qualifying");
+        assert!(
+            build_release_status_document(&sources)
+                .expect_err("stage disagreement must fail")
+                .contains("stage disagreement")
+        );
+    }
+
+    #[test]
+    fn release_status_rejects_platform_count_disagreement() {
+        let mut sources = sample_release_status_sources();
+        sources.support["platforms"]["target_count"] = json!(4);
+        assert!(
+            build_release_status_document(&sources)
+                .expect_err("platform disagreement must fail")
+                .contains("platform disagreement")
+        );
+    }
 
     fn sample_channel_source() -> ChannelCandidateSource {
         channel_candidate_source_from_value(&json!({
