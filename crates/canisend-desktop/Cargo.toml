@@ -15,6 +15,7 @@ path = "src/main.rs"
 
 [features]
 custom-protocol = ["tauri/custom-protocol"]
+preview-qualification = ["dep:tauri-plugin-wdio-webdriver"]
 
 [build-dependencies]
 tauri-build.workspace = true
@@ -30,6 +31,7 @@ serde_json.workspace = true
 sha2.workspace = true
 tauri.workspace = true
 tauri-plugin-dialog.workspace = true
+tauri-plugin-wdio-webdriver = { workspace = true, optional = true }
 tauri-plugin-window-state.workspace = true
 
 [lints]

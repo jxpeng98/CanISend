@@ -67,11 +67,29 @@ remain in Phase 3.
 
 ## Phase 3: native preview qualification and viewer fallback
 
-Status: secure system-viewer fallback implemented; native matrix execution remains pending.
+Status: secure system-viewer fallback and native qualification harness implemented; scheduled
+macOS, Windows, and Linux execution is configured to produce reviewable evidence.
 
-- macOS: qualify the blob-backed PDF iframe in the packaged WKWebView app.
+- macOS: qualify the blob-backed PDF iframe in the native WKWebView host.
 - Windows: qualify the same bytes in WebView2.
-- Linux glibc and musl packaging: qualify WebKitGTK PDF support separately.
+- Linux glibc desktop candidate: qualify WebKitGTK PDF support separately.
+- Exercise the actual platform WebView with a deterministic one-page PDF Blob. Qualification saves
+  a screenshot and a JSON record binding the fixture and screenshot SHA-256 values, user agent,
+  viewport, and black/white/blue render ratios.
+- Compile the embedded WebDriver server only behind the `preview-qualification` Cargo feature and
+  build it in an isolated CI target directory. Production and release builds continue to enable
+  only `custom-protocol`; the WebDriver server and its Rust dependencies are absent from shipped
+  binaries.
+- Keep WebdriverIO and pixel-analysis dependencies in `tools/native-preview` with an independent
+  pnpm lock file. Normal frontend installs and desktop release builds do not install this test
+  package.
+- Build and hash a production-equivalent host before enabling the qualification feature, then record
+  the qualification-only byte delta. A matrix summary rejects missing platform evidence, mismatched
+  fixture or screenshot hashes, threshold failures, and any production feature set containing the
+  WebDriver instrumentation.
+- Centralize native thresholds and target mappings in a versioned policy. If direct preview fails,
+  the summary names the exact platform for system-viewer review and keeps PDF.js as a separate,
+  evidence-driven decision.
 - If a platform WebView cannot display PDFs, export/open the same validated PDF with the system
   viewer. Do not silently render HTML or switch templates.
 - The desktop fallback requires explicit private-export consent, reuses the existing job-scoped
@@ -88,6 +106,9 @@ Status: secure system-viewer fallback implemented; native matrix execution remai
   keeps the default package small and avoids bundling a second PDF renderer prematurely.
 - If Typst compilation fails, keep the structured source and managed `.typ`, report bounded
   diagnostics, and optionally offer the previous successful PDF clearly marked as stale.
+- Windows and Linux desktop packages remain nonpublishing qualification candidates under the current
+  support policy. The musl archive is CLI-only and has no WebView to qualify; its render/export
+  invariants remain covered by the portable Rust tests.
 
 ## Acceptance gates
 
@@ -95,6 +116,7 @@ Status: secure system-viewer fallback implemented; native matrix execution remai
 - focused renderer, store, application-facade, and desktop-command tests
 - `cargo clippy` with warnings denied for affected crates
 - Svelte type checking, interaction tests, accessibility guard, and production build
-- native packaged-app preview smoke tests on macOS, Windows, Linux glibc, and Linux musl
+- native WebView preview smoke tests on macOS, Windows, and Linux glibc; portable render/export tests
+  for the CLI-only Linux musl archive
 - previewed PDF SHA-256 equals the exported PDF SHA-256 for every document kind
 - no runtime Typst CLI, Node.js, system-font discovery, package download, or network dependency

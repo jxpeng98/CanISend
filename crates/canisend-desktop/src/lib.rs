@@ -12,11 +12,14 @@ mod workflow;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .manage(agent_runtime::AgentRuntimeState::default())
         .manage(discovery::DiscoveryPreviewStore::default())
         .manage(job_intake::JobIntakePreviewStore::default())
-        .manage(workflow::WorkflowPreviewStore::default())
+        .manage(workflow::WorkflowPreviewStore::default());
+    #[cfg(feature = "preview-qualification")]
+    let builder = builder.plugin(tauri_plugin_wdio_webdriver::init());
+    builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .invoke_handler(tauri::generate_handler![

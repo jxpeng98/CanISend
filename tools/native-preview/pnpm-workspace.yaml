@@ -1,0 +1,6 @@
+allowBuilds:
+  edgedriver: false
+  esbuild: false
+  geckodriver: false
+overrides:
+  '@wdio/native-utils': 2.5.0

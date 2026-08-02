@@ -389,3 +389,202 @@ jobs:
             ${{ runner.temp }}/desktop-linux-profile-matrix/*.json
           if-no-files-found: error
           retention-days: 14
+
+  native-pdf-preview:
+    name: native-pdf-preview-${{ matrix.slug }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - slug: macos-wkwebview
+            runner: macos-15
+            target: aarch64-apple-darwin
+            binary: canisend-gui
+          - slug: windows-webview2
+            runner: windows-2025
+            target: x86_64-pc-windows-msvc
+            binary: canisend-gui.exe
+          - slug: linux-webkitgtk
+            runner: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            binary: canisend-gui
+    env:
+      CARGO_PROFILE_RELEASE_OPT_LEVEL: z
+      CARGO_PROFILE_RELEASE_LTO: fat
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install Linux native WebView dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            xvfb
+
+      - name: Install pinned pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.17.0
+          run_install: false
+
+      - name: Install pinned Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 26.5.0
+          cache: pnpm
+          cache-dependency-path: |
+            apps/canisend-desktop/pnpm-lock.yaml
+            tools/native-preview/pnpm-lock.yaml
+
+      - name: Install locked desktop qualification dependencies
+        run: pnpm --dir apps/canisend-desktop install --frozen-lockfile
+
+      - name: Install isolated native preview dependencies
+        run: pnpm --dir tools/native-preview install --frozen-lockfile
+
+      - name: Check native preview test types
+        run: |
+          pnpm --dir tools/native-preview check
+          pnpm --dir tools/native-preview test:policy
+
+      - name: Build desktop UI
+        run: pnpm --dir apps/canisend-desktop build
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@1.97.0
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache native PDF qualification host
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          key: native-pdf-preview-${{ matrix.target }}
+          cache-targets: false
+
+      - name: Build isolated production-equivalent host
+        env:
+          CARGO_TARGET_DIR: ${{ runner.temp }}/native-preview-target
+        run: >-
+          cargo build --release --locked
+          -p canisend-gui
+          --target ${{ matrix.target }}
+          --features custom-protocol
+
+      - name: Record production-equivalent host size
+        run: >-
+          node tools/native-preview/record-host-size.mjs
+          production
+          "${{ runner.temp }}/native-preview-target/${{ matrix.target }}/release/${{ matrix.binary }}"
+          "${{ matrix.target }}"
+          "${{ runner.temp }}/native-preview-evidence/native-preview-host-size.json"
+
+      - name: Build isolated native PDF qualification host
+        env:
+          CARGO_TARGET_DIR: ${{ runner.temp }}/native-preview-target
+        run: >-
+          cargo build --release --locked
+          -p canisend-gui
+          --target ${{ matrix.target }}
+          --features custom-protocol,preview-qualification
+
+      - name: Record qualification-only host size delta
+        run: >-
+          node tools/native-preview/record-host-size.mjs
+          qualification
+          "${{ runner.temp }}/native-preview-target/${{ matrix.target }}/release/${{ matrix.binary }}"
+          "${{ matrix.target }}"
+          "${{ runner.temp }}/native-preview-evidence/native-preview-host-size.json"
+
+      - name: Qualify native PDF rendering
+        if: runner.os != 'Linux'
+        env:
+          CANISEND_NATIVE_PREVIEW_BINARY: ${{ runner.temp }}/native-preview-target/${{ matrix.target }}/release/${{ matrix.binary }}
+          CANISEND_NATIVE_PREVIEW_EVIDENCE: ${{ runner.temp }}/native-preview-evidence
+          CANISEND_NATIVE_PREVIEW_RUNNER: ${{ matrix.slug }}
+          CANISEND_NATIVE_PREVIEW_TARGET: ${{ matrix.target }}
+          TAURI_WEBDRIVER_PORT: "4445"
+          WDIO_USE_NATIVE_FETCH: "1"
+        run: pnpm --dir tools/native-preview test
+
+      - name: Qualify native PDF rendering under Xvfb
+        if: runner.os == 'Linux'
+        env:
+          CANISEND_NATIVE_PREVIEW_BINARY: ${{ runner.temp }}/native-preview-target/${{ matrix.target }}/release/${{ matrix.binary }}
+          CANISEND_NATIVE_PREVIEW_EVIDENCE: ${{ runner.temp }}/native-preview-evidence
+          CANISEND_NATIVE_PREVIEW_RUNNER: ${{ matrix.slug }}
+          CANISEND_NATIVE_PREVIEW_TARGET: ${{ matrix.target }}
+          TAURI_WEBDRIVER_PORT: "4445"
+          WDIO_USE_NATIVE_FETCH: "1"
+        run: xvfb-run --auto-servernum pnpm --dir tools/native-preview test
+
+      - name: Upload native PDF qualification evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: native-pdf-preview-${{ matrix.slug }}-${{ github.sha }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/native-preview-evidence
+          if-no-files-found: error
+          retention-days: 14
+
+  native-pdf-preview-summary:
+    name: native-pdf-preview-matrix-summary
+    needs: native-pdf-preview
+    if: always()
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install pinned Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 26.5.0
+
+      - name: Download native PDF qualification evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: native-pdf-preview-*-${{ github.sha }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/native-preview-matrix
+          merge-multiple: false
+
+      - name: Validate matrix and decide fallback policy
+        id: summary
+        continue-on-error: true
+        run: >-
+          node tools/native-preview/summarize-evidence.mjs
+          "${{ runner.temp }}/native-preview-matrix"
+          "${{ runner.temp }}/native-preview-matrix-summary.json"
+
+      - name: Publish matrix decision in job summary
+        if: always()
+        run: |
+          summary="${{ runner.temp }}/native-preview-matrix-summary.json"
+          if [[ -f "$summary" ]]; then
+            fallback="$(jq -r '.decision.fallbackRequiredFor | if length == 0 then "none" else join(", ") end' "$summary")"
+            {
+              echo '### Native PDF preview matrix'
+              echo ''
+              echo "- Status: \`$(jq -r '.status' "$summary")\`"
+              echo "- PDF.js: \`$(jq -r '.decision.pdfjs' "$summary")\`"
+              echo "- Fallback review: \`$fallback\`"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload native PDF matrix decision
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: native-pdf-preview-matrix-${{ github.sha }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/native-preview-matrix-summary.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Enforce native PDF matrix decision
+        if: always() && steps.summary.outcome != 'success'
+        run: |
+          echo "Native PDF preview matrix requires fallback review" >&2
+          exit 1

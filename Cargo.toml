@@ -48,6 +48,7 @@ tokio = { version = "1.53.0", features = ["io-std", "macros", "rt-multi-thread"]
 tauri = "2.11.5"
 tauri-build = "2.6.3"
 tauri-plugin-dialog = "2.7.2"
+tauri-plugin-wdio-webdriver = "=1.2.0"
 tauri-plugin-window-state = "2.4.1"
 toml = "0.8.23"
 typst-as-lib = { version = "=0.16.0", default-features = false }

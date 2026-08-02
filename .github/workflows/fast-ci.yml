@@ -54,6 +54,9 @@ jobs:
       - name: Run desktop UI unit tests
         run: pnpm test
 
+      - name: Test native preview evidence policy
+        run: node --test ../../tools/native-preview/tests/qualification-evidence.test.mjs
+
       - name: Build production desktop UI
         run: pnpm build
 
@@ -114,6 +117,19 @@ jobs:
 
       - name: Check formatting
         run: cargo fmt --all -- --check
+
+      - name: Keep native preview tooling out of production builds
+        shell: bash
+        run: |
+          if cargo tree --locked -p canisend-gui -e normal | \
+            rg -Fq 'tauri-plugin-wdio-webdriver'; then
+            echo "Test-only WebDriver plugin leaked into the default desktop graph" >&2
+            exit 1
+          fi
+          if rg -Fq 'preview-qualification' .github/workflows/release.yml; then
+            echo "Native release workflow must not enable preview-qualification" >&2
+            exit 1
+          fi
 
       - name: Run relevant Clippy targets
         run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings

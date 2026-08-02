@@ -1,0 +1,43 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>
+endobj
+4 0 obj
+<< /Length 267 >>
+stream
+0 0 0 rg 0 0 306 792 re f
+1 1 1 rg 306 0 306 792 re f
+0.145 0.388 0.922 rg 342 676 234 24 re f
+0 0 0 rg
+BT /F1 22 Tf 342 628 Td (CanISend PDF) Tj ET
+BT /F1 12 Tf 342 604 Td (NATIVE-PREVIEW-PROBE-V1) Tj ET
+BT /F1 12 Tf 342 54 Td (Black and white render contract) Tj ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+6 0 obj
+<< /Title (CanISend Native PDF Probe) /Author (CanISend) /Subject (Deterministic native WebView PDF rendering fixture) /CreationDate (D:20000101000000Z) /ModDate (D:20000101000000Z) >>
+endobj
+xref
+0 7
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000121 00000 n 
+0000000247 00000 n 
+0000000565 00000 n 
+0000000635 00000 n 
+trailer
+<< /Size 7 /Root 1 0 R /Info 6 0 R /ID [<43414E4953454E4450524F4245563100><43414E4953454E4450524F4245563100>] >>
+startxref
+835
+%%EOF
