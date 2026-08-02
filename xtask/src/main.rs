@@ -4590,6 +4590,8 @@ fn check_native_test_ownership() -> Result<(), String> {
         "x86_64-unknown-linux-gnu release rpm",
         "x86_64-unknown-linux-gnu release appimage",
         "rpm2cpio",
+        "rpm2cpio returned non-zero; validating the emitted CPIO archive",
+        "test -s \"$rpm_archive\"",
         "--appimage-extract",
         "cmp --silent",
         "retention-days: 14",

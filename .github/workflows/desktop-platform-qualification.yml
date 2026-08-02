@@ -355,7 +355,12 @@ jobs:
           rpm_payload="$RUNNER_TEMP/linux-rpm-installed-payload"
           rpm_archive="$RUNNER_TEMP/linux-rpm-installed-payload.cpio"
           mkdir -p "$rpm_payload"
-          rpm2cpio "$rpm" > "$rpm_archive"
+          # Debian's rpm2cpio can return 1 after emitting a complete, digest-valid archive.
+          # Treat the archive parser and the exact one-host payload checks below as authoritative.
+          if ! rpm2cpio "$rpm" > "$rpm_archive"; then
+            echo "rpm2cpio returned non-zero; validating the emitted CPIO archive"
+          fi
+          test -s "$rpm_archive"
           cpio --directory "$rpm_payload" --extract --make-directories --quiet < "$rpm_archive"
           rpm_host="$(find "$rpm_payload" -type f -name 'canisend-gui' -print -quit)"
           test -f "$rpm_host"
