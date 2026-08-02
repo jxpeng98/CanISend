@@ -1,7 +1,7 @@
 # CLI-First Workflow Optimization Execution Roadmap
 
-**Status:** Active — Stages 1–4 are accepted; `0.3.0.dev2`, `0.3.0b1`, and the independently verified Stage 4
-`0.6.0b1` prerelease are published
+**Status:** Historical Python-era execution plan — superseded by the
+[CanISend 1.0 delivery roadmap](../plans/2026-07-25-1.0-release-roadmap.md)
 
 **Date:** 2026-07-11
 

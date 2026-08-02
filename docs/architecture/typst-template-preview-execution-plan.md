@@ -1,5 +1,8 @@
 # Typst template and final-preview execution plan
 
+**Status:** Implemented — exact native qualification is tracked by M2 of the
+[CanISend 1.0 delivery roadmap](../superpowers/plans/2026-07-25-1.0-release-roadmap.md)
+
 ## Outcome
 
 CanISend will render versioned, self-contained Typst template bundles inside the Rust process and

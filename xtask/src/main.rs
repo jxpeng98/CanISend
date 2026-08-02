@@ -60,6 +60,8 @@ const CODE_SIGNING_EVIDENCE_SCHEMA: &str = "canisend.code-signing-evidence/v2";
 const FUZZ_TOOLCHAIN: &str = "nightly-2026-07-01";
 const CARGO_FUZZ_VERSION: &str = "0.13.2";
 const WINGET_MANIFEST_VERSION: &str = "1.10.0";
+const GPL_LICENSE: &str = "GPL-3.0-only";
+const FIRST_GPL_PUBLIC_VERSION: &str = "1.0.0-alpha.6";
 const BETA_READINESS_MAX_AGE_HOURS: i64 = 24;
 const NATIVE_ALPHA_TAG: &str = "v0.7.0-alpha.1";
 const NATIVE_ALPHA_SOURCE: &str = "4cec4ec48cc2e96f3798dde0b438d3aaa617a2f8";
@@ -7771,6 +7773,18 @@ fn render_channel_candidates(
     )
 }
 
+fn channel_license(version: &str) -> Result<&'static str, String> {
+    let version = Version::parse(version)
+        .map_err(|error| format!("channel candidate version is invalid SemVer: {error}"))?;
+    let first_gpl = Version::parse(FIRST_GPL_PUBLIC_VERSION)
+        .expect("the first GPL public version constant must be valid SemVer");
+    Ok(if version < first_gpl {
+        "MIT"
+    } else {
+        GPL_LICENSE
+    })
+}
+
 fn render_channel_manifest_files(
     version: &str,
     tag: &str,
@@ -7785,6 +7799,7 @@ fn render_channel_manifest_files(
     let arm = artifact("aarch64-apple-darwin")?;
     let intel = artifact("x86_64-apple-darwin")?;
     let windows = artifact("x86_64-pc-windows-msvc")?;
+    let license = channel_license(version)?;
     let download = |archive: &str| format!("{repository}/releases/download/{tag}/{archive}");
     let homebrew = format!(
         r##"cask "canisend" do
@@ -7811,7 +7826,7 @@ end
         "version": version,
         "description": "Prepare evidence-backed academic job applications with agent hosts",
         "homepage": repository,
-        "license": "MIT",
+        "license": license,
         "architecture": {
             "64bit": {
                 "url": download(&windows.archive),
@@ -7849,7 +7864,7 @@ PublisherUrl: https://github.com/jxpeng98
 PublisherSupportUrl: {repository}/issues
 PackageName: CanISend
 PackageUrl: {repository}
-License: MIT
+License: {license}
 LicenseUrl: {repository}/blob/{tag}/LICENSE
 ShortDescription: Prepare evidence-backed academic job applications with agent hosts
 Moniker: canisend
@@ -7865,6 +7880,7 @@ ManifestVersion: {schema}
         version = version,
         repository = repository,
         tag = tag,
+        license = license,
     );
     let winget_installer = format!(
         r#"# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.{schema}.schema.json
@@ -12964,6 +12980,13 @@ mod tests {
             scoop["extract_dir"],
             "canisend-0.7.0-alpha.1-x86_64-pc-windows-msvc"
         );
+        assert_eq!(scoop["license"], "MIT");
+        let locale = files
+            .iter()
+            .find(|(path, _)| path.ends_with(".locale.en-US.yaml"))
+            .map(|(_, body)| body)
+            .expect("WinGet locale candidate");
+        assert!(locale.contains("License: MIT\n"));
         let installer = files
             .iter()
             .find(|(path, _)| path.ends_with(".installer.yaml"))
@@ -12972,6 +12995,23 @@ mod tests {
         assert!(installer.contains("  PortableCommandAlias: canisend\n"));
         assert!(installer.contains("  InstallerUrl: https://"));
         assert!(installer.contains("canisend-0.7.0-alpha.1-x86_64-pc-windows-msvc\\canisend.exe"));
+    }
+
+    #[test]
+    fn channel_license_preserves_history_and_changes_at_alpha_six() {
+        assert_eq!(channel_license("0.7.0").expect("historical license"), "MIT");
+        assert_eq!(
+            channel_license("1.0.0-alpha.5").expect("last MIT Alpha license"),
+            "MIT"
+        );
+        assert_eq!(
+            channel_license("1.0.0-alpha.6").expect("first GPL Alpha license"),
+            GPL_LICENSE
+        );
+        assert_eq!(
+            channel_license("1.0.0").expect("Stable GPL license"),
+            GPL_LICENSE
+        );
     }
 
     #[test]

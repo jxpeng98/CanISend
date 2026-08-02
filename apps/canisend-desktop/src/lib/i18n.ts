@@ -777,6 +777,14 @@ export const messages = {
     settingsTitle: "Settings and diagnostics",
     settingsDescription:
       "Manage the bundled CLI, check the release channel, and inspect version-matched schemas and resources.",
+    legalNotice: "Legal notice",
+    legalDescription: "License, warranty, redistribution, and source-code information.",
+    copyrightNotice: "Copyright © 2026 Peng Jiaxin and CanISend contributors.",
+    licenseNotice:
+      "CanISend is free software licensed under GNU General Public License version 3 only. You may redistribute and modify it under those terms.",
+    warrantyNotice:
+      "CanISend comes with absolutely no warranty, to the extent permitted by law. See the LICENSE file included with this application for the complete terms.",
+    sourceCodeNotice: "Corresponding source for each release:",
     cliLifecycle: "Terminal CLI",
     bundledCli: "Bundled CLI",
     installedCli: "Installed CLI",
@@ -1550,6 +1558,14 @@ export const messages = {
     settingsTitle: "设置与诊断",
     settingsDescription:
       "管理内嵌 CLI、检查发布通道，并查看版本匹配的 Schema 与资源。",
+    legalNotice: "法律声明",
+    legalDescription: "许可证、担保、再分发与源代码信息。",
+    copyrightNotice: "版权所有 © 2026 Peng Jiaxin 与 CanISend 贡献者。",
+    licenseNotice:
+      "CanISend 是仅依据 GNU 通用公共许可证第 3 版授权的自由软件；你可以按照该许可证的条款再分发和修改本软件。",
+    warrantyNotice:
+      "在法律允许的最大范围内，CanISend 不提供任何担保。完整条款请参阅随本应用提供的 LICENSE 文件。",
+    sourceCodeNotice: "每个发行版本对应的源代码：",
     cliLifecycle: "终端 CLI",
     bundledCli: "内嵌 CLI",
     installedCli: "已安装 CLI",

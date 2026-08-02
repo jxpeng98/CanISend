@@ -1,6 +1,7 @@
 {
   "name": "@canisend/desktop-ui",
   "version": "1.0.0-alpha.5",
+  "license": "GPL-3.0-only",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.17.0",

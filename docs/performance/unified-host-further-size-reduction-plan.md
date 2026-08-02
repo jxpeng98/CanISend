@@ -1,7 +1,8 @@
 # Unified host further size reduction plan
 
-**Status:** Latest-template profile matrix implemented and locally qualified on macOS arm64;
-`opt-level=z` plus FatLTO leads, native clean Windows/Linux/macOS qualification pending
+**Status:** Historical measurement reference — current execution is tracked by the
+[post-template plan](post-template-upgrade-size-optimization-plan.md) under M2 of the
+[CanISend 1.0 delivery roadmap](../superpowers/plans/2026-07-25-1.0-release-roadmap.md)
 
 **Decision boundary:** keep every GUI, CLI, MCP, offline-rendering, intake, integrity, privacy,
 backup, and release function. A smaller artifact is not accepted when it depends on a mandatory

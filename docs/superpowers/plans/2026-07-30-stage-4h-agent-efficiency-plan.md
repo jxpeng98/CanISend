@@ -1,6 +1,7 @@
 # CanISend Stage 4H agent efficiency plan
 
-**Status:** Source implementation complete; external-provider dogfood remains a release gate.
+**Status:** Implemented — external-provider dogfood is tracked by M3 of the
+[CanISend 1.0 delivery roadmap](2026-07-25-1.0-release-roadmap.md)
 
 **Architecture decision:** CanISend remains the local-first application state, validation, and
 visualization layer. Codex, Claude, or another host remains the Agent runtime, session authority,

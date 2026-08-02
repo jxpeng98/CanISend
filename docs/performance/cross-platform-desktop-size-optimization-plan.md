@@ -1,11 +1,16 @@
 # Cross-platform desktop size optimization plan
 
-**Status:** In progress — Phases 0–3 locally qualified on macOS arm64; Phase 4 implementation landed
-and awaits native qualification; Phase 5 latest-template `z` plus FatLTO candidate is locally
-qualified on macOS arm64  
+**Status:** In progress — supporting M2 of the
+[CanISend 1.0 delivery roadmap](../superpowers/plans/2026-07-25-1.0-release-roadmap.md); Phases 0–3
+are locally qualified on macOS arm64, Phase 4 awaits native qualification, and the Phase 5
+latest-template `z` plus FatLTO candidate is locally qualified on macOS arm64
 **Scope:** macOS desktop cut over; Windows x64 and Linux x64 desktop candidates configured  
 **Primary constraint:** reduce package size without removing GUI, CLI, MCP, offline rendering, or
 release-integrity capabilities
+
+**M2 boundary:** Only unified-host profile selection and exact nonpublishing native-candidate
+qualification are current 1.0 work. Public Windows/Linux GUI publication described later in this
+historical design is Deferred/post-1.0 and cannot expand the support policy.
 
 ## 1. Outcome
 

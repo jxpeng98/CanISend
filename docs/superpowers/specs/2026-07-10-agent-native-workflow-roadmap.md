@@ -1,6 +1,7 @@
 # Agent-Native Application Workflow Roadmap
 
-**Status:** Active — Phase 1 implementation and local exit review complete; remote candidate CI pending
+**Status:** Historical Python-era design — superseded by the
+[CanISend 1.0 delivery roadmap](../plans/2026-07-25-1.0-release-roadmap.md)
 
 **Date:** 2026-07-10
 

@@ -221,7 +221,10 @@
       <Tabs.Trigger value="inspection">{copy.inspection}</Tabs.Trigger>
     </Tabs.List>
 
-    <Tabs.Content value="appearance" class="pt-[var(--density-section-gap)]">
+    <Tabs.Content
+      value="appearance"
+      class="space-y-[var(--density-section-gap)] pt-[var(--density-section-gap)]"
+    >
       <Card.Root>
         <Card.Header>
           <Card.Title>{copy.accessibilityAppearance}</Card.Title>
@@ -303,6 +306,31 @@
               </Item.Content>
             </Item.Root>
           </Item.Group>
+        </Card.Content>
+      </Card.Root>
+      <Card.Root>
+        <Card.Header>
+          <div class="flex items-start justify-between gap-[var(--density-section-gap)]">
+            <div>
+              <Card.Title>{copy.legalNotice}</Card.Title>
+              <Card.Description class="mt-1.5">{copy.legalDescription}</Card.Description>
+            </div>
+            <div class="grid size-10 place-items-center rounded-lg bg-accent text-accent-foreground">
+              <ShieldCheck size={18} strokeWidth={1.8} aria-hidden="true" />
+            </div>
+          </div>
+        </Card.Header>
+        <Card.Content class="space-y-3 text-sm leading-6">
+          <p>{copy.copyrightNotice}</p>
+          <p>{copy.licenseNotice}</p>
+          <p>{copy.warrantyNotice}</p>
+          <div class="rounded-lg border bg-muted/20 p-[var(--density-panel-padding)]">
+            <p class="text-xs text-muted-foreground">{copy.sourceCodeNotice}</p>
+            <p class="mt-2 break-all font-mono text-xs">
+              https://github.com/jxpeng98/CanISend
+            </p>
+          </div>
+          <Badge variant="outline">GPL-3.0-only</Badge>
         </Card.Content>
       </Card.Root>
     </Tabs.Content>

@@ -6,7 +6,7 @@
   <a href="https://github.com/jxpeng98/CanISend/actions/workflows/fast-ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/jxpeng98/CanISend/fast-ci.yml?branch=main&label=macOS%20Fast%20CI" alt="macOS Fast CI status"></a>
   <img src="https://img.shields.io/badge/Rust-1.92%2B-orange" alt="Rust 1.92+">
   <img src="https://img.shields.io/badge/protocol-canisend.agent%2Fv2-blue" alt="Agent protocol v2">
-  <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT license">
+  <img src="https://img.shields.io/badge/license-GPL--3.0--only-green" alt="GPL-3.0-only license">
 </p>
 
 # 这也能投 / CanISend
@@ -123,9 +123,12 @@ profile evidence, Agent handoff/runtime controls, a body-free Content Catalog wi
 ephemeral full-text search, recovery, updates, and managed terminal CLI installation. See the
 [desktop GUI preview guide](docs/guides/desktop-gui.md) for current coverage and limits.
 
-The R9 native matrix verifies embedded fonts, edge-case Unicode/layout, missing-system-font isolation, bundled
-licenses/notices, render timing, and a 64 MiB release-binary budget. Hardening gates continue in the
-[Rust-native roadmap](docs/superpowers/plans/2026-07-17-rust-native-greenfield-roadmap.md).
+The native matrices verify embedded fonts, edge-case Unicode/layout, missing-system-font
+isolation, bundled licenses/notices, render timing, package budgets, lifecycle, and release
+integrity. Current work and release gates are governed by the
+[CanISend 1.0 delivery roadmap](docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md); the
+[plan registry](docs/superpowers/plans/README.md) separates active, supporting, completed, and
+historical plans.
 
 ## Build the native foundation
 
@@ -281,5 +284,10 @@ archived implementation as a dependency.
 
 ## License
 
-MIT. Native bundles include [third-party renderer and font notices](THIRD_PARTY_NOTICES.md) plus the exact upstream
-`typst-assets` license and notice files; dependency-wide SBOM and license evidence remains scheduled for R10.
+CanISend is free software licensed under
+[GNU General Public License v3.0 only](LICENSE) (`GPL-3.0-only`). Corresponding source for each
+release is the matching Git tag in this repository. Historical tags retain the license stated by
+their own source tree.
+
+Native bundles include [third-party renderer and font notices](THIRD_PARTY_NOTICES.md), the exact
+upstream `typst-assets` license and notice files, and machine-readable release SBOM evidence.

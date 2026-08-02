@@ -1,7 +1,7 @@
 # Stage 4G connected agent workspace execution plan
 
-**Status:** G1 through G7 implemented and locally package-qualified on macOS for Alpha.5; public
-five-target qualification and publication remain separately authorized release work
+**Status:** Implemented — real-provider validation and later release qualification are tracked by
+M2/M3 of the [CanISend 1.0 delivery roadmap](2026-07-25-1.0-release-roadmap.md)
 
 **Decision date:** 2026-07-30
 

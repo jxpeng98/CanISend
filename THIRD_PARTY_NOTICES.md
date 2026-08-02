@@ -1,7 +1,8 @@
 # CanISend Third-Party Notices
 
-CanISend is distributed under the MIT License in `LICENSE`. The standalone native binary includes third-party Rust
-code and embedded rendering assets. This file identifies the components whose notices are especially relevant to the
+CanISend is distributed under GNU General Public License v3.0 only (`GPL-3.0-only`) in `LICENSE`.
+The standalone native binary includes third-party Rust code and embedded rendering assets. Those
+components retain their own licenses; this file identifies the notices especially relevant to the
 embedded renderer and storage engine.
 
 ## Embedded Typst renderer
@@ -63,6 +64,6 @@ The binary uses bundled SQLite so end users do not need to install a database li
 
 ## Complete dependency evidence
 
-`Cargo.lock` freezes the complete Rust dependency graph and `deny.toml` defines the accepted license policy. The R10
-release pipeline will add a machine-readable SBOM and dependency-wide license report. This notice does not replace
-the exact upstream licenses packaged in native release bundles.
+`Cargo.lock` freezes the complete Rust dependency graph and `deny.toml` defines the accepted license
+policy. Release qualification emits machine-readable SBOM and dependency-license evidence. This
+notice does not replace the exact upstream licenses packaged in native release bundles.

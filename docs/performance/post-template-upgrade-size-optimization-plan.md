@@ -1,10 +1,17 @@
 # Post-template-upgrade desktop size optimization plan
 
-**Status:** Phases A and B implemented; macOS arm64 locally qualified, clean/native target evidence pending  
+**Status:** In progress — supporting M2 of the
+[CanISend 1.0 delivery roadmap](../superpowers/plans/2026-07-25-1.0-release-roadmap.md); Phases A
+and B are implemented, macOS arm64 is locally qualified, and clean/native target evidence is
+pending
 **Targets:** macOS arm64/x64, Windows x64, Linux GNU x64; Linux musl remains CLI-only  
 **Scope:** Reduce the unified desktop host and standard packages without removing GUI, CLI, MCP,
 offline Typst/PDF rendering, intake, integrity, privacy, backup, accessibility, or in-App CLI
 installation
+
+**M2 boundary:** Only the completed profile work and clean native-candidate qualification are on
+the 1.0 path. Derived-font, TLS-provider, linker/dependency experiments, and public Windows/Linux
+GUI publication are P2 or Deferred unless a confirmed release blocker explicitly promotes them.
 
 ## 1. Decision and baseline
 

@@ -1,6 +1,8 @@
 # CanISend Tauri + Svelte UI migration roadmap
 
-**Status:** Active — Stage TS2 complete; TS3 next
+**Status:** Implemented — TS0 through TS5 source/cutover work is complete; remaining TS5/TS6 native
+qualification is inherited by M2 of the
+[CanISend 1.0 delivery roadmap](2026-07-25-1.0-release-roadmap.md)
 
 **Decision date:** 2026-07-27
 

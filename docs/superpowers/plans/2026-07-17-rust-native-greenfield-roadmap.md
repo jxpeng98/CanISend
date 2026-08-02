@@ -1,7 +1,7 @@
 # CanISend Rust-Native Greenfield Rebuild Roadmap
 
-**Status:** In progress — R0 through R11.2 complete; R11.3 release-candidate preparation active; the R12 desktop
-GUI roadmap is approved but implementation is gated behind R11.4 Stable
+**Status:** Historical foundation — superseded for current planning by the
+[CanISend 1.0 delivery roadmap](2026-07-25-1.0-release-roadmap.md)
 
 **Date:** 2026-07-17
 

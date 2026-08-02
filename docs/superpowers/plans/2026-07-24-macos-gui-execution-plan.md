@@ -1,6 +1,7 @@
 # CanISend macOS-first GUI execution plan
 
-**Status:** Active
+**Status:** Completed historical implementation plan — current qualification is governed by the
+[CanISend 1.0 delivery roadmap](2026-07-25-1.0-release-roadmap.md)
 
 **Started:** 2026-07-24
 

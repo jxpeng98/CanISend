@@ -1,7 +1,7 @@
 # CanISend Stage 4I–4M content integration and experience plan
 
-**Status:** Stage 4I, Stage 4J, Stage 4K, and Stage 4L complete in source; Stage 4M is the
-next follow-on slice.
+**Status:** Implemented — Stage 4I through Stage 4M source work is complete; release qualification
+is tracked by the [CanISend 1.0 delivery roadmap](2026-07-25-1.0-release-roadmap.md)
 
 **Product decision:** CanISend remains the local-first application state, validation, and
 visualization layer. External Codex, Claude, or another host remains the primary Agent runtime.
