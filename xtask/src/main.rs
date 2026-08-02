@@ -4607,6 +4607,8 @@ fn check_native_test_ownership() -> Result<(), String> {
         "packages: write",
         "releases: write",
         "git push",
+        "$host =",
+        "$Host =",
     ] {
         if desktop_qualification.contains(forbidden) {
             return Err(format!(

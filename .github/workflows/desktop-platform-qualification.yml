@@ -90,8 +90,8 @@ jobs:
       - name: Smoke GUI, renamed CLI, and MCP modes
         shell: pwsh
         run: |
-          $host = (Resolve-Path -LiteralPath 'target/x86_64-pc-windows-msvc/release/canisend-gui.exe').Path
-          $process = Start-Process -FilePath $host -ArgumentList '--gui' -PassThru
+          $hostPath = (Resolve-Path -LiteralPath 'target/x86_64-pc-windows-msvc/release/canisend-gui.exe').Path
+          $process = Start-Process -FilePath $hostPath -ArgumentList '--gui' -PassThru
           try {
             $ready = $false
             foreach ($attempt in 1..200) {
@@ -117,7 +117,7 @@ jobs:
           $cliRoot = Join-Path $env:RUNNER_TEMP 'installed-cli'
           New-Item -ItemType Directory -Force -Path $cliRoot | Out-Null
           $cli = Join-Path $cliRoot 'canisend.exe'
-          Copy-Item -LiteralPath $host -Destination $cli
+          Copy-Item -LiteralPath $hostPath -Destination $cli
           $version = & $cli version --json | ConvertFrom-Json
           if (-not $version.ok) {
             throw "Renamed Windows unified host failed its version command"
@@ -209,13 +209,13 @@ jobs:
             'desktop-windows-candidates/CanISend-offline-setup.exe'
           Copy-Item -LiteralPath $offline[0].FullName -Destination $offlineCandidate
           $payload = Join-Path $env:RUNNER_TEMP 'windows-installed-payload'
-          $host = @(Get-ChildItem -LiteralPath $payload -Recurse -File -Filter 'canisend-gui.exe')
-          if ($host.Count -ne 1) {
+          $hostFiles = @(Get-ChildItem -LiteralPath $payload -Recurse -File -Filter 'canisend-gui.exe')
+          if ($hostFiles.Count -ne 1) {
             throw "Expected one unified host in the recorded Windows payload"
           }
           cargo run -p xtask --locked -- desktop size-record `
             x86_64-pc-windows-msvc release nsis-offline `
-            $host[0].FullName $payload apps/canisend-desktop/dist `
+            $hostFiles[0].FullName $payload apps/canisend-desktop/dist `
             $offlineCandidate `
             (Join-Path $env:RUNNER_TEMP 'desktop-windows-evidence/nsis-offline-size.json')
 
