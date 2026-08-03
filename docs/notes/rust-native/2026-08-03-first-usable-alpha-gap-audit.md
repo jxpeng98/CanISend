@@ -168,11 +168,13 @@ not replace the P0 implementation order.
    advisory/license/ban/source checks; obtain exact committed workflow evidence (M1-DEP-001).
 10. Completed in source: structured candidate IO, Agent skill presentation state, and CLI
     performance setup cross `canisend-app`; the CLI has no Store/IO/Resources edge (M1-ARCH-003).
-11. Next: resolve the time-bounded Store→IO render/projection exception and its failure-atomicity
-    matrix (M1-ARCH-001/002/004), then, with explicit release authority, apply the reviewed Alpha.6
-    plan and run the exact native
-   candidate, migration, backup/restore, rollback, package, and
-   release-integrity gates on a clean candidate commit.
+11. Completed in source: the Store→IO exception is explicitly accepted for Alpha.6 through its
+    2026-08-17 expiry, with an injectable render boundary and named renderer/projector failure,
+    stale-at-commit, CAS classification, path-conflict, `repair-required`, and convergence evidence
+    (M1-ARCH-001/002/004).
+12. Next: obtain exact committed remote M1A runner/dependency evidence; then, with explicit release
+    authority, apply the reviewed Alpha.6 plan and run the exact native candidate, migration,
+    backup/restore, rollback, package, and release-integrity gates on a clean candidate commit.
 
 Only after evidence proves every applicable gate should the release status advance from Alpha.5
 and the goal be considered achieved. GF4 completion alone is not an Alpha qualification event.

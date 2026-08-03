@@ -1136,13 +1136,14 @@ mod tests {
         ActorKind, ArtifactKind, ArtifactReference, DocumentRecord, ProjectionEditStatus,
         ProjectionKind, SafeRelativePath,
     };
+    use rusqlite::Connection;
     use serde_json::json;
 
     use super::{
         GeneratedProjection, ProjectionService, canonical_json_bytes, markdown_projection,
-        pretty_json_bytes, record_projection,
+        pretty_json_bytes, record_projection, repair_projection,
     };
-    use crate::{ArtifactService, Workspace, now_utc};
+    use crate::{ArtifactService, StoreError, Workspace, now_utc};
 
     static NEXT: AtomicU64 = AtomicU64::new(1);
 
@@ -1168,6 +1169,176 @@ mod tests {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.0);
         }
+    }
+
+    fn projection_authority_counts(connection: &Connection) -> (i64, i64, i64) {
+        let count = |query| {
+            connection
+                .query_row(query, [], |row| row.get(0))
+                .expect("read authority row count")
+        };
+        (
+            count("SELECT COUNT(*) FROM artifacts"),
+            count("SELECT COUNT(*) FROM blob_references"),
+            count("SELECT COUNT(*) FROM audit_events"),
+        )
+    }
+
+    fn projection_observation(
+        connection: &Connection,
+        relative_path: &SafeRelativePath,
+    ) -> (String, Option<String>) {
+        connection
+            .query_row(
+                "SELECT status, last_error FROM projection_manifests WHERE relative_path = ?1",
+                [relative_path.as_str()],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("projection observation")
+    }
+
+    #[test]
+    fn repair_failure_marks_projection_and_converges_without_authority_writes() {
+        let root = TestDirectory::new("repair-failure");
+        let mut workspace = Workspace::init(root.path()).expect("workspace");
+        let committed = ArtifactService::new(
+            &mut workspace.database,
+            &workspace.blobs,
+            &workspace.paths.root,
+        )
+        .commit(
+            None,
+            ArtifactKind::CoverLetter,
+            b"authoritative projection source\n",
+            &[],
+            ActorKind::HostAgent,
+            "projection failure fixture",
+        )
+        .expect("source artifact");
+        let source_artifact = ArtifactReference {
+            kind: ArtifactKind::CoverLetter,
+            id: committed.artifact_id,
+            revision: committed.revision,
+            sha256: committed.sha256,
+        };
+        let relative_path = SafeRelativePath::try_new(
+            "jobs/019f2f55-7c00-7000-8000-000000000799/managed/failure.typ",
+        )
+        .expect("projection path");
+        let projection = GeneratedProjection::new(
+            source_artifact,
+            relative_path.clone(),
+            ProjectionKind::TypstSource,
+            b"= Expected projection\n".to_vec(),
+        )
+        .expect("projection recipe");
+        let recorded_at = now_utc().expect("timestamp");
+        record_projection(
+            workspace.database.connection(),
+            &projection,
+            ProjectionEditStatus::Current,
+            Some(&projection.generated_sha256),
+            None,
+            &recorded_at,
+        )
+        .expect("projection manifest");
+        let authority_before = projection_authority_counts(workspace.database.connection());
+
+        let generator_error = repair_projection(
+            workspace.database.connection(),
+            &workspace.paths.root,
+            &relative_path,
+            &projection.generated_sha256,
+            || Err(StoreError::TypstProjectionInvariant),
+        )
+        .expect_err("generator failure must surface");
+        assert!(matches!(
+            generator_error,
+            StoreError::TypstProjectionInvariant
+        ));
+        assert!(!workspace.paths.root.join(relative_path.as_str()).exists());
+        let (status, last_error) =
+            projection_observation(workspace.database.connection(), &relative_path);
+        assert_eq!(status, "repair-required");
+        assert!(
+            last_error
+                .expect("recorded generator failure")
+                .contains("Typst projection invariant")
+        );
+        assert_eq!(
+            projection_authority_counts(workspace.database.connection()),
+            authority_before,
+            "repair failure may update repair metadata but not authoritative artifacts or audit"
+        );
+
+        let destination = workspace.paths.root.join(relative_path.as_str());
+        fs::create_dir_all(&destination).expect("unsafe projection destination fixture");
+        let write_error = repair_projection(
+            workspace.database.connection(),
+            &workspace.paths.root,
+            &relative_path,
+            &projection.generated_sha256,
+            || Ok(projection.bytes.clone()),
+        )
+        .expect_err("unsafe destination must block repair");
+        assert!(matches!(write_error, StoreError::UnsafePath(_)));
+        let parent = destination.parent().expect("projection parent");
+        assert!(
+            fs::read_dir(parent)
+                .expect("projection parent entries")
+                .filter_map(Result::ok)
+                .all(|entry| !entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with(".canisend-projection-")),
+            "ordinary write rejection must not leave a partial temporary projection"
+        );
+        let (status, last_error) =
+            projection_observation(workspace.database.connection(), &relative_path);
+        assert_eq!(status, "repair-required");
+        assert!(
+            last_error
+                .expect("recorded write failure")
+                .contains("unsafe workspace path")
+        );
+        assert_eq!(
+            projection_authority_counts(workspace.database.connection()),
+            authority_before
+        );
+
+        fs::remove_dir(&destination).expect("remove unsafe destination fixture");
+        assert!(
+            repair_projection(
+                workspace.database.connection(),
+                &workspace.paths.root,
+                &relative_path,
+                &projection.generated_sha256,
+                || Ok(projection.bytes.clone()),
+            )
+            .expect("repair converges")
+        );
+        assert_eq!(
+            fs::read(&destination).expect("repaired projection"),
+            projection.bytes
+        );
+        assert!(
+            !repair_projection(
+                workspace.database.connection(),
+                &workspace.paths.root,
+                &relative_path,
+                &projection.generated_sha256,
+                || panic!("current projection must not regenerate"),
+            )
+            .expect("second repair is idempotent")
+        );
+        assert_eq!(
+            projection_observation(workspace.database.connection(), &relative_path),
+            ("current".to_owned(), None)
+        );
+        assert_eq!(
+            projection_authority_counts(workspace.database.connection()),
+            authority_before
+        );
     }
 
     #[test]

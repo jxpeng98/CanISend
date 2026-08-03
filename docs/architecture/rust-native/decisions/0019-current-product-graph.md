@@ -152,12 +152,24 @@ prepare → render/project → revision-bound commit port could increase partial
 risk.
 
 - Owner: CanISend maintainer.
-- Tracking: M1-ARCH-001 and M1-ARCH-002.
+- Review decision: accepted on 2026-08-03 for the Alpha.6 source checkpoint only. The review found
+  that an immediate split would change legacy render, legacy projection/repair, generic v3
+  deliverable export, and backup/migration rebuild paths at once.
+- Tracking: M1-ARCH-001, M1-ARCH-002, and M1-ARCH-004.
 - Review by: 2026-08-10.
 - Hard expiry: 2026-08-17.
 - Removal condition: move rendering/projection orchestration behind an app-owned neutral port with
   stale, failure-atomicity, Blob-ledger, cleanup, and repair-convergence tests; otherwise accept a
   new explicitly reviewed exception before this one expires.
+
+The accepted exception is compensated by an injectable Store-owned render-execution boundary and
+named failure tests. They prove that renderer failure creates no Blob or authoritative write, a
+stage change after compilation rolls back artifact/head/reference/audit writes, every prepared CAS
+leftover remains digest-valid and visible to `workspace check`, and projection generator/path
+failure records `repair-required` before converging idempotently. CanISend never automatically
+deletes an unreferenced digest, so a failed attempt cannot delete pre-existing or shared content.
+The exact evidence and limits are recorded in the
+[M1 exception review](../../../notes/rust-native/2026-08-03-m1-store-render-exception.md).
 
 The source gate fails after the review date or expiry. Policy forbids renewing only the date; a
 renewal requires an explicit architecture review and accepted ADR/policy update whose owner,

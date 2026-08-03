@@ -25,6 +25,66 @@ pub struct RenderService<'a> {
     workspace_root: &'a Path,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RenderExecutionOutput {
+    pub typst_source: String,
+    pub pdf_bytes: Vec<u8>,
+    pub page_count: u32,
+    pub warning_count: u32,
+    pub elapsed_millis: u64,
+}
+
+pub trait RenderExecutor {
+    fn render_document(
+        &mut self,
+        document_artifact: &ArtifactReference,
+        document: &DocumentRecord,
+    ) -> Result<RenderExecutionOutput, StoreError>;
+}
+
+pub struct EmbeddedRenderExecutor {
+    compiler: EmbeddedTypstCompiler,
+}
+
+impl EmbeddedRenderExecutor {
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            compiler: EmbeddedTypstCompiler::new(),
+        }
+    }
+}
+
+impl Default for EmbeddedRenderExecutor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl RenderExecutor for EmbeddedRenderExecutor {
+    fn render_document(
+        &mut self,
+        document_artifact: &ArtifactReference,
+        document: &DocumentRecord,
+    ) -> Result<RenderExecutionOutput, StoreError> {
+        let typst_source =
+            project_document_typst(document_artifact, document).map_err(typst_projection_error)?;
+        let rendered = self.compiler.compile_pdf(&typst_source)?;
+        let page_count = rendered.page_count();
+        let warning_count = u32::try_from(rendered.warning_count())
+            .map_err(|_| StoreError::Invariant("render warning count overflow".to_owned()))?;
+        let elapsed_millis = u64::try_from(rendered.elapsed().as_millis())
+            .map_err(|_| StoreError::Invariant("render duration overflow".to_owned()))?;
+        Ok(RenderExecutionOutput {
+            typst_source,
+            pdf_bytes: rendered.into_bytes(),
+            page_count,
+            warning_count,
+            elapsed_millis,
+        })
+    }
+}
+
 impl<'a> RenderService<'a> {
     #[must_use]
     pub fn new(database: &'a mut Database, blobs: &'a BlobStore, workspace_root: &'a Path) -> Self {
@@ -38,6 +98,14 @@ impl<'a> RenderService<'a> {
     pub fn build(
         &mut self,
         job_id: &EntityId,
+    ) -> Result<(ArtifactReference, RenderManifestRecord), StoreError> {
+        self.build_with_executor(job_id, &mut EmbeddedRenderExecutor::new())
+    }
+
+    pub fn build_with_executor(
+        &mut self,
+        job_id: &EntityId,
+        executor: &mut impl RenderExecutor,
     ) -> Result<(ArtifactReference, RenderManifestRecord), StoreError> {
         let (package_artifact, package) =
             PackageService::new(self.database, self.blobs).current_with_reference(job_id)?;
@@ -67,7 +135,6 @@ impl<'a> RenderService<'a> {
                 ))
             })
             .collect::<Result<Vec<_>, StoreError>>()?;
-        let compiler = EmbeddedTypstCompiler::new();
         let mut prepared = Vec::with_capacity(documents.len() * 2);
         let mut rendered_documents = Vec::with_capacity(documents.len());
         for (document_artifact, document) in documents {
@@ -76,22 +143,24 @@ impl<'a> RenderService<'a> {
                     "package document belongs to another job".to_owned(),
                 ));
             }
-            let source = project_document_typst(&document_artifact, &document)
-                .map_err(typst_projection_error)?;
-            let rendered = compiler.compile_pdf(&source)?;
-            let page_count = rendered.page_count();
-            let warning_count = u32::try_from(rendered.warning_count())
-                .map_err(|_| StoreError::Invariant("render warning count overflow".to_owned()))?;
-            let elapsed_millis = u64::try_from(rendered.elapsed().as_millis())
-                .map_err(|_| StoreError::Invariant("render duration overflow".to_owned()))?;
-            let pdf_bytes = rendered.into_bytes();
+            let rendered = executor.render_document(&document_artifact, &document)?;
+            let page_count = rendered.page_count;
+            let warning_count = rendered.warning_count;
+            let elapsed_millis = rendered.elapsed_millis;
+            let pdf_bytes = rendered.pdf_bytes;
+            let validated_page_count = validate_rendered_pdf(&pdf_bytes)?;
+            if validated_page_count != page_count {
+                return Err(StoreError::DependencyConflict(
+                    "render executor page count does not match its validated PDF".to_owned(),
+                ));
+            }
             let byte_count = u64::try_from(pdf_bytes.len())
                 .map_err(|_| StoreError::Invariant("render byte count overflow".to_owned()))?;
 
             let typst = prepare_artifact(
                 self.blobs,
                 ArtifactKind::TypstSource,
-                source.into_bytes(),
+                rendered.typst_source.into_bytes(),
                 vec![document_artifact.clone()],
                 "generate trusted Typst from the authoritative structured document",
             )?;

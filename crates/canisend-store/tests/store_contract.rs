@@ -11,17 +11,19 @@ use std::{
 };
 
 use canisend_contracts::{
-    ActorKind, ApplicationDecision, ArtifactKind, ArtifactReference, DocumentKind, EntityId,
-    ExecutionMode, ExpectedInputRevision, PlannedDocumentRecord, PrivacyClassification,
+    ActorKind, ApplicationDecision, ArtifactKind, ArtifactReference, DocumentKind, DocumentRecord,
+    EntityId, ExecutionMode, ExpectedInputRevision, PlannedDocumentRecord, PrivacyClassification,
     ProfileSourceKind, Revision, SafeRelativePath, Sha256Digest, SourceKind, StageExecutionStatus,
     TaskCompletionRequest, TaskStatus, WorkflowStage,
 };
 use canisend_store::{
     ArtifactService, CriteriaService, DATABASE_SCHEMA_VERSION, DEFAULT_MAX_BLOB_BYTES,
-    DocumentService, EvidenceService, JobService, MatchService, NewProfileSource, NewSource,
-    PackageService, PlanService, ProfileService, ProjectionService, RenderService, ReviewService,
-    StoreError, TaskService, WorkflowService, Workspace, WorkspacePaths, verify_backup,
+    DocumentService, EmbeddedRenderExecutor, EvidenceService, JobService, MatchService,
+    NewProfileSource, NewSource, PackageService, PlanService, ProfileService, ProjectionService,
+    RenderExecutionOutput, RenderExecutor, RenderService, ReviewService, StoreError, TaskService,
+    WorkflowService, Workspace, WorkspacePaths, verify_backup,
 };
+use rusqlite::{Connection, params};
 use serde_json::{Value, json};
 
 static NEXT: AtomicU64 = AtomicU64::new(1);
@@ -49,6 +51,121 @@ impl TestDirectory {
 impl Drop for TestDirectory {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.0);
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct RenderAuthoritySnapshot {
+    artifacts: i64,
+    artifact_revisions: i64,
+    blob_references: i64,
+    render_heads: i64,
+    audit_events: i64,
+}
+
+fn render_authority_snapshot(database_path: &Path) -> RenderAuthoritySnapshot {
+    let connection = Connection::open(database_path).expect("open authority snapshot connection");
+    let count = |query| {
+        connection
+            .query_row(query, [], |row| row.get(0))
+            .expect("read authority row count")
+    };
+    RenderAuthoritySnapshot {
+        artifacts: count("SELECT COUNT(*) FROM artifacts"),
+        artifact_revisions: count("SELECT COUNT(*) FROM artifact_revisions"),
+        blob_references: count("SELECT COUNT(*) FROM blob_references"),
+        render_heads: count("SELECT COUNT(*) FROM render_heads"),
+        audit_events: count("SELECT COUNT(*) FROM audit_events"),
+    }
+}
+
+fn transition_render_stage(
+    database_path: &Path,
+    job_id: &EntityId,
+    expected: &str,
+    next: &str,
+) -> Result<(), StoreError> {
+    let connection = Connection::open(database_path)?;
+    let changed = connection.execute(
+        "UPDATE stage_executions
+         SET status = ?2
+         WHERE id = (
+             SELECT execution.id
+             FROM stage_executions AS execution
+             JOIN workflow_runs AS run ON run.id = execution.workflow_run_id
+             WHERE run.job_id = ?1 AND execution.stage = 'render'
+               AND execution.status = ?3
+             ORDER BY execution.created_at DESC
+             LIMIT 1
+         )",
+        params![job_id.as_str(), next, expected],
+    )?;
+    if changed != 1 {
+        return Err(StoreError::Invariant(format!(
+            "expected one render stage transition from {expected} to {next}, changed {changed}"
+        )));
+    }
+    Ok(())
+}
+
+struct FailingRenderExecutor;
+
+impl RenderExecutor for FailingRenderExecutor {
+    fn render_document(
+        &mut self,
+        _document_artifact: &ArtifactReference,
+        _document: &DocumentRecord,
+    ) -> Result<RenderExecutionOutput, StoreError> {
+        Err(StoreError::TypstProjectionInvariant)
+    }
+}
+
+struct InvalidPdfRenderExecutor;
+
+impl RenderExecutor for InvalidPdfRenderExecutor {
+    fn render_document(
+        &mut self,
+        _document_artifact: &ArtifactReference,
+        _document: &DocumentRecord,
+    ) -> Result<RenderExecutionOutput, StoreError> {
+        Ok(RenderExecutionOutput {
+            typst_source: "= Untrusted executor output\n".to_owned(),
+            pdf_bytes: b"not-a-pdf".to_vec(),
+            page_count: 1,
+            warning_count: 0,
+            elapsed_millis: 0,
+        })
+    }
+}
+
+struct StalingRenderExecutor {
+    database_path: PathBuf,
+    delegate: EmbeddedRenderExecutor,
+    stale_once: bool,
+}
+
+impl StalingRenderExecutor {
+    fn new(database_path: PathBuf) -> Self {
+        Self {
+            database_path,
+            delegate: EmbeddedRenderExecutor::new(),
+            stale_once: false,
+        }
+    }
+}
+
+impl RenderExecutor for StalingRenderExecutor {
+    fn render_document(
+        &mut self,
+        document_artifact: &ArtifactReference,
+        document: &DocumentRecord,
+    ) -> Result<RenderExecutionOutput, StoreError> {
+        let output = self.delegate.render_document(document_artifact, document)?;
+        if !self.stale_once {
+            transition_render_stage(&self.database_path, &document.job_id, "ready", "pending")?;
+            self.stale_once = true;
+        }
+        Ok(output)
     }
 }
 
@@ -1195,6 +1312,112 @@ fn evidence_and_match_tasks_enforce_stable_revision_bound_identities() {
         "#read(\"/private/user-edited-projection-must-not-be-trusted\")\n",
     )
     .expect("edit the non-authoritative Typst projection");
+    let authority_before_render = render_authority_snapshot(&workspace.paths.database);
+    let references_before_render = workspace
+        .database
+        .referenced_digests()
+        .expect("authoritative blob references before render");
+    let blobs_before_render = workspace
+        .blobs
+        .audit(&references_before_render)
+        .expect("blob audit before render");
+
+    let renderer_error =
+        RenderService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
+            .build_with_executor(&job.id, &mut FailingRenderExecutor)
+            .expect_err("renderer failure must abort the build");
+    assert!(matches!(
+        renderer_error,
+        StoreError::TypstProjectionInvariant
+    ));
+    assert_eq!(
+        render_authority_snapshot(&workspace.paths.database),
+        authority_before_render,
+        "renderer failure must not commit artifacts, heads, references, or audit events"
+    );
+    assert_eq!(
+        workspace
+            .database
+            .referenced_digests()
+            .expect("references after renderer failure"),
+        references_before_render
+    );
+    assert_eq!(
+        workspace
+            .blobs
+            .audit(&references_before_render)
+            .expect("blob audit after renderer failure"),
+        blobs_before_render,
+        "renderer failure before artifact preparation must not create CAS content"
+    );
+
+    let invalid_pdf_error =
+        RenderService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
+            .build_with_executor(&job.id, &mut InvalidPdfRenderExecutor)
+            .expect_err("Store must independently reject an executor's invalid PDF");
+    assert!(matches!(invalid_pdf_error, StoreError::EmbeddedRender(_)));
+    assert_eq!(
+        render_authority_snapshot(&workspace.paths.database),
+        authority_before_render,
+        "invalid executor output must not reach authoritative storage"
+    );
+    assert_eq!(
+        workspace
+            .blobs
+            .audit(&references_before_render)
+            .expect("blob audit after invalid executor output"),
+        blobs_before_render,
+        "invalid executor output must fail before CAS publication"
+    );
+
+    let mut staling_executor = StalingRenderExecutor::new(workspace.paths.database.clone());
+    let stale_error =
+        RenderService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
+            .build_with_executor(&job.id, &mut staling_executor)
+            .expect_err("a stage revision change while compiling must abort the commit");
+    assert!(matches!(stale_error, StoreError::TaskStale(_)));
+    assert_eq!(
+        render_authority_snapshot(&workspace.paths.database),
+        authority_before_render,
+        "stale-at-commit render must roll back all authoritative writes"
+    );
+    assert_eq!(
+        workspace
+            .database
+            .referenced_digests()
+            .expect("references after stale render"),
+        references_before_render
+    );
+    let blobs_after_stale_render = workspace
+        .blobs
+        .audit(&references_before_render)
+        .expect("blob audit after stale render");
+    let newly_unreferenced = blobs_after_stale_render
+        .unreferenced
+        .difference(&blobs_before_render.unreferenced)
+        .cloned()
+        .collect::<Vec<_>>();
+    assert!(
+        !newly_unreferenced.is_empty(),
+        "prepared render content must remain immutable and explicitly auditable after rollback"
+    );
+    let check_after_stale_render = workspace
+        .check()
+        .expect("workspace check after stale render");
+    assert!(check_after_stale_render.ok);
+    for digest in &newly_unreferenced {
+        assert!(
+            check_after_stale_render.unreferenced_blobs.contains(digest),
+            "workspace check must classify every rolled-back CAS blob"
+        );
+        workspace
+            .blobs
+            .verify(digest, DEFAULT_MAX_BLOB_BYTES)
+            .expect("rolled-back CAS blob remains valid");
+    }
+    transition_render_stage(&workspace.paths.database, &job.id, "pending", "ready")
+        .expect("restore render readiness after the concurrent-change fixture");
+
     let (render_artifact, render_manifest) =
         RenderService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
             .build(&job.id)
@@ -1215,6 +1438,31 @@ fn evidence_and_match_tasks_enforce_stable_revision_bound_identities() {
         assert_eq!(
             canisend_io::validate_rendered_pdf(&pdf).expect("parse stored PDF"),
             document.page_count
+        );
+    }
+    let references_after_render = workspace
+        .database
+        .referenced_digests()
+        .expect("references after successful render");
+    let blobs_after_render = workspace
+        .blobs
+        .audit(&references_after_render)
+        .expect("blob audit after successful render");
+    for digest in &blobs_before_render.present {
+        assert!(
+            blobs_after_render.present.contains(digest),
+            "render recovery must never delete pre-existing or shared CAS content"
+        );
+    }
+    for digest in &newly_unreferenced {
+        assert!(
+            blobs_after_render.present.contains(digest),
+            "render recovery must preserve every immutable CAS blob"
+        );
+        assert!(
+            references_after_render.contains(digest.as_str())
+                || blobs_after_render.unreferenced.contains(digest),
+            "a rolled-back CAS blob must become referenced through reuse or remain auditable"
         );
     }
     assert_eq!(

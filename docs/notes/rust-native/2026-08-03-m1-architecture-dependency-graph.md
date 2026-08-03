@@ -29,10 +29,12 @@ now implemented and recorded by the
 [facade-hygiene note](2026-08-03-m1-cli-facade-hygiene.md); the checked-in policy describes the
 post-cleanup 26-edge actual graph.
 
-The Store→IO exception must be reviewed by 2026-08-10 and expires on 2026-08-17. Its removal
-condition is an app-owned prepare → render/project → revision-bound commit port with stale,
-failure-atomicity, Blob-ledger, cleanup, and repair-convergence evidence. The graph gate fails when
-the review becomes overdue; silence cannot extend the exception.
+The Store→IO exception was accepted on 2026-08-03 for the Alpha.6 source checkpoint after reviewing
+the legacy render, projection/repair, generic v3 export, and backup/migration rebuild paths. It must
+be reviewed again by 2026-08-10 and expires on 2026-08-17. Its removal condition is an app-owned
+prepare → render/project → revision-bound commit port with stale, failure-atomicity, Blob-ledger,
+cleanup, and repair-convergence evidence. The graph gate fails when the review becomes overdue;
+silence cannot extend the exception.
 
 ## Enforcement
 
@@ -53,10 +55,9 @@ edge, expire the exception, and preserve the full build/target/optional/feature/
 
 ## Remaining boundary
 
-This closes M1-ADR-001, M1-GRAPH-001, and M1-ARCH-003 source implementation. It does not close
-M1-ARCH-001/002: the time-bounded Store→IO exception is deliberately visible, and the target graph
-is not falsely reported as current.
-
-The shared approval/preview broker has since been completed. The remaining M1B path is the
-Store→IO ownership decision and renderer/projector failure, stale-revision, CAS-cleanup, and
-repair-convergence evidence.
+This closes M1-ADR-001, M1-GRAPH-001, and M1-ARCH-003 source implementation. The subsequent
+[Store/render exception review](2026-08-03-m1-store-render-exception.md) closes the M1-ARCH-001/002
+source decision and compensating-test scope without falsely reporting the 25-edge target as
+current. M1-ARCH-004 source coverage now includes renderer/projector failure, stale-at-commit,
+CAS classification and preservation, unsafe-path rejection, `repair-required`, and idempotent
+repair. Exact committed native and CI evidence remains outside this local source record.

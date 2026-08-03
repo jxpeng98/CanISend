@@ -86,7 +86,7 @@ pub use package::PackageService;
 pub use plan::PlanService;
 pub use profile::{NewProfileSource, ProfileService};
 pub use projection::ProjectionService;
-pub use render::RenderService;
+pub use render::{EmbeddedRenderExecutor, RenderExecutionOutput, RenderExecutor, RenderService};
 pub use review::ReviewService;
 pub use task::TaskService;
 pub use workflow::WorkflowService;
