@@ -62,6 +62,8 @@ const RELEASE_NOTES_POLICY_SCHEMA: &str = "canisend.release-notes-policy/v1";
 const RELEASE_NOTES_QUALIFICATION_PLAN_SCHEMA: &str =
     "canisend.release-notes-qualification-plan/v1";
 const CODE_SIGNING_EVIDENCE_SCHEMA: &str = "canisend.code-signing-evidence/v2";
+const DECLARED_RUST_VERSION: &str = "1.97";
+const PINNED_RUST_TOOLCHAIN: &str = "1.97.0";
 const FUZZ_TOOLCHAIN: &str = "nightly-2026-07-01";
 const CARGO_FUZZ_VERSION: &str = "0.13.2";
 const WINGET_MANIFEST_VERSION: &str = "1.10.0";
@@ -145,6 +147,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
             check_property_test_policy()?;
             check_fuzz_policy()?;
             check_internal_dependency_versions()?;
+            check_rust_toolchain_alignment()?;
             check_desktop_distribution_versions()?;
             check_beta_readiness()?;
             check_beta_contract_freeze()?;
@@ -4503,6 +4506,113 @@ fn check_internal_dependency_versions() -> Result<(), String> {
     Ok(())
 }
 
+fn check_rust_toolchain_alignment() -> Result<(), String> {
+    let root = repository_root();
+    let workspace: toml::Value = toml::from_str(
+        &fs::read_to_string(root.join("Cargo.toml"))
+            .map_err(|error| format!("could not read workspace Cargo.toml: {error}"))?,
+    )
+    .map_err(|error| format!("workspace Cargo.toml is invalid: {error}"))?;
+    let declared = workspace
+        .get("workspace")
+        .and_then(|value| value.get("package"))
+        .and_then(|value| value.get("rust-version"))
+        .and_then(toml::Value::as_str);
+    if declared != Some(DECLARED_RUST_VERSION) {
+        return Err(format!(
+            "workspace rust-version must be {DECLARED_RUST_VERSION}, found {}",
+            declared.unwrap_or("<missing>")
+        ));
+    }
+
+    let toolchain: toml::Value = toml::from_str(
+        &fs::read_to_string(root.join("rust-toolchain.toml"))
+            .map_err(|error| format!("could not read rust-toolchain.toml: {error}"))?,
+    )
+    .map_err(|error| format!("rust-toolchain.toml is invalid: {error}"))?;
+    let channel = toolchain
+        .get("toolchain")
+        .and_then(|value| value.get("channel"))
+        .and_then(toml::Value::as_str);
+    if channel != Some(PINNED_RUST_TOOLCHAIN) {
+        return Err(format!(
+            "pinned Rust channel must be {PINNED_RUST_TOOLCHAIN}, found {}",
+            channel.unwrap_or("<missing>")
+        ));
+    }
+
+    let clippy: toml::Value = toml::from_str(
+        &fs::read_to_string(root.join("clippy.toml"))
+            .map_err(|error| format!("could not read clippy.toml: {error}"))?,
+    )
+    .map_err(|error| format!("clippy.toml is invalid: {error}"))?;
+    if clippy.get("msrv").and_then(toml::Value::as_str) != Some(PINNED_RUST_TOOLCHAIN) {
+        return Err(format!("Clippy MSRV must be {PINNED_RUST_TOOLCHAIN}"));
+    }
+
+    let readme = fs::read_to_string(root.join("README.md"))
+        .map_err(|error| format!("could not read README.md: {error}"))?;
+    for required in [
+        "Rust-1.97%2B-orange",
+        &format!("alt=\"Rust {DECLARED_RUST_VERSION}+\""),
+    ] {
+        if !readme.contains(required) {
+            return Err(format!("README Rust badge is missing `{required}`"));
+        }
+    }
+
+    let workflow_dir = root.join(".github/workflows");
+    let mut stable_action_uses = 0_usize;
+    for entry in fs::read_dir(&workflow_dir)
+        .map_err(|error| format!("could not read {}: {error}", workflow_dir.display()))?
+    {
+        let path = entry
+            .map_err(|error| format!("could not inspect workflow entry: {error}"))?
+            .path();
+        if !matches!(
+            path.extension().and_then(|extension| extension.to_str()),
+            Some("yml" | "yaml")
+        ) {
+            continue;
+        }
+        let source = fs::read_to_string(&path)
+            .map_err(|error| format!("could not read {}: {error}", path.display()))?;
+        for (index, line) in source.lines().enumerate() {
+            let Some((_, version)) = line.split_once("uses: dtolnay/rust-toolchain@") else {
+                continue;
+            };
+            stable_action_uses += 1;
+            let version = version.split_whitespace().next().unwrap_or_default();
+            if version != PINNED_RUST_TOOLCHAIN {
+                return Err(format!(
+                    "{}:{} pins Rust {version}, expected {PINNED_RUST_TOOLCHAIN}",
+                    path.display(),
+                    index + 1
+                ));
+            }
+        }
+    }
+    if stable_action_uses == 0 {
+        return Err("no pinned stable Rust workflow action was found".to_owned());
+    }
+
+    let native_policy: Value = serde_json::from_slice(
+        &fs::read(root.join("release/native-test-ownership.json"))
+            .map_err(|error| format!("could not read native test ownership policy: {error}"))?,
+    )
+    .map_err(|error| format!("native test ownership policy is invalid JSON: {error}"))?;
+    if native_policy["source_gate"]["rust_toolchain"].as_str() != Some(PINNED_RUST_TOOLCHAIN) {
+        return Err(format!(
+            "native source gate must declare Rust {PINNED_RUST_TOOLCHAIN}"
+        ));
+    }
+
+    println!(
+        "Rust toolchain: ok (declared {DECLARED_RUST_VERSION}, pinned {PINNED_RUST_TOOLCHAIN}, {stable_action_uses} workflow uses)"
+    );
+    Ok(())
+}
+
 fn check_desktop_distribution_versions() -> Result<(), String> {
     let root = repository_root();
     let version = Version::parse(env!("CARGO_PKG_VERSION"))
@@ -4600,8 +4710,23 @@ fn check_native_test_ownership() -> Result<(), String> {
         "schema": NATIVE_TEST_OWNERSHIP_SCHEMA,
         "source_gate": {
             "command": "cargo test --workspace --locked",
+            "frontend": {
+                "browser_channel": "chrome",
+                "commands": [
+                    "pnpm --dir apps/canisend-desktop install --frozen-lockfile",
+                    "pnpm --dir apps/canisend-desktop format:check",
+                    "pnpm --dir apps/canisend-desktop check",
+                    "pnpm --dir apps/canisend-desktop test",
+                    "pnpm --dir apps/canisend-desktop build",
+                    "pnpm --dir apps/canisend-desktop exec playwright install --with-deps chrome",
+                    "pnpm --dir apps/canisend-desktop test:accessibility"
+                ],
+                "node_version": "26.5.0",
+                "pnpm_version": "11.17.0"
+            },
             "property_contract_command":
                 "cargo test -p canisend-contracts --locked --test property_contract",
+            "rust_toolchain": PINNED_RUST_TOOLCHAIN,
             "runner": "ubuntu-24.04",
             "runs_per_candidate": 1
         },
@@ -4642,6 +4767,7 @@ fn check_native_test_ownership() -> Result<(), String> {
             ],
             "commands": [
                 "pnpm install --frozen-lockfile",
+                "pnpm format:check",
                 "pnpm check",
                 "pnpm test",
                 "pnpm build",
@@ -4736,7 +4862,11 @@ fn check_native_test_ownership() -> Result<(), String> {
         "extended_assurance": [
             {
                 "owner": "fast-ci/desktop-ui",
-                "scope": "Svelte and TypeScript checks, unit tests, and production frontend build"
+                "scope": "Formatting, Svelte and TypeScript checks, unit tests, and production frontend build"
+            },
+            {
+                "owner": "native-release/source-gates",
+                "scope": "Locked formatting, Svelte and TypeScript checks, unit tests, production build, and Chrome accessibility checks"
             },
             {
                 "owner": "fast-ci/macos-tests",
@@ -4797,6 +4927,7 @@ fn check_native_test_ownership() -> Result<(), String> {
         "  macos-tests:",
         "runs-on: macos-15",
         "pnpm install --frozen-lockfile",
+        "pnpm format:check",
         "pnpm check",
         "pnpm test",
         "pnpm build",
@@ -4847,6 +4978,98 @@ fn check_native_test_ownership() -> Result<(), String> {
     let workflow_path = root.join(".github/workflows/release.yml");
     let workflow = fs::read_to_string(&workflow_path)
         .map_err(|error| format!("release workflow is missing: {error}"))?;
+    let source_gate_start = workflow
+        .find("\n  source-gates:\n")
+        .ok_or_else(|| "release workflow source-gates job is missing".to_owned())?;
+    let source_gate_tail = &workflow[source_gate_start..];
+    let source_gate_end = source_gate_tail
+        .find("\n  windows-release-tests:\n")
+        .ok_or_else(|| "release workflow source-gates boundary is missing".to_owned())?;
+    let source_gate_job = &source_gate_tail[..source_gate_end];
+    for required in [
+        "if: needs.release-identity.outputs.mode == 'candidate'",
+        "runs-on: ubuntu-24.04",
+        "Install pinned pnpm for source gates",
+        "version: 11.17.0",
+        "Install pinned Node.js for source gates",
+        "node-version: 26.5.0",
+        "Install Chrome for accessibility source gate",
+        "Run critical browser accessibility checks for release",
+    ] {
+        if !source_gate_job.contains(required) {
+            return Err(format!(
+                "release source-gates job is missing frontend invariant `{required}`"
+            ));
+        }
+    }
+    let frontend_commands = policy["source_gate"]["frontend"]["commands"]
+        .as_array()
+        .ok_or_else(|| "native source-gate frontend commands are missing".to_owned())?;
+    for command in frontend_commands {
+        let command = command
+            .as_str()
+            .ok_or_else(|| "native source-gate frontend command must be a string".to_owned())?;
+        if !source_gate_job.contains(command) {
+            return Err(format!(
+                "release source-gates job is missing frontend command `{command}`"
+            ));
+        }
+    }
+
+    let desktop_package: Value = serde_json::from_slice(
+        &fs::read(root.join("apps/canisend-desktop/package.json"))
+            .map_err(|error| format!("desktop package is missing: {error}"))?,
+    )
+    .map_err(|error| format!("desktop package is invalid JSON: {error}"))?;
+    let expected_accessibility_script = "playwright test tests/visual/application-shell.a11y.spec.ts tests/visual/ui-system.a11y.spec.ts";
+    if desktop_package["scripts"]["test:accessibility"].as_str()
+        != Some(expected_accessibility_script)
+    {
+        return Err(
+            "desktop test:accessibility must run only the two critical accessibility specs"
+                .to_owned(),
+        );
+    }
+    let expected_format_script =
+        "prettier --check \"src/**/*.{svelte,ts}\" \"tests/**/*.ts\" \"*.{ts,js,json}\"";
+    if desktop_package["scripts"]["format:check"].as_str() != Some(expected_format_script) {
+        return Err(
+            "desktop format:check must cover Svelte, TypeScript, and UI configuration".to_owned(),
+        );
+    }
+    for (dependency, version) in [("prettier", "3.9.6"), ("prettier-plugin-svelte", "4.1.1")] {
+        if desktop_package["devDependencies"][dependency].as_str() != Some(version) {
+            return Err(format!(
+                "desktop formatting gate must pin {dependency} {version}"
+            ));
+        }
+    }
+    let prettier = fs::read_to_string(root.join("apps/canisend-desktop/.prettierrc.json"))
+        .map_err(|error| format!("desktop Prettier config is missing: {error}"))?;
+    let prettier: Value = serde_json::from_str(&prettier)
+        .map_err(|error| format!("desktop Prettier config is invalid JSON: {error}"))?;
+    if prettier
+        != json!({
+            "plugins": ["prettier-plugin-svelte"],
+            "printWidth": 100,
+            "overrides": [{
+                "files": "src/lib/components/ui/**/*.{svelte,ts}",
+                "options": {"useTabs": true}
+            }]
+        })
+    {
+        return Err(
+            "desktop Prettier config must preserve the pinned Svelte formatting profile".to_owned(),
+        );
+    }
+    let playwright = fs::read_to_string(root.join("apps/canisend-desktop/playwright.config.ts"))
+        .map_err(|error| format!("desktop Playwright config is missing: {error}"))?;
+    if !playwright.contains("channel: \"chrome\"") {
+        return Err(
+            "desktop accessibility source gate must use the pinned Chrome channel".to_owned(),
+        );
+    }
+
     let source_suite = "cargo test --workspace --locked";
     if workflow.matches(source_suite).count() != 1 {
         return Err(
@@ -14241,6 +14464,11 @@ mod tests {
     #[test]
     fn native_test_ownership_runs_the_source_suite_once() {
         check_native_test_ownership().expect("native test ownership policy");
+    }
+
+    #[test]
+    fn rust_toolchain_claims_match_every_active_owner() {
+        check_rust_toolchain_alignment().expect("Rust toolchain alignment");
     }
 
     #[test]

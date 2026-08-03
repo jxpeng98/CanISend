@@ -277,7 +277,9 @@
             {#if sources.length}
               {#each sources as source (source.id)}
                 <div class="flex items-center gap-3 rounded-lg border p-3">
-                  <div class="grid size-9 shrink-0 place-items-center rounded-lg bg-accent text-accent-foreground">
+                  <div
+                    class="grid size-9 shrink-0 place-items-center rounded-lg bg-accent text-accent-foreground"
+                  >
                     <DatabaseZap size={16} strokeWidth={1.8} aria-hidden="true" />
                   </div>
                   <div class="min-w-0 flex-1">
@@ -315,7 +317,12 @@
                   disabled={busy || selectedLead.status === "promoted"}
                   onclick={() => (promoteOpen = true)}
                 >
-                  <ArrowUpRight size={16} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
+                  <ArrowUpRight
+                    size={16}
+                    strokeWidth={1.8}
+                    data-icon="inline-start"
+                    aria-hidden="true"
+                  />
                   {selectedLead.status === "promoted" ? copy.promotedLead : copy.promoteLead}
                 </Button>
               {/if}
@@ -335,7 +342,9 @@
                 <dt class="text-muted-foreground">{copy.status}</dt>
                 <dd class="text-right font-medium">{localizedStatus(selectedLead.status)}</dd>
                 <dt class="text-muted-foreground">{copy.publicUrl}</dt>
-                <dd class="truncate text-right font-medium" title={selectedLead.url}>{selectedLead.url}</dd>
+                <dd class="truncate text-right font-medium" title={selectedLead.url}>
+                  {selectedLead.url}
+                </dd>
               </dl>
               {#if selectedLead.summary}
                 <Separator class="my-5" />
@@ -347,7 +356,9 @@
                 {#if suggestions?.suggestions.length}
                   <div class="mt-3 space-y-2">
                     {#each suggestions.suggestions as suggestion (suggestion.lead.id)}
-                      <div class="flex items-center justify-between gap-[var(--density-section-gap)] rounded-lg border p-3">
+                      <div
+                        class="flex items-center justify-between gap-[var(--density-section-gap)] rounded-lg border p-3"
+                      >
                         <div class="min-w-0">
                           <p class="truncate text-sm font-medium">{suggestion.lead.title}</p>
                           <p class="mt-1 truncate text-xs text-muted-foreground">
@@ -406,7 +417,12 @@
                   <Button class="min-h-9" disabled={busy} onclick={onCommitPreview}>
                     {busy ? copy.working : copy.commitPreview}
                   </Button>
-                  <Button variant="outline" class="min-h-9" disabled={busy} onclick={onDiscardPreview}>
+                  <Button
+                    variant="outline"
+                    class="min-h-9"
+                    disabled={busy}
+                    onclick={onDiscardPreview}
+                  >
                     {copy.discardPreview}
                   </Button>
                 </div>
@@ -415,20 +431,38 @@
               <Tabs.Root bind:value={intakeTab}>
                 <Tabs.List class="responsive-tabs" data-columns="2">
                   <Tabs.Trigger value="batch">
-                    <FileUp size={16} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
+                    <FileUp
+                      size={16}
+                      strokeWidth={1.8}
+                      data-icon="inline-start"
+                      aria-hidden="true"
+                    />
                     {copy.discoveryImport}
                   </Tabs.Trigger>
                   <Tabs.Trigger value="network">
-                    <Network size={16} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
+                    <Network
+                      size={16}
+                      strokeWidth={1.8}
+                      data-icon="inline-start"
+                      aria-hidden="true"
+                    />
                     {copy.discoveryRefresh}
                   </Tabs.Trigger>
                 </Tabs.List>
-                <Tabs.Content value="batch" class="space-y-[var(--density-section-gap)] pt-[var(--density-section-gap)]">
+                <Tabs.Content
+                  value="batch"
+                  class="space-y-[var(--density-section-gap)] pt-[var(--density-section-gap)]"
+                >
                   <div class="space-y-2">
                     <Label for="discovery-batch">{copy.discoveryBatch}</Label>
                     <div class="flex gap-2">
                       <Input id="discovery-batch" bind:value={batchPath} readonly />
-                      <Button type="button" variant="outline" class="shrink-0" onclick={chooseBatch}>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        class="shrink-0"
+                        onclick={chooseBatch}
+                      >
                         {copy.chooseFile}
                       </Button>
                     </div>
@@ -472,7 +506,10 @@
                     {busy ? copy.working : copy.previewBatch}
                   </Button>
                 </Tabs.Content>
-                <Tabs.Content value="network" class="space-y-[var(--density-section-gap)] pt-[var(--density-section-gap)]">
+                <Tabs.Content
+                  value="network"
+                  class="space-y-[var(--density-section-gap)] pt-[var(--density-section-gap)]"
+                >
                   <div class="grid gap-[var(--density-section-gap)] sm:grid-cols-2">
                     <div class="space-y-2">
                       <Label for="discovery-adapter">{copy.discoveryAdapter}</Label>
@@ -483,7 +520,11 @@
                         bind:value={adapter}
                       >
                         {#each networkAdapters as option (option.kind)}
-                          <NativeSelect.Option value={option.kind}>{adapterLabel(option.kind as DiscoveryNetworkAdapter)}</NativeSelect.Option>
+                          <NativeSelect.Option value={option.kind}
+                            >{adapterLabel(
+                              option.kind as DiscoveryNetworkAdapter,
+                            )}</NativeSelect.Option
+                          >
                         {/each}
                       </NativeSelect.Root>
                     </div>
@@ -517,7 +558,11 @@
                   {/if}
                   <Button
                     class="min-h-9"
-                    disabled={!desktopRuntime || busy || !endpoint.trim() || !sourceName.trim() || !networkFetchConfirmed}
+                    disabled={!desktopRuntime ||
+                      busy ||
+                      !endpoint.trim() ||
+                      !sourceName.trim() ||
+                      !networkFetchConfirmed}
                     onclick={submitNetworkPreview}
                   >
                     {busy ? copy.working : copy.previewRefresh}

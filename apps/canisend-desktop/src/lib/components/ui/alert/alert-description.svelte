@@ -15,7 +15,7 @@
 	data-slot="alert-description"
 	class={cn(
 		"min-w-0 break-words text-sm text-balance text-muted-foreground md:text-pretty [&_p:not(:last-child)]:mb-4 [&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-foreground",
-		className
+		className,
 	)}
 	{...restProps}
 >

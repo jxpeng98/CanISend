@@ -6,9 +6,12 @@
 		variants: {
 			variant: {
 				default: "bg-card text-card-foreground",
-				destructive: "bg-card text-destructive *:data-[slot=alert-description]:text-destructive/90 *:[svg]:text-current",
-				success: "border-success/35 bg-success/8 text-success *:data-[slot=alert-description]:text-foreground *:[svg]:text-success",
-				warning: "border-warning/35 bg-warning/8 text-warning *:data-[slot=alert-description]:text-foreground *:[svg]:text-warning",
+				destructive:
+					"bg-card text-destructive *:data-[slot=alert-description]:text-destructive/90 *:[svg]:text-current",
+				success:
+					"border-success/35 bg-success/8 text-success *:data-[slot=alert-description]:text-foreground *:[svg]:text-success",
+				warning:
+					"border-warning/35 bg-warning/8 text-warning *:data-[slot=alert-description]:text-foreground *:[svg]:text-warning",
 				info: "border-info/35 bg-info/8 text-info *:data-[slot=alert-description]:text-foreground *:[svg]:text-info",
 			},
 		},

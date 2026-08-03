@@ -2,7 +2,22 @@
   "schema": "canisend.native-test-ownership/v1",
   "source_gate": {
     "command": "cargo test --workspace --locked",
+    "frontend": {
+      "browser_channel": "chrome",
+      "commands": [
+        "pnpm --dir apps/canisend-desktop install --frozen-lockfile",
+        "pnpm --dir apps/canisend-desktop format:check",
+        "pnpm --dir apps/canisend-desktop check",
+        "pnpm --dir apps/canisend-desktop test",
+        "pnpm --dir apps/canisend-desktop build",
+        "pnpm --dir apps/canisend-desktop exec playwright install --with-deps chrome",
+        "pnpm --dir apps/canisend-desktop test:accessibility"
+      ],
+      "node_version": "26.5.0",
+      "pnpm_version": "11.17.0"
+    },
     "property_contract_command": "cargo test -p canisend-contracts --locked --test property_contract",
+    "rust_toolchain": "1.97.0",
     "runner": "ubuntu-24.04",
     "runs_per_candidate": 1
   },
@@ -42,6 +57,7 @@
     ],
     "commands": [
       "pnpm install --frozen-lockfile",
+      "pnpm format:check",
       "pnpm check",
       "pnpm test",
       "pnpm build",
@@ -136,7 +152,11 @@
   "extended_assurance": [
     {
       "owner": "fast-ci/desktop-ui",
-      "scope": "Svelte and TypeScript checks, unit tests, and production frontend build"
+      "scope": "Formatting, Svelte and TypeScript checks, unit tests, and production frontend build"
+    },
+    {
+      "owner": "native-release/source-gates",
+      "scope": "Locked formatting, Svelte and TypeScript checks, unit tests, production build, and Chrome accessibility checks"
     },
     {
       "owner": "fast-ci/macos-tests",

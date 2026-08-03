@@ -11,9 +11,7 @@ describe("proposal review helpers", () => {
     );
 
     expect(diff.totalChanges).toBe(2);
-    expect(diff.changes).toEqual([
-      { path: "/decision", before: '"hold"', after: '"apply"' },
-    ]);
+    expect(diff.changes).toEqual([{ path: "/decision", before: '"hold"', after: '"apply"' }]);
     expect(diff.truncated).toBe(true);
     expect(diff.comparisonLimited).toBe(false);
   });

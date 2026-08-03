@@ -26,7 +26,7 @@
 	<div
 		class={cn(
 			"flex h-full w-(--sidebar-width) flex-col bg-sidebar text-sidebar-foreground",
-			className
+			className,
 		)}
 		bind:this={ref}
 		{...restProps}
@@ -42,7 +42,7 @@
 			data-mobile="true"
 			class={cn(
 				"w-(--sidebar-width) bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden",
-				className
+				className,
 			)}
 			style="--sidebar-width: {SIDEBAR_WIDTH_MOBILE};"
 			{side}
@@ -75,7 +75,7 @@
 				"group-data-[side=right]:rotate-180",
 				variant === "floating" || variant === "inset"
 					? "group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4)))]"
-					: "group-data-[collapsible=icon]:w-(--sidebar-width-icon)"
+					: "group-data-[collapsible=icon]:w-(--sidebar-width-icon)",
 			)}
 		></div>
 		<div
@@ -89,7 +89,7 @@
 				variant === "floating" || variant === "inset"
 					? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)]"
 					: "group-data-[collapsible=icon]:w-(--sidebar-width-icon) group-data-[side=left]:border-e group-data-[side=right]:border-s",
-				className
+				className,
 			)}
 			{...restProps}
 		>

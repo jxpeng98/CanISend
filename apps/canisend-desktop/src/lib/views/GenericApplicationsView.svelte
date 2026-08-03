@@ -58,9 +58,7 @@
   let sourceText = $state("");
   let requirementStatement = $state("");
   let requirementCategory = $state("");
-  let requirementPriority = $state<"mandatory" | "recommended" | "informational">(
-    "mandatory",
-  );
+  let requirementPriority = $state<"mandatory" | "recommended" | "informational">("mandatory");
   let opportunityValues = $state<Record<string, string>>({});
   let applicationValues = $state<Record<string, string>>({});
   let deliverableSelections = $state<Record<string, boolean>>({});
@@ -128,7 +126,10 @@
       } else if (field.field_type === "string-list") {
         result[field.id] = {
           type: "string-list",
-          value: raw.split("\n").map((item) => item.trim()).filter(Boolean),
+          value: raw
+            .split("\n")
+            .map((item) => item.trim())
+            .filter(Boolean),
         };
       } else {
         result[field.id] = { type: field.field_type, value: raw };
@@ -148,9 +149,10 @@
     try {
       const receipt = await listGenericApplications(activeWorkspace.path);
       applications = receipt.data;
-      const next = applications.find((item) => item.snapshot.application.id === preferredId)
-        ?? applications[0]
-        ?? null;
+      const next =
+        applications.find((item) => item.snapshot.application.id === preferredId) ??
+        applications[0] ??
+        null;
       if (next) await selectApplication(next);
       else {
         selected = null;
@@ -214,14 +216,8 @@
     await run(async () => {
       const receipt = await createGenericApplication(activeWorkspace.path, {
         title: title.trim(),
-        opportunity_metadata: metadata(
-          presentation?.opportunity_fields ?? [],
-          opportunityValues,
-        ),
-        application_metadata: metadata(
-          presentation?.application_fields ?? [],
-          applicationValues,
-        ),
+        opportunity_metadata: metadata(presentation?.opportunity_fields ?? [], opportunityValues),
+        application_metadata: metadata(presentation?.application_fields ?? [], applicationValues),
         source_text: source,
         requirements: [
           {
@@ -257,7 +253,9 @@
           deliverables: presentation!.deliverables.map((item) => ({
             kind: item.id,
             disposition: deliverableSelections[item.id]
-              ? item.minimum > 0 ? "required" : "optional"
+              ? item.minimum > 0
+                ? "required"
+                : "optional"
               : "omitted",
             rationale: "User confirmed this Pack Deliverable in the desktop plan.",
             constraints: ["Use only reviewed local source material and confirmed evidence."],
@@ -384,7 +382,8 @@
     <div class="space-y-[var(--density-section-gap)]">
       <Card.Root>
         <Card.Header>
-          <Card.Title>{presentation?.vocabulary.application_plural ?? copy.applications}</Card.Title>
+          <Card.Title>{presentation?.vocabulary.application_plural ?? copy.applications}</Card.Title
+          >
           <Card.Description class="truncate" title={activeWorkspace.path}>
             {activeWorkspace.path}
           </Card.Description>
@@ -395,7 +394,8 @@
           {:else if !applications.length}
             <Empty.Root class="min-h-28 border bg-muted/20">
               <Empty.Header>
-                <Empty.Media variant="icon"><FileCheck2 size={20} aria-hidden="true" /></Empty.Media>
+                <Empty.Media variant="icon"><FileCheck2 size={20} aria-hidden="true" /></Empty.Media
+                >
                 <Empty.Title>{copy.noGenericApplications}</Empty.Title>
               </Empty.Header>
             </Empty.Root>
@@ -406,13 +406,18 @@
                   ? "secondary"
                   : "ghost"}
                 class="h-auto w-full justify-start px-3 py-2 text-left"
-                aria-pressed={selected?.snapshot.application.id === application.snapshot.application.id}
+                aria-pressed={selected?.snapshot.application.id ===
+                  application.snapshot.application.id}
                 onclick={() => selectApplication(application)}
               >
                 <span class="min-w-0">
-                  <span class="block truncate font-medium">{application.snapshot.opportunity.title}</span>
+                  <span class="block truncate font-medium"
+                    >{application.snapshot.opportunity.title}</span
+                  >
                   <span class="block text-xs text-muted-foreground">
-                    {copy.revision} {application.snapshot.application.revision} · {application.snapshot.application.lifecycle}
+                    {copy.revision}
+                    {application.snapshot.application.revision} · {application.snapshot.application
+                      .lifecycle}
                   </span>
                 </span>
               </Button>
@@ -427,7 +432,13 @@
           <Card.Description>{presentation?.pack.id}</Card.Description>
         </Card.Header>
         <Card.Content>
-          <form class="space-y-4" onsubmit={(event) => { event.preventDefault(); submitCreate(); }}>
+          <form
+            class="space-y-4"
+            onsubmit={(event) => {
+              event.preventDefault();
+              submitCreate();
+            }}
+          >
             <div class="space-y-2">
               <Label for="generic-title">{copy.genericApplicationTitle}</Label>
               <Input id="generic-title" bind:value={title} required />
@@ -455,7 +466,9 @@
                   >
                     <NativeSelect.Option value="">—</NativeSelect.Option>
                     {#each field.options as option (option.id)}
-                      <NativeSelect.Option value={option.id}>{option.label.value}</NativeSelect.Option>
+                      <NativeSelect.Option value={option.id}
+                        >{option.label.value}</NativeSelect.Option
+                      >
                     {/each}
                   </NativeSelect.Root>
                 {:else if field.field_type === "long-text"}
@@ -495,7 +508,9 @@
                 <Label for="generic-category">{copy.requirementCategory}</Label>
                 <NativeSelect.Root id="generic-category" bind:value={requirementCategory}>
                   {#each presentation?.requirement_categories ?? [] as category (category.id)}
-                    <NativeSelect.Option value={category.id}>{category.label.value}</NativeSelect.Option>
+                    <NativeSelect.Option value={category.id}
+                      >{category.label.value}</NativeSelect.Option
+                    >
                   {/each}
                 </NativeSelect.Root>
               </div>
@@ -504,7 +519,9 @@
                 <NativeSelect.Root id="generic-priority" bind:value={requirementPriority}>
                   <NativeSelect.Option value="mandatory">{copy.mandatory}</NativeSelect.Option>
                   <NativeSelect.Option value="recommended">{copy.recommended}</NativeSelect.Option>
-                  <NativeSelect.Option value="informational">{copy.informational}</NativeSelect.Option>
+                  <NativeSelect.Option value="informational"
+                    >{copy.informational}</NativeSelect.Option
+                  >
                 </NativeSelect.Root>
               </div>
             </div>
@@ -533,8 +550,15 @@
             <Progress value={stageProgress} aria-label={`${completedStages}/${stages.length}`} />
             <div class="flex flex-wrap gap-2" aria-label={copy.applicationJourney}>
               {#each presentation?.stages ?? [] as stage (stage.id)}
-                {@const state = stages.find((item) => localId(item.id) === stage.id)?.state ?? "pending"}
-                <Badge variant={state === "complete" ? "default" : state === "ready" ? "secondary" : "outline"}>
+                {@const state =
+                  stages.find((item) => localId(item.id) === stage.id)?.state ?? "pending"}
+                <Badge
+                  variant={state === "complete"
+                    ? "default"
+                    : state === "ready"
+                      ? "secondary"
+                      : "outline"}
+                >
                   {stage.label.value}
                 </Badge>
               {/each}
@@ -555,7 +579,9 @@
                 {/each}
               </ul>
               <fieldset class="space-y-3">
-                <legend class="text-sm font-medium">{presentation?.vocabulary.deliverable_plural}</legend>
+                <legend class="text-sm font-medium"
+                  >{presentation?.vocabulary.deliverable_plural}</legend
+                >
                 {#each presentation?.deliverables ?? [] as deliverable (deliverable.id)}
                   <div class="flex items-start gap-3 rounded-md border p-3">
                     <Checkbox
@@ -579,18 +605,33 @@
           <Card.Root>
             <Card.Header><Card.Title>{copy.composeDeliverables}</Card.Title></Card.Header>
             <Card.Content>
-              <form class="space-y-5" onsubmit={(event) => { event.preventDefault(); submitCompose(); }}>
+              <form
+                class="space-y-5"
+                onsubmit={(event) => {
+                  event.preventDefault();
+                  submitCompose();
+                }}
+              >
                 {#each plannedDeliverables as planned (planned.kind)}
                   {@const id = localId(planned.kind)}
                   <fieldset class="space-y-3 rounded-md border p-4">
                     <legend class="px-1 text-sm font-semibold">{deliverableLabel(id)}</legend>
                     <div class="space-y-2">
                       <Label for={`deliverable-title-${id}`}>{copy.genericApplicationTitle}</Label>
-                      <Input id={`deliverable-title-${id}`} bind:value={deliverableDrafts[id].title} required />
+                      <Input
+                        id={`deliverable-title-${id}`}
+                        bind:value={deliverableDrafts[id].title}
+                        required
+                      />
                     </div>
                     <div class="space-y-2">
                       <Label for={`deliverable-content-${id}`}>{copy.deliverableContent}</Label>
-                      <Textarea id={`deliverable-content-${id}`} bind:value={deliverableDrafts[id].content} rows={10} required />
+                      <Textarea
+                        id={`deliverable-content-${id}`}
+                        bind:value={deliverableDrafts[id].content}
+                        rows={10}
+                        required
+                      />
                     </div>
                   </fieldset>
                 {/each}
@@ -607,21 +648,30 @@
             <Card.Content class="space-y-4">
               <div class="flex items-start gap-3">
                 <Checkbox id="generic-review-consent" bind:checked={privateReviewConsent} />
-                <Label for="generic-review-consent" class="font-normal">{copy.reviewConsentLabel}</Label>
+                <Label for="generic-review-consent" class="font-normal"
+                  >{copy.reviewConsentLabel}</Label
+                >
               </div>
-              <Button variant="outline" disabled={busy || !privateReviewConsent} onclick={loadReview}>
+              <Button
+                variant="outline"
+                disabled={busy || !privateReviewConsent}
+                onclick={loadReview}
+              >
                 {copy.loadPrivateReview}
               </Button>
               {#if review}
                 {#each review.deliverables as item (item.deliverable.id)}
                   <article class="space-y-2 rounded-md border p-4">
                     <h3 class="font-semibold">{item.deliverable.title}</h3>
-                    <pre class="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted p-3 text-sm">{item.content}</pre>
+                    <pre
+                      class="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted p-3 text-sm">{item.content}</pre>
                   </article>
                 {/each}
                 <div class="flex items-start gap-3">
                   <Checkbox id="generic-review-complete" bind:checked={reviewConfirmed} />
-                  <Label for="generic-review-complete" class="font-normal">{copy.reviewedAllDeliverables}</Label>
+                  <Label for="generic-review-complete" class="font-normal"
+                    >{copy.reviewedAllDeliverables}</Label
+                  >
                 </div>
                 <Button disabled={busy || !reviewConfirmed} onclick={submitApproval}>
                   {copy.approveDeliverables}
@@ -642,9 +692,14 @@
               </div>
               <div class="flex items-start gap-3">
                 <Checkbox id="generic-export-consent" bind:checked={privateExportConsent} />
-                <Label for="generic-export-consent" class="font-normal">{copy.privateExportConsent}</Label>
+                <Label for="generic-export-consent" class="font-normal"
+                  >{copy.privateExportConsent}</Label
+                >
               </div>
-              <Button disabled={busy || !privateExportConsent || !exportDestination.trim()} onclick={submitExport}>
+              <Button
+                disabled={busy || !privateExportConsent || !exportDestination.trim()}
+                onclick={submitExport}
+              >
                 {copy.exportApplication}
               </Button>
             </Card.Content>
@@ -655,7 +710,8 @@
           <Card.Content>
             <Empty.Root class="min-h-48">
               <Empty.Header>
-                <Empty.Media variant="icon"><FileCheck2 size={22} aria-hidden="true" /></Empty.Media>
+                <Empty.Media variant="icon"><FileCheck2 size={22} aria-hidden="true" /></Empty.Media
+                >
                 <Empty.Title>{copy.noGenericApplications}</Empty.Title>
               </Empty.Header>
             </Empty.Root>

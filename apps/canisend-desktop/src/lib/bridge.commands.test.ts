@@ -77,18 +77,8 @@ describe("typed Tauri command requests", () => {
   });
 
   it("previews local and URL job sources without committing either source", async () => {
-    await previewLocalJobSource(
-      "/tmp/workspace",
-      "job-id",
-      "/tmp/advert.pdf",
-      true,
-    );
-    await previewUrlJobSource(
-      "/tmp/workspace",
-      "job-id",
-      "https://example.edu/advert.pdf",
-      true,
-    );
+    await previewLocalJobSource("/tmp/workspace", "job-id", "/tmp/advert.pdf", true);
+    await previewUrlJobSource("/tmp/workspace", "job-id", "https://example.edu/advert.pdf", true);
 
     expect(mocks.invoke).toHaveBeenNthCalledWith(1, "preview_local_job_source", {
       request: {
@@ -123,16 +113,12 @@ describe("typed Tauri command requests", () => {
     await listApplicationDossiers("/tmp/workspace", false);
     await getApplicationDossier("/tmp/workspace", "job-id");
 
-    expect(mocks.invoke).toHaveBeenNthCalledWith(
-      1,
-      "list_application_dossiers",
-      {
-        request: {
-          workspace: "/tmp/workspace",
-          include_archived: false,
-        },
+    expect(mocks.invoke).toHaveBeenNthCalledWith(1, "list_application_dossiers", {
+      request: {
+        workspace: "/tmp/workspace",
+        include_archived: false,
       },
-    );
+    });
     expect(mocks.invoke).toHaveBeenNthCalledWith(2, "application_dossier", {
       request: {
         workspace: "/tmp/workspace",
@@ -188,11 +174,9 @@ describe("typed Tauri command requests", () => {
       backupDestination: "/tmp/workspace-v2-backup",
     });
 
-    expect(mocks.invoke).toHaveBeenNthCalledWith(
-      1,
-      "preview_workspace_v3_migration",
-      { request: { path: "/tmp/workspace" } },
-    );
+    expect(mocks.invoke).toHaveBeenNthCalledWith(1, "preview_workspace_v3_migration", {
+      request: { path: "/tmp/workspace" },
+    });
     expect(mocks.invoke).toHaveBeenNthCalledWith(2, "migrate_workspace_v3", {
       request: {
         workspace: "/tmp/workspace",
@@ -251,12 +235,7 @@ describe("typed Tauri command requests", () => {
   });
 
   it("sends workflow enums through the shared kebab-case contract", async () => {
-    await beginWorkflowStage(
-      "/tmp/workspace",
-      "job-id",
-      "criteria",
-      "host-agent",
-    );
+    await beginWorkflowStage("/tmp/workspace", "job-id", "criteria", "host-agent");
 
     expect(mocks.invoke).toHaveBeenCalledWith("begin_workflow_stage", {
       request: {
@@ -269,10 +248,7 @@ describe("typed Tauri command requests", () => {
   });
 
   it("requests Pack presentation labels with the selected host locale", async () => {
-    await getWorkflowPackPresentation(
-      "zh-CN",
-      GENERIC_APPLICATION_WORKFLOW_PACK_ID,
-    );
+    await getWorkflowPackPresentation("zh-CN", GENERIC_APPLICATION_WORKFLOW_PACK_ID);
 
     expect(mocks.invoke).toHaveBeenCalledWith("workflow_pack_presentation", {
       request: {
@@ -297,12 +273,7 @@ describe("typed Tauri command requests", () => {
   });
 
   it("separates private export consent from the job-scoped destination", async () => {
-    await exportPackage(
-      "/tmp/workspace",
-      "job-id",
-      "jobs/job-id/application",
-      true,
-    );
+    await exportPackage("/tmp/workspace", "job-id", "jobs/job-id/application", true);
 
     expect(mocks.invoke).toHaveBeenCalledWith("export_package", {
       request: {
@@ -317,12 +288,7 @@ describe("typed Tauri command requests", () => {
   it("reads a current render preview as raw bytes behind private-read consent", async () => {
     mocks.invoke.mockResolvedValueOnce(new Uint8Array([37, 80, 68, 70]).buffer);
 
-    const bytes = await previewRender(
-      "/tmp/workspace",
-      "job-id",
-      "cover-letter",
-      true,
-    );
+    const bytes = await previewRender("/tmp/workspace", "job-id", "cover-letter", true);
 
     expect([...bytes]).toEqual([37, 80, 68, 70]);
     expect(mocks.invoke).toHaveBeenCalledWith("preview_render", {
@@ -336,13 +302,7 @@ describe("typed Tauri command requests", () => {
   });
 
   it("opens only a selected job-scoped render behind private-export consent", async () => {
-    await exportRenderAndOpen(
-      "/tmp/workspace",
-      "job-id",
-      "jobs/job-id/rendered",
-      "cv",
-      true,
-    );
+    await exportRenderAndOpen("/tmp/workspace", "job-id", "jobs/job-id/rendered", "cv", true);
 
     expect(mocks.invoke).toHaveBeenCalledWith("export_render_and_open", {
       request: {
@@ -447,12 +407,7 @@ describe("typed Tauri command requests", () => {
   });
 
   it("copies only a regenerated handoff field through the native adapter", async () => {
-    await copyAgentHandoff(
-      "codex",
-      "/tmp/workspace",
-      "job-id",
-      "bootstrap-prompt",
-    );
+    await copyAgentHandoff("codex", "/tmp/workspace", "job-id", "bootstrap-prompt");
 
     expect(mocks.invoke).toHaveBeenCalledWith("copy_agent_handoff", {
       request: {
@@ -496,23 +451,16 @@ describe("typed Tauri command requests", () => {
   it("prepares host-specific MCP configuration for the selected workspace", async () => {
     await prepareAgentMcpConfiguration("codex", "/tmp/workspace");
 
-    expect(mocks.invoke).toHaveBeenCalledWith(
-      "prepare_agent_mcp_configuration",
-      {
-        request: {
-          host: "codex",
-          workspace: "/tmp/workspace",
-        },
+    expect(mocks.invoke).toHaveBeenCalledWith("prepare_agent_mcp_configuration", {
+      request: {
+        host: "codex",
+        workspace: "/tmp/workspace",
       },
-    );
+    });
   });
 
   it("copies only a regenerated MCP configuration field", async () => {
-    await copyAgentMcpConfiguration(
-      "claude",
-      "/tmp/workspace",
-      "configuration-snippet",
-    );
+    await copyAgentMcpConfiguration("claude", "/tmp/workspace", "configuration-snippet");
 
     expect(mocks.invoke).toHaveBeenCalledWith("copy_agent_mcp_configuration", {
       request: {

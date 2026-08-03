@@ -42,11 +42,7 @@ export interface WorkflowRoute {
 }
 
 export type ApplicationWorkspaceSection =
-  | "overview"
-  | "job-criteria"
-  | "evidence-fit"
-  | "materials"
-  | "review-export";
+  "overview" | "job-criteria" | "evidence-fit" | "materials" | "review-export";
 
 export interface LastSuccessfulAction {
   operation: string;
@@ -136,15 +132,11 @@ function boundedString(value: unknown, max = MAX_MEMORY_STRING): string | null {
 function parseRoute(value: unknown): WorkflowRoute | null {
   if (!value || typeof value !== "object") return null;
   const candidate = value as Record<string, unknown>;
-  if (
-    typeof candidate.view !== "string" ||
-    !navigationIds.has(candidate.view as NavigationId)
-  ) {
+  if (typeof candidate.view !== "string" || !navigationIds.has(candidate.view as NavigationId)) {
     return null;
   }
   const detail =
-    typeof candidate.detail === "string" &&
-    workflowDetails.has(candidate.detail as WorkflowDetail)
+    typeof candidate.detail === "string" && workflowDetails.has(candidate.detail as WorkflowDetail)
       ? (candidate.detail as WorkflowDetail)
       : undefined;
   const jobId = boundedString(candidate.jobId, 128) ?? undefined;
@@ -159,11 +151,8 @@ function parseLastAction(value: unknown): LastSuccessfulAction | null {
   const route = parseRoute(candidate.route);
   const occurredAt = boundedString(candidate.occurredAt, 64);
   const workspacePath =
-    candidate.workspacePath === null
-      ? null
-      : boundedString(candidate.workspacePath, 4_096);
-  const jobId =
-    candidate.jobId === null ? null : boundedString(candidate.jobId, 128);
+    candidate.workspacePath === null ? null : boundedString(candidate.workspacePath, 4_096);
+  const jobId = candidate.jobId === null ? null : boundedString(candidate.jobId, 128);
   if (
     !operation ||
     !summary ||
@@ -268,9 +257,7 @@ export function applicationSectionForRoute(
     return "job-criteria";
   }
   if (route.view === "delivery") {
-    return route.detail === "delivery-documents"
-      ? "materials"
-      : "review-export";
+    return route.detail === "delivery-documents" ? "materials" : "review-export";
   }
   return null;
 }
@@ -313,10 +300,7 @@ export function routeForWorkflowStage(stage: WorkflowStage): WorkflowRoute {
 }
 
 export function routeForContentEntry(
-  entry: Pick<
-    ContentCatalogEntryReadModel,
-    "category" | "stage" | "subject_jobs"
-  >,
+  entry: Pick<ContentCatalogEntryReadModel, "category" | "stage" | "subject_jobs">,
   fallbackJobId?: string,
 ): WorkflowRoute {
   if (entry.category === "profile") {
@@ -402,10 +386,7 @@ export function recommendWorkflowRoute(input: {
   }
 
   const jobId = input.selectedJob.job.id;
-  if (
-    input.dossier?.state === "needs-source" ||
-    input.selectedJob.job.source_ids.length === 0
-  ) {
+  if (input.dossier?.state === "needs-source" || input.selectedJob.job.source_ids.length === 0) {
     return {
       route: { view: "applications", detail: "source-intake", jobId },
       reason: "attach-source",
@@ -426,21 +407,16 @@ export function recommendWorkflowRoute(input: {
 
   const nextStage =
     input.dossier?.current_stage ??
-    (
-      input.dossier?.workflow?.stages ??
-      input.selectedJob.workflow?.stages ??
-      []
-    ).find((stage) => stage.status !== "complete")?.stage;
+    (input.dossier?.workflow?.stages ?? input.selectedJob.workflow?.stages ?? []).find(
+      (stage) => stage.status !== "complete",
+    )?.stage;
   if (nextStage) {
     return {
       route: { ...routeForWorkflowStage(nextStage), jobId },
       reason: "continue-workflow",
     };
   }
-  if (
-    input.dossier?.state === "complete" ||
-    input.selectedJob.workflow?.status === "complete"
-  ) {
+  if (input.dossier?.state === "complete" || input.selectedJob.workflow?.status === "complete") {
     return {
       route: { view: "delivery", detail: "delivery-package", jobId },
       reason: "complete",

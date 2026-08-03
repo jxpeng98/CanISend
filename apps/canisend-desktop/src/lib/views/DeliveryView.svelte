@@ -40,10 +40,7 @@
     WorkspaceReadModel,
   } from "$lib/bridge";
   import type { Messages } from "$lib/i18n";
-  import type {
-    WorkflowDetail,
-    WorkflowRoute,
-  } from "$lib/workflow-navigation";
+  import type { WorkflowDetail, WorkflowRoute } from "$lib/workflow-navigation";
   import { deliverablePresentationLabel } from "$lib/workflow-pack-presentation";
 
   type Props = {
@@ -75,16 +72,9 @@
       destination: string,
       confirmedPrivateExport: boolean,
     ) => Promise<PackageExportManifestRecord | null>;
-    onLoadPackageExport: (
-      jobId: string,
-    ) => Promise<PackageExportManifestRecord | null>;
-    onReconcilePackage: (
-      jobId: string,
-    ) => Promise<ProjectionReconcileRecord[] | null>;
-    onReplaceProjection: (
-      jobId: string,
-      path: string,
-    ) => Promise<ProjectionReconcileRecord | null>;
+    onLoadPackageExport: (jobId: string) => Promise<PackageExportManifestRecord | null>;
+    onReconcilePackage: (jobId: string) => Promise<ProjectionReconcileRecord[] | null>;
+    onReplaceProjection: (jobId: string, path: string) => Promise<ProjectionReconcileRecord | null>;
     onCopyProjection: (
       jobId: string,
       path: string,
@@ -158,9 +148,7 @@
 
   const previewDocument = $derived(
     renderManifest?.documents.find(
-      (document) =>
-        document.kind === previewKind &&
-        document.pdf_artifact.sha256 === previewSha256,
+      (document) => document.kind === previewKind && document.pdf_artifact.sha256 === previewSha256,
     ) ?? null,
   );
 
@@ -187,12 +175,8 @@
       clearRenderPreview();
       privateReadConsent = false;
       privateExportConsent = false;
-      packageDestination = selectedJobId
-        ? `jobs/${selectedJobId}/application`
-        : "";
-      renderDestination = selectedJobId
-        ? `jobs/${selectedJobId}/rendered`
-        : "";
+      packageDestination = selectedJobId ? `jobs/${selectedJobId}/application` : "";
+      renderDestination = selectedJobId ? `jobs/${selectedJobId}/rendered` : "";
       selectedProjectionPath = "";
       preservedDestination = "";
     }
@@ -234,11 +218,7 @@
     }
     try {
       const candidate: unknown = JSON.parse(reviewJson);
-      review = await onConfirmReview(
-        selectedJobId,
-        candidate,
-        privateReadConsent,
-      );
+      review = await onConfirmReview(selectedJobId, candidate, privateReadConsent);
       if (review) {
         reviewJson = JSON.stringify(review.disposition_candidate, null, 2);
       }
@@ -253,11 +233,7 @@
       formError = copy.privateExportConsent;
       return;
     }
-    packageExport = await onExportPackage(
-      selectedJobId,
-      packageDestination,
-      privateExportConsent,
-    );
+    packageExport = await onExportPackage(selectedJobId, packageDestination, privateExportConsent);
   }
 
   async function reconcile(): Promise<void> {
@@ -269,18 +245,13 @@
 
   function selectProjection(path: string): void {
     selectedProjectionPath = path;
-    const suffix = path.includes(".")
-      ? path.replace(/(\.[^./]+)$/, "-edited$1")
-      : `${path}-edited`;
+    const suffix = path.includes(".") ? path.replace(/(\.[^./]+)$/, "-edited$1") : `${path}-edited`;
     preservedDestination = suffix;
   }
 
   async function replaceProjection(): Promise<void> {
     if (!selectedProjectionPath) return;
-    const result = await onReplaceProjection(
-      selectedJobId,
-      selectedProjectionPath,
-    );
+    const result = await onReplaceProjection(selectedJobId, selectedProjectionPath);
     if (result) await reconcile();
   }
 
@@ -300,11 +271,7 @@
       formError = copy.privateExportConsent;
       return;
     }
-    await onExportRender(
-      selectedJobId,
-      renderDestination,
-      privateExportConsent,
-    );
+    await onExportRender(selectedJobId, renderDestination, privateExportConsent);
   }
 
   async function openRenderedPdf(): Promise<void> {
@@ -338,20 +305,14 @@
       formError = copy.privateWorkspaceConsent;
       return;
     }
-    const bytes = await onPreviewRender(
-      selectedJobId,
-      document.kind,
-      privateReadConsent,
-    );
+    const bytes = await onPreviewRender(selectedJobId, document.kind, privateReadConsent);
     if (!bytes) return;
     clearRenderPreview();
     const buffer = bytes.buffer.slice(
       bytes.byteOffset,
       bytes.byteOffset + bytes.byteLength,
     ) as ArrayBuffer;
-    previewUrl = URL.createObjectURL(
-      new Blob([buffer], { type: "application/pdf" }),
-    );
+    previewUrl = URL.createObjectURL(new Blob([buffer], { type: "application/pdf" }));
     previewKind = document.kind;
     previewSha256 = document.pdf_artifact.sha256;
   }
@@ -365,14 +326,10 @@
   }
 
   const workspaceTitle = $derived(
-    section === "documents"
-      ? copy.materialsWorkspaceTitle
-      : copy.reviewExportTitle,
+    section === "documents" ? copy.materialsWorkspaceTitle : copy.reviewExportTitle,
   );
   const workspaceDescription = $derived(
-    section === "documents"
-      ? copy.materialsWorkspaceDescription
-      : copy.reviewExportDescription,
+    section === "documents" ? copy.materialsWorkspaceDescription : copy.reviewExportDescription,
   );
 </script>
 
@@ -425,22 +382,13 @@
         >
           {copy.documents}
         </Tabs.Trigger>
-        <Tabs.Trigger
-          value="review"
-          onclick={() => navigateWithinDelivery("delivery-review")}
-        >
+        <Tabs.Trigger value="review" onclick={() => navigateWithinDelivery("delivery-review")}>
           {copy.review}
         </Tabs.Trigger>
-        <Tabs.Trigger
-          value="package"
-          onclick={() => navigateWithinDelivery("delivery-package")}
-        >
+        <Tabs.Trigger value="package" onclick={() => navigateWithinDelivery("delivery-package")}>
           {copy.package}
         </Tabs.Trigger>
-        <Tabs.Trigger
-          value="render"
-          onclick={() => navigateWithinDelivery("delivery-render")}
-        >
+        <Tabs.Trigger value="render" onclick={() => navigateWithinDelivery("delivery-render")}>
           {copy.render}
         </Tabs.Trigger>
       </Tabs.List>
@@ -468,7 +416,12 @@
                 disabled={busy || !privateReadConsent}
                 onclick={loadDocuments}
               >
-                <RefreshCw size={16} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
+                <RefreshCw
+                  size={16}
+                  strokeWidth={1.8}
+                  data-icon="inline-start"
+                  aria-hidden="true"
+                />
                 {copy.loadDocuments}
               </Button>
             </div>
@@ -487,7 +440,9 @@
                     <Badge variant="outline">r{document.revision}</Badge>
                   </div>
                   <p class="mt-[var(--density-section-gap)] text-xs text-muted-foreground">
-                    {document.sections.length} {copy.sections} · {document.placeholders.length} {copy.placeholders}
+                    {document.sections.length}
+                    {copy.sections} · {document.placeholders.length}
+                    {copy.placeholders}
                   </p>
                 </div>
               {:else}
@@ -513,7 +468,9 @@
           focus === "delivery-review" ? "rounded-lg ring-2 ring-primary/25" : "",
         ]}
       >
-        <div class="grid gap-[var(--density-section-gap)] xl:grid-cols-[minmax(320px,0.75fr)_minmax(0,1.25fr)]">
+        <div
+          class="grid gap-[var(--density-section-gap)] xl:grid-cols-[minmax(320px,0.75fr)_minmax(0,1.25fr)]"
+        >
           <Card.Root>
             <Card.Header>
               <Card.Title>{copy.reviewFindings}</Card.Title>
@@ -590,12 +547,22 @@
           </Card.Header>
           <Card.Content class="space-y-[var(--density-section-gap)]">
             <div class="flex flex-wrap gap-2">
-              <Button disabled={busy} onclick={async () => (packageManifest = await onCheckPackage(selectedJobId))}>
-                <CheckCircle2 size={16} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
+              <Button
+                disabled={busy}
+                onclick={async () => (packageManifest = await onCheckPackage(selectedJobId))}
+              >
+                <CheckCircle2
+                  size={16}
+                  strokeWidth={1.8}
+                  data-icon="inline-start"
+                  aria-hidden="true"
+                />
                 {copy.checkPackage}
               </Button>
               <ActionMenu label={copy.moreActions} disabled={busy}>
-                <DropdownMenu.Item onclick={async () => (packageManifest = await onLoadPackage(selectedJobId))}>
+                <DropdownMenu.Item
+                  onclick={async () => (packageManifest = await onLoadPackage(selectedJobId))}
+                >
                   <RefreshCw size={16} strokeWidth={1.8} aria-hidden="true" />
                   {copy.loadPackage}
                 </DropdownMenu.Item>
@@ -613,12 +580,16 @@
                 </div>
                 <div class="rounded-lg border p-[var(--density-panel-padding)]">
                   <p class="text-xs text-muted-foreground">{copy.readinessReasons}</p>
-                  <p class="mt-2 text-lg font-semibold">{packageManifest.readiness.reasons.length}</p>
+                  <p class="mt-2 text-lg font-semibold">
+                    {packageManifest.readiness.reasons.length}
+                  </p>
                 </div>
               </div>
             {/if}
             <Separator />
-            <div class="grid gap-[var(--density-section-gap)] lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+            <div
+              class="grid gap-[var(--density-section-gap)] lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end"
+            >
               <div class="space-y-2">
                 <Label for="package-destination">{copy.relativeDestination}</Label>
                 <Input id="package-destination" bind:value={packageDestination} />
@@ -628,7 +599,12 @@
                 disabled={!desktopRuntime || busy || !privateExportConsent || !packageDestination}
                 onclick={exportPackage}
               >
-                <FileOutput size={16} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
+                <FileOutput
+                  size={16}
+                  strokeWidth={1.8}
+                  data-icon="inline-start"
+                  aria-hidden="true"
+                />
                 {copy.exportPackage}
               </Button>
             </div>
@@ -640,15 +616,24 @@
             <div class="flex items-start justify-between gap-[var(--density-section-gap)]">
               <div>
                 <Card.Title>{copy.projections}</Card.Title>
-                <Card.Description>{packageExport?.projections.length ?? reconciliations.length}</Card.Description>
+                <Card.Description
+                  >{packageExport?.projections.length ?? reconciliations.length}</Card.Description
+                >
               </div>
               <div class="flex flex-wrap items-center gap-2">
                 <Button variant="outline" disabled={busy} onclick={reconcile}>
-                  <RotateCcw size={16} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
+                  <RotateCcw
+                    size={16}
+                    strokeWidth={1.8}
+                    data-icon="inline-start"
+                    aria-hidden="true"
+                  />
                   {copy.reconcileProjections}
                 </Button>
                 <ActionMenu label={copy.moreActions} disabled={busy}>
-                  <DropdownMenu.Item onclick={async () => (packageExport = await onLoadPackageExport(selectedJobId))}>
+                  <DropdownMenu.Item
+                    onclick={async () => (packageExport = await onLoadPackageExport(selectedJobId))}
+                  >
                     <RefreshCw size={16} strokeWidth={1.8} aria-hidden="true" />
                     {copy.loadExports}
                   </DropdownMenu.Item>
@@ -671,7 +656,11 @@
                 >
                   <div class="flex items-center justify-between gap-3">
                     <p class="truncate font-mono text-xs">{record.projection.relative_path}</p>
-                    <Badge variant={record.projection.edit_status === "current" ? "outline" : "destructive"}>
+                    <Badge
+                      variant={record.projection.edit_status === "current"
+                        ? "outline"
+                        : "destructive"}
+                    >
                       {record.projection.edit_status}
                     </Badge>
                   </div>
@@ -719,7 +708,12 @@
           <Card.Content class="space-y-[var(--density-section-gap)]">
             <div class="flex flex-wrap gap-2">
               <Button disabled={busy} onclick={buildRenderedPdfs}>
-                <FileCheck2 size={16} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
+                <FileCheck2
+                  size={16}
+                  strokeWidth={1.8}
+                  data-icon="inline-start"
+                  aria-hidden="true"
+                />
                 {copy.buildRender}
               </Button>
               <ActionMenu label={copy.moreActions} disabled={busy}>
@@ -744,7 +738,9 @@
                       {deliverablePresentationLabel(presentation, document.kind)}
                     </span>
                     <span class="mt-1 block text-xs text-muted-foreground">
-                      {document.page_count} {copy.pages} · {document.warning_count} {copy.warnings}
+                      {document.page_count}
+                      {copy.pages} · {document.warning_count}
+                      {copy.warnings}
                     </span>
                   </span>
                   <Eye size={16} strokeWidth={1.8} aria-hidden="true" />
@@ -789,11 +785,16 @@
                 ></iframe>
               </section>
               <output class="sr-only" aria-live="polite">
-                {copy.previewReady}: {deliverablePresentationLabel(presentation, previewDocument.kind)}
+                {copy.previewReady}: {deliverablePresentationLabel(
+                  presentation,
+                  previewDocument.kind,
+                )}
               </output>
             {/if}
             <Separator />
-            <div class="grid gap-[var(--density-section-gap)] lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+            <div
+              class="grid gap-[var(--density-section-gap)] lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end"
+            >
               <div class="space-y-2">
                 <Label for="render-destination">{copy.relativeDestination}</Label>
                 <Input id="render-destination" bind:value={renderDestination} />

@@ -88,30 +88,17 @@
     onNavigate: (route: WorkflowRoute) => Promise<void>;
     onLoadCapabilities: () => Promise<AgentCapabilitiesReadModel | null>;
     onLoadContext: (jobId?: string) => Promise<AgentContextReadModel | null>;
-    onLoadAssistance: (
-      jobId: string,
-    ) => Promise<AgentAssistanceReadModel | null>;
-    onPrepareHandoff: (
-      host: AgentHost,
-      jobId?: string,
-    ) => Promise<AgentHandoffReadModel | null>;
-    onInstallSkills: (
-      host: AgentHost,
-    ) => Promise<AgentSkillsInstallReadModel | null>;
-    onLoadSkills: (
-      host: AgentHost,
-    ) => Promise<AgentSkillsStatusReadModel | null>;
-    onUninstallSkills: (
-      host: AgentHost,
-    ) => Promise<AgentSkillsUninstallReadModel | null>;
+    onLoadAssistance: (jobId: string) => Promise<AgentAssistanceReadModel | null>;
+    onPrepareHandoff: (host: AgentHost, jobId?: string) => Promise<AgentHandoffReadModel | null>;
+    onInstallSkills: (host: AgentHost) => Promise<AgentSkillsInstallReadModel | null>;
+    onLoadSkills: (host: AgentHost) => Promise<AgentSkillsStatusReadModel | null>;
+    onUninstallSkills: (host: AgentHost) => Promise<AgentSkillsUninstallReadModel | null>;
     onCopyHandoff: (
       host: AgentHost,
       jobId: string | undefined,
       field: "launch-command" | "start-command" | "bootstrap-prompt",
     ) => Promise<boolean>;
-    onPrepareMcpConfiguration: (
-      host: AgentHost,
-    ) => Promise<AgentMcpConfigurationReadModel | null>;
+    onPrepareMcpConfiguration: (host: AgentHost) => Promise<AgentMcpConfigurationReadModel | null>;
     onCopyMcpConfiguration: (
       host: AgentHost,
       field: "registration-command" | "configuration-snippet",
@@ -124,14 +111,8 @@
       startNew: boolean;
       confirmedProviderSend: boolean;
     }) => Promise<AgentTurnResult | null>;
-    onCancelTurn: (options: {
-      jobId?: string;
-      runtime: AgentRuntimeKind;
-    }) => Promise<boolean>;
-    onExport: (
-      host: AgentHost,
-      destination: string,
-    ) => Promise<AgentPackExportReadModel | null>;
+    onCancelTurn: (options: { jobId?: string; runtime: AgentRuntimeKind }) => Promise<boolean>;
+    onExport: (host: AgentHost, destination: string) => Promise<AgentPackExportReadModel | null>;
   };
 
   let {
@@ -180,9 +161,7 @@
       (session) => session.runtime === agentUiState.runtime,
     ) ?? null,
   );
-  const selectedJob = $derived(
-    jobs.find((job) => job.id === agentUiState.selectedJobId) ?? null,
-  );
+  const selectedJob = $derived(jobs.find((job) => job.id === agentUiState.selectedJobId) ?? null);
   const skillManagementBlocked = $derived(
     agentUiState.skillsStatus?.state === "user-modified" ||
       agentUiState.skillsStatus?.state === "unmanaged",
@@ -225,9 +204,7 @@
 
   async function refreshRuntimes(): Promise<void> {
     agentUiState.formError = null;
-    agentUiState.runtimeCatalog = await onLoadRuntimes(
-      agentUiState.selectedJobId || undefined,
-    );
+    agentUiState.runtimeCatalog = await onLoadRuntimes(agentUiState.selectedJobId || undefined);
   }
 
   async function changeScope(jobId: string): Promise<void> {
@@ -283,8 +260,7 @@
 
   async function copyHandoff(target: HandoffCopyTarget): Promise<void> {
     if (!activeWorkspace) return;
-    const field =
-      target === "start" ? "start-command" : "bootstrap-prompt";
+    const field = target === "start" ? "start-command" : "bootstrap-prompt";
     const copiedSuccessfully = await onCopyHandoff(
       agentUiState.host,
       agentUiState.selectedJobId || undefined,
@@ -306,21 +282,12 @@
       agentUiState.formError = copy.noWorkspace;
       return;
     }
-    agentUiState.mcpConfiguration =
-      await onPrepareMcpConfiguration(agentUiState.host);
+    agentUiState.mcpConfiguration = await onPrepareMcpConfiguration(agentUiState.host);
   }
 
-  async function copyMcpConfiguration(
-    target: "mcp-command" | "mcp-config",
-  ): Promise<void> {
-    const field =
-      target === "mcp-command"
-        ? "registration-command"
-        : "configuration-snippet";
-    const copiedSuccessfully = await onCopyMcpConfiguration(
-      agentUiState.host,
-      field,
-    );
+  async function copyMcpConfiguration(target: "mcp-command" | "mcp-config"): Promise<void> {
+    const field = target === "mcp-command" ? "registration-command" : "configuration-snippet";
+    const copiedSuccessfully = await onCopyMcpConfiguration(agentUiState.host, field);
     if (!copiedSuccessfully) {
       agentUiState.formError = copy.copyFailed;
       return;
@@ -384,9 +351,7 @@
   }
 
   async function loadContext(): Promise<void> {
-    agentUiState.context = await onLoadContext(
-      agentUiState.selectedJobId || undefined,
-    );
+    agentUiState.context = await onLoadContext(agentUiState.selectedJobId || undefined);
   }
 
   async function refreshAgentContext(): Promise<void> {
@@ -440,9 +405,7 @@
     agentUiState.lastTurn = result;
     agentUiState.prompt = "";
     agentUiState.startNew = false;
-    agentUiState.runtimeCatalog = await onLoadRuntimes(
-      agentUiState.selectedJobId || undefined,
-    );
+    agentUiState.runtimeCatalog = await onLoadRuntimes(agentUiState.selectedJobId || undefined);
   }
 
   async function cancelTurn(): Promise<void> {
@@ -458,8 +421,7 @@
   }
 
   async function chooseDestination(): Promise<void> {
-    agentUiState.destination =
-      (await chooseExportDirectory()) ?? agentUiState.destination;
+    agentUiState.destination = (await chooseExportDirectory()) ?? agentUiState.destination;
   }
 
   async function exportPack(): Promise<void> {
@@ -468,10 +430,7 @@
       agentUiState.formError = copy.chooseDirectory;
       return;
     }
-    agentUiState.exported = await onExport(
-      agentUiState.host,
-      agentUiState.destination,
-    );
+    agentUiState.exported = await onExport(agentUiState.host, agentUiState.destination);
   }
 
   function hostLabel(value: AgentHost): string {
@@ -480,17 +439,13 @@
     return copy.generic;
   }
 
-  function skillStateLabel(
-    value: AgentSkillsInstallReadModel["state"],
-  ): string {
+  function skillStateLabel(value: AgentSkillsInstallReadModel["state"]): string {
     if (value === "installed") return copy.skillsInstalled;
     if (value === "updated") return copy.skillsUpdated;
     return copy.skillsUpToDate;
   }
 
-  function skillsStatusLabel(
-    value: AgentSkillsStatusReadModel["state"],
-  ): string {
+  function skillsStatusLabel(value: AgentSkillsStatusReadModel["state"]): string {
     if (value === "not-installed") return copy.skillsNotInstalled;
     if (value === "up-to-date") return copy.skillsUpToDate;
     if (value === "update-available") return copy.skillsUpdateAvailable;
@@ -502,8 +457,7 @@
   function skillTitle(id: string): string {
     if (id === "canisend-application") return copy.skillApplication;
     if (id === "canisend-job-intake") return copy.skillJobIntake;
-    if (id === "canisend-application-materials")
-      return copy.skillApplicationMaterials;
+    if (id === "canisend-application-materials") return copy.skillApplicationMaterials;
     if (id === "canisend-application-review") return copy.skillApplicationReview;
     return id;
   }
@@ -511,17 +465,13 @@
   function skillDescription(id: string): string {
     if (id === "canisend-application") return copy.skillApplicationDescription;
     if (id === "canisend-job-intake") return copy.skillJobIntakeDescription;
-    if (id === "canisend-application-materials")
-      return copy.skillApplicationMaterialsDescription;
-    if (id === "canisend-application-review")
-      return copy.skillApplicationReviewDescription;
+    if (id === "canisend-application-materials") return copy.skillApplicationMaterialsDescription;
+    if (id === "canisend-application-review") return copy.skillApplicationReviewDescription;
     return copy.skillsManagerDescription;
   }
 
   function shortSessionId(value: string): string {
-    return value.length > 18
-      ? `${value.slice(0, 8)}…${value.slice(-6)}`
-      : value;
+    return value.length > 18 ? `${value.slice(0, 8)}…${value.slice(-6)}` : value;
   }
 
   function proposalLabel(
@@ -546,11 +496,7 @@
 </script>
 
 <Page.Root>
-  <Page.Header
-    eyebrow={copy.agent}
-    title={copy.agentTitle}
-    description={copy.agentDescription}
-  />
+  <Page.Header eyebrow={copy.agent} title={copy.agentTitle} description={copy.agentDescription} />
 
   <Item.Group class="grid gap-3 md:grid-cols-3">
     <Item.Root variant="muted" class="items-start p-[var(--density-panel-padding)]">
@@ -587,9 +533,7 @@
             ? `${selectedJob.title} — ${selectedJob.institution}`
             : copy.wholeWorkspace}
         >
-          {selectedJob
-            ? `${selectedJob.title} — ${selectedJob.institution}`
-            : copy.wholeWorkspace}
+          {selectedJob ? `${selectedJob.title} — ${selectedJob.institution}` : copy.wholeWorkspace}
         </Item.Description>
       </Item.Content>
     </Item.Root>
@@ -630,12 +574,17 @@
     <Card.Content class="space-y-[var(--density-section-gap)]">
       {#if !agentUiState.selectedJobId}
         <Empty.Root class="min-h-20 border bg-muted/10">
-          <Empty.Header><Empty.Description>{copy.selectApplicationForGuidance}</Empty.Description></Empty.Header>
+          <Empty.Header
+            ><Empty.Description>{copy.selectApplicationForGuidance}</Empty.Description
+            ></Empty.Header
+          >
         </Empty.Root>
       {:else if assistanceLoading && !agentUiState.assistance}
         <LoadingPanel label={copy.loadingGuidance} class="min-h-20" />
       {:else if agentUiState.assistance}
-        <div class="grid gap-[var(--density-section-gap)] xl:grid-cols-[minmax(0,1.15fr)_minmax(300px,0.85fr)]">
+        <div
+          class="grid gap-[var(--density-section-gap)] xl:grid-cols-[minmax(0,1.15fr)_minmax(300px,0.85fr)]"
+        >
           <div class="rounded-lg border bg-primary/5 p-5">
             <div class="flex items-start gap-3">
               <Sparkles
@@ -761,14 +710,16 @@
                   class="mt-auto min-h-9 justify-start px-0 pt-[var(--density-section-gap)]"
                   onclick={() =>
                     void onNavigate(
-                      routeForApplicationSection(
-                        target.section,
-                        agentUiState.selectedJobId,
-                      ),
+                      routeForApplicationSection(target.section, agentUiState.selectedJobId),
                     )}
                 >
                   {copy.openRelatedStep}
-                  <ArrowRight size={15} strokeWidth={1.8} data-icon="inline-end" aria-hidden="true" />
+                  <ArrowRight
+                    size={15}
+                    strokeWidth={1.8}
+                    data-icon="inline-end"
+                    aria-hidden="true"
+                  />
                 </Button>
               </div>
             {/each}
@@ -781,23 +732,24 @@
               <Accordion.Trigger level={2}>{copy.inspectContentIdentities}</Accordion.Trigger>
               <Accordion.Content class="pb-[var(--density-section-gap)]">
                 <div class="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-              {#each agentUiState.assistance.content.entries.slice(0, 6) as entry (entry.artifact.id)}
-                <div class="rounded-lg border bg-muted/15 p-3">
-                  <div class="flex items-start justify-between gap-2">
-                    <p class="text-xs font-semibold">{entry.title}</p>
-                    <Badge variant="outline">{entry.status}</Badge>
-                  </div>
-                  <p class="mt-2 break-all font-mono text-[10px] text-muted-foreground">
-                    {entry.artifact.kind} · {entry.artifact.id} · r{entry.artifact.revision}
-                  </p>
-                  <p class="mt-2 text-[11px] leading-5 text-muted-foreground">
-                    {entry.provenance.actor} · {entry.provenance.reason}
-                  </p>
-                  <p class="mt-1 text-[11px] text-muted-foreground">
-                    {entry.relationships.length} {copy.relationships}
-                  </p>
-                </div>
-              {/each}
+                  {#each agentUiState.assistance.content.entries.slice(0, 6) as entry (entry.artifact.id)}
+                    <div class="rounded-lg border bg-muted/15 p-3">
+                      <div class="flex items-start justify-between gap-2">
+                        <p class="text-xs font-semibold">{entry.title}</p>
+                        <Badge variant="outline">{entry.status}</Badge>
+                      </div>
+                      <p class="mt-2 break-all font-mono text-[10px] text-muted-foreground">
+                        {entry.artifact.kind} · {entry.artifact.id} · r{entry.artifact.revision}
+                      </p>
+                      <p class="mt-2 text-[11px] leading-5 text-muted-foreground">
+                        {entry.provenance.actor} · {entry.provenance.reason}
+                      </p>
+                      <p class="mt-1 text-[11px] text-muted-foreground">
+                        {entry.relationships.length}
+                        {copy.relationships}
+                      </p>
+                    </div>
+                  {/each}
                 </div>
               </Accordion.Content>
             </Accordion.Item>
@@ -805,7 +757,9 @@
         {/if}
       {:else}
         <Empty.Root class="min-h-20 border bg-muted/10">
-          <Empty.Header><Empty.Description>{copy.guidanceUnavailable}</Empty.Description></Empty.Header>
+          <Empty.Header
+            ><Empty.Description>{copy.guidanceUnavailable}</Empty.Description></Empty.Header
+          >
         </Empty.Root>
       {/if}
     </Card.Content>
@@ -833,10 +787,14 @@
           : "",
       ]}
     >
-      <div class="grid gap-[var(--density-section-gap)] xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
+      <div
+        class="grid gap-[var(--density-section-gap)] xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]"
+      >
         <Card.Root>
           <Card.Header>
-            <div class="flex flex-wrap items-start justify-between gap-[var(--density-section-gap)]">
+            <div
+              class="flex flex-wrap items-start justify-between gap-[var(--density-section-gap)]"
+            >
               <div class="flex min-w-0 items-center gap-1.5">
                 <Card.Title>{copy.externalHost}</Card.Title>
                 <ContextHelp content={copy.externalHostDescription} />
@@ -861,7 +819,9 @@
                       {host === "codex" ? copy.codex : copy.claude}
                     </p>
                     {#if agentUiState.runtimeCatalog?.runtimes.find((item) => item.runtime === host)?.available}
-                      <span class="inline-flex items-center gap-1.5 text-xs font-medium text-success">
+                      <span
+                        class="inline-flex items-center gap-1.5 text-xs font-medium text-success"
+                      >
                         <Check size={14} strokeWidth={2} aria-hidden="true" />
                         {copy.runtimeAvailable}
                       </span>
@@ -891,17 +851,15 @@
               >
                 <NativeSelect.Option value="">{copy.wholeWorkspace}</NativeSelect.Option>
                 {#each jobs as job (job.id)}
-                  <NativeSelect.Option value={job.id}>{job.title} — {job.institution}</NativeSelect.Option>
+                  <NativeSelect.Option value={job.id}
+                    >{job.title} — {job.institution}</NativeSelect.Option
+                  >
                 {/each}
               </NativeSelect.Root>
             </div>
 
             <Alert.Root variant="success">
-              <ShieldCheck
-                size={18}
-                strokeWidth={1.8}
-                aria-hidden="true"
-              />
+              <ShieldCheck size={18} strokeWidth={1.8} aria-hidden="true" />
               <Alert.Description>{copy.handoffPrivacy}</Alert.Description>
             </Alert.Root>
 
@@ -986,10 +944,7 @@
               <div class="flex flex-wrap items-center gap-2">
                 <Button
                   class="min-h-9"
-                  disabled={!desktopRuntime ||
-                    busy ||
-                    skillsLoading ||
-                    skillManagementBlocked}
+                  disabled={!desktopRuntime || busy || skillsLoading || skillManagementBlocked}
                   onclick={runSkillsPrimaryAction}
                 >
                   <ShieldCheck
@@ -1045,8 +1000,7 @@
                       </p>
                     </div>
                     <Badge
-                      variant={skill.state === "user-modified" ||
-                      skill.state === "unmanaged"
+                      variant={skill.state === "user-modified" || skill.state === "unmanaged"
                         ? "destructive"
                         : "outline"}
                     >
@@ -1058,7 +1012,8 @@
                   </p>
                   <div class="mt-3 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
                     <span>
-                      {skill.installed_file_count}/{skill.file_count} {copy.managedFiles}
+                      {skill.installed_file_count}/{skill.file_count}
+                      {copy.managedFiles}
                     </span>
                     <span aria-hidden="true">·</span>
                     <span>{skill.resource_version}</span>
@@ -1067,7 +1022,9 @@
               {/each}
             </div>
 
-            <div class="grid gap-3 rounded-lg border bg-muted/15 p-[var(--density-panel-padding)] text-xs sm:grid-cols-2">
+            <div
+              class="grid gap-3 rounded-lg border bg-muted/15 p-[var(--density-panel-padding)] text-xs sm:grid-cols-2"
+            >
               <div>
                 <p class="font-medium text-muted-foreground">{copy.skillsInstallLocation}</p>
                 <p class="mt-1 break-all font-mono">{agentUiState.skillsStatus.directory}</p>
@@ -1079,7 +1036,9 @@
             </div>
           {:else}
             <Empty.Root class="min-h-20 border bg-muted/10">
-              <Empty.Header><Empty.Description>{copy.skillsStatusUnavailable}</Empty.Description></Empty.Header>
+              <Empty.Header
+                ><Empty.Description>{copy.skillsStatusUnavailable}</Empty.Description></Empty.Header
+              >
             </Empty.Root>
           {/if}
         </Card.Content>
@@ -1088,7 +1047,9 @@
       {#if agentUiState.handoff}
         <Card.Root class="border-primary/30">
           <Card.Header>
-            <div class="flex flex-wrap items-start justify-between gap-[var(--density-section-gap)]">
+            <div
+              class="flex flex-wrap items-start justify-between gap-[var(--density-section-gap)]"
+            >
               <div>
                 <Card.Title>{copy.handoffReady}</Card.Title>
                 <Card.Description class="mt-1.5">
@@ -1123,10 +1084,7 @@
                     {copy.oneStepStartDescription}
                   </p>
                 </div>
-                <Button
-                  size="sm"
-                  onclick={() => void copyHandoff("start")}
-                >
+                <Button size="sm" onclick={() => void copyHandoff("start")}>
                   <Copy size={14} strokeWidth={1.8} aria-hidden="true" />
                   {copied === "start" ? copy.copied : copy.copyStartCommand}
                 </Button>
@@ -1161,19 +1119,16 @@
                     ? copy.assistanceCommand
                     : copy.contextCommand}
                 </Label>
-                <div class="overflow-x-auto rounded-lg border bg-muted/30 p-[var(--density-panel-padding)] font-mono text-xs leading-5">
-                  {agentUiState.handoff.assistance_command ??
-                    agentUiState.handoff.context_command}
+                <div
+                  class="overflow-x-auto rounded-lg border bg-muted/30 p-[var(--density-panel-padding)] font-mono text-xs leading-5"
+                >
+                  {agentUiState.handoff.assistance_command ?? agentUiState.handoff.context_command}
                 </div>
               </div>
               <div class="space-y-3">
                 <div class="flex items-center justify-between gap-3">
                   <Label for="handoff-prompt">{copy.bootstrapPrompt}</Label>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onclick={() => void copyHandoff("prompt")}
-                  >
+                  <Button variant="outline" size="sm" onclick={() => void copyHandoff("prompt")}>
                     <Copy size={14} strokeWidth={1.8} aria-hidden="true" />
                     {copied === "prompt" ? copy.copied : copy.copyPrompt}
                   </Button>
@@ -1201,13 +1156,10 @@
           </div>
         </Card.Header>
         <Card.Content class="space-y-[var(--density-section-gap)]">
-          <div class="flex items-start gap-3 rounded-lg border bg-muted/20 p-[var(--density-panel-padding)]">
-            <PlugZap
-              size={18}
-              strokeWidth={1.8}
-              class="mt-0.5 shrink-0"
-              aria-hidden="true"
-            />
+          <div
+            class="flex items-start gap-3 rounded-lg border bg-muted/20 p-[var(--density-panel-padding)]"
+          >
+            <PlugZap size={18} strokeWidth={1.8} class="mt-0.5 shrink-0" aria-hidden="true" />
             <p class="text-xs leading-5 text-muted-foreground">
               {copy.mcpPrivacy}
             </p>
@@ -1220,12 +1172,7 @@
               disabled={!desktopRuntime || busy}
               onclick={prepareMcpConfiguration}
             >
-              <PlugZap
-                size={16}
-                strokeWidth={1.8}
-                data-icon="inline-start"
-                aria-hidden="true"
-              />
+              <PlugZap size={16} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
               {busy ? copy.working : copy.prepareMcpConfiguration}
             </Button>
           {/if}
@@ -1280,7 +1227,8 @@
                     {copy.configurationSnippet}
                   </Label>
                   <p class="mt-1 text-xs text-muted-foreground">
-                    {copy.configurationTarget} · {agentUiState.mcpConfiguration.configuration_target}
+                    {copy.configurationTarget} · {agentUiState.mcpConfiguration
+                      .configuration_target}
                   </p>
                 </div>
                 <Button
@@ -1310,17 +1258,24 @@
       </Card.Root>
     </Tabs.Content>
 
-    <Tabs.Content value="in-app" class="space-y-[var(--density-section-gap)] pt-[var(--density-section-gap)]">
+    <Tabs.Content
+      value="in-app"
+      class="space-y-[var(--density-section-gap)] pt-[var(--density-section-gap)]"
+    >
       <Alert.Root variant="info">
         <PlugZap size={18} strokeWidth={1.8} aria-hidden="true" />
         <Alert.Title>{copy.optionalRuntimeBridge}</Alert.Title>
         <Alert.Description>{copy.optionalRuntimeBridgeDescription}</Alert.Description>
       </Alert.Root>
 
-      <div class="grid gap-[var(--density-section-gap)] xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
+      <div
+        class="grid gap-[var(--density-section-gap)] xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]"
+      >
         <Card.Root>
           <Card.Header>
-            <div class="flex flex-wrap items-start justify-between gap-[var(--density-section-gap)]">
+            <div
+              class="flex flex-wrap items-start justify-between gap-[var(--density-section-gap)]"
+            >
               <div>
                 <Card.Title>{copy.conversation}</Card.Title>
                 <Card.Description class="mt-1.5">
@@ -1356,7 +1311,9 @@
               {:else}
                 <Empty.Root class="min-h-32 border-0">
                   <Empty.Header>
-                    <Empty.Media variant="icon"><Bot size={22} strokeWidth={1.8} aria-hidden="true" /></Empty.Media>
+                    <Empty.Media variant="icon"
+                      ><Bot size={22} strokeWidth={1.8} aria-hidden="true" /></Empty.Media
+                    >
                     <Empty.Title>{copy.noConversation}</Empty.Title>
                   </Empty.Header>
                 </Empty.Root>
@@ -1367,7 +1324,8 @@
               <div class="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 <span>{copy.agentResponseMetadata}</span>
                 <Badge variant="outline">
-                  {agentUiState.lastTurn.event_count} {copy.events}
+                  {agentUiState.lastTurn.event_count}
+                  {copy.events}
                 </Badge>
                 {#each agentUiState.lastTurn.tool_activity as activity (activity)}
                   <Badge variant="outline">{activity}</Badge>
@@ -1600,7 +1558,9 @@
                 </div>
               </Card.Header>
               <Card.Content class="space-y-[var(--density-section-gap)]">
-                <div class="grid gap-[var(--density-section-gap)] sm:grid-cols-[160px_minmax(0,1fr)]">
+                <div
+                  class="grid gap-[var(--density-section-gap)] sm:grid-cols-[160px_minmax(0,1fr)]"
+                >
                   <div class="space-y-2">
                     <Label for="agent-host-pack">{copy.agentHost}</Label>
                     <NativeSelect.Root
@@ -1608,8 +1568,7 @@
                       size="desktop"
                       class="w-full"
                       value={agentUiState.host}
-                      onchange={(event) =>
-                        changeHost(event.currentTarget.value as AgentHost)}
+                      onchange={(event) => changeHost(event.currentTarget.value as AgentHost)}
                     >
                       <NativeSelect.Option value="codex">{copy.codex}</NativeSelect.Option>
                       <NativeSelect.Option value="claude">{copy.claude}</NativeSelect.Option>
@@ -1651,7 +1610,8 @@
                     </Alert.Description>
                     <Alert.Action>
                       <Badge variant="outline">
-                        {agentUiState.exported.manifest.files.length} {copy.exportedFiles}
+                        {agentUiState.exported.manifest.files.length}
+                        {copy.exportedFiles}
                       </Badge>
                     </Alert.Action>
                   </Alert.Root>

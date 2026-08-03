@@ -41,10 +41,7 @@
   </div>
 
   {#if actions}
-    <div
-      data-slot="page-actions"
-      class="flex min-w-0 flex-wrap items-center gap-2 lg:justify-end"
-    >
+    <div data-slot="page-actions" class="flex min-w-0 flex-wrap items-center gap-2 lg:justify-end">
       {@render actions()}
     </div>
   {/if}

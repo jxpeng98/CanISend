@@ -19,11 +19,9 @@ export interface WorkflowPackBinding {
 }
 
 export const ACADEMIC_JOB_WORKFLOW_PACK_ID = "org.canisend.academic-job" as const;
-export const GENERIC_APPLICATION_WORKFLOW_PACK_ID =
-  "org.canisend.generic-application" as const;
+export const GENERIC_APPLICATION_WORKFLOW_PACK_ID = "org.canisend.generic-application" as const;
 export type BuiltInWorkflowPackId =
-  | typeof ACADEMIC_JOB_WORKFLOW_PACK_ID
-  | typeof GENERIC_APPLICATION_WORKFLOW_PACK_ID;
+  typeof ACADEMIC_JOB_WORKFLOW_PACK_ID | typeof GENERIC_APPLICATION_WORKFLOW_PACK_ID;
 
 export interface WorkflowPackPresentationLabel {
   value: string;
@@ -40,14 +38,7 @@ export interface WorkflowPackPresentationField {
   id: string;
   label: WorkflowPackPresentationLabel;
   field_type:
-    | "short-text"
-    | "long-text"
-    | "integer"
-    | "boolean"
-    | "date"
-    | "url"
-    | "string-list"
-    | "choice";
+    "short-text" | "long-text" | "integer" | "boolean" | "date" | "url" | "string-list" | "choice";
   required: boolean;
   options: WorkflowPackPresentationFieldOption[];
 }
@@ -167,14 +158,7 @@ export interface WorkspaceReadModel {
 
 export type ApplicationFieldValueV3 = {
   type:
-    | "short-text"
-    | "long-text"
-    | "integer"
-    | "boolean"
-    | "date"
-    | "url"
-    | "string-list"
-    | "choice";
+    "short-text" | "long-text" | "integer" | "boolean" | "date" | "url" | "string-list" | "choice";
   value: string | number | boolean | string[];
 };
 
@@ -470,14 +454,7 @@ export interface SourceImportReadModel {
 
 export interface IntakeReviewReadModel {
   source: {
-    kind:
-      | "url"
-      | "pdf"
-      | "local-file"
-      | "csv"
-      | "json"
-      | "agent"
-      | "network";
+    kind: "url" | "pdf" | "local-file" | "csv" | "json" | "agent" | "network";
     locator: string;
     detected_type: string;
     sha256: string | null;
@@ -554,19 +531,9 @@ export interface JobIntakePreviewReadModel {
 }
 
 export type DiscoverySourceKind =
-  | "csv"
-  | "json"
-  | "host-agent"
-  | "rss-atom"
-  | "jobs-ac-uk"
-  | "greenhouse"
-  | "lever";
+  "csv" | "json" | "host-agent" | "rss-atom" | "jobs-ac-uk" | "greenhouse" | "lever";
 
-export type DiscoveryNetworkAdapter =
-  | "rss-atom"
-  | "jobs-ac-uk"
-  | "greenhouse"
-  | "lever";
+export type DiscoveryNetworkAdapter = "rss-atom" | "jobs-ac-uk" | "greenhouse" | "lever";
 
 export interface DiscoveryAdapterCapabilities {
   kind: DiscoverySourceKind;
@@ -783,11 +750,7 @@ export type WorkflowStage =
   | "render";
 
 export type ExecutionMode =
-  | "deterministic"
-  | "host-agent"
-  | "configured-provider"
-  | "user-decision"
-  | "manual-import";
+  "deterministic" | "host-agent" | "configured-provider" | "user-decision" | "manual-import";
 
 export interface ArtifactReference {
   id: string;
@@ -808,18 +771,9 @@ export type ContentCategory =
   | "review"
   | "delivery";
 
-export type ContentCatalogStatus =
-  | "imported"
-  | "proposed"
-  | "confirmed"
-  | "generated"
-  | "stale";
+export type ContentCatalogStatus = "imported" | "proposed" | "confirmed" | "generated" | "stale";
 
-export type ContentPrivacyClassification =
-  | "public"
-  | "private-local"
-  | "provider-bound"
-  | "secret";
+export type ContentPrivacyClassification = "public" | "private-local" | "provider-bound" | "secret";
 
 export interface ContentCatalogFilter {
   job_id?: string | null;
@@ -896,13 +850,7 @@ export interface WorkflowStatusData {
   status: "active" | "complete";
   stages: Array<{
     stage: WorkflowStage;
-    status:
-      | "blocked"
-      | "ready"
-      | "running"
-      | "awaiting-user"
-      | "complete"
-      | "stale";
+    status: "blocked" | "ready" | "running" | "awaiting-user" | "complete" | "stale";
     execution_mode: ExecutionMode | null;
     output: ArtifactReference | null;
     updated_at: string;
@@ -1000,25 +948,11 @@ export interface AgentContextReadModel {
 }
 
 export type AgentWorkspaceSection =
-  | "overview"
-  | "job-criteria"
-  | "evidence-fit"
-  | "materials"
-  | "review-export";
+  "overview" | "job-criteria" | "evidence-fit" | "materials" | "review-export";
 
-export type AgentProposalKind =
-  | "criteria"
-  | "evidence"
-  | "matches"
-  | "plan"
-  | "draft";
+export type AgentProposalKind = "criteria" | "evidence" | "matches" | "plan" | "draft";
 
-export type AgentProposalState =
-  | "blocked"
-  | "ready"
-  | "proposed"
-  | "current"
-  | "stale";
+export type AgentProposalState = "blocked" | "ready" | "proposed" | "current" | "stale";
 
 export interface AgentAssistanceReadModel {
   workspace: string;
@@ -1427,9 +1361,7 @@ export async function connectWorkspace(
   return invoke("connect_workspace", { request: { alias, path } });
 }
 
-export async function selectWorkspace(
-  path: string,
-): Promise<RegisteredAction<WorkspaceReadModel>> {
+export async function selectWorkspace(path: string): Promise<RegisteredAction<WorkspaceReadModel>> {
   return invoke("select_workspace", { request: { path } });
 }
 
@@ -1626,9 +1558,7 @@ export async function exportGenericApplication(options: {
   });
 }
 
-function contentFilterRequest(
-  filter: ContentCatalogFilter = {},
-): Required<ContentCatalogFilter> {
+function contentFilterRequest(filter: ContentCatalogFilter = {}): Required<ContentCatalogFilter> {
   return {
     job_id: filter.job_id ?? null,
     category: filter.category ?? null,
@@ -1910,11 +1840,7 @@ export async function initializeProfile(options: {
   });
 }
 
-function privateJobRequest(
-  workspace: string,
-  jobId: string,
-  confirmedPrivateRead: boolean,
-) {
+function privateJobRequest(workspace: string, jobId: string, confirmedPrivateRead: boolean) {
   return {
     request: {
       workspace,
@@ -1968,10 +1894,7 @@ export async function getCriteriaTemplate(
   jobId: string,
   confirmedPrivateRead: boolean,
 ): Promise<ActionReceipt<CriteriaSetRecord>> {
-  return invoke(
-    "criteria_template",
-    privateJobRequest(workspace, jobId, confirmedPrivateRead),
-  );
+  return invoke("criteria_template", privateJobRequest(workspace, jobId, confirmedPrivateRead));
 }
 
 export async function confirmCriteria(
@@ -1991,10 +1914,7 @@ export async function getCurrentMatches(
   jobId: string,
   confirmedPrivateRead: boolean,
 ): Promise<ActionReceipt<EvidenceMatchSetRecord>> {
-  return invoke(
-    "current_matches",
-    privateJobRequest(workspace, jobId, confirmedPrivateRead),
-  );
+  return invoke("current_matches", privateJobRequest(workspace, jobId, confirmedPrivateRead));
 }
 
 export async function getPlanTemplate(
@@ -2002,10 +1922,7 @@ export async function getPlanTemplate(
   jobId: string,
   confirmedPrivateRead: boolean,
 ): Promise<ActionReceipt<ApplicationPlanRecord>> {
-  return invoke(
-    "plan_template",
-    privateJobRequest(workspace, jobId, confirmedPrivateRead),
-  );
+  return invoke("plan_template", privateJobRequest(workspace, jobId, confirmedPrivateRead));
 }
 
 export async function getCurrentPlan(
@@ -2013,10 +1930,7 @@ export async function getCurrentPlan(
   jobId: string,
   confirmedPrivateRead: boolean,
 ): Promise<ActionReceipt<ApplicationPlanRecord>> {
-  return invoke(
-    "current_plan",
-    privateJobRequest(workspace, jobId, confirmedPrivateRead),
-  );
+  return invoke("current_plan", privateJobRequest(workspace, jobId, confirmedPrivateRead));
 }
 
 export async function confirmPlan(
@@ -2183,9 +2097,7 @@ export async function prepareTaskAgain(
   });
 }
 
-export async function getAgentCapabilities(): Promise<
-  ActionReceipt<AgentCapabilitiesReadModel>
-> {
+export async function getAgentCapabilities(): Promise<ActionReceipt<AgentCapabilitiesReadModel>> {
   return invoke("agent_capabilities");
 }
 
@@ -2580,9 +2492,7 @@ export async function checkForUpdates(
   });
 }
 
-export async function getInspectionCatalog(): Promise<
-  ActionReceipt<InspectionCatalogReadModel>
-> {
+export async function getInspectionCatalog(): Promise<ActionReceipt<InspectionCatalogReadModel>> {
   return invoke("inspection_catalog");
 }
 
@@ -2697,9 +2607,6 @@ export function commandErrorCode(error: unknown): string | null {
 
 export function commandErrorRetryable(error: unknown): boolean {
   return (
-    typeof error === "object" &&
-    error !== null &&
-    "retryable" in error &&
-    error.retryable === true
+    typeof error === "object" && error !== null && "retryable" in error && error.retryable === true
   );
 }

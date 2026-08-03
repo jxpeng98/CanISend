@@ -170,7 +170,8 @@ Homebrew, Scoop, and WinGet install, upgrade, and uninstall tests.
 
 ## Build from source for development
 
-Building is not the end-user installation path. Developers need the pinned Rust toolchain:
+Building is not the end-user installation path. Developers need the repository-pinned Rust 1.97.0
+toolchain:
 
 ```console
 cargo build --release --locked

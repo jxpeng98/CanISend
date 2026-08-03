@@ -17,7 +17,7 @@
 		"min-w-0 break-words text-left text-sm text-muted-foreground [[data-variant=legend]+&]:-mt-1.5 leading-normal font-normal group-has-[[data-orientation=horizontal]]/field:text-balance",
 		"last:mt-0 nth-last-2:-mt-1",
 		"[&>a]:underline [&>a]:underline-offset-4 [&>a:hover]:text-primary",
-		className
+		className,
 	)}
 	{...restProps}
 >

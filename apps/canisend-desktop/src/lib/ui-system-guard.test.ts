@@ -47,7 +47,7 @@ describe("shadcn-svelte migration guard", () => {
     expect(pageViewSources.length).toBeGreaterThan(0);
 
     for (const { file, source } of pageViewSources) {
-      expect(source, file).toContain('components/patterns/page/index.js');
+      expect(source, file).toContain("components/patterns/page/index.js");
       expect(source, file).toContain("<Page.Root");
       expect(source, file).toContain("<Page.Header");
       expect(source, file).not.toMatch(/<section\b[^>]*class=["'][^"']*page-header/u);
@@ -55,9 +55,7 @@ describe("shadcn-svelte migration guard", () => {
   });
 
   it("keeps native controls inside the UI registry", () => {
-    expect(
-      violations(/<(?:button|input|textarea|select|details|summary)\b[^>]*>/gu),
-    ).toEqual([]);
+    expect(violations(/<(?:button|input|textarea|select|details|summary)\b[^>]*>/gu)).toEqual([]);
   });
 
   it("keeps every feature Button connected to an action or delegated trigger", () => {
@@ -78,10 +76,7 @@ describe("shadcn-svelte migration guard", () => {
 
   it("keeps every feature action-menu item connected to an action", () => {
     const inertMenuItems = featureSources.flatMap(({ file, source }) =>
-      Array.from(
-        source.matchAll(/<DropdownMenu\.Item\b[\s\S]*?>/gu),
-        (match) => match[0],
-      )
+      Array.from(source.matchAll(/<DropdownMenu\.Item\b[\s\S]*?>/gu), (match) => match[0])
         .filter((tag) => !/\bonclick\s*=/u.test(tag))
         .map((tag) => `${file}: ${tag.replace(/\s+/gu, " ")}`),
     );

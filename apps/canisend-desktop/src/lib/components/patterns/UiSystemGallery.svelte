@@ -1,11 +1,5 @@
 <script lang="ts">
-  import {
-    CircleCheck,
-    Info,
-    LoaderCircle,
-    Search,
-    TriangleAlert,
-  } from "@lucide/svelte";
+  import { CircleCheck, Info, LoaderCircle, Search, TriangleAlert } from "@lucide/svelte";
 
   import * as Accordion from "$lib/components/ui/accordion/index.js";
   import * as Alert from "$lib/components/ui/alert/index.js";
@@ -42,12 +36,12 @@
   data-testid="ui-system-gallery"
 >
   <div class="mx-auto max-w-6xl space-y-[var(--density-section-gap)]">
-    <header class="flex flex-col justify-between gap-[var(--density-section-gap)] border-b pb-5 lg:flex-row lg:items-end">
+    <header
+      class="flex flex-col justify-between gap-[var(--density-section-gap)] border-b pb-5 lg:flex-row lg:items-end"
+    >
       <div>
         <Badge variant="secondary">Development only</Badge>
-        <h1 class="mt-3 text-page-title font-semibold tracking-tight">
-          CanISend UI system
-        </h1>
+        <h1 class="mt-3 text-page-title font-semibold tracking-tight">CanISend UI system</h1>
         <p class="mt-2 max-w-2xl text-sm text-muted-foreground">
           Registry primitives and shared states · 组件与共享状态画廊
         </p>
@@ -59,11 +53,7 @@
         <Button size="desktop" variant="outline" onclick={() => (compact = !compact)}>
           {compact ? "Comfortable" : "Compact"}
         </Button>
-        <Button
-          size="desktop"
-          variant="outline"
-          onclick={() => (reducedMotion = !reducedMotion)}
-        >
+        <Button size="desktop" variant="outline" onclick={() => (reducedMotion = !reducedMotion)}>
           {reducedMotion ? "Enable motion" : "Reduce motion"}
         </Button>
       </div>
@@ -99,7 +89,8 @@
                 />
                 <Input id="gallery-search" class="pl-9" placeholder="Search applications" />
               </div>
-              <Field.Description>Labels, help text, and controls stay associated.</Field.Description>
+              <Field.Description>Labels, help text, and controls stay associated.</Field.Description
+              >
             </Field.Field>
             <Field.Field>
               <Field.Label for="gallery-status">Status</Field.Label>
@@ -204,7 +195,9 @@
             <Empty.Header>
               <Empty.Media variant="icon"><LoaderCircle aria-hidden="true" /></Empty.Media>
               <Empty.Title>No review findings</Empty.Title>
-              <Empty.Description>Run review after accepting the current document set.</Empty.Description>
+              <Empty.Description
+                >Run review after accepting the current document set.</Empty.Description
+              >
             </Empty.Header>
             <Empty.Content><Button size="desktop">Run review</Button></Empty.Content>
           </Empty.Root>

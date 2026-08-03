@@ -15,7 +15,6 @@ describe("generic Application form contracts", () => {
   });
 
   it("rejects a requirement that is not an exact source excerpt", () => {
-    expect(exactUtf8Span("A signed form is required.", "A form is required."))
-      .toBeNull();
+    expect(exactUtf8Span("A signed form is required.", "A form is required.")).toBeNull();
   });
 });

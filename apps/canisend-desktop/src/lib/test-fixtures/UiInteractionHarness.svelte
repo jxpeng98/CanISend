@@ -20,15 +20,10 @@
 </NativeSelect.Root>
 <output aria-label="Selected status">{selected}</output>
 
-<ContextHelp
-  label="Workflow help"
-  content="Only optional guidance is hidden in this popup."
-/>
+<ContextHelp label="Workflow help" content="Only optional guidance is hidden in this popup." />
 
 <ActionMenu label="Harness actions">
-  <DropdownMenu.Item onclick={() => (menuAction = "refreshed")}>
-    Refresh context
-  </DropdownMenu.Item>
+  <DropdownMenu.Item onclick={() => (menuAction = "refreshed")}>Refresh context</DropdownMenu.Item>
 </ActionMenu>
 <output aria-label="Menu action">{menuAction}</output>
 

@@ -1,7 +1,4 @@
-export function exactUtf8Span(
-  source: string,
-  statement: string,
-): [number, number] | null {
+export function exactUtf8Span(source: string, statement: string): [number, number] | null {
   const start = source.indexOf(statement);
   if (start < 0 || !statement) return null;
   const encoder = new TextEncoder();

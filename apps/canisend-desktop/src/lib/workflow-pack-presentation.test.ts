@@ -41,9 +41,7 @@ describe("Pack-backed desktop presentation", () => {
     expect(workflowStageLabel(presentation, "compose")).toBe("撰写");
     expect(workflowStageLabel(presentation, "unknown-stage")).toBe("unknown-stage");
     expect(deliverablePresentationLabel(presentation, "portfolio")).toBe("作品集");
-    expect(deliverablePresentationLabel(presentation, "unknown-output")).toBe(
-      "unknown-output",
-    );
+    expect(deliverablePresentationLabel(presentation, "unknown-output")).toBe("unknown-output");
   });
 
   it("builds draft operations from Pack metadata without a fixed Deliverable set", () => {
@@ -53,8 +51,6 @@ describe("Pack-backed desktop presentation", () => {
       id: "portfolio-draft",
       label: "作品集 · portfolio-draft",
     });
-    expect(operations.some((operation) => operation.id === "reference-list-draft")).toBe(
-      false,
-    );
+    expect(operations.some((operation) => operation.id === "reference-list-draft")).toBe(false);
   });
 });

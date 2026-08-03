@@ -15,7 +15,7 @@
 	data-slot="field-group"
 	class={cn(
 		"min-w-0 gap-[var(--density-section-gap)] data-[slot=checkbox-group]:gap-3 *:data-[slot=field-group]:gap-3 group/field-group @container/field-group flex w-full flex-col",
-		className
+		className,
 	)}
 	{...restProps}
 >

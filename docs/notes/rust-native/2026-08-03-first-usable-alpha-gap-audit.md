@@ -92,6 +92,17 @@ This advances ordered-path item 4 from incomplete to implemented source evidence
 qualify packaged binaries, real Agent hosts, or users. The next ordered P0 implementation item is
 MSRV alignment plus the release/frontend non-bypass path.
 
+M1-MSRV-001 / M1-CI-002 now have source implementation evidence in the
+[toolchain and frontend source-gate record](2026-08-03-m1-msrv-frontend-source-gates.md). Cargo and
+the README declare Rust 1.97, every active stable toolchain owner pins 1.97.0, and the release
+source gate rejects version drift. The candidate-only source job also installs locked frontend
+dependencies and reruns formatting, Svelte/TypeScript checking, UI unit tests, the production
+build, and the two critical Chrome accessibility specs before release assembly.
+
+This advances ordered-path item 5 to implemented source evidence. Exact GitHub CI on the committed
+source remains required before the continuously proven MSRV checkbox can close. The next P0
+implementation item is the GF5 user-documentation rewrite around Pack choice and migration.
+
 P1 CI/dependency improvements, governance work-item linkage, independent evidence review, dogfood,
 target-user validation, signing, and later Alpha.7 dual-Pack qualification also remain, but they do
 not replace the P0 implementation order.
@@ -106,8 +117,9 @@ not replace the P0 implementation order.
    duplicated MCP and desktop preview stores (M1-APPR/TEST).
 4. Completed in source: the two-Pack semantic parity matrix qualifies shared outcomes and
    machine-lists uncovered leaves (M1-OP-003/GF5-PARITY).
-5. Next: align the MSRV and close the release/frontend non-bypass path.
-6. Rewrite the user documentation around Pack selection and v2→v3 boundaries (GF5-DOC).
+5. Completed in source: Rust 1.97 alignment and the release/frontend non-bypass path are
+   machine-gated; exact remote CI evidence remains required.
+6. Next: rewrite the user documentation around Pack selection and v2→v3 boundaries (GF5-DOC).
 7. Run the exact native Alpha.6 candidate, migration, backup/restore, rollback, package, and
    release-integrity gates on a clean candidate commit.
 

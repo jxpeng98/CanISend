@@ -1,0 +1,12 @@
+{
+  "plugins": ["prettier-plugin-svelte"],
+  "printWidth": 100,
+  "overrides": [
+    {
+      "files": "src/lib/components/ui/**/*.{svelte,ts}",
+      "options": {
+        "useTabs": true
+      }
+    }
+  ]
+}

@@ -7,10 +7,7 @@ const contextBar = readFileSync(
   new URL("./components/WorkspaceContextBar.svelte", import.meta.url),
   "utf8",
 );
-const agentView = readFileSync(
-  new URL("./views/AgentView.svelte", import.meta.url),
-  "utf8",
-);
+const agentView = readFileSync(new URL("./views/AgentView.svelte", import.meta.url), "utf8");
 const genericApplicationsView = readFileSync(
   new URL("./views/GenericApplicationsView.svelte", import.meta.url),
   "utf8",
@@ -47,10 +44,7 @@ const tabsTrigger = readFileSync(
   new URL("./components/ui/tabs/tabs-trigger.svelte", import.meta.url),
   "utf8",
 );
-const alert = readFileSync(
-  new URL("./components/ui/alert/alert.svelte", import.meta.url),
-  "utf8",
-);
+const alert = readFileSync(new URL("./components/ui/alert/alert.svelte", import.meta.url), "utf8");
 const progress = readFileSync(
   new URL("./components/ui/progress/progress.svelte", import.meta.url),
   "utf8",
@@ -70,7 +64,7 @@ describe("desktop accessibility contract", () => {
     expect(app).toContain('href="#main-content"');
     expect(app).toContain('id="main-content"');
     expect(app).toContain("focus-visible:ring-2");
-    expect(contextBar).toContain('aria-current=');
+    expect(contextBar).toContain("aria-current=");
     expect(contextBar).toContain("<Progress");
     expect(progress).toContain("ProgressPrimitive.Root");
     expect(button).toContain("focus-visible:ring");
@@ -103,7 +97,7 @@ describe("desktop accessibility contract", () => {
   it("centralizes semantic controls and compact desktop target sizes", () => {
     expect(button).toContain("<button");
     expect(button).toContain('data-slot="button"');
-    expect(button).toContain('default: "min-h-(--control-height) gap-1.5');
+    expect(button).toContain('"min-h-(--control-height) gap-1.5');
     expect(button).toContain("max-w-full min-w-0");
     expect(button).toContain("whitespace-normal");
     expect(nativeSelect).toContain("<select");
@@ -117,8 +111,7 @@ describe("desktop accessibility contract", () => {
     expect(dialogContent).toContain('data-slot="dialog-content"');
     expect(primarySurfaces).toContain("motion-reduce:");
 
-    const nonSemanticHandlers =
-      /<(?:div|span|p|section|article)\b[^>]*\b(?:onclick|onkeydown)=/giu;
+    const nonSemanticHandlers = /<(?:div|span|p|section|article)\b[^>]*\b(?:onclick|onkeydown)=/giu;
     expect(primarySurfaces.match(nonSemanticHandlers) ?? []).toEqual([]);
   });
 

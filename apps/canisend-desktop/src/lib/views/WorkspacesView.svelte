@@ -54,11 +54,7 @@
     busy: boolean;
     onRefresh: () => Promise<boolean>;
     onSelect: (path: string) => Promise<boolean>;
-    onCreate: (
-      alias: string,
-      path: string,
-      packId: BuiltInWorkflowPackId,
-    ) => Promise<boolean>;
+    onCreate: (alias: string, path: string, packId: BuiltInWorkflowPackId) => Promise<boolean>;
     onConnect: (alias: string, path: string) => Promise<boolean>;
     onRemove: (path: string) => Promise<boolean>;
     onCheck: () => Promise<boolean>;
@@ -92,9 +88,7 @@
   let restoreOpen = $state(false);
   let createAlias = $state("");
   let createPath = $state("");
-  let createPackId = $state<BuiltInWorkflowPackId>(
-    GENERIC_APPLICATION_WORKFLOW_PACK_ID,
-  );
+  let createPackId = $state<BuiltInWorkflowPackId>(GENERIC_APPLICATION_WORKFLOW_PACK_ID);
   let connectAlias = $state("");
   let connectPath = $state("");
   let pendingRemove = $state<string | null>(null);
@@ -161,8 +155,7 @@
   }
 
   async function chooseRestoreDestination(): Promise<void> {
-    restoreDestination =
-      (await chooseWorkspaceDirectory()) ?? restoreDestination;
+    restoreDestination = (await chooseWorkspaceDirectory()) ?? restoreDestination;
   }
 
   async function submitRestore(): Promise<void> {
@@ -175,13 +168,7 @@
       formError = copy.pathRequired;
       return;
     }
-    if (
-      await onRestore(
-        restoreAlias.trim(),
-        restoreBackup,
-        restoreDestination,
-      )
-    ) {
+    if (await onRestore(restoreAlias.trim(), restoreBackup, restoreDestination)) {
       restoreOpen = false;
       restoreAlias = "";
       restoreBackup = "";
@@ -308,7 +295,11 @@
         {#if loading}
           <Item.Group class="gap-3" aria-label={copy.loading}>
             {#each [1, 2, 3] as row}
-              <Item.Root variant="outline" class="p-[var(--density-panel-padding)]" aria-hidden="true">
+              <Item.Root
+                variant="outline"
+                class="p-[var(--density-panel-padding)]"
+                aria-hidden="true"
+              >
                 <Item.Media>
                   <Skeleton class="size-10 rounded-lg" />
                 </Item.Media>
@@ -322,7 +313,10 @@
         {:else if !snapshot?.registry.entries.length}
           <Empty.Root class="min-h-32 border bg-muted/20">
             <Empty.Header>
-              <Empty.Media variant="icon" class="size-11 rounded-lg bg-accent text-accent-foreground">
+              <Empty.Media
+                variant="icon"
+                class="size-11 rounded-lg bg-accent text-accent-foreground"
+              >
                 <Database size={20} strokeWidth={1.8} aria-hidden="true" />
               </Empty.Media>
               <Empty.Title class="text-base">{copy.noRegisteredWorkspaces}</Empty.Title>
@@ -332,7 +326,10 @@
         {:else}
           <Item.Group class="gap-3">
             {#each snapshot.registry.entries as entry (entry.path)}
-              <Item.Root variant="outline" class="gap-[var(--density-section-gap)] p-[var(--density-panel-padding)] hover:bg-muted/25">
+              <Item.Root
+                variant="outline"
+                class="gap-[var(--density-section-gap)] p-[var(--density-panel-padding)] hover:bg-muted/25"
+              >
                 <Item.Media
                   variant="icon"
                   class="size-10 rounded-lg bg-accent text-accent-foreground"
@@ -342,12 +339,12 @@
                 <Item.Content>
                   <Item.Title class="flex-wrap">
                     <h2 class="truncate text-sm font-semibold">{entry.alias}</h2>
-                  {#if activeWorkspace?.path === entry.path}
-                    <Badge variant="secondary">{copy.selected}</Badge>
-                  {/if}
+                    {#if activeWorkspace?.path === entry.path}
+                      <Badge variant="secondary">{copy.selected}</Badge>
+                    {/if}
                   </Item.Title>
                   <Item.Description class="truncate text-xs" title={entry.path}>
-                  {entry.path}
+                    {entry.path}
                   </Item.Description>
                 </Item.Content>
                 <Item.Actions class="shrink-0">
@@ -399,10 +396,7 @@
           </dl>
           <Separator />
           {#if health}
-            <Alert.Root
-              variant={health.check.ok ? "success" : "destructive"}
-              aria-live="polite"
-            >
+            <Alert.Root variant={health.check.ok ? "success" : "destructive"} aria-live="polite">
               <ShieldCheck size={17} strokeWidth={1.8} aria-hidden="true" />
               <Alert.Title>
                 {health.check.ok ? copy.integrityHealthy : copy.integrityIssues}
@@ -439,11 +433,7 @@
                 </h3>
                 <p class="mt-1 text-xs text-muted-foreground">{copy.migrationDescription}</p>
               </div>
-              <Button
-                variant="outline"
-                disabled={busy || migrationBusy}
-                onclick={previewMigration}
-              >
+              <Button variant="outline" disabled={busy || migrationBusy} onclick={previewMigration}>
                 {copy.previewMigration}
               </Button>
               {#if migrationPreview}

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
+	import ChevronDownIcon from "@lucide/svelte/icons/chevron-down";
 	import { cn, type WithElementRef } from "$lib/utils.js";
 	import type { HTMLSelectAttributes } from "svelte/elements";
 
@@ -20,7 +20,7 @@
 <div
 	class={cn(
 		"cn-native-select-wrapper group/native-select relative min-w-0 max-w-full w-fit has-[select:disabled]:opacity-50",
-		className
+		className,
 	)}
 	data-slot="native-select-wrapper"
 	data-size={size}
@@ -35,5 +35,9 @@
 	>
 		{@render children?.()}
 	</select>
-	<ChevronDownIcon class="top-1/2 right-2.5 size-4 -translate-y-1/2 text-muted-foreground pointer-events-none absolute select-none" aria-hidden data-slot="native-select-icon" />
+	<ChevronDownIcon
+		class="top-1/2 right-2.5 size-4 -translate-y-1/2 text-muted-foreground pointer-events-none absolute select-none"
+		aria-hidden
+		data-slot="native-select-icon"
+	/>
 </div>

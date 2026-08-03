@@ -119,7 +119,10 @@
       <Card.Content>
         <Empty.Root class="min-h-32 border-0 bg-muted/55">
           <Empty.Header>
-            <Empty.Media variant="icon" class="size-11 rounded-lg bg-background text-foreground ring-1 ring-border">
+            <Empty.Media
+              variant="icon"
+              class="size-11 rounded-lg bg-background text-foreground ring-1 ring-border"
+            >
               <Database size={20} strokeWidth={1.8} aria-hidden="true" />
             </Empty.Media>
             <Empty.Title class="text-base">
@@ -150,7 +153,9 @@
             {copy.diagnostics}
           </span>
         </Accordion.Trigger>
-        <Accordion.Content class="space-y-[var(--density-section-gap)] pb-[var(--density-panel-padding)]">
+        <Accordion.Content
+          class="space-y-[var(--density-section-gap)] pb-[var(--density-panel-padding)]"
+        >
           <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
             <dt class="text-muted-foreground">{copy.version}</dt>
             <dd class="truncate text-right font-medium">{product?.version ?? "—"}</dd>

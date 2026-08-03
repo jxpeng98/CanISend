@@ -108,16 +108,10 @@ describe("delivery final PDF preview", () => {
     });
 
     await waitFor(() =>
-      expect(
-        screen.getByRole("button", { name: messages.en.buildRender }),
-      ).toBeTruthy(),
+      expect(screen.getByRole("button", { name: messages.en.buildRender })).toBeTruthy(),
     );
-    await user.click(
-      screen.getByLabelText(messages.en.privateWorkspaceConsent),
-    );
-    await user.click(
-      screen.getByRole("button", { name: messages.en.buildRender }),
-    );
+    await user.click(screen.getByLabelText(messages.en.privateWorkspaceConsent));
+    await user.click(screen.getByRole("button", { name: messages.en.buildRender }));
 
     const previewButton = await screen.findByRole("button", {
       name: /CV.*Preview PDF/i,
@@ -127,21 +121,12 @@ describe("delivery final PDF preview", () => {
     expect(onPreviewRender).toHaveBeenCalledWith(JOB_ID, "cv", true);
     expect(URL.createObjectURL).toHaveBeenCalledOnce();
     expect(
-      (
-        await screen.findByTitle(`${messages.en.exactPdfPreview}: Academic CV`)
-      ).getAttribute("src"),
+      (await screen.findByTitle(`${messages.en.exactPdfPreview}: Academic CV`)).getAttribute("src"),
     ).toBe("blob:canisend-render-preview");
     expect(screen.getByText(PDF_SHA)).toBeTruthy();
 
     await user.click(screen.getByLabelText(messages.en.privateExportConsent));
-    await user.click(
-      screen.getByRole("button", { name: messages.en.openSystemViewer }),
-    );
-    expect(onOpenRender).toHaveBeenCalledWith(
-      JOB_ID,
-      `jobs/${JOB_ID}/rendered`,
-      "cv",
-      true,
-    );
+    await user.click(screen.getByRole("button", { name: messages.en.openSystemViewer }));
+    expect(onOpenRender).toHaveBeenCalledWith(JOB_ID, `jobs/${JOB_ID}/rendered`, "cv", true);
   });
 });

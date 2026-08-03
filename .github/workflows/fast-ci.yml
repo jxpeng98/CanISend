@@ -48,6 +48,9 @@ jobs:
       - name: Install locked desktop UI dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Check desktop UI formatting
+        run: pnpm format:check
+
       - name: Check Svelte and TypeScript
         run: pnpm check
 

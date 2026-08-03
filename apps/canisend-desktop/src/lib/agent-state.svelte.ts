@@ -102,10 +102,7 @@ export function scopeAgentUiState(workspacePath: string | null): void {
   agentUiState.conversationCache = {};
 }
 
-export function switchAgentConversationScope(
-  runtime: AgentRuntimeKind,
-  jobId: string,
-): void {
+export function switchAgentConversationScope(runtime: AgentRuntimeKind, jobId: string): void {
   const jobScopeChanged = agentUiState.selectedJobId !== jobId;
   agentUiState.conversationCache[agentUiState.activeConversationKey] = {
     prompt: agentUiState.prompt,
@@ -132,10 +129,7 @@ export function switchAgentConversationScope(
   agentUiState.activeConversationKey = targetKey;
 }
 
-export function appendAgentMessage(
-  role: AgentChatMessage["role"],
-  text: string,
-): void {
+export function appendAgentMessage(role: AgentChatMessage["role"], text: string): void {
   agentUiState.messages.push({
     id: agentUiState.nextMessageId,
     role,

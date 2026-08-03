@@ -134,9 +134,7 @@
   let contentPanelLoading = $state(false);
   let contentPanelFailed = $state(false);
   const academicOpportunityField = $derived(
-    presentation?.opportunity_fields.length === 1
-      ? presentation.opportunity_fields[0]
-      : null,
+    presentation?.opportunity_fields.length === 1 ? presentation.opportunity_fields[0] : null,
   );
 
   $effect(() => {
@@ -310,7 +308,8 @@
                       </Badge>
                     {/if}
                     <span class="text-[11px] text-muted-foreground">
-                      {application?.metadata.deadline ?? `${job.source_ids.length} ${copy.sourceCount}`}
+                      {application?.metadata.deadline ??
+                        `${job.source_ids.length} ${copy.sourceCount}`}
                     </span>
                   </div>
                 </div>
@@ -385,17 +384,15 @@
 
               {#if dossier.blockers[0]}
                 <Alert.Root variant="warning">
-                  <TriangleAlert
-                    size={17}
-                    strokeWidth={1.8}
-                    aria-hidden="true"
-                  />
+                  <TriangleAlert size={17} strokeWidth={1.8} aria-hidden="true" />
                   <Alert.Title>{copy.attention}</Alert.Title>
                   <Alert.Description>{dossier.blockers[0].description}</Alert.Description>
                 </Alert.Root>
               {/if}
 
-              <div class="flex flex-col justify-between gap-[var(--density-section-gap)] rounded-lg border bg-accent/30 p-[var(--density-panel-padding)] sm:flex-row sm:items-center">
+              <div
+                class="flex flex-col justify-between gap-[var(--density-section-gap)] rounded-lg border bg-accent/30 p-[var(--density-panel-padding)] sm:flex-row sm:items-center"
+              >
                 <div>
                   <p class="text-xs font-medium text-muted-foreground">{copy.nextAction}</p>
                   <p class="mt-1 max-w-2xl text-sm font-semibold">
@@ -457,10 +454,7 @@
               </div>
               {#if selectedJob}
                 <ActionMenu label={copy.moreActions} disabled={busy}>
-                  <DropdownMenu.Item
-                    variant="destructive"
-                    onclick={() => (archiveOpen = true)}
-                  >
+                  <DropdownMenu.Item variant="destructive" onclick={() => (archiveOpen = true)}>
                     <Archive size={16} strokeWidth={1.8} aria-hidden="true" />
                     {copy.archiveApplication}
                   </DropdownMenu.Item>
@@ -479,7 +473,9 @@
                   <div class="space-y-2">
                     {#each selectedJob.sources as source (source.id)}
                       <div class="flex items-start gap-3 rounded-lg border p-3">
-                        <div class="grid size-9 shrink-0 place-items-center rounded-lg bg-accent text-accent-foreground">
+                        <div
+                          class="grid size-9 shrink-0 place-items-center rounded-lg bg-accent text-accent-foreground"
+                        >
                           {#if source.kind === "user-url"}
                             <Link size={16} strokeWidth={1.8} aria-hidden="true" />
                           {:else}
@@ -503,7 +499,9 @@
               </div>
             {:else}
               <Empty.Root class="min-h-32 border">
-                <Empty.Header><Empty.Description>{copy.chooseApplication}</Empty.Description></Empty.Header>
+                <Empty.Header
+                  ><Empty.Description>{copy.chooseApplication}</Empty.Description></Empty.Header
+                >
               </Empty.Root>
             {/if}
           </Card.Content>
@@ -526,7 +524,9 @@
                 <div class="space-y-[var(--density-section-gap)]" aria-live="polite">
                   <div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
                     <div class="flex items-start gap-3">
-                      <div class="grid size-10 shrink-0 place-items-center rounded-lg bg-accent text-accent-foreground">
+                      <div
+                        class="grid size-10 shrink-0 place-items-center rounded-lg bg-accent text-accent-foreground"
+                      >
                         <ShieldCheck size={18} strokeWidth={1.8} aria-hidden="true" />
                       </div>
                       <div>
@@ -555,17 +555,9 @@
                     {#each preview.preview.data.validation_issues as issue (issue.code)}
                       <Alert.Root variant={issue.severity === "warning" ? "warning" : "success"}>
                         {#if issue.severity === "warning"}
-                          <TriangleAlert
-                            size={16}
-                            strokeWidth={1.8}
-                            aria-hidden="true"
-                          />
+                          <TriangleAlert size={16} strokeWidth={1.8} aria-hidden="true" />
                         {:else}
-                          <CheckCircle2
-                            size={16}
-                            strokeWidth={1.8}
-                            aria-hidden="true"
-                          />
+                          <CheckCircle2 size={16} strokeWidth={1.8} aria-hidden="true" />
                         {/if}
                         <Alert.Description>{issue.message}</Alert.Description>
                       </Alert.Root>
@@ -589,84 +581,105 @@
                 </div>
               {:else}
                 <Tabs.Root bind:value={intakeTab}>
-                <Tabs.List class="responsive-tabs" data-columns="2">
-                  <Tabs.Trigger value="local">
-                    <FileUp size={16} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
-                    {copy.localFile}
-                  </Tabs.Trigger>
-                  <Tabs.Trigger value="url">
-                    <Link size={16} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
-                    {copy.sourceUrl}
-                  </Tabs.Trigger>
-                </Tabs.List>
-                <Tabs.Content value="local" class="space-y-[var(--density-section-gap)] pt-[var(--density-section-gap)]">
-                  <div class="space-y-2">
-                    <Label for="local-source">{copy.sourceFile}</Label>
-                    <div class="flex gap-2">
-                      <Input id="local-source" bind:value={localSource} readonly />
-                      <Button type="button" variant="outline" class="shrink-0" onclick={chooseLocalSource}>
-                        {copy.chooseFile}
-                      </Button>
+                  <Tabs.List class="responsive-tabs" data-columns="2">
+                    <Tabs.Trigger value="local">
+                      <FileUp
+                        size={16}
+                        strokeWidth={1.8}
+                        data-icon="inline-start"
+                        aria-hidden="true"
+                      />
+                      {copy.localFile}
+                    </Tabs.Trigger>
+                    <Tabs.Trigger value="url">
+                      <Link
+                        size={16}
+                        strokeWidth={1.8}
+                        data-icon="inline-start"
+                        aria-hidden="true"
+                      />
+                      {copy.sourceUrl}
+                    </Tabs.Trigger>
+                  </Tabs.List>
+                  <Tabs.Content
+                    value="local"
+                    class="space-y-[var(--density-section-gap)] pt-[var(--density-section-gap)]"
+                  >
+                    <div class="space-y-2">
+                      <Label for="local-source">{copy.sourceFile}</Label>
+                      <div class="flex gap-2">
+                        <Input id="local-source" bind:value={localSource} readonly />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          class="shrink-0"
+                          onclick={chooseLocalSource}
+                        >
+                          {copy.chooseFile}
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                  <div class="flex items-start gap-3 rounded-lg border bg-muted/20 p-3">
-                    <Checkbox
-                      id="private-read-consent"
-                      bind:checked={privateReadConfirmed}
-                      class="mt-0.5"
-                    />
-                    <Label for="private-read-consent" class="text-xs leading-5 font-normal">
-                      {copy.privateReadConsent}
-                    </Label>
-                  </div>
-                  {#if formError && intakeTab === "local"}
-                    <Alert.Root variant="destructive">
-                      <Alert.Description>{formError}</Alert.Description>
-                    </Alert.Root>
-                  {/if}
-                  <Button
-                    class="min-h-9"
-                    disabled={busy || !localSource || !privateReadConfirmed}
-                    onclick={submitLocalSource}
+                    <div class="flex items-start gap-3 rounded-lg border bg-muted/20 p-3">
+                      <Checkbox
+                        id="private-read-consent"
+                        bind:checked={privateReadConfirmed}
+                        class="mt-0.5"
+                      />
+                      <Label for="private-read-consent" class="text-xs leading-5 font-normal">
+                        {copy.privateReadConsent}
+                      </Label>
+                    </div>
+                    {#if formError && intakeTab === "local"}
+                      <Alert.Root variant="destructive">
+                        <Alert.Description>{formError}</Alert.Description>
+                      </Alert.Root>
+                    {/if}
+                    <Button
+                      class="min-h-9"
+                      disabled={busy || !localSource || !privateReadConfirmed}
+                      onclick={submitLocalSource}
+                    >
+                      {busy ? copy.working : copy.previewLocalSource}
+                    </Button>
+                  </Tabs.Content>
+                  <Tabs.Content
+                    value="url"
+                    class="space-y-[var(--density-section-gap)] pt-[var(--density-section-gap)]"
                   >
-                    {busy ? copy.working : copy.previewLocalSource}
-                  </Button>
-                </Tabs.Content>
-                <Tabs.Content value="url" class="space-y-[var(--density-section-gap)] pt-[var(--density-section-gap)]">
-                  <div class="space-y-2">
-                    <Label for="source-url">{copy.sourceUrl}</Label>
-                    <Input
-                      id="source-url"
-                      type="url"
-                      bind:value={sourceUrl}
-                      placeholder={copy.sourceUrlPlaceholder}
-                      autocomplete="url"
-                    />
-                  </div>
-                  <div class="flex items-start gap-3 rounded-lg border bg-muted/20 p-3">
-                    <Checkbox
-                      id="network-fetch-consent"
-                      bind:checked={networkFetchConfirmed}
-                      class="mt-0.5"
-                    />
-                    <Label for="network-fetch-consent" class="text-xs leading-5 font-normal">
-                      {copy.networkFetchConsent}
-                    </Label>
-                  </div>
-                  {#if formError && intakeTab === "url"}
-                    <Alert.Root variant="destructive">
-                      <Alert.Description>{formError}</Alert.Description>
-                    </Alert.Root>
-                  {/if}
-                  <Button
-                    class="min-h-9"
-                    disabled={busy || !sourceUrl.trim() || !networkFetchConfirmed}
-                    onclick={submitUrlSource}
-                  >
-                    {busy ? copy.working : copy.previewUrlSource}
-                  </Button>
-                </Tabs.Content>
-              </Tabs.Root>
+                    <div class="space-y-2">
+                      <Label for="source-url">{copy.sourceUrl}</Label>
+                      <Input
+                        id="source-url"
+                        type="url"
+                        bind:value={sourceUrl}
+                        placeholder={copy.sourceUrlPlaceholder}
+                        autocomplete="url"
+                      />
+                    </div>
+                    <div class="flex items-start gap-3 rounded-lg border bg-muted/20 p-3">
+                      <Checkbox
+                        id="network-fetch-consent"
+                        bind:checked={networkFetchConfirmed}
+                        class="mt-0.5"
+                      />
+                      <Label for="network-fetch-consent" class="text-xs leading-5 font-normal">
+                        {copy.networkFetchConsent}
+                      </Label>
+                    </div>
+                    {#if formError && intakeTab === "url"}
+                      <Alert.Root variant="destructive">
+                        <Alert.Description>{formError}</Alert.Description>
+                      </Alert.Root>
+                    {/if}
+                    <Button
+                      class="min-h-9"
+                      disabled={busy || !sourceUrl.trim() || !networkFetchConfirmed}
+                      onclick={submitUrlSource}
+                    >
+                      {busy ? copy.working : copy.previewUrlSource}
+                    </Button>
+                  </Tabs.Content>
+                </Tabs.Root>
               {/if}
             </Card.Content>
           </Card.Root>
@@ -713,7 +726,8 @@
         <Button type="button" variant="outline" onclick={() => (createOpen = false)}>
           {copy.cancel}
         </Button>
-        <Button type="submit" disabled={busy}>{busy ? copy.working : copy.createApplication}</Button>
+        <Button type="submit" disabled={busy}>{busy ? copy.working : copy.createApplication}</Button
+        >
       </Dialog.Footer>
     </form>
   </Dialog.Content>

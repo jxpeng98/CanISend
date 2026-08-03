@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type {
-  ApplicationDossierReadModel,
-  JobDetailReadModel,
-  JobRecord,
-} from "./bridge";
+import type { ApplicationDossierReadModel, JobDetailReadModel, JobRecord } from "./bridge";
 import {
   applicationSectionForRoute,
   defaultNavigationMemory,
@@ -42,9 +38,7 @@ function detail(overrides: Partial<JobDetailReadModel> = {}): JobDetailReadModel
 describe("navigation memory", () => {
   it("rejects malformed or unbounded persisted state", () => {
     expect(parseNavigationMemory("{broken")).toEqual(defaultNavigationMemory());
-    expect(parseNavigationMemory("x".repeat(32_769))).toEqual(
-      defaultNavigationMemory(),
-    );
+    expect(parseNavigationMemory("x".repeat(32_769))).toEqual(defaultNavigationMemory());
     expect(
       parseNavigationMemory(
         JSON.stringify({
@@ -98,11 +92,9 @@ describe("navigation memory", () => {
     };
     expect(rememberedJob(memory, "/tmp/canisend", [job])).toBe("job-1");
     expect(
-      rememberedJob(
-        { ...memory, selectedJobs: { "/tmp/canisend": "missing" } },
-        "/tmp/canisend",
-        [job],
-      ),
+      rememberedJob({ ...memory, selectedJobs: { "/tmp/canisend": "missing" } }, "/tmp/canisend", [
+        job,
+      ]),
     ).toBe("job-1");
   });
 

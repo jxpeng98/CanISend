@@ -211,20 +211,15 @@
     textScale: number;
   };
   type AgentViewComponent = typeof import("$lib/views/AgentView.svelte").default;
-  type ApplicationsViewComponent =
-    typeof import("$lib/views/ApplicationsView.svelte").default;
+  type ApplicationsViewComponent = typeof import("$lib/views/ApplicationsView.svelte").default;
   type GenericApplicationsViewComponent =
     typeof import("$lib/views/GenericApplicationsView.svelte").default;
-  type WorkflowViewComponent =
-    typeof import("$lib/views/WorkflowView.svelte").default;
-  type DeliveryViewComponent =
-    typeof import("$lib/views/DeliveryView.svelte").default;
-  type OpportunitiesViewComponent =
-    typeof import("$lib/views/OpportunitiesView.svelte").default;
+  type WorkflowViewComponent = typeof import("$lib/views/WorkflowView.svelte").default;
+  type DeliveryViewComponent = typeof import("$lib/views/DeliveryView.svelte").default;
+  type OpportunitiesViewComponent = typeof import("$lib/views/OpportunitiesView.svelte").default;
   type ProfileViewComponent = typeof import("$lib/views/ProfileView.svelte").default;
   type SettingsViewComponent = typeof import("$lib/views/SettingsView.svelte").default;
-  type WorkspacesViewComponent =
-    typeof import("$lib/views/WorkspacesView.svelte").default;
+  type WorkspacesViewComponent = typeof import("$lib/views/WorkspacesView.svelte").default;
   type TodayViewComponent = typeof import("$lib/views/TodayView.svelte").default;
 
   let language = $state<Language>("en");
@@ -313,9 +308,7 @@
   const selectedDossier = $derived(
     applicationDossiers.find((dossier) => dossier.job.id === selectedJobId) ?? null,
   );
-  const upcomingDeadlineItems = $derived(
-    upcomingDeadlineApplications(applicationDossiers),
-  );
+  const upcomingDeadlineItems = $derived(upcomingDeadlineApplications(applicationDossiers));
   const nearestDeadlineItem = $derived(upcomingDeadlineItems[0] ?? null);
   const recommendation = $derived(
     recommendWorkflowRoute({
@@ -379,21 +372,17 @@
   );
   const currentViewLabel = $derived(
     currentApplicationSection &&
-      (activeView === "applications" ||
-        activeView === "workflow" ||
-        activeView === "delivery")
+      (activeView === "applications" || activeView === "workflow" || activeView === "delivery")
       ? `${copy.applicationWorkspace} · ${
           copy.applicationWorkspaceSectionLabel[currentApplicationSection]
         }`
-      : navigation.find((item) => item.id === activeView)?.label ?? copy.today,
+      : (navigation.find((item) => item.id === activeView)?.label ?? copy.today),
   );
 
   function isWorkNavigationActive(id: NavigationId): boolean {
     if (id === "applications") {
       return (
-        activeView === "applications" ||
-        activeView === "workflow" ||
-        activeView === "delivery"
+        activeView === "applications" || activeView === "workflow" || activeView === "delivery"
       );
     }
     return activeView === id;
@@ -583,12 +572,7 @@
   });
 
   $effect(() => {
-    if (
-      activeView !== "profile" ||
-      ProfileView ||
-      profileViewLoading ||
-      profileViewFailed
-    ) {
+    if (activeView !== "profile" || ProfileView || profileViewLoading || profileViewFailed) {
       return;
     }
     profileViewLoading = true;
@@ -607,12 +591,7 @@
   });
 
   $effect(() => {
-    if (
-      activeView !== "settings" ||
-      SettingsView ||
-      settingsViewLoading ||
-      settingsViewFailed
-    ) {
+    if (activeView !== "settings" || SettingsView || settingsViewLoading || settingsViewFailed) {
       return;
     }
     settingsViewLoading = true;
@@ -631,12 +610,7 @@
   });
 
   $effect(() => {
-    if (
-      activeView !== "agent" ||
-      AgentView ||
-      agentViewLoading ||
-      agentViewFailed
-    ) {
+    if (activeView !== "agent" || AgentView || agentViewLoading || agentViewFailed) {
       return;
     }
     agentViewLoading = true;
@@ -655,12 +629,7 @@
   });
 
   $effect(() => {
-    if (
-      activeView !== "workflow" ||
-      WorkflowView ||
-      workflowViewLoading ||
-      workflowViewFailed
-    ) {
+    if (activeView !== "workflow" || WorkflowView || workflowViewLoading || workflowViewFailed) {
       return;
     }
     workflowViewLoading = true;
@@ -679,12 +648,7 @@
   });
 
   $effect(() => {
-    if (
-      activeView !== "delivery" ||
-      DeliveryView ||
-      deliveryViewLoading ||
-      deliveryViewFailed
-    ) {
+    if (activeView !== "delivery" || DeliveryView || deliveryViewLoading || deliveryViewFailed) {
       return;
     }
     deliveryViewLoading = true;
@@ -704,9 +668,7 @@
 
   onMount(async () => {
     try {
-      navigationMemory = parseNavigationMemory(
-        localStorage.getItem(navigationPreferenceKey),
-      );
+      navigationMemory = parseNavigationMemory(localStorage.getItem(navigationPreferenceKey));
       activeView = navigationMemory.activeView;
       activeDetail = navigationMemory.activeDetail;
       lastSuccessfulAction = navigationMemory.lastAction;
@@ -723,9 +685,7 @@
         }
         if (
           typeof candidate.textScale === "number" &&
-          supportedTextScales.includes(
-            candidate.textScale as (typeof supportedTextScales)[number],
-          )
+          supportedTextScales.includes(candidate.textScale as (typeof supportedTextScales)[number])
         ) {
           textScale = candidate.textScale;
         }
@@ -787,9 +747,7 @@
     }
     if (event.key !== "+" && event.key !== "=" && event.key !== "-") return;
     event.preventDefault();
-    const current = supportedTextScales.indexOf(
-      textScale as (typeof supportedTextScales)[number],
-    );
+    const current = supportedTextScales.indexOf(textScale as (typeof supportedTextScales)[number]);
     const next =
       event.key === "-"
         ? Math.max(0, current - 1)
@@ -827,10 +785,7 @@
     return fallback;
   }
 
-  function recordSuccessfulAction(
-    context: SuccessfulActionContext,
-    result: unknown,
-  ): void {
+  function recordSuccessfulAction(context: SuccessfulActionContext, result: unknown): void {
     const jobId = context.jobId === undefined ? selectedJobId || null : context.jobId;
     const route = {
       ...(context.route ?? { view: activeView, detail: activeDetail ?? undefined }),
@@ -839,10 +794,7 @@
     noticeRoute = route;
     lastSuccessfulAction = {
       operation: context.operation,
-      summary: extractActionSummary(
-        result,
-        context.fallbackSummary ?? context.operation,
-      ),
+      summary: extractActionSummary(result, context.fallbackSummary ?? context.operation),
       route,
       workspacePath: activeWorkspace?.path ?? null,
       jobId,
@@ -887,8 +839,7 @@
 
   function applyWorkspaceSession(session: RegisteredAction<WorkspaceReadModel>): void {
     registrySnapshot = session.registry;
-    const canonicalPath =
-      session.registry.registry.default_path ?? session.action.data.path;
+    const canonicalPath = session.registry.registry.default_path ?? session.action.data.path;
     activeWorkspace = { ...session.action.data, path: canonicalPath };
     navigationMemory = {
       ...navigationMemory,
@@ -930,9 +881,7 @@
       const nextId = currentBelongsToWorkspace
         ? selectedJob?.job.id
         : rememberedJob(navigationMemory, activeWorkspace.path, jobs);
-      selectedJob = nextId
-        ? (await showJob(activeWorkspace.path, nextId)).data
-        : null;
+      selectedJob = nextId ? (await showJob(activeWorkspace.path, nextId)).data : null;
       if (selectedJob) {
         navigationMemory = {
           ...navigationMemory,
@@ -1057,11 +1006,7 @@
       clearProfileSession();
       return;
     }
-    await Promise.all([
-      loadJobsForActive(),
-      loadDiscoveryForActive(),
-      loadProfileForActive(),
-    ]);
+    await Promise.all([loadJobsForActive(), loadDiscoveryForActive(), loadProfileForActive()]);
   }
 
   async function openWorkspace(path: string): Promise<void> {
@@ -1081,9 +1026,7 @@
       const rememberedPath = navigationMemory.workspacePath;
       const initialPath =
         rememberedPath &&
-        registrySnapshot.registry.entries.some(
-          (entry) => entry.path === rememberedPath,
-        )
+        registrySnapshot.registry.entries.some((entry) => entry.path === rememberedPath)
           ? rememberedPath
           : defaultPath;
       if (initialPath && (autoSelect || !activeWorkspace)) {
@@ -1175,14 +1118,11 @@
 
   async function handleBackupWorkspace(destination: string): Promise<boolean> {
     if (!activeWorkspace) return false;
-    const result = await runAction(
-      () => backupWorkspace(activeWorkspace!.path, destination),
-      {
-        operation: "workspace.backup",
-        route: { view: "workspaces" },
-        jobId: null,
-      },
-    );
+    const result = await runAction(() => backupWorkspace(activeWorkspace!.path, destination), {
+      operation: "workspace.backup",
+      route: { view: "workspaces" },
+      jobId: null,
+    });
     if (!result) return false;
     notice = result.summary;
     return true;
@@ -1209,17 +1149,13 @@
     backup: string,
     destination: string,
   ): Promise<boolean> {
-    const result = await runAction(
-      () => restoreWorkspace(alias, backup, destination),
-      {
-        operation: "workspace.restore",
-        route: { view: "workspaces" },
-        jobId: null,
-      },
-    );
+    const result = await runAction(() => restoreWorkspace(alias, backup, destination), {
+      operation: "workspace.restore",
+      route: { view: "workspaces" },
+      jobId: null,
+    });
     if (!result) return false;
-    const restoredPath =
-      result.registry.registry.default_path ?? result.action.data.destination;
+    const restoredPath = result.registry.registry.default_path ?? result.action.data.destination;
     const session = await selectWorkspace(restoredPath);
     applyWorkspaceSession(session);
     await loadWorkspaceCollections();
@@ -1320,9 +1256,7 @@
 
   async function handlePromoteDiscoveryLead(leadId: string): Promise<boolean> {
     if (!activeWorkspace) return false;
-    const result = await runAction(() =>
-      promoteDiscoveryLead(activeWorkspace!.path, leadId),
-    );
+    const result = await runAction(() => promoteDiscoveryLead(activeWorkspace!.path, leadId));
     if (!result) return false;
     await loadWorkspaceCollections();
     await handleSelectJob(result.data.job.id);
@@ -1404,11 +1338,7 @@
   ): Promise<boolean> {
     if (!activeWorkspace) return false;
     const result = await runAction(() =>
-      getProfileEvidenceTemplate(
-        activeWorkspace!.path,
-        jobId,
-        confirmedPrivateRead,
-      ),
+      getProfileEvidenceTemplate(activeWorkspace!.path, jobId, confirmedPrivateRead),
     );
     if (!result) return false;
     profileEvidence = result.data;
@@ -1424,13 +1354,7 @@
   ): Promise<boolean> {
     if (!activeWorkspace) return false;
     const result = await runAction(
-      () =>
-        confirmProfileEvidence(
-          activeWorkspace!.path,
-          jobId,
-          candidate,
-          confirmedPrivateRead,
-        ),
+      () => confirmProfileEvidence(activeWorkspace!.path, jobId, candidate, confirmedPrivateRead),
       {
         operation: "profile.evidence.confirm",
         route: { view: "workflow", detail: "decision-matches", jobId },
@@ -1444,21 +1368,15 @@
     return true;
   }
 
-  async function handleLoadWorkflow(
-    jobId: string,
-  ): Promise<WorkflowControlReadModel | null> {
+  async function handleLoadWorkflow(jobId: string): Promise<WorkflowControlReadModel | null> {
     if (!activeWorkspace) return null;
-    const result = await runAction(() =>
-      getWorkflowControls(activeWorkspace!.path, jobId),
-    );
+    const result = await runAction(() => getWorkflowControls(activeWorkspace!.path, jobId));
     if (!result) return null;
     notice = result.summary;
     return result.data;
   }
 
-  async function handleStartWorkflow(
-    jobId: string,
-  ): Promise<WorkflowControlReadModel | null> {
+  async function handleStartWorkflow(jobId: string): Promise<WorkflowControlReadModel | null> {
     if (!activeWorkspace) return null;
     const workspace = activeWorkspace.path;
     const result = await runAction(
@@ -1506,13 +1424,7 @@
   ): Promise<WorkflowControlReadModel | null> {
     if (!activeWorkspace) return null;
     const result = await runAction(
-      () =>
-        completeWorkflowStage(
-          activeWorkspace!.path,
-          jobId,
-          stage,
-          artifactId,
-        ),
+      () => completeWorkflowStage(activeWorkspace!.path, jobId, stage, artifactId),
       {
         operation: "workflow.complete",
         route: { view: "workflow", detail: "workflow-stages", jobId },
@@ -1530,9 +1442,7 @@
     stage: WorkflowStage,
   ): Promise<WorkflowRerunPreviewReadModel | null> {
     if (!activeWorkspace) return null;
-    const result = await runAction(() =>
-      previewWorkflowRerun(activeWorkspace!.path, jobId, stage),
-    );
+    const result = await runAction(() => previewWorkflowRerun(activeWorkspace!.path, jobId, stage));
     if (!result) return null;
     notice = result.preview.summary;
     return result;
@@ -1542,27 +1452,22 @@
     previewToken: string,
   ): Promise<WorkflowControlReadModel | null> {
     if (!activeWorkspace) return null;
-    const result = await runAction(
-      () => commitWorkflowRerun(activeWorkspace!.path, previewToken),
-      {
-        operation: "workflow.rerun",
-        route: {
-          view: "workflow",
-          detail: "workflow-stages",
-          jobId: selectedJobId || undefined,
-        },
-        jobId: selectedJobId || null,
+    const result = await runAction(() => commitWorkflowRerun(activeWorkspace!.path, previewToken), {
+      operation: "workflow.rerun",
+      route: {
+        view: "workflow",
+        detail: "workflow-stages",
+        jobId: selectedJobId || undefined,
       },
-    );
+      jobId: selectedJobId || null,
+    });
     if (!result) return null;
     if (selectedJobId) await refreshSelectedJobSnapshot(selectedJobId);
     notice = result.summary;
     return result.data;
   }
 
-  async function handleDiscardWorkflowPreview(
-    previewToken: string,
-  ): Promise<boolean> {
+  async function handleDiscardWorkflowPreview(previewToken: string): Promise<boolean> {
     if (!activeWorkspace) return false;
     const result = await runAction(() =>
       discardWorkflowPreview(activeWorkspace!.path, previewToken),
@@ -1580,36 +1485,31 @@
     const workspace = activeWorkspace.path;
     if (kind === "evidence") {
       return (
-        await runAction(() =>
-          getProfileEvidenceTemplate(
-            workspace,
-            jobId,
-            confirmedPrivateRead,
-          ),
-        )
-      )?.data ?? null;
+        (await runAction(() => getProfileEvidenceTemplate(workspace, jobId, confirmedPrivateRead)))
+          ?.data ?? null
+      );
     }
     if (kind === "criteria") {
       return (
-        await runAction(() =>
-          getCriteriaTemplate(workspace, jobId, confirmedPrivateRead),
-        )
-      )?.data ?? null;
+        (await runAction(() => getCriteriaTemplate(workspace, jobId, confirmedPrivateRead)))
+          ?.data ?? null
+      );
     }
     if (kind === "matches") {
       return (
-        await runAction(() =>
-          getCurrentMatches(workspace, jobId, confirmedPrivateRead),
-        )
-      )?.data ?? null;
+        (await runAction(() => getCurrentMatches(workspace, jobId, confirmedPrivateRead)))?.data ??
+        null
+      );
     }
     return (
-      await runAction(() =>
-        current
-          ? getCurrentPlan(workspace, jobId, confirmedPrivateRead)
-          : getPlanTemplate(workspace, jobId, confirmedPrivateRead),
-      )
-    )?.data ?? null;
+      (
+        await runAction(() =>
+          current
+            ? getCurrentPlan(workspace, jobId, confirmedPrivateRead)
+            : getPlanTemplate(workspace, jobId, confirmedPrivateRead),
+        )
+      )?.data ?? null
+    );
   }
 
   async function handleConfirmDecision(
@@ -1622,13 +1522,7 @@
     const workspace = activeWorkspace.path;
     if (kind === "evidence") {
       const result = await runAction(
-        () =>
-          confirmProfileEvidence(
-            workspace,
-            jobId,
-            candidate,
-            confirmedPrivateRead,
-          ),
+        () => confirmProfileEvidence(workspace, jobId, candidate, confirmedPrivateRead),
         {
           operation: "profile.evidence.confirm",
           route: { view: "workflow", detail: "decision-matches", jobId },
@@ -1643,13 +1537,7 @@
     }
     if (kind === "criteria") {
       const result = await runAction(
-        () =>
-          confirmCriteria(
-            workspace,
-            jobId,
-            candidate,
-            confirmedPrivateRead,
-          ),
+        () => confirmCriteria(workspace, jobId, candidate, confirmedPrivateRead),
         {
           operation: "criteria.confirm",
           route: { view: "profile", detail: "profile-evidence", jobId },
@@ -1662,13 +1550,7 @@
       return result.data;
     }
     const result = await runAction(
-      () =>
-        confirmPlan(
-          workspace,
-          jobId,
-          candidate,
-          confirmedPrivateRead,
-        ),
+      () => confirmPlan(workspace, jobId, candidate, confirmedPrivateRead),
       {
         operation: "plan.confirm",
         route: { view: "agent", detail: "agent-task", jobId },
@@ -1681,13 +1563,9 @@
     return result.data;
   }
 
-  async function handleLoadLatestTask(
-    jobId: string,
-  ): Promise<TaskStateData | null> {
+  async function handleLoadLatestTask(jobId: string): Promise<TaskStateData | null> {
     if (!activeWorkspace) return null;
-    const result = await runAction(() =>
-      getLatestTask(activeWorkspace!.path, jobId),
-    );
+    const result = await runAction(() => getLatestTask(activeWorkspace!.path, jobId));
     if (!result) return null;
     notice = result.summary;
     return result.data;
@@ -1775,22 +1653,17 @@
     return result.latest.data;
   }
 
-  async function handleCancelTask(
-    taskId: string,
-  ): Promise<TaskStateData | null> {
+  async function handleCancelTask(taskId: string): Promise<TaskStateData | null> {
     if (!activeWorkspace) return null;
-    const result = await runAction(
-      () => cancelTask(activeWorkspace!.path, taskId),
-      {
-        operation: "task.cancel",
-        route: {
-          view: "workflow",
-          detail: "agent-task",
-          jobId: selectedJobId || undefined,
-        },
-        jobId: selectedJobId || null,
+    const result = await runAction(() => cancelTask(activeWorkspace!.path, taskId), {
+      operation: "task.cancel",
+      route: {
+        view: "workflow",
+        detail: "agent-task",
+        jobId: selectedJobId || undefined,
       },
-    );
+      jobId: selectedJobId || null,
+    });
     if (!result) return null;
     notice = result.summary;
     return result.data;
@@ -1819,12 +1692,8 @@
     return result.data;
   }
 
-  async function handleLoadAgentContext(
-    jobId?: string,
-  ): Promise<AgentContextReadModel | null> {
-    const result = await runAction(() =>
-      getAgentContext(activeWorkspace?.path, jobId),
-    );
+  async function handleLoadAgentContext(jobId?: string): Promise<AgentContextReadModel | null> {
+    const result = await runAction(() => getAgentContext(activeWorkspace?.path, jobId));
     if (!result) return null;
     notice = result.summary;
     return result.data;
@@ -1834,18 +1703,15 @@
     jobId: string,
   ): Promise<AgentAssistanceReadModel | null> {
     if (!activeWorkspace) return null;
-    const result = await runAction(
-      () => getAgentAssistance(activeWorkspace!.path, jobId),
-      {
-        operation: "agent.assistance",
-        route: {
-          view: "agent",
-          detail: "agent-handoff",
-          jobId,
-        },
+    const result = await runAction(() => getAgentAssistance(activeWorkspace!.path, jobId), {
+      operation: "agent.assistance",
+      route: {
+        view: "agent",
+        detail: "agent-handoff",
         jobId,
       },
-    );
+      jobId,
+    });
     if (!result) return null;
     notice = result.summary;
     return result.data;
@@ -1866,18 +1732,15 @@
     jobId?: string,
   ): Promise<AgentHandoffReadModel | null> {
     if (!activeWorkspace) return null;
-    const result = await runAction(
-      () => prepareAgentHandoff(host, activeWorkspace!.path, jobId),
-      {
-        operation: "agent.handoff.prepare",
-        route: {
-          view: "agent",
-          detail: "agent-handoff",
-          jobId,
-        },
-        jobId: jobId ?? null,
+    const result = await runAction(() => prepareAgentHandoff(host, activeWorkspace!.path, jobId), {
+      operation: "agent.handoff.prepare",
+      route: {
+        view: "agent",
+        detail: "agent-handoff",
+        jobId,
       },
-    );
+      jobId: jobId ?? null,
+    });
     if (!result) return null;
     notice = result.summary;
     return result.data;
@@ -1887,9 +1750,7 @@
     host: "codex" | "claude" | "generic",
   ): Promise<AgentSkillsInstallReadModel | null> {
     if (!activeWorkspace) return null;
-    const result = await runAction(() =>
-      installAgentSkills(host, activeWorkspace!.path),
-    );
+    const result = await runAction(() => installAgentSkills(host, activeWorkspace!.path));
     if (!result) return null;
     notice = result.summary;
     return result.data;
@@ -1899,9 +1760,7 @@
     host: "codex" | "claude" | "generic",
   ): Promise<AgentSkillsStatusReadModel | null> {
     if (!activeWorkspace) return null;
-    const result = await runAction(() =>
-      getAgentSkillsStatus(host, activeWorkspace!.path),
-    );
+    const result = await runAction(() => getAgentSkillsStatus(host, activeWorkspace!.path));
     if (!result) return null;
     return result.data;
   }
@@ -1910,9 +1769,7 @@
     host: "codex" | "claude" | "generic",
   ): Promise<AgentSkillsUninstallReadModel | null> {
     if (!activeWorkspace) return null;
-    const result = await runAction(() =>
-      uninstallAgentSkills(host, activeWorkspace!.path),
-    );
+    const result = await runAction(() => uninstallAgentSkills(host, activeWorkspace!.path));
     if (!result) return null;
     notice = result.summary;
     return result.data;
@@ -1935,9 +1792,7 @@
     host: "codex" | "claude" | "generic",
   ): Promise<AgentMcpConfigurationReadModel | null> {
     if (!activeWorkspace) return null;
-    const result = await runAction(() =>
-      prepareAgentMcpConfiguration(host, activeWorkspace!.path),
-    );
+    const result = await runAction(() => prepareAgentMcpConfiguration(host, activeWorkspace!.path));
     if (!result) return null;
     notice = result.summary;
     return result.data;
@@ -1955,12 +1810,8 @@
     return result === true;
   }
 
-  async function handleLoadAgentRuntimes(
-    jobId?: string,
-  ): Promise<AgentRuntimeCatalog | null> {
-    const result = await runAction(() =>
-      getAgentRuntimeCatalog(activeWorkspace?.path, jobId),
-    );
+  async function handleLoadAgentRuntimes(jobId?: string): Promise<AgentRuntimeCatalog | null> {
+    const result = await runAction(() => getAgentRuntimeCatalog(activeWorkspace?.path, jobId));
     if (!result) return null;
     return result;
   }
@@ -1989,19 +1840,17 @@
       });
       recordSuccessfulAction(
         {
-        operation: "agent.turn",
-        route: {
-          view: "agent",
-          detail: "agent-task",
-          jobId: options.jobId,
-        },
-        jobId: options.jobId ?? null,
+          operation: "agent.turn",
+          route: {
+            view: "agent",
+            detail: "agent-task",
+            jobId: options.jobId,
+          },
+          jobId: options.jobId ?? null,
         },
         result,
       );
-      notice = result.resumed
-        ? copy.agentSessionResumed
-        : copy.agentSessionStarted;
+      notice = result.resumed ? copy.agentSessionResumed : copy.agentSessionStarted;
       return result;
     } catch (error) {
       if (commandErrorCode(error) === "agent-runtime-cancelled") {
@@ -2027,9 +1876,7 @@
         selectedJobId: options.jobId,
         runtime: options.runtime,
       });
-      notice = result.cancellation_requested
-        ? copy.agentTurnCancelled
-        : copy.noActiveAgentTurn;
+      notice = result.cancellation_requested ? copy.agentTurnCancelled : copy.noActiveAgentTurn;
       return result.cancellation_requested;
     } catch (error) {
       captureBridgeError(error);
@@ -2050,11 +1897,7 @@
   ): Promise<DocumentWorkspaceReadModel | null> {
     if (!activeWorkspace) return null;
     const result = await runAction(() =>
-      getDocumentWorkspace(
-        activeWorkspace!.path,
-        jobId,
-        confirmedPrivateRead,
-      ),
+      getDocumentWorkspace(activeWorkspace!.path, jobId, confirmedPrivateRead),
     );
     if (!result) return null;
     notice = result.summary;
@@ -2067,11 +1910,7 @@
   ): Promise<ReviewWorkspaceReadModel | null> {
     if (!activeWorkspace) return null;
     const result = await runAction(() =>
-      getReviewWorkspace(
-        activeWorkspace!.path,
-        jobId,
-        confirmedPrivateRead,
-      ),
+      getReviewWorkspace(activeWorkspace!.path, jobId, confirmedPrivateRead),
     );
     if (!result) return null;
     notice = result.summary;
@@ -2087,17 +1926,8 @@
     const workspace = activeWorkspace.path;
     const result = await runAction(
       async () => {
-        const confirmed = await confirmReview(
-          workspace,
-          jobId,
-          candidate,
-          confirmedPrivateRead,
-        );
-        const refreshed = await getReviewWorkspace(
-          workspace,
-          jobId,
-          confirmedPrivateRead,
-        );
+        const confirmed = await confirmReview(workspace, jobId, candidate, confirmedPrivateRead);
+        const refreshed = await getReviewWorkspace(workspace, jobId, confirmedPrivateRead);
         return { confirmed, refreshed };
       },
       {
@@ -2112,26 +1942,18 @@
     return result.refreshed.data;
   }
 
-  async function handleCheckPackage(
-    jobId: string,
-  ): Promise<PackageManifestRecord | null> {
+  async function handleCheckPackage(jobId: string): Promise<PackageManifestRecord | null> {
     if (!activeWorkspace) return null;
-    const result = await runAction(() =>
-      checkPackage(activeWorkspace!.path, jobId),
-    );
+    const result = await runAction(() => checkPackage(activeWorkspace!.path, jobId));
     if (!result) return null;
     await refreshSelectedJobSnapshot(jobId);
     notice = result.summary;
     return result.data;
   }
 
-  async function handleLoadPackage(
-    jobId: string,
-  ): Promise<PackageManifestRecord | null> {
+  async function handleLoadPackage(jobId: string): Promise<PackageManifestRecord | null> {
     if (!activeWorkspace) return null;
-    const result = await runAction(() =>
-      getCurrentPackage(activeWorkspace!.path, jobId),
-    );
+    const result = await runAction(() => getCurrentPackage(activeWorkspace!.path, jobId));
     if (!result) return null;
     notice = result.summary;
     return result.data;
@@ -2144,13 +1966,7 @@
   ): Promise<PackageExportManifestRecord | null> {
     if (!activeWorkspace) return null;
     const result = await runAction(
-      () =>
-        exportPackage(
-          activeWorkspace!.path,
-          jobId,
-          destination,
-          confirmedPrivateExport,
-        ),
+      () => exportPackage(activeWorkspace!.path, jobId, destination, confirmedPrivateExport),
       {
         operation: "package.export",
         route: { view: "delivery", detail: "delivery-package", jobId },
@@ -2166,9 +1982,7 @@
     jobId: string,
   ): Promise<PackageExportManifestRecord | null> {
     if (!activeWorkspace) return null;
-    const result = await runAction(() =>
-      getCurrentPackageExport(activeWorkspace!.path, jobId),
-    );
+    const result = await runAction(() => getCurrentPackageExport(activeWorkspace!.path, jobId));
     if (!result) return null;
     notice = result.summary;
     return result.data;
@@ -2178,9 +1992,7 @@
     jobId: string,
   ): Promise<ProjectionReconcileRecord[] | null> {
     if (!activeWorkspace) return null;
-    const result = await runAction(() =>
-      reconcilePackage(activeWorkspace!.path, jobId),
-    );
+    const result = await runAction(() => reconcilePackage(activeWorkspace!.path, jobId));
     if (!result) return null;
     notice = result.summary;
     return result.data;
@@ -2206,43 +2018,29 @@
   ): Promise<ProjectionReconcileRecord | null> {
     if (!activeWorkspace) return null;
     const result = await runAction(() =>
-      copyPackageProjection(
-        activeWorkspace!.path,
-        jobId,
-        path,
-        destination,
-      ),
+      copyPackageProjection(activeWorkspace!.path, jobId, path, destination),
     );
     if (!result) return null;
     notice = result.summary;
     return result.data;
   }
 
-  async function handleBuildRender(
-    jobId: string,
-  ): Promise<RenderManifestRecord | null> {
+  async function handleBuildRender(jobId: string): Promise<RenderManifestRecord | null> {
     if (!activeWorkspace) return null;
-    const result = await runAction(
-      () => buildRender(activeWorkspace!.path, jobId),
-      {
-        operation: "render.build",
-        route: { view: "delivery", detail: "delivery-render", jobId },
-        jobId,
-      },
-    );
+    const result = await runAction(() => buildRender(activeWorkspace!.path, jobId), {
+      operation: "render.build",
+      route: { view: "delivery", detail: "delivery-render", jobId },
+      jobId,
+    });
     if (!result) return null;
     await refreshSelectedJobSnapshot(jobId);
     notice = result.summary;
     return result.data;
   }
 
-  async function handleLoadRender(
-    jobId: string,
-  ): Promise<RenderManifestRecord | null> {
+  async function handleLoadRender(jobId: string): Promise<RenderManifestRecord | null> {
     if (!activeWorkspace) return null;
-    const result = await runAction(() =>
-      getCurrentRender(activeWorkspace!.path, jobId),
-    );
+    const result = await runAction(() => getCurrentRender(activeWorkspace!.path, jobId));
     if (!result) return null;
     notice = result.summary;
     return result.data;
@@ -2254,14 +2052,7 @@
     confirmedPrivateRead: boolean,
   ): Promise<Uint8Array | null> {
     if (!activeWorkspace) return null;
-    return runAction(() =>
-      previewRender(
-        activeWorkspace!.path,
-        jobId,
-        kind,
-        confirmedPrivateRead,
-      ),
-    );
+    return runAction(() => previewRender(activeWorkspace!.path, jobId, kind, confirmedPrivateRead));
   }
 
   async function handleExportRender(
@@ -2271,13 +2062,7 @@
   ): Promise<boolean> {
     if (!activeWorkspace) return false;
     const result = await runAction(
-      () =>
-        exportRender(
-          activeWorkspace!.path,
-          jobId,
-          destination,
-          confirmedPrivateExport,
-        ),
+      () => exportRender(activeWorkspace!.path, jobId, destination, confirmedPrivateExport),
       {
         operation: "render.export",
         route: { view: "delivery", detail: "delivery-render", jobId },
@@ -2321,9 +2106,7 @@
     return result;
   }
 
-  async function handleCheckCli(
-    destination?: string,
-  ): Promise<CliInstallStatus | null> {
+  async function handleCheckCli(destination?: string): Promise<CliInstallStatus | null> {
     const result = await runAction(() => getCliInstallStatus(destination));
     if (!result) return null;
     notice = result.summary;
@@ -2376,9 +2159,7 @@
   async function handleCheckUpdates(
     confirmedNetworkFetch: boolean,
   ): Promise<UpdateCheckReadModel | null> {
-    const result = await runAction(() =>
-      checkForUpdates(confirmedNetworkFetch),
-    );
+    const result = await runAction(() => checkForUpdates(confirmedNetworkFetch));
     if (!result) return null;
     notice = result.summary;
     return result.data;
@@ -2449,9 +2230,7 @@
     return true;
   }
 
-  async function handleOpenContent(
-    entry: ContentCatalogEntryReadModel,
-  ): Promise<void> {
+  async function handleOpenContent(entry: ContentCatalogEntryReadModel): Promise<void> {
     await navigateTo(routeForContentEntry(entry, selectedJobId || undefined));
   }
 
@@ -2463,9 +2242,7 @@
 
   async function handleCreateJob(title: string, institution: string): Promise<boolean> {
     if (!activeWorkspace) return false;
-    const result = await runAction(() =>
-      createJob(activeWorkspace!.path, title, institution),
-    );
+    const result = await runAction(() => createJob(activeWorkspace!.path, title, institution));
     if (!result) return false;
     await loadJobsForActive();
     await handleSelectJob(result.data.id);
@@ -2487,14 +2264,10 @@
 
   async function handleSelectJob(jobId: string): Promise<boolean> {
     if (!activeWorkspace) return false;
-    if (
-      jobIntakePreview &&
-      jobIntakePreview.preview.data.job.id !== jobId
-    ) {
-      await discardJobSourcePreview(
-        activeWorkspace.path,
-        jobIntakePreview.preview_token,
-      ).catch(() => undefined);
+    if (jobIntakePreview && jobIntakePreview.preview.data.job.id !== jobId) {
+      await discardJobSourcePreview(activeWorkspace.path, jobIntakePreview.preview_token).catch(
+        () => undefined,
+      );
       jobIntakePreview = null;
     }
     const result = await runAction(() =>
@@ -2505,10 +2278,7 @@
     );
     if (!result) return false;
     selectedJob = result[0].data;
-    if (
-      contentSearchResult?.filter.job_id &&
-      contentSearchResult.filter.job_id !== jobId
-    ) {
+    if (contentSearchResult?.filter.job_id && contentSearchResult.filter.job_id !== jobId) {
       contentSearchResult = null;
     }
     applicationDossiers = applicationDossiers.map((dossier) =>
@@ -2526,14 +2296,11 @@
 
   async function handleArchiveJob(jobId: string): Promise<boolean> {
     if (!activeWorkspace) return false;
-    const result = await runAction(
-      () => archiveJob(activeWorkspace!.path, jobId),
-      {
-        operation: "job.archive",
-        route: { view: "applications" },
-        jobId: null,
-      },
-    );
+    const result = await runAction(() => archiveJob(activeWorkspace!.path, jobId), {
+      operation: "job.archive",
+      route: { view: "applications" },
+      jobId: null,
+    });
     if (!result) return false;
     selectedJob = null;
     if (activeWorkspace) {
@@ -2547,10 +2314,7 @@
     return true;
   }
 
-  async function handlePreviewLocalSource(
-    source: string,
-    confirmed: boolean,
-  ): Promise<boolean> {
+  async function handlePreviewLocalSource(source: string, confirmed: boolean): Promise<boolean> {
     if (!activeWorkspace || !selectedJob) return false;
     const jobId = selectedJob.job.id;
     const result = await runAction(() =>
@@ -2562,10 +2326,7 @@
     return true;
   }
 
-  async function handlePreviewUrlSource(
-    url: string,
-    confirmed: boolean,
-  ): Promise<boolean> {
+  async function handlePreviewUrlSource(url: string, confirmed: boolean): Promise<boolean> {
     if (!activeWorkspace || !selectedJob) return false;
     const jobId = selectedJob.job.id;
     const result = await runAction(() =>
@@ -2581,10 +2342,7 @@
     if (!activeWorkspace || !jobIntakePreview) return false;
     const jobId = jobIntakePreview.preview.data.job.id;
     const result = await runAction(() =>
-      commitJobSourcePreview(
-        activeWorkspace!.path,
-        jobIntakePreview!.preview_token,
-      ),
+      commitJobSourcePreview(activeWorkspace!.path, jobIntakePreview!.preview_token),
     );
     if (!result) return false;
     jobIntakePreview = null;
@@ -2605,10 +2363,7 @@
   async function handleDiscardJobSourcePreview(): Promise<boolean> {
     if (!activeWorkspace || !jobIntakePreview) return false;
     const result = await runAction(() =>
-      discardJobSourcePreview(
-        activeWorkspace!.path,
-        jobIntakePreview!.preview_token,
-      ),
+      discardJobSourcePreview(activeWorkspace!.path, jobIntakePreview!.preview_token),
     );
     if (result === null) return false;
     jobIntakePreview = null;
@@ -2692,7 +2447,9 @@
     aria-label={copy.appName}
   >
     <Sidebar.Header class="p-0">
-      <div class="flex min-h-[var(--sidebar-header-height)] items-center gap-2 px-2 transition-[min-height] duration-200 ease-out motion-reduce:transition-none">
+      <div
+        class="flex min-h-[var(--sidebar-header-height)] items-center gap-2 px-2 transition-[min-height] duration-200 ease-out motion-reduce:transition-none"
+      >
         <div
           class="grid size-9 place-items-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground"
           aria-hidden="true"
@@ -2723,7 +2480,9 @@
           </Sidebar.MenuItem>
         </Sidebar.Menu>
 
-        <p class="px-2 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+        <p
+          class="px-2 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground"
+        >
           {copy.work}
         </p>
         <Sidebar.Menu>
@@ -2756,7 +2515,9 @@
           {/each}
         </Sidebar.Menu>
 
-        <p class="px-2 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+        <p
+          class="px-2 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground"
+        >
           {copy.system}
         </p>
         <Sidebar.Menu>
@@ -2827,7 +2588,10 @@
         class="flex min-h-[var(--app-header-height)] min-w-0 items-center justify-between gap-2 border-b px-4 transition-[min-height] duration-200 ease-out motion-reduce:transition-none sm:px-5 lg:px-6"
         data-tauri-drag-region
       >
-        <p class="min-w-0 truncate text-sm font-medium tracking-tight text-foreground" title={currentViewLabel}>
+        <p
+          class="min-w-0 truncate text-sm font-medium tracking-tight text-foreground"
+          title={currentViewLabel}
+        >
           {currentViewLabel}
         </p>
         <div class="flex shrink-0 items-center gap-2">
@@ -2877,8 +2641,7 @@
         {activeView}
         {activeDetail}
         {recommendation}
-        lastAction={lastSuccessfulAction?.workspacePath ===
-          (activeWorkspace?.path ?? null)
+        lastAction={lastSuccessfulAction?.workspacePath === (activeWorkspace?.path ?? null)
           ? lastSuccessfulAction
           : null}
         {busy}
@@ -2888,25 +2651,26 @@
       />
     </div>
 
-    <div class="mx-auto w-full min-w-0 max-w-[1480px] px-4 py-[var(--page-padding-block)] transition-[padding] duration-200 ease-out motion-reduce:transition-none sm:px-5 lg:px-6">
+    <div
+      class="mx-auto w-full min-w-0 max-w-[1480px] px-4 py-[var(--page-padding-block)] transition-[padding] duration-200 ease-out motion-reduce:transition-none sm:px-5 lg:px-6"
+    >
       {#if bridgeError}
         <Alert.Root variant="destructive" class="mb-[var(--density-section-gap)] min-h-12 py-2">
           <Alert.Description>{bridgeError}</Alert.Description>
           {#if bridgeErrorCanRetry}
             <Alert.Action class="right-2 top-1.5">
-              <Button
-                variant="outline"
-                size="desktop"
-                disabled={busy}
-                onclick={retryCurrentView}
-              >
+              <Button variant="outline" size="desktop" disabled={busy} onclick={retryCurrentView}>
                 {copy.retry}
               </Button>
             </Alert.Action>
           {/if}
         </Alert.Root>
       {:else if notice}
-        <Alert.Root variant="success" class="mb-[var(--density-section-gap)] min-h-12 py-2" role="status">
+        <Alert.Root
+          variant="success"
+          class="mb-[var(--density-section-gap)] min-h-12 py-2"
+          role="status"
+        >
           <Alert.Description>{notice}</Alert.Description>
           {#if noticeRoute}
             <Alert.Action class="right-2 top-1.5">

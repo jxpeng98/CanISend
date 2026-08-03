@@ -9,10 +9,7 @@ type AppearancePreferences = {
   textScale: number;
 };
 
-async function openApplication(
-  page: Page,
-  preferences: AppearancePreferences,
-): Promise<void> {
+async function openApplication(page: Page, preferences: AppearancePreferences): Promise<void> {
   await page.addInitScript((candidate) => {
     localStorage.setItem("canisend.desktop.appearance.v1", JSON.stringify(candidate));
   }, preferences);
@@ -43,20 +40,16 @@ async function expectNoLayoutOverflow(page: Page): Promise<void> {
           return false;
         }
 
-        const overflowAllowed = ["auto", "scroll", "hidden", "clip"].includes(
-          style.overflowX,
-        );
+        const overflowAllowed = ["auto", "scroll", "hidden", "clip"].includes(style.overflowX);
         const hasVisibleText = (element.textContent ?? "").trim().length > 0;
         const exceedsOwnWidth = element.scrollWidth - element.clientWidth > 2;
         const exceedsViewport = bounds.right > viewportWidth + 1;
-        const emptyCheckbox =
-          element.getAttribute("role") === "checkbox" && !hasVisibleText;
+        const emptyCheckbox = element.getAttribute("role") === "checkbox" && !hasVisibleText;
 
         return (
           !emptyCheckbox &&
           !overflowAllowed &&
-          (exceedsViewport ||
-            (exceedsOwnWidth && style.display !== "inline" && hasVisibleText))
+          (exceedsViewport || (exceedsOwnWidth && style.display !== "inline" && hasVisibleText))
         );
       })
       .slice(0, 20)
@@ -109,9 +102,7 @@ async function expectNoLayoutOverflow(page: Page): Promise<void> {
   });
 }
 
-test("English light application shell meets automated accessibility rules", async ({
-  page,
-}) => {
+test("English light application shell meets automated accessibility rules", async ({ page }) => {
   await openApplication(page, {
     language: "en",
     darkMode: false,
@@ -122,9 +113,7 @@ test("English light application shell meets automated accessibility rules", asyn
   await expectNoAccessibilityViolations(page);
   await expectNoLayoutOverflow(page);
 
-  const pageHelp = page.locator(
-    '[data-slot="page-header"] [data-context-help]',
-  );
+  const pageHelp = page.locator('[data-slot="page-header"] [data-context-help]');
   await expect(pageHelp).toHaveCount(1);
   await pageHelp.hover();
   await expect(page.locator('[data-slot="tooltip-content"]')).toContainText(
@@ -160,9 +149,7 @@ test("density toggle changes the full application rhythm", async ({ page }) => {
     page.evaluate(() => {
       const shell = document.querySelector<HTMLElement>(".desktop-shell");
       const header = document.querySelector<HTMLElement>("#main-content > div > header");
-      const sidebarItem = document.querySelector<HTMLElement>(
-        '[data-sidebar="menu-button"]',
-      );
+      const sidebarItem = document.querySelector<HTMLElement>('[data-sidebar="menu-button"]');
       const card = document.querySelector<HTMLElement>('[data-slot="card"]');
       if (!shell || !header || !sidebarItem || !card) {
         throw new Error("density fixtures are not rendered");
@@ -209,9 +196,7 @@ test("density toggle changes the full application rhythm", async ({ page }) => {
   });
 });
 
-test("toolbar appearance and language buttons update the application state", async ({
-  page,
-}) => {
+test("toolbar appearance and language buttons update the application state", async ({ page }) => {
   await openApplication(page, {
     language: "en",
     darkMode: false,
@@ -222,9 +207,7 @@ test("toolbar appearance and language buttons update the application state", asy
 
   await page.getByRole("button", { name: "Dark mode", exact: true }).click();
   await expect(page.locator("html")).toHaveClass(/\bdark\b/u);
-  await expect(
-    page.getByRole("button", { name: "Light mode", exact: true }),
-  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Light mode", exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "简体中文", exact: true }).click();
   await expect(page.getByRole("button", { name: "English", exact: true })).toBeVisible();
@@ -267,9 +250,7 @@ test("deferred product views remain reachable from primary navigation", async ({
   expect(runtimeErrors).toEqual([]);
 });
 
-test("secondary workspace and Agent actions use progressive disclosure", async ({
-  page,
-}) => {
+test("secondary workspace and Agent actions use progressive disclosure", async ({ page }) => {
   await openApplication(page, {
     language: "en",
     darkMode: false,
@@ -384,9 +365,7 @@ test("restored workflow routes render the correct application section", async ({
   }
 });
 
-test("settings and Agent tabs bind selected triggers to their exact panels", async ({
-  page,
-}) => {
+test("settings and Agent tabs bind selected triggers to their exact panels", async ({ page }) => {
   await openApplication(page, {
     language: "en",
     darkMode: false,
@@ -441,14 +420,10 @@ test("sidebar and workspace context keep one clear interactive state", async ({ 
     textScale: 100,
   });
 
-  const activeNavigation = page.locator(
-    '[data-sidebar="menu-button"][data-active="true"]',
-  );
+  const activeNavigation = page.locator('[data-sidebar="menu-button"][data-active="true"]');
   await expect(activeNavigation).toHaveCount(1);
   await expect(activeNavigation).toHaveAttribute("aria-current", "page");
-  await expect(
-    page.locator('[data-sidebar="menu-button"][data-active="false"]'),
-  ).toHaveCount(0);
+  await expect(page.locator('[data-sidebar="menu-button"][data-active="false"]')).toHaveCount(0);
 
   await page.getByRole("button", { name: "Opportunities", exact: true }).click();
   await expect(activeNavigation).toHaveCount(1);

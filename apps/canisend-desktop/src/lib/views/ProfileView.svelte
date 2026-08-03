@@ -59,10 +59,7 @@
       sensitivity: PrivacyClassification;
       confirmedPrivateRead: boolean;
     }) => Promise<boolean>;
-    onLoadEvidence: (
-      jobId: string,
-      confirmedPrivateRead: boolean,
-    ) => Promise<boolean>;
+    onLoadEvidence: (jobId: string, confirmedPrivateRead: boolean) => Promise<boolean>;
     onConfirmEvidence: (
       jobId: string,
       candidate: unknown,
@@ -210,13 +207,7 @@
       formError = copy.privateWorkspaceConsent;
       return;
     }
-    if (
-      await onConfirmEvidence(
-        selectedJobId,
-        evidencePreview.candidate,
-        privateSessionConsent,
-      )
-    ) {
+    if (await onConfirmEvidence(selectedJobId, evidencePreview.candidate, privateSessionConsent)) {
       evidencePreview = null;
     }
   }
@@ -274,7 +265,9 @@
                   bind:value={initializationMarkdown}
                 />
               </div>
-              <div class="rounded-lg border bg-background/70 p-3 text-xs leading-5 text-muted-foreground">
+              <div
+                class="rounded-lg border bg-background/70 p-3 text-xs leading-5 text-muted-foreground"
+              >
                 {copy.profileStorageDescription}
               </div>
               <div class="flex items-start gap-3 rounded-lg border bg-background/70 p-3">
@@ -283,10 +276,7 @@
                   bind:checked={initializationConsent}
                   class="mt-0.5"
                 />
-                <Label
-                  for="profile-initialization-consent"
-                  class="text-xs leading-5 font-normal"
-                >
+                <Label for="profile-initialization-consent" class="text-xs leading-5 font-normal">
                   {copy.profileInitializationConsent}
                 </Label>
               </div>
@@ -313,10 +303,13 @@
               <div>
                 <Card.Title>{copy.profileSources}</Card.Title>
                 <Card.Description class="mt-1.5">
-                  {copy.profileRevision} {profileRevision}
+                  {copy.profileRevision}
+                  {profileRevision}
                 </Card.Description>
               </div>
-              <div class="grid size-10 place-items-center rounded-lg bg-accent text-accent-foreground">
+              <div
+                class="grid size-10 place-items-center rounded-lg bg-accent text-accent-foreground"
+              >
                 <FileText size={18} strokeWidth={1.8} aria-hidden="true" />
               </div>
             </div>
@@ -371,7 +364,12 @@
               <div class="flex gap-2">
                 <Input id="profile-source-file" bind:value={sourcePath} readonly />
                 <Button type="button" variant="outline" class="shrink-0" onclick={chooseSource}>
-                  <FolderOpen size={16} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
+                  <FolderOpen
+                    size={16}
+                    strokeWidth={1.8}
+                    data-icon="inline-start"
+                    aria-hidden="true"
+                  />
                   {copy.chooseFile}
                 </Button>
               </div>
@@ -384,7 +382,9 @@
                 class="w-full"
                 bind:value={sensitivity}
               >
-                <NativeSelect.Option value="private-local">{copy.privateProfileSource}</NativeSelect.Option>
+                <NativeSelect.Option value="private-local"
+                  >{copy.privateProfileSource}</NativeSelect.Option
+                >
                 <NativeSelect.Option value="public">{copy.publicProfileSource}</NativeSelect.Option>
               </NativeSelect.Root>
             </div>
@@ -417,10 +417,14 @@
             <div>
               <Card.Title>{copy.evidenceReview}</Card.Title>
               <Card.Description class="mt-1.5">
-                {evidence ? `${evidence.items.length} ${copy.items} · r${evidence.revision}` : copy.loadEvidenceCandidate}
+                {evidence
+                  ? `${evidence.items.length} ${copy.items} · r${evidence.revision}`
+                  : copy.loadEvidenceCandidate}
               </Card.Description>
             </div>
-            <div class="grid size-10 place-items-center rounded-lg bg-accent text-accent-foreground">
+            <div
+              class="grid size-10 place-items-center rounded-lg bg-accent text-accent-foreground"
+            >
               <FileCheck2 size={18} strokeWidth={1.8} aria-hidden="true" />
             </div>
           </div>
@@ -488,7 +492,8 @@
                   </p>
                 </div>
                 <Badge variant="outline">
-                  {evidencePreview.diff.totalChanges} {copy.changedFields}
+                  {evidencePreview.diff.totalChanges}
+                  {copy.changedFields}
                 </Badge>
               </div>
 
@@ -508,7 +513,9 @@
                     </div>
                   </div>
                 {:else}
-                  <p class="p-[var(--density-panel-padding)] text-xs text-muted-foreground">{copy.noProposalChanges}</p>
+                  <p class="p-[var(--density-panel-padding)] text-xs text-muted-foreground">
+                    {copy.noProposalChanges}
+                  </p>
                 {/each}
               </div>
               {#if evidencePreview.diff.truncated || evidencePreview.diff.comparisonLimited}
@@ -532,7 +539,9 @@
                 </div>
                 <div class="rounded-lg border bg-background p-3">
                   <p class="text-xs font-semibold">{copy.validationAtCommit}</p>
-                  <ul class="mt-2 list-disc space-y-1.5 pl-4 text-xs leading-5 text-muted-foreground">
+                  <ul
+                    class="mt-2 list-disc space-y-1.5 pl-4 text-xs leading-5 text-muted-foreground"
+                  >
                     <li>{copy.validateCandidateSchema}</li>
                     <li>{copy.validateCurrentRevisions}</li>
                     <li>{copy.validateSourceScope}</li>

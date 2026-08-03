@@ -33,14 +33,11 @@ function renderStartupFailure(error: unknown): void {
 }
 
 window.addEventListener("error", (event) => renderStartupFailure(event.error ?? event.message));
-window.addEventListener("unhandledrejection", (event) =>
-  renderStartupFailure(event.reason),
-);
+window.addEventListener("unhandledrejection", (event) => renderStartupFailure(event.reason));
 
 async function mountRoot(): Promise<void> {
   const galleryRequested =
-    import.meta.env.DEV &&
-    new URLSearchParams(window.location.search).get("ui-system") === "1";
+    import.meta.env.DEV && new URLSearchParams(window.location.search).get("ui-system") === "1";
   const Root = galleryRequested
     ? (await import("$lib/components/patterns/UiSystemGallery.svelte")).default
     : App;

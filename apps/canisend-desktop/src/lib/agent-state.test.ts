@@ -1,9 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import type {
-  AgentAssistanceReadModel,
-  AgentSkillsStatusReadModel,
-} from "./bridge";
+import type { AgentAssistanceReadModel, AgentSkillsStatusReadModel } from "./bridge";
 import {
   agentUiState,
   scopeAgentUiState,
@@ -46,11 +43,8 @@ describe("Agent UI architecture boundary", () => {
     agentUiState.selectedJobId = "019f4876-016d-7b41-b959-f4f2543ffd9f";
     agentUiState.prompt = "Private draft prompt";
     agentUiState.confirmedProviderSend = true;
-    agentUiState.messages = [
-      { id: 1, role: "assistant", text: "Private rendered response" },
-    ];
-    agentUiState.activeConversationKey =
-      "claude:019f4876-016d-7b41-b959-f4f2543ffd9f";
+    agentUiState.messages = [{ id: 1, role: "assistant", text: "Private rendered response" }];
+    agentUiState.activeConversationKey = "claude:019f4876-016d-7b41-b959-f4f2543ffd9f";
     agentUiState.conversationCache = {
       "claude:workspace": {
         prompt: "Cached prompt",
@@ -92,9 +86,7 @@ describe("Agent UI architecture boundary", () => {
     switchAgentConversationScope("codex", "job-a");
 
     expect(agentUiState.assistance).toBe(assistance);
-    expect(agentUiState.messages).toEqual([
-      { id: 1, role: "assistant", text: "Codex state" },
-    ]);
+    expect(agentUiState.messages).toEqual([{ id: 1, role: "assistant", text: "Codex state" }]);
   });
 
   it("preserves workspace-scoped Skill status while changing application scope", () => {
@@ -133,8 +125,6 @@ describe("Agent UI architecture boundary", () => {
 
     expect(agentUiState.assistance).toBeNull();
     expect(agentUiState.prompt).toBe("Continue application A");
-    expect(agentUiState.messages).toEqual([
-      { id: 1, role: "user", text: "Application A" },
-    ]);
+    expect(agentUiState.messages).toEqual([{ id: 1, role: "user", text: "Application A" }]);
   });
 });

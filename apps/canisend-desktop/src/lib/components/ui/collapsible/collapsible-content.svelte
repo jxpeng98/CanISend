@@ -14,7 +14,7 @@
 	data-slot="collapsible-content"
 	class={cn(
 		"data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-top-1 data-[state=open]:duration-200 motion-reduce:animate-none",
-		className
+		className,
 	)}
 	{...restProps}
 />

@@ -2,10 +2,7 @@ import type { ApplicationDossierReadModel } from "$lib/bridge";
 
 const DAY_MILLIS = 24 * 60 * 60 * 1_000;
 
-export function daysUntilDeadline(
-  deadline: string | null,
-  today = new Date(),
-): number | null {
+export function daysUntilDeadline(deadline: string | null, today = new Date()): number | null {
   if (!deadline || !/^\d{4}-\d{2}-\d{2}$/.test(deadline)) return null;
   const [year, month, day] = deadline.split("-").map(Number);
   if (year === undefined || month === undefined || day === undefined) return null;
@@ -18,11 +15,7 @@ export function daysUntilDeadline(
   ) {
     return null;
   }
-  const todayUtc = Date.UTC(
-    today.getFullYear(),
-    today.getMonth(),
-    today.getDate(),
-  );
+  const todayUtc = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
   return Math.round((deadlineUtc - todayUtc) / DAY_MILLIS);
 }
 

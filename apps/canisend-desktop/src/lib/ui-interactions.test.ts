@@ -31,9 +31,7 @@ describe("shadcn-svelte interaction contract", () => {
     overview.focus();
     await user.keyboard("{ArrowRight}");
 
-    expect(
-      screen.getByRole("tab", { name: "Review" }).getAttribute("aria-selected"),
-    ).toBe("true");
+    expect(screen.getByRole("tab", { name: "Review" }).getAttribute("aria-selected")).toBe("true");
     expect(screen.getByText("Review panel")).toBeTruthy();
   });
 

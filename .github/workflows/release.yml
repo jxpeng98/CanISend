@@ -136,6 +136,40 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Install pinned pnpm for source gates
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.17.0
+          run_install: false
+
+      - name: Install pinned Node.js for source gates
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 26.5.0
+          cache: pnpm
+          cache-dependency-path: apps/canisend-desktop/pnpm-lock.yaml
+
+      - name: Install locked desktop UI dependencies for source gates
+        run: pnpm --dir apps/canisend-desktop install --frozen-lockfile
+
+      - name: Check desktop UI formatting for release
+        run: pnpm --dir apps/canisend-desktop format:check
+
+      - name: Check Svelte and TypeScript for release
+        run: pnpm --dir apps/canisend-desktop check
+
+      - name: Run desktop UI unit tests for release
+        run: pnpm --dir apps/canisend-desktop test
+
+      - name: Build production desktop UI for release
+        run: pnpm --dir apps/canisend-desktop build
+
+      - name: Install Chrome for accessibility source gate
+        run: pnpm --dir apps/canisend-desktop exec playwright install --with-deps chrome
+
+      - name: Run critical browser accessibility checks for release
+        run: pnpm --dir apps/canisend-desktop test:accessibility
+
       - name: Install pinned Rust toolchain
         uses: dtolnay/rust-toolchain@1.97.0
 

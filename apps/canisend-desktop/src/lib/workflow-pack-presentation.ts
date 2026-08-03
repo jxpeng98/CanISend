@@ -1,7 +1,4 @@
-import type {
-  DocumentKind,
-  WorkflowPackPresentationReadModel,
-} from "./bridge";
+import type { DocumentKind, WorkflowPackPresentationReadModel } from "./bridge";
 
 export interface PackTaskOperationOption {
   id: string;
@@ -12,10 +9,7 @@ export function workflowStageLabel(
   presentation: WorkflowPackPresentationReadModel | null,
   stage: string,
 ): string {
-  return (
-    presentation?.stages.find((candidate) => candidate.id === stage)?.label.value ??
-    stage
-  );
+  return presentation?.stages.find((candidate) => candidate.id === stage)?.label.value ?? stage;
 }
 
 export function deliverablePresentationLabel(
@@ -23,8 +17,7 @@ export function deliverablePresentationLabel(
   kind: DocumentKind,
 ): string {
   return (
-    presentation?.deliverables.find((deliverable) => deliverable.id === kind)?.label
-      .value ?? kind
+    presentation?.deliverables.find((deliverable) => deliverable.id === kind)?.label.value ?? kind
   );
 }
 

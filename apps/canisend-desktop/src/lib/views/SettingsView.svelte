@@ -67,9 +67,7 @@
       destination?: string;
       confirmedTerminalInstall: boolean;
     }) => Promise<CliInstallStatus | null>;
-    onCheckUpdates: (
-      confirmedNetworkFetch: boolean,
-    ) => Promise<UpdateCheckReadModel | null>;
+    onCheckUpdates: (confirmedNetworkFetch: boolean) => Promise<UpdateCheckReadModel | null>;
     onLoadCatalog: () => Promise<InspectionCatalogReadModel | null>;
     onLoadSchema: (query: string) => Promise<unknown | null>;
     onLoadResource: (query: string) => Promise<unknown | null>;
@@ -188,8 +186,7 @@
   }
 
   async function chooseCatalogDestination(): Promise<void> {
-    catalogDestination =
-      (await chooseExportDirectory()) ?? catalogDestination;
+    catalogDestination = (await chooseExportDirectory()) ?? catalogDestination;
   }
 
   async function exportCatalog(): Promise<void> {
@@ -238,8 +235,7 @@
               size="desktop"
               class="w-full"
               value={language}
-              onchange={(event) =>
-                onLanguageChange(event.currentTarget.value as "en" | "zh-CN")}
+              onchange={(event) => onLanguageChange(event.currentTarget.value as "en" | "zh-CN")}
             >
               <NativeSelect.Option value="en">{copy.english}</NativeSelect.Option>
               <NativeSelect.Option value="zh-CN">{copy.simplifiedChinese}</NativeSelect.Option>
@@ -290,7 +286,10 @@
                 </Item.Title>
               </Item.Content>
             </Item.Root>
-            <Item.Root variant="muted" class="items-start gap-3 p-[var(--density-panel-padding)] md:col-span-2">
+            <Item.Root
+              variant="muted"
+              class="items-start gap-3 p-[var(--density-panel-padding)] md:col-span-2"
+            >
               <Item.Media>
                 <Switch
                   id="appearance-motion"
@@ -315,7 +314,9 @@
               <Card.Title>{copy.legalNotice}</Card.Title>
               <Card.Description class="mt-1.5">{copy.legalDescription}</Card.Description>
             </div>
-            <div class="grid size-10 place-items-center rounded-lg bg-accent text-accent-foreground">
+            <div
+              class="grid size-10 place-items-center rounded-lg bg-accent text-accent-foreground"
+            >
               <ShieldCheck size={18} strokeWidth={1.8} aria-hidden="true" />
             </div>
           </div>
@@ -326,9 +327,7 @@
           <p>{copy.warrantyNotice}</p>
           <div class="rounded-lg border bg-muted/20 p-[var(--density-panel-padding)]">
             <p class="text-xs text-muted-foreground">{copy.sourceCodeNotice}</p>
-            <p class="mt-2 break-all font-mono text-xs">
-              https://github.com/jxpeng98/CanISend
-            </p>
+            <p class="mt-2 break-all font-mono text-xs">https://github.com/jxpeng98/CanISend</p>
           </div>
           <Badge variant="outline">GPL-3.0-only</Badge>
         </Card.Content>
@@ -345,7 +344,9 @@
                 {cliStatus?.state ?? copy.checkCli}
               </Card.Description>
             </div>
-            <div class="grid size-10 place-items-center rounded-lg bg-accent text-accent-foreground">
+            <div
+              class="grid size-10 place-items-center rounded-lg bg-accent text-accent-foreground"
+            >
               <Terminal size={18} strokeWidth={1.8} aria-hidden="true" />
             </div>
           </div>
@@ -361,36 +362,46 @@
               <Item.Root variant="outline" class="items-start p-[var(--density-panel-padding)]">
                 <Item.Content>
                   <Item.Title class="text-xs text-muted-foreground">{copy.status}</Item.Title>
-                  <Item.Description class="text-sm font-semibold text-foreground">{cliStatus.state}</Item.Description>
+                  <Item.Description class="text-sm font-semibold text-foreground"
+                    >{cliStatus.state}</Item.Description
+                  >
                 </Item.Content>
               </Item.Root>
               <Item.Root variant="outline" class="items-start p-[var(--density-panel-padding)]">
                 <Item.Content>
                   <Item.Title class="text-xs text-muted-foreground">{copy.bundledCli}</Item.Title>
-                  <Item.Description class="text-sm font-semibold text-foreground">{cliStatus.bundled_version}</Item.Description>
+                  <Item.Description class="text-sm font-semibold text-foreground"
+                    >{cliStatus.bundled_version}</Item.Description
+                  >
                 </Item.Content>
               </Item.Root>
               <Item.Root variant="outline" class="items-start p-[var(--density-panel-padding)]">
                 <Item.Content>
                   <Item.Title class="text-xs text-muted-foreground">{copy.installedCli}</Item.Title>
-                  <Item.Description class="text-sm font-semibold text-foreground">{cliStatus.installed_version ?? "—"}</Item.Description>
+                  <Item.Description class="text-sm font-semibold text-foreground"
+                    >{cliStatus.installed_version ?? "—"}</Item.Description
+                  >
                 </Item.Content>
               </Item.Root>
               <Item.Root variant="outline" class="items-start p-[var(--density-panel-padding)]">
                 <Item.Content>
-                  <Item.Title class="text-xs text-muted-foreground">{copy.pathConfigured}</Item.Title>
+                  <Item.Title class="text-xs text-muted-foreground"
+                    >{copy.pathConfigured}</Item.Title
+                  >
                   <Item.Description class="text-sm font-semibold text-foreground">
-                  {cliStatus.path_active
-                    ? copy.pathActive
-                    : cliStatus.path_configured
-                      ? copy.pathPending
-                      : copy.pathNotConfigured}
+                    {cliStatus.path_active
+                      ? copy.pathActive
+                      : cliStatus.path_configured
+                        ? copy.pathPending
+                        : copy.pathNotConfigured}
                   </Item.Description>
                 </Item.Content>
               </Item.Root>
             </Item.Group>
             {#if !cliStatus.path_configured}
-              <div class="flex flex-col justify-between gap-3 rounded-lg border border-primary/25 bg-primary/5 p-[var(--density-panel-padding)] md:flex-row md:items-center">
+              <div
+                class="flex flex-col justify-between gap-3 rounded-lg border border-primary/25 bg-primary/5 p-[var(--density-panel-padding)] md:flex-row md:items-center"
+              >
                 <div>
                   <p class="text-sm font-semibold">{copy.addToPath}</p>
                   <p class="mt-1 text-xs leading-5 text-muted-foreground">
@@ -483,7 +494,9 @@
                 {update?.channel ?? copy.updateConsent}
               </Card.Description>
             </div>
-            <div class="grid size-10 place-items-center rounded-lg bg-accent text-accent-foreground">
+            <div
+              class="grid size-10 place-items-center rounded-lg bg-accent text-accent-foreground"
+            >
               <PackageCheck size={18} strokeWidth={1.8} aria-hidden="true" />
             </div>
           </div>
@@ -514,7 +527,8 @@
               </Item.Root>
               <Item.Root variant="outline" class="items-start p-[var(--density-panel-padding)]">
                 <Item.Content>
-                  <Item.Title class="text-xs text-muted-foreground">{copy.latestVersion}</Item.Title>
+                  <Item.Title class="text-xs text-muted-foreground">{copy.latestVersion}</Item.Title
+                  >
                   <Item.Description class="text-lg font-semibold text-foreground">
                     {update.latest_version}
                   </Item.Description>
@@ -524,7 +538,7 @@
                 <Item.Content>
                   <Item.Title class="text-xs text-muted-foreground">{copy.status}</Item.Title>
                   <Item.Description class="text-lg font-semibold text-foreground">
-                  {update.update_available ? copy.updateAvailable : copy.upToDate}
+                    {update.update_available ? copy.updateAvailable : copy.upToDate}
                   </Item.Description>
                 </Item.Content>
               </Item.Root>
@@ -541,7 +555,9 @@
     </Tabs.Content>
 
     <Tabs.Content value="inspection" class="pt-[var(--density-section-gap)]">
-      <div class="grid gap-[var(--density-section-gap)] xl:grid-cols-[minmax(340px,0.85fr)_minmax(0,1.15fr)]">
+      <div
+        class="grid gap-[var(--density-section-gap)] xl:grid-cols-[minmax(340px,0.85fr)_minmax(0,1.15fr)]"
+      >
         <Card.Root>
           <Card.Header>
             <div class="flex items-start justify-between gap-[var(--density-section-gap)]">
@@ -551,7 +567,9 @@
                   {(catalog?.schemas.schemas.length ?? 0) + (catalog?.resources.length ?? 0)}
                 </Card.Description>
               </div>
-              <div class="grid size-10 place-items-center rounded-lg bg-accent text-accent-foreground">
+              <div
+                class="grid size-10 place-items-center rounded-lg bg-accent text-accent-foreground"
+              >
                 <Boxes size={18} strokeWidth={1.8} aria-hidden="true" />
               </div>
             </div>
@@ -627,7 +645,12 @@
               <div class="flex gap-2">
                 <Input bind:value={catalogDestination} />
                 <Button variant="outline" class="shrink-0" onclick={chooseCatalogDestination}>
-                  <FolderOpen size={16} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
+                  <FolderOpen
+                    size={16}
+                    strokeWidth={1.8}
+                    data-icon="inline-start"
+                    aria-hidden="true"
+                  />
                   {copy.chooseDirectory}
                 </Button>
               </div>

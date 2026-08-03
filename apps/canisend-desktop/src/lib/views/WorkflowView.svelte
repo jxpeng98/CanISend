@@ -48,14 +48,8 @@
     type JsonDiffSummary,
     type RevisionReferenceSummary,
   } from "$lib/proposal-review";
-  import type {
-    WorkflowDetail,
-    WorkflowRoute,
-  } from "$lib/workflow-navigation";
-  import {
-    packTaskOperationOptions,
-    workflowStageLabel,
-  } from "$lib/workflow-pack-presentation";
+  import type { WorkflowDetail, WorkflowRoute } from "$lib/workflow-navigation";
+  import { packTaskOperationOptions, workflowStageLabel } from "$lib/workflow-pack-presentation";
 
   type DecisionKind = "evidence" | "criteria" | "matches" | "plan";
 
@@ -85,9 +79,7 @@
       jobId: string,
       stage: WorkflowStage,
     ) => Promise<WorkflowRerunPreviewReadModel | null>;
-    onCommitRerun: (
-      previewToken: string,
-    ) => Promise<WorkflowControlReadModel | null>;
+    onCommitRerun: (previewToken: string) => Promise<WorkflowControlReadModel | null>;
     onDiscardPreview: (previewToken: string) => Promise<boolean>;
     onLoadDecision: (
       jobId: string,
@@ -117,15 +109,9 @@
       file: string;
       confirmedPrivateRead: boolean;
     }) => Promise<TaskCompletionPreviewReadModel | null>;
-    onCommitTaskCompletion: (
-      previewToken: string,
-      jobId: string,
-    ) => Promise<TaskStateData | null>;
+    onCommitTaskCompletion: (previewToken: string, jobId: string) => Promise<TaskStateData | null>;
     onCancelTask: (taskId: string) => Promise<TaskStateData | null>;
-    onPrepareTaskAgain: (
-      taskId: string,
-      jobId: string,
-    ) => Promise<TaskStateData | null>;
+    onPrepareTaskAgain: (taskId: string, jobId: string) => Promise<TaskStateData | null>;
   };
 
   let {
@@ -222,10 +208,7 @@
   );
 
   $effect(() => {
-    if (
-      selectedDescriptor &&
-      !selectedDescriptor.execution_modes.includes(executionMode)
-    ) {
+    if (selectedDescriptor && !selectedDescriptor.execution_modes.includes(executionMode)) {
       executionMode = selectedDescriptor.execution_modes[0] ?? "host-agent";
     }
   });
@@ -254,11 +237,7 @@
       formError = copy.artifactId;
       return;
     }
-    workflow = await onCompleteStage(
-      selectedJobId,
-      selectedStage,
-      artifactId.trim(),
-    );
+    workflow = await onCompleteStage(selectedJobId, selectedStage, artifactId.trim());
     if (workflow) artifactId = "";
   }
 
@@ -293,12 +272,7 @@
       formError = copy.privateWorkspaceConsent;
       return;
     }
-    const data = await onLoadDecision(
-      selectedJobId,
-      decisionKind,
-      current,
-      privateSessionConsent,
-    );
+    const data = await onLoadDecision(selectedJobId, decisionKind, current, privateSessionConsent);
     if (data !== null) {
       decisionJson = JSON.stringify(data, null, 2);
       decisionBaseline = data;
@@ -376,13 +350,11 @@
   }
 
   async function chooseTaskDestination(): Promise<void> {
-    taskExportDestination =
-      (await chooseExportDirectory()) ?? taskExportDestination;
+    taskExportDestination = (await chooseExportDirectory()) ?? taskExportDestination;
   }
 
   async function chooseCompletion(): Promise<void> {
-    taskCompletionFile =
-      (await chooseTaskCompletion()) ?? taskCompletionFile;
+    taskCompletionFile = (await chooseTaskCompletion()) ?? taskCompletionFile;
   }
 
   async function exportInputs(): Promise<void> {
@@ -413,10 +385,7 @@
 
   async function commitCompletion(): Promise<void> {
     if (!taskCompletionPreview) return;
-    const next = await onCommitTaskCompletion(
-      taskCompletionPreview.preview_token,
-      selectedJobId,
-    );
+    const next = await onCommitTaskCompletion(taskCompletionPreview.preview_token, selectedJobId);
     if (next) {
       task = next;
       taskCompletionPreview = null;
@@ -496,10 +465,7 @@
   {:else}
     <Tabs.Root bind:value={section}>
       <Tabs.List class="responsive-tabs max-w-2xl" data-columns="3">
-        <Tabs.Trigger
-          value="workflow"
-          onclick={() => navigateWithinWorkflow("workflow-stages")}
-        >
+        <Tabs.Trigger value="workflow" onclick={() => navigateWithinWorkflow("workflow-stages")}>
           {copy.workflowStages}
         </Tabs.Trigger>
         <Tabs.Trigger
@@ -508,10 +474,7 @@
         >
           {copy.decisions}
         </Tabs.Trigger>
-        <Tabs.Trigger
-          value="task"
-          onclick={() => navigateWithinWorkflow("agent-task")}
-        >
+        <Tabs.Trigger value="task" onclick={() => navigateWithinWorkflow("agent-task")}>
           {copy.taskCenter}
         </Tabs.Trigger>
       </Tabs.List>
@@ -533,7 +496,9 @@
         </div>
 
         {#if workflow}
-          <div class="grid gap-[var(--density-section-gap)] xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
+          <div
+            class="grid gap-[var(--density-section-gap)] xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]"
+          >
             <Card.Root>
               <Card.Header>
                 <Card.Title>{copy.workflowStages}</Card.Title>
@@ -556,7 +521,11 @@
                         <span class="text-sm font-semibold">
                           {workflowStageLabel(presentation, stage.stage)}
                         </span>
-                        <Badge variant={stage.status === "blocked" || stage.status === "stale" ? "destructive" : "outline"}>
+                        <Badge
+                          variant={stage.status === "blocked" || stage.status === "stale"
+                            ? "destructive"
+                            : "outline"}
+                        >
                           {stage.status}
                         </Badge>
                       </div>
@@ -594,7 +563,12 @@
                     disabled={busy || !selectedDescriptor?.execution_modes.length}
                     onclick={beginStage}
                   >
-                    <CircleDot size={16} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
+                    <CircleDot
+                      size={16}
+                      strokeWidth={1.8}
+                      data-icon="inline-start"
+                      aria-hidden="true"
+                    />
                     {copy.beginStage}
                   </Button>
                   <Separator />
@@ -608,7 +582,12 @@
                     disabled={busy || !artifactId.trim()}
                     onclick={completeStage}
                   >
-                    <CheckCircle2 size={16} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
+                    <CheckCircle2
+                      size={16}
+                      strokeWidth={1.8}
+                      data-icon="inline-start"
+                      aria-hidden="true"
+                    />
                     {copy.completeStage}
                   </Button>
                   <Button
@@ -617,7 +596,12 @@
                     disabled={busy || selectedStage === "intake"}
                     onclick={previewRerun}
                   >
-                    <RotateCcw size={16} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
+                    <RotateCcw
+                      size={16}
+                      strokeWidth={1.8}
+                      data-icon="inline-start"
+                      aria-hidden="true"
+                    />
                     {copy.rerunStage}
                   </Button>
                 </Card.Content>
@@ -645,7 +629,9 @@
             <Card.Content>
               <Empty.Root class="min-h-32">
                 <Empty.Header>
-                  <Empty.Media variant="icon"><GitBranch size={22} strokeWidth={1.8} aria-hidden="true" /></Empty.Media>
+                  <Empty.Media variant="icon"
+                    ><GitBranch size={22} strokeWidth={1.8} aria-hidden="true" /></Empty.Media
+                  >
                   <Empty.Description>{copy.noWorkflow}</Empty.Description>
                 </Empty.Header>
               </Empty.Root>
@@ -654,18 +640,22 @@
         {/if}
       </Tabs.Content>
 
-      <Tabs.Content value="decisions" class="space-y-[var(--density-section-gap)] pt-[var(--density-section-gap)]">
-        <Card.Root
-          id={`decision-${decisionKind}`}
-          class="scroll-mt-64 "
-        >
+      <Tabs.Content
+        value="decisions"
+        class="space-y-[var(--density-section-gap)] pt-[var(--density-section-gap)]"
+      >
+        <Card.Root id={`decision-${decisionKind}`} class="scroll-mt-64 ">
           <Card.Header>
             <Card.Title>{copy.decisions}</Card.Title>
             <Card.Description>{copy.privateWorkspaceConsent}</Card.Description>
           </Card.Header>
           <Card.Content class="space-y-[var(--density-section-gap)]">
             <div class="flex items-start gap-3 rounded-lg border bg-muted/20 p-3">
-              <Checkbox id="workflow-private-session" bind:checked={privateSessionConsent} class="mt-0.5" />
+              <Checkbox
+                id="workflow-private-session"
+                bind:checked={privateSessionConsent}
+                class="mt-0.5"
+              />
               <Label for="workflow-private-session" class="text-xs leading-5 font-normal">
                 <span class="flex items-center gap-2">
                   <ShieldCheck size={14} strokeWidth={1.8} aria-hidden="true" />
@@ -673,7 +663,9 @@
                 </span>
               </Label>
             </div>
-            <div class="grid gap-[var(--density-section-gap)] lg:grid-cols-[220px_auto_auto_1fr] lg:items-end">
+            <div
+              class="grid gap-[var(--density-section-gap)] lg:grid-cols-[220px_auto_auto_1fr] lg:items-end"
+            >
               <div class="space-y-2">
                 <Label for="decision-kind">{copy.decisions}</Label>
                 <NativeSelect.Root
@@ -748,7 +740,8 @@
                     </p>
                   </div>
                   <Badge variant="outline">
-                    {decisionPreview.diff.totalChanges} {copy.changedFields}
+                    {decisionPreview.diff.totalChanges}
+                    {copy.changedFields}
                   </Badge>
                 </div>
 
@@ -778,7 +771,9 @@
                       </div>
                     </div>
                   {:else}
-                    <p class="p-[var(--density-panel-padding)] text-xs text-muted-foreground">{copy.noProposalChanges}</p>
+                    <p class="p-[var(--density-panel-padding)] text-xs text-muted-foreground">
+                      {copy.noProposalChanges}
+                    </p>
                   {/each}
                 </div>
                 {#if decisionPreview.diff.truncated || decisionPreview.diff.comparisonLimited}
@@ -802,7 +797,9 @@
                   </div>
                   <div class="rounded-lg border bg-background p-3">
                     <p class="text-xs font-semibold">{copy.validationAtCommit}</p>
-                    <ul class="mt-2 list-disc space-y-1.5 pl-4 text-xs leading-5 text-muted-foreground">
+                    <ul
+                      class="mt-2 list-disc space-y-1.5 pl-4 text-xs leading-5 text-muted-foreground"
+                    >
                       <li>{copy.validateCandidateSchema}</li>
                       <li>{copy.validateCurrentRevisions}</li>
                       <li>{copy.validateSourceScope}</li>
@@ -821,11 +818,7 @@
                   <Button variant="outline" disabled={busy} onclick={editDecision}>
                     {copy.editProposal}
                   </Button>
-                  <Button
-                    class="min-h-9"
-                    disabled={busy}
-                    onclick={confirmDecision}
-                  >
+                  <Button class="min-h-9" disabled={busy} onclick={confirmDecision}>
                     {copy.confirmCandidate}
                   </Button>
                 </div>
@@ -843,7 +836,9 @@
           focus === "agent-task" ? "rounded-lg ring-2 ring-primary/25" : "",
         ]}
       >
-        <div class="grid gap-[var(--density-section-gap)] xl:grid-cols-[minmax(320px,0.8fr)_minmax(0,1.2fr)]">
+        <div
+          class="grid gap-[var(--density-section-gap)] xl:grid-cols-[minmax(320px,0.8fr)_minmax(0,1.2fr)]"
+        >
           <div class="space-y-[var(--density-section-gap)]">
             <Card.Root>
               <Card.Header>
@@ -860,7 +855,9 @@
                     bind:value={taskOperation}
                   >
                     {#each taskOperationOptions as operation (operation.id)}
-                      <NativeSelect.Option value={operation.id}>{operation.label}</NativeSelect.Option>
+                      <NativeSelect.Option value={operation.id}
+                        >{operation.label}</NativeSelect.Option
+                      >
                     {/each}
                   </NativeSelect.Root>
                 </div>
@@ -873,7 +870,9 @@
                     bind:value={taskMode}
                   >
                     <NativeSelect.Option value="host-agent">host-agent</NativeSelect.Option>
-                    <NativeSelect.Option value="configured-provider">configured-provider</NativeSelect.Option>
+                    <NativeSelect.Option value="configured-provider"
+                      >configured-provider</NativeSelect.Option
+                    >
                   </NativeSelect.Root>
                 </div>
                 <div class="flex flex-wrap gap-2">
@@ -921,8 +920,7 @@
                     {#if task.status === "committed" && task.result}
                       <Button
                         disabled={busy}
-                        onclick={() =>
-                          task && void onOpenTaskResult(task.descriptor.operation)}
+                        onclick={() => task && void onOpenTaskResult(task.descriptor.operation)}
                       >
                         {copy.openAgentResult}
                       </Button>
@@ -959,22 +957,39 @@
                 <div class="space-y-2">
                   <Label for="task-export-destination">{copy.exportDestination}</Label>
                   <div class="flex gap-2">
-                    <Input id="task-export-destination" bind:value={taskExportDestination} readonly />
+                    <Input
+                      id="task-export-destination"
+                      bind:value={taskExportDestination}
+                      readonly
+                    />
                     <Button variant="outline" class="shrink-0" onclick={chooseTaskDestination}>
-                      <FolderOpen size={16} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
+                      <FolderOpen
+                        size={16}
+                        strokeWidth={1.8}
+                        data-icon="inline-start"
+                        aria-hidden="true"
+                      />
                       {copy.chooseDirectory}
                     </Button>
                   </div>
                 </div>
                 <div class="flex items-start gap-3 rounded-lg border bg-muted/20 p-3">
-                  <Checkbox id="task-private-consent" bind:checked={taskPrivateConsent} class="mt-0.5" />
+                  <Checkbox
+                    id="task-private-consent"
+                    bind:checked={taskPrivateConsent}
+                    class="mt-0.5"
+                  />
                   <Label for="task-private-consent" class="text-xs leading-5 font-normal">
                     {copy.privateWorkspaceConsent}
                   </Label>
                 </div>
                 {#if taskMode === "configured-provider" || task?.descriptor.execution_mode === "configured-provider"}
                   <div class="flex items-start gap-3 rounded-lg border bg-muted/20 p-3">
-                    <Checkbox id="task-provider-consent" bind:checked={providerSendConsent} class="mt-0.5" />
+                    <Checkbox
+                      id="task-provider-consent"
+                      bind:checked={providerSendConsent}
+                      class="mt-0.5"
+                    />
                     <Label for="task-provider-consent" class="text-xs leading-5 font-normal">
                       {copy.providerSendConsent}
                     </Label>
@@ -982,7 +997,11 @@
                 {/if}
                 <Button
                   class="min-h-9"
-                  disabled={!desktopRuntime || busy || !task || !taskExportDestination || !taskPrivateConsent}
+                  disabled={!desktopRuntime ||
+                    busy ||
+                    !task ||
+                    !taskExportDestination ||
+                    !taskPrivateConsent}
                   onclick={exportInputs}
                 >
                   {copy.exportInputs}
@@ -1001,7 +1020,12 @@
                   <div class="flex gap-2">
                     <Input id="task-completion-file" bind:value={taskCompletionFile} readonly />
                     <Button variant="outline" class="shrink-0" onclick={chooseCompletion}>
-                      <FileJson size={16} strokeWidth={1.8} data-icon="inline-start" aria-hidden="true" />
+                      <FileJson
+                        size={16}
+                        strokeWidth={1.8}
+                        data-icon="inline-start"
+                        aria-hidden="true"
+                      />
                       {copy.chooseFile}
                     </Button>
                   </div>
@@ -1049,32 +1073,40 @@
                           {copy.declaredInputs}
                         </p>
                         <p class="mt-1 font-mono text-xs">
-                          {taskCompletionPreview.preview.data.state.descriptor.input_artifacts.length}
+                          {taskCompletionPreview.preview.data.state.descriptor.input_artifacts
+                            .length}
                         </p>
                       </div>
                     </div>
                     <Accordion.Root type="single">
-                      <Accordion.Item value="revision-provenance" class="rounded-lg border bg-background px-3">
+                      <Accordion.Item
+                        value="revision-provenance"
+                        class="rounded-lg border bg-background px-3"
+                      >
                         <Accordion.Trigger level={2} class="text-xs font-semibold">
                           {copy.revisionProvenance}
                         </Accordion.Trigger>
                         <Accordion.Content class="space-y-2 pb-3">
-                        {#each taskCompletionPreview.preview.data.state.descriptor.input_artifacts as artifact (`${artifact.id}:${artifact.revision}`)}
-                          <p class="break-all font-mono text-[10px] leading-4 text-muted-foreground">
-                            {artifact.kind} · {artifact.id} · r{artifact.revision} · {artifact.sha256}
-                          </p>
-                        {:else}
-                          <p class="text-xs text-muted-foreground">
-                            {copy.noEmbeddedRevisionReferences}
-                          </p>
-                        {/each}
+                          {#each taskCompletionPreview.preview.data.state.descriptor.input_artifacts as artifact (`${artifact.id}:${artifact.revision}`)}
+                            <p
+                              class="break-all font-mono text-[10px] leading-4 text-muted-foreground"
+                            >
+                              {artifact.kind} · {artifact.id} · r{artifact.revision} · {artifact.sha256}
+                            </p>
+                          {:else}
+                            <p class="text-xs text-muted-foreground">
+                              {copy.noEmbeddedRevisionReferences}
+                            </p>
+                          {/each}
                         </Accordion.Content>
                       </Accordion.Item>
                     </Accordion.Root>
                     <div class="grid gap-3 lg:grid-cols-2">
                       <div class="rounded-lg border bg-background p-3">
                         <p class="text-xs font-semibold">{copy.validationAtCommit}</p>
-                        <ul class="mt-2 list-disc space-y-1.5 pl-4 text-xs leading-5 text-muted-foreground">
+                        <ul
+                          class="mt-2 list-disc space-y-1.5 pl-4 text-xs leading-5 text-muted-foreground"
+                        >
                           <li>{copy.validateCandidateSchema}</li>
                           <li>{copy.validateCurrentRevisions}</li>
                           <li>{copy.validateTaskLease}</li>
@@ -1090,7 +1122,11 @@
                     <p class="text-xs leading-5 text-muted-foreground">
                       {copy.reviewExactCompletion}
                     </p>
-                    <Button class="mt-[var(--density-section-gap)] min-h-9" disabled={busy} onclick={commitCompletion}>
+                    <Button
+                      class="mt-[var(--density-section-gap)] min-h-9"
+                      disabled={busy}
+                      onclick={commitCompletion}
+                    >
                       {copy.commitCompletion}
                     </Button>
                   </Page.Panel>

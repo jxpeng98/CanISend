@@ -8,21 +8,28 @@
 		variants: {
 			variant: {
 				default: "bg-primary text-primary-foreground hover:bg-primary/90",
-				outline: "border-border bg-background hover:bg-muted hover:text-foreground dark:bg-transparent dark:border-border dark:hover:bg-muted aria-expanded:bg-muted aria-expanded:text-foreground",
-				secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80 aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
-				ghost: "hover:bg-muted hover:text-foreground dark:hover:bg-muted/50 aria-expanded:bg-muted aria-expanded:text-foreground",
-				destructive: "bg-destructive/10 hover:bg-destructive/20 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/20 text-destructive focus-visible:border-destructive/40 dark:hover:bg-destructive/30",
+				outline:
+					"border-border bg-background hover:bg-muted hover:text-foreground dark:bg-transparent dark:border-border dark:hover:bg-muted aria-expanded:bg-muted aria-expanded:text-foreground",
+				secondary:
+					"bg-secondary text-secondary-foreground hover:bg-secondary/80 aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
+				ghost:
+					"hover:bg-muted hover:text-foreground dark:hover:bg-muted/50 aria-expanded:bg-muted aria-expanded:text-foreground",
+				destructive:
+					"bg-destructive/10 hover:bg-destructive/20 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/20 text-destructive focus-visible:border-destructive/40 dark:hover:bg-destructive/30",
 				link: "text-primary underline-offset-4 hover:underline",
 			},
 			size: {
-				default: "min-h-(--control-height) gap-1.5 px-(--control-inline) py-1.5 has-data-[icon=inline-end]:pr-2.5 has-data-[icon=inline-start]:pl-2.5",
-				desktop: "min-h-(--control-height) gap-1.5 px-(--control-inline) py-1.5 has-data-[icon=inline-end]:pr-2.5 has-data-[icon=inline-start]:pl-2.5",
+				default:
+					"min-h-(--control-height) gap-1.5 px-(--control-inline) py-1.5 has-data-[icon=inline-end]:pr-2.5 has-data-[icon=inline-start]:pl-2.5",
+				desktop:
+					"min-h-(--control-height) gap-1.5 px-(--control-inline) py-1.5 has-data-[icon=inline-end]:pr-2.5 has-data-[icon=inline-start]:pl-2.5",
 				xs: "min-h-6 gap-1 rounded-md px-2 py-1 text-xs in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3",
 				sm: "min-h-7 gap-1 rounded-md px-2.5 py-1 text-[0.8rem] in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3.5",
 				lg: "min-h-9 gap-1.5 px-2.5 py-1.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2",
 				icon: "size-8",
 				"icon-desktop": "size-(--control-height)",
-				"icon-xs": "size-6 rounded-md in-data-[slot=button-group]:rounded-lg [&_svg:not([class*='size-'])]:size-3",
+				"icon-xs":
+					"size-6 rounded-md in-data-[slot=button-group]:rounded-lg [&_svg:not([class*='size-'])]:size-3",
 				"icon-sm": "size-7 rounded-md in-data-[slot=button-group]:rounded-lg",
 				"icon-lg": "size-9",
 			},

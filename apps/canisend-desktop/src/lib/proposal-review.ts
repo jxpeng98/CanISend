@@ -22,11 +22,7 @@ export interface RevisionReferenceSummary {
 const MAX_COMPARISON_NODES = 10_000;
 const MAX_SUMMARY_CHARS = 160;
 
-export function buildJsonDiff(
-  before: unknown,
-  after: unknown,
-  visibleLimit = 24,
-): JsonDiffSummary {
+export function buildJsonDiff(before: unknown, after: unknown, visibleLimit = 24): JsonDiffSummary {
   const changes: JsonDiffEntry[] = [];
   const stack: Array<{ before: unknown; after: unknown; path: string; depth: number }> = [
     { before, after, path: "/", depth: 0 },
@@ -90,10 +86,7 @@ export function buildJsonDiff(
   };
 }
 
-export function collectRevisionReferences(
-  value: unknown,
-  limit = 12,
-): RevisionReferenceSummary[] {
+export function collectRevisionReferences(value: unknown, limit = 12): RevisionReferenceSummary[] {
   const references: RevisionReferenceSummary[] = [];
   const stack: Array<{ value: unknown; path: string; depth: number }> = [
     { value, path: "/", depth: 0 },

@@ -15,7 +15,7 @@
 	data-slot="item-description"
 	class={cn(
 		"text-left text-sm leading-normal text-muted-foreground group-data-[size=xs]/item:text-xs line-clamp-2 font-normal [&>a]:underline [&>a]:underline-offset-4 [&>a:hover]:text-primary",
-		className
+		className,
 	)}
 	{...restProps}
 >

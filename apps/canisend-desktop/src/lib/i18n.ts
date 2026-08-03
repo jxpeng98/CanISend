@@ -65,16 +65,13 @@ export const messages = {
         "The global application selection keeps every workflow screen in the same context.",
       "attach-source":
         "Add a URL, PDF, or local file through the body-free preview and confirmation boundary.",
-      "build-profile":
-        "Initialize or import reusable evidence before matching it to this job.",
+      "build-profile": "Initialize or import reusable evidence before matching it to this job.",
       "start-workflow":
         "Create the stage graph that connects criteria, evidence, tasks, documents, and delivery.",
-      "continue-workflow":
-        "CanISend selected the first durable stage that is not complete.",
+      "continue-workflow": "CanISend selected the first durable stage that is not complete.",
       "review-delivery":
         "Resolve review findings before packaging or rendering application materials.",
-      complete:
-        "CanISend prepares and exports files but never submits the application.",
+      complete: "CanISend prepares and exports files but never submits the application.",
     },
     today: "Today",
     opportunities: "Opportunities",
@@ -108,8 +105,7 @@ export const messages = {
       "Connect an existing CanISend workspace or create one. The Svelte interface never edits workspace internals directly.",
     openWorkspaces: "Open workspaces",
     diagnostics: "System diagnostics",
-    diagnosticsDescription:
-      "Verify bundled resources, schemas, and the embedded PDF renderer.",
+    diagnosticsDescription: "Verify bundled resources, schemas, and the embedded PDF renderer.",
     runDiagnostics: "Run diagnostics",
     runningDiagnostics: "Running diagnostics…",
     diagnosticsReady: "Diagnostics have not been run in this session.",
@@ -181,8 +177,7 @@ export const messages = {
     migrateWorkspace: "Migrate workspace",
     migrationDescription:
       "Review the body-free migration plan, then create a verified backup before the atomic migration.",
-    migrationConsent:
-      "I reviewed this exact migration digest and authorize the local migration.",
+    migrationConsent: "I reviewed this exact migration digest and authorize the local migration.",
     migrationApplications: "Applications to migrate",
     migrationConflicts: "Managed projection conflicts",
     workspaceListDescription:
@@ -192,8 +187,7 @@ export const messages = {
     removeWorkspace: "Remove shortcut",
     createWorkspaceDescription:
       "Choose a new or empty directory. CanISend creates its private database and managed files there.",
-    connectWorkspaceDescription:
-      "Choose a directory that already contains a CanISend workspace.",
+    connectWorkspaceDescription: "Choose a directory that already contains a CanISend workspace.",
     workspaceHealth: "Workspace health",
     checkIntegrity: "Check integrity",
     createBackup: "Create backup",
@@ -259,8 +253,7 @@ export const messages = {
       "I confirm CanISend may read eligible private artifacts for this one local search and show matching snippets.",
     contentPrivateConsentRequired:
       "Confirm private artifact access before running a full-text search.",
-    contentPrivateQueryRequired:
-      "Enter a query before reading private artifact text.",
+    contentPrivateQueryRequired: "Enter a query before reading private artifact text.",
     contentCatalogItems: "Catalog items",
     contentSearchResults: "Search results",
     contentMetadataEntries: "metadata items",
@@ -603,8 +596,7 @@ export const messages = {
     validationAndBoundary: "Validation and commit boundary",
     inspectContentIdentities: "Inspect content identities and provenance",
     relationships: "relationships",
-    guidanceUnavailable:
-      "Guidance is not loaded. Refresh after selecting an application.",
+    guidanceUnavailable: "Guidance is not loaded. Refresh after selecting an application.",
     agentNextActions: "Agent-proposed next actions",
     openRelatedStep: "Open the exact CanISend step",
     continueInAgent: "Continue with Agent",
@@ -648,10 +640,8 @@ export const messages = {
     skillsIncomplete: "Repair needed",
     skillsUserModified: "User modified",
     skillsUnmanaged: "Unmanaged files",
-    skillsModifiedWarning:
-      "One or more managed Skill files were changed outside CanISend.",
-    skillsUnmanagedWarning:
-      "Skill files exist without a CanISend ownership manifest.",
+    skillsModifiedWarning: "One or more managed Skill files were changed outside CanISend.",
+    skillsUnmanagedWarning: "Skill files exist without a CanISend ownership manifest.",
     skillsPreservedDescription:
       "Automatic update and removal are disabled so your files are not overwritten. Review or move those files before trying again.",
     managedFiles: "managed files",
@@ -681,11 +671,9 @@ export const messages = {
     handoffPrivacy:
       "The generated handoff contains managed workflow skills, paths, IDs, commands, and body-free status only. It does not copy job or profile bodies.",
     controlPlane: "Control plane",
-    controlPlaneDescription:
-      "CanISend · data, revisions, validation, workflow, export",
+    controlPlaneDescription: "CanISend · data, revisions, validation, workflow, export",
     reasoningPlane: "Reasoning plane",
-    reasoningPlaneDescription:
-      "conversation, reasoning, search, host tools",
+    reasoningPlaneDescription: "conversation, reasoning, search, host tools",
     mcpIntegration: "Connect CanISend tools",
     mcpIntegrationDescription:
       "Give the selected host a portable, versioned tool surface over the authoritative workspace.",
@@ -835,8 +823,7 @@ export const messages = {
       "Add this CLI directory to the managed block in your macOS .zprofile. Existing shell settings are preserved.",
     pathConfigurationFile: "Shell profile",
     checkUpdates: "Check for updates",
-    updateConsent:
-      "I confirm CanISend may query the bounded GitHub Releases endpoint.",
+    updateConsent: "I confirm CanISend may query the bounded GitHub Releases endpoint.",
     latestVersion: "Latest version",
     updateAvailable: "Update available",
     upToDate: "Up to date",
@@ -870,14 +857,11 @@ export const messages = {
       "review-export": "审阅与导出",
     },
     jobCriteriaTitle: "职位与选拔标准",
-    jobCriteriaDescription:
-      "分析招聘广告、控制持久化工作流，并确认当前申请所依据的选拔标准。",
+    jobCriteriaDescription: "分析招聘广告、控制持久化工作流，并确认当前申请所依据的选拔标准。",
     evidenceFitTitle: "证据与匹配",
-    evidenceFitDescription:
-      "审阅个人证据、标准匹配、缺口、禁止声明以及最终形成的申请计划。",
+    evidenceFitDescription: "审阅个人证据、标准匹配、缺口、禁止声明以及最终形成的申请计划。",
     materialsWorkspaceTitle: "申请材料",
-    materialsWorkspaceDescription:
-      "检查当前申请已接受的文档集合以及每一份材料的准确修订。",
+    materialsWorkspaceDescription: "检查当前申请已接受的文档集合以及每一份材料的准确修订。",
     reviewExportTitle: "审阅与导出",
     reviewExportDescription:
       "处理审阅发现、验证就绪状态、构建最终文件并在不代替用户提交的前提下导出。",
@@ -986,8 +970,7 @@ export const messages = {
     workflowPack: "工作流包",
     genericApplicationPack: "通用申请与提交",
     academicJobPack: "学术职位申请（兼容模式）",
-    workflowPackDescription:
-      "通用包会创建 canonical v3 工作区；现有学术流程继续使用兼容路径。",
+    workflowPackDescription: "通用包会创建 canonical v3 工作区；现有学术流程继续使用兼容路径。",
     genericApplicationsDescription:
       "创建、续接、审查并导出由工作流包约束的申请，全程不会对外提交。",
     genericApplicationTitle: "申请标题",
@@ -1016,20 +999,17 @@ export const messages = {
     migrationConsent: "我已审查此精确迁移摘要，并授权执行本地迁移。",
     migrationApplications: "待迁移申请",
     migrationConflicts: "托管投影冲突",
-    workspaceListDescription:
-      "注册列表只是本地快捷入口；从列表移除工作区不会删除其中的文件。",
+    workspaceListDescription: "注册列表只是本地快捷入口；从列表移除工作区不会删除其中的文件。",
     selected: "已选择",
     selectWorkspace: "选择工作区",
     removeWorkspace: "移除快捷入口",
-    createWorkspaceDescription:
-      "请选择新的或空的目录，CanISend 会在其中创建私有数据库与托管文件。",
+    createWorkspaceDescription: "请选择新的或空的目录，CanISend 会在其中创建私有数据库与托管文件。",
     connectWorkspaceDescription: "请选择已经包含 CanISend 工作区的目录。",
     workspaceHealth: "工作区健康状态",
     checkIntegrity: "检查完整性",
     createBackup: "创建备份",
     restoreBackup: "恢复备份",
-    restoreBackupDescription:
-      "验证备份并将其恢复到单独的空目录中，原始备份不会被修改。",
+    restoreBackupDescription: "验证备份并将其恢复到单独的空目录中，原始备份不会被修改。",
     backupDirectory: "已验证的备份目录",
     restoreDestination: "恢复目标目录",
     repairWorkspace: "修复托管投影",
@@ -1047,28 +1027,23 @@ export const messages = {
     applicationsDescription:
       "选择一个申请项目，在同一工作台连续完成职位分析、证据匹配、材料准备、审阅与导出。",
     noApplications: "当前工作区还没有申请项目",
-    noApplicationsDescription:
-      "创建第一个申请项目，然后导入 PDF、文本、JSON 文件或职位广告链接。",
+    noApplicationsDescription: "创建第一个申请项目，然后导入 PDF、文本、JSON 文件或职位广告链接。",
     applicationTitle: "职位名称",
     institution: "机构",
     createApplication: "创建申请项目",
-    createApplicationDescription:
-      "先记录招聘广告中的职位名称与机构，随后即可附加来源。",
+    createApplicationDescription: "先记录招聘广告中的职位名称与机构，随后即可附加来源。",
     sourceCount: "个来源",
     archived: "已归档",
     archiveApplication: "归档申请项目",
-    archiveApplicationDescription:
-      "归档后该项目会从活跃列表隐藏，但工作区记录和来源工件都会保留。",
+    archiveApplicationDescription: "归档后该项目会从活跃列表隐藏，但工作区记录和来源工件都会保留。",
     applicationDetails: "申请项目详情",
     chooseApplication: "选择一个申请项目以查看其来源",
     applicationOverview: "申请概览",
-    applicationOverviewDescription:
-      "用同一份权威摘要查看元数据、进度、阻塞项与下一步行动。",
+    applicationOverviewDescription: "用同一份权威摘要查看元数据、进度、阻塞项与下一步行动。",
     contentLibrary: "内容库",
     contentLibraryDescription:
       "统一查找来源、证据、计划、申请材料和交付结果，同时不生成第二份私人内容副本。",
-    contentLibraryLoadFailed:
-      "无法载入内嵌内容库。请重启 CanISend；若问题持续，请运行系统诊断。",
+    contentLibraryLoadFailed: "无法载入内嵌内容库。请重启 CanISend；若问题持续，请运行系统诊断。",
     contentScope: "范围",
     contentCurrentApplication: "当前申请项目",
     contentEntireWorkspace: "整个工作区",
@@ -1096,8 +1071,7 @@ export const messages = {
     contentMetadataOnly: "仅无正文元数据",
     contentEphemeralIndex: "临时私人索引",
     contentNoResults: "没有匹配内容",
-    contentNoResultsDescription:
-      "请调整申请范围或筛选条件。除非你明确授权，否则不会搜索私人正文。",
+    contentNoResultsDescription: "请调整申请范围或筛选条件。除非你明确授权，否则不会搜索私人正文。",
     contentOpenStep: "打开对应步骤",
     contentReusableProfile: "可复用个人资料",
     contentRelevance: "相关度",
@@ -1159,10 +1133,8 @@ export const messages = {
     localFile: "本地文件",
     sourceUrl: "来源链接",
     sourceUrlPlaceholder: "https://university.example/jobs/advert.pdf",
-    privateReadConsent:
-      "我确认允许 CanISend 读取所选私有文件，并将其复制到当前工作区。",
-    networkFetchConsent:
-      "我确认允许 CanISend 访问该链接，并按受限的重定向策略获取内容。",
+    privateReadConsent: "我确认允许 CanISend 读取所选私有文件，并将其复制到当前工作区。",
+    networkFetchConsent: "我确认允许 CanISend 访问该链接，并按受限的重定向策略获取内容。",
     importLocalSource: "导入本地来源",
     fetchUrlSource: "获取链接来源",
     previewLocalSource: "预览本地来源",
@@ -1278,10 +1250,8 @@ export const messages = {
     jobsAcUk: "jobs.ac.uk",
     greenhouse: "Greenhouse",
     lever: "Lever",
-    discoveryPrivateConsent:
-      "我确认允许 CanISend 读取该私有 CSV 或 JSON 批次并生成受限预览。",
-    discoveryNetworkConsent:
-      "我确认允许 CanISend 使用所选受限适配器访问该公共端点。",
+    discoveryPrivateConsent: "我确认允许 CanISend 读取该私有 CSV 或 JSON 批次并生成受限预览。",
+    discoveryNetworkConsent: "我确认允许 CanISend 使用所选受限适配器访问该公共端点。",
     current: "当前",
     stale: "已过期",
     unknown: "未知",
@@ -1290,8 +1260,7 @@ export const messages = {
     expired: "已失效",
     promoted: "已提升",
     profileTitle: "可复用的个人证据",
-    profileDescription:
-      "导入受限的本地资料，再按职位审查并明确确认证据；私人正文不会写入日志。",
+    profileDescription: "导入受限的本地资料，再按职位审查并明确确认证据；私人正文不会写入日志。",
     profileSources: "个人资料来源",
     profileRevision: "个人资料修订",
     noProfileSources: "尚未导入个人资料来源",
@@ -1340,14 +1309,12 @@ export const messages = {
     intendedStateChange: "预期状态变化",
     decisionMutationDescription:
       "确认这份已审查的决策工件；当权威输入变化时，只让依赖的工作流阶段失效。",
-    evidenceMutationDescription:
-      "确认或修订可复用证据目录，并在必要时让依赖的匹配结果失效。",
+    evidenceMutationDescription: "确认或修订可复用证据目录，并在必要时让依赖的匹配结果失效。",
     editProposal: "继续编辑",
     confirmEvidence: "确认个人证据",
     items: "项",
     workflowTitle: "申请工作流",
-    workflowDescription:
-      "推进与 CLI 相同的持久阶段图，审查决策工件，并协调受限的 Agent 任务。",
+    workflowDescription: "推进与 CLI 相同的持久阶段图，审查决策工件，并协调受限的 Agent 任务。",
     workflowStages: "工作流阶段",
     startWorkflow: "启动工作流",
     noWorkflow: "该申请项目尚未启动工作流",
@@ -1392,8 +1359,7 @@ export const messages = {
     cancelTask: "取消任务",
     prepareAgain: "准备替代任务",
     agentTitle: "Agent 协作工作区",
-    agentDescription:
-      "申请状态保留在 CanISend，推理、搜索与写作继续在 Codex 或 Claude 中完成。",
+    agentDescription: "申请状态保留在 CanISend，推理、搜索与写作继续在 Codex 或 Claude 中完成。",
     contextualAssistanceLabel: "CanISend 生成的指引",
     bodyFree: "不含正文",
     contextualAssistance: "上下文 Agent 辅助",
@@ -1409,8 +1375,7 @@ export const messages = {
     truncatedMetadata: "受限元数据视图",
     exactRecommendedAction: "精确建议动作",
     revisionBoundProposals: "受修订约束的提案边界",
-    revisionBoundProposalsDescription:
-      "Agent 输出在通过所列校验和确认边界前始终只是提案。",
+    revisionBoundProposalsDescription: "Agent 输出在通过所列校验和确认边界前始终只是提案。",
     proposalBlocked: "被阻塞",
     proposalReady: "可开始",
     proposalProposed: "待确认",
@@ -1440,8 +1405,7 @@ export const messages = {
     handoffStepThree: "按照 CanISend 当前的下一步继续",
     launchCommand: "终端命令",
     oneStepStart: "一键启动",
-    oneStepStartDescription:
-      "在当前工作区打开所选宿主，并在同一条命令中传入优化后的起点。",
+    oneStepStartDescription: "在当前工作区打开所选宿主，并在同一条命令中传入优化后的起点。",
     bootstrapPrompt: "起始消息",
     assistanceCommand: "上下文辅助命令",
     contextCommand: "上下文备用命令",
@@ -1474,17 +1438,13 @@ export const messages = {
     managedManifest: "CanISend 所有权清单",
     skillsStatusUnavailable: "Skills 状态尚未载入。请选择工作区并检查所选宿主。",
     skillApplication: "申请编排",
-    skillApplicationDescription:
-      "读取当前下一步，并把工作路由到最小且最聚焦的 CanISend Skill。",
+    skillApplicationDescription: "读取当前下一步，并把工作路由到最小且最聚焦的 CanISend Skill。",
     skillJobIntake: "职位导入",
-    skillJobIntakeDescription:
-      "处理链接、PDF、职位广告解析、来源记录和选拔标准。",
+    skillJobIntakeDescription: "处理链接、PDF、职位广告解析、来源记录和选拔标准。",
     skillApplicationMaterials: "申请材料",
-    skillApplicationMaterialsDescription:
-      "协调个人证据、匹配度、申请决策和有依据的申请材料草稿。",
+    skillApplicationMaterialsDescription: "协调个人证据、匹配度、申请决策和有依据的申请材料草稿。",
     skillApplicationReview: "申请审查",
-    skillApplicationReviewDescription:
-      "指导跨文档审查、就绪检查、渲染、对账与导出。",
+    skillApplicationReviewDescription: "指导跨文档审查、就绪检查、渲染、对账与导出。",
     copyCommand: "复制命令",
     copyStartCommand: "复制一键启动命令",
     copyPrompt: "复制消息",
@@ -1499,8 +1459,7 @@ export const messages = {
     reasoningPlane: "推理面",
     reasoningPlaneDescription: "对话、推理、搜索、宿主工具",
     mcpIntegration: "连接 CanISend 工具",
-    mcpIntegrationDescription:
-      "为所选宿主提供可移植、版本化并连接权威工作区的工具层。",
+    mcpIntegrationDescription: "为所选宿主提供可移植、版本化并连接权威工作区的工具层。",
     prepareMcpConfiguration: "准备 MCP 配置",
     guardedToolSurface: "只读检查 + 审批写入",
     readOnlyToolCount: "个只读/预览工具",
@@ -1546,8 +1505,7 @@ export const messages = {
     storedByHost: "对话记录由宿主保存",
     refreshRuntimes: "刷新运行时",
     workspaceScope: "对话范围",
-    workspaceScopeDescription:
-      "选择职位可将宿主会话绑定到一个申请项目；也可以使用整个工作区。",
+    workspaceScopeDescription: "选择职位可将宿主会话绑定到一个申请项目；也可以使用整个工作区。",
     wholeWorkspace: "整个工作区",
     noRuntimeFound: "请先安装并登录 Codex CLI 或 Claude Code，再开始 App 内对话。",
     agentSessionStarted: "已创建并保存新的本地 Agent 会话。",
@@ -1592,8 +1550,7 @@ export const messages = {
     readiness: "就绪状态",
     readinessReasons: "未就绪原因",
     exportPackage: "导出可编辑申请包",
-    privateExportConsent:
-      "我确认允许该受限操作在所选职位目录下写入私有申请正文。",
+    privateExportConsent: "我确认允许该受限操作在所选职位目录下写入私有申请正文。",
     relativeDestination: "职位范围内的相对目标",
     projections: "托管投影",
     loadExports: "载入导出记录",
@@ -1608,14 +1565,12 @@ export const messages = {
     exactPdfPreview: "最终 PDF 预览",
     previewReady: "最终 PDF 已可预览",
     openSystemViewer: "导出并使用系统阅读器打开",
-    previewUnavailable:
-      "如果内嵌查看器不可用，请导出这份相同的已验证 PDF，并使用系统阅读器打开。",
+    previewUnavailable: "如果内嵌查看器不可用，请导出这份相同的已验证 PDF，并使用系统阅读器打开。",
     exportRender: "导出渲染 PDF",
     pages: "页",
     warnings: "个警告",
     settingsTitle: "设置与诊断",
-    settingsDescription:
-      "管理内嵌 CLI、检查发布通道，并查看版本匹配的 Schema 与资源。",
+    settingsDescription: "管理内嵌 CLI、检查发布通道，并查看版本匹配的 Schema 与资源。",
     legalNotice: "法律声明",
     legalDescription: "许可证、担保、再分发与源代码信息。",
     copyrightNotice: "版权所有 © 2026 Peng Jiaxin 与 CanISend 贡献者。",

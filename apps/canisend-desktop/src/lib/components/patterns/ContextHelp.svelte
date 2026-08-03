@@ -12,13 +12,7 @@
     side?: "top" | "right" | "bottom" | "left";
   };
 
-  let {
-    content,
-    label = content,
-    side = "top",
-    class: className,
-    ...restProps
-  }: Props = $props();
+  let { content, label = content, side = "top", class: className, ...restProps }: Props = $props();
 
   const buttonProps = $derived({
     type: "button" as const,
@@ -43,11 +37,7 @@
         </button>
       {/snippet}
     </Tooltip.Trigger>
-    <Tooltip.Content
-      {side}
-      sideOffset={6}
-      class="max-w-80 items-start text-pretty leading-5"
-    >
+    <Tooltip.Content {side} sideOffset={6} class="max-w-80 items-start text-pretty leading-5">
       {content}
     </Tooltip.Content>
   </Tooltip.Root>

@@ -1,11 +1,5 @@
 <script lang="ts">
-  import {
-    CheckCircle2,
-    FileCheck2,
-    GitCompareArrows,
-    ShieldCheck,
-    Target,
-  } from "@lucide/svelte";
+  import { CheckCircle2, FileCheck2, GitCompareArrows, ShieldCheck, Target } from "@lucide/svelte";
 
   import { Badge } from "$lib/components/ui/badge/index.js";
   import type { IntakeReviewReadModel } from "$lib/bridge";
@@ -28,7 +22,9 @@
 <div class="space-y-[var(--density-section-gap)]">
   <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
     <div class="min-w-0 rounded-lg border bg-background p-3">
-      <p class="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+      <p
+        class="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
+      >
         <FileCheck2 size={14} strokeWidth={1.8} aria-hidden="true" />
         {copy.intakeSourceIdentity}
       </p>
@@ -41,20 +37,27 @@
     </div>
 
     <div class="rounded-lg border bg-background p-3">
-      <p class="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+      <p
+        class="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
+      >
         <CheckCircle2 size={14} strokeWidth={1.8} aria-hidden="true" />
         {copy.intakeDetectedType}
       </p>
       <p class="mt-2 break-words text-sm font-semibold">{review.source.detected_type}</p>
       {#if review.source.sha256}
-        <p class="mt-1 truncate font-mono text-[10px] text-muted-foreground" title={review.source.sha256}>
+        <p
+          class="mt-1 truncate font-mono text-[10px] text-muted-foreground"
+          title={review.source.sha256}
+        >
           SHA-256 · {review.source.sha256}
         </p>
       {/if}
     </div>
 
     <div class="rounded-lg border bg-background p-3">
-      <p class="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+      <p
+        class="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
+      >
         <Target size={14} strokeWidth={1.8} aria-hidden="true" />
         {copy.intakeTarget}
       </p>
@@ -67,7 +70,9 @@
     </div>
 
     <div class="rounded-lg border bg-background p-3">
-      <p class="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+      <p
+        class="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
+      >
         <GitCompareArrows size={14} strokeWidth={1.8} aria-hidden="true" />
         {copy.intakeDuplicateSignal}
       </p>
@@ -76,7 +81,8 @@
       </p>
       {#if review.duplicate_signal.count}
         <p class="mt-1 text-[11px] text-muted-foreground">
-          {review.duplicate_signal.count} {copy.items}
+          {review.duplicate_signal.count}
+          {copy.items}
         </p>
       {/if}
     </div>

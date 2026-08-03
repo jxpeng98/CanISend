@@ -15,7 +15,7 @@
 	data-slot="empty"
 	class={cn(
 		"gap-[var(--density-panel-gap)] rounded-lg border-dashed p-[var(--density-panel-padding)] flex w-full min-w-0 flex-1 flex-col items-center justify-center text-center text-balance",
-		className
+		className,
 	)}
 	{...restProps}
 >

@@ -116,17 +116,14 @@
     (catalog?.entries ?? []).filter((entry) => {
       const jobMatches =
         scope === "workspace" ||
-        (!!selectedJobId &&
-          entry.subject_jobs.some((job) => job.id === selectedJobId));
+        (!!selectedJobId && entry.subject_jobs.some((job) => job.id === selectedJobId));
       return (
         jobMatches &&
         (category === "all" || entry.category === category) &&
         (status === "all" || entry.status === status) &&
         (privacy === "all" || entry.privacy === privacy) &&
-        (!createdAfter ||
-          entry.created_at >= `${createdAfter}T00:00:00Z`) &&
-        (!createdBefore ||
-          entry.created_at <= `${createdBefore}T23:59:59.999999999Z`)
+        (!createdAfter || entry.created_at >= `${createdAfter}T00:00:00Z`) &&
+        (!createdBefore || entry.created_at <= `${createdBefore}T23:59:59.999999999Z`)
       );
     }),
   );
@@ -149,18 +146,13 @@
 
   function currentFilter(): ContentCatalogFilter {
     return {
-      job_id:
-        scope === "application" && selectedJobId ? selectedJobId : null,
+      job_id: scope === "application" && selectedJobId ? selectedJobId : null,
       category: category === "all" ? null : category,
       status: status === "all" ? null : status,
       privacy: privacy === "all" ? null : privacy,
       stage: null,
-      created_after: createdAfter
-        ? `${createdAfter}T00:00:00Z`
-        : null,
-      created_before: createdBefore
-        ? `${createdBefore}T23:59:59.999999999Z`
-        : null,
+      created_after: createdAfter ? `${createdAfter}T00:00:00Z` : null,
+      created_before: createdBefore ? `${createdBefore}T23:59:59.999999999Z` : null,
     };
   }
 
@@ -205,11 +197,7 @@
   }
 
   function provenanceLabel(entry: ContentCatalogEntryReadModel): string {
-    return (
-      entry.provenance.locator ??
-      entry.provenance.source_kind ??
-      entry.provenance.reason
-    );
+    return entry.provenance.locator ?? entry.provenance.source_kind ?? entry.provenance.reason;
   }
 </script>
 
@@ -217,7 +205,9 @@
   <Card.Header>
     <div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
       <div class="flex items-start gap-3">
-        <div class="grid size-10 shrink-0 place-items-center rounded-lg bg-accent text-accent-foreground">
+        <div
+          class="grid size-10 shrink-0 place-items-center rounded-lg bg-accent text-accent-foreground"
+        >
           <LibraryBig size={18} strokeWidth={1.8} aria-hidden="true" />
         </div>
         <div>
@@ -246,10 +236,13 @@
   </Card.Header>
 
   <Card.Content class="space-y-[var(--density-section-gap)]">
-    <form class="space-y-[var(--density-section-gap)]" onsubmit={(event) => {
-      event.preventDefault();
-      void submitSearch();
-    }}>
+    <form
+      class="space-y-[var(--density-section-gap)]"
+      onsubmit={(event) => {
+        event.preventDefault();
+        void submitSearch();
+      }}
+    >
       <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <div class="space-y-2">
           <Label for="content-scope">{copy.contentScope}</Label>
@@ -263,7 +256,9 @@
             <NativeSelect.Option value="application" disabled={!selectedJobId}>
               {copy.contentCurrentApplication}
             </NativeSelect.Option>
-            <NativeSelect.Option value="workspace">{copy.contentEntireWorkspace}</NativeSelect.Option>
+            <NativeSelect.Option value="workspace"
+              >{copy.contentEntireWorkspace}</NativeSelect.Option
+            >
           </NativeSelect.Root>
         </div>
 
@@ -278,7 +273,7 @@
           >
             <NativeSelect.Option value="all">{copy.contentAllCategories}</NativeSelect.Option>
             {#each Object.entries(copy.contentCategoryLabel) as [value, label]}
-              <NativeSelect.Option value={value}>{label}</NativeSelect.Option>
+              <NativeSelect.Option {value}>{label}</NativeSelect.Option>
             {/each}
           </NativeSelect.Root>
         </div>
@@ -294,7 +289,7 @@
           >
             <NativeSelect.Option value="all">{copy.contentAllStatuses}</NativeSelect.Option>
             {#each Object.entries(copy.contentStatusLabel) as [value, label]}
-              <NativeSelect.Option value={value}>{label}</NativeSelect.Option>
+              <NativeSelect.Option {value}>{label}</NativeSelect.Option>
             {/each}
           </NativeSelect.Root>
         </div>
@@ -310,7 +305,7 @@
           >
             <NativeSelect.Option value="all">{copy.contentAllPrivacy}</NativeSelect.Option>
             {#each Object.entries(copy.contentPrivacyLabel) as [value, label]}
-              <NativeSelect.Option value={value}>{label}</NativeSelect.Option>
+              <NativeSelect.Option {value}>{label}</NativeSelect.Option>
             {/each}
           </NativeSelect.Root>
         </div>
@@ -410,10 +405,13 @@
           {showSearchResults ? copy.contentSearchResults : copy.contentCatalogItems}
         </h3>
         <p class="mt-1 text-xs text-muted-foreground" aria-live="polite">
-          {displayItems.length} {copy.items}
+          {displayItems.length}
+          {copy.items}
           {#if showSearchResults && searchResult}
-            · {searchResult.index.metadata_entries} {copy.contentMetadataEntries}
-            · {searchResult.index.private_body_entries} {copy.contentPrivateEntries}
+            · {searchResult.index.metadata_entries}
+            {copy.contentMetadataEntries}
+            · {searchResult.index.private_body_entries}
+            {copy.contentPrivateEntries}
           {/if}
         </p>
       </div>
@@ -445,7 +443,9 @@
           <article class="rounded-lg border p-[var(--density-panel-padding)]">
             <div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
               <div class="flex min-w-0 items-start gap-3">
-                <div class="grid size-9 shrink-0 place-items-center rounded-lg bg-accent text-accent-foreground">
+                <div
+                  class="grid size-9 shrink-0 place-items-center rounded-lg bg-accent text-accent-foreground"
+                >
                   {#if item.entry.provenance.locator}
                     <Link2 size={16} strokeWidth={1.8} aria-hidden="true" />
                   {:else if item.entry.private_body_searchable}
@@ -464,7 +464,10 @@
                       {copy.contentStatusLabel[item.entry.status]}
                     </Badge>
                   </div>
-                  <p class="mt-1 truncate text-xs text-muted-foreground" title={provenanceLabel(item.entry)}>
+                  <p
+                    class="mt-1 truncate text-xs text-muted-foreground"
+                    title={provenanceLabel(item.entry)}
+                  >
                     {provenanceLabel(item.entry)}
                   </p>
                 </div>

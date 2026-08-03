@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { ApplicationDossierReadModel } from "./bridge";
-import {
-  daysUntilDeadline,
-  upcomingDeadlineApplications,
-} from "./application-dossier";
+import { daysUntilDeadline, upcomingDeadlineApplications } from "./application-dossier";
 
 function dossier(
   id: string,
@@ -66,9 +63,6 @@ describe("application dossier deadlines", () => {
       today,
     );
 
-    expect(result.map((application) => application.job.id)).toEqual([
-      "soon",
-      "later",
-    ]);
+    expect(result.map((application) => application.job.id)).toEqual(["soon", "later"]);
   });
 });
