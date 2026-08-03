@@ -1365,12 +1365,101 @@ fn check_documentation() -> Result<(), String> {
         "backup-and-recovery.md",
         "upgrade-and-rollback.md",
         "troubleshooting.md",
+        "desktop-gui.md",
+        "known-limitations.md",
     ];
     for file_name in required {
         let path = guide_root.join(file_name);
         let body = fs::read_to_string(&path)
             .map_err(|error| format!("required guide is missing at {}: {error}", path.display()))?;
         check_local_markdown_links(&root, &path, &body)?;
+    }
+    let journey_markers: &[(&str, &[&str])] = &[
+        (
+            "quick-start.md",
+            &[
+                "--pack generic-application",
+                "--pack academic-job",
+                "org.canisend.generic-application",
+                "org.canisend.academic-job",
+                "workspace migration-preview",
+                "--expected-plan-sha256",
+                "submission_performed: false",
+            ],
+        ),
+        (
+            "agent-integration.md",
+            &[
+                "canisend_agent_v3_capabilities",
+                "canisend_application_approve",
+                "canisend_capabilities",
+                "thirteen MCP tools",
+                "must never edit `.canisend`",
+                "ten-minute monotonic lifetime",
+            ],
+        ),
+        (
+            "desktop-gui.md",
+            &[
+                "org.canisend.generic-application",
+                "org.canisend.academic-job",
+                "Workspace v3",
+                "v2→v3 migration",
+                "Generic Pack Application",
+            ],
+        ),
+        (
+            "privacy-and-consent.md",
+            &[
+                "org.canisend.generic-application",
+                "org.canisend.academic-job",
+                "single-use tokens",
+                "submission_performed: false",
+            ],
+        ),
+        (
+            "backup-and-recovery.md",
+            &[
+                "exact workflow Pack identity and digest",
+                "v2→v3 semantic migration",
+                "preserves the Academic Pack",
+            ],
+        ),
+        (
+            "upgrade-and-rollback.md",
+            &[
+                "Discover Pack and Workspace authority before mutation",
+                "workspace migration-preview",
+                "--expected-plan-sha256",
+                "does not silently perform",
+            ],
+        ),
+        (
+            "known-limitations.md",
+            &[
+                "v1.0.0-alpha.5",
+                "Pack installation",
+                "image-only PDFs",
+                "submission_performed: false",
+                "Windows and Linux public GUI artifacts are not qualified",
+            ],
+        ),
+    ];
+    for (file_name, markers) in journey_markers {
+        let path = guide_root.join(file_name);
+        let body = fs::read_to_string(&path).map_err(|error| {
+            format!(
+                "roadmap user-journey guide is missing at {}: {error}",
+                path.display()
+            )
+        })?;
+        for marker in *markers {
+            if !body.contains(marker) {
+                return Err(format!(
+                    "roadmap user-journey guide `{file_name}` is missing `{marker}`"
+                ));
+            }
+        }
     }
     for path in [
         root.join("README.md"),
@@ -14580,6 +14669,11 @@ mod tests {
             check_active_release_runbooks(&repository_root()).expect("active release runbooks"),
             7
         );
+    }
+
+    #[test]
+    fn documentation_keeps_dual_pack_and_migration_user_paths_visible() {
+        check_documentation().expect("dual-Pack user documentation");
     }
 
     #[test]

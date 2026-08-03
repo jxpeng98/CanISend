@@ -33,6 +33,44 @@ candidates until their signed RC/Stable lifecycle matrices pass.
 
 Never copy an executable, database, or release file into `.canisend/`. Never edit `schema_migrations` manually.
 
+## Discover Pack and Workspace authority before mutation
+
+An executable upgrade and the semantic Workspace v2→v3 transition are separate operations. With
+the new binary, inspect each Workspace before running a job, Application, task, or Agent write:
+
+```console
+canisend --workspace ./applications workspace status
+```
+
+Confirm the reported authority and exact Pack:
+
+- `org.canisend.generic-application` is a canonical Workspace v3 and uses Generic CLI/Agent v3.
+- `org.canisend.academic-job` retains the Academic compatibility journey. A v2 Workspace can be
+  previewed and migrated, but its Pack remains academic.
+
+Do not interpret v2→v3 as academic-to-generic conversion. To use the Generic Pack, create a new
+Workspace with `workspace init --pack generic-application`.
+
+For an eligible existing Workspace v2, stop all writers and create the body-free plan:
+
+```console
+canisend --workspace ./academic-applications workspace check --json
+canisend --workspace ./academic-applications workspace migration-preview --json
+```
+
+Review the exact Pack binding, Application count, projection conflicts, required backup bytes, and
+`migration_plan_sha256`. Commit only that digest to a new backup destination:
+
+```console
+canisend --workspace ./academic-applications workspace migrate \
+  --expected-plan-sha256 MIGRATION_PLAN_SHA256 \
+  --backup-destination ./backups/academic-before-v3 --json
+```
+
+CanISend revalidates the plan, creates and verifies the backup before mutation, and fails without a
+commit when revisions, Pack identity, managed projections, or digest changed. Keep the generated
+backup even after the migrated Workspace passes `workspace check`.
+
 ## Upgrade from an archive
 
 Extract the new archive into a separate directory. Run the new executable by its explicit path before changing the
@@ -46,15 +84,17 @@ installed command:
 Use `canisend.exe` on Windows. Replace the installed executable and its release notice bundle as one versioned unit.
 Do not merge files from different releases.
 
-Then open and check each workspace with the new executable:
+Then inspect and check each Workspace with the new executable:
 
 ```console
 canisend --workspace ./applications workspace status --json
 canisend --workspace ./applications workspace check --json
 ```
 
-Opening a workspace applies only the reviewed, contiguous Rust-era migrations embedded in that binary. Migration
-history and integrity checks fail closed. After all workspaces pass, regenerate any exported host pack so its
+Opening a Workspace applies only the reviewed, contiguous database migrations embedded in that
+binary. It does not silently perform the separately approved semantic v2→v3 transition. Migration
+history, exact Pack compatibility, and integrity checks fail closed. After all Workspaces pass,
+regenerate any exported host pack so its
 manifest, schemas, prompts, examples, and product version come from the installed binary:
 
 ```console

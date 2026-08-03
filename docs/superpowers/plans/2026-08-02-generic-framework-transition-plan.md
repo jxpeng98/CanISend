@@ -281,8 +281,13 @@ release source gate. GF5-PARITY-001 source implementation is recorded in the
 [implementation record](../../notes/rust-native/2026-08-03-gf5-semantic-parity.md). Both built-in
 Packs now occupy exact CLI, Tauri, and MCP matrix cells; shared operations, revision-bound leaves,
 preview/commit families, reads, failure outcomes, and every explicitly uncovered binding are
-machine-gated. GF5-DOC-001, SDK work, native qualification, work-item linkage, and independent
-committed-evidence inspection remain before GF5 or a release checkpoint can be marked Verified.
+machine-gated. GF5-DOC-001 source implementation is recorded in the
+[dual-Pack user documentation record](../../notes/rust-native/2026-08-03-gf5-user-documentation.md).
+Ten core guides now route explicit Generic v3 and Academic v2 paths, expose the Pack-preserving
+v2→v3 migration boundary before mutation, separate public Alpha.5 artifacts from post-tag source,
+and are protected by a marker/link gate plus a two-Workspace executable quick-start smoke. SDK
+work, native qualification, work-item linkage, and independent committed-evidence inspection
+remain before GF5 or a release checkpoint can be marked Verified.
 
 ### GF6 — Dual-pack qualification
 

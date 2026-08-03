@@ -5,23 +5,23 @@
 <p align="center">
   <a href="https://github.com/jxpeng98/CanISend/actions/workflows/fast-ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/jxpeng98/CanISend/fast-ci.yml?branch=main&label=macOS%20Fast%20CI" alt="macOS Fast CI status"></a>
   <img src="https://img.shields.io/badge/Rust-1.97%2B-orange" alt="Rust 1.97+">
-  <img src="https://img.shields.io/badge/protocol-canisend.agent%2Fv2-blue" alt="Agent protocol v2">
+  <img src="https://img.shields.io/badge/protocol-Agent%20v2%20%2B%20v3-blue" alt="Agent protocols v2 and v3">
   <img src="https://img.shields.io/badge/license-GPL--3.0--only-green" alt="GPL-3.0-only license">
 </p>
 
 # 这也能投 / CanISend
 
-CanISend is becoming a local-first, evidence-constrained framework for preparing applications and
-other evidence-bound submissions. Its domain-neutral kernel will combine versioned workflow
-packs with user-controlled sources to support Requirements, confirmed Evidence, fit, planning,
-pack-defined Deliverables, review, rendering, export, backup, recovery, and auditable Agent
+CanISend is a local-first, evidence-constrained framework for preparing Applications and other
+evidence-bound submissions. Its domain-neutral Rust kernel combines exact-bound workflow Packs
+with user-controlled sources to support Requirements, confirmed Evidence, fit, planning,
+Pack-defined Deliverables, review, rendering, export, backup, recovery, and auditable Agent
 collaboration through one set of application services.
 
-The current Alpha implementation remains centered on academic-job applications and Agent v2.
-Under [ADR-RN-0018](docs/architecture/rust-native/decisions/0018-adopt-a-generic-evidence-application-framework.md),
-that journey becomes the `org.canisend.academic-job` reference pack; 1.0 also requires an
-`org.canisend.generic-application` starter pack plus neutral Agent/Workspace v3 contracts. This is
-a planned compatibility transition, not a claim that the current public Alpha is already generic.
+The source includes two embedded Packs. `org.canisend.generic-application` is the canonical
+Workspace/Agent v3 default; `org.canisend.academic-job` preserves the established academic journey
+through bounded Workspace/Agent v2 compatibility. A Workspace is bound to one exact Pack identity
+and digest. The latest publicly qualified checkpoint is `v1.0.0-alpha.5`; post-tag changes on
+`main` are not a published Alpha.6 or Alpha.7 until their exact artifacts pass release gates.
 
 The active product no longer uses Python or Pytest. The final Python implementation remains available only through
 the Git tag `archive/python-v0.6.0b1-final`.
@@ -34,7 +34,7 @@ defines the pack, migration, compatibility, and dual-pack implementation slices.
 
 - [Installation](docs/guides/installation.md)
 - [Release verification](docs/guides/release-verification.md)
-- [Rust-native 0.7 support policy](docs/release/support-policy.md)
+- [Rust-native 1.0 support policy](docs/release/support-policy.md)
 - [Native release qualification ledger](docs/release/qualification-ledger.md)
 - [Defensive assurance task routing](docs/development/defensive-assurance-routing.md)
 - [Quick start](docs/guides/quick-start.md)
@@ -42,23 +42,26 @@ defines the pack, migration, compatibility, and dual-pack implementation slices.
 - [Privacy and consent](docs/guides/privacy-and-consent.md)
 - [Backup and recovery](docs/guides/backup-and-recovery.md)
 - [Upgrade, rollback, and uninstall](docs/guides/upgrade-and-rollback.md)
+- [Known limitations](docs/guides/known-limitations.md)
 - [Troubleshooting](docs/guides/troubleshooting.md)
 - [Desktop GUI preview](docs/guides/desktop-gui.md)
 - [Synthetic generic Application examples](docs/testing/generic-application-examples.md)
 
 ## Current status
 
-The checked-in release authority is `1.0.0-alpha.1`; the `0.7` evidence is preserved as immutable
-history and there is no public `0.8` line. R0–R11.2 and the full evidence-backed material pipeline
-are implemented. R12 Stage 2 is complete: the first macOS GUI
-vertical slice adds shared typed application
+The checked-in source version is `1.0.0-alpha.5`, matching the latest public checkpoint, but the
+working `main` line contains additional unqualified post-tag product bytes. The `0.7` evidence is
+preserved as immutable history and there is no public `0.8` line. R0–R11.2 and the full
+evidence-backed material pipeline are implemented. R12 Stage 2 introduced the first macOS GUI
+vertical slice with shared typed application
 services, workspace management, job intake, supplied URL/PDF/file import, workflow status, and
 body-free diagnostics without changing the CLI or Agent v2 contracts. It supports persistent
 English and Simplified Chinese interfaces, system CJK font fallback, and localized native
 accessibility names. Its Command line surface can also
 detect, install, update, and safely uninstall the version-matched native CLI in a user-owned
 terminal location, including version-aware migration and rollback for an earlier CanISend install.
-Windows and Linux GUI work remains deferred while the macOS Alpha enters exact-package Stage 3.
+Public Windows and Linux GUI distribution remains unqualified while the macOS Alpha follows its
+exact-package channel.
 The current CLI provides:
 
 - Standalone `canisend` executable archives for five native targets.
@@ -172,7 +175,8 @@ cargo build --release --locked
 ./target/release/canisend agent context --json
 ./target/release/canisend schema list --json
 ./target/release/canisend resource list --json
-./target/release/canisend --workspace ./my-workspace workspace init --json
+./target/release/canisend --workspace ./my-workspace workspace init \
+  --pack academic-job --json
 ./target/release/canisend --workspace ./my-workspace job create \
   --title "Lecturer in Economics" --institution "University X" --json
 ./target/release/canisend --workspace ./my-workspace job import JOB_ID \
@@ -271,27 +275,30 @@ No Python interpreter, virtual environment, PyPI package, or Pytest runner parti
 ```text
 Codex / Claude / user / custom host
                  │
-                 ▼
-       canisend.agent/v2 JSON
+       CLI / GUI / MCP surfaces
                  │
-                 ▼
+     Agent v3 │ Agent v2 compatibility
+                 │
 ┌──────────────────────────────────────┐
-│ canisend-cli                         │
+│ canisend-app shared application API  │
 ├──────────────────────────────────────┤
-│ canisend-core     canisend-contracts │
+│ domain-neutral kernel + Pack runtime │
 ├──────────────────┬───────────────────┤
-│ canisend-store   │ canisend-io       │
+│ SQLite/blob store│ bounded I/O       │
 ├──────────────────┴───────────────────┤
-│ canisend-resources                   │
+│ verified embedded Packs/resources    │
 └──────────────────────────────────────┘
 ```
 
-The accepted architecture uses SQLite plus immutable content-addressed blobs for authoritative local state. User
-documents are exported projections. Rust types generate v2 schemas, agents complete bounded tasks through the CLI,
-and Typst compilation is embedded in the standalone executable.
+The accepted architecture uses SQLite plus immutable content-addressed blobs for authoritative
+local state. User documents are exported projections. Rust types generate the v3 canonical and v2
+compatibility contracts, every surface calls the same application API, and Typst compilation is
+embedded in the standalone executable.
 
 Accepted decisions are under `docs/architecture/rust-native/decisions/`.
-The machine interface is documented in [Agent Protocol v2](docs/contracts/agent-protocol-v2.md).
+The Academic compatibility machine interface is documented in
+[Agent Protocol v2](docs/contracts/agent-protocol-v2.md); Generic Agent v3 capabilities and context
+are discovered from the exact Pack-bound binary at runtime.
 
 ## Product boundary
 

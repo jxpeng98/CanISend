@@ -1,13 +1,16 @@
 # CanISend desktop GUI
 
-The macOS-first desktop interface uses Svelte 5 inside a Tauri 2 WebView and operates the same Rust
-v2 workspace as the `canisend` CLI. All application operations call the shared `canisend-app`
+The macOS-first desktop interface uses Svelte 5 inside a Tauri 2 WebView and operates the same
+Pack-bound Rust Workspaces as the `canisend` CLI: canonical Workspace v3 for
+`org.canisend.generic-application`, and Workspace v2 compatibility or migrated academic authority
+for `org.canisend.academic-job`. All operations call the shared `canisend-app`
 facade through typed Tauri commands; the frontend never parses CLI output or reads `.canisend`
 internals. The Terminal CLI settings use only bounded install/status services and never invoke a
 shell or inspect Python, package managers, or their environments.
 
-The GUI is not part of the historical qualified `0.7` release archives. It is the first
-implementation slice for the unified `1.0` product line, beginning with `1.0.0-alpha.1`.
+The latest publicly qualified checkpoint is `v1.0.0-alpha.5`. Later desktop work described from
+`main` is post-tag source, not a published Alpha.6 or Alpha.7. A local design preview is ad-hoc
+signed and must not be distributed as a qualified release.
 
 ## Build and launch on Apple Silicon
 
@@ -71,31 +74,47 @@ The generated receipt uses `canisend.macos-design-preview/v1`, records the sourc
 worktree state, and fixes `publication_allowed` to `false`. This preview is not Developer ID signed
 or notarized and must not be distributed or substituted for native release qualification.
 
-The native arm64 application opens one window with Today,
-Opportunities, Application workspace, Profile, Agent integration, Workspaces, and Settings as its
-primary navigation. Application workspace then provides five connected sections: Overview,
-Job & criteria, Evidence & fit, Materials, and Review & export.
+The native arm64 application opens one window and routes its application journey from the active
+Workspace Pack. Generic Workspaces use the neutral Applications view. Academic Workspaces expose
+Today, Opportunities, Application workspace, Profile, Agent integration, Workspaces, and Settings;
+Application workspace then provides Overview, Job & criteria, Evidence & fit, Materials, and Review
+& export.
 
 ## First run
 
-1. Open **Workspaces**.
-2. Choose **Create workspace** and select a new or empty local directory, or choose
-   **Register existing** and select a Rust v2 workspace containing `canisend.toml`.
-3. Give the workspace a local display name. The name and canonical path are stored in the GUI
-   registry; private workspace bodies are not copied into the registry.
-4. Open **Application workspace**, choose **New application**, and enter the title and institution.
-5. In **Overview**, choose **Import source**, then select:
-   - a local Markdown, text, JSON, or text-based PDF after confirming private local read access; or
-   - a user-supplied public HTTP(S) URL after confirming the network fetch.
-6. Follow **Continue to next action**, or open **Job & criteria** to start the durable workflow and
-   inspect its ten stages, current state, and blockers.
-7. Open **Profile** to import a local Markdown, text, or JSON profile source. Choose its sensitivity
-   before confirming a private read.
+1. Open **Workspaces** and choose **Create workspace**.
+2. Select **Generic applications and submissions** or **Academic job applications
+   (compatibility)** before choosing a new or empty local directory. The choice creates an exact
+   Pack binding; it cannot be changed later.
+3. Give the Workspace a local display name. The name and canonical path are stored in the GUI
+   registry; private Workspace bodies are not copied into the registry.
+4. For the Generic Pack, open **Applications**. Enter reviewed source text, select an exact
+   Requirement excerpt, confirm the Pack-declared Plan, compose each selected Deliverable, grant
+   private-read consent for review, explicitly confirm every reviewed body, and export to the
+   suggested safe relative path after separate private-export consent.
+5. For the Academic Pack, open **Application workspace**, create a job, import a reviewed local
+   source or user-supplied public URL, start the durable workflow, and add Profile Evidence.
+6. When an existing Academic Workspace offers v3 migration, open **Workspaces**, preview the
+   body-free plan, choose a new backup destination, review the exact digest, and authorize the
+   atomic migration. Migration preserves `org.canisend.academic-job`; it does not select the
+   Generic Pack.
 
-Every file, URL, PDF, workspace, job, and workflow mutation uses the same bounded Rust services and
+Every file, URL, PDF, Workspace, Application, job, and workflow mutation uses the same bounded Rust services and
 authoritative SQLite/blob store as the CLI.
 
-## Navigate one application workspace
+## Complete a Generic Pack Application
+
+The Generic view is a compact Pack-driven lifecycle. Its metadata fields, Requirement categories,
+stage labels, and Deliverable choices come from the exact verified Pack presentation. A Requirement
+must be an exact UTF-8 span of the reviewed source text. Every Plan, compose, approval, and export
+uses the currently displayed revision. Private Deliverable bodies remain closed until consent;
+approval remains disabled until the user confirms every current body was reviewed. Export uses the
+embedded bounded renderer and reports that external submission was not performed.
+
+Direct Generic URL/PDF/file normalization is not yet available in the GUI. Review source text
+outside CanISend before pasting it; see [Known limitations](known-limitations.md).
+
+## Navigate an Academic reference Application Workspace
 
 Workflow and Documents & delivery remain internal revision-bound controls, but they are no longer
 separate primary destinations. Select an application once in the persistent context bar, then use:
@@ -171,13 +190,15 @@ only operations ready under the authoritative stage graph:
 5. Cancel a prepared task when necessary. Expired or stale tasks provide a prepare-again recovery
    action; a replacement receives a new lease and rechecks every revision.
 
-Task state is stored in the workspace, so the GUI, CLI, Codex, Claude, or another Agent v2 host sees
+Task state is stored in the Academic Workspace, so the GUI, CLI, Codex, Claude, or another Agent v2 host sees
 the same prepared, committed, cancelled, or stale state after reopening.
 
 ## Inspect Agent integration and export resources
 
-Open **Agent integration** to inspect the compiled Agent v2 protocol without exposing source
-bodies. The page shows product and format versions, capability and stage registries, discovery
+Open **Agent integration** to inspect the protocol selected by the exact Workspace Pack without
+exposing source bodies. Generic Workspaces use the nine canonical Agent v3 operations; Academic
+Workspaces use the thirteen Agent v2 compatibility tools. The page shows product and format
+versions, capability and stage registries, discovery
 adapters, and either a workspace summary or one optional active-job summary. Blockers and bounded
 next actions are plain text with copy controls; copying never executes a command.
 
@@ -238,10 +259,10 @@ stage. The GUI never accepts a caller-supplied kind, revision, or digest. Rerun 
 affected descendant stage and current output, then requires explicit confirmation. Each dialog
 also shows a copyable equivalent CLI command as text; it does not execute that command.
 
-Generic stage completion still requires an existing compatible artifact from the CLI or Agent v2.
-Evidence, criteria, and plan decisions use their dedicated structured GUI controls rather than an
-artifact-ID field. Match creation remains an Agent v2 task operation; the GUI displays the current
-revision-bound match without synthesizing one.
+Academic compatibility stage completion still requires an existing compatible artifact from the
+CLI or Agent v2. Evidence, criteria, and plan decisions use their dedicated structured GUI controls
+rather than an artifact-ID field. Match creation remains an Agent v2 task operation; the GUI
+displays the current revision-bound match without synthesizing one.
 
 ## Review evidence and make an application decision
 
@@ -456,11 +477,10 @@ canisend --workspace /path/to/applications workflow status --job JOB_ID
 canisend --workspace /path/to/applications agent context --job JOB_ID --json
 ```
 
-Codex and Claude continue to use Agent v2 rather than GUI automation. The GUI and CLI share the
-same discovery records, prepared tasks, body-free Agent context, profile evidence, job criteria,
-current matches, application plans, structured documents, review findings, package manifests,
-managed projections, and render manifests through the application facade and authoritative
-workspace.
+Codex and Claude use the Pack-selected Agent v3 or Agent v2 contract rather than GUI automation.
+The GUI and CLI share the same exact Pack binding, revisions, authoritative records, immutable
+artifacts, approvals, and render/export receipts through the application facade. A protocol or
+Pack mismatch is rejected without mutation.
 
 ## Workspace registry and retention
 
@@ -482,6 +502,11 @@ the workspace, SQLite database, blobs, projections, exports, or backups.
 - Native CanISend version detection, one-click user-level install/migration/update/uninstall,
   rollback restoration, PATH diagnostics, online release checks, and copyable terminal checks.
 - Workspace create/register/switch/status/check/backup/restore/repair and registry removal.
+- Explicit Generic/Academic Pack selection, body-free v2→v3 migration preview, digest-bound
+  approval, and verified pre-migration backup.
+- Generic Pack Application creation from reviewed text, exact Requirement spans, Plan confirmation,
+  Deliverable composition, consented review, explicit approval, bounded PDF rendering, and local
+  export with `submission_performed: false`.
 - Job search, active/archive visibility, create, detail, archive, and source metadata.
 - Local Markdown/text/JSON/text-PDF and supplied public URL intake.
 - Profile source catalog/import plus structured evidence review, correction, exclusion, and
@@ -492,8 +517,8 @@ the workspace, SQLite database, blobs, projections, exports, or backups.
   duplicate suggestions, and explicit lead promotion.
 - Revision-bound Agent task preparation, scoped input export, completion preview/commit, cancel,
   stale detection, and prepare-again recovery.
-- Body-free Agent v2 capability/context inspection and verified Codex, Claude, or generic
-  resource-pack export.
+- Pack-routed body-free Agent v3/Agent v2 capability and context inspection plus verified Codex,
+  Claude, or generic resource-pack export.
 - Private-read structured document inspection with accepted-set, revision, claim, citation,
   placeholder, and generation metadata.
 - Human-review dispositions, deterministic package readiness, private projection export,
@@ -507,5 +532,6 @@ the workspace, SQLite database, blobs, projections, exports, or backups.
 Not yet implemented in the GUI:
 
 - Developer ID/notarized release signing, Intel native qualification, or non-macOS GUI packages.
+- Direct URL, PDF, or local-file normalization into a Generic v3 Application request.
 
 The desktop application still never submits an application.

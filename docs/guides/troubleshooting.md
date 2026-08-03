@@ -20,6 +20,15 @@ Pass the directory containing `canisend.toml`, or initialize a new directory:
 canisend --workspace ./applications workspace init
 ```
 
+### Pack or Workspace generation mismatch
+
+Run `workspace status` and use the reported Pack. Generic v3 operations require
+`org.canisend.generic-application`; Academic `job`, `profile`, `task`, and Agent v2 compatibility
+operations require `org.canisend.academic-job`. Do not retry by editing `canisend.toml` or SQLite.
+Create a separate Workspace for another Pack. For an eligible Academic Workspace v2, follow the
+reviewed `workspace migration-preview` and digest-bound migration procedure in the
+[upgrade guide](upgrade-and-rollback.md); migration preserves the Academic Pack.
+
 ### `pdf_text_unavailable`
 
 The PDF is probably scanned/image-only or has no extractable text. OCR is deliberately not embedded in the first

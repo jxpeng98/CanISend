@@ -101,7 +101,19 @@ build, and the two critical Chrome accessibility specs before release assembly.
 
 This advances ordered-path item 5 to implemented source evidence. Exact GitHub CI on the committed
 source remains required before the continuously proven MSRV checkbox can close. The next P0
-implementation item is the GF5 user-documentation rewrite around Pack choice and migration.
+implementation item was the GF5 user-documentation rewrite around Pack choice and migration.
+
+GF5-DOC-001 now has source implementation evidence in the
+[dual-Pack user documentation record](2026-08-03-gf5-user-documentation.md). The quick start,
+Agent, desktop, privacy, backup, upgrade, troubleshooting, installation, guide index, README, and
+new limitations guide now distinguish Generic v3 from Academic v2 compatibility before
+initialization or migration. `xtask docs check` requires ten guides and their stable journey
+markers, while the documented smoke runs both Packs in separate disposable Workspaces through
+Academic backup/restore and Generic PDF export without submission.
+
+This advances ordered-path item 6 to implemented source evidence. Exact native candidate and
+remote CI evidence, rather than another P0 source implementation item, now form the next Alpha.6
+proof boundary. GF5-SDK-001 remains a separate P1 authoring/validation deliverable.
 
 P1 CI/dependency improvements, governance work-item linkage, independent evidence review, dogfood,
 target-user validation, signing, and later Alpha.7 dual-Pack qualification also remain, but they do
@@ -119,8 +131,9 @@ not replace the P0 implementation order.
    machine-lists uncovered leaves (M1-OP-003/GF5-PARITY).
 5. Completed in source: Rust 1.97 alignment and the release/frontend non-bypass path are
    machine-gated; exact remote CI evidence remains required.
-6. Next: rewrite the user documentation around Pack selection and v2→v3 boundaries (GF5-DOC).
-7. Run the exact native Alpha.6 candidate, migration, backup/restore, rollback, package, and
+6. Completed in source: ten required user guides and a two-Workspace executable smoke expose Pack
+   selection, exact compatibility, migration, recovery, and limitations (GF5-DOC).
+7. Next: run the exact native Alpha.6 candidate, migration, backup/restore, rollback, package, and
    release-integrity gates on a clean candidate commit.
 
 Only after evidence proves every applicable gate should the release status advance from Alpha.5
