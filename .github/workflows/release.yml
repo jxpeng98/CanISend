@@ -136,6 +136,15 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Install Linux desktop build dependencies for source gates
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            libssl-dev
+
       - name: Install pinned pnpm for source gates
         uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
         with:
