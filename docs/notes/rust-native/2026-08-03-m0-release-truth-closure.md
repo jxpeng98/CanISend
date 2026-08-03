@@ -4,7 +4,7 @@
 **Roadmap items:** M0-STATE-002, M0-STATE-003, M0-REL-002, M0-REL-003,
 M0-WF-001, M0-FEEDBACK-001, M0-DOC-001
 **Branch:** `agent/alpha6-m0-closure`
-**State:** Local implementation and focused verification complete; protected integration pending
+**State:** Verified through protected integration
 
 ## Scope
 
@@ -53,8 +53,14 @@ git diff --check
 The focused `xtask` suite contains 85 passing tests. The Alpha.6 transition remains a dry run: it
 reports 27 controlled files, performs no write, creates no tag, and starts no workflow.
 
-## Remaining evidence boundary
+## Protected integration evidence
 
-This note is not protected-integration evidence. The seven Issues remain In progress until the
-branch is reviewed through a PR, all required checks pass, and the merge commit lands on protected
-`main`. Only then may their labels and the M0 exit checklist move to Verified.
+PR [#96](https://github.com/jxpeng98/CanISend/pull/96) merged normally into protected `main` as
+`32b5dc97ebda6a0a80a4c1d69d9ad30034f19eac` on 2026-08-03. Fast CI run `30844498178` passed
+desktop UI, browser keyboard/accessibility, Linux core, Windows core, macOS quality, and macOS
+tests. Dependency Policy run `30844498189` passed `policy-and-deny`. No bypass actor, admin merge,
+force push, or tag mutation was used.
+
+GitHub Issues #8, #9, #11, #12, #13, #14, and #15 are closed with `state:verified` and retain
+links to the merge commit and both workflow runs. Together with the previously Verified M0 Issues,
+all sixteen M0 Roadmap items are closed and Verified.
