@@ -1,7 +1,42 @@
 {
-  "schema": "canisend.alpha-package-contract/v2",
+  "schema": "canisend.alpha-package-contract/v3",
   "version": "1.0.0-alpha.6",
   "tag": "v1.0.0-alpha.6",
+  "contracts": {
+    "agent_protocol": "canisend.agent/v3",
+    "migration_inventory": {
+      "count": 17,
+      "directory": "crates/canisend-store/migrations",
+      "through": 17,
+      "tree_sha256": "d6ba9d1fb7ba1a92374b97534019d1ca247dc3fc4a2dac4f4cf2ae3181b81dae"
+    },
+    "operation_registry": {
+      "compatibility_alias_count": 19,
+      "compatibility_pack_scope": "academic-job",
+      "format": "canisend.operation-registry/v1",
+      "path": "crates/canisend-contracts/operation-registry-v1.json",
+      "sha256": "561752d6ab39498cb4103d5dc84457766381b8171d96bb851697a2558f2297a5"
+    },
+    "resource_manifest": {
+      "entry_count": 75,
+      "path": "crates/canisend-resources/resources/manifest.json",
+      "sha256": "1db3b5b35eb6eb96da6c0caab31ff35e35cee932daf3a56efa2ebc9e8aa74476"
+    },
+    "workflow_pack_format": "canisend.workflow-pack/v1",
+    "workflow_packs": [
+      {
+        "content_digest": "3baa6d1a3ddf057ba1e5aaf02d8cabb037366b3651f5566bfcf2b2bb166a8d07",
+        "id": "org.canisend.academic-job",
+        "version": "1.0.0"
+      },
+      {
+        "content_digest": "ffe269ae905b7fac851d82719f989876c7d310216b12922be6a5dd1aff67b321",
+        "id": "org.canisend.generic-application",
+        "version": "1.0.0"
+      }
+    ],
+    "workspace_format": "canisend.workspace/v3"
+  },
   "standalone_cli": {
     "build_profile": "release-alpha",
     "bundle_root_pattern": "canisend-{version}-{target}",

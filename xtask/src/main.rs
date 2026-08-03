@@ -21,6 +21,8 @@ use time::{Date, Duration, Month, OffsetDateTime, format_description::well_known
 
 const RELEASE_TARGET_SCHEMA: &str = "canisend.release-targets/v1";
 const RELEASE_MANIFEST_SCHEMA: &str = "canisend.release-manifest/v1";
+const ALPHA_PACKAGE_CONTRACT_V2_SCHEMA: &str = "canisend.alpha-package-contract/v2";
+const ALPHA_PACKAGE_CONTRACT_V3_SCHEMA: &str = "canisend.alpha-package-contract/v3";
 const NATIVE_TEST_OWNERSHIP_SCHEMA: &str = "canisend.native-test-ownership/v1";
 const TYPST_TEMPLATE_CONTRACT_SCHEMA: &str = "canisend.typst-template-contract/v2";
 const DESKTOP_PROFILE_RECORD_SCHEMA: &str = "canisend.desktop-profile-record/v1";
@@ -72,6 +74,7 @@ const CARGO_FUZZ_VERSION: &str = "0.13.2";
 const WINGET_MANIFEST_VERSION: &str = "1.10.0";
 const GPL_LICENSE: &str = "GPL-3.0-only";
 const FIRST_GPL_PUBLIC_VERSION: &str = "1.0.0-alpha.6";
+const FIRST_ALPHA_PACKAGE_V3_VERSION: &str = "1.0.0-alpha.6";
 const BETA_READINESS_MAX_AGE_HOURS: i64 = 24;
 const NATIVE_ALPHA_TAG: &str = "v0.7.0-alpha.1";
 const NATIVE_ALPHA_SOURCE: &str = "4cec4ec48cc2e96f3798dde0b438d3aaa617a2f8";
@@ -115,6 +118,9 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
         }
         [area, command] if area == "desktop" && command == "template-audit" => {
             check_typst_template_contract()
+        }
+        [area, command] if area == "release" && command == "alpha-package-bindings" => {
+            print_alpha_package_contract_bindings()
         }
         [area, command, target, candidate, opt_level, lto, host, output]
             if area == "desktop" && command == "profile-record" =>
@@ -5044,7 +5050,8 @@ fn insert_sequential_alpha_updates(
         .map_err(|error| format!("could not read {contract_relative}: {error}"))?;
     let contract: Value = serde_json::from_str(&contract_body)
         .map_err(|error| format!("Alpha package contract is invalid JSON: {error}"))?;
-    if contract["schema"] != "canisend.alpha-package-contract/v2"
+    let expected_contract_schema = alpha_package_contract_schema(from_version)?;
+    if contract["schema"] != expected_contract_schema
         || contract["version"] != from
         || contract["tag"] != from_tag
     {
@@ -5082,6 +5089,16 @@ fn insert_sequential_alpha_updates(
         pretty_json_bytes(&pending_release_feedback(to_version)?)?,
     );
     Ok(())
+}
+
+fn alpha_package_contract_schema(version: &Version) -> Result<&'static str, String> {
+    let first_v3 = Version::parse(FIRST_ALPHA_PACKAGE_V3_VERSION)
+        .map_err(|error| format!("invalid first Alpha package v3 version: {error}"))?;
+    Ok(if version < &first_v3 {
+        ALPHA_PACKAGE_CONTRACT_V2_SCHEMA
+    } else {
+        ALPHA_PACKAGE_CONTRACT_V3_SCHEMA
+    })
 }
 
 fn validate_stage_transition(
@@ -5288,6 +5305,101 @@ fn beta_readiness_contracts(root: &Path) -> Result<Value, String> {
         "workflow_pack_format": "canisend.workflow-pack/v1",
         "workflow_packs": packs,
     }))
+}
+
+fn print_alpha_package_contract_bindings() -> Result<(), String> {
+    let bindings = alpha_package_contract_bindings(&repository_root())?;
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&bindings)
+            .map_err(|error| format!("could not render Alpha package bindings: {error}"))?
+    );
+    Ok(())
+}
+
+fn alpha_package_contract_bindings(root: &Path) -> Result<Value, String> {
+    let mut bindings = beta_readiness_contracts(root)?;
+    let fields = bindings
+        .as_object_mut()
+        .ok_or_else(|| "Alpha package contract bindings must be an object".to_owned())?;
+
+    let resource_manifest_path = "crates/canisend-resources/resources/manifest.json";
+    let resource_manifest_bytes = fs::read(root.join(resource_manifest_path))
+        .map_err(|error| format!("embedded resource manifest is missing: {error}"))?;
+    let resource_manifest: Value = serde_json::from_slice(&resource_manifest_bytes)
+        .map_err(|error| format!("embedded resource manifest is invalid JSON: {error}"))?;
+    let resource_entry_count = resource_manifest
+        .as_array()
+        .ok_or_else(|| "embedded resource manifest must be an array".to_owned())?
+        .len();
+    fields.insert(
+        "resource_manifest".to_owned(),
+        json!({
+            "path": resource_manifest_path,
+            "entry_count": resource_entry_count,
+            "sha256": hex::encode(Sha256::digest(&resource_manifest_bytes)),
+        }),
+    );
+
+    let operation_registry_path = "crates/canisend-contracts/operation-registry-v1.json";
+    let operation_registry_bytes = fs::read(root.join(operation_registry_path))
+        .map_err(|error| format!("operation registry is missing: {error}"))?;
+    let operation_registry: Value = serde_json::from_slice(&operation_registry_bytes)
+        .map_err(|error| format!("operation registry is invalid JSON: {error}"))?;
+    if operation_registry["format"] != "canisend.operation-registry/v1" {
+        return Err("operation registry format is not v1".to_owned());
+    }
+    let compatibility_aliases = operation_registry["compatibility_aliases"]
+        .as_array()
+        .filter(|aliases| !aliases.is_empty())
+        .ok_or_else(|| "operation registry contains no compatibility aliases".to_owned())?;
+    if compatibility_aliases
+        .iter()
+        .any(|alias| alias["status"] != "deprecated" || alias["pack_scope"] != "academic-job")
+    {
+        return Err(
+            "Alpha.6 compatibility aliases must be deprecated and academic-pack scoped".to_owned(),
+        );
+    }
+    fields.insert(
+        "operation_registry".to_owned(),
+        json!({
+            "path": operation_registry_path,
+            "format": "canisend.operation-registry/v1",
+            "compatibility_alias_count": compatibility_aliases.len(),
+            "compatibility_pack_scope": "academic-job",
+            "sha256": hex::encode(Sha256::digest(&operation_registry_bytes)),
+        }),
+    );
+
+    let migrations = migration_inventory_at(root)?;
+    let current_schema_version = migrations
+        .last()
+        .map(|(version, _, _)| *version)
+        .ok_or_else(|| "workspace migration inventory is empty".to_owned())?;
+    let declared_schema_version = declared_database_schema_version_at(root)?;
+    if current_schema_version != declared_schema_version {
+        return Err(format!(
+            "database schema constant {declared_schema_version} does not match migration inventory {current_schema_version}"
+        ));
+    }
+    let migration_entries = migrations
+        .iter()
+        .map(|(_, name, path)| {
+            read_frozen_contract_text(path, "migration").map(|bytes| (name.clone(), bytes))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    fields.insert(
+        "migration_inventory".to_owned(),
+        json!({
+            "directory": "crates/canisend-store/migrations",
+            "through": current_schema_version,
+            "count": migration_entries.len(),
+            "tree_sha256": digest_named_bytes(&migration_entries),
+        }),
+    );
+
+    Ok(bindings)
 }
 
 fn release_notes_status_for_stage(stage: ReleaseStage) -> &'static str {
@@ -8775,20 +8887,10 @@ fn check_alpha_package_contract() -> Result<(), String> {
         &fs::read(&path).map_err(|error| format!("Alpha package contract is missing: {error}"))?,
     )
     .map_err(|error| format!("Alpha package contract is invalid JSON: {error}"))?;
-    if contract.get("schema").and_then(Value::as_str) != Some("canisend.alpha-package-contract/v2")
-    {
-        return Err(
-            "Alpha package contract schema must be canisend.alpha-package-contract/v2".to_owned(),
-        );
-    }
+    let parsed_version = Version::parse(env!("CARGO_PKG_VERSION"))
+        .map_err(|error| format!("source version is invalid SemVer: {error}"))?;
+    check_alpha_package_contract_identity_and_bindings(&root, &parsed_version, &contract)?;
     let version = env!("CARGO_PKG_VERSION");
-    if contract.get("version").and_then(Value::as_str) != Some(version)
-        || contract.get("tag").and_then(Value::as_str) != Some(&format!("v{version}"))
-    {
-        return Err(format!(
-            "Alpha package contract version and tag must be {version} and v{version}"
-        ));
-    }
     for pointer in [
         "/standalone_cli/build_profile",
         "/desktop_macos/build_profile",
@@ -9080,6 +9182,35 @@ fn check_alpha_package_contract() -> Result<(), String> {
         "Alpha package contract: ok ({} CLI assets, one-host macOS ZIP and DMG desktop artifacts, no Intel GUI release evidence, GUI performance and payload baselines)",
         assets.len()
     );
+    Ok(())
+}
+
+fn check_alpha_package_contract_identity_and_bindings(
+    root: &Path,
+    version: &Version,
+    contract: &Value,
+) -> Result<(), String> {
+    let expected_schema = alpha_package_contract_schema(version)?;
+    if contract.get("schema").and_then(Value::as_str) != Some(expected_schema) {
+        return Err(format!(
+            "Alpha package contract schema must be {expected_schema} for {version}"
+        ));
+    }
+    let version_text = version.to_string();
+    if contract.get("version").and_then(Value::as_str) != Some(version_text.as_str())
+        || contract.get("tag").and_then(Value::as_str) != Some(&format!("v{version}"))
+    {
+        return Err(format!(
+            "Alpha package contract version and tag must be {version} and v{version}"
+        ));
+    }
+    let expected_bindings = alpha_package_contract_bindings(root)?;
+    if contract.get("contracts") != Some(&expected_bindings) {
+        return Err(
+            "Alpha package contract does not bind the exact v3 protocols, built-in Packs, resources, operation registry, and migrations"
+                .to_owned(),
+        );
+    }
     Ok(())
 }
 
@@ -10272,7 +10403,7 @@ fn build_release_status_document(sources: &ReleaseStatusSources) -> Result<Value
         ));
     }
 
-    if sources.alpha_package["schema"] != "canisend.alpha-package-contract/v2" {
+    if sources.alpha_package["schema"] != alpha_package_contract_schema(version)? {
         return Err("release-status Alpha package contract schema is invalid".to_owned());
     }
     let package_version = Version::parse(required_string(
@@ -11404,7 +11535,11 @@ fn canonicalize_frozen_contract_text(bytes: &[u8]) -> Result<Vec<u8>, String> {
 }
 
 fn migration_inventory() -> Result<Vec<(u32, String, PathBuf)>, String> {
-    let directory = repository_root().join("crates/canisend-store/migrations");
+    migration_inventory_at(&repository_root())
+}
+
+fn migration_inventory_at(root: &Path) -> Result<Vec<(u32, String, PathBuf)>, String> {
+    let directory = root.join("crates/canisend-store/migrations");
     let mut migrations = Vec::new();
     for entry in fs::read_dir(&directory).map_err(|error| {
         format!(
@@ -11443,7 +11578,11 @@ fn migration_inventory() -> Result<Vec<(u32, String, PathBuf)>, String> {
 }
 
 fn declared_database_schema_version() -> Result<u32, String> {
-    let path = repository_root().join("crates/canisend-store/src/database.rs");
+    declared_database_schema_version_at(&repository_root())
+}
+
+fn declared_database_schema_version_at(root: &Path) -> Result<u32, String> {
+    let path = root.join("crates/canisend-store/src/database.rs");
     let source = fs::read_to_string(&path)
         .map_err(|error| format!("could not read {}: {error}", path.display()))?;
     let prefix = "pub const DATABASE_SCHEMA_VERSION: u32 = ";
@@ -16717,6 +16856,74 @@ mod tests {
             )
             .is_err(),
             "RC.2 cannot be skipped before its exact matrix is recorded"
+        );
+    }
+
+    #[test]
+    fn alpha_package_contract_v3_binds_dual_pack_and_migration_authorities() {
+        let root = repository_root();
+        let version = Version::parse(env!("CARGO_PKG_VERSION")).expect("source version");
+        let contract: Value = serde_json::from_slice(
+            &fs::read(root.join("release/alpha-package-contract.json"))
+                .expect("read Alpha package contract"),
+        )
+        .expect("parse Alpha package contract");
+        check_alpha_package_contract_identity_and_bindings(&root, &version, &contract)
+            .expect("current Alpha package bindings");
+
+        for (name, mutated) in [
+            ("schema", {
+                let mut value = contract.clone();
+                value["schema"] = Value::String(ALPHA_PACKAGE_CONTRACT_V2_SCHEMA.to_owned());
+                value
+            }),
+            ("generic Pack digest", {
+                let mut value = contract.clone();
+                value["contracts"]["workflow_packs"][1]["content_digest"] =
+                    Value::String("0".repeat(64));
+                value
+            }),
+            ("resource manifest digest", {
+                let mut value = contract.clone();
+                value["contracts"]["resource_manifest"]["sha256"] = Value::String("0".repeat(64));
+                value
+            }),
+            ("operation registry digest", {
+                let mut value = contract.clone();
+                value["contracts"]["operation_registry"]["sha256"] = Value::String("0".repeat(64));
+                value
+            }),
+            ("migration tree digest", {
+                let mut value = contract.clone();
+                value["contracts"]["migration_inventory"]["tree_sha256"] =
+                    Value::String("0".repeat(64));
+                value
+            }),
+        ] {
+            assert!(
+                check_alpha_package_contract_identity_and_bindings(&root, &version, &mutated)
+                    .is_err(),
+                "mutated {name} must fail closed"
+            );
+        }
+    }
+
+    #[test]
+    fn alpha_package_contract_schema_changes_at_alpha6() {
+        let alpha5 = Version::parse("1.0.0-alpha.5").expect("Alpha.5");
+        let alpha6 = Version::parse("1.0.0-alpha.6").expect("Alpha.6");
+        let alpha7 = Version::parse("1.0.0-alpha.7").expect("Alpha.7");
+        assert_eq!(
+            alpha_package_contract_schema(&alpha5).expect("Alpha.5 schema"),
+            ALPHA_PACKAGE_CONTRACT_V2_SCHEMA
+        );
+        assert_eq!(
+            alpha_package_contract_schema(&alpha6).expect("Alpha.6 schema"),
+            ALPHA_PACKAGE_CONTRACT_V3_SCHEMA
+        );
+        assert_eq!(
+            alpha_package_contract_schema(&alpha7).expect("Alpha.7 schema"),
+            ALPHA_PACKAGE_CONTRACT_V3_SCHEMA
         );
     }
 
