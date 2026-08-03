@@ -197,6 +197,15 @@ impl<'a> ApplicationFlowServiceV3<'a> {
         pack: &VerifiedWorkflowPackBundle,
         request: ApplicationFlowCreateRequestV3,
     ) -> Result<ApplicationFlowReadModelV3, StoreError> {
+        self.create_with_actor(pack, request, ActorKind::User)
+    }
+
+    pub fn create_with_actor(
+        &mut self,
+        pack: &VerifiedWorkflowPackBundle,
+        request: ApplicationFlowCreateRequestV3,
+        actor: ActorKind,
+    ) -> Result<ApplicationFlowReadModelV3, StoreError> {
         validate_metadata(
             pack.manifest().application.opportunity_fields.as_slice(),
             &request.opportunity_metadata,
@@ -278,7 +287,7 @@ impl<'a> ApplicationFlowServiceV3<'a> {
         }
         let commit = ApplicationModelRepository::new(self.database).create(
             snapshot,
-            ActorKind::User,
+            actor,
             "application-flow-intake",
         )?;
         let stages = derive_stages(pack, &commit.stored.snapshot, false, false)?;
@@ -383,6 +392,16 @@ impl<'a> ApplicationFlowServiceV3<'a> {
         application_id: &ApplicationId,
         request: ApplicationFlowComposeRequestV3,
     ) -> Result<ApplicationFlowCommitReadModelV3, StoreError> {
+        self.compose_with_actor(pack, application_id, request, ActorKind::User)
+    }
+
+    pub fn compose_with_actor(
+        &mut self,
+        pack: &VerifiedWorkflowPackBundle,
+        application_id: &ApplicationId,
+        request: ApplicationFlowComposeRequestV3,
+        actor: ActorKind,
+    ) -> Result<ApplicationFlowCommitReadModelV3, StoreError> {
         let current = self.current_for_pack(pack, application_id, request.expected_revision)?;
         let plan = current.snapshot.plan.as_ref().ok_or_else(|| {
             StoreError::ApplicationModelConflict(
@@ -486,7 +505,7 @@ impl<'a> ApplicationFlowServiceV3<'a> {
             application_id,
             request.expected_revision,
             candidate,
-            ActorKind::User,
+            actor,
             "application-flow-compose",
         )?;
         self.commit_read_model(pack, commit)

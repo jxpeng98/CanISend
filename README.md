@@ -71,8 +71,9 @@ The current CLI provides:
 - Seven deterministic `canisend.application-model/v3` schemas plus an additive transactional
   repository for neutral Opportunity, Application, Requirement, Plan, Deliverable, and exact Pack
   bindings. A dry-run-first, verified-backup Workspace v2→v3 migration service can activate that
-  authority against an exact verified academic Pack; CLI/desktop exposure and Agent v3 operations
-  are not yet enabled.
+  authority against an exact verified academic Pack. CLI and desktop expose the generic Pack flow,
+  while Agent v3/MCP adds body-free context, exact next actions, guarded mutations, consented
+  review/export, and snapshot-bound single-use approval for the exact generic Pack.
 - A deterministic Pack stage-graph compiler with Pack-qualified stable `StageId` values; the
   current fixed Agent/Workspace v2 workflow remains the compatibility runtime.
 - A Pack-qualified Deliverable catalog that binds cardinality, declaration order, templates,

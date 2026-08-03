@@ -91,4 +91,6 @@ categories, stages, localized labels, and Deliverable choices come from the exac
 The v2-to-v3 Workspace migration is preview/digest/backup bound and preserves the academic Pack
 presentation after activation. Direct local-file, text-PDF, and user-URL conversion into a
 canonical v3 create request remains later adapter-parity work. Agent v3/MCP operation registration
-is GF4-AGENT-001; no shared surface may write the database directly.
+is implemented by GF4-AGENT-001 through the shared App facade; no shared surface writes the
+database directly. Agent review and export preserve the same private consent gates, while approval
+adds a session-local single-use token bound to the exact reviewed revision and snapshot digest.

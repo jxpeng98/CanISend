@@ -11,11 +11,18 @@ use std::{
 };
 
 use canisend_app::{
-    Application, ApplicationError, NetworkFetchConsent, PreparedJobSource, PrivateReadConsent,
-    ProviderSendConsent, TaskExecutionMode, TaskInputExportRequest, TaskOperation,
-    TaskPrepareRequest,
+    Application, ApplicationError, ApplicationFlowApproveRequestV3,
+    ApplicationFlowComposeRequestV3, ApplicationFlowCreateRequestV3,
+    ApplicationFlowDeliverableDraftV3, ApplicationFlowExportRequestV3,
+    ApplicationFlowPlanRequestV3, ApplicationFlowPlannedDeliverableV3,
+    ApplicationFlowRequirementDraftV3, NetworkFetchConsent, PreparedJobSource,
+    PrivateExportConsent, PrivateReadConsent, ProviderSendConsent, TaskExecutionMode,
+    TaskInputExportRequest, TaskOperation, TaskPrepareRequest,
 };
-use canisend_contracts::TaskCompletionRequest;
+use canisend_contracts::{
+    ApplicationFieldValueV3, ExecutionMode, PlannedDeliverableDispositionV3, RequirementPriorityV3,
+    Revision, Sha256Digest, TaskCompletionRequest, WorkflowPackItemId,
+};
 use rmcp::{
     ErrorData as McpError, ServerHandler, ServiceExt,
     handler::server::wrapper::{Json, Parameters},
@@ -27,6 +34,7 @@ use serde_json::Value;
 use thiserror::Error;
 
 const MAX_JOB_ID_BYTES: usize = 128;
+const MAX_APPLICATION_ID_BYTES: usize = 128;
 const MAX_TASK_ID_BYTES: usize = 128;
 const MAX_PREVIEW_TOKEN_BYTES: usize = 192;
 const MAX_PENDING_PREVIEWS: usize = 16;
@@ -54,6 +62,14 @@ pub struct CanISendMcpServer {
 enum PendingMutation {
     JobIntake(Box<PreparedJobSource>),
     TaskCompletion(TaskCompletionRequest),
+    ApplicationApproval(ApplicationApprovalPreview),
+}
+
+#[derive(Debug, Clone)]
+struct ApplicationApprovalPreview {
+    application_id: String,
+    expected_revision: Revision,
+    snapshot_sha256: Sha256Digest,
 }
 
 #[derive(Debug, Default)]
@@ -193,6 +209,199 @@ pub struct TaskCompletionPreviewParameters {
     pub confirmed_private_read: bool,
 }
 
+#[derive(Debug, Clone, Default, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AgentV3ContextParameters {
+    #[schemars(description = "Optional generic Application ID to resume")]
+    pub application_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ApplicationParameters {
+    #[schemars(description = "Pack-bound generic Application ID")]
+    pub application_id: String,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ApplicationRequirementParameters {
+    pub category: String,
+    pub statement: String,
+    pub priority: RequirementPriorityV3,
+    pub start_byte: u64,
+    pub end_byte: u64,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ApplicationCreateParameters {
+    pub title: String,
+    #[serde(default)]
+    pub opportunity_metadata: BTreeMap<String, ApplicationFieldValueV3>,
+    #[serde(default)]
+    pub application_metadata: BTreeMap<String, ApplicationFieldValueV3>,
+    #[schemars(description = "Reviewed UTF-8 source body; never returned by routine context")]
+    pub source_text: String,
+    pub requirements: Vec<ApplicationRequirementParameters>,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ApplicationPlannedDeliverableParameters {
+    pub kind: String,
+    pub disposition: PlannedDeliverableDispositionV3,
+    pub rationale: String,
+    #[serde(default)]
+    pub constraints: Vec<String>,
+    pub execution_mode: Option<ExecutionMode>,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ApplicationPlanParameters {
+    pub application_id: String,
+    pub expected_revision: u64,
+    pub decision: String,
+    pub deliverables: Vec<ApplicationPlannedDeliverableParameters>,
+    #[serde(default)]
+    #[schemars(description = "User explicitly confirmed Requirements and this exact Plan")]
+    pub confirmed_user_decision: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ApplicationDeliverableParameters {
+    pub kind: String,
+    pub title: String,
+    pub media_type: String,
+    #[schemars(description = "Private Deliverable body to commit for explicit review")]
+    pub content: String,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ApplicationComposeParameters {
+    pub application_id: String,
+    pub expected_revision: u64,
+    pub deliverables: Vec<ApplicationDeliverableParameters>,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ApplicationReviewParameters {
+    pub application_id: String,
+    #[serde(default)]
+    #[schemars(description = "User explicitly allowed local private Deliverable body access")]
+    pub confirmed_private_read: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ApplicationApprovalParameters {
+    #[schemars(description = "Opaque session-local token returned by application review")]
+    pub review_token: String,
+    #[serde(default)]
+    #[schemars(description = "User explicitly approved every body in the exact reviewed snapshot")]
+    pub confirmed_user_approval: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ApplicationExportParameters {
+    pub application_id: String,
+    pub expected_revision: u64,
+    #[schemars(description = "Safe workspace-relative output directory")]
+    pub destination: String,
+    #[serde(default)]
+    #[schemars(description = "User explicitly authorized this local private export")]
+    pub confirmed_private_export: bool,
+}
+
+impl ApplicationCreateParameters {
+    fn try_into_request(self) -> Result<ApplicationFlowCreateRequestV3, ApplicationError> {
+        Ok(ApplicationFlowCreateRequestV3 {
+            title: self.title,
+            opportunity_metadata: pack_metadata(self.opportunity_metadata)?,
+            application_metadata: pack_metadata(self.application_metadata)?,
+            source_text: self.source_text,
+            requirements: self
+                .requirements
+                .into_iter()
+                .map(|requirement| {
+                    Ok(ApplicationFlowRequirementDraftV3 {
+                        category: pack_item(&requirement.category)?,
+                        statement: requirement.statement,
+                        priority: requirement.priority,
+                        start_byte: requirement.start_byte,
+                        end_byte: requirement.end_byte,
+                    })
+                })
+                .collect::<Result<Vec<_>, ApplicationError>>()?,
+        })
+    }
+}
+
+impl ApplicationPlanParameters {
+    fn try_into_request(self) -> Result<ApplicationFlowPlanRequestV3, ApplicationError> {
+        Ok(ApplicationFlowPlanRequestV3 {
+            expected_revision: revision(self.expected_revision)?,
+            decision: pack_item(&self.decision)?,
+            deliverables: self
+                .deliverables
+                .into_iter()
+                .map(|deliverable| {
+                    Ok(ApplicationFlowPlannedDeliverableV3 {
+                        kind: pack_item(&deliverable.kind)?,
+                        disposition: deliverable.disposition,
+                        rationale: deliverable.rationale,
+                        constraints: deliverable.constraints,
+                        execution_mode: deliverable.execution_mode,
+                    })
+                })
+                .collect::<Result<Vec<_>, ApplicationError>>()?,
+        })
+    }
+}
+
+impl ApplicationComposeParameters {
+    fn try_into_request(self) -> Result<ApplicationFlowComposeRequestV3, ApplicationError> {
+        Ok(ApplicationFlowComposeRequestV3 {
+            expected_revision: revision(self.expected_revision)?,
+            deliverables: self
+                .deliverables
+                .into_iter()
+                .map(|deliverable| {
+                    Ok(ApplicationFlowDeliverableDraftV3 {
+                        kind: pack_item(&deliverable.kind)?,
+                        title: deliverable.title,
+                        media_type: deliverable.media_type,
+                        content: deliverable.content,
+                    })
+                })
+                .collect::<Result<Vec<_>, ApplicationError>>()?,
+        })
+    }
+}
+
+fn pack_metadata(
+    values: BTreeMap<String, ApplicationFieldValueV3>,
+) -> Result<BTreeMap<WorkflowPackItemId, ApplicationFieldValueV3>, ApplicationError> {
+    values
+        .into_iter()
+        .map(|(key, value)| Ok((pack_item(&key)?, value)))
+        .collect()
+}
+
+fn pack_item(value: &str) -> Result<WorkflowPackItemId, ApplicationError> {
+    WorkflowPackItemId::try_new(value)
+        .map_err(|error| ApplicationError::InvalidInput(error.to_string()))
+}
+
+fn revision(value: u64) -> Result<Revision, ApplicationError> {
+    Revision::try_new(value).map_err(|error| ApplicationError::InvalidInput(error.to_string()))
+}
+
 impl MutationPreviewStore {
     fn insert(&self, mutation: PendingMutation) -> Result<String, McpError> {
         let timestamp = SystemTime::now()
@@ -313,6 +522,16 @@ impl CanISendMcpServer {
         Ok(())
     }
 
+    fn validate_application_id(application_id: &str) -> Result<(), McpError> {
+        if application_id.is_empty() || application_id.len() > MAX_APPLICATION_ID_BYTES {
+            return Err(McpError::invalid_params(
+                format!("application_id must contain 1 to {MAX_APPLICATION_ID_BYTES} bytes"),
+                None,
+            ));
+        }
+        Ok(())
+    }
+
     fn validate_preview_token(token: &str) -> Result<(), McpError> {
         if token.is_empty()
             || token.len() > MAX_PREVIEW_TOKEN_BYTES
@@ -352,6 +571,14 @@ impl CanISendMcpServer {
     }
 }
 
+fn pending_mutation_kind(mutation: &PendingMutation) -> &'static str {
+    match mutation {
+        PendingMutation::JobIntake(_) => "job intake",
+        PendingMutation::TaskCompletion(_) => "task completion",
+        PendingMutation::ApplicationApproval(_) => "Application approval",
+    }
+}
+
 pub fn serve_stdio(workspace: Option<&Path>) -> Result<(), McpServerError> {
     let workspace = Application::resolve_workspace_root(workspace)?;
     let server = CanISendMcpServer::open(&workspace)?;
@@ -376,6 +603,286 @@ pub fn serve_stdio(workspace: Option<&Path>) -> Result<(), McpServerError> {
 
 #[tool_router]
 impl CanISendMcpServer {
+    #[tool(
+        description = "Return the canonical neutral Agent v3 operation registry and exact built-in generic Pack binding",
+        annotations(
+            title = "Inspect Agent v3 capabilities",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_agent_v3_capabilities(&self) -> Result<Json<Value>, McpError> {
+        Self::application_result(Application::agent_v3_capabilities())
+    }
+
+    #[tool(
+        description = "Return body-free generic Application summaries, exact Pack binding, blockers, and revision-bound next actions",
+        annotations(
+            title = "Inspect Agent v3 context",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_agent_v3_context(
+        &self,
+        Parameters(parameters): Parameters<AgentV3ContextParameters>,
+    ) -> Result<Json<Value>, McpError> {
+        if let Some(application_id) = parameters.application_id.as_deref() {
+            Self::validate_application_id(application_id)?;
+        }
+        Self::application_result(Application::agent_v3_context(
+            self.workspace(),
+            parameters.application_id.as_deref(),
+        ))
+    }
+
+    #[tool(
+        description = "List body-free generic Application summaries from the authoritative v3 workspace",
+        annotations(
+            title = "List generic Applications",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_applications_list(&self) -> Result<Json<Value>, McpError> {
+        let context = match Application::agent_v3_context(self.workspace(), None) {
+            Ok(context) => context,
+            Err(error) => return Self::application_result::<Value>(Err(error)),
+        };
+        Self::application_result(Ok(serde_json::json!({
+            "operation": "application.list",
+            "status": "available",
+            "pack": context.data.pack,
+            "applications": context.data.applications,
+            "privacy": "public",
+            "submission_supported": false
+        })))
+    }
+
+    #[tool(
+        description = "Create one exact-Pack generic Application from reviewed source text and UTF-8 Requirement spans after host write approval",
+        annotations(
+            title = "Create generic Application",
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_application_create(
+        &self,
+        Parameters(parameters): Parameters<ApplicationCreateParameters>,
+    ) -> Result<Json<Value>, McpError> {
+        let request = match parameters.try_into_request() {
+            Ok(request) => request,
+            Err(error) => return Self::application_result::<Value>(Err(error)),
+        };
+        Self::application_result(Application::agent_v3_create_application(
+            self.workspace(),
+            request,
+        ))
+    }
+
+    #[tool(
+        description = "Confirm exact Requirements and a Pack-qualified Plan at the expected Application revision after explicit user decision",
+        annotations(
+            title = "Confirm generic Application Plan",
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_application_plan(
+        &self,
+        Parameters(parameters): Parameters<ApplicationPlanParameters>,
+    ) -> Result<Json<Value>, McpError> {
+        Self::validate_application_id(&parameters.application_id)?;
+        if !parameters.confirmed_user_decision {
+            return Err(Self::consent_required(
+                "The user must explicitly confirm the exact Requirements and Plan before commit.",
+            ));
+        }
+        let application_id = parameters.application_id.clone();
+        let request = match parameters.try_into_request() {
+            Ok(request) => request,
+            Err(error) => return Self::application_result::<Value>(Err(error)),
+        };
+        Self::application_result(Application::agent_v3_plan_application(
+            self.workspace(),
+            &application_id,
+            request,
+        ))
+    }
+
+    #[tool(
+        description = "Commit exact Pack-qualified Deliverable bodies at the expected Application revision for later private review",
+        annotations(
+            title = "Compose generic Deliverables",
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_application_compose(
+        &self,
+        Parameters(parameters): Parameters<ApplicationComposeParameters>,
+    ) -> Result<Json<Value>, McpError> {
+        Self::validate_application_id(&parameters.application_id)?;
+        let application_id = parameters.application_id.clone();
+        let request = match parameters.try_into_request() {
+            Ok(request) => request,
+            Err(error) => return Self::application_result::<Value>(Err(error)),
+        };
+        Self::application_result(Application::agent_v3_compose_application(
+            self.workspace(),
+            &application_id,
+            request,
+        ))
+    }
+
+    #[tool(
+        description = "Read verified private Deliverable bodies after explicit consent and return a session-local token bound to the exact reviewed revision and snapshot digest",
+        annotations(
+            title = "Review generic Deliverables",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_application_review(
+        &self,
+        Parameters(parameters): Parameters<ApplicationReviewParameters>,
+    ) -> Result<Json<Value>, McpError> {
+        Self::validate_application_id(&parameters.application_id)?;
+        if !parameters.confirmed_private_read {
+            return Err(Self::consent_required(
+                "The user must explicitly confirm private Deliverable access before review.",
+            ));
+        }
+        let review = match Application::review_generic_application_v3(
+            self.workspace(),
+            &parameters.application_id,
+            Some(PrivateReadConsent::granted_by_user()),
+        ) {
+            Ok(review) => review,
+            Err(error) => return Self::application_result::<Value>(Err(error)),
+        };
+        let preview = ApplicationApprovalPreview {
+            application_id: parameters.application_id,
+            expected_revision: review.data.stored.snapshot.application.revision,
+            snapshot_sha256: review.data.stored.snapshot_sha256.clone(),
+        };
+        let review_token = self
+            .previews
+            .insert(PendingMutation::ApplicationApproval(preview))?;
+        Self::application_result(Ok(serde_json::json!({
+            "review_token": review_token,
+            "review": review,
+            "next_action": {
+                "action": "canisend_application_approve",
+                "description": "After the user approves every returned body, commit with this single-use review_token"
+            }
+        })))
+    }
+
+    #[tool(
+        description = "Approve only the exact Deliverable snapshot previously returned by review, using its single-use session token and explicit user approval",
+        annotations(
+            title = "Approve generic Deliverables",
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_application_approve(
+        &self,
+        Parameters(parameters): Parameters<ApplicationApprovalParameters>,
+    ) -> Result<Json<Value>, McpError> {
+        if !parameters.confirmed_user_approval {
+            return Err(Self::consent_required(
+                "The user must explicitly approve every body in the reviewed snapshot.",
+            ));
+        }
+        let token = parameters.review_token;
+        let pending = self.previews.take(&token)?;
+        let retry = pending.clone();
+        let PendingMutation::ApplicationApproval(preview) = pending else {
+            let actual = pending_mutation_kind(&retry);
+            self.previews.restore(token, retry)?;
+            return Err(McpError::invalid_params(
+                format!("The token belongs to {actual}, not Application approval."),
+                None,
+            ));
+        };
+        let result = (|| {
+            let current = Application::generic_application_flow_v3(
+                self.workspace(),
+                &preview.application_id,
+            )?;
+            if current.data.stored.snapshot.application.revision != preview.expected_revision
+                || current.data.stored.snapshot_sha256 != preview.snapshot_sha256
+            {
+                return Err(ApplicationError::InvalidInput(
+                    "The Application changed after review; refresh context and review the current bodies again"
+                        .to_owned(),
+                ));
+            }
+            Application::agent_v3_approve_application(
+                self.workspace(),
+                &preview.application_id,
+                ApplicationFlowApproveRequestV3 {
+                    expected_revision: preview.expected_revision,
+                },
+            )
+        })();
+        self.mutation_result(result, token, retry)
+    }
+
+    #[tool(
+        description = "Render and export approved Deliverables to a safe workspace-relative directory after explicit private-export consent; never uploads or submits",
+        annotations(
+            title = "Export generic Application",
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_application_export(
+        &self,
+        Parameters(parameters): Parameters<ApplicationExportParameters>,
+    ) -> Result<Json<Value>, McpError> {
+        Self::validate_application_id(&parameters.application_id)?;
+        if !parameters.confirmed_private_export {
+            return Err(Self::consent_required(
+                "The user must explicitly authorize this local private export.",
+            ));
+        }
+        let request = match ApplicationFlowExportRequestV3::try_new(
+            &parameters.application_id,
+            parameters.expected_revision,
+            &parameters.destination,
+        ) {
+            Ok(request) => request,
+            Err(error) => return Self::application_result::<Value>(Err(error)),
+        };
+        Self::application_result(Application::agent_v3_export_application(
+            self.workspace(),
+            request,
+            Some(PrivateExportConsent::granted_by_user()),
+        ))
+    }
+
     #[tool(
         description = "Return the versioned CanISend Agent v2 capability catalog without reading a workspace",
         annotations(
@@ -512,9 +1019,10 @@ impl CanISendMcpServer {
         let pending = self.previews.take(&token)?;
         let retry = pending.clone();
         let PendingMutation::JobIntake(prepared) = pending else {
+            let actual = pending_mutation_kind(&retry);
             self.previews.restore(token, retry)?;
             return Err(McpError::invalid_params(
-                "The preview token belongs to a task completion, not job intake.",
+                format!("The preview token belongs to {actual}, not job intake."),
                 None,
             ));
         };
@@ -697,9 +1205,10 @@ impl CanISendMcpServer {
         let pending = self.previews.take(&token)?;
         let retry = pending.clone();
         let PendingMutation::TaskCompletion(request) = pending else {
+            let actual = pending_mutation_kind(&retry);
             self.previews.restore(token, retry)?;
             return Err(McpError::invalid_params(
-                "The preview token belongs to job intake, not a task completion.",
+                format!("The preview token belongs to {actual}, not task completion."),
                 None,
             ));
         };
@@ -734,25 +1243,32 @@ impl CanISendMcpServer {
 
 #[tool_handler(
     name = "canisend",
-    instructions = "These Agent v2 tools are a deprecated compatibility surface for the exact built-in academic Pack. Responses identify the canonical v3 operation and Pack binding. Inspection tools return metadata, workflow state, and body-free context. Guarded mutation tools require host approval; job intake and task completion must be previewed first and committed with the returned single-use token. Preview tokens live only for this MCP session. Unsupported or migrated-v3 write combinations fail without mutation. Never edit .canisend, SQLite, immutable blobs, or managed projections directly."
+    instructions = "Canonical Agent v3 tools operate only on the exact built-in generic Application Pack and use Application, Requirement, Plan, and Deliverable nouns. Routine context is body-free. Guarded mutations require host approval and exact expected revisions. Plan confirmation, private review, approval, and export require explicit user authorization; approval accepts only a session-local single-use token bound to the exact reviewed revision and snapshot digest. CanISend never uploads or submits an Application. Agent v2 tools remain a deprecated compatibility surface bounded to the exact academic Pack. Never edit .canisend, SQLite, immutable blobs, or managed projections directly."
 )]
 impl ServerHandler for CanISendMcpServer {}
 
 #[cfg(test)]
 mod tests {
     use std::{
+        collections::BTreeMap,
         fs,
         sync::atomic::{AtomicU64, Ordering},
     };
 
-    use canisend_app::{Application, PrivateReadConsent};
-    use canisend_contracts::PrivacyClassification;
+    use canisend_app::{Application, ApplicationModelCommitRequestV3, PrivateReadConsent};
+    use canisend_contracts::{
+        ApplicationFieldValueV3, ExecutionMode, PlannedDeliverableDispositionV3,
+        PrivacyClassification, RequirementPriorityV3, Revision,
+    };
     use rmcp::handler::server::wrapper::Parameters;
     use serde_json::Value;
 
     use super::{
-        CanISendMcpServer, ContextParameters, JobListParameters, JobParameters, MAX_JOB_ID_BYTES,
-        MAX_TOOL_RESULT_BYTES,
+        AgentV3ContextParameters, ApplicationApprovalParameters, ApplicationComposeParameters,
+        ApplicationCreateParameters, ApplicationDeliverableParameters, ApplicationPlanParameters,
+        ApplicationPlannedDeliverableParameters, ApplicationRequirementParameters,
+        ApplicationReviewParameters, CanISendMcpServer, ContextParameters, JobListParameters,
+        JobParameters, MAX_JOB_ID_BYTES, MAX_TOOL_RESULT_BYTES,
     };
 
     static NEXT: AtomicU64 = AtomicU64::new(1);
@@ -868,5 +1384,217 @@ mod tests {
             Err(error) => error,
         };
         assert!(error.message.contains("MCP limit"));
+    }
+
+    #[test]
+    fn agent_v3_runs_new_resume_review_approval_and_stale_recovery() {
+        let root = temporary_root("agent-v3-lifecycle");
+        Application::initialize_workspace_v3(&root).expect("initialize v3 workspace");
+        let server = CanISendMcpServer::open(&root).expect("open MCP server");
+
+        let source = "Provide one primary narrative.";
+        let created = server
+            .canisend_application_create(Parameters(ApplicationCreateParameters {
+                title: "Neutral fixture".to_owned(),
+                opportunity_metadata: BTreeMap::from([(
+                    "organization".to_owned(),
+                    ApplicationFieldValueV3::ShortText("Example Organization".to_owned()),
+                )]),
+                application_metadata: BTreeMap::new(),
+                source_text: source.to_owned(),
+                requirements: vec![ApplicationRequirementParameters {
+                    category: "format".to_owned(),
+                    statement: source.to_owned(),
+                    priority: RequirementPriorityV3::Mandatory,
+                    start_byte: 0,
+                    end_byte: source.len() as u64,
+                }],
+            }))
+            .expect("create")
+            .0;
+        let application_id = created["data"]["stored"]["snapshot"]["application"]["id"]
+            .as_str()
+            .expect("Application ID")
+            .to_owned();
+
+        let resumed = server
+            .canisend_agent_v3_context(Parameters(AgentV3ContextParameters {
+                application_id: Some(application_id.clone()),
+            }))
+            .expect("resume context")
+            .0;
+        let context_json = serde_json::to_string(&resumed).expect("context JSON");
+        assert_eq!(
+            resumed["data"]["next_actions"][0]["action"],
+            "canisend_application_plan"
+        );
+        assert!(!context_json.contains(source));
+        assert!(!context_json.contains("Example Organization"));
+
+        let denied_plan = server.canisend_application_plan(Parameters(ApplicationPlanParameters {
+            application_id: application_id.clone(),
+            expected_revision: 1,
+            decision: "proceed".to_owned(),
+            deliverables: vec![ApplicationPlannedDeliverableParameters {
+                kind: "primary-document".to_owned(),
+                disposition: PlannedDeliverableDispositionV3::Required,
+                rationale: "Required by source".to_owned(),
+                constraints: Vec::new(),
+                execution_mode: Some(ExecutionMode::HostAgent),
+            }],
+            confirmed_user_decision: false,
+        }));
+        assert!(denied_plan.is_err());
+        assert_eq!(
+            Application::application_model_v3(&root, &application_id)
+                .expect("unchanged after denied Plan")
+                .data
+                .snapshot
+                .application
+                .revision
+                .get(),
+            1
+        );
+
+        server
+            .canisend_application_plan(Parameters(ApplicationPlanParameters {
+                application_id: application_id.clone(),
+                expected_revision: 1,
+                decision: "proceed".to_owned(),
+                deliverables: vec![ApplicationPlannedDeliverableParameters {
+                    kind: "primary-document".to_owned(),
+                    disposition: PlannedDeliverableDispositionV3::Required,
+                    rationale: "Required by source".to_owned(),
+                    constraints: Vec::new(),
+                    execution_mode: Some(ExecutionMode::HostAgent),
+                }],
+                confirmed_user_decision: true,
+            }))
+            .expect("Plan");
+        server
+            .canisend_application_compose(Parameters(ApplicationComposeParameters {
+                application_id: application_id.clone(),
+                expected_revision: 2,
+                deliverables: vec![ApplicationDeliverableParameters {
+                    kind: "primary-document".to_owned(),
+                    title: "Primary document".to_owned(),
+                    media_type: "text/markdown".to_owned(),
+                    content: "PRIVATE-AGENT-V3-DELIVERABLE".to_owned(),
+                }],
+            }))
+            .expect("compose");
+
+        assert!(
+            server
+                .canisend_application_review(Parameters(ApplicationReviewParameters {
+                    application_id: application_id.clone(),
+                    confirmed_private_read: false,
+                }))
+                .is_err()
+        );
+        let reviewed = server
+            .canisend_application_review(Parameters(ApplicationReviewParameters {
+                application_id: application_id.clone(),
+                confirmed_private_read: true,
+            }))
+            .expect("review")
+            .0;
+        assert!(
+            serde_json::to_string(&reviewed)
+                .expect("review JSON")
+                .contains("PRIVATE-AGENT-V3-DELIVERABLE")
+        );
+        let stale_token = reviewed["review_token"]
+            .as_str()
+            .expect("review token")
+            .to_owned();
+
+        let current = Application::application_model_v3(&root, &application_id)
+            .expect("current model")
+            .data;
+        let mut concurrent = current.snapshot;
+        concurrent.application.revision = Revision::try_new(4).expect("revision");
+        concurrent.application.updated_at =
+            canisend_store::current_utc_timestamp().expect("current timestamp");
+        concurrent.application.metadata.insert(
+            canisend_contracts::WorkflowPackItemId::try_new("notes").expect("notes key"),
+            ApplicationFieldValueV3::LongText("Concurrent reviewed note".to_owned()),
+        );
+        Application::commit_application_model_v3(
+            &root,
+            &application_id,
+            ApplicationModelCommitRequestV3 {
+                expected_revision: Revision::try_new(3).expect("revision"),
+                snapshot: concurrent,
+                reason: "concurrent-user-note".to_owned(),
+            },
+        )
+        .expect("concurrent commit");
+        std::thread::sleep(std::time::Duration::from_millis(2));
+
+        let stale =
+            server.canisend_application_approve(Parameters(ApplicationApprovalParameters {
+                review_token: stale_token.clone(),
+                confirmed_user_approval: true,
+            }));
+        assert!(stale.is_err());
+        let restored_stale =
+            server.canisend_application_approve(Parameters(ApplicationApprovalParameters {
+                review_token: stale_token,
+                confirmed_user_approval: true,
+            }));
+        let restored_stale = match restored_stale {
+            Ok(_) => panic!("restored stale token must revalidate"),
+            Err(error) => error,
+        };
+        assert!(restored_stale.message.contains("changed after review"));
+
+        let refreshed = server
+            .canisend_application_review(Parameters(ApplicationReviewParameters {
+                application_id: application_id.clone(),
+                confirmed_private_read: true,
+            }))
+            .expect("refresh review")
+            .0;
+        let fresh_token = refreshed["review_token"]
+            .as_str()
+            .expect("fresh token")
+            .to_owned();
+        assert!(
+            server
+                .canisend_application_approve(Parameters(ApplicationApprovalParameters {
+                    review_token: fresh_token.clone(),
+                    confirmed_user_approval: false,
+                }))
+                .is_err()
+        );
+        server
+            .canisend_application_approve(Parameters(ApplicationApprovalParameters {
+                review_token: fresh_token.clone(),
+                confirmed_user_approval: true,
+            }))
+            .expect("approve refreshed review");
+        assert!(
+            server
+                .canisend_application_approve(Parameters(ApplicationApprovalParameters {
+                    review_token: fresh_token,
+                    confirmed_user_approval: true,
+                }))
+                .is_err(),
+            "approval token must be single-use"
+        );
+
+        let ready = server
+            .canisend_agent_v3_context(Parameters(AgentV3ContextParameters {
+                application_id: Some(application_id),
+            }))
+            .expect("approved context")
+            .0;
+        assert_eq!(
+            ready["data"]["next_actions"][0]["action"],
+            "canisend_application_export"
+        );
+        assert_eq!(ready["data"]["submission_supported"], false);
+        fs::remove_dir_all(root).expect("remove workspace");
     }
 }

@@ -7,9 +7,9 @@
 **Canonical schemas:** `schemas/v3/*.schema.json` in the embedded resource catalog
 
 **Runtime status:** Neutral model, transactional repository, backup-backed semantic migration, two
-verified built-in Packs, and a canonical generic local flow through approval, projection, render,
-and export. Job/Agent v2 remains the academic compatibility runtime; Pack selection in CLI/desktop
-and Agent v3/MCP operations remain separate roadmap tasks.
+verified built-in Packs, and a canonical generic local flow through CLI, desktop, Agent v3/MCP,
+approval, projection, render, and export. Job/Agent v2 remains the academic compatibility runtime;
+cross-surface parity and runtime Pack installation remain separate roadmap tasks.
 
 ## Boundary
 

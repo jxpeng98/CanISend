@@ -8,8 +8,9 @@
 
 **Runtime status:** Repository, neutral app services, and an explicit dry-run-first,
 verified-backup v2→v3 migration service, neutral Application projections, and exact Pack migration
-with dependency-scoped invalidation are implemented. CLI, MCP, desktop migration/projection/Pack
-controls and canonical Agent v3 operations remain unavailable.
+with dependency-scoped invalidation are implemented. CLI and desktop expose the generic Pack flow,
+and canonical Agent v3/MCP operations are implemented for its exact Pack binding. Runtime Pack
+installation and remaining migration/projection controls are not yet shared across every surface.
 
 ## Boundary
 
@@ -142,9 +143,10 @@ metadata is body-free and exposes only digest, actor, reason code, revision, and
 ## App-service boundary
 
 `canisend-app` exposes typed create, show, list, history, commit, and authority methods over the
-repository. User-facing writes record `ActorKind::User`; Agent v3 actor routing is deferred until
-the canonical v3 operation registry is implemented. On a current v2 Workspace every method fails
-closed at the authority gate before model mutation.
+repository. User-facing writes record `ActorKind::User`. Canonical Agent v3 creation and
+composition record `ActorKind::HostAgent`; Requirement/Plan confirmation, approval, and consented
+export remain user-owned. On a current v2 Workspace every v3 method fails closed at the authority
+gate before model mutation.
 
 These methods do not install Packs, migrate Workspaces, render, export, call a provider, use the
 network, or submit an application. Projection operations are a separate Store service and are not

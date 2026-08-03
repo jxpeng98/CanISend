@@ -21,6 +21,7 @@ tokio.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
+canisend-store = { path = "../canisend-store", version = "=1.0.0-alpha.5" }
 
 [lints]
 workspace = true

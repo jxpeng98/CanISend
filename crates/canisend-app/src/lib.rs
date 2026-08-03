@@ -2,6 +2,7 @@
 
 mod agent;
 mod agent_session;
+mod agent_v3;
 mod application;
 mod application_flow_v3;
 mod application_v3;
@@ -41,9 +42,16 @@ pub use agent::{
     AgentSkillsInstallRequest, AgentSkillsStatusReadModel, AgentSkillsStatusRequest,
     AgentSkillsUninstallReadModel, AgentSkillsUninstallRequest, CANISEND_MCP_GUARDED_WRITE_TOOLS,
     CANISEND_MCP_PROTOCOL_VERSION, CANISEND_MCP_READ_ONLY_TOOLS, CANISEND_MCP_TOOLS,
+    CANISEND_MCP_V2_GUARDED_WRITE_TOOLS, CANISEND_MCP_V2_READ_ONLY_TOOLS, CANISEND_MCP_V2_TOOLS,
 };
 pub use agent_session::{
     AgentRuntimeKind, AgentSessionEntry, AgentSessionRegistry, default_agent_session_registry_path,
+};
+pub use agent_v3::{
+    AGENT_V3_PROTOCOL, AgentV3ApplicationSummaryReadModel, AgentV3CapabilitiesReadModel,
+    AgentV3ContextBlockerReadModel, AgentV3ContextReadModel, AgentV3DeliverableSummaryReadModel,
+    AgentV3HandoffReadModel, AgentV3HandoffRequest, AgentV3OperationReadModel,
+    CANISEND_MCP_V3_GUARDED_WRITE_TOOLS, CANISEND_MCP_V3_READ_ONLY_TOOLS, CANISEND_MCP_V3_TOOLS,
 };
 pub use application::{
     Application, NetworkFetchConsent, PrivateExportConsent, PrivateReadConsent, ProviderSendConsent,

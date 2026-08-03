@@ -37,7 +37,7 @@ pub type AgentSkillsStatusReadModel = AgentSkillsStatusData;
 pub type AgentSkillsUninstallReadModel = AgentSkillsUninstallData;
 
 pub const CANISEND_MCP_PROTOCOL_VERSION: &str = "2025-11-25";
-pub const CANISEND_MCP_TOOLS: [&str; 13] = [
+pub const CANISEND_MCP_V2_TOOLS: [&str; 13] = [
     "canisend_capabilities",
     "canisend_context",
     "canisend_job_detail",
@@ -52,7 +52,7 @@ pub const CANISEND_MCP_TOOLS: [&str; 13] = [
     "canisend_task_prepare",
     "canisend_workflow_status",
 ];
-pub const CANISEND_MCP_READ_ONLY_TOOLS: [&str; 9] = [
+pub const CANISEND_MCP_V2_READ_ONLY_TOOLS: [&str; 9] = [
     "canisend_capabilities",
     "canisend_context",
     "canisend_job_detail",
@@ -63,7 +63,60 @@ pub const CANISEND_MCP_READ_ONLY_TOOLS: [&str; 9] = [
     "canisend_task_latest",
     "canisend_workflow_status",
 ];
-pub const CANISEND_MCP_GUARDED_WRITE_TOOLS: [&str; 4] = [
+pub const CANISEND_MCP_V2_GUARDED_WRITE_TOOLS: [&str; 4] = [
+    "canisend_job_intake_commit",
+    "canisend_task_completion_commit",
+    "canisend_task_inputs",
+    "canisend_task_prepare",
+];
+
+pub const CANISEND_MCP_TOOLS: [&str; 22] = [
+    "canisend_agent_v3_capabilities",
+    "canisend_agent_v3_context",
+    "canisend_application_approve",
+    "canisend_application_compose",
+    "canisend_application_create",
+    "canisend_application_export",
+    "canisend_application_plan",
+    "canisend_application_review",
+    "canisend_applications_list",
+    "canisend_capabilities",
+    "canisend_context",
+    "canisend_job_detail",
+    "canisend_job_intake_commit",
+    "canisend_job_intake_preview",
+    "canisend_jobs_list",
+    "canisend_profile_sources",
+    "canisend_task_completion_commit",
+    "canisend_task_completion_preview",
+    "canisend_task_inputs",
+    "canisend_task_latest",
+    "canisend_task_prepare",
+    "canisend_workflow_status",
+];
+
+pub const CANISEND_MCP_READ_ONLY_TOOLS: [&str; 13] = [
+    "canisend_agent_v3_capabilities",
+    "canisend_agent_v3_context",
+    "canisend_application_review",
+    "canisend_applications_list",
+    "canisend_capabilities",
+    "canisend_context",
+    "canisend_job_detail",
+    "canisend_job_intake_preview",
+    "canisend_jobs_list",
+    "canisend_profile_sources",
+    "canisend_task_completion_preview",
+    "canisend_task_latest",
+    "canisend_workflow_status",
+];
+
+pub const CANISEND_MCP_GUARDED_WRITE_TOOLS: [&str; 9] = [
+    "canisend_application_approve",
+    "canisend_application_compose",
+    "canisend_application_create",
+    "canisend_application_export",
+    "canisend_application_plan",
     "canisend_job_intake_commit",
     "canisend_task_completion_commit",
     "canisend_task_inputs",
@@ -479,7 +532,7 @@ impl Application {
             "agent.assets.export",
             "exported",
             format!(
-                "Exported {} Agent v2 resources for {}",
+                "Exported {} Agent v3 resources with bounded v2 compatibility for {}",
                 exported.manifest.files.len(),
                 request.host.as_str()
             ),
@@ -690,7 +743,8 @@ mod tests {
         AgentCapabilitiesReadModel, AgentContextReadModel, AgentHandoffRequest, AgentHost,
         AgentMcpConfigurationRequest, AgentPackExportReadModel, AgentPackExportRequest,
         AgentSkillsInstallRequest, CANISEND_MCP_GUARDED_WRITE_TOOLS, CANISEND_MCP_PROTOCOL_VERSION,
-        CANISEND_MCP_READ_ONLY_TOOLS, CANISEND_MCP_TOOLS, shell_quote_path,
+        CANISEND_MCP_READ_ONLY_TOOLS, CANISEND_MCP_TOOLS, CANISEND_MCP_V2_GUARDED_WRITE_TOOLS,
+        CANISEND_MCP_V2_READ_ONLY_TOOLS, CANISEND_MCP_V2_TOOLS, shell_quote_path,
     };
     use crate::{ActionReceipt, Application, PrivateReadConsent};
 
@@ -736,6 +790,15 @@ mod tests {
             .collect::<std::collections::BTreeSet<_>>();
         assert_eq!(classified.len(), codex.tools.len());
         assert!(codex.tools.iter().all(|tool| classified.contains(tool)));
+        assert_eq!(CANISEND_MCP_V2_TOOLS.len(), 13);
+        let v2_classified = CANISEND_MCP_V2_READ_ONLY_TOOLS
+            .into_iter()
+            .chain(CANISEND_MCP_V2_GUARDED_WRITE_TOOLS)
+            .collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(v2_classified.len(), CANISEND_MCP_V2_TOOLS.len());
+        assert!(CANISEND_MCP_V2_TOOLS.into_iter().all(|tool| {
+            v2_classified.contains(tool) && codex.tools.iter().any(|candidate| candidate == tool)
+        }));
         assert_eq!(codex.configuration_target, ".codex/config.toml");
         assert!(
             codex

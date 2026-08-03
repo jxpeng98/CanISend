@@ -625,6 +625,7 @@ version = "1.0.0-alpha.5"
 dependencies = [
  "canisend-app",
  "canisend-contracts",
+ "canisend-store",
  "clap",
  "rmcp",
  "schemars 1.2.1",

@@ -151,7 +151,10 @@ fn negotiates_current_protocol_and_lists_guarded_tools_deterministically() {
         assert_eq!(CANISEND_MCP_GUARDED_WRITE_TOOLS.contains(&name), !read_only);
         let idempotent = matches!(
             name,
-            "canisend_capabilities"
+            "canisend_agent_v3_capabilities"
+                | "canisend_agent_v3_context"
+                | "canisend_applications_list"
+                | "canisend_capabilities"
                 | "canisend_context"
                 | "canisend_job_detail"
                 | "canisend_jobs_list"
@@ -227,6 +230,84 @@ fn returns_structured_facade_results_and_rejects_malformed_arguments() {
         .data
         .status;
     assert_eq!(before, after);
+    fs::remove_dir_all(root).expect("remove workspace");
+}
+
+#[test]
+fn exposes_body_free_generic_agent_v3_context_over_stdio() {
+    let root = temporary_root("agent-v3-context");
+    Application::initialize_workspace_v3(&root).expect("initialize v3 workspace");
+    let mut mcp = McpProcess::start(&root);
+    mcp.initialize();
+
+    let empty = mcp.request(
+        2,
+        "tools/call",
+        json!({
+            "name": "canisend_agent_v3_context",
+            "arguments": {}
+        }),
+    );
+    assert_eq!(empty["result"]["isError"], json!(false));
+    assert_eq!(
+        empty["result"]["structuredContent"]["data"]["protocol"],
+        json!("canisend.agent/v3")
+    );
+    assert_eq!(
+        empty["result"]["structuredContent"]["data"]["next_actions"][0]["action"],
+        json!("canisend_application_create")
+    );
+
+    let source = "MCP-V3-PRIVATE-SOURCE must produce one primary narrative.";
+    let created = mcp.request(
+        3,
+        "tools/call",
+        json!({
+            "name": "canisend_application_create",
+            "arguments": {
+                "title": "Neutral MCP fixture",
+                "opportunity_metadata": {
+                    "organization": {"type": "short-text", "value": "Example Organization"}
+                },
+                "application_metadata": {},
+                "source_text": source,
+                "requirements": [{
+                    "category": "format",
+                    "statement": source,
+                    "priority": "mandatory",
+                    "start_byte": 0,
+                    "end_byte": source.len()
+                }]
+            }
+        }),
+    );
+    assert_eq!(created["result"]["isError"], json!(false));
+    let application_id =
+        created["result"]["structuredContent"]["data"]["stored"]["snapshot"]["application"]["id"]
+            .as_str()
+            .expect("Application ID")
+            .to_owned();
+
+    let resumed = mcp.request(
+        4,
+        "tools/call",
+        json!({
+            "name": "canisend_agent_v3_context",
+            "arguments": {"application_id": application_id}
+        }),
+    );
+    assert_eq!(resumed["result"]["isError"], json!(false));
+    let structured = &resumed["result"]["structuredContent"];
+    let encoded = serde_json::to_string(structured).expect("context JSON");
+    assert!(!encoded.contains("MCP-V3-PRIVATE-SOURCE"));
+    assert!(!encoded.contains("Example Organization"));
+    assert_eq!(
+        structured["data"]["next_actions"][0]["action"],
+        json!("canisend_application_plan")
+    );
+    assert_eq!(structured["data"]["submission_supported"], json!(false));
+
+    drop(mcp);
     fs::remove_dir_all(root).expect("remove workspace");
 }
 
