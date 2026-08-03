@@ -84,9 +84,32 @@ write_initialize() {
     method: "tools/call",
     params: {name: "canisend_agent_v3_context", arguments: {}}
   }'
+} > "$smoke_root/generic-empty.requests.jsonl"
+run_mcp \
+  "generic empty context" \
+  "$generic_workspace" \
+  "$smoke_root/generic-empty.requests.jsonl" \
+  "$smoke_root/generic-empty.responses.jsonl"
+
+assert_mcp "generic empty context" '
+  (map(select(.id == 1))[0].result.protocolVersion == "2025-11-25") and
+  (map(select(.id == 2))[0].result.tools | map(.name) |
+    index("canisend_agent_v3_context") != null and
+    index("canisend_application_create") != null) and
+  (map(select(.id == 3))[0].result.isError == false) and
+  (map(select(.id == 3))[0].result.structuredContent.data.protocol == "canisend.agent/v3") and
+  (map(select(.id == 3))[0].result.structuredContent.data.pack.id ==
+    "org.canisend.generic-application") and
+  (map(select(.id == 4))[0].result.isError == false) and
+  (map(select(.id == 4))[0].result.structuredContent.data.next_actions[0].action ==
+    "canisend_application_create")
+' "$smoke_root/generic-empty.responses.jsonl"
+
+{
+  write_initialize
   jq -nc '{
     jsonrpc: "2.0",
-    id: 5,
+    id: 2,
     method: "tools/call",
     params: {
       name: "canisend_application_create",
@@ -107,33 +130,24 @@ write_initialize() {
       }
     }
   }'
-} > "$smoke_root/generic-new.requests.jsonl"
+} > "$smoke_root/generic-create.requests.jsonl"
 run_mcp \
-  "generic new" \
+  "generic create" \
   "$generic_workspace" \
-  "$smoke_root/generic-new.requests.jsonl" \
-  "$smoke_root/generic-new.responses.jsonl"
+  "$smoke_root/generic-create.requests.jsonl" \
+  "$smoke_root/generic-create.responses.jsonl"
 
-assert_mcp "generic new" '
+assert_mcp "generic create" '
   (map(select(.id == 1))[0].result.protocolVersion == "2025-11-25") and
-  (map(select(.id == 2))[0].result.tools | map(.name) |
-    index("canisend_agent_v3_context") != null and
-    index("canisend_application_create") != null) and
-  (map(select(.id == 3))[0].result.isError == false) and
-  (map(select(.id == 3))[0].result.structuredContent.data.protocol == "canisend.agent/v3") and
-  (map(select(.id == 3))[0].result.structuredContent.data.pack.id ==
-    "org.canisend.generic-application") and
-  (map(select(.id == 4))[0].result.isError == false) and
-  (map(select(.id == 4))[0].result.structuredContent.data.next_actions[0].action ==
-    "canisend_application_create") and
-  (map(select(.id == 5))[0].result.isError == false)
-' "$smoke_root/generic-new.responses.jsonl"
+  (map(select(.id == 2))[0].result.isError == false) and
+  (map(select(.id == 2))[0].result.structuredContent.operation == "application.create")
+' "$smoke_root/generic-create.responses.jsonl"
 
 application_id="$(
   jq -sr '
-    map(select(.id == 5))[0]
+    map(select(.id == 2))[0]
       .result.structuredContent.data.stored.snapshot.application.id
-  ' "$smoke_root/generic-new.responses.jsonl"
+  ' "$smoke_root/generic-create.responses.jsonl"
 )"
 test -n "$application_id"
 
