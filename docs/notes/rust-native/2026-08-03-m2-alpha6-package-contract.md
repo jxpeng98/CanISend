@@ -4,7 +4,7 @@ Date: 2026-08-03
 
 Roadmap task: `M2-CONTRACT-001`
 
-Status: source implemented; protected-main verification pending
+Status: source implementation evidence
 
 ## Decision
 
@@ -63,3 +63,5 @@ passed, including Alpha package contract and release-status checks
 
 This is source-contract evidence only. It does not replace `M2-SOURCE-001`, the exact native
 candidate matrix, lifecycle qualification, Host Agent smoke, promotion, or public re-verification.
+The canonical Issue carries the reviewed PR, protected-main merge commit, and exact merge CI once
+those external facts exist.
