@@ -30,8 +30,8 @@ ignore = [
     { id = "RUSTSEC-2025-0100", reason = "unmaintained unic-ucd-ident is pinned by Tauri urlpattern; only checked-in Tauri capability and application patterns are accepted" },
     { id = "RUSTSEC-2025-0141", reason = "unmaintained bincode is transitively pinned by Typst syntax assets and receives no CanISend serialized input" },
     { id = "RUSTSEC-2026-0192", reason = "unmaintained ttf-parser processes only embedded, release-verified fonts; no user font discovery is enabled" },
-    { id = "RUSTSEC-2026-0194", reason = "quick-xml is reachable only through disabled Typst citation features; generated source is escaped, fixed-template, and capped at 1 MiB" },
-    { id = "RUSTSEC-2026-0195", reason = "quick-xml namespace parsing is unreachable from CanISend's fixed Typst template and in-memory world" },
+    { id = "RUSTSEC-2026-0194", reason = "quick-xml 0.38.4 is compiled only through Typst bibliography support; CanISend accepts no bibliography, CSL, or XML render input and the fixed projector never invokes that helper" },
+    { id = "RUSTSEC-2026-0195", reason = "quick-xml 0.38.4 is compiled only through Typst bibliography support; CanISend accepts no bibliography, CSL, or XML render input and the fixed projector never invokes namespace parsing" },
     { id = "RUSTSEC-2026-0206", reason = "unmaintained rustybuzz shapes only embedded, release-verified fonts; no user font discovery is enabled" },
 ]
 

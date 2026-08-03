@@ -5,7 +5,8 @@
 **Trigger:** Alpha.4 Candidate run
 [`30345504176`](https://github.com/jxpeng98/CanISend/actions/runs/30345504176)
 
-**Status:** Reviewed in source; replacement Candidate required
+**Status:** Historical Alpha.4 review; superseded for active source by the
+[M1 dependency-assurance review](2026-08-03-m1-dependency-assurance.md)
 
 ## Finding
 
@@ -31,7 +32,7 @@ does not accept user-authored Tauri configuration or URL patterns.
 advisory gate remains enabled over the complete five-target lock graph; there is no wildcard,
 severity-wide, crate-wide, or global unmaintained waiver.
 
-This decision is valid only while all of the following remain true:
+This Alpha.4 decision was valid only while all of the following remained true:
 
 - the GUI release target is macOS only;
 - Linux and Windows archives contain the CLI rather than a Tauri GUI;

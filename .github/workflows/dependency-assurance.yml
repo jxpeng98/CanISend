@@ -1,0 +1,63 @@
+name: dependency-assurance
+
+on:
+  pull_request:
+    paths:
+      - "Cargo.lock"
+      - "**/Cargo.toml"
+      - "deny.toml"
+      - "release/dependency-advisory-exceptions.json"
+      - "xtask/src/**"
+      - "crates/canisend-io/src/render.rs"
+      - "crates/canisend-resources/resources/templates/modernpro-cv.typ"
+      - "docs/release/dependency-assurance.md"
+      - ".github/workflows/dependency-assurance.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "Cargo.lock"
+      - "**/Cargo.toml"
+      - "deny.toml"
+      - "release/dependency-advisory-exceptions.json"
+      - "xtask/src/**"
+      - "crates/canisend-io/src/render.rs"
+      - "crates/canisend-resources/resources/templates/modernpro-cv.typ"
+      - "docs/release/dependency-assurance.md"
+      - ".github/workflows/dependency-assurance.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-assurance-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  policy-and-deny:
+    name: policy-and-deny
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@1.97.0
+
+      - name: Cache dependency-policy build
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          key: dependency-assurance
+
+      - name: Check lock fingerprint and exception governance
+        run: cargo run -p xtask --locked -- dependencies check
+
+      - name: Check dependency advisories, licenses, bans, and sources
+        uses: EmbarkStudios/cargo-deny-action@6c8f9facfa5047ec02d8485b6bf52b587b7777d1 # v2.0.18
+        with:
+          command: check
+          command-arguments: advisories bans licenses sources
+        env:
+          # cargo-deny runs in a container and does not compile product code.
+          RUSTC_WRAPPER: ""

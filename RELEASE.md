@@ -29,6 +29,8 @@ PyPI and TestPyPI are not release channels for the Rust product.
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace
+cargo run -p xtask --locked -- dependencies check
+cargo deny check advisories bans licenses sources
 cargo run -p xtask --locked -- release status --json
 cargo run -p xtask -- release check
 cargo build --release --locked
@@ -41,6 +43,10 @@ cargo build --release --locked
 ledgers, package contracts, support policy, and parity contracts. It rejects hard contradictions
 and separately lists expected source-ahead or stale-stage evidence that must be resolved before a
 stage transition.
+
+Dependency exceptions are lock-bound, owner/review/expiry governed, and documented in the
+[dependency assurance runbook](docs/release/dependency-assurance.md). A passing exception-policy
+check does not replace the live RustSec, license, ban, and source scan.
 
 ## Publication requirements
 

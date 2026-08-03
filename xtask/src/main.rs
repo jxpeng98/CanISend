@@ -40,6 +40,8 @@ const RELEASE_LINE_POLICY_SCHEMA: &str = "canisend.release-line-policy/v1";
 const RELEASE_LINE_PLAN_SCHEMA: &str = "canisend.release-line-plan/v1";
 const SVELTE_PARITY_SCHEMA: &str = "canisend.svelte-parity/v1";
 const WORKSPACE_DEPENDENCY_POLICY_SCHEMA: &str = "canisend.workspace-dependency-policy/v1";
+const DEPENDENCY_EXCEPTION_POLICY_SCHEMA: &str = "canisend.dependency-advisory-exceptions/v1";
+const THIRD_PARTY_LOCK_FINGERPRINT_SCHEMA: &str = "canisend.third-party-lock-fingerprint/v1";
 const SEMANTIC_PARITY_SCHEMA: &str = "canisend.semantic-parity/v1";
 const STAGE_TRANSITION_POLICY_SCHEMA: &str = "canisend.stage-transition-policy/v1";
 const STAGE_TRANSITION_PLAN_SCHEMA: &str = "canisend.stage-transition-plan/v1";
@@ -147,6 +149,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
             check_property_test_policy()?;
             check_fuzz_policy()?;
             check_internal_dependency_versions()?;
+            check_dependency_assurance()?;
             check_rust_toolchain_alignment()?;
             check_desktop_distribution_versions()?;
             check_beta_readiness()?;
@@ -171,6 +174,12 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
             check_alpha_package_contract()?;
             check_native_test_ownership()?;
             check_release_contract()
+        }
+        [area, command] if area == "dependencies" && command == "check" => {
+            check_dependency_assurance()
+        }
+        [area, command] if area == "dependencies" && command == "fingerprint" => {
+            print_third_party_lock_fingerprint()
         }
         [area, command, json_flag]
             if area == "release" && command == "status" && json_flag == "--json" =>
@@ -4760,6 +4769,370 @@ fn check_internal_dependency_versions() -> Result<(), String> {
         "internal dependency versions: ok ({} packages, {expected})",
         internal_packages.len()
     );
+    Ok(())
+}
+
+fn print_third_party_lock_fingerprint() -> Result<(), String> {
+    let (sha256, packages) = third_party_lock_fingerprint(&repository_root())?;
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&json!({
+            "schema": THIRD_PARTY_LOCK_FINGERPRINT_SCHEMA,
+            "sha256": sha256,
+            "packages": packages,
+        }))
+        .map_err(|error| format!("could not serialize dependency fingerprint: {error}"))?
+    );
+    Ok(())
+}
+
+fn third_party_lock_fingerprint(root: &Path) -> Result<(String, usize), String> {
+    let lock_body = fs::read_to_string(root.join("Cargo.lock"))
+        .map_err(|error| format!("could not read Cargo.lock: {error}"))?;
+    let lock: toml::Value = toml::from_str(&lock_body)
+        .map_err(|error| format!("Cargo.lock is invalid TOML: {error}"))?;
+    let packages = lock["package"]
+        .as_array()
+        .ok_or_else(|| "Cargo.lock has no package array".to_owned())?;
+    let mut third_party = Vec::new();
+    for package in packages {
+        let Some(source) = package.get("source").and_then(toml::Value::as_str) else {
+            continue;
+        };
+        let name = package
+            .get("name")
+            .and_then(toml::Value::as_str)
+            .ok_or_else(|| "third-party Cargo.lock package has no name".to_owned())?;
+        let version = package
+            .get("version")
+            .and_then(toml::Value::as_str)
+            .ok_or_else(|| format!("third-party Cargo.lock package {name} has no version"))?;
+        let checksum = package
+            .get("checksum")
+            .and_then(toml::Value::as_str)
+            .map(str::to_owned);
+        let dependencies = package
+            .get("dependencies")
+            .and_then(toml::Value::as_array)
+            .map(|dependencies| {
+                dependencies
+                    .iter()
+                    .map(|dependency| {
+                        dependency.as_str().map(str::to_owned).ok_or_else(|| {
+                            format!("third-party Cargo.lock dependency of {name} is not a string")
+                        })
+                    })
+                    .collect::<Result<Vec<_>, String>>()
+            })
+            .transpose()?
+            .unwrap_or_default();
+        third_party.push(json!({
+            "name": name,
+            "version": version,
+            "source": source,
+            "checksum": checksum,
+            "dependencies": dependencies,
+        }));
+    }
+    third_party.sort_by(|left, right| {
+        left["name"]
+            .as_str()
+            .expect("constructed package name")
+            .cmp(right["name"].as_str().expect("constructed package name"))
+            .then_with(|| {
+                left["version"]
+                    .as_str()
+                    .expect("constructed package version")
+                    .cmp(
+                        right["version"]
+                            .as_str()
+                            .expect("constructed package version"),
+                    )
+            })
+            .then_with(|| {
+                left["source"]
+                    .as_str()
+                    .expect("constructed package source")
+                    .cmp(
+                        right["source"]
+                            .as_str()
+                            .expect("constructed package source"),
+                    )
+            })
+    });
+    let bytes = serde_json::to_vec(&third_party)
+        .map_err(|error| format!("could not serialize third-party lock facts: {error}"))?;
+    Ok((sha256(&bytes), third_party.len()))
+}
+
+fn check_dependency_assurance() -> Result<(), String> {
+    let root = repository_root();
+    let deny_body = fs::read_to_string(root.join("deny.toml"))
+        .map_err(|error| format!("could not read deny.toml: {error}"))?;
+    let deny: toml::Value = toml::from_str(&deny_body)
+        .map_err(|error| format!("deny.toml is invalid TOML: {error}"))?;
+    let ignored = deny["advisories"]["ignore"]
+        .as_array()
+        .ok_or_else(|| "deny.toml advisories.ignore must be an array".to_owned())?;
+    let mut deny_exceptions = BTreeMap::new();
+    for exception in ignored {
+        let table = exception
+            .as_table()
+            .ok_or_else(|| "deny.toml advisory exception must be a table".to_owned())?;
+        if table.keys().cloned().collect::<BTreeSet<_>>()
+            != BTreeSet::from(["id".to_owned(), "reason".to_owned()])
+        {
+            return Err("deny.toml advisory exceptions must contain only id and reason".to_owned());
+        }
+        let id = table
+            .get("id")
+            .and_then(toml::Value::as_str)
+            .filter(|value| !value.trim().is_empty())
+            .ok_or_else(|| "deny.toml advisory exception has no id".to_owned())?;
+        let reason = table
+            .get("reason")
+            .and_then(toml::Value::as_str)
+            .filter(|value| !value.trim().is_empty())
+            .ok_or_else(|| format!("deny.toml advisory exception {id} has no reason"))?;
+        if deny_exceptions
+            .insert(id.to_owned(), reason.to_owned())
+            .is_some()
+        {
+            return Err(format!(
+                "deny.toml contains duplicate advisory exception {id}"
+            ));
+        }
+    }
+
+    let policy_path = root.join("release/dependency-advisory-exceptions.json");
+    let policy: Value = serde_json::from_slice(
+        &fs::read(&policy_path)
+            .map_err(|error| format!("dependency exception policy is missing: {error}"))?,
+    )
+    .map_err(|error| format!("dependency exception policy is invalid JSON: {error}"))?;
+    if policy["schema"].as_str() != Some(DEPENDENCY_EXCEPTION_POLICY_SCHEMA) {
+        return Err(format!(
+            "dependency exception policy schema must be {DEPENDENCY_EXCEPTION_POLICY_SCHEMA}"
+        ));
+    }
+    let (lock_sha256, package_count) = third_party_lock_fingerprint(&root)?;
+    if policy["third_party_lock"]["schema"].as_str() != Some(THIRD_PARTY_LOCK_FINGERPRINT_SCHEMA)
+        || policy["third_party_lock"]["sha256"].as_str() != Some(lock_sha256.as_str())
+        || policy["third_party_lock"]["packages"].as_u64() != Some(package_count as u64)
+    {
+        return Err(
+            "dependency exception review is not bound to the current third-party Cargo.lock facts"
+                .to_owned(),
+        );
+    }
+
+    let exceptions = policy["exceptions"]
+        .as_array()
+        .ok_or_else(|| "dependency exception policy needs an exceptions array".to_owned())?;
+    let expected_fields = BTreeSet::from([
+        "advisory_id",
+        "kind",
+        "owner",
+        "reachability",
+        "reviewed_on",
+        "review_by",
+        "expires_on",
+        "removal_condition",
+        "upstream_tracking",
+    ]);
+    let today = OffsetDateTime::now_utc().date();
+    let vulnerability_ids = BTreeSet::from([
+        "RUSTSEC-2026-0194".to_owned(),
+        "RUSTSEC-2026-0195".to_owned(),
+    ]);
+    let mut policy_ids = BTreeSet::new();
+    let mut previous_id: Option<&str> = None;
+    for exception in exceptions {
+        let object = exception
+            .as_object()
+            .ok_or_else(|| "dependency exception entry must be an object".to_owned())?;
+        let fields = object.keys().map(String::as_str).collect::<BTreeSet<_>>();
+        if fields != expected_fields {
+            return Err(format!(
+                "dependency exception fields must be {expected_fields:?}, found {fields:?}"
+            ));
+        }
+        let id = required_string(exception, "advisory_id", "dependency exception")?;
+        if !id.starts_with("RUSTSEC-") || id.len() != 17 {
+            return Err(format!("dependency exception advisory ID is invalid: {id}"));
+        }
+        if previous_id.is_some_and(|previous| previous >= id) {
+            return Err("dependency exception IDs must be unique and sorted".to_owned());
+        }
+        previous_id = Some(id);
+        policy_ids.insert(id.to_owned());
+        let kind = required_string(exception, "kind", "dependency exception")?;
+        let expected_kind = if vulnerability_ids.contains(id) {
+            "vulnerability"
+        } else {
+            "unmaintained"
+        };
+        if kind != expected_kind {
+            return Err(format!(
+                "dependency exception {id} kind must be {expected_kind}"
+            ));
+        }
+        if required_string(exception, "owner", "dependency exception")? != "CanISend maintainer" {
+            return Err(format!("dependency exception {id} has no canonical owner"));
+        }
+        let reachability = required_string(exception, "reachability", "dependency exception")?;
+        if deny_exceptions.get(id).map(String::as_str) != Some(reachability) {
+            return Err(format!(
+                "dependency exception {id} reachability differs from deny.toml"
+            ));
+        }
+        let reviewed_on = parse_policy_date(
+            required_string(exception, "reviewed_on", "dependency exception")?,
+            "reviewed_on",
+        )?;
+        let review_by = parse_policy_date(
+            required_string(exception, "review_by", "dependency exception")?,
+            "review_by",
+        )?;
+        let expires_on = parse_policy_date(
+            required_string(exception, "expires_on", "dependency exception")?,
+            "expires_on",
+        )?;
+        validate_dependency_exception_dates(id, reviewed_on, review_by, expires_on, today)?;
+        let removal = required_string(exception, "removal_condition", "dependency exception")?;
+        if removal.len() < 24 {
+            return Err(format!(
+                "dependency exception {id} removal condition is too weak"
+            ));
+        }
+        let tracking = required_string(exception, "upstream_tracking", "dependency exception")?;
+        if !tracking.starts_with("https://") {
+            return Err(format!("dependency exception {id} tracking must use HTTPS"));
+        }
+    }
+    let deny_ids = deny_exceptions.keys().cloned().collect::<BTreeSet<_>>();
+    if policy_ids != deny_ids {
+        return Err(format!(
+            "dependency exception policy IDs differ from deny.toml: policy={policy_ids:?}, deny={deny_ids:?}"
+        ));
+    }
+    if !vulnerability_ids.is_subset(&policy_ids) {
+        return Err(
+            "known quick-xml vulnerability exceptions are not explicitly governed".to_owned(),
+        );
+    }
+
+    let render = fs::read_to_string(root.join("crates/canisend-io/src/render.rs"))
+        .map_err(|error| format!("could not inspect renderer boundary: {error}"))?;
+    if render.contains("bibliography(") || render.contains("publication(") {
+        return Err(
+            "the fixed renderer invokes the transitive quick-xml bibliography surface".to_owned(),
+        );
+    }
+    let cv_template = fs::read_to_string(
+        root.join("crates/canisend-resources/resources/templates/modernpro-cv.typ"),
+    )
+    .map_err(|error| format!("could not inspect modernpro CV template: {error}"))?;
+    if cv_template.matches("publication(").count() != 1
+        || !cv_template.contains("#let publication(path, styletype)")
+    {
+        return Err(
+            "the embedded CV template bibliography helper is no longer declaration-only".to_owned(),
+        );
+    }
+
+    let workflow = fs::read_to_string(root.join(".github/workflows/dependency-assurance.yml"))
+        .map_err(|error| format!("dependency assurance workflow is missing: {error}"))?;
+    for required in [
+        "name: dependency-assurance",
+        "Cargo.lock",
+        "**/Cargo.toml",
+        "deny.toml",
+        "release/dependency-advisory-exceptions.json",
+        "xtask/src/**",
+        "crates/canisend-io/src/render.rs",
+        "crates/canisend-resources/resources/templates/modernpro-cv.typ",
+        "docs/release/dependency-assurance.md",
+        "runs-on: ubuntu-24.04",
+        "uses: dtolnay/rust-toolchain@1.97.0",
+        "cargo run -p xtask --locked -- dependencies check",
+        "uses: EmbarkStudios/cargo-deny-action@6c8f9facfa5047ec02d8485b6bf52b587b7777d1",
+        "command-arguments: advisories bans licenses sources",
+        "RUSTC_WRAPPER: \"\"",
+    ] {
+        if !workflow.contains(required) {
+            return Err(format!(
+                "dependency assurance workflow is missing invariant `{required}`"
+            ));
+        }
+    }
+    for forbidden in [
+        "contents: write",
+        "packages: write",
+        "releases: write",
+        "git push",
+        "cargo build --release",
+        "cargo test --release",
+    ] {
+        if workflow.contains(forbidden) {
+            return Err(format!(
+                "dependency assurance workflow exceeds its read-only scope: `{forbidden}`"
+            ));
+        }
+    }
+
+    let guide = fs::read_to_string(root.join("docs/release/dependency-assurance.md"))
+        .map_err(|error| format!("dependency assurance guide is missing: {error}"))?;
+    for required in [
+        "dependency-advisory-exceptions.json",
+        "dependencies check",
+        "review_by",
+        "expires_on",
+        "quick-xml",
+        "packaged-binary qualification",
+    ] {
+        if !guide.contains(required) {
+            return Err(format!(
+                "dependency assurance guide is missing `{required}`"
+            ));
+        }
+    }
+
+    println!(
+        "dependency assurance: ok ({} reviewed exceptions, {} vulnerabilities, {} third-party packages)",
+        exceptions.len(),
+        vulnerability_ids.len(),
+        package_count
+    );
+    Ok(())
+}
+
+fn validate_dependency_exception_dates(
+    id: &str,
+    reviewed_on: Date,
+    review_by: Date,
+    expires_on: Date,
+    today: Date,
+) -> Result<(), String> {
+    if reviewed_on > today || review_by < reviewed_on || expires_on < review_by {
+        return Err(format!(
+            "dependency exception {id} has inconsistent review dates"
+        ));
+    }
+    if review_by - reviewed_on > Duration::days(14) || expires_on - reviewed_on > Duration::days(30)
+    {
+        return Err(format!(
+            "dependency exception {id} review window is too broad"
+        ));
+    }
+    if today > review_by {
+        return Err(format!(
+            "dependency exception {id} review is overdue on {review_by}"
+        ));
+    }
+    if today > expires_on {
+        return Err(format!("dependency exception {id} expired on {expires_on}"));
+    }
     Ok(())
 }
 
@@ -14071,6 +14444,84 @@ mod tests {
         assert_eq!(normalized["default_features"], false);
         assert_eq!(normalized["features"], json!(["alpha", "zeta"]));
         assert_eq!(normalized["rename"], "application_facade");
+    }
+
+    #[test]
+    fn dependency_assurance_binds_current_exceptions_and_rejects_stale_windows() {
+        check_dependency_assurance().expect("current dependency assurance");
+        let reviewed = Date::from_calendar_date(2026, Month::August, 3).expect("review date");
+        let review_by = Date::from_calendar_date(2026, Month::August, 10).expect("review-by date");
+        let expires = Date::from_calendar_date(2026, Month::August, 17).expect("expiry date");
+        validate_dependency_exception_dates(
+            "RUSTSEC-2026-0194",
+            reviewed,
+            review_by,
+            expires,
+            reviewed,
+        )
+        .expect("current exception dates");
+        assert!(
+            validate_dependency_exception_dates(
+                "RUSTSEC-2026-0194",
+                reviewed,
+                review_by,
+                expires,
+                Date::from_calendar_date(2026, Month::August, 11).expect("overdue date"),
+            )
+            .is_err()
+        );
+        assert!(
+            validate_dependency_exception_dates(
+                "RUSTSEC-2026-0194",
+                reviewed,
+                Date::from_calendar_date(2026, Month::August, 18).expect("broad review date"),
+                Date::from_calendar_date(2026, Month::August, 24).expect("broad expiry date"),
+                reviewed,
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn third_party_lock_fingerprint_ignores_workspace_version_only_changes() {
+        let root = std::env::temp_dir().join(format!(
+            "canisend-third-party-lock-fingerprint-{}",
+            std::process::id()
+        ));
+        if root.exists() {
+            fs::remove_dir_all(&root).expect("remove stale lock fixture");
+        }
+        fs::create_dir_all(&root).expect("create lock fixture");
+        let lock = |workspace_version: &str, external_version: &str, checksum: &str| {
+            format!(
+                "version = 4\n\n[[package]]\nname = \"canisend-core\"\nversion = \"{workspace_version}\"\n\n[[package]]\nname = \"external\"\nversion = \"{external_version}\"\nsource = \"registry+https://github.com/rust-lang/crates.io-index\"\nchecksum = \"{checksum}\"\n"
+            )
+        };
+        fs::write(
+            root.join("Cargo.lock"),
+            lock("1.0.0-alpha.5", "1.0.0", &"a".repeat(64)),
+        )
+        .expect("write initial lock");
+        let initial = third_party_lock_fingerprint(&root).expect("initial fingerprint");
+        fs::write(
+            root.join("Cargo.lock"),
+            lock("1.0.0-alpha.6", "1.0.0", &"a".repeat(64)),
+        )
+        .expect("write workspace-only transition");
+        assert_eq!(
+            third_party_lock_fingerprint(&root).expect("workspace-only fingerprint"),
+            initial
+        );
+        fs::write(
+            root.join("Cargo.lock"),
+            lock("1.0.0-alpha.6", "1.0.1", &"b".repeat(64)),
+        )
+        .expect("write external transition");
+        assert_ne!(
+            third_party_lock_fingerprint(&root).expect("external fingerprint"),
+            initial
+        );
+        fs::remove_dir_all(root).expect("remove lock fixture");
     }
 
     fn sample_release_status_sources() -> ReleaseStatusSources {

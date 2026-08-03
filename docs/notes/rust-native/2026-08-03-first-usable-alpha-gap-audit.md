@@ -133,6 +133,13 @@ CLI, and MCP packages on Ubuntu and Windows. `release check` locks both jobs and
 non-authoritative boundary. Their exact committed remote results, and the pinned MSRV result, are
 still missing evidence rather than missing source implementation.
 
+The [M1-DEP-001 implementation record](2026-08-03-m1-dependency-assurance.md) closes the dependency
+policy source gap. A dependency-change workflow now runs all four `cargo deny` classes and the
+lock-bound exception validator. The review corrects two `quick-xml` entries to vulnerability status,
+gates their bibliography/CSL/XML non-reachability, and gives all 23 exceptions named ownership,
+seven-day review, fourteen-day expiry, removal conditions, and upstream tracking. Exact committed
+workflow results and independent review remain evidence gaps.
+
 P1 CI/dependency improvements, governance work-item linkage, independent evidence review, dogfood,
 target-user validation, signing, and later Alpha.7 dual-Pack qualification also remain, but they do
 not replace the P0 implementation order.
@@ -155,7 +162,9 @@ not replace the P0 implementation order.
    Alpha.6 dry run; applying it remains intentionally unperformed (M0-REL-001/M2-VERSION-001).
 8. Completed in source: lightweight Ubuntu/Windows core tests and the pinned Chrome critical suite
    are part of fast CI; obtain exact committed runner evidence before closing M1A (M1-CI-001).
-9. Next: with explicit release authority, apply the reviewed Alpha.6 plan and run the exact native
+9. Completed in source: dependency changes trigger lock-bound exception validation and live
+   advisory/license/ban/source checks; obtain exact committed workflow evidence (M1-DEP-001).
+10. Next: with explicit release authority, apply the reviewed Alpha.6 plan and run the exact native
    candidate, migration, backup/restore, rollback, package, and
    release-integrity gates on a clean candidate commit.
 
