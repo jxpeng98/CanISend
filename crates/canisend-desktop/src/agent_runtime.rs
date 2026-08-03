@@ -998,11 +998,12 @@ mod tests {
         time::{Duration, SystemTime, UNIX_EPOCH},
     };
 
+    #[cfg(target_os = "macos")]
+    use super::runtime_candidates;
     use super::{
         AgentTurnCancelRequest, ProcessLimits, agent_scope_key, cancel_agent_turn_impl,
         integration_prompt, parse_claude_output, parse_codex_output_with_fallback, run_process,
-        runtime_arguments, runtime_candidates, runtime_executable_name_for_platform,
-        runtime_probe_from_observation,
+        runtime_arguments, runtime_executable_name_for_platform, runtime_probe_from_observation,
     };
     use canisend_app::{AgentRuntimeKind, Application};
 
