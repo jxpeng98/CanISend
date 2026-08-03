@@ -23,10 +23,33 @@ generic_workspace="$smoke_root/generic-workspace"
 academic_workspace="$smoke_root/academic-workspace"
 
 run_mcp() {
-  local workspace="$1"
-  local input="$2"
-  local output="$3"
-  "$binary" --workspace "$workspace" mcp serve < "$input" > "$output"
+  local label="$1"
+  local workspace="$2"
+  local input="$3"
+  local output="$4"
+  if ! "$binary" --workspace "$workspace" mcp serve < "$input" > "$output"; then
+    echo "Agent v3 MCP smoke: $label server failed" >&2
+    return 1
+  fi
+}
+
+assert_mcp() {
+  local label="$1"
+  local filter="$2"
+  local responses="$3"
+  if jq -s -e "$filter" "$responses" >/dev/null; then
+    return 0
+  fi
+  echo "Agent v3 MCP smoke: $label assertion failed" >&2
+  jq -sc '
+    map({
+      id,
+      is_error: (.result.isError // null),
+      error_code: (.error.data.code // null),
+      operation: (.result.structuredContent.operation // null)
+    })
+  ' "$responses" >&2 || true
+  return 1
 }
 
 write_initialize() {
@@ -86,11 +109,12 @@ write_initialize() {
   }'
 } > "$smoke_root/generic-new.requests.jsonl"
 run_mcp \
+  "generic new" \
   "$generic_workspace" \
   "$smoke_root/generic-new.requests.jsonl" \
   "$smoke_root/generic-new.responses.jsonl"
 
-jq -s -e '
+assert_mcp "generic new" '
   (map(select(.id == 1))[0].result.protocolVersion == "2025-11-25") and
   (map(select(.id == 2))[0].result.tools | map(.name) |
     index("canisend_agent_v3_context") != null and
@@ -103,7 +127,7 @@ jq -s -e '
   (map(select(.id == 4))[0].result.structuredContent.data.next_actions[0].action ==
     "canisend_application_create") and
   (map(select(.id == 5))[0].result.isError == false)
-' "$smoke_root/generic-new.responses.jsonl" >/dev/null
+' "$smoke_root/generic-new.responses.jsonl"
 
 application_id="$(
   jq -sr '
@@ -132,6 +156,7 @@ test -n "$application_id"
   }'
 } > "$smoke_root/generic-resume.requests.jsonl"
 run_mcp \
+  "generic resume" \
   "$generic_workspace" \
   "$smoke_root/generic-resume.requests.jsonl" \
   "$smoke_root/generic-resume.responses.jsonl"
@@ -141,7 +166,7 @@ if grep -q 'MCP-V3-PRIVATE-SENTINEL\|Synthetic qualification organization' \
   echo "Agent v3 MCP smoke: body-free resumed context exposed private fixture content" >&2
   exit 1
 fi
-jq -s -e '
+assert_mcp "generic resume" '
   (map(select(.id == 2))[0].result.isError == false) and
   (map(select(.id == 2))[0].result.structuredContent.data.protocol == "canisend.agent/v3") and
   (map(select(.id == 2))[0].result.structuredContent.data.submission_supported == false) and
@@ -149,7 +174,7 @@ jq -s -e '
     "canisend_application_plan") and
   ((map(select(.id == 3))[0].result.isError == true) or
     (map(select(.id == 3))[0].error.data.code == "compatibility.unavailable"))
-' "$smoke_root/generic-resume.responses.jsonl" >/dev/null
+' "$smoke_root/generic-resume.responses.jsonl"
 
 "$binary" --workspace "$academic_workspace" workspace init \
   --pack academic-job --json > "$smoke_root/academic-init.json"
@@ -170,18 +195,19 @@ jq -s -e '
   }'
 } > "$smoke_root/academic-compat.requests.jsonl"
 run_mcp \
+  "academic compatibility" \
   "$academic_workspace" \
   "$smoke_root/academic-compat.requests.jsonl" \
   "$smoke_root/academic-compat.responses.jsonl"
 
-jq -s -e '
+assert_mcp "academic compatibility" '
   (map(select(.id == 2))[0].result.isError == false) and
   (map(select(.id == 2))[0].result.structuredContent.data.protocol == "canisend.agent/v2") and
   (map(select(.id == 2))[0].result.structuredContent.compatibility.pack.id ==
     "org.canisend.academic-job") and
   ((map(select(.id == 3))[0].result.isError == true) or
     (map(select(.id == 3))[0].error.data.code == "compatibility.unavailable"))
-' "$smoke_root/academic-compat.responses.jsonl" >/dev/null
+' "$smoke_root/academic-compat.responses.jsonl"
 
 "$binary" --workspace "$generic_workspace" workspace check --json \
   | jq -e '.ok == true and .data.ok == true' >/dev/null
