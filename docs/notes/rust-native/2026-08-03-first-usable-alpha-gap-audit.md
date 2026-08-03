@@ -175,7 +175,8 @@ not replace the P0 implementation order.
 12. Completed locally: the current source passes the full Workspace, frontend, Chrome accessibility,
     debug-host, dual-Pack documentation, Host Agent, Clippy, and release-source preflight. The
     preflight found and fixed a stale Agent v2 smoke that initialized generic Workspace v3 instead
-    of the explicit academic compatibility authority.
+    of the explicit academic compatibility authority. The Apple Silicon `release-alpha` CLI, ZIP,
+    and read-only DMG package paths also build and pass their complete local smoke suites.
 13. Next external boundary: create the missing GitHub milestones/roadmap work items and protected-ref
     rules, push the local commit series, and obtain exact current-commit M1A runner/dependency evidence.
     These repository mutations require explicit authority. Only after those gates pass may explicit
