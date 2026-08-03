@@ -65,7 +65,7 @@
     "release/RELEASE_NOTES.md heading",
     "release/support-policy.json Stable publication status",
     "release/feedback-snapshot.json next-roadmap publication status",
-    "post-0.7 roadmap publication marker"
+    "snapshot-declared next-roadmap publication marker"
   ],
   "preserved_history": [
     "release/beta-readiness.json",

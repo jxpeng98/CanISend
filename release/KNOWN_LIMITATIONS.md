@@ -35,7 +35,7 @@ preserve the `0.6.x` command tree, or implement `canisend.agent/v1`.
   future work until explicitly supported.
 - The GUI supports English and Simplified Chinese. CLI and Agent v2 structured contracts remain
   locale-neutral; terminal human-readable output is English in this Alpha.
-- The GUI covers all 35 declared operation families and connects them through one persistent
+- The GUI covers all 37 declared operation families and connects them through one persistent
   workspace/application header and six-stage journey. Some advanced candidate editors expose
   versioned JSON directly and therefore still require familiarity with the public schemas.
 - Body-free desktop navigation memory contains the canonical workspace path, public job ID,
@@ -67,8 +67,8 @@ Community signatures do not establish an operating-system-trusted publisher. The
 ID certificate, secure timestamp, or Apple notarization, so Gatekeeper can warn or reject it. The Windows certificate
 is ephemeral and self-signed with no public timestamp, so Windows can report Unknown Publisher, `NotTrusted`, or
 `UnknownError`, and SmartScreen can warn. Its thumbprint is specific to one artifact. Verify `SHA256SUMS`, the exact
-v2 signing evidence, and GitHub provenance before using the normal per-application approval UI. Never disable an
-operating-system security control globally.
+v2 signing evidence, and GitHub provenance before using the normal per-application approval UI.
+Never disable an operating-system security control globally.
 
 No telemetry is enabled or sent by default. Report reproducible problems through the repository issue templates;
 remove private job or profile content before attaching diagnostics.

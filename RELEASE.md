@@ -1,90 +1,92 @@
-# Rust-Native Release Policy
+# CanISend 1.0 release policy
 
 ## Current state
 
-[`v0.7.0-alpha.1`](https://github.com/jxpeng98/CanISend/releases/tag/v0.7.0-alpha.1) is the first published
-Rust-native CanISend release. It is an unsigned GitHub prerelease built from exact source commit
-`4cec4ec48cc2e96f3798dde0b438d3aaa617a2f8` after a successful branch dry-run. Tag release run `29633386835`
-repeated the complete source and five-target matrix, published 12 assets, and attached GitHub OIDC provenance.
-Independent post-publication download verification matched every `SHA256SUMS` entry, accepted the release manifest,
-and verified all 12 attestations against the source digest and signer workflow. R11.2 Beta hardening is active.
-Homebrew Cask, Scoop, and WinGet candidates are now deterministically derived from the verified Alpha bytes and are
-explicitly non-published. Credential-backed Apple Developer ID/notarization and Azure Artifact Signing workflows now
-fail closed for every non-Alpha stage and require canonical evidence bound to the final archives. Real credential
-qualification and final native package-manager validation remain Beta/RC gates.
+- Checked-in source: `1.0.0-alpha.5`, with additional post-tag changes that are not yet a
+  qualified release.
+- Latest public checkpoint: [`v1.0.0-alpha.5`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.5).
+- Next authorized checkpoint: `v1.0.0-alpha.6`, the Workspace v2→v3 migration and Academic Pack
+  parity release described by the
+  [1.0 Roadmap](docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md).
+- License for current CanISend-authored source and future releases: `GPL-3.0-only`. Historical tags
+  retain their original license facts.
+- Machine stage: Alpha / `pre-beta`; Beta, RC, and Stable are not authorized.
 
-PyPI and TestPyPI are not release channels for the Rust product.
+PyPI and TestPyPI are not release channels for the Rust product. A source build, local GUI preview,
+or manually dispatched candidate is not a published release.
 
-## Published Alpha targets
+## Supported public package scope
 
-- `aarch64-apple-darwin`.
-- `x86_64-apple-darwin`.
-- `x86_64-unknown-linux-gnu`.
-- `x86_64-unknown-linux-musl`.
+Public 1.0 checkpoints contain standalone CLI archives for:
+
+- `aarch64-apple-darwin`;
+- `x86_64-apple-darwin`;
+- `x86_64-unknown-linux-gnu`;
+- `x86_64-unknown-linux-musl`; and
 - `x86_64-pc-windows-msvc`.
 
-## Local release foundation checks
+The public desktop package is Apple Silicon macOS ZIP and DMG. Intel macOS, Windows, and Linux
+desktop builds are nonpublishing qualification candidates and do not broaden the support claim.
+
+## Source and candidate gates
+
+Use the smallest verification tier that proves a change. The complete source gate is:
 
 ```text
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
-cargo test --workspace
+cargo test --workspace --locked
 cargo run -p xtask --locked -- dependencies check
 cargo deny check advisories bans licenses sources
 cargo run -p xtask --locked -- release status --json
-cargo run -p xtask -- release check
-cargo build --release --locked
-./target/release/canisend version --json
-./target/release/canisend doctor --json
-./target/release/canisend agent capabilities --json
+cargo run -p xtask --locked -- release check
 ```
 
-`release status --json` is a read-only, non-authoritative projection over Cargo, Git tags, release
-ledgers, package contracts, support policy, and parity contracts. It rejects hard contradictions
-and separately lists expected source-ahead or stale-stage evidence that must be resolved before a
-stage transition.
+`release status --json` is a read-only projection. It reports expected source-ahead or stale-stage
+evidence separately from hard contradictions and does not authorize publication.
 
-Dependency exceptions are lock-bound, owner/review/expiry governed, and documented in the
-[dependency assurance runbook](docs/release/dependency-assurance.md). A passing exception-policy
-check does not replace the live RustSec, license, ban, and source scan.
+The release workflow builds a future tag once as a nonpublishing candidate. The exact five CLI
+archives, macOS ZIP/DMG, manifest, checksums, SBOM, notices, qualification records, and GitHub build
+provenance must all bind one reviewed commit. Lifecycle, migration, accessibility, and Agent
+evidence are collected against those exact candidate bytes. Promotion later reuses the cached
+candidate without recompilation. GitHub build provenance remains part of the exact release unit.
 
-## Publication requirements
+## Community signing and integrity
 
-Every published archive must include SHA-256 coverage, an SBOM, license notices, build provenance, and
-packaged-binary smoke results. The published Alpha satisfies those gates and includes embedded Typst rendering in
-the standalone executable.
+Community signing is not a publicly trusted publisher identity; it provides artifact-integrity
+evidence only. Alpha macOS applications use ad-hoc signatures. Where required by the stage policy,
+standalone macOS executables use ad-hoc signatures and Windows uses an ephemeral self-signed
+Authenticode certificate. These controls do not provide Developer ID, Apple notarization, a public
+timestamp, or SmartScreen reputation.
 
-Beta, release-candidate, and Stable requirements include macOS Developer ID signing plus accepted notarization and
-Windows Azure Artifact Signing Public Trust. Missing credentials are a release failure, not an unsigned fallback.
-Maintainer provisioning, name-only configuration audit, qualification, rotation, and incident steps are defined in
-the [native signing operations runbook](docs/release/signing-operations.md).
-
-The full release sequence is tracked in R9–R11 of the Rust-native roadmap.
+Users must verify `SHA256SUMS`, the exact release manifest, signing evidence, and GitHub build
+provenance. Gatekeeper, Unknown Publisher, or SmartScreen warnings may still occur. Never disable
+an operating-system security control globally; use only normal per-application approval after
+independent artifact verification. See the
+[signing operations guide](docs/release/signing-operations.md).
 
 ## Stage gates
 
-- **Alpha:** five unsigned archives are permitted only when exact archive smokes, SHA-256 coverage, SBOM, notices,
-  known limitations, release manifest, and GitHub artifact attestations pass. GitHub Releases must mark the build as
-  a prerelease.
-- **Beta:** protocol v2 and workspace v2 migration contracts freeze. macOS archives must be signed and notarized;
-  Windows must pass the Authenticode policy. The implemented workflow fails closed until configured credentials,
-  exact signer checks, timestamps, notarization logs, and final-archive-bound evidence all pass.
-- **Release candidate:** features freeze, beta-to-RC workspace upgrades pass, and the complete clean-tag matrix passes
-  twice with release notes and the verified [upgrade, rollback, and uninstall procedure](docs/guides/upgrade-and-rollback.md).
-- **Stable:** the same signed archives, package-manager manifests, the machine-checked
-  [support policy](docs/release/support-policy.md), and measured next-roadmap inputs publish together.
+- **Alpha.6:** Pack v1, Agent/Workspace v3 migration, Academic Pack semantic parity, retained v2
+  compatibility, five CLI targets, and Apple Silicon GUI must pass exact source, native,
+  lifecycle, accessibility, Agent, integrity, and public-download verification.
+- **Alpha.7:** both built-in Packs and canonical v3 surfaces must pass the same exact-package gates.
+  Alpha.7 is the only Alpha eligible to become the Beta baseline.
+- **Beta:** readiness must be refreshed from qualified public Alpha.7 within 24 hours, both Pack
+  digests and v3 contracts must freeze, and the signed/integrity matrix must pass.
+- **Release candidate:** the feature freeze is active, the current RC is recorded before preparing
+  another RC, the Beta-to-RC upgrade and package-manager matrices pass, and final notes/feedback
+  bind the latest recorded RC.
+- **Stable:** two distinct qualified RC matrices, lifecycle and documentation evidence, reviewed
+  support policy, latest-RC feedback, and explicit Stable authorization are complete.
 
-Publication happens only on an exact `vVERSION` tag push. Manual workflow dispatch is a non-publishing dry-run even
-when it validates the same version string.
+Publication uses an annotated `vVERSION` tag only after the candidate is qualified. A manual
+workflow dispatch never publishes. The tag promotion must locate the same unexpired candidate and
+must not rebuild product bytes.
 
-The machine-readable [qualification ledger](docs/release/qualification-ledger.md) must advance with the Cargo
-workspace stage. Stable additionally requires it to retain the signed Beta, two distinct clean-tag RC matrices,
-upgrade/restore, five-target uninstall, three package-manager lifecycles, and final release-note evidence.
+## Consumer verification and feedback
 
-## Verification
-
-Release consumers should verify `SHA256SUMS` and GitHub artifact attestations before extraction. The complete
-procedure is documented in [the release verification guide](docs/guides/release-verification.md).
-
-CanISend contains no default telemetry. Release feedback is collected through privacy-scoped issue templates; users
-must remove private advert, profile, application, workspace, provider, and credential content before submission.
+Follow the [release verification guide](docs/guides/release-verification.md) before extraction.
+CanISend has no default telemetry. Public feedback collection uses only sanitized Issue metadata
+and release asset counts; never attach a Workspace, backup, application body, provider payload,
+private path, token, certificate, or credential.

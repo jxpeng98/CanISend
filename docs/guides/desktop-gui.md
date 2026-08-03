@@ -12,6 +12,11 @@ The latest publicly qualified checkpoint is `v1.0.0-alpha.5`. Later desktop work
 `main` is post-tag source, not a published Alpha.6 or Alpha.7. A local design preview is ad-hoc
 signed and must not be distributed as a qualified release.
 
+The active CLI/GUI parity contract currently records 37/37 implemented operation families. That
+source-level parity does not qualify changed bytes: Alpha.6 must still prove exact-package
+Workspace v2→v3 migration and Academic Pack parity, while the Generic Pack becomes a public
+dual-Pack claim only after the separate Alpha.7 qualification.
+
 ## Build and launch on Apple Silicon
 
 From the repository root:

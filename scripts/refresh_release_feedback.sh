@@ -29,7 +29,16 @@ done
 
 root="$(git rev-parse --show-toplevel)"
 snapshot="$root/release/feedback-snapshot.json"
-roadmap="$root/docs/superpowers/plans/2026-07-18-post-0.7-roadmap.md"
+roadmap_relative="$(jq -er '.next_roadmap.path' "$snapshot")"
+if [[ ! "$roadmap_relative" =~ ^docs/superpowers/plans/[A-Za-z0-9._-]+\.md$ ]]; then
+  echo "release feedback refresh: snapshot next-roadmap path is unsafe" >&2
+  exit 1
+fi
+roadmap="$root/$roadmap_relative"
+if [[ ! -f "$roadmap" ]]; then
+  echo "release feedback refresh: snapshot next-roadmap file is missing" >&2
+  exit 1
+fi
 temporary="$(mktemp -d "${TMPDIR:-/tmp}/canisend-release-feedback.XXXXXX")"
 trap 'rm -rf -- "$temporary"' EXIT
 
@@ -142,11 +151,11 @@ awk '
   END {
     if (!status_replaced || !measured_replaced || in_measured) exit 1
   }
-' "$temporary/measured-roadmap.md" "$roadmap" >"$temporary/post-0.7-roadmap.md"
+' "$temporary/measured-roadmap.md" "$roadmap" >"$temporary/next-roadmap.md"
 
 cargo run -p xtask --locked -- release verify-feedback-candidate \
   "$temporary/feedback-snapshot.json" \
-  "$temporary/post-0.7-roadmap.md" >/dev/null
+  "$temporary/next-roadmap.md" >/dev/null
 
 sha256_file() {
   if command -v sha256sum >/dev/null 2>&1; then
@@ -162,7 +171,7 @@ if [[ "$mode" == "--write" ]]; then
     exit 1
   fi
   cp "$temporary/feedback-snapshot.json" "$snapshot"
-  cp "$temporary/post-0.7-roadmap.md" "$roadmap"
+  cp "$temporary/next-roadmap.md" "$roadmap"
   echo "release feedback refreshed for $tag ($total_count public issues, $total_downloads downloads)"
 else
   jq -n \
@@ -172,7 +181,8 @@ else
     --arg snapshot_before "$(sha256_file "$snapshot")" \
     --arg snapshot_after "$(sha256_file "$temporary/feedback-snapshot.json")" \
     --arg roadmap_before "$(sha256_file "$roadmap")" \
-    --arg roadmap_after "$(sha256_file "$temporary/post-0.7-roadmap.md")" \
+    --arg roadmap_after "$(sha256_file "$temporary/next-roadmap.md")" \
+    --arg roadmap_path "$roadmap_relative" \
     --argjson issue_count "$total_count" \
     --argjson download_count "$total_downloads" '
     {
@@ -188,7 +198,7 @@ else
       candidate_validated: true,
       files: [
         {path: "release/feedback-snapshot.json", before_sha256: $snapshot_before, after_sha256: $snapshot_after},
-        {path: "docs/superpowers/plans/2026-07-18-post-0.7-roadmap.md", before_sha256: $roadmap_before, after_sha256: $roadmap_after}
+        {path: $roadmap_path, before_sha256: $roadmap_before, after_sha256: $roadmap_after}
       ]
     }
   '

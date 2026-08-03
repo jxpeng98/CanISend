@@ -51,18 +51,16 @@ defines the pack, migration, compatibility, and dual-pack implementation slices.
 
 The checked-in source version is `1.0.0-alpha.5`; public identity remains separately controlled by
 the exact tag, package manifest, and qualification evidence. The working `main` line contains
-additional unqualified post-tag product bytes. The `0.7` evidence is
-preserved as immutable history and there is no public `0.8` line. R0–R11.2 and the full
-evidence-backed material pipeline are implemented. R12 Stage 2 introduced the first macOS GUI
-vertical slice with shared typed application
-services, workspace management, job intake, supplied URL/PDF/file import, workflow status, and
-body-free diagnostics without changing the CLI or Agent v2 contracts. It supports persistent
-English and Simplified Chinese interfaces, system CJK font fallback, and localized native
-accessibility names. Its Command line surface can also
-detect, install, update, and safely uninstall the version-matched native CLI in a user-owned
-terminal location, including version-aware migration and rollback for an earlier CanISend install.
-Public Windows and Linux GUI distribution remains unqualified while the macOS Alpha follows its
-exact-package channel.
+additional unqualified post-tag product bytes. The `0.7` evidence and every published Alpha.5
+artifact remain immutable history. The current source contains the domain-neutral Pack kernel,
+canonical Generic and Academic Packs, neutral Application contracts, Workspace v2→v3 migration,
+bounded academic compatibility, and shared CLI/MCP/Tauri application services. This is candidate
+readiness work, not an Alpha.6 support claim.
+
+The desktop supports persistent English and Simplified Chinese interfaces, system CJK font
+fallback, localized native accessibility names, exact Pack-driven vocabulary, and safe management
+of the version-matched CLI in a user-owned terminal location. Public Windows and Linux GUI
+distribution remains unqualified; the public macOS channel is Apple Silicon only.
 The current CLI provides:
 
 - Standalone `canisend` executable archives for five native targets.
