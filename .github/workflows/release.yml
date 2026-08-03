@@ -342,6 +342,7 @@ jobs:
     if: needs.release-identity.outputs.mode == 'candidate'
     runs-on: ${{ matrix.runner }}
     permissions:
+      attestations: read
       contents: read
     strategy:
       fail-fast: false
@@ -628,6 +629,45 @@ jobs:
             "${{ matrix.environment }}" \
             "$RUNNER_TEMP/documentation-uninstall-${{ matrix.target }}.json"
 
+      - name: Download verified public Alpha.5 migration baseline
+        if: needs.release-identity.outputs.tag == 'v1.0.0-alpha.6'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/alpha5-assets"
+          gh release download v1.0.0-alpha.5 \
+            --repo "$GITHUB_REPOSITORY" \
+            --dir "$RUNNER_TEMP/alpha5-assets" \
+            --pattern "canisend-1.0.0-alpha.5-${{ matrix.target }}.${{ matrix.archive }}" \
+            --pattern canisend-1.0.0-alpha.5-manifest.json
+          gh attestation verify \
+            "$RUNNER_TEMP/alpha5-assets/canisend-1.0.0-alpha.5-manifest.json" \
+            --repo "$GITHUB_REPOSITORY" \
+            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml" \
+            --source-digest aeb5b75b83b504d7cc6ef93f4b714420661ca0b5
+          gh attestation verify \
+            "$RUNNER_TEMP/alpha5-assets/canisend-1.0.0-alpha.5-${{ matrix.target }}.${{ matrix.archive }}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml" \
+            --source-digest aeb5b75b83b504d7cc6ef93f4b714420661ca0b5
+
+      - name: Qualify exact Alpha.5 to Alpha.6 migration and rollback
+        if: needs.release-identity.outputs.tag == 'v1.0.0-alpha.6'
+        shell: bash
+        run: |
+          version="${{ needs.release-identity.outputs.tag }}"
+          version="${version#v}"
+          archive="$RUNNER_TEMP/release-package/canisend-$version-${{ matrix.target }}.${{ matrix.archive }}"
+          ./scripts/qualify_alpha6_migration.sh \
+            "$RUNNER_TEMP/alpha5-assets" \
+            "$archive" \
+            "${{ matrix.target }}" \
+            "${{ matrix.environment }}" \
+            "${{ needs.release-identity.outputs.tag }}" \
+            "${{ needs.release-identity.outputs.commit }}" \
+            "$RUNNER_TEMP/alpha6-migration-${{ matrix.target }}.json"
+
       - name: Record native release timing evidence
         shell: bash
         run: |
@@ -674,6 +714,7 @@ jobs:
             ${{ runner.temp }}/signing-evidence/*.json
             ${{ runner.temp }}/gui-compilation-evidence/*.json
             ${{ runner.temp }}/documentation-uninstall-${{ matrix.target }}.json
+            ${{ runner.temp }}/alpha6-migration-${{ matrix.target }}.json
             ${{ runner.temp }}/release-timing/*.json
             ${{ runner.temp }}/sccache-stats/*.json
           if-no-files-found: error
@@ -913,6 +954,47 @@ jobs:
         uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
         with:
           subject-path: ${{ runner.temp }}/release-assets/*
+
+      - name: Verify exact five-target Alpha.6 migration evidence
+        if: needs.release-identity.outputs.tag == 'v1.0.0-alpha.6'
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/alpha6-migration-evidence"
+          find "$RUNNER_TEMP/native-archives" \
+            -type f -name 'alpha6-migration-*.json' \
+            -exec cp {} "$RUNNER_TEMP/alpha6-migration-evidence/" \;
+          jq -s -e \
+            --arg tag "${{ needs.release-identity.outputs.tag }}" \
+            --arg source_commit "${{ needs.release-identity.outputs.commit }}" \
+            --slurpfile contract release/alpha-package-contract.json '
+              ($contract[0].contracts.workflow_packs[] |
+                select(.id == "org.canisend.academic-job")) as $academic |
+              length == 5 and
+              ([.[].target] | sort) == [
+                "aarch64-apple-darwin",
+                "x86_64-apple-darwin",
+                "x86_64-pc-windows-msvc",
+                "x86_64-unknown-linux-gnu",
+                "x86_64-unknown-linux-musl"
+              ] and
+              all(.[];
+                .schema == "canisend.alpha6-migration-qualification/v1" and
+                .from_tag == "v1.0.0-alpha.5" and .to_tag == $tag and
+                .source_commit == $source_commit and
+                (.github_run_id | tostring) == env.GITHUB_RUN_ID and
+                .pack == $academic and
+                ([.checks[]] | all)
+              )
+            ' "$RUNNER_TEMP/alpha6-migration-evidence"/*.json >/dev/null
+
+      - name: Upload verified Alpha.6 migration evidence
+        if: needs.release-identity.outputs.tag == 'v1.0.0-alpha.6'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: alpha6-migration-${{ github.run_id }}
+          path: ${{ runner.temp }}/alpha6-migration-evidence
+          if-no-files-found: error
+          retention-days: 90
 
       - name: Verify exact five-target documentation and uninstall evidence
         if: needs.release-identity.outputs.stage == 'rc'
