@@ -14,8 +14,8 @@ signed and must not be distributed as a qualified release.
 
 The active CLI/GUI parity contract currently records 37/37 implemented operation families. That
 source-level parity does not qualify changed bytes: Alpha.6 must still prove exact-package
-Workspace v2→v3 migration and Academic Pack parity, while the Generic Pack becomes a public
-dual-Pack claim only after the separate Alpha.7 qualification.
+Workspace v2→v3 migration, Academic Pack parity, and the bounded Generic Pack lifecycle before it
+can make a public dual-Pack claim. Alpha.7 remains the feedback-hardened user-validation baseline.
 
 ## Build and launch on Apple Silicon
 

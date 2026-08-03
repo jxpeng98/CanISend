@@ -293,8 +293,8 @@ remain before GF5 or a release checkpoint can be marked Verified.
 
 | ID | Priority | Deliverable | Verification |
 |---|---|---|---|
-| GF6-ALPHA6-001 | P0 | Publish Alpha.6 as the framework-kernel and migration checkpoint | Exact artifacts prove v2 migration, academic parity, pack validation, backup, and rollback |
-| GF6-ALPHA7-001 | P0 | Publish Alpha.7 with the generic pack and canonical v3 surfaces | Exact artifacts prove both packs through every supported adapter |
+| GF6-ALPHA6-001 | P0 | Publish Alpha.6 as the dual-Pack framework-kernel and migration checkpoint | Exact artifacts prove both Pack digests, bounded Generic v3 flows, v2 migration, academic parity, backup, and rollback |
+| GF6-ALPHA7-001 | P0 | Publish Alpha.7 after dual-Pack feedback and hardening | Exact artifacts prove both Packs through every supported adapter and bind the user-validation baseline |
 | GF6-DOGFOOD-001 | P0 | Run real Codex and Claude new/resume/approval/recovery for both packs | Body-free records bind host, pack, source, exact artifact, and outcome |
 | GF6-USER-001 | P0 | Validate academic and non-academic flows with target users | Parent M3 thresholds pass and at least three non-academic scenario families are represented |
 | GF6-FREEZE-001 | P0 | Freeze v3, pack v1, both built-in pack digests, operations, schemas, migrations, and bundle layout | Beta baseline is derived from the qualified Alpha.7, not Alpha.5/6 history |
@@ -326,18 +326,20 @@ flowchart LR
     GF0["GF0: decision and inventory"] --> GF1["GF1: pack contract"]
     GF1 --> GF2["GF2: neutral kernel + v3 migration"]
     GF2 --> GF3["GF3: academic pack extraction"]
-    GF3 --> A6["Alpha.6: migration checkpoint"]
-    A6 --> GF4["GF4: generic starter pack"]
+    GF3 --> GF4["GF4: generic starter pack"]
     GF4 --> GF5["GF5: v3 adapter parity and docs"]
-    GF5 --> A7["Alpha.7: dual-pack checkpoint"]
+    GF5 --> A6["Alpha.6: dual-pack migration checkpoint"]
+    A6 --> A7["Alpha.7: feedback-hardened checkpoint"]
     A7 --> GF6["GF6: Agent and user validation"]
     GF6 --> BETA["Beta.1 contract freeze"]
 ```
 
 GF1 and the existing approval/architecture safety work may be implemented in parallel only when
-they do not edit the same public contract. GF2 must land before GF3 so the academic pack proves the
-new kernel instead of becoming a second hard-coded path. GF4 must not add a special-case generic
-engine. Beta preparation cannot begin from Alpha.6.
+they do not edit the same public contract. GF2 must land before GF3 so the academic Pack proves the
+new kernel instead of becoming a second hard-coded path. GF4 and GF5 landed before the M1 exit gate
+and must be included honestly in Alpha.6 qualification; GF4 must not add a special-case generic
+engine. Alpha.7 remains the feedback-hardened user-validation baseline, and Beta preparation cannot
+begin from Alpha.6.
 
 ## 9. Stop and rollback rules
 
