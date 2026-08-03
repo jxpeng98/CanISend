@@ -1,0 +1,65 @@
+{
+  "format": "canisend.generic-application-example/v1",
+  "scenario_id": "synthetic-public-interest-design-admission",
+  "family": "admission",
+  "synthetic": true,
+  "data_policy": "fictional-only-no-real-personal-data",
+  "synthetic_notice": "All names, organizations, identifiers, and Application content in this example are fictional test data.",
+  "pack_id": "org.canisend.generic-application",
+  "title": "Synthetic public-interest design admission",
+  "opportunity_metadata": {
+    "organization": {"type": "short-text", "value": "Fictional Meridian Institute"},
+    "reference": {"type": "short-text", "value": "SYN-ADMISSION-001"},
+    "deadline": {"type": "date", "value": "2030-05-15"}
+  },
+  "application_metadata": {
+    "tracking-id": {"type": "short-text", "value": "SYN-TRACK-ADMISSION-001"},
+    "status": {"type": "choice", "value": "planning"},
+    "notes": {"type": "long-text", "value": "Offline fictional admission scenario for deterministic testing."}
+  },
+  "source_text": "Fictional Meridian Institute invites Applications to its synthetic public-interest design programme. The personal statement must explain motivation, relevant preparation, and intended learning outcomes. A supporting portfolio note must describe two fictional project samples without personal identifiers.",
+  "requirements": [
+    {
+      "category": "evaluation",
+      "statement": "The personal statement must explain motivation, relevant preparation, and intended learning outcomes.",
+      "priority": "mandatory"
+    },
+    {
+      "category": "format",
+      "statement": "A supporting portfolio note must describe two fictional project samples without personal identifiers.",
+      "priority": "mandatory"
+    }
+  ],
+  "decision": "proceed",
+  "planned_deliverables": [
+    {
+      "kind": "primary-document",
+      "disposition": "required",
+      "rationale": "The reviewed source requires a personal statement.",
+      "constraints": ["Explain motivation, preparation, and intended learning outcomes without inventing personal history."],
+      "execution_mode": "host-agent"
+    },
+    {
+      "kind": "supporting-document",
+      "disposition": "required",
+      "rationale": "The reviewed source requires a supporting portfolio note.",
+      "constraints": ["Use two explicitly fictional project samples and no personal identifiers."],
+      "execution_mode": "host-agent"
+    }
+  ],
+  "deliverables": [
+    {
+      "kind": "primary-document",
+      "title": "Synthetic admission statement",
+      "media_type": "text/markdown",
+      "content": "# Synthetic admission statement\n\nThis fictional statement is a structure-only example for the synthetic public-interest design programme. The reviewed evaluation dimensions are motivation, relevant preparation, and intended learning outcomes. It deliberately supplies no real biography, credential, institution history, or personal claim."
+    },
+    {
+      "kind": "supporting-document",
+      "title": "Synthetic portfolio note",
+      "media_type": "text/markdown",
+      "content": "# Synthetic portfolio note\n\nProject sample one is a fictional paper prototype used only to demonstrate problem framing. Project sample two is a fictional offline service map used only to demonstrate reflection. Neither sample identifies a person, client, school, employer, or live service."
+    }
+  ],
+  "export_slug": "admission"
+}

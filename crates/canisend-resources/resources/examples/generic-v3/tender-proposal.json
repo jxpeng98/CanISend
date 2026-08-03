@@ -1,0 +1,65 @@
+{
+  "format": "canisend.generic-application-example/v1",
+  "scenario_id": "synthetic-records-classification-tender",
+  "family": "tender-proposal",
+  "synthetic": true,
+  "data_policy": "fictional-only-no-real-personal-data",
+  "synthetic_notice": "All names, organizations, identifiers, and Application content in this example are fictional test data.",
+  "pack_id": "org.canisend.generic-application",
+  "title": "Synthetic records-classification tender",
+  "opportunity_metadata": {
+    "organization": {"type": "short-text", "value": "Fictional CivicWorks Authority"},
+    "reference": {"type": "short-text", "value": "SYN-TENDER-001"},
+    "deadline": {"type": "date", "value": "2030-06-30"}
+  },
+  "application_metadata": {
+    "tracking-id": {"type": "short-text", "value": "SYN-TRACK-TENDER-001"},
+    "status": {"type": "choice", "value": "planning"},
+    "notes": {"type": "long-text", "value": "Offline fictional tender/proposal scenario for deterministic testing."}
+  },
+  "source_text": "Fictional CivicWorks Authority requests a synthetic proposal for an offline records-classification prototype. The primary proposal must describe approach, governance, delivery stages, and validation. A supporting compliance note must confirm local-only processing, a six-week delivery window, and a fictional GBP 40,000 maximum.",
+  "requirements": [
+    {
+      "category": "scope",
+      "statement": "The primary proposal must describe approach, governance, delivery stages, and validation.",
+      "priority": "mandatory"
+    },
+    {
+      "category": "compliance",
+      "statement": "A supporting compliance note must confirm local-only processing, a six-week delivery window, and a fictional GBP 40,000 maximum.",
+      "priority": "mandatory"
+    }
+  ],
+  "decision": "proceed",
+  "planned_deliverables": [
+    {
+      "kind": "primary-document",
+      "disposition": "required",
+      "rationale": "The reviewed source requires a primary proposal.",
+      "constraints": ["Describe approach, governance, delivery stages, and validation."],
+      "execution_mode": "host-agent"
+    },
+    {
+      "kind": "supporting-document",
+      "disposition": "required",
+      "rationale": "The reviewed source requires a compliance note.",
+      "constraints": ["Preserve local-only processing, six weeks, and the fictional GBP 40,000 maximum."],
+      "execution_mode": "host-agent"
+    }
+  ],
+  "deliverables": [
+    {
+      "kind": "primary-document",
+      "title": "Synthetic records-classification proposal",
+      "media_type": "text/markdown",
+      "content": "# Synthetic records-classification proposal\n\nThis fictional proposal covers an offline records-classification prototype. Its reviewed structure is approach, governance, delivery stages, and validation. It does not claim access to live records, systems, credentials, suppliers, or delivery evidence."
+    },
+    {
+      "kind": "supporting-document",
+      "title": "Synthetic compliance note",
+      "media_type": "text/markdown",
+      "content": "# Synthetic compliance note\n\nThe reviewed constraints are local-only processing, a six-week delivery window, and a fictional maximum of GBP 40,000. This example grants no network, procurement, data-access, or submission authority."
+    }
+  ],
+  "export_slug": "tender-proposal"
+}

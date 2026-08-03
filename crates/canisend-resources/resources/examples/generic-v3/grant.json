@@ -1,0 +1,65 @@
+{
+  "format": "canisend.generic-application-example/v1",
+  "scenario_id": "synthetic-neighborhood-resilience-grant",
+  "family": "grant",
+  "synthetic": true,
+  "data_policy": "fictional-only-no-real-personal-data",
+  "synthetic_notice": "All names, organizations, identifiers, and Application content in this example are fictional test data.",
+  "pack_id": "org.canisend.generic-application",
+  "title": "Synthetic neighborhood resilience grant",
+  "opportunity_metadata": {
+    "organization": {"type": "short-text", "value": "Fictional Northbridge Community Fund"},
+    "reference": {"type": "short-text", "value": "SYN-GRANT-001"},
+    "deadline": {"type": "date", "value": "2030-03-31"}
+  },
+  "application_metadata": {
+    "tracking-id": {"type": "short-text", "value": "SYN-TRACK-GRANT-001"},
+    "status": {"type": "choice", "value": "planning"},
+    "notes": {"type": "long-text", "value": "Offline fictional grant scenario for deterministic testing."}
+  },
+  "source_text": "Fictional Northbridge Community Fund invites a twelve-month neighborhood resilience pilot. The primary narrative must explain activities, beneficiaries, evidence, and measurable outcomes. A supporting budget note must list category assumptions and remain within the fictional GBP 25,000 ceiling.",
+  "requirements": [
+    {
+      "category": "scope",
+      "statement": "The primary narrative must explain activities, beneficiaries, evidence, and measurable outcomes.",
+      "priority": "mandatory"
+    },
+    {
+      "category": "resources",
+      "statement": "A supporting budget note must list category assumptions and remain within the fictional GBP 25,000 ceiling.",
+      "priority": "mandatory"
+    }
+  ],
+  "decision": "proceed",
+  "planned_deliverables": [
+    {
+      "kind": "primary-document",
+      "disposition": "required",
+      "rationale": "The reviewed source requires a primary narrative.",
+      "constraints": ["Cover activities, beneficiaries, evidence, and measurable outcomes."],
+      "execution_mode": "host-agent"
+    },
+    {
+      "kind": "supporting-document",
+      "disposition": "required",
+      "rationale": "The reviewed source requires a supporting budget note.",
+      "constraints": ["State category assumptions and preserve the fictional GBP 25,000 ceiling."],
+      "execution_mode": "host-agent"
+    }
+  ],
+  "deliverables": [
+    {
+      "kind": "primary-document",
+      "title": "Synthetic resilience pilot narrative",
+      "media_type": "text/markdown",
+      "content": "# Synthetic resilience pilot narrative\n\nThis fictional Application addresses the requested twelve-month neighborhood resilience pilot. Its reviewed scope is limited to explaining activities, beneficiaries, evidence, and measurable outcomes. Each of those elements must remain traceable to confirmed evidence before any real-world use."
+    },
+    {
+      "kind": "supporting-document",
+      "title": "Synthetic budget assumptions note",
+      "media_type": "text/markdown",
+      "content": "# Synthetic budget assumptions note\n\nThe reviewed source sets a fictional ceiling of GBP 25,000. This supporting note records that category assumptions must be listed and checked against that ceiling; it introduces no real organization, person, account, or expenditure."
+    }
+  ],
+  "export_slug": "grant"
+}

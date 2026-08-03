@@ -64,5 +64,6 @@ latest version or substitutes bytes registered under an existing version.
 GF4-PACK-001 makes the starter Pack embedded, verified, compiled, localized, and exactly
 resolvable. GF4-FLOW-001, GF4-UI-001, and GF4-AGENT-001 provide canonical v3 execution plus
 CLI/desktop/Agent Pack selection, field submission, resume, review, snapshot-bound approval, and
-local export. Agent v2 and the `job` CLI remain academic-only compatibility surfaces and must fail
+local export. GF4-EXAMPLE-001 also runs four fully synthetic domain families through this exact
+Pack offline. Agent v2 and the `job` CLI remain academic-only compatibility surfaces and must fail
 closed for this Pack.

@@ -47,6 +47,33 @@ fn generic_workflow_pack_manifest_and_template_are_embedded_as_one_bundle() {
 }
 
 #[test]
+fn four_fictional_generic_application_examples_are_embedded_and_offline() {
+    let expected = [
+        ("example.generic-v3.admission", "admission"),
+        ("example.generic-v3.grant", "grant"),
+        ("example.generic-v3.professional-job", "professional-job"),
+        ("example.generic-v3.tender-proposal", "tender-proposal"),
+    ];
+    for (resource_id, family) in expected {
+        let resource = get(ResourceId::from_str(resource_id).expect("typed example resource ID"));
+        assert_eq!(resource.descriptor.kind, ResourceKind::Example);
+        assert_eq!(resource.descriptor.version, "1.0.0");
+        assert!(resource.descriptor.path.starts_with("examples/generic-v3/"));
+        let value: serde_json::Value =
+            serde_json::from_slice(resource.bytes).expect("generic example JSON");
+        assert_eq!(value["format"], "canisend.generic-application-example/v1");
+        assert_eq!(value["family"], family);
+        assert_eq!(value["synthetic"], true);
+        assert_eq!(value["data_policy"], "fictional-only-no-real-personal-data");
+        assert_eq!(value["pack_id"], GENERIC_APPLICATION_WORKFLOW_PACK_ID);
+        let encoded = String::from_utf8_lossy(resource.bytes);
+        assert!(!encoded.contains("https://"));
+        assert!(!encoded.contains("http://"));
+        assert!(!encoded.contains('@'));
+    }
+}
+
+#[test]
 fn academic_workflow_pack_manifest_and_bodies_are_embedded_as_one_bundle() {
     let manifest = get(ResourceId::WorkflowPackOrgCanisendAcademicJob);
     assert_eq!(manifest.descriptor.kind, ResourceKind::WorkflowPack);

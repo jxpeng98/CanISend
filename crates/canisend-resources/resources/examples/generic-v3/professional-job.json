@@ -1,0 +1,65 @@
+{
+  "format": "canisend.generic-application-example/v1",
+  "scenario_id": "synthetic-operations-coordinator-job",
+  "family": "professional-job",
+  "synthetic": true,
+  "data_policy": "fictional-only-no-real-personal-data",
+  "synthetic_notice": "All names, organizations, identifiers, and Application content in this example are fictional test data.",
+  "pack_id": "org.canisend.generic-application",
+  "title": "Synthetic operations coordinator Application",
+  "opportunity_metadata": {
+    "organization": {"type": "short-text", "value": "Fictional Harbor Systems"},
+    "reference": {"type": "short-text", "value": "SYN-JOB-001"},
+    "deadline": {"type": "date", "value": "2030-08-01"}
+  },
+  "application_metadata": {
+    "tracking-id": {"type": "short-text", "value": "SYN-TRACK-JOB-001"},
+    "status": {"type": "choice", "value": "planning"},
+    "notes": {"type": "long-text", "value": "Offline fictional professional-job scenario for deterministic testing."}
+  },
+  "source_text": "Fictional Harbor Systems seeks a synthetic operations coordinator for a local documentation programme. The primary Application document must connect evidence to scheduling, stakeholder communication, and quality control. A supporting evidence note must summarize fictional examples without names, contact details, or employer identifiers.",
+  "requirements": [
+    {
+      "category": "evaluation",
+      "statement": "The primary Application document must connect evidence to scheduling, stakeholder communication, and quality control.",
+      "priority": "mandatory"
+    },
+    {
+      "category": "compliance",
+      "statement": "A supporting evidence note must summarize fictional examples without names, contact details, or employer identifiers.",
+      "priority": "mandatory"
+    }
+  ],
+  "decision": "proceed",
+  "planned_deliverables": [
+    {
+      "kind": "primary-document",
+      "disposition": "required",
+      "rationale": "The reviewed source requires a primary Application document.",
+      "constraints": ["Connect confirmed evidence to scheduling, stakeholder communication, and quality control."],
+      "execution_mode": "host-agent"
+    },
+    {
+      "kind": "supporting-document",
+      "disposition": "required",
+      "rationale": "The reviewed source requires a supporting evidence note.",
+      "constraints": ["Use fictional examples without personal or employer identifiers."],
+      "execution_mode": "host-agent"
+    }
+  ],
+  "deliverables": [
+    {
+      "kind": "primary-document",
+      "title": "Synthetic professional Application document",
+      "media_type": "text/markdown",
+      "content": "# Synthetic professional Application document\n\nThis fictional structure connects only the reviewed evaluation areas: scheduling, stakeholder communication, and quality control. It contains no real employment history, achievement, credential, organization relationship, or personal claim."
+    },
+    {
+      "kind": "supporting-document",
+      "title": "Synthetic evidence note",
+      "media_type": "text/markdown",
+      "content": "# Synthetic evidence note\n\nExample one is a fictional scheduling exercise. Example two is a fictional document-quality review. They contain no names, contact details, employer identifiers, dates of employment, references, or live records."
+    }
+  ],
+  "export_slug": "professional-job"
+}

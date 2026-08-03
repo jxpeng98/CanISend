@@ -44,6 +44,7 @@ defines the pack, migration, compatibility, and dual-pack implementation slices.
 - [Upgrade, rollback, and uninstall](docs/guides/upgrade-and-rollback.md)
 - [Troubleshooting](docs/guides/troubleshooting.md)
 - [Desktop GUI preview](docs/guides/desktop-gui.md)
+- [Synthetic generic Application examples](docs/testing/generic-application-examples.md)
 
 ## Current status
 
@@ -82,7 +83,7 @@ The current CLI provides:
   compatible, or Pack-default vocabulary and labels without leaking one Pack's selection to another.
 - A pre-parse bounded Pack byte verifier with UTF-8 data-only resource policy and body-free Trust
   Reports; publisher authentication, signatures, and external installation remain unavailable.
-- Sixty-nine typed embedded schemas, prompts, templates, examples, and host assets with SHA-256 verification.
+- Seventy-five typed embedded schemas, prompts, templates, examples, and host assets with SHA-256 verification.
 - A truthful capability registry that marks unfinished functions as `planned`.
 - Agent context plus schema/resource diagnostics with deterministic JSON snapshots.
 - Workspace discovery, explicit `--workspace` resolution, initialization, status, integrity checks, and repair.
