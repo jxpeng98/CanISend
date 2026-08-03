@@ -137,7 +137,11 @@ test -f "$pack/schemas/v2/package-export-manifest.schema.json"
 test -f "$pack/schemas/v2/projection.schema.json"
 test -f "$pack/schemas/v2/projection-reconcile.schema.json"
 
-"$binary" --workspace "$workspace" workspace init --json >/dev/null
+# This script exercises the bounded Agent v2/job compatibility surface. A default initialization
+# intentionally creates the canonical generic Workspace v3 authority, where legacy job mutations
+# fail closed. Select the exact academic v2 authority here so the smoke cannot accidentally claim
+# that compatibility exists for a generic Pack.
+"$binary" --workspace "$workspace" workspace init --pack academic-job --json >/dev/null
 job_json="$(
   "$binary" --workspace "$workspace" job create \
     --title "Lecturer in Economics" \

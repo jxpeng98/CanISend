@@ -5618,6 +5618,14 @@ fn check_native_test_ownership() -> Result<(), String> {
             "both macOS Rust jobs must consume the exact production desktop UI build".to_owned(),
         );
     }
+    let host_agent_smoke_path = root.join("scripts/smoke_host_agent.sh");
+    let host_agent_smoke = fs::read_to_string(&host_agent_smoke_path)
+        .map_err(|error| format!("host-agent smoke script is missing: {error}"))?;
+    if !host_agent_smoke.contains("workspace init --pack academic-job --json") {
+        return Err(
+            "Agent v2 host smoke must select the exact academic compatibility authority".to_owned(),
+        );
+    }
     let browser_start = fast_ci
         .find("\n  browser-keyboard-accessibility:\n")
         .ok_or_else(|| "fast CI browser job is missing".to_owned())?;
