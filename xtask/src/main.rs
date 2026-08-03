@@ -5598,6 +5598,7 @@ fn check_native_test_ownership() -> Result<(), String> {
         "cargo run -p xtask --locked -- release check",
         "cargo build --locked -p canisend-cli -p canisend-gui",
         "--features canisend-gui/custom-protocol",
+        "workspace init --pack academic-job --json",
         "./scripts/smoke_host_agent.sh ./target/debug/canisend",
         "Target: 300 seconds or less after cache warm-up",
     ] {
@@ -5624,6 +5625,17 @@ fn check_native_test_ownership() -> Result<(), String> {
     if !host_agent_smoke.contains("workspace init --pack academic-job --json") {
         return Err(
             "Agent v2 host smoke must select the exact academic compatibility authority".to_owned(),
+        );
+    }
+    let git_attributes_path = root.join(".gitattributes");
+    let git_attributes = fs::read_to_string(&git_attributes_path)
+        .map_err(|error| format!("Git attributes are missing: {error}"))?;
+    if !git_attributes
+        .lines()
+        .any(|line| line.trim() == "*.md text eol=lf")
+    {
+        return Err(
+            "Pack-bound Markdown resources must use canonical LF checkout bytes".to_owned(),
         );
     }
     let browser_start = fast_ci

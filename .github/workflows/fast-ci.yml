@@ -271,7 +271,7 @@ jobs:
           ./target/debug/canisend version --json
           ./target/debug/canisend doctor --json
           ./target/debug/canisend agent capabilities --json
-          ./target/debug/canisend --workspace "$workspace" workspace init --json
+          ./target/debug/canisend --workspace "$workspace" workspace init --pack academic-job --json
           ./target/debug/canisend --workspace "$workspace" workspace status --json
           ./target/debug/canisend --workspace "$workspace" workspace check --json
           job_id="$(./target/debug/canisend --workspace "$workspace" job create --title "Lecturer in Economics" --institution "University X" --json | sed -E 's/.*"id":"([^"]+)".*/\1/')"
