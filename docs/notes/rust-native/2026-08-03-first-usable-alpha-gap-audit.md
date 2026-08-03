@@ -78,6 +78,20 @@ This advances ordered-path item 3 from missing/incomplete to implemented source 
 not establish cross-surface semantic parity for every canonical registry leaf. The next ordered P0
 implementation item is M1-OP-003/GF5-PARITY-001.
 
+M1-OP-003 / GF5-PARITY-001 now have source implementation evidence in the
+[semantic parity contract](../../contracts/semantic-parity-v1.md) and
+[implementation record](2026-08-03-gf5-semantic-parity.md). The source gate binds both built-in
+Packs across CLI, Tauri, and MCP to 8 shared operations, 7 revision-bound operations, 5
+preview/commit families, 5 read families, and the closed success/stale/replay/wrong-Pack/
+wrong-context/no-mutation/recovery outcome set. Wrong-Pack calls are checked in both directions,
+and rejected mutations retain the same Workspace status or authoritative revision. The remaining
+148 non-shared bindings are machine-listed with typed class and Pack scope rather than hidden by a
+parity claim.
+
+This advances ordered-path item 4 from incomplete to implemented source evidence. It does not
+qualify packaged binaries, real Agent hosts, or users. The next ordered P0 implementation item is
+MSRV alignment plus the release/frontend non-bypass path.
+
 P1 CI/dependency improvements, governance work-item linkage, independent evidence review, dogfood,
 target-user validation, signing, and later Alpha.7 dual-Pack qualification also remain, but they do
 not replace the P0 implementation order.
@@ -90,9 +104,9 @@ not replace the P0 implementation order.
    internal dependency-edge policy is release-gated (M1-ADR/GRAPH).
 3. Completed in source: the shared approval broker and complete failure/concurrency suite replace
    duplicated MCP and desktop preview stores (M1-APPR/TEST).
-4. Build the two-Pack semantic parity matrix and machine-list uncovered leaves
-   (M1-OP-003/GF5-PARITY).
-5. Align the MSRV and close the release/frontend non-bypass path.
+4. Completed in source: the two-Pack semantic parity matrix qualifies shared outcomes and
+   machine-lists uncovered leaves (M1-OP-003/GF5-PARITY).
+5. Next: align the MSRV and close the release/frontend non-bypass path.
 6. Rewrite the user documentation around Pack selection and v2→v3 boundaries (GF5-DOC).
 7. Run the exact native Alpha.6 candidate, migration, backup/restore, rollback, package, and
    release-integrity gates on a clean candidate commit.

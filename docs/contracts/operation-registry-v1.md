@@ -76,6 +76,7 @@ The check validates the typed registry, derives the Clap leaves, extracts every 
 handler and MCP router tool, verifies the Tauri declarations, and requires exact set equality.
 It is also part of `release check`.
 
-The operation registry proves identity, classification, Pack scope, and adapter coverage. It does
-not itself prove semantic outcome parity; stale/replay/no-mutation and two-Pack outcome fixtures
-belong to GF5-PARITY-001 / M1-OP-003.
+The operation registry proves identity, classification, Pack scope, and adapter coverage. Semantic
+outcome qualification is a separate source contract in
+[Semantic parity v1](semantic-parity-v1.md), which binds stale, replay, wrong Pack/context,
+no-mutation, recovery, and two-Pack fixtures to this registry.

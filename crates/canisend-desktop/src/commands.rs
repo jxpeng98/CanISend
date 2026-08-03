@@ -563,37 +563,51 @@ pub(crate) async fn migrate_workspace_v3(
     .await
 }
 
+fn list_jobs_impl(
+    request: JobListRequest,
+) -> Result<ActionReceipt<JobListReadModel>, DesktopCommandError> {
+    Application::list_jobs(&request.workspace, request.include_archived)
+        .map_err(DesktopCommandError::application)
+}
+
+fn create_job_impl(
+    request: JobCreateRequest,
+) -> Result<ActionReceipt<JobRecord>, DesktopCommandError> {
+    Application::create_job(&request.workspace, &request.title, &request.institution)
+        .map_err(DesktopCommandError::application)
+}
+
+fn show_job_impl(
+    request: JobRequest,
+) -> Result<ActionReceipt<JobDetailReadModel>, DesktopCommandError> {
+    Application::job_detail(&request.workspace, &request.job_id)
+        .map_err(DesktopCommandError::application)
+}
+
+fn archive_job_impl(request: JobRequest) -> Result<ActionReceipt<JobRecord>, DesktopCommandError> {
+    Application::archive_job(&request.workspace, &request.job_id)
+        .map_err(DesktopCommandError::application)
+}
+
 #[tauri::command]
 pub(crate) async fn list_jobs(
     request: JobListRequest,
 ) -> Result<ActionReceipt<JobListReadModel>, DesktopCommandError> {
-    run_worker(move || {
-        Application::list_jobs(&request.workspace, request.include_archived)
-            .map_err(DesktopCommandError::application)
-    })
-    .await
+    run_worker(move || list_jobs_impl(request)).await
 }
 
 #[tauri::command]
 pub(crate) async fn create_job(
     request: JobCreateRequest,
 ) -> Result<ActionReceipt<JobRecord>, DesktopCommandError> {
-    run_worker(move || {
-        Application::create_job(&request.workspace, &request.title, &request.institution)
-            .map_err(DesktopCommandError::application)
-    })
-    .await
+    run_worker(move || create_job_impl(request)).await
 }
 
 #[tauri::command]
 pub(crate) async fn show_job(
     request: JobRequest,
 ) -> Result<ActionReceipt<JobDetailReadModel>, DesktopCommandError> {
-    run_worker(move || {
-        Application::job_detail(&request.workspace, &request.job_id)
-            .map_err(DesktopCommandError::application)
-    })
-    .await
+    run_worker(move || show_job_impl(request)).await
 }
 
 #[tauri::command]
@@ -628,11 +642,7 @@ pub(crate) async fn search_content(
 pub(crate) async fn archive_job(
     request: JobRequest,
 ) -> Result<ActionReceipt<JobRecord>, DesktopCommandError> {
-    run_worker(move || {
-        Application::archive_job(&request.workspace, &request.job_id)
-            .map_err(DesktopCommandError::application)
-    })
-    .await
+    run_worker(move || archive_job_impl(request)).await
 }
 
 #[tauri::command]
@@ -724,6 +734,25 @@ mod tests {
             created.action.data.status.workspace_format,
             "canisend.workspace/v3"
         );
+        let before = Application::workspace_status(&root)
+            .expect("generic status before compatibility command")
+            .data
+            .status;
+        assert!(
+            create_job_impl(JobCreateRequest {
+                workspace: root.clone(),
+                title: "Wrong Pack job".to_owned(),
+                institution: "Must not persist".to_owned(),
+            })
+            .is_err()
+        );
+        assert_eq!(
+            Application::workspace_status(&root)
+                .expect("generic status after compatibility command")
+                .data
+                .status,
+            before
+        );
 
         fs::remove_dir_all(root).expect("remove Workspace");
         fs::remove_dir_all(registry_path.parent().expect("registry parent"))
@@ -762,9 +791,13 @@ mod tests {
         .expect("create registered workspace");
         assert_eq!(created.registry.registry.entries.len(), 1);
 
-        let job = Application::create_job(&root, "Lecturer", "University")
-            .expect("create job")
-            .data;
+        let job = create_job_impl(JobCreateRequest {
+            workspace: root.clone(),
+            title: "Lecturer".to_owned(),
+            institution: "University".to_owned(),
+        })
+        .expect("create job")
+        .data;
         let imported = import_local_job_source_impl(LocalSourceImportRequest {
             workspace: root.clone(),
             job_id: job.id.to_string(),
@@ -773,6 +806,18 @@ mod tests {
         })
         .expect("import local source");
         assert_eq!(imported.data.job.source_ids.len(), 1);
+        let shown = show_job_impl(JobRequest {
+            workspace: root.clone(),
+            job_id: job.id.to_string(),
+        })
+        .expect("show job");
+        assert_eq!(shown.data.job.id, job.id);
+        let listed = list_jobs_impl(JobListRequest {
+            workspace: root.clone(),
+            include_archived: false,
+        })
+        .expect("list jobs");
+        assert_eq!(listed.data.jobs.len(), 1);
         let dossier = application_dossier_impl(JobRequest {
             workspace: root.clone(),
             job_id: job.id.to_string(),
@@ -790,6 +835,21 @@ mod tests {
             select_workspace_impl(&registry_path, WorkspacePathRequest { path: root.clone() })
                 .expect("select workspace");
         assert_eq!(selected.action.data.status.job_count, 1);
+        archive_job_impl(JobRequest {
+            workspace: root.clone(),
+            job_id: job.id.to_string(),
+        })
+        .expect("archive job");
+        assert!(
+            list_jobs_impl(JobListRequest {
+                workspace: root.clone(),
+                include_archived: false,
+            })
+            .expect("list active jobs")
+            .data
+            .jobs
+            .is_empty()
+        );
 
         fs::remove_dir_all(root).expect("remove workspace");
         fs::remove_dir_all(registry_path.parent().expect("registry parent"))

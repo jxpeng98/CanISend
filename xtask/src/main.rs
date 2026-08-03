@@ -9,9 +9,10 @@ use std::{
 };
 
 use canisend_contracts::{
-    AGENT_PROTOCOL, OperationRegistry, OperationSurface, PUBLIC_SCHEMA_VERSION, WORKSPACE_FORMAT,
-    generate_application_model_schemas, generate_public_schemas, generate_workflow_pack_schema,
-    verify_application_model_schemas, verify_public_schemas, verify_workflow_pack_schema,
+    AGENT_PROTOCOL, OperationClass, OperationPackScope, OperationRegistry, OperationSurface,
+    PUBLIC_SCHEMA_VERSION, WORKSPACE_FORMAT, generate_application_model_schemas,
+    generate_public_schemas, generate_workflow_pack_schema, verify_application_model_schemas,
+    verify_public_schemas, verify_workflow_pack_schema,
 };
 use semver::Version;
 use serde_json::{Map, Value, json};
@@ -39,6 +40,7 @@ const RELEASE_LINE_POLICY_SCHEMA: &str = "canisend.release-line-policy/v1";
 const RELEASE_LINE_PLAN_SCHEMA: &str = "canisend.release-line-plan/v1";
 const SVELTE_PARITY_SCHEMA: &str = "canisend.svelte-parity/v1";
 const WORKSPACE_DEPENDENCY_POLICY_SCHEMA: &str = "canisend.workspace-dependency-policy/v1";
+const SEMANTIC_PARITY_SCHEMA: &str = "canisend.semantic-parity/v1";
 const STAGE_TRANSITION_POLICY_SCHEMA: &str = "canisend.stage-transition-policy/v1";
 const STAGE_TRANSITION_PLAN_SCHEMA: &str = "canisend.stage-transition-plan/v1";
 const FEATURE_FREEZE_PLAN_SCHEMA: &str = "canisend.feature-freeze-plan/v1";
@@ -91,6 +93,10 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
             check_operation_registry()
         }
         [area, command] if area == "approvals" && command == "check" => check_approval_broker(),
+        [area, command] if area == "semantics" && command == "check" => check_semantic_parity(),
+        [area, command] if area == "semantics" && command == "uncovered" => {
+            list_uncovered_semantic_bindings()
+        }
         [area, command] if area == "architecture" && command == "graph-check" => {
             check_workspace_dependency_graph()
         }
@@ -156,6 +162,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
             check_workspace_dependency_graph()?;
             check_operation_registry()?;
             check_approval_broker()?;
+            check_semantic_parity()?;
             check_cli_gui_parity()?;
             check_svelte_parity()?;
             check_alpha_package_contract()?;
@@ -6054,6 +6061,680 @@ fn validate_approval_broker_sources(
         }
     }
     Ok(())
+}
+
+#[derive(Debug)]
+struct SemanticParityReport {
+    shared_operations: usize,
+    preview_pairs: usize,
+    read_families: usize,
+    qualified_bindings: usize,
+    uncovered_bindings: Vec<Value>,
+}
+
+fn check_semantic_parity() -> Result<(), String> {
+    let root = repository_root();
+    let policy_path = root.join("crates/canisend-contracts/semantic-parity-v1.json");
+    let policy: Value = serde_json::from_str(
+        &fs::read_to_string(&policy_path)
+            .map_err(|error| format!("could not read {}: {error}", policy_path.display()))?,
+    )
+    .map_err(|error| format!("semantic parity policy is invalid JSON: {error}"))?;
+    let registry = OperationRegistry::built_in()
+        .map_err(|error| format!("typed operation registry is invalid: {error}"))?;
+    let report = validate_semantic_parity_policy(&policy, &registry, &root)?;
+    println!(
+        "semantic parity: ok ({} shared operations, {} preview/commit pairs, {} read families, {} qualified / {} explicitly uncovered bindings)",
+        report.shared_operations,
+        report.preview_pairs,
+        report.read_families,
+        report.qualified_bindings,
+        report.uncovered_bindings.len()
+    );
+    Ok(())
+}
+
+fn list_uncovered_semantic_bindings() -> Result<(), String> {
+    let root = repository_root();
+    let policy_path = root.join("crates/canisend-contracts/semantic-parity-v1.json");
+    let policy: Value = serde_json::from_str(
+        &fs::read_to_string(&policy_path)
+            .map_err(|error| format!("could not read {}: {error}", policy_path.display()))?,
+    )
+    .map_err(|error| format!("semantic parity policy is invalid JSON: {error}"))?;
+    let registry = OperationRegistry::built_in()
+        .map_err(|error| format!("typed operation registry is invalid: {error}"))?;
+    let report = validate_semantic_parity_policy(&policy, &registry, &root)?;
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&json!({
+            "format": "canisend.semantic-parity-uncovered/v1",
+            "operation_registry_format": registry.format,
+            "bindings": report.uncovered_bindings,
+        }))
+        .map_err(|error| format!("could not serialize uncovered semantic bindings: {error}"))?
+    );
+    Ok(())
+}
+
+fn validate_semantic_parity_policy(
+    policy: &Value,
+    registry: &OperationRegistry,
+    root: &Path,
+) -> Result<SemanticParityReport, String> {
+    let policy_object = policy
+        .as_object()
+        .ok_or_else(|| "semantic parity policy must be an object".to_owned())?;
+    let expected_fields = BTreeSet::from([
+        "format",
+        "version",
+        "operation_registry_format",
+        "required_outcomes",
+        "fixtures",
+        "shared_operations",
+        "pack_surface_cases",
+        "revision_bound_operations",
+        "preview_commit_pairs",
+        "read_families",
+        "uncovered_policy",
+    ]);
+    let actual_fields = policy_object
+        .keys()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    if actual_fields != expected_fields {
+        return Err(format!(
+            "semantic parity policy fields must be {expected_fields:?}, found {actual_fields:?}"
+        ));
+    }
+    if policy["format"] != SEMANTIC_PARITY_SCHEMA {
+        return Err(format!(
+            "semantic parity format must be {SEMANTIC_PARITY_SCHEMA}"
+        ));
+    }
+    if policy["version"].as_u64() != Some(1) {
+        return Err("semantic parity version must be 1".to_owned());
+    }
+    if policy["operation_registry_format"] != registry.format {
+        return Err("semantic parity policy targets a different operation registry".to_owned());
+    }
+
+    let expected_outcomes = BTreeSet::from([
+        "success".to_owned(),
+        "stale".to_owned(),
+        "replay".to_owned(),
+        "wrong-pack".to_owned(),
+        "wrong-context".to_owned(),
+        "no-mutation".to_owned(),
+        "recovery".to_owned(),
+    ]);
+    let required_outcomes = string_set(
+        &policy["required_outcomes"],
+        "semantic parity required outcomes",
+    )?;
+    if required_outcomes != expected_outcomes {
+        return Err(format!(
+            "semantic parity outcomes drifted: expected {expected_outcomes:?}, found {required_outcomes:?}"
+        ));
+    }
+
+    let fixture_values = semantic_array(policy, "fixtures")?;
+    let mut fixtures = BTreeSet::new();
+    for fixture in fixture_values {
+        semantic_exact_fields(fixture, "fixture", &["id", "path", "marker"])?;
+        let id = semantic_string(fixture, "id", "fixture")?;
+        let path = semantic_string(fixture, "path", "fixture")?;
+        let marker = semantic_string(fixture, "marker", "fixture")?;
+        if !fixtures.insert(id.to_owned()) {
+            return Err(format!("duplicate semantic parity fixture {id}"));
+        }
+        let relative = Path::new(path);
+        if relative.is_absolute()
+            || relative.components().any(|component| {
+                matches!(
+                    component,
+                    std::path::Component::ParentDir
+                        | std::path::Component::RootDir
+                        | std::path::Component::Prefix(_)
+                )
+            })
+        {
+            return Err(format!("semantic fixture {id} has unsafe path {path}"));
+        }
+        let source = fs::read_to_string(root.join(relative))
+            .map_err(|error| format!("could not read semantic fixture {id} at {path}: {error}"))?;
+        if !source.contains(marker) {
+            return Err(format!(
+                "semantic fixture {id} marker is missing from {path}: {marker}"
+            ));
+        }
+    }
+    if fixtures.is_empty() {
+        return Err("semantic parity fixture registry cannot be empty".to_owned());
+    }
+
+    let resolved = registry
+        .resolved_bindings()
+        .map_err(|error| format!("cannot resolve operation bindings: {error}"))?;
+    let known_operations = registry
+        .operations
+        .iter()
+        .map(|operation| operation.id.as_str().to_owned())
+        .chain(
+            registry
+                .compatibility_aliases
+                .iter()
+                .map(|operation| operation.id.as_str().to_owned()),
+        )
+        .chain(
+            resolved
+                .iter()
+                .map(|binding| binding.operation.as_str().to_owned()),
+        )
+        .collect::<BTreeSet<_>>();
+
+    let expected_shared = registry
+        .operations
+        .iter()
+        .filter(|operation| operation.class == OperationClass::SharedLeaf)
+        .map(|operation| operation.id.as_str().to_owned())
+        .collect::<BTreeSet<_>>();
+    let mut actual_shared = BTreeSet::new();
+    let mut shared_kinds = BTreeMap::new();
+    let mut covered_outcomes = BTreeSet::new();
+    for entry in semantic_array(policy, "shared_operations")? {
+        semantic_exact_fields(
+            entry,
+            "shared operation",
+            &[
+                "operation",
+                "kind",
+                "revision_bound",
+                "outcomes",
+                "fixtures",
+            ],
+        )?;
+        let operation = semantic_string(entry, "operation", "shared operation")?;
+        if !actual_shared.insert(operation.to_owned()) {
+            return Err(format!("duplicate shared semantic operation {operation}"));
+        }
+        let kind = semantic_string(entry, "kind", "shared operation")?;
+        if !matches!(kind, "read" | "mutation" | "preview" | "commit") {
+            return Err(format!(
+                "shared operation {operation} has unknown kind {kind}"
+            ));
+        }
+        shared_kinds.insert(operation.to_owned(), kind.to_owned());
+        let revision_bound = entry["revision_bound"].as_bool().ok_or_else(|| {
+            format!("shared operation {operation} revision_bound must be boolean")
+        })?;
+        let outcomes = semantic_outcomes(entry, operation, &required_outcomes)?;
+        semantic_fixture_references(entry, operation, &fixtures)?;
+        if !outcomes.contains("success") {
+            return Err(format!(
+                "shared operation {operation} lacks success coverage"
+            ));
+        }
+        if matches!(kind, "mutation" | "commit") && !outcomes.contains("no-mutation") {
+            return Err(format!(
+                "shared mutating operation {operation} lacks no-mutation coverage"
+            ));
+        }
+        if revision_bound && !outcomes.contains("stale") {
+            return Err(format!(
+                "revision-bound shared operation {operation} lacks stale coverage"
+            ));
+        }
+        if operation == "application.approve" && outcomes != required_outcomes {
+            return Err(
+                "application.approve must cover the complete approval outcome set".to_owned(),
+            );
+        }
+        covered_outcomes.extend(outcomes);
+    }
+    if actual_shared != expected_shared {
+        return Err(format!(
+            "shared semantic operations drifted: missing={:?}, unexpected={:?}",
+            expected_shared
+                .difference(&actual_shared)
+                .collect::<Vec<_>>(),
+            actual_shared
+                .difference(&expected_shared)
+                .collect::<Vec<_>>()
+        ));
+    }
+
+    let expected_pack_surfaces = ["generic-application", "academic-job"]
+        .into_iter()
+        .flat_map(|pack| {
+            ["cli", "tauri", "mcp"]
+                .into_iter()
+                .map(move |surface| (pack.to_owned(), surface.to_owned()))
+        })
+        .collect::<BTreeSet<_>>();
+    let mut actual_pack_surfaces = BTreeSet::new();
+    let mut qualified = BTreeSet::new();
+    for entry in semantic_array(policy, "pack_surface_cases")? {
+        semantic_exact_fields(
+            entry,
+            "Pack surface case",
+            &["pack", "surface", "operations", "fixtures"],
+        )?;
+        let pack = semantic_string(entry, "pack", "Pack surface case")?;
+        let surface_name = semantic_string(entry, "surface", "Pack surface case")?;
+        let surface = semantic_surface(surface_name)?;
+        if !actual_pack_surfaces.insert((pack.to_owned(), surface_name.to_owned())) {
+            return Err(format!(
+                "duplicate semantic Pack/surface case {pack}/{surface_name}"
+            ));
+        }
+        let operations = string_set(
+            &entry["operations"],
+            &format!("semantic operations for {pack}/{surface_name}"),
+        )?;
+        if operations.is_empty() {
+            return Err(format!(
+                "semantic Pack/surface case {pack}/{surface_name} has no operations"
+            ));
+        }
+        semantic_fixture_references(entry, &format!("{pack}/{surface_name}"), &fixtures)?;
+        for operation in operations {
+            let binding = resolved
+                .iter()
+                .find(|binding| {
+                    binding.surface == surface && binding.operation.as_str() == operation
+                })
+                .ok_or_else(|| {
+                    format!(
+                        "semantic case {pack}/{surface_name} references unbound operation {operation}"
+                    )
+                })?;
+            if !semantic_pack_matches(pack, binding.pack_scope) {
+                return Err(format!(
+                    "semantic case {pack}/{surface_name} operation {operation} has {:?} Pack scope",
+                    binding.pack_scope
+                ));
+            }
+            qualified.insert(semantic_binding_key(binding));
+        }
+    }
+    if actual_pack_surfaces != expected_pack_surfaces {
+        return Err(format!(
+            "semantic Pack/surface matrix drifted: missing={:?}, unexpected={:?}",
+            expected_pack_surfaces
+                .difference(&actual_pack_surfaces)
+                .collect::<Vec<_>>(),
+            actual_pack_surfaces
+                .difference(&expected_pack_surfaces)
+                .collect::<Vec<_>>()
+        ));
+    }
+
+    for binding in resolved.iter().filter(|binding| {
+        registry.operations.iter().any(|operation| {
+            operation.id == binding.operation && operation.class == OperationClass::SharedLeaf
+        })
+    }) {
+        if !qualified.contains(&semantic_binding_key(binding)) {
+            return Err(format!(
+                "shared {:?} leaf {} ({}) has no semantic surface fixture",
+                binding.surface, binding.leaf, binding.operation
+            ));
+        }
+    }
+
+    let expected_revision_bound = BTreeSet::from([
+        "application.plan".to_owned(),
+        "application.compose".to_owned(),
+        "application.approve".to_owned(),
+        "application.export".to_owned(),
+        "job.intake.commit".to_owned(),
+        "task.complete".to_owned(),
+        "tauri.commit.workflow.rerun".to_owned(),
+    ]);
+    let mut revision_bound = BTreeSet::new();
+    for entry in semantic_array(policy, "revision_bound_operations")? {
+        semantic_exact_fields(
+            entry,
+            "revision-bound operation",
+            &["operation", "fixtures"],
+        )?;
+        let operation = semantic_string(entry, "operation", "revision-bound operation")?;
+        semantic_known_operation(operation, &known_operations)?;
+        semantic_fixture_references(entry, operation, &fixtures)?;
+        if !revision_bound.insert(operation.to_owned()) {
+            return Err(format!("duplicate revision-bound operation {operation}"));
+        }
+    }
+    if revision_bound != expected_revision_bound {
+        return Err(format!(
+            "revision-bound semantic matrix drifted: expected {expected_revision_bound:?}, found {revision_bound:?}"
+        ));
+    }
+
+    let expected_pairs = BTreeSet::from([
+        "generic-application-review".to_owned(),
+        "academic-job-intake".to_owned(),
+        "academic-task-completion".to_owned(),
+        "desktop-discovery".to_owned(),
+        "desktop-workflow-rerun".to_owned(),
+    ]);
+    let mut preview_pairs = BTreeSet::new();
+    let mut pair_operations = BTreeSet::new();
+    for entry in semantic_array(policy, "preview_commit_pairs")? {
+        semantic_exact_fields(
+            entry,
+            "preview/commit pair",
+            &[
+                "id",
+                "preview_operations",
+                "commit_operation",
+                "outcomes",
+                "fixtures",
+            ],
+        )?;
+        let id = semantic_string(entry, "id", "preview/commit pair")?;
+        if !preview_pairs.insert(id.to_owned()) {
+            return Err(format!("duplicate preview/commit pair {id}"));
+        }
+        let previews = string_set(
+            &entry["preview_operations"],
+            &format!("preview operations for {id}"),
+        )?;
+        if previews.is_empty() {
+            return Err(format!("preview/commit pair {id} has no preview operation"));
+        }
+        for operation in previews {
+            semantic_known_operation(&operation, &known_operations)?;
+            pair_operations.insert(operation);
+        }
+        let commit = semantic_string(entry, "commit_operation", "preview/commit pair")?;
+        semantic_known_operation(commit, &known_operations)?;
+        pair_operations.insert(commit.to_owned());
+        let outcomes = semantic_outcomes(entry, id, &required_outcomes)?;
+        semantic_fixture_references(entry, id, &fixtures)?;
+        for required in [
+            "success",
+            "replay",
+            "wrong-context",
+            "no-mutation",
+            "recovery",
+        ] {
+            if !outcomes.contains(required) {
+                return Err(format!(
+                    "preview/commit pair {id} lacks {required} coverage"
+                ));
+            }
+        }
+        if id != "desktop-discovery" && !outcomes.contains("stale") {
+            return Err(format!(
+                "revision-bound preview/commit pair {id} lacks stale coverage"
+            ));
+        }
+        covered_outcomes.extend(outcomes);
+    }
+    if preview_pairs != expected_pairs {
+        return Err(format!(
+            "preview/commit pair matrix drifted: expected {expected_pairs:?}, found {preview_pairs:?}"
+        ));
+    }
+
+    let expected_read_families = BTreeSet::from([
+        "generic-application".to_owned(),
+        "academic-application".to_owned(),
+        "evidence-source".to_owned(),
+        "task".to_owned(),
+        "workflow".to_owned(),
+    ]);
+    let mut read_families = BTreeSet::new();
+    let mut read_operations = BTreeSet::new();
+    for entry in semantic_array(policy, "read_families")? {
+        semantic_exact_fields(entry, "read family", &["id", "operations", "fixtures"])?;
+        let id = semantic_string(entry, "id", "read family")?;
+        if !read_families.insert(id.to_owned()) {
+            return Err(format!("duplicate semantic read family {id}"));
+        }
+        let operations = string_set(&entry["operations"], &format!("read family {id}"))?;
+        if operations.is_empty() {
+            return Err(format!("semantic read family {id} has no operation"));
+        }
+        for operation in operations {
+            semantic_known_operation(&operation, &known_operations)?;
+            read_operations.insert(operation);
+        }
+        semantic_fixture_references(entry, id, &fixtures)?;
+    }
+    if read_families != expected_read_families {
+        return Err(format!(
+            "semantic read families drifted: expected {expected_read_families:?}, found {read_families:?}"
+        ));
+    }
+    for operation in expected_shared.iter().filter(|operation| {
+        shared_kinds
+            .get(*operation)
+            .is_some_and(|kind| kind == "read")
+    }) {
+        if !read_operations.contains(operation) {
+            return Err(format!(
+                "shared read operation {operation} is absent from every read family"
+            ));
+        }
+    }
+
+    if covered_outcomes != required_outcomes {
+        return Err(format!(
+            "semantic outcome matrix is incomplete: missing={:?}",
+            required_outcomes
+                .difference(&covered_outcomes)
+                .collect::<Vec<_>>()
+        ));
+    }
+
+    let uncovered_policy = &policy["uncovered_policy"];
+    semantic_exact_fields(
+        uncovered_policy,
+        "uncovered policy",
+        &["machine_list_command", "allowed_classes"],
+    )?;
+    if semantic_string(uncovered_policy, "machine_list_command", "uncovered policy")?
+        != "cargo run -p xtask --locked -- semantics uncovered"
+    {
+        return Err("semantic uncovered command drifted".to_owned());
+    }
+    let allowed_uncovered = string_set(
+        &uncovered_policy["allowed_classes"],
+        "semantic uncovered classes",
+    )?;
+    let expected_uncovered = BTreeSet::from([
+        "canonical-leaf".to_owned(),
+        "compatibility-alias".to_owned(),
+        "adapter-only".to_owned(),
+    ]);
+    if allowed_uncovered != expected_uncovered {
+        return Err(format!(
+            "semantic uncovered classes must be {expected_uncovered:?}"
+        ));
+    }
+
+    for binding in &resolved {
+        if pair_operations.contains(binding.operation.as_str())
+            || read_operations.contains(binding.operation.as_str())
+        {
+            qualified.insert(semantic_binding_key(binding));
+        }
+    }
+    let mut uncovered_bindings = Vec::new();
+    for binding in &resolved {
+        if qualified.contains(&semantic_binding_key(binding)) {
+            continue;
+        }
+        let class = semantic_operation_class(binding.class);
+        if !allowed_uncovered.contains(class) {
+            return Err(format!(
+                "unqualified semantic leaf {:?}/{} has unapproved class {class}",
+                binding.surface, binding.leaf
+            ));
+        }
+        uncovered_bindings.push(json!({
+            "surface": semantic_surface_label(binding.surface),
+            "leaf": binding.leaf,
+            "operation": binding.operation.as_str(),
+            "class": class,
+            "pack_scope": semantic_pack_scope(binding.pack_scope),
+        }));
+    }
+    uncovered_bindings.sort_by_key(|value| {
+        format!(
+            "{}:{}",
+            value["surface"].as_str().unwrap_or_default(),
+            value["leaf"].as_str().unwrap_or_default()
+        )
+    });
+
+    Ok(SemanticParityReport {
+        shared_operations: actual_shared.len(),
+        preview_pairs: preview_pairs.len(),
+        read_families: read_families.len(),
+        qualified_bindings: qualified.len(),
+        uncovered_bindings,
+    })
+}
+
+fn semantic_array<'a>(value: &'a Value, field: &str) -> Result<&'a [Value], String> {
+    value[field]
+        .as_array()
+        .map(Vec::as_slice)
+        .ok_or_else(|| format!("semantic parity {field} must be an array"))
+}
+
+fn semantic_exact_fields(value: &Value, context: &str, expected: &[&str]) -> Result<(), String> {
+    let object = value
+        .as_object()
+        .ok_or_else(|| format!("semantic parity {context} must be an object"))?;
+    let expected = expected.iter().copied().collect::<BTreeSet<_>>();
+    let actual = object.keys().map(String::as_str).collect::<BTreeSet<_>>();
+    if actual != expected {
+        return Err(format!(
+            "semantic parity {context} fields must be {expected:?}, found {actual:?}"
+        ));
+    }
+    Ok(())
+}
+
+fn semantic_string<'a>(value: &'a Value, field: &str, context: &str) -> Result<&'a str, String> {
+    value[field]
+        .as_str()
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| format!("semantic parity {context} {field} must be a non-empty string"))
+}
+
+fn semantic_fixture_references(
+    value: &Value,
+    context: &str,
+    fixtures: &BTreeSet<String>,
+) -> Result<BTreeSet<String>, String> {
+    let references = string_set(
+        &value["fixtures"],
+        &format!("semantic fixture references for {context}"),
+    )?;
+    if references.is_empty() {
+        return Err(format!("semantic matrix entry {context} has no fixture"));
+    }
+    let unknown = references.difference(fixtures).cloned().collect::<Vec<_>>();
+    if !unknown.is_empty() {
+        return Err(format!(
+            "semantic matrix entry {context} references unknown fixtures {unknown:?}"
+        ));
+    }
+    Ok(references)
+}
+
+fn semantic_outcomes(
+    value: &Value,
+    context: &str,
+    required: &BTreeSet<String>,
+) -> Result<BTreeSet<String>, String> {
+    let outcomes = string_set(
+        &value["outcomes"],
+        &format!("semantic outcomes for {context}"),
+    )?;
+    if outcomes.is_empty() {
+        return Err(format!("semantic matrix entry {context} has no outcome"));
+    }
+    let unknown = outcomes.difference(required).cloned().collect::<Vec<_>>();
+    if !unknown.is_empty() {
+        return Err(format!(
+            "semantic matrix entry {context} has unknown outcomes {unknown:?}"
+        ));
+    }
+    Ok(outcomes)
+}
+
+fn semantic_known_operation(
+    operation: &str,
+    known_operations: &BTreeSet<String>,
+) -> Result<(), String> {
+    if known_operations.contains(operation) {
+        Ok(())
+    } else {
+        Err(format!(
+            "semantic matrix references unknown operation {operation}"
+        ))
+    }
+}
+
+fn semantic_surface(value: &str) -> Result<OperationSurface, String> {
+    match value {
+        "cli" => Ok(OperationSurface::Cli),
+        "tauri" => Ok(OperationSurface::Tauri),
+        "mcp" => Ok(OperationSurface::Mcp),
+        _ => Err(format!("unknown semantic surface {value}")),
+    }
+}
+
+fn semantic_surface_label(surface: OperationSurface) -> &'static str {
+    match surface {
+        OperationSurface::Cli => "cli",
+        OperationSurface::Tauri => "tauri",
+        OperationSurface::Mcp => "mcp",
+    }
+}
+
+fn semantic_pack_matches(value: &str, scope: OperationPackScope) -> bool {
+    matches!(
+        (value, scope),
+        (
+            "generic-application",
+            OperationPackScope::GenericApplication
+        ) | ("academic-job", OperationPackScope::AcademicJob)
+    )
+}
+
+fn semantic_pack_scope(scope: OperationPackScope) -> &'static str {
+    match scope {
+        OperationPackScope::Any => "any",
+        OperationPackScope::GenericApplication => "generic-application",
+        OperationPackScope::AcademicJob => "academic-job",
+    }
+}
+
+fn semantic_operation_class(class: OperationClass) -> &'static str {
+    match class {
+        OperationClass::CanonicalLeaf => "canonical-leaf",
+        OperationClass::SharedLeaf => "shared-leaf",
+        OperationClass::CompatibilityAlias => "compatibility-alias",
+        OperationClass::Composite => "composite",
+        OperationClass::WildcardAlias => "wildcard-alias",
+        OperationClass::AdapterOnly => "adapter-only",
+    }
+}
+
+fn semantic_binding_key(binding: &canisend_contracts::ResolvedOperationBinding) -> String {
+    format!(
+        "{}:{}",
+        semantic_surface_label(binding.surface),
+        binding.leaf
+    )
 }
 
 fn check_operation_registry() -> Result<(), String> {
@@ -15672,6 +16353,61 @@ mod tests {
                 &bridge,
             )
             .is_err()
+        );
+    }
+
+    #[test]
+    fn semantic_parity_policy_rejects_missing_markers_outcomes_and_shared_bindings() {
+        let root = repository_root();
+        let policy_path = root.join("crates/canisend-contracts/semantic-parity-v1.json");
+        let policy: Value =
+            serde_json::from_slice(&fs::read(&policy_path).expect("read semantic parity policy"))
+                .expect("parse semantic parity policy");
+        let registry = OperationRegistry::built_in().expect("operation registry");
+        let current = validate_semantic_parity_policy(&policy, &registry, &root)
+            .expect("current semantic parity policy");
+        assert_eq!(current.shared_operations, 8);
+        assert_eq!(current.preview_pairs, 5);
+        assert!(!current.uncovered_bindings.is_empty());
+
+        let mut missing_shared = policy.clone();
+        missing_shared["shared_operations"]
+            .as_array_mut()
+            .expect("shared operations")
+            .pop();
+        assert!(validate_semantic_parity_policy(&missing_shared, &registry, &root).is_err());
+
+        let mut missing_marker = policy.clone();
+        missing_marker["fixtures"][0]["marker"] =
+            Value::String("fn removed_semantic_fixture_marker()".to_owned());
+        assert!(validate_semantic_parity_policy(&missing_marker, &registry, &root).is_err());
+
+        let mut missing_stale = policy.clone();
+        let plan = missing_stale["shared_operations"]
+            .as_array_mut()
+            .expect("shared operations")
+            .iter_mut()
+            .find(|entry| entry["operation"] == "application.plan")
+            .expect("Plan coverage");
+        plan["outcomes"]
+            .as_array_mut()
+            .expect("Plan outcomes")
+            .retain(|outcome| outcome != "stale");
+        assert!(validate_semantic_parity_policy(&missing_stale, &registry, &root).is_err());
+
+        let mut missing_surface_binding = policy;
+        let cli = missing_surface_binding["pack_surface_cases"]
+            .as_array_mut()
+            .expect("Pack surface cases")
+            .iter_mut()
+            .find(|entry| entry["pack"] == "generic-application" && entry["surface"] == "cli")
+            .expect("generic CLI case");
+        cli["operations"]
+            .as_array_mut()
+            .expect("CLI operations")
+            .retain(|operation| operation != "application.create");
+        assert!(
+            validate_semantic_parity_policy(&missing_surface_binding, &registry, &root).is_err()
         );
     }
 }

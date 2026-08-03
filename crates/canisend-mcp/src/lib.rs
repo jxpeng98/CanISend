@@ -1266,10 +1266,11 @@ mod tests {
 
     use super::{
         AgentV3ContextParameters, ApplicationApprovalParameters, ApplicationComposeParameters,
-        ApplicationCreateParameters, ApplicationDeliverableParameters, ApplicationPlanParameters,
-        ApplicationPlannedDeliverableParameters, ApplicationRequirementParameters,
-        ApplicationReviewParameters, CanISendMcpServer, ContextParameters, JobListParameters,
-        JobParameters, MAX_JOB_ID_BYTES, MAX_TOOL_RESULT_BYTES,
+        ApplicationCreateParameters, ApplicationDeliverableParameters, ApplicationExportParameters,
+        ApplicationPlanParameters, ApplicationPlannedDeliverableParameters,
+        ApplicationRequirementParameters, ApplicationReviewParameters, CanISendMcpServer,
+        ContextParameters, JobListParameters, JobParameters, MAX_JOB_ID_BYTES,
+        MAX_TOOL_RESULT_BYTES,
     };
 
     static NEXT: AtomicU64 = AtomicU64::new(1);
@@ -1392,6 +1393,22 @@ mod tests {
         let root = temporary_root("agent-v3-lifecycle");
         Application::initialize_workspace_v3(&root).expect("initialize v3 workspace");
         let server = CanISendMcpServer::open(&root).expect("open MCP server");
+        let capabilities = server
+            .canisend_agent_v3_capabilities()
+            .expect("Agent v3 capabilities")
+            .0;
+        assert_eq!(
+            capabilities["data"]["pack"]["id"],
+            "org.canisend.generic-application"
+        );
+        let initially_listed = server
+            .canisend_applications_list()
+            .expect("initial Application list")
+            .0;
+        assert_eq!(
+            initially_listed["applications"].as_array().map(Vec::len),
+            Some(0)
+        );
 
         let source = "Provide one primary narrative.";
         let created = server
@@ -1417,6 +1434,11 @@ mod tests {
             .as_str()
             .expect("Application ID")
             .to_owned();
+        let listed = server
+            .canisend_applications_list()
+            .expect("Application list")
+            .0;
+        assert_eq!(listed["applications"].as_array().map(Vec::len), Some(1));
 
         let resumed = server
             .canisend_agent_v3_context(Parameters(AgentV3ContextParameters {
@@ -1589,7 +1611,7 @@ mod tests {
 
         let ready = server
             .canisend_agent_v3_context(Parameters(AgentV3ContextParameters {
-                application_id: Some(application_id),
+                application_id: Some(application_id.clone()),
             }))
             .expect("approved context")
             .0;
@@ -1598,6 +1620,83 @@ mod tests {
             "canisend_application_export"
         );
         assert_eq!(ready["data"]["submission_supported"], false);
+
+        let destination = format!("applications/{application_id}/exports/mcp-semantic-parity");
+        assert!(
+            server
+                .canisend_application_export(Parameters(ApplicationExportParameters {
+                    application_id: application_id.clone(),
+                    expected_revision: 4,
+                    destination: destination.clone(),
+                    confirmed_private_export: true,
+                }))
+                .is_err(),
+            "stale export must fail"
+        );
+        assert!(!root.join(&destination).exists());
+        let exported = server
+            .canisend_application_export(Parameters(ApplicationExportParameters {
+                application_id,
+                expected_revision: 5,
+                destination,
+                confirmed_private_export: true,
+            }))
+            .expect("export")
+            .0;
+        assert_eq!(exported["data"]["render"]["submission_performed"], false);
+
+        let generic_before = Application::workspace_status(&root)
+            .expect("generic status before compatibility MCP request")
+            .data
+            .status;
+        assert!(
+            server
+                .canisend_context(Parameters(ContextParameters { job_id: None }))
+                .is_err(),
+            "academic compatibility MCP must fail closed on the generic Pack"
+        );
+        assert_eq!(
+            Application::workspace_status(&root)
+                .expect("generic status after compatibility MCP request")
+                .data
+                .status,
+            generic_before
+        );
+
+        let academic = temporary_root("agent-v3-wrong-pack");
+        Application::initialize_workspace(&academic).expect("academic Workspace");
+        let before = Application::workspace_status(&academic)
+            .expect("academic status before")
+            .data
+            .status;
+        let academic_server = CanISendMcpServer::open(&academic).expect("open academic MCP");
+        let wrong_pack_source = "Wrong Pack request must not persist.";
+        assert!(
+            academic_server
+                .canisend_application_create(Parameters(ApplicationCreateParameters {
+                    title: "Wrong Pack Application".to_owned(),
+                    opportunity_metadata: BTreeMap::new(),
+                    application_metadata: BTreeMap::new(),
+                    source_text: wrong_pack_source.to_owned(),
+                    requirements: vec![ApplicationRequirementParameters {
+                        category: "format".to_owned(),
+                        statement: wrong_pack_source.to_owned(),
+                        priority: RequirementPriorityV3::Mandatory,
+                        start_byte: 0,
+                        end_byte: wrong_pack_source.len() as u64,
+                    }],
+                }))
+                .is_err()
+        );
+        assert_eq!(
+            Application::workspace_status(&academic)
+                .expect("academic status after")
+                .data
+                .status,
+            before
+        );
+
         fs::remove_dir_all(root).expect("remove workspace");
+        fs::remove_dir_all(academic).expect("remove academic workspace");
     }
 }

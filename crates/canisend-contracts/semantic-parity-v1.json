@@ -1,0 +1,335 @@
+{
+  "format": "canisend.semantic-parity/v1",
+  "version": 1,
+  "operation_registry_format": "canisend.operation-registry/v1",
+  "required_outcomes": [
+    "success",
+    "stale",
+    "replay",
+    "wrong-pack",
+    "wrong-context",
+    "no-mutation",
+    "recovery"
+  ],
+  "fixtures": [
+    {
+      "id": "generic-cli-lifecycle",
+      "path": "crates/canisend-cli/src/lib.rs",
+      "marker": "fn canonical_v3_cli_preserves_full_semantic_lifecycle_and_failures()"
+    },
+    {
+      "id": "generic-tauri-lifecycle",
+      "path": "crates/canisend-desktop/src/generic_application.rs",
+      "marker": "fn generic_desktop_commands_preserve_full_semantic_lifecycle_and_failures()"
+    },
+    {
+      "id": "generic-mcp-lifecycle",
+      "path": "crates/canisend-mcp/src/lib.rs",
+      "marker": "fn agent_v3_runs_new_resume_review_approval_and_stale_recovery()"
+    },
+    {
+      "id": "generic-kernel-failures",
+      "path": "crates/canisend-store/src/application_flow_v3.rs",
+      "marker": "fn stale_and_wrong_pack_flow_requests_do_not_write_content_or_revisions()"
+    },
+    {
+      "id": "generic-app-flow",
+      "path": "crates/canisend-app/src/application_flow_v3.rs",
+      "marker": "fn generic_fixture_completes_two_deliverables_without_submission()"
+    },
+    {
+      "id": "approval-broker",
+      "path": "crates/canisend-app/src/approval.rs",
+      "marker": "fn same_approval_restore_preserves_deadline_and_only_one_commit_wins()"
+    },
+    {
+      "id": "approval-context",
+      "path": "crates/canisend-app/src/approval.rs",
+      "marker": "fn wrong_kind_context_replay_and_expiry_consume_without_mutation()"
+    },
+    {
+      "id": "workflow-stale",
+      "path": "crates/canisend-app/src/workflow.rs",
+      "marker": "fn revision_bound_rerun_rejects_stale_preview_without_mutation()"
+    },
+    {
+      "id": "academic-cli-agent",
+      "path": "crates/canisend-cli/tests/binary_contract.rs",
+      "marker": "fn capabilities_and_context_match_committed_json_snapshots()"
+    },
+    {
+      "id": "academic-cli-jobs",
+      "path": "crates/canisend-cli/tests/binary_contract.rs",
+      "marker": "fn native_job_commands_import_original_and_normalized_local_text()"
+    },
+    {
+      "id": "academic-cli-profile",
+      "path": "crates/canisend-cli/tests/binary_contract.rs",
+      "marker": "fn profile_source_list_preserves_the_shared_revisioned_read_model()"
+    },
+    {
+      "id": "academic-cli-workflow",
+      "path": "crates/canisend-cli/tests/binary_contract.rs",
+      "marker": "fn workflow_cli_exposes_body_free_graph_modes_and_rerun()"
+    },
+    {
+      "id": "academic-cli-task",
+      "path": "crates/canisend-cli/tests/binary_contract.rs",
+      "marker": "fn leased_task_completion_is_validated_atomic_and_idempotent()"
+    },
+    {
+      "id": "academic-cli-task-adapter",
+      "path": "crates/canisend-cli/tests/binary_contract.rs",
+      "marker": "fn task_cli_adapter_preserves_show_cancel_and_provider_consent_contracts()"
+    },
+    {
+      "id": "academic-tauri-agent",
+      "path": "crates/canisend-desktop/src/agent.rs",
+      "marker": "fn agent_commands_preserve_body_free_shared_contracts()"
+    },
+    {
+      "id": "academic-tauri-jobs",
+      "path": "crates/canisend-desktop/src/commands.rs",
+      "marker": "fn shared_registry_and_job_commands_cover_the_local_ts2_slice()"
+    },
+    {
+      "id": "academic-tauri-pack-boundary",
+      "path": "crates/canisend-desktop/src/commands.rs",
+      "marker": "fn desktop_pack_selection_creates_v3_and_resolves_generic_labels()"
+    },
+    {
+      "id": "academic-tauri-profile",
+      "path": "crates/canisend-desktop/src/profile.rs",
+      "marker": "fn profile_source_commands_delegate_to_the_shared_application_facade()"
+    },
+    {
+      "id": "academic-tauri-task-workflow",
+      "path": "crates/canisend-desktop/src/workflow.rs",
+      "marker": "fn workflow_and_task_families_share_one_context_bound_broker()"
+    },
+    {
+      "id": "academic-tauri-job-intake",
+      "path": "crates/canisend-desktop/src/job_intake.rs",
+      "marker": "fn job_intake_family_uses_the_shared_single_use_broker()"
+    },
+    {
+      "id": "academic-mcp-read",
+      "path": "crates/canisend-mcp/src/lib.rs",
+      "marker": "fn read_only_tools_share_the_application_facade_and_hide_private_bodies()"
+    },
+    {
+      "id": "academic-mcp-job-intake",
+      "path": "crates/canisend-cli/tests/mcp_protocol.rs",
+      "marker": "fn previews_and_commits_exact_job_intake_with_a_single_use_token()"
+    },
+    {
+      "id": "academic-mcp-task",
+      "path": "crates/canisend-cli/tests/mcp_protocol.rs",
+      "marker": "fn prepares_and_exports_versioned_task_inputs_through_the_same_adapter()"
+    },
+    {
+      "id": "compatibility-wrong-pack",
+      "path": "crates/canisend-app/src/compatibility.rs",
+      "marker": "fn generic_pack_context_fails_closed_with_canonical_remediation()"
+    },
+    {
+      "id": "desktop-discovery-approval",
+      "path": "crates/canisend-desktop/src/discovery.rs",
+      "marker": "fn discovery_family_uses_the_shared_context_bound_broker()"
+    }
+  ],
+  "shared_operations": [
+    {
+      "operation": "application.list",
+      "kind": "read",
+      "revision_bound": false,
+      "outcomes": ["success"],
+      "fixtures": ["generic-cli-lifecycle", "generic-tauri-lifecycle", "generic-mcp-lifecycle"]
+    },
+    {
+      "operation": "application.show",
+      "kind": "read",
+      "revision_bound": false,
+      "outcomes": ["success"],
+      "fixtures": ["generic-cli-lifecycle", "generic-tauri-lifecycle"]
+    },
+    {
+      "operation": "application.create",
+      "kind": "mutation",
+      "revision_bound": false,
+      "outcomes": ["success", "wrong-pack", "no-mutation"],
+      "fixtures": ["generic-cli-lifecycle", "generic-tauri-lifecycle", "generic-mcp-lifecycle", "generic-kernel-failures"]
+    },
+    {
+      "operation": "application.plan",
+      "kind": "mutation",
+      "revision_bound": true,
+      "outcomes": ["success", "stale", "wrong-pack", "no-mutation"],
+      "fixtures": ["generic-cli-lifecycle", "generic-tauri-lifecycle", "generic-mcp-lifecycle", "generic-kernel-failures"]
+    },
+    {
+      "operation": "application.compose",
+      "kind": "mutation",
+      "revision_bound": true,
+      "outcomes": ["success", "stale", "wrong-pack", "no-mutation"],
+      "fixtures": ["generic-cli-lifecycle", "generic-tauri-lifecycle", "generic-mcp-lifecycle", "generic-kernel-failures"]
+    },
+    {
+      "operation": "application.review",
+      "kind": "preview",
+      "revision_bound": false,
+      "outcomes": ["success", "wrong-pack", "no-mutation"],
+      "fixtures": ["generic-tauri-lifecycle", "generic-mcp-lifecycle"]
+    },
+    {
+      "operation": "application.approve",
+      "kind": "commit",
+      "revision_bound": true,
+      "outcomes": ["success", "stale", "replay", "wrong-pack", "wrong-context", "no-mutation", "recovery"],
+      "fixtures": ["generic-cli-lifecycle", "generic-tauri-lifecycle", "generic-mcp-lifecycle", "approval-broker", "approval-context"]
+    },
+    {
+      "operation": "application.export",
+      "kind": "mutation",
+      "revision_bound": true,
+      "outcomes": ["success", "stale", "wrong-pack", "no-mutation"],
+      "fixtures": ["generic-cli-lifecycle", "generic-tauri-lifecycle", "generic-mcp-lifecycle", "generic-app-flow"]
+    }
+  ],
+  "pack_surface_cases": [
+    {
+      "pack": "generic-application",
+      "surface": "cli",
+      "operations": ["application.list", "application.show", "application.create", "application.plan", "application.compose", "application.approve", "application.export"],
+      "fixtures": ["generic-cli-lifecycle"]
+    },
+    {
+      "pack": "generic-application",
+      "surface": "tauri",
+      "operations": ["application.list", "application.show", "application.create", "application.plan", "application.compose", "application.review", "application.approve", "application.export"],
+      "fixtures": ["generic-tauri-lifecycle"]
+    },
+    {
+      "pack": "generic-application",
+      "surface": "mcp",
+      "operations": ["agent-v3.capabilities", "agent-v3.context", "application.list", "application.create", "application.plan", "application.compose", "application.review", "application.approve", "application.export"],
+      "fixtures": ["generic-mcp-lifecycle"]
+    },
+    {
+      "pack": "academic-job",
+      "surface": "cli",
+      "operations": ["agent.capabilities", "agent.context", "job.create", "job.import", "job.list", "job.show", "job.archive", "profile.source.list", "task.prepare", "task.show", "task.inputs", "task.complete", "task.cancel", "workflow.status"],
+      "fixtures": ["academic-cli-agent", "academic-cli-jobs", "academic-cli-profile", "academic-cli-workflow", "academic-cli-task", "academic-cli-task-adapter", "generic-cli-lifecycle", "compatibility-wrong-pack"]
+    },
+    {
+      "pack": "academic-job",
+      "surface": "tauri",
+      "operations": ["agent.capabilities", "agent.context", "job.create", "job.list", "job.show", "job.intake.commit", "profile.source.list", "task.latest", "task.prepare", "task.inputs", "task.complete.preview", "task.complete", "workflow.status"],
+      "fixtures": ["academic-tauri-agent", "academic-tauri-jobs", "academic-tauri-profile", "academic-tauri-task-workflow", "academic-tauri-job-intake", "academic-tauri-pack-boundary", "generic-tauri-lifecycle", "compatibility-wrong-pack"]
+    },
+    {
+      "pack": "academic-job",
+      "surface": "mcp",
+      "operations": ["agent.capabilities", "agent.context", "job.list", "job.show", "job.intake.preview", "job.intake.commit", "profile.source.list", "task.latest", "task.prepare", "task.inputs", "task.complete.preview", "task.complete", "workflow.status"],
+      "fixtures": ["academic-mcp-read", "academic-mcp-job-intake", "academic-mcp-task", "generic-mcp-lifecycle", "compatibility-wrong-pack"]
+    }
+  ],
+  "revision_bound_operations": [
+    {
+      "operation": "application.plan",
+      "fixtures": ["generic-cli-lifecycle", "generic-tauri-lifecycle"]
+    },
+    {
+      "operation": "application.compose",
+      "fixtures": ["generic-kernel-failures"]
+    },
+    {
+      "operation": "application.approve",
+      "fixtures": ["generic-mcp-lifecycle", "generic-cli-lifecycle", "generic-tauri-lifecycle"]
+    },
+    {
+      "operation": "application.export",
+      "fixtures": ["generic-cli-lifecycle", "generic-tauri-lifecycle", "generic-mcp-lifecycle"]
+    },
+    {
+      "operation": "job.intake.commit",
+      "fixtures": ["academic-mcp-job-intake", "academic-tauri-job-intake"]
+    },
+    {
+      "operation": "task.complete",
+      "fixtures": ["academic-cli-task", "academic-mcp-task", "academic-tauri-task-workflow"]
+    },
+    {
+      "operation": "tauri.commit.workflow.rerun",
+      "fixtures": ["workflow-stale", "academic-tauri-task-workflow"]
+    }
+  ],
+  "preview_commit_pairs": [
+    {
+      "id": "generic-application-review",
+      "preview_operations": ["application.review"],
+      "commit_operation": "application.approve",
+      "outcomes": ["success", "stale", "replay", "wrong-pack", "wrong-context", "no-mutation", "recovery"],
+      "fixtures": ["generic-mcp-lifecycle", "generic-tauri-lifecycle", "approval-broker", "approval-context"]
+    },
+    {
+      "id": "academic-job-intake",
+      "preview_operations": ["job.intake.preview", "tauri.preview.local.job.source", "tauri.preview.url.job.source"],
+      "commit_operation": "job.intake.commit",
+      "outcomes": ["success", "stale", "replay", "wrong-context", "no-mutation", "recovery"],
+      "fixtures": ["academic-mcp-job-intake", "academic-tauri-job-intake", "approval-broker", "approval-context"]
+    },
+    {
+      "id": "academic-task-completion",
+      "preview_operations": ["task.complete.preview"],
+      "commit_operation": "task.complete",
+      "outcomes": ["success", "stale", "replay", "wrong-context", "no-mutation", "recovery"],
+      "fixtures": ["academic-cli-task", "academic-mcp-task", "academic-tauri-task-workflow", "approval-broker", "approval-context"]
+    },
+    {
+      "id": "desktop-discovery",
+      "preview_operations": ["tauri.preview.discovery.file", "tauri.preview.discovery.network"],
+      "commit_operation": "tauri.commit.discovery.preview",
+      "outcomes": ["success", "replay", "wrong-context", "no-mutation", "recovery"],
+      "fixtures": ["desktop-discovery-approval", "approval-broker", "approval-context"]
+    },
+    {
+      "id": "desktop-workflow-rerun",
+      "preview_operations": ["tauri.preview.workflow.rerun"],
+      "commit_operation": "tauri.commit.workflow.rerun",
+      "outcomes": ["success", "stale", "replay", "wrong-context", "no-mutation", "recovery"],
+      "fixtures": ["academic-tauri-task-workflow", "workflow-stale", "approval-broker", "approval-context"]
+    }
+  ],
+  "read_families": [
+    {
+      "id": "generic-application",
+      "operations": ["agent-v3.capabilities", "agent-v3.context", "application.list", "application.show"],
+      "fixtures": ["generic-cli-lifecycle", "generic-tauri-lifecycle", "generic-mcp-lifecycle"]
+    },
+    {
+      "id": "academic-application",
+      "operations": ["agent.capabilities", "agent.context", "job.list", "job.show"],
+      "fixtures": ["academic-cli-agent", "academic-cli-jobs", "academic-tauri-agent", "academic-tauri-jobs", "academic-mcp-read"]
+    },
+    {
+      "id": "evidence-source",
+      "operations": ["profile.source.list"],
+      "fixtures": ["academic-cli-profile", "academic-tauri-profile", "academic-mcp-read"]
+    },
+    {
+      "id": "task",
+      "operations": ["task.show", "task.latest"],
+      "fixtures": ["academic-cli-task-adapter", "academic-tauri-task-workflow", "academic-mcp-read"]
+    },
+    {
+      "id": "workflow",
+      "operations": ["workflow.status"],
+      "fixtures": ["academic-cli-workflow", "academic-tauri-task-workflow", "academic-mcp-read"]
+    }
+  ],
+  "uncovered_policy": {
+    "machine_list_command": "cargo run -p xtask --locked -- semantics uncovered",
+    "allowed_classes": ["canonical-leaf", "compatibility-alias", "adapter-only"]
+  }
+}

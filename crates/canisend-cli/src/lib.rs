@@ -4720,11 +4720,12 @@ mod tests {
     use clap::Parser;
 
     use super::{
-        AgentAssetsExportArgs, AgentHostName, ApplicationCommand, ApplicationV3CreateArgs,
-        BuiltInPackName, Cli, Command, CommandFailure, ExitClass, OutputArgs,
-        TaskExecutionModeName, TaskOperationName, WorkspaceCommand, WorkspaceInitArgs,
-        agent_assets_export, assistance, capabilities, clap_leaf_paths, context, execute,
-        human_failure_lines, human_success_lines,
+        AgentAssetsExportArgs, AgentHostName, ApplicationCommand, ApplicationV3ApproveArgs,
+        ApplicationV3CandidateArgs, ApplicationV3CreateArgs, ApplicationV3ExportArgs,
+        ApplicationV3IdArgs, BuiltInPackName, Cli, Command, CommandFailure, ExitClass, JobCommand,
+        JobListArgs, OutputArgs, TaskExecutionModeName, TaskOperationName, WorkspaceCommand,
+        WorkspaceInitArgs, agent_assets_export, assistance, capabilities, clap_leaf_paths, context,
+        execute, human_failure_lines, human_success_lines,
     };
 
     fn command_ok(result: super::CommandResult<super::CommandOutput>) -> super::CommandOutput {
@@ -4810,7 +4811,7 @@ mod tests {
     }
 
     #[test]
-    fn canonical_v3_cli_dispatches_a_bounded_create_candidate() {
+    fn canonical_v3_cli_preserves_full_semantic_lifecycle_and_failures() {
         let root = std::env::temp_dir().join(format!(
             "canisend-cli-generic-{}-{}",
             std::process::id(),
@@ -4820,6 +4821,9 @@ mod tests {
                 .as_nanos()
         ));
         let candidate = root.with_extension("json");
+        let stale_plan_candidate = root.with_extension("stale-plan.json");
+        let plan_candidate = root.with_extension("plan.json");
+        let compose_candidate = root.with_extension("compose.json");
         command_ok(execute(Cli {
             workspace: Some(root.clone()),
             command: Command::Workspace {
@@ -4858,6 +4862,13 @@ mod tests {
         }));
         assert_eq!(created.response.operation, "application-flow-v3.create");
         assert_eq!(created.response.status, "created");
+        let application_id = created
+            .response
+            .data
+            .as_ref()
+            .and_then(|data| data["stored"]["snapshot"]["application"]["id"].as_str())
+            .expect("created Application ID")
+            .to_owned();
 
         let listed = command_ok(execute(Cli {
             workspace: Some(root.clone()),
@@ -4875,8 +4886,239 @@ mod tests {
             Some(1)
         );
 
+        let shown = command_ok(execute(Cli {
+            workspace: Some(root.clone()),
+            command: Command::Application {
+                command: ApplicationCommand::V3Show(ApplicationV3IdArgs {
+                    application: application_id.clone(),
+                    output: OutputArgs { json: true },
+                }),
+            },
+        }));
+        assert_eq!(shown.response.operation, "application-v3.show");
+
+        let planned_deliverables = serde_json::json!([{
+            "kind": "primary-document",
+            "disposition": "required",
+            "rationale": "Required by the reviewed source",
+            "constraints": ["Use confirmed local evidence only"],
+            "execution_mode": "manual-import"
+        }]);
+        fs::write(
+            &stale_plan_candidate,
+            serde_json::to_vec(&serde_json::json!({
+                "expected_revision": 2,
+                "decision": "proceed",
+                "deliverables": planned_deliverables
+            }))
+            .expect("stale Plan JSON"),
+        )
+        .expect("write stale Plan candidate");
+        assert!(
+            execute(Cli {
+                workspace: Some(root.clone()),
+                command: Command::Application {
+                    command: ApplicationCommand::GenericPlan(ApplicationV3CandidateArgs {
+                        application: application_id.clone(),
+                        candidate: stale_plan_candidate.clone(),
+                        output: OutputArgs { json: true },
+                    }),
+                },
+            })
+            .is_err()
+        );
+        assert_eq!(
+            Application::application_model_v3(&root, &application_id)
+                .expect("unchanged after stale Plan")
+                .data
+                .snapshot
+                .application
+                .revision
+                .get(),
+            1
+        );
+
+        fs::write(
+            &plan_candidate,
+            serde_json::to_vec(&serde_json::json!({
+                "expected_revision": 1,
+                "decision": "proceed",
+                "deliverables": planned_deliverables
+            }))
+            .expect("Plan JSON"),
+        )
+        .expect("write Plan candidate");
+        let planned = command_ok(execute(Cli {
+            workspace: Some(root.clone()),
+            command: Command::Application {
+                command: ApplicationCommand::GenericPlan(ApplicationV3CandidateArgs {
+                    application: application_id.clone(),
+                    candidate: plan_candidate.clone(),
+                    output: OutputArgs { json: true },
+                }),
+            },
+        }));
+        assert_eq!(planned.response.status, "confirmed");
+
+        fs::write(
+            &compose_candidate,
+            serde_json::to_vec(&serde_json::json!({
+                "expected_revision": 2,
+                "deliverables": [{
+                    "kind": "primary-document",
+                    "title": "Semantic parity narrative",
+                    "media_type": "text/markdown",
+                    "content": "Synthetic CLI semantic parity content."
+                }]
+            }))
+            .expect("compose JSON"),
+        )
+        .expect("write compose candidate");
+        let composed = command_ok(execute(Cli {
+            workspace: Some(root.clone()),
+            command: Command::Application {
+                command: ApplicationCommand::GenericCompose(ApplicationV3CandidateArgs {
+                    application: application_id.clone(),
+                    candidate: compose_candidate.clone(),
+                    output: OutputArgs { json: true },
+                }),
+            },
+        }));
+        assert_eq!(composed.response.status, "review-required");
+
+        assert!(
+            execute(Cli {
+                workspace: Some(root.clone()),
+                command: Command::Application {
+                    command: ApplicationCommand::GenericApprove(ApplicationV3ApproveArgs {
+                        application: application_id.clone(),
+                        expected_revision: 2,
+                        output: OutputArgs { json: true },
+                    }),
+                },
+            })
+            .is_err()
+        );
+        assert_eq!(
+            Application::application_model_v3(&root, &application_id)
+                .expect("unchanged after stale approval")
+                .data
+                .snapshot
+                .application
+                .revision
+                .get(),
+            3
+        );
+
+        let approved = command_ok(execute(Cli {
+            workspace: Some(root.clone()),
+            command: Command::Application {
+                command: ApplicationCommand::GenericApprove(ApplicationV3ApproveArgs {
+                    application: application_id.clone(),
+                    expected_revision: 3,
+                    output: OutputArgs { json: true },
+                }),
+            },
+        }));
+        assert_eq!(approved.response.status, "approved");
+
+        let destination = format!("applications/{application_id}/exports/cli-semantic-parity");
+        assert!(
+            execute(Cli {
+                workspace: Some(root.clone()),
+                command: Command::Application {
+                    command: ApplicationCommand::GenericExport(ApplicationV3ExportArgs {
+                        application: application_id.clone(),
+                        expected_revision: 3,
+                        destination: destination.clone(),
+                        allow_private_export: true,
+                        output: OutputArgs { json: true },
+                    }),
+                },
+            })
+            .is_err()
+        );
+        assert!(!root.join(&destination).exists());
+
+        let exported = command_ok(execute(Cli {
+            workspace: Some(root.clone()),
+            command: Command::Application {
+                command: ApplicationCommand::GenericExport(ApplicationV3ExportArgs {
+                    application: application_id,
+                    expected_revision: 4,
+                    destination,
+                    allow_private_export: true,
+                    output: OutputArgs { json: true },
+                }),
+            },
+        }));
+        assert_eq!(exported.response.status, "exported");
+        assert_eq!(
+            exported
+                .response
+                .data
+                .as_ref()
+                .and_then(|data| data["render"]["submission_performed"].as_bool()),
+            Some(false)
+        );
+
+        let generic_before = Application::workspace_status(&root)
+            .expect("generic status before compatibility request")
+            .data
+            .status;
+        assert!(
+            execute(Cli {
+                workspace: Some(root.clone()),
+                command: Command::Job {
+                    command: JobCommand::List(JobListArgs {
+                        include_archived: false,
+                        output: OutputArgs { json: true },
+                    }),
+                },
+            })
+            .is_err(),
+            "academic compatibility CLI must fail closed on the generic Pack"
+        );
+        assert_eq!(
+            Application::workspace_status(&root)
+                .expect("generic status after compatibility request")
+                .data
+                .status,
+            generic_before
+        );
+
+        let academic_root = root.with_extension("academic-workspace");
+        Application::initialize_workspace(&academic_root).expect("academic Workspace");
+        let academic_before = Application::workspace_status(&academic_root)
+            .expect("academic status before")
+            .data
+            .status;
+        assert!(
+            execute(Cli {
+                workspace: Some(academic_root.clone()),
+                command: Command::Application {
+                    command: ApplicationCommand::GenericCreate(ApplicationV3CreateArgs {
+                        candidate: candidate.clone(),
+                        output: OutputArgs { json: true },
+                    }),
+                },
+            })
+            .is_err()
+        );
+        assert_eq!(
+            Application::workspace_status(&academic_root)
+                .expect("academic status after")
+                .data
+                .status,
+            academic_before
+        );
+
         fs::remove_dir_all(root).expect("remove v3 Workspace fixture");
+        fs::remove_dir_all(academic_root).expect("remove academic Workspace fixture");
         fs::remove_file(candidate).expect("remove candidate fixture");
+        fs::remove_file(stale_plan_candidate).expect("remove stale Plan fixture");
+        fs::remove_file(plan_candidate).expect("remove Plan fixture");
+        fs::remove_file(compose_candidate).expect("remove compose fixture");
     }
 
     #[test]
