@@ -49,7 +49,7 @@ defines the pack, migration, compatibility, and dual-pack implementation slices.
 
 ## Current status
 
-The checked-in source version is `1.0.0-alpha.5`; public identity remains separately controlled by
+The checked-in source version is `1.0.0-alpha.6`; public identity remains separately controlled by
 the exact tag, package manifest, and qualification evidence. The working `main` line contains
 additional unqualified post-tag product bytes. The `0.7` evidence and every published Alpha.5
 artifact remain immutable history. The current source contains the domain-neutral Pack kernel,

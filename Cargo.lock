@@ -517,7 +517,7 @@ dependencies = [
 
 [[package]]
 name = "canisend-app"
-version = "1.0.0-alpha.5"
+version = "1.0.0-alpha.6"
 dependencies = [
  "canisend-contracts",
  "canisend-core",
@@ -537,7 +537,7 @@ dependencies = [
 
 [[package]]
 name = "canisend-cli"
-version = "1.0.0-alpha.5"
+version = "1.0.0-alpha.6"
 dependencies = [
  "canisend-app",
  "canisend-contracts",
@@ -550,7 +550,7 @@ dependencies = [
 
 [[package]]
 name = "canisend-contracts"
-version = "1.0.0-alpha.5"
+version = "1.0.0-alpha.6"
 dependencies = [
  "jsonschema",
  "schemars 1.2.1",
@@ -563,7 +563,7 @@ dependencies = [
 
 [[package]]
 name = "canisend-core"
-version = "1.0.0-alpha.5"
+version = "1.0.0-alpha.6"
 dependencies = [
  "canisend-contracts",
  "hex",
@@ -576,7 +576,7 @@ dependencies = [
 
 [[package]]
 name = "canisend-gui"
-version = "1.0.0-alpha.5"
+version = "1.0.0-alpha.6"
 dependencies = [
  "canisend-app",
  "canisend-cli",
@@ -595,7 +595,7 @@ dependencies = [
 
 [[package]]
 name = "canisend-io"
-version = "1.0.0-alpha.5"
+version = "1.0.0-alpha.6"
 dependencies = [
  "canisend-contracts",
  "canisend-core",
@@ -620,7 +620,7 @@ dependencies = [
 
 [[package]]
 name = "canisend-mcp"
-version = "1.0.0-alpha.5"
+version = "1.0.0-alpha.6"
 dependencies = [
  "canisend-app",
  "canisend-contracts",
@@ -636,7 +636,7 @@ dependencies = [
 
 [[package]]
 name = "canisend-resources"
-version = "1.0.0-alpha.5"
+version = "1.0.0-alpha.6"
 dependencies = [
  "canisend-contracts",
  "hex",
@@ -648,7 +648,7 @@ dependencies = [
 
 [[package]]
 name = "canisend-store"
-version = "1.0.0-alpha.5"
+version = "1.0.0-alpha.6"
 dependencies = [
  "canisend-contracts",
  "canisend-core",
@@ -8062,7 +8062,7 @@ checksum = "9440ea3e5aeabb0ac63af70daf835274065238cdd0cec83418f417eae38bacee"
 
 [[package]]
 name = "xtask"
-version = "1.0.0-alpha.5"
+version = "1.0.0-alpha.6"
 dependencies = [
  "canisend-cli",
  "canisend-contracts",

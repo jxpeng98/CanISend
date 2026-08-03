@@ -2,7 +2,7 @@
 
 ## Current state
 
-- Checked-in source: `1.0.0-alpha.5`, with additional post-tag changes that are not yet a
+- Checked-in source: `1.0.0-alpha.6`, with additional post-tag changes that are not yet a
   qualified release.
 - Latest public checkpoint: [`v1.0.0-alpha.5`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.5).
 - Next authorized checkpoint: `v1.0.0-alpha.6`, the dual-Pack framework, Workspace v2→v3
