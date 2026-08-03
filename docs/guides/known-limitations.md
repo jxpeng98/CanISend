@@ -1,14 +1,14 @@
 # Known limitations
 
 This page separates deliberate product boundaries from work that is complete only in post-tag
-source. It applies to the `1.0.0-alpha.5` development line; always treat the exact downloaded
+source. It applies to the `1.0.0-alpha.6` development line; always treat the exact downloaded
 release notes and artifact manifest as the installed-binary authority.
 
 ## Publication and qualification
 
 - `v1.0.0-alpha.5` is the latest publicly qualified checkpoint. Later work on `main`, including
   additional Generic Pack, Agent v3, desktop, and source-gate coverage, is not a published
-  Alpha.6 or Alpha.7 merely because the source version still says `1.0.0-alpha.5`.
+  Alpha.6 or Alpha.7 merely because the source version still says `1.0.0-alpha.6`.
 - The five-target CLI matrices and the macOS GUI channel have different qualification evidence.
   A source build or local design preview is not a signed release artifact.
 - Windows and Linux public GUI artifacts are not qualified. Their CLI targets remain separate

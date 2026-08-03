@@ -1,60 +1,13 @@
 {
-  "schema": "canisend.beta-readiness/v1",
-  "audited_at": "2026-07-30T08:40:18Z",
   "alpha_release": {
-    "tag": "v1.0.0-alpha.4",
-    "source_commit": "b42817e812a4444dbcd2dd9f5c4c3c2ed50a96a9",
-    "release_run": 30348435288,
-    "release_url": "https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.4"
-  },
-  "github_issue_snapshot": {
-    "query": "https://github.com/jxpeng98/CanISend/issues?q=is%3Aissue",
-    "all_issue_count": 0,
-    "open_issue_count": 0
+    "release_run": null,
+    "release_url": null,
+    "source_commit": null,
+    "tag": "v1.0.0-alpha.6"
   },
   "default_telemetry": false,
-  "known_limitations_reviewed": true,
-  "blocker_classes": [
-    {
-      "class": "data-loss",
-      "status": "clear",
-      "open_issue_numbers": [],
-      "evidence": [
-        "Public GitHub issue snapshot contains no reported issue",
-        "Native candidate run 30347107991 passed the configured recovery and lifecycle gates",
-        "Alpha.4 promotion run 30348435288 published the previously qualified bytes without recompilation"
-      ]
-    },
-    {
-      "class": "security-privacy",
-      "status": "clear",
-      "open_issue_numbers": [],
-      "evidence": [
-        "Public GitHub issue snapshot contains no reported issue",
-        "Native candidate run 30347107991 passed the configured release-integrity gates",
-        "Alpha.4 remains local-first with default telemetry disabled"
-      ]
-    },
-    {
-      "class": "protocol-compatibility",
-      "status": "clear",
-      "open_issue_numbers": [],
-      "evidence": [
-        "Public GitHub issue snapshot contains no reported issue",
-        "Native candidate run 30347107991 passed the configured schema, resource, and Agent v2 gates",
-        "Alpha.4 manifest declares the committed CanISend Agent v2 and workspace v2 contracts"
-      ]
-    },
-    {
-      "class": "rendering-corruption",
-      "status": "clear",
-      "open_issue_numbers": [],
-      "evidence": [
-        "Public GitHub issue snapshot contains no reported issue",
-        "Native candidate run 30347107991 passed the configured packaged renderer and desktop gates",
-        "Alpha.4 exact-package macOS accessibility and lifecycle qualification completed successfully"
-      ]
-    }
-  ],
+  "release_line": "1.0",
+  "schema": "canisend.beta-readiness/v1",
+  "status": "pending-alpha-publication",
   "unresolved_release_blockers": []
 }

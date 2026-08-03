@@ -10,7 +10,7 @@ repository.workspace = true
 publish.workspace = true
 
 [dependencies]
-canisend-contracts = { path = "../canisend-contracts", version = "=1.0.0-alpha.5" }
+canisend-contracts = { path = "../canisend-contracts", version = "=1.0.0-alpha.6" }
 hex.workspace = true
 semver.workspace = true
 serde.workspace = true

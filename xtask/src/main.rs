@@ -2700,9 +2700,10 @@ fn check_stage_transition_policy() -> Result<(), String> {
             "fuzz/Cargo.lock internal package versions",
             "desktop and native-preview npm package versions plus the desktop fallback version",
             "docs/contracts/cli-gui-parity-v1.json Alpha scope",
+            "docs/performance/macos-gui-alpha-baseline.json source version",
             "release/alpha-package-contract.json versioned asset names",
             ".github/workflows/release.yml dispatch default",
-            "active README and known-limitations source-version claims",
+            "active README, root release guide, and known-limitations source-version claims",
             "sequential-Alpha pending readiness, freeze, and feedback identities",
             "release/qualification-ledger.json stage, Stable authorization, and RC notes-review reset fields",
             "release/RELEASE_NOTES.md heading",
@@ -4964,10 +4965,22 @@ fn insert_sequential_alpha_updates(
             "CLI/GUI parity Alpha scope",
         ),
         (
+            "docs/performance/macos-gui-alpha-baseline.json",
+            format!("\"version\": \"{from}\""),
+            format!("\"version\": \"{to}\""),
+            "macOS GUI Alpha performance baseline version",
+        ),
+        (
             "README.md",
             format!("The checked-in source version is `{from}`"),
             format!("The checked-in source version is `{to}`"),
             "README source version",
+        ),
+        (
+            "RELEASE.md",
+            format!("Checked-in source: `{from}`"),
+            format!("Checked-in source: `{to}`"),
+            "root release guide source version",
         ),
         (
             ".github/ISSUE_TEMPLATE/bug.yml",
@@ -16719,6 +16732,7 @@ mod tests {
             "apps/canisend-desktop/src",
             "docs/contracts",
             "docs/guides",
+            "docs/performance",
             ".github/workflows",
             ".github/ISSUE_TEMPLATE",
             "release",
@@ -16741,6 +16755,11 @@ mod tests {
         )
         .expect("write parity fixture");
         fs::write(
+            root.join("docs/performance/macos-gui-alpha-baseline.json"),
+            "{\n  \"version\": \"1.0.0-alpha.5\"\n}\n",
+        )
+        .expect("write performance baseline fixture");
+        fs::write(
             root.join(".github/workflows/release.yml"),
             "default: \"v1.0.0-alpha.6\"\n",
         )
@@ -16755,6 +16774,11 @@ mod tests {
             "The checked-in source version is `1.0.0-alpha.5`; fixture.\n",
         )
         .expect("write README fixture");
+        fs::write(
+            root.join("RELEASE.md"),
+            "Checked-in source: `1.0.0-alpha.5`; fixture.\n",
+        )
+        .expect("write root release guide fixture");
         fs::write(
             root.join("docs/guides/known-limitations.md"),
             "It applies to the `1.0.0-alpha.5` development line. The source version still says `1.0.0-alpha.5`.\n",
@@ -16781,13 +16805,15 @@ mod tests {
         let mut files = BTreeMap::new();
         insert_sequential_alpha_updates(&root, &mut files, &from, &to)
             .expect("render sequential Alpha updates");
-        assert_eq!(files.len(), 10);
+        assert_eq!(files.len(), 12);
         for relative in [
             "tools/native-preview/package.json",
             "apps/canisend-desktop/src/App.svelte",
             "docs/contracts/cli-gui-parity-v1.json",
+            "docs/performance/macos-gui-alpha-baseline.json",
             ".github/ISSUE_TEMPLATE/bug.yml",
             "README.md",
+            "RELEASE.md",
             "docs/guides/known-limitations.md",
             "release/alpha-package-contract.json",
         ] {

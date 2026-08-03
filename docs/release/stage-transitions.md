@@ -25,7 +25,8 @@ SHA-256 digest of every controlled file. Review the complete file set. A transit
 stage, change the 1.0 release line, attach build metadata, or skip an iteration. Sequential Alpha
 and RC targets must increase exactly by one. Alpha iteration updates Cargo/internal pins/locks,
 Tauri/npm/fallback versions, the CLI/GUI parity scope, Alpha package asset names, release workflow
-default, active source-version claims, and release-note heading in one plan. It resets stale Beta
+default, README/root-release/known-limitations source-version claims, the active macOS Alpha
+performance-baseline identity, and release-note heading in one plan. It resets stale Beta
 readiness, contract-freeze, and feedback identities to canonical pending state for the new Alpha;
 Git history retains the prior evidence. Once RC.1 evidence is committed,
 `prepare-stage v1.0.0-rc.2` is allowed; RC iteration preserves the
