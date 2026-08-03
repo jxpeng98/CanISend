@@ -1880,9 +1880,144 @@ fn check_documentation() -> Result<(), String> {
         ));
     }
     let release_runbooks = check_active_release_runbooks(&root)?;
+    check_active_release_truth(&root)?;
     println!(
         "documentation: ok ({} guides, {release_runbooks} active release runbooks)",
         required.len()
+    );
+    Ok(())
+}
+
+fn check_active_release_truth(root: &Path) -> Result<(), String> {
+    let version = Version::parse(env!("CARGO_PKG_VERSION"))
+        .map_err(|error| format!("workspace version is invalid: {error}"))?;
+    check_active_release_truth_for_version(root, &version)
+}
+
+fn check_active_release_truth_for_version(root: &Path, version: &Version) -> Result<(), String> {
+    let roadmap_relative = "docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md";
+    let roadmap = fs::read_to_string(root.join(roadmap_relative))
+        .map_err(|error| format!("active 1.0 roadmap is missing: {error}"))?;
+    for required in [
+        "# CanISend generic framework 1.0 delivery roadmap",
+        "**Status:** Active — authoritative",
+        "**Current machine stage:** Alpha / `pre-beta`",
+        "**Next intended checkpoints:** `v1.0.0-alpha.6`",
+    ] {
+        if !roadmap.contains(required) {
+            return Err(format!("active 1.0 roadmap header is missing `{required}`"));
+        }
+    }
+    let public_tag = roadmap
+        .lines()
+        .find_map(|line| {
+            line.strip_prefix("**Current public checkpoint:** [`")
+                .and_then(|value| value.split('`').next())
+        })
+        .filter(|tag| tag.starts_with('v'))
+        .ok_or_else(|| "active 1.0 roadmap has no current public checkpoint tag".to_owned())?;
+
+    let parity: Value = serde_json::from_slice(
+        &fs::read(root.join("docs/contracts/cli-gui-parity-v1.json"))
+            .map_err(|error| format!("CLI/GUI parity manifest is missing: {error}"))?,
+    )
+    .map_err(|error| format!("CLI/GUI parity manifest is invalid JSON: {error}"))?;
+    let operations = parity["entries"]
+        .as_array()
+        .ok_or_else(|| "CLI/GUI parity entries must be an array".to_owned())?;
+    let implemented = operations
+        .iter()
+        .filter(|entry| entry["status"] == "implemented")
+        .count();
+    if implemented != operations.len() || operations.is_empty() {
+        return Err(
+            "active operation count requires every parity entry to be implemented".to_owned(),
+        );
+    }
+
+    let readme = fs::read_to_string(root.join("README.md"))
+        .map_err(|error| format!("README is missing: {error}"))?;
+    for required in [
+        "## Current status",
+        &format!("The checked-in source version is `{version}`"),
+        &format!("latest publicly qualified checkpoint is `{public_tag}`"),
+        "domain-neutral Rust kernel",
+        "org.canisend.generic-application",
+        "org.canisend.academic-job",
+    ] {
+        if !readme.contains(required) {
+            return Err(format!("active README status is missing `{required}`"));
+        }
+    }
+
+    let release = fs::read_to_string(root.join("RELEASE.md"))
+        .map_err(|error| format!("root release guide is missing: {error}"))?;
+    for required in [
+        &format!("Checked-in source: `{version}`"),
+        &format!("Latest public checkpoint: [`{public_tag}`]"),
+        "GPL-3.0-only",
+        "Community signing",
+        "not a publicly trusted publisher identity",
+        "GitHub build provenance",
+    ] {
+        if !release.contains(required) {
+            return Err(format!("root release guide is missing `{required}`"));
+        }
+    }
+    for stale in [
+        "R11.2 Beta hardening is active",
+        "macOS Developer ID signing plus accepted notarization",
+        "Windows Azure Artifact Signing Public Trust",
+    ] {
+        if release.contains(stale) {
+            return Err(format!(
+                "root release guide contains stale current claim `{stale}`"
+            ));
+        }
+    }
+
+    let issue_template = fs::read_to_string(root.join(".github/ISSUE_TEMPLATE/bug.yml"))
+        .map_err(|error| format!("bug Issue template is missing: {error}"))?;
+    if !issue_template.contains(&format!("placeholder: {version}")) {
+        return Err(format!(
+            "bug Issue template must suggest the checked-in version `{version}`"
+        ));
+    }
+
+    let limitations = fs::read_to_string(root.join("release/KNOWN_LIMITATIONS.md"))
+        .map_err(|error| format!("release known limitations are missing: {error}"))?;
+    let operation_claim = format!(
+        "covers all {} declared operation families",
+        operations.len()
+    );
+    for required in [
+        operation_claim.as_str(),
+        "Community signatures do not establish an operating-system-trusted publisher",
+        "Never disable an operating-system security control globally",
+    ] {
+        if !limitations.contains(required) {
+            return Err(format!(
+                "release known limitations are missing `{required}`"
+            ));
+        }
+    }
+
+    for (relative, body) in [
+        ("README.md", readme.as_str()),
+        ("RELEASE.md", release.as_str()),
+        (roadmap_relative, roadmap.as_str()),
+        (".github/ISSUE_TEMPLATE/bug.yml", issue_template.as_str()),
+        ("release/KNOWN_LIMITATIONS.md", limitations.as_str()),
+    ] {
+        if body.contains("35 declared operation families") {
+            return Err(format!(
+                "active surface `{relative}` retains the stale 35-operation claim"
+            ));
+        }
+    }
+    println!(
+        "active release truth: ok ({version}, public {public_tag}, {} operations)",
+        operations.len()
     );
     Ok(())
 }
@@ -2573,7 +2708,7 @@ fn check_stage_transition_policy() -> Result<(), String> {
             "release/RELEASE_NOTES.md heading",
             "release/support-policy.json Stable publication status",
             "release/feedback-snapshot.json next-roadmap publication status",
-            "post-0.7 roadmap publication marker"
+            "snapshot-declared next-roadmap publication marker"
         ],
         "preserved_history": [
             "release/beta-readiness.json",
@@ -4522,6 +4657,12 @@ fn render_stage_transition(root: &Path, tag: &str) -> Result<RenderedStageTransi
     let from_stage = ReleaseStage::from_version(&from_version)?;
     let (to_version, to_stage) = parse_release_tag(tag)?;
     validate_stage_transition(&from_version, from_stage, &to_version, to_stage)?;
+    if matches!(
+        (from_stage, to_stage),
+        (ReleaseStage::Alpha, ReleaseStage::Beta)
+    ) {
+        check_beta_transition_authorities(root, &from_version)?;
+    }
 
     let members = workspace["workspace"]["members"]
         .as_array()
@@ -4675,7 +4816,7 @@ fn render_stage_transition(root: &Path, tag: &str) -> Result<RenderedStageTransi
             .map_err(|error| format!("could not read qualification ledger: {error}"))?,
     )
     .map_err(|error| format!("qualification ledger is invalid JSON: {error}"))?;
-    validate_transition_ledger_preconditions(&ledger, from_stage, to_stage)?;
+    validate_transition_ledger_preconditions(&ledger, &from_version, from_stage, to_stage)?;
     ledger["workspace_stage"] = Value::String(to_stage.as_str().to_owned());
     ledger["status"] = Value::String(qualification_status_for_stage(to_stage).to_owned());
     ledger["release_notes"]["status"] =
@@ -4730,6 +4871,7 @@ fn render_stage_transition(root: &Path, tag: &str) -> Result<RenderedStageTransi
                 "Stable transition requires reviewed RC feedback and next-roadmap state".to_owned(),
             );
         }
+        check_final_rc_feedback_binding(root, &feedback)?;
         files.insert(
             "release/feedback-snapshot.json".to_owned(),
             replace_exact_count(
@@ -4742,11 +4884,11 @@ fn render_stage_transition(root: &Path, tag: &str) -> Result<RenderedStageTransi
             .into_bytes(),
         );
 
-        let roadmap_relative = "docs/superpowers/plans/2026-07-18-post-0.7-roadmap.md";
-        let roadmap = fs::read_to_string(root.join(roadmap_relative))
+        let roadmap_relative = feedback_roadmap_relative(&feedback)?;
+        let roadmap = fs::read_to_string(root.join(&roadmap_relative))
             .map_err(|error| format!("could not read next roadmap: {error}"))?;
         files.insert(
-            roadmap_relative.to_owned(),
+            roadmap_relative.clone(),
             replace_exact_count(
                 &roadmap,
                 "**Status:** Reviewed",
@@ -4822,16 +4964,16 @@ fn insert_sequential_alpha_updates(
             "CLI/GUI parity Alpha scope",
         ),
         (
-            ".github/workflows/release.yml",
-            format!("default: \"{from_tag}\""),
-            format!("default: \"{to_tag}\""),
-            "release workflow default",
-        ),
-        (
             "README.md",
             format!("The checked-in source version is `{from}`"),
             format!("The checked-in source version is `{to}`"),
             "README source version",
+        ),
+        (
+            ".github/ISSUE_TEMPLATE/bug.yml",
+            format!("placeholder: {from}"),
+            format!("placeholder: {to}"),
+            "bug Issue template version",
         ),
     ] {
         let body = fs::read_to_string(root.join(relative))
@@ -4840,6 +4982,29 @@ fn insert_sequential_alpha_updates(
             relative.to_owned(),
             replace_exact_count(&body, &before, &after, 1, context)?.into_bytes(),
         );
+    }
+
+    let release_workflow_relative = ".github/workflows/release.yml";
+    let release_workflow = fs::read_to_string(root.join(release_workflow_relative))
+        .map_err(|error| format!("could not read {release_workflow_relative}: {error}"))?;
+    let from_default = format!("default: \"{from_tag}\"");
+    let to_default = format!("default: \"{to_tag}\"");
+    if release_workflow.contains(&from_default) {
+        files.insert(
+            release_workflow_relative.to_owned(),
+            replace_exact_count(
+                &release_workflow,
+                &from_default,
+                &to_default,
+                1,
+                "release workflow default",
+            )?
+            .into_bytes(),
+        );
+    } else if release_workflow.matches(&to_default).count() != 1 {
+        return Err(format!(
+            "release workflow must default to either the source candidate `{from_tag}` or target candidate `{to_tag}`"
+        ));
     }
 
     let limitations_relative = "docs/guides/known-limitations.md";
@@ -4980,6 +5145,7 @@ fn prerelease_iteration(version: &Version, prefix: &str) -> Result<u64, String> 
 
 fn validate_transition_ledger_preconditions(
     ledger: &Value,
+    from_version: &Version,
     from_stage: ReleaseStage,
     to_stage: ReleaseStage,
 ) -> Result<(), String> {
@@ -4998,6 +5164,27 @@ fn validate_transition_ledger_preconditions(
             "RC transition requires a qualified signed Beta and active feature freeze".to_owned(),
         );
     }
+    if matches!(
+        (from_stage, to_stage),
+        (
+            ReleaseStage::ReleaseCandidate,
+            ReleaseStage::ReleaseCandidate
+        )
+    ) {
+        let candidates = ledger["release_candidates"]
+            .as_array()
+            .ok_or_else(|| "sequential RC requires a qualification candidate list".to_owned())?;
+        let current = candidates.last().ok_or_else(|| {
+            "sequential RC requires the current RC matrix to be recorded first".to_owned()
+        })?;
+        let (tag, _, _) =
+            validate_qualification_release(current, ReleaseStage::ReleaseCandidate, "current RC")?;
+        if tag != format!("v{from_version}") {
+            return Err(format!(
+                "sequential RC requires current `{from_version}` evidence before preparing the next RC"
+            ));
+        }
+    }
     if matches!(to_stage, ReleaseStage::Stable) {
         let mut candidate = ledger.clone();
         candidate["release_notes"]["status"] = Value::String("stable-final".to_owned());
@@ -5005,6 +5192,89 @@ fn validate_transition_ledger_preconditions(
         validate_stable_qualification(&candidate)?;
     }
     Ok(())
+}
+
+fn check_beta_transition_authorities(root: &Path, from_version: &Version) -> Result<(), String> {
+    if prerelease_iteration(from_version, "alpha")? != 7 {
+        return Err(
+            "Beta transition is authorized only from the qualified dual-pack Alpha.7 checkpoint"
+                .to_owned(),
+        );
+    }
+    let readiness: Value = serde_json::from_slice(
+        &fs::read(root.join("release/beta-readiness.json"))
+            .map_err(|error| format!("Beta transition readiness is missing: {error}"))?,
+    )
+    .map_err(|error| format!("Beta transition readiness is invalid JSON: {error}"))?;
+    if readiness["status"] != "qualified" || readiness["schema"] != BETA_READINESS_SCHEMA {
+        return Err("Beta transition requires qualified Alpha.7 readiness evidence".to_owned());
+    }
+    let tag = format!("v{from_version}");
+    if readiness["alpha_release"]["tag"] != tag {
+        return Err("Beta readiness does not bind the active Alpha.7 tag".to_owned());
+    }
+    let source = required_string(
+        &readiness["alpha_release"],
+        "source_commit",
+        "Alpha.7 release",
+    )?;
+    validate_lower_hex("Alpha.7 release source commit", source, 40)?;
+    if readiness["alpha_release"]["release_run"]
+        .as_u64()
+        .filter(|run| *run > 0)
+        .is_none()
+        || required_string(
+            &readiness["alpha_release"],
+            "release_url",
+            "Alpha.7 release",
+        )? != format!("https://github.com/jxpeng98/CanISend/releases/tag/{tag}")
+    {
+        return Err("Beta readiness does not bind the exact public Alpha.7 run and URL".to_owned());
+    }
+    if readiness["contracts"] != beta_readiness_contracts(root)? {
+        return Err(
+            "Beta readiness does not bind canonical v3 contracts and both Pack digests".to_owned(),
+        );
+    }
+    let freeze: Value = serde_json::from_slice(
+        &fs::read(root.join("release/beta-contract-freeze.json"))
+            .map_err(|error| format!("Beta contract freeze is missing: {error}"))?,
+    )
+    .map_err(|error| format!("Beta contract freeze is invalid JSON: {error}"))?;
+    if freeze["baseline"]["release"] != tag || freeze["baseline"]["source_commit"] != source {
+        return Err("Beta contract freeze does not bind the qualified Alpha.7 source".to_owned());
+    }
+    Ok(())
+}
+
+fn beta_readiness_contracts(root: &Path) -> Result<Value, String> {
+    let mut packs = Vec::new();
+    for id in [
+        "org.canisend.academic-job",
+        "org.canisend.generic-application",
+    ] {
+        let path = root.join(format!(
+            "crates/canisend-resources/resources/workflow-packs/{id}/manifest.json"
+        ));
+        let manifest: Value = serde_json::from_slice(
+            &fs::read(&path)
+                .map_err(|error| format!("embedded workflow Pack `{id}` is missing: {error}"))?,
+        )
+        .map_err(|error| format!("embedded workflow Pack `{id}` is invalid JSON: {error}"))?;
+        let digest = required_string(&manifest, "content_digest", "embedded workflow Pack")?;
+        validate_lower_hex("embedded workflow Pack content digest", digest, 64)?;
+        packs.push(json!({
+            "id": required_string(&manifest, "id", "embedded workflow Pack")?,
+            "version": required_string(&manifest, "version", "embedded workflow Pack")?,
+            "content_digest": digest,
+        }));
+    }
+    Ok(json!({
+        "agent_protocol": "canisend.agent/v3",
+        "workspace_format": "canisend.workspace/v3",
+        "workflow_pack_format": "canisend.workflow-pack/v1",
+        "workflow_packs": packs,
+    }))
 }
 
 fn release_notes_status_for_stage(stage: ReleaseStage) -> &'static str {
@@ -6531,11 +6801,12 @@ fn check_release_contract() -> Result<(), String> {
         "v{}.{}.{}*",
         release_line.major, release_line.minor, release_line.patch
     );
+    let expected_default = expected_release_workflow_default(&release_line)?;
     if !workflow.contains(&expected_tag_pattern)
-        || !workflow.contains(&format!("default: \"v{version}\""))
+        || !workflow.contains(&format!("default: \"{expected_default}\""))
     {
         return Err(format!(
-            "release workflow must listen to `{expected_tag_pattern}` and default to `v{version}`"
+            "release workflow must listen to `{expected_tag_pattern}` and default to `{expected_default}`"
         ));
     }
     let recovery_workflow =
@@ -6556,6 +6827,17 @@ fn check_release_contract() -> Result<(), String> {
     }
     println!("release contract: ok ({} targets)", targets.len());
     Ok(())
+}
+
+fn expected_release_workflow_default(version: &Version) -> Result<String, String> {
+    if (version.major, version.minor, version.patch) == (1, 0, 0)
+        && ReleaseStage::from_version(version) == Ok(ReleaseStage::Alpha)
+        && prerelease_iteration(version, "alpha")? < 6
+    {
+        Ok("v1.0.0-alpha.6".to_owned())
+    } else {
+        Ok(format!("v{version}"))
+    }
 }
 
 fn check_cli_gui_parity() -> Result<(), String> {
@@ -8823,6 +9105,21 @@ fn check_beta_readiness_file(path: &Path) -> Result<(), String> {
         required_string(&ledger["alpha_release"], "source_commit", "Alpha release")?,
         40,
     )?;
+    if alpha_tag.ends_with("-alpha.7")
+        && (ledger["status"] != "qualified"
+            || ledger["alpha_release"]["release_run"]
+                .as_u64()
+                .filter(|run| *run > 0)
+                .is_none()
+            || required_string(&ledger["alpha_release"], "release_url", "Alpha release")?
+                != format!("https://github.com/jxpeng98/CanISend/releases/tag/{alpha_tag}")
+            || ledger["contracts"] != beta_readiness_contracts(&repository_root())?)
+    {
+        return Err(
+            "Alpha.7 Beta readiness must bind its tag, source, public run/URL, v3 contracts, and both Pack digests"
+                .to_owned(),
+        );
+    }
     let audited_at = ledger["audited_at"]
         .as_str()
         .filter(|value| value.ends_with('Z') && value.contains('T'))
@@ -9396,17 +9693,94 @@ fn support_policy_publication_status(version: &Version) -> &'static str {
 
 fn check_release_feedback() -> Result<(), String> {
     let root = repository_root();
-    let version = Version::parse(env!("CARGO_PKG_VERSION"))
-        .map_err(|error| format!("workspace version is invalid: {error}"))?;
-    let roadmap = if (version.major, version.minor) == (0, 7) {
-        "docs/superpowers/plans/2026-07-18-post-0.7-roadmap.md"
-    } else {
-        "docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md"
-    };
-    check_release_feedback_files(
-        &root.join("release/feedback-snapshot.json"),
-        &root.join(roadmap),
+    let snapshot_path = root.join("release/feedback-snapshot.json");
+    let snapshot: Value = serde_json::from_slice(&fs::read(&snapshot_path).map_err(|error| {
+        format!(
+            "release feedback snapshot is missing at {}: {error}",
+            snapshot_path.display()
+        )
+    })?)
+    .map_err(|error| format!("release feedback snapshot is invalid JSON: {error}"))?;
+    let roadmap = feedback_roadmap_relative(&snapshot)?;
+    check_release_feedback_files(&snapshot_path, &root.join(roadmap))?;
+    check_final_rc_feedback_binding(&root, &snapshot)
+}
+
+fn feedback_roadmap_relative(snapshot: &Value) -> Result<String, String> {
+    let relative = required_string(
+        &snapshot["next_roadmap"],
+        "path",
+        "release feedback next roadmap",
+    )?;
+    let path = Path::new(relative);
+    if path.is_absolute()
+        || relative.contains('\\')
+        || path.extension().and_then(|value| value.to_str()) != Some("md")
+        || path
+            .components()
+            .any(|component| !matches!(component, std::path::Component::Normal(_)))
+        || !relative.starts_with("docs/superpowers/plans/")
+    {
+        return Err(
+            "release feedback next-roadmap path is unsafe or outside the plan registry".to_owned(),
+        );
+    }
+    Ok(relative.to_owned())
+}
+
+fn check_final_rc_feedback_binding(root: &Path, snapshot: &Value) -> Result<(), String> {
+    if snapshot["snapshot_stage"] != "rc" {
+        return Ok(());
+    }
+    let ledger: Value = serde_json::from_slice(
+        &fs::read(root.join("release/qualification-ledger.json"))
+            .map_err(|error| format!("qualification ledger is missing for RC feedback: {error}"))?,
     )
+    .map_err(|error| format!("qualification ledger is invalid JSON: {error}"))?;
+    let candidates = ledger["release_candidates"]
+        .as_array()
+        .ok_or_else(|| "RC feedback has no qualification candidate list".to_owned())?;
+    let latest = candidates
+        .last()
+        .ok_or_else(|| "RC feedback requires a recorded release candidate".to_owned())?;
+    let (tag, source, run) =
+        validate_qualification_release(latest, ReleaseStage::ReleaseCandidate, "latest RC")?;
+    if snapshot["release"]["tag"] != tag {
+        return Err(format!(
+            "final feedback must bind the latest recorded RC `{tag}`, not `{}`",
+            snapshot["release"]["tag"].as_str().unwrap_or("missing")
+        ));
+    }
+    let workspace_path = root.join("Cargo.toml");
+    if workspace_path.is_file() {
+        let workspace: toml::Value = fs::read_to_string(&workspace_path)
+            .map_err(|error| format!("could not read workspace version for RC feedback: {error}"))?
+            .parse()
+            .map_err(|error| format!("workspace manifest is invalid TOML: {error}"))?;
+        let version = Version::parse(
+            workspace["workspace"]["package"]["version"]
+                .as_str()
+                .ok_or_else(|| "workspace manifest has no package version".to_owned())?,
+        )
+        .map_err(|error| format!("workspace version is invalid: {error}"))?;
+        if ReleaseStage::from_version(&version) == Ok(ReleaseStage::ReleaseCandidate)
+            && tag != format!("v{version}")
+        {
+            return Err(format!(
+                "RC feedback for `{tag}` is stale after preparing workspace `{version}`"
+            ));
+        }
+    }
+    if let Some(review) = ledger["release_notes"]["review"].as_object()
+        && (review.get("tag") != Some(&Value::String(tag.clone()))
+            || review.get("source_commit") != Some(&Value::String(source))
+            || review.get("signed_matrix_run") != Some(&Value::Number(run.into())))
+    {
+        return Err(
+            "final feedback and release-notes review do not bind the same latest RC".to_owned(),
+        );
+    }
+    Ok(())
 }
 
 fn check_release_feedback_files(
@@ -9431,18 +9805,14 @@ fn check_release_feedback_files(
                 "pending release feedback is not canonical for the active Alpha".to_owned(),
             );
         }
-        let roadmap_path = required_string(
-            &snapshot["next_roadmap"],
-            "path",
-            "pending release feedback",
-        )?;
+        let roadmap_path = feedback_roadmap_relative(&snapshot)?;
         let roadmap = fs::read_to_string(roadmap_candidate).map_err(|error| {
             format!(
                 "active release roadmap is missing at {}: {error}",
                 roadmap_candidate.display()
             )
         })?;
-        check_local_markdown_links(&root, &root.join(roadmap_path), &roadmap)?;
+        check_local_markdown_links(&root, &root.join(&roadmap_path), &roadmap)?;
         if !roadmap.contains("**Status:** Active") {
             return Err("active release roadmap has no Active status marker".to_owned());
         }
@@ -9558,12 +9928,7 @@ fn check_release_feedback_files(
     }
 
     let roadmap = &snapshot["next_roadmap"];
-    let roadmap_path = roadmap["path"]
-        .as_str()
-        .ok_or_else(|| "release feedback snapshot has no next-roadmap path".to_owned())?;
-    if roadmap_path != "docs/superpowers/plans/2026-07-18-post-0.7-roadmap.md" {
-        return Err("release feedback snapshot references an unexpected next roadmap".to_owned());
-    }
+    let roadmap_path = feedback_roadmap_relative(&snapshot)?;
     let roadmap_status = roadmap["status"]
         .as_str()
         .ok_or_else(|| "release feedback snapshot has no next-roadmap status".to_owned())?;
@@ -9577,7 +9942,7 @@ fn check_release_feedback_files(
             required_stage.unwrap_or("alpha, beta, or rc")
         ));
     }
-    let roadmap_file = root.join(roadmap_path);
+    let roadmap_file = root.join(&roadmap_path);
     let roadmap_body = fs::read_to_string(roadmap_candidate).map_err(|error| {
         format!(
             "next roadmap candidate is missing at {}: {error}",
@@ -12048,9 +12413,14 @@ fn check_package_manager_qualification_policy() -> Result<(), String> {
     let workflow_path = root.join(".github/workflows/package-manager-qualification.yml");
     let workflow = fs::read_to_string(&workflow_path)
         .map_err(|error| format!("package-manager qualification workflow is missing: {error}"))?;
+    let version = Version::parse(env!("CARGO_PKG_VERSION"))
+        .map_err(|error| format!("workspace version is invalid: {error}"))?;
+    let release = format!("v{}.{}.{}", version.major, version.minor, version.patch);
     for required in [
         "name: package-manager-prequalification",
         "workflow_dispatch:",
+        &format!("default: \"{release}-beta.1\""),
+        &format!("default: \"{release}-rc.1\""),
         "verify-package-candidates",
         "macos-15-intel",
         "windows-2025",
@@ -12217,9 +12587,14 @@ fn check_upgrade_qualification_policy() -> Result<(), String> {
     let workflow_path = root.join(".github/workflows/upgrade-qualification.yml");
     let workflow = fs::read_to_string(&workflow_path)
         .map_err(|error| format!("upgrade qualification workflow is missing: {error}"))?;
+    let version = Version::parse(env!("CARGO_PKG_VERSION"))
+        .map_err(|error| format!("workspace version is invalid: {error}"))?;
+    let release = format!("v{}.{}.{}", version.major, version.minor, version.patch);
     for required in [
         "name: native-upgrade-qualification",
         "workflow_dispatch:",
+        &format!("default: \"{release}-beta.1\""),
+        &format!("default: \"{release}-rc.1\""),
         "gh attestation verify",
         "qualify_archive_upgrade.sh",
         "macos-15-intel",
@@ -15797,6 +16172,70 @@ mod tests {
     }
 
     #[test]
+    fn beta_transition_accepts_only_exact_dual_pack_alpha_seven() {
+        let root = std::env::temp_dir().join(format!(
+            "canisend-alpha7-beta-authority-{}",
+            std::process::id()
+        ));
+        if root.exists() {
+            fs::remove_dir_all(&root).expect("remove stale Alpha.7 authority fixture");
+        }
+        fs::create_dir_all(root.join("release")).expect("create release fixture");
+        for (id, digest) in [
+            ("org.canisend.academic-job", "a".repeat(64)),
+            ("org.canisend.generic-application", "b".repeat(64)),
+        ] {
+            write_pretty_json(
+                &root.join(format!(
+                    "crates/canisend-resources/resources/workflow-packs/{id}/manifest.json"
+                )),
+                &json!({"id": id, "version": "1.0.0", "content_digest": digest}),
+            )
+            .expect("write embedded Pack fixture");
+        }
+        let source = "7".repeat(40);
+        write_pretty_json(
+            &root.join("release/beta-readiness.json"),
+            &json!({
+                "schema": BETA_READINESS_SCHEMA,
+                "status": "qualified",
+                "alpha_release": {
+                    "tag": "v1.0.0-alpha.7",
+                    "source_commit": source,
+                    "release_run": 77_u64,
+                    "release_url": "https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.7"
+                },
+                "contracts": beta_readiness_contracts(&root).expect("Beta contracts")
+            }),
+        )
+        .expect("write readiness fixture");
+        write_pretty_json(
+            &root.join("release/beta-contract-freeze.json"),
+            &json!({
+                "baseline": {
+                    "release": "v1.0.0-alpha.7",
+                    "source_commit": source
+                }
+            }),
+        )
+        .expect("write freeze fixture");
+        let alpha_seven = Version::parse("1.0.0-alpha.7").expect("Alpha.7 version");
+        check_beta_transition_authorities(&root, &alpha_seven).expect("exact Alpha.7 authority");
+        let alpha_six = Version::parse("1.0.0-alpha.6").expect("Alpha.6 version");
+        assert!(check_beta_transition_authorities(&root, &alpha_six).is_err());
+
+        let mut stale: Value = serde_json::from_slice(
+            &fs::read(root.join("release/beta-readiness.json")).expect("read readiness fixture"),
+        )
+        .expect("parse readiness fixture");
+        stale["contracts"]["workflow_packs"][1]["content_digest"] = json!(&"c".repeat(64));
+        write_pretty_json(&root.join("release/beta-readiness.json"), &stale)
+            .expect("write stale Pack digest");
+        assert!(check_beta_transition_authorities(&root, &alpha_seven).is_err());
+        fs::remove_dir_all(root).expect("remove Alpha.7 authority fixture");
+    }
+
+    #[test]
     fn beta_agent_and_workspace_contracts_match_freeze() {
         check_beta_contract_freeze().expect("Beta contract freeze");
     }
@@ -15812,6 +16251,149 @@ mod tests {
             check_active_release_runbooks(&repository_root()).expect("active release runbooks"),
             7
         );
+    }
+
+    #[test]
+    fn active_release_truth_rejects_stale_current_surfaces_and_ignores_history() {
+        let root = std::env::temp_dir().join(format!(
+            "canisend-active-release-truth-{}",
+            std::process::id()
+        ));
+        if root.exists() {
+            fs::remove_dir_all(&root).expect("remove stale active-truth fixture");
+        }
+        for relative in [
+            "docs/superpowers/plans",
+            "docs/contracts",
+            ".github/ISSUE_TEMPLATE",
+            "release/history/0.7",
+        ] {
+            fs::create_dir_all(root.join(relative)).expect("create active-truth fixture path");
+        }
+        fs::write(
+            root.join("docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md"),
+            "# CanISend generic framework 1.0 delivery roadmap\n\n\
+             **Status:** Active — authoritative\n\n\
+             **Current public checkpoint:** [`v1.0.0-alpha.5`](https://example.invalid)\n\n\
+             **Current machine stage:** Alpha / `pre-beta`\n\n\
+             **Next intended checkpoints:** `v1.0.0-alpha.6` proves migration.\n",
+        )
+        .expect("write active roadmap fixture");
+        write_pretty_json(
+            &root.join("docs/contracts/cli-gui-parity-v1.json"),
+            &json!({"entries": [{"status": "implemented"}]}),
+        )
+        .expect("write parity fixture");
+        let readme = "## Current status\nThe checked-in source version is `1.0.0-alpha.5`. \
+            The latest publicly qualified checkpoint is `v1.0.0-alpha.5`. \
+            A domain-neutral Rust kernel provides org.canisend.generic-application and \
+            org.canisend.academic-job.\n";
+        fs::write(root.join("README.md"), readme).expect("write README fixture");
+        fs::write(
+            root.join("RELEASE.md"),
+            "Checked-in source: `1.0.0-alpha.5`\n\
+             Latest public checkpoint: [`v1.0.0-alpha.5`]\n\
+             GPL-3.0-only Community signing is not a publicly trusted publisher identity.\n\
+             Verify GitHub build provenance.\n",
+        )
+        .expect("write release fixture");
+        fs::write(
+            root.join(".github/ISSUE_TEMPLATE/bug.yml"),
+            "placeholder: 1.0.0-alpha.5\n",
+        )
+        .expect("write Issue fixture");
+        fs::write(
+            root.join("release/KNOWN_LIMITATIONS.md"),
+            "The GUI covers all 1 declared operation families. \
+             Community signatures do not establish an operating-system-trusted publisher. \
+             Never disable an operating-system security control globally.\n",
+        )
+        .expect("write limitations fixture");
+        fs::write(
+            root.join("release/history/0.7/README.md"),
+            "Historical 0.7.0-alpha.1 and 35 declared operation families.\n",
+        )
+        .expect("write historical fixture");
+        let version = Version::parse("1.0.0-alpha.5").expect("fixture version");
+        check_active_release_truth_for_version(&root, &version)
+            .expect("historical version text must not affect active truth");
+
+        fs::write(
+            root.join("README.md"),
+            readme.replace("1.0.0-alpha.5", "1.0.0-alpha.4"),
+        )
+        .expect("seed stale README fixture");
+        assert!(check_active_release_truth_for_version(&root, &version).is_err());
+        fs::remove_dir_all(root).expect("remove active-truth fixture");
+    }
+
+    #[test]
+    fn feedback_roadmap_path_is_snapshot_declared_and_bounded() {
+        for path in [
+            "docs/superpowers/plans/2026-07-18-post-0.7-roadmap.md",
+            "docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md",
+        ] {
+            assert_eq!(
+                feedback_roadmap_relative(&json!({"next_roadmap": {"path": path}}))
+                    .expect("bounded roadmap path"),
+                path
+            );
+        }
+        for path in [
+            "../roadmap.md",
+            "/tmp/roadmap.md",
+            "docs/superpowers/plans/../../secrets.md",
+            "docs/superpowers/plans/roadmap.json",
+        ] {
+            assert!(feedback_roadmap_relative(&json!({"next_roadmap": {"path": path}})).is_err());
+        }
+    }
+
+    #[test]
+    fn final_feedback_binds_latest_recorded_rc() {
+        let root = std::env::temp_dir().join(format!(
+            "canisend-latest-rc-feedback-{}",
+            std::process::id()
+        ));
+        if root.exists() {
+            fs::remove_dir_all(&root).expect("remove stale RC feedback fixture");
+        }
+        fs::create_dir_all(root.join("release")).expect("create RC feedback fixture");
+        fs::write(
+            root.join("Cargo.toml"),
+            "[workspace]\n[workspace.package]\nversion = \"1.0.0-rc.2\"\n",
+        )
+        .expect("write RC workspace fixture");
+        write_pretty_json(
+            &root.join("release/qualification-ledger.json"),
+            &json!({
+                "release_candidates": [
+                    {
+                        "tag": "v1.0.0-rc.1",
+                        "source_commit": "7".repeat(40),
+                        "signed_matrix_run": 31_u64
+                    },
+                    {
+                        "tag": "v1.0.0-rc.2",
+                        "source_commit": "8".repeat(40),
+                        "signed_matrix_run": 32_u64
+                    }
+                ],
+                "release_notes": {"review": null}
+            }),
+        )
+        .expect("write RC qualification fixture");
+        let stale = json!({"snapshot_stage": "rc", "release": {"tag": "v1.0.0-rc.1"}});
+        assert!(check_final_rc_feedback_binding(&root, &stale).is_err());
+        let current = json!({"snapshot_stage": "rc", "release": {"tag": "v1.0.0-rc.2"}});
+        check_final_rc_feedback_binding(&root, &current).expect("latest RC feedback");
+        fs::write(
+            root.join("Cargo.toml"),
+            "[workspace]\n[workspace.package]\nversion = \"1.0.0-rc.3\"\n",
+        )
+        .expect("prepare later RC workspace fixture");
+        assert!(check_final_rc_feedback_binding(&root, &current).is_err());
+        fs::remove_dir_all(root).expect("remove RC feedback fixture");
     }
 
     #[test]
@@ -16096,6 +16678,30 @@ mod tests {
             validate_stage_transition(&beta, ReleaseStage::Beta, &beta_two, ReleaseStage::Beta)
                 .is_err()
         );
+
+        let current_rc = json!({
+            "schema": RELEASE_QUALIFICATION_SCHEMA,
+            "workspace_stage": "rc",
+            "status": "rc-qualifying",
+            "stable_authorized": false,
+            "beta": {"status": "qualified"},
+            "feature_freeze": {"status": "frozen"},
+            "release_candidates": [{
+                "tag": "v0.7.0-rc.1",
+                "source_commit": "7".repeat(40),
+                "signed_matrix_run": 1_u64
+            }]
+        });
+        assert!(
+            validate_transition_ledger_preconditions(
+                &current_rc,
+                &rc_two,
+                ReleaseStage::ReleaseCandidate,
+                ReleaseStage::ReleaseCandidate,
+            )
+            .is_err(),
+            "RC.2 cannot be skipped before its exact matrix is recorded"
+        );
     }
 
     #[test]
@@ -16111,6 +16717,7 @@ mod tests {
             "docs/contracts",
             "docs/guides",
             ".github/workflows",
+            ".github/ISSUE_TEMPLATE",
             "release",
         ] {
             fs::create_dir_all(root.join(relative)).expect("create sequential-Alpha fixture path");
@@ -16132,9 +16739,14 @@ mod tests {
         .expect("write parity fixture");
         fs::write(
             root.join(".github/workflows/release.yml"),
-            "default: \"v1.0.0-alpha.5\"\n",
+            "default: \"v1.0.0-alpha.6\"\n",
         )
         .expect("write workflow fixture");
+        fs::write(
+            root.join(".github/ISSUE_TEMPLATE/bug.yml"),
+            "placeholder: 1.0.0-alpha.5\n",
+        )
+        .expect("write Issue template fixture");
         fs::write(
             root.join("README.md"),
             "The checked-in source version is `1.0.0-alpha.5`; fixture.\n",
@@ -16171,7 +16783,7 @@ mod tests {
             "tools/native-preview/package.json",
             "apps/canisend-desktop/src/App.svelte",
             "docs/contracts/cli-gui-parity-v1.json",
-            ".github/workflows/release.yml",
+            ".github/ISSUE_TEMPLATE/bug.yml",
             "README.md",
             "docs/guides/known-limitations.md",
             "release/alpha-package-contract.json",
@@ -16474,13 +17086,13 @@ mod tests {
         fs::write(
             root.join("Cargo.toml"),
             "[workspace]\nmembers = [\"crates/app\", \"crates/contracts\"]\n\
-             [workspace.package]\nversion = \"0.7.0-alpha.1\"\n",
+             [workspace.package]\nversion = \"0.7.0-beta.1\"\n",
         )
         .expect("write workspace fixture");
         fs::write(
             root.join("crates/app/Cargo.toml"),
             "[package]\nname = \"app\"\nversion.workspace = true\n\
-             [dependencies]\ncontracts = { package = \"contracts\", path = \"../contracts\", version = \"=0.7.0-alpha.1\" }\n",
+             [dependencies]\ncontracts = { package = \"contracts\", path = \"../contracts\", version = \"=0.7.0-beta.1\" }\n",
         )
         .expect("write app fixture");
         fs::write(
@@ -16490,26 +17102,26 @@ mod tests {
         .expect("write contracts fixture");
         fs::write(
             root.join("Cargo.lock"),
-            "version = 4\n\n[[package]]\nname = \"app\"\nversion = \"0.7.0-alpha.1\"\n\
-             dependencies = [\"contracts\"]\n\n[[package]]\nname = \"contracts\"\nversion = \"0.7.0-alpha.1\"\n",
+            "version = 4\n\n[[package]]\nname = \"app\"\nversion = \"0.7.0-beta.1\"\n\
+             dependencies = [\"contracts\"]\n\n[[package]]\nname = \"contracts\"\nversion = \"0.7.0-beta.1\"\n",
         )
         .expect("write lock fixture");
         write_pretty_json(
             &root.join("release/qualification-ledger.json"),
             &json!({
                 "schema": RELEASE_QUALIFICATION_SCHEMA,
-                "workspace_stage": "alpha",
-                "status": "pre-beta",
+                "workspace_stage": "beta",
+                "status": "beta-qualifying",
                 "stable_authorized": false,
-                "beta": {"status": "pending"},
-                "feature_freeze": {"status": "planned"},
-                "release_notes": {"status": "alpha-current"}
+                "beta": {"status": "qualified"},
+                "feature_freeze": {"status": "frozen", "baseline_commit": "7".repeat(40)},
+                "release_notes": {"status": "beta-current"}
             }),
         )
         .expect("write qualification fixture");
         fs::write(
             root.join("release/RELEASE_NOTES.md"),
-            "# CanISend 0.7.0-alpha.1\n\nFixture notes.\n",
+            "# CanISend 0.7.0-beta.1\n\nFixture notes.\n",
         )
         .expect("write notes fixture");
         for relative in [
@@ -16523,8 +17135,8 @@ mod tests {
         }
 
         let workspace_before = fs::read(root.join("Cargo.toml")).expect("read workspace before");
-        let transition = render_stage_transition(&root, "v0.7.0-beta.1")
-            .expect("render Alpha to Beta transition");
+        let transition =
+            render_stage_transition(&root, "v0.7.0-rc.1").expect("render Beta to RC transition");
         assert_eq!(
             stage_transition_report(&root, &transition, false).expect("dry-run report")["writes_performed"],
             false
@@ -16540,21 +17152,21 @@ mod tests {
         assert!(
             fs::read_to_string(root.join("Cargo.toml"))
                 .expect("read transitioned workspace")
-                .contains("version = \"0.7.0-beta.1\"")
+                .contains("version = \"0.7.0-rc.1\"")
         );
         assert!(
             fs::read_to_string(root.join("crates/app/Cargo.toml"))
                 .expect("read transitioned app")
-                .contains("version = \"=0.7.0-beta.1\"")
+                .contains("version = \"=0.7.0-rc.1\"")
         );
         let ledger: Value = serde_json::from_slice(
             &fs::read(root.join("release/qualification-ledger.json"))
                 .expect("read transitioned ledger"),
         )
         .expect("parse transitioned ledger");
-        assert_eq!(ledger["workspace_stage"], "beta");
-        assert_eq!(ledger["status"], "beta-qualifying");
-        assert_eq!(ledger["release_notes"]["status"], "beta-current");
+        assert_eq!(ledger["workspace_stage"], "rc");
+        assert_eq!(ledger["status"], "rc-qualifying");
+        assert_eq!(ledger["release_notes"]["status"], "rc-final");
         for relative in [
             "release/beta-readiness.json",
             "release/beta-contract-freeze.json",
@@ -16631,7 +17243,12 @@ mod tests {
                     "tag": "v0.7.0-rc.1"
                 }
             },
-            "release_candidates": [{"tag": "v0.7.0-rc.1", "status": "success"}]
+            "release_candidates": [{
+                "tag": "v0.7.0-rc.1",
+                "status": "success",
+                "source_commit": "8".repeat(40),
+                "signed_matrix_run": 29_641_000_001_u64
+            }]
         });
         write_pretty_json(&root.join("release/qualification-ledger.json"), &ledger)
             .expect("write RC ledger fixture");
@@ -16804,10 +17421,11 @@ mod tests {
         let feedback = json!({
             "schema": FEEDBACK_SNAPSHOT_SCHEMA,
             "snapshot_stage": "rc",
+            "release": {"tag": "v0.7.0-rc.2"},
             "public_issues": {"open": 2, "closed": 3, "total": 5},
             "release_downloads": {"total": 17},
             "next_roadmap": {
-                "path": "docs/superpowers/plans/2026-07-18-post-0.7-roadmap.md",
+                "path": "docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md",
                 "status": "reviewed"
             }
         });
@@ -16816,7 +17434,7 @@ mod tests {
         let feedback_before = fs::read_to_string(root.join("release/feedback-snapshot.json"))
             .expect("read Stable feedback fixture");
         fs::write(
-            root.join("docs/superpowers/plans/2026-07-18-post-0.7-roadmap.md"),
+            root.join("docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md"),
             "# Next roadmap\n\n**Status:** Reviewed\n",
         )
         .expect("write Stable roadmap fixture");
@@ -16857,7 +17475,7 @@ mod tests {
             String::from_utf8(
                 transition
                     .files
-                    .get("docs/superpowers/plans/2026-07-18-post-0.7-roadmap.md")
+                    .get("docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md")
                     .expect("roadmap transition output")
                     .clone()
             )

@@ -6,6 +6,11 @@ Beta, Beta to RC, sequential RC iteration, and RC to Stable. The transition tool
 changes current product state without rewriting the immutable Alpha readiness, contract-freeze, feedback, or
 package-candidate evidence that explains how the release reached that state.
 
+The Alpha-to-Beta transition is deliberately narrower than the structural stage rule: only the
+qualified public `v1.0.0-alpha.7` dual-Pack checkpoint may authorize Beta. Alpha.4, Alpha.5, and
+Alpha.6 readiness records remain historical evidence for their exact bytes and cannot be reused as
+the v3 Beta baseline.
+
 ## Preview first
 
 The command is read-only unless the final `--write` flag is present:
@@ -42,8 +47,11 @@ Refresh is also dry-run first:
 
 The script queries only public issue number/state and public release identity; it never downloads issue titles,
 bodies, comments, attachments, or private application data. Any open issue stops the refresh for manual blocker
-triage. With none open, the candidate preserves reviewed per-class evidence, updates only audit time/counts, and must
-pass `xtask release verify-beta-readiness` before an explicitly requested clean-worktree write.
+triage. It accepts only Alpha.7, resolves the exact successful release run and source manifest,
+requires the local checkout to equal that source, and binds Agent/Workspace v3, Pack v1, and both
+embedded Pack digests. With no open issue, the candidate combines the public issue snapshot with
+the exact dual-Pack release-matrix evidence and must pass `xtask release verify-beta-readiness`
+before an explicitly requested clean-worktree write.
 
 ## Apply intentionally
 
@@ -54,6 +62,19 @@ cargo run -p xtask --locked -- release prepare-stage v1.0.0-beta.1 --write
 cargo run -p xtask --locked -- release check
 git diff --check
 ```
+
+After feature freeze, the stage transition and its exception record use two reviewable commits so
+no record refers to its own unknowable commit ID:
+
+1. Apply the reviewed `prepare-stage ... --write` plan and commit only its controlled stage files.
+2. Resolve that commit with `git rev-parse HEAD` and its exact non-automatic paths with
+   `git diff-tree --first-parent -m --no-commit-id --name-only -r COMMIT`.
+3. Append the sorted paths, commit, class, and bounded reason to
+   `release/feature-freeze-exceptions.json` in a second commit.
+4. Run `cargo run -p xtask --locked -- release check` over the two-commit branch before merge.
+
+The exception record itself is an automatic evidence path, so the second commit does not require a
+self-referential entry. A branch containing only the first commit is intentionally not releasable.
 
 Write mode transactionally updates the workspace version, exact internal dependency versions,
 workspace package entries in `Cargo.lock`, the standalone fuzz workspace's exact dependencies and
@@ -79,11 +100,14 @@ is dry-run-first and never reads issue titles, bodies, comments, attachments, or
 ./scripts/refresh_release_feedback.sh jxpeng98/CanISend v1.0.0-rc.2 --write
 ```
 
-The reviewed write changes the feedback snapshot stage to `rc`, generates the measured roadmap block from the same
-counts, and changes the next roadmap from `Draft` to `Reviewed`. Maintainers must review candidate priorities and
-qualification findings before commit. Only the qualified RC-to-Stable `prepare-stage` transition may atomically
-change the snapshot and roadmap markers from `Reviewed` to `Published`; it preserves all issue, download, release,
-and engineering-finding evidence bytes.
+The reviewed write follows `feedback-snapshot.next_roadmap.path`, changes the feedback snapshot
+stage to `rc`, generates the measured block in that declared roadmap from the same counts, and
+changes the roadmap from `Draft` to `Reviewed`. Maintainers must review candidate priorities and
+qualification findings before commit. The snapshot must bind the latest recorded RC; preparing a
+later sequential RC invalidates the earlier feedback and release-notes review until both are
+refreshed. Only the qualified RC-to-Stable `prepare-stage` transition may atomically change the
+snapshot and its declared roadmap markers from `Reviewed` to `Published`; it preserves all issue,
+download, release, and engineering-finding evidence bytes.
 
 ## Evidence that must remain historical
 
