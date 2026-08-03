@@ -197,14 +197,14 @@ pub struct TaskCompletionPreviewParameters {
 #[derive(Debug, Clone, Default, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AgentV3ContextParameters {
-    #[schemars(description = "Optional generic Application ID to resume")]
+    #[schemars(description = "Optional exact-Pack Application ID to resume")]
     pub application_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ApplicationParameters {
-    #[schemars(description = "Pack-bound generic Application ID")]
+    #[schemars(description = "Exact-Pack Application ID")]
     pub application_id: String,
 }
 
@@ -589,7 +589,7 @@ pub fn serve_stdio(workspace: Option<&Path>) -> Result<(), McpServerError> {
 #[tool_router]
 impl CanISendMcpServer {
     #[tool(
-        description = "Return the canonical neutral Agent v3 operation registry and exact built-in generic Pack binding",
+        description = "Return the canonical neutral Agent v3 operation registry and exact Workspace Pack binding",
         annotations(
             title = "Inspect Agent v3 capabilities",
             read_only_hint = true,
@@ -599,11 +599,11 @@ impl CanISendMcpServer {
         )
     )]
     fn canisend_agent_v3_capabilities(&self) -> Result<Json<Value>, McpError> {
-        Self::application_result(Application::agent_v3_capabilities())
+        Self::application_result(Application::agent_v3_capabilities(self.workspace()))
     }
 
     #[tool(
-        description = "Return body-free generic Application summaries, exact Pack binding, blockers, and revision-bound next actions",
+        description = "Return body-free exact-Pack Application summaries, blockers, and revision-bound next actions",
         annotations(
             title = "Inspect Agent v3 context",
             read_only_hint = true,
@@ -626,9 +626,9 @@ impl CanISendMcpServer {
     }
 
     #[tool(
-        description = "List body-free generic Application summaries from the authoritative v3 workspace",
+        description = "List body-free exact-Pack Application summaries from the authoritative v3 workspace",
         annotations(
-            title = "List generic Applications",
+            title = "List Applications",
             read_only_hint = true,
             destructive_hint = false,
             idempotent_hint = true,
@@ -651,9 +651,9 @@ impl CanISendMcpServer {
     }
 
     #[tool(
-        description = "Create one exact-Pack generic Application from reviewed source text and UTF-8 Requirement spans after host write approval",
+        description = "Create one exact-Pack Application from reviewed source text and UTF-8 Requirement spans after host write approval",
         annotations(
-            title = "Create generic Application",
+            title = "Create Application",
             read_only_hint = false,
             destructive_hint = false,
             idempotent_hint = false,
@@ -677,7 +677,7 @@ impl CanISendMcpServer {
     #[tool(
         description = "Confirm exact Requirements and a Pack-qualified Plan at the expected Application revision after explicit user decision",
         annotations(
-            title = "Confirm generic Application Plan",
+            title = "Confirm Application Plan",
             read_only_hint = false,
             destructive_hint = false,
             idempotent_hint = false,
@@ -709,7 +709,7 @@ impl CanISendMcpServer {
     #[tool(
         description = "Commit exact Pack-qualified Deliverable bodies at the expected Application revision for later private review",
         annotations(
-            title = "Compose generic Deliverables",
+            title = "Compose Deliverables",
             read_only_hint = false,
             destructive_hint = false,
             idempotent_hint = false,
@@ -736,7 +736,7 @@ impl CanISendMcpServer {
     #[tool(
         description = "Read verified private Deliverable bodies after explicit consent and return a session-local token bound to the exact reviewed revision and snapshot digest",
         annotations(
-            title = "Review generic Deliverables",
+            title = "Review Deliverables",
             read_only_hint = true,
             destructive_hint = false,
             idempotent_hint = false,
@@ -753,7 +753,7 @@ impl CanISendMcpServer {
                 "The user must explicitly confirm private Deliverable access before review.",
             ));
         }
-        let review = match Application::review_generic_application_v3(
+        let review = match Application::review_application_flow_v3(
             self.workspace(),
             &parameters.application_id,
             Some(PrivateReadConsent::granted_by_user()),
@@ -790,7 +790,7 @@ impl CanISendMcpServer {
     #[tool(
         description = "Approve only the exact Deliverable snapshot previously returned by review, using its single-use session token and explicit user approval",
         annotations(
-            title = "Approve generic Deliverables",
+            title = "Approve Deliverables",
             read_only_hint = false,
             destructive_hint = false,
             idempotent_hint = false,
@@ -818,10 +818,8 @@ impl CanISendMcpServer {
             ));
         };
         let result = (|| {
-            let current = Application::generic_application_flow_v3(
-                self.workspace(),
-                &preview.application_id,
-            )?;
+            let current =
+                Application::application_flow_v3(self.workspace(), &preview.application_id)?;
             if current.data.stored.snapshot.application.revision != preview.expected_revision
                 || current.data.stored.snapshot_sha256 != preview.snapshot_sha256
             {
@@ -844,7 +842,7 @@ impl CanISendMcpServer {
     #[tool(
         description = "Render and export approved Deliverables to a safe workspace-relative directory after explicit private-export consent; never uploads or submits",
         annotations(
-            title = "Export generic Application",
+            title = "Export Application",
             read_only_hint = false,
             destructive_hint = false,
             idempotent_hint = false,
@@ -1244,7 +1242,7 @@ impl CanISendMcpServer {
 
 #[tool_handler(
     name = "canisend",
-    instructions = "Canonical Agent v3 tools operate only on the exact built-in generic Application Pack and use Application, Requirement, Plan, and Deliverable nouns. Routine context is body-free. Guarded mutations require host approval and exact expected revisions. Plan confirmation, private review, approval, and export require explicit user authorization; approval accepts only a session-local single-use token bound to the exact reviewed revision and snapshot digest. CanISend never uploads or submits an Application. Agent v2 tools remain a deprecated compatibility surface bounded to the exact academic Pack. Never edit .canisend, SQLite, immutable blobs, or managed projections directly."
+    instructions = "Canonical Agent v3 tools resolve the exact Workspace/Application Pack binding and use Application, Requirement, Plan, and Deliverable nouns. Routine context is body-free. Guarded mutations require host approval and exact expected revisions. Plan confirmation, private review, approval, and export require explicit user authorization; approval accepts only a session-local single-use token bound to the exact reviewed revision and snapshot digest. CanISend never uploads or submits an Application. Agent v2 tools remain a deprecated compatibility surface bounded to the exact academic Pack. Never edit .canisend, SQLite, immutable blobs, or managed projections directly."
 )]
 impl ServerHandler for CanISendMcpServer {}
 
@@ -1256,7 +1254,10 @@ mod tests {
         sync::atomic::{AtomicU64, Ordering},
     };
 
-    use canisend_app::{Application, ApplicationModelCommitRequestV3, PrivateReadConsent};
+    use canisend_app::{
+        Application, ApplicationModelCommitRequestV3, PrivateReadConsent,
+        WorkspaceV3MigrationRequest,
+    };
     use canisend_contracts::{
         ApplicationFieldValueV3, ExecutionMode, PlannedDeliverableDispositionV3,
         PrivacyClassification, RequirementPriorityV3, Revision,
@@ -1698,5 +1699,141 @@ mod tests {
 
         fs::remove_dir_all(root).expect("remove workspace");
         fs::remove_dir_all(academic).expect("remove academic workspace");
+    }
+
+    #[test]
+    fn agent_v3_mcp_completes_the_migrated_academic_pack_flow() {
+        let root = temporary_root("agent-v3-academic");
+        let backup = temporary_root("agent-v3-academic-backup");
+        Application::initialize_workspace(&root).expect("Workspace v2");
+        Application::create_job(&root, "Research Fellow", "Example University")
+            .expect("legacy academic Application");
+        let preview = Application::preview_workspace_v3_migration(&root)
+            .expect("migration preview")
+            .data;
+        Application::migrate_workspace_v3(
+            &root,
+            WorkspaceV3MigrationRequest {
+                expected_plan_sha256: preview.migration_plan_sha256,
+                backup_destination: backup.clone(),
+            },
+        )
+        .expect("migration");
+
+        let server = CanISendMcpServer::open(&root).expect("academic MCP server");
+        let capabilities = server
+            .canisend_agent_v3_capabilities()
+            .expect("academic capabilities")
+            .0;
+        assert_eq!(
+            capabilities["data"]["pack"]["id"],
+            "org.canisend.academic-job"
+        );
+        let resumed = server
+            .canisend_applications_list()
+            .expect("migrated academic Application")
+            .0;
+        assert_eq!(resumed["applications"].as_array().map(Vec::len), Some(1));
+
+        let source = "Applicants must submit a cover letter and academic CV.";
+        let created = server
+            .canisend_application_create(Parameters(ApplicationCreateParameters {
+                title: "Academic Agent v3 fixture".to_owned(),
+                opportunity_metadata: BTreeMap::from([(
+                    "institution".to_owned(),
+                    ApplicationFieldValueV3::ShortText("Example University".to_owned()),
+                )]),
+                application_metadata: BTreeMap::new(),
+                source_text: source.to_owned(),
+                requirements: vec![ApplicationRequirementParameters {
+                    category: "qualification".to_owned(),
+                    statement: source.to_owned(),
+                    priority: RequirementPriorityV3::Mandatory,
+                    start_byte: 0,
+                    end_byte: source.len() as u64,
+                }],
+            }))
+            .expect("academic create")
+            .0;
+        let application_id = created["data"]["stored"]["snapshot"]["application"]["id"]
+            .as_str()
+            .expect("Application ID")
+            .to_owned();
+        let planned = ["cover-letter", "cv"]
+            .into_iter()
+            .map(|kind| ApplicationPlannedDeliverableParameters {
+                kind: kind.to_owned(),
+                disposition: PlannedDeliverableDispositionV3::Required,
+                rationale: "Required by the reviewed opportunity".to_owned(),
+                constraints: Vec::new(),
+                execution_mode: Some(ExecutionMode::HostAgent),
+            })
+            .collect();
+        server
+            .canisend_application_plan(Parameters(ApplicationPlanParameters {
+                application_id: application_id.clone(),
+                expected_revision: 1,
+                decision: "proceed".to_owned(),
+                deliverables: planned,
+                confirmed_user_decision: true,
+            }))
+            .expect("academic Plan");
+        server
+            .canisend_application_compose(Parameters(ApplicationComposeParameters {
+                application_id: application_id.clone(),
+                expected_revision: 2,
+                deliverables: vec![
+                    ApplicationDeliverableParameters {
+                        kind: "cover-letter".to_owned(),
+                        title: "Cover letter".to_owned(),
+                        media_type: "text/markdown".to_owned(),
+                        content: "Synthetic evidence-bound cover letter.".to_owned(),
+                    },
+                    ApplicationDeliverableParameters {
+                        kind: "cv".to_owned(),
+                        title: "Academic CV".to_owned(),
+                        media_type: "text/markdown".to_owned(),
+                        content: "Synthetic evidence-bound academic record.".to_owned(),
+                    },
+                ],
+            }))
+            .expect("academic compose");
+        let reviewed = server
+            .canisend_application_review(Parameters(ApplicationReviewParameters {
+                application_id: application_id.clone(),
+                confirmed_private_read: true,
+            }))
+            .expect("academic review")
+            .0;
+        let token = reviewed["review_token"]
+            .as_str()
+            .expect("review token")
+            .to_owned();
+        server
+            .canisend_application_approve(Parameters(ApplicationApprovalParameters {
+                review_token: token,
+                confirmed_user_approval: true,
+            }))
+            .expect("academic approval");
+        let destination = format!("applications/{application_id}/exports/academic-mcp");
+        let exported = server
+            .canisend_application_export(Parameters(ApplicationExportParameters {
+                application_id,
+                expected_revision: 4,
+                destination,
+                confirmed_private_export: true,
+            }))
+            .expect("academic export")
+            .0;
+        assert_eq!(
+            exported["data"]["render"]["documents"]
+                .as_array()
+                .map(Vec::len),
+            Some(2)
+        );
+        assert_eq!(exported["data"]["render"]["submission_performed"], false);
+
+        fs::remove_dir_all(root).expect("remove workspace");
+        fs::remove_dir_all(backup).expect("remove backup");
     }
 }

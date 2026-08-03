@@ -6,6 +6,7 @@ use canisend_contracts::{
     OperationSurface, PrivacyClassification, RequirementConfirmationV3, Revision, SemanticVersion,
     Sha256Digest, WORKSPACE_V3_FORMAT,
 };
+use canisend_core::VerifiedWorkflowPackBundle;
 use canisend_store::ApplicationFlowServiceV3;
 use serde::{Deserialize, Serialize};
 
@@ -13,9 +14,9 @@ use crate::{
     ActionReceipt, AgentHost, Application, ApplicationError, ApplicationFlowCommitReadModelV3,
     ApplicationFlowComposeRequestV3, ApplicationFlowCreateRequestV3,
     ApplicationFlowExportReadModelV3, ApplicationFlowExportRequestV3, ApplicationFlowPlanRequestV3,
-    ApplicationFlowReadModelV3, ApplicationFlowStageReadModelV3,
-    GENERIC_APPLICATION_WORKFLOW_PACK_ID, PrivateExportConsent, application::open_workspace,
-    built_in_generic_application_pack,
+    ApplicationFlowReadModelV3, ApplicationFlowStageReadModelV3, PrivateExportConsent,
+    application::open_workspace,
+    application_flow_v3::{exact_application_pack, exact_workspace_pack},
 };
 
 pub const AGENT_V3_PROTOCOL: &str = "canisend.agent/v3";
@@ -144,9 +145,10 @@ pub struct AgentV3HandoffReadModel {
 }
 
 impl Application {
-    pub fn agent_v3_capabilities()
-    -> Result<ActionReceipt<AgentV3CapabilitiesReadModel>, ApplicationError> {
-        let pack = exact_generic_pack_binding()?;
+    pub fn agent_v3_capabilities(
+        workspace_root: &Path,
+    ) -> Result<ActionReceipt<AgentV3CapabilitiesReadModel>, ApplicationError> {
+        let pack = pack_binding(&exact_workspace_pack(workspace_root)?);
         let data = AgentV3CapabilitiesReadModel {
             product_version: compiled_product_version()?,
             protocol: AGENT_V3_PROTOCOL.to_owned(),
@@ -171,22 +173,7 @@ impl Application {
         selected_application_id: Option<&str>,
     ) -> Result<ActionReceipt<AgentV3ContextReadModel>, ApplicationError> {
         let workspace_status = Self::workspace_status(workspace_root)?.data;
-        if workspace_status.pack_id != GENERIC_APPLICATION_WORKFLOW_PACK_ID {
-            return Err(ApplicationError::CompatibilityUnavailable {
-                message: "Agent v3 generic operations require the exact generic Application Pack"
-                    .to_owned(),
-                details: serde_json::json!({
-                    "actual_pack_id": workspace_status.pack_id,
-                    "required_pack_id": GENERIC_APPLICATION_WORKFLOW_PACK_ID,
-                }),
-                remediation: NextAction {
-                    action: "select a generic Application workspace".to_owned(),
-                    description: "Create a new workspace with the generic Pack; use Agent v2 only for the bounded academic compatibility surface".to_owned(),
-                },
-            });
-        }
-
-        let pack = exact_generic_pack_binding()?;
+        let pack = pack_binding(&exact_workspace_pack(workspace_root)?);
         let stored = Self::list_application_models_v3(workspace_root)?.data;
         let mut applications = Vec::with_capacity(stored.len());
         for model in stored {
@@ -205,11 +192,9 @@ impl Application {
                     },
                 });
             }
-            let flow = Self::generic_application_flow_v3(
-                workspace_root,
-                model.snapshot.application.id.as_str(),
-            )?
-            .data;
+            let flow =
+                Self::application_flow_v3(workspace_root, model.snapshot.application.id.as_str())?
+                    .data;
             applications.push(body_free_summary(flow));
         }
 
@@ -262,8 +247,7 @@ impl Application {
         workspace_root: &Path,
         request: ApplicationFlowCreateRequestV3,
     ) -> Result<ActionReceipt<ApplicationFlowReadModelV3>, ApplicationError> {
-        require_generic_workspace(workspace_root)?;
-        let pack = built_in_generic_application_pack()?;
+        let pack = exact_workspace_pack(workspace_root)?;
         let mut workspace = open_workspace(workspace_root)?;
         let root = workspace.paths.root.clone();
         let result =
@@ -282,8 +266,7 @@ impl Application {
         application_id: &str,
         request: ApplicationFlowPlanRequestV3,
     ) -> Result<ActionReceipt<ApplicationFlowCommitReadModelV3>, ApplicationError> {
-        require_generic_workspace(workspace_root)?;
-        Self::plan_generic_application_v3(workspace_root, application_id, request)
+        Self::plan_application_flow_v3(workspace_root, application_id, request)
     }
 
     pub fn agent_v3_compose_application(
@@ -291,10 +274,9 @@ impl Application {
         application_id: &str,
         request: ApplicationFlowComposeRequestV3,
     ) -> Result<ActionReceipt<ApplicationFlowCommitReadModelV3>, ApplicationError> {
-        require_generic_workspace(workspace_root)?;
         let application_id = ApplicationId::try_new(application_id)
             .map_err(|error| ApplicationError::InvalidEntityId(error.to_string()))?;
-        let pack = built_in_generic_application_pack()?;
+        let pack = exact_application_pack(workspace_root, application_id.as_str())?;
         let mut workspace = open_workspace(workspace_root)?;
         let root = workspace.paths.root.clone();
         let result =
@@ -313,8 +295,7 @@ impl Application {
         application_id: &str,
         request: crate::ApplicationFlowApproveRequestV3,
     ) -> Result<ActionReceipt<ApplicationFlowCommitReadModelV3>, ApplicationError> {
-        require_generic_workspace(workspace_root)?;
-        Self::approve_generic_application_v3(workspace_root, application_id, request)
+        Self::approve_application_flow_v3(workspace_root, application_id, request)
     }
 
     pub fn agent_v3_export_application(
@@ -322,8 +303,7 @@ impl Application {
         request: ApplicationFlowExportRequestV3,
         consent: Option<PrivateExportConsent>,
     ) -> Result<ActionReceipt<ApplicationFlowExportReadModelV3>, ApplicationError> {
-        require_generic_workspace(workspace_root)?;
-        Self::export_generic_application_v3(workspace_root, request, consent)
+        Self::export_application_flow_v3(workspace_root, request, consent)
     }
 
     pub fn prepare_agent_v3_handoff(
@@ -342,8 +322,8 @@ impl Application {
             ),
         };
         let scope = request.selected_application_id.as_deref().map_or_else(
-            || "a new or existing generic Application".to_owned(),
-            |id| format!("generic Application {id}"),
+            || "a new or existing exact-Pack Application".to_owned(),
+            |id| format!("exact-Pack Application {id}"),
         );
         let bootstrap_prompt = format!(
             "Continue {scope} with the CanISend Agent v3 MCP operations. CanISend is the state authority and {host_label} is the session authority. Start with canisend_agent_v3_context, follow its exact next_actions, and keep routine context body-free. Request explicit consent before canisend_application_review or export, and request explicit user approval before Plan confirmation or the single-use review-token approval commit. Preserve the exact Pack binding and expected revision, never edit .canisend directly, and never upload or submit an Application."
@@ -380,32 +360,12 @@ impl Application {
     }
 }
 
-fn exact_generic_pack_binding() -> Result<ApplicationPackBindingV3, ApplicationError> {
-    let pack = built_in_generic_application_pack()?;
-    Ok(ApplicationPackBindingV3 {
+fn pack_binding(pack: &VerifiedWorkflowPackBundle) -> ApplicationPackBindingV3 {
+    ApplicationPackBindingV3 {
         id: pack.manifest().id.clone(),
         version: pack.manifest().version.clone(),
         content_digest: pack.manifest().content_digest.clone(),
-    })
-}
-
-fn require_generic_workspace(root: &Path) -> Result<(), ApplicationError> {
-    let status = Application::workspace_status(root)?.data;
-    if status.pack_id == GENERIC_APPLICATION_WORKFLOW_PACK_ID {
-        return Ok(());
     }
-    Err(ApplicationError::CompatibilityUnavailable {
-        message: "Agent v3 mutation is unavailable for this Workspace Pack".to_owned(),
-        details: serde_json::json!({
-            "actual_pack_id": status.pack_id,
-            "required_pack_id": GENERIC_APPLICATION_WORKFLOW_PACK_ID,
-        }),
-        remediation: NextAction {
-            action: "use the matching Pack surface".to_owned(),
-            description: "Generic Agent v3 writes never mutate the academic compatibility Pack"
-                .to_owned(),
-        },
-    })
 }
 
 fn body_free_summary(flow: ApplicationFlowReadModelV3) -> AgentV3ApplicationSummaryReadModel {
@@ -654,7 +614,7 @@ mod tests {
     use super::*;
     use crate::{
         ApplicationFlowDeliverableDraftV3, ApplicationFlowPlannedDeliverableV3,
-        ApplicationFlowRequirementDraftV3,
+        ApplicationFlowRequirementDraftV3, WorkspaceV3MigrationRequest,
     };
 
     fn root(label: &str) -> PathBuf {
@@ -791,14 +751,66 @@ mod tests {
     }
 
     #[test]
-    fn generic_agent_v3_fails_closed_on_academic_workspace() {
-        let root = root("wrong-pack");
+    fn agent_v3_requires_v3_authority_then_uses_the_exact_academic_pack() {
+        let backup = root("academic-pack-backup");
+        let root = root("academic-pack");
         Application::initialize_workspace(&root).expect("academic workspace");
-        let error = Application::agent_v3_context(&root, None).expect_err("wrong Pack");
+        Application::create_job(&root, "Research Fellow", "Example University")
+            .expect("legacy academic Application");
+        let error = Application::agent_v3_context(&root, None).expect_err("Workspace v2");
         assert!(matches!(
             error,
             ApplicationError::CompatibilityUnavailable { .. }
         ));
+
+        let preview = Application::preview_workspace_v3_migration(&root)
+            .expect("migration preview")
+            .data;
+        Application::migrate_workspace_v3(
+            &root,
+            WorkspaceV3MigrationRequest {
+                expected_plan_sha256: preview.migration_plan_sha256,
+                backup_destination: backup.clone(),
+            },
+        )
+        .expect("migration");
+
+        let capabilities = Application::agent_v3_capabilities(&root)
+            .expect("academic capabilities")
+            .data;
+        assert_eq!(capabilities.pack.id.as_str(), "org.canisend.academic-job");
+        let migrated = Application::agent_v3_context(&root, None)
+            .expect("academic v3 context")
+            .data;
+        assert_eq!(migrated.pack, capabilities.pack);
+        assert_eq!(migrated.applications.len(), 1);
+
+        let source = "Applicants must hold a relevant doctorate.";
+        let created = Application::agent_v3_create_application(
+            &root,
+            ApplicationFlowCreateRequestV3 {
+                title: "Synthetic academic Application".to_owned(),
+                opportunity_metadata: BTreeMap::from([(
+                    item("institution"),
+                    ApplicationFieldValueV3::ShortText("Example University".to_owned()),
+                )]),
+                application_metadata: BTreeMap::new(),
+                source_text: source.to_owned(),
+                requirements: vec![ApplicationFlowRequirementDraftV3 {
+                    category: item("qualification"),
+                    statement: source.to_owned(),
+                    priority: RequirementPriorityV3::Mandatory,
+                    start_byte: 0,
+                    end_byte: source.len() as u64,
+                }],
+            },
+        )
+        .expect("new academic v3 Application")
+        .data;
+        assert_eq!(created.stored.snapshot.pack, capabilities.pack);
+        assert_eq!(created.stored.snapshot.requirements.len(), 1);
+
         fs::remove_dir_all(root).expect("remove workspace");
+        fs::remove_dir_all(backup).expect("remove backup");
     }
 }

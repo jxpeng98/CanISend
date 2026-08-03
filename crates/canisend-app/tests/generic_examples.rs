@@ -131,7 +131,7 @@ fn validate_synthetic_contract(scenario: &GenericExampleV1, expected_family: &st
 fn run_complete_offline_flow(scenario: &GenericExampleV1) {
     let root = temporary_root(&scenario.family);
     Application::initialize_workspace_v3(&root).expect("initialize generic Workspace");
-    let created = Application::create_generic_application_v3(
+    let created = Application::create_application_flow_v3(
         &root,
         ApplicationFlowCreateRequestV3 {
             title: scenario.title.clone(),
@@ -149,7 +149,7 @@ fn run_complete_offline_flow(scenario: &GenericExampleV1) {
     );
     let application_id = created.stored.snapshot.application.id.to_string();
 
-    let planned = Application::plan_generic_application_v3(
+    let planned = Application::plan_application_flow_v3(
         &root,
         &application_id,
         ApplicationFlowPlanRequestV3 {
@@ -171,7 +171,7 @@ fn run_complete_offline_flow(scenario: &GenericExampleV1) {
     .expect("confirm synthetic Plan")
     .data;
 
-    let composed = Application::compose_generic_application_v3(
+    let composed = Application::compose_application_flow_v3(
         &root,
         &application_id,
         ApplicationFlowComposeRequestV3 {
@@ -200,7 +200,7 @@ fn run_complete_offline_flow(scenario: &GenericExampleV1) {
             .all(|deliverable| deliverable.state == DeliverableStateV3::ReviewRequired)
     );
 
-    let reviewed = Application::review_generic_application_v3(
+    let reviewed = Application::review_application_flow_v3(
         &root,
         &application_id,
         Some(PrivateReadConsent::granted_by_user()),
@@ -219,7 +219,7 @@ fn run_complete_offline_flow(scenario: &GenericExampleV1) {
         .collect::<BTreeSet<_>>();
     assert_eq!(reviewed_bodies, expected_bodies);
 
-    let approved = Application::approve_generic_application_v3(
+    let approved = Application::approve_application_flow_v3(
         &root,
         &application_id,
         ApplicationFlowApproveRequestV3 {
@@ -233,7 +233,7 @@ fn run_complete_offline_flow(scenario: &GenericExampleV1) {
         "applications/{application_id}/exports/synthetic-{}",
         scenario.export_slug
     );
-    let exported = Application::export_generic_application_v3(
+    let exported = Application::export_application_flow_v3(
         &root,
         ApplicationFlowExportRequestV3::try_new(
             &application_id,

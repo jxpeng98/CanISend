@@ -81,25 +81,25 @@
       "guides": 10,
       "projections": 16,
       "resources": 47,
-      "rust": 75,
+      "rust": 76,
       "schemas": 31,
       "sql": 7,
-      "tests": 78,
+      "tests": 79,
       "ui": 25
     },
     "classification_counts": {
       "academic-pack": 8,
-      "compatibility-surface": 143,
-      "kernel": 35,
+      "compatibility-surface": 145,
+      "kernel": 34,
       "optional-adapter": 2
     },
     "family_counts": {
-      "academic-vocabulary": 82,
-      "fixed-academic-deliverables": 69,
+      "academic-vocabulary": 83,
+      "fixed-academic-deliverables": 72,
       "fixed-workflow-stage": 19,
       "legacy-job-surface": 135
     },
-    "inventory_sha256": "60432078d2a735a9308b30fcd7ec115bfa4fb773eb4f35c0c869754075f79abe",
-    "matching_files": 188
+    "inventory_sha256": "75862da9d970ba80b064859ae9ae116489909b3d495eaaab805c230a8dbaed61",
+    "matching_files": 189
   }
 }

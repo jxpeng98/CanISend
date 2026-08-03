@@ -84,21 +84,21 @@ fn list_generic_applications_impl(
 fn show_generic_application_impl(
     request: GenericApplicationIdRequest,
 ) -> Result<ActionReceipt<ApplicationFlowReadModelV3>, DesktopCommandError> {
-    Application::generic_application_flow_v3(&request.workspace, &request.application_id)
+    Application::application_flow_v3(&request.workspace, &request.application_id)
         .map_err(DesktopCommandError::application)
 }
 
 fn create_generic_application_impl(
     request: GenericApplicationCreateRequest,
 ) -> Result<ActionReceipt<ApplicationFlowReadModelV3>, DesktopCommandError> {
-    Application::create_generic_application_v3(&request.workspace, request.request)
+    Application::create_application_flow_v3(&request.workspace, request.request)
         .map_err(DesktopCommandError::application)
 }
 
 fn plan_generic_application_impl(
     request: GenericApplicationPlanRequest,
 ) -> Result<ActionReceipt<ApplicationFlowCommitReadModelV3>, DesktopCommandError> {
-    Application::plan_generic_application_v3(
+    Application::plan_application_flow_v3(
         &request.workspace,
         &request.application_id,
         request.request,
@@ -109,7 +109,7 @@ fn plan_generic_application_impl(
 fn compose_generic_application_impl(
     request: GenericApplicationComposeRequest,
 ) -> Result<ActionReceipt<ApplicationFlowCommitReadModelV3>, DesktopCommandError> {
-    Application::compose_generic_application_v3(
+    Application::compose_application_flow_v3(
         &request.workspace,
         &request.application_id,
         request.request,
@@ -122,7 +122,7 @@ fn approve_generic_application_impl(
 ) -> Result<ActionReceipt<ApplicationFlowCommitReadModelV3>, DesktopCommandError> {
     let expected_revision = Revision::try_new(request.expected_revision)
         .map_err(|error| DesktopCommandError::state(error.to_string()))?;
-    Application::approve_generic_application_v3(
+    Application::approve_application_flow_v3(
         &request.workspace,
         &request.application_id,
         ApplicationFlowApproveRequestV3 { expected_revision },
@@ -138,7 +138,7 @@ fn review_generic_application_impl(
             "Confirm private local content access before reviewing Deliverable bodies.",
         ));
     }
-    Application::review_generic_application_v3(
+    Application::review_application_flow_v3(
         &request.workspace,
         &request.application_id,
         Some(PrivateReadConsent::granted_by_user()),
@@ -160,7 +160,7 @@ fn export_generic_application_impl(
         &request.destination,
     )
     .map_err(DesktopCommandError::application)?;
-    Application::export_generic_application_v3(
+    Application::export_application_flow_v3(
         &request.workspace,
         export,
         Some(PrivateExportConsent::granted_by_user()),
@@ -230,10 +230,11 @@ mod tests {
 
     use canisend_app::{
         ApplicationFlowDeliverableDraftV3, ApplicationFlowPlannedDeliverableV3,
-        ApplicationFlowRequirementDraftV3,
+        ApplicationFlowRequirementDraftV3, WorkspaceV3MigrationRequest,
     };
     use canisend_contracts::{
-        ExecutionMode, PlannedDeliverableDispositionV3, RequirementPriorityV3, WorkflowPackItemId,
+        ApplicationFieldValueV3, ExecutionMode, PlannedDeliverableDispositionV3,
+        RequirementPriorityV3, WorkflowPackItemId,
     };
 
     use super::*;
@@ -274,7 +275,7 @@ mod tests {
     }
 
     #[test]
-    fn generic_desktop_commands_preserve_full_semantic_lifecycle_and_failures() {
+    fn pack_driven_desktop_commands_preserve_full_semantic_lifecycle_and_failures() {
         let workspace = temporary_root("workspace");
         Application::initialize_workspace_v3(&workspace).expect("generic Workspace");
         let created = create_generic_application_impl(create_request(workspace.clone()))
@@ -421,7 +422,81 @@ mod tests {
             before
         );
 
+        let backup = temporary_root("academic-backup");
+        Application::create_job(&academic, "Research Fellow", "Example University")
+            .expect("legacy academic Application");
+        let preview = Application::preview_workspace_v3_migration(&academic)
+            .expect("migration preview")
+            .data;
+        Application::migrate_workspace_v3(
+            &academic,
+            WorkspaceV3MigrationRequest {
+                expected_plan_sha256: preview.migration_plan_sha256,
+                backup_destination: backup.clone(),
+            },
+        )
+        .expect("migration");
+        let source = "Applicants must submit a cover letter and academic CV.";
+        let created = create_generic_application_impl(GenericApplicationCreateRequest {
+            workspace: academic.clone(),
+            request: ApplicationFlowCreateRequestV3 {
+                title: "Academic desktop v3 fixture".to_owned(),
+                opportunity_metadata: BTreeMap::from([(
+                    item("institution"),
+                    ApplicationFieldValueV3::ShortText("Example University".to_owned()),
+                )]),
+                application_metadata: BTreeMap::new(),
+                source_text: source.to_owned(),
+                requirements: vec![ApplicationFlowRequirementDraftV3 {
+                    category: item("qualification"),
+                    statement: source.to_owned(),
+                    priority: RequirementPriorityV3::Mandatory,
+                    start_byte: 0,
+                    end_byte: u64::try_from(source.len()).expect("source length"),
+                }],
+            },
+        })
+        .expect("academic desktop create");
+        let academic_application_id = created.data.stored.snapshot.application.id.to_string();
+        assert_eq!(
+            created.data.stored.snapshot.pack.id.as_str(),
+            "org.canisend.academic-job"
+        );
+        plan_generic_application_impl(GenericApplicationPlanRequest {
+            workspace: academic.clone(),
+            application_id: academic_application_id.clone(),
+            request: ApplicationFlowPlanRequestV3 {
+                expected_revision: Revision::try_new(1).expect("revision"),
+                decision: item("proceed"),
+                deliverables: vec![
+                    ApplicationFlowPlannedDeliverableV3 {
+                        kind: item("cover-letter"),
+                        disposition: PlannedDeliverableDispositionV3::Required,
+                        rationale: "Required by source".to_owned(),
+                        constraints: Vec::new(),
+                        execution_mode: Some(ExecutionMode::HostAgent),
+                    },
+                    ApplicationFlowPlannedDeliverableV3 {
+                        kind: item("cv"),
+                        disposition: PlannedDeliverableDispositionV3::Required,
+                        rationale: "Required by source".to_owned(),
+                        constraints: Vec::new(),
+                        execution_mode: Some(ExecutionMode::HostAgent),
+                    },
+                ],
+            },
+        })
+        .expect("academic desktop Plan");
+        let shown = show_generic_application_impl(GenericApplicationIdRequest {
+            workspace: academic.clone(),
+            application_id: academic_application_id,
+        })
+        .expect("academic desktop resume");
+        assert_eq!(shown.data.stored.snapshot.application.revision.get(), 2);
+        assert_eq!(shown.data.stages.len(), 10);
+
         fs::remove_dir_all(workspace).expect("remove generic Workspace");
         fs::remove_dir_all(academic).expect("remove academic Workspace");
+        fs::remove_dir_all(backup).expect("remove academic backup");
     }
 }
