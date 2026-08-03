@@ -1,4 +1,4 @@
-# M1F workflow-pack framework verification candidate
+# M1F workflow-pack framework verification
 
 Date: 2026-08-03
 
@@ -16,10 +16,20 @@ v3 Applications use one plan, compose, review, approval, render, and export engi
 `generic-*` command spellings remain compatibility aliases; they no longer select or authorize a
 Pack. Workspace v2 still fails closed until the explicit dry-run-first migration is committed.
 
-This record is source evidence, not release evidence. M1F becomes `Verified` only after this
-record and its implementation merge through the protected branch and the exact merge commit has
-green required CI linked to Issues #19–#29. Alpha.6 package, native lifecycle, Host Agent, tag, and
-public-download qualification remain owned by M2.
+## Protected integration evidence
+
+M1F is `Verified`. [PR #98](https://github.com/jxpeng98/CanISend/pull/98) merged through protected
+`main` as commit
+[`48da419c1ff54e076e428a658eee8dc8836a8dbe`](https://github.com/jxpeng98/CanISend/commit/48da419c1ff54e076e428a658eee8dc8836a8dbe).
+The exact merge commit passed [Fast CI run
+`30849789890`](https://github.com/jxpeng98/CanISend/actions/runs/30849789890) and
+[dependency-assurance run
+`30849787300`](https://github.com/jxpeng98/CanISend/actions/runs/30849787300). Issues #19–#29 carry
+those links, are labeled `state:verified`, and are closed. GitHub milestone M1 closed with 26/26
+items complete on 2026-08-03.
+
+This is framework/source verification, not release evidence. Alpha.6 package, native lifecycle,
+Host Agent, tag, and public-download qualification remain owned by M2.
 
 ## Closure matrix
 
@@ -37,7 +47,7 @@ public-download qualification remain owned by M2.
 | M1F-COMPAT-001 / #28 | Agent v2, `job` CLI, and `jobs/JOB_ID` remain bounded to the Academic Pack, identify canonical v3 remediation, and reject Generic mappings instead of guessing. |
 | M1F-SURFACE-001 / #29 | App facade, CLI, MCP, Agent v3, and desktop resolve the exact Pack. Academic lifecycle fixtures now cover CLI, MCP approval/recovery, and desktop migration/resume; operation and semantic registries classify the Pack-neutral bindings. English/Chinese, keyboard, 200% reflow, and automated accessibility gates pass. |
 
-## Implementation completed in this candidate
+## Implementation completed
 
 - Added Pack-neutral `application_flow_v3`, create, plan, compose, review, approve, and export
   facade methods. Deprecated generic-named facade methods delegate without changing behavior.
