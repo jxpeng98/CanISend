@@ -172,9 +172,14 @@ not replace the P0 implementation order.
     2026-08-17 expiry, with an injectable render boundary and named renderer/projector failure,
     stale-at-commit, CAS classification, path-conflict, `repair-required`, and convergence evidence
     (M1-ARCH-001/002/004).
-12. Next: obtain exact committed remote M1A runner/dependency evidence; then, with explicit release
-    authority, apply the reviewed Alpha.6 plan and run the exact native candidate, migration,
-    backup/restore, rollback, package, and release-integrity gates on a clean candidate commit.
+12. Completed locally: the current source passes the full Workspace, frontend, Chrome accessibility,
+    debug-host, dual-Pack documentation, Host Agent, Clippy, and release-source preflight. The
+    preflight found and fixed a stale Agent v2 smoke that initialized generic Workspace v3 instead
+    of the explicit academic compatibility authority.
+13. Next external boundary: create the missing GitHub milestones/roadmap work items and protected-ref
+    rules, push the local commit series, and obtain exact current-commit M1A runner/dependency evidence.
+    These repository mutations require explicit authority. Only after those gates pass may explicit
+    release authority apply the reviewed Alpha.6 plan and start exact candidate qualification.
 
 Only after evidence proves every applicable gate should the release status advance from Alpha.5
 and the goal be considered achieved. GF4 completion alone is not an Alpha qualification event.
