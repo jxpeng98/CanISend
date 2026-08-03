@@ -5076,8 +5076,8 @@ mod tests {
         let _ = fs::remove_dir_all(&packs);
         Application::initialize_workspace(&root).expect("workspace");
 
-        let capabilities =
-            capabilities().unwrap_or_else(|_| panic!("capabilities output must succeed"));
+        let capabilities = capabilities()
+            .unwrap_or_else(|error| panic!("capabilities output must succeed: {}", error.human));
         let capability_lines = human_success_lines(&capabilities);
         assert_eq!(
             capability_lines.first().map(String::as_str),

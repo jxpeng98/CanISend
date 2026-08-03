@@ -64,6 +64,7 @@ const RELEASE_NOTES_POLICY_SCHEMA: &str = "canisend.release-notes-policy/v1";
 const RELEASE_NOTES_QUALIFICATION_PLAN_SCHEMA: &str =
     "canisend.release-notes-qualification-plan/v1";
 const CODE_SIGNING_EVIDENCE_SCHEMA: &str = "canisend.code-signing-evidence/v2";
+const DOMAIN_COUPLING_INVENTORY_SCHEMA: &str = "canisend.domain-coupling-inventory/v1";
 const DECLARED_RUST_VERSION: &str = "1.97";
 const PINNED_RUST_TOOLCHAIN: &str = "1.97.0";
 const FUZZ_TOOLCHAIN: &str = "nightly-2026-07-01";
@@ -92,6 +93,14 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
         [area, command] if area == "schemas" && command == "write" => write_schemas(),
         [area, command] if area == "resources" && command == "check" => check_resources(),
         [area, command] if area == "docs" && command == "check" => check_documentation(),
+        [area, command] if area == "scope" && command == "check" => {
+            check_domain_coupling_inventory()
+        }
+        [area, command, json_flag]
+            if area == "scope" && command == "inventory" && json_flag == "--json" =>
+        {
+            print_domain_coupling_inventory()
+        }
         [area, command] if area == "desktop" && command == "parity" => check_svelte_parity(),
         [area, command] if area == "operations" && command == "check" => {
             check_operation_registry()
@@ -144,6 +153,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
         [area, command] if area == "release" && command == "check" => {
             check_schemas()?;
             check_resources()?;
+            check_domain_coupling_inventory()?;
             check_documentation()?;
             check_release_notes_policy()?;
             check_property_test_policy()?;
@@ -398,7 +408,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
             )
         }
         _ => Err(
-            "usage: cargo run -p xtask -- schemas <check|write> | <resources|docs> check | desktop <parity|template-audit|profile-record TARGET CANDIDATE OPT_LEVEL LTO HOST OUTPUT|profile-summary RELEASE SIZE_S SIZE_Z SIZE_Z_FAT OUTPUT|size-record TARGET PROFILE FORMAT HOST PAYLOAD FRONTEND|- ARTIFACT|- OUTPUT> | \
+            "usage: cargo run -p xtask -- schemas <check|write> | <resources|docs> check | scope <check|inventory --json> | desktop <parity|template-audit|profile-record TARGET CANDIDATE OPT_LEVEL LTO HOST OUTPUT|profile-summary RELEASE SIZE_S SIZE_Z SIZE_Z_FAT OUTPUT|size-record TARGET PROFILE FORMAT HOST PAYLOAD FRONTEND|- ARTIFACT|- OUTPUT> | \
              release <check|status --json|freeze-candidate|validate-tag TAG|verify-beta-readiness FILE|verify-feedback-candidate SNAPSHOT ROADMAP|prepare-stage TAG [--write]|activate-feature-freeze COMMIT [--write]|record-beta-qualification TAG RUN_ID ASSETS [--write]|record-rc-qualification TAG RUN_ID ASSETS [--write]|record-release-notes-qualification TAG ASSETS REVIEWER [--write]|record-upgrade-qualification FROM_TAG TO_TAG EVIDENCE [--write]|record-documentation-qualification TAG ASSETS EVIDENCE [--write]|record-package-qualification FROM_TAG TO_TAG EVIDENCE [--write]|sbom OUTPUT|assemble TAG COMMIT ARTIFACTS OUTPUT|verify TAG DIRECTORY|verify-candidate TAG COMMIT DIRECTORY|channels TAG ASSETS OUTPUT|bind-signing-evidence TAG TARGET EVIDENCE BINARY ARCHIVE|verify-package-candidates FROM_TAG FROM_ASSETS TO_TAG TO_ASSETS|verify-package-evidence FROM_TAG TO_TAG DIRECTORY|verify-upgrade-evidence FROM_TAG TO_TAG DIRECTORY|verify-documentation-evidence TAG ASSETS EVIDENCE>"
                 .to_owned(),
         ),
@@ -1360,6 +1370,372 @@ fn check_typst_template_contract() -> Result<(), String> {
         sha256(body.as_bytes())
     );
     Ok(())
+}
+
+const DOMAIN_COUPLING_SCAN_ROOTS: &[&str] = &[
+    "README.md",
+    "crates",
+    "xtask/src",
+    "apps/canisend-desktop/src",
+    "apps/canisend-desktop/tests",
+    "docs/contracts",
+    "docs/guides",
+    "fixtures",
+];
+const DOMAIN_COUPLING_EXCLUDED_PATHS: &[&str] =
+    &["docs/contracts/domain-coupling-inventory-v1.json"];
+const DOMAIN_COUPLING_REQUIRED_AREAS: &[&str] = &[
+    "rust",
+    "sql",
+    "schemas",
+    "resources",
+    "ui",
+    "guides",
+    "tests",
+    "projections",
+];
+const DOMAIN_COUPLING_CLASSIFICATIONS: &[&str] = &[
+    "kernel",
+    "academic-pack",
+    "optional-adapter",
+    "compatibility-surface",
+    "removal",
+];
+const DOMAIN_COUPLING_FAMILIES: &[(&str, &[&str])] = &[
+    (
+        "legacy-job-surface",
+        &[
+            "job_id",
+            "JobId",
+            "jobs/JOB_ID",
+            "canisend_job",
+            "canisend-job",
+            "parsed-job",
+            "job-parse",
+            "job advert",
+            "Job advert",
+        ],
+    ),
+    (
+        "fixed-academic-deliverables",
+        &[
+            "CoverLetter",
+            "CurriculumVitae",
+            "ResearchStatement",
+            "TeachingStatement",
+            "cover-letter",
+            "curriculum-vitae",
+            "research-statement",
+            "teaching-statement",
+        ],
+    ),
+    ("fixed-workflow-stage", &["WorkflowStage"]),
+    (
+        "academic-vocabulary",
+        &["academic", "Academic", "faculty", "Faculty", "jobs.ac.uk"],
+    ),
+];
+
+fn print_domain_coupling_inventory() -> Result<(), String> {
+    let inventory = build_domain_coupling_inventory(&repository_root())?;
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&inventory)
+            .map_err(|error| format!("could not serialize domain-coupling inventory: {error}"))?
+    );
+    Ok(())
+}
+
+fn check_domain_coupling_inventory() -> Result<(), String> {
+    let root = repository_root();
+    let inventory = build_domain_coupling_inventory(&root)?;
+    let contract_path = root.join("docs/contracts/domain-coupling-inventory-v1.json");
+    let contract: Value = serde_json::from_slice(&fs::read(&contract_path).map_err(|error| {
+        format!(
+            "domain-coupling inventory contract is missing at {}: {error}",
+            contract_path.display()
+        )
+    })?)
+    .map_err(|error| format!("domain-coupling inventory contract is invalid JSON: {error}"))?;
+    validate_domain_coupling_contract(&contract, &inventory)?;
+    let summary = &inventory["summary"];
+    println!(
+        "domain coupling: ok ({} files, {} classifications, {} required areas)",
+        summary["matching_files"].as_u64().unwrap_or_default(),
+        summary["classification_counts"]
+            .as_object()
+            .map_or(0, Map::len),
+        DOMAIN_COUPLING_REQUIRED_AREAS.len()
+    );
+    Ok(())
+}
+
+fn validate_domain_coupling_contract(contract: &Value, inventory: &Value) -> Result<(), String> {
+    if contract["schema"] != DOMAIN_COUPLING_INVENTORY_SCHEMA {
+        return Err(format!(
+            "domain-coupling inventory contract must use schema `{DOMAIN_COUPLING_INVENTORY_SCHEMA}`"
+        ));
+    }
+    for field in [
+        "scan_roots",
+        "excluded_paths",
+        "pattern_families",
+        "required_areas",
+        "allowed_classifications",
+    ] {
+        if contract[field] != inventory[field] {
+            return Err(format!(
+                "domain-coupling inventory contract field `{field}` drifted from the scanner"
+            ));
+        }
+    }
+    if contract["expected"] != inventory["summary"] {
+        return Err(
+            "domain-coupling inventory changed; inspect `cargo run -p xtask --locked -- scope inventory --json`, classify the change, and update the checked contract"
+                .to_owned(),
+        );
+    }
+    Ok(())
+}
+
+fn build_domain_coupling_inventory(root: &Path) -> Result<Value, String> {
+    let mut files = BTreeSet::new();
+    for relative in DOMAIN_COUPLING_SCAN_ROOTS {
+        let path = root.join(relative);
+        if !path.exists() {
+            return Err(format!(
+                "domain-coupling scan root is missing: {}",
+                path.display()
+            ));
+        }
+        collect_domain_coupling_files(root, &path, &mut files)?;
+    }
+
+    let mut entries = Vec::new();
+    let mut area_counts = BTreeMap::<String, u64>::new();
+    let mut classification_counts = BTreeMap::<String, u64>::new();
+    let mut family_counts = BTreeMap::<String, u64>::new();
+    for relative in files {
+        if DOMAIN_COUPLING_EXCLUDED_PATHS.contains(&relative.as_str()) {
+            continue;
+        }
+        let body = fs::read_to_string(root.join(&relative)).map_err(|error| {
+            format!("could not read domain-coupling input `{relative}`: {error}")
+        })?;
+        let families = domain_coupling_families(&body);
+        if families.is_empty() {
+            continue;
+        }
+        let areas = domain_coupling_areas(&relative, &body);
+        if areas.is_empty() {
+            return Err(format!(
+                "domain-coupling finding `{relative}` has no classified repository area"
+            ));
+        }
+        let classification = classify_domain_coupling(&relative, &families)?;
+        for area in &areas {
+            *area_counts.entry(area.clone()).or_default() += 1;
+        }
+        *classification_counts
+            .entry(classification.to_owned())
+            .or_default() += 1;
+        for family in &families {
+            *family_counts.entry(family.clone()).or_default() += 1;
+        }
+        entries.push(json!({
+            "path": relative,
+            "areas": areas,
+            "families": families,
+            "classification": classification,
+        }));
+    }
+
+    for area in DOMAIN_COUPLING_REQUIRED_AREAS {
+        if !area_counts.contains_key(*area) {
+            return Err(format!(
+                "domain-coupling inventory does not cover required area `{area}`"
+            ));
+        }
+    }
+    for classification in classification_counts.keys() {
+        if !DOMAIN_COUPLING_CLASSIFICATIONS.contains(&classification.as_str()) {
+            return Err(format!(
+                "domain-coupling inventory produced unsupported classification `{classification}`"
+            ));
+        }
+    }
+    let entries_bytes = serde_json::to_vec(&entries)
+        .map_err(|error| format!("could not hash domain-coupling inventory: {error}"))?;
+    let pattern_families = DOMAIN_COUPLING_FAMILIES
+        .iter()
+        .map(|(id, needles)| json!({"id": id, "needles": needles}))
+        .collect::<Vec<_>>();
+    let summary = json!({
+        "matching_files": entries.len(),
+        "inventory_sha256": sha256(&entries_bytes),
+        "area_counts": area_counts,
+        "classification_counts": classification_counts,
+        "family_counts": family_counts,
+    });
+    Ok(json!({
+        "schema": DOMAIN_COUPLING_INVENTORY_SCHEMA,
+        "scan_roots": DOMAIN_COUPLING_SCAN_ROOTS,
+        "excluded_paths": DOMAIN_COUPLING_EXCLUDED_PATHS,
+        "pattern_families": pattern_families,
+        "required_areas": DOMAIN_COUPLING_REQUIRED_AREAS,
+        "allowed_classifications": DOMAIN_COUPLING_CLASSIFICATIONS,
+        "entries": entries,
+        "summary": summary,
+    }))
+}
+
+fn collect_domain_coupling_files(
+    root: &Path,
+    path: &Path,
+    files: &mut BTreeSet<String>,
+) -> Result<(), String> {
+    let metadata = fs::symlink_metadata(path)
+        .map_err(|error| format!("could not inspect {}: {error}", path.display()))?;
+    if metadata.file_type().is_symlink() {
+        return Err(format!(
+            "domain-coupling scan root contains a symlink: {}",
+            path.display()
+        ));
+    }
+    if metadata.is_file() {
+        if domain_coupling_text_file(path) {
+            files.insert(relative_slash_path(root, path)?);
+        }
+        return Ok(());
+    }
+    if !metadata.is_dir() {
+        return Err(format!(
+            "domain-coupling scan input is not a regular file or directory: {}",
+            path.display()
+        ));
+    }
+    let mut entries = fs::read_dir(path)
+        .map_err(|error| format!("could not inspect {}: {error}", path.display()))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("could not inspect {}: {error}", path.display()))?;
+    entries.sort_by_key(fs::DirEntry::file_name);
+    for entry in entries {
+        collect_domain_coupling_files(root, &entry.path(), files)?;
+    }
+    Ok(())
+}
+
+fn domain_coupling_text_file(path: &Path) -> bool {
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| {
+            matches!(
+                extension,
+                "rs" | "sql"
+                    | "json"
+                    | "md"
+                    | "toml"
+                    | "ts"
+                    | "svelte"
+                    | "sh"
+                    | "csv"
+                    | "xml"
+                    | "typ"
+                    | "yaml"
+                    | "yml"
+            )
+        })
+}
+
+fn domain_coupling_families(body: &str) -> BTreeSet<String> {
+    DOMAIN_COUPLING_FAMILIES
+        .iter()
+        .filter(|(_, needles)| needles.iter().any(|needle| body.contains(needle)))
+        .map(|(id, _)| (*id).to_owned())
+        .collect()
+}
+
+fn domain_coupling_areas(path: &str, body: &str) -> BTreeSet<String> {
+    let mut areas = BTreeSet::new();
+    let extension = Path::new(path)
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default();
+    if extension == "rs" {
+        areas.insert("rust".to_owned());
+    }
+    if extension == "sql" {
+        areas.insert("sql".to_owned());
+    }
+    if path.contains("/schemas/") && extension == "json" {
+        areas.insert("schemas".to_owned());
+    }
+    if path.contains("/resources/") {
+        areas.insert("resources".to_owned());
+    }
+    if path.starts_with("apps/canisend-desktop/") || path.starts_with("crates/canisend-desktop/") {
+        areas.insert("ui".to_owned());
+    }
+    if path == "README.md" || path.starts_with("docs/guides/") {
+        areas.insert("guides".to_owned());
+    }
+    if path.starts_with("docs/contracts/") || path.starts_with("crates/canisend-contracts/") {
+        areas.insert("contracts".to_owned());
+    }
+    if path.contains("/tests/")
+        || path.starts_with("fixtures/")
+        || path.contains(".test.")
+        || body.contains("#[cfg(test)]")
+    {
+        areas.insert("tests".to_owned());
+    }
+    if path.to_ascii_lowercase().contains("projection")
+        || body.contains("jobs/JOB_ID")
+        || body.contains("applications/APPLICATION_ID")
+    {
+        areas.insert("projections".to_owned());
+    }
+    areas
+}
+
+fn classify_domain_coupling(
+    path: &str,
+    families: &BTreeSet<String>,
+) -> Result<&'static str, String> {
+    if path.starts_with("fixtures/v2-spec/")
+        || path.contains("/resources/schemas/v2/")
+        || path.starts_with("crates/canisend-store/migrations/")
+        || path == "docs/contracts/academic-v2-compatibility-v1.md"
+    {
+        return Ok("compatibility-surface");
+    }
+    if path.starts_with("crates/canisend-io/src/discovery")
+        || path == "docs/contracts/opportunity-source-adapters-v1.md"
+    {
+        return Ok("optional-adapter");
+    }
+    if path.contains("workflow-packs/org.canisend.academic-job")
+        || path == "docs/contracts/academic-job-workflow-pack-v1.md"
+        || path.contains("/skills/canisend-job-intake/")
+        || path.ends_with("/prompts/job-parse.md")
+        || path.ends_with("/templates/cover-letter.typ")
+        || path.contains("/templates/modernpro-")
+        || (path.contains("/resources/") && families.contains("fixed-academic-deliverables"))
+    {
+        return Ok("academic-pack");
+    }
+    if families.contains("legacy-job-surface")
+        || families.contains("fixed-academic-deliverables")
+        || families.contains("fixed-workflow-stage")
+    {
+        return Ok("compatibility-surface");
+    }
+    if families.contains("academic-vocabulary") {
+        return Ok("kernel");
+    }
+    Err(format!(
+        "domain-coupling finding `{path}` has no ownership classification"
+    ))
 }
 
 fn check_documentation() -> Result<(), String> {
@@ -5598,6 +5974,10 @@ fn check_native_test_ownership() -> Result<(), String> {
         "cargo run -p xtask --locked -- release check",
         "cargo build --locked -p canisend-cli -p canisend-gui",
         "--features canisend-gui/custom-protocol",
+        "workspace init --pack academic-job --json",
+        "first_uuid_id()",
+        "first_uuid_id \"$job_json\"",
+        "first_uuid_id \"$lead_json\"",
         "./scripts/smoke_host_agent.sh ./target/debug/canisend",
         "Target: 300 seconds or less after cache warm-up",
     ] {
@@ -5624,6 +6004,17 @@ fn check_native_test_ownership() -> Result<(), String> {
     if !host_agent_smoke.contains("workspace init --pack academic-job --json") {
         return Err(
             "Agent v2 host smoke must select the exact academic compatibility authority".to_owned(),
+        );
+    }
+    let git_attributes_path = root.join(".gitattributes");
+    let git_attributes = fs::read_to_string(&git_attributes_path)
+        .map_err(|error| format!("Git attributes are missing: {error}"))?;
+    if !git_attributes
+        .lines()
+        .any(|line| line.trim() == "*.md text eol=lf")
+    {
+        return Err(
+            "Pack-bound Markdown resources must use canonical LF checkout bytes".to_owned(),
         );
     }
     let browser_start = fast_ci
@@ -14387,6 +14778,61 @@ fn write_pretty_json(path: &Path, value: &Value) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn domain_coupling_inventory_is_current_and_fails_closed_on_drift() {
+        let root = repository_root();
+        let inventory = build_domain_coupling_inventory(&root).expect("domain coupling inventory");
+        let contract_path = root.join("docs/contracts/domain-coupling-inventory-v1.json");
+        let mut contract: Value = serde_json::from_slice(
+            &fs::read(contract_path).expect("domain coupling inventory contract"),
+        )
+        .expect("domain coupling inventory contract JSON");
+        validate_domain_coupling_contract(&contract, &inventory).expect("current inventory");
+
+        contract["expected"]["inventory_sha256"] = json!(&"0".repeat(64));
+        assert!(validate_domain_coupling_contract(&contract, &inventory).is_err());
+    }
+
+    #[test]
+    fn domain_coupling_classifier_has_explicit_ownership_buckets() {
+        let family = |value: &str| BTreeSet::from([value.to_owned()]);
+        assert_eq!(
+            classify_domain_coupling(
+                "crates/canisend-resources/resources/workflow-packs/org.canisend.academic-job/manifest.json",
+                &family("academic-vocabulary"),
+            ),
+            Ok("academic-pack")
+        );
+        assert_eq!(
+            classify_domain_coupling(
+                "crates/canisend-io/src/discovery/adapters.rs",
+                &family("academic-vocabulary"),
+            ),
+            Ok("optional-adapter")
+        );
+        assert_eq!(
+            classify_domain_coupling(
+                "crates/canisend-store/src/job.rs",
+                &family("legacy-job-surface"),
+            ),
+            Ok("compatibility-surface")
+        );
+        assert_eq!(
+            classify_domain_coupling(
+                "crates/canisend-app/src/agent_v3.rs",
+                &family("academic-vocabulary"),
+            ),
+            Ok("kernel")
+        );
+        assert!(
+            classify_domain_coupling(
+                "crates/new-domain/src/lib.rs",
+                &family("unrecognized-coupling")
+            )
+            .is_err()
+        );
+    }
 
     #[test]
     fn workspace_dependency_policy_rejects_unapproved_reclassified_and_overdue_edges() {

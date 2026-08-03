@@ -1,0 +1,105 @@
+{
+  "schema": "canisend.domain-coupling-inventory/v1",
+  "scan_roots": [
+    "README.md",
+    "crates",
+    "xtask/src",
+    "apps/canisend-desktop/src",
+    "apps/canisend-desktop/tests",
+    "docs/contracts",
+    "docs/guides",
+    "fixtures"
+  ],
+  "excluded_paths": [
+    "docs/contracts/domain-coupling-inventory-v1.json"
+  ],
+  "pattern_families": [
+    {
+      "id": "legacy-job-surface",
+      "needles": [
+        "job_id",
+        "JobId",
+        "jobs/JOB_ID",
+        "canisend_job",
+        "canisend-job",
+        "parsed-job",
+        "job-parse",
+        "job advert",
+        "Job advert"
+      ]
+    },
+    {
+      "id": "fixed-academic-deliverables",
+      "needles": [
+        "CoverLetter",
+        "CurriculumVitae",
+        "ResearchStatement",
+        "TeachingStatement",
+        "cover-letter",
+        "curriculum-vitae",
+        "research-statement",
+        "teaching-statement"
+      ]
+    },
+    {
+      "id": "fixed-workflow-stage",
+      "needles": [
+        "WorkflowStage"
+      ]
+    },
+    {
+      "id": "academic-vocabulary",
+      "needles": [
+        "academic",
+        "Academic",
+        "faculty",
+        "Faculty",
+        "jobs.ac.uk"
+      ]
+    }
+  ],
+  "required_areas": [
+    "rust",
+    "sql",
+    "schemas",
+    "resources",
+    "ui",
+    "guides",
+    "tests",
+    "projections"
+  ],
+  "allowed_classifications": [
+    "kernel",
+    "academic-pack",
+    "optional-adapter",
+    "compatibility-surface",
+    "removal"
+  ],
+  "expected": {
+    "area_counts": {
+      "contracts": 27,
+      "guides": 10,
+      "projections": 16,
+      "resources": 47,
+      "rust": 75,
+      "schemas": 31,
+      "sql": 7,
+      "tests": 78,
+      "ui": 25
+    },
+    "classification_counts": {
+      "academic-pack": 8,
+      "compatibility-surface": 143,
+      "kernel": 35,
+      "optional-adapter": 2
+    },
+    "family_counts": {
+      "academic-vocabulary": 82,
+      "fixed-academic-deliverables": 69,
+      "fixed-workflow-stage": 19,
+      "legacy-job-surface": 135
+    },
+    "inventory_sha256": "60432078d2a735a9308b30fcd7ec115bfa4fb773eb4f35c0c869754075f79abe",
+    "matching_files": 188
+  }
+}
