@@ -1,8 +1,8 @@
 # Native release stage transitions
 
 [`release/stage-transition-policy.json`](../../release/stage-transition-policy.json) defines the only supported
-forward transitions for the active 1.0 Rust-native line: Alpha to Beta, Beta to RC, sequential RC
-iteration, and RC to Stable. The transition tool
+forward transitions for the active 1.0 Rust-native line: sequential Alpha iteration, Alpha to
+Beta, Beta to RC, sequential RC iteration, and RC to Stable. The transition tool
 changes current product state without rewriting the immutable Alpha readiness, contract-freeze, feedback, or
 package-candidate evidence that explains how the release reached that state.
 
@@ -11,14 +11,19 @@ package-candidate evidence that explains how the release reached that state.
 The command is read-only unless the final `--write` flag is present:
 
 ```console
+cargo run -p xtask --locked -- release prepare-stage v1.0.0-alpha.6
 cargo run -p xtask --locked -- release prepare-stage v1.0.0-beta.1
 ```
 
 It prints `canisend.stage-transition-plan/v1` JSON containing the source and target stages plus the before/after
 SHA-256 digest of every controlled file. Review the complete file set. A transition cannot skip a
-stage, change the 1.0 release line, attach build metadata, or use a target other than the first
-Beta/RC version. Once RC.1 evidence is committed, `prepare-stage v1.0.0-rc.2` is allowed; RC
-iteration must increase exactly by one and preserves the
+stage, change the 1.0 release line, attach build metadata, or skip an iteration. Sequential Alpha
+and RC targets must increase exactly by one. Alpha iteration updates Cargo/internal pins/locks,
+Tauri/npm/fallback versions, the CLI/GUI parity scope, Alpha package asset names, release workflow
+default, active source-version claims, and release-note heading in one plan. It resets stale Beta
+readiness, contract-freeze, and feedback identities to canonical pending state for the new Alpha;
+Git history retains the prior evidence. Once RC.1 evidence is committed,
+`prepare-stage v1.0.0-rc.2` is allowed; RC iteration preserves the
 qualification ledger's earlier clean-tag records. Beta same-stage iteration and RC number skipping are rejected.
 Any explicit release-notes review is reset during sequential RC iteration: the earlier review still exists in Git
 history, but it cannot authorize a candidate whose manifest, assets, issues, or package-channel state may differ.
@@ -50,8 +55,9 @@ cargo run -p xtask --locked -- release check
 git diff --check
 ```
 
-Write mode updates the workspace version, exact internal dependency versions, workspace package entries in
-`Cargo.lock`, the standalone fuzz workspace's exact dependencies and lockfile package entries,
+Write mode transactionally updates the workspace version, exact internal dependency versions,
+workspace package entries in `Cargo.lock`, the standalone fuzz workspace's exact dependencies and
+lockfile package entries,
 qualification-ledger stage/status, and release-note heading as one prevalidated file set. The Stable transition
 also publishes the already-reviewed support-policy document and records explicit Stable authorization.
 The tool refuses RC without a qualified signed Beta and active feature freeze, and refuses Stable authorization

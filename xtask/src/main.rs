@@ -2155,6 +2155,17 @@ fn check_stage_transition_policy() -> Result<(), String> {
         ],
         "allowed_iterations": [
             {
+                "stage": "alpha",
+                "target_prerelease": "next-sequential-alpha",
+                "ledger_status": "pre-beta",
+                "release_notes_status": "alpha-current",
+                "invalidates": [
+                    "release/beta-readiness.json",
+                    "release/beta-contract-freeze.json",
+                    "release/feedback-snapshot.json"
+                ]
+            },
+            {
                 "stage": "rc",
                 "target_prerelease": "next-sequential-rc",
                 "ledger_status": "rc-qualifying",
@@ -2167,6 +2178,12 @@ fn check_stage_transition_policy() -> Result<(), String> {
             "fuzz/Cargo.toml exact internal dependencies",
             "Cargo.lock workspace package versions",
             "fuzz/Cargo.lock internal package versions",
+            "desktop and native-preview npm package versions plus the desktop fallback version",
+            "docs/contracts/cli-gui-parity-v1.json Alpha scope",
+            "release/alpha-package-contract.json versioned asset names",
+            ".github/workflows/release.yml dispatch default",
+            "active README and known-limitations source-version claims",
+            "sequential-Alpha pending readiness, freeze, and feedback identities",
             "release/qualification-ledger.json stage, Stable authorization, and RC notes-review reset fields",
             "release/RELEASE_NOTES.md heading",
             "release/support-policy.json Stable publication status",
@@ -2197,6 +2214,8 @@ fn check_stage_transition_policy() -> Result<(), String> {
     );
     for required in [
         "release/stage-transition-policy.json",
+        "prepare-stage v1.0.0-alpha.6",
+        "sequential Alpha",
         beta_example.as_str(),
         "--write",
         "release/beta-readiness.json",
@@ -2225,7 +2244,7 @@ fn check_stage_transition_policy() -> Result<(), String> {
             ));
         }
     }
-    println!("stage-transition policy: ok (3 stage transitions + sequential RC iteration)");
+    println!("stage-transition policy: ok (3 stage transitions + sequential Alpha/RC iteration)");
     Ok(())
 }
 
@@ -2240,11 +2259,7 @@ fn prepare_stage_transition(tag: &str, write: bool) -> Result<(), String> {
     }
     let report = stage_transition_report(&root, &transition, write)?;
     if write {
-        for (relative, body) in &transition.files {
-            let path = root.join(relative);
-            fs::write(&path, body)
-                .map_err(|error| format!("could not write {}: {error}", path.display()))?;
-        }
+        write_controlled_files_transactionally(&root, &transition.files, None)?;
     }
     println!(
         "{}",
@@ -2720,11 +2735,33 @@ fn pending_release_feedback(version: &Version) -> Result<Value, String> {
     }))
 }
 
-fn alpha_tag_for_version(version: &Version) -> Result<String, String> {
-    if version.patch != 0 {
-        return Err("release-line Alpha identity requires patch version zero".to_owned());
+fn pending_release_feedback_is_canonical(
+    snapshot: &Value,
+    active: &Version,
+) -> Result<bool, String> {
+    if snapshot == &pending_release_feedback(active)? {
+        return Ok(true);
     }
-    Ok(format!("v{}.{}.0-alpha.1", version.major, version.minor))
+    if ReleaseStage::from_version(active) != Ok(ReleaseStage::Alpha)
+        || prerelease_iteration(active, "alpha")? >= 6
+    {
+        return Ok(false);
+    }
+    let initial = Version::parse(&format!(
+        "{}.{}.{}-alpha.1",
+        active.major, active.minor, active.patch
+    ))
+    .map_err(|error| format!("initial Alpha feedback identity is invalid: {error}"))?;
+    Ok(snapshot == &pending_release_feedback(&initial)?)
+}
+
+fn alpha_tag_for_version(version: &Version) -> Result<String, String> {
+    if version.patch != 0 || ReleaseStage::from_version(version) != Ok(ReleaseStage::Alpha) {
+        return Err(
+            "release-line Alpha identity requires an Alpha with patch version zero".to_owned(),
+        );
+    }
+    Ok(format!("v{version}"))
 }
 
 fn validate_alpha_baseline_tag(active: &Version, tag: &str) -> Result<Version, String> {
@@ -4240,6 +4277,12 @@ fn render_stage_transition(root: &Path, tag: &str) -> Result<RenderedStageTransi
     }
 
     insert_desktop_version_updates(root, &mut files, &from_version, &to_version)?;
+    if matches!(
+        (from_stage, to_stage),
+        (ReleaseStage::Alpha, ReleaseStage::Alpha)
+    ) {
+        insert_sequential_alpha_updates(root, &mut files, &from_version, &to_version)?;
+    }
 
     let ledger_path = root.join("release/qualification-ledger.json");
     let mut ledger: Value = serde_json::from_slice(
@@ -4363,6 +4406,121 @@ fn render_stage_transition(root: &Path, tag: &str) -> Result<RenderedStageTransi
     })
 }
 
+fn insert_sequential_alpha_updates(
+    root: &Path,
+    files: &mut BTreeMap<String, Vec<u8>>,
+    from_version: &Version,
+    to_version: &Version,
+) -> Result<(), String> {
+    let from = from_version.to_string();
+    let to = to_version.to_string();
+    let from_tag = format!("v{from}");
+    let to_tag = format!("v{to}");
+
+    for (relative, before, after, context) in [
+        (
+            "tools/native-preview/package.json",
+            format!("\"version\": \"{from}\""),
+            format!("\"version\": \"{to}\""),
+            "native-preview package version",
+        ),
+        (
+            "apps/canisend-desktop/src/App.svelte",
+            format!("product?.version ?? \"{from}\""),
+            format!("product?.version ?? \"{to}\""),
+            "desktop fallback version",
+        ),
+        (
+            "docs/contracts/cli-gui-parity-v1.json",
+            format!("\"version\": \"{from}\""),
+            format!("\"version\": \"{to}\""),
+            "CLI/GUI parity Alpha scope",
+        ),
+        (
+            ".github/workflows/release.yml",
+            format!("default: \"{from_tag}\""),
+            format!("default: \"{to_tag}\""),
+            "release workflow default",
+        ),
+        (
+            "README.md",
+            format!("The checked-in source version is `{from}`"),
+            format!("The checked-in source version is `{to}`"),
+            "README source version",
+        ),
+    ] {
+        let body = fs::read_to_string(root.join(relative))
+            .map_err(|error| format!("could not read {relative}: {error}"))?;
+        files.insert(
+            relative.to_owned(),
+            replace_exact_count(&body, &before, &after, 1, context)?.into_bytes(),
+        );
+    }
+
+    let limitations_relative = "docs/guides/known-limitations.md";
+    let limitations = fs::read_to_string(root.join(limitations_relative))
+        .map_err(|error| format!("could not read {limitations_relative}: {error}"))?;
+    let limitations = replace_exact_count(
+        &limitations,
+        &format!("It applies to the `{from}` development line"),
+        &format!("It applies to the `{to}` development line"),
+        1,
+        "known-limitations development version",
+    )?;
+    let limitations = replace_exact_count(
+        &limitations,
+        &format!("source version still says `{from}`"),
+        &format!("source version still says `{to}`"),
+        1,
+        "known-limitations source version",
+    )?;
+    files.insert(limitations_relative.to_owned(), limitations.into_bytes());
+
+    let contract_relative = "release/alpha-package-contract.json";
+    let contract_body = fs::read_to_string(root.join(contract_relative))
+        .map_err(|error| format!("could not read {contract_relative}: {error}"))?;
+    let contract: Value = serde_json::from_str(&contract_body)
+        .map_err(|error| format!("Alpha package contract is invalid JSON: {error}"))?;
+    if contract["schema"] != "canisend.alpha-package-contract/v2"
+        || contract["version"] != from
+        || contract["tag"] != from_tag
+    {
+        return Err(
+            "Alpha package contract does not match the sequential-Alpha source version".to_owned(),
+        );
+    }
+    let occurrence_count = contract_body.matches(&from).count();
+    if occurrence_count < 3 {
+        return Err(
+            "Alpha package contract has no complete versioned asset inventory to update".to_owned(),
+        );
+    }
+    let contract_after = contract_body.replace(&from, &to);
+    if contract_after.contains(&from) {
+        return Err("Alpha package contract retained the previous source version".to_owned());
+    }
+    let updated_contract: Value = serde_json::from_str(&contract_after)
+        .map_err(|error| format!("updated Alpha package contract is invalid JSON: {error}"))?;
+    if updated_contract["version"] != to || updated_contract["tag"] != to_tag {
+        return Err("updated Alpha package contract does not bind the target version".to_owned());
+    }
+    files.insert(contract_relative.to_owned(), contract_after.into_bytes());
+
+    files.insert(
+        "release/beta-readiness.json".to_owned(),
+        pretty_json_bytes(&pending_beta_readiness(to_version)?)?,
+    );
+    files.insert(
+        "release/beta-contract-freeze.json".to_owned(),
+        pretty_json_bytes(&pending_beta_contract_freeze(to_version)?)?,
+    );
+    files.insert(
+        "release/feedback-snapshot.json".to_owned(),
+        pretty_json_bytes(&pending_release_feedback(to_version)?)?,
+    );
+    Ok(())
+}
+
 fn validate_stage_transition(
     from: &Version,
     from_stage: ReleaseStage,
@@ -4378,6 +4536,16 @@ fn validate_stage_transition(
         );
     }
     let expected_prerelease = match (from_stage, to_stage) {
+        (ReleaseStage::Alpha, ReleaseStage::Alpha) => {
+            let from_iteration = prerelease_iteration(from, "alpha")?;
+            let to_iteration = prerelease_iteration(to, "alpha")?;
+            if to_iteration != from_iteration + 1 {
+                return Err(
+                    "Alpha iteration target must increment the prerelease number by one".to_owned(),
+                );
+            }
+            return Ok(());
+        }
         (ReleaseStage::ReleaseCandidate, ReleaseStage::ReleaseCandidate) => {
             let from_iteration = prerelease_iteration(from, "rc")?;
             let to_iteration = prerelease_iteration(to, "rc")?;
@@ -8415,8 +8583,9 @@ fn check_release_feedback_files(
     let version = Version::parse(env!("CARGO_PKG_VERSION"))
         .map_err(|error| format!("workspace version is invalid: {error}"))?;
     if snapshot["status"] == "pending-alpha-publication" {
-        let expected = pending_release_feedback(&version)?;
-        if ReleaseStage::from_version(&version) != Ok(ReleaseStage::Alpha) || snapshot != expected {
+        if ReleaseStage::from_version(&version) != Ok(ReleaseStage::Alpha)
+            || !pending_release_feedback_is_canonical(&snapshot, &version)?
+        {
             return Err(
                 "pending release feedback is not canonical for the active Alpha".to_owned(),
             );
@@ -14900,6 +15069,8 @@ mod tests {
     fn stage_transition_policy_is_forward_only_and_dry_run_by_default() {
         check_stage_transition_policy().expect("stage-transition policy");
         let alpha = Version::parse("0.7.0-alpha.1").expect("Alpha version");
+        let alpha_two = Version::parse("0.7.0-alpha.2").expect("second Alpha version");
+        let alpha_three = Version::parse("0.7.0-alpha.3").expect("third Alpha version");
         let beta = Version::parse("0.7.0-beta.1").expect("Beta version");
         let beta_two = Version::parse("0.7.0-beta.2").expect("second Beta version");
         let rc = Version::parse("0.7.0-rc.1").expect("RC version");
@@ -14907,6 +15078,17 @@ mod tests {
         let rc_three = Version::parse("0.7.0-rc.3").expect("third RC version");
         validate_stage_transition(&alpha, ReleaseStage::Alpha, &beta, ReleaseStage::Beta)
             .expect("Alpha to first Beta");
+        validate_stage_transition(&alpha, ReleaseStage::Alpha, &alpha_two, ReleaseStage::Alpha)
+            .expect("sequential Alpha iteration");
+        assert!(
+            validate_stage_transition(
+                &alpha,
+                ReleaseStage::Alpha,
+                &alpha_three,
+                ReleaseStage::Alpha
+            )
+            .is_err()
+        );
         assert!(
             validate_stage_transition(&alpha, ReleaseStage::Alpha, &beta_two, ReleaseStage::Beta)
                 .is_err()
@@ -14940,6 +15122,122 @@ mod tests {
             validate_stage_transition(&beta, ReleaseStage::Beta, &beta_two, ReleaseStage::Beta)
                 .is_err()
         );
+    }
+
+    #[test]
+    fn sequential_alpha_iteration_updates_candidate_authorities_and_invalidates_baselines() {
+        let root =
+            std::env::temp_dir().join(format!("canisend-sequential-alpha-{}", std::process::id()));
+        if root.exists() {
+            fs::remove_dir_all(&root).expect("remove stale sequential-Alpha fixture");
+        }
+        for relative in [
+            "tools/native-preview",
+            "apps/canisend-desktop/src",
+            "docs/contracts",
+            "docs/guides",
+            ".github/workflows",
+            "release",
+        ] {
+            fs::create_dir_all(root.join(relative)).expect("create sequential-Alpha fixture path");
+        }
+        fs::write(
+            root.join("tools/native-preview/package.json"),
+            "{\n  \"version\": \"1.0.0-alpha.5\"\n}\n",
+        )
+        .expect("write native-preview package fixture");
+        fs::write(
+            root.join("apps/canisend-desktop/src/App.svelte"),
+            "<span>{product?.version ?? \"1.0.0-alpha.5\"}</span>\n",
+        )
+        .expect("write desktop fallback fixture");
+        fs::write(
+            root.join("docs/contracts/cli-gui-parity-v1.json"),
+            "{\n  \"version\": \"1.0.0-alpha.5\"\n}\n",
+        )
+        .expect("write parity fixture");
+        fs::write(
+            root.join(".github/workflows/release.yml"),
+            "default: \"v1.0.0-alpha.5\"\n",
+        )
+        .expect("write workflow fixture");
+        fs::write(
+            root.join("README.md"),
+            "The checked-in source version is `1.0.0-alpha.5`; fixture.\n",
+        )
+        .expect("write README fixture");
+        fs::write(
+            root.join("docs/guides/known-limitations.md"),
+            "It applies to the `1.0.0-alpha.5` development line. The source version still says `1.0.0-alpha.5`.\n",
+        )
+        .expect("write known-limitations fixture");
+        write_pretty_json(
+            &root.join("release/alpha-package-contract.json"),
+            &json!({
+                "schema": "canisend.alpha-package-contract/v2",
+                "version": "1.0.0-alpha.5",
+                "tag": "v1.0.0-alpha.5",
+                "standalone_cli": {
+                    "assets": [{"file": "canisend-1.0.0-alpha.5-target.tar.gz"}]
+                },
+                "desktop_macos": {
+                    "archive": "CanISend-1.0.0-alpha.5-target.zip"
+                }
+            }),
+        )
+        .expect("write Alpha package contract fixture");
+
+        let from = Version::parse("1.0.0-alpha.5").expect("source Alpha");
+        let to = Version::parse("1.0.0-alpha.6").expect("target Alpha");
+        let mut files = BTreeMap::new();
+        insert_sequential_alpha_updates(&root, &mut files, &from, &to)
+            .expect("render sequential Alpha updates");
+        assert_eq!(files.len(), 10);
+        for relative in [
+            "tools/native-preview/package.json",
+            "apps/canisend-desktop/src/App.svelte",
+            "docs/contracts/cli-gui-parity-v1.json",
+            ".github/workflows/release.yml",
+            "README.md",
+            "docs/guides/known-limitations.md",
+            "release/alpha-package-contract.json",
+        ] {
+            let body = std::str::from_utf8(&files[relative]).expect("UTF-8 Alpha update");
+            assert!(
+                body.contains("1.0.0-alpha.6"),
+                "missing target in {relative}"
+            );
+            assert!(
+                !body.contains("1.0.0-alpha.5"),
+                "retained source in {relative}"
+            );
+        }
+        let readiness: Value = serde_json::from_slice(&files["release/beta-readiness.json"])
+            .expect("parse pending readiness");
+        let freeze: Value = serde_json::from_slice(&files["release/beta-contract-freeze.json"])
+            .expect("parse pending freeze");
+        let feedback: Value = serde_json::from_slice(&files["release/feedback-snapshot.json"])
+            .expect("parse pending feedback");
+        assert_eq!(readiness["status"], "pending-alpha-publication");
+        assert_eq!(readiness["alpha_release"]["tag"], "v1.0.0-alpha.6");
+        assert_eq!(freeze["baseline"]["release"], "v1.0.0-alpha.6");
+        assert_eq!(feedback["expected_release"]["tag"], "v1.0.0-alpha.6");
+        let initial =
+            pending_release_feedback(&Version::parse("1.0.0-alpha.1").expect("initial Alpha"))
+                .expect("initial feedback");
+        assert!(
+            pending_release_feedback_is_canonical(&initial, &from)
+                .expect("legacy pre-sequential feedback boundary")
+        );
+        assert!(
+            !pending_release_feedback_is_canonical(&initial, &to)
+                .expect("sequential feedback boundary")
+        );
+        assert!(
+            pending_release_feedback_is_canonical(&feedback, &to)
+                .expect("target feedback boundary")
+        );
+        fs::remove_dir_all(root).expect("remove sequential-Alpha fixture");
     }
 
     #[test]

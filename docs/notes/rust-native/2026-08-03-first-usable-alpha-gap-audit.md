@@ -115,6 +115,17 @@ This advances ordered-path item 6 to implemented source evidence. Exact native c
 remote CI evidence, rather than another P0 source implementation item, now form the next Alpha.6
 proof boundary. GF5-SDK-001 remains a separate P1 authoring/validation deliverable.
 
+The first Alpha.6 dry-run then exposed a direct M0-REL-001 contradiction: the roadmap documented
+sequential Alpha support, but `prepare-stage v1.0.0-alpha.6` rejected Alpha→Alpha. The
+[sequential Alpha transition record](2026-08-03-m0-sequential-alpha-transition.md) now documents
+the corrected planner. Its 27-file dry run covers Cargo/Tauri/npm/locks, parity and package
+contracts, workflow/docs, and target-bound pending readiness/freeze/feedback through one
+transactional write set. No `--write`, candidate, tag, push, or release was performed.
+
+This closes the sequential-Alpha planner source gap and proves only the dry-run half of
+M2-VERSION-001. Applying the version change remains part of the explicit Alpha.6 candidate
+sequence.
+
 P1 CI/dependency improvements, governance work-item linkage, independent evidence review, dogfood,
 target-user validation, signing, and later Alpha.7 dual-Pack qualification also remain, but they do
 not replace the P0 implementation order.
@@ -133,7 +144,10 @@ not replace the P0 implementation order.
    machine-gated; exact remote CI evidence remains required.
 6. Completed in source: ten required user guides and a two-Workspace executable smoke expose Pack
    selection, exact compatibility, migration, recovery, and limitations (GF5-DOC).
-7. Next: run the exact native Alpha.6 candidate, migration, backup/restore, rollback, package, and
+7. Completed in source: sequential Alpha planning now produces one transactional, evidence-resetting
+   Alpha.6 dry run; applying it remains intentionally unperformed (M0-REL-001/M2-VERSION-001).
+8. Next: with explicit release authority, apply the reviewed Alpha.6 plan and run the exact native
+   candidate, migration, backup/restore, rollback, package, and
    release-integrity gates on a clean candidate commit.
 
 Only after evidence proves every applicable gate should the release status advance from Alpha.5

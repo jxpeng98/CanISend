@@ -49,8 +49,9 @@ defines the pack, migration, compatibility, and dual-pack implementation slices.
 
 ## Current status
 
-The checked-in source version is `1.0.0-alpha.5`, matching the latest public checkpoint, but the
-working `main` line contains additional unqualified post-tag product bytes. The `0.7` evidence is
+The checked-in source version is `1.0.0-alpha.5`; public identity remains separately controlled by
+the exact tag, package manifest, and qualification evidence. The working `main` line contains
+additional unqualified post-tag product bytes. The `0.7` evidence is
 preserved as immutable history and there is no public `0.8` line. R0–R11.2 and the full
 evidence-backed material pipeline are implemented. R12 Stage 2 introduced the first macOS GUI
 vertical slice with shared typed application

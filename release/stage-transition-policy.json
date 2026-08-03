@@ -32,6 +32,17 @@
   ],
   "allowed_iterations": [
     {
+      "stage": "alpha",
+      "target_prerelease": "next-sequential-alpha",
+      "ledger_status": "pre-beta",
+      "release_notes_status": "alpha-current",
+      "invalidates": [
+        "release/beta-readiness.json",
+        "release/beta-contract-freeze.json",
+        "release/feedback-snapshot.json"
+      ]
+    },
+    {
       "stage": "rc",
       "target_prerelease": "next-sequential-rc",
       "ledger_status": "rc-qualifying",
@@ -44,6 +55,12 @@
     "fuzz/Cargo.toml exact internal dependencies",
     "Cargo.lock workspace package versions",
     "fuzz/Cargo.lock internal package versions",
+    "desktop and native-preview npm package versions plus the desktop fallback version",
+    "docs/contracts/cli-gui-parity-v1.json Alpha scope",
+    "release/alpha-package-contract.json versioned asset names",
+    ".github/workflows/release.yml dispatch default",
+    "active README and known-limitations source-version claims",
+    "sequential-Alpha pending readiness, freeze, and feedback identities",
     "release/qualification-ledger.json stage, Stable authorization, and RC notes-review reset fields",
     "release/RELEASE_NOTES.md heading",
     "release/support-policy.json Stable publication status",
