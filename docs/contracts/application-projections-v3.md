@@ -28,7 +28,7 @@ Blob, generates all bytes, and preflights every destination and parent. Existing
 non-directory parents, symbolic links, and edited managed files fail closed before the manifest
 transaction. The transaction rechecks the current Application revision and records every path as
 managed and missing. The authoritative Application revision commit has already registered each
-materialized content identity in the Blob-reference ledger.
+Requirement source and materialized Deliverable content identity in the Blob-reference ledger.
 
 Files are then published with the existing atomic projection writer. A later write failure leaves
 the recorded path missing or repair-required, so recovery can converge without changing the
@@ -63,6 +63,7 @@ legacy bytes during recognition. Unmanaged legacy files are not included in the 
 
 ## Backup and restore
 
-Projection files remain excluded from backups. Materialized Deliverable content is included through
-the Blob-reference ledger. Restore creates the neutral projection root and regenerates both v2 and
-v3 managed projections inside staging before atomically publishing the recovered Workspace.
+Projection files remain excluded from backups. Requirement sources and materialized Deliverable
+content are included through the Blob-reference ledger. Restore creates the neutral projection root
+and regenerates both v2 and v3 managed projections inside staging before atomically publishing the
+recovered Workspace.

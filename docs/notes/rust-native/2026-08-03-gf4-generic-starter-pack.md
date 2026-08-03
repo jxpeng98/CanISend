@@ -37,6 +37,6 @@ resolution. The complete source and release gates are run before this record is 
 
 ## Remaining boundary
 
-The Pack is not yet an end-user workflow. GF4-FLOW-001 must bind its Pack-qualified graph and
-Deliverables to canonical v3 execution, followed by Pack selection/configuration and Agent v3
-surface work. The first usable Alpha remains unqualified.
+GF4-FLOW-001 now binds the Pack-qualified graph and Deliverables to a canonical v3 local fixture.
+Pack selection/configuration and Agent v3 surface work remain GF4-UI-001 and GF4-AGENT-001. The
+first usable Alpha remains unqualified.

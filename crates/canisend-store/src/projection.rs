@@ -1088,7 +1088,10 @@ fn typst_projection_error(error: TypstProjectionError) -> StoreError {
         TypstProjectionError::SourceTooLarge { max_bytes } => StoreError::InvalidInput(format!(
             "generated Typst source exceeds the {max_bytes}-byte render limit"
         )),
-        TypstProjectionError::TemplateEncoding => StoreError::TypstProjectionInvariant,
+        TypstProjectionError::TemplateEncoding
+        | TypstProjectionError::PackTemplateEncoding
+        | TypstProjectionError::DeliverableContentEncoding
+        | TypstProjectionError::DeliverableNotApproved => StoreError::TypstProjectionInvariant,
     }
 }
 

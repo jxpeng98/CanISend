@@ -6,10 +6,10 @@
 
 **Canonical schemas:** `schemas/v3/*.schema.json` in the embedded resource catalog
 
-**Runtime status:** Additive neutral model, transactional repository, backup-backed semantic
-migration, and a verified built-in academic reference Pack. Job/Agent v2 remains the compatibility
-runtime until canonical v3 adapters land. Neutral Store projections and dependency-scoped Pack
-migration are implemented; Agent v3/shared-surface operations remain separate roadmap tasks.
+**Runtime status:** Neutral model, transactional repository, backup-backed semantic migration, two
+verified built-in Packs, and a canonical generic local flow through approval, projection, render,
+and export. Job/Agent v2 remains the academic compatibility runtime; Pack selection in CLI/desktop
+and Agent v3/MCP operations remain separate roadmap tasks.
 
 ## Boundary
 
@@ -17,9 +17,9 @@ The v3 application model describes one exact Pack-bound application snapshot wit
 the academic v2 ontology. It defines neutral Opportunity, Application, Requirement, Plan, and
 Deliverable records plus their revision references and aggregate consistency rules.
 
-The contract does not install a Pack, select a newer Pack version, write a Workspace, migrate v2
-data, execute a workflow stage, render content, export files, or submit an application. It is a
-typed interchange and future persistence boundary only.
+The model contract itself does not install a Pack, select a newer Pack version, write a Workspace,
+migrate v2 data, execute a workflow stage, render content, export files, or submit an application.
+Those mutations are owned by explicit services, including the separate canonical v3 flow contract.
 
 ## Identity and Pack binding
 

@@ -254,6 +254,7 @@ Repository evidence currently available:
 | Task | Evidence | Remaining state boundary |
 |---|---|---|
 | GF4-PACK-001 | [Generic starter Pack contract](../../contracts/generic-application-workflow-pack-v1.md), [implementation record](../../notes/rust-native/2026-08-03-gf4-generic-starter-pack.md), and [Workflow Pack v1 contract](../../contracts/workflow-pack-v1.md) | Embedded Pack, exact digest/resource verification, neutral metadata/taxonomies, compiled nine-stage graph, two custom Deliverables, bilingual localization, and exact dual-Pack registry resolution are implemented; complete GF4-FLOW/UI/AGENT, create/link its work item, and inspect committed source evidence before marking Verified |
+| GF4-FLOW-001 | [Canonical Application flow v3 contract](../../contracts/application-flow-v3.md), [implementation record](../../notes/rust-native/2026-08-03-gf4-canonical-generic-flow.md), [Application model v3](../../contracts/application-model-v3.md), and [Application projections v3](../../contracts/application-projections-v3.md) | New/empty v3 activation, Pack-qualified intake/Requirement/Plan/Deliverable operations, explicit approval, managed package projection, neutral embedded rendering, consented local export, dual-custom-Deliverable fixture, and stale/wrong-Pack/no-mutation regressions are implemented; complete GF4-UI/AGENT/EXAMPLE, create/link its work item, and inspect committed source/native evidence before marking Verified |
 
 ### GF5 — Surface parity and documentation
 

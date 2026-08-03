@@ -64,6 +64,18 @@ impl<'a> ApplicationModelRepository<'a> {
         load_authority(self.database.connection())
     }
 
+    /// Activates canonical v3 authority only for a freshly initialized Workspace.
+    ///
+    /// Legacy Workspaces must continue to use the verified, backup-backed migration boundary.
+    pub fn activate_empty_workspace(
+        &mut self,
+        actor: ActorKind,
+        reason: &str,
+    ) -> Result<WorkspaceV3AuthorityState, StoreError> {
+        ensure_workspace_has_no_product_data(self.database.connection())?;
+        activate_workspace_v3_authority(self.database, actor, reason)
+    }
+
     pub fn create(
         &mut self,
         snapshot: ApplicationModelSnapshotV3,
@@ -301,7 +313,38 @@ impl<'a> ApplicationModelRepository<'a> {
     }
 }
 
-// Reserved for the failure-atomic GF2 migration boundary; ordinary app services cannot call it.
+fn ensure_workspace_has_no_product_data(connection: &Connection) -> Result<(), StoreError> {
+    const PRODUCT_TABLES: &[&str] = &[
+        "jobs",
+        "sources",
+        "evidence_items",
+        "artifacts",
+        "workflow_runs",
+        "tasks",
+        "profile_sources",
+        "discovery_sources",
+        "job_leads",
+        "application_model_v3_heads",
+        "workspace_v3_migrations",
+        "workspace_v3_application_links",
+        "application_projection_v3_manifests",
+        "application_pack_v3_migrations",
+    ];
+    for table in PRODUCT_TABLES {
+        let count: i64 =
+            connection.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| {
+                row.get(0)
+            })?;
+        if count != 0 {
+            return Err(StoreError::ApplicationModelConflict(format!(
+                "Workspace contains product data in {table}; use the verified v2-to-v3 migration"
+            )));
+        }
+    }
+    Ok(())
+}
+
+// Shared by the failure-atomic GF2 migration boundary and the empty-Workspace activation above.
 #[allow(dead_code)]
 pub(crate) fn activate_workspace_v3_authority(
     database: &mut Database,
@@ -935,6 +978,20 @@ pub(crate) fn insert_content_blob_references(
     snapshot: &ApplicationModelSnapshotV3,
     committed_at: &UtcTimestamp,
 ) -> Result<(), StoreError> {
+    for requirement in &snapshot.requirements {
+        let content = &requirement.source_span.content;
+        transaction.execute(
+            "INSERT OR IGNORE INTO blob_references(
+                sha256, owner_type, owner_id, owner_revision, created_at
+             ) VALUES (?1, 'application-v3-source', ?2, ?3, ?4)",
+            params![
+                content.sha256.as_str(),
+                content.id.as_str(),
+                to_i64(content.revision.get())?,
+                committed_at.as_str(),
+            ],
+        )?;
+    }
     for deliverable in &snapshot.deliverables {
         let Some(content) = &deliverable.content else {
             continue;
@@ -1197,6 +1254,34 @@ mod tests {
     fn activate(database: &mut Database) {
         activate_workspace_v3_authority(database, ActorKind::User, "test-activation")
             .expect("activate v3 authority");
+    }
+
+    #[test]
+    fn empty_workspace_activation_rejects_legacy_product_data() {
+        let mut fixture = TestDatabase::new("activation-legacy-data");
+        let path = fixture.path.clone();
+        let blobs = crate::BlobStore::new(
+            path.with_extension("blobs"),
+            path.with_extension("temporary"),
+        );
+        crate::JobService::new(fixture.database(), &blobs)
+            .create(
+                "Legacy opportunity",
+                "Example organization",
+                ActorKind::User,
+            )
+            .expect("legacy data");
+
+        let error = ApplicationModelRepository::new(fixture.database())
+            .activate_empty_workspace(ActorKind::User, "new-workspace-v3")
+            .expect_err("legacy data must use migration");
+        assert!(matches!(error, StoreError::ApplicationModelConflict(_)));
+        assert!(matches!(
+            ApplicationModelRepository::new(fixture.database()).authority(),
+            Err(StoreError::ApplicationModelUnavailable)
+        ));
+        let _ = fs::remove_dir_all(path.with_extension("blobs"));
+        let _ = fs::remove_dir_all(path.with_extension("temporary"));
     }
 
     fn pack() -> ApplicationPackBindingV3 {

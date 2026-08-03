@@ -541,7 +541,7 @@ fn ensure_job_destination(
     Ok(())
 }
 
-fn create_empty_export_directory(
+pub(crate) fn create_empty_export_directory(
     root: &Path,
     destination: &SafeRelativePath,
 ) -> Result<(), StoreError> {
@@ -590,7 +590,7 @@ fn create_empty_export_directory(
     Ok(())
 }
 
-fn write_new_file(
+pub(crate) fn write_new_file(
     root: &Path,
     relative_path: &SafeRelativePath,
     bytes: &[u8],
@@ -606,7 +606,7 @@ fn write_new_file(
     file.sync_all().map_err(|source| io_error(&path, source))
 }
 
-fn join_path(
+pub(crate) fn join_path(
     destination: &SafeRelativePath,
     file_name: &str,
 ) -> Result<SafeRelativePath, StoreError> {
@@ -669,6 +669,9 @@ fn typst_projection_error(error: canisend_io::TypstProjectionError) -> StoreErro
             StoreError::TemplateFieldsUnresolved { count }
         }
         canisend_io::TypstProjectionError::TemplateEncoding
+        | canisend_io::TypstProjectionError::PackTemplateEncoding
+        | canisend_io::TypstProjectionError::DeliverableContentEncoding
+        | canisend_io::TypstProjectionError::DeliverableNotApproved
         | canisend_io::TypstProjectionError::SourceTooLarge { .. } => {
             StoreError::TypstProjectionInvariant
         }

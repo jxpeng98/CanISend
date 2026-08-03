@@ -3,6 +3,7 @@
 mod agent;
 mod agent_session;
 mod application;
+mod application_flow_v3;
 mod application_v3;
 mod assistance;
 mod catalog;
@@ -46,6 +47,16 @@ pub use agent_session::{
 };
 pub use application::{
     Application, NetworkFetchConsent, PrivateExportConsent, PrivateReadConsent, ProviderSendConsent,
+};
+pub use application_flow_v3::{
+    APPLICATION_FLOW_EXPORT_FORMAT_V3, ApplicationFlowApproveRequestV3,
+    ApplicationFlowCommitReadModelV3, ApplicationFlowComposeRequestV3,
+    ApplicationFlowCreateRequestV3, ApplicationFlowDeliverableDraftV3,
+    ApplicationFlowExportManifestV3, ApplicationFlowExportReadModelV3,
+    ApplicationFlowExportRequestV3, ApplicationFlowPlanRequestV3,
+    ApplicationFlowPlannedDeliverableV3, ApplicationFlowReadModelV3,
+    ApplicationFlowRenderedDeliverableV3, ApplicationFlowRequirementDraftV3,
+    ApplicationFlowStageReadModelV3, ApplicationFlowStageStateV3,
 };
 pub use application_v3::{
     ApplicationModelCommitRequestV3, ApplicationModelCommitResultV3,

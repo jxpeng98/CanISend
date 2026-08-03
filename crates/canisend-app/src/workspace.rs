@@ -3,8 +3,11 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use canisend_contracts::ActorKind;
 use canisend_contracts::{BackupManifestData, WorkspaceCheckData, WorkspaceStatusData};
-use canisend_store::{BACKUP_FORMAT, BackupResult, ProjectionService, Workspace};
+use canisend_store::{
+    ApplicationModelRepository, BACKUP_FORMAT, BackupResult, ProjectionService, Workspace,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{ActionReceipt, Application, ApplicationError, application::open_workspace};
@@ -75,6 +78,28 @@ impl Application {
             "initialized",
             format!(
                 "Initialized workspace at {}",
+                workspace.paths.root.display()
+            ),
+            WorkspaceReadModel {
+                path: workspace.paths.root,
+                status,
+            },
+        ))
+    }
+
+    pub fn initialize_workspace_v3(
+        root: &Path,
+    ) -> Result<ActionReceipt<WorkspaceReadModel>, ApplicationError> {
+        require_new_or_empty_directory(root)?;
+        let mut workspace = Workspace::init(root)?;
+        ApplicationModelRepository::new(&mut workspace.database)
+            .activate_empty_workspace(ActorKind::User, "new-workspace-v3")?;
+        let status = workspace.status()?;
+        Ok(ActionReceipt::new(
+            "workspace-v3.init",
+            "initialized",
+            format!(
+                "Initialized canonical v3 workspace at {}",
                 workspace.paths.root.display()
             ),
             WorkspaceReadModel {

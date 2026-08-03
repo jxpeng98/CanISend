@@ -3,7 +3,10 @@ use std::{
     time::{Duration, Instant},
 };
 
-use canisend_contracts::{ArtifactReference, DocumentKind, DocumentRecord};
+use canisend_contracts::{
+    ApplicationPackBindingV3, ArtifactReference, DeliverableRecordV3, DeliverableStateV3,
+    DocumentKind, DocumentRecord, Revision,
+};
 use canisend_resources::{ResourceDescriptor, ResourceId, get};
 use thiserror::Error;
 use typst_as_lib::{TypstAsLibError, TypstEngine};
@@ -48,6 +51,12 @@ pub enum TypstProjectionError {
     UnresolvedTemplateFields { count: usize },
     #[error("generated Typst source exceeds the {max_bytes}-byte render limit")]
     SourceTooLarge { max_bytes: usize },
+    #[error("workflow Pack template is not UTF-8")]
+    PackTemplateEncoding,
+    #[error("Deliverable content is not UTF-8")]
+    DeliverableContentEncoding,
+    #[error("Deliverable must be approved and materialized before rendering")]
+    DeliverableNotApproved,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -196,6 +205,77 @@ pub fn project_document_typst(
         .expect("writing to String cannot fail");
     }
     output.push_str("  ),\n)\n\n#canisend_render_document(canisend_document_data)\n");
+    if output.len() > MAX_TYPST_SOURCE_BYTES {
+        return Err(TypstProjectionError::SourceTooLarge {
+            max_bytes: MAX_TYPST_SOURCE_BYTES,
+        });
+    }
+    Ok(output)
+}
+
+/// Projects a Pack-owned, approved v3 Deliverable through its verified data-only Typst template.
+pub fn project_deliverable_typst_v3(
+    template: &[u8],
+    pack: &ApplicationPackBindingV3,
+    application_revision: Revision,
+    deliverable: &DeliverableRecordV3,
+    content: &[u8],
+) -> Result<String, TypstProjectionError> {
+    if deliverable.state != DeliverableStateV3::Approved || deliverable.content.is_none() {
+        return Err(TypstProjectionError::DeliverableNotApproved);
+    }
+    let template =
+        std::str::from_utf8(template).map_err(|_| TypstProjectionError::PackTemplateEncoding)?;
+    let body = std::str::from_utf8(content)
+        .map_err(|_| TypstProjectionError::DeliverableContentEncoding)?;
+    let mut output = String::with_capacity(template.len() + body.len() + 1024);
+    output.push_str(template);
+    output.push_str(
+        "\n\n// Managed CanISend v3 projection. The Pack-bound Application remains authoritative.\n",
+    );
+    writeln!(
+        output,
+        "// pack: {}@{} sha256:{}",
+        pack.id, pack.version, pack.content_digest
+    )
+    .expect("writing to String cannot fail");
+    writeln!(
+        output,
+        "// application-revision: {}",
+        application_revision.get()
+    )
+    .expect("writing to String cannot fail");
+    writeln!(
+        output,
+        "// deliverable: {}@{} kind:{} source-sha256:{}",
+        deliverable.id,
+        deliverable.revision.get(),
+        deliverable.kind,
+        deliverable
+            .content
+            .as_ref()
+            .expect("approved Deliverable content checked above")
+            .sha256
+    )
+    .expect("writing to String cannot fail");
+    output.push_str("#let canisend_document_data = (\n");
+    writeln!(output, "  id: {},", typst_string(deliverable.id.as_str()))
+        .expect("writing to String cannot fail");
+    writeln!(output, "  revision: {},", deliverable.revision.get())
+        .expect("writing to String cannot fail");
+    writeln!(
+        output,
+        "  kind: {},",
+        typst_string(deliverable.kind.local_id_str())
+    )
+    .expect("writing to String cannot fail");
+    writeln!(output, "  title: {},", typst_string(&deliverable.title))
+        .expect("writing to String cannot fail");
+    output.push_str("  sections: (\n    (id: \"content\", heading: none, body: ");
+    output.push_str(&typst_string(body.trim()));
+    output.push_str(
+        "),\n  ),\n  fields: (),\n)\n\n#canisend_render_document(canisend_document_data)\n",
+    );
     if output.len() > MAX_TYPST_SOURCE_BYTES {
         return Err(TypstProjectionError::SourceTooLarge {
             max_bytes: MAX_TYPST_SOURCE_BYTES,

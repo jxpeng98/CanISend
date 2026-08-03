@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+mod application_flow_v3;
 mod application_projection_v3;
 mod application_v3;
 mod artifact;
@@ -32,6 +33,16 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+pub use application_flow_v3::{
+    APPLICATION_FLOW_EXPORT_FORMAT_V3, ApplicationFlowApproveRequestV3,
+    ApplicationFlowCommitReadModelV3, ApplicationFlowComposeRequestV3,
+    ApplicationFlowCreateRequestV3, ApplicationFlowDeliverableDraftV3,
+    ApplicationFlowExportManifestV3, ApplicationFlowExportReadModelV3,
+    ApplicationFlowPlanRequestV3, ApplicationFlowPlannedDeliverableV3, ApplicationFlowReadModelV3,
+    ApplicationFlowRenderedDeliverableV3, ApplicationFlowRequirementDraftV3,
+    ApplicationFlowServiceV3, ApplicationFlowStageReadModelV3, ApplicationFlowStageStateV3,
+    MAX_APPLICATION_FLOW_SOURCE_BYTES_V3,
+};
 pub use application_projection_v3::{
     APPLICATION_PROJECTION_FORMAT_V3, ApplicationLegacyProjectionV3,
     ApplicationProjectionCatalogV3, ApplicationProjectionKindV3, ApplicationProjectionReconcileV3,
