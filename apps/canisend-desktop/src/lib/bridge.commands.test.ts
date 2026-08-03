@@ -57,6 +57,7 @@ describe("typed Tauri command requests", () => {
 
   it("preserves explicit private-read consent for discovery previews", async () => {
     await previewDiscoveryFile({
+      workspace: "/tmp/workspace",
       path: "/tmp/leads.csv",
       sourceName: "Reviewed",
       hostAgent: false,
@@ -65,6 +66,7 @@ describe("typed Tauri command requests", () => {
 
     expect(mocks.invoke).toHaveBeenCalledWith("preview_discovery_file", {
       request: {
+        workspace: "/tmp/workspace",
         path: "/tmp/leads.csv",
         source_name: "Reviewed",
         source_url: null,
@@ -107,10 +109,13 @@ describe("typed Tauri command requests", () => {
   });
 
   it("commits only an opaque reviewed job-intake preview token", async () => {
-    await commitJobSourcePreview("job-intake-preview-123");
+    await commitJobSourcePreview("/tmp/workspace", "job-intake-preview-123");
 
     expect(mocks.invoke).toHaveBeenCalledWith("commit_job_source_preview", {
-      request: { preview_token: "job-intake-preview-123" },
+      request: {
+        workspace: "/tmp/workspace",
+        preview_token: "job-intake-preview-123",
+      },
     });
   });
 

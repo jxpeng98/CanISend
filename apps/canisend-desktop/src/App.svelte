@@ -1255,7 +1255,10 @@
     hostAgent?: boolean;
     confirmedPrivateRead: boolean;
   }): Promise<boolean> {
-    const result = await runAction(() => previewDiscoveryFile(options));
+    if (!activeWorkspace) return false;
+    const result = await runAction(() =>
+      previewDiscoveryFile({ workspace: activeWorkspace!.path, ...options }),
+    );
     if (!result) return false;
     discoveryPreview = result;
     notice = result.preview.summary;
@@ -1269,7 +1272,10 @@
     organization?: string;
     confirmedNetworkFetch: boolean;
   }): Promise<boolean> {
-    const result = await runAction(() => previewDiscoveryNetwork(options));
+    if (!activeWorkspace) return false;
+    const result = await runAction(() =>
+      previewDiscoveryNetwork({ workspace: activeWorkspace!.path, ...options }),
+    );
     if (!result) return false;
     discoveryPreview = result;
     notice = result.preview.summary;
@@ -1283,6 +1289,7 @@
         commitDiscoveryPreview(
           activeWorkspace!.path,
           discoveryPreview!.preview_token,
+          discoveryPreview!.kind,
         ),
       {
         operation: "discovery.commit",
@@ -1298,9 +1305,13 @@
   }
 
   async function handleDiscardDiscoveryPreview(): Promise<boolean> {
-    if (!discoveryPreview) return false;
+    if (!activeWorkspace || !discoveryPreview) return false;
     const result = await runAction(() =>
-      discardDiscoveryPreview(discoveryPreview!.preview_token),
+      discardDiscoveryPreview(
+        activeWorkspace!.path,
+        discoveryPreview!.preview_token,
+        discoveryPreview!.kind,
+      ),
     );
     if (result === null) return false;
     discoveryPreview = null;
@@ -1530,15 +1541,19 @@
   async function handleCommitWorkflowRerun(
     previewToken: string,
   ): Promise<WorkflowControlReadModel | null> {
-    const result = await runAction(() => commitWorkflowRerun(previewToken), {
-      operation: "workflow.rerun",
-      route: {
-        view: "workflow",
-        detail: "workflow-stages",
-        jobId: selectedJobId || undefined,
+    if (!activeWorkspace) return null;
+    const result = await runAction(
+      () => commitWorkflowRerun(activeWorkspace!.path, previewToken),
+      {
+        operation: "workflow.rerun",
+        route: {
+          view: "workflow",
+          detail: "workflow-stages",
+          jobId: selectedJobId || undefined,
+        },
+        jobId: selectedJobId || null,
       },
-      jobId: selectedJobId || null,
-    });
+    );
     if (!result) return null;
     if (selectedJobId) await refreshSelectedJobSnapshot(selectedJobId);
     notice = result.summary;
@@ -1548,7 +1563,10 @@
   async function handleDiscardWorkflowPreview(
     previewToken: string,
   ): Promise<boolean> {
-    const result = await runAction(() => discardWorkflowPreview(previewToken));
+    if (!activeWorkspace) return false;
+    const result = await runAction(() =>
+      discardWorkflowPreview(activeWorkspace!.path, previewToken),
+    );
     return result !== null;
   }
 
@@ -1741,7 +1759,7 @@
     const workspace = activeWorkspace.path;
     const result = await runAction(
       async () => {
-        const committed = await commitTaskCompletion(previewToken);
+        const committed = await commitTaskCompletion(workspace, previewToken);
         const latest = await getLatestTask(workspace, jobId);
         return { committed, latest };
       },
@@ -2473,7 +2491,10 @@
       jobIntakePreview &&
       jobIntakePreview.preview.data.job.id !== jobId
     ) {
-      await discardJobSourcePreview(jobIntakePreview.preview_token).catch(() => undefined);
+      await discardJobSourcePreview(
+        activeWorkspace.path,
+        jobIntakePreview.preview_token,
+      ).catch(() => undefined);
       jobIntakePreview = null;
     }
     const result = await runAction(() =>
@@ -2560,7 +2581,10 @@
     if (!activeWorkspace || !jobIntakePreview) return false;
     const jobId = jobIntakePreview.preview.data.job.id;
     const result = await runAction(() =>
-      commitJobSourcePreview(jobIntakePreview!.preview_token),
+      commitJobSourcePreview(
+        activeWorkspace!.path,
+        jobIntakePreview!.preview_token,
+      ),
     );
     if (!result) return false;
     jobIntakePreview = null;
@@ -2579,9 +2603,12 @@
   }
 
   async function handleDiscardJobSourcePreview(): Promise<boolean> {
-    if (!jobIntakePreview) return false;
+    if (!activeWorkspace || !jobIntakePreview) return false;
     const result = await runAction(() =>
-      discardJobSourcePreview(jobIntakePreview!.preview_token),
+      discardJobSourcePreview(
+        activeWorkspace!.path,
+        jobIntakePreview!.preview_token,
+      ),
     );
     if (result === null) return false;
     jobIntakePreview = null;

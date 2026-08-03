@@ -2,6 +2,7 @@
 
 mod agent;
 mod agent_runtime;
+mod approval;
 mod commands;
 mod delivery;
 mod discovery;
@@ -15,9 +16,7 @@ mod workflow;
 pub fn run() {
     let builder = tauri::Builder::default()
         .manage(agent_runtime::AgentRuntimeState::default())
-        .manage(discovery::DiscoveryPreviewStore::default())
-        .manage(job_intake::JobIntakePreviewStore::default())
-        .manage(workflow::WorkflowPreviewStore::default());
+        .manage(approval::DesktopApprovalStore::default());
     #[cfg(feature = "preview-qualification")]
     let builder = builder.plugin(tauri_plugin_wdio_webdriver::init());
     builder

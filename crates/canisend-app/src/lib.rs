@@ -6,6 +6,7 @@ mod agent_v3;
 mod application;
 mod application_flow_v3;
 mod application_v3;
+mod approval;
 mod assistance;
 mod catalog;
 mod cli_install;
@@ -71,6 +72,12 @@ pub use application_v3::{
     ApplicationModelCommitRequestV3, ApplicationModelCommitResultV3,
     ApplicationModelCreateRequestV3, ApplicationModelRevisionV3, StoredApplicationModelV3,
     WorkspaceV3AuthorityState,
+};
+pub use approval::{
+    APPROVAL_DEFAULT_CAPACITY, APPROVAL_DEFAULT_TTL, ApprovalBinding, ApprovalBroker,
+    ApprovalBrokerConfig, ApprovalBrokerError, ApprovalClock, ApprovalDisposition, ApprovalGrant,
+    ApprovalKind, ApprovalLease, ApprovalScope, ApprovalSourceVersion, ApprovalTokenSource,
+    SystemApprovalClock, SystemApprovalTokenSource, approval_disposition_for_application_error,
 };
 pub use assistance::{
     AgentAssistanceReadModel, AgentContentGraphReadModel, AgentContentProvenanceReadModel,

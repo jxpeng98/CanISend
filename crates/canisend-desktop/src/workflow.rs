@@ -1,124 +1,29 @@
-use std::{
-    collections::{BTreeMap, VecDeque},
-    path::PathBuf,
-    sync::{
-        Mutex,
-        atomic::{AtomicU64, Ordering},
-    },
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::path::PathBuf;
 
 use canisend_app::{
-    ActionReceipt, Application, PrivateReadConsent, ProviderSendConsent,
-    TaskCompletionPreviewReadModel, TaskExecutionMode, TaskInputExportRequest,
-    TaskPrepareAgainReadModel, TaskPrepareRequest, WorkflowBeginRequest, WorkflowCompleteRequest,
-    WorkflowControlReadModel, WorkflowRerunPreview, WorkflowRerunRequest,
+    ActionReceipt, Application, ApprovalBinding, ApprovalDisposition, ApprovalKind, ApprovalScope,
+    ApprovalSourceVersion, PrivateReadConsent, ProviderSendConsent, TaskCompletionPreviewReadModel,
+    TaskExecutionMode, TaskInputExportRequest, TaskPrepareAgainReadModel, TaskPrepareRequest,
+    WorkflowBeginRequest, WorkflowCompleteRequest, WorkflowControlReadModel, WorkflowRerunPreview,
+    WorkflowRerunRequest, approval_disposition_for_application_error,
 };
 use canisend_contracts::{
-    ExecutionMode, TaskCommitData, TaskCompletionRequest, TaskDescriptor, TaskInputExportData,
-    TaskStateData, WorkflowStage,
+    ExecutionMode, TaskCommitData, TaskDescriptor, TaskInputExportData, TaskStateData,
+    WorkflowStage,
 };
 use serde::{Deserialize, Serialize};
 
-use crate::commands::{DesktopCommandError, run_worker};
-
-const MAX_PENDING_PREVIEWS: usize = 8;
-static NEXT_PREVIEW: AtomicU64 = AtomicU64::new(1);
-
-#[derive(Debug, Clone)]
-enum PendingOperation {
-    WorkflowRerun {
-        workspace: PathBuf,
-        request: WorkflowRerunRequest,
-    },
-    TaskCompletion {
-        workspace: PathBuf,
-        request: TaskCompletionRequest,
-    },
-}
-
-#[derive(Debug, Default)]
-struct PendingOperationState {
-    operations: BTreeMap<String, PendingOperation>,
-    order: VecDeque<String>,
-}
-
-#[derive(Debug, Default)]
-pub(crate) struct WorkflowPreviewStore {
-    state: Mutex<PendingOperationState>,
-}
-
-impl WorkflowPreviewStore {
-    fn insert(&self, operation: PendingOperation) -> Result<String, DesktopCommandError> {
-        let token = operation_token()?;
-        let mut state = self
-            .state
-            .lock()
-            .map_err(|_| DesktopCommandError::state("Workflow preview state is unavailable"))?;
-        while state.operations.len() >= MAX_PENDING_PREVIEWS {
-            let Some(oldest) = state.order.pop_front() else {
-                break;
-            };
-            state.operations.remove(&oldest);
-        }
-        state.order.push_back(token.clone());
-        state.operations.insert(token.clone(), operation);
-        Ok(token)
-    }
-
-    fn take(&self, token: &str) -> Result<PendingOperation, DesktopCommandError> {
-        let mut state = self
-            .state
-            .lock()
-            .map_err(|_| DesktopCommandError::state("Workflow preview state is unavailable"))?;
-        let operation = state.operations.remove(token).ok_or_else(|| {
-            DesktopCommandError::state(
-                "The reviewed operation preview expired; preview the operation again.",
-            )
-        })?;
-        state.order.retain(|existing| existing != token);
-        Ok(operation)
-    }
-
-    fn restore(
-        &self,
-        token: String,
-        operation: PendingOperation,
-    ) -> Result<(), DesktopCommandError> {
-        let mut state = self
-            .state
-            .lock()
-            .map_err(|_| DesktopCommandError::state("Workflow preview state is unavailable"))?;
-        state.order.retain(|existing| existing != &token);
-        state.order.push_back(token.clone());
-        state.operations.insert(token, operation);
-        Ok(())
-    }
-
-    fn discard(&self, token: &str) -> Result<(), DesktopCommandError> {
-        let mut state = self
-            .state
-            .lock()
-            .map_err(|_| DesktopCommandError::state("Workflow preview state is unavailable"))?;
-        state.operations.remove(token);
-        state.order.retain(|existing| existing != token);
-        Ok(())
-    }
-
-    #[cfg(test)]
-    fn len(&self) -> usize {
-        self.state
-            .lock()
-            .expect("workflow preview lock")
-            .operations
-            .len()
-    }
-}
+use crate::{
+    approval::{DesktopApprovalStore, DesktopPendingApproval, lease_fields},
+    commands::{ApplicationWorkerError, DesktopCommandError, run_application_worker, run_worker},
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct WorkflowRerunPreviewReadModel {
     preview_token: String,
+    expires_at_unix_ms: u64,
+    remaining_ttl_seconds: u64,
     preview: ActionReceipt<WorkflowRerunPreview>,
 }
 
@@ -126,6 +31,8 @@ pub(crate) struct WorkflowRerunPreviewReadModel {
 #[serde(deny_unknown_fields)]
 pub(crate) struct TaskCompletionTokenReadModel {
     preview_token: String,
+    expires_at_unix_ms: u64,
+    remaining_ttl_seconds: u64,
     preview: ActionReceipt<TaskCompletionPreviewReadModel>,
 }
 
@@ -165,6 +72,7 @@ pub(crate) struct WorkflowRerunTransport {
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct PreviewTokenRequest {
+    workspace: PathBuf,
     preview_token: String,
 }
 
@@ -200,18 +108,6 @@ pub(crate) struct TaskCompletionPreviewTransport {
 pub(crate) struct TaskRequest {
     workspace: PathBuf,
     task_id: String,
-}
-
-fn operation_token() -> Result<String, DesktopCommandError> {
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_err(|_| DesktopCommandError::state("System clock is before the Unix epoch"))?
-        .as_millis();
-    let sequence = NEXT_PREVIEW.fetch_add(1, Ordering::Relaxed);
-    Ok(format!(
-        "workflow-preview-{}-{timestamp}-{sequence}",
-        std::process::id()
-    ))
 }
 
 fn task_export_impl(
@@ -308,7 +204,7 @@ pub(crate) async fn complete_workflow_stage(
 
 #[tauri::command]
 pub(crate) async fn preview_workflow_rerun(
-    state: tauri::State<'_, WorkflowPreviewStore>,
+    state: tauri::State<'_, DesktopApprovalStore>,
     request: WorkflowRerunTransport,
 ) -> Result<WorkflowRerunPreviewReadModel, DesktopCommandError> {
     let workspace = request.workspace;
@@ -316,54 +212,93 @@ pub(crate) async fn preview_workflow_rerun(
     let stage = request.stage;
     let preview_workspace = workspace.clone();
     let preview_job = job_id.clone();
-    let preview = run_worker(move || {
-        Application::preview_workflow_rerun(&preview_workspace, &preview_job, stage)
+    let (preview, job_revision) = run_worker(move || {
+        Application::preview_workflow_rerun_with_revision(&preview_workspace, &preview_job, stage)
             .map_err(DesktopCommandError::application)
     })
     .await?;
     let application_request =
         WorkflowRerunRequest::try_new(&job_id, stage).map_err(DesktopCommandError::application)?;
-    let preview_token = state.insert(PendingOperation::WorkflowRerun {
-        workspace,
-        request: application_request,
-    })?;
+    let scope =
+        ApprovalScope::for_workspace(&workspace).map_err(DesktopCommandError::application)?;
+    let binding = ApprovalBinding::new(
+        ApprovalKind::WorkflowRerun,
+        scope,
+        Some(job_id.clone()),
+        ApprovalSourceVersion::Revision(job_revision),
+    );
+    let (preview_token, expires_at_unix_ms, remaining_ttl_seconds) = lease_fields(state.insert(
+        binding,
+        DesktopPendingApproval::WorkflowRerun {
+            workspace,
+            request: application_request,
+        },
+    )?);
     Ok(WorkflowRerunPreviewReadModel {
         preview_token,
+        expires_at_unix_ms,
+        remaining_ttl_seconds,
         preview,
     })
 }
 
 #[tauri::command]
 pub(crate) async fn commit_workflow_rerun(
-    state: tauri::State<'_, WorkflowPreviewStore>,
+    state: tauri::State<'_, DesktopApprovalStore>,
     request: PreviewTokenRequest,
 ) -> Result<ActionReceipt<WorkflowControlReadModel>, DesktopCommandError> {
-    let pending = state.take(&request.preview_token)?;
-    let retry = pending.clone();
-    let result = match pending {
-        PendingOperation::WorkflowRerun { workspace, request } => {
-            run_worker(move || {
-                Application::rerun_workflow_stage(&workspace, request)
-                    .map_err(DesktopCommandError::application)
-            })
-            .await
-        }
-        PendingOperation::TaskCompletion { .. } => Err(DesktopCommandError::state(
-            "The preview token belongs to a task completion.",
-        )),
+    let scope = ApprovalScope::for_workspace(&request.workspace)
+        .map_err(DesktopCommandError::application)?;
+    let grant = state.take(&request.preview_token, ApprovalKind::WorkflowRerun, &scope)?;
+    let ApprovalSourceVersion::Revision(expected_job_revision) = grant.binding().source else {
+        state.resolve(grant, ApprovalDisposition::Consume)?;
+        return Err(DesktopCommandError::state(
+            "Workflow rerun approval is missing its source revision.",
+        ));
     };
-    if result.is_err() {
-        state.restore(request.preview_token, retry)?;
+    let DesktopPendingApproval::WorkflowRerun {
+        workspace,
+        request: application_request,
+    } = grant.payload().clone()
+    else {
+        state.resolve(grant, ApprovalDisposition::Consume)?;
+        return Err(DesktopCommandError::state(
+            "Approval payload does not match workflow rerun.",
+        ));
+    };
+    match run_application_worker(move || {
+        Application::rerun_workflow_stage_at_revision(
+            &workspace,
+            application_request,
+            expected_job_revision,
+        )
+    })
+    .await
+    {
+        Ok(receipt) => {
+            state.resolve(grant, ApprovalDisposition::Consume)?;
+            Ok(receipt)
+        }
+        Err(ApplicationWorkerError::Application(error)) => {
+            let disposition = approval_disposition_for_application_error(&error);
+            state.resolve(grant, disposition)?;
+            Err(DesktopCommandError::application(error))
+        }
+        Err(ApplicationWorkerError::Worker(message)) => {
+            state.resolve(grant, ApprovalDisposition::Consume)?;
+            Err(DesktopCommandError::worker(message))
+        }
     }
-    result
 }
 
 #[tauri::command]
 pub(crate) fn discard_workflow_preview(
-    state: tauri::State<'_, WorkflowPreviewStore>,
+    state: tauri::State<'_, DesktopApprovalStore>,
     request: PreviewTokenRequest,
 ) -> Result<(), DesktopCommandError> {
-    state.discard(&request.preview_token)
+    let scope = ApprovalScope::for_workspace(&request.workspace)
+        .map_err(DesktopCommandError::application)?;
+    state.discard(&request.preview_token, ApprovalKind::WorkflowRerun, &scope)
 }
 
 #[tauri::command]
@@ -400,44 +335,71 @@ pub(crate) async fn export_task_inputs(
 
 #[tauri::command]
 pub(crate) async fn preview_task_completion(
-    state: tauri::State<'_, WorkflowPreviewStore>,
+    state: tauri::State<'_, DesktopApprovalStore>,
     request: TaskCompletionPreviewTransport,
 ) -> Result<TaskCompletionTokenReadModel, DesktopCommandError> {
     let workspace = request.workspace.clone();
     let preview = run_worker(move || task_completion_preview_impl(request)).await?;
-    let preview_token = state.insert(PendingOperation::TaskCompletion {
-        workspace,
-        request: preview.data.request.clone(),
-    })?;
+    let scope =
+        ApprovalScope::for_workspace(&workspace).map_err(DesktopCommandError::application)?;
+    let binding = ApprovalBinding::new(
+        ApprovalKind::TaskCompletion,
+        scope,
+        Some(preview.data.state.descriptor.job_id.to_string()),
+        ApprovalSourceVersion::Revision(preview.data.request.expected_job_revision),
+    );
+    let (preview_token, expires_at_unix_ms, remaining_ttl_seconds) = lease_fields(state.insert(
+        binding,
+        DesktopPendingApproval::TaskCompletion {
+            workspace,
+            request: preview.data.request.clone(),
+        },
+    )?);
     Ok(TaskCompletionTokenReadModel {
         preview_token,
+        expires_at_unix_ms,
+        remaining_ttl_seconds,
         preview,
     })
 }
 
 #[tauri::command]
 pub(crate) async fn commit_task_completion_preview(
-    state: tauri::State<'_, WorkflowPreviewStore>,
+    state: tauri::State<'_, DesktopApprovalStore>,
     request: PreviewTokenRequest,
 ) -> Result<ActionReceipt<TaskCommitData>, DesktopCommandError> {
-    let pending = state.take(&request.preview_token)?;
-    let retry = pending.clone();
-    let result = match pending {
-        PendingOperation::TaskCompletion { workspace, request } => {
-            run_worker(move || {
-                Application::commit_task_completion(&workspace, request)
-                    .map_err(DesktopCommandError::application)
-            })
-            .await
-        }
-        PendingOperation::WorkflowRerun { .. } => Err(DesktopCommandError::state(
-            "The preview token belongs to a workflow rerun.",
-        )),
+    let scope = ApprovalScope::for_workspace(&request.workspace)
+        .map_err(DesktopCommandError::application)?;
+    let grant = state.take(&request.preview_token, ApprovalKind::TaskCompletion, &scope)?;
+    let DesktopPendingApproval::TaskCompletion {
+        workspace,
+        request: application_request,
+    } = grant.payload().clone()
+    else {
+        state.resolve(grant, ApprovalDisposition::Consume)?;
+        return Err(DesktopCommandError::state(
+            "Approval payload does not match task completion.",
+        ));
     };
-    if result.is_err() {
-        state.restore(request.preview_token, retry)?;
+    match run_application_worker(move || {
+        Application::commit_task_completion(&workspace, application_request)
+    })
+    .await
+    {
+        Ok(receipt) => {
+            state.resolve(grant, ApprovalDisposition::Consume)?;
+            Ok(receipt)
+        }
+        Err(ApplicationWorkerError::Application(error)) => {
+            let disposition = approval_disposition_for_application_error(&error);
+            state.resolve(grant, disposition)?;
+            Err(DesktopCommandError::application(error))
+        }
+        Err(ApplicationWorkerError::Worker(message)) => {
+            state.resolve(grant, ApprovalDisposition::Consume)?;
+            Err(DesktopCommandError::worker(message))
+        }
     }
-    result
 }
 
 #[tauri::command]
@@ -481,25 +443,87 @@ mod tests {
     }
 
     #[test]
-    fn workflow_preview_store_is_bounded_and_single_use() {
-        let store = WorkflowPreviewStore::default();
-        let request = WorkflowRerunRequest::try_new(
-            "019f2f55-7c00-7000-8000-000000000101",
-            WorkflowStage::Parse,
-        )
-        .expect("workflow request");
-        let mut latest = String::new();
-        for _ in 0..(MAX_PENDING_PREVIEWS + 2) {
-            latest = store
-                .insert(PendingOperation::WorkflowRerun {
-                    workspace: PathBuf::from("/tmp/workspace"),
-                    request: request.clone(),
-                })
-                .expect("store preview");
-        }
-        assert_eq!(store.len(), MAX_PENDING_PREVIEWS);
-        assert!(store.take(&latest).is_ok());
-        assert!(store.take(&latest).is_err());
+    fn workflow_and_task_families_share_one_context_bound_broker() {
+        let (workspace, job_id, source) = {
+            let workspace = temporary_root("shared-broker");
+            let source = temporary_root("shared-source").with_extension("txt");
+            std::fs::write(&source, "Lecturer job fixture").expect("write source");
+            Application::initialize_workspace(&workspace).expect("initialize workspace");
+            let job = Application::create_job(&workspace, "Lecturer", "University")
+                .expect("create job")
+                .data;
+            (workspace, job.id.to_string(), source)
+        };
+        let revision = Application::job_detail(&workspace, &job_id)
+            .expect("job")
+            .data
+            .job
+            .revision;
+        let scope = ApprovalScope::for_workspace(&workspace).expect("approval scope");
+        let store = DesktopApprovalStore::default();
+        let workflow_request =
+            WorkflowRerunRequest::try_new(&job_id, WorkflowStage::Parse).expect("rerun request");
+        let workflow_lease = store
+            .insert(
+                ApprovalBinding::new(
+                    ApprovalKind::WorkflowRerun,
+                    scope.clone(),
+                    Some(job_id.clone()),
+                    ApprovalSourceVersion::Revision(revision),
+                ),
+                DesktopPendingApproval::WorkflowRerun {
+                    workspace: workspace.clone(),
+                    request: workflow_request,
+                },
+            )
+            .expect("workflow approval");
+        let workflow = store
+            .take(&workflow_lease.token, ApprovalKind::WorkflowRerun, &scope)
+            .expect("take workflow approval");
+        assert!(matches!(
+            workflow.payload(),
+            DesktopPendingApproval::WorkflowRerun { .. }
+        ));
+        store
+            .resolve(workflow, ApprovalDisposition::Consume)
+            .expect("consume workflow approval");
+
+        let task_request = canisend_contracts::TaskCompletionRequest {
+            task_id: canisend_contracts::EntityId::try_new("019f2f55-7c00-7000-8000-000000000201")
+                .expect("task ID"),
+            lease_id: canisend_contracts::EntityId::try_new("019f2f55-7c00-7000-8000-000000000202")
+                .expect("lease ID"),
+            expected_job_revision: revision,
+            expected_inputs: Vec::new(),
+            candidate: serde_json::json!({}),
+        };
+        let task_lease = store
+            .insert(
+                ApprovalBinding::new(
+                    ApprovalKind::TaskCompletion,
+                    scope.clone(),
+                    Some(job_id),
+                    ApprovalSourceVersion::Revision(revision),
+                ),
+                DesktopPendingApproval::TaskCompletion {
+                    workspace: workspace.clone(),
+                    request: task_request,
+                },
+            )
+            .expect("task approval");
+        let task = store
+            .take(&task_lease.token, ApprovalKind::TaskCompletion, &scope)
+            .expect("take task approval");
+        assert!(matches!(
+            task.payload(),
+            DesktopPendingApproval::TaskCompletion { .. }
+        ));
+        store
+            .resolve(task, ApprovalDisposition::Consume)
+            .expect("consume task approval");
+
+        std::fs::remove_dir_all(workspace).expect("remove workspace");
+        std::fs::remove_file(source).expect("remove source");
     }
 
     #[test]

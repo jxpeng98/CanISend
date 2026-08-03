@@ -398,6 +398,7 @@ fn prepares_and_exports_versioned_task_inputs_through_the_same_adapter() {
     let root = temporary_root("task");
     let source = temporary_root("task-advert").with_extension("txt");
     let destination = temporary_root("task-inputs");
+    let completion = temporary_root("task-completion").with_extension("json");
     fs::write(&source, "Lecturer advert").expect("write source");
     Application::initialize_workspace(&root).expect("initialize workspace");
     let job = Application::create_job(&root, "Lecturer", "University X")
@@ -434,6 +435,7 @@ fn prepares_and_exports_versioned_task_inputs_through_the_same_adapter() {
         .as_str()
         .expect("task ID")
         .to_owned();
+    let descriptor = prepared["result"]["structuredContent"]["data"].clone();
 
     let latest = mcp.request(
         3,
@@ -484,8 +486,96 @@ fn prepares_and_exports_versioned_task_inputs_through_the_same_adapter() {
         "missing consent must be rejected: {unapproved_completion}"
     );
 
+    let input = descriptor["input_artifacts"][0].clone();
+    let completion_document = json!({
+        "task_id": task_id,
+        "lease_id": descriptor["lease"]["id"],
+        "expected_job_revision": descriptor["job_revision"],
+        "expected_inputs": [{
+            "artifact_id": input["id"],
+            "revision": input["revision"],
+            "sha256": input["sha256"]
+        }],
+        "candidate": {
+            "id": "019f2f55-7c00-7000-8000-000000000701",
+            "job_id": descriptor["job_id"],
+            "title": "Lecturer",
+            "institution": "University X",
+            "summary": "Lecturer advert",
+            "responsibilities": ["Lecturer advert"],
+            "criteria": [{
+                "id": "019f2f55-7c00-7000-8000-000000000702",
+                "job_id": descriptor["job_id"],
+                "kind": "teaching",
+                "requirement": "Lecturer advert",
+                "importance": "essential",
+                "source_quote": "Lecturer advert",
+                "source_span": {
+                    "source": input,
+                    "start_byte": 0,
+                    "end_byte": 15
+                },
+                "confidence_milli": 950,
+                "confirmed": false,
+                "revision": 1
+            }],
+            "revision": 1
+        }
+    });
+    fs::write(
+        &completion,
+        serde_json::to_vec_pretty(&completion_document).expect("completion JSON"),
+    )
+    .expect("write completion");
+    let previewed = mcp.request(
+        6,
+        "tools/call",
+        json!({
+            "name": "canisend_task_completion_preview",
+            "arguments": {
+                "file": completion,
+                "confirmed_private_read": true
+            }
+        }),
+    );
+    assert_eq!(previewed["result"]["isError"], json!(false));
+    let preview = &previewed["result"]["structuredContent"];
+    assert_eq!(preview["remaining_ttl_seconds"], json!(600));
+    assert!(preview["expires_at_unix_ms"].as_u64().is_some());
+    let preview_token = preview["preview_token"]
+        .as_str()
+        .expect("task completion preview token")
+        .to_owned();
+
+    let committed = mcp.request(
+        7,
+        "tools/call",
+        json!({
+            "name": "canisend_task_completion_commit",
+            "arguments": {"preview_token": preview_token}
+        }),
+    );
+    assert_eq!(committed["result"]["isError"], json!(false));
+    assert_eq!(
+        committed["result"]["structuredContent"]["data"]["status"],
+        json!("committed")
+    );
+    let replayed = mcp.request(
+        8,
+        "tools/call",
+        json!({
+            "name": "canisend_task_completion_commit",
+            "arguments": {"preview_token": preview_token}
+        }),
+    );
+    assert!(
+        replayed["error"].is_object() || replayed["result"]["isError"] == json!(true),
+        "approval replay must be rejected: {replayed}"
+    );
+
     drop(mcp);
     fs::remove_dir_all(root).expect("remove workspace");
     fs::remove_dir_all(destination).expect("remove task inputs");
     fs::remove_file(source).expect("remove source");
+    fs::remove_file(completion).expect("remove completion");
 }

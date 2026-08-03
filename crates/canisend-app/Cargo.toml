@@ -15,6 +15,7 @@ canisend-core = { path = "../canisend-core", version = "=1.0.0-alpha.5" }
 canisend-io = { path = "../canisend-io", version = "=1.0.0-alpha.5" }
 canisend-resources = { path = "../canisend-resources", version = "=1.0.0-alpha.5" }
 canisend-store = { path = "../canisend-store", version = "=1.0.0-alpha.5" }
+getrandom.workspace = true
 hex.workspace = true
 semver.workspace = true
 serde.workspace = true
@@ -26,5 +27,7 @@ thiserror.workspace = true
 winreg.workspace = true
 
 [dev-dependencies]
+rusqlite.workspace = true
+
 [lints]
 workspace = true

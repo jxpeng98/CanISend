@@ -102,14 +102,29 @@ impl<'a> WorkflowService<'a> {
     }
 
     pub fn status(&mut self, job_id: &EntityId) -> Result<WorkflowStatusData, StoreError> {
+        self.status_with_job_revision(job_id)
+            .map(|(status, _)| status)
+    }
+
+    pub fn status_with_job_revision(
+        &mut self,
+        job_id: &EntityId,
+    ) -> Result<(WorkflowStatusData, Revision), StoreError> {
         let run_id = latest_run_id(self.database.connection(), job_id)?
             .ok_or_else(|| StoreError::WorkflowNotFound(job_id.to_string()))?;
         let updated_at = now_utc()?;
         let transaction = self.database.immediate_transaction()?;
         reconcile_job_revision(&transaction, &self.graph, &run_id, job_id, &updated_at)?;
         refresh_ready_states(&transaction, &self.graph, &run_id, &updated_at)?;
+        let job_revision: i64 = transaction.query_row(
+            "SELECT revision FROM jobs WHERE id = ?1",
+            params![job_id.as_str()],
+            |row| row.get(0),
+        )?;
+        let job_revision = Revision::try_new(to_u64(job_revision)?)?;
+        let status = load_status(&transaction, &self.graph, &run_id, job_id)?;
         transaction.commit()?;
-        load_status(self.database.connection(), &self.graph, &run_id, job_id)
+        Ok((status, job_revision))
     }
 
     pub fn begin_stage(
@@ -255,6 +270,26 @@ impl<'a> WorkflowService<'a> {
         stage: WorkflowStage,
         actor: ActorKind,
     ) -> Result<WorkflowStatusData, StoreError> {
+        self.rerun_internal(job_id, stage, actor, None)
+    }
+
+    pub fn rerun_if_job_revision(
+        &mut self,
+        job_id: &EntityId,
+        stage: WorkflowStage,
+        actor: ActorKind,
+        expected_job_revision: Revision,
+    ) -> Result<WorkflowStatusData, StoreError> {
+        self.rerun_internal(job_id, stage, actor, Some(expected_job_revision))
+    }
+
+    fn rerun_internal(
+        &mut self,
+        job_id: &EntityId,
+        stage: WorkflowStage,
+        actor: ActorKind,
+        expected_job_revision: Option<Revision>,
+    ) -> Result<WorkflowStatusData, StoreError> {
         if stage == WorkflowStage::Intake {
             return Err(StoreError::WorkflowConflict(
                 "intake changes must use job import rather than workflow rerun".to_owned(),
@@ -265,6 +300,21 @@ impl<'a> WorkflowService<'a> {
         let event_id = generate_id()?;
         let updated_at = now_utc()?;
         let transaction = self.database.immediate_transaction()?;
+        if let Some(expected) = expected_job_revision {
+            let current: i64 = transaction.query_row(
+                "SELECT revision FROM jobs WHERE id = ?1",
+                params![job_id.as_str()],
+                |row| row.get(0),
+            )?;
+            let expected = i64::try_from(expected.get()).map_err(|_| {
+                StoreError::InvalidInput("expected job revision exceeds SQLite range".to_owned())
+            })?;
+            if current != expected {
+                return Err(StoreError::DependencyConflict(format!(
+                    "job {job_id} changed from revision {expected} to {current} after workflow rerun preview"
+                )));
+            }
+        }
         reconcile_job_revision(&transaction, &self.graph, &run_id, job_id, &updated_at)?;
         let statuses = load_stage_statuses(&transaction, &run_id)?;
         let descriptor = self.graph.descriptor(stage);

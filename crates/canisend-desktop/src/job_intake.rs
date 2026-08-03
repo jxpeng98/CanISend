@@ -1,107 +1,24 @@
-use std::{
-    collections::{BTreeMap, VecDeque},
-    path::PathBuf,
-    sync::{
-        Mutex,
-        atomic::{AtomicU64, Ordering},
-    },
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::path::PathBuf;
 
 use canisend_app::{
-    ActionReceipt, Application, IntakeReviewReadModel, JobIntakePreviewReadModel,
-    NetworkFetchConsent, PreparedJobSource, PrivateReadConsent, SourceImportReadModel,
-    job_intake_review,
+    ActionReceipt, Application, ApprovalBinding, ApprovalDisposition, ApprovalKind, ApprovalScope,
+    ApprovalSourceVersion, IntakeReviewReadModel, JobIntakePreviewReadModel, NetworkFetchConsent,
+    PreparedJobSource, PrivateReadConsent, SourceImportReadModel,
+    approval_disposition_for_application_error, job_intake_review,
 };
 use serde::{Deserialize, Serialize};
 
-use crate::commands::{DesktopCommandError, run_worker};
-
-const MAX_PENDING_PREVIEWS: usize = 8;
-static NEXT_PREVIEW: AtomicU64 = AtomicU64::new(1);
-
-#[derive(Debug, Default)]
-struct PendingJobIntakeState {
-    previews: BTreeMap<String, PreparedJobSource>,
-    order: VecDeque<String>,
-}
-
-#[derive(Debug, Default)]
-pub(crate) struct JobIntakePreviewStore {
-    state: Mutex<PendingJobIntakeState>,
-}
-
-impl JobIntakePreviewStore {
-    fn insert(&self, prepared: PreparedJobSource) -> Result<String, DesktopCommandError> {
-        let token = preview_token()?;
-        let mut state = self
-            .state
-            .lock()
-            .map_err(|_| DesktopCommandError::state("Job intake preview state is unavailable"))?;
-        while state.previews.len() >= MAX_PENDING_PREVIEWS {
-            let Some(oldest) = state.order.pop_front() else {
-                break;
-            };
-            state.previews.remove(&oldest);
-        }
-        state.order.push_back(token.clone());
-        state.previews.insert(token.clone(), prepared);
-        Ok(token)
-    }
-
-    fn take(&self, token: &str) -> Result<PreparedJobSource, DesktopCommandError> {
-        let mut state = self
-            .state
-            .lock()
-            .map_err(|_| DesktopCommandError::state("Job intake preview state is unavailable"))?;
-        let prepared = state.previews.remove(token).ok_or_else(|| {
-            DesktopCommandError::state(
-                "The reviewed job intake preview expired; preview the source again.",
-            )
-        })?;
-        state.order.retain(|existing| existing != token);
-        Ok(prepared)
-    }
-
-    fn restore(
-        &self,
-        token: String,
-        prepared: PreparedJobSource,
-    ) -> Result<(), DesktopCommandError> {
-        let mut state = self
-            .state
-            .lock()
-            .map_err(|_| DesktopCommandError::state("Job intake preview state is unavailable"))?;
-        state.order.retain(|existing| existing != &token);
-        state.order.push_back(token.clone());
-        state.previews.insert(token, prepared);
-        Ok(())
-    }
-
-    fn discard(&self, token: &str) -> Result<(), DesktopCommandError> {
-        let mut state = self
-            .state
-            .lock()
-            .map_err(|_| DesktopCommandError::state("Job intake preview state is unavailable"))?;
-        state.previews.remove(token);
-        state.order.retain(|existing| existing != token);
-        Ok(())
-    }
-
-    #[cfg(test)]
-    fn len(&self) -> usize {
-        self.state
-            .lock()
-            .expect("job intake preview lock")
-            .previews
-            .len()
-    }
-}
+use crate::{
+    approval::{DesktopApprovalStore, DesktopPendingApproval, lease_fields},
+    commands::{ApplicationWorkerError, DesktopCommandError, run_application_worker, run_worker},
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct JobIntakePreviewTokenReadModel {
     preview_token: String,
+    expires_at_unix_ms: u64,
+    remaining_ttl_seconds: u64,
     preview: ActionReceipt<JobIntakePreviewReadModel>,
     intake: IntakeReviewReadModel,
 }
@@ -127,19 +44,8 @@ pub(crate) struct UrlJobIntakePreviewRequest {
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct JobIntakePreviewTokenRequest {
+    workspace: PathBuf,
     preview_token: String,
-}
-
-fn preview_token() -> Result<String, DesktopCommandError> {
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_err(|_| DesktopCommandError::state("System clock is before the Unix epoch"))?
-        .as_millis();
-    let sequence = NEXT_PREVIEW.fetch_add(1, Ordering::Relaxed);
-    Ok(format!(
-        "job-intake-preview-{}-{timestamp}-{sequence}",
-        std::process::id()
-    ))
 }
 
 fn prepare_local_job_source_impl(
@@ -178,15 +84,31 @@ fn prepare_url_job_source_impl(
 
 #[tauri::command]
 pub(crate) async fn preview_local_job_source(
-    state: tauri::State<'_, JobIntakePreviewStore>,
+    state: tauri::State<'_, DesktopApprovalStore>,
     request: LocalJobIntakePreviewRequest,
 ) -> Result<JobIntakePreviewTokenReadModel, DesktopCommandError> {
     let prepared = run_worker(move || prepare_local_job_source_impl(request)).await?;
     let preview = prepared.preview().clone();
     let intake = job_intake_review(&preview.data);
-    let preview_token = state.insert(prepared)?;
+    let scope = ApprovalScope::for_workspace(&preview.data.workspace)
+        .map_err(DesktopCommandError::application)?;
+    let binding = ApprovalBinding::new(
+        ApprovalKind::JobIntake,
+        scope,
+        Some(preview.data.job.id.to_string()),
+        ApprovalSourceVersion::RevisionAndSnapshot {
+            revision: preview.data.expected_job_revision,
+            snapshot_sha256: preview.data.provenance.original_sha256.clone(),
+        },
+    );
+    let (preview_token, expires_at_unix_ms, remaining_ttl_seconds) = lease_fields(state.insert(
+        binding,
+        DesktopPendingApproval::JobIntake(Box::new(prepared)),
+    )?);
     Ok(JobIntakePreviewTokenReadModel {
         preview_token,
+        expires_at_unix_ms,
+        remaining_ttl_seconds,
         preview,
         intake,
     })
@@ -194,15 +116,31 @@ pub(crate) async fn preview_local_job_source(
 
 #[tauri::command]
 pub(crate) async fn preview_url_job_source(
-    state: tauri::State<'_, JobIntakePreviewStore>,
+    state: tauri::State<'_, DesktopApprovalStore>,
     request: UrlJobIntakePreviewRequest,
 ) -> Result<JobIntakePreviewTokenReadModel, DesktopCommandError> {
     let prepared = run_worker(move || prepare_url_job_source_impl(request)).await?;
     let preview = prepared.preview().clone();
     let intake = job_intake_review(&preview.data);
-    let preview_token = state.insert(prepared)?;
+    let scope = ApprovalScope::for_workspace(&preview.data.workspace)
+        .map_err(DesktopCommandError::application)?;
+    let binding = ApprovalBinding::new(
+        ApprovalKind::JobIntake,
+        scope,
+        Some(preview.data.job.id.to_string()),
+        ApprovalSourceVersion::RevisionAndSnapshot {
+            revision: preview.data.expected_job_revision,
+            snapshot_sha256: preview.data.provenance.original_sha256.clone(),
+        },
+    );
+    let (preview_token, expires_at_unix_ms, remaining_ttl_seconds) = lease_fields(state.insert(
+        binding,
+        DesktopPendingApproval::JobIntake(Box::new(prepared)),
+    )?);
     Ok(JobIntakePreviewTokenReadModel {
         preview_token,
+        expires_at_unix_ms,
+        remaining_ttl_seconds,
         preview,
         intake,
     })
@@ -210,27 +148,43 @@ pub(crate) async fn preview_url_job_source(
 
 #[tauri::command]
 pub(crate) async fn commit_job_source_preview(
-    state: tauri::State<'_, JobIntakePreviewStore>,
+    state: tauri::State<'_, DesktopApprovalStore>,
     request: JobIntakePreviewTokenRequest,
 ) -> Result<ActionReceipt<SourceImportReadModel>, DesktopCommandError> {
-    let prepared = state.take(&request.preview_token)?;
-    let retry = prepared.clone();
-    let result = run_worker(move || {
-        Application::commit_prepared_job_source(prepared).map_err(DesktopCommandError::application)
-    })
-    .await;
-    if result.is_err() {
-        state.restore(request.preview_token, retry)?;
+    let scope = ApprovalScope::for_workspace(&request.workspace)
+        .map_err(DesktopCommandError::application)?;
+    let grant = state.take(&request.preview_token, ApprovalKind::JobIntake, &scope)?;
+    let DesktopPendingApproval::JobIntake(prepared) = grant.payload().clone() else {
+        state.resolve(grant, ApprovalDisposition::Consume)?;
+        return Err(DesktopCommandError::state(
+            "Approval payload does not match job intake.",
+        ));
+    };
+    match run_application_worker(move || Application::commit_prepared_job_source(*prepared)).await {
+        Ok(receipt) => {
+            state.resolve(grant, ApprovalDisposition::Consume)?;
+            Ok(receipt)
+        }
+        Err(ApplicationWorkerError::Application(error)) => {
+            let disposition = approval_disposition_for_application_error(&error);
+            state.resolve(grant, disposition)?;
+            Err(DesktopCommandError::application(error))
+        }
+        Err(ApplicationWorkerError::Worker(message)) => {
+            state.resolve(grant, ApprovalDisposition::Consume)?;
+            Err(DesktopCommandError::worker(message))
+        }
     }
-    result
 }
 
 #[tauri::command]
 pub(crate) fn discard_job_source_preview(
-    state: tauri::State<'_, JobIntakePreviewStore>,
+    state: tauri::State<'_, DesktopApprovalStore>,
     request: JobIntakePreviewTokenRequest,
 ) -> Result<(), DesktopCommandError> {
-    state.discard(&request.preview_token)
+    let scope = ApprovalScope::for_workspace(&request.workspace)
+        .map_err(DesktopCommandError::application)?;
+    state.discard(&request.preview_token, ApprovalKind::JobIntake, &scope)
 }
 
 #[cfg(test)]
@@ -271,16 +225,43 @@ mod tests {
     }
 
     #[test]
-    fn preview_store_is_bounded_and_single_use() {
-        let store = JobIntakePreviewStore::default();
-        let (workspace, source, prepared) = prepared_fixture("bounded");
-        let mut latest = String::new();
-        for _ in 0..(MAX_PENDING_PREVIEWS + 2) {
-            latest = store.insert(prepared.clone()).expect("store preview");
-        }
-        assert_eq!(store.len(), MAX_PENDING_PREVIEWS);
-        assert!(store.take(&latest).is_ok());
-        assert!(store.take(&latest).is_err());
+    fn job_intake_family_uses_the_shared_single_use_broker() {
+        let store = DesktopApprovalStore::default();
+        let (workspace, source, prepared) = prepared_fixture("shared-broker");
+        let preview = prepared.preview();
+        let scope = ApprovalScope::for_workspace(&workspace).expect("approval scope");
+        let binding = ApprovalBinding::new(
+            ApprovalKind::JobIntake,
+            scope.clone(),
+            Some(preview.data.job.id.to_string()),
+            ApprovalSourceVersion::RevisionAndSnapshot {
+                revision: preview.data.expected_job_revision,
+                snapshot_sha256: preview.data.provenance.original_sha256.clone(),
+            },
+        );
+        let lease = store
+            .insert(
+                binding,
+                DesktopPendingApproval::JobIntake(Box::new(prepared)),
+            )
+            .expect("insert shared approval");
+        assert_eq!(lease.remaining_ttl_seconds, 600);
+        let grant = store
+            .take(&lease.token, ApprovalKind::JobIntake, &scope)
+            .expect("take shared approval");
+        assert!(matches!(
+            grant.payload(),
+            DesktopPendingApproval::JobIntake(_)
+        ));
+        store
+            .resolve(grant, ApprovalDisposition::Consume)
+            .expect("consume approval");
+        assert!(
+            store
+                .take(&lease.token, ApprovalKind::JobIntake, &scope)
+                .is_err()
+        );
+
         fs::remove_dir_all(workspace).expect("remove workspace");
         fs::remove_file(source).expect("remove source");
     }

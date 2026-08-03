@@ -90,6 +90,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
         [area, command] if area == "operations" && command == "check" => {
             check_operation_registry()
         }
+        [area, command] if area == "approvals" && command == "check" => check_approval_broker(),
         [area, command] if area == "architecture" && command == "graph-check" => {
             check_workspace_dependency_graph()
         }
@@ -154,6 +155,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
             check_release_status()?;
             check_workspace_dependency_graph()?;
             check_operation_registry()?;
+            check_approval_broker()?;
             check_cli_gui_parity()?;
             check_svelte_parity()?;
             check_alpha_package_contract()?;
@@ -5924,6 +5926,134 @@ fn parse_policy_date(value: &str, context: &str) -> Result<Date, String> {
     }
     Date::from_calendar_date(year, month, day)
         .map_err(|error| format!("{context} is invalid: {error}"))
+}
+
+fn check_approval_broker() -> Result<(), String> {
+    let root = repository_root();
+    let read = |relative: &str| {
+        fs::read_to_string(root.join(relative))
+            .map_err(|error| format!("could not read {relative}: {error}"))
+    };
+    let app = read("crates/canisend-app/src/approval.rs")?;
+    let mcp = read("crates/canisend-mcp/src/lib.rs")?;
+    let desktop_state = read("crates/canisend-desktop/src/approval.rs")?;
+    let desktop_host = read("crates/canisend-desktop/src/lib.rs")?;
+    let desktop_job = read("crates/canisend-desktop/src/job_intake.rs")?;
+    let desktop_discovery = read("crates/canisend-desktop/src/discovery.rs")?;
+    let desktop_workflow = read("crates/canisend-desktop/src/workflow.rs")?;
+    let bridge = read("apps/canisend-desktop/src/lib/bridge.ts")?;
+    validate_approval_broker_sources(
+        &app,
+        &mcp,
+        &desktop_state,
+        &desktop_host,
+        [&desktop_job, &desktop_discovery, &desktop_workflow],
+        &bridge,
+    )?;
+    println!(
+        "approval broker: ok (10-minute monotonic TTL, 16-entry bound, MCP + 3 desktop families)"
+    );
+    Ok(())
+}
+
+fn validate_approval_broker_sources(
+    app: &str,
+    mcp: &str,
+    desktop_state: &str,
+    desktop_host: &str,
+    desktop_families: [&str; 3],
+    bridge: &str,
+) -> Result<(), String> {
+    for required in [
+        "pub const APPROVAL_DEFAULT_CAPACITY: usize = 16",
+        "Duration::from_secs(10 * 60)",
+        "getrandom::fill(destination)",
+        "pub enum ApprovalDisposition",
+        "RestoreSameApproval",
+        "fn start_sweeper",
+        "CapacityFull",
+        "ApprovalSourceVersion",
+    ] {
+        if !app.contains(required) {
+            return Err(format!(
+                "shared approval broker is missing required invariant source: {required}"
+            ));
+        }
+    }
+    for required in [
+        "ApprovalBroker<PendingMutation>",
+        "approval_disposition_for_application_error",
+        "remaining_ttl_seconds",
+        "expires_at_unix_ms",
+    ] {
+        if !mcp.contains(required) {
+            return Err(format!(
+                "MCP approval adapter is missing shared broker evidence: {required}"
+            ));
+        }
+    }
+    for required in [
+        "ApprovalBroker<DesktopPendingApproval>",
+        "DesktopPendingApproval",
+        "DesktopApprovalStore",
+    ] {
+        if !desktop_state.contains(required) {
+            return Err(format!(
+                "desktop approval state is missing shared broker evidence: {required}"
+            ));
+        }
+    }
+    if desktop_host
+        .matches("DesktopApprovalStore::default()")
+        .count()
+        != 1
+    {
+        return Err("desktop host must manage exactly one shared DesktopApprovalStore".to_owned());
+    }
+    for (index, family) in desktop_families.into_iter().enumerate() {
+        for required in [
+            "tauri::State<'_, DesktopApprovalStore>",
+            "remaining_ttl_seconds",
+            "expires_at_unix_ms",
+        ] {
+            if !family.contains(required) {
+                return Err(format!(
+                    "desktop preview family {} is missing shared broker evidence: {required}",
+                    index + 1
+                ));
+            }
+        }
+    }
+    if bridge.matches("remaining_ttl_seconds: number").count() < 4
+        || bridge.matches("expires_at_unix_ms: number").count() < 4
+    {
+        return Err(
+            "desktop bridge must expose expiry metadata for all four preview read models"
+                .to_owned(),
+        );
+    }
+    let adapter_sources = [mcp, desktop_state, desktop_host]
+        .into_iter()
+        .chain(desktop_families)
+        .collect::<Vec<_>>()
+        .join("\n");
+    for forbidden in [
+        "struct MutationPreviewStore",
+        "struct JobIntakePreviewStore",
+        "struct WorkflowPreviewStore",
+        "struct DiscoveryPreviewStore",
+        "mcp-preview-",
+        "job-intake-preview-",
+        "workflow-preview-",
+        "discovery-preview-",
+    ] {
+        if adapter_sources.contains(forbidden) {
+            return Err(format!(
+                "duplicated or predictable adapter approval state returned: {forbidden}"
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn check_operation_registry() -> Result<(), String> {
@@ -15490,6 +15620,58 @@ mod tests {
         assert!(
             canonical_signing_evidence(&evidence, &target, env!("CARGO_PKG_VERSION"), None)
                 .is_err()
+        );
+    }
+
+    #[test]
+    fn approval_source_gate_rejects_duplicate_stores_and_missing_expiry_contracts() {
+        let root = repository_root();
+        let read = |relative: &str| {
+            fs::read_to_string(root.join(relative)).expect("read approval source fixture")
+        };
+        let app = read("crates/canisend-app/src/approval.rs");
+        let mut mcp = read("crates/canisend-mcp/src/lib.rs");
+        let desktop_state = read("crates/canisend-desktop/src/approval.rs");
+        let desktop_host = read("crates/canisend-desktop/src/lib.rs");
+        let job = read("crates/canisend-desktop/src/job_intake.rs");
+        let discovery = read("crates/canisend-desktop/src/discovery.rs");
+        let workflow = read("crates/canisend-desktop/src/workflow.rs");
+        let mut bridge = read("apps/canisend-desktop/src/lib/bridge.ts");
+        validate_approval_broker_sources(
+            &app,
+            &mcp,
+            &desktop_state,
+            &desktop_host,
+            [&job, &discovery, &workflow],
+            &bridge,
+        )
+        .expect("current approval sources");
+
+        mcp.push_str("\nstruct MutationPreviewStore;\n");
+        assert!(
+            validate_approval_broker_sources(
+                &app,
+                &mcp,
+                &desktop_state,
+                &desktop_host,
+                [&job, &discovery, &workflow],
+                &bridge,
+            )
+            .is_err()
+        );
+
+        mcp = read("crates/canisend-mcp/src/lib.rs");
+        bridge = bridge.replacen("remaining_ttl_seconds: number", "ttl_removed: number", 1);
+        assert!(
+            validate_approval_broker_sources(
+                &app,
+                &mcp,
+                &desktop_state,
+                &desktop_host,
+                [&job, &discovery, &workflow],
+                &bridge,
+            )
+            .is_err()
         );
     }
 }

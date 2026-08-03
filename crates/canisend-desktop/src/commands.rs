@@ -2,13 +2,14 @@ use std::path::{Path, PathBuf};
 
 use canisend_app::{
     ACADEMIC_JOB_WORKFLOW_PACK_ID, ActionReceipt, Application, ApplicationDossierListReadModel,
-    ApplicationDossierReadModel, ApplicationError, BackupReadModel, ContentCatalogFilter,
-    ContentCatalogReadModel, ContentSearchReadModel, ContentSearchRequest, DoctorSummary,
-    JobDetailReadModel, JobListReadModel, NetworkFetchConsent, PrivateReadConsent, ProductSummary,
-    SourceImportReadModel, WorkflowPackPresentationLocale, WorkflowPackPresentationReadModel,
-    WorkspaceHealthReadModel, WorkspaceReadModel, WorkspaceRegistry, WorkspaceRepairReadModel,
-    WorkspaceRestoreReadModel, WorkspaceV3MigrationPreview, WorkspaceV3MigrationReadModel,
-    WorkspaceV3MigrationRequest, default_registry_path, validate_workspace_alias,
+    ApplicationDossierReadModel, ApplicationError, ApprovalBrokerError, BackupReadModel,
+    ContentCatalogFilter, ContentCatalogReadModel, ContentSearchReadModel, ContentSearchRequest,
+    DoctorSummary, JobDetailReadModel, JobListReadModel, NetworkFetchConsent, PrivateReadConsent,
+    ProductSummary, SourceImportReadModel, WorkflowPackPresentationLocale,
+    WorkflowPackPresentationReadModel, WorkspaceHealthReadModel, WorkspaceReadModel,
+    WorkspaceRegistry, WorkspaceRepairReadModel, WorkspaceRestoreReadModel,
+    WorkspaceV3MigrationPreview, WorkspaceV3MigrationReadModel, WorkspaceV3MigrationRequest,
+    default_registry_path, validate_workspace_alias,
 };
 use canisend_contracts::{JobRecord, Sha256Digest};
 use serde::{Deserialize, Serialize};
@@ -56,6 +57,19 @@ impl DesktopCommandError {
             code: "desktop-state-failure".to_owned(),
             message: message.into(),
             retryable: false,
+        }
+    }
+
+    pub(crate) fn approval(error: ApprovalBrokerError) -> Self {
+        Self {
+            code: crate::approval::approval_error_code(&error).to_owned(),
+            message: error.to_string(),
+            retryable: matches!(
+                error,
+                ApprovalBrokerError::Unavailable
+                    | ApprovalBrokerError::TokenGeneration(_)
+                    | ApprovalBrokerError::RestoreCollision
+            ),
         }
     }
 
@@ -403,6 +417,22 @@ where
     tauri::async_runtime::spawn_blocking(task)
         .await
         .map_err(|error| DesktopCommandError::worker(error.to_string()))?
+}
+
+pub(crate) enum ApplicationWorkerError {
+    Application(ApplicationError),
+    Worker(String),
+}
+
+pub(crate) async fn run_application_worker<T, F>(task: F) -> Result<T, ApplicationWorkerError>
+where
+    T: Send + 'static,
+    F: FnOnce() -> Result<T, ApplicationError> + Send + 'static,
+{
+    tauri::async_runtime::spawn_blocking(task)
+        .await
+        .map_err(|error| ApplicationWorkerError::Worker(error.to_string()))?
+        .map_err(ApplicationWorkerError::Application)
 }
 
 #[tauri::command]

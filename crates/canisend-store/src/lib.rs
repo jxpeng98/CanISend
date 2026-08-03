@@ -205,6 +205,27 @@ pub enum StoreError {
     Invariant(String),
 }
 
+impl StoreError {
+    #[must_use]
+    pub fn is_transient_operation_failure(&self) -> bool {
+        match self {
+            Self::Sqlite(error) => error.sqlite_error_code().is_some_and(|code| {
+                matches!(
+                    code,
+                    rusqlite::ErrorCode::DatabaseBusy | rusqlite::ErrorCode::DatabaseLocked
+                )
+            }),
+            Self::Io { source, .. } => matches!(
+                source.kind(),
+                std::io::ErrorKind::Interrupted
+                    | std::io::ErrorKind::WouldBlock
+                    | std::io::ErrorKind::TimedOut
+            ),
+            _ => false,
+        }
+    }
+}
+
 pub(crate) fn io_error(path: impl Into<PathBuf>, source: std::io::Error) -> StoreError {
     StoreError::Io {
         path: path.into(),

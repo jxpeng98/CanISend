@@ -518,6 +518,8 @@ export interface IntakeReviewReadModel {
 
 export interface JobIntakePreviewReadModel {
   preview_token: string;
+  expires_at_unix_ms: number;
+  remaining_ttl_seconds: number;
   intake: IntakeReviewReadModel;
   preview: ActionReceipt<{
     workspace: string;
@@ -612,6 +614,8 @@ export interface DiscoveryImportReport {
 
 export interface DiscoveryPreviewReadModel {
   preview_token: string;
+  expires_at_unix_ms: number;
+  remaining_ttl_seconds: number;
   kind: "import" | "refresh";
   intake: IntakeReviewReadModel;
   preview: ActionReceipt<DiscoveryImportReport>;
@@ -923,6 +927,8 @@ export interface WorkflowControlReadModel {
 
 export interface WorkflowRerunPreviewReadModel {
   preview_token: string;
+  expires_at_unix_ms: number;
+  remaining_ttl_seconds: number;
   preview: ActionReceipt<{
     job_id: string;
     target: WorkflowStage;
@@ -959,6 +965,8 @@ export interface TaskStateData {
 
 export interface TaskCompletionPreviewReadModel {
   preview_token: string;
+  expires_at_unix_ms: number;
+  remaining_ttl_seconds: number;
   preview: ActionReceipt<{
     request: Record<string, unknown>;
     state: TaskStateData;
@@ -1738,18 +1746,20 @@ export async function previewUrlJobSource(
 }
 
 export async function commitJobSourcePreview(
+  workspace: string,
   previewToken: string,
 ): Promise<ActionReceipt<SourceImportReadModel>> {
   return invoke("commit_job_source_preview", {
-    request: { preview_token: previewToken },
+    request: { workspace, preview_token: previewToken },
   });
 }
 
 export async function discardJobSourcePreview(
+  workspace: string,
   previewToken: string,
 ): Promise<void> {
   return invoke("discard_job_source_preview", {
-    request: { preview_token: previewToken },
+    request: { workspace, preview_token: previewToken },
   });
 }
 
@@ -1760,6 +1770,7 @@ export async function getDiscoveryAdapters(): Promise<
 }
 
 export async function previewDiscoveryFile(options: {
+  workspace: string;
   path: string;
   sourceName?: string;
   sourceUrl?: string;
@@ -1768,6 +1779,7 @@ export async function previewDiscoveryFile(options: {
 }): Promise<DiscoveryPreviewReadModel> {
   return invoke("preview_discovery_file", {
     request: {
+      workspace: options.workspace,
       path: options.path,
       source_name: options.sourceName || null,
       source_url: options.sourceUrl || null,
@@ -1778,6 +1790,7 @@ export async function previewDiscoveryFile(options: {
 }
 
 export async function previewDiscoveryNetwork(options: {
+  workspace: string;
   adapter: DiscoveryNetworkAdapter;
   endpoint: string;
   sourceName: string;
@@ -1786,6 +1799,7 @@ export async function previewDiscoveryNetwork(options: {
 }): Promise<DiscoveryPreviewReadModel> {
   return invoke("preview_discovery_network", {
     request: {
+      workspace: options.workspace,
       adapter: options.adapter,
       endpoint: options.endpoint,
       source_name: options.sourceName,
@@ -1798,17 +1812,20 @@ export async function previewDiscoveryNetwork(options: {
 export async function commitDiscoveryPreview(
   workspace: string,
   previewToken: string,
+  kind: "import" | "refresh",
 ): Promise<ActionReceipt<DiscoveryImportReport>> {
   return invoke("commit_discovery_preview", {
-    request: { workspace, preview_token: previewToken },
+    request: { workspace, preview_token: previewToken, kind },
   });
 }
 
 export async function discardDiscoveryPreview(
+  workspace: string,
   previewToken: string,
+  kind: "import" | "refresh",
 ): Promise<void> {
   return invoke("discard_discovery_preview", {
-    request: { preview_token: previewToken },
+    request: { workspace, preview_token: previewToken, kind },
   });
 }
 
@@ -2070,18 +2087,20 @@ export async function previewWorkflowRerun(
 }
 
 export async function commitWorkflowRerun(
+  workspace: string,
   previewToken: string,
 ): Promise<ActionReceipt<WorkflowControlReadModel>> {
   return invoke("commit_workflow_rerun", {
-    request: { preview_token: previewToken },
+    request: { workspace, preview_token: previewToken },
   });
 }
 
 export async function discardWorkflowPreview(
+  workspace: string,
   previewToken: string,
 ): Promise<void> {
   return invoke("discard_workflow_preview", {
-    request: { preview_token: previewToken },
+    request: { workspace, preview_token: previewToken },
   });
 }
 
@@ -2138,10 +2157,11 @@ export async function previewTaskCompletion(options: {
 }
 
 export async function commitTaskCompletion(
+  workspace: string,
   previewToken: string,
 ): Promise<ActionReceipt<Record<string, unknown>>> {
   return invoke("commit_task_completion_preview", {
-    request: { preview_token: previewToken },
+    request: { workspace, preview_token: previewToken },
   });
 }
 

@@ -1,129 +1,37 @@
-use std::{
-    collections::{BTreeMap, VecDeque},
-    path::PathBuf,
-    sync::{
-        Mutex,
-        atomic::{AtomicU64, Ordering},
-    },
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::path::PathBuf;
 
 use canisend_app::{
-    ActionReceipt, Application, DiscoveryAdapterCatalogReadModel, DiscoveryImportRequest,
+    ActionReceipt, Application, ApprovalBinding, ApprovalDisposition, ApprovalKind, ApprovalScope,
+    ApprovalSourceVersion, DiscoveryAdapterCatalogReadModel, DiscoveryImportRequest,
     DiscoveryLeadListReadModel, DiscoveryNetworkAdapter, DiscoveryPromotionReadModel,
     DiscoveryRefreshRequest, DiscoverySourceListReadModel, DiscoverySuggestionReadModel,
-    IntakeReviewReadModel, NetworkFetchConsent, PrivateReadConsent, discovery_intake_review,
+    IntakeReviewReadModel, NetworkFetchConsent, PrivateReadConsent,
+    approval_disposition_for_application_error, discovery_intake_review,
 };
-use canisend_contracts::{ConsentScope, DiscoveryImportReport, DiscoveryLeadRecord};
+use canisend_contracts::{ConsentScope, DiscoveryImportReport, DiscoveryLeadRecord, Sha256Digest};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
-use crate::commands::{DesktopCommandError, run_worker};
+use crate::{
+    approval::{DesktopApprovalStore, DesktopDiscoveryKind, DesktopPendingApproval, lease_fields},
+    commands::{ApplicationWorkerError, DesktopCommandError, run_application_worker, run_worker},
+};
 
-const MAX_PENDING_PREVIEWS: usize = 8;
 const MAX_SUGGESTIONS: usize = 20;
-static NEXT_PREVIEW: AtomicU64 = AtomicU64::new(1);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 enum DiscoveryPreviewKind {
     Import,
     Refresh,
 }
 
-#[derive(Debug, Clone)]
-struct PendingDiscoveryPreview {
-    kind: DiscoveryPreviewKind,
-    report: DiscoveryImportReport,
-}
-
-#[derive(Debug, Default)]
-struct PendingDiscoveryState {
-    previews: BTreeMap<String, PendingDiscoveryPreview>,
-    order: VecDeque<String>,
-}
-
-#[derive(Debug, Default)]
-pub(crate) struct DiscoveryPreviewStore {
-    state: Mutex<PendingDiscoveryState>,
-}
-
-impl DiscoveryPreviewStore {
-    fn insert(
-        &self,
-        kind: DiscoveryPreviewKind,
-        report: DiscoveryImportReport,
-    ) -> Result<String, DesktopCommandError> {
-        let token = preview_token()?;
-        let mut state = self
-            .state
-            .lock()
-            .map_err(|_| DesktopCommandError::state("Discovery preview state is unavailable"))?;
-        while state.previews.len() >= MAX_PENDING_PREVIEWS {
-            let Some(oldest) = state.order.pop_front() else {
-                break;
-            };
-            state.previews.remove(&oldest);
-        }
-        state.order.push_back(token.clone());
-        state
-            .previews
-            .insert(token.clone(), PendingDiscoveryPreview { kind, report });
-        Ok(token)
-    }
-
-    fn take(&self, token: &str) -> Result<PendingDiscoveryPreview, DesktopCommandError> {
-        let mut state = self
-            .state
-            .lock()
-            .map_err(|_| DesktopCommandError::state("Discovery preview state is unavailable"))?;
-        let preview = state.previews.remove(token).ok_or_else(|| {
-            DesktopCommandError::state(
-                "The reviewed discovery preview expired; preview the source again.",
-            )
-        })?;
-        state.order.retain(|existing| existing != token);
-        Ok(preview)
-    }
-
-    fn restore(
-        &self,
-        token: String,
-        preview: PendingDiscoveryPreview,
-    ) -> Result<(), DesktopCommandError> {
-        let mut state = self
-            .state
-            .lock()
-            .map_err(|_| DesktopCommandError::state("Discovery preview state is unavailable"))?;
-        state.order.retain(|existing| existing != &token);
-        state.order.push_back(token.clone());
-        state.previews.insert(token, preview);
-        Ok(())
-    }
-
-    fn discard(&self, token: &str) -> Result<(), DesktopCommandError> {
-        let mut state = self
-            .state
-            .lock()
-            .map_err(|_| DesktopCommandError::state("Discovery preview state is unavailable"))?;
-        state.previews.remove(token);
-        state.order.retain(|existing| existing != token);
-        Ok(())
-    }
-
-    #[cfg(test)]
-    fn len(&self) -> usize {
-        self.state
-            .lock()
-            .expect("preview store lock")
-            .previews
-            .len()
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct DiscoveryPreviewReadModel {
     preview_token: String,
+    expires_at_unix_ms: u64,
+    remaining_ttl_seconds: u64,
     kind: DiscoveryPreviewKind,
     preview: ActionReceipt<DiscoveryImportReport>,
     intake: IntakeReviewReadModel,
@@ -132,6 +40,7 @@ pub(crate) struct DiscoveryPreviewReadModel {
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct DiscoveryFilePreviewRequest {
+    workspace: PathBuf,
     path: PathBuf,
     source_name: Option<String>,
     source_url: Option<String>,
@@ -142,6 +51,7 @@ pub(crate) struct DiscoveryFilePreviewRequest {
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct DiscoveryNetworkPreviewRequest {
+    workspace: PathBuf,
     adapter: DiscoveryNetworkAdapter,
     endpoint: String,
     source_name: String,
@@ -154,6 +64,7 @@ pub(crate) struct DiscoveryNetworkPreviewRequest {
 pub(crate) struct DiscoveryCommitRequest {
     workspace: PathBuf,
     preview_token: String,
+    kind: DiscoveryPreviewKind,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -187,7 +98,9 @@ pub(crate) struct DiscoverySuggestionRequest {
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct DiscoveryDiscardRequest {
+    workspace: PathBuf,
     preview_token: String,
+    kind: DiscoveryPreviewKind,
 }
 
 fn preview_discovery_file_impl(
@@ -239,16 +152,12 @@ fn preview_discovery_network_impl(
     Ok((preview, intake))
 }
 
-fn preview_token() -> Result<String, DesktopCommandError> {
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_err(|_| DesktopCommandError::state("System clock is before the Unix epoch"))?
-        .as_millis();
-    let sequence = NEXT_PREVIEW.fetch_add(1, Ordering::Relaxed);
-    Ok(format!(
-        "discovery-preview-{}-{timestamp}-{sequence}",
-        std::process::id()
-    ))
+fn report_digest(report: &DiscoveryImportReport) -> Result<Sha256Digest, DesktopCommandError> {
+    let encoded = serde_json::to_vec(report).map_err(|error| {
+        DesktopCommandError::state(format!("Discovery preview could not be bound: {error}"))
+    })?;
+    Sha256Digest::try_new(hex::encode(Sha256::digest(encoded)))
+        .map_err(|error| DesktopCommandError::state(error.to_string()))
 }
 
 #[tauri::command]
@@ -259,13 +168,31 @@ pub(crate) fn discovery_adapters()
 
 #[tauri::command]
 pub(crate) async fn preview_discovery_file(
-    state: tauri::State<'_, DiscoveryPreviewStore>,
+    state: tauri::State<'_, DesktopApprovalStore>,
     request: DiscoveryFilePreviewRequest,
 ) -> Result<DiscoveryPreviewReadModel, DesktopCommandError> {
+    let workspace = request.workspace.clone();
     let (preview, intake) = run_worker(move || preview_discovery_file_impl(request)).await?;
-    let preview_token = state.insert(DiscoveryPreviewKind::Import, preview.data.clone())?;
+    let scope =
+        ApprovalScope::for_workspace(&workspace).map_err(DesktopCommandError::application)?;
+    let binding = ApprovalBinding::new(
+        ApprovalKind::DiscoveryImport,
+        scope,
+        None,
+        ApprovalSourceVersion::Snapshot(report_digest(&preview.data)?),
+    );
+    let (preview_token, expires_at_unix_ms, remaining_ttl_seconds) = lease_fields(state.insert(
+        binding,
+        DesktopPendingApproval::Discovery {
+            workspace,
+            kind: DesktopDiscoveryKind::Import,
+            report: Box::new(preview.data.clone()),
+        },
+    )?);
     Ok(DiscoveryPreviewReadModel {
         preview_token,
+        expires_at_unix_ms,
+        remaining_ttl_seconds,
         kind: DiscoveryPreviewKind::Import,
         preview,
         intake,
@@ -274,13 +201,31 @@ pub(crate) async fn preview_discovery_file(
 
 #[tauri::command]
 pub(crate) async fn preview_discovery_network(
-    state: tauri::State<'_, DiscoveryPreviewStore>,
+    state: tauri::State<'_, DesktopApprovalStore>,
     request: DiscoveryNetworkPreviewRequest,
 ) -> Result<DiscoveryPreviewReadModel, DesktopCommandError> {
+    let workspace = request.workspace.clone();
     let (preview, intake) = run_worker(move || preview_discovery_network_impl(request)).await?;
-    let preview_token = state.insert(DiscoveryPreviewKind::Refresh, preview.data.clone())?;
+    let scope =
+        ApprovalScope::for_workspace(&workspace).map_err(DesktopCommandError::application)?;
+    let binding = ApprovalBinding::new(
+        ApprovalKind::DiscoveryRefresh,
+        scope,
+        None,
+        ApprovalSourceVersion::Snapshot(report_digest(&preview.data)?),
+    );
+    let (preview_token, expires_at_unix_ms, remaining_ttl_seconds) = lease_fields(state.insert(
+        binding,
+        DesktopPendingApproval::Discovery {
+            workspace,
+            kind: DesktopDiscoveryKind::Refresh,
+            report: Box::new(preview.data.clone()),
+        },
+    )?);
     Ok(DiscoveryPreviewReadModel {
         preview_token,
+        expires_at_unix_ms,
+        remaining_ttl_seconds,
         kind: DiscoveryPreviewKind::Refresh,
         preview,
         intake,
@@ -289,36 +234,61 @@ pub(crate) async fn preview_discovery_network(
 
 #[tauri::command]
 pub(crate) async fn commit_discovery_preview(
-    state: tauri::State<'_, DiscoveryPreviewStore>,
+    state: tauri::State<'_, DesktopApprovalStore>,
     request: DiscoveryCommitRequest,
 ) -> Result<ActionReceipt<DiscoveryImportReport>, DesktopCommandError> {
-    let preview = state.take(&request.preview_token)?;
-    let retry_preview = preview.clone();
-    let workspace = request.workspace;
-    let result = run_worker(move || {
-        match preview.kind {
-            DiscoveryPreviewKind::Import => {
-                Application::commit_discovery_import(&workspace, preview.report)
-            }
-            DiscoveryPreviewKind::Refresh => {
-                Application::commit_discovery_refresh(&workspace, preview.report)
-            }
-        }
-        .map_err(DesktopCommandError::application)
+    let scope = ApprovalScope::for_workspace(&request.workspace)
+        .map_err(DesktopCommandError::application)?;
+    let expected_kind = match request.kind {
+        DiscoveryPreviewKind::Import => ApprovalKind::DiscoveryImport,
+        DiscoveryPreviewKind::Refresh => ApprovalKind::DiscoveryRefresh,
+    };
+    let grant = state.take(&request.preview_token, expected_kind, &scope)?;
+    let DesktopPendingApproval::Discovery {
+        workspace,
+        kind,
+        report,
+    } = grant.payload().clone()
+    else {
+        state.resolve(grant, ApprovalDisposition::Consume)?;
+        return Err(DesktopCommandError::state(
+            "Approval payload does not match discovery.",
+        ));
+    };
+    match run_application_worker(move || match kind {
+        DesktopDiscoveryKind::Import => Application::commit_discovery_import(&workspace, *report),
+        DesktopDiscoveryKind::Refresh => Application::commit_discovery_refresh(&workspace, *report),
     })
-    .await;
-    if result.is_err() {
-        state.restore(request.preview_token, retry_preview)?;
+    .await
+    {
+        Ok(receipt) => {
+            state.resolve(grant, ApprovalDisposition::Consume)?;
+            Ok(receipt)
+        }
+        Err(ApplicationWorkerError::Application(error)) => {
+            let disposition = approval_disposition_for_application_error(&error);
+            state.resolve(grant, disposition)?;
+            Err(DesktopCommandError::application(error))
+        }
+        Err(ApplicationWorkerError::Worker(message)) => {
+            state.resolve(grant, ApprovalDisposition::Consume)?;
+            Err(DesktopCommandError::worker(message))
+        }
     }
-    result
 }
 
 #[tauri::command]
 pub(crate) fn discard_discovery_preview(
-    state: tauri::State<'_, DiscoveryPreviewStore>,
+    state: tauri::State<'_, DesktopApprovalStore>,
     request: DiscoveryDiscardRequest,
 ) -> Result<(), DesktopCommandError> {
-    state.discard(&request.preview_token)
+    let scope = ApprovalScope::for_workspace(&request.workspace)
+        .map_err(DesktopCommandError::application)?;
+    let kind = match request.kind {
+        DiscoveryPreviewKind::Import => ApprovalKind::DiscoveryImport,
+        DiscoveryPreviewKind::Refresh => ApprovalKind::DiscoveryRefresh,
+    };
+    state.discard(&request.preview_token, kind, &scope)
 }
 
 #[tauri::command]
@@ -399,8 +369,9 @@ mod tests {
     }
 
     #[test]
-    fn discovery_preview_store_is_bounded_and_single_use() {
-        let store = DiscoveryPreviewStore::default();
+    fn discovery_family_uses_the_shared_context_bound_broker() {
+        let workspace = temporary_root("shared-broker");
+        Application::initialize_workspace(&workspace).expect("initialize workspace");
         let report = DiscoveryImportReport {
             dry_run: true,
             accepted: 0,
@@ -409,18 +380,38 @@ mod tests {
             batch: None,
             receipt: None,
         };
-        let mut latest = String::new();
-        for _ in 0..(MAX_PENDING_PREVIEWS + 2) {
-            latest = store
-                .insert(DiscoveryPreviewKind::Import, report.clone())
-                .expect("store preview");
-        }
-        assert_eq!(store.len(), MAX_PENDING_PREVIEWS);
-        assert_eq!(
-            store.take(&latest).expect("take latest").kind,
-            DiscoveryPreviewKind::Import
+        let scope = ApprovalScope::for_workspace(&workspace).expect("approval scope");
+        let binding = ApprovalBinding::new(
+            ApprovalKind::DiscoveryImport,
+            scope.clone(),
+            None,
+            ApprovalSourceVersion::Snapshot(report_digest(&report).expect("report digest")),
         );
-        assert!(store.take(&latest).is_err());
+        let store = DesktopApprovalStore::default();
+        let lease = store
+            .insert(
+                binding,
+                DesktopPendingApproval::Discovery {
+                    workspace: workspace.clone(),
+                    kind: DesktopDiscoveryKind::Import,
+                    report: Box::new(report),
+                },
+            )
+            .expect("insert discovery approval");
+        let grant = store
+            .take(&lease.token, ApprovalKind::DiscoveryImport, &scope)
+            .expect("take discovery approval");
+        assert!(matches!(
+            grant.payload(),
+            DesktopPendingApproval::Discovery {
+                kind: DesktopDiscoveryKind::Import,
+                ..
+            }
+        ));
+        store
+            .resolve(grant, ApprovalDisposition::Consume)
+            .expect("consume discovery approval");
+        fs::remove_dir_all(workspace).expect("remove workspace");
     }
 
     #[test]
@@ -435,6 +426,7 @@ mod tests {
         Application::initialize_workspace(&workspace).expect("initialize workspace");
 
         let (preview, intake) = preview_discovery_file_impl(DiscoveryFilePreviewRequest {
+            workspace: workspace.clone(),
             path: source.clone(),
             source_name: Some("Reviewed leads".to_owned()),
             source_url: None,
@@ -469,6 +461,7 @@ mod tests {
     #[test]
     fn discovery_previews_require_explicit_consent_before_io() {
         let local = preview_discovery_file_impl(DiscoveryFilePreviewRequest {
+            workspace: PathBuf::from("/missing/workspace"),
             path: PathBuf::from("/missing/leads.csv"),
             source_name: None,
             source_url: None,
@@ -479,6 +472,7 @@ mod tests {
         assert_eq!(local.code, "consent-required");
 
         let network = preview_discovery_network_impl(DiscoveryNetworkPreviewRequest {
+            workspace: PathBuf::from("/missing/workspace"),
             adapter: DiscoveryNetworkAdapter::RssAtom,
             endpoint: "https://example.invalid/feed".to_owned(),
             source_name: "Example".to_owned(),

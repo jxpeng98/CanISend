@@ -1,13 +1,9 @@
 #![forbid(unsafe_code)]
 
 use std::{
-    collections::{BTreeMap, VecDeque},
+    collections::BTreeMap,
     path::{Path, PathBuf},
-    sync::{
-        Arc, Mutex,
-        atomic::{AtomicU64, Ordering},
-    },
-    time::{SystemTime, UNIX_EPOCH},
+    sync::Arc,
 };
 
 use canisend_app::{
@@ -15,9 +11,11 @@ use canisend_app::{
     ApplicationFlowComposeRequestV3, ApplicationFlowCreateRequestV3,
     ApplicationFlowDeliverableDraftV3, ApplicationFlowExportRequestV3,
     ApplicationFlowPlanRequestV3, ApplicationFlowPlannedDeliverableV3,
-    ApplicationFlowRequirementDraftV3, NetworkFetchConsent, PreparedJobSource,
-    PrivateExportConsent, PrivateReadConsent, ProviderSendConsent, TaskExecutionMode,
-    TaskInputExportRequest, TaskOperation, TaskPrepareRequest,
+    ApplicationFlowRequirementDraftV3, ApprovalBinding, ApprovalBroker, ApprovalBrokerError,
+    ApprovalDisposition, ApprovalGrant, ApprovalKind, ApprovalScope, ApprovalSourceVersion,
+    NetworkFetchConsent, PreparedJobSource, PrivateExportConsent, PrivateReadConsent,
+    ProviderSendConsent, TaskExecutionMode, TaskInputExportRequest, TaskOperation,
+    TaskPrepareRequest, approval_disposition_for_application_error,
 };
 use canisend_contracts::{
     ApplicationFieldValueV3, ExecutionMode, PlannedDeliverableDispositionV3, RequirementPriorityV3,
@@ -36,11 +34,9 @@ use thiserror::Error;
 const MAX_JOB_ID_BYTES: usize = 128;
 const MAX_APPLICATION_ID_BYTES: usize = 128;
 const MAX_TASK_ID_BYTES: usize = 128;
-const MAX_PREVIEW_TOKEN_BYTES: usize = 192;
-const MAX_PENDING_PREVIEWS: usize = 16;
+const MAX_PREVIEW_TOKEN_BYTES: usize = 80;
 const MAX_SESSION_INPUT_BYTES: u64 = 8 * 1024 * 1024;
 const MAX_TOOL_RESULT_BYTES: usize = 2 * 1024 * 1024;
-static NEXT_PREVIEW: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Debug, Error)]
 pub enum McpServerError {
@@ -55,7 +51,7 @@ pub enum McpServerError {
 #[derive(Debug, Clone)]
 pub struct CanISendMcpServer {
     workspace: Arc<PathBuf>,
-    previews: Arc<MutationPreviewStore>,
+    previews: Arc<ApprovalBroker<PendingMutation>>,
 }
 
 #[derive(Debug, Clone)]
@@ -70,17 +66,6 @@ struct ApplicationApprovalPreview {
     application_id: String,
     expected_revision: Revision,
     snapshot_sha256: Sha256Digest,
-}
-
-#[derive(Debug, Default)]
-struct PendingMutationState {
-    previews: BTreeMap<String, PendingMutation>,
-    order: VecDeque<String>,
-}
-
-#[derive(Debug, Default)]
-struct MutationPreviewStore {
-    state: Mutex<PendingMutationState>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, JsonSchema)]
@@ -402,63 +387,12 @@ fn revision(value: u64) -> Result<Revision, ApplicationError> {
     Revision::try_new(value).map_err(|error| ApplicationError::InvalidInput(error.to_string()))
 }
 
-impl MutationPreviewStore {
-    fn insert(&self, mutation: PendingMutation) -> Result<String, McpError> {
-        let timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_err(|_| McpError::internal_error("system clock is before the Unix epoch", None))?
-            .as_millis();
-        let sequence = NEXT_PREVIEW.fetch_add(1, Ordering::Relaxed);
-        let token = format!("mcp-preview-{}-{timestamp}-{sequence}", std::process::id());
-        let mut state = self
-            .state
-            .lock()
-            .map_err(|_| McpError::internal_error("MCP preview state is unavailable", None))?;
-        while state.previews.len() >= MAX_PENDING_PREVIEWS {
-            let Some(oldest) = state.order.pop_front() else {
-                break;
-            };
-            state.previews.remove(&oldest);
-        }
-        state.order.push_back(token.clone());
-        state.previews.insert(token.clone(), mutation);
-        Ok(token)
-    }
-
-    fn take(&self, token: &str) -> Result<PendingMutation, McpError> {
-        CanISendMcpServer::validate_preview_token(token)?;
-        let mut state = self
-            .state
-            .lock()
-            .map_err(|_| McpError::internal_error("MCP preview state is unavailable", None))?;
-        let mutation = state.previews.remove(token).ok_or_else(|| {
-            McpError::invalid_params(
-                "The reviewed preview is missing, expired, or already committed; prepare it again.",
-                None,
-            )
-        })?;
-        state.order.retain(|existing| existing != token);
-        Ok(mutation)
-    }
-
-    fn restore(&self, token: String, mutation: PendingMutation) -> Result<(), McpError> {
-        let mut state = self
-            .state
-            .lock()
-            .map_err(|_| McpError::internal_error("MCP preview state is unavailable", None))?;
-        state.order.retain(|existing| existing != &token);
-        state.order.push_back(token.clone());
-        state.previews.insert(token, mutation);
-        Ok(())
-    }
-}
-
 impl CanISendMcpServer {
     pub fn open(workspace: &Path) -> Result<Self, ApplicationError> {
         let workspace = Application::resolve_workspace_root(Some(workspace))?;
         Ok(Self {
             workspace: Arc::new(workspace),
-            previews: Arc::new(MutationPreviewStore::default()),
+            previews: Arc::new(ApprovalBroker::default()),
         })
     }
 
@@ -532,18 +466,6 @@ impl CanISendMcpServer {
         Ok(())
     }
 
-    fn validate_preview_token(token: &str) -> Result<(), McpError> {
-        if token.is_empty()
-            || token.len() > MAX_PREVIEW_TOKEN_BYTES
-            || !token
-                .bytes()
-                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
-        {
-            return Err(McpError::invalid_params("preview_token is malformed", None));
-        }
-        Ok(())
-    }
-
     fn consent_required(message: &str) -> McpError {
         McpError::invalid_params(
             message.to_owned(),
@@ -558,24 +480,87 @@ impl CanISendMcpServer {
     fn mutation_result<T: Serialize>(
         &self,
         result: Result<T, ApplicationError>,
-        token: String,
-        retry: PendingMutation,
+        grant: ApprovalGrant<PendingMutation>,
     ) -> Result<Json<Value>, McpError> {
         match result {
-            Ok(value) => Self::application_result(Ok(value)),
+            Ok(value) => {
+                self.previews
+                    .resolve(grant, ApprovalDisposition::Consume)
+                    .map_err(Self::approval_error)?;
+                Self::application_result(Ok(value))
+            }
             Err(error) => {
-                self.previews.restore(token, retry)?;
+                let disposition = approval_disposition_for_application_error(&error);
+                self.previews
+                    .resolve(grant, disposition)
+                    .map_err(Self::approval_error)?;
                 Self::application_result::<T>(Err(error))
             }
         }
     }
-}
 
-fn pending_mutation_kind(mutation: &PendingMutation) -> &'static str {
-    match mutation {
-        PendingMutation::JobIntake(_) => "job intake",
-        PendingMutation::TaskCompletion(_) => "task completion",
-        PendingMutation::ApplicationApproval(_) => "Application approval",
+    fn approval_scope(&self) -> Result<ApprovalScope, McpError> {
+        ApprovalScope::for_workspace(self.workspace()).map_err(|error| {
+            let failure = error.classify();
+            let data = serde_json::to_value(&failure).ok();
+            McpError::invalid_params(failure.message, data)
+        })
+    }
+
+    fn insert_preview(
+        &self,
+        kind: ApprovalKind,
+        application_id: Option<String>,
+        source: ApprovalSourceVersion,
+        pending: PendingMutation,
+    ) -> Result<canisend_app::ApprovalLease, McpError> {
+        let binding = ApprovalBinding::new(kind, self.approval_scope()?, application_id, source);
+        self.previews
+            .insert(binding, pending)
+            .map_err(Self::approval_error)
+    }
+
+    fn take_preview(
+        &self,
+        token: &str,
+        kind: ApprovalKind,
+    ) -> Result<ApprovalGrant<PendingMutation>, McpError> {
+        if token.len() > MAX_PREVIEW_TOKEN_BYTES {
+            return Err(McpError::invalid_params("preview_token is malformed", None));
+        }
+        self.previews
+            .take(token, kind, &self.approval_scope()?)
+            .map_err(Self::approval_error)
+    }
+
+    fn approval_error(error: ApprovalBrokerError) -> McpError {
+        let code = match &error {
+            ApprovalBrokerError::InvalidConfiguration(_) => "approval.invalid-configuration",
+            ApprovalBrokerError::Unavailable => "approval.unavailable",
+            ApprovalBrokerError::TokenGeneration(_) | ApprovalBrokerError::TokenCollision => {
+                "approval.token-generation-failed"
+            }
+            ApprovalBrokerError::CapacityFull { .. } => "approval.capacity-full",
+            ApprovalBrokerError::MalformedToken => "approval.token-malformed",
+            ApprovalBrokerError::Missing => "approval.missing-or-replayed",
+            ApprovalBrokerError::Expired => "approval.expired",
+            ApprovalBrokerError::WrongKind { .. } => "approval.wrong-kind",
+            ApprovalBrokerError::WrongContext => "approval.wrong-context",
+            ApprovalBrokerError::RestoreCollision => "approval.restore-collision",
+        };
+        McpError::invalid_params(
+            error.to_string(),
+            Some(serde_json::json!({
+                "status": "approval-rejected",
+                "code": code,
+                "retryable": matches!(
+                    error,
+                    ApprovalBrokerError::Unavailable
+                        | ApprovalBrokerError::TokenGeneration(_)
+                        | ApprovalBrokerError::RestoreCollision
+                )
+            })),
+        )
     }
 }
 
@@ -781,11 +766,19 @@ impl CanISendMcpServer {
             expected_revision: review.data.stored.snapshot.application.revision,
             snapshot_sha256: review.data.stored.snapshot_sha256.clone(),
         };
-        let review_token = self
-            .previews
-            .insert(PendingMutation::ApplicationApproval(preview))?;
+        let lease = self.insert_preview(
+            ApprovalKind::ApplicationApproval,
+            Some(preview.application_id.clone()),
+            ApprovalSourceVersion::RevisionAndSnapshot {
+                revision: preview.expected_revision,
+                snapshot_sha256: preview.snapshot_sha256.clone(),
+            },
+            PendingMutation::ApplicationApproval(preview),
+        )?;
         Self::application_result(Ok(serde_json::json!({
-            "review_token": review_token,
+            "review_token": lease.token,
+            "expires_at_unix_ms": lease.expires_at_unix_ms,
+            "remaining_ttl_seconds": lease.remaining_ttl_seconds,
             "review": review,
             "next_action": {
                 "action": "canisend_application_approve",
@@ -814,13 +807,13 @@ impl CanISendMcpServer {
             ));
         }
         let token = parameters.review_token;
-        let pending = self.previews.take(&token)?;
-        let retry = pending.clone();
-        let PendingMutation::ApplicationApproval(preview) = pending else {
-            let actual = pending_mutation_kind(&retry);
-            self.previews.restore(token, retry)?;
+        let grant = self.take_preview(&token, ApprovalKind::ApplicationApproval)?;
+        let PendingMutation::ApplicationApproval(preview) = grant.payload().clone() else {
+            self.previews
+                .resolve(grant, ApprovalDisposition::Consume)
+                .map_err(Self::approval_error)?;
             return Err(McpError::invalid_params(
-                format!("The token belongs to {actual}, not Application approval."),
+                "Approval payload does not match Application approval.",
                 None,
             ));
         };
@@ -845,7 +838,7 @@ impl CanISendMcpServer {
                 },
             )
         })();
-        self.mutation_result(result, token, retry)
+        self.mutation_result(result, grant)
     }
 
     #[tool(
@@ -992,11 +985,19 @@ impl CanISendMcpServer {
             Err(error) => return Self::application_result::<Value>(Err(error)),
         };
         let preview = prepared.preview().clone();
-        let preview_token = self
-            .previews
-            .insert(PendingMutation::JobIntake(Box::new(prepared)))?;
+        let lease = self.insert_preview(
+            ApprovalKind::JobIntake,
+            Some(preview.data.job.id.to_string()),
+            ApprovalSourceVersion::RevisionAndSnapshot {
+                revision: preview.data.expected_job_revision,
+                snapshot_sha256: preview.data.provenance.original_sha256.clone(),
+            },
+            PendingMutation::JobIntake(Box::new(prepared)),
+        )?;
         Self::application_result(Ok(serde_json::json!({
-            "preview_token": preview_token,
+            "preview_token": lease.token,
+            "expires_at_unix_ms": lease.expires_at_unix_ms,
+            "remaining_ttl_seconds": lease.remaining_ttl_seconds,
             "preview": preview
         })))
     }
@@ -1016,21 +1017,17 @@ impl CanISendMcpServer {
         Parameters(parameters): Parameters<PreviewTokenParameters>,
     ) -> Result<Json<Value>, McpError> {
         let token = parameters.preview_token;
-        let pending = self.previews.take(&token)?;
-        let retry = pending.clone();
-        let PendingMutation::JobIntake(prepared) = pending else {
-            let actual = pending_mutation_kind(&retry);
-            self.previews.restore(token, retry)?;
+        let grant = self.take_preview(&token, ApprovalKind::JobIntake)?;
+        let PendingMutation::JobIntake(prepared) = grant.payload().clone() else {
+            self.previews
+                .resolve(grant, ApprovalDisposition::Consume)
+                .map_err(Self::approval_error)?;
             return Err(McpError::invalid_params(
-                format!("The preview token belongs to {actual}, not job intake."),
+                "Approval payload does not match job intake.",
                 None,
             ));
         };
-        self.mutation_result(
-            Application::commit_prepared_job_source(*prepared),
-            token,
-            retry,
-        )
+        self.mutation_result(Application::commit_prepared_job_source(*prepared), grant)
     }
 
     #[tool(
@@ -1178,11 +1175,16 @@ impl CanISendMcpServer {
             Ok(preview) => preview,
             Err(error) => return Self::application_result::<Value>(Err(error)),
         };
-        let preview_token = self.previews.insert(PendingMutation::TaskCompletion(
-            preview.data.request.clone(),
-        ))?;
+        let lease = self.insert_preview(
+            ApprovalKind::TaskCompletion,
+            Some(preview.data.state.descriptor.job_id.to_string()),
+            ApprovalSourceVersion::Revision(preview.data.request.expected_job_revision),
+            PendingMutation::TaskCompletion(preview.data.request.clone()),
+        )?;
         Self::application_result(Ok(serde_json::json!({
-            "preview_token": preview_token,
+            "preview_token": lease.token,
+            "expires_at_unix_ms": lease.expires_at_unix_ms,
+            "remaining_ttl_seconds": lease.remaining_ttl_seconds,
             "preview": preview
         })))
     }
@@ -1202,20 +1204,19 @@ impl CanISendMcpServer {
         Parameters(parameters): Parameters<PreviewTokenParameters>,
     ) -> Result<Json<Value>, McpError> {
         let token = parameters.preview_token;
-        let pending = self.previews.take(&token)?;
-        let retry = pending.clone();
-        let PendingMutation::TaskCompletion(request) = pending else {
-            let actual = pending_mutation_kind(&retry);
-            self.previews.restore(token, retry)?;
+        let grant = self.take_preview(&token, ApprovalKind::TaskCompletion)?;
+        let PendingMutation::TaskCompletion(request) = grant.payload().clone() else {
+            self.previews
+                .resolve(grant, ApprovalDisposition::Consume)
+                .map_err(Self::approval_error)?;
             return Err(McpError::invalid_params(
-                format!("The preview token belongs to {actual}, not task completion."),
+                "Approval payload does not match task completion.",
                 None,
             ));
         };
         self.mutation_result(
             Application::commit_task_completion(self.workspace(), request),
-            token,
-            retry,
+            grant,
         )
     }
 
@@ -1508,6 +1509,8 @@ mod tests {
             .as_str()
             .expect("review token")
             .to_owned();
+        assert_eq!(reviewed["remaining_ttl_seconds"], 600);
+        assert!(reviewed["expires_at_unix_ms"].as_u64().is_some());
 
         let current = Application::application_model_v3(&root, &application_id)
             .expect("current model")
@@ -1538,16 +1541,16 @@ mod tests {
                 confirmed_user_approval: true,
             }));
         assert!(stale.is_err());
-        let restored_stale =
+        let replayed_stale =
             server.canisend_application_approve(Parameters(ApplicationApprovalParameters {
                 review_token: stale_token,
                 confirmed_user_approval: true,
             }));
-        let restored_stale = match restored_stale {
-            Ok(_) => panic!("restored stale token must revalidate"),
+        let replayed_stale = match replayed_stale {
+            Ok(_) => panic!("stale approval must be consumed"),
             Err(error) => error,
         };
-        assert!(restored_stale.message.contains("changed after review"));
+        assert!(replayed_stale.message.contains("already consumed"));
 
         let refreshed = server
             .canisend_application_review(Parameters(ApplicationReviewParameters {

@@ -186,6 +186,20 @@ impl Application {
         job_id: &str,
         stage: WorkflowStage,
     ) -> Result<ActionReceipt<WorkflowRerunPreview>, ApplicationError> {
+        Self::preview_workflow_rerun_with_revision(root, job_id, stage).map(|(preview, _)| preview)
+    }
+
+    pub fn preview_workflow_rerun_with_revision(
+        root: &Path,
+        job_id: &str,
+        stage: WorkflowStage,
+    ) -> Result<
+        (
+            ActionReceipt<WorkflowRerunPreview>,
+            canisend_contracts::Revision,
+        ),
+        ApplicationError,
+    > {
         if stage == WorkflowStage::Intake {
             return Err(ApplicationError::InvalidInput(
                 "intake changes must use job import rather than workflow rerun".to_owned(),
@@ -193,7 +207,8 @@ impl Application {
         }
         let job_id = parse_entity_id(job_id)?;
         let mut workspace = open_workspace(root)?;
-        let status = WorkflowService::new(&mut workspace.database).status(&job_id)?;
+        let (status, job_revision) =
+            WorkflowService::new(&mut workspace.database).status_with_job_revision(&job_id)?;
         let graph = StageGraph::built_in();
         let affected_stages = std::iter::once(stage)
             .chain(graph.descendants(stage))
@@ -204,20 +219,23 @@ impl Application {
             .filter(|state| affected_stages.contains(&state.stage))
             .filter_map(|state| state.output.clone())
             .collect::<Vec<_>>();
-        Ok(ActionReceipt::new(
-            "workflow.rerun.preview",
-            "available",
-            format!(
-                "{} stage(s) and {} current output(s) may be invalidated",
-                affected_stages.len(),
-                affected_outputs.len()
+        Ok((
+            ActionReceipt::new(
+                "workflow.rerun.preview",
+                "available",
+                format!(
+                    "{} stage(s) and {} current output(s) may be invalidated",
+                    affected_stages.len(),
+                    affected_outputs.len()
+                ),
+                WorkflowRerunPreview {
+                    job_id,
+                    target: stage,
+                    affected_stages,
+                    affected_outputs,
+                },
             ),
-            WorkflowRerunPreview {
-                job_id,
-                target: stage,
-                affected_stages,
-                affected_outputs,
-            },
+            job_revision,
         ))
     }
 
@@ -235,6 +253,26 @@ impl Application {
             &request.job_id,
             request.stage,
             ActorKind::User,
+        )?;
+        workflow_control_receipt("workflow.rerun", "ready", status)
+    }
+
+    pub fn rerun_workflow_stage_at_revision(
+        root: &Path,
+        request: WorkflowRerunRequest,
+        expected_job_revision: canisend_contracts::Revision,
+    ) -> Result<ActionReceipt<WorkflowControlReadModel>, ApplicationError> {
+        if request.stage == WorkflowStage::Intake {
+            return Err(ApplicationError::InvalidInput(
+                "intake changes must use job import rather than workflow rerun".to_owned(),
+            ));
+        }
+        let mut workspace = open_workspace(root)?;
+        let status = WorkflowService::new(&mut workspace.database).rerun_if_job_revision(
+            &request.job_id,
+            request.stage,
+            ActorKind::User,
+            expected_job_revision,
         )?;
         workflow_control_receipt("workflow.rerun", "ready", status)
     }
@@ -491,6 +529,37 @@ mod tests {
             StageExecutionStatus::Stale
         );
         assert!(WorkflowRerunRequest::try_new("not-an-id", WorkflowStage::Parse).is_err());
+        cleanup(root, source);
+    }
+
+    #[test]
+    fn revision_bound_rerun_rejects_stale_preview_without_mutation() {
+        let (root, job_id, source) = workflow_fixture("stale-rerun");
+        let (_, expected_revision) =
+            Application::preview_workflow_rerun_with_revision(&root, &job_id, WorkflowStage::Parse)
+                .expect("preview workflow and revision atomically");
+        let replacement = temporary_root("replacement").with_extension("txt");
+        fs::write(&replacement, "Changed job source").expect("write replacement");
+        Application::import_local_job_source(
+            &root,
+            &job_id,
+            &replacement,
+            PrivateReadConsent::granted_by_user(),
+        )
+        .expect("change job after preview");
+        let before = Application::workflow_controls(&root, &job_id)
+            .expect("workflow before stale commit")
+            .data;
+        let request =
+            WorkflowRerunRequest::try_new(&job_id, WorkflowStage::Parse).expect("rerun request");
+        Application::rerun_workflow_stage_at_revision(&root, request, expected_revision)
+            .expect_err("stale rerun approval must fail");
+        let after = Application::workflow_controls(&root, &job_id)
+            .expect("workflow after stale commit")
+            .data;
+        assert_eq!(after, before);
+
+        fs::remove_file(replacement).expect("remove replacement");
         cleanup(root, source);
     }
 }

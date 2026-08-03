@@ -63,7 +63,20 @@ dimensions. The sole Store→IO exception is review-bound to 2026-08-10 and expi
 
 This advances ordered-path item 2 from missing/contradicted to implemented source evidence. It
 does not resolve the Store→IO exception or the M1B target graph. The next ordered P0 implementation
-item is the shared approval broker and complete M1-TEST-001 matrix.
+item was the shared approval broker and complete M1-TEST-001 matrix.
+
+M1-APPR-001 / M1-TEST-001 now have source implementation evidence in the
+[shared approval broker record](2026-08-03-m1-shared-approval-broker.md). MCP and all former
+desktop preview-store families use one app-owned ten-minute monotonic, CSPRNG, exact-context,
+single-use broker. The bounded store counts waiting and in-flight grants, preserves the original
+deadline only for explicitly transient restoration, and deterministically or periodically sweeps
+expired private payloads. Broker, MCP Application/job/task, desktop migration, Svelte bridge,
+stale/no-mutation, failure disposition, wrong kind/Workspace/Pack, replay, capacity, restart, and
+concurrency tests are source-gated.
+
+This advances ordered-path item 3 from missing/incomplete to implemented source evidence. It does
+not establish cross-surface semantic parity for every canonical registry leaf. The next ordered P0
+implementation item is M1-OP-003/GF5-PARITY-001.
 
 P1 CI/dependency improvements, governance work-item linkage, independent evidence review, dogfood,
 target-user validation, signing, and later Alpha.7 dual-Pack qualification also remain, but they do
@@ -75,8 +88,8 @@ not replace the P0 implementation order.
    registry and source-gated Clap/Tauri/MCP mappings.
 2. Completed in source: ADR-RN-0019 supersedes the obsolete graph/egui authorities and the complete
    internal dependency-edge policy is release-gated (M1-ADR/GRAPH).
-3. Replace duplicated preview stores with the shared approval broker and its complete failure and
-   concurrency suite (M1-APPR/TEST).
+3. Completed in source: the shared approval broker and complete failure/concurrency suite replace
+   duplicated MCP and desktop preview stores (M1-APPR/TEST).
 4. Build the two-Pack semantic parity matrix and machine-list uncovered leaves
    (M1-OP-003/GF5-PARITY).
 5. Align the MSRV and close the release/frontend non-bypass path.
