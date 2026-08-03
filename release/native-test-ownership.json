@@ -49,8 +49,14 @@
   },
   "development_fast_ci": {
     "workflow": ".github/workflows/fast-ci.yml",
-    "runner": "macos-15",
+    "runners": [
+      "macos-15",
+      "ubuntu-24.04",
+      "windows-2025"
+    ],
     "jobs": [
+      "browser-keyboard-accessibility",
+      "cross-platform-core",
       "desktop-ui",
       "macos-quality",
       "macos-tests"
@@ -61,14 +67,17 @@
       "pnpm check",
       "pnpm test",
       "pnpm build",
+      "pnpm exec playwright install --with-deps chrome",
+      "pnpm test:accessibility",
       "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings",
       "cargo test --workspace --locked",
+      "cargo test --locked -p canisend-core -p canisend-store -p canisend-io -p canisend-cli -p canisend-mcp",
       "cargo test -p canisend-contracts --locked --test property_contract",
       "cargo run -p xtask --locked -- release check",
       "cargo build --locked -p canisend-cli -p canisend-gui --features canisend-gui/custom-protocol"
     ],
     "target_seconds_after_cache_warmup": 300,
-    "windows_linux_native_tests": false,
+    "windows_linux_native_tests": true,
     "authoritative_release_evidence": false
   },
   "candidate_native_matrix": {
@@ -153,6 +162,14 @@
     {
       "owner": "fast-ci/desktop-ui",
       "scope": "Formatting, Svelte and TypeScript checks, unit tests, and production frontend build"
+    },
+    {
+      "owner": "fast-ci/browser-keyboard-accessibility",
+      "scope": "Chrome keyboard, focus restoration, automated accessibility, reflow, and key visual-state checks"
+    },
+    {
+      "owner": "fast-ci/cross-platform-core",
+      "scope": "Ubuntu and Windows core, Store, IO, CLI, and MCP contract tests"
     },
     {
       "owner": "native-release/source-gates",

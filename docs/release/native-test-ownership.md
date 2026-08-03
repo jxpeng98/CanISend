@@ -4,12 +4,14 @@ CanISend runs the complete locked Rust workspace suite once in the candidate sou
 release jobs do not repeat the whole workspace test graph for every target. Their responsibility is
 to prove the behavior that depends on the exact target runner and packaged bytes.
 
-Development uses three Apple Silicon jobs in `.github/workflows/fast-ci.yml`. The first owns locked
-Svelte dependencies, type checks, unit tests, and one production static-asset build. It uploads
-those exact assets; the formatting/Clippy/release-contract job and the complete
+Development uses five logical jobs in `.github/workflows/fast-ci.yml`. Three run on Apple Silicon:
+the first owns locked Svelte dependencies, type checks, unit tests, and one production static-asset
+build. It uploads those exact assets; the formatting/Clippy/release-contract job and the complete
 workspace/property/debug-build job consume the same artifact before compiling the Tauri binary.
-The two Rust jobs then run in parallel. No job builds a release profile or uses a Windows/Linux
-runner.
+The two Rust jobs then run in parallel. A bounded Ubuntu Chrome job owns keyboard, focus,
+accessibility, reflow, and key visual-state checks. One lightweight matrix runs the core, Store,
+IO, CLI, and MCP contract tests on Ubuntu and Windows. No fast job builds a release profile or
+creates release evidence.
 
 The initial and exact-cache warm measurements are recorded in
 [`fast-ci-stage6.json`](../performance/fast-ci-stage6.json). Their critical paths were 287 and 99
@@ -35,14 +37,18 @@ of the named native package gates.
 | Linux musl job | musl linker and execution of the extracted static-target archive |
 | Apple Silicon desktop job | version-matched CLI/GUI build, bounded ZIP, compressed read-only DMG with `/Applications` link, companion integrity, nested/outer ad-hoc signatures, packaged workflows, and GUI launch |
 | Svelte fast CI | locked dependencies, Svelte/TypeScript checks, focused unit tests, and production static-asset build |
+| Browser fast CI | pinned Chrome skip-link and primary-navigation traversal, focus restoration, automated accessibility, bilingual 200% reflow, and key active-state checks |
+| Linux/Windows core fast CI | locked core, Store, IO, CLI, and MCP contract tests on Ubuntu and Windows without packaging or release profiles |
 | macOS Rust fast CI | development formatting, Clippy, complete workspace tests, generated properties, debug CLI/GUI build, recovery/render coverage, and CLI/host-agent smoke |
 | Windows release tests | PowerShell parsers plus bounded recovery, concurrency, embedded-font, complex-layout, and revision-bound render contracts |
 | Native release source and package gates | Linux full suite, dependency policy, GNU performance/synthetic budgets, Linux/Windows exact package smoke, and signing checks |
 | Scheduled workflows | Intel GUI compilation, Windows/Linux desktop package qualification, and bounded malformed-input fuzzing outside the edit loop |
 
-Windows and Linux tests are release-only. The candidate Windows gate and Linux source gate begin
-alongside the native package jobs; assembly waits for every owner, so parallelization changes
-feedback time without allowing a failed source or platform test to authorize an artifact.
+The lightweight Windows/Linux development tests provide early contract feedback; they are not
+release evidence and do not replace exact packaged-binary qualification. The candidate Windows
+gate and Linux source gate begin alongside the native package jobs; assembly waits for every
+owner, so parallelization changes feedback time without allowing a failed source or platform test
+to authorize an artifact.
 
 The scheduled desktop owners compare `release`, `size-s-thin`, `size-z-thin`, and `size-z-fat`
 against the exact upgraded Typst template contract before packaging. The smallest material result

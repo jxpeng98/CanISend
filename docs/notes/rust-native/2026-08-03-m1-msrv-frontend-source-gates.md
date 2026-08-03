@@ -42,12 +42,13 @@ are not active product or release claims.
 - `pnpm --dir apps/canisend-desktop check`
 - `pnpm --dir apps/canisend-desktop test` — 72 tests
 - `pnpm --dir apps/canisend-desktop build`
-- `pnpm --dir apps/canisend-desktop test:accessibility` — 13 Chrome tests
+- `pnpm --dir apps/canisend-desktop test:accessibility` — 14 Chrome tests
 - YAML parse of `.github/workflows/release.yml`
 
 ## Remaining boundary
 
 This completes the M1-MSRV-001 and M1-CI-002 source implementation. The changed commit still needs
 an exact remote CI/candidate result before the M1A evidence checkbox for continuously proven MSRV
-can be marked complete. M1-CI-001's lightweight Linux/Windows PR jobs and fast-CI browser job are
-separate P1 work, and native release qualification remains mandatory.
+can be marked complete. M1-CI-001's lightweight Linux/Windows and fast-CI browser jobs are now
+[implemented in source](2026-08-03-m1-fast-cross-platform-ci.md), but their exact remote runner
+evidence and native release qualification remain mandatory.

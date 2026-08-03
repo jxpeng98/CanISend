@@ -71,6 +71,64 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  browser-keyboard-accessibility:
+    name: browser-keyboard-accessibility
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    defaults:
+      run:
+        working-directory: apps/canisend-desktop
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install pinned pnpm for browser gate
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.17.0
+          run_install: false
+
+      - name: Install pinned Node.js for browser gate
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 26.5.0
+          cache: pnpm
+          cache-dependency-path: apps/canisend-desktop/pnpm-lock.yaml
+
+      - name: Install locked browser-gate dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chrome for keyboard and accessibility gate
+        run: pnpm exec playwright install --with-deps chrome
+
+      - name: Run Chrome keyboard, accessibility, and key-visual checks
+        run: pnpm test:accessibility
+
+  cross-platform-core:
+    name: core-${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux
+            runner: ubuntu-24.04
+          - name: windows
+            runner: windows-2025
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@1.97.0
+
+      - name: Cache cross-platform core build
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          key: fast-ci-core-${{ matrix.name }}
+
+      - name: Test core, Store, IO, CLI, and MCP contracts
+        run: cargo test --locked -p canisend-core -p canisend-store -p canisend-io -p canisend-cli -p canisend-mcp
+
   macos-quality:
     name: macos-quality
     needs: desktop-ui

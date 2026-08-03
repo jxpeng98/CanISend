@@ -5016,8 +5016,14 @@ fn check_native_test_ownership() -> Result<(), String> {
         },
         "development_fast_ci": {
             "workflow": ".github/workflows/fast-ci.yml",
-            "runner": "macos-15",
+            "runners": [
+                "macos-15",
+                "ubuntu-24.04",
+                "windows-2025"
+            ],
             "jobs": [
+                "browser-keyboard-accessibility",
+                "cross-platform-core",
                 "desktop-ui",
                 "macos-quality",
                 "macos-tests"
@@ -5028,14 +5034,17 @@ fn check_native_test_ownership() -> Result<(), String> {
                 "pnpm check",
                 "pnpm test",
                 "pnpm build",
+                "pnpm exec playwright install --with-deps chrome",
+                "pnpm test:accessibility",
                 "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings",
                 "cargo test --workspace --locked",
+                "cargo test --locked -p canisend-core -p canisend-store -p canisend-io -p canisend-cli -p canisend-mcp",
                 "cargo test -p canisend-contracts --locked --test property_contract",
                 "cargo run -p xtask --locked -- release check",
                 "cargo build --locked -p canisend-cli -p canisend-gui --features canisend-gui/custom-protocol"
             ],
             "target_seconds_after_cache_warmup": 300,
-            "windows_linux_native_tests": false,
+            "windows_linux_native_tests": true,
             "authoritative_release_evidence": false
         },
         "candidate_native_matrix": {
@@ -5122,6 +5131,14 @@ fn check_native_test_ownership() -> Result<(), String> {
                 "scope": "Formatting, Svelte and TypeScript checks, unit tests, and production frontend build"
             },
             {
+                "owner": "fast-ci/browser-keyboard-accessibility",
+                "scope": "Chrome keyboard, focus restoration, automated accessibility, reflow, and key visual-state checks"
+            },
+            {
+                "owner": "fast-ci/cross-platform-core",
+                "scope": "Ubuntu and Windows core, Store, IO, CLI, and MCP contract tests"
+            },
+            {
                 "owner": "native-release/source-gates",
                 "scope": "Locked formatting, Svelte and TypeScript checks, unit tests, production build, and Chrome accessibility checks"
             },
@@ -5180,19 +5197,30 @@ fn check_native_test_ownership() -> Result<(), String> {
         "name: fast-ci",
         "cancel-in-progress: true",
         "  desktop-ui:",
+        "  browser-keyboard-accessibility:",
+        "  cross-platform-core:",
         "  macos-quality:",
         "  macos-tests:",
         "runs-on: macos-15",
+        "runs-on: ubuntu-24.04",
+        "runs-on: ${{ matrix.runner }}",
+        "runner: ubuntu-24.04",
+        "runner: windows-2025",
         "pnpm install --frozen-lockfile",
         "pnpm format:check",
         "pnpm check",
         "pnpm test",
         "pnpm build",
+        "Install Chrome for keyboard and accessibility gate",
+        "Run Chrome keyboard, accessibility, and key-visual checks",
+        "pnpm exec playwright install --with-deps chrome",
+        "pnpm test:accessibility",
         "Upload production desktop UI",
         "Download exact production desktop UI",
         "needs: desktop-ui",
         "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings",
         "cargo test --workspace --locked",
+        "cargo test --locked -p canisend-core -p canisend-store -p canisend-io -p canisend-cli -p canisend-mcp",
         "cargo test -p canisend-contracts --locked --test property_contract",
         "cargo run -p xtask --locked -- release check",
         "cargo build --locked -p canisend-cli -p canisend-gui",
@@ -5217,9 +5245,50 @@ fn check_native_test_ownership() -> Result<(), String> {
             "both macOS Rust jobs must consume the exact production desktop UI build".to_owned(),
         );
     }
+    let browser_start = fast_ci
+        .find("\n  browser-keyboard-accessibility:\n")
+        .ok_or_else(|| "fast CI browser job is missing".to_owned())?;
+    let browser_tail = &fast_ci[browser_start..];
+    let browser_end = browser_tail
+        .find("\n  cross-platform-core:\n")
+        .ok_or_else(|| "fast CI browser job boundary is missing".to_owned())?;
+    let browser_job = &browser_tail[..browser_end];
+    for required in [
+        "runs-on: ubuntu-24.04",
+        "node-version: 26.5.0",
+        "version: 11.17.0",
+        "pnpm install --frozen-lockfile",
+        "pnpm exec playwright install --with-deps chrome",
+        "pnpm test:accessibility",
+    ] {
+        if !browser_job.contains(required) {
+            return Err(format!(
+                "fast CI browser job is missing invariant `{required}`"
+            ));
+        }
+    }
+    let core_start = fast_ci
+        .find("\n  cross-platform-core:\n")
+        .ok_or_else(|| "fast CI cross-platform core job is missing".to_owned())?;
+    let core_tail = &fast_ci[core_start..];
+    let core_end = core_tail
+        .find("\n  macos-quality:\n")
+        .ok_or_else(|| "fast CI cross-platform core job boundary is missing".to_owned())?;
+    let core_job = &core_tail[..core_end];
+    for required in [
+        "runs-on: ${{ matrix.runner }}",
+        "runner: ubuntu-24.04",
+        "runner: windows-2025",
+        "uses: dtolnay/rust-toolchain@1.97.0",
+        "cargo test --locked -p canisend-core -p canisend-store -p canisend-io -p canisend-cli -p canisend-mcp",
+    ] {
+        if !core_job.contains(required) {
+            return Err(format!(
+                "fast CI cross-platform core job is missing invariant `{required}`"
+            ));
+        }
+    }
     for forbidden in [
-        "ubuntu-",
-        "windows-",
         "cargo build --release",
         "cargo test --release",
         "cargo build --profile",

@@ -126,6 +126,13 @@ This closes the sequential-Alpha planner source gap and proves only the dry-run 
 M2-VERSION-001. Applying the version change remains part of the explicit Alpha.6 candidate
 sequence.
 
+The [M1-CI-001 implementation record](2026-08-03-m1-fast-cross-platform-ci.md) now closes the
+remaining fast-CI source gap: a pinned Ubuntu Chrome job owns the 14 critical keyboard,
+accessibility, reflow, and key-visual checks, while one bounded matrix tests the core, Store, IO,
+CLI, and MCP packages on Ubuntu and Windows. `release check` locks both jobs and their
+non-authoritative boundary. Their exact committed remote results, and the pinned MSRV result, are
+still missing evidence rather than missing source implementation.
+
 P1 CI/dependency improvements, governance work-item linkage, independent evidence review, dogfood,
 target-user validation, signing, and later Alpha.7 dual-Pack qualification also remain, but they do
 not replace the P0 implementation order.
@@ -146,7 +153,9 @@ not replace the P0 implementation order.
    selection, exact compatibility, migration, recovery, and limitations (GF5-DOC).
 7. Completed in source: sequential Alpha planning now produces one transactional, evidence-resetting
    Alpha.6 dry run; applying it remains intentionally unperformed (M0-REL-001/M2-VERSION-001).
-8. Next: with explicit release authority, apply the reviewed Alpha.6 plan and run the exact native
+8. Completed in source: lightweight Ubuntu/Windows core tests and the pinned Chrome critical suite
+   are part of fast CI; obtain exact committed runner evidence before closing M1A (M1-CI-001).
+9. Next: with explicit release authority, apply the reviewed Alpha.6 plan and run the exact native
    candidate, migration, backup/restore, rollback, package, and
    release-integrity gates on a clean candidate commit.
 

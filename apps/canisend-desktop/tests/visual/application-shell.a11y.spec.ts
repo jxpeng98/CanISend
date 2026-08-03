@@ -136,6 +136,34 @@ test("Chinese dark compact shell at 200 percent meets automated accessibility ru
   await expectNoLayoutOverflow(page);
 });
 
+test("keyboard traversal reaches the skip link and primary navigation", async ({ page }) => {
+  await openApplication(page, {
+    language: "en",
+    darkMode: false,
+    compact: false,
+    reducedMotion: false,
+    textScale: 100,
+  });
+
+  const skipLink = page.getByRole("link", { name: "Skip to main content", exact: true });
+  await page.keyboard.press("Tab");
+  await expect(skipLink).toBeFocused();
+  await expect(skipLink).toBeVisible();
+
+  const today = page.getByRole("button", { name: "Today", exact: true });
+  await page.keyboard.press("Tab");
+  await expect(today).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(skipLink).toBeFocused();
+
+  await page.keyboard.press("Enter");
+  await expect.poll(() => page.evaluate(() => window.location.hash)).toBe("#main-content");
+  await expect(page.locator("#main-content")).toBeVisible();
+
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("button", { name: "简体中文", exact: true })).toBeFocused();
+});
+
 test("density toggle changes the full application rhythm", async ({ page }) => {
   await openApplication(page, {
     language: "en",
