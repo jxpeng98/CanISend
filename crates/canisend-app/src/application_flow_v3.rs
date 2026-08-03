@@ -1,12 +1,17 @@
 use std::path::Path;
 
-use canisend_contracts::{ApplicationId, NextAction, Revision, SafeRelativePath};
+use canisend_contracts::{
+    ApplicationId, ApplicationPackBindingV3, NextAction, Revision, SafeRelativePath,
+    WORKSPACE_V3_FORMAT,
+};
+use canisend_core::VerifiedWorkflowPackBundle;
 use canisend_store::ApplicationFlowServiceV3;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     ActionReceipt, Application, ApplicationError, PrivateExportConsent,
-    application::open_workspace, built_in_generic_application_pack,
+    application::open_workspace, built_in_academic_job_pack, built_in_generic_application_pack,
+    built_in_workflow_pack_registry,
 };
 
 pub use canisend_store::{
@@ -45,12 +50,12 @@ impl ApplicationFlowExportRequestV3 {
 }
 
 impl Application {
-    pub fn generic_application_flow_v3(
+    pub fn application_flow_v3(
         workspace_root: &Path,
         application_id: &str,
     ) -> Result<ActionReceipt<ApplicationFlowReadModelV3>, ApplicationError> {
         let application_id = parse_application_id(application_id)?;
-        let pack = built_in_generic_application_pack()?;
+        let pack = exact_application_pack(workspace_root, application_id.as_str())?;
         let mut workspace = open_workspace(workspace_root)?;
         let root = workspace.paths.root.clone();
         let result =
@@ -59,16 +64,16 @@ impl Application {
         Ok(ActionReceipt::new(
             "application-flow-v3.status",
             "current",
-            "Loaded the current Pack-bound generic Application flow",
+            "Loaded the current exact-Pack Application flow",
             result,
         ))
     }
 
-    pub fn create_generic_application_v3(
+    pub fn create_application_flow_v3(
         workspace_root: &Path,
         request: ApplicationFlowCreateRequestV3,
     ) -> Result<ActionReceipt<ApplicationFlowReadModelV3>, ApplicationError> {
-        let pack = built_in_generic_application_pack()?;
+        let pack = exact_workspace_pack(workspace_root)?;
         let mut workspace = open_workspace(workspace_root)?;
         let root = workspace.paths.root.clone();
         let result =
@@ -77,18 +82,18 @@ impl Application {
         Ok(ActionReceipt::new(
             "application-flow-v3.create",
             "created",
-            "Created a Pack-bound generic Application intake",
+            "Created an exact-Pack Application intake",
             result,
         ))
     }
 
-    pub fn plan_generic_application_v3(
+    pub fn plan_application_flow_v3(
         workspace_root: &Path,
         application_id: &str,
         request: ApplicationFlowPlanRequestV3,
     ) -> Result<ActionReceipt<ApplicationFlowCommitReadModelV3>, ApplicationError> {
         let application_id = parse_application_id(application_id)?;
-        let pack = built_in_generic_application_pack()?;
+        let pack = exact_application_pack(workspace_root, application_id.as_str())?;
         let mut workspace = open_workspace(workspace_root)?;
         let root = workspace.paths.root.clone();
         let result =
@@ -102,13 +107,13 @@ impl Application {
         ))
     }
 
-    pub fn compose_generic_application_v3(
+    pub fn compose_application_flow_v3(
         workspace_root: &Path,
         application_id: &str,
         request: ApplicationFlowComposeRequestV3,
     ) -> Result<ActionReceipt<ApplicationFlowCommitReadModelV3>, ApplicationError> {
         let application_id = parse_application_id(application_id)?;
-        let pack = built_in_generic_application_pack()?;
+        let pack = exact_application_pack(workspace_root, application_id.as_str())?;
         let mut workspace = open_workspace(workspace_root)?;
         let root = workspace.paths.root.clone();
         let result =
@@ -122,13 +127,13 @@ impl Application {
         ))
     }
 
-    pub fn approve_generic_application_v3(
+    pub fn approve_application_flow_v3(
         workspace_root: &Path,
         application_id: &str,
         request: ApplicationFlowApproveRequestV3,
     ) -> Result<ActionReceipt<ApplicationFlowCommitReadModelV3>, ApplicationError> {
         let application_id = parse_application_id(application_id)?;
-        let pack = built_in_generic_application_pack()?;
+        let pack = exact_application_pack(workspace_root, application_id.as_str())?;
         let mut workspace = open_workspace(workspace_root)?;
         let root = workspace.paths.root.clone();
         let result =
@@ -142,7 +147,7 @@ impl Application {
         ))
     }
 
-    pub fn review_generic_application_v3(
+    pub fn review_application_flow_v3(
         workspace_root: &Path,
         application_id: &str,
         consent: Option<crate::PrivateReadConsent>,
@@ -159,7 +164,7 @@ impl Application {
             });
         }
         let application_id = parse_application_id(application_id)?;
-        let pack = built_in_generic_application_pack()?;
+        let pack = exact_application_pack(workspace_root, application_id.as_str())?;
         let mut workspace = open_workspace(workspace_root)?;
         let root = workspace.paths.root.clone();
         let result =
@@ -173,7 +178,7 @@ impl Application {
         ))
     }
 
-    pub fn export_generic_application_v3(
+    pub fn export_application_flow_v3(
         workspace_root: &Path,
         request: ApplicationFlowExportRequestV3,
         consent: Option<PrivateExportConsent>,
@@ -189,7 +194,7 @@ impl Application {
                 },
             });
         }
-        let pack = built_in_generic_application_pack()?;
+        let pack = exact_application_pack(workspace_root, request.application_id.as_str())?;
         let mut workspace = open_workspace(workspace_root)?;
         let root = workspace.paths.root.clone();
         let result =
@@ -210,6 +215,122 @@ impl Application {
             result,
         ))
     }
+
+    #[deprecated(note = "use the exact-Pack application_flow_v3 facade")]
+    pub fn generic_application_flow_v3(
+        workspace_root: &Path,
+        application_id: &str,
+    ) -> Result<ActionReceipt<ApplicationFlowReadModelV3>, ApplicationError> {
+        Self::application_flow_v3(workspace_root, application_id)
+    }
+
+    #[deprecated(note = "use the exact-Pack create_application_flow_v3 facade")]
+    pub fn create_generic_application_v3(
+        workspace_root: &Path,
+        request: ApplicationFlowCreateRequestV3,
+    ) -> Result<ActionReceipt<ApplicationFlowReadModelV3>, ApplicationError> {
+        Self::create_application_flow_v3(workspace_root, request)
+    }
+
+    #[deprecated(note = "use the exact-Pack plan_application_flow_v3 facade")]
+    pub fn plan_generic_application_v3(
+        workspace_root: &Path,
+        application_id: &str,
+        request: ApplicationFlowPlanRequestV3,
+    ) -> Result<ActionReceipt<ApplicationFlowCommitReadModelV3>, ApplicationError> {
+        Self::plan_application_flow_v3(workspace_root, application_id, request)
+    }
+
+    #[deprecated(note = "use the exact-Pack compose_application_flow_v3 facade")]
+    pub fn compose_generic_application_v3(
+        workspace_root: &Path,
+        application_id: &str,
+        request: ApplicationFlowComposeRequestV3,
+    ) -> Result<ActionReceipt<ApplicationFlowCommitReadModelV3>, ApplicationError> {
+        Self::compose_application_flow_v3(workspace_root, application_id, request)
+    }
+
+    #[deprecated(note = "use the exact-Pack approve_application_flow_v3 facade")]
+    pub fn approve_generic_application_v3(
+        workspace_root: &Path,
+        application_id: &str,
+        request: ApplicationFlowApproveRequestV3,
+    ) -> Result<ActionReceipt<ApplicationFlowCommitReadModelV3>, ApplicationError> {
+        Self::approve_application_flow_v3(workspace_root, application_id, request)
+    }
+
+    #[deprecated(note = "use the exact-Pack review_application_flow_v3 facade")]
+    pub fn review_generic_application_v3(
+        workspace_root: &Path,
+        application_id: &str,
+        consent: Option<crate::PrivateReadConsent>,
+    ) -> Result<ActionReceipt<ApplicationFlowReviewReadModelV3>, ApplicationError> {
+        Self::review_application_flow_v3(workspace_root, application_id, consent)
+    }
+
+    #[deprecated(note = "use the exact-Pack export_application_flow_v3 facade")]
+    pub fn export_generic_application_v3(
+        workspace_root: &Path,
+        request: ApplicationFlowExportRequestV3,
+        consent: Option<PrivateExportConsent>,
+    ) -> Result<ActionReceipt<ApplicationFlowExportReadModelV3>, ApplicationError> {
+        Self::export_application_flow_v3(workspace_root, request, consent)
+    }
+}
+
+pub(crate) fn exact_workspace_pack(
+    root: &Path,
+) -> Result<VerifiedWorkflowPackBundle, ApplicationError> {
+    let workspace = Application::workspace_status(root)?.data;
+    if workspace.status.workspace_format != WORKSPACE_V3_FORMAT {
+        return Err(ApplicationError::CompatibilityUnavailable {
+            message: "Canonical Application v3 operations require Workspace v3 authority"
+                .to_owned(),
+            details: serde_json::json!({
+                "workspace_format": workspace.status.workspace_format,
+                "pack_id": workspace.pack_id,
+            }),
+            remediation: NextAction {
+                action: "preview and approve Workspace v2 to v3 migration".to_owned(),
+                description: "Create a verified backup and migrate before using canonical Application operations"
+                    .to_owned(),
+            },
+        });
+    }
+    match workspace.pack_id.as_str() {
+        crate::ACADEMIC_JOB_WORKFLOW_PACK_ID => built_in_academic_job_pack(),
+        crate::GENERIC_APPLICATION_WORKFLOW_PACK_ID => built_in_generic_application_pack(),
+        _ => Err(ApplicationError::CompatibilityUnavailable {
+            message: "Workspace references an unavailable workflow Pack".to_owned(),
+            details: serde_json::json!({ "pack_id": workspace.pack_id }),
+            remediation: NextAction {
+                action: "restore the exact workflow Pack".to_owned(),
+                description: "Do not reinterpret an Application under a different Pack".to_owned(),
+            },
+        }),
+    }
+}
+
+pub(crate) fn exact_application_pack(
+    root: &Path,
+    application_id: &str,
+) -> Result<VerifiedWorkflowPackBundle, ApplicationError> {
+    let stored = Application::application_model_v3(root, application_id)?.data;
+    resolve_exact_pack(&stored.snapshot.pack)
+}
+
+fn resolve_exact_pack(
+    binding: &ApplicationPackBindingV3,
+) -> Result<VerifiedWorkflowPackBundle, ApplicationError> {
+    let registry = built_in_workflow_pack_registry()?;
+    registry
+        .resolve_exact(&binding.id, &binding.version, &binding.content_digest)
+        .cloned()
+        .map_err(|error| {
+            ApplicationError::ResourceIntegrity(format!(
+                "Application references an unavailable or substituted workflow Pack: {error}"
+            ))
+        })
 }
 
 fn parse_application_id(value: &str) -> Result<ApplicationId, ApplicationError> {
@@ -254,7 +375,7 @@ mod tests {
         );
 
         let source = "Applicants must provide a project narrative and a budget appendix.";
-        let created = Application::create_generic_application_v3(
+        let created = Application::create_application_flow_v3(
             &root,
             ApplicationFlowCreateRequestV3 {
                 title: "Synthetic community project".to_owned(),
@@ -286,7 +407,7 @@ mod tests {
         let application_id = created.data.stored.snapshot.application.id.clone();
         assert_eq!(created.data.stored.snapshot.application.revision.get(), 1);
 
-        let stale = Application::plan_generic_application_v3(
+        let stale = Application::plan_application_flow_v3(
             &root,
             application_id.as_str(),
             ApplicationFlowPlanRequestV3 {
@@ -308,7 +429,7 @@ mod tests {
             1
         );
 
-        let planned = Application::plan_generic_application_v3(
+        let planned = Application::plan_application_flow_v3(
             &root,
             application_id.as_str(),
             ApplicationFlowPlanRequestV3 {
@@ -345,7 +466,7 @@ mod tests {
             2
         );
 
-        let composed = Application::compose_generic_application_v3(
+        let composed = Application::compose_application_flow_v3(
             &root,
             application_id.as_str(),
             ApplicationFlowComposeRequestV3 {
@@ -381,9 +502,9 @@ mod tests {
             3
         );
 
-        Application::review_generic_application_v3(&root, application_id.as_str(), None)
+        Application::review_application_flow_v3(&root, application_id.as_str(), None)
             .expect_err("private Deliverable review requires consent");
-        let review = Application::review_generic_application_v3(
+        let review = Application::review_application_flow_v3(
             &root,
             application_id.as_str(),
             Some(crate::PrivateReadConsent::granted_by_user()),
@@ -395,7 +516,7 @@ mod tests {
             "A literal #read(\"/private/canisend-sentinel\") remains text."
         );
 
-        let approved = Application::approve_generic_application_v3(
+        let approved = Application::approve_application_flow_v3(
             &root,
             application_id.as_str(),
             ApplicationFlowApproveRequestV3 {
@@ -419,11 +540,11 @@ mod tests {
         let export_request =
             ApplicationFlowExportRequestV3::try_new(application_id.as_str(), 4, &destination)
                 .expect("export request");
-        Application::export_generic_application_v3(&root, export_request.clone(), None)
+        Application::export_application_flow_v3(&root, export_request.clone(), None)
             .expect_err("export consent required");
         assert!(!root.join(&destination).exists());
 
-        let exported = Application::export_generic_application_v3(
+        let exported = Application::export_application_flow_v3(
             &root,
             export_request,
             Some(PrivateExportConsent::granted_by_user()),
@@ -460,5 +581,137 @@ mod tests {
         );
 
         fs::remove_dir_all(root).expect("remove fixture");
+    }
+
+    #[test]
+    fn migrated_academic_pack_completes_the_same_neutral_v3_flow() {
+        let root = temporary_root("academic-complete");
+        let backup = temporary_root("academic-complete-backup");
+        Application::initialize_workspace(&root).expect("Workspace v2");
+        Application::create_job(&root, "Research Fellow", "Example University")
+            .expect("legacy academic Application");
+        let preview = Application::preview_workspace_v3_migration(&root)
+            .expect("migration preview")
+            .data;
+        Application::migrate_workspace_v3(
+            &root,
+            crate::WorkspaceV3MigrationRequest {
+                expected_plan_sha256: preview.migration_plan_sha256,
+                backup_destination: backup.clone(),
+            },
+        )
+        .expect("Workspace v3 migration");
+
+        let source = "Applicants must submit a cover letter and academic CV.";
+        let created = Application::create_application_flow_v3(
+            &root,
+            ApplicationFlowCreateRequestV3 {
+                title: "Synthetic academic opportunity".to_owned(),
+                opportunity_metadata: BTreeMap::from([(
+                    item("institution"),
+                    ApplicationFieldValueV3::ShortText("Example University".to_owned()),
+                )]),
+                application_metadata: BTreeMap::new(),
+                source_text: source.to_owned(),
+                requirements: vec![ApplicationFlowRequirementDraftV3 {
+                    category: item("qualification"),
+                    statement: source.to_owned(),
+                    priority: RequirementPriorityV3::Mandatory,
+                    start_byte: 0,
+                    end_byte: u64::try_from(source.len()).expect("source length"),
+                }],
+            },
+        )
+        .expect("academic Application v3");
+        let application_id = created.data.stored.snapshot.application.id;
+        assert_eq!(
+            created.data.stored.snapshot.pack.id.as_str(),
+            crate::ACADEMIC_JOB_WORKFLOW_PACK_ID
+        );
+
+        Application::plan_application_flow_v3(
+            &root,
+            application_id.as_str(),
+            ApplicationFlowPlanRequestV3 {
+                expected_revision: Revision::try_new(1).expect("revision"),
+                decision: item("proceed"),
+                deliverables: vec![
+                    ApplicationFlowPlannedDeliverableV3 {
+                        kind: item("cover-letter"),
+                        disposition: PlannedDeliverableDispositionV3::Required,
+                        rationale: "Required by the reviewed opportunity".to_owned(),
+                        constraints: Vec::new(),
+                        execution_mode: Some(ExecutionMode::HostAgent),
+                    },
+                    ApplicationFlowPlannedDeliverableV3 {
+                        kind: item("cv"),
+                        disposition: PlannedDeliverableDispositionV3::Required,
+                        rationale: "Required by the reviewed opportunity".to_owned(),
+                        constraints: Vec::new(),
+                        execution_mode: Some(ExecutionMode::HostAgent),
+                    },
+                ],
+            },
+        )
+        .expect("academic Plan");
+        Application::compose_application_flow_v3(
+            &root,
+            application_id.as_str(),
+            ApplicationFlowComposeRequestV3 {
+                expected_revision: Revision::try_new(2).expect("revision"),
+                deliverables: vec![
+                    ApplicationFlowDeliverableDraftV3 {
+                        kind: item("cover-letter"),
+                        title: "Cover letter".to_owned(),
+                        media_type: "text/markdown".to_owned(),
+                        content: "Evidence-bound synthetic cover letter.".to_owned(),
+                    },
+                    ApplicationFlowDeliverableDraftV3 {
+                        kind: item("cv"),
+                        title: "Academic CV".to_owned(),
+                        media_type: "text/markdown".to_owned(),
+                        content: "Evidence-bound synthetic academic record.".to_owned(),
+                    },
+                ],
+            },
+        )
+        .expect("academic Deliverables");
+        let review = Application::review_application_flow_v3(
+            &root,
+            application_id.as_str(),
+            Some(crate::PrivateReadConsent::granted_by_user()),
+        )
+        .expect("academic review");
+        assert_eq!(review.data.deliverables.len(), 2);
+        Application::approve_application_flow_v3(
+            &root,
+            application_id.as_str(),
+            ApplicationFlowApproveRequestV3 {
+                expected_revision: Revision::try_new(3).expect("revision"),
+            },
+        )
+        .expect("academic approval");
+
+        let destination = format!("applications/{application_id}/exports/academic-v3");
+        let exported = Application::export_application_flow_v3(
+            &root,
+            ApplicationFlowExportRequestV3::try_new(application_id.as_str(), 4, &destination)
+                .expect("export request"),
+            Some(PrivateExportConsent::granted_by_user()),
+        )
+        .expect("academic export");
+        assert_eq!(exported.data.render.documents.len(), 2);
+        assert!(!exported.data.render.submission_performed);
+        assert_eq!(exported.data.stages.len(), 10);
+        assert!(
+            exported
+                .data
+                .stages
+                .iter()
+                .all(|stage| stage.state == ApplicationFlowStageStateV3::Complete)
+        );
+
+        fs::remove_dir_all(root).expect("remove fixture");
+        fs::remove_dir_all(backup).expect("remove backup");
     }
 }

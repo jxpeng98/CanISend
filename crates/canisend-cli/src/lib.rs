@@ -270,15 +270,15 @@ enum ApplicationCommand {
     V3List(OutputArgs),
     /// Show one canonical v3 Application.
     V3Show(ApplicationV3IdArgs),
-    /// Create a generic v3 Application from a reviewed JSON request.
+    /// Create an exact-Pack v3 Application from a reviewed JSON request.
     GenericCreate(ApplicationV3CreateArgs),
-    /// Confirm Requirements and commit a generic v3 Plan from JSON.
+    /// Confirm Requirements and commit an exact-Pack v3 Plan from JSON.
     GenericPlan(ApplicationV3CandidateArgs),
-    /// Commit generic v3 Deliverables for review from JSON.
+    /// Commit exact-Pack v3 Deliverables for review from JSON.
     GenericCompose(ApplicationV3CandidateArgs),
-    /// Approve every current generic v3 Deliverable.
+    /// Approve every current exact-Pack v3 Deliverable.
     GenericApprove(ApplicationV3ApproveArgs),
-    /// Render and export approved generic v3 Deliverables without submitting.
+    /// Render and export approved exact-Pack v3 Deliverables without submitting.
     GenericExport(ApplicationV3ExportArgs),
 }
 
@@ -2679,7 +2679,7 @@ fn application_v3_create(
         operation,
         &arguments.candidate,
     )?;
-    let model = Application::create_generic_application_v3(&root, request)
+    let model = Application::create_application_flow_v3(&root, request)
         .map_err(|error| app_adapter::failure(operation, error))?
         .data;
     success(
@@ -2707,7 +2707,7 @@ fn application_v3_plan(
         operation,
         &arguments.candidate,
     )?;
-    let model = Application::plan_generic_application_v3(&root, &arguments.application, request)
+    let model = Application::plan_application_flow_v3(&root, &arguments.application, request)
         .map_err(|error| app_adapter::failure(operation, error))?
         .data;
     success(
@@ -2744,7 +2744,7 @@ fn application_v3_compose(
         operation,
         &arguments.candidate,
     )?;
-    let model = Application::compose_generic_application_v3(&root, &arguments.application, request)
+    let model = Application::compose_application_flow_v3(&root, &arguments.application, request)
         .map_err(|error| app_adapter::failure(operation, error))?
         .data;
     success(
@@ -2780,7 +2780,7 @@ fn application_v3_approve(
             false,
         )
     })?;
-    let model = Application::approve_generic_application_v3(
+    let model = Application::approve_application_flow_v3(
         &root,
         &arguments.application,
         ApplicationFlowApproveRequestV3 { expected_revision },
@@ -2820,7 +2820,7 @@ fn application_v3_export(
     let consent = arguments
         .allow_private_export
         .then(PrivateExportConsent::granted_by_user);
-    let model = Application::export_generic_application_v3(&root, request, consent)
+    let model = Application::export_application_flow_v3(&root, request, consent)
         .map_err(|error| app_adapter::failure(operation, error))?
         .data;
     success(

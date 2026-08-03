@@ -2107,6 +2107,202 @@ fn evidence_workflow_is_agent_callable_and_user_confirmed_through_the_binary() {
     assert_eq!(shown["data"], confirmed["data"]);
 }
 
+#[test]
+fn canonical_v3_cli_completes_a_migrated_academic_pack_application() {
+    let workspace = TestDirectory::new("academic-v3-workspace");
+    let backup = TestDirectory::new("academic-v3-backup");
+    let candidates = TestDirectory::new("academic-v3-candidates");
+    fs::create_dir_all(candidates.path()).expect("candidate directory");
+
+    run_json(&[
+        "--workspace",
+        workspace.text(),
+        "workspace",
+        "init",
+        "--pack",
+        "academic-job",
+        "--json",
+    ]);
+    run_json(&[
+        "--workspace",
+        workspace.text(),
+        "job",
+        "create",
+        "--title",
+        "Research Fellow",
+        "--institution",
+        "Example University",
+        "--json",
+    ]);
+    let preview = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "workspace",
+        "migration-preview",
+        "--json",
+    ]);
+    let plan_sha256 = preview["data"]["migration_plan_sha256"]
+        .as_str()
+        .expect("migration plan digest");
+    run_json(&[
+        "--workspace",
+        workspace.text(),
+        "workspace",
+        "migrate",
+        "--expected-plan-sha256",
+        plan_sha256,
+        "--backup-destination",
+        backup.text(),
+        "--json",
+    ]);
+
+    let source = "Applicants must submit a cover letter and academic CV.";
+    let create_path = candidates.path().join("create.json");
+    fs::write(
+        &create_path,
+        serde_json::to_vec(&serde_json::json!({
+            "title": "Academic CLI v3 fixture",
+            "opportunity_metadata": {
+                "institution": {"type": "short-text", "value": "Example University"}
+            },
+            "application_metadata": {},
+            "source_text": source,
+            "requirements": [{
+                "category": "qualification",
+                "statement": source,
+                "priority": "mandatory",
+                "start_byte": 0,
+                "end_byte": source.len()
+            }]
+        }))
+        .expect("create candidate"),
+    )
+    .expect("write create candidate");
+    let created = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "application",
+        "generic-create",
+        "--candidate",
+        create_path.to_str().expect("candidate path"),
+        "--json",
+    ]);
+    let application_id = created["data"]["stored"]["snapshot"]["application"]["id"]
+        .as_str()
+        .expect("Application ID")
+        .to_owned();
+    assert_eq!(
+        created["data"]["stored"]["snapshot"]["pack"]["id"],
+        "org.canisend.academic-job"
+    );
+
+    let plan_path = candidates.path().join("plan.json");
+    fs::write(
+        &plan_path,
+        serde_json::to_vec(&serde_json::json!({
+            "expected_revision": 1,
+            "decision": "proceed",
+            "deliverables": [
+                {
+                    "kind": "cover-letter",
+                    "disposition": "required",
+                    "rationale": "Required by the reviewed opportunity",
+                    "constraints": [],
+                    "execution_mode": "host-agent"
+                },
+                {
+                    "kind": "cv",
+                    "disposition": "required",
+                    "rationale": "Required by the reviewed opportunity",
+                    "constraints": [],
+                    "execution_mode": "host-agent"
+                }
+            ]
+        }))
+        .expect("Plan candidate"),
+    )
+    .expect("write Plan candidate");
+    run_json(&[
+        "--workspace",
+        workspace.text(),
+        "application",
+        "generic-plan",
+        "--application",
+        &application_id,
+        "--candidate",
+        plan_path.to_str().expect("candidate path"),
+        "--json",
+    ]);
+
+    let compose_path = candidates.path().join("compose.json");
+    fs::write(
+        &compose_path,
+        serde_json::to_vec(&serde_json::json!({
+            "expected_revision": 2,
+            "deliverables": [
+                {
+                    "kind": "cover-letter",
+                    "title": "Cover letter",
+                    "media_type": "text/markdown",
+                    "content": "Synthetic evidence-bound cover letter."
+                },
+                {
+                    "kind": "cv",
+                    "title": "Academic CV",
+                    "media_type": "text/markdown",
+                    "content": "Synthetic evidence-bound academic record."
+                }
+            ]
+        }))
+        .expect("compose candidate"),
+    )
+    .expect("write compose candidate");
+    run_json(&[
+        "--workspace",
+        workspace.text(),
+        "application",
+        "generic-compose",
+        "--application",
+        &application_id,
+        "--candidate",
+        compose_path.to_str().expect("candidate path"),
+        "--json",
+    ]);
+    run_json(&[
+        "--workspace",
+        workspace.text(),
+        "application",
+        "generic-approve",
+        "--application",
+        &application_id,
+        "--expected-revision",
+        "3",
+        "--json",
+    ]);
+    let destination = format!("applications/{application_id}/exports/academic-cli");
+    let exported = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "application",
+        "generic-export",
+        "--application",
+        &application_id,
+        "--expected-revision",
+        "4",
+        "--destination",
+        &destination,
+        "--allow-private-export",
+        "--json",
+    ]);
+    assert_eq!(
+        exported["data"]["render"]["documents"]
+            .as_array()
+            .map(Vec::len),
+        Some(2)
+    );
+    assert_eq!(exported["data"]["render"]["submission_performed"], false);
+}
+
 fn write_pdf(path: &std::path::Path, text: Option<&str>) {
     use lopdf::{
         Document, Object, Stream,

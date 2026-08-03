@@ -271,6 +271,7 @@ pub fn project_deliverable_typst_v3(
     .expect("writing to String cannot fail");
     writeln!(output, "  title: {},", typst_string(&deliverable.title))
         .expect("writing to String cannot fail");
+    output.push_str("  generated-date: none,\n");
     output.push_str("  sections: (\n    (id: \"content\", heading: none, body: ");
     output.push_str(&typst_string(body.trim()));
     output.push_str(

@@ -8307,6 +8307,9 @@ fn semantic_pack_matches(value: &str, scope: OperationPackScope) -> bool {
     matches!(
         (value, scope),
         (
+            "generic-application" | "academic-job",
+            OperationPackScope::Any
+        ) | (
             "generic-application",
             OperationPackScope::GenericApplication
         ) | ("academic-job", OperationPackScope::AcademicJob)
@@ -18608,16 +18611,17 @@ mod tests {
         assert!(validate_semantic_parity_policy(&missing_stale, &registry, &root).is_err());
 
         let mut missing_surface_binding = policy;
-        let cli = missing_surface_binding["pack_surface_cases"]
+        for cli in missing_surface_binding["pack_surface_cases"]
             .as_array_mut()
             .expect("Pack surface cases")
             .iter_mut()
-            .find(|entry| entry["pack"] == "generic-application" && entry["surface"] == "cli")
-            .expect("generic CLI case");
-        cli["operations"]
-            .as_array_mut()
-            .expect("CLI operations")
-            .retain(|operation| operation != "application.create");
+            .filter(|entry| entry["surface"] == "cli")
+        {
+            cli["operations"]
+                .as_array_mut()
+                .expect("CLI operations")
+                .retain(|operation| operation != "application.create");
+        }
         assert!(
             validate_semantic_parity_policy(&missing_surface_binding, &registry, &root).is_err()
         );
