@@ -37,6 +37,26 @@
       ],
       "type": "string"
     },
+    "ApplicationPackBindingV3": {
+      "additionalProperties": false,
+      "properties": {
+        "content_digest": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "content_digest"
+      ],
+      "type": "object"
+    },
     "ArtifactKind": {
       "enum": [
         "source-original",
@@ -86,6 +106,53 @@
       ],
       "type": "object"
     },
+    "CompatibilityAuthority": {
+      "enum": [
+        "static-academic",
+        "workspace-v2-implicit-academic",
+        "workspace-v3-academic-read-only"
+      ],
+      "type": "string"
+    },
+    "CompatibilityNotice": {
+      "additionalProperties": false,
+      "properties": {
+        "authority": {
+          "$ref": "#/$defs/CompatibilityAuthority"
+        },
+        "canonical_v3_operation": {
+          "type": "string"
+        },
+        "deprecated": {
+          "type": "boolean"
+        },
+        "legacy_operation": {
+          "type": "string"
+        },
+        "pack": {
+          "$ref": "#/$defs/ApplicationPackBindingV3"
+        },
+        "surface": {
+          "$ref": "#/$defs/CompatibilitySurface"
+        }
+      },
+      "required": [
+        "surface",
+        "deprecated",
+        "legacy_operation",
+        "canonical_v3_operation",
+        "authority",
+        "pack"
+      ],
+      "type": "object"
+    },
+    "CompatibilitySurface": {
+      "enum": [
+        "agent-v2",
+        "job-cli"
+      ],
+      "type": "string"
+    },
     "ConsentRequest": {
       "additionalProperties": false,
       "properties": {
@@ -125,6 +192,7 @@
         "input.path_rejected",
         "workspace.not_found",
         "workspace.conflict",
+        "compatibility.unavailable",
         "job.not_found",
         "job.archived",
         "profile.source_not_found",
@@ -178,6 +246,16 @@
         "$ref": "#/$defs/ArtifactReference"
       },
       "type": "array"
+    },
+    "compatibility": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CompatibilityNotice"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "data": true,
     "error": {

@@ -11,6 +11,10 @@ use serde::{Deserialize, Serialize};
 use crate::{
     ActionReceipt, Application, ApplicationError, PrivateReadConsent, ProviderSendConsent,
     application::{open_workspace, parse_entity_id},
+    compatibility::{
+        LegacyCompatibilityAccess, LegacyCompatibilityOperation, job_compatibility_notice,
+        task_compatibility_notice,
+    },
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -163,6 +167,12 @@ impl Application {
         root: &Path,
         request: TaskPrepareRequest,
     ) -> Result<ActionReceipt<TaskDescriptor>, ApplicationError> {
+        let compatibility = job_compatibility_notice(
+            root,
+            LegacyCompatibilityOperation::TaskPrepare,
+            LegacyCompatibilityAccess::Write,
+            &request.job_id,
+        )?;
         let mut workspace = open_workspace(root)?;
         WorkflowService::new(&mut workspace.database).start(&request.job_id)?;
         let descriptor = prepare_descriptor(
@@ -171,7 +181,7 @@ impl Application {
             request.operation,
             request.mode,
         )?;
-        Ok(prepared_receipt("task.prepare", descriptor))
+        Ok(prepared_receipt("task.prepare", descriptor).with_compatibility(compatibility))
     }
 
     pub fn task_state(
@@ -179,9 +189,15 @@ impl Application {
         task_id: &str,
     ) -> Result<ActionReceipt<TaskStateData>, ApplicationError> {
         let task_id = parse_entity_id(task_id)?;
+        let compatibility = task_compatibility_notice(
+            root,
+            LegacyCompatibilityOperation::TaskShow,
+            LegacyCompatibilityAccess::Read,
+            &task_id,
+        )?;
         let mut workspace = open_workspace(root)?;
         let state = TaskService::new(&mut workspace.database, &workspace.blobs).get(&task_id)?;
-        Ok(task_state_receipt("task.show", state))
+        Ok(task_state_receipt("task.show", state).with_compatibility(compatibility))
     }
 
     pub fn latest_task_for_job(
@@ -189,6 +205,12 @@ impl Application {
         job_id: &str,
     ) -> Result<ActionReceipt<Option<TaskStateData>>, ApplicationError> {
         let job_id = parse_entity_id(job_id)?;
+        let compatibility = job_compatibility_notice(
+            root,
+            LegacyCompatibilityOperation::TaskLatest,
+            LegacyCompatibilityAccess::Read,
+            &job_id,
+        )?;
         let mut workspace = open_workspace(root)?;
         let state =
             TaskService::new(&mut workspace.database, &workspace.blobs).latest_for_job(&job_id)?;
@@ -207,7 +229,8 @@ impl Application {
                 )
             },
         );
-        Ok(ActionReceipt::new("task.latest", status, summary, state))
+        Ok(ActionReceipt::new("task.latest", status, summary, state)
+            .with_compatibility(compatibility))
     }
 
     pub fn export_task_inputs(
@@ -219,6 +242,12 @@ impl Application {
         if private_read_consent.is_none() {
             return Err(read_private_consent_required());
         }
+        let compatibility = task_compatibility_notice(
+            root,
+            LegacyCompatibilityOperation::TaskInputs,
+            LegacyCompatibilityAccess::Read,
+            &request.task_id,
+        )?;
         let mut workspace = open_workspace(root)?;
         let state =
             TaskService::new(&mut workspace.database, &workspace.blobs).get(&request.task_id)?;
@@ -248,7 +277,8 @@ impl Application {
             ),
             exported,
         )
-        .with_artifacts(artifacts))
+        .with_artifacts(artifacts)
+        .with_compatibility(compatibility))
     }
 
     pub fn preview_task_completion_file(
@@ -257,6 +287,12 @@ impl Application {
         _consent: PrivateReadConsent,
     ) -> Result<ActionReceipt<TaskCompletionPreviewReadModel>, ApplicationError> {
         let request = read_task_completion_file(file)?;
+        let compatibility = task_compatibility_notice(
+            root,
+            LegacyCompatibilityOperation::TaskCompletionPreview,
+            LegacyCompatibilityAccess::Write,
+            &request.task_id,
+        )?;
         let mut workspace = open_workspace(root)?;
         let state = TaskService::new(&mut workspace.database, &workspace.blobs)
             .validate_completion(&request)?;
@@ -274,13 +310,20 @@ impl Application {
             description:
                 "CanISend will revalidate the lease, job revision, input revisions/hashes, candidate schema, and source spans"
                     .to_owned(),
-        }]))
+        }])
+        .with_compatibility(compatibility))
     }
 
     pub fn commit_task_completion(
         root: &Path,
         request: TaskCompletionRequest,
     ) -> Result<ActionReceipt<canisend_contracts::TaskCommitData>, ApplicationError> {
+        let compatibility = task_compatibility_notice(
+            root,
+            LegacyCompatibilityOperation::TaskCompletionCommit,
+            LegacyCompatibilityAccess::Write,
+            &request.task_id,
+        )?;
         let mut workspace = open_workspace(root)?;
         let committed =
             TaskService::new(&mut workspace.database, &workspace.blobs).complete(&request)?;
@@ -294,7 +337,8 @@ impl Application {
             ),
             committed,
         )
-        .with_artifacts([artifact]))
+        .with_artifacts([artifact])
+        .with_compatibility(compatibility))
     }
 
     pub fn cancel_task(
@@ -302,9 +346,15 @@ impl Application {
         task_id: &str,
     ) -> Result<ActionReceipt<TaskStateData>, ApplicationError> {
         let task_id = parse_entity_id(task_id)?;
+        let compatibility = task_compatibility_notice(
+            root,
+            LegacyCompatibilityOperation::TaskCancel,
+            LegacyCompatibilityAccess::Write,
+            &task_id,
+        )?;
         let mut workspace = open_workspace(root)?;
         let state = TaskService::new(&mut workspace.database, &workspace.blobs).cancel(&task_id)?;
-        Ok(task_state_receipt("task.cancel", state))
+        Ok(task_state_receipt("task.cancel", state).with_compatibility(compatibility))
     }
 
     pub fn prepare_task_again(
@@ -312,6 +362,12 @@ impl Application {
         task_id: &str,
     ) -> Result<ActionReceipt<TaskPrepareAgainReadModel>, ApplicationError> {
         let task_id = parse_entity_id(task_id)?;
+        let compatibility = task_compatibility_notice(
+            root,
+            LegacyCompatibilityOperation::TaskPrepareAgain,
+            LegacyCompatibilityAccess::Write,
+            &task_id,
+        )?;
         let mut workspace = open_workspace(root)?;
         let previous = TaskService::new(&mut workspace.database, &workspace.blobs).get(&task_id)?;
         if !matches!(previous.status, TaskStatus::Cancelled | TaskStatus::Stale) {
@@ -340,7 +396,8 @@ impl Application {
             },
         )
         .with_required_consents(required_consents)
-        .with_next_actions([completion_next_action()]))
+        .with_next_actions([completion_next_action()])
+        .with_compatibility(compatibility))
     }
 }
 

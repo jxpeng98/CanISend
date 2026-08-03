@@ -20,7 +20,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     ActionReceipt, AgentAssistanceReadModel, Application, ApplicationDossierReadModel,
-    ApplicationError, application::parse_entity_id, dossier::application_dossier_from_workspace,
+    ApplicationError,
+    application::parse_entity_id,
+    compatibility::{
+        LegacyCompatibilityAccess, LegacyCompatibilityOperation, job_compatibility_notice,
+        static_compatibility_notice, workspace_compatibility_notice,
+    },
+    dossier::application_dossier_from_workspace,
 };
 
 pub type AgentCapabilitiesReadModel = CapabilitiesData;
@@ -150,6 +156,8 @@ impl AgentPackExportRequest {
 impl Application {
     pub fn agent_capabilities()
     -> Result<ActionReceipt<AgentCapabilitiesReadModel>, ApplicationError> {
+        let compatibility =
+            static_compatibility_notice(LegacyCompatibilityOperation::AgentCapabilities)?;
         let data = AgentCapabilitiesReadModel {
             product_version: compiled_product_version()?,
             protocol: AGENT_PROTOCOL.to_owned(),
@@ -171,13 +179,31 @@ impl Application {
                 data.capabilities.len()
             ),
             data,
-        ))
+        )
+        .with_compatibility(compatibility))
     }
 
     pub fn agent_context(
         root: Option<&Path>,
         selected_job_id: Option<&str>,
     ) -> Result<ActionReceipt<AgentContextReadModel>, ApplicationError> {
+        let compatibility = match (root, selected_job_id) {
+            (Some(root), Some(job_id)) => {
+                let job_id = parse_entity_id(job_id)?;
+                job_compatibility_notice(
+                    root,
+                    LegacyCompatibilityOperation::AgentContext,
+                    LegacyCompatibilityAccess::Read,
+                    &job_id,
+                )?
+            }
+            (Some(root), None) => workspace_compatibility_notice(
+                root,
+                LegacyCompatibilityOperation::AgentContext,
+                LegacyCompatibilityAccess::Read,
+            )?,
+            (None, _) => static_compatibility_notice(LegacyCompatibilityOperation::AgentContext)?,
+        };
         let mut workspace = open_optional_workspace(root)?;
         let mut blockers = Vec::new();
         let mut next_actions = Vec::new();
@@ -236,7 +262,8 @@ impl Application {
             ),
             data,
         )
-        .with_next_actions(next_actions))
+        .with_next_actions(next_actions)
+        .with_compatibility(compatibility))
     }
 
     pub fn prepare_agent_handoff(

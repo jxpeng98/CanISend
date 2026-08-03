@@ -9,7 +9,8 @@
 **Framework transition:** This is the current job-specific Alpha contract. ADR-RN-0018 freezes it
 as a bounded compatibility surface for the future `org.canisend.academic-job` pack. The canonical
 generic contract will be `canisend.agent/v3`; v2 will not address non-academic workflow packs and
-must fail closed rather than infer neutral IDs. This notice does not change the shipped v2 schema.
+must fail closed rather than infer neutral IDs. The optional `compatibility` member is the only
+transition metadata added to successful v2 envelopes; ordinary `data` remains unchanged.
 
 ## Output boundary
 
@@ -30,9 +31,25 @@ The response envelope has this stable shape:
   "required_consents": [],
   "warnings": [],
   "next_actions": [],
+  "compatibility": {
+    "surface": "agent-v2",
+    "deprecated": true,
+    "legacy_operation": "agent.context",
+    "canonical_v3_operation": "agent-v3.context",
+    "authority": "static-academic",
+    "pack": {
+      "id": "org.canisend.academic-job",
+      "version": "1.0.0",
+      "content_digest": "3baa6d1a3ddf057ba1e5aaf02d8cabb037366b3651f5566bfcf2b2bb166a8d07"
+    }
+  },
   "error": null
 }
 ```
+
+`compatibility` is omitted for non-compatibility responses. Its exact admission modes, operation
+map, and failure behavior are defined by the
+[academic v2 compatibility contract](academic-v2-compatibility-v1.md).
 
 An error sets `ok` to `false`, sets `data` to `null`, and provides a safe `error` object. Errors must not copy job
 advert bodies, evidence text, drafts, credentials, or provider payloads into the envelope.
@@ -166,6 +183,7 @@ Error codes are stable within protocol v2 even when human messages improve:
 | `input.path_rejected` | 3 |
 | `workspace.not_found` | 4 |
 | `workspace.conflict` | 4 |
+| `compatibility.unavailable` | 4 |
 | `job.not_found` | 4 |
 | `job.archived` | 4 |
 | `profile.source_not_found` | 4 |

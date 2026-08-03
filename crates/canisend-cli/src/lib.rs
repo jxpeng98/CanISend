@@ -19,8 +19,9 @@ use canisend_app::{
     WorkflowRerunRequest, WorkspaceInitPolicy,
 };
 use canisend_contracts::{
-    AgentError, AgentResponse, DocumentKind, EntityId, ErrorCode, ExecutionMode, ExitClass,
-    NextAction, PrivacyClassification, PublicSchemaId, SemanticVersion, VersionData, WorkflowStage,
+    AgentError, AgentResponse, CompatibilityNotice, CompatibilitySurface, DocumentKind, EntityId,
+    ErrorCode, ExecutionMode, ExitClass, NextAction, PrivacyClassification, PublicSchemaId,
+    SemanticVersion, VersionData, WorkflowStage,
 };
 use canisend_io::{
     IoAdapterError, read_criteria_file, read_task_completion_file, read_task_completion_stdin,
@@ -1796,9 +1797,10 @@ fn doctor() -> CommandResult<CommandOutput> {
 }
 
 fn capabilities() -> CommandResult<CommandOutput> {
-    let data = Application::agent_capabilities()
-        .map_err(|error| app_adapter::failure("agent.capabilities", error))?
-        .data;
+    let receipt = Application::agent_capabilities()
+        .map_err(|error| app_adapter::failure("agent.capabilities", error))?;
+    let compatibility = receipt.compatibility;
+    let data = receipt.data;
     let human = std::iter::once(format!("CanISend {} capabilities", data.product_version))
         .chain(
             data.capabilities
@@ -1806,17 +1808,25 @@ fn capabilities() -> CommandResult<CommandOutput> {
                 .map(|capability| format!("{}: {:?}", capability.id, capability.status)),
         )
         .collect();
-    success("agent.capabilities", "available", &data, human)
+    success_with_compatibility(
+        "agent.capabilities",
+        "available",
+        &data,
+        human,
+        compatibility,
+        CompatibilitySurface::AgentV2,
+    )
 }
 
 fn context(
     workspace_path: Option<PathBuf>,
     selected_job_id: Option<&str>,
 ) -> CommandResult<CommandOutput> {
-    let data = Application::agent_context(workspace_path.as_deref(), selected_job_id)
-        .map_err(agent_context_failure)?
-        .data;
-    let mut output = success(
+    let receipt = Application::agent_context(workspace_path.as_deref(), selected_job_id)
+        .map_err(agent_context_failure)?;
+    let compatibility = receipt.compatibility;
+    let data = receipt.data;
+    let mut output = success_with_compatibility(
         "agent.context",
         "available",
         &data,
@@ -1831,6 +1841,8 @@ fn context(
             format!("Blockers: {}", data.blockers.len()),
             "Privacy: public metadata only".to_owned(),
         ],
+        compatibility,
+        CompatibilitySurface::AgentV2,
     )?;
     output.response.next_actions = data.next_actions.clone();
     Ok(output)
@@ -2145,10 +2157,11 @@ fn job_create(
     arguments: JobCreateArgs,
 ) -> CommandResult<CommandOutput> {
     let root = app_adapter::workspace_root(workspace_path, "job.create")?;
-    let record = Application::create_job(&root, &arguments.title, &arguments.institution)
-        .map_err(|error| app_adapter::failure("job.create", error))?
-        .data;
-    success(
+    let receipt = Application::create_job(&root, &arguments.title, &arguments.institution)
+        .map_err(|error| app_adapter::failure("job.create", error))?;
+    let compatibility = receipt.compatibility;
+    let record = receipt.data;
+    success_with_compatibility(
         "job.create",
         "created",
         &record,
@@ -2156,6 +2169,8 @@ fn job_create(
             format!("Created job: {}", record.id),
             format!("{} — {}", record.title, record.institution),
         ],
+        compatibility,
+        CompatibilitySurface::JobCli,
     )
 }
 
@@ -2189,8 +2204,9 @@ fn job_import(
         ));
     }
     .map_err(|error| app_adapter::failure("job.import", error))?;
+    let compatibility = receipt.compatibility;
     let record = receipt.data.source;
-    success(
+    success_with_compatibility(
         "job.import",
         "imported",
         &record,
@@ -2207,6 +2223,8 @@ fn job_import(
                     .unwrap_or("unavailable")
             ),
         ],
+        compatibility,
+        CompatibilitySurface::JobCli,
     )
 }
 
@@ -2215,10 +2233,10 @@ fn job_list(
     include_archived: bool,
 ) -> CommandResult<CommandOutput> {
     let root = app_adapter::workspace_root(workspace_path, "job.list")?;
-    let records = Application::list_jobs(&root, include_archived)
-        .map_err(|error| app_adapter::failure("job.list", error))?
-        .data
-        .jobs;
+    let receipt = Application::list_jobs(&root, include_archived)
+        .map_err(|error| app_adapter::failure("job.list", error))?;
+    let compatibility = receipt.compatibility;
+    let records = receipt.data.jobs;
     let human = if records.is_empty() {
         vec!["No jobs found".to_owned()]
     } else {
@@ -2235,19 +2253,27 @@ fn job_list(
             })
             .collect()
     };
-    success("job.list", "available", &json!({"jobs": records}), human)
+    success_with_compatibility(
+        "job.list",
+        "available",
+        &json!({"jobs": records}),
+        human,
+        compatibility,
+        CompatibilitySurface::JobCli,
+    )
 }
 
 fn job_show(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<CommandOutput> {
     let _ = parse_entity_id("job.show", job_id)?;
     let root = app_adapter::workspace_root(workspace_path, "job.show")?;
-    let detail = Application::job_detail(&root, job_id)
-        .map_err(|error| app_adapter::failure("job.show", error))?
-        .data;
+    let receipt = Application::job_detail(&root, job_id)
+        .map_err(|error| app_adapter::failure("job.show", error))?;
+    let compatibility = receipt.compatibility;
+    let detail = receipt.data;
     let record = detail.job;
     let sources = detail.sources;
     let data = json!({"job": record, "sources": sources});
-    success(
+    success_with_compatibility(
         "job.show",
         "available",
         &data,
@@ -2257,20 +2283,25 @@ fn job_show(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<Comm
             format!("Sources: {}", sources.len()),
             format!("Archived: {}", record.archived),
         ],
+        compatibility,
+        CompatibilitySurface::JobCli,
     )
 }
 
 fn job_archive(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<CommandOutput> {
     let _ = parse_entity_id("job.archive", job_id)?;
     let root = app_adapter::workspace_root(workspace_path, "job.archive")?;
-    let record = Application::archive_job(&root, job_id)
-        .map_err(|error| app_adapter::failure("job.archive", error))?
-        .data;
-    success(
+    let receipt = Application::archive_job(&root, job_id)
+        .map_err(|error| app_adapter::failure("job.archive", error))?;
+    let compatibility = receipt.compatibility;
+    let record = receipt.data;
+    success_with_compatibility(
         "job.archive",
         "archived",
         &record,
         vec![format!("Archived job: {}", record.id)],
+        compatibility,
+        CompatibilitySurface::JobCli,
     )
 }
 
@@ -4044,6 +4075,20 @@ fn success<T: serde::Serialize>(
         response: AgentResponse::success(operation, status, value),
         human,
     })
+}
+
+fn success_with_compatibility<T: serde::Serialize>(
+    operation: &'static str,
+    status: &'static str,
+    data: &T,
+    human: Vec<String>,
+    compatibility: Option<CompatibilityNotice>,
+    surface: CompatibilitySurface,
+) -> CommandResult<CommandOutput> {
+    let mut output = success(operation, status, data, human)?;
+    output.response.compatibility =
+        compatibility.map(|compatibility| compatibility.for_surface(surface));
+    Ok(output)
 }
 
 fn wants_json(explicit: bool) -> bool {

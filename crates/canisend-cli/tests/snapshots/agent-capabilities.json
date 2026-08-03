@@ -37,6 +37,7 @@
       "input.path_rejected",
       "workspace.not_found",
       "workspace.conflict",
+      "compatibility.unavailable",
       "job.not_found",
       "job.archived",
       "profile.source_not_found",
@@ -84,5 +85,17 @@
   "required_consents": [],
   "warnings": [],
   "next_actions": [],
+  "compatibility": {
+    "surface": "agent-v2",
+    "deprecated": true,
+    "legacy_operation": "agent.capabilities",
+    "canonical_v3_operation": "agent-v3.capabilities",
+    "authority": "static-academic",
+    "pack": {
+      "id": "org.canisend.academic-job",
+      "version": "1.0.0",
+      "content_digest": "3baa6d1a3ddf057ba1e5aaf02d8cabb037366b3651f5566bfcf2b2bb166a8d07"
+    }
+  },
   "error": null
 }

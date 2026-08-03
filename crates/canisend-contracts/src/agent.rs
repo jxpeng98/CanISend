@@ -3,8 +3,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{
-    ActorKind, ArtifactKind, ArtifactReference, ConsentScope, EntityId, ExecutionMode,
-    PrivacyClassification, Revision, SafeRelativePath, SemanticVersion, Sha256Digest, UtcTimestamp,
+    ActorKind, ApplicationPackBindingV3, ArtifactKind, ArtifactReference, ConsentScope, EntityId,
+    ExecutionMode, PrivacyClassification, Revision, SafeRelativePath, SemanticVersion,
+    Sha256Digest, UtcTimestamp,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -43,6 +44,40 @@ pub struct NextAction {
     pub description: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum CompatibilitySurface {
+    AgentV2,
+    JobCli,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum CompatibilityAuthority {
+    StaticAcademic,
+    WorkspaceV2ImplicitAcademic,
+    WorkspaceV3AcademicReadOnly,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct CompatibilityNotice {
+    pub surface: CompatibilitySurface,
+    pub deprecated: bool,
+    pub legacy_operation: String,
+    pub canonical_v3_operation: String,
+    pub authority: CompatibilityAuthority,
+    pub pack: ApplicationPackBindingV3,
+}
+
+impl CompatibilityNotice {
+    #[must_use]
+    pub fn for_surface(mut self, surface: CompatibilitySurface) -> Self {
+        self.surface = surface;
+        self
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 pub enum ErrorCode {
     #[serde(rename = "input.invalid")]
@@ -53,6 +88,8 @@ pub enum ErrorCode {
     WorkspaceNotFound,
     #[serde(rename = "workspace.conflict")]
     WorkspaceConflict,
+    #[serde(rename = "compatibility.unavailable")]
+    CompatibilityUnavailable,
     #[serde(rename = "job.not_found")]
     JobNotFound,
     #[serde(rename = "job.archived")]
@@ -104,11 +141,12 @@ pub enum ErrorCode {
 }
 
 impl ErrorCode {
-    pub const ALL: [Self; 28] = [
+    pub const ALL: [Self; 29] = [
         Self::InputInvalid,
         Self::InputPathRejected,
         Self::WorkspaceNotFound,
         Self::WorkspaceConflict,
+        Self::CompatibilityUnavailable,
         Self::JobNotFound,
         Self::JobArchived,
         Self::ProfileSourceNotFound,
@@ -140,6 +178,7 @@ impl ErrorCode {
         match self {
             Self::WorkspaceNotFound
             | Self::WorkspaceConflict
+            | Self::CompatibilityUnavailable
             | Self::JobNotFound
             | Self::JobArchived
             | Self::ProfileSourceNotFound
@@ -174,6 +213,7 @@ impl ErrorCode {
             Self::InputPathRejected => "input.path_rejected",
             Self::WorkspaceNotFound => "workspace.not_found",
             Self::WorkspaceConflict => "workspace.conflict",
+            Self::CompatibilityUnavailable => "compatibility.unavailable",
             Self::JobNotFound => "job.not_found",
             Self::JobArchived => "job.archived",
             Self::ProfileSourceNotFound => "profile.source_not_found",
@@ -243,6 +283,8 @@ pub struct AgentResponse {
     pub required_consents: Vec<ConsentRequest>,
     pub warnings: Vec<String>,
     pub next_actions: Vec<NextAction>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub compatibility: Option<CompatibilityNotice>,
     pub error: Option<AgentError>,
 }
 
@@ -259,6 +301,7 @@ impl AgentResponse {
             required_consents: Vec::new(),
             warnings: Vec::new(),
             next_actions: Vec::new(),
+            compatibility: None,
             error: None,
         }
     }
@@ -279,8 +322,15 @@ impl AgentResponse {
             required_consents: Vec::new(),
             warnings: Vec::new(),
             next_actions: Vec::new(),
+            compatibility: None,
             error: Some(error),
         }
+    }
+
+    #[must_use]
+    pub fn with_compatibility(mut self, compatibility: CompatibilityNotice) -> Self {
+        self.compatibility = Some(compatibility);
+        self
     }
 
     #[must_use]

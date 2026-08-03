@@ -6,6 +6,7 @@ mod artifact;
 mod backup;
 mod blob;
 mod catalog;
+mod compatibility_v3;
 mod context;
 mod criteria;
 mod database;
@@ -46,6 +47,10 @@ pub use blob::{BlobAudit, BlobStore, DEFAULT_MAX_BLOB_BYTES};
 pub use catalog::{
     CatalogArtifactMetadata, CatalogSourceMetadata, CatalogSourceRole, CatalogSourceScope,
     CatalogSubjectJob, ContentCatalogService, MAX_CONTENT_CATALOG_ENTRIES,
+};
+pub use compatibility_v3::{
+    LegacyApplicationBindingV3, LegacyCompatibilityAuthority, LegacyCompatibilityContextV3,
+    LegacyCompatibilityService,
 };
 pub use context::AgentContextService;
 pub use criteria::CriteriaService;

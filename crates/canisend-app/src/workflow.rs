@@ -11,6 +11,9 @@ use serde::{Deserialize, Serialize};
 use crate::{
     ActionReceipt, Application, ApplicationError,
     application::{open_workspace, parse_entity_id},
+    compatibility::{
+        LegacyCompatibilityAccess, LegacyCompatibilityOperation, job_compatibility_notice,
+    },
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -112,6 +115,12 @@ impl Application {
         job_id: &str,
     ) -> Result<ActionReceipt<WorkflowStatusData>, ApplicationError> {
         let job_id = parse_entity_id(job_id)?;
+        let compatibility = job_compatibility_notice(
+            root,
+            LegacyCompatibilityOperation::WorkflowStatus,
+            LegacyCompatibilityAccess::Read,
+            &job_id,
+        )?;
         let mut workspace = open_workspace(root)?;
         let status = WorkflowService::new(&mut workspace.database).status(&job_id)?;
         let next_actions = status.next_actions.clone();
@@ -121,7 +130,8 @@ impl Application {
             format!("{} blocker(s)", status.blockers.len()),
             status,
         )
-        .with_next_actions(next_actions))
+        .with_next_actions(next_actions)
+        .with_compatibility(compatibility))
     }
 
     pub fn workflow_controls(

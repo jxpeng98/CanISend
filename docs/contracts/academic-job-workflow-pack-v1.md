@@ -53,10 +53,11 @@ Evidence categories, the `institution` field, and all four legacy Deliverables. 
 that reuses the same ID fails before v3 authority or audit mutation.
 
 The four network discovery references now resolve through the registered, Pack-qualified
-[Opportunity-source adapter boundary](opportunity-source-adapters-v1.md). The current v2 workflow
-remains a bounded compatibility runtime until GF3-COMPAT-001 ports its public operation mapping;
-GF3-UI-001 owns Pack-backed presentation. External Pack installation, automatic latest-version
-selection, direct Pack-ID conversion, and application submission remain unavailable.
+[Opportunity-source adapter boundary](opportunity-source-adapters-v1.md). Agent v2 and `job` CLI
+operations resolve through the exact-binding, fail-closed
+[academic v2 compatibility boundary](academic-v2-compatibility-v1.md). GF3-UI-001 owns Pack-backed
+presentation. External Pack installation, automatic latest-version selection, direct Pack-ID
+conversion, and application submission remain unavailable.
 
 ## Parity evidence
 

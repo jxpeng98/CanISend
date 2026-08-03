@@ -734,7 +734,7 @@ impl CanISendMcpServer {
 
 #[tool_handler(
     name = "canisend",
-    instructions = "CanISend is the authoritative control plane for academic job application state. Inspection tools return metadata, workflow state, and body-free context. Guarded mutation tools require host approval; job intake and task completion must be previewed first and committed with the returned single-use token. Preview tokens live only for this MCP session. Never edit .canisend, SQLite, immutable blobs, or managed projections directly."
+    instructions = "These Agent v2 tools are a deprecated compatibility surface for the exact built-in academic Pack. Responses identify the canonical v3 operation and Pack binding. Inspection tools return metadata, workflow state, and body-free context. Guarded mutation tools require host approval; job intake and task completion must be previewed first and committed with the returned single-use token. Preview tokens live only for this MCP session. Unsupported or migrated-v3 write combinations fail without mutation. Never edit .canisend, SQLite, immutable blobs, or managed projections directly."
 )]
 impl ServerHandler for CanISendMcpServer {}
 
@@ -832,6 +832,19 @@ mod tests {
         let serialized = serde_json::to_string(&responses).expect("serialize responses");
         assert!(!serialized.contains(job_sentinel));
         assert!(!serialized.contains(profile_sentinel));
+        for response in &responses {
+            assert_eq!(response["compatibility"]["surface"], "agent-v2");
+            assert_eq!(response["compatibility"]["deprecated"], true);
+            assert_eq!(
+                response["compatibility"]["pack"]["id"],
+                "org.canisend.academic-job"
+            );
+            assert!(
+                response["compatibility"]["canonical_v3_operation"]
+                    .as_str()
+                    .is_some_and(|operation| !operation.is_empty())
+            );
+        }
 
         let after = Application::workspace_status(&root)
             .expect("workspace after")

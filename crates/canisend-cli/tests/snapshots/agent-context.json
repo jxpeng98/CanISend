@@ -41,5 +41,17 @@
   "next_actions": [
     {"action":"canisend --workspace PATH workspace init --json","description":"Initialize or explicitly select a workspace"}
   ],
+  "compatibility": {
+    "surface": "agent-v2",
+    "deprecated": true,
+    "legacy_operation": "agent.context",
+    "canonical_v3_operation": "agent-v3.context",
+    "authority": "static-academic",
+    "pack": {
+      "id": "org.canisend.academic-job",
+      "version": "1.0.0",
+      "content_digest": "3baa6d1a3ddf057ba1e5aaf02d8cabb037366b3651f5566bfcf2b2bb166a8d07"
+    }
+  },
   "error": null
 }

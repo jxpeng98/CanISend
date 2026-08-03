@@ -11,6 +11,9 @@ use serde_json::Value;
 use crate::{
     ActionReceipt, Application, ApplicationError, PrivateReadConsent,
     application::{open_workspace, parse_entity_id},
+    compatibility::{
+        LegacyCompatibilityAccess, LegacyCompatibilityOperation, workspace_compatibility_notice,
+    },
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -127,6 +130,11 @@ impl Application {
     pub fn list_profile_sources(
         root: &Path,
     ) -> Result<ActionReceipt<ProfileSourceListReadModel>, ApplicationError> {
+        let compatibility = workspace_compatibility_notice(
+            root,
+            LegacyCompatibilityOperation::ProfileSources,
+            LegacyCompatibilityAccess::Read,
+        )?;
         let mut workspace = open_workspace(root)?;
         let service = ProfileService::new(&mut workspace.database, &workspace.blobs);
         let sources = service.list_sources()?;
@@ -140,7 +148,8 @@ impl Application {
                 profile_revision,
                 sources,
             },
-        ))
+        )
+        .with_compatibility(compatibility))
     }
 
     pub fn profile_source(

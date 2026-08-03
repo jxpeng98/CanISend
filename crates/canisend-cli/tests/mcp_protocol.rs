@@ -135,7 +135,7 @@ fn negotiates_current_protocol_and_lists_guarded_tools_deterministically() {
         initialized["result"]["instructions"]
             .as_str()
             .expect("instructions")
-            .contains("authoritative control plane")
+            .contains("deprecated compatibility surface")
     );
 
     let listed = mcp.request(2, "tools/list", json!({}));

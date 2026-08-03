@@ -33,6 +33,12 @@ pub enum ApplicationError {
     CliInstall(String),
     #[error("update check failed: {0}")]
     UpdateCheck(String),
+    #[error("{message}")]
+    CompatibilityUnavailable {
+        message: String,
+        details: Value,
+        remediation: NextAction,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -86,6 +92,17 @@ impl ApplicationError {
                 None,
                 None,
             ),
+            Self::CompatibilityUnavailable {
+                details,
+                remediation,
+                ..
+            } => (
+                "compatibility-unavailable",
+                ErrorCode::CompatibilityUnavailable,
+                false,
+                Some(details.clone()),
+                Some(remediation.clone()),
+            ),
         };
         ApplicationFailure {
             status: status.to_owned(),
@@ -98,6 +115,7 @@ impl ApplicationError {
                 | Self::ResourceIntegrity(message)
                 | Self::CliInstall(message)
                 | Self::UpdateCheck(message) => message.clone(),
+                Self::CompatibilityUnavailable { message, .. } => message.clone(),
                 Self::ConsentRequired { message, .. } => message.clone(),
                 Self::Store(_) | Self::Input(_) | Self::Render(_) | Self::ResourceExport(_) => {
                     self.to_string()

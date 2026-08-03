@@ -1,4 +1,4 @@
-use canisend_contracts::{ArtifactReference, ConsentRequest, NextAction};
+use canisend_contracts::{ArtifactReference, CompatibilityNotice, ConsentRequest, NextAction};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -16,6 +16,8 @@ pub struct ActionReceipt<T> {
     pub warnings: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub next_actions: Vec<NextAction>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub compatibility: Option<CompatibilityNotice>,
 }
 
 impl<T> ActionReceipt<T> {
@@ -34,6 +36,7 @@ impl<T> ActionReceipt<T> {
             required_consents: Vec::new(),
             warnings: Vec::new(),
             next_actions: Vec::new(),
+            compatibility: None,
         }
     }
 
@@ -64,6 +67,12 @@ impl<T> ActionReceipt<T> {
     #[must_use]
     pub fn with_next_actions(mut self, next_actions: impl IntoIterator<Item = NextAction>) -> Self {
         self.next_actions.extend(next_actions);
+        self
+    }
+
+    #[must_use]
+    pub fn with_compatibility(mut self, compatibility: CompatibilityNotice) -> Self {
+        self.compatibility = Some(compatibility);
         self
     }
 }
@@ -102,5 +111,6 @@ mod tests {
         assert!(receipt.artifacts.is_empty());
         assert!(receipt.required_consents.is_empty());
         assert!(receipt.warnings.is_empty());
+        assert!(receipt.compatibility.is_none());
     }
 }

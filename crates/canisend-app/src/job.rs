@@ -18,6 +18,10 @@ use sha2::{Digest, Sha256};
 use crate::{
     ActionReceipt, Application, ApplicationError, NetworkFetchConsent, PrivateReadConsent,
     application::{open_workspace, parse_entity_id},
+    compatibility::{
+        LegacyCompatibilityAccess, LegacyCompatibilityOperation, job_compatibility_notice,
+        workspace_compatibility_notice,
+    },
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -136,6 +140,11 @@ impl Application {
         root: &Path,
         include_archived: bool,
     ) -> Result<ActionReceipt<JobListReadModel>, ApplicationError> {
+        let compatibility = workspace_compatibility_notice(
+            root,
+            LegacyCompatibilityOperation::JobList,
+            LegacyCompatibilityAccess::Read,
+        )?;
         let mut workspace = open_workspace(root)?;
         let jobs =
             JobService::new(&mut workspace.database, &workspace.blobs).list(include_archived)?;
@@ -148,7 +157,8 @@ impl Application {
                 include_archived,
                 jobs,
             },
-        ))
+        )
+        .with_compatibility(compatibility))
     }
 
     pub fn create_job(
@@ -156,6 +166,11 @@ impl Application {
         title: &str,
         institution: &str,
     ) -> Result<ActionReceipt<JobRecord>, ApplicationError> {
+        let compatibility = workspace_compatibility_notice(
+            root,
+            LegacyCompatibilityOperation::JobCreate,
+            LegacyCompatibilityAccess::Write,
+        )?;
         let mut workspace = open_workspace(root)?;
         let job = JobService::new(&mut workspace.database, &workspace.blobs).create(
             title,
@@ -167,7 +182,8 @@ impl Application {
             "created",
             format!("Created {} at {}", job.title, job.institution),
             job,
-        ))
+        )
+        .with_compatibility(compatibility))
     }
 
     pub fn archive_job(
@@ -175,6 +191,12 @@ impl Application {
         job_id: &str,
     ) -> Result<ActionReceipt<JobRecord>, ApplicationError> {
         let job_id = parse_entity_id(job_id)?;
+        let compatibility = job_compatibility_notice(
+            root,
+            LegacyCompatibilityOperation::JobArchive,
+            LegacyCompatibilityAccess::Write,
+            &job_id,
+        )?;
         let mut workspace = open_workspace(root)?;
         let job = JobService::new(&mut workspace.database, &workspace.blobs)
             .archive(&job_id, ActorKind::User)?;
@@ -183,7 +205,8 @@ impl Application {
             "archived",
             format!("Archived {}", job.title),
             job,
-        ))
+        )
+        .with_compatibility(compatibility))
     }
 
     pub fn job_detail(
@@ -191,6 +214,12 @@ impl Application {
         job_id: &str,
     ) -> Result<ActionReceipt<JobDetailReadModel>, ApplicationError> {
         let job_id = parse_entity_id(job_id)?;
+        let compatibility = job_compatibility_notice(
+            root,
+            LegacyCompatibilityOperation::JobShow,
+            LegacyCompatibilityAccess::Read,
+            &job_id,
+        )?;
         let mut workspace = open_workspace(root)?;
         let service = JobService::new(&mut workspace.database, &workspace.blobs);
         let job = service.get(&job_id)?;
@@ -210,7 +239,8 @@ impl Application {
                 sources,
                 workflow,
             },
-        ))
+        )
+        .with_compatibility(compatibility))
     }
 
     pub fn import_local_job_source(
@@ -219,6 +249,13 @@ impl Application {
         path: &Path,
         _consent: PrivateReadConsent,
     ) -> Result<ActionReceipt<SourceImportReadModel>, ApplicationError> {
+        let job_id_value = parse_entity_id(job_id)?;
+        let _ = job_compatibility_notice(
+            root,
+            LegacyCompatibilityOperation::JobImport,
+            LegacyCompatibilityAccess::Write,
+            &job_id_value,
+        )?;
         let source = local_source(path)?;
         Self::commit_job_source(root, job_id, source)
     }
@@ -229,6 +266,13 @@ impl Application {
         path: &Path,
         _consent: PrivateReadConsent,
     ) -> Result<PreparedJobSource, ApplicationError> {
+        let job_id_value = parse_entity_id(job_id)?;
+        let _ = job_compatibility_notice(
+            root,
+            LegacyCompatibilityOperation::JobIntakePreview,
+            LegacyCompatibilityAccess::Write,
+            &job_id_value,
+        )?;
         let canonical_path = fs::canonicalize(path).map_err(|source| IoAdapterError::Io {
             path: path.to_path_buf(),
             source,
@@ -252,6 +296,13 @@ impl Application {
         url: &str,
         _consent: NetworkFetchConsent,
     ) -> Result<ActionReceipt<SourceImportReadModel>, ApplicationError> {
+        let job_id_value = parse_entity_id(job_id)?;
+        let _ = job_compatibility_notice(
+            root,
+            LegacyCompatibilityOperation::JobImport,
+            LegacyCompatibilityAccess::Write,
+            &job_id_value,
+        )?;
         if url.trim().is_empty() {
             return Err(ApplicationError::InvalidInput(
                 "URL cannot be empty".to_owned(),
@@ -284,6 +335,13 @@ impl Application {
         url: &str,
         _consent: NetworkFetchConsent,
     ) -> Result<PreparedJobSource, ApplicationError> {
+        let job_id_value = parse_entity_id(job_id)?;
+        let _ = job_compatibility_notice(
+            root,
+            LegacyCompatibilityOperation::JobIntakePreview,
+            LegacyCompatibilityAccess::Write,
+            &job_id_value,
+        )?;
         if url.trim().is_empty() {
             return Err(ApplicationError::InvalidInput(
                 "URL cannot be empty".to_owned(),
@@ -332,6 +390,12 @@ impl Application {
     pub fn commit_prepared_job_source(
         prepared: PreparedJobSource,
     ) -> Result<ActionReceipt<SourceImportReadModel>, ApplicationError> {
+        let compatibility = job_compatibility_notice(
+            &prepared.workspace,
+            LegacyCompatibilityOperation::JobIntakeCommit,
+            LegacyCompatibilityAccess::Write,
+            &prepared.job_id,
+        )?;
         let mut workspace = open_workspace(&prepared.workspace)?;
         let mut service = JobService::new(&mut workspace.database, &workspace.blobs);
         let current = service.get(&prepared.job_id)?;
@@ -355,7 +419,8 @@ impl Application {
             format!("Imported reviewed {} source", source.content_type),
             SourceImportReadModel { job, source },
         )
-        .with_artifacts(artifacts))
+        .with_artifacts(artifacts)
+        .with_compatibility(compatibility))
     }
 
     fn prepare_job_source(
@@ -364,6 +429,12 @@ impl Application {
         candidate: PreparedSourceCandidate,
     ) -> Result<PreparedJobSource, ApplicationError> {
         let job_id = parse_entity_id(job_id)?;
+        let compatibility = job_compatibility_notice(
+            root,
+            LegacyCompatibilityOperation::JobIntakePreview,
+            LegacyCompatibilityAccess::Write,
+            &job_id,
+        )?;
         let mut workspace = open_workspace(root)?;
         let service = JobService::new(&mut workspace.database, &workspace.blobs);
         let job = service.get(&job_id)?;
@@ -462,7 +533,8 @@ impl Application {
             action: "commit the exact reviewed source preview".to_owned(),
             description: "CanISend will reject the preview if the selected job revision changed."
                 .to_owned(),
-        }]);
+        }])
+        .with_compatibility(compatibility);
         Ok(PreparedJobSource {
             workspace: workspace.paths.root,
             job_id,
@@ -478,6 +550,12 @@ impl Application {
         source: NewSource,
     ) -> Result<ActionReceipt<SourceImportReadModel>, ApplicationError> {
         let job_id = parse_entity_id(job_id)?;
+        let compatibility = job_compatibility_notice(
+            root,
+            LegacyCompatibilityOperation::JobImport,
+            LegacyCompatibilityAccess::Write,
+            &job_id,
+        )?;
         let mut workspace = open_workspace(root)?;
         let mut service = JobService::new(&mut workspace.database, &workspace.blobs);
         let source = service.import_source(&job_id, source, ActorKind::User)?;
@@ -491,7 +569,8 @@ impl Application {
             format!("Imported {} source", source.content_type),
             SourceImportReadModel { job, source },
         )
-        .with_artifacts(artifacts))
+        .with_artifacts(artifacts)
+        .with_compatibility(compatibility))
     }
 }
 

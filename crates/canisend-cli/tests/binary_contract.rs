@@ -247,6 +247,19 @@ fn agent_assistance_requires_a_job_and_returns_body_free_proposal_boundaries() {
         "University X",
         "--json",
     ]);
+    assert_eq!(created["compatibility"]["surface"], "job-cli");
+    assert_eq!(
+        created["compatibility"]["canonical_v3_operation"],
+        "application.create"
+    );
+    assert_eq!(
+        created["compatibility"]["authority"],
+        "workspace-v2-implicit-academic"
+    );
+    assert_eq!(
+        created["compatibility"]["pack"]["id"],
+        "org.canisend.academic-job"
+    );
     let job_id = created["data"]["id"].as_str().expect("job ID");
     let assistance = run_json(&[
         "--workspace",
@@ -971,6 +984,11 @@ fn native_job_commands_import_original_and_normalized_local_text() {
         job_id,
         "--json",
     ]);
+    assert_eq!(shown["compatibility"]["surface"], "job-cli");
+    assert_eq!(
+        shown["compatibility"]["canonical_v3_operation"],
+        "application.show"
+    );
     assert_eq!(shown["data"]["job"]["revision"], 3);
     assert_eq!(shown["data"]["sources"].as_array().map(Vec::len), Some(2));
     let context = run_json(&[

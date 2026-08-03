@@ -7,6 +7,7 @@ mod application_v3;
 mod assistance;
 mod catalog;
 mod cli_install;
+mod compatibility;
 mod content;
 mod decision;
 mod desktop_cli;

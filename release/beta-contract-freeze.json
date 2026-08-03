@@ -4,11 +4,11 @@
       "agent-capabilities.json",
       "agent-context.json"
     ],
-    "normalized_snapshot_tree_sha256": "7f02b4a80cc499131efb87b5684c456cc0d5fd2a4667a6f776f1494223298dc4",
+    "normalized_snapshot_tree_sha256": "13e4ad3cbdd4bf96e210b7c3260a1a2046baa4e580ada7be972451a9d9435dfe",
     "product_version_is_excluded_from_snapshot_digest": true,
     "protocol": "canisend.agent/v2",
     "public_schema_files": 40,
-    "public_schema_tree_sha256": "5f2f7b37209e8d7413ea0ae05b2aee967caa0f706fc9169cb72e8a0a6b5c3b78",
+    "public_schema_tree_sha256": "190d8424ad10fecd9d7f6b6e82a331183ef88f2e4e854ecd8153348e32f6717f",
     "public_schema_version": "2.0.0"
   },
   "baseline": {
