@@ -12,6 +12,85 @@ export interface ProductSummary {
   target_arch: string;
 }
 
+export interface WorkflowPackBinding {
+  id: string;
+  version: string;
+  content_digest: string;
+}
+
+export interface WorkflowPackPresentationLabel {
+  value: string;
+  locale: string;
+  used_default_fallback: boolean;
+}
+
+export interface WorkflowPackPresentationFieldOption {
+  id: string;
+  label: WorkflowPackPresentationLabel;
+}
+
+export interface WorkflowPackPresentationField {
+  id: string;
+  label: WorkflowPackPresentationLabel;
+  field_type:
+    | "short-text"
+    | "long-text"
+    | "integer"
+    | "boolean"
+    | "date"
+    | "url"
+    | "string-list"
+    | "choice";
+  required: boolean;
+  options: WorkflowPackPresentationFieldOption[];
+}
+
+export interface WorkflowPackPresentationCategory {
+  id: string;
+  label: WorkflowPackPresentationLabel;
+  fields: WorkflowPackPresentationField[];
+}
+
+export interface WorkflowPackPresentationStage {
+  id: string;
+  qualified_id: string;
+  label: WorkflowPackPresentationLabel;
+  depends_on: string[];
+  output: string;
+  execution_modes: ExecutionMode[];
+}
+
+export interface WorkflowPackPresentationDeliverable {
+  id: string;
+  qualified_id: string;
+  label: WorkflowPackPresentationLabel;
+  minimum: number;
+  maximum: number;
+  legacy_task_operation: string | null;
+}
+
+export interface WorkflowPackPresentationReadModel {
+  pack: WorkflowPackBinding;
+  requested_locale: string;
+  selected_locale: string;
+  locale_match: "exact" | "compatible" | "pack-default";
+  vocabulary: {
+    application_singular: string;
+    application_plural: string;
+    opportunity_singular: string;
+    opportunity_plural: string;
+    requirement_plural: string;
+    evidence_plural: string;
+    deliverable_plural: string;
+  };
+  opportunity_fields: WorkflowPackPresentationField[];
+  application_fields: WorkflowPackPresentationField[];
+  requirement_categories: WorkflowPackPresentationCategory[];
+  evidence_categories: WorkflowPackPresentationCategory[];
+  stages: WorkflowPackPresentationStage[];
+  deliverables: WorkflowPackPresentationDeliverable[];
+}
+
 export interface DoctorSummary {
   healthy: boolean;
   embedded_resources: number;
@@ -531,11 +610,7 @@ export interface ArtifactReference {
   sha256: string;
 }
 
-export type DocumentKind =
-  | "cover-letter"
-  | "research-statement"
-  | "teaching-statement"
-  | "cv";
+export type DocumentKind = string;
 
 export type ContentCategory =
   | "source"
@@ -674,15 +749,7 @@ export interface WorkflowRerunPreviewReadModel {
   }>;
 }
 
-export type TaskOperation =
-  | "job-parse"
-  | "evidence-normalize"
-  | "evidence-match"
-  | "cover-letter-draft"
-  | "research-statement-draft"
-  | "teaching-statement-draft"
-  | "cv-draft"
-  | "document-review";
+export type TaskOperation = string;
 
 export type TaskExecutionMode = "host-agent" | "configured-provider";
 
@@ -1134,6 +1201,12 @@ export interface InspectionCatalogReadModel {
 
 export async function getProductSummary(): Promise<ProductSummary> {
   return invoke<ProductSummary>("product_summary");
+}
+
+export async function getWorkflowPackPresentation(
+  locale: "en" | "zh-CN",
+): Promise<ActionReceipt<WorkflowPackPresentationReadModel>> {
+  return invoke("workflow_pack_presentation", { request: { locale } });
 }
 
 export async function runDoctor(): Promise<ActionReceipt<DoctorSummary>> {

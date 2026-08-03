@@ -56,8 +56,9 @@ The four network discovery references now resolve through the registered, Pack-q
 [Opportunity-source adapter boundary](opportunity-source-adapters-v1.md). Agent v2 and `job` CLI
 operations resolve through the exact-binding, fail-closed
 [academic v2 compatibility boundary](academic-v2-compatibility-v1.md). GF3-UI-001 owns Pack-backed
-presentation. External Pack installation, automatic latest-version selection, direct Pack-ID
-conversion, and application submission remain unavailable.
+[presentation](workflow-pack-presentation-v1.md). External Pack installation, automatic
+latest-version selection, direct Pack-ID conversion, and application submission remain
+unavailable.
 
 ## Parity evidence
 

@@ -5,9 +5,9 @@ use canisend_app::{
     ApplicationError, BackupReadModel, ContentCatalogFilter, ContentCatalogReadModel,
     ContentSearchReadModel, ContentSearchRequest, DoctorSummary, JobDetailReadModel,
     JobListReadModel, NetworkFetchConsent, PrivateReadConsent, ProductSummary,
-    SourceImportReadModel, WorkspaceHealthReadModel, WorkspaceReadModel, WorkspaceRegistry,
-    WorkspaceRepairReadModel, WorkspaceRestoreReadModel, default_registry_path,
-    validate_workspace_alias,
+    SourceImportReadModel, WorkflowPackPresentationLocale, WorkflowPackPresentationReadModel,
+    WorkspaceHealthReadModel, WorkspaceReadModel, WorkspaceRegistry, WorkspaceRepairReadModel,
+    WorkspaceRestoreReadModel, default_registry_path, validate_workspace_alias,
 };
 use canisend_contracts::JobRecord;
 use serde::{Deserialize, Serialize};
@@ -177,12 +177,25 @@ pub(crate) struct ContentSearchCommandRequest {
     limit: usize,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct WorkflowPackPresentationRequest {
+    locale: WorkflowPackPresentationLocale,
+}
+
 pub(crate) fn product_summary_impl() -> ProductSummary {
     Application::product_summary()
 }
 
 pub(crate) fn doctor_impl() -> Result<ActionReceipt<DoctorSummary>, DesktopCommandError> {
     Application::doctor().map_err(DesktopCommandError::application)
+}
+
+fn workflow_pack_presentation_impl(
+    request: WorkflowPackPresentationRequest,
+) -> Result<ActionReceipt<WorkflowPackPresentationReadModel>, DesktopCommandError> {
+    Application::built_in_academic_pack_presentation(request.locale)
+        .map_err(DesktopCommandError::application)
 }
 
 fn registry_snapshot_impl(registry_path: &Path) -> Result<RegistrySnapshot, DesktopCommandError> {
@@ -375,6 +388,13 @@ pub(crate) fn product_summary() -> ProductSummary {
 #[tauri::command]
 pub(crate) async fn run_doctor() -> Result<ActionReceipt<DoctorSummary>, DesktopCommandError> {
     run_worker(doctor_impl).await
+}
+
+#[tauri::command]
+pub(crate) async fn workflow_pack_presentation(
+    request: WorkflowPackPresentationRequest,
+) -> Result<ActionReceipt<WorkflowPackPresentationReadModel>, DesktopCommandError> {
+    run_worker(move || workflow_pack_presentation_impl(request)).await
 }
 
 #[tauri::command]
@@ -574,6 +594,20 @@ mod tests {
         assert_eq!(summary.resource_format, "canisend.resources/v2");
         assert!(!summary.target_os.is_empty());
         assert!(!summary.target_arch.is_empty());
+    }
+
+    #[test]
+    fn workflow_pack_presentation_resolves_host_locale_through_verified_pack() {
+        let presentation = workflow_pack_presentation_impl(WorkflowPackPresentationRequest {
+            locale: WorkflowPackPresentationLocale::SimplifiedChinese,
+        })
+        .expect("Pack presentation");
+
+        assert_eq!(presentation.operation, "workflow-pack.presentation");
+        assert_eq!(presentation.data.requested_locale.as_str(), "zh-CN");
+        assert_eq!(presentation.data.selected_locale.as_str(), "zh-Hans");
+        assert_eq!(presentation.data.deliverables.len(), 4);
+        assert_eq!(presentation.data.deliverables[3].label.value, "学术简历");
     }
 
     #[test]

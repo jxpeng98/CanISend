@@ -214,6 +214,10 @@ describe("connected workflow routing", () => {
       view: "delivery",
       detail: "delivery-review",
     });
+    expect(routeForTaskOperation("portfolio-draft")).toEqual({
+      view: "delivery",
+      detail: "delivery-documents",
+    });
     expect(routeForAgentAction("profile.evidence.confirm")).toEqual({
       view: "profile",
       detail: "profile-evidence",

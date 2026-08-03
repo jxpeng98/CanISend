@@ -9,6 +9,7 @@ import { messages } from "./i18n";
 import type {
   ArtifactReference,
   RenderManifestRecord,
+  WorkflowPackPresentationReadModel,
   WorkspaceReadModel,
 } from "./bridge";
 
@@ -49,6 +50,15 @@ const workspace = {
   status: {},
 } as WorkspaceReadModel;
 
+const presentation = {
+  deliverables: [
+    {
+      id: "cv",
+      label: { value: "Academic CV", locale: "en", used_default_fallback: false },
+    },
+  ],
+} as WorkflowPackPresentationReadModel;
+
 beforeEach(() => {
   Object.defineProperty(URL, "createObjectURL", {
     configurable: true,
@@ -76,6 +86,7 @@ describe("delivery final PDF preview", () => {
       desktopRuntime: true,
       activeWorkspace: workspace,
       selectedJobId: JOB_ID,
+      presentation,
       focus: "delivery-render",
       busy: false,
       onNavigate: vi.fn(async () => undefined),
@@ -117,7 +128,7 @@ describe("delivery final PDF preview", () => {
     expect(URL.createObjectURL).toHaveBeenCalledOnce();
     expect(
       (
-        await screen.findByTitle(`${messages.en.exactPdfPreview}: CV`)
+        await screen.findByTitle(`${messages.en.exactPdfPreview}: Academic CV`)
       ).getAttribute("src"),
     ).toBe("blob:canisend-render-preview");
     expect(screen.getByText(PDF_SHA)).toBeTruthy();

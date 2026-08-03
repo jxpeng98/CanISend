@@ -28,6 +28,7 @@ import {
   getAgentSkillsStatus,
   getApplicationDossier,
   getContentCatalog,
+  getWorkflowPackPresentation,
   installAgentSkills,
   installCli,
   listApplicationDossiers,
@@ -192,6 +193,14 @@ describe("typed Tauri command requests", () => {
         stage: "criteria",
         mode: "host-agent",
       },
+    });
+  });
+
+  it("requests Pack presentation labels with the selected host locale", async () => {
+    await getWorkflowPackPresentation("zh-CN");
+
+    expect(mocks.invoke).toHaveBeenCalledWith("workflow_pack_presentation", {
+      request: { locale: "zh-CN" },
     });
   });
 

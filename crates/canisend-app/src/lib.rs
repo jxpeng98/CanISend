@@ -30,6 +30,7 @@ mod task;
 mod update;
 mod workflow;
 mod workflow_pack;
+mod workflow_pack_presentation;
 mod workspace;
 
 pub use agent::{
@@ -122,6 +123,13 @@ pub use workflow::{
     WorkflowRerunRequest,
 };
 pub use workflow_pack::built_in_academic_job_pack;
+pub use workflow_pack_presentation::{
+    WorkflowPackPresentationCategory, WorkflowPackPresentationDeliverable,
+    WorkflowPackPresentationField, WorkflowPackPresentationFieldOption,
+    WorkflowPackPresentationLabel, WorkflowPackPresentationLocale,
+    WorkflowPackPresentationLocaleMatch, WorkflowPackPresentationReadModel,
+    WorkflowPackPresentationStage,
+};
 pub use workspace::{
     BackupReadModel, WorkspaceHealthReadModel, WorkspaceInitPolicy, WorkspaceReadModel,
     WorkspaceRepairReadModel, WorkspaceRestoreReadModel,

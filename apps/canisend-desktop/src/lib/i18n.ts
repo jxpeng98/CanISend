@@ -765,12 +765,6 @@ export const messages = {
     openSystemViewer: "Export and open in system viewer",
     previewUnavailable:
       "If the embedded viewer is unavailable, export this same validated PDF and open it with the system viewer.",
-    documentKindLabels: {
-      "cover-letter": "Cover letter",
-      "research-statement": "Research statement",
-      "teaching-statement": "Teaching statement",
-      cv: "CV",
-    },
     exportRender: "Export rendered PDFs",
     pages: "pages",
     warnings: "warnings",
@@ -1546,12 +1540,6 @@ export const messages = {
     openSystemViewer: "导出并使用系统阅读器打开",
     previewUnavailable:
       "如果内嵌查看器不可用，请导出这份相同的已验证 PDF，并使用系统阅读器打开。",
-    documentKindLabels: {
-      "cover-letter": "求职信",
-      "research-statement": "研究陈述",
-      "teaching-statement": "教学陈述",
-      cv: "简历",
-    },
     exportRender: "导出渲染 PDF",
     pages: "页",
     warnings: "个警告",

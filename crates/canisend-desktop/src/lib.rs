@@ -59,6 +59,7 @@ pub fn run() {
             commands::search_content,
             commands::show_job,
             commands::workspace_status,
+            commands::workflow_pack_presentation,
             delivery::build_render,
             delivery::check_package,
             delivery::confirm_review,

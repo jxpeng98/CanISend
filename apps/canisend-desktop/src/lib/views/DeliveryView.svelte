@@ -36,6 +36,7 @@
     RenderManifestRecord,
     RenderedDocumentRecord,
     ReviewWorkspaceReadModel,
+    WorkflowPackPresentationReadModel,
     WorkspaceReadModel,
   } from "$lib/bridge";
   import type { Messages } from "$lib/i18n";
@@ -43,12 +44,14 @@
     WorkflowDetail,
     WorkflowRoute,
   } from "$lib/workflow-navigation";
+  import { deliverablePresentationLabel } from "$lib/workflow-pack-presentation";
 
   type Props = {
     copy: Messages;
     desktopRuntime: boolean;
     activeWorkspace: WorkspaceReadModel | null;
     selectedJobId: string;
+    presentation: WorkflowPackPresentationReadModel | null;
     focus: WorkflowDetail | null;
     busy: boolean;
     onNavigate: (route: WorkflowRoute) => Promise<void>;
@@ -112,6 +115,7 @@
     desktopRuntime,
     activeWorkspace,
     selectedJobId,
+    presentation,
     focus,
     busy,
     onNavigate,
@@ -476,7 +480,9 @@
                   <div class="flex items-start justify-between gap-3">
                     <div>
                       <h2 class="text-sm font-semibold">{document.title}</h2>
-                      <p class="mt-1 text-xs text-muted-foreground">{document.kind}</p>
+                      <p class="mt-1 text-xs text-muted-foreground">
+                        {deliverablePresentationLabel(presentation, document.kind)}
+                      </p>
                     </div>
                     <Badge variant="outline">r{document.revision}</Badge>
                   </div>
@@ -735,7 +741,7 @@
                 >
                   <span class="min-w-0">
                     <span class="block truncate text-sm font-semibold">
-                      {copy.documentKindLabels[document.kind]}
+                      {deliverablePresentationLabel(presentation, document.kind)}
                     </span>
                     <span class="mt-1 block text-xs text-muted-foreground">
                       {document.page_count} {copy.pages} · {document.warning_count} {copy.warnings}
@@ -753,7 +759,7 @@
               >
                 <div class="flex min-w-0 flex-wrap items-center gap-2 border-b px-3 py-2">
                   <Badge variant="secondary">
-                    {copy.documentKindLabels[previewDocument.kind]}
+                    {deliverablePresentationLabel(presentation, previewDocument.kind)}
                   </Badge>
                   <span class="text-xs font-medium">{copy.exactPdfPreview}</span>
                   <span
@@ -778,12 +784,12 @@
                 </div>
                 <iframe
                   src={previewUrl}
-                  title={`${copy.exactPdfPreview}: ${copy.documentKindLabels[previewDocument.kind]}`}
+                  title={`${copy.exactPdfPreview}: ${deliverablePresentationLabel(presentation, previewDocument.kind)}`}
                   class="h-[min(70vh,48rem)] min-h-[28rem] w-full bg-white"
                 ></iframe>
               </section>
               <output class="sr-only" aria-live="polite">
-                {copy.previewReady}: {copy.documentKindLabels[previewDocument.kind]}
+                {copy.previewReady}: {deliverablePresentationLabel(presentation, previewDocument.kind)}
               </output>
             {/if}
             <Separator />

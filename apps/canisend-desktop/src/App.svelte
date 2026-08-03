@@ -80,6 +80,7 @@
     getLatestTask,
     getPlanTemplate,
     getProductSummary,
+    getWorkflowPackPresentation,
     getDiscoveryAdapters,
     getProfileEvidenceTemplate,
     getResourceDetail,
@@ -175,6 +176,7 @@
     type ReviewWorkspaceReadModel,
     type UpdateCheckReadModel,
     type WorkflowControlReadModel,
+    type WorkflowPackPresentationReadModel,
     type WorkflowRerunPreviewReadModel,
     type WorkflowStage,
     type WorkspaceHealthReadModel,
@@ -260,6 +262,8 @@
   let todayViewFailed = $state(false);
   let agentTurnRunning = $state(false);
   let product = $state<ProductSummary | null>(null);
+  let workflowPackPresentation = $state<WorkflowPackPresentationReadModel | null>(null);
+  let workflowPackPresentationRequest = 0;
   let doctor = $state<ActionReceipt<DoctorSummary> | null>(null);
   let bridgeError = $state<string | null>(null);
   let bridgeErrorCanRetry = $state(false);
@@ -706,6 +710,7 @@
       return;
     }
     try {
+      await refreshWorkflowPackPresentation(language);
       product = await getProductSummary();
       await refreshWorkspaces(true);
     } catch (error) {
@@ -713,6 +718,29 @@
       workspaceLoading = false;
     }
   });
+
+  async function refreshWorkflowPackPresentation(
+    requestedLanguage: Language,
+  ): Promise<void> {
+    if (!desktopRuntime) return;
+    const request = ++workflowPackPresentationRequest;
+    try {
+      const receipt = await getWorkflowPackPresentation(requestedLanguage);
+      if (request === workflowPackPresentationRequest) {
+        workflowPackPresentation = receipt.data;
+      }
+    } catch (error) {
+      if (request === workflowPackPresentationRequest) {
+        workflowPackPresentation = null;
+        captureBridgeError(error);
+      }
+    }
+  }
+
+  function handleLanguageChange(value: Language): void {
+    language = value;
+    void refreshWorkflowPackPresentation(value);
+  }
 
   function handleAppearanceShortcut(event: KeyboardEvent): void {
     if (!event.metaKey || event.altKey || event.ctrlKey) return;
@@ -2735,7 +2763,7 @@
             size="icon-desktop"
             aria-label={language === "en" ? copy.switchChinese : copy.switchEnglish}
             title={language === "en" ? copy.switchChinese : copy.switchEnglish}
-            onclick={() => (language = language === "en" ? "zh-CN" : "en")}
+            onclick={() => handleLanguageChange(language === "en" ? "zh-CN" : "en")}
           >
             <Languages size={16} strokeWidth={1.8} aria-hidden="true" />
           </Button>
@@ -2886,6 +2914,7 @@
             {activeWorkspace}
             {jobs}
             {selectedJob}
+            presentation={workflowPackPresentation}
             dossiers={applicationDossiers}
             dossier={selectedDossier}
             {contentCatalog}
@@ -2922,6 +2951,7 @@
             {desktopRuntime}
             {activeWorkspace}
             {selectedJobId}
+            presentation={workflowPackPresentation}
             focus={activeDetail}
             {busy}
             onNavigate={navigateTo}
@@ -2957,6 +2987,7 @@
             {desktopRuntime}
             {activeWorkspace}
             {selectedJobId}
+            presentation={workflowPackPresentation}
             focus={activeDetail}
             {busy}
             onNavigate={navigateTo}
@@ -3055,7 +3086,7 @@
             {compact}
             {reducedMotion}
             {textScale}
-            onLanguageChange={(value) => (language = value)}
+            onLanguageChange={handleLanguageChange}
             onDarkModeChange={(value) => (darkMode = value)}
             onCompactChange={(value) => (compact = value)}
             onReducedMotionChange={(value) => (reducedMotion = value)}

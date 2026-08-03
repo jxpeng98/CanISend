@@ -339,12 +339,7 @@ export function routeForTaskOperation(operation: TaskOperation | string): Workfl
   if (operation === "document-review") {
     return { view: "delivery", detail: "delivery-review" };
   }
-  if (
-    operation === "cover-letter-draft" ||
-    operation === "research-statement-draft" ||
-    operation === "teaching-statement-draft" ||
-    operation === "cv-draft"
-  ) {
+  if (operation.endsWith("-draft")) {
     return { view: "delivery", detail: "delivery-documents" };
   }
   return { view: "workflow", detail: "workflow-stages" };

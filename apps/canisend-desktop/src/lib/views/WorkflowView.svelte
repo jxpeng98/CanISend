@@ -36,6 +36,7 @@
     type TaskOperation,
     type TaskStateData,
     type WorkflowControlReadModel,
+    type WorkflowPackPresentationReadModel,
     type WorkflowRerunPreviewReadModel,
     type WorkflowStage,
     type WorkspaceReadModel,
@@ -51,6 +52,10 @@
     WorkflowDetail,
     WorkflowRoute,
   } from "$lib/workflow-navigation";
+  import {
+    packTaskOperationOptions,
+    workflowStageLabel,
+  } from "$lib/workflow-pack-presentation";
 
   type DecisionKind = "evidence" | "criteria" | "matches" | "plan";
 
@@ -59,6 +64,7 @@
     desktopRuntime: boolean;
     activeWorkspace: WorkspaceReadModel | null;
     selectedJobId: string;
+    presentation: WorkflowPackPresentationReadModel | null;
     focus: WorkflowDetail | null;
     busy: boolean;
     onNavigate: (route: WorkflowRoute) => Promise<void>;
@@ -127,6 +133,7 @@
     desktopRuntime,
     activeWorkspace,
     selectedJobId,
+    presentation,
     focus,
     busy,
     onNavigate,
@@ -209,6 +216,7 @@
   const selectedDescriptor = $derived(
     workflow?.stage_descriptors.find((descriptor) => descriptor.stage === selectedStage) ?? null,
   );
+  const taskOperationOptions = $derived(packTaskOperationOptions(presentation));
   const selectedStageState = $derived(
     workflow?.status.stages.find((stage) => stage.stage === selectedStage) ?? null,
   );
@@ -545,7 +553,9 @@
                       onclick={() => (selectedStage = stage.stage)}
                     >
                       <div class="flex items-center justify-between gap-3">
-                        <span class="text-sm font-semibold capitalize">{stage.stage}</span>
+                        <span class="text-sm font-semibold">
+                          {workflowStageLabel(presentation, stage.stage)}
+                        </span>
                         <Badge variant={stage.status === "blocked" || stage.status === "stale" ? "destructive" : "outline"}>
                           {stage.status}
                         </Badge>
@@ -562,7 +572,7 @@
             <div class="space-y-[var(--density-section-gap)]">
               <Card.Root>
                 <Card.Header>
-                  <Card.Title class="capitalize">{selectedStage}</Card.Title>
+                  <Card.Title>{workflowStageLabel(presentation, selectedStage)}</Card.Title>
                   <Card.Description>{selectedStageState?.status ?? "—"}</Card.Description>
                 </Card.Header>
                 <Card.Content class="space-y-[var(--density-section-gap)]">
@@ -849,17 +859,8 @@
                     class="w-full"
                     bind:value={taskOperation}
                   >
-                    {#each [
-                      "job-parse",
-                      "evidence-normalize",
-                      "evidence-match",
-                      "cover-letter-draft",
-                      "research-statement-draft",
-                      "teaching-statement-draft",
-                      "cv-draft",
-                      "document-review",
-                    ] as operation}
-                      <NativeSelect.Option value={operation}>{operation}</NativeSelect.Option>
+                    {#each taskOperationOptions as operation (operation.id)}
+                      <NativeSelect.Option value={operation.id}>{operation.label}</NativeSelect.Option>
                     {/each}
                   </NativeSelect.Root>
                 </div>

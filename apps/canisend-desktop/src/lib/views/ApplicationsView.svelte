@@ -47,6 +47,7 @@
     type JobIntakePreviewReadModel,
     type JobRecord,
     type WorkspaceReadModel,
+    type WorkflowPackPresentationReadModel,
   } from "$lib/bridge";
   import type { Messages } from "$lib/i18n";
   import type { WorkflowDetail } from "$lib/workflow-navigation";
@@ -60,6 +61,7 @@
     activeWorkspace: WorkspaceReadModel | null;
     jobs: JobRecord[];
     selectedJob: JobDetailReadModel | null;
+    presentation: WorkflowPackPresentationReadModel | null;
     dossiers: ApplicationDossierReadModel[];
     dossier: ApplicationDossierReadModel | null;
     contentCatalog: ContentCatalogReadModel | null;
@@ -94,6 +96,7 @@
     activeWorkspace,
     jobs,
     selectedJob,
+    presentation,
     dossiers,
     dossier,
     contentCatalog,
@@ -130,6 +133,11 @@
   let ContentLibraryPanel = $state<ContentLibraryPanelComponent | null>(null);
   let contentPanelLoading = $state(false);
   let contentPanelFailed = $state(false);
+  const academicOpportunityField = $derived(
+    presentation?.opportunity_fields.length === 1
+      ? presentation.opportunity_fields[0]
+      : null,
+  );
 
   $effect(() => {
     if (ContentLibraryPanel || contentPanelLoading || contentPanelFailed) return;
@@ -149,7 +157,7 @@
   async function submitCreate(): Promise<void> {
     formError = null;
     if (!title.trim() || !institution.trim()) {
-      formError = `${copy.applicationTitle} / ${copy.institution}`;
+      formError = `${copy.applicationTitle} / ${academicOpportunityField?.label.value ?? copy.institution}`;
       return;
     }
     if (await onCreate(title.trim(), institution.trim())) {
@@ -686,8 +694,15 @@
         <Input id="job-title" bind:value={title} autocomplete="off" />
       </div>
       <div class="space-y-2">
-        <Label for="job-institution">{copy.institution}</Label>
-        <Input id="job-institution" bind:value={institution} autocomplete="organization" />
+        <Label for="job-institution">
+          {academicOpportunityField?.label.value ?? copy.institution}
+        </Label>
+        <Input
+          id="job-institution"
+          bind:value={institution}
+          autocomplete="organization"
+          required={academicOpportunityField?.required ?? true}
+        />
       </div>
       {#if formError}
         <Alert.Root variant="destructive">
