@@ -5599,6 +5599,9 @@ fn check_native_test_ownership() -> Result<(), String> {
         "cargo build --locked -p canisend-cli -p canisend-gui",
         "--features canisend-gui/custom-protocol",
         "workspace init --pack academic-job --json",
+        "first_uuid_id()",
+        "first_uuid_id \"$job_json\"",
+        "first_uuid_id \"$lead_json\"",
         "./scripts/smoke_host_agent.sh ./target/debug/canisend",
         "Target: 300 seconds or less after cache warm-up",
     ] {
