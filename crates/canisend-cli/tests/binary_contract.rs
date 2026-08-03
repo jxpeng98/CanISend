@@ -234,6 +234,8 @@ fn agent_assistance_requires_a_job_and_returns_body_free_proposal_boundaries() {
         workspace.text(),
         "workspace",
         "init",
+        "--pack",
+        "academic-job",
         "--json",
     ]);
     let created = run_json(&[
@@ -634,6 +636,8 @@ fn profile_source_list_preserves_the_shared_revisioned_read_model() {
         workspace.text(),
         "workspace",
         "init",
+        "--pack",
+        "academic-job",
         "--json",
     ]);
     run_json(&[
@@ -680,6 +684,8 @@ fn application_dossier_commands_share_a_body_free_progress_contract() {
         workspace.text(),
         "workspace",
         "init",
+        "--pack",
+        "academic-job",
         "--json",
     ]);
     let created = run_json(&[
@@ -763,6 +769,8 @@ fn content_commands_keep_catalogs_body_free_and_full_text_consent_scoped() {
         workspace.text(),
         "workspace",
         "init",
+        "--pack",
+        "academic-job",
         "--json",
     ]);
     let created = run_json(&[
@@ -901,6 +909,8 @@ fn native_job_commands_import_original_and_normalized_local_text() {
         workspace.text(),
         "workspace",
         "init",
+        "--pack",
+        "academic-job",
         "--json",
     ]);
     let created = run_json(&[
@@ -1054,6 +1064,8 @@ fn profile_source_commands_import_json_without_returning_private_bodies() {
         workspace.text(),
         "workspace",
         "init",
+        "--pack",
+        "academic-job",
         "--json",
     ]);
     let imported = run_json(&[
@@ -1108,6 +1120,8 @@ fn workflow_cli_exposes_body_free_graph_modes_and_rerun() {
         workspace.text(),
         "workspace",
         "init",
+        "--pack",
+        "academic-job",
         "--json",
     ]);
     let job = run_json(&[
@@ -1468,6 +1482,8 @@ fn leased_task_completion_is_validated_atomic_and_idempotent() {
         workspace.text(),
         "workspace",
         "init",
+        "--pack",
+        "academic-job",
         "--json",
     ]);
     let job = run_json(&[
@@ -1777,6 +1793,8 @@ fn task_cli_adapter_preserves_show_cancel_and_provider_consent_contracts() {
         workspace.text(),
         "workspace",
         "init",
+        "--pack",
+        "academic-job",
         "--json",
     ]);
     let job = run_json(&[
@@ -1923,6 +1941,8 @@ fn evidence_workflow_is_agent_callable_and_user_confirmed_through_the_binary() {
         workspace.text(),
         "workspace",
         "init",
+        "--pack",
+        "academic-job",
         "--json",
     ]);
     let job = run_json(&[

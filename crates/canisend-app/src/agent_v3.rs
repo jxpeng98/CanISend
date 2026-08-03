@@ -2,9 +2,9 @@ use std::path::{Path, PathBuf};
 
 use canisend_contracts::{
     ActorKind, ApplicationId, ApplicationLifecycleV3, ApplicationPackBindingV3, DeliverableId,
-    DeliverableKindId, DeliverableStateV3, EntityId, ExecutionMode, NextAction,
-    PrivacyClassification, RequirementConfirmationV3, Revision, SemanticVersion, Sha256Digest,
-    WORKSPACE_V3_FORMAT,
+    DeliverableKindId, DeliverableStateV3, EntityId, ExecutionMode, NextAction, OperationRegistry,
+    OperationSurface, PrivacyClassification, RequirementConfirmationV3, Revision, SemanticVersion,
+    Sha256Digest, WORKSPACE_V3_FORMAT,
 };
 use canisend_store::ApplicationFlowServiceV3;
 use serde::{Deserialize, Serialize};
@@ -152,7 +152,7 @@ impl Application {
             protocol: AGENT_V3_PROTOCOL.to_owned(),
             workspace_format: WORKSPACE_V3_FORMAT.to_owned(),
             pack,
-            operations: agent_v3_operations(),
+            operations: agent_v3_operations()?,
             submission_supported: false,
         };
         Ok(ActionReceipt::new(
@@ -522,11 +522,20 @@ fn context_guidance(
     (blockers, next_actions)
 }
 
-fn agent_v3_operations() -> Vec<AgentV3OperationReadModel> {
+fn agent_v3_operations() -> Result<Vec<AgentV3OperationReadModel>, ApplicationError> {
+    let registry = OperationRegistry::built_in().map_err(|error| {
+        ApplicationError::ResourceIntegrity(format!(
+            "built-in operation registry failed validation: {error}"
+        ))
+    })?;
+    let bindings = registry.resolved_bindings().map_err(|error| {
+        ApplicationError::ResourceIntegrity(format!(
+            "built-in operation bindings failed validation: {error}"
+        ))
+    })?;
     [
         (
             "agent-v3.capabilities",
-            "canisend_agent_v3_capabilities",
             ExecutionMode::Deterministic,
             false,
             false,
@@ -534,7 +543,6 @@ fn agent_v3_operations() -> Vec<AgentV3OperationReadModel> {
         ),
         (
             "agent-v3.context",
-            "canisend_agent_v3_context",
             ExecutionMode::Deterministic,
             false,
             false,
@@ -542,7 +550,6 @@ fn agent_v3_operations() -> Vec<AgentV3OperationReadModel> {
         ),
         (
             "application.list",
-            "canisend_applications_list",
             ExecutionMode::Deterministic,
             false,
             false,
@@ -550,7 +557,6 @@ fn agent_v3_operations() -> Vec<AgentV3OperationReadModel> {
         ),
         (
             "application.create",
-            "canisend_application_create",
             ExecutionMode::HostAgent,
             true,
             true,
@@ -558,7 +564,6 @@ fn agent_v3_operations() -> Vec<AgentV3OperationReadModel> {
         ),
         (
             "application.plan",
-            "canisend_application_plan",
             ExecutionMode::UserDecision,
             true,
             true,
@@ -566,7 +571,6 @@ fn agent_v3_operations() -> Vec<AgentV3OperationReadModel> {
         ),
         (
             "application.compose",
-            "canisend_application_compose",
             ExecutionMode::HostAgent,
             true,
             true,
@@ -574,7 +578,6 @@ fn agent_v3_operations() -> Vec<AgentV3OperationReadModel> {
         ),
         (
             "application.review",
-            "canisend_application_review",
             ExecutionMode::UserDecision,
             false,
             false,
@@ -582,7 +585,6 @@ fn agent_v3_operations() -> Vec<AgentV3OperationReadModel> {
         ),
         (
             "application.approve",
-            "canisend_application_approve",
             ExecutionMode::UserDecision,
             true,
             true,
@@ -590,7 +592,6 @@ fn agent_v3_operations() -> Vec<AgentV3OperationReadModel> {
         ),
         (
             "application.export",
-            "canisend_application_export",
             ExecutionMode::Deterministic,
             true,
             true,
@@ -599,22 +600,26 @@ fn agent_v3_operations() -> Vec<AgentV3OperationReadModel> {
     ]
     .into_iter()
     .map(
-        |(
-            id,
-            mcp_tool,
-            execution_mode,
-            mutating,
-            requires_host_approval,
-            reads_private_content,
-        )| {
-            AgentV3OperationReadModel {
+        |(id, execution_mode, mutating, requires_host_approval, reads_private_content)| {
+            let mcp_tool = bindings
+                .iter()
+                .find(|binding| {
+                    binding.surface == OperationSurface::Mcp && binding.operation.as_str() == id
+                })
+                .map(|binding| binding.leaf.clone())
+                .ok_or_else(|| {
+                    ApplicationError::ResourceIntegrity(format!(
+                        "canonical Agent v3 operation {id} has no exact MCP binding"
+                    ))
+                })?;
+            Ok(AgentV3OperationReadModel {
                 id: id.to_owned(),
-                mcp_tool: mcp_tool.to_owned(),
+                mcp_tool,
                 execution_mode,
                 mutating,
                 requires_host_approval,
                 reads_private_content,
-            }
+            })
         },
     )
     .collect()

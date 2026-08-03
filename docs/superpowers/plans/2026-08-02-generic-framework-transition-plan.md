@@ -272,6 +272,13 @@ records the still-unproven M1A/GF5 P0 gates and the ordered path to exact native
 | GF5-DOC-001 | P0 | Rewrite quick start, Agent, desktop, privacy, backup, upgrade, and limitations guides | A new user can choose either pack and sees the v2→v3 boundary before mutation |
 | GF5-SDK-001 | P1 | Publish a workflow-pack authoring guide, schema, validator command, and safe examples | A data-only external sample pack validates and completes the offline fixture suite |
 
+GF5-OP-001 source implementation is recorded in the
+[operation registry contract](../../contracts/operation-registry-v1.md) and
+[implementation record](../../notes/rust-native/2026-08-03-gf5-operation-registry.md). Exact Clap,
+Tauri, and MCP inventories plus canonical v3 and bounded v2 mappings now fail closed under the
+release source gate. GF5-PARITY-001 remains the next operation-related stage because registry
+identity does not prove semantic outcomes.
+
 ### GF6 — Dual-pack qualification
 
 | ID | Priority | Deliverable | Verification |

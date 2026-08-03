@@ -9,9 +9,9 @@ use std::{
 };
 
 use canisend_contracts::{
-    AGENT_PROTOCOL, PUBLIC_SCHEMA_VERSION, WORKSPACE_FORMAT, generate_application_model_schemas,
-    generate_public_schemas, generate_workflow_pack_schema, verify_application_model_schemas,
-    verify_public_schemas, verify_workflow_pack_schema,
+    AGENT_PROTOCOL, OperationRegistry, OperationSurface, PUBLIC_SCHEMA_VERSION, WORKSPACE_FORMAT,
+    generate_application_model_schemas, generate_public_schemas, generate_workflow_pack_schema,
+    verify_application_model_schemas, verify_public_schemas, verify_workflow_pack_schema,
 };
 use semver::Version;
 use serde_json::{Map, Value, json};
@@ -86,6 +86,9 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
         [area, command] if area == "resources" && command == "check" => check_resources(),
         [area, command] if area == "docs" && command == "check" => check_documentation(),
         [area, command] if area == "desktop" && command == "parity" => check_svelte_parity(),
+        [area, command] if area == "operations" && command == "check" => {
+            check_operation_registry()
+        }
         [area, command] if area == "desktop" && command == "template-audit" => {
             check_typst_template_contract()
         }
@@ -145,6 +148,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
             check_release_feedback()?;
             check_release_qualification()?;
             check_release_status()?;
+            check_operation_registry()?;
             check_cli_gui_parity()?;
             check_svelte_parity()?;
             check_alpha_package_contract()?;
@@ -5330,6 +5334,165 @@ fn check_cli_gui_parity() -> Result<(), String> {
         );
     }
     Ok(())
+}
+
+fn check_operation_registry() -> Result<(), String> {
+    let root = repository_root();
+    let registry = OperationRegistry::built_in()
+        .map_err(|error| format!("typed operation registry is invalid: {error}"))?;
+
+    let cli = canisend_cli::clap_leaf_paths()
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+    compare_operation_surface(
+        OperationSurface::Cli,
+        &cli,
+        &registry
+            .surface_leaves(OperationSurface::Cli)
+            .map_err(|error| format!("cannot resolve CLI operation registry: {error}"))?,
+    )?;
+
+    let tauri_source = fs::read_to_string(root.join("crates/canisend-desktop/src/lib.rs"))
+        .map_err(|error| format!("cannot read Tauri handler source: {error}"))?;
+    let tauri = extract_tauri_handlers(&tauri_source)?;
+    compare_operation_surface(
+        OperationSurface::Tauri,
+        &tauri,
+        &registry
+            .surface_leaves(OperationSurface::Tauri)
+            .map_err(|error| format!("cannot resolve Tauri operation registry: {error}"))?,
+    )?;
+    let desktop_sources = fs::read_dir(root.join("crates/canisend-desktop/src"))
+        .map_err(|error| format!("cannot inspect Tauri command sources: {error}"))?
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| path.extension().is_some_and(|extension| extension == "rs"))
+        .map(|path| {
+            fs::read_to_string(&path)
+                .map_err(|error| format!("cannot read {}: {error}", path.display()))
+        })
+        .collect::<Result<Vec<_>, _>>()?
+        .join("\n");
+    for handler in &tauri {
+        if !desktop_sources.contains(&format!("fn {handler}(")) {
+            return Err(format!(
+                "registered Tauri handler `{handler}` has no command function declaration"
+            ));
+        }
+    }
+
+    let mcp_source = fs::read_to_string(root.join("crates/canisend-mcp/src/lib.rs"))
+        .map_err(|error| format!("cannot read MCP router source: {error}"))?;
+    let mcp = extract_mcp_tools(&mcp_source)?;
+    compare_operation_surface(
+        OperationSurface::Mcp,
+        &mcp,
+        &registry
+            .surface_leaves(OperationSurface::Mcp)
+            .map_err(|error| format!("cannot resolve MCP operation registry: {error}"))?,
+    )?;
+
+    let bindings = registry
+        .resolved_bindings()
+        .map_err(|error| format!("cannot resolve operation bindings: {error}"))?;
+    let adapter_only = bindings
+        .iter()
+        .filter(|binding| binding.class == canisend_contracts::OperationClass::AdapterOnly)
+        .count();
+    let compatibility = bindings
+        .iter()
+        .filter(|binding| binding.class == canisend_contracts::OperationClass::CompatibilityAlias)
+        .count();
+    println!(
+        "operation registry: ok ({} CLI, {} Tauri, {} MCP leaves; {adapter_only} adapter-only, {compatibility} compatibility bindings)",
+        cli.len(),
+        tauri.len(),
+        mcp.len()
+    );
+    Ok(())
+}
+
+fn compare_operation_surface(
+    surface: OperationSurface,
+    actual: &BTreeSet<String>,
+    expected: &BTreeSet<String>,
+) -> Result<(), String> {
+    if actual == expected {
+        return Ok(());
+    }
+    let unregistered = actual.difference(expected).cloned().collect::<Vec<_>>();
+    let missing_from_source = expected.difference(actual).cloned().collect::<Vec<_>>();
+    Err(format!(
+        "{surface:?} operation leaves drifted: unregistered={unregistered:?}, missing_from_source={missing_from_source:?}"
+    ))
+}
+
+fn extract_tauri_handlers(source: &str) -> Result<BTreeSet<String>, String> {
+    let mut inside = false;
+    let mut found = false;
+    let mut handlers = BTreeSet::new();
+    for line in source.lines() {
+        if !inside {
+            if line.contains("tauri::generate_handler![") {
+                inside = true;
+                found = true;
+            }
+            continue;
+        }
+        let trimmed = line.trim();
+        if trimmed == "])" || trimmed == "]).run" {
+            inside = false;
+            break;
+        }
+        let candidate = trimmed.trim_end_matches(',');
+        let Some((_, handler)) = candidate.rsplit_once("::") else {
+            return Err(format!(
+                "unexpected line in Tauri generate_handler inventory: `{trimmed}`"
+            ));
+        };
+        if !handlers.insert(handler.to_owned()) {
+            return Err(format!("duplicate Tauri handler registration: {handler}"));
+        }
+    }
+    if !found || inside || handlers.is_empty() {
+        return Err("could not extract a closed Tauri generate_handler inventory".to_owned());
+    }
+    Ok(handlers)
+}
+
+fn extract_mcp_tools(source: &str) -> Result<BTreeSet<String>, String> {
+    let mut inside_router = false;
+    let mut found_router = false;
+    let mut tools = BTreeSet::new();
+    for line in source.lines() {
+        let trimmed = line.trim();
+        if !inside_router {
+            if trimmed == "#[tool_router]" {
+                inside_router = true;
+                found_router = true;
+            }
+            continue;
+        }
+        if trimmed.starts_with("#[tool_handler") {
+            inside_router = false;
+            break;
+        }
+        let Some(rest) = trimmed.strip_prefix("fn canisend_") else {
+            continue;
+        };
+        let name_tail = rest
+            .split_once('(')
+            .map(|(name, _)| name)
+            .ok_or_else(|| format!("malformed MCP tool declaration: `{trimmed}`"))?;
+        let name = format!("canisend_{name_tail}");
+        if !tools.insert(name.clone()) {
+            return Err(format!("duplicate MCP tool declaration: {name}"));
+        }
+    }
+    if !found_router || inside_router || tools.is_empty() {
+        return Err("could not extract a closed MCP #[tool_router] inventory".to_owned());
+    }
+    Ok(tools)
 }
 
 fn check_svelte_parity() -> Result<(), String> {

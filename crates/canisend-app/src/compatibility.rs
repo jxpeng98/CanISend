@@ -297,8 +297,8 @@ mod tests {
     };
 
     use canisend_contracts::{
-        ApplicationId, ApplicationPackBindingV3, CompatibilityAuthority, EntityId, SemanticVersion,
-        Sha256Digest, WorkflowPackId,
+        ApplicationId, ApplicationPackBindingV3, CompatibilityAuthority, EntityId,
+        OperationRegistry, SemanticVersion, Sha256Digest, WorkflowPackId,
     };
     use canisend_store::{
         LegacyApplicationBindingV3, LegacyCompatibilityAuthority, LegacyCompatibilityContextV3,
@@ -315,12 +315,21 @@ mod tests {
 
     #[test]
     fn compatibility_registry_is_total_and_unambiguous() {
+        let registry = OperationRegistry::built_in().expect("typed operation registry");
         let mut legacy = BTreeSet::new();
         for operation in LegacyCompatibilityOperation::ALL {
             assert!(legacy.insert(operation.legacy()));
             assert!(!operation.canonical().is_empty());
             assert_ne!(operation.legacy(), operation.canonical());
+            let registered = registry
+                .compatibility_alias(operation.legacy())
+                .expect("legacy alias is registered");
+            assert_eq!(
+                registered.canonical_operation.as_str(),
+                operation.canonical()
+            );
         }
+        assert_eq!(legacy.len(), registry.compatibility_aliases.len());
     }
 
     #[test]

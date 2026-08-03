@@ -51,8 +51,9 @@ complete public-catalog export:
 
 ## Remaining boundary
 
-GF4 source implementation is now complete. GF5 must register and verify canonical cross-surface
-operations, run the two-Pack semantic parity matrix, and replace the pre-generic quick start,
-Agent, desktop, privacy, backup, upgrade, and limitations documentation. The broader Alpha gate
-also retains approval-broker, operation-registry, native qualification, governance, CI, and real
-user/dogfood evidence requirements from the active 1.0 roadmap.
+GF4 source implementation is now complete. GF5-OP subsequently registered the exact canonical,
+compatibility, and adapter-only surface leaves. GF5 must still run the two-Pack semantic parity
+matrix and replace the pre-generic quick start, Agent, desktop, privacy, backup, upgrade, and
+limitations documentation. The broader Alpha gate also retains approval-broker, architecture,
+native qualification, governance, CI, and real user/dogfood evidence requirements from the active
+1.0 roadmap.

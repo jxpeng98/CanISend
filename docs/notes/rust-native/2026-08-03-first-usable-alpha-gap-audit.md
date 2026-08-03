@@ -41,14 +41,26 @@ These facts are necessary but do not prove the missing requirements below.
 | M1F exit gate | Generic source fixtures are strong, but academic canonical-v3 semantic parity across CLI, MCP, Agent v3, and desktop is not yet one source-gated matrix. | Incomplete |
 | Alpha.6 qualification | No exact Alpha.6 five-target packaged-binary, migration/rollback, dual-surface, and clean-tag qualification evidence exists for the current commit. | Missing |
 
+## Progress after this audit
+
+GF5-OP-001 / M1-OP-001/002 now have source implementation evidence in the
+[operation registry contract](../../contracts/operation-registry-v1.md) and
+[GF5 operation-registry record](2026-08-03-gf5-operation-registry.md). The typed registry owns the
+exact 86-leaf Clap, 111-handler Tauri, and 22-tool MCP inventories; status, duplicate,
+false-sharing, Pack mismatch, compatibility, and source-drift checks are release-gated.
+
+This advances ordered-path item 1 from missing to implemented source evidence. It does not satisfy
+M1-OP-003 semantic parity or qualify the M1A exit gate by itself. The next ordered implementation
+item is the current architecture ADR plus dependency-edge policy.
+
 P1 CI/dependency improvements, governance work-item linkage, independent evidence review, dogfood,
 target-user validation, signing, and later Alpha.7 dual-Pack qualification also remain, but they do
 not replace the P0 implementation order.
 
 ## Ordered path from current HEAD
 
-1. Implement GF5-OP-001 with M1-OP-001/002: one typed canonical leaf registry and source-gated
-   Clap/Tauri/MCP mappings.
+1. Completed in source: GF5-OP-001 with M1-OP-001/002 now provides one typed canonical leaf
+   registry and source-gated Clap/Tauri/MCP mappings.
 2. Accept the current architecture ADR, supersede ADR-RN-0013, and add the complete dependency-edge
    policy (M1-ADR/GRAPH).
 3. Replace duplicated preview stores with the shared approval broker and its complete failure and

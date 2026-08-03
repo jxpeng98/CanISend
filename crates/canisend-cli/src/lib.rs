@@ -29,7 +29,7 @@ use canisend_contracts::{
 use canisend_io::{
     IoAdapterError, read_criteria_file, read_task_completion_file, read_task_completion_stdin,
 };
-use clap::{Args, Parser, Subcommand, ValueEnum};
+use clap::{Args, CommandFactory, Parser, Subcommand, ValueEnum};
 use serde_json::json;
 
 #[derive(Debug, Parser)]
@@ -44,6 +44,38 @@ struct Cli {
     workspace: Option<PathBuf>,
     #[command(subcommand)]
     command: Command,
+}
+
+/// Return the exact canonical leaf paths derived from the compiled Clap command graph.
+///
+/// This is an adapter inventory, not a second operation registry. The source gate compares it to
+/// the typed registry in `canisend-contracts` so adding or removing a Clap leaf cannot silently
+/// drift from the cross-surface operation contract.
+#[must_use]
+pub fn clap_leaf_paths() -> Vec<String> {
+    fn collect(command: &clap::Command, prefix: &[String], leaves: &mut Vec<String>) {
+        let subcommands = command
+            .get_subcommands()
+            .filter(|subcommand| subcommand.get_name() != "help")
+            .collect::<Vec<_>>();
+        if subcommands.is_empty() {
+            if !prefix.is_empty() {
+                leaves.push(prefix.join(" "));
+            }
+            return;
+        }
+        for subcommand in subcommands {
+            let mut path = prefix.to_vec();
+            path.push(subcommand.get_name().to_owned());
+            collect(subcommand, &path, leaves);
+        }
+    }
+
+    let command = Cli::command();
+    let mut leaves = Vec::new();
+    collect(&command, &[], &mut leaves);
+    leaves.sort();
+    leaves
 }
 
 #[derive(Debug, Subcommand)]
@@ -4684,15 +4716,15 @@ mod tests {
     use std::fs;
 
     use canisend_app::{Application, TaskExecutionMode, TaskOperation};
-    use canisend_contracts::{ErrorCode, NextAction};
+    use canisend_contracts::{ErrorCode, NextAction, OperationRegistry, OperationSurface};
     use clap::Parser;
 
     use super::{
         AgentAssetsExportArgs, AgentHostName, ApplicationCommand, ApplicationV3CreateArgs,
         BuiltInPackName, Cli, Command, CommandFailure, ExitClass, OutputArgs,
         TaskExecutionModeName, TaskOperationName, WorkspaceCommand, WorkspaceInitArgs,
-        agent_assets_export, assistance, capabilities, context, execute, human_failure_lines,
-        human_success_lines,
+        agent_assets_export, assistance, capabilities, clap_leaf_paths, context, execute,
+        human_failure_lines, human_success_lines,
     };
 
     fn command_ok(result: super::CommandResult<super::CommandOutput>) -> super::CommandOutput {
@@ -4706,6 +4738,19 @@ mod tests {
     fn clap_usage_errors_are_reserved_for_exit_two() {
         let error = Cli::try_parse_from(["canisend", "unknown"]).expect_err("unknown command");
         assert_eq!(error.exit_code(), i32::from(ExitClass::CliUsage.code()));
+    }
+
+    #[test]
+    fn compiled_clap_leaves_match_the_typed_operation_registry_exactly() {
+        let actual = clap_leaf_paths()
+            .into_iter()
+            .collect::<std::collections::BTreeSet<_>>();
+        let expected = OperationRegistry::built_in()
+            .expect("operation registry")
+            .surface_leaves(OperationSurface::Cli)
+            .expect("CLI leaves");
+        assert_eq!(actual, expected);
+        assert_eq!(actual.len(), 86);
     }
 
     #[test]
