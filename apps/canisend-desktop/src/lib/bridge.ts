@@ -18,6 +18,13 @@ export interface WorkflowPackBinding {
   content_digest: string;
 }
 
+export const ACADEMIC_JOB_WORKFLOW_PACK_ID = "org.canisend.academic-job" as const;
+export const GENERIC_APPLICATION_WORKFLOW_PACK_ID =
+  "org.canisend.generic-application" as const;
+export type BuiltInWorkflowPackId =
+  | typeof ACADEMIC_JOB_WORKFLOW_PACK_ID
+  | typeof GENERIC_APPLICATION_WORKFLOW_PACK_ID;
+
 export interface WorkflowPackPresentationLabel {
   value: string;
   locale: string;
@@ -154,7 +161,157 @@ export interface WorkspaceStatus {
 
 export interface WorkspaceReadModel {
   path: string;
+  pack_id: BuiltInWorkflowPackId;
   status: WorkspaceStatus;
+}
+
+export type ApplicationFieldValueV3 = {
+  type:
+    | "short-text"
+    | "long-text"
+    | "integer"
+    | "boolean"
+    | "date"
+    | "url"
+    | "string-list"
+    | "choice";
+  value: string | number | boolean | string[];
+};
+
+export interface ApplicationFlowRequirementDraftV3 {
+  category: string;
+  statement: string;
+  priority: "mandatory" | "recommended" | "informational";
+  start_byte: number;
+  end_byte: number;
+}
+
+export interface ApplicationFlowCreateRequestV3 {
+  title: string;
+  opportunity_metadata: Record<string, ApplicationFieldValueV3>;
+  application_metadata: Record<string, ApplicationFieldValueV3>;
+  source_text: string;
+  requirements: ApplicationFlowRequirementDraftV3[];
+}
+
+export interface ApplicationFlowPlannedDeliverableV3 {
+  kind: string;
+  disposition: "required" | "optional" | "omitted";
+  rationale: string;
+  constraints: string[];
+  execution_mode: ExecutionMode | null;
+}
+
+export interface ApplicationFlowPlanRequestV3 {
+  expected_revision: number;
+  decision: string;
+  deliverables: ApplicationFlowPlannedDeliverableV3[];
+}
+
+export interface ApplicationFlowDeliverableDraftV3 {
+  kind: string;
+  title: string;
+  media_type: "text/plain" | "text/markdown";
+  content: string;
+}
+
+export interface ApplicationFlowComposeRequestV3 {
+  expected_revision: number;
+  deliverables: ApplicationFlowDeliverableDraftV3[];
+}
+
+export interface ApplicationFlowStageV3 {
+  id: string;
+  state: "pending" | "ready" | "complete";
+}
+
+export interface StoredApplicationModelV3 {
+  snapshot: {
+    format: string;
+    pack: WorkflowPackBinding;
+    opportunity: {
+      id: string;
+      title: string;
+      metadata: Record<string, ApplicationFieldValueV3>;
+      revision: number;
+      archived: boolean;
+    };
+    application: {
+      id: string;
+      opportunity_id: string;
+      metadata: Record<string, ApplicationFieldValueV3>;
+      lifecycle: "draft" | "active" | "paused" | "completed" | "archived";
+      revision: number;
+    };
+    requirements: Array<{
+      id: string;
+      category: string;
+      statement: string;
+      priority: "mandatory" | "recommended" | "informational";
+      confirmation: "proposed" | "confirmed" | "excluded";
+      revision: number;
+    }>;
+    plan: null | {
+      id: string;
+      state: "draft" | "confirmed" | "stale";
+      decision: string | null;
+      deliverables: ApplicationFlowPlannedDeliverableV3[];
+      revision: number;
+    };
+    deliverables: Array<{
+      id: string;
+      kind: string;
+      title: string;
+      state: "planned" | "draft" | "review-required" | "approved" | "stale";
+      media_type: string | null;
+      revision: number;
+    }>;
+  };
+  snapshot_sha256: string;
+  committed_at: string;
+}
+
+export interface ApplicationFlowReadModelV3 {
+  stored: StoredApplicationModelV3;
+  stages: ApplicationFlowStageV3[];
+  submission_performed: false;
+}
+
+export interface ApplicationFlowCommitReadModelV3 {
+  commit: {
+    stored: StoredApplicationModelV3;
+    stale_plan_ids: string[];
+    stale_deliverable_ids: string[];
+  };
+  stages: ApplicationFlowStageV3[];
+  submission_performed: false;
+}
+
+export interface ApplicationFlowReviewReadModelV3 {
+  stored: StoredApplicationModelV3;
+  deliverables: Array<{
+    deliverable: StoredApplicationModelV3["snapshot"]["deliverables"][number];
+    content: string;
+  }>;
+  stages: ApplicationFlowStageV3[];
+  submission_performed: false;
+}
+
+export interface ApplicationFlowExportReadModelV3 {
+  render: {
+    application_id: string;
+    application_revision: number;
+    destination: string;
+    documents: Array<{
+      deliverable_id: string;
+      relative_path: string;
+      page_count: number;
+      byte_count: number;
+      warning_count: number;
+    }>;
+    submission_performed: false;
+  };
+  stages: ApplicationFlowStageV3[];
 }
 
 export interface WorkspaceCheckIssue {
@@ -196,6 +353,31 @@ export interface BackupReadModel {
   destination: string;
   format: string;
   blob_count: number;
+}
+
+export interface WorkspaceV3MigrationPreview {
+  format: string;
+  source_workspace_format: string;
+  target_workspace_format: string;
+  pack: WorkflowPackBinding;
+  application_count: number;
+  legacy_inventory_count: number;
+  referenced_blob_count: number;
+  required_backup_bytes: number;
+  projection_conflict_count: number;
+  rollback_boundary: string;
+  migration_plan_sha256: string;
+}
+
+export interface WorkspaceV3MigrationReadModel {
+  backup_destination: string;
+  migration: {
+    format: string;
+    migration_plan_sha256: string;
+    application_ids: string[];
+    legacy_binding_count: number;
+    backup_manifest_sha256: string;
+  };
 }
 
 export interface RegisteredAction<T> {
@@ -1205,8 +1387,11 @@ export async function getProductSummary(): Promise<ProductSummary> {
 
 export async function getWorkflowPackPresentation(
   locale: "en" | "zh-CN",
+  packId: BuiltInWorkflowPackId = ACADEMIC_JOB_WORKFLOW_PACK_ID,
 ): Promise<ActionReceipt<WorkflowPackPresentationReadModel>> {
-  return invoke("workflow_pack_presentation", { request: { locale } });
+  return invoke("workflow_pack_presentation", {
+    request: { locale, pack_id: packId },
+  });
 }
 
 export async function runDoctor(): Promise<ActionReceipt<DoctorSummary>> {
@@ -1220,8 +1405,11 @@ export async function listWorkspaces(): Promise<RegistrySnapshot> {
 export async function createWorkspace(
   alias: string,
   path: string,
+  packId: BuiltInWorkflowPackId = ACADEMIC_JOB_WORKFLOW_PACK_ID,
 ): Promise<RegisteredAction<WorkspaceReadModel>> {
-  return invoke("create_workspace", { request: { alias, path } });
+  return invoke("create_workspace", {
+    request: { alias, path, pack_id: packId },
+  });
 }
 
 export async function connectWorkspace(
@@ -1272,6 +1460,28 @@ export async function repairWorkspace(
   return invoke("repair_workspace", { request: { path } });
 }
 
+export async function previewWorkspaceV3Migration(
+  workspace: string,
+): Promise<ActionReceipt<WorkspaceV3MigrationPreview>> {
+  return invoke("preview_workspace_v3_migration", {
+    request: { path: workspace },
+  });
+}
+
+export async function migrateWorkspaceV3(options: {
+  workspace: string;
+  expectedPlanSha256: string;
+  backupDestination: string;
+}): Promise<ActionReceipt<WorkspaceV3MigrationReadModel>> {
+  return invoke("migrate_workspace_v3", {
+    request: {
+      workspace: options.workspace,
+      expected_plan_sha256: options.expectedPlanSha256,
+      backup_destination: options.backupDestination,
+    },
+  });
+}
+
 export async function listJobs(
   workspace: string,
   includeArchived = false,
@@ -1315,6 +1525,96 @@ export async function getApplicationDossier(
 ): Promise<ActionReceipt<ApplicationDossierReadModel>> {
   return invoke("application_dossier", {
     request: { workspace, job_id: jobId },
+  });
+}
+
+export async function listGenericApplications(
+  workspace: string,
+): Promise<ActionReceipt<StoredApplicationModelV3[]>> {
+  return invoke("list_generic_applications", { request: { workspace } });
+}
+
+export async function showGenericApplication(
+  workspace: string,
+  applicationId: string,
+): Promise<ActionReceipt<ApplicationFlowReadModelV3>> {
+  return invoke("show_generic_application", {
+    request: { workspace, application_id: applicationId },
+  });
+}
+
+export async function createGenericApplication(
+  workspace: string,
+  request: ApplicationFlowCreateRequestV3,
+): Promise<ActionReceipt<ApplicationFlowReadModelV3>> {
+  return invoke("create_generic_application", {
+    request: { workspace, request },
+  });
+}
+
+export async function planGenericApplication(
+  workspace: string,
+  applicationId: string,
+  request: ApplicationFlowPlanRequestV3,
+): Promise<ActionReceipt<ApplicationFlowCommitReadModelV3>> {
+  return invoke("plan_generic_application", {
+    request: { workspace, application_id: applicationId, request },
+  });
+}
+
+export async function composeGenericApplication(
+  workspace: string,
+  applicationId: string,
+  request: ApplicationFlowComposeRequestV3,
+): Promise<ActionReceipt<ApplicationFlowCommitReadModelV3>> {
+  return invoke("compose_generic_application", {
+    request: { workspace, application_id: applicationId, request },
+  });
+}
+
+export async function reviewGenericApplication(
+  workspace: string,
+  applicationId: string,
+  confirmedPrivateRead: boolean,
+): Promise<ActionReceipt<ApplicationFlowReviewReadModelV3>> {
+  return invoke("review_generic_application", {
+    request: {
+      workspace,
+      application_id: applicationId,
+      confirmed_private_read: confirmedPrivateRead,
+    },
+  });
+}
+
+export async function approveGenericApplication(
+  workspace: string,
+  applicationId: string,
+  expectedRevision: number,
+): Promise<ActionReceipt<ApplicationFlowCommitReadModelV3>> {
+  return invoke("approve_generic_application", {
+    request: {
+      workspace,
+      application_id: applicationId,
+      expected_revision: expectedRevision,
+    },
+  });
+}
+
+export async function exportGenericApplication(options: {
+  workspace: string;
+  applicationId: string;
+  expectedRevision: number;
+  destination: string;
+  confirmedPrivateExport: boolean;
+}): Promise<ActionReceipt<ApplicationFlowExportReadModelV3>> {
+  return invoke("export_generic_application", {
+    request: {
+      workspace: options.workspace,
+      application_id: options.applicationId,
+      expected_revision: options.expectedRevision,
+      destination: options.destination,
+      confirmed_private_export: options.confirmedPrivateExport,
+    },
   });
 }
 

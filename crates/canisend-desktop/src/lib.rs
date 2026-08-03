@@ -5,6 +5,7 @@ mod agent_runtime;
 mod commands;
 mod delivery;
 mod discovery;
+mod generic_application;
 mod job_intake;
 mod profile;
 mod system;
@@ -50,7 +51,9 @@ pub fn run() {
             commands::list_jobs,
             commands::list_application_dossiers,
             commands::list_workspaces,
+            commands::migrate_workspace_v3,
             commands::product_summary,
+            commands::preview_workspace_v3_migration,
             commands::remove_workspace,
             commands::repair_workspace,
             commands::restore_workspace,
@@ -85,6 +88,14 @@ pub fn run() {
             discovery::promote_discovery_lead,
             discovery::show_discovery_lead,
             discovery::suggest_discovery_duplicates,
+            generic_application::approve_generic_application,
+            generic_application::compose_generic_application,
+            generic_application::create_generic_application,
+            generic_application::export_generic_application,
+            generic_application::list_generic_applications,
+            generic_application::plan_generic_application,
+            generic_application::review_generic_application,
+            generic_application::show_generic_application,
             job_intake::commit_job_source_preview,
             job_intake::discard_job_source_preview,
             job_intake::preview_local_job_source,

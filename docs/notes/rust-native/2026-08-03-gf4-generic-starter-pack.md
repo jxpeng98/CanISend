@@ -37,6 +37,7 @@ resolution. The complete source and release gates are run before this record is 
 
 ## Remaining boundary
 
-GF4-FLOW-001 now binds the Pack-qualified graph and Deliverables to a canonical v3 local fixture.
-Pack selection/configuration and Agent v3 surface work remain GF4-UI-001 and GF4-AGENT-001. The
-first usable Alpha remains unqualified.
+GF4-FLOW-001 binds the Pack-qualified graph and Deliverables to a canonical v3 local fixture, and
+GF4-UI-001 exposes Pack selection/configuration through CLI and desktop. Agent v3/MCP and synthetic
+scenario families remain GF4-AGENT-001 and GF4-EXAMPLE-001. The first usable Alpha remains
+unqualified.

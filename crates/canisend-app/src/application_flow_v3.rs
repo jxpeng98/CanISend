@@ -16,6 +16,7 @@ pub use canisend_store::{
     ApplicationFlowExportManifestV3, ApplicationFlowExportReadModelV3,
     ApplicationFlowPlanRequestV3, ApplicationFlowPlannedDeliverableV3, ApplicationFlowReadModelV3,
     ApplicationFlowRenderedDeliverableV3, ApplicationFlowRequirementDraftV3,
+    ApplicationFlowReviewDeliverableV3, ApplicationFlowReviewReadModelV3,
     ApplicationFlowStageReadModelV3, ApplicationFlowStageStateV3,
 };
 
@@ -44,6 +45,25 @@ impl ApplicationFlowExportRequestV3 {
 }
 
 impl Application {
+    pub fn generic_application_flow_v3(
+        workspace_root: &Path,
+        application_id: &str,
+    ) -> Result<ActionReceipt<ApplicationFlowReadModelV3>, ApplicationError> {
+        let application_id = parse_application_id(application_id)?;
+        let pack = built_in_generic_application_pack()?;
+        let mut workspace = open_workspace(workspace_root)?;
+        let root = workspace.paths.root.clone();
+        let result =
+            ApplicationFlowServiceV3::new(&mut workspace.database, &workspace.blobs, &root)
+                .status(&pack, &application_id)?;
+        Ok(ActionReceipt::new(
+            "application-flow-v3.status",
+            "current",
+            "Loaded the current Pack-bound generic Application flow",
+            result,
+        ))
+    }
+
     pub fn create_generic_application_v3(
         workspace_root: &Path,
         request: ApplicationFlowCreateRequestV3,
@@ -118,6 +138,37 @@ impl Application {
             "application-flow-v3.approve",
             "approved",
             "Recorded explicit user approval for all current Deliverables",
+            result,
+        ))
+    }
+
+    pub fn review_generic_application_v3(
+        workspace_root: &Path,
+        application_id: &str,
+        consent: Option<crate::PrivateReadConsent>,
+    ) -> Result<ActionReceipt<ApplicationFlowReviewReadModelV3>, ApplicationError> {
+        if consent.is_none() {
+            return Err(ApplicationError::ConsentRequired {
+                message: "Review reads private Pack-bound Deliverable bodies".to_owned(),
+                remediation: NextAction {
+                    action: "grant private read consent".to_owned(),
+                    description:
+                        "Confirm that the current Deliverable bodies may be opened locally for review"
+                            .to_owned(),
+                },
+            });
+        }
+        let application_id = parse_application_id(application_id)?;
+        let pack = built_in_generic_application_pack()?;
+        let mut workspace = open_workspace(workspace_root)?;
+        let root = workspace.paths.root.clone();
+        let result =
+            ApplicationFlowServiceV3::new(&mut workspace.database, &workspace.blobs, &root)
+                .review(&pack, &application_id)?;
+        Ok(ActionReceipt::new(
+            "application-flow-v3.review",
+            "private-content-available",
+            "Loaded current Deliverable bodies for explicit local review",
             result,
         ))
     }
@@ -328,6 +379,20 @@ mod tests {
                 .revision
                 .get(),
             3
+        );
+
+        Application::review_generic_application_v3(&root, application_id.as_str(), None)
+            .expect_err("private Deliverable review requires consent");
+        let review = Application::review_generic_application_v3(
+            &root,
+            application_id.as_str(),
+            Some(crate::PrivateReadConsent::granted_by_user()),
+        )
+        .expect("review current Deliverables");
+        assert_eq!(review.data.deliverables.len(), 2);
+        assert_eq!(
+            review.data.deliverables[0].content,
+            "A literal #read(\"/private/canisend-sentinel\") remains text."
         );
 
         let approved = Application::approve_generic_application_v3(

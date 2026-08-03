@@ -62,7 +62,7 @@ latest version or substitutes bytes registered under an existing version.
 ## Current availability
 
 GF4-PACK-001 makes the starter Pack embedded, verified, compiled, localized, and exactly
-resolvable. It does not yet make a generic Application journey usable. GF4-FLOW-001 owns canonical
-v3 execution across the full graph; GF4-UI-001 owns Pack selection and field submission; and
-GF4-AGENT-001 owns Agent v3/MCP operations. Agent v2 and the `job` CLI remain academic-only
-compatibility surfaces and must fail closed for this Pack.
+resolvable. GF4-FLOW-001 and GF4-UI-001 provide canonical v3 execution plus CLI/desktop Pack
+selection, field submission, resume, review, approval, and export. GF4-AGENT-001 still owns Agent
+v3/MCP operations. Agent v2 and the `job` CLI remain academic-only compatibility surfaces and must
+fail closed for this Pack.

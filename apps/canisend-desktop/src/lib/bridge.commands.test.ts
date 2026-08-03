@@ -16,10 +16,12 @@ vi.mock("@tauri-apps/plugin-dialog", () => ({
 
 import {
   beginWorkflowStage,
+  approveGenericApplication,
   cancelAgentTurn,
   commitJobSourcePreview,
   confirmPlan,
   configureCliPath,
+  createGenericApplication,
   copyAgentHandoff,
   copyAgentMcpConfiguration,
   exportPackage,
@@ -29,13 +31,17 @@ import {
   getApplicationDossier,
   getContentCatalog,
   getWorkflowPackPresentation,
+  GENERIC_APPLICATION_WORKFLOW_PACK_ID,
   installAgentSkills,
   installCli,
   listApplicationDossiers,
+  migrateWorkspaceV3,
+  reviewGenericApplication,
   prepareAgentHandoff,
   prepareAgentMcpConfiguration,
   previewDiscoveryFile,
   previewLocalJobSource,
+  previewWorkspaceV3Migration,
   previewRender,
   previewUrlJobSource,
   runAgentTurn,
@@ -130,6 +136,67 @@ describe("typed Tauri command requests", () => {
     });
   });
 
+  it("keeps the canonical v3 request and review consent boundaries explicit", async () => {
+    const candidate = {
+      title: "Community grant",
+      opportunity_metadata: {},
+      application_metadata: {},
+      source_text: "A narrative is required.",
+      requirements: [
+        {
+          category: "format",
+          statement: "A narrative is required.",
+          priority: "mandatory" as const,
+          start_byte: 0,
+          end_byte: 24,
+        },
+      ],
+    };
+    await createGenericApplication("/tmp/workspace", candidate);
+    await reviewGenericApplication("/tmp/workspace", "application-id", true);
+    await approveGenericApplication("/tmp/workspace", "application-id", 3);
+
+    expect(mocks.invoke).toHaveBeenNthCalledWith(1, "create_generic_application", {
+      request: { workspace: "/tmp/workspace", request: candidate },
+    });
+    expect(mocks.invoke).toHaveBeenNthCalledWith(2, "review_generic_application", {
+      request: {
+        workspace: "/tmp/workspace",
+        application_id: "application-id",
+        confirmed_private_read: true,
+      },
+    });
+    expect(mocks.invoke).toHaveBeenNthCalledWith(3, "approve_generic_application", {
+      request: {
+        workspace: "/tmp/workspace",
+        application_id: "application-id",
+        expected_revision: 3,
+      },
+    });
+  });
+
+  it("commits only the exact reviewed migration digest with a separate backup", async () => {
+    await previewWorkspaceV3Migration("/tmp/workspace");
+    await migrateWorkspaceV3({
+      workspace: "/tmp/workspace",
+      expectedPlanSha256: "a".repeat(64),
+      backupDestination: "/tmp/workspace-v2-backup",
+    });
+
+    expect(mocks.invoke).toHaveBeenNthCalledWith(
+      1,
+      "preview_workspace_v3_migration",
+      { request: { path: "/tmp/workspace" } },
+    );
+    expect(mocks.invoke).toHaveBeenNthCalledWith(2, "migrate_workspace_v3", {
+      request: {
+        workspace: "/tmp/workspace",
+        expected_plan_sha256: "a".repeat(64),
+        backup_destination: "/tmp/workspace-v2-backup",
+      },
+    });
+  });
+
   it("keeps content filters typed and private body consent explicit", async () => {
     await getContentCatalog("/tmp/workspace", {
       job_id: "job-id",
@@ -197,10 +264,16 @@ describe("typed Tauri command requests", () => {
   });
 
   it("requests Pack presentation labels with the selected host locale", async () => {
-    await getWorkflowPackPresentation("zh-CN");
+    await getWorkflowPackPresentation(
+      "zh-CN",
+      GENERIC_APPLICATION_WORKFLOW_PACK_ID,
+    );
 
     expect(mocks.invoke).toHaveBeenCalledWith("workflow_pack_presentation", {
-      request: { locale: "zh-CN" },
+      request: {
+        locale: "zh-CN",
+        pack_id: "org.canisend.generic-application",
+      },
     });
   });
 

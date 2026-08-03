@@ -43,8 +43,8 @@ it is not a test or strict-Clippy failure.
 
 ## Remaining boundary
 
-GF4-FLOW-001 closes the Store/shared-facade local fixture, not the complete Alpha.7 surface. Pack
-selection and canonical v3 intake forms still belong to GF4-UI-001; generic context, guarded writes,
-resume, and recovery through Agent v3/MCP belong to GF4-AGENT-001. Synthetic scenario families and
-dual-Pack native qualification also remain open, so the first usable framework Alpha is not yet
-qualified.
+GF4-FLOW-001 closes the Store/shared-facade local fixture. GF4-UI-001 now supplies Pack selection,
+canonical v3 intake and resume, consented review, approval, export, and digest-bound migration
+surfaces. Generic context, guarded writes, resume, and recovery through Agent v3/MCP remain
+GF4-AGENT-001. Synthetic scenario families and dual-Pack native qualification also remain open, so
+the first usable framework Alpha is not yet qualified.

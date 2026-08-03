@@ -10,12 +10,14 @@ use canisend_store::{
 };
 use serde::{Deserialize, Serialize};
 
+use crate::{ACADEMIC_JOB_WORKFLOW_PACK_ID, GENERIC_APPLICATION_WORKFLOW_PACK_ID};
 use crate::{ActionReceipt, Application, ApplicationError, application::open_workspace};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct WorkspaceReadModel {
     pub path: PathBuf,
+    pub pack_id: String,
     pub status: WorkspaceStatusData,
 }
 
@@ -58,6 +60,19 @@ pub enum WorkspaceInitPolicy {
 }
 
 impl Application {
+    pub fn initialize_workspace_for_pack(
+        root: &Path,
+        pack_id: &str,
+    ) -> Result<ActionReceipt<WorkspaceReadModel>, ApplicationError> {
+        match pack_id {
+            ACADEMIC_JOB_WORKFLOW_PACK_ID => Self::initialize_workspace(root),
+            GENERIC_APPLICATION_WORKFLOW_PACK_ID => Self::initialize_workspace_v3(root),
+            _ => Err(ApplicationError::InvalidInput(format!(
+                "unknown built-in workflow Pack: {pack_id}"
+            ))),
+        }
+    }
+
     pub fn initialize_workspace(
         root: &Path,
     ) -> Result<ActionReceipt<WorkspaceReadModel>, ApplicationError> {
@@ -82,6 +97,7 @@ impl Application {
             ),
             WorkspaceReadModel {
                 path: workspace.paths.root,
+                pack_id: ACADEMIC_JOB_WORKFLOW_PACK_ID.to_owned(),
                 status,
             },
         ))
@@ -104,6 +120,7 @@ impl Application {
             ),
             WorkspaceReadModel {
                 path: workspace.paths.root,
+                pack_id: GENERIC_APPLICATION_WORKFLOW_PACK_ID.to_owned(),
                 status,
             },
         ))
@@ -112,14 +129,25 @@ impl Application {
     pub fn workspace_status(
         root: &Path,
     ) -> Result<ActionReceipt<WorkspaceReadModel>, ApplicationError> {
-        let workspace = open_workspace(root)?;
+        let mut workspace = open_workspace(root)?;
         let status = workspace.status()?;
+        let pack_id = if status.workspace_format == canisend_contracts::WORKSPACE_V3_FORMAT {
+            let authority = ApplicationModelRepository::new(&mut workspace.database).authority()?;
+            if authority.reason == "new-workspace-v3" {
+                GENERIC_APPLICATION_WORKFLOW_PACK_ID
+            } else {
+                ACADEMIC_JOB_WORKFLOW_PACK_ID
+            }
+        } else {
+            ACADEMIC_JOB_WORKFLOW_PACK_ID
+        };
         Ok(ActionReceipt::new(
             "workspace.status",
             "available",
             format!("Workspace has {} job(s)", status.job_count),
             WorkspaceReadModel {
                 path: workspace.paths.root,
+                pack_id: pack_id.to_owned(),
                 status,
             },
         ))
@@ -242,9 +270,9 @@ mod tests {
     };
 
     use canisend_contracts::{ActorKind, ArtifactKind, SafeRelativePath};
-    use canisend_store::{ArtifactService, Workspace};
+    use canisend_store::{ApplicationModelRepository, ArtifactService, Workspace};
 
-    use crate::Application;
+    use crate::{ACADEMIC_JOB_WORKFLOW_PACK_ID, Application, GENERIC_APPLICATION_WORKFLOW_PACK_ID};
 
     static NEXT: AtomicU64 = AtomicU64::new(1);
 
@@ -254,6 +282,32 @@ mod tests {
             std::process::id(),
             NEXT.fetch_add(1, Ordering::Relaxed)
         ))
+    }
+
+    #[test]
+    fn workspace_read_model_preserves_pack_presentation_across_v3_activation_paths() {
+        let generic = temporary_root("generic-pack");
+        let migrated = temporary_root("migrated-pack");
+
+        let generic_model = Application::initialize_workspace_v3(&generic)
+            .expect("initialize generic v3")
+            .data;
+        assert_eq!(generic_model.pack_id, GENERIC_APPLICATION_WORKFLOW_PACK_ID);
+
+        Application::initialize_workspace(&migrated).expect("initialize legacy workspace");
+        {
+            let mut workspace = Workspace::open(Some(&migrated)).expect("open legacy workspace");
+            ApplicationModelRepository::new(&mut workspace.database)
+                .activate_empty_workspace(ActorKind::User, "migrate-workspace-v2-to-v3")
+                .expect("activate migrated authority fixture");
+        }
+        let migrated_model = Application::workspace_status(&migrated)
+            .expect("migrated status")
+            .data;
+        assert_eq!(migrated_model.pack_id, ACADEMIC_JOB_WORKFLOW_PACK_ID);
+
+        fs::remove_dir_all(generic).expect("remove generic fixture");
+        fs::remove_dir_all(migrated).expect("remove migrated fixture");
     }
 
     #[test]

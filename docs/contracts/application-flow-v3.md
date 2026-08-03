@@ -12,7 +12,8 @@ The canonical v3 flow advances one exact Pack-bound Application through intake, 
 confirmation, evidence binding, fit/Plan confirmation, Deliverable composition, explicit review,
 managed package projection, embedded rendering, and consented local export. The Store service is
 Pack-generic; the first shared facade binds it to the verified generic starter Pack. Pack selection
-for CLI and desktop is owned by GF4-UI-001.
+is explicit in CLI and desktop Workspace creation; the academic v2 route remains an explicit
+compatibility surface.
 
 The flow never logs in to a third-party service, uploads a file, or submits an Application. Every
 read model and export Manifest reports `submission_performed: false`.
@@ -27,16 +28,21 @@ data as v3.
 
 ## Operations
 
-1. `application-flow-v3.create` validates Pack metadata, stores bounded UTF-8 source content in the
+1. `application-flow-v3.status` returns the current body-free snapshot and deterministic Pack stage
+   states so a CLI or desktop session can resume without guessing.
+2. `application-flow-v3.create` validates Pack metadata, stores bounded UTF-8 source content in the
    content-addressed Blob store, and creates proposed Requirements with exact byte spans.
-2. `application-flow-v3.plan` requires the expected Application revision, records explicit user
+3. `application-flow-v3.plan` requires the expected Application revision, records explicit user
    confirmation for every Requirement, and commits a user-confirmed Pack-qualified Plan.
-3. `application-flow-v3.compose` validates Pack cardinality and MIME type, stores immutable content,
+4. `application-flow-v3.compose` validates Pack cardinality and MIME type, stores immutable content,
    and creates `review-required` Deliverables bound to the exact Plan and confirmed source
    revisions used as Evidence inputs.
-4. `application-flow-v3.approve` verifies every referenced Blob and advances every current
+5. `application-flow-v3.review` requires private-read consent and returns verified current
+   Deliverable bodies for explicit local review. Routine status and list operations remain
+   body-free.
+6. `application-flow-v3.approve` verifies every referenced Blob and advances every current
    Deliverable to `approved` under explicit user authority.
-5. `application-flow-v3.export` first publishes the existing managed Application projection, then
+7. `application-flow-v3.export` first publishes the existing managed Application projection, then
    renders every approved Deliverable with its verified Pack template and the embedded Typst
    compiler. It writes validated PDFs plus `render-manifest.json` only below
    `applications/APPLICATION_ID/exports/` and only after private-export consent.
@@ -77,9 +83,12 @@ package/render operation. It is not a second workflow authority.
 - A stale revision, wrong Pack, invalid cardinality, missing Blob, absent consent, unsafe path,
   symlink, unmanaged conflict, or non-approved Deliverable fails closed.
 
-## Current adapter limit
+## Shared surface boundary
 
-The first facade accepts reviewed UTF-8 text and exact spans. Existing local-file, text-PDF, and
-user-URL intake adapters are registered by the Pack but are connected to canonical v3 requests in
-GF4-UI-001. Agent v3/MCP operation registration is GF4-AGENT-001. These remaining surfaces do not
-change the Store flow or permit direct database writes.
+CLI and desktop expose Pack selection, reviewed UTF-8 intake with exact spans, list/status resume,
+Plan, compose, consented private review, approval, and consented local export. Desktop fields,
+categories, stages, localized labels, and Deliverable choices come from the exact verified Pack.
+The v2-to-v3 Workspace migration is preview/digest/backup bound and preserves the academic Pack
+presentation after activation. Direct local-file, text-PDF, and user-URL conversion into a
+canonical v3 create request remains later adapter-parity work. Agent v3/MCP operation registration
+is GF4-AGENT-001; no shared surface may write the database directly.

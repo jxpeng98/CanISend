@@ -11,6 +11,10 @@ const agentView = readFileSync(
   new URL("./views/AgentView.svelte", import.meta.url),
   "utf8",
 );
+const genericApplicationsView = readFileSync(
+  new URL("./views/GenericApplicationsView.svelte", import.meta.url),
+  "utf8",
+);
 const loadingPanel = readFileSync(
   new URL("./components/patterns/LoadingPanel.svelte", import.meta.url),
   "utf8",
@@ -81,6 +85,19 @@ describe("desktop accessibility contract", () => {
     expect(loadingPanel).toContain('role="status"');
     expect(agentView).toContain('<Alert.Root variant="destructive"');
     expect(agentView).toContain('aria-live="polite"');
+    expect(genericApplicationsView).toContain('role="alert"');
+    expect(genericApplicationsView).toContain('aria-live="assertive"');
+    expect(genericApplicationsView).toContain('aria-live="polite"');
+  });
+
+  it("keeps generic Pack forms labeled and consent actions keyboard-native", () => {
+    expect(genericApplicationsView).toContain('<Label for="generic-title"');
+    expect(genericApplicationsView).toContain('aria-describedby="generic-requirement-help"');
+    expect(genericApplicationsView).toContain('<Checkbox id="generic-review-consent"');
+    expect(genericApplicationsView).toContain('<Checkbox id="generic-export-consent"');
+    expect(genericApplicationsView).not.toMatch(
+      /<(?:div|span|p|section|article)\b[^>]*\b(?:onclick|onkeydown)=/giu,
+    );
   });
 
   it("centralizes semantic controls and compact desktop target sizes", () => {

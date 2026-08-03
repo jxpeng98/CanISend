@@ -3,25 +3,28 @@
 mod app_adapter;
 
 use std::{
-    fs::OpenOptions,
+    fs::{self, OpenOptions},
     io::{IsTerminal, Write},
     path::{Component, Path, PathBuf},
     process::ExitCode,
 };
 
 use canisend_app::{
-    AgentHost, AgentPackExportRequest, Application, ApplicationError, ContentCatalogFilter,
-    ContentCatalogStatus, ContentCategory, ContentSearchRequest, DiscoveryImportRequest,
-    DiscoveryNetworkAdapter, DiscoveryRefreshRequest, NetworkFetchConsent, PackageExportRequest,
+    ACADEMIC_JOB_WORKFLOW_PACK_ID, AgentHost, AgentPackExportRequest, Application,
+    ApplicationError, ApplicationFlowApproveRequestV3, ApplicationFlowComposeRequestV3,
+    ApplicationFlowCreateRequestV3, ApplicationFlowExportRequestV3, ApplicationFlowPlanRequestV3,
+    ContentCatalogFilter, ContentCatalogStatus, ContentCategory, ContentSearchRequest,
+    DiscoveryImportRequest, DiscoveryNetworkAdapter, DiscoveryRefreshRequest,
+    GENERIC_APPLICATION_WORKFLOW_PACK_ID, NetworkFetchConsent, PackageExportRequest,
     PrivateExportConsent, PrivateReadConsent, ProjectionCopyAsNewRequest, ProjectionReplaceRequest,
     ProviderSendConsent, RenderExportRequest, TaskExecutionMode, TaskInputExportRequest,
     TaskOperation, TaskPrepareRequest, WorkflowBeginRequest, WorkflowCompleteRequest,
-    WorkflowRerunRequest, WorkspaceInitPolicy,
+    WorkflowRerunRequest, WorkspaceInitPolicy, WorkspaceV3MigrationRequest,
 };
 use canisend_contracts::{
     AgentError, AgentResponse, CompatibilityNotice, CompatibilitySurface, DocumentKind, EntityId,
     ErrorCode, ExecutionMode, ExitClass, NextAction, PrivacyClassification, PublicSchemaId,
-    SemanticVersion, VersionData, WorkflowStage,
+    Revision, SemanticVersion, Sha256Digest, VersionData, WorkflowStage,
 };
 use canisend_io::{
     IoAdapterError, read_criteria_file, read_task_completion_file, read_task_completion_stdin,
@@ -195,8 +198,8 @@ enum ResourceCommand {
 
 #[derive(Debug, Subcommand)]
 enum WorkspaceCommand {
-    /// Initialize a new v2 workspace at --workspace or the current directory.
-    Init(OutputArgs),
+    /// Initialize a new Pack-qualified workspace at --workspace or the current directory.
+    Init(WorkspaceInitArgs),
     /// Report authoritative workspace and SQLite status.
     Status(OutputArgs),
     /// Verify database, blob, freshness, and projection invariants.
@@ -207,6 +210,10 @@ enum WorkspaceCommand {
     Restore(WorkspaceRestoreArgs),
     /// Rebuild missing or repair-required projections while preserving user edits.
     Repair(OutputArgs),
+    /// Preview the body-free v2-to-v3 migration plan without writing.
+    MigrationPreview(OutputArgs),
+    /// Migrate using the exact reviewed plan digest and a new verified backup.
+    Migrate(WorkspaceMigrateArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -229,6 +236,20 @@ enum ApplicationCommand {
     List(ApplicationListArgs),
     /// Show one body-free application dossier and its exact next actions.
     Show(ApplicationJobArgs),
+    /// List canonical v3 Applications in the current Workspace.
+    V3List(OutputArgs),
+    /// Show one canonical v3 Application.
+    V3Show(ApplicationV3IdArgs),
+    /// Create a generic v3 Application from a reviewed JSON request.
+    GenericCreate(ApplicationV3CreateArgs),
+    /// Confirm Requirements and commit a generic v3 Plan from JSON.
+    GenericPlan(ApplicationV3CandidateArgs),
+    /// Commit generic v3 Deliverables for review from JSON.
+    GenericCompose(ApplicationV3CandidateArgs),
+    /// Approve every current generic v3 Deliverable.
+    GenericApprove(ApplicationV3ApproveArgs),
+    /// Render and export approved generic v3 Deliverables without submitting.
+    GenericExport(ApplicationV3ExportArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -468,12 +489,48 @@ struct WorkspaceBackupArgs {
     output: OutputArgs,
 }
 
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum BuiltInPackName {
+    AcademicJob,
+    GenericApplication,
+}
+
+impl BuiltInPackName {
+    const fn id(self) -> &'static str {
+        match self {
+            Self::AcademicJob => ACADEMIC_JOB_WORKFLOW_PACK_ID,
+            Self::GenericApplication => GENERIC_APPLICATION_WORKFLOW_PACK_ID,
+        }
+    }
+}
+
+#[derive(Debug, Args)]
+struct WorkspaceInitArgs {
+    /// Select the exact built-in workflow Pack and Workspace authority generation.
+    #[arg(long, value_enum, default_value_t = BuiltInPackName::GenericApplication)]
+    pack: BuiltInPackName,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
 #[derive(Debug, Args)]
 struct WorkspaceRestoreArgs {
     /// Verified CanISend backup directory.
     backup: PathBuf,
     /// New or empty destination directory for the restored workspace.
     destination: PathBuf,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
+struct WorkspaceMigrateArgs {
+    /// Exact digest returned by workspace migration-preview.
+    #[arg(long)]
+    expected_plan_sha256: String,
+    /// New or empty destination for the verified pre-migration backup.
+    #[arg(long, value_name = "PATH")]
+    backup_destination: PathBuf,
     #[command(flatten)]
     output: OutputArgs,
 }
@@ -541,6 +598,59 @@ struct ApplicationJobArgs {
     /// Canonical UUIDv7 job ID.
     #[arg(long)]
     job: String,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
+struct ApplicationV3IdArgs {
+    #[arg(long)]
+    application: String,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
+struct ApplicationV3CreateArgs {
+    /// Reviewed bounded JSON request matching the canonical operation contract.
+    #[arg(long, value_name = "PATH")]
+    candidate: PathBuf,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
+struct ApplicationV3CandidateArgs {
+    #[arg(long)]
+    application: String,
+    /// Reviewed bounded JSON request matching the canonical operation contract.
+    #[arg(long, value_name = "PATH")]
+    candidate: PathBuf,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
+struct ApplicationV3ApproveArgs {
+    #[arg(long)]
+    application: String,
+    #[arg(long)]
+    expected_revision: u64,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
+struct ApplicationV3ExportArgs {
+    #[arg(long)]
+    application: String,
+    #[arg(long)]
+    expected_revision: u64,
+    #[arg(long)]
+    destination: String,
+    /// Confirm local private-artifact export for this operation.
+    #[arg(long)]
+    allow_private_export: bool,
     #[command(flatten)]
     output: OutputArgs,
 }
@@ -1272,17 +1382,23 @@ impl Cli {
                 command: SchemaCommand::Show(arguments),
             } => arguments.output.json,
             Command::Workspace {
+                command: WorkspaceCommand::Init(arguments),
+            } => arguments.output.json,
+            Command::Workspace {
                 command:
-                    WorkspaceCommand::Init(output)
-                    | WorkspaceCommand::Status(output)
+                    WorkspaceCommand::Status(output)
                     | WorkspaceCommand::Check(output)
-                    | WorkspaceCommand::Repair(output),
+                    | WorkspaceCommand::Repair(output)
+                    | WorkspaceCommand::MigrationPreview(output),
             } => output.json,
             Command::Workspace {
                 command: WorkspaceCommand::Backup(arguments),
             } => arguments.output.json,
             Command::Workspace {
                 command: WorkspaceCommand::Restore(arguments),
+            } => arguments.output.json,
+            Command::Workspace {
+                command: WorkspaceCommand::Migrate(arguments),
             } => arguments.output.json,
             Command::Job { command } => match command {
                 JobCommand::Create(arguments) => arguments.output.json,
@@ -1295,6 +1411,13 @@ impl Cli {
             Command::Application { command } => match command {
                 ApplicationCommand::List(arguments) => arguments.output.json,
                 ApplicationCommand::Show(arguments) => arguments.output.json,
+                ApplicationCommand::V3List(output) => output.json,
+                ApplicationCommand::V3Show(arguments) => arguments.output.json,
+                ApplicationCommand::GenericCreate(arguments) => arguments.output.json,
+                ApplicationCommand::GenericPlan(arguments)
+                | ApplicationCommand::GenericCompose(arguments) => arguments.output.json,
+                ApplicationCommand::GenericApprove(arguments) => arguments.output.json,
+                ApplicationCommand::GenericExport(arguments) => arguments.output.json,
             },
             Command::Content { command } => match command {
                 ContentCommand::List(arguments) => arguments.output.json,
@@ -1513,8 +1636,8 @@ fn execute(cli: Cli) -> CommandResult<CommandOutput> {
             command: ResourceCommand::List(_),
         } => resource_list(),
         Command::Workspace {
-            command: WorkspaceCommand::Init(_),
-        } => workspace_init(workspace),
+            command: WorkspaceCommand::Init(arguments),
+        } => workspace_init(workspace, arguments.pack),
         Command::Workspace {
             command: WorkspaceCommand::Status(_),
         } => workspace_status(workspace),
@@ -1530,6 +1653,12 @@ fn execute(cli: Cli) -> CommandResult<CommandOutput> {
         Command::Workspace {
             command: WorkspaceCommand::Repair(_),
         } => workspace_repair(workspace),
+        Command::Workspace {
+            command: WorkspaceCommand::MigrationPreview(_),
+        } => workspace_migration_preview(workspace),
+        Command::Workspace {
+            command: WorkspaceCommand::Migrate(arguments),
+        } => workspace_migrate(workspace, arguments),
         Command::Job {
             command: JobCommand::Create(arguments),
         } => job_create(workspace, arguments),
@@ -1551,6 +1680,27 @@ fn execute(cli: Cli) -> CommandResult<CommandOutput> {
         Command::Application {
             command: ApplicationCommand::Show(arguments),
         } => application_show(workspace, &arguments.job),
+        Command::Application {
+            command: ApplicationCommand::V3List(_),
+        } => application_v3_list(workspace),
+        Command::Application {
+            command: ApplicationCommand::V3Show(arguments),
+        } => application_v3_show(workspace, &arguments.application),
+        Command::Application {
+            command: ApplicationCommand::GenericCreate(arguments),
+        } => application_v3_create(workspace, arguments),
+        Command::Application {
+            command: ApplicationCommand::GenericPlan(arguments),
+        } => application_v3_plan(workspace, arguments),
+        Command::Application {
+            command: ApplicationCommand::GenericCompose(arguments),
+        } => application_v3_compose(workspace, arguments),
+        Command::Application {
+            command: ApplicationCommand::GenericApprove(arguments),
+        } => application_v3_approve(workspace, arguments),
+        Command::Application {
+            command: ApplicationCommand::GenericExport(arguments),
+        } => application_v3_export(workspace, arguments),
         Command::Content {
             command: ContentCommand::List(arguments),
         } => content_list(workspace, arguments),
@@ -2045,12 +2195,20 @@ fn resource_list() -> CommandResult<CommandOutput> {
     success("resource.list", "available", &data, human)
 }
 
-fn workspace_init(workspace_path: Option<PathBuf>) -> CommandResult<CommandOutput> {
+fn workspace_init(
+    workspace_path: Option<PathBuf>,
+    pack: BuiltInPackName,
+) -> CommandResult<CommandOutput> {
     let root = workspace_path.unwrap_or_else(|| PathBuf::from("."));
-    let receipt = Application::initialize_workspace_with_policy(
-        &root,
-        WorkspaceInitPolicy::PreserveExistingFiles,
-    )
+    let receipt = match pack {
+        BuiltInPackName::AcademicJob => Application::initialize_workspace_with_policy(
+            &root,
+            WorkspaceInitPolicy::PreserveExistingFiles,
+        ),
+        BuiltInPackName::GenericApplication => {
+            Application::initialize_workspace_for_pack(&root, pack.id())
+        }
+    }
     .map_err(|error| app_adapter::failure("workspace.init", error))?;
     let path = receipt.data.path;
     let data = receipt.data.status;
@@ -2061,16 +2219,18 @@ fn workspace_init(workspace_path: Option<PathBuf>) -> CommandResult<CommandOutpu
         vec![
             format!("Initialized CanISend workspace at {}", path.display()),
             format!("Workspace ID: {}", data.workspace_id),
+            format!("Workflow Pack: {}", pack.id()),
         ],
     )
 }
 
 fn workspace_status(workspace_path: Option<PathBuf>) -> CommandResult<CommandOutput> {
     let root = app_adapter::workspace_root(workspace_path, "workspace.status")?;
-    let data = Application::workspace_status(&root)
+    let model = Application::workspace_status(&root)
         .map_err(|error| app_adapter::failure("workspace.status", error))?
-        .data
-        .status;
+        .data;
+    let pack_id = model.pack_id;
+    let data = model.status;
     success(
         "workspace.status",
         "available",
@@ -2078,6 +2238,7 @@ fn workspace_status(workspace_path: Option<PathBuf>) -> CommandResult<CommandOut
         vec![
             format!("Workspace: {}", data.workspace_id),
             format!("Format: {}", data.workspace_format),
+            format!("Workflow Pack: {pack_id}"),
             format!("SQLite: {} ({})", data.sqlite_version, data.journal_mode),
             format!("Artifacts: {}", data.artifact_count),
         ],
@@ -2149,6 +2310,65 @@ fn workspace_repair(workspace_path: Option<PathBuf>) -> CommandResult<CommandOut
         "repaired",
         &json!({"repaired_projections": repaired}),
         vec![format!("Repaired projections: {repaired}")],
+    )
+}
+
+fn workspace_migration_preview(workspace_path: Option<PathBuf>) -> CommandResult<CommandOutput> {
+    let operation = "workspace-v3.migration-preview";
+    let root = app_adapter::workspace_root(workspace_path, operation)?;
+    let preview = Application::preview_workspace_v3_migration(&root)
+        .map_err(|error| app_adapter::failure(operation, error))?
+        .data;
+    success(
+        operation,
+        "ready",
+        &preview,
+        vec![
+            format!("Applications: {}", preview.application_count),
+            format!("Required backup bytes: {}", preview.required_backup_bytes),
+            format!("Plan SHA-256: {}", preview.migration_plan_sha256),
+            "Next: review this body-free plan and migrate with its exact digest".to_owned(),
+        ],
+    )
+}
+
+fn workspace_migrate(
+    workspace_path: Option<PathBuf>,
+    arguments: WorkspaceMigrateArgs,
+) -> CommandResult<CommandOutput> {
+    let operation = "workspace-v3.migrate";
+    let root = app_adapter::workspace_root(workspace_path, operation)?;
+    let expected_plan_sha256 =
+        Sha256Digest::try_new(arguments.expected_plan_sha256).map_err(|error| {
+            CommandFailure::new(
+                operation,
+                "invalid",
+                ErrorCode::InputInvalid,
+                error.to_string(),
+                false,
+            )
+        })?;
+    let result = Application::migrate_workspace_v3(
+        &root,
+        WorkspaceV3MigrationRequest {
+            expected_plan_sha256,
+            backup_destination: arguments.backup_destination,
+        },
+    )
+    .map_err(|error| app_adapter::failure(operation, error))?
+    .data;
+    success(
+        operation,
+        "migrated",
+        &result,
+        vec![
+            format!(
+                "Migrated Applications: {}",
+                result.migration.application_ids.len()
+            ),
+            format!("Verified backup: {}", result.backup_destination.display()),
+            "Legacy authority and files were preserved for compatibility".to_owned(),
+        ],
     )
 }
 
@@ -2368,6 +2588,295 @@ fn application_show(workspace_path: Option<PathBuf>, job_id: &str) -> CommandRes
     let mut output = success("application.dossier.show", "available", &dossier, human)?;
     output.response.next_actions = receipt.next_actions;
     Ok(output)
+}
+
+const MAX_APPLICATION_V3_CANDIDATE_BYTES: u64 = 4 * 1024 * 1024;
+
+fn application_v3_list(workspace_path: Option<PathBuf>) -> CommandResult<CommandOutput> {
+    let operation = "application-v3.list";
+    let root = app_adapter::workspace_root(workspace_path, operation)?;
+    let applications = Application::list_application_models_v3(&root)
+        .map_err(|error| app_adapter::failure(operation, error))?
+        .data;
+    let human = if applications.is_empty() {
+        vec!["No canonical v3 Applications found".to_owned()]
+    } else {
+        applications
+            .iter()
+            .map(|stored| {
+                format!(
+                    "{}  {}  [revision {}; {:?}]",
+                    stored.snapshot.application.id,
+                    stored.snapshot.opportunity.title,
+                    stored.snapshot.application.revision.get(),
+                    stored.snapshot.application.lifecycle
+                )
+            })
+            .collect()
+    };
+    success(operation, "current", &applications, human)
+}
+
+fn application_v3_show(
+    workspace_path: Option<PathBuf>,
+    application_id: &str,
+) -> CommandResult<CommandOutput> {
+    let operation = "application-v3.show";
+    let root = app_adapter::workspace_root(workspace_path, operation)?;
+    let stored = Application::application_model_v3(&root, application_id)
+        .map_err(|error| app_adapter::failure(operation, error))?
+        .data;
+    success(
+        operation,
+        "current",
+        &stored,
+        vec![
+            format!("Application: {}", stored.snapshot.opportunity.title),
+            format!("Revision: {}", stored.snapshot.application.revision.get()),
+            format!("Requirements: {}", stored.snapshot.requirements.len()),
+            format!("Deliverables: {}", stored.snapshot.deliverables.len()),
+        ],
+    )
+}
+
+fn application_v3_create(
+    workspace_path: Option<PathBuf>,
+    arguments: ApplicationV3CreateArgs,
+) -> CommandResult<CommandOutput> {
+    let operation = "application-flow-v3.create";
+    let root = app_adapter::workspace_root(workspace_path, operation)?;
+    let request = read_application_v3_candidate::<ApplicationFlowCreateRequestV3>(
+        operation,
+        &arguments.candidate,
+    )?;
+    let model = Application::create_generic_application_v3(&root, request)
+        .map_err(|error| app_adapter::failure(operation, error))?
+        .data;
+    success(
+        operation,
+        "created",
+        &model,
+        vec![
+            format!("Application: {}", model.stored.snapshot.application.id),
+            format!(
+                "Revision: {}",
+                model.stored.snapshot.application.revision.get()
+            ),
+            "Next: confirm Requirements and commit a Plan".to_owned(),
+        ],
+    )
+}
+
+fn application_v3_plan(
+    workspace_path: Option<PathBuf>,
+    arguments: ApplicationV3CandidateArgs,
+) -> CommandResult<CommandOutput> {
+    let operation = "application-flow-v3.plan";
+    let root = app_adapter::workspace_root(workspace_path, operation)?;
+    let request = read_application_v3_candidate::<ApplicationFlowPlanRequestV3>(
+        operation,
+        &arguments.candidate,
+    )?;
+    let model = Application::plan_generic_application_v3(&root, &arguments.application, request)
+        .map_err(|error| app_adapter::failure(operation, error))?
+        .data;
+    success(
+        operation,
+        "confirmed",
+        &model,
+        vec![
+            format!(
+                "Application revision: {}",
+                model.commit.stored.snapshot.application.revision.get()
+            ),
+            format!(
+                "Planned Deliverables: {}",
+                model
+                    .commit
+                    .stored
+                    .snapshot
+                    .plan
+                    .as_ref()
+                    .map_or(0, |plan| plan.deliverables.len())
+            ),
+            "Next: compose the approved Deliverables".to_owned(),
+        ],
+    )
+}
+
+fn application_v3_compose(
+    workspace_path: Option<PathBuf>,
+    arguments: ApplicationV3CandidateArgs,
+) -> CommandResult<CommandOutput> {
+    let operation = "application-flow-v3.compose";
+    let root = app_adapter::workspace_root(workspace_path, operation)?;
+    let request = read_application_v3_candidate::<ApplicationFlowComposeRequestV3>(
+        operation,
+        &arguments.candidate,
+    )?;
+    let model = Application::compose_generic_application_v3(&root, &arguments.application, request)
+        .map_err(|error| app_adapter::failure(operation, error))?
+        .data;
+    success(
+        operation,
+        "review-required",
+        &model,
+        vec![
+            format!(
+                "Application revision: {}",
+                model.commit.stored.snapshot.application.revision.get()
+            ),
+            format!(
+                "Deliverables ready for review: {}",
+                model.commit.stored.snapshot.deliverables.len()
+            ),
+            "Next: review every current Deliverable before approval".to_owned(),
+        ],
+    )
+}
+
+fn application_v3_approve(
+    workspace_path: Option<PathBuf>,
+    arguments: ApplicationV3ApproveArgs,
+) -> CommandResult<CommandOutput> {
+    let operation = "application-flow-v3.approve";
+    let root = app_adapter::workspace_root(workspace_path, operation)?;
+    let expected_revision = Revision::try_new(arguments.expected_revision).map_err(|error| {
+        CommandFailure::new(
+            operation,
+            "invalid",
+            ErrorCode::InputInvalid,
+            error.to_string(),
+            false,
+        )
+    })?;
+    let model = Application::approve_generic_application_v3(
+        &root,
+        &arguments.application,
+        ApplicationFlowApproveRequestV3 { expected_revision },
+    )
+    .map_err(|error| app_adapter::failure(operation, error))?
+    .data;
+    success(
+        operation,
+        "approved",
+        &model,
+        vec![
+            format!(
+                "Application revision: {}",
+                model.commit.stored.snapshot.application.revision.get()
+            ),
+            format!(
+                "Approved Deliverables: {}",
+                model.commit.stored.snapshot.deliverables.len()
+            ),
+            "Next: export with explicit private-artifact consent".to_owned(),
+        ],
+    )
+}
+
+fn application_v3_export(
+    workspace_path: Option<PathBuf>,
+    arguments: ApplicationV3ExportArgs,
+) -> CommandResult<CommandOutput> {
+    let operation = "application-flow-v3.export";
+    let root = app_adapter::workspace_root(workspace_path, operation)?;
+    let request = ApplicationFlowExportRequestV3::try_new(
+        &arguments.application,
+        arguments.expected_revision,
+        &arguments.destination,
+    )
+    .map_err(|error| app_adapter::failure(operation, error))?;
+    let consent = arguments
+        .allow_private_export
+        .then(PrivateExportConsent::granted_by_user);
+    let model = Application::export_generic_application_v3(&root, request, consent)
+        .map_err(|error| app_adapter::failure(operation, error))?
+        .data;
+    success(
+        operation,
+        "exported",
+        &model,
+        vec![
+            format!("Exported PDFs: {}", model.render.documents.len()),
+            format!("Destination: {}", model.render.destination),
+            "Submission performed: no".to_owned(),
+        ],
+    )
+}
+
+fn read_application_v3_candidate<T>(operation: &'static str, path: &Path) -> CommandResult<T>
+where
+    T: serde::de::DeserializeOwned,
+{
+    let metadata = fs::symlink_metadata(path).map_err(|error| {
+        CommandFailure::new(
+            operation,
+            "io-failed",
+            ErrorCode::ExternalIoFailed,
+            format!(
+                "could not inspect candidate file {}: {error}",
+                path.display()
+            ),
+            true,
+        )
+    })?;
+    if !metadata.file_type().is_file() {
+        return Err(CommandFailure::new(
+            operation,
+            "invalid",
+            ErrorCode::InputPathRejected,
+            format!(
+                "candidate path must be a regular non-symlink file: {}",
+                path.display()
+            ),
+            false,
+        ));
+    }
+    if metadata.len() > MAX_APPLICATION_V3_CANDIDATE_BYTES {
+        return Err(CommandFailure::new(
+            operation,
+            "invalid",
+            ErrorCode::InputInvalid,
+            format!(
+                "candidate file exceeds the {} byte limit",
+                MAX_APPLICATION_V3_CANDIDATE_BYTES
+            ),
+            false,
+        ));
+    }
+    let bytes = fs::read(path).map_err(|error| {
+        CommandFailure::new(
+            operation,
+            "io-failed",
+            ErrorCode::ExternalIoFailed,
+            format!("could not read candidate file {}: {error}", path.display()),
+            true,
+        )
+    })?;
+    if u64::try_from(bytes.len()).expect("candidate length fits u64")
+        > MAX_APPLICATION_V3_CANDIDATE_BYTES
+    {
+        return Err(CommandFailure::new(
+            operation,
+            "invalid",
+            ErrorCode::InputInvalid,
+            format!(
+                "candidate file exceeds the {} byte limit",
+                MAX_APPLICATION_V3_CANDIDATE_BYTES
+            ),
+            false,
+        ));
+    }
+    serde_json::from_slice(&bytes).map_err(|error| {
+        CommandFailure::new(
+            operation,
+            "invalid",
+            ErrorCode::InputInvalid,
+            format!("candidate JSON does not match the operation contract: {error}"),
+            false,
+        )
+    })
 }
 
 fn content_list(
@@ -4179,15 +4688,150 @@ mod tests {
     use clap::Parser;
 
     use super::{
-        AgentAssetsExportArgs, AgentHostName, Cli, CommandFailure, ExitClass, OutputArgs,
-        TaskExecutionModeName, TaskOperationName, agent_assets_export, assistance, capabilities,
-        context, human_failure_lines, human_success_lines,
+        AgentAssetsExportArgs, AgentHostName, ApplicationCommand, ApplicationV3CreateArgs,
+        BuiltInPackName, Cli, Command, CommandFailure, ExitClass, OutputArgs,
+        TaskExecutionModeName, TaskOperationName, WorkspaceCommand, WorkspaceInitArgs,
+        agent_assets_export, assistance, capabilities, context, execute, human_failure_lines,
+        human_success_lines,
     };
+
+    fn command_ok(result: super::CommandResult<super::CommandOutput>) -> super::CommandOutput {
+        match result {
+            Ok(output) => output,
+            Err(failure) => panic!("command failed: {}", failure.human),
+        }
+    }
 
     #[test]
     fn clap_usage_errors_are_reserved_for_exit_two() {
         let error = Cli::try_parse_from(["canisend", "unknown"]).expect_err("unknown command");
         assert_eq!(error.exit_code(), i32::from(ExitClass::CliUsage.code()));
+    }
+
+    #[test]
+    fn canonical_v3_commands_parse_with_explicit_pack_and_revision_boundaries() {
+        let initialized = Cli::try_parse_from([
+            "canisend",
+            "--workspace",
+            "/tmp/canisend-generic",
+            "workspace",
+            "init",
+        ])
+        .expect("default generic Workspace init");
+        assert!(matches!(
+            initialized.command,
+            Command::Workspace {
+                command: WorkspaceCommand::Init(super::WorkspaceInitArgs {
+                    pack: BuiltInPackName::GenericApplication,
+                    ..
+                })
+            }
+        ));
+
+        let compose = Cli::try_parse_from([
+            "canisend",
+            "application",
+            "generic-compose",
+            "--application",
+            "019f3e88-6630-7000-8000-000000000001",
+            "--candidate",
+            "/tmp/compose.json",
+            "--json",
+        ])
+        .expect("generic compose command");
+        assert!(matches!(
+            compose.command,
+            Command::Application {
+                command: ApplicationCommand::GenericCompose(_)
+            }
+        ));
+
+        let migrate = Cli::try_parse_from([
+            "canisend",
+            "workspace",
+            "migrate",
+            "--expected-plan-sha256",
+            &"a".repeat(64),
+            "--backup-destination",
+            "/tmp/canisend-v2-backup",
+        ])
+        .expect("revision-bound migration command");
+        assert!(matches!(
+            migrate.command,
+            Command::Workspace {
+                command: WorkspaceCommand::Migrate(_)
+            }
+        ));
+    }
+
+    #[test]
+    fn canonical_v3_cli_dispatches_a_bounded_create_candidate() {
+        let root = std::env::temp_dir().join(format!(
+            "canisend-cli-generic-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("time")
+                .as_nanos()
+        ));
+        let candidate = root.with_extension("json");
+        command_ok(execute(Cli {
+            workspace: Some(root.clone()),
+            command: Command::Workspace {
+                command: WorkspaceCommand::Init(WorkspaceInitArgs {
+                    pack: BuiltInPackName::GenericApplication,
+                    output: OutputArgs { json: true },
+                }),
+            },
+        }));
+        fs::write(
+            &candidate,
+            r#"{
+              "title":"Synthetic application",
+              "opportunity_metadata":{},
+              "application_metadata":{},
+              "source_text":"Narrative required.",
+              "requirements":[{
+                "category":"format",
+                "statement":"Narrative required.",
+                "priority":"mandatory",
+                "start_byte":0,
+                "end_byte":19
+              }]
+            }"#,
+        )
+        .expect("write bounded candidate");
+
+        let created = command_ok(execute(Cli {
+            workspace: Some(root.clone()),
+            command: Command::Application {
+                command: ApplicationCommand::GenericCreate(ApplicationV3CreateArgs {
+                    candidate: candidate.clone(),
+                    output: OutputArgs { json: true },
+                }),
+            },
+        }));
+        assert_eq!(created.response.operation, "application-flow-v3.create");
+        assert_eq!(created.response.status, "created");
+
+        let listed = command_ok(execute(Cli {
+            workspace: Some(root.clone()),
+            command: Command::Application {
+                command: ApplicationCommand::V3List(OutputArgs { json: true }),
+            },
+        }));
+        assert_eq!(
+            listed
+                .response
+                .data
+                .as_ref()
+                .and_then(serde_json::Value::as_array)
+                .map(Vec::len),
+            Some(1)
+        );
+
+        fs::remove_dir_all(root).expect("remove v3 Workspace fixture");
+        fs::remove_file(candidate).expect("remove candidate fixture");
     }
 
     #[test]

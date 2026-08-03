@@ -125,6 +125,22 @@ pub struct ApplicationFlowCommitReadModelV3 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct ApplicationFlowReviewDeliverableV3 {
+    pub deliverable: DeliverableRecordV3,
+    pub content: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ApplicationFlowReviewReadModelV3 {
+    pub stored: StoredApplicationModelV3,
+    pub deliverables: Vec<ApplicationFlowReviewDeliverableV3>,
+    pub stages: Vec<ApplicationFlowStageReadModelV3>,
+    pub submission_performed: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ApplicationFlowRenderedDeliverableV3 {
     pub deliverable_id: DeliverableId,
     pub deliverable_revision: Revision,
@@ -268,6 +284,25 @@ impl<'a> ApplicationFlowServiceV3<'a> {
         let stages = derive_stages(pack, &commit.stored.snapshot, false, false)?;
         Ok(ApplicationFlowReadModelV3 {
             stored: commit.stored,
+            stages,
+            submission_performed: false,
+        })
+    }
+
+    pub fn status(
+        &mut self,
+        pack: &VerifiedWorkflowPackBundle,
+        application_id: &ApplicationId,
+    ) -> Result<ApplicationFlowReadModelV3, StoreError> {
+        let stored = ApplicationModelRepository::new(self.database).get(application_id)?;
+        if stored.snapshot.pack != pack_binding(pack) {
+            return Err(StoreError::ApplicationModelConflict(
+                "operation Pack does not match the exact Application Pack binding".to_owned(),
+            ));
+        }
+        let stages = derive_stages(pack, &stored.snapshot, false, false)?;
+        Ok(ApplicationFlowReadModelV3 {
+            stored,
             stages,
             submission_performed: false,
         })
@@ -498,6 +533,47 @@ impl<'a> ApplicationFlowServiceV3<'a> {
         self.commit_read_model(pack, commit)
     }
 
+    pub fn review(
+        &mut self,
+        pack: &VerifiedWorkflowPackBundle,
+        application_id: &ApplicationId,
+    ) -> Result<ApplicationFlowReviewReadModelV3, StoreError> {
+        let stored = ApplicationModelRepository::new(self.database).get(application_id)?;
+        if stored.snapshot.pack != pack_binding(pack) {
+            return Err(StoreError::ApplicationModelConflict(
+                "operation Pack does not match the exact Application Pack binding".to_owned(),
+            ));
+        }
+        let mut deliverables = Vec::with_capacity(stored.snapshot.deliverables.len());
+        for deliverable in &stored.snapshot.deliverables {
+            let content = deliverable.content.as_ref().ok_or_else(|| {
+                StoreError::ApplicationModelIntegrity(
+                    "materialized Deliverable has no content reference".to_owned(),
+                )
+            })?;
+            let bytes = self.blobs.read_verified(
+                &content.sha256,
+                MAX_APPLICATION_FLOW_DELIVERABLE_BYTES_V3 as u64,
+            )?;
+            let content = String::from_utf8(bytes).map_err(|_| {
+                StoreError::ApplicationModelIntegrity(
+                    "Deliverable Blob is not valid UTF-8 text".to_owned(),
+                )
+            })?;
+            deliverables.push(ApplicationFlowReviewDeliverableV3 {
+                deliverable: deliverable.clone(),
+                content,
+            });
+        }
+        let stages = derive_stages(pack, &stored.snapshot, false, false)?;
+        Ok(ApplicationFlowReviewReadModelV3 {
+            stored,
+            deliverables,
+            stages,
+            submission_performed: false,
+        })
+    }
+
     pub fn export(
         &mut self,
         pack: &VerifiedWorkflowPackBundle,
@@ -717,6 +793,11 @@ fn validate_source_and_requirements(
         {
             return Err(StoreError::InvalidInput(
                 "Requirement span must select exact UTF-8 source bytes".to_owned(),
+            ));
+        }
+        if source.get(start..end) != Some(requirement.statement.as_str()) {
+            return Err(StoreError::InvalidInput(
+                "Requirement statement must equal the exact selected source bytes".to_owned(),
             ));
         }
     }
@@ -1013,6 +1094,32 @@ mod tests {
         let generic = bundle(generic_application_workflow_pack());
         let academic = bundle(academic_job_workflow_pack());
         let source = "Provide a narrative and an appendix.";
+        let mismatched =
+            ApplicationFlowServiceV3::new(&mut workspace.database, &workspace.blobs, &root)
+                .create(
+                    &generic,
+                    ApplicationFlowCreateRequestV3 {
+                        title: "Mismatched source span".to_owned(),
+                        opportunity_metadata: BTreeMap::new(),
+                        application_metadata: BTreeMap::new(),
+                        source_text: source.to_owned(),
+                        requirements: vec![ApplicationFlowRequirementDraftV3 {
+                            category: item("format"),
+                            statement: "Different statement".to_owned(),
+                            priority: RequirementPriorityV3::Mandatory,
+                            start_byte: 0,
+                            end_byte: u64::try_from(source.len()).expect("source length"),
+                        }],
+                    },
+                )
+                .expect_err("mismatched source statement must fail");
+        assert!(matches!(mismatched, StoreError::InvalidInput(_)));
+        assert!(
+            ApplicationModelRepository::new(&mut workspace.database)
+                .list()
+                .expect("list after mismatch")
+                .is_empty()
+        );
         let created =
             ApplicationFlowServiceV3::new(&mut workspace.database, &workspace.blobs, &root)
                 .create(
@@ -1050,7 +1157,7 @@ mod tests {
                         source_text: "MALFORMED-SOURCE-MUST-NOT-BE-WRITTEN".to_owned(),
                         requirements: vec![ApplicationFlowRequirementDraftV3 {
                             category: item("format"),
-                            statement: "Invalid empty-title fixture".to_owned(),
+                            statement: "MALFORMED-".to_owned(),
                             priority: RequirementPriorityV3::Mandatory,
                             start_byte: 0,
                             end_byte: 10,

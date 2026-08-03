@@ -40,7 +40,8 @@ pub use application_flow_v3::{
     ApplicationFlowExportManifestV3, ApplicationFlowExportReadModelV3,
     ApplicationFlowPlanRequestV3, ApplicationFlowPlannedDeliverableV3, ApplicationFlowReadModelV3,
     ApplicationFlowRenderedDeliverableV3, ApplicationFlowRequirementDraftV3,
-    ApplicationFlowServiceV3, ApplicationFlowStageReadModelV3, ApplicationFlowStageStateV3,
+    ApplicationFlowReviewDeliverableV3, ApplicationFlowReviewReadModelV3, ApplicationFlowServiceV3,
+    ApplicationFlowStageReadModelV3, ApplicationFlowStageStateV3,
     MAX_APPLICATION_FLOW_SOURCE_BYTES_V3,
 };
 pub use application_projection_v3::{

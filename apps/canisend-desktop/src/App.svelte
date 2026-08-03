@@ -126,7 +126,10 @@
     uninstallCli,
     uninstallAgentSkills,
     type ActionReceipt,
+    ACADEMIC_JOB_WORKFLOW_PACK_ID,
+    GENERIC_APPLICATION_WORKFLOW_PACK_ID,
     type AgentAssistanceReadModel,
+    type BuiltInWorkflowPackId,
     type AgentCapabilitiesReadModel,
     type AgentContextReadModel,
     type AgentHandoffReadModel,
@@ -210,6 +213,8 @@
   type AgentViewComponent = typeof import("$lib/views/AgentView.svelte").default;
   type ApplicationsViewComponent =
     typeof import("$lib/views/ApplicationsView.svelte").default;
+  type GenericApplicationsViewComponent =
+    typeof import("$lib/views/GenericApplicationsView.svelte").default;
   type WorkflowViewComponent =
     typeof import("$lib/views/WorkflowView.svelte").default;
   type DeliveryViewComponent =
@@ -235,6 +240,7 @@
   let lastSuccessfulAction = $state<LastSuccessfulAction | null>(null);
   let AgentView = $state<AgentViewComponent | null>(null);
   let ApplicationsView = $state<ApplicationsViewComponent | null>(null);
+  let GenericApplicationsView = $state<GenericApplicationsViewComponent | null>(null);
   let WorkflowView = $state<WorkflowViewComponent | null>(null);
   let DeliveryView = $state<DeliveryViewComponent | null>(null);
   let OpportunitiesView = $state<OpportunitiesViewComponent | null>(null);
@@ -301,6 +307,9 @@
 
   const copy = $derived(messages[language]);
   const selectedJobId = $derived(selectedJob?.job.id ?? "");
+  const activePackId = $derived<BuiltInWorkflowPackId>(
+    activeWorkspace?.pack_id ?? ACADEMIC_JOB_WORKFLOW_PACK_ID,
+  );
   const selectedDossier = $derived(
     applicationDossiers.find((dossier) => dossier.job.id === selectedJobId) ?? null,
   );
@@ -526,6 +535,7 @@
   $effect(() => {
     if (
       activeView !== "applications" ||
+      activePackId !== ACADEMIC_JOB_WORKFLOW_PACK_ID ||
       ApplicationsView ||
       applicationsViewLoading ||
       applicationsViewFailed
@@ -536,6 +546,31 @@
     void import("$lib/views/ApplicationsView.svelte")
       .then((module) => {
         ApplicationsView = module.default;
+      })
+      .catch((error: unknown) => {
+        applicationsViewFailed = true;
+        captureBridgeError(error);
+        bridgeErrorCanRetry = true;
+      })
+      .finally(() => {
+        applicationsViewLoading = false;
+      });
+  });
+
+  $effect(() => {
+    if (
+      activeView !== "applications" ||
+      activePackId !== GENERIC_APPLICATION_WORKFLOW_PACK_ID ||
+      GenericApplicationsView ||
+      applicationsViewLoading ||
+      applicationsViewFailed
+    ) {
+      return;
+    }
+    applicationsViewLoading = true;
+    void import("$lib/views/GenericApplicationsView.svelte")
+      .then((module) => {
+        GenericApplicationsView = module.default;
       })
       .catch((error: unknown) => {
         applicationsViewFailed = true;
@@ -721,11 +756,12 @@
 
   async function refreshWorkflowPackPresentation(
     requestedLanguage: Language,
+    packId: BuiltInWorkflowPackId = activePackId,
   ): Promise<void> {
     if (!desktopRuntime) return;
     const request = ++workflowPackPresentationRequest;
     try {
-      const receipt = await getWorkflowPackPresentation(requestedLanguage);
+      const receipt = await getWorkflowPackPresentation(requestedLanguage, packId);
       if (request === workflowPackPresentationRequest) {
         workflowPackPresentation = receipt.data;
       }
@@ -863,6 +899,7 @@
     contentCatalog = null;
     contentSearchResult = null;
     notice = session.action.summary;
+    void refreshWorkflowPackPresentation(language, session.action.data.pack_id);
   }
 
   async function loadJobsForActive(): Promise<void> {
@@ -1012,6 +1049,14 @@
   }
 
   async function loadWorkspaceCollections(): Promise<void> {
+    if (activeWorkspace?.pack_id === GENERIC_APPLICATION_WORKFLOW_PACK_ID) {
+      jobs = [];
+      selectedJob = null;
+      applicationDossiers = [];
+      clearDiscoverySession();
+      clearProfileSession();
+      return;
+    }
     await Promise.all([
       loadJobsForActive(),
       loadDiscoveryForActive(),
@@ -1061,8 +1106,12 @@
     return true;
   }
 
-  async function handleCreateWorkspace(alias: string, path: string): Promise<boolean> {
-    const result = await runAction(() => createWorkspace(alias, path), {
+  async function handleCreateWorkspace(
+    alias: string,
+    path: string,
+    packId: BuiltInWorkflowPackId,
+  ): Promise<boolean> {
+    const result = await runAction(() => createWorkspace(alias, path, packId), {
       operation: "workspace.create",
       route: { view: "opportunities", detail: "lead-list" },
       jobId: null,
@@ -1169,13 +1218,10 @@
       },
     );
     if (!result) return false;
-    registrySnapshot = result.registry;
-    activeWorkspace = {
-      path:
-        result.registry.registry.default_path ?? result.action.data.destination,
-      status: result.action.data.workspace,
-    };
-    workspaceHealth = null;
+    const restoredPath =
+      result.registry.registry.default_path ?? result.action.data.destination;
+    const session = await selectWorkspace(restoredPath);
+    applyWorkspaceSession(session);
     await loadWorkspaceCollections();
     notice = result.action.summary;
     return true;
@@ -2907,7 +2953,14 @@
           <LoadingPanel label={copy.loading} class="min-h-32" />
         {/if}
       {:else if activeView === "applications"}
-        {#if ApplicationsView}
+        {#if activePackId === GENERIC_APPLICATION_WORKFLOW_PACK_ID && GenericApplicationsView && activeWorkspace}
+          <GenericApplicationsView
+            {copy}
+            {desktopRuntime}
+            {activeWorkspace}
+            presentation={workflowPackPresentation}
+          />
+        {:else if activePackId === ACADEMIC_JOB_WORKFLOW_PACK_ID && ApplicationsView}
           <ApplicationsView
             {copy}
             {desktopRuntime}

@@ -1,15 +1,16 @@
 use std::path::{Path, PathBuf};
 
 use canisend_app::{
-    ActionReceipt, Application, ApplicationDossierListReadModel, ApplicationDossierReadModel,
-    ApplicationError, BackupReadModel, ContentCatalogFilter, ContentCatalogReadModel,
-    ContentSearchReadModel, ContentSearchRequest, DoctorSummary, JobDetailReadModel,
-    JobListReadModel, NetworkFetchConsent, PrivateReadConsent, ProductSummary,
+    ACADEMIC_JOB_WORKFLOW_PACK_ID, ActionReceipt, Application, ApplicationDossierListReadModel,
+    ApplicationDossierReadModel, ApplicationError, BackupReadModel, ContentCatalogFilter,
+    ContentCatalogReadModel, ContentSearchReadModel, ContentSearchRequest, DoctorSummary,
+    JobDetailReadModel, JobListReadModel, NetworkFetchConsent, PrivateReadConsent, ProductSummary,
     SourceImportReadModel, WorkflowPackPresentationLocale, WorkflowPackPresentationReadModel,
     WorkspaceHealthReadModel, WorkspaceReadModel, WorkspaceRegistry, WorkspaceRepairReadModel,
-    WorkspaceRestoreReadModel, default_registry_path, validate_workspace_alias,
+    WorkspaceRestoreReadModel, WorkspaceV3MigrationPreview, WorkspaceV3MigrationReadModel,
+    WorkspaceV3MigrationRequest, default_registry_path, validate_workspace_alias,
 };
-use canisend_contracts::JobRecord;
+use canisend_contracts::{JobRecord, Sha256Digest};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -94,6 +95,8 @@ pub(crate) struct RegisteredAction<T> {
 pub(crate) struct WorkspaceCreateRequest {
     alias: String,
     path: PathBuf,
+    #[serde(default)]
+    pack_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -115,6 +118,14 @@ pub(crate) struct WorkspaceRestoreRequest {
     alias: String,
     backup: PathBuf,
     destination: PathBuf,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct WorkspaceMigrateRequest {
+    workspace: PathBuf,
+    expected_plan_sha256: String,
+    backup_destination: PathBuf,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -177,10 +188,12 @@ pub(crate) struct ContentSearchCommandRequest {
     limit: usize,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct WorkflowPackPresentationRequest {
     locale: WorkflowPackPresentationLocale,
+    #[serde(default)]
+    pack_id: Option<String>,
 }
 
 pub(crate) fn product_summary_impl() -> ProductSummary {
@@ -194,8 +207,14 @@ pub(crate) fn doctor_impl() -> Result<ActionReceipt<DoctorSummary>, DesktopComma
 fn workflow_pack_presentation_impl(
     request: WorkflowPackPresentationRequest,
 ) -> Result<ActionReceipt<WorkflowPackPresentationReadModel>, DesktopCommandError> {
-    Application::built_in_academic_pack_presentation(request.locale)
-        .map_err(DesktopCommandError::application)
+    Application::built_in_pack_presentation(
+        request
+            .pack_id
+            .as_deref()
+            .unwrap_or(ACADEMIC_JOB_WORKFLOW_PACK_ID),
+        request.locale,
+    )
+    .map_err(DesktopCommandError::application)
 }
 
 fn registry_snapshot_impl(registry_path: &Path) -> Result<RegistrySnapshot, DesktopCommandError> {
@@ -224,8 +243,14 @@ fn create_workspace_impl(
     request: WorkspaceCreateRequest,
 ) -> Result<RegisteredAction<WorkspaceReadModel>, DesktopCommandError> {
     validate_workspace_alias(request.alias.trim()).map_err(DesktopCommandError::registry)?;
-    let action = Application::initialize_workspace(&request.path)
-        .map_err(DesktopCommandError::application)?;
+    let action = Application::initialize_workspace_for_pack(
+        &request.path,
+        request
+            .pack_id
+            .as_deref()
+            .unwrap_or(ACADEMIC_JOB_WORKFLOW_PACK_ID),
+    )
+    .map_err(DesktopCommandError::application)?;
     let mut registry =
         WorkspaceRegistry::load(registry_path).map_err(DesktopCommandError::registry)?;
     registry
@@ -479,6 +504,36 @@ pub(crate) async fn repair_workspace(
 }
 
 #[tauri::command]
+pub(crate) async fn preview_workspace_v3_migration(
+    request: WorkspacePathRequest,
+) -> Result<ActionReceipt<WorkspaceV3MigrationPreview>, DesktopCommandError> {
+    run_worker(move || {
+        Application::preview_workspace_v3_migration(&request.path)
+            .map_err(DesktopCommandError::application)
+    })
+    .await
+}
+
+#[tauri::command]
+pub(crate) async fn migrate_workspace_v3(
+    request: WorkspaceMigrateRequest,
+) -> Result<ActionReceipt<WorkspaceV3MigrationReadModel>, DesktopCommandError> {
+    run_worker(move || {
+        let expected_plan_sha256 = Sha256Digest::try_new(request.expected_plan_sha256)
+            .map_err(|error| DesktopCommandError::state(error.to_string()))?;
+        Application::migrate_workspace_v3(
+            &request.workspace,
+            WorkspaceV3MigrationRequest {
+                expected_plan_sha256,
+                backup_destination: request.backup_destination,
+            },
+        )
+        .map_err(DesktopCommandError::application)
+    })
+    .await
+}
+
+#[tauri::command]
 pub(crate) async fn list_jobs(
     request: JobListRequest,
 ) -> Result<ActionReceipt<JobListReadModel>, DesktopCommandError> {
@@ -600,6 +655,7 @@ mod tests {
     fn workflow_pack_presentation_resolves_host_locale_through_verified_pack() {
         let presentation = workflow_pack_presentation_impl(WorkflowPackPresentationRequest {
             locale: WorkflowPackPresentationLocale::SimplifiedChinese,
+            pack_id: None,
         })
         .expect("Pack presentation");
 
@@ -608,6 +664,40 @@ mod tests {
         assert_eq!(presentation.data.selected_locale.as_str(), "zh-Hans");
         assert_eq!(presentation.data.deliverables.len(), 4);
         assert_eq!(presentation.data.deliverables[3].label.value, "学术简历");
+    }
+
+    #[test]
+    fn desktop_pack_selection_creates_v3_and_resolves_generic_labels() {
+        let root = temporary_root("generic-workspace");
+        let registry_path = temporary_root("generic-registry").join("workspaces.json");
+        let presentation = workflow_pack_presentation_impl(WorkflowPackPresentationRequest {
+            locale: WorkflowPackPresentationLocale::English,
+            pack_id: Some(canisend_app::GENERIC_APPLICATION_WORKFLOW_PACK_ID.to_owned()),
+        })
+        .expect("generic Pack presentation");
+        assert_eq!(
+            presentation.data.pack.id.as_str(),
+            canisend_app::GENERIC_APPLICATION_WORKFLOW_PACK_ID
+        );
+        assert_eq!(presentation.data.deliverables.len(), 2);
+
+        let created = create_workspace_impl(
+            &registry_path,
+            WorkspaceCreateRequest {
+                alias: "Generic applications".to_owned(),
+                path: root.clone(),
+                pack_id: Some(canisend_app::GENERIC_APPLICATION_WORKFLOW_PACK_ID.to_owned()),
+            },
+        )
+        .expect("generic v3 Workspace");
+        assert_eq!(
+            created.action.data.status.workspace_format,
+            "canisend.workspace/v3"
+        );
+
+        fs::remove_dir_all(root).expect("remove Workspace");
+        fs::remove_dir_all(registry_path.parent().expect("registry parent"))
+            .expect("remove registry");
     }
 
     #[test]
@@ -636,6 +726,7 @@ mod tests {
             WorkspaceCreateRequest {
                 alias: "Academic applications".to_owned(),
                 path: root.clone(),
+                pack_id: None,
             },
         )
         .expect("create registered workspace");

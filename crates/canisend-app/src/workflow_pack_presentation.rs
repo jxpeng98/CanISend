@@ -3,12 +3,17 @@ use canisend_contracts::{
     WorkflowPackItemId, WorkflowPackLocaleId, WorkflowPackStageOutput, WorkflowPackVocabulary,
 };
 use canisend_core::{
-    ResolvedWorkflowPackText, WorkflowPackDeliverableCatalogRuntime, WorkflowPackHostLocale,
-    WorkflowPackLocaleMatch, WorkflowPackLocalizationRuntime, WorkflowPackStageGraph,
+    ResolvedWorkflowPackText, VerifiedWorkflowPackBundle, WorkflowPackDeliverableCatalogRuntime,
+    WorkflowPackHostLocale, WorkflowPackLocaleMatch, WorkflowPackLocalizationRuntime,
+    WorkflowPackStageGraph,
 };
+use canisend_resources::{ACADEMIC_JOB_WORKFLOW_PACK_ID, GENERIC_APPLICATION_WORKFLOW_PACK_ID};
 use serde::{Deserialize, Serialize};
 
-use crate::{ActionReceipt, Application, ApplicationError, built_in_academic_job_pack};
+use crate::{
+    ActionReceipt, Application, ApplicationError, built_in_academic_job_pack,
+    built_in_generic_application_pack,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WorkflowPackPresentationLocale {
@@ -117,99 +122,126 @@ pub struct WorkflowPackPresentationReadModel {
 }
 
 impl Application {
+    pub fn built_in_pack_presentation(
+        pack_id: &str,
+        locale: WorkflowPackPresentationLocale,
+    ) -> Result<ActionReceipt<WorkflowPackPresentationReadModel>, ApplicationError> {
+        let pack = match pack_id {
+            ACADEMIC_JOB_WORKFLOW_PACK_ID => built_in_academic_job_pack()?,
+            GENERIC_APPLICATION_WORKFLOW_PACK_ID => built_in_generic_application_pack()?,
+            _ => {
+                return Err(ApplicationError::InvalidInput(format!(
+                    "unknown built-in workflow Pack: {pack_id}"
+                )));
+            }
+        };
+        pack_presentation(&pack, locale)
+    }
+
     pub fn built_in_academic_pack_presentation(
         locale: WorkflowPackPresentationLocale,
     ) -> Result<ActionReceipt<WorkflowPackPresentationReadModel>, ApplicationError> {
-        let pack = built_in_academic_job_pack()?;
-        let localization = WorkflowPackLocalizationRuntime::from_verified_bundle(&pack)
-            .map_err(|error| ApplicationError::ResourceIntegrity(error.to_string()))?;
-        let selection = localization.select_host_locale(locale.host());
-        let vocabulary = localization
-            .vocabulary(&selection)
-            .map_err(|error| ApplicationError::ResourceIntegrity(error.to_string()))?
-            .clone();
-        let stage_graph = WorkflowPackStageGraph::from_verified_bundle(&pack)
-            .map_err(|error| ApplicationError::ResourceIntegrity(error.to_string()))?;
-        let deliverable_catalog =
-            WorkflowPackDeliverableCatalogRuntime::from_verified_bundle(&pack)
-                .map_err(|error| ApplicationError::ResourceIntegrity(error.to_string()))?;
-        let manifest = pack.manifest();
-        let fields = |definitions: &[canisend_contracts::WorkflowPackFieldDefinition]| {
-            definitions
-                .iter()
-                .map(|definition| presentation_field(&localization, &selection, definition))
-                .collect::<Result<Vec<_>, ApplicationError>>()
-        };
-        let categories = |definitions: &[canisend_contracts::WorkflowPackCategoryDefinition]| {
-            definitions
-                .iter()
-                .map(|definition| {
-                    Ok(WorkflowPackPresentationCategory {
-                        id: definition.id.clone(),
-                        label: presentation_label(&localization, &selection, &definition.labels)?,
-                        fields: fields(&definition.fields)?,
-                    })
-                })
-                .collect::<Result<Vec<_>, ApplicationError>>()
-        };
-        let stages = stage_graph
-            .descriptors()
-            .into_iter()
-            .map(|descriptor| {
-                Ok(WorkflowPackPresentationStage {
-                    id: descriptor.local_id().clone(),
-                    qualified_id: descriptor.stage().clone(),
-                    label: presentation_label(&localization, &selection, descriptor.labels())?,
-                    depends_on: descriptor.depends_on().to_vec(),
-                    output: descriptor.output(),
-                    execution_modes: descriptor.execution_modes().to_vec(),
-                })
-            })
-            .collect::<Result<Vec<_>, ApplicationError>>()?;
-        let deliverables = deliverable_catalog
-            .descriptors()
-            .into_iter()
-            .map(|descriptor| {
-                Ok(WorkflowPackPresentationDeliverable {
-                    id: descriptor.local_id().clone(),
-                    qualified_id: descriptor.kind().clone(),
-                    label: presentation_label(&localization, &selection, descriptor.labels())?,
-                    minimum: descriptor.minimum(),
-                    maximum: descriptor.maximum(),
-                    legacy_task_operation: academic_legacy_task_operation(
-                        descriptor.local_id().as_str(),
-                    )
-                    .map(ToOwned::to_owned),
-                })
-            })
-            .collect::<Result<Vec<_>, ApplicationError>>()?;
-        let data = WorkflowPackPresentationReadModel {
-            pack: ApplicationPackBindingV3 {
-                id: pack.snapshot().id().clone(),
-                version: pack.snapshot().version().clone(),
-                content_digest: pack.snapshot().content_digest().clone(),
-            },
-            requested_locale: selection.requested_locale().clone(),
-            selected_locale: selection.selected_locale().clone(),
-            locale_match: selection.match_kind().into(),
-            vocabulary,
-            opportunity_fields: fields(&manifest.application.opportunity_fields)?,
-            application_fields: fields(&manifest.application.application_fields)?,
-            requirement_categories: categories(&manifest.requirements.categories)?,
-            evidence_categories: categories(&manifest.evidence.categories)?,
-            stages,
-            deliverables,
-        };
-        Ok(ActionReceipt::new(
-            "workflow-pack.presentation",
-            "available",
-            format!(
-                "Resolved {} presentation labels for {}",
-                data.selected_locale, data.pack.id
-            ),
-            data,
-        ))
+        Self::built_in_pack_presentation(ACADEMIC_JOB_WORKFLOW_PACK_ID, locale)
     }
+
+    pub fn built_in_generic_pack_presentation(
+        locale: WorkflowPackPresentationLocale,
+    ) -> Result<ActionReceipt<WorkflowPackPresentationReadModel>, ApplicationError> {
+        Self::built_in_pack_presentation(GENERIC_APPLICATION_WORKFLOW_PACK_ID, locale)
+    }
+}
+
+fn pack_presentation(
+    pack: &VerifiedWorkflowPackBundle,
+    locale: WorkflowPackPresentationLocale,
+) -> Result<ActionReceipt<WorkflowPackPresentationReadModel>, ApplicationError> {
+    let localization = WorkflowPackLocalizationRuntime::from_verified_bundle(pack)
+        .map_err(|error| ApplicationError::ResourceIntegrity(error.to_string()))?;
+    let selection = localization.select_host_locale(locale.host());
+    let vocabulary = localization
+        .vocabulary(&selection)
+        .map_err(|error| ApplicationError::ResourceIntegrity(error.to_string()))?
+        .clone();
+    let stage_graph = WorkflowPackStageGraph::from_verified_bundle(pack)
+        .map_err(|error| ApplicationError::ResourceIntegrity(error.to_string()))?;
+    let deliverable_catalog = WorkflowPackDeliverableCatalogRuntime::from_verified_bundle(pack)
+        .map_err(|error| ApplicationError::ResourceIntegrity(error.to_string()))?;
+    let manifest = pack.manifest();
+    let fields = |definitions: &[canisend_contracts::WorkflowPackFieldDefinition]| {
+        definitions
+            .iter()
+            .map(|definition| presentation_field(&localization, &selection, definition))
+            .collect::<Result<Vec<_>, ApplicationError>>()
+    };
+    let categories = |definitions: &[canisend_contracts::WorkflowPackCategoryDefinition]| {
+        definitions
+            .iter()
+            .map(|definition| {
+                Ok(WorkflowPackPresentationCategory {
+                    id: definition.id.clone(),
+                    label: presentation_label(&localization, &selection, &definition.labels)?,
+                    fields: fields(&definition.fields)?,
+                })
+            })
+            .collect::<Result<Vec<_>, ApplicationError>>()
+    };
+    let stages = stage_graph
+        .descriptors()
+        .into_iter()
+        .map(|descriptor| {
+            Ok(WorkflowPackPresentationStage {
+                id: descriptor.local_id().clone(),
+                qualified_id: descriptor.stage().clone(),
+                label: presentation_label(&localization, &selection, descriptor.labels())?,
+                depends_on: descriptor.depends_on().to_vec(),
+                output: descriptor.output(),
+                execution_modes: descriptor.execution_modes().to_vec(),
+            })
+        })
+        .collect::<Result<Vec<_>, ApplicationError>>()?;
+    let deliverables = deliverable_catalog
+        .descriptors()
+        .into_iter()
+        .map(|descriptor| {
+            Ok(WorkflowPackPresentationDeliverable {
+                id: descriptor.local_id().clone(),
+                qualified_id: descriptor.kind().clone(),
+                label: presentation_label(&localization, &selection, descriptor.labels())?,
+                minimum: descriptor.minimum(),
+                maximum: descriptor.maximum(),
+                legacy_task_operation: academic_legacy_task_operation(
+                    descriptor.local_id().as_str(),
+                )
+                .map(ToOwned::to_owned),
+            })
+        })
+        .collect::<Result<Vec<_>, ApplicationError>>()?;
+    let data = WorkflowPackPresentationReadModel {
+        pack: ApplicationPackBindingV3 {
+            id: pack.snapshot().id().clone(),
+            version: pack.snapshot().version().clone(),
+            content_digest: pack.snapshot().content_digest().clone(),
+        },
+        requested_locale: selection.requested_locale().clone(),
+        selected_locale: selection.selected_locale().clone(),
+        locale_match: selection.match_kind().into(),
+        vocabulary,
+        opportunity_fields: fields(&manifest.application.opportunity_fields)?,
+        application_fields: fields(&manifest.application.application_fields)?,
+        requirement_categories: categories(&manifest.requirements.categories)?,
+        evidence_categories: categories(&manifest.evidence.categories)?,
+        stages,
+        deliverables,
+    };
+    Ok(ActionReceipt::new(
+        "workflow-pack.presentation",
+        "available",
+        format!(
+            "Resolved {} presentation labels for {}",
+            data.selected_locale, data.pack.id
+        ),
+        data,
+    ))
 }
 
 fn presentation_field(
@@ -348,5 +380,29 @@ mod tests {
         assert!(presentation.opportunity_fields[0].required);
         assert_eq!(presentation.requirement_categories.len(), 8);
         assert_eq!(presentation.evidence_categories.len(), 8);
+    }
+
+    #[test]
+    fn generic_presentation_uses_the_same_verified_pack_driven_model() {
+        let presentation = Application::built_in_generic_pack_presentation(
+            WorkflowPackPresentationLocale::SimplifiedChinese,
+        )
+        .expect("generic presentation")
+        .data;
+        assert_eq!(
+            presentation.pack.id.as_str(),
+            GENERIC_APPLICATION_WORKFLOW_PACK_ID
+        );
+        assert_eq!(presentation.stages.len(), 9);
+        assert_eq!(presentation.deliverables.len(), 2);
+        assert_eq!(presentation.opportunity_fields.len(), 4);
+        assert_eq!(presentation.application_fields.len(), 3);
+        assert!(
+            presentation
+                .stages
+                .iter()
+                .all(|stage| stage.qualified_id.pack_id_str()
+                    == GENERIC_APPLICATION_WORKFLOW_PACK_ID)
+        );
     }
 }
