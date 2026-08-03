@@ -5,8 +5,8 @@
 - Checked-in source: `1.0.0-alpha.5`, with additional post-tag changes that are not yet a
   qualified release.
 - Latest public checkpoint: [`v1.0.0-alpha.5`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.5).
-- Next authorized checkpoint: `v1.0.0-alpha.6`, the Workspace v2→v3 migration and Academic Pack
-  parity release described by the
+- Next authorized checkpoint: `v1.0.0-alpha.6`, the dual-Pack framework, Workspace v2→v3
+  migration, Academic parity, and bounded Generic v3 qualification release described by the
   [1.0 Roadmap](docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md).
 - License for current CanISend-authored source and future releases: `GPL-3.0-only`. Historical tags
   retain their original license facts.
@@ -67,11 +67,13 @@ independent artifact verification. See the
 
 ## Stage gates
 
-- **Alpha.6:** Pack v1, Agent/Workspace v3 migration, Academic Pack semantic parity, retained v2
-  compatibility, five CLI targets, and Apple Silicon GUI must pass exact source, native,
-  lifecycle, accessibility, Agent, integrity, and public-download verification.
-- **Alpha.7:** both built-in Packs and canonical v3 surfaces must pass the same exact-package gates.
-  Alpha.7 is the only Alpha eligible to become the Beta baseline.
+- **Alpha.6:** Pack v1, both built-in Pack digests, Agent/Workspace v3 migration, dual-Pack
+  semantic parity, retained Academic v2 compatibility, five CLI targets, and Apple Silicon GUI
+  must pass exact source, native, lifecycle, accessibility, Agent, integrity, and public-download
+  verification.
+- **Alpha.7:** both built-in Packs and canonical v3 surfaces must pass feedback-driven hardening,
+  broader target-user validation, and the same exact-package gates. Alpha.7 is the only Alpha
+  eligible to become the Beta baseline.
 - **Beta:** readiness must be refreshed from qualified public Alpha.7 within 24 hours, both Pack
   digests and v3 contracts must freeze, and the signed/integrity matrix must pass.
 - **Release candidate:** the feature freeze is active, the current RC is recorded before preparing
