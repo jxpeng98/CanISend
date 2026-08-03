@@ -9,6 +9,7 @@ use std::{
 };
 
 use canisend_app::{Application, PrivateReadConsent};
+use canisend_io::normalize_html_document;
 use lopdf::{
     Document, Object, Stream,
     content::{Content, Operation},
@@ -74,7 +75,11 @@ fn release_binary_stays_within_product_performance_budgets() {
     let pdf_path = root.path().join("fifty-pages.pdf");
     let binary = PathBuf::from(env!("CARGO_BIN_EXE_canisend"));
 
-    run_workspace(&binary, &workspace_path, &["workspace", "init", "--json"]);
+    run_workspace(
+        &binary,
+        &workspace_path,
+        &["workspace", "init", "--pack", "academic-job", "--json"],
+    );
     let (html_samples, pdf_job_ids) = prepare_large_workspace(&workspace_path);
     fs::write(&pdf_path, make_text_pdf(PDF_PAGES)).expect("write PDF benchmark fixture");
 
@@ -200,18 +205,19 @@ fn prepare_large_workspace(workspace_path: &Path) -> (Vec<u64>, Vec<String>) {
         .collect::<Vec<_>>();
 
     let html = one_mib_html();
-    let html_path = workspace_path.join("benchmark-input.html");
-    fs::write(&html_path, html).expect("write HTML benchmark fixture");
+    let normalized_path = workspace_path.join("benchmark-input.txt");
     let mut html_samples = Vec::new();
     for _ in 0..3 {
         let started = Instant::now();
+        let normalized = normalize_html_document(&html).expect("normalize bounded HTML fixture");
+        fs::write(&normalized_path, normalized).expect("write normalized HTML fixture");
         Application::import_local_job_source(
             workspace_path,
             html_job.data.id.as_str(),
-            &html_path,
+            &normalized_path,
             PrivateReadConsent::granted_by_user(),
         )
-        .expect("import normalized HTML");
+        .expect("commit normalized HTML");
         html_samples.push(duration_millis(started.elapsed()));
     }
     (html_samples, pdf_job_ids)

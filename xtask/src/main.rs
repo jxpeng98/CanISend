@@ -6198,6 +6198,7 @@ fn check_native_test_ownership() -> Result<(), String> {
                 "version-and-doctor",
                 "documented-quickstart",
                 "host-agent-smoke",
+                "agent-v3-mcp-smoke",
                 "isolated-install-uninstall-workspace-retention"
             ],
             "targets": [
@@ -6401,6 +6402,34 @@ fn check_native_test_ownership() -> Result<(), String> {
             "Agent v2 host smoke must select the exact academic compatibility authority".to_owned(),
         );
     }
+    let agent_v3_mcp_smoke_path = root.join("scripts/smoke_agent_v3_mcp.sh");
+    let agent_v3_mcp_smoke = fs::read_to_string(&agent_v3_mcp_smoke_path)
+        .map_err(|error| format!("Agent v3 MCP smoke script is missing: {error}"))?;
+    for required in [
+        "--pack generic-application --json",
+        "canisend_agent_v3_capabilities",
+        "canisend_agent_v3_context",
+        "canisend_application_create",
+        "MCP-V3-PRIVATE-SENTINEL",
+        "--pack academic-job --json",
+        "compatibility.unavailable",
+    ] {
+        if !agent_v3_mcp_smoke.contains(required) {
+            return Err(format!(
+                "Agent v3 MCP smoke script is missing invariant `{required}`"
+            ));
+        }
+    }
+    let release_archive_smoke =
+        fs::read_to_string(root.join("scripts/smoke_release_archive.sh"))
+            .map_err(|error| format!("release archive smoke script is missing: {error}"))?;
+    if !release_archive_smoke
+        .contains("smoke_agent_v3_mcp.sh\" \"$executable\" \"$smoke_root/agent-v3-mcp-workflow")
+    {
+        return Err(
+            "release archive smoke must exercise Agent v3 MCP on every packaged CLI".to_owned(),
+        );
+    }
     let git_attributes_path = root.join(".gitattributes");
     let git_attributes = fs::read_to_string(&git_attributes_path)
         .map_err(|error| format!("Git attributes are missing: {error}"))?;
@@ -6600,6 +6629,14 @@ fn check_native_test_ownership() -> Result<(), String> {
                 "release workflow is missing native test owner `{required}`"
             ));
         }
+    }
+    let performance_contract =
+        fs::read_to_string(root.join("crates/canisend-cli/tests/performance_contract.rs"))
+            .map_err(|error| format!("release performance contract is missing: {error}"))?;
+    if !performance_contract.contains("\"academic-job\"") {
+        return Err(
+            "legacy job performance fixtures must select the exact academic Pack".to_owned(),
+        );
     }
     for required in [
         "      - name: Build compile-only Intel macOS GUI\n        if: matrix.target == 'x86_64-apple-darwin' && needs.release-identity.outputs.stage != 'alpha'",
@@ -6848,6 +6885,7 @@ fn check_release_contract() -> Result<(), String> {
         "scripts/stage_native_bundle.sh",
         "scripts/package_native_release.sh",
         "scripts/smoke_release_archive.sh",
+        "scripts/smoke_agent_v3_mcp.sh",
         "scripts/stage_macos_gui_app.sh",
         "scripts/package_macos_gui_release.sh",
         "scripts/smoke_macos_gui_dmg.sh",
@@ -15379,8 +15417,8 @@ mod tests {
         let today = Date::from_calendar_date(2026, Month::August, 3).expect("fixture date");
         let summary = validate_workspace_dependency_policy(&policy, &packages, &edges, today)
             .expect("current policy");
-        assert_eq!(summary.actual_edges, 26);
-        assert_eq!(summary.target_edges, 25);
+        assert_eq!(summary.actual_edges, 27);
+        assert_eq!(summary.target_edges, 26);
 
         let mut reclassified = policy.clone();
         reclassified["actual_edges"][0]["optional"] = json!(true);
