@@ -51,7 +51,19 @@ false-sharing, Pack mismatch, compatibility, and source-drift checks are release
 
 This advances ordered-path item 1 from missing to implemented source evidence. It does not satisfy
 M1-OP-003 semantic parity or qualify the M1A exit gate by itself. The next ordered implementation
-item is the current architecture ADR plus dependency-edge policy.
+item was the current architecture ADR plus dependency-edge policy.
+
+M1-ADR-001 / M1-GRAPH-001 now also have source implementation evidence in
+[ADR-RN-0019](../../architecture/rust-native/decisions/0019-current-product-graph.md), the
+[machine-readable dependency policy](../../architecture/rust-native/workspace-dependency-policy-v1.json),
+and the [implementation record](2026-08-03-m1-architecture-dependency-graph.md). The accepted ADR
+records the actual and target graphs; ADR-RN-0002 and the egui ADR-RN-0013 are superseded; all 29
+current internal Cargo edges are source-gated across normal/dev/build/target/optional/feature
+dimensions. The sole Store→IO exception is review-bound to 2026-08-10 and expires 2026-08-17.
+
+This advances ordered-path item 2 from missing/contradicted to implemented source evidence. It
+does not resolve the Store→IO exception or the M1B target graph. The next ordered P0 implementation
+item is the shared approval broker and complete M1-TEST-001 matrix.
 
 P1 CI/dependency improvements, governance work-item linkage, independent evidence review, dogfood,
 target-user validation, signing, and later Alpha.7 dual-Pack qualification also remain, but they do
@@ -61,8 +73,8 @@ not replace the P0 implementation order.
 
 1. Completed in source: GF5-OP-001 with M1-OP-001/002 now provides one typed canonical leaf
    registry and source-gated Clap/Tauri/MCP mappings.
-2. Accept the current architecture ADR, supersede ADR-RN-0013, and add the complete dependency-edge
-   policy (M1-ADR/GRAPH).
+2. Completed in source: ADR-RN-0019 supersedes the obsolete graph/egui authorities and the complete
+   internal dependency-edge policy is release-gated (M1-ADR/GRAPH).
 3. Replace duplicated preview stores with the shared approval broker and its complete failure and
    concurrency suite (M1-APPR/TEST).
 4. Build the two-Pack semantic parity matrix and machine-list uncovered leaves

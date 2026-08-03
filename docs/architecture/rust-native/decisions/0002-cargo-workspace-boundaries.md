@@ -1,6 +1,6 @@
 # ADR-RN-0002: Use a Six-Crate Cargo Workspace with Inward Dependency Direction
 
-**Status:** Accepted
+**Status:** Superseded by ADR-RN-0019
 
 **Date:** 2026-07-17
 
@@ -23,6 +23,10 @@ The initial Cargo workspace contains:
 
 An optional Rust `xtask` package owns repository automation. Dependencies point inward: contracts are foundational;
 core does not depend on CLI or concrete external adapters; outer crates implement core ports.
+
+This six-crate starting graph remains historical context. ADR-RN-0019 records and source-gates the
+current nine-product-crate graph, MCP adapter, Tauri/Svelte desktop, unified host, automation
+boundary, and time-bounded Store→IO exception.
 
 ## Consequences
 

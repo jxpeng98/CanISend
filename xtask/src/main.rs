@@ -16,7 +16,7 @@ use canisend_contracts::{
 use semver::Version;
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
-use time::{Duration, OffsetDateTime, format_description::well_known::Rfc3339};
+use time::{Date, Duration, Month, OffsetDateTime, format_description::well_known::Rfc3339};
 
 const RELEASE_TARGET_SCHEMA: &str = "canisend.release-targets/v1";
 const RELEASE_MANIFEST_SCHEMA: &str = "canisend.release-manifest/v1";
@@ -38,6 +38,7 @@ const RELEASE_HISTORY_SCHEMA: &str = "canisend.release-history/v1";
 const RELEASE_LINE_POLICY_SCHEMA: &str = "canisend.release-line-policy/v1";
 const RELEASE_LINE_PLAN_SCHEMA: &str = "canisend.release-line-plan/v1";
 const SVELTE_PARITY_SCHEMA: &str = "canisend.svelte-parity/v1";
+const WORKSPACE_DEPENDENCY_POLICY_SCHEMA: &str = "canisend.workspace-dependency-policy/v1";
 const STAGE_TRANSITION_POLICY_SCHEMA: &str = "canisend.stage-transition-policy/v1";
 const STAGE_TRANSITION_PLAN_SCHEMA: &str = "canisend.stage-transition-plan/v1";
 const FEATURE_FREEZE_PLAN_SCHEMA: &str = "canisend.feature-freeze-plan/v1";
@@ -88,6 +89,9 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
         [area, command] if area == "desktop" && command == "parity" => check_svelte_parity(),
         [area, command] if area == "operations" && command == "check" => {
             check_operation_registry()
+        }
+        [area, command] if area == "architecture" && command == "graph-check" => {
+            check_workspace_dependency_graph()
         }
         [area, command] if area == "desktop" && command == "template-audit" => {
             check_typst_template_contract()
@@ -148,6 +152,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
             check_release_feedback()?;
             check_release_qualification()?;
             check_release_status()?;
+            check_workspace_dependency_graph()?;
             check_operation_registry()?;
             check_cli_gui_parity()?;
             check_svelte_parity()?;
@@ -5334,6 +5339,591 @@ fn check_cli_gui_parity() -> Result<(), String> {
         );
     }
     Ok(())
+}
+
+fn check_workspace_dependency_graph() -> Result<(), String> {
+    let root = repository_root();
+    check_current_architecture_decisions(&root)?;
+    let policy_path =
+        root.join("docs/architecture/rust-native/workspace-dependency-policy-v1.json");
+    let policy: Value = serde_json::from_slice(
+        &fs::read(&policy_path)
+            .map_err(|error| format!("workspace dependency policy is missing: {error}"))?,
+    )
+    .map_err(|error| format!("workspace dependency policy is invalid JSON: {error}"))?;
+    let (packages, edges) = current_workspace_dependency_facts(&root)?;
+    let summary = validate_workspace_dependency_policy(
+        &policy,
+        &packages,
+        &edges,
+        OffsetDateTime::now_utc().date(),
+    )?;
+    println!(
+        "workspace dependency graph: ok ({} product + {} automation crates, {} actual / {} target edges, {} temporary exception)",
+        summary.product_crates,
+        summary.automation_crates,
+        summary.actual_edges,
+        summary.target_edges,
+        summary.temporary_exceptions
+    );
+    Ok(())
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct WorkspaceDependencySummary {
+    product_crates: usize,
+    automation_crates: usize,
+    actual_edges: usize,
+    target_edges: usize,
+    temporary_exceptions: usize,
+}
+
+fn check_current_architecture_decisions(root: &Path) -> Result<(), String> {
+    let decisions = root.join("docs/architecture/rust-native/decisions");
+    let old_workspace = fs::read_to_string(decisions.join("0002-cargo-workspace-boundaries.md"))
+        .map_err(|error| format!("ADR-RN-0002 is missing: {error}"))?;
+    if !old_workspace.contains("**Status:** Superseded by ADR-RN-0019") {
+        return Err("ADR-RN-0002 must be superseded by ADR-RN-0019".to_owned());
+    }
+    let old_desktop = fs::read_to_string(decisions.join("0013-native-desktop-adapter.md"))
+        .map_err(|error| format!("ADR-RN-0013 is missing: {error}"))?;
+    if !old_desktop.contains("**Status:** Superseded by ADR-RN-0015") {
+        return Err("ADR-RN-0013 must be superseded by ADR-RN-0015".to_owned());
+    }
+    let tauri = fs::read_to_string(decisions.join("0015-replace-egui-with-tauri-svelte.md"))
+        .map_err(|error| format!("ADR-RN-0015 is missing: {error}"))?;
+    if !tauri.contains("Status: Accepted") {
+        return Err("ADR-RN-0015 must remain Accepted".to_owned());
+    }
+    let current = fs::read_to_string(decisions.join("0019-current-product-graph.md"))
+        .map_err(|error| format!("ADR-RN-0019 is missing: {error}"))?;
+    for required in [
+        "**Status:** Accepted",
+        "## Actual graph",
+        "## Target graph",
+        "canisend-mcp",
+        "canisend-gui",
+        "Tauri 2",
+        "Svelte 5",
+        "unified host",
+        "canisend-store -> canisend-io",
+        "2026-08-10",
+        "2026-08-17",
+        "workspace-dependency-policy-v1.json",
+    ] {
+        if !current.contains(required) {
+            return Err(format!(
+                "ADR-RN-0019 is missing required authority `{required}`"
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn current_workspace_dependency_facts(
+    root: &Path,
+) -> Result<(BTreeSet<String>, Vec<Value>), String> {
+    let output = Command::new("cargo")
+        .args([
+            "metadata",
+            "--locked",
+            "--offline",
+            "--format-version",
+            "1",
+            "--no-deps",
+        ])
+        .current_dir(root)
+        .output()
+        .map_err(|error| format!("could not run locked Cargo metadata: {error}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "locked Cargo metadata failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    let metadata: Value = serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("Cargo metadata output is invalid JSON: {error}"))?;
+    workspace_dependency_facts_from_metadata(&metadata)
+}
+
+fn workspace_dependency_facts_from_metadata(
+    metadata: &Value,
+) -> Result<(BTreeSet<String>, Vec<Value>), String> {
+    let member_ids = metadata["workspace_members"]
+        .as_array()
+        .ok_or_else(|| "Cargo metadata has no workspace_members array".to_owned())?
+        .iter()
+        .map(|member| {
+            member
+                .as_str()
+                .map(str::to_owned)
+                .ok_or_else(|| "Cargo workspace member ID must be a string".to_owned())
+        })
+        .collect::<Result<BTreeSet<_>, _>>()?;
+    let packages = metadata["packages"]
+        .as_array()
+        .ok_or_else(|| "Cargo metadata has no packages array".to_owned())?;
+    let workspace_packages = packages
+        .iter()
+        .filter(|package| {
+            package["id"]
+                .as_str()
+                .is_some_and(|id| member_ids.contains(id))
+        })
+        .collect::<Vec<_>>();
+    if workspace_packages.len() != member_ids.len() {
+        return Err("Cargo metadata does not describe every workspace member".to_owned());
+    }
+    let package_names = workspace_packages
+        .iter()
+        .map(|package| {
+            package["name"]
+                .as_str()
+                .map(str::to_owned)
+                .ok_or_else(|| "Cargo workspace package has no name".to_owned())
+        })
+        .collect::<Result<BTreeSet<_>, _>>()?;
+    if package_names.len() != workspace_packages.len() {
+        return Err("Cargo workspace package names must be unique".to_owned());
+    }
+
+    let mut edges = Vec::new();
+    for package in workspace_packages {
+        let from = package["name"].as_str().expect("validated package name");
+        let dependencies = package["dependencies"]
+            .as_array()
+            .ok_or_else(|| format!("Cargo package {from} has no dependencies array"))?;
+        for dependency in dependencies {
+            let Some(to) = dependency["name"].as_str() else {
+                return Err(format!("Cargo dependency of {from} has no name"));
+            };
+            if dependency["path"].is_null() || !package_names.contains(to) {
+                continue;
+            }
+            let edge = json!({
+                "from": from,
+                "to": to,
+                "kind": dependency["kind"].as_str().unwrap_or("normal"),
+                "target": dependency["target"].clone(),
+                "optional": dependency["optional"].clone(),
+                "default_features": dependency["uses_default_features"].clone(),
+                "features": dependency["features"].clone(),
+                "rename": dependency["rename"].clone(),
+            });
+            edges.push(normalize_dependency_edge(&edge)?);
+        }
+    }
+    sort_json_values(&mut edges)?;
+    Ok((package_names, edges))
+}
+
+fn validate_workspace_dependency_policy(
+    policy: &Value,
+    actual_packages: &BTreeSet<String>,
+    actual_edges: &[Value],
+    today: Date,
+) -> Result<WorkspaceDependencySummary, String> {
+    if policy["format"].as_str() != Some(WORKSPACE_DEPENDENCY_POLICY_SCHEMA) {
+        return Err(format!(
+            "workspace dependency policy format must be {WORKSPACE_DEPENDENCY_POLICY_SCHEMA}"
+        ));
+    }
+    if policy["adr"].as_str() != Some("ADR-RN-0019") {
+        return Err("workspace dependency policy must be owned by ADR-RN-0019".to_owned());
+    }
+    let reviewed_at = parse_policy_date(
+        policy["reviewed_at"]
+            .as_str()
+            .ok_or_else(|| "workspace dependency policy needs reviewed_at".to_owned())?,
+        "reviewed_at",
+    )?;
+    if reviewed_at > today {
+        return Err(format!(
+            "workspace dependency policy review date is in the future: {reviewed_at}"
+        ));
+    }
+    let product_crates = string_set(&policy["product_crates"], "product_crates")?;
+    let automation_crates = string_set(&policy["automation_crates"], "automation_crates")?;
+    if product_crates.len() != 9 || automation_crates != BTreeSet::from(["xtask".to_owned()]) {
+        return Err(
+            "dependency policy must classify nine product crates and only xtask automation"
+                .to_owned(),
+        );
+    }
+    let classified = product_crates
+        .union(&automation_crates)
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    if &classified != actual_packages {
+        return Err(format!(
+            "workspace crate classification drifted: expected {classified:?}, found {actual_packages:?}"
+        ));
+    }
+    let dimensions = string_set(
+        &policy["covered_edge_dimensions"],
+        "covered_edge_dimensions",
+    )?;
+    let required_dimensions = BTreeSet::from([
+        "normal".to_owned(),
+        "dev".to_owned(),
+        "build".to_owned(),
+        "target-specific".to_owned(),
+        "optional".to_owned(),
+        "feature-enabled".to_owned(),
+    ]);
+    if dimensions != required_dimensions {
+        return Err(format!(
+            "dependency policy edge dimensions must be {required_dimensions:?}"
+        ));
+    }
+
+    let allowed_actual = normalized_edge_array(&policy["actual_edges"], "actual_edges")?;
+    let normalized_actual = actual_edges
+        .iter()
+        .map(normalize_dependency_edge)
+        .collect::<Result<Vec<_>, _>>()?;
+    compare_dependency_edges(&allowed_actual, &normalized_actual, "actual graph")?;
+    let target = normalized_edge_array(&policy["target_edges"], "target_edges")?;
+    validate_dependency_graph_edges(&allowed_actual, actual_packages, "actual graph")?;
+    validate_dependency_graph_edges(&target, actual_packages, "target graph")?;
+
+    let exceptions = policy["temporary_exceptions"]
+        .as_array()
+        .ok_or_else(|| "temporary_exceptions must be an array".to_owned())?;
+    let mut exception_edges = Vec::new();
+    for exception in exceptions {
+        for field in [
+            "owner",
+            "rationale",
+            "review_by",
+            "expires_on",
+            "removal_condition",
+            "tracking",
+        ] {
+            if exception[field]
+                .as_str()
+                .is_none_or(|value| value.trim().is_empty())
+            {
+                return Err(format!("temporary dependency exception is missing {field}"));
+            }
+        }
+        let edge = normalize_dependency_edge(&exception["edge"])?;
+        let review_by = parse_policy_date(
+            exception["review_by"]
+                .as_str()
+                .expect("validated review_by"),
+            "review_by",
+        )?;
+        let expires_on = parse_policy_date(
+            exception["expires_on"]
+                .as_str()
+                .expect("validated expires_on"),
+            "expires_on",
+        )?;
+        if expires_on < review_by {
+            return Err("dependency exception expires before its review date".to_owned());
+        }
+        if review_by <= reviewed_at {
+            return Err(
+                "dependency exception review must follow the policy review date".to_owned(),
+            );
+        }
+        if today > review_by {
+            return Err(format!(
+                "dependency exception review is overdue for {} -> {} (review_by {review_by})",
+                edge["from"].as_str().expect("normalized edge"),
+                edge["to"].as_str().expect("normalized edge")
+            ));
+        }
+        if today > expires_on {
+            return Err(format!(
+                "dependency exception expired for {} -> {} on {expires_on}",
+                edge["from"].as_str().expect("normalized edge"),
+                edge["to"].as_str().expect("normalized edge")
+            ));
+        }
+        exception_edges.push(edge);
+    }
+    if exception_edges.len() != 1
+        || exception_edges[0]["from"] != "canisend-store"
+        || exception_edges[0]["to"] != "canisend-io"
+        || exception_edges[0]["kind"] != "normal"
+    {
+        return Err(
+            "the only temporary dependency exception must be canisend-store -> canisend-io normal"
+                .to_owned(),
+        );
+    }
+
+    let planned_removals = policy["planned_removals"]
+        .as_array()
+        .ok_or_else(|| "planned_removals must be an array".to_owned())?;
+    let mut removal_edges = Vec::new();
+    for removal in planned_removals {
+        if removal["tracking"]
+            .as_str()
+            .is_none_or(|value| value.trim().is_empty())
+            || removal["rationale"]
+                .as_str()
+                .is_none_or(|value| value.trim().is_empty())
+        {
+            return Err("planned dependency removal needs tracking and rationale".to_owned());
+        }
+        removal_edges.push(normalize_dependency_edge(&removal["edge"])?);
+    }
+    let planned_additions =
+        normalized_edge_array(&policy["planned_additions"], "planned_additions")?;
+
+    let actual_keys = dependency_edge_keys(&allowed_actual)?;
+    let target_keys = dependency_edge_keys(&target)?;
+    let removed = actual_keys
+        .difference(&target_keys)
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    let documented_removed = exception_edges
+        .iter()
+        .chain(&removal_edges)
+        .map(dependency_edge_key)
+        .collect::<Result<BTreeSet<_>, _>>()?;
+    if removed != documented_removed {
+        return Err(format!(
+            "actual-to-target removals drifted: graph={removed:?}, documented={documented_removed:?}"
+        ));
+    }
+    let added = target_keys
+        .difference(&actual_keys)
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    let documented_added = dependency_edge_keys(&planned_additions)?;
+    if added != documented_added {
+        return Err(format!(
+            "actual-to-target additions drifted: graph={added:?}, documented={documented_added:?}"
+        ));
+    }
+
+    Ok(WorkspaceDependencySummary {
+        product_crates: product_crates.len(),
+        automation_crates: automation_crates.len(),
+        actual_edges: allowed_actual.len(),
+        target_edges: target.len(),
+        temporary_exceptions: exceptions.len(),
+    })
+}
+
+fn normalize_dependency_edge(value: &Value) -> Result<Value, String> {
+    let object = value
+        .as_object()
+        .ok_or_else(|| "dependency edge must be an object".to_owned())?;
+    let expected_fields = BTreeSet::from([
+        "from",
+        "to",
+        "kind",
+        "target",
+        "optional",
+        "default_features",
+        "features",
+        "rename",
+    ]);
+    let actual_fields = object.keys().map(String::as_str).collect::<BTreeSet<_>>();
+    if actual_fields != expected_fields {
+        return Err(format!(
+            "dependency edge fields must be {expected_fields:?}, found {actual_fields:?}"
+        ));
+    }
+    let from = edge_string(value, "from")?;
+    let to = edge_string(value, "to")?;
+    if from == to {
+        return Err(format!(
+            "dependency edge cannot be self-referential: {from}"
+        ));
+    }
+    let kind = edge_string(value, "kind")?;
+    if !matches!(kind, "normal" | "dev" | "build") {
+        return Err(format!("unknown dependency edge kind {kind}"));
+    }
+    let target = match &value["target"] {
+        Value::Null => Value::Null,
+        Value::String(target) if !target.trim().is_empty() => Value::String(target.clone()),
+        _ => return Err("dependency edge target must be null or a non-empty string".to_owned()),
+    };
+    let optional = value["optional"]
+        .as_bool()
+        .ok_or_else(|| "dependency edge optional must be boolean".to_owned())?;
+    let default_features = value["default_features"]
+        .as_bool()
+        .ok_or_else(|| "dependency edge default_features must be boolean".to_owned())?;
+    let features = string_set(&value["features"], "dependency edge features")?;
+    let rename = match &value["rename"] {
+        Value::Null => Value::Null,
+        Value::String(rename) if !rename.trim().is_empty() => Value::String(rename.clone()),
+        _ => return Err("dependency edge rename must be null or a non-empty string".to_owned()),
+    };
+    Ok(json!({
+        "from": from,
+        "to": to,
+        "kind": kind,
+        "target": target,
+        "optional": optional,
+        "default_features": default_features,
+        "features": features.into_iter().collect::<Vec<_>>(),
+        "rename": rename,
+    }))
+}
+
+fn normalized_edge_array(value: &Value, context: &str) -> Result<Vec<Value>, String> {
+    let values = value
+        .as_array()
+        .ok_or_else(|| format!("{context} must be an array"))?;
+    let mut normalized = values
+        .iter()
+        .map(normalize_dependency_edge)
+        .collect::<Result<Vec<_>, _>>()?;
+    let keys = dependency_edge_keys(&normalized)?;
+    if keys.len() != normalized.len() {
+        return Err(format!("{context} contains a duplicate edge"));
+    }
+    sort_json_values(&mut normalized)?;
+    Ok(normalized)
+}
+
+fn validate_dependency_graph_edges(
+    edges: &[Value],
+    packages: &BTreeSet<String>,
+    context: &str,
+) -> Result<(), String> {
+    let mut indegree = packages
+        .iter()
+        .map(|package| (package.clone(), 0_usize))
+        .collect::<BTreeMap<_, _>>();
+    let mut outgoing = BTreeMap::<String, BTreeSet<String>>::new();
+    for edge in edges {
+        let from = edge["from"].as_str().expect("normalized edge");
+        let to = edge["to"].as_str().expect("normalized edge");
+        if !packages.contains(from) || !packages.contains(to) {
+            return Err(format!(
+                "{context} contains unknown crate edge {from} -> {to}"
+            ));
+        }
+        if edge["kind"] == "dev" {
+            continue;
+        }
+        if outgoing
+            .entry(from.to_owned())
+            .or_default()
+            .insert(to.to_owned())
+        {
+            *indegree.get_mut(to).expect("known dependency crate") += 1;
+        }
+    }
+    let mut ready = indegree
+        .iter()
+        .filter_map(|(package, degree)| (*degree == 0).then_some(package.clone()))
+        .collect::<VecDeque<_>>();
+    let mut visited = 0_usize;
+    while let Some(package) = ready.pop_front() {
+        visited += 1;
+        if let Some(dependencies) = outgoing.get(&package) {
+            for dependency in dependencies {
+                let degree = indegree.get_mut(dependency).expect("known dependency");
+                *degree -= 1;
+                if *degree == 0 {
+                    ready.push_back(dependency.clone());
+                }
+            }
+        }
+    }
+    if visited != packages.len() {
+        return Err(format!("{context} contains a non-dev dependency cycle"));
+    }
+    Ok(())
+}
+
+fn compare_dependency_edges(
+    expected: &[Value],
+    actual: &[Value],
+    context: &str,
+) -> Result<(), String> {
+    let expected = dependency_edge_keys(expected)?;
+    let actual = dependency_edge_keys(actual)?;
+    if expected == actual {
+        return Ok(());
+    }
+    let unapproved = actual.difference(&expected).cloned().collect::<Vec<_>>();
+    let removed_or_reclassified = expected.difference(&actual).cloned().collect::<Vec<_>>();
+    Err(format!(
+        "{context} drifted: unapproved={unapproved:?}, removed_or_reclassified={removed_or_reclassified:?}"
+    ))
+}
+
+fn dependency_edge_keys(edges: &[Value]) -> Result<BTreeSet<String>, String> {
+    edges.iter().map(dependency_edge_key).collect()
+}
+
+fn dependency_edge_key(edge: &Value) -> Result<String, String> {
+    serde_json::to_string(&normalize_dependency_edge(edge)?)
+        .map_err(|error| format!("cannot serialize dependency edge: {error}"))
+}
+
+fn sort_json_values(values: &mut [Value]) -> Result<(), String> {
+    let mut keyed = values
+        .iter()
+        .cloned()
+        .map(|value| Ok((dependency_edge_key(&value)?, value)))
+        .collect::<Result<Vec<_>, String>>()?;
+    keyed.sort_by(|left, right| left.0.cmp(&right.0));
+    for (slot, (_, value)) in values.iter_mut().zip(keyed) {
+        *slot = value;
+    }
+    Ok(())
+}
+
+fn string_set(value: &Value, context: &str) -> Result<BTreeSet<String>, String> {
+    let values = value
+        .as_array()
+        .ok_or_else(|| format!("{context} must be an array"))?;
+    let set = values
+        .iter()
+        .map(|value| {
+            value
+                .as_str()
+                .filter(|value| !value.trim().is_empty())
+                .map(str::to_owned)
+                .ok_or_else(|| format!("{context} entries must be non-empty strings"))
+        })
+        .collect::<Result<BTreeSet<_>, _>>()?;
+    if set.len() != values.len() {
+        return Err(format!("{context} contains a duplicate"));
+    }
+    Ok(set)
+}
+
+fn edge_string<'a>(value: &'a Value, field: &str) -> Result<&'a str, String> {
+    value[field]
+        .as_str()
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| format!("dependency edge {field} must be a non-empty string"))
+}
+
+fn parse_policy_date(value: &str, context: &str) -> Result<Date, String> {
+    let mut parts = value.split('-');
+    let year = parts
+        .next()
+        .and_then(|part| part.parse::<i32>().ok())
+        .ok_or_else(|| format!("{context} must be YYYY-MM-DD"))?;
+    let month = parts
+        .next()
+        .and_then(|part| part.parse::<u8>().ok())
+        .and_then(|month| Month::try_from(month).ok())
+        .ok_or_else(|| format!("{context} must be YYYY-MM-DD"))?;
+    let day = parts
+        .next()
+        .and_then(|part| part.parse::<u8>().ok())
+        .ok_or_else(|| format!("{context} must be YYYY-MM-DD"))?;
+    if parts.next().is_some() {
+        return Err(format!("{context} must be YYYY-MM-DD"));
+    }
+    Date::from_calendar_date(year, month, day)
+        .map_err(|error| format!("{context} is invalid: {error}"))
 }
 
 fn check_operation_registry() -> Result<(), String> {
@@ -12055,6 +12645,72 @@ fn write_pretty_json(path: &Path, value: &Value) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn workspace_dependency_policy_rejects_unapproved_reclassified_and_overdue_edges() {
+        let root = repository_root();
+        let policy: Value = serde_json::from_slice(
+            &fs::read(
+                root.join("docs/architecture/rust-native/workspace-dependency-policy-v1.json"),
+            )
+            .expect("dependency policy"),
+        )
+        .expect("dependency policy JSON");
+        let (packages, edges) =
+            current_workspace_dependency_facts(&root).expect("workspace dependency facts");
+        let today = Date::from_calendar_date(2026, Month::August, 3).expect("fixture date");
+        let summary = validate_workspace_dependency_policy(&policy, &packages, &edges, today)
+            .expect("current policy");
+        assert_eq!(summary.actual_edges, 29);
+        assert_eq!(summary.target_edges, 25);
+
+        let mut reclassified = policy.clone();
+        reclassified["actual_edges"][0]["optional"] = json!(true);
+        assert!(
+            validate_workspace_dependency_policy(&reclassified, &packages, &edges, today).is_err()
+        );
+
+        let mut unapproved_edges = edges.clone();
+        unapproved_edges.push(json!({
+            "from": "canisend-core",
+            "to": "canisend-resources",
+            "kind": "normal",
+            "target": null,
+            "optional": false,
+            "default_features": true,
+            "features": [],
+            "rename": null
+        }));
+        assert!(
+            validate_workspace_dependency_policy(&policy, &packages, &unapproved_edges, today)
+                .is_err()
+        );
+
+        let mut overdue = policy;
+        overdue["temporary_exceptions"][0]["review_by"] = json!("2026-08-02");
+        assert!(validate_workspace_dependency_policy(&overdue, &packages, &edges, today).is_err());
+    }
+
+    #[test]
+    fn dependency_edge_schema_preserves_build_target_optional_feature_and_rename_dimensions() {
+        let normalized = normalize_dependency_edge(&json!({
+            "from": "canisend-gui",
+            "to": "canisend-app",
+            "kind": "build",
+            "target": "cfg(target_os = \"windows\")",
+            "optional": true,
+            "default_features": false,
+            "features": ["zeta", "alpha"],
+            "rename": "application_facade"
+        }))
+        .expect("fully classified edge");
+        assert_eq!(normalized["kind"], "build");
+        assert_eq!(normalized["target"], "cfg(target_os = \"windows\")");
+        assert_eq!(normalized["optional"], true);
+        assert_eq!(normalized["default_features"], false);
+        assert_eq!(normalized["features"], json!(["alpha", "zeta"]));
+        assert_eq!(normalized["rename"], "application_facade");
+    }
 
     fn sample_release_status_sources() -> ReleaseStatusSources {
         let version = Version::parse("1.0.0-alpha.5").expect("sample source version");

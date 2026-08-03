@@ -1,6 +1,6 @@
 # ADR-RN-0013: Add a native desktop adapter over a shared application facade
 
-**Status:** Accepted
+**Status:** Superseded by ADR-RN-0015
 
 **Date:** 2026-07-24
 
@@ -12,6 +12,11 @@ a second workflow implementation or use shell automation as an integration layer
 
 The GUI roadmap provisionally selected `egui`/`eframe`. The product is now macOS-first, with
 Windows and Linux GUI qualification deferred until the native macOS path is usable.
+
+ADR-RN-0015 superseded the egui presentation choice with Tauri/Svelte and records the completed
+source cutover. ADR-RN-0019 consolidates the current crate and unified-host graph; the shared
+application-facade, local-first, and no-shell-product-integration decisions below remain historical
+constraints unless the later ADR explicitly refines them.
 
 ## Decision
 

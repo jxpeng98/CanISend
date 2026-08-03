@@ -1,0 +1,112 @@
+{
+  "format": "canisend.workspace-dependency-policy/v1",
+  "adr": "ADR-RN-0019",
+  "reviewed_at": "2026-08-03",
+  "product_crates": [
+    "canisend-app",
+    "canisend-cli",
+    "canisend-contracts",
+    "canisend-core",
+    "canisend-gui",
+    "canisend-io",
+    "canisend-mcp",
+    "canisend-resources",
+    "canisend-store"
+  ],
+  "automation_crates": ["xtask"],
+  "covered_edge_dimensions": [
+    "normal",
+    "dev",
+    "build",
+    "target-specific",
+    "optional",
+    "feature-enabled"
+  ],
+  "actual_edges": [
+    {"from":"canisend-app","to":"canisend-contracts","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-app","to":"canisend-core","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-app","to":"canisend-io","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-app","to":"canisend-resources","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-app","to":"canisend-store","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-cli","to":"canisend-app","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-cli","to":"canisend-contracts","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-cli","to":"canisend-io","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-cli","to":"canisend-mcp","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-cli","to":"canisend-resources","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-cli","to":"canisend-store","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-core","to":"canisend-contracts","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-gui","to":"canisend-app","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-gui","to":"canisend-cli","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-gui","to":"canisend-contracts","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-io","to":"canisend-contracts","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-io","to":"canisend-core","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-io","to":"canisend-resources","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-mcp","to":"canisend-app","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-mcp","to":"canisend-contracts","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-mcp","to":"canisend-store","kind":"dev","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-resources","to":"canisend-contracts","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-store","to":"canisend-contracts","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-store","to":"canisend-core","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-store","to":"canisend-io","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-store","to":"canisend-resources","kind":"dev","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"xtask","to":"canisend-cli","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"xtask","to":"canisend-contracts","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"xtask","to":"canisend-resources","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null}
+  ],
+  "target_edges": [
+    {"from":"canisend-app","to":"canisend-contracts","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-app","to":"canisend-core","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-app","to":"canisend-io","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-app","to":"canisend-resources","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-app","to":"canisend-store","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-cli","to":"canisend-app","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-cli","to":"canisend-contracts","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-cli","to":"canisend-mcp","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-core","to":"canisend-contracts","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-gui","to":"canisend-app","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-gui","to":"canisend-cli","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-gui","to":"canisend-contracts","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-io","to":"canisend-contracts","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-io","to":"canisend-core","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-io","to":"canisend-resources","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-mcp","to":"canisend-app","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-mcp","to":"canisend-contracts","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-mcp","to":"canisend-store","kind":"dev","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-resources","to":"canisend-contracts","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-store","to":"canisend-contracts","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-store","to":"canisend-core","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"canisend-store","to":"canisend-resources","kind":"dev","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"xtask","to":"canisend-cli","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"xtask","to":"canisend-contracts","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+    {"from":"xtask","to":"canisend-resources","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null}
+  ],
+  "temporary_exceptions": [
+    {
+      "edge": {"from":"canisend-store","to":"canisend-io","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+      "owner": "CanISend maintainer",
+      "rationale": "Store-owned projection, backup rebuild, and migration paths currently invoke deterministic rendering while preserving exact revision and transaction context.",
+      "review_by": "2026-08-10",
+      "expires_on": "2026-08-17",
+      "removal_condition": "Move orchestration to an app-owned prepare-render-project-commit port with stale, atomicity, Blob-ledger, cleanup, and repair-convergence tests, or accept a newly reviewed exception before expiry.",
+      "tracking": "M1-ARCH-001,M1-ARCH-002"
+    }
+  ],
+  "planned_removals": [
+    {
+      "edge": {"from":"canisend-cli","to":"canisend-io","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+      "tracking": "M1-ARCH-003",
+      "rationale": "Move candidate parsing behind canisend-app so the production CLI is a transport and presentation adapter."
+    },
+    {
+      "edge": {"from":"canisend-cli","to":"canisend-resources","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+      "tracking": "M1-ARCH-003",
+      "rationale": "Expose Agent skill state enums through the app facade instead of binding CLI presentation to the resource implementation crate."
+    },
+    {
+      "edge": {"from":"canisend-cli","to":"canisend-store","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
+      "tracking": "M1-ARCH-003",
+      "rationale": "The production CLI has no direct store references; remove the stale manifest edge after graph qualification."
+    }
+  ],
+  "planned_additions": []
+}
