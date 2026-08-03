@@ -8,6 +8,7 @@ mod application_flow_v3;
 mod application_v3;
 mod approval;
 mod assistance;
+mod candidate;
 mod catalog;
 mod cli_install;
 mod compatibility;
@@ -40,8 +41,9 @@ pub use agent::{
     AgentCapabilitiesReadModel, AgentContextReadModel, AgentHandoffReadModel, AgentHandoffRequest,
     AgentHost, AgentMcpConfigurationReadModel, AgentMcpConfigurationRequest,
     AgentPackExportReadModel, AgentPackExportRequest, AgentSkillsInstallReadModel,
-    AgentSkillsInstallRequest, AgentSkillsStatusReadModel, AgentSkillsStatusRequest,
-    AgentSkillsUninstallReadModel, AgentSkillsUninstallRequest, CANISEND_MCP_GUARDED_WRITE_TOOLS,
+    AgentSkillsInstallRequest, AgentSkillsInstallState, AgentSkillsStatusReadModel,
+    AgentSkillsStatusRequest, AgentSkillsStatusState, AgentSkillsUninstallReadModel,
+    AgentSkillsUninstallRequest, AgentSkillsUninstallState, CANISEND_MCP_GUARDED_WRITE_TOOLS,
     CANISEND_MCP_PROTOCOL_VERSION, CANISEND_MCP_READ_ONLY_TOOLS, CANISEND_MCP_TOOLS,
     CANISEND_MCP_V2_GUARDED_WRITE_TOOLS, CANISEND_MCP_V2_READ_ONLY_TOOLS, CANISEND_MCP_V2_TOOLS,
 };

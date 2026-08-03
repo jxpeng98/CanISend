@@ -8,9 +8,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use canisend_contracts::{ActorKind, PrivacyClassification, SourceKind};
-use canisend_io::normalize_html_document;
-use canisend_store::{JobService, NewSource, Workspace};
+use canisend_app::{Application, PrivateReadConsent};
 use lopdf::{
     Document, Object, Stream,
     content::{Content, Operation},
@@ -173,66 +171,58 @@ fn release_binary_stays_within_product_performance_budgets() {
 }
 
 fn prepare_large_workspace(workspace_path: &Path) -> (Vec<u64>, Vec<String>) {
-    let mut workspace = Workspace::open_from(Some(workspace_path), workspace_path)
-        .expect("open benchmark workspace");
-    let mut jobs = JobService::new(&mut workspace.database, &workspace.blobs);
     for index in 0..LARGE_WORKSPACE_JOBS {
-        jobs.create(
-            &format!("Synthetic academic role {index:03}"),
-            "Benchmark University",
-            ActorKind::System,
+        Application::create_job(
+            workspace_path,
+            &format!("Synthetic application {index:03}"),
+            "Benchmark organisation",
         )
         .expect("large workspace job");
     }
-    let html_job = jobs
-        .create(
-            "HTML intake benchmark",
-            "Benchmark University",
-            ActorKind::System,
-        )
-        .expect("HTML job");
+    let html_job = Application::create_job(
+        workspace_path,
+        "HTML intake benchmark",
+        "Benchmark organisation",
+    )
+    .expect("HTML job");
     let pdf_job_ids = (0..3)
         .map(|index| {
-            jobs.create(
+            Application::create_job(
+                workspace_path,
                 &format!("PDF intake benchmark {index}"),
-                "Benchmark University",
-                ActorKind::System,
+                "Benchmark organisation",
             )
             .expect("PDF job")
+            .data
             .id
             .to_string()
         })
         .collect::<Vec<_>>();
 
     let html = one_mib_html();
+    let html_path = workspace_path.join("benchmark-input.html");
+    fs::write(&html_path, html).expect("write HTML benchmark fixture");
     let mut html_samples = Vec::new();
     for _ in 0..3 {
         let started = Instant::now();
-        let normalized = normalize_html_document(&html).expect("normalize HTML benchmark fixture");
-        jobs.import_source(
-            &html_job.id,
-            NewSource {
-                kind: SourceKind::UserUrl,
-                original_bytes: html.clone(),
-                normalized_text: normalized,
-                source_url: Some("https://jobs.example.edu/benchmark".to_owned()),
-                final_url: Some("https://jobs.example.edu/benchmark".to_owned()),
-                content_type: "text/html; charset=utf-8".to_owned(),
-                redirect_chain: Vec::new(),
-                privacy: PrivacyClassification::PrivateLocal,
-            },
-            ActorKind::System,
+        Application::import_local_job_source(
+            workspace_path,
+            html_job.data.id.as_str(),
+            &html_path,
+            PrivateReadConsent::granted_by_user(),
         )
-        .expect("commit normalized HTML");
+        .expect("import normalized HTML");
         html_samples.push(duration_millis(started.elapsed()));
     }
     (html_samples, pdf_job_ids)
 }
 
 fn one_mib_html() -> Vec<u8> {
-    let mut html = String::from("<!doctype html><html><body><h1>Lecturer in Economics</h1>");
+    let mut html = String::from("<!doctype html><html><body><h1>Programme Manager</h1>");
     while html.len() < 1_048_576 {
-        html.push_str("<p>Teach economics, publish rigorous research, and support students.</p>");
+        html.push_str(
+            "<p>Lead delivery, coordinate stakeholders, document evidence, and support users.</p>",
+        );
     }
     html.push_str("</body></html>");
     html.into_bytes()
@@ -309,7 +299,7 @@ fn make_text_pdf(page_count: usize) -> Vec<u8> {
         Operation::new(
             "Tj",
             vec![Object::string_literal(
-                "Lecturer in Economics benchmark fixture",
+                "Programme Manager benchmark fixture",
             )],
         ),
         Operation::new("ET", vec![]),

@@ -541,10 +541,7 @@ version = "1.0.0-alpha.5"
 dependencies = [
  "canisend-app",
  "canisend-contracts",
- "canisend-io",
  "canisend-mcp",
- "canisend-resources",
- "canisend-store",
  "clap",
  "lopdf",
  "serde",

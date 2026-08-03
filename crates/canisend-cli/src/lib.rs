@@ -3,15 +3,16 @@
 mod app_adapter;
 
 use std::{
-    fs::{self, OpenOptions},
-    io::{IsTerminal, Write},
-    path::{Component, Path, PathBuf},
+    fs,
+    io::IsTerminal,
+    path::{Path, PathBuf},
     process::ExitCode,
 };
 
 use canisend_app::{
-    ACADEMIC_JOB_WORKFLOW_PACK_ID, AgentHost, AgentPackExportRequest, Application,
-    ApplicationError, ApplicationFlowApproveRequestV3, ApplicationFlowComposeRequestV3,
+    ACADEMIC_JOB_WORKFLOW_PACK_ID, AgentHost, AgentPackExportRequest, AgentSkillsInstallState,
+    AgentSkillsStatusState, AgentSkillsUninstallState, Application, ApplicationError,
+    ApplicationFlowApproveRequestV3, ApplicationFlowComposeRequestV3,
     ApplicationFlowCreateRequestV3, ApplicationFlowExportRequestV3, ApplicationFlowPlanRequestV3,
     ContentCatalogFilter, ContentCatalogStatus, ContentCategory, ContentSearchRequest,
     DiscoveryImportRequest, DiscoveryNetworkAdapter, DiscoveryRefreshRequest,
@@ -25,9 +26,6 @@ use canisend_contracts::{
     AgentError, AgentResponse, CompatibilityNotice, CompatibilitySurface, DocumentKind, EntityId,
     ErrorCode, ExecutionMode, ExitClass, NextAction, PrivacyClassification, PublicSchemaId,
     Revision, SemanticVersion, Sha256Digest, VersionData, WorkflowStage,
-};
-use canisend_io::{
-    IoAdapterError, read_criteria_file, read_task_completion_file, read_task_completion_stdin,
 };
 use clap::{Args, CommandFactory, Parser, Subcommand, ValueEnum};
 use serde_json::json;
@@ -2104,9 +2102,9 @@ fn agent_assets_install(
     success(
         "agent.skills.install",
         match installed.state {
-            canisend_resources::AgentSkillsInstallState::Installed => "installed",
-            canisend_resources::AgentSkillsInstallState::Updated => "updated",
-            canisend_resources::AgentSkillsInstallState::UpToDate => "up-to-date",
+            AgentSkillsInstallState::Installed => "installed",
+            AgentSkillsInstallState::Updated => "updated",
+            AgentSkillsInstallState::UpToDate => "up-to-date",
         },
         &installed,
         vec![
@@ -2131,12 +2129,12 @@ fn agent_assets_status(
     .map_err(|error| app_adapter::failure("agent.skills.status", error))?;
     let data = receipt.data;
     let status = match data.state {
-        canisend_resources::AgentSkillsStatusState::NotInstalled => "not-installed",
-        canisend_resources::AgentSkillsStatusState::UpToDate => "up-to-date",
-        canisend_resources::AgentSkillsStatusState::UpdateAvailable => "update-available",
-        canisend_resources::AgentSkillsStatusState::Incomplete => "incomplete",
-        canisend_resources::AgentSkillsStatusState::UserModified => "user-modified",
-        canisend_resources::AgentSkillsStatusState::Unmanaged => "unmanaged",
+        AgentSkillsStatusState::NotInstalled => "not-installed",
+        AgentSkillsStatusState::UpToDate => "up-to-date",
+        AgentSkillsStatusState::UpdateAvailable => "update-available",
+        AgentSkillsStatusState::Incomplete => "incomplete",
+        AgentSkillsStatusState::UserModified => "user-modified",
+        AgentSkillsStatusState::Unmanaged => "unmanaged",
     };
     success(
         "agent.skills.status",
@@ -2164,8 +2162,8 @@ fn agent_assets_uninstall(
     .map_err(|error| app_adapter::failure("agent.skills.uninstall", error))?;
     let data = receipt.data;
     let status = match data.state {
-        canisend_resources::AgentSkillsUninstallState::NotInstalled => "not-installed",
-        canisend_resources::AgentSkillsUninstallState::Removed => "removed",
+        AgentSkillsUninstallState::NotInstalled => "not-installed",
+        AgentSkillsUninstallState::Removed => "removed",
     };
     success(
         "agent.skills.uninstall",
@@ -3112,8 +3110,8 @@ fn profile_evidence_export(
     )
     .map_err(|error| app_adapter::failure("profile.evidence.export", error))?
     .data;
-    write_private_json_new(&arguments.destination, &template)
-        .map_err(|error| io_adapter_failure("profile.evidence.export", error))?;
+    Application::write_private_json_candidate(&arguments.destination, &template)
+        .map_err(|error| app_adapter::failure("profile.evidence.export", error))?;
     let mut output = success(
         "profile.evidence.export",
         "exported",
@@ -3149,8 +3147,11 @@ fn profile_evidence_confirm(
     arguments: ProfileEvidenceConfirmArgs,
 ) -> CommandResult<CommandOutput> {
     let job_id = parse_entity_id("profile.evidence.confirm", &arguments.job)?;
-    let candidate = read_criteria_file(&arguments.file)
-        .map_err(|error| io_adapter_failure("profile.evidence.confirm", error))?;
+    let candidate = Application::read_structured_candidate(
+        &arguments.file,
+        PrivateReadConsent::granted_by_user(),
+    )
+    .map_err(|error| app_adapter::failure("profile.evidence.confirm", error))?;
     let root = app_adapter::workspace_root(workspace_path, "profile.evidence.confirm")?;
     let receipt = Application::confirm_profile_evidence(
         &root,
@@ -3573,12 +3574,15 @@ fn task_complete(
     arguments: TaskCompleteArgs,
 ) -> CommandResult<CommandOutput> {
     let request = if let Some(path) = arguments.file {
-        read_task_completion_file(&path)
-            .map_err(|error| io_adapter_failure("task.complete", error))?
+        Application::read_task_completion_candidate_file(
+            &path,
+            PrivateReadConsent::granted_by_user(),
+        )
+        .map_err(|error| app_adapter::failure("task.complete", error))?
     } else if arguments.stdin {
         let stdin = std::io::stdin();
-        read_task_completion_stdin(stdin.lock())
-            .map_err(|error| io_adapter_failure("task.complete", error))?
+        Application::read_task_completion_candidate_stdin(stdin.lock())
+            .map_err(|error| app_adapter::failure("task.complete", error))?
     } else {
         return Err(CommandFailure::new(
             "task.complete",
@@ -3656,8 +3660,8 @@ fn criteria_export(
     )
     .map_err(|error| app_adapter::failure("criteria.export", error))?
     .data;
-    write_private_json_new(&arguments.destination, &template)
-        .map_err(|error| io_adapter_failure("criteria.export", error))?;
+    Application::write_private_json_candidate(&arguments.destination, &template)
+        .map_err(|error| app_adapter::failure("criteria.export", error))?;
     let mut output = success(
         "criteria.export",
         "exported",
@@ -3691,8 +3695,11 @@ fn criteria_confirm(
     arguments: CriteriaConfirmArgs,
 ) -> CommandResult<CommandOutput> {
     let job_id = parse_entity_id("criteria.confirm", &arguments.job)?;
-    let candidate = read_criteria_file(&arguments.file)
-        .map_err(|error| io_adapter_failure("criteria.confirm", error))?;
+    let candidate = Application::read_structured_candidate(
+        &arguments.file,
+        PrivateReadConsent::granted_by_user(),
+    )
+    .map_err(|error| app_adapter::failure("criteria.confirm", error))?;
     let root = app_adapter::workspace_root(workspace_path, "criteria.confirm")?;
     let receipt = Application::confirm_job_criteria(
         &root,
@@ -3773,8 +3780,8 @@ fn plan_export(
     )
     .map_err(|error| app_adapter::failure("plan.export", error))?
     .data;
-    write_private_json_new(&arguments.destination, &template)
-        .map_err(|error| io_adapter_failure("plan.export", error))?;
+    Application::write_private_json_candidate(&arguments.destination, &template)
+        .map_err(|error| app_adapter::failure("plan.export", error))?;
     let mut output = success(
         "plan.export",
         "exported",
@@ -3812,8 +3819,11 @@ fn plan_confirm(
     arguments: PlanConfirmArgs,
 ) -> CommandResult<CommandOutput> {
     let job_id = parse_entity_id("plan.confirm", &arguments.job)?;
-    let candidate = read_criteria_file(&arguments.file)
-        .map_err(|error| io_adapter_failure("plan.confirm", error))?;
+    let candidate = Application::read_structured_candidate(
+        &arguments.file,
+        PrivateReadConsent::granted_by_user(),
+    )
+    .map_err(|error| app_adapter::failure("plan.confirm", error))?;
     let root = app_adapter::workspace_root(workspace_path, "plan.confirm")?;
     let receipt = Application::confirm_application_plan(
         &root,
@@ -3945,8 +3955,8 @@ fn review_export(
     )
     .map_err(|error| app_adapter::failure("review.export", error))?
     .data;
-    write_private_json_new(&arguments.destination, &candidate)
-        .map_err(|error| io_adapter_failure("review.export", error))?;
+    Application::write_private_json_candidate(&arguments.destination, &candidate)
+        .map_err(|error| app_adapter::failure("review.export", error))?;
     let mut output = success(
         "review.export",
         "exported",
@@ -3980,8 +3990,11 @@ fn review_confirm(
     arguments: ReviewConfirmArgs,
 ) -> CommandResult<CommandOutput> {
     let job_id = parse_entity_id("review.confirm", &arguments.job)?;
-    let candidate = read_criteria_file(&arguments.file)
-        .map_err(|error| io_adapter_failure("review.confirm", error))?;
+    let candidate = Application::read_structured_candidate(
+        &arguments.file,
+        PrivateReadConsent::granted_by_user(),
+    )
+    .map_err(|error| app_adapter::failure("review.confirm", error))?;
     let root = app_adapter::workspace_root(workspace_path, "review.confirm")?;
     let receipt = Application::confirm_review_dispositions(
         &root,
@@ -4318,68 +4331,6 @@ fn render_output(
     )
 }
 
-fn write_private_json_new<T: serde::Serialize>(
-    path: &Path,
-    value: &T,
-) -> Result<(), IoAdapterError> {
-    if path.components().any(|component| {
-        matches!(component, Component::Normal(name) if name.to_string_lossy().eq_ignore_ascii_case(".canisend"))
-    }) {
-        return Err(IoAdapterError::UnsafeLocalFile(path.to_path_buf()));
-    }
-    if !path
-        .extension()
-        .and_then(|extension| extension.to_str())
-        .is_some_and(|extension| extension.eq_ignore_ascii_case("json"))
-    {
-        return Err(IoAdapterError::UnsupportedLocalType(path.to_path_buf()));
-    }
-    let parent = path
-        .parent()
-        .filter(|parent| !parent.as_os_str().is_empty())
-        .unwrap_or_else(|| Path::new("."));
-    let parent_metadata =
-        std::fs::symlink_metadata(parent).map_err(|source| IoAdapterError::Io {
-            path: parent.to_path_buf(),
-            source,
-        })?;
-    if parent_metadata.file_type().is_symlink() || !parent_metadata.is_dir() {
-        return Err(IoAdapterError::UnsafeLocalFile(path.to_path_buf()));
-    }
-    let canonical_parent = std::fs::canonicalize(parent).map_err(|source| IoAdapterError::Io {
-        path: parent.to_path_buf(),
-        source,
-    })?;
-    if canonical_parent.components().any(|component| {
-        matches!(component, Component::Normal(name) if name.to_string_lossy().eq_ignore_ascii_case(".canisend"))
-    }) {
-        return Err(IoAdapterError::UnsafeLocalFile(path.to_path_buf()));
-    }
-    let mut options = OpenOptions::new();
-    options.write(true).create_new(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        options.mode(0o600);
-    }
-    let mut file = options.open(path).map_err(|source| IoAdapterError::Io {
-        path: path.to_path_buf(),
-        source,
-    })?;
-    let mut bytes = serde_json::to_vec_pretty(value)
-        .map_err(|error| IoAdapterError::CandidateInput(error.to_string()))?;
-    bytes.push(b'\n');
-    file.write_all(&bytes)
-        .map_err(|source| IoAdapterError::Io {
-            path: path.to_path_buf(),
-            source,
-        })?;
-    file.sync_all().map_err(|source| IoAdapterError::Io {
-        path: path.to_path_buf(),
-        source,
-    })
-}
-
 fn workflow_start(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<CommandOutput> {
     let _ = parse_entity_id("workflow.start", job_id)?;
     let root = app_adapter::workspace_root(workspace_path, "workflow.start")?;
@@ -4486,58 +4437,6 @@ fn parse_entity_id(operation: &'static str, value: &str) -> CommandResult<Entity
             false,
         )
     })
-}
-
-fn io_adapter_failure(operation: &'static str, error: IoAdapterError) -> Box<CommandFailure> {
-    let (status, code, retryable) = match &error {
-        IoAdapterError::PdfEncrypted => ("invalid", ErrorCode::PdfEncrypted, false),
-        IoAdapterError::PdfMalformed(_) | IoAdapterError::PdfPageLimit { .. } => {
-            ("invalid", ErrorCode::PdfMalformed, false)
-        }
-        IoAdapterError::PdfTextUnavailable => {
-            ("text-unavailable", ErrorCode::PdfTextUnavailable, false)
-        }
-        IoAdapterError::Io { .. } => ("io-failed", ErrorCode::ExternalIoFailed, true),
-        IoAdapterError::Http(_)
-        | IoAdapterError::ResponseRead(_)
-        | IoAdapterError::DnsResolution(_)
-        | IoAdapterError::HttpStatus(_) => ("fetch-failed", ErrorCode::ExternalIoFailed, true),
-        IoAdapterError::UnsafeLocalFile(_) | IoAdapterError::UnsupportedLocalType(_) => {
-            ("invalid", ErrorCode::InputPathRejected, false)
-        }
-        IoAdapterError::InputTooLarge { .. }
-        | IoAdapterError::InvalidTextEncoding
-        | IoAdapterError::UnsafeTextControlCharacter
-        | IoAdapterError::TextUnavailable
-        | IoAdapterError::InvalidUrl(_)
-        | IoAdapterError::UrlPolicy(_)
-        | IoAdapterError::InvalidRedirect(_)
-        | IoAdapterError::UnsupportedContentType(_)
-        | IoAdapterError::Html(_)
-        | IoAdapterError::PdfTimeBudget
-        | IoAdapterError::DiscoveryInput(_)
-        | IoAdapterError::CandidateInput(_) => ("invalid", ErrorCode::InputInvalid, false),
-    };
-    let mut failure = CommandFailure::new(operation, status, code, error.to_string(), retryable);
-    match error {
-        IoAdapterError::PdfTextUnavailable => {
-            failure.error.remediation = Some(NextAction {
-                action: "provide a text-based PDF, Markdown, or plain-text advert".to_owned(),
-                description:
-                    "CanISend does not run OCR; extract and review scanned text with a trusted tool before importing"
-                        .to_owned(),
-            });
-        }
-        IoAdapterError::PdfEncrypted => {
-            failure.error.remediation = Some(NextAction {
-                action: "decrypt the PDF or request an unencrypted advert".to_owned(),
-                description: "CanISend never guesses, stores, or transmits PDF passwords"
-                    .to_owned(),
-            });
-        }
-        _ => {}
-    }
-    failure
 }
 
 fn task_application_failure(

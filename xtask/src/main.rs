@@ -14395,7 +14395,7 @@ mod tests {
         let today = Date::from_calendar_date(2026, Month::August, 3).expect("fixture date");
         let summary = validate_workspace_dependency_policy(&policy, &packages, &edges, today)
             .expect("current policy");
-        assert_eq!(summary.actual_edges, 29);
+        assert_eq!(summary.actual_edges, 26);
         assert_eq!(summary.target_edges, 25);
 
         let mut reclassified = policy.clone();

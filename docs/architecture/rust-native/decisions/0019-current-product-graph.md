@@ -81,10 +81,7 @@ flowchart LR
     mcp -. dev .-> store
     cli --> app
     cli --> contracts
-    cli --> io
     cli --> mcp
-    cli --> resources
-    cli --> store
     gui --> app
     gui --> cli
     gui --> contracts
@@ -100,9 +97,9 @@ and MCP tools continue to call `canisend-app` for shared business operations.
 
 ## Target graph
 
-The pre-Beta target removes concrete rendering/projection ownership from Store and removes the
-CLI's unused or facade-bypassing direct Store/IO/Resources edges. Dev-only Store and MCP fixture
-edges may remain because they do not become production adapter dependencies.
+The pre-Beta target removes concrete rendering/projection ownership from Store. The CLI's former
+facade-bypassing direct Store/IO/Resources edges were removed by M1-ARCH-003; dev-only Store and MCP
+fixture edges may remain because they do not become production adapter dependencies.
 
 ```mermaid
 flowchart LR
@@ -140,8 +137,11 @@ flowchart LR
     gui --> contracts
 ```
 
-M1-ARCH-003 owns the CLI edge removals. Removing them is a normal implementation change but still
-requires updating this ADR's policy from actual to target; the source gate never guesses intent.
+M1-ARCH-003 moved structured candidate parsing and private candidate-file projection behind
+`canisend-app`, re-exported Agent skill presentation states through that facade, and rebuilt the CLI
+performance fixture through application operations. The CLI now depends only on `canisend-app`,
+`canisend-contracts`, and the ADR-approved `canisend-mcp` host boundary. The remaining actual/target
+delta is the single Store→IO exception below.
 
 ## Temporary Store→IO exception
 

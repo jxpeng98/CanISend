@@ -7,7 +7,9 @@ use canisend_contracts::{
 };
 use canisend_core::{CapabilityRegistry, StageRegistry};
 use canisend_io::discovery_adapter_capabilities;
-pub use canisend_resources::AgentHost;
+pub use canisend_resources::{
+    AgentHost, AgentSkillsInstallState, AgentSkillsStatusState, AgentSkillsUninstallState,
+};
 use canisend_resources::{
     AgentPackExportData, AgentSkillsInstallData, AgentSkillsStatusData, AgentSkillsUninstallData,
     export_agent_pack as export_embedded_agent_pack,

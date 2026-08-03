@@ -77,12 +77,13 @@ pub enum IoAdapterError {
     PdfTimeBudget,
     #[error("discovery input is invalid: {0}")]
     DiscoveryInput(String),
-    #[error("task completion input is invalid: {0}")]
+    #[error("candidate input is invalid: {0}")]
     CandidateInput(String),
 }
 pub use candidate::{
-    MAX_CRITERIA_BYTES, MAX_TASK_COMPLETION_BYTES, read_criteria_file, read_task_completion_file,
-    read_task_completion_stdin,
+    MAX_CRITERIA_BYTES, MAX_STRUCTURED_CANDIDATE_BYTES, MAX_TASK_COMPLETION_BYTES,
+    read_criteria_file, read_structured_candidate_file, read_task_completion_file,
+    read_task_completion_stdin, write_private_json_new,
 };
 pub use discovery::{
     DiscoveryAdapter, DiscoveryAdapterRegistration, DiscoveryFile, DiscoveryFileKind,

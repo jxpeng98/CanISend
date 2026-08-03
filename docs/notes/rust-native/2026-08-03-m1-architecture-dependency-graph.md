@@ -17,13 +17,17 @@ desktop ADR now selects both egui and Tauri.
 `workspace-dependency-policy-v1.json` records:
 
 - nine product crates and the separate `xtask` automation crate;
-- all 29 current internal Cargo edges;
+- all 26 current internal Cargo edges;
 - the 25-edge target graph;
 - exact normal/dev/build kind, target predicate, optional flag, default-feature behavior,
   dependency feature set, and rename state for every edge;
-- three planned CLI edge removals owned by M1-ARCH-003; and
 - one temporary `canisend-store -> canisend-io` normal-edge exception owned by
   M1-ARCH-001/002.
+
+The original policy review found 29 edges and three M1-ARCH-003 CLI removals. Those removals are
+now implemented and recorded by the
+[facade-hygiene note](2026-08-03-m1-cli-facade-hygiene.md); the checked-in policy describes the
+post-cleanup 26-edge actual graph.
 
 The Store→IO exception must be reviewed by 2026-08-10 and expires on 2026-08-17. Its removal
 condition is an app-owned prepare → render/project → revision-bound commit port with stale,
@@ -49,9 +53,10 @@ edge, expire the exception, and preserve the full build/target/optional/feature/
 
 ## Remaining boundary
 
-This closes M1-ADR-001 and M1-GRAPH-001 source implementation. It does not close M1-ARCH-001/002:
-the time-bounded Store→IO exception is deliberately visible, and the target graph is not falsely
-reported as current. M1-ARCH-003 also still owns the direct CLI IO/Resources/Store cleanup.
+This closes M1-ADR-001, M1-GRAPH-001, and M1-ARCH-003 source implementation. It does not close
+M1-ARCH-001/002: the time-bounded Store→IO exception is deliberately visible, and the target graph
+is not falsely reported as current.
 
-The next Alpha.6 P0 implementation stage is the shared approval/preview broker and its complete
-failure, expiry, replay, capacity, context-binding, and concurrency suite.
+The shared approval/preview broker has since been completed. The remaining M1B path is the
+Store→IO ownership decision and renderer/projector failure, stale-revision, CAS-cleanup, and
+repair-convergence evidence.

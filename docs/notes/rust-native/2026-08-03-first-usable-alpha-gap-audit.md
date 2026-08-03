@@ -57,9 +57,11 @@ M1-ADR-001 / M1-GRAPH-001 now also have source implementation evidence in
 [ADR-RN-0019](../../architecture/rust-native/decisions/0019-current-product-graph.md), the
 [machine-readable dependency policy](../../architecture/rust-native/workspace-dependency-policy-v1.json),
 and the [implementation record](2026-08-03-m1-architecture-dependency-graph.md). The accepted ADR
-records the actual and target graphs; ADR-RN-0002 and the egui ADR-RN-0013 are superseded; all 29
+records the actual and target graphs; ADR-RN-0002 and the egui ADR-RN-0013 are superseded; all 26
 current internal Cargo edges are source-gated across normal/dev/build/target/optional/feature
-dimensions. The sole Store→IO exception is review-bound to 2026-08-10 and expires 2026-08-17.
+dimensions. M1-ARCH-003 removed the three direct CLI IO/Resources/Store edges through the
+[application-facade cleanup](2026-08-03-m1-cli-facade-hygiene.md). The sole Store→IO exception is
+review-bound to 2026-08-10 and expires 2026-08-17.
 
 This advances ordered-path item 2 from missing/contradicted to implemented source evidence. It
 does not resolve the Store→IO exception or the M1B target graph. The next ordered P0 implementation
@@ -164,7 +166,11 @@ not replace the P0 implementation order.
    are part of fast CI; obtain exact committed runner evidence before closing M1A (M1-CI-001).
 9. Completed in source: dependency changes trigger lock-bound exception validation and live
    advisory/license/ban/source checks; obtain exact committed workflow evidence (M1-DEP-001).
-10. Next: with explicit release authority, apply the reviewed Alpha.6 plan and run the exact native
+10. Completed in source: structured candidate IO, Agent skill presentation state, and CLI
+    performance setup cross `canisend-app`; the CLI has no Store/IO/Resources edge (M1-ARCH-003).
+11. Next: resolve the time-bounded Store→IO render/projection exception and its failure-atomicity
+    matrix (M1-ARCH-001/002/004), then, with explicit release authority, apply the reviewed Alpha.6
+    plan and run the exact native
    candidate, migration, backup/restore, rollback, package, and
    release-integrity gates on a clean candidate commit.
 

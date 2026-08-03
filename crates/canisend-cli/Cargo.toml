@@ -17,10 +17,7 @@ path = "src/main.rs"
 [dependencies]
 canisend-app = { path = "../canisend-app", version = "=1.0.0-alpha.5" }
 canisend-contracts = { path = "../canisend-contracts", version = "=1.0.0-alpha.5" }
-canisend-io = { path = "../canisend-io", version = "=1.0.0-alpha.5" }
 canisend-mcp = { path = "../canisend-mcp", version = "=1.0.0-alpha.5" }
-canisend-resources = { path = "../canisend-resources", version = "=1.0.0-alpha.5" }
-canisend-store = { path = "../canisend-store", version = "=1.0.0-alpha.5" }
 clap.workspace = true
 serde.workspace = true
 serde_json.workspace = true

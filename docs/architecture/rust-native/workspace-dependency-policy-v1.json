@@ -30,10 +30,7 @@
     {"from":"canisend-app","to":"canisend-store","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
     {"from":"canisend-cli","to":"canisend-app","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
     {"from":"canisend-cli","to":"canisend-contracts","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
-    {"from":"canisend-cli","to":"canisend-io","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
     {"from":"canisend-cli","to":"canisend-mcp","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
-    {"from":"canisend-cli","to":"canisend-resources","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
-    {"from":"canisend-cli","to":"canisend-store","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
     {"from":"canisend-core","to":"canisend-contracts","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
     {"from":"canisend-gui","to":"canisend-app","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
     {"from":"canisend-gui","to":"canisend-cli","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
@@ -91,22 +88,6 @@
       "tracking": "M1-ARCH-001,M1-ARCH-002"
     }
   ],
-  "planned_removals": [
-    {
-      "edge": {"from":"canisend-cli","to":"canisend-io","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
-      "tracking": "M1-ARCH-003",
-      "rationale": "Move candidate parsing behind canisend-app so the production CLI is a transport and presentation adapter."
-    },
-    {
-      "edge": {"from":"canisend-cli","to":"canisend-resources","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
-      "tracking": "M1-ARCH-003",
-      "rationale": "Expose Agent skill state enums through the app facade instead of binding CLI presentation to the resource implementation crate."
-    },
-    {
-      "edge": {"from":"canisend-cli","to":"canisend-store","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
-      "tracking": "M1-ARCH-003",
-      "rationale": "The production CLI has no direct store references; remove the stale manifest edge after graph qualification."
-    }
-  ],
+  "planned_removals": [],
   "planned_additions": []
 }
