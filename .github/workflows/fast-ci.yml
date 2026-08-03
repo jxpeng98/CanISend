@@ -114,9 +114,11 @@ jobs:
           - name: linux
             runner: ubuntu-24.04
             binary: target/debug/canisend
+            target: x86_64-unknown-linux-gnu
           - name: windows
             runner: windows-2025
             binary: target/debug/canisend.exe
+            target: x86_64-pc-windows-msvc
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
@@ -136,7 +138,7 @@ jobs:
         run: >-
           ./scripts/smoke_agent_v3_mcp.sh
           "${{ matrix.binary }}"
-          "$RUNNER_TEMP/canisend-fast-agent-v3-${{ matrix.name }}"
+          "$RUNNER_TEMP/release-smoke-${{ matrix.target }}/agent-v3-mcp-workflow"
 
   macos-quality:
     name: macos-quality
