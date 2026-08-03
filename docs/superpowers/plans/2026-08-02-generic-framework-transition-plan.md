@@ -249,6 +249,12 @@ Repository evidence currently available:
 | GF4-AGENT-001 | P0 | Expose generic context and operations through Agent v3/MCP | Codex and Claude can run new/resume/approval/recovery without academic assumptions |
 | GF4-EXAMPLE-001 | P1 | Ship synthetic examples for a grant, admission, tender/proposal, and professional job | Examples validate offline and contain no real personal/application body |
 
+Repository evidence currently available:
+
+| Task | Evidence | Remaining state boundary |
+|---|---|---|
+| GF4-PACK-001 | [Generic starter Pack contract](../../contracts/generic-application-workflow-pack-v1.md), [implementation record](../../notes/rust-native/2026-08-03-gf4-generic-starter-pack.md), and [Workflow Pack v1 contract](../../contracts/workflow-pack-v1.md) | Embedded Pack, exact digest/resource verification, neutral metadata/taxonomies, compiled nine-stage graph, two custom Deliverables, bilingual localization, and exact dual-Pack registry resolution are implemented; complete GF4-FLOW/UI/AGENT, create/link its work item, and inspect committed source evidence before marking Verified |
+
 ### GF5 — Surface parity and documentation
 
 | ID | Priority | Deliverable | Verification |

@@ -8,9 +8,9 @@
 catalog
 
 **Runtime status:** Additive contract, bounded byte verification, Trust Report, locale resolver,
-verified-bundle registry foundation, and one embedded built-in academic reference Pack. The current
-Alpha Job/Agent v2 runtime does not read Pack directories, install external workflow packs, or
-project Pack vocabulary into the GUI yet.
+exact verified-bundle registry, and two embedded built-in Packs. The current Alpha does not read or
+install external Pack directories. Desktop Pack presentation is implemented for the bounded
+academic compatibility journey; generic selection and canonical v3 execution remain planned.
 
 ## Boundary
 
@@ -138,8 +138,9 @@ including combining marks and right-to-left scripts, while rejecting embedded bi
 isolate, and override controls that could visually reorder trusted UI context.
 
 This foundation returns localized text plus body-free selection/fallback metadata only. It does
-not interpolate untrusted values, infer a locale from private content, parse free-form translation
-resources, or change the current v2 desktop copy.
+not interpolate untrusted values, infer a locale from private content, or parse free-form
+translation resources. The desktop consumes resolved labels through the separate
+[Pack presentation boundary](workflow-pack-presentation-v1.md).
 
 ## DAG rule
 
@@ -202,18 +203,23 @@ Templates remain data passed to a future kernel-registered bounded renderer. A t
 does not grant filesystem, network, package-resolution, system-font, or process-execution access.
 
 The host embedded-resource catalog has a separate `workflow-pack` class for a Pack manifest. It is
-not a fifth Pack-body resource kind and grants no capability. The built-in
-`org.canisend.academic-job` manifest is embedded under that class, while its seven exact prompt and
-template bodies remain ordinary declared Pack resources and are reverified by the same byte loader.
+not a fifth Pack-body resource kind and grants no capability. The built-in academic and generic
+manifests are embedded under that class. Their exact declared prompt/template bodies remain
+ordinary Pack resources and are reverified by the same byte loader.
 
-## Built-in reference Pack
+## Built-in Packs
 
 [`org.canisend.academic-job`](academic-job-workflow-pack-v1.md) is the first built-in Pack. Its
 checked-in Manifest, exact embedded resources, bilingual labels, capabilities, content digest, and
 canonical v2 parity fixtures form one reviewed reference bundle. Application-level Workspace
 v2→v3 migration resolves that exact built-in bundle rather than accepting caller-selected Pack
 data. Its optional discovery references also resolve through the Pack-qualified adapter catalog.
-This does not enable external installation or make academic vocabulary part of the kernel.
+
+[`org.canisend.generic-application`](generic-application-workflow-pack-v1.md) is the neutral starter
+Pack. It has optional metadata, neutral taxonomies, nine stages, and two custom Deliverable kinds.
+The app facade builds one exact registry from both verified embedded bundles. This does not enable
+external installation, make either Pack's vocabulary part of the kernel, or authorize the generic
+end-to-end journey before its canonical v3 operations exist.
 
 ## Registry and snapshot rule
 
@@ -225,8 +231,8 @@ collision.
 
 The generated `canisend.workflow-pack-snapshot/v1` value records pack ID, version, origin,
 content digest, canonical manifest SHA-256, and the sorted resource identity/version/path/size/hash
-inventory. It is an immutable binding value for future Workspace persistence; the current
-in-memory registry does not yet install files or mutate a Workspace.
+inventory. It is the immutable binding value used by Workspace v3. The current built-in registry
+does not install files or mutate a Workspace.
 
 ## Trust Report rule
 

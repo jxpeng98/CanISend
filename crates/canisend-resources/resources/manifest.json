@@ -68,5 +68,6 @@
   {"id":"template.cover-letter","kind":"template","path":"templates/cover-letter.typ","version":"2.0.0"},
   {"id":"template.modernpro-cv","kind":"template","path":"templates/modernpro-cv.typ","version":"2.0.0"},
   {"id":"template.modernpro-coverletter","kind":"template","path":"templates/modernpro-coverletter.typ","version":"1.0.0"},
-  {"id":"workflow-pack.org.canisend.academic-job","kind":"workflow-pack","path":"workflow-packs/org.canisend.academic-job/manifest.json","version":"1.0.0"}
+  {"id":"workflow-pack.org.canisend.academic-job","kind":"workflow-pack","path":"workflow-packs/org.canisend.academic-job/manifest.json","version":"1.0.0"},
+  {"id":"workflow-pack.org.canisend.generic-application","kind":"workflow-pack","path":"workflow-packs/org.canisend.generic-application/manifest.json","version":"1.0.0"}
 ]

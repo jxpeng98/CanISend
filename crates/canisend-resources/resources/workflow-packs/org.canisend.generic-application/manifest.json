@@ -1,0 +1,247 @@
+{
+  "format": "canisend.workflow-pack/v1",
+  "id": "org.canisend.generic-application",
+  "version": "1.0.0",
+  "schema_version": "1.0.0",
+  "publisher": {
+    "id": "org.canisend",
+    "name": "CanISend",
+    "homepage": "https://github.com/jxpeng98/canisend"
+  },
+  "compatibility": {
+    "kernel": ">=1.0.0-alpha.5, <2.0.0",
+    "agent": ">=3.0.0-alpha.1, <4.0.0",
+    "workspace": ">=3.0.0-alpha.1, <4.0.0"
+  },
+  "default_locale": "en",
+  "locales": {
+    "en": {
+      "application_singular": "Application",
+      "application_plural": "Applications",
+      "opportunity_singular": "Opportunity",
+      "opportunity_plural": "Opportunities",
+      "requirement_plural": "Requirements",
+      "evidence_plural": "Evidence",
+      "deliverable_plural": "Deliverables"
+    },
+    "zh-Hans": {
+      "application_singular": "申请",
+      "application_plural": "申请",
+      "opportunity_singular": "机会",
+      "opportunity_plural": "机会",
+      "requirement_plural": "要求",
+      "evidence_plural": "证据",
+      "deliverable_plural": "交付物"
+    }
+  },
+  "application": {
+    "opportunity_fields": [
+      {
+        "id": "organization",
+        "labels": {"en": "Organization", "zh-Hans": "组织"},
+        "field_type": "short-text",
+        "required": false,
+        "options": []
+      },
+      {
+        "id": "reference",
+        "labels": {"en": "Reference", "zh-Hans": "参考编号"},
+        "field_type": "short-text",
+        "required": false,
+        "options": []
+      },
+      {
+        "id": "deadline",
+        "labels": {"en": "Deadline", "zh-Hans": "截止日期"},
+        "field_type": "date",
+        "required": false,
+        "options": []
+      },
+      {
+        "id": "source-url",
+        "labels": {"en": "Source URL", "zh-Hans": "来源网址"},
+        "field_type": "url",
+        "required": false,
+        "options": []
+      }
+    ],
+    "application_fields": [
+      {
+        "id": "tracking-id",
+        "labels": {"en": "Tracking ID", "zh-Hans": "跟踪编号"},
+        "field_type": "short-text",
+        "required": false,
+        "options": []
+      },
+      {
+        "id": "status",
+        "labels": {"en": "Status", "zh-Hans": "状态"},
+        "field_type": "choice",
+        "required": false,
+        "options": [
+          {"id": "planning", "labels": {"en": "Planning", "zh-Hans": "规划中"}},
+          {"id": "in-progress", "labels": {"en": "In progress", "zh-Hans": "进行中"}},
+          {"id": "complete", "labels": {"en": "Complete", "zh-Hans": "已完成"}}
+        ]
+      },
+      {
+        "id": "notes",
+        "labels": {"en": "Notes", "zh-Hans": "备注"},
+        "field_type": "long-text",
+        "required": false,
+        "options": []
+      }
+    ]
+  },
+  "workflow": {
+    "stages": [
+      {
+        "id": "intake",
+        "labels": {"en": "Intake", "zh-Hans": "导入"},
+        "depends_on": [],
+        "output": "sources",
+        "execution_modes": ["manual-import"]
+      },
+      {
+        "id": "requirements",
+        "labels": {"en": "Confirm requirements", "zh-Hans": "确认要求"},
+        "depends_on": ["intake"],
+        "output": "requirements",
+        "execution_modes": ["host-agent", "configured-provider", "user-decision"]
+      },
+      {
+        "id": "evidence",
+        "labels": {"en": "Organize evidence", "zh-Hans": "整理证据"},
+        "depends_on": [],
+        "output": "evidence",
+        "execution_modes": ["host-agent", "configured-provider", "manual-import"]
+      },
+      {
+        "id": "match",
+        "labels": {"en": "Match evidence", "zh-Hans": "匹配证据"},
+        "depends_on": ["requirements", "evidence"],
+        "output": "matches",
+        "execution_modes": ["host-agent", "configured-provider"]
+      },
+      {
+        "id": "plan",
+        "labels": {"en": "Confirm plan", "zh-Hans": "确认计划"},
+        "depends_on": ["match"],
+        "output": "plan",
+        "execution_modes": ["user-decision"]
+      },
+      {
+        "id": "compose",
+        "labels": {"en": "Compose deliverables", "zh-Hans": "编制交付物"},
+        "depends_on": ["plan"],
+        "output": "deliverables",
+        "execution_modes": ["host-agent", "configured-provider", "manual-import"]
+      },
+      {
+        "id": "review",
+        "labels": {"en": "Review deliverables", "zh-Hans": "审查交付物"},
+        "depends_on": ["compose"],
+        "output": "review",
+        "execution_modes": ["host-agent", "configured-provider", "user-decision"]
+      },
+      {
+        "id": "package",
+        "labels": {"en": "Package deliverables", "zh-Hans": "打包交付物"},
+        "depends_on": ["review"],
+        "output": "package",
+        "execution_modes": ["deterministic"]
+      },
+      {
+        "id": "render",
+        "labels": {"en": "Render and export", "zh-Hans": "渲染与导出"},
+        "depends_on": ["package"],
+        "output": "render",
+        "execution_modes": ["deterministic"]
+      }
+    ],
+    "terminal_stage": "render"
+  },
+  "requirements": {
+    "categories": [
+      {"id": "eligibility", "labels": {"en": "Eligibility", "zh-Hans": "资格"}, "fields": []},
+      {"id": "scope", "labels": {"en": "Scope", "zh-Hans": "范围"}, "fields": []},
+      {"id": "evaluation", "labels": {"en": "Evaluation", "zh-Hans": "评估"}, "fields": []},
+      {"id": "compliance", "labels": {"en": "Compliance", "zh-Hans": "合规"}, "fields": []},
+      {"id": "format", "labels": {"en": "Format", "zh-Hans": "格式"}, "fields": []},
+      {"id": "schedule", "labels": {"en": "Schedule", "zh-Hans": "进度"}, "fields": []},
+      {"id": "resources", "labels": {"en": "Resources", "zh-Hans": "资源"}, "fields": []},
+      {"id": "other", "labels": {"en": "Other", "zh-Hans": "其他"}, "fields": []}
+    ]
+  },
+  "evidence": {
+    "categories": [
+      {"id": "experience", "labels": {"en": "Experience", "zh-Hans": "经验"}, "fields": []},
+      {"id": "capability", "labels": {"en": "Capability", "zh-Hans": "能力"}, "fields": []},
+      {"id": "outcomes", "labels": {"en": "Outcomes", "zh-Hans": "成果"}, "fields": []},
+      {"id": "credentials", "labels": {"en": "Credentials", "zh-Hans": "资质"}, "fields": []},
+      {"id": "references", "labels": {"en": "References", "zh-Hans": "参考资料"}, "fields": []},
+      {"id": "resources", "labels": {"en": "Resources", "zh-Hans": "资源"}, "fields": []},
+      {"id": "constraints", "labels": {"en": "Constraints", "zh-Hans": "约束"}, "fields": []},
+      {"id": "other", "labels": {"en": "Other", "zh-Hans": "其他"}, "fields": []}
+    ]
+  },
+  "deliverables": {
+    "kinds": [
+      {
+        "id": "primary-document",
+        "labels": {"en": "Primary document", "zh-Hans": "主要文档"},
+        "minimum": 1,
+        "maximum": 1,
+        "template": "templates/application-document.typ",
+        "renderer": "canisend.renderer.typst",
+        "validators": ["traceability", "unsupported-claims", "placeholder-free", "citation-integrity", "review-complete"]
+      },
+      {
+        "id": "supporting-document",
+        "labels": {"en": "Supporting document", "zh-Hans": "支持文档"},
+        "minimum": 0,
+        "maximum": 8,
+        "template": "templates/application-document.typ",
+        "renderer": "canisend.renderer.typst",
+        "validators": ["traceability", "unsupported-claims", "placeholder-free", "citation-integrity", "review-complete"]
+      }
+    ]
+  },
+  "capabilities": {
+    "intake_adapters": [
+      "canisend.intake.local-file",
+      "canisend.intake.user-url",
+      "canisend.intake.text-pdf"
+    ],
+    "renderers": ["canisend.renderer.typst"],
+    "validators": [
+      "canisend.validator.evidence-traceability",
+      "canisend.validator.unsupported-claims",
+      "canisend.validator.placeholder-free",
+      "canisend.validator.citation-integrity",
+      "canisend.validator.review-complete"
+    ]
+  },
+  "validation": {
+    "definitions": [
+      {"id": "traceability", "capability": "canisend.validator.evidence-traceability", "parameters": {}},
+      {"id": "unsupported-claims", "capability": "canisend.validator.unsupported-claims", "parameters": {}},
+      {"id": "placeholder-free", "capability": "canisend.validator.placeholder-free", "parameters": {}},
+      {"id": "citation-integrity", "capability": "canisend.validator.citation-integrity", "parameters": {}},
+      {"id": "review-complete", "capability": "canisend.validator.review-complete", "parameters": {}}
+    ],
+    "readiness": ["traceability", "unsupported-claims", "placeholder-free", "citation-integrity", "review-complete"]
+  },
+  "resources": [
+    {
+      "id": "application-document",
+      "kind": "template",
+      "path": "templates/application-document.typ",
+      "version": "2.0.0",
+      "size_bytes": 721,
+      "sha256": "b19149cea8baa10bfbd815108de69319773ff826bb223f89b8f269bd01b56631"
+    }
+  ],
+  "migrations": [],
+  "content_digest": "ffe269ae905b7fac851d82719f989876c7d310216b12922be6a5dd1aff67b321"
+}

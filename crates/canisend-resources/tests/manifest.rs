@@ -3,9 +3,10 @@ use std::{fs, str::FromStr};
 use canisend_resources::{
     ACADEMIC_JOB_WORKFLOW_PACK_ID, AgentHost, AgentPackManifest, AgentSkillsInstallState,
     AgentSkillsManifest, AgentSkillsStatusState, AgentSkillsUninstallState,
-    ResourceCatalogManifest, ResourceId, ResourceKind, academic_job_workflow_pack,
-    export_agent_pack, export_all, export_catalog, get, inspect_agent_skills, install_agent_skills,
-    manifest, uninstall_agent_skills, verify,
+    GENERIC_APPLICATION_WORKFLOW_PACK_ID, ResourceCatalogManifest, ResourceId, ResourceKind,
+    academic_job_workflow_pack, export_agent_pack, export_all, export_catalog,
+    generic_application_workflow_pack, get, inspect_agent_skills, install_agent_skills, manifest,
+    uninstall_agent_skills, verify,
 };
 use sha2::{Digest, Sha256};
 
@@ -29,6 +30,20 @@ fn embedded_manifest_matches_resource_bytes() {
         );
         assert_eq!(get(id).descriptor.id, id.as_str());
     }
+}
+
+#[test]
+fn generic_workflow_pack_manifest_and_template_are_embedded_as_one_bundle() {
+    let manifest = get(ResourceId::WorkflowPackOrgCanisendGenericApplication);
+    assert_eq!(manifest.descriptor.kind, ResourceKind::WorkflowPack);
+    assert_eq!(manifest.descriptor.version, "1.0.0");
+    let value: serde_json::Value =
+        serde_json::from_slice(manifest.bytes).expect("generic Pack Manifest JSON");
+    assert_eq!(value["id"], GENERIC_APPLICATION_WORKFLOW_PACK_ID);
+    let bundle = generic_application_workflow_pack();
+    assert_eq!(bundle.id(), GENERIC_APPLICATION_WORKFLOW_PACK_ID);
+    assert_eq!(bundle.manifest_bytes(), manifest.bytes);
+    assert_eq!(bundle.resources().len(), 1);
 }
 
 #[test]

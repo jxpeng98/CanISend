@@ -223,6 +223,7 @@ pub struct ResourceCatalogExportData {
 }
 
 pub const ACADEMIC_JOB_WORKFLOW_PACK_ID: &str = "org.canisend.academic-job";
+pub const GENERIC_APPLICATION_WORKFLOW_PACK_ID: &str = "org.canisend.generic-application";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EmbeddedWorkflowPack {
@@ -295,6 +296,23 @@ pub fn academic_job_workflow_pack() -> EmbeddedWorkflowPack {
     EmbeddedWorkflowPack {
         id: ACADEMIC_JOB_WORKFLOW_PACK_ID,
         manifest_bytes: get(ResourceId::WorkflowPackOrgCanisendAcademicJob).bytes,
+        resources,
+    }
+}
+
+#[must_use]
+pub fn generic_application_workflow_pack() -> EmbeddedWorkflowPack {
+    let resource = get(ResourceId::TemplateApplicationDocument);
+    let resources = [(
+        SafeRelativePath::try_new(resource.descriptor.path)
+            .expect("embedded Pack resource paths are build-time validated"),
+        resource.bytes.to_vec(),
+    )]
+    .into_iter()
+    .collect();
+    EmbeddedWorkflowPack {
+        id: GENERIC_APPLICATION_WORKFLOW_PACK_ID,
+        manifest_bytes: get(ResourceId::WorkflowPackOrgCanisendGenericApplication).bytes,
         resources,
     }
 }

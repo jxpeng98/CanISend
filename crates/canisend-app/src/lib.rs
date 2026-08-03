@@ -122,7 +122,9 @@ pub use workflow::{
     WorkflowBeginRequest, WorkflowCompleteRequest, WorkflowControlReadModel, WorkflowRerunPreview,
     WorkflowRerunRequest,
 };
-pub use workflow_pack::built_in_academic_job_pack;
+pub use workflow_pack::{
+    built_in_academic_job_pack, built_in_generic_application_pack, built_in_workflow_pack_registry,
+};
 pub use workflow_pack_presentation::{
     WorkflowPackPresentationCategory, WorkflowPackPresentationDeliverable,
     WorkflowPackPresentationField, WorkflowPackPresentationFieldOption,

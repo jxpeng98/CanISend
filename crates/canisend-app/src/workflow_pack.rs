@@ -1,18 +1,52 @@
 use canisend_core::{
     VerifiedWorkflowPackBundle, WorkflowPackByteLoader, WorkflowPackCapabilityRegistry,
-    WorkflowPackOrigin, WorkflowPackRuntime,
+    WorkflowPackOrigin, WorkflowPackRegistry, WorkflowPackRuntime,
 };
-use canisend_resources::{ACADEMIC_JOB_WORKFLOW_PACK_ID, academic_job_workflow_pack, verify};
+use canisend_resources::{
+    ACADEMIC_JOB_WORKFLOW_PACK_ID, EmbeddedWorkflowPack, GENERIC_APPLICATION_WORKFLOW_PACK_ID,
+    academic_job_workflow_pack, generic_application_workflow_pack, verify,
+};
 
 use crate::ApplicationError;
 
 pub fn built_in_academic_job_pack() -> Result<VerifiedWorkflowPackBundle, ApplicationError> {
     verify().map_err(ApplicationError::ResourceIntegrity)?;
-    let embedded = academic_job_workflow_pack();
-    if embedded.id() != ACADEMIC_JOB_WORKFLOW_PACK_ID {
-        return Err(ApplicationError::ResourceIntegrity(
-            "embedded academic workflow Pack identity is inconsistent".to_owned(),
-        ));
+    load_built_in_pack(ACADEMIC_JOB_WORKFLOW_PACK_ID, academic_job_workflow_pack())
+}
+
+pub fn built_in_generic_application_pack() -> Result<VerifiedWorkflowPackBundle, ApplicationError> {
+    verify().map_err(ApplicationError::ResourceIntegrity)?;
+    load_built_in_pack(
+        GENERIC_APPLICATION_WORKFLOW_PACK_ID,
+        generic_application_workflow_pack(),
+    )
+}
+
+pub fn built_in_workflow_pack_registry() -> Result<WorkflowPackRegistry, ApplicationError> {
+    verify().map_err(ApplicationError::ResourceIntegrity)?;
+    let mut registry = WorkflowPackRegistry::new();
+    for (expected_id, embedded) in [
+        (ACADEMIC_JOB_WORKFLOW_PACK_ID, academic_job_workflow_pack()),
+        (
+            GENERIC_APPLICATION_WORKFLOW_PACK_ID,
+            generic_application_workflow_pack(),
+        ),
+    ] {
+        registry
+            .insert(load_built_in_pack(expected_id, embedded)?)
+            .map_err(|error| ApplicationError::ResourceIntegrity(error.to_string()))?;
+    }
+    Ok(registry)
+}
+
+fn load_built_in_pack(
+    expected_id: &str,
+    embedded: EmbeddedWorkflowPack,
+) -> Result<VerifiedWorkflowPackBundle, ApplicationError> {
+    if embedded.id() != expected_id {
+        return Err(ApplicationError::ResourceIntegrity(format!(
+            "embedded workflow Pack identity is inconsistent: expected {expected_id}"
+        )));
     }
     let manifest_bytes = embedded.manifest_bytes();
     let verified = WorkflowPackByteLoader::verify(
@@ -32,11 +66,13 @@ mod tests {
     use std::collections::{BTreeMap, BTreeSet};
 
     use canisend_contracts::{
-        ArtifactKind, DocumentKind, WorkflowPackResourceKind, WorkflowPackStageOutput,
-        WorkflowStage,
+        ArtifactKind, DocumentKind, WorkflowPackManifest, WorkflowPackResourceKind,
+        WorkflowPackStageOutput, WorkflowStage,
     };
     use canisend_core::{
-        StageGraph, WorkflowPackDeliverableCatalogRuntime, WorkflowPackStageGraph,
+        StageGraph, WorkflowPackDeliverableCatalogRuntime, WorkflowPackHostLocale,
+        WorkflowPackLocalizationRuntime, WorkflowPackStageGraph,
+        calculate_workflow_pack_content_digest,
     };
 
     use super::*;
@@ -238,6 +274,155 @@ mod tests {
                 .keys()
                 .any(|locale| locale.as_str() == "zh-Hans")
         );
+    }
+
+    #[test]
+    fn generic_pack_digest_matches_its_canonical_embedded_bundle() {
+        let embedded = generic_application_workflow_pack();
+        let manifest: WorkflowPackManifest =
+            serde_json::from_slice(embedded.manifest_bytes()).expect("typed generic Pack Manifest");
+        let actual = calculate_workflow_pack_content_digest(&manifest, embedded.resources())
+            .expect("generic Pack digest");
+
+        assert_eq!(manifest.content_digest, actual);
+    }
+
+    #[test]
+    fn generic_pack_is_domain_neutral_configurable_and_bilingual() {
+        let pack = built_in_generic_application_pack().expect("verified generic Pack");
+        let manifest = pack.manifest();
+        assert_eq!(
+            pack.snapshot().id().as_str(),
+            GENERIC_APPLICATION_WORKFLOW_PACK_ID
+        );
+        assert!(
+            manifest
+                .application
+                .opportunity_fields
+                .iter()
+                .chain(&manifest.application.application_fields)
+                .all(|field| !field.required)
+        );
+        assert_eq!(
+            manifest
+                .application
+                .opportunity_fields
+                .iter()
+                .map(|field| field.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["organization", "reference", "deadline", "source-url"]
+        );
+
+        let graph = WorkflowPackStageGraph::from_verified_bundle(&pack)
+            .expect("compiled generic stage graph");
+        assert_eq!(graph.terminal_stage().local_id_str(), "render");
+        assert_eq!(graph.descriptors().len(), 9);
+        assert!(
+            graph
+                .descriptors()
+                .iter()
+                .any(|stage| stage.local_id().as_str() == "compose")
+        );
+
+        let deliverables = WorkflowPackDeliverableCatalogRuntime::from_verified_bundle(&pack)
+            .expect("compiled generic Deliverable catalog");
+        let deliverable_descriptors = deliverables.descriptors();
+        assert_eq!(
+            deliverable_descriptors
+                .iter()
+                .map(|item| item.local_id().as_str())
+                .collect::<Vec<_>>(),
+            vec!["primary-document", "supporting-document"]
+        );
+        assert_eq!(
+            deliverables
+                .required_kinds()
+                .iter()
+                .map(|kind| kind.local_id_str())
+                .collect::<Vec<_>>(),
+            vec!["primary-document"]
+        );
+        let academic_only_ids = [
+            "institution",
+            "qualification",
+            "teaching",
+            "research",
+            "employment",
+            "cover-letter",
+            "research-statement",
+            "teaching-statement",
+            "cv",
+        ]
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+        let declared_ids = manifest
+            .application
+            .opportunity_fields
+            .iter()
+            .chain(&manifest.application.application_fields)
+            .map(|field| field.id.as_str())
+            .chain(
+                manifest
+                    .requirements
+                    .categories
+                    .iter()
+                    .map(|category| category.id.as_str()),
+            )
+            .chain(
+                manifest
+                    .evidence
+                    .categories
+                    .iter()
+                    .map(|category| category.id.as_str()),
+            )
+            .chain(
+                deliverable_descriptors
+                    .iter()
+                    .map(|item| item.local_id().as_str()),
+            )
+            .collect::<BTreeSet<_>>();
+        assert!(declared_ids.is_disjoint(&academic_only_ids));
+        let serialized_manifest = serde_json::to_string(manifest)
+            .expect("generic Manifest JSON")
+            .to_ascii_lowercase();
+        for academic_only_label in [
+            "academic",
+            "institution",
+            "cover letter",
+            "research statement",
+            "teaching statement",
+            "academic cv",
+        ] {
+            assert!(!serialized_manifest.contains(academic_only_label));
+        }
+
+        let localization = WorkflowPackLocalizationRuntime::from_verified_bundle(&pack)
+            .expect("generic localization");
+        let chinese = localization.select_host_locale(WorkflowPackHostLocale::SimplifiedChinese);
+        assert_eq!(chinese.selected_locale().as_str(), "zh-Hans");
+        assert_eq!(
+            localization
+                .vocabulary(&chinese)
+                .expect("Chinese vocabulary")
+                .application_singular,
+            "申请"
+        );
+    }
+
+    #[test]
+    fn built_in_registry_resolves_academic_and_generic_packs_exactly() {
+        let academic = built_in_academic_job_pack().expect("academic Pack");
+        let generic = built_in_generic_application_pack().expect("generic Pack");
+        let registry = built_in_workflow_pack_registry().expect("built-in registry");
+
+        assert_eq!(registry.len(), 2);
+        for pack in [&academic, &generic] {
+            assert!(registry.contains_exact(
+                pack.snapshot().id(),
+                pack.snapshot().version(),
+                pack.snapshot().content_digest(),
+            ));
+        }
     }
 
     const fn pack_output(kind: ArtifactKind) -> WorkflowPackStageOutput {
