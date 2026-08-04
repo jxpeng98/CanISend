@@ -38,6 +38,31 @@ const MAX_PREVIEW_TOKEN_BYTES: usize = 80;
 const MAX_SESSION_INPUT_BYTES: u64 = 8 * 1024 * 1024;
 const MAX_TOOL_RESULT_BYTES: usize = 2 * 1024 * 1024;
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(transparent)]
+struct McpStructuredOutput(Value);
+
+impl JsonSchema for McpStructuredOutput {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        std::borrow::Cow::Borrowed("McpStructuredOutput")
+    }
+
+    fn json_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        schemars::json_schema!({
+            "type": "object",
+            "additionalProperties": true
+        })
+    }
+}
+
+impl std::ops::Deref for McpStructuredOutput {
+    type Target = Value;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 #[derive(Debug, Error)]
 pub enum McpServerError {
     #[error("{0}")]
@@ -403,7 +428,7 @@ impl CanISendMcpServer {
 
     fn application_result<T: Serialize>(
         result: Result<T, ApplicationError>,
-    ) -> Result<Json<Value>, McpError> {
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
         match result {
             Ok(value) => {
                 let value = serde_json::to_value(value).map_err(|error| {
@@ -426,7 +451,7 @@ impl CanISendMcpServer {
                         None,
                     ));
                 }
-                Ok(Json(value))
+                Ok(Json(McpStructuredOutput(value)))
             }
             Err(error) => {
                 let failure = error.classify();
@@ -481,7 +506,7 @@ impl CanISendMcpServer {
         &self,
         result: Result<T, ApplicationError>,
         grant: ApprovalGrant<PendingMutation>,
-    ) -> Result<Json<Value>, McpError> {
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
         match result {
             Ok(value) => {
                 self.previews
@@ -598,7 +623,7 @@ impl CanISendMcpServer {
             open_world_hint = false
         )
     )]
-    fn canisend_agent_v3_capabilities(&self) -> Result<Json<Value>, McpError> {
+    fn canisend_agent_v3_capabilities(&self) -> Result<Json<McpStructuredOutput>, McpError> {
         Self::application_result(Application::agent_v3_capabilities(self.workspace()))
     }
 
@@ -615,7 +640,7 @@ impl CanISendMcpServer {
     fn canisend_agent_v3_context(
         &self,
         Parameters(parameters): Parameters<AgentV3ContextParameters>,
-    ) -> Result<Json<Value>, McpError> {
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
         if let Some(application_id) = parameters.application_id.as_deref() {
             Self::validate_application_id(application_id)?;
         }
@@ -635,7 +660,7 @@ impl CanISendMcpServer {
             open_world_hint = false
         )
     )]
-    fn canisend_applications_list(&self) -> Result<Json<Value>, McpError> {
+    fn canisend_applications_list(&self) -> Result<Json<McpStructuredOutput>, McpError> {
         let context = match Application::agent_v3_context(self.workspace(), None) {
             Ok(context) => context,
             Err(error) => return Self::application_result::<Value>(Err(error)),
@@ -663,7 +688,7 @@ impl CanISendMcpServer {
     fn canisend_application_create(
         &self,
         Parameters(parameters): Parameters<ApplicationCreateParameters>,
-    ) -> Result<Json<Value>, McpError> {
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
         let request = match parameters.try_into_request() {
             Ok(request) => request,
             Err(error) => return Self::application_result::<Value>(Err(error)),
@@ -687,7 +712,7 @@ impl CanISendMcpServer {
     fn canisend_application_plan(
         &self,
         Parameters(parameters): Parameters<ApplicationPlanParameters>,
-    ) -> Result<Json<Value>, McpError> {
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
         Self::validate_application_id(&parameters.application_id)?;
         if !parameters.confirmed_user_decision {
             return Err(Self::consent_required(
@@ -719,7 +744,7 @@ impl CanISendMcpServer {
     fn canisend_application_compose(
         &self,
         Parameters(parameters): Parameters<ApplicationComposeParameters>,
-    ) -> Result<Json<Value>, McpError> {
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
         Self::validate_application_id(&parameters.application_id)?;
         let application_id = parameters.application_id.clone();
         let request = match parameters.try_into_request() {
@@ -746,7 +771,7 @@ impl CanISendMcpServer {
     fn canisend_application_review(
         &self,
         Parameters(parameters): Parameters<ApplicationReviewParameters>,
-    ) -> Result<Json<Value>, McpError> {
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
         Self::validate_application_id(&parameters.application_id)?;
         if !parameters.confirmed_private_read {
             return Err(Self::consent_required(
@@ -800,7 +825,7 @@ impl CanISendMcpServer {
     fn canisend_application_approve(
         &self,
         Parameters(parameters): Parameters<ApplicationApprovalParameters>,
-    ) -> Result<Json<Value>, McpError> {
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
         if !parameters.confirmed_user_approval {
             return Err(Self::consent_required(
                 "The user must explicitly approve every body in the reviewed snapshot.",
@@ -852,7 +877,7 @@ impl CanISendMcpServer {
     fn canisend_application_export(
         &self,
         Parameters(parameters): Parameters<ApplicationExportParameters>,
-    ) -> Result<Json<Value>, McpError> {
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
         Self::validate_application_id(&parameters.application_id)?;
         if !parameters.confirmed_private_export {
             return Err(Self::consent_required(
@@ -884,7 +909,7 @@ impl CanISendMcpServer {
             open_world_hint = false
         )
     )]
-    fn canisend_capabilities(&self) -> Result<Json<Value>, McpError> {
+    fn canisend_capabilities(&self) -> Result<Json<McpStructuredOutput>, McpError> {
         Self::application_result(Application::agent_capabilities())
     }
 
@@ -901,7 +926,7 @@ impl CanISendMcpServer {
     fn canisend_context(
         &self,
         Parameters(parameters): Parameters<ContextParameters>,
-    ) -> Result<Json<Value>, McpError> {
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
         if let Some(job_id) = parameters.job_id.as_deref() {
             Self::validate_job_id(job_id)?;
         }
@@ -924,7 +949,7 @@ impl CanISendMcpServer {
     fn canisend_job_detail(
         &self,
         Parameters(parameters): Parameters<JobParameters>,
-    ) -> Result<Json<Value>, McpError> {
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
         Self::validate_job_id(&parameters.job_id)?;
         Self::application_result(Application::job_detail(
             self.workspace(),
@@ -945,7 +970,7 @@ impl CanISendMcpServer {
     fn canisend_job_intake_preview(
         &self,
         Parameters(parameters): Parameters<JobIntakePreviewParameters>,
-    ) -> Result<Json<Value>, McpError> {
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
         Self::validate_job_id(&parameters.job_id)?;
         if parameters.locator.trim().is_empty() {
             return Err(McpError::invalid_params("locator cannot be empty", None));
@@ -1013,7 +1038,7 @@ impl CanISendMcpServer {
     fn canisend_job_intake_commit(
         &self,
         Parameters(parameters): Parameters<PreviewTokenParameters>,
-    ) -> Result<Json<Value>, McpError> {
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
         let token = parameters.preview_token;
         let grant = self.take_preview(&token, ApprovalKind::JobIntake)?;
         let PendingMutation::JobIntake(prepared) = grant.payload().clone() else {
@@ -1041,7 +1066,7 @@ impl CanISendMcpServer {
     fn canisend_jobs_list(
         &self,
         Parameters(parameters): Parameters<JobListParameters>,
-    ) -> Result<Json<Value>, McpError> {
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
         Self::application_result(Application::list_jobs(
             self.workspace(),
             parameters.include_archived,
@@ -1058,7 +1083,7 @@ impl CanISendMcpServer {
             open_world_hint = false
         )
     )]
-    fn canisend_profile_sources(&self) -> Result<Json<Value>, McpError> {
+    fn canisend_profile_sources(&self) -> Result<Json<McpStructuredOutput>, McpError> {
         Self::application_result(Application::list_profile_sources(self.workspace()))
     }
 
@@ -1075,7 +1100,7 @@ impl CanISendMcpServer {
     fn canisend_task_latest(
         &self,
         Parameters(parameters): Parameters<JobParameters>,
-    ) -> Result<Json<Value>, McpError> {
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
         Self::validate_job_id(&parameters.job_id)?;
         Self::application_result(Application::latest_task_for_job(
             self.workspace(),
@@ -1096,7 +1121,7 @@ impl CanISendMcpServer {
     fn canisend_task_prepare(
         &self,
         Parameters(parameters): Parameters<TaskPrepareParameters>,
-    ) -> Result<Json<Value>, McpError> {
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
         Self::validate_job_id(&parameters.job_id)?;
         let request = match TaskPrepareRequest::try_new(
             &parameters.job_id,
@@ -1122,7 +1147,7 @@ impl CanISendMcpServer {
     fn canisend_task_inputs(
         &self,
         Parameters(parameters): Parameters<TaskInputsParameters>,
-    ) -> Result<Json<Value>, McpError> {
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
         Self::validate_task_id(&parameters.task_id)?;
         if !parameters.confirmed_private_read {
             return Err(Self::consent_required(
@@ -1159,7 +1184,7 @@ impl CanISendMcpServer {
     fn canisend_task_completion_preview(
         &self,
         Parameters(parameters): Parameters<TaskCompletionPreviewParameters>,
-    ) -> Result<Json<Value>, McpError> {
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
         if !parameters.confirmed_private_read {
             return Err(Self::consent_required(
                 "The user must explicitly confirm private completion-file access before preview.",
@@ -1200,7 +1225,7 @@ impl CanISendMcpServer {
     fn canisend_task_completion_commit(
         &self,
         Parameters(parameters): Parameters<PreviewTokenParameters>,
-    ) -> Result<Json<Value>, McpError> {
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
         let token = parameters.preview_token;
         let grant = self.take_preview(&token, ApprovalKind::TaskCompletion)?;
         let PendingMutation::TaskCompletion(request) = grant.payload().clone() else {
@@ -1231,7 +1256,7 @@ impl CanISendMcpServer {
     fn canisend_workflow_status(
         &self,
         Parameters(parameters): Parameters<JobParameters>,
-    ) -> Result<Json<Value>, McpError> {
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
         Self::validate_job_id(&parameters.job_id)?;
         Self::application_result(Application::workflow_status(
             self.workspace(),
@@ -1282,6 +1307,21 @@ mod tests {
             std::process::id(),
             NEXT.fetch_add(1, Ordering::Relaxed)
         ))
+    }
+
+    #[test]
+    fn tool_output_schemas_are_object_shaped_for_strict_clients() {
+        let tools = CanISendMcpServer::tool_router().list_all();
+        assert_eq!(tools.len(), 22);
+        for tool in tools {
+            let schema = tool.output_schema.expect("tool output schema");
+            assert_eq!(
+                schema.get("type"),
+                Some(&serde_json::json!("object")),
+                "{} must advertise an object outputSchema",
+                tool.name
+            );
+        }
     }
 
     #[test]

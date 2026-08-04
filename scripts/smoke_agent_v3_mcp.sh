@@ -96,6 +96,8 @@ assert_mcp "generic empty context" '
   (map(select(.id == 2))[0].result.tools | map(.name) |
     index("canisend_agent_v3_context") != null and
     index("canisend_application_create") != null) and
+  (map(select(.id == 2))[0].result.tools |
+    length == 22 and all(.[]; .outputSchema.type == "object")) and
   (map(select(.id == 3))[0].result.isError == false) and
   (map(select(.id == 3))[0].result.structuredContent.data.protocol == "canisend.agent/v3") and
   (map(select(.id == 3))[0].result.structuredContent.data.pack.id ==
