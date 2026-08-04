@@ -5,6 +5,7 @@ import {
   applicationSectionForRoute,
   defaultNavigationMemory,
   isApplicationWorkspaceRoute,
+  isNavigationAvailableForPack,
   parseNavigationMemory,
   recommendWorkflowRoute,
   rememberedJob,
@@ -12,8 +13,12 @@ import {
   routeForApplicationSection,
   routeForContentEntry,
   routeForTaskOperation,
+  routeForWorkspacePack,
   routeForWorkflowStage,
 } from "./workflow-navigation";
+
+const academicPack = "org.canisend.academic-job";
+const genericPack = "org.canisend.generic-application";
 
 const job: JobRecord = {
   id: "job-1",
@@ -140,6 +145,30 @@ describe("navigation memory", () => {
         detail: restored.activeDetail ?? undefined,
       }),
     ).toBe("review-export");
+  });
+});
+
+describe("Pack-aware navigation", () => {
+  it("keeps legacy academic destinations out of Generic Workspaces", () => {
+    expect(isNavigationAvailableForPack("applications", genericPack)).toBe(true);
+    expect(isNavigationAvailableForPack("agent", genericPack)).toBe(true);
+    expect(isNavigationAvailableForPack("opportunities", genericPack)).toBe(false);
+    expect(isNavigationAvailableForPack("profile", genericPack)).toBe(false);
+    expect(isNavigationAvailableForPack("workflow", genericPack)).toBe(false);
+    expect(isNavigationAvailableForPack("delivery", genericPack)).toBe(false);
+    expect(
+      routeForWorkspacePack({ view: "profile", detail: "profile-sources" }, genericPack),
+    ).toEqual({ view: "applications" });
+  });
+
+  it("preserves every academic compatibility destination", () => {
+    expect(isNavigationAvailableForPack("profile", academicPack)).toBe(true);
+    expect(
+      routeForWorkspacePack(
+        { view: "delivery", detail: "delivery-review", jobId: "job-1" },
+        academicPack,
+      ),
+    ).toEqual({ view: "delivery", detail: "delivery-review", jobId: "job-1" });
   });
 });
 
