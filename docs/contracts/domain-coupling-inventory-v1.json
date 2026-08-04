@@ -94,12 +94,12 @@
       "optional-adapter": 2
     },
     "family_counts": {
-      "academic-vocabulary": 84,
+      "academic-vocabulary": 86,
       "fixed-academic-deliverables": 72,
       "fixed-workflow-stage": 19,
       "legacy-job-surface": 135
     },
-    "inventory_sha256": "25a0a7e14e51fa3cae4e146350d3791e5a2d015a5f639af8541cd41f64fffaef",
+    "inventory_sha256": "8c296ad2094080dfbea25c902eaac194f5edba9da9b72616131241775a4118b9",
     "matching_files": 189
   }
 }

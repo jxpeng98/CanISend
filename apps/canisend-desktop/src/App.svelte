@@ -190,9 +190,11 @@
   import {
     applicationSectionForRoute,
     defaultNavigationMemory,
+    isNavigationAvailableForPack,
     parseNavigationMemory,
     recommendWorkflowRoute,
     rememberedJob,
+    routeForWorkspacePack,
     routeForContentEntry,
     routeForTaskOperation,
     routeForWorkflowStage,
@@ -324,7 +326,7 @@
       id: "opportunities" as const,
       label: copy.opportunities,
       icon: Search,
-      enabled: true,
+      enabled: activePackId === ACADEMIC_JOB_WORKFLOW_PACK_ID,
     },
     {
       id: "applications" as const,
@@ -336,7 +338,7 @@
       id: "profile" as const,
       label: copy.profile,
       icon: UserRound,
-      enabled: true,
+      enabled: activePackId === ACADEMIC_JOB_WORKFLOW_PACK_ID,
     },
     {
       id: "agent" as const,
@@ -500,6 +502,7 @@
   $effect(() => {
     if (
       activeView !== "opportunities" ||
+      !isNavigationAvailableForPack("opportunities", activePackId) ||
       OpportunitiesView ||
       opportunitiesViewLoading ||
       opportunitiesViewFailed
@@ -572,7 +575,13 @@
   });
 
   $effect(() => {
-    if (activeView !== "profile" || ProfileView || profileViewLoading || profileViewFailed) {
+    if (
+      activeView !== "profile" ||
+      !isNavigationAvailableForPack("profile", activePackId) ||
+      ProfileView ||
+      profileViewLoading ||
+      profileViewFailed
+    ) {
       return;
     }
     profileViewLoading = true;
@@ -803,17 +812,18 @@
   }
 
   async function navigateTo(route: WorkflowRoute): Promise<void> {
+    const destination = routeForWorkspacePack(route, activePackId);
     if (
-      route.jobId &&
+      destination.jobId &&
       activeWorkspace &&
-      route.jobId !== selectedJob?.job.id &&
-      jobs.some((job) => job.id === route.jobId)
+      destination.jobId !== selectedJob?.job.id &&
+      jobs.some((job) => job.id === destination.jobId)
     ) {
-      const selected = await handleSelectJob(route.jobId);
+      const selected = await handleSelectJob(destination.jobId);
       if (!selected) return;
     }
-    activeDetail = route.detail ?? null;
-    activeView = route.view;
+    activeDetail = destination.detail ?? null;
+    activeView = destination.view;
   }
 
   async function runAction<T>(
@@ -841,6 +851,12 @@
     registrySnapshot = session.registry;
     const canonicalPath = session.registry.registry.default_path ?? session.action.data.path;
     activeWorkspace = { ...session.action.data, path: canonicalPath };
+    const destination = routeForWorkspacePack(
+      { view: activeView, detail: activeDetail ?? undefined },
+      session.action.data.pack_id,
+    );
+    activeView = destination.view;
+    activeDetail = destination.detail ?? null;
     navigationMemory = {
       ...navigationMemory,
       workspacePath: canonicalPath,

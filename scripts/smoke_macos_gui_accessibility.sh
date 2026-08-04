@@ -31,6 +31,7 @@ fi
 "$script_dir/verify_macos_gui_app.sh" "$app" "$manifest"
 
 fixture_root="$(mktemp -d "${TMPDIR:-/tmp}/canisend-gui-accessibility.XXXXXX")"
+keep_fixture="${CANISEND_KEEP_GUI_ACCESSIBILITY_FIXTURE:-0}"
 gui_pid=""
 launcher_pid=""
 cleanup() {
@@ -41,16 +42,23 @@ cleanup() {
     kill "$launcher_pid" 2>/dev/null || true
     wait "$launcher_pid" 2>/dev/null || true
   fi
-  rm -rf "$fixture_root"
+  if [[ "$keep_fixture" == "1" ]]; then
+    echo "macOS GUI accessibility smoke: preserved fixture at $fixture_root" >&2
+  else
+    rm -rf "$fixture_root"
+  fi
 }
 trap cleanup EXIT
+if [[ "$keep_fixture" == "1" ]]; then
+  echo "macOS GUI accessibility smoke: fixture at $fixture_root" >&2
+fi
 mkdir -p "$fixture_root/home"
 mkdir -p "$fixture_root/home/.local/share/mise/shims"
 cp "$repo_root/fixtures/runtime/fake-codex-runtime.sh" \
   "$fixture_root/home/.local/share/mise/shims/codex"
 chmod 700 "$fixture_root/home/.local/share/mise/shims/codex"
 workspace="$fixture_root/workspace"
-"$host" --workspace "$workspace" workspace init --json >/dev/null
+"$host" --workspace "$workspace" workspace init --pack academic-job --json >/dev/null
 workspace="$(CDPATH= cd -- "$workspace" && pwd -P)"
 registry="$fixture_root/home/Library/Application Support/CanISend/workspaces.json"
 mkdir -p "$(dirname "$registry")"
@@ -241,34 +249,10 @@ on run arguments
         end tell
         delay 0.5
         tell guiProcess
-            set profileControl to my findNamedRole(appWindow, "Profile", "AXButton")
-            my assertCondition(profileControl is not missing value, "Profile navigation control missing")
-            click profileControl
-        end tell
-        delay 0.5
-        tell guiProcess
-            set profileConsent to my findNamedRole(appWindow, "I confirm CanISend may store this reviewed profile text in the active local workspace.", "AXCheckBox")
-            my assertCondition(profileConsent is not missing value, "profile initialization consent control missing")
-            if (value of profileConsent as boolean) is false then click profileConsent
-            my assertCondition((value of profileConsent as boolean) is true, "profile initialization consent did not enable")
-            set initializeProfileControl to my findNamedRole(appWindow, "Initialize profile", "AXButton")
-            my assertCondition(initializeProfileControl is not missing value, "profile initialization action missing")
-            my assertCondition((value of attribute "AXEnabled" of initializeProfileControl as boolean) is true, "profile initialization action is disabled")
-            click initializeProfileControl
-            log "accessibility smoke: profile initialization action passed"
-        end tell
-        repeat 40 times
-            delay 0.1
-            tell guiProcess
-                set initializeProfileControl to my findNamedRole(appWindow, "Initialize profile", "AXButton")
-            end tell
-            if initializeProfileControl is missing value then exit repeat
-        end repeat
-        my assertCondition(initializeProfileControl is missing value, "profile initialization did not complete")
-        tell guiProcess
             set agentControl to my findNamedRole(appWindow, "Agent integration", "AXButton")
             my assertCondition(agentControl is not missing value, "Agent navigation control missing")
             click agentControl
+            log "accessibility smoke: Agent navigation passed"
         end tell
         delay 0.5
         tell guiProcess
@@ -278,14 +262,15 @@ on run arguments
             my assertCondition(prepareMcpControl is not missing value, "MCP configuration action missing")
             my assertCondition((value of attribute "AXEnabled" of prepareMcpControl as boolean) is true, "MCP configuration action is disabled")
             click prepareMcpControl
+            log "accessibility smoke: MCP configuration action passed"
         end tell
         set readOnlyToolCount to missing value
         set guardedWriteToolCount to missing value
         repeat 40 times
             delay 0.1
             tell guiProcess
-                set readOnlyToolCount to my findValued(appWindow, "9 read-only / preview tools")
-                set guardedWriteToolCount to my findValued(appWindow, "4 approval-gated writes")
+                set readOnlyToolCount to my findValued(appWindow, "13 read-only / preview tools")
+                set guardedWriteToolCount to my findValued(appWindow, "9 approval-gated writes")
             end tell
             if readOnlyToolCount is not missing value and guardedWriteToolCount is not missing value then exit repeat
         end repeat
@@ -385,7 +370,7 @@ on run arguments
         log "accessibility smoke: first Agent session turn passed"
         tell guiProcess
             set settingsControl to my findNamedRole(appWindow, "Settings", "AXButton")
-            my assertCondition(settingsControl is not missing value, "Settings navigation control missing after profile initialization")
+            my assertCondition(settingsControl is not missing value, "Settings navigation control missing after Agent completion")
             click settingsControl
         end tell
         delay 0.4
@@ -455,6 +440,8 @@ APPLESCRIPT
 then
   echo "macOS GUI accessibility smoke: Accessibility automation failed" >&2
   sed -n '1,160p' "$fixture_root/gui.log" >&2
+  echo "macOS GUI accessibility smoke: synthetic profile state after automation failure" >&2
+  "$host" --workspace "$workspace" profile source list --json >&2 || true
   exit 1
 fi
 
@@ -616,6 +603,20 @@ on run arguments
         end repeat
         if resumedResponse is missing value then error "Agent session did not resume after restart" number 1
         tell guiProcess
+            set profileControl to my findNamedRole(appWindow, "Profile", "AXButton")
+            if profileControl is missing value then error "Profile navigation control missing after restart" number 1
+            click profileControl
+            delay 0.5
+            set profileConsent to my findNamedRole(appWindow, "I confirm CanISend may store this reviewed profile text in the active local workspace.", "AXCheckBox")
+            if profileConsent is missing value then error "profile initialization consent control missing" number 1
+            if (value of profileConsent as boolean) is false then click profileConsent
+            if (value of profileConsent as boolean) is false then error "profile initialization consent did not enable" number 1
+            set initializeProfileControl to my findNamedRole(appWindow, "Initialize profile", "AXButton")
+            if initializeProfileControl is missing value then error "profile initialization action missing" number 1
+            if (value of attribute "AXEnabled" of initializeProfileControl as boolean) is false then error "profile initialization action is disabled" number 1
+            click initializeProfileControl
+            log "accessibility smoke: profile initialization submitted; persistence is verified after automation"
+            delay 1
             keystroke "q" using command down
             log "accessibility smoke: packaged route, locale, and Agent session restart passed"
         end tell
