@@ -272,44 +272,15 @@ jobs:
       - name: Smoke macOS development CLI
         shell: bash
         run: |
-          workspace="$RUNNER_TEMP/canisend-smoke-workspace"
-          backup="$RUNNER_TEMP/canisend-smoke-backup"
-          restored="$RUNNER_TEMP/canisend-smoke-restored"
-          first_uuid_id() {
-            printf '%s' "$1" \
-              | grep -oE '"id":"[0-9a-fA-F-]{36}"' \
-              | sed -n '1p' \
-              | cut -d'"' -f4
-          }
           test -x ./target/debug/canisend
           test -x ./target/debug/canisend-gui
           file ./target/debug/canisend | grep -q arm64
           file ./target/debug/canisend-gui | grep -q arm64
           ./target/debug/canisend version --json
           ./target/debug/canisend doctor --json
-          ./target/debug/canisend agent capabilities --json
-          ./target/debug/canisend --workspace "$workspace" workspace init --pack academic-job --json
-          ./target/debug/canisend --workspace "$workspace" workspace status --json
-          ./target/debug/canisend --workspace "$workspace" workspace check --json
-          job_json="$(./target/debug/canisend --workspace "$workspace" job create --title "Lecturer in Economics" --institution "University X" --json)"
-          job_id="$(first_uuid_id "$job_json")"
-          test -n "$job_id"
-          ./target/debug/canisend --workspace "$workspace" job import "$job_id" --file fixtures/v2-spec/job-advert.md --json
-          ./target/debug/canisend --workspace "$workspace" job show "$job_id" --json
-          ./target/debug/canisend --workspace "$workspace" workflow start --job "$job_id" --json
-          ./target/debug/canisend --workspace "$workspace" workflow begin --job "$job_id" --stage parse --mode host-agent --json
-          ./target/debug/canisend --workspace "$workspace" workflow rerun --job "$job_id" --stage parse --json
-          ./target/debug/canisend discovery import --file fixtures/v2-spec/discovery/leads.csv --source-name "Fast CI fixture" --dry-run --json
-          ./target/debug/canisend --workspace "$workspace" discovery import --file fixtures/v2-spec/discovery/leads.csv --source-name "Fast CI fixture" --json
-          lead_json="$(./target/debug/canisend --workspace "$workspace" discovery list --json)"
-          lead_id="$(first_uuid_id "$lead_json")"
-          test -n "$lead_id"
-          ./target/debug/canisend --workspace "$workspace" discovery promote "$lead_id" --json
-          ./target/debug/canisend --workspace "$workspace" workspace backup "$backup" --json
-          ./target/debug/canisend workspace restore "$backup" "$restored" --json
-          ./target/debug/canisend --workspace "$restored" workspace repair --json
-          ./target/debug/canisend --workspace "$restored" workspace check --json
-          ./scripts/smoke_host_agent.sh ./target/debug/canisend "$RUNNER_TEMP/canisend-host-agent-smoke"
+          ./scripts/smoke_agent_v4_mcp.sh \
+            ./target/debug/canisend \
+            "$RUNNER_TEMP/canisend-agent-v4-mcp-smoke"
 
       - name: Record test timing
         if: always()
