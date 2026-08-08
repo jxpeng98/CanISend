@@ -64,7 +64,13 @@ Application request before mutation. A match atomically records the URL Source a
 `FetchUserSuppliedUrl` consent-bound Application link. It never sends credentials, logs in,
 uploads, or submits an Application.
 
-## Remaining surface work
+## Desktop surface
 
-Desktop, CLI, and Agent v4 bindings remain separate surface work. Scanned-document OCR remains
-outside the 1.0 scope.
+The Svelte desktop uses the same v4 intake facade for both built-in Packs in one neutral
+Workspace. Pasted text, local text/PDF, and URL inputs all pass through body-free
+preview and an exact, Pack-bound, single-use approval token before commit. Changing Workspace or
+Pack discards an outstanding token, and the UI never sends a reconstructed pending request back to
+the commit command.
+
+CLI and Agent v4 bindings remain separate surface work. Scanned-document OCR remains outside the
+1.0 scope.

@@ -1,6 +1,6 @@
 {
   "format": "canisend.svelte-parity/v1",
-  "updated_at": "2026-07-30",
+  "updated_at": "2026-08-08",
   "cutover_ready": true,
   "legacy_egui_required": false,
   "entries": [
@@ -139,6 +139,23 @@
         "apps/canisend-desktop/src/lib/application-dossier.test.ts",
         "apps/canisend-desktop/src/lib/bridge.commands.test.ts",
         "crates/canisend-desktop/src/commands.rs"
+      ]
+    },
+    {
+      "operation": "application.intake",
+      "status": "implemented",
+      "tauri_commands": [
+        "preview_pasted_application_intake",
+        "preview_local_application_intake",
+        "preview_url_application_intake",
+        "commit_application_intake_preview",
+        "discard_application_intake_preview"
+      ],
+      "svelte_views": ["apps/canisend-desktop/src/lib/views/GenericApplicationsView.svelte"],
+      "tests": [
+        "apps/canisend-desktop/src/lib/accessibility-contract.test.ts",
+        "apps/canisend-desktop/src/lib/bridge.commands.test.ts",
+        "crates/canisend-desktop/src/application_intake.rs"
       ]
     },
     {

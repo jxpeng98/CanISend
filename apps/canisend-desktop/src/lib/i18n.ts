@@ -157,6 +157,8 @@ export const messages = {
     requirementStatement: "Requirement statement",
     requirementMustMatchSource:
       "The requirement must be an exact excerpt of the reviewed source text.",
+    applicationIntakeSourceHelp:
+      "Each non-empty source line becomes one proposed, exact-span Requirement for review after creation.",
     requirementCategory: "Requirement category",
     priority: "Priority",
     mandatory: "Mandatory",
@@ -979,6 +981,8 @@ export const messages = {
     sourceText: "已审查的来源文本",
     requirementStatement: "要求陈述",
     requirementMustMatchSource: "要求必须是已审查来源文本中的精确片段。",
+    applicationIntakeSourceHelp:
+      "每个非空来源行会成为一条带精确位置的候选要求，创建后仍需由用户审查。",
     requirementCategory: "要求类别",
     priority: "优先级",
     mandatory: "必需",

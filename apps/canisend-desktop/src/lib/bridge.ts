@@ -178,6 +178,58 @@ export interface ApplicationFlowCreateRequestV3 {
   requirements: ApplicationFlowRequirementDraftV3[];
 }
 
+export interface ApplicationIntakeBaseRequestV4 {
+  pack_id: BuiltInWorkflowPackId;
+  title: string;
+  opportunity_metadata: Record<string, ApplicationFieldValueV3>;
+  application_metadata: Record<string, ApplicationFieldValueV3>;
+  requirement_category: string;
+  requirement_priority: "mandatory" | "recommended" | "informational";
+}
+
+export interface PastedApplicationIntakeRequestV4 extends ApplicationIntakeBaseRequestV4 {
+  source_text: string;
+}
+
+export interface LocalApplicationIntakeRequestV4 extends ApplicationIntakeBaseRequestV4 {
+  path: string;
+}
+
+export interface UrlApplicationIntakeRequestV4 extends ApplicationIntakeBaseRequestV4 {
+  url: string;
+}
+
+export type ApplicationIntakeSourceKindV4 =
+  "pasted-text" | "local-file" | "text-pdf" | "url-html" | "url-plain-text" | "url-pdf";
+
+export interface ApplicationIntakePreviewReadModelV4 {
+  pack_id: BuiltInWorkflowPackId;
+  title: string;
+  source_kind: ApplicationIntakeSourceKindV4;
+  requested_locator: string | null;
+  final_locator: string | null;
+  redirect_chain: string[];
+  content_type: string;
+  preview_sha256: string;
+  original_sha256: string | null;
+  normalized_sha256: string;
+  original_bytes: number | null;
+  normalized_text_bytes: number;
+  normalized_lines: number;
+  pdf_page_count: number | null;
+  requirement_count: number;
+  duplicate_count: number;
+  required_consent: "read-private-inputs" | "fetch-user-supplied-url" | null;
+  submission_performed: false;
+}
+
+export interface ApplicationIntakePreviewTokenReadModelV4 {
+  preview_token: string;
+  expires_at_unix_ms: number;
+  remaining_ttl_seconds: number;
+  preview: ActionReceipt<ApplicationIntakePreviewReadModelV4>;
+}
+
 export interface ApplicationFlowPlannedDeliverableV3 {
   kind: string;
   disposition: "required" | "optional" | "omitted";
@@ -1492,6 +1544,63 @@ export async function createGenericApplication(
   });
 }
 
+export async function previewPastedApplicationIntake(
+  workspace: string,
+  preview: PastedApplicationIntakeRequestV4,
+): Promise<ApplicationIntakePreviewTokenReadModelV4> {
+  return invoke("preview_pasted_application_intake", {
+    request: { workspace, preview },
+  });
+}
+
+export async function previewLocalApplicationIntake(
+  workspace: string,
+  preview: LocalApplicationIntakeRequestV4,
+  confirmedPrivateRead: boolean,
+): Promise<ApplicationIntakePreviewTokenReadModelV4> {
+  return invoke("preview_local_application_intake", {
+    request: {
+      workspace,
+      preview,
+      confirmed_private_read: confirmedPrivateRead,
+    },
+  });
+}
+
+export async function previewUrlApplicationIntake(
+  workspace: string,
+  preview: UrlApplicationIntakeRequestV4,
+  confirmedNetworkFetch: boolean,
+): Promise<ApplicationIntakePreviewTokenReadModelV4> {
+  return invoke("preview_url_application_intake", {
+    request: {
+      workspace,
+      preview,
+      confirmed_network_fetch: confirmedNetworkFetch,
+    },
+  });
+}
+
+export async function commitApplicationIntakePreview(
+  workspace: string,
+  packId: BuiltInWorkflowPackId,
+  previewToken: string,
+): Promise<ActionReceipt<ApplicationFlowReadModelV3>> {
+  return invoke("commit_application_intake_preview", {
+    request: { workspace, pack_id: packId, preview_token: previewToken },
+  });
+}
+
+export async function discardApplicationIntakePreview(
+  workspace: string,
+  packId: BuiltInWorkflowPackId,
+  previewToken: string,
+): Promise<void> {
+  return invoke("discard_application_intake_preview", {
+    request: { workspace, pack_id: packId, preview_token: previewToken },
+  });
+}
+
 export async function planGenericApplication(
   workspace: string,
   applicationId: string,
@@ -2529,6 +2638,20 @@ export async function chooseJobSource(): Promise<string | null> {
       {
         name: "Job advert",
         extensions: ["pdf", "txt", "md", "markdown", "json"],
+      },
+    ],
+  });
+  return typeof selected === "string" ? selected : null;
+}
+
+export async function chooseApplicationSource(): Promise<string | null> {
+  const selected = await open({
+    directory: false,
+    multiple: false,
+    filters: [
+      {
+        name: "Application source",
+        extensions: ["pdf", "txt", "md", "json"],
       },
     ],
   });

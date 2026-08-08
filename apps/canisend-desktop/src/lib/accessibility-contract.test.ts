@@ -90,7 +90,7 @@ describe("desktop accessibility contract", () => {
 
   it("keeps generic Pack forms labeled and consent actions keyboard-native", () => {
     expect(genericApplicationsView).toContain('<Label for="generic-title"');
-    expect(genericApplicationsView).toContain('aria-describedby="generic-requirement-help"');
+    expect(genericApplicationsView).toContain('aria-describedby="generic-source-help"');
     expect(genericApplicationsView).toContain('<Checkbox id="generic-review-consent"');
     expect(genericApplicationsView).toContain('<Checkbox id="generic-export-consent"');
     expect(genericApplicationsView).not.toMatch(

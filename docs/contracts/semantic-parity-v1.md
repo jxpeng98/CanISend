@@ -41,10 +41,10 @@ The current source contract covers:
 |---|---:|
 | Built-in Pack/surface cases | 6 |
 | Shared operations | 8 |
-| Revision-bound operations | 7 |
-| Preview/commit families | 5 |
+| Revision-bound operations | 8 |
+| Preview/commit families | 6 |
 | Read families | 5 |
-| Qualified adapter bindings | 71 |
+| Qualified adapter bindings | 75 |
 
 The six Pack/surface cases are the Cartesian product of `generic-application` and
 `academic-job` with CLI, Tauri, and MCP. Generic fixtures run the canonical create, resume, plan,
@@ -53,16 +53,18 @@ exercise the bounded v2 compatibility families. Cross-linked fixtures prove both
 the Pack boundary: canonical generic operations fail on the academic Pack, and academic
 compatibility operations fail on the generic Pack without mutation.
 
-The five preview/commit families are generic Application review, academic job intake, academic
-task completion, desktop discovery, and desktop workflow rerun. They share the app-owned approval
-broker and its exact Workspace, Pack, operation, source, expiry, replay, and recovery rules.
+The six preview/commit families are generic Application review, v4 desktop Application intake,
+academic job intake, academic task completion, desktop discovery, and desktop workflow rerun.
+They share the app-owned approval broker and its exact Workspace, Pack, operation, source, expiry,
+replay, and recovery rules. Desktop Application intake additionally qualifies pasted text, local
+text/PDF, and URL previews against one neutral Workspace and either built-in Pack.
 
 ## Explicitly uncovered bindings
 
 An operation binding absent from the qualified minimum is never silently treated as equivalent.
 The validator permits only the typed `canonical-leaf`, `compatibility-alias`, and `adapter-only`
 classes to remain explicitly uncovered. Shared leaves may not be uncovered. The current inventory
-machine-lists 148 such bindings with surface, leaf, operation, class, and Pack scope.
+machine-lists 149 such bindings with surface, leaf, operation, class, and Pack scope.
 
 Run:
 

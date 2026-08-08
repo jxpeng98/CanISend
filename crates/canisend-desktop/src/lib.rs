@@ -2,6 +2,7 @@
 
 mod agent;
 mod agent_runtime;
+mod application_intake;
 mod approval;
 mod commands;
 mod delivery;
@@ -37,6 +38,11 @@ pub fn run() {
             agent_runtime::agent_runtime_catalog,
             agent_runtime::cancel_agent_turn,
             agent_runtime::run_agent_turn,
+            application_intake::commit_application_intake_preview,
+            application_intake::discard_application_intake_preview,
+            application_intake::preview_local_application_intake,
+            application_intake::preview_pasted_application_intake,
+            application_intake::preview_url_application_intake,
             commands::archive_job,
             commands::application_dossier,
             commands::backup_workspace,

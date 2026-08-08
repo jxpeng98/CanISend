@@ -151,6 +151,26 @@
       "id": "desktop-discovery-approval",
       "path": "crates/canisend-desktop/src/discovery.rs",
       "marker": "fn discovery_family_uses_the_shared_context_bound_broker()"
+    },
+    {
+      "id": "desktop-application-intake",
+      "path": "crates/canisend-desktop/src/application_intake.rs",
+      "marker": "fn pasted_preview_is_body_free_and_commits_either_pack_in_one_workspace()"
+    },
+    {
+      "id": "pasted-application-intake-failures",
+      "path": "crates/canisend-app/src/intake_v4.rs",
+      "marker": "fn stale_digest_unknown_category_and_empty_text_fail_without_mutation()"
+    },
+    {
+      "id": "local-application-intake-failures",
+      "path": "crates/canisend-app/src/local_intake_v4.rs",
+      "marker": "fn changed_file_rejects_stale_commit_without_authority_mutation()"
+    },
+    {
+      "id": "url-application-intake-failures",
+      "path": "crates/canisend-app/src/url_intake_v4.rs",
+      "marker": "fn changed_remote_bytes_reject_stale_commit_without_authority_mutation()"
     }
   ],
   "shared_operations": [
@@ -267,6 +287,10 @@
       "fixtures": ["generic-cli-lifecycle", "generic-tauri-lifecycle", "generic-mcp-lifecycle"]
     },
     {
+      "operation": "application.intake.commit",
+      "fixtures": ["desktop-application-intake", "pasted-application-intake-failures", "local-application-intake-failures", "url-application-intake-failures"]
+    },
+    {
       "operation": "job.intake.commit",
       "fixtures": ["academic-mcp-job-intake", "academic-tauri-job-intake"]
     },
@@ -314,6 +338,13 @@
       "commit_operation": "tauri.commit.workflow.rerun",
       "outcomes": ["success", "stale", "replay", "wrong-context", "no-mutation", "recovery"],
       "fixtures": ["academic-tauri-task-workflow", "workflow-stale", "approval-broker", "approval-context"]
+    },
+    {
+      "id": "desktop-application-intake",
+      "preview_operations": ["application.intake.pasted-text.preview", "application.intake.local-file.preview", "application.intake.url.preview"],
+      "commit_operation": "application.intake.commit",
+      "outcomes": ["success", "stale", "replay", "wrong-context", "no-mutation", "recovery"],
+      "fixtures": ["desktop-application-intake", "pasted-application-intake-failures", "local-application-intake-failures", "url-application-intake-failures", "approval-broker", "approval-context"]
     }
   ],
   "read_families": [

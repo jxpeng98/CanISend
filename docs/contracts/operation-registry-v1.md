@@ -53,7 +53,7 @@ The built-in registry currently owns:
 | Adapter | Derived source | Registered leaves |
 |---|---|---:|
 | CLI | Compiled Clap command tree | 86 |
-| Tauri | `tauri::generate_handler!` | 111 |
+| Tauri | `tauri::generate_handler!` | 116 |
 | MCP | `#[tool_router]` `canisend_*` methods | 22 |
 
 Every leaf is listed. An unoverridden leaf receives a deterministic adapter-prefixed

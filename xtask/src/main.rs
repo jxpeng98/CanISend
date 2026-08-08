@@ -7714,17 +7714,23 @@ fn check_approval_broker() -> Result<(), String> {
     let desktop_job = read("crates/canisend-desktop/src/job_intake.rs")?;
     let desktop_discovery = read("crates/canisend-desktop/src/discovery.rs")?;
     let desktop_workflow = read("crates/canisend-desktop/src/workflow.rs")?;
+    let desktop_application = read("crates/canisend-desktop/src/application_intake.rs")?;
     let bridge = read("apps/canisend-desktop/src/lib/bridge.ts")?;
     validate_approval_broker_sources(
         &app,
         &mcp,
         &desktop_state,
         &desktop_host,
-        [&desktop_job, &desktop_discovery, &desktop_workflow],
+        [
+            &desktop_job,
+            &desktop_discovery,
+            &desktop_workflow,
+            &desktop_application,
+        ],
         &bridge,
     )?;
     println!(
-        "approval broker: ok (10-minute monotonic TTL, 16-entry bound, MCP + 3 desktop families)"
+        "approval broker: ok (10-minute monotonic TTL, 16-entry bound, MCP + 4 desktop families)"
     );
     Ok(())
 }
@@ -7734,7 +7740,7 @@ fn validate_approval_broker_sources(
     mcp: &str,
     desktop_state: &str,
     desktop_host: &str,
-    desktop_families: [&str; 3],
+    desktop_families: [&str; 4],
     bridge: &str,
 ) -> Result<(), String> {
     for required in [
@@ -7797,11 +7803,11 @@ fn validate_approval_broker_sources(
             }
         }
     }
-    if bridge.matches("remaining_ttl_seconds: number").count() < 4
-        || bridge.matches("expires_at_unix_ms: number").count() < 4
+    if bridge.matches("remaining_ttl_seconds: number").count() < 5
+        || bridge.matches("expires_at_unix_ms: number").count() < 5
     {
         return Err(
-            "desktop bridge must expose expiry metadata for all four preview read models"
+            "desktop bridge must expose expiry metadata for all five preview read models"
                 .to_owned(),
         );
     }
@@ -7815,10 +7821,12 @@ fn validate_approval_broker_sources(
         "struct JobIntakePreviewStore",
         "struct WorkflowPreviewStore",
         "struct DiscoveryPreviewStore",
+        "struct ApplicationIntakePreviewStore",
         "mcp-preview-",
         "job-intake-preview-",
         "workflow-preview-",
         "discovery-preview-",
+        "application-intake-preview-",
     ] {
         if adapter_sources.contains(forbidden) {
             return Err(format!(
@@ -8154,6 +8162,7 @@ fn validate_semantic_parity_policy(
         "application.compose".to_owned(),
         "application.approve".to_owned(),
         "application.export".to_owned(),
+        "application.intake.commit".to_owned(),
         "job.intake.commit".to_owned(),
         "task.complete".to_owned(),
         "tauri.commit.workflow.rerun".to_owned(),
@@ -8182,6 +8191,7 @@ fn validate_semantic_parity_policy(
         "generic-application-review".to_owned(),
         "academic-job-intake".to_owned(),
         "academic-task-completion".to_owned(),
+        "desktop-application-intake".to_owned(),
         "desktop-discovery".to_owned(),
         "desktop-workflow-rerun".to_owned(),
     ]);
@@ -18832,13 +18842,14 @@ mod tests {
         let job = read("crates/canisend-desktop/src/job_intake.rs");
         let discovery = read("crates/canisend-desktop/src/discovery.rs");
         let workflow = read("crates/canisend-desktop/src/workflow.rs");
+        let application = read("crates/canisend-desktop/src/application_intake.rs");
         let mut bridge = read("apps/canisend-desktop/src/lib/bridge.ts");
         validate_approval_broker_sources(
             &app,
             &mcp,
             &desktop_state,
             &desktop_host,
-            [&job, &discovery, &workflow],
+            [&job, &discovery, &workflow, &application],
             &bridge,
         )
         .expect("current approval sources");
@@ -18850,7 +18861,7 @@ mod tests {
                 &mcp,
                 &desktop_state,
                 &desktop_host,
-                [&job, &discovery, &workflow],
+                [&job, &discovery, &workflow, &application],
                 &bridge,
             )
             .is_err()
@@ -18864,7 +18875,7 @@ mod tests {
                 &mcp,
                 &desktop_state,
                 &desktop_host,
-                [&job, &discovery, &workflow],
+                [&job, &discovery, &workflow, &application],
                 &bridge,
             )
             .is_err()
@@ -18882,7 +18893,7 @@ mod tests {
         let current = validate_semantic_parity_policy(&policy, &registry, &root)
             .expect("current semantic parity policy");
         assert_eq!(current.shared_operations, 8);
-        assert_eq!(current.preview_pairs, 5);
+        assert_eq!(current.preview_pairs, 6);
         assert!(!current.uncovered_bindings.is_empty());
 
         let mut missing_shared = policy.clone();
