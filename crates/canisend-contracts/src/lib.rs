@@ -2,6 +2,7 @@
 
 mod agent;
 mod application_v3;
+mod association_v4;
 mod discovery;
 mod domain;
 mod operation;
@@ -14,6 +15,7 @@ mod workspace;
 
 pub use agent::*;
 pub use application_v3::*;
+pub use association_v4::*;
 pub use discovery::*;
 pub use domain::*;
 pub use operation::*;

@@ -10,10 +10,10 @@ use canisend_contracts::{
     DeliverableKindId, DeliverableRecordV3, DeliverableStateV3, EntityRevisionReferenceV3,
     ExecutionMode, OpportunityId, OpportunityRecordV3, PlanId, PlanRecordV3,
     PlanRevisionReferenceV3, PlanStateV3, PlannedDeliverableDispositionV3, PlannedDeliverableV3,
-    RequirementConfirmationV3, RequirementId, RequirementPriorityV3, RequirementRecordV3,
-    RequirementRevisionReferenceV3, Revision, SafeRelativePath, Sha256Digest, StageId,
-    WorkflowPackFieldDefinition, WorkflowPackFieldType, WorkflowPackItemId,
-    WorkflowPackStageOutput,
+    PrivacyClassification, RequirementConfirmationV3, RequirementId, RequirementPriorityV3,
+    RequirementRecordV3, RequirementRevisionReferenceV3, Revision, SafeRelativePath, Sha256Digest,
+    StageId, WorkflowPackFieldDefinition, WorkflowPackFieldType, WorkflowPackItemId,
+    WorkflowPackStageOutput, WorkspaceSourceKindV4,
 };
 use canisend_core::{VerifiedWorkflowPackBundle, WorkflowPackDeliverableCatalogRuntime};
 use canisend_io::{EmbeddedTypstCompiler, project_deliverable_typst_v3};
@@ -23,8 +23,10 @@ use sha2::{Digest, Sha256};
 
 use crate::{
     ApplicationModelCommitResultV3, ApplicationModelRepository, ApplicationProjectionCatalogV3,
-    ApplicationProjectionService, BlobStore, DEFAULT_MAX_BLOB_BYTES, Database, StoreError,
-    StoredApplicationModelV3, generate_id, now_utc,
+    ApplicationProjectionService, BlobStore, DEFAULT_MAX_BLOB_BYTES, Database,
+    NewWorkspaceSourceV4, StoreError, StoredApplicationModelV3,
+    association_v4::prepare_source,
+    generate_id, now_utc,
     render::{create_empty_export_directory, join_path, write_new_file},
 };
 
@@ -259,7 +261,7 @@ impl<'a> ApplicationFlowServiceV3<'a> {
                 pack: binding.clone(),
                 title: request.title,
                 metadata: request.opportunity_metadata,
-                source_ids: vec![source_id],
+                source_ids: vec![source_id.clone()],
                 created_at: created_at.clone(),
                 revision: Revision::try_new(1)?,
                 archived: false,
@@ -279,14 +281,27 @@ impl<'a> ApplicationFlowServiceV3<'a> {
             deliverables: Vec::new(),
         };
         crate::application_v3::validate_snapshot(&snapshot)?;
-        let stored_source_digest = self.blobs.put_bytes(request.source_text.as_bytes())?;
-        if stored_source_digest != source_digest {
+        let source = prepare_source(
+            self.blobs,
+            NewWorkspaceSourceV4 {
+                kind: WorkspaceSourceKindV4::PastedText,
+                locator: "pasted-text".to_owned(),
+                content_type: "text/plain; charset=utf-8".to_owned(),
+                original_bytes: request.source_text.as_bytes().to_vec(),
+                normalized_text: request.source_text,
+                privacy: PrivacyClassification::PrivateLocal,
+            },
+            source_id,
+            Revision::try_new(1)?,
+        )?;
+        if source.record.normalized_sha256 != source_digest {
             return Err(StoreError::ApplicationModelIntegrity(
-                "prepared source digest differs from stored Blob".to_owned(),
+                "prepared Source digest differs from validated Source reference".to_owned(),
             ));
         }
-        let commit = ApplicationModelRepository::new(self.database).create(
+        let commit = ApplicationModelRepository::new(self.database).create_with_source(
             snapshot,
+            source,
             actor,
             "application-flow-intake",
         )?;
