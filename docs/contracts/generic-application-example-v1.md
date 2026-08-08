@@ -8,9 +8,9 @@ compatibility.
 
 ## Purpose
 
-The fixture proves that `org.canisend.generic-application` is not coupled to academic work. Four
-embedded, fully fictional examples exercise grant, admission, tender/proposal, and professional
-job Applications through the same Pack and canonical flow.
+The fixture proves that `org.canisend.generic-application` is not coupled to academic work. Five
+embedded, fully fictional examples exercise grant, admission, tender/proposal, professional-job,
+and internal-dossier Applications through the same Pack and canonical flow.
 
 Each fixture contains:
 
@@ -53,8 +53,8 @@ For every embedded fixture the integration suite:
 1. verifies the resource digest and version;
 2. deserializes with unknown fields denied;
 3. checks the synthetic-data policy and unique family/scenario IDs;
-4. initializes a fresh generic Workspace;
-5. creates the Application with exact Requirement spans;
+4. initializes a fresh domain-neutral Workspace v4;
+5. creates the Application with an explicit exact Pack binding and exact Requirement spans;
 6. confirms the Plan and composes both Deliverable kinds;
 7. privately reads and byte-compares every reviewed body;
 8. records explicit approval;
@@ -66,10 +66,11 @@ The runner uses no URL adapter, provider, host process, network fixture, or exte
 
 ## Embedded resource IDs
 
-- `example.generic-v3.grant`
-- `example.generic-v3.admission`
-- `example.generic-v3.tender-proposal`
-- `example.generic-v3.professional-job`
+- `example.generic-v4.grant`
+- `example.generic-v4.admission`
+- `example.generic-v4.tender-proposal`
+- `example.generic-v4.professional-job`
+- `example.generic-v4.internal-dossier`
 
 They participate in the ordinary resource manifest, SHA-256 verification, catalog listing, and
 complete public-catalog export.

@@ -9,10 +9,11 @@ use std::{
 
 use canisend_app::{
     Application, ApplicationFlowApproveRequestV3, ApplicationFlowComposeRequestV3,
-    ApplicationFlowCreateRequestV3, ApplicationFlowDeliverableDraftV3,
-    ApplicationFlowExportRequestV3, ApplicationFlowPlanRequestV3,
-    ApplicationFlowPlannedDeliverableV3, ApplicationFlowRequirementDraftV3,
-    ApplicationFlowStageStateV3, PrivateExportConsent, PrivateReadConsent,
+    ApplicationFlowCreateRequestV3, ApplicationFlowCreateRequestV4,
+    ApplicationFlowDeliverableDraftV3, ApplicationFlowExportRequestV3,
+    ApplicationFlowPlanRequestV3, ApplicationFlowPlannedDeliverableV3,
+    ApplicationFlowRequirementDraftV3, ApplicationFlowStageStateV3, PrivateExportConsent,
+    PrivateReadConsent,
 };
 use canisend_contracts::{
     ApplicationFieldValueV3, DeliverableStateV3, ExecutionMode, PlannedDeliverableDispositionV3,
@@ -25,11 +26,12 @@ use serde::{Deserialize, Serialize};
 const EXAMPLE_FORMAT: &str = "canisend.generic-application-example/v1";
 const EXAMPLE_DATA_POLICY: &str = "fictional-only-no-real-personal-data";
 const SYNTHETIC_NOTICE: &str = "All names, organizations, identifiers, and Application content in this example are fictional test data.";
-const EXAMPLES: [(&str, &str); 4] = [
-    ("example.generic-v3.grant", "grant"),
-    ("example.generic-v3.admission", "admission"),
-    ("example.generic-v3.tender-proposal", "tender-proposal"),
-    ("example.generic-v3.professional-job", "professional-job"),
+const EXAMPLES: [(&str, &str); 5] = [
+    ("example.generic-v4.grant", "grant"),
+    ("example.generic-v4.admission", "admission"),
+    ("example.generic-v4.tender-proposal", "tender-proposal"),
+    ("example.generic-v4.professional-job", "professional-job"),
+    ("example.generic-v4.internal-dossier", "internal-dossier"),
 ];
 
 static NEXT: AtomicU64 = AtomicU64::new(1);
@@ -83,7 +85,7 @@ struct DeliverableExampleV1 {
 }
 
 #[test]
-fn four_domain_families_complete_offline_without_real_data_or_submission() {
+fn five_domain_families_complete_in_clean_v4_without_real_data_or_submission() {
     let mut scenario_ids = BTreeSet::new();
     let mut families = BTreeSet::new();
     for (resource_id, expected_family) in EXAMPLES {
@@ -103,6 +105,7 @@ fn four_domain_families_complete_offline_without_real_data_or_submission() {
         BTreeSet::from([
             "admission".to_owned(),
             "grant".to_owned(),
+            "internal-dossier".to_owned(),
             "professional-job".to_owned(),
             "tender-proposal".to_owned(),
         ])
@@ -130,15 +133,19 @@ fn validate_synthetic_contract(scenario: &GenericExampleV1, expected_family: &st
 
 fn run_complete_offline_flow(scenario: &GenericExampleV1) {
     let root = temporary_root(&scenario.family);
-    Application::initialize_workspace_v3(&root).expect("initialize generic Workspace");
-    let created = Application::create_application_flow_v3(
+    Application::initialize_workspace_v4(&root).expect("initialize clean Workspace v4");
+    let created = Application::create_application_flow_v4(
         &root,
-        ApplicationFlowCreateRequestV3 {
-            title: scenario.title.clone(),
-            opportunity_metadata: metadata(&scenario.opportunity_metadata),
-            application_metadata: metadata(&scenario.application_metadata),
-            source_text: scenario.source_text.clone(),
-            requirements: requirement_drafts(scenario),
+        ApplicationFlowCreateRequestV4 {
+            pack_id: canisend_contracts::WorkflowPackId::try_new(&scenario.pack_id)
+                .expect("exact embedded Pack ID"),
+            application: ApplicationFlowCreateRequestV3 {
+                title: scenario.title.clone(),
+                opportunity_metadata: metadata(&scenario.opportunity_metadata),
+                application_metadata: metadata(&scenario.application_metadata),
+                source_text: scenario.source_text.clone(),
+                requirements: requirement_drafts(scenario),
+            },
         },
     )
     .expect("create synthetic Application")

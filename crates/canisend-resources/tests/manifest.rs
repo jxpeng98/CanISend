@@ -47,18 +47,19 @@ fn generic_workflow_pack_manifest_and_template_are_embedded_as_one_bundle() {
 }
 
 #[test]
-fn four_fictional_generic_application_examples_are_embedded_and_offline() {
+fn five_fictional_generic_application_examples_are_embedded_and_offline() {
     let expected = [
-        ("example.generic-v3.admission", "admission"),
-        ("example.generic-v3.grant", "grant"),
-        ("example.generic-v3.professional-job", "professional-job"),
-        ("example.generic-v3.tender-proposal", "tender-proposal"),
+        ("example.generic-v4.admission", "admission"),
+        ("example.generic-v4.grant", "grant"),
+        ("example.generic-v4.professional-job", "professional-job"),
+        ("example.generic-v4.tender-proposal", "tender-proposal"),
+        ("example.generic-v4.internal-dossier", "internal-dossier"),
     ];
     for (resource_id, family) in expected {
         let resource = get(ResourceId::from_str(resource_id).expect("typed example resource ID"));
         assert_eq!(resource.descriptor.kind, ResourceKind::Example);
         assert_eq!(resource.descriptor.version, "1.0.0");
-        assert!(resource.descriptor.path.starts_with("examples/generic-v3/"));
+        assert!(resource.descriptor.path.starts_with("examples/generic-v4/"));
         let value: serde_json::Value =
             serde_json::from_slice(resource.bytes).expect("generic example JSON");
         assert_eq!(value["format"], "canisend.generic-application-example/v1");
