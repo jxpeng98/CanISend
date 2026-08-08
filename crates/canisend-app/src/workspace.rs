@@ -72,7 +72,16 @@ impl Application {
     pub fn initialize_workspace_v4(
         root: &Path,
     ) -> Result<ActionReceipt<WorkspaceV4ReadModel>, ApplicationError> {
-        require_new_or_empty_directory(root)?;
+        Self::initialize_workspace_v4_with_policy(root, WorkspaceInitPolicy::NewOrEmpty)
+    }
+
+    pub fn initialize_workspace_v4_with_policy(
+        root: &Path,
+        policy: WorkspaceInitPolicy,
+    ) -> Result<ActionReceipt<WorkspaceV4ReadModel>, ApplicationError> {
+        if policy == WorkspaceInitPolicy::NewOrEmpty {
+            require_new_or_empty_directory(root)?;
+        }
         let workspace = Workspace::init_v4(root)?;
         let status = workspace.status()?;
         Ok(ActionReceipt::new(
@@ -394,6 +403,32 @@ mod tests {
             initialized.status.workspace_id
         );
         assert_eq!(reopened.status.application_count, 0);
+
+        fs::remove_dir_all(root).expect("remove Workspace v4 fixture");
+    }
+
+    #[test]
+    fn neutral_workspace_v4_can_preserve_user_owned_files_during_cli_initialization() {
+        let root = temporary_root("neutral-v4-preserve");
+        fs::create_dir_all(&root).expect("create existing project directory");
+        let sentinel = root.join("keep.txt");
+        fs::write(&sentinel, "user-owned").expect("write user-owned sentinel");
+
+        let initialized = Application::initialize_workspace_v4_with_policy(
+            &root,
+            super::WorkspaceInitPolicy::PreserveExistingFiles,
+        )
+        .expect("initialize neutral Workspace v4 around existing files")
+        .data;
+
+        assert_eq!(
+            initialized.status.workspace_format,
+            canisend_contracts::WORKSPACE_V4_FORMAT
+        );
+        assert_eq!(
+            fs::read_to_string(&sentinel).expect("read preserved sentinel"),
+            "user-owned"
+        );
 
         fs::remove_dir_all(root).expect("remove Workspace v4 fixture");
     }
