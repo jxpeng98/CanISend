@@ -1432,58 +1432,59 @@ mod tests {
         academic.opportunity.pack = academic_pack.clone();
         academic.application.pack = academic_pack;
 
-        let mut repository = ApplicationModelRepository::new(fixture.database());
-        assert_eq!(
+        {
+            let mut repository = ApplicationModelRepository::new(fixture.database());
+            assert_eq!(
+                repository
+                    .authority()
+                    .expect("v4 authority")
+                    .workspace_format,
+                WORKSPACE_V4_FORMAT
+            );
             repository
-                .authority()
-                .expect("v4 authority")
-                .workspace_format,
-            WORKSPACE_V4_FORMAT
-        );
-        repository
-            .create(generic.clone(), ActorKind::User, "create-generic")
-            .expect("generic Application");
-        repository
-            .create(academic.clone(), ActorKind::User, "create-academic")
-            .expect("academic Application");
-
-        let applications = repository.list().expect("mixed Application collection");
-        assert_eq!(applications.len(), 2);
-        assert!(applications.iter().any(|stored| {
-            stored.snapshot.application.id == generic_id
-                && stored.snapshot.pack.id.as_str() == "org.canisend.generic-application"
-        }));
-        assert!(applications.iter().any(|stored| {
-            stored.snapshot.application.id == academic_id
-                && stored.snapshot.pack.id.as_str() == "org.canisend.academic-job"
-        }));
-
-        let mut revised_generic = generic;
-        revised_generic.application.revision = revision(2);
-        revised_generic.application.updated_at = timestamp("2026-08-08T10:01:00Z");
-        revised_generic.application.metadata.insert(
-            item("tracking-note"),
-            ApplicationFieldValueV3::ShortText("independent".to_owned()),
-        );
-        repository
-            .commit(
-                &generic_id,
-                revision(1),
-                revised_generic,
-                ActorKind::User,
-                "revise-generic",
-            )
-            .expect("revise generic Application");
-        assert_eq!(
+                .create(generic.clone(), ActorKind::User, "create-generic")
+                .expect("generic Application");
             repository
-                .get(&academic_id)
-                .expect("academic remains")
-                .snapshot
-                .application
-                .revision,
-            revision(1)
-        );
-        drop(repository);
+                .create(academic.clone(), ActorKind::User, "create-academic")
+                .expect("academic Application");
+
+            let applications = repository.list().expect("mixed Application collection");
+            assert_eq!(applications.len(), 2);
+            assert!(applications.iter().any(|stored| {
+                stored.snapshot.application.id == generic_id
+                    && stored.snapshot.pack.id.as_str() == "org.canisend.generic-application"
+            }));
+            assert!(applications.iter().any(|stored| {
+                stored.snapshot.application.id == academic_id
+                    && stored.snapshot.pack.id.as_str() == "org.canisend.academic-job"
+            }));
+
+            let mut revised_generic = generic;
+            revised_generic.application.revision = revision(2);
+            revised_generic.application.updated_at = timestamp("2026-08-08T10:01:00Z");
+            revised_generic.application.metadata.insert(
+                item("tracking-note"),
+                ApplicationFieldValueV3::ShortText("independent".to_owned()),
+            );
+            repository
+                .commit(
+                    &generic_id,
+                    revision(1),
+                    revised_generic,
+                    ActorKind::User,
+                    "revise-generic",
+                )
+                .expect("revise generic Application");
+            assert_eq!(
+                repository
+                    .get(&academic_id)
+                    .expect("academic remains")
+                    .snapshot
+                    .application
+                    .revision,
+                revision(1)
+            );
+        }
         assert_eq!(
             fixture
                 .database()
