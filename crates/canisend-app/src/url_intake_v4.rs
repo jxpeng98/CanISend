@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     ActionReceipt, Application, ApplicationError, NetworkFetchConsent,
-    PastedTextIntakePreviewRequestV4, SourceDuplicateSignalV4, application::open_workspace,
+    PastedTextIntakePreviewRequestV4, SourceDuplicateSignalV4, application::open_workspace_v4,
     application_flow_v3::requested_built_in_pack, intake_v4::digest,
 };
 
@@ -117,7 +117,7 @@ fn commit_url_intake_with_fetcher(
                 .to_owned(),
         ));
     }
-    let mut workspace = open_workspace(workspace_root)?;
+    let mut workspace = open_workspace_v4(workspace_root)?;
     let root = workspace.paths.root.clone();
     let committed = ApplicationFlowServiceV3::new(&mut workspace.database, &workspace.blobs, &root)
         .create_with_source(
@@ -190,7 +190,7 @@ fn prepare_url_intake(
     let original_sha256 = digest(&document.original_bytes)?;
     let normalized_sha256 = digest(normalized_text.as_bytes())?;
     let duplicates = {
-        let mut workspace = open_workspace(workspace_root)?;
+        let mut workspace = open_workspace_v4(workspace_root)?;
         ApplicationAssociationServiceV4::new(&mut workspace.database, &workspace.blobs)
             .source_duplicates(&original_sha256, &normalized_sha256)?
             .into_iter()

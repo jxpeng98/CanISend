@@ -13,7 +13,10 @@ use canisend_store::{
 use serde::{Deserialize, Serialize};
 
 use crate::{ACADEMIC_JOB_WORKFLOW_PACK_ID, GENERIC_APPLICATION_WORKFLOW_PACK_ID};
-use crate::{ActionReceipt, Application, ApplicationError, application::open_workspace};
+use crate::{
+    ActionReceipt, Application, ApplicationError,
+    application::{open_workspace, open_workspace_v4},
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -101,24 +104,9 @@ impl Application {
     pub fn workspace_status_v4(
         root: &Path,
     ) -> Result<ActionReceipt<WorkspaceV4ReadModel>, ApplicationError> {
-        let workspace = open_workspace(root)?;
+        let workspace = open_workspace_v4(root)?;
         let status = workspace.status()?;
-        if status.workspace_format != WORKSPACE_V4_FORMAT {
-            return Err(ApplicationError::CompatibilityUnavailable {
-                message: format!(
-                    "Workspace format {} is unsupported by the v4 surface",
-                    status.workspace_format
-                ),
-                details: serde_json::json!({
-                    "found": status.workspace_format,
-                    "required": WORKSPACE_V4_FORMAT,
-                }),
-                remediation: canisend_contracts::NextAction {
-                    action: "initialize a clean Workspace v4".to_owned(),
-                    description: "Choose a new or empty directory; this operation does not migrate or mutate the unsupported Workspace".to_owned(),
-                },
-            });
-        }
+        debug_assert_eq!(status.workspace_format, WORKSPACE_V4_FORMAT);
         Ok(ActionReceipt::new(
             "workspace-v4.status",
             "available",
@@ -345,7 +333,10 @@ mod tests {
     use canisend_contracts::{ActorKind, ArtifactKind, SafeRelativePath};
     use canisend_store::{ApplicationModelRepository, ArtifactService, Workspace};
 
-    use crate::{ACADEMIC_JOB_WORKFLOW_PACK_ID, Application, GENERIC_APPLICATION_WORKFLOW_PACK_ID};
+    use crate::{
+        ACADEMIC_JOB_WORKFLOW_PACK_ID, Application, ApplicationError,
+        GENERIC_APPLICATION_WORKFLOW_PACK_ID,
+    };
 
     static NEXT: AtomicU64 = AtomicU64::new(1);
 
@@ -405,6 +396,28 @@ mod tests {
         assert_eq!(reopened.status.application_count, 0);
 
         fs::remove_dir_all(root).expect("remove Workspace v4 fixture");
+    }
+
+    #[test]
+    fn v4_status_reports_an_actionable_compatibility_boundary_for_legacy_workspaces() {
+        let root = temporary_root("legacy-v4-boundary");
+        Application::initialize_workspace(&root).expect("initialize legacy Workspace fixture");
+
+        let error = Application::workspace_status_v4(&root)
+            .expect_err("legacy Workspace must not enter the v4 surface");
+
+        let ApplicationError::CompatibilityUnavailable {
+            details,
+            remediation,
+            ..
+        } = error
+        else {
+            panic!("expected compatibility-unavailable boundary");
+        };
+        assert_eq!(details["required"], canisend_contracts::WORKSPACE_V4_FORMAT);
+        assert!(remediation.description.contains("does not open"));
+
+        fs::remove_dir_all(root).expect("remove legacy Workspace fixture");
     }
 
     #[test]

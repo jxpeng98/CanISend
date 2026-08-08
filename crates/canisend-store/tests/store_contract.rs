@@ -14,7 +14,7 @@ use canisend_contracts::{
     ActorKind, ApplicationDecision, ArtifactKind, ArtifactReference, DocumentKind, DocumentRecord,
     EntityId, ExecutionMode, ExpectedInputRevision, PlannedDocumentRecord, PrivacyClassification,
     ProfileSourceKind, Revision, SafeRelativePath, Sha256Digest, SourceKind, StageExecutionStatus,
-    TaskCompletionRequest, TaskStatus, WorkflowStage,
+    TaskCompletionRequest, TaskStatus, WORKSPACE_FORMAT, WORKSPACE_V4_FORMAT, WorkflowStage,
 };
 use canisend_store::{
     ArtifactService, CriteriaService, DATABASE_SCHEMA_VERSION, DEFAULT_MAX_BLOB_BYTES,
@@ -52,6 +52,63 @@ impl Drop for TestDirectory {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.0);
     }
+}
+
+fn workspace_file_snapshot(root: &Path) -> Vec<(PathBuf, Vec<u8>)> {
+    fn collect(root: &Path, current: &Path, output: &mut Vec<(PathBuf, Vec<u8>)>) {
+        let mut entries = fs::read_dir(current)
+            .expect("read snapshot directory")
+            .collect::<Result<Vec<_>, _>>()
+            .expect("collect snapshot directory");
+        entries.sort_by_key(std::fs::DirEntry::path);
+        for entry in entries {
+            let path = entry.path();
+            let metadata = entry.metadata().expect("snapshot metadata");
+            if metadata.is_dir() {
+                collect(root, &path, output);
+            } else if metadata.is_file() {
+                output.push((
+                    path.strip_prefix(root)
+                        .expect("snapshot path below root")
+                        .to_path_buf(),
+                    fs::read(&path).expect("read snapshot file"),
+                ));
+            }
+        }
+    }
+
+    let mut snapshot = Vec::new();
+    collect(root, root, &mut snapshot);
+    snapshot
+}
+
+#[test]
+fn v4_open_rejects_legacy_format_before_database_migration_or_mutation() {
+    let root = TestDirectory::new("v4-open-fail-closed");
+    let database_path = {
+        let workspace = Workspace::init(root.path()).expect("legacy Workspace fixture");
+        assert_eq!(workspace.config.format, WORKSPACE_FORMAT);
+        workspace.paths.database.clone()
+    };
+    {
+        let connection = Connection::open(&database_path).expect("open legacy database fixture");
+        connection
+            .pragma_update(None, "user_version", DATABASE_SCHEMA_VERSION - 1)
+            .expect("mark database fixture one migration behind");
+    }
+    let before = workspace_file_snapshot(root.path());
+
+    let error = match Workspace::open_v4_from(Some(root.path()), root.path()) {
+        Ok(_) => panic!("legacy Workspace must be rejected"),
+        Err(error) => error,
+    };
+
+    assert!(matches!(
+        error,
+        StoreError::WorkspaceFormatUnsupported { found, required }
+            if found == WORKSPACE_FORMAT && required == WORKSPACE_V4_FORMAT
+    ));
+    assert_eq!(workspace_file_snapshot(root.path()), before);
 }
 
 #[derive(Debug, PartialEq, Eq)]

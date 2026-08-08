@@ -152,20 +152,56 @@ impl Workspace {
         Self::open_from(explicit, &cwd)
     }
 
+    /// Opens only a clean Workspace v4.
+    ///
+    /// The configuration format is checked before SQLite is opened, so an unsupported Workspace
+    /// cannot be migrated or otherwise mutated as a side effect of compatibility detection.
+    pub fn open_v4(explicit: Option<&Path>) -> Result<Self, StoreError> {
+        let cwd = env::current_dir().map_err(|source| io_error(".", source))?;
+        Self::open_v4_from(explicit, &cwd)
+    }
+
     pub fn open_from(explicit: Option<&Path>, cwd: &Path) -> Result<Self, StoreError> {
+        Self::open_from_with_required_format(explicit, cwd, None)
+    }
+
+    /// Equivalent to [`Self::open_v4`] with an explicit discovery base for deterministic hosts and
+    /// tests.
+    pub fn open_v4_from(explicit: Option<&Path>, cwd: &Path) -> Result<Self, StoreError> {
+        Self::open_from_with_required_format(explicit, cwd, Some(WORKSPACE_V4_FORMAT))
+    }
+
+    fn open_from_with_required_format(
+        explicit: Option<&Path>,
+        cwd: &Path,
+        required_format: Option<&str>,
+    ) -> Result<Self, StoreError> {
         let paths = WorkspacePaths::discover(explicit, cwd)?;
         validate_workspace_paths(&paths)?;
         let config_text =
             fs::read_to_string(&paths.config).map_err(|source| io_error(&paths.config, source))?;
         let config: WorkspaceConfig = toml::from_str(&config_text)?;
-        if !matches!(
-            config.format.as_str(),
-            WORKSPACE_FORMAT | WORKSPACE_V4_FORMAT
-        ) || config.storage.database != ".canisend/state.sqlite3"
+        if config.storage.database != ".canisend/state.sqlite3"
             || config.storage.blob_root != ".canisend/blobs/sha256"
         {
             return Err(StoreError::Invariant(
-                "workspace configuration format or storage paths are unsupported".to_owned(),
+                "workspace configuration storage paths are unsupported".to_owned(),
+            ));
+        }
+        if let Some(required) = required_format
+            && config.format != required
+        {
+            return Err(StoreError::WorkspaceFormatUnsupported {
+                found: config.format,
+                required: required.to_owned(),
+            });
+        }
+        if !matches!(
+            config.format.as_str(),
+            WORKSPACE_FORMAT | WORKSPACE_V4_FORMAT
+        ) {
+            return Err(StoreError::Invariant(
+                "workspace configuration format is unsupported".to_owned(),
             ));
         }
         let database = Database::open(&paths.database)?;

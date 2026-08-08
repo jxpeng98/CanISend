@@ -249,6 +249,11 @@ fn classify_store(error: &StoreError) -> Classification {
         StoreError::WorkspaceVersionUnsupported { .. } => {
             ("upgrade-required", ErrorCode::WorkspaceConflict, false)
         }
+        StoreError::WorkspaceFormatUnsupported { .. } => (
+            "compatibility-unavailable",
+            ErrorCode::CompatibilityUnavailable,
+            false,
+        ),
         StoreError::ApplicationModelIntegrity(_) | StoreError::WorkspaceMigrationIntegrity(_) => (
             "integrity-failed",
             ErrorCode::InternalInvariantFailed,
@@ -348,6 +353,16 @@ fn classify_store(error: &StoreError) -> Classification {
                 description:
                     "Do not modify the newer Workspace or attempt an in-place database downgrade"
                         .to_owned(),
+            }),
+        ),
+        StoreError::WorkspaceFormatUnsupported { found, required } => (
+            Some(serde_json::json!({
+                "found": found,
+                "required": required,
+            })),
+            Some(NextAction {
+                action: "initialize a clean Workspace v4".to_owned(),
+                description: "Choose a new or empty directory; compatibility detection does not open, migrate, or mutate the unsupported Workspace".to_owned(),
             }),
         ),
         StoreError::ApplicationAssociationConsentRequired(_) => (
