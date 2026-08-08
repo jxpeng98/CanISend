@@ -20,22 +20,27 @@
     {
       "id": "workspace-v4-cli-recovery",
       "path": "crates/canisend-cli/tests/binary_contract.rs",
-      "marker": "fn native_workspace_commands_initialize_check_backup_and_restore()"
+      "marker": "fn workspace_v4_initialize_check_backup_restore_and_repair_round_trip()"
     },
     {
       "id": "workspace-v4-mcp-reads",
       "path": "crates/canisend-cli/tests/mcp_protocol.rs",
-      "marker": "fn returns_structured_facade_results_and_rejects_malformed_arguments()"
+      "marker": "fn serves_v4_reads_and_refuses_legacy_tools_without_mutation()"
+    },
+    {
+      "id": "mixed-cli-workspace",
+      "path": "crates/canisend-cli/tests/binary_contract.rs",
+      "marker": "fn workspace_v4_holds_generic_and_academic_applications_together()"
+    },
+    {
+      "id": "mixed-mcp-workspace",
+      "path": "scripts/smoke_agent_v4_mcp.sh",
+      "marker": "Agent v4 MCP smoke: ok"
     },
     {
       "id": "generic-tauri-lifecycle",
       "path": "crates/canisend-desktop/src/generic_application.rs",
       "marker": "fn pack_driven_desktop_commands_preserve_full_semantic_lifecycle_and_failures()"
-    },
-    {
-      "id": "generic-mcp-lifecycle",
-      "path": "crates/canisend-mcp/src/lib.rs",
-      "marker": "fn agent_v3_runs_new_resume_review_approval_and_stale_recovery()"
     },
     {
       "id": "generic-kernel-failures",
@@ -61,41 +66,6 @@
       "id": "workflow-stale",
       "path": "crates/canisend-app/src/workflow.rs",
       "marker": "fn revision_bound_rerun_rejects_stale_preview_without_mutation()"
-    },
-    {
-      "id": "academic-cli-agent",
-      "path": "crates/canisend-cli/tests/binary_contract.rs",
-      "marker": "fn capabilities_and_context_match_committed_json_snapshots()"
-    },
-    {
-      "id": "academic-cli-jobs",
-      "path": "crates/canisend-cli/tests/binary_contract.rs",
-      "marker": "fn native_job_commands_import_original_and_normalized_local_text()"
-    },
-    {
-      "id": "academic-cli-profile",
-      "path": "crates/canisend-cli/tests/binary_contract.rs",
-      "marker": "fn profile_source_list_preserves_the_shared_revisioned_read_model()"
-    },
-    {
-      "id": "academic-cli-workflow",
-      "path": "crates/canisend-cli/tests/binary_contract.rs",
-      "marker": "fn workflow_cli_exposes_body_free_graph_modes_and_rerun()"
-    },
-    {
-      "id": "academic-cli-task",
-      "path": "crates/canisend-cli/tests/binary_contract.rs",
-      "marker": "fn leased_task_completion_is_validated_atomic_and_idempotent()"
-    },
-    {
-      "id": "academic-cli-task-adapter",
-      "path": "crates/canisend-cli/tests/binary_contract.rs",
-      "marker": "fn task_cli_adapter_preserves_show_cancel_and_provider_consent_contracts()"
-    },
-    {
-      "id": "academic-v3-cli-lifecycle",
-      "path": "crates/canisend-cli/tests/binary_contract.rs",
-      "marker": "fn canonical_v3_cli_completes_a_migrated_academic_pack_application()"
     },
     {
       "id": "academic-tauri-agent",
@@ -126,31 +96,6 @@
       "id": "academic-tauri-job-intake",
       "path": "crates/canisend-desktop/src/job_intake.rs",
       "marker": "fn job_intake_family_uses_the_shared_single_use_broker()"
-    },
-    {
-      "id": "academic-v3-tauri-lifecycle",
-      "path": "crates/canisend-desktop/src/generic_application.rs",
-      "marker": "fn pack_driven_desktop_commands_preserve_full_semantic_lifecycle_and_failures()"
-    },
-    {
-      "id": "academic-mcp-read",
-      "path": "crates/canisend-mcp/src/lib.rs",
-      "marker": "fn read_only_tools_share_the_application_facade_and_hide_private_bodies()"
-    },
-    {
-      "id": "academic-mcp-job-intake",
-      "path": "crates/canisend-cli/tests/mcp_protocol.rs",
-      "marker": "fn previews_and_commits_exact_job_intake_with_a_single_use_token()"
-    },
-    {
-      "id": "academic-mcp-task",
-      "path": "crates/canisend-cli/tests/mcp_protocol.rs",
-      "marker": "fn prepares_and_exports_versioned_task_inputs_through_the_same_adapter()"
-    },
-    {
-      "id": "academic-v3-mcp-lifecycle",
-      "path": "crates/canisend-mcp/src/lib.rs",
-      "marker": "fn agent_v3_mcp_completes_the_migrated_academic_pack_flow()"
     },
     {
       "id": "compatibility-wrong-pack",
@@ -203,56 +148,49 @@
       "kind": "read",
       "revision_bound": false,
       "outcomes": ["success"],
-      "fixtures": ["generic-cli-lifecycle", "generic-tauri-lifecycle", "generic-mcp-lifecycle", "academic-v3-cli-lifecycle", "academic-v3-tauri-lifecycle", "academic-v3-mcp-lifecycle"]
+      "fixtures": ["mixed-cli-workspace", "generic-tauri-lifecycle", "mixed-mcp-workspace"]
     },
     {
       "operation": "application.show",
       "kind": "read",
       "revision_bound": false,
       "outcomes": ["success"],
-      "fixtures": ["generic-cli-lifecycle", "generic-tauri-lifecycle", "academic-v3-cli-lifecycle", "academic-v3-tauri-lifecycle"]
+      "fixtures": ["mixed-cli-workspace", "generic-tauri-lifecycle", "mixed-mcp-workspace"]
     },
     {
       "operation": "application.create",
       "kind": "mutation",
       "revision_bound": false,
       "outcomes": ["success", "wrong-pack", "no-mutation"],
-      "fixtures": ["generic-cli-lifecycle", "generic-tauri-lifecycle", "generic-mcp-lifecycle", "academic-v3-cli-lifecycle", "academic-v3-tauri-lifecycle", "academic-v3-mcp-lifecycle", "generic-kernel-failures"]
+      "fixtures": ["generic-cli-lifecycle", "mixed-cli-workspace", "generic-tauri-lifecycle", "generic-kernel-failures"]
     },
     {
       "operation": "application.plan",
       "kind": "mutation",
       "revision_bound": true,
       "outcomes": ["success", "stale", "wrong-pack", "no-mutation"],
-      "fixtures": ["generic-cli-lifecycle", "generic-tauri-lifecycle", "generic-mcp-lifecycle", "academic-v3-cli-lifecycle", "academic-v3-tauri-lifecycle", "academic-v3-mcp-lifecycle", "generic-kernel-failures"]
+      "fixtures": ["generic-cli-lifecycle", "generic-tauri-lifecycle", "generic-kernel-failures"]
     },
     {
       "operation": "application.compose",
       "kind": "mutation",
       "revision_bound": true,
       "outcomes": ["success", "stale", "wrong-pack", "no-mutation"],
-      "fixtures": ["generic-cli-lifecycle", "generic-tauri-lifecycle", "generic-mcp-lifecycle", "academic-v3-cli-lifecycle", "academic-v3-tauri-lifecycle", "academic-v3-mcp-lifecycle", "generic-kernel-failures"]
-    },
-    {
-      "operation": "application.review",
-      "kind": "preview",
-      "revision_bound": false,
-      "outcomes": ["success", "wrong-pack", "no-mutation"],
-      "fixtures": ["generic-tauri-lifecycle", "generic-mcp-lifecycle", "academic-v3-tauri-lifecycle", "academic-v3-mcp-lifecycle"]
+      "fixtures": ["generic-cli-lifecycle", "generic-tauri-lifecycle", "generic-kernel-failures"]
     },
     {
       "operation": "application.approve",
       "kind": "commit",
       "revision_bound": true,
       "outcomes": ["success", "stale", "replay", "wrong-pack", "wrong-context", "no-mutation", "recovery"],
-      "fixtures": ["generic-cli-lifecycle", "generic-tauri-lifecycle", "generic-mcp-lifecycle", "academic-v3-cli-lifecycle", "academic-v3-tauri-lifecycle", "academic-v3-mcp-lifecycle", "approval-broker", "approval-context"]
+      "fixtures": ["generic-cli-lifecycle", "generic-tauri-lifecycle", "approval-broker", "approval-context"]
     },
     {
       "operation": "application.export",
       "kind": "mutation",
       "revision_bound": true,
       "outcomes": ["success", "stale", "wrong-pack", "no-mutation"],
-      "fixtures": ["generic-cli-lifecycle", "generic-tauri-lifecycle", "generic-mcp-lifecycle", "academic-v3-cli-lifecycle", "academic-v3-mcp-lifecycle", "generic-app-flow"]
+      "fixtures": ["generic-cli-lifecycle", "generic-tauri-lifecycle", "generic-app-flow"]
     }
   ],
   "pack_surface_cases": [
@@ -271,26 +209,26 @@
     {
       "pack": "generic-application",
       "surface": "mcp",
-      "operations": ["workspace.status", "workspace.check", "agent-v3.capabilities", "agent-v3.context", "application.list", "application.create", "application.plan", "application.compose", "application.review", "application.approve", "application.export"],
-      "fixtures": ["workspace-v4-mcp-reads", "generic-mcp-lifecycle"]
+      "operations": ["workspace.status", "workspace.check", "application.list", "application.show"],
+      "fixtures": ["workspace-v4-mcp-reads", "mixed-mcp-workspace"]
     },
     {
       "pack": "academic-job",
       "surface": "cli",
-      "operations": ["agent.capabilities", "agent.context", "application.list", "application.show", "application.create", "application.plan", "application.compose", "application.approve", "application.export", "job.create", "job.import", "job.list", "job.show", "job.archive", "profile.source.list", "task.prepare", "task.show", "task.inputs", "task.complete", "task.cancel", "workflow.status"],
-      "fixtures": ["academic-cli-agent", "academic-cli-jobs", "academic-cli-profile", "academic-cli-workflow", "academic-cli-task", "academic-cli-task-adapter", "academic-v3-cli-lifecycle", "generic-cli-lifecycle", "compatibility-wrong-pack"]
+      "operations": ["workspace.status", "workspace.check", "application.list", "application.show", "application.create"],
+      "fixtures": ["workspace-v4-cli-recovery", "mixed-cli-workspace"]
     },
     {
       "pack": "academic-job",
       "surface": "tauri",
       "operations": ["agent.capabilities", "agent.context", "application.list", "application.show", "application.create", "application.plan", "application.compose", "application.review", "application.approve", "application.export", "job.create", "job.list", "job.show", "job.intake.commit", "profile.source.list", "task.latest", "task.prepare", "task.inputs", "task.complete.preview", "task.complete", "workflow.status"],
-      "fixtures": ["academic-tauri-agent", "neutral-tauri-registry", "academic-tauri-profile", "academic-tauri-task-workflow", "academic-tauri-job-intake", "mixed-tauri-workspace", "academic-v3-tauri-lifecycle", "generic-tauri-lifecycle", "compatibility-wrong-pack"]
+      "fixtures": ["academic-tauri-agent", "neutral-tauri-registry", "academic-tauri-profile", "academic-tauri-task-workflow", "academic-tauri-job-intake", "mixed-tauri-workspace", "generic-tauri-lifecycle", "compatibility-wrong-pack"]
     },
     {
       "pack": "academic-job",
       "surface": "mcp",
-      "operations": ["agent.capabilities", "agent.context", "agent-v3.capabilities", "agent-v3.context", "application.list", "application.create", "application.plan", "application.compose", "application.review", "application.approve", "application.export", "job.list", "job.show", "job.intake.preview", "job.intake.commit", "profile.source.list", "task.latest", "task.prepare", "task.inputs", "task.complete.preview", "task.complete", "workflow.status"],
-      "fixtures": ["academic-mcp-read", "academic-mcp-job-intake", "academic-mcp-task", "academic-v3-mcp-lifecycle", "generic-mcp-lifecycle", "compatibility-wrong-pack"]
+      "operations": ["workspace.status", "workspace.check", "application.list", "application.show"],
+      "fixtures": ["workspace-v4-mcp-reads", "mixed-mcp-workspace"]
     }
   ],
   "revision_bound_operations": [
@@ -304,11 +242,11 @@
     },
     {
       "operation": "application.approve",
-      "fixtures": ["generic-mcp-lifecycle", "generic-cli-lifecycle", "generic-tauri-lifecycle"]
+      "fixtures": ["generic-cli-lifecycle", "generic-tauri-lifecycle", "approval-broker", "approval-context"]
     },
     {
       "operation": "application.export",
-      "fixtures": ["generic-cli-lifecycle", "generic-tauri-lifecycle", "generic-mcp-lifecycle"]
+      "fixtures": ["generic-cli-lifecycle", "generic-tauri-lifecycle"]
     },
     {
       "operation": "application.intake.commit",
@@ -316,11 +254,11 @@
     },
     {
       "operation": "job.intake.commit",
-      "fixtures": ["academic-mcp-job-intake", "academic-tauri-job-intake"]
+      "fixtures": ["academic-tauri-job-intake"]
     },
     {
       "operation": "task.complete",
-      "fixtures": ["academic-cli-task", "academic-mcp-task", "academic-tauri-task-workflow"]
+      "fixtures": ["academic-tauri-task-workflow"]
     },
     {
       "operation": "tauri.commit.workflow.rerun",
@@ -333,21 +271,21 @@
       "preview_operations": ["application.review"],
       "commit_operation": "application.approve",
       "outcomes": ["success", "stale", "replay", "wrong-pack", "wrong-context", "no-mutation", "recovery"],
-      "fixtures": ["generic-mcp-lifecycle", "generic-tauri-lifecycle", "academic-v3-mcp-lifecycle", "academic-v3-tauri-lifecycle", "approval-broker", "approval-context"]
+      "fixtures": ["generic-tauri-lifecycle", "approval-broker", "approval-context"]
     },
     {
       "id": "academic-job-intake",
-      "preview_operations": ["job.intake.preview", "tauri.preview.local.job.source", "tauri.preview.url.job.source"],
+      "preview_operations": ["job.intake.preview", "tauri.preview.url.job.source"],
       "commit_operation": "job.intake.commit",
       "outcomes": ["success", "stale", "replay", "wrong-context", "no-mutation", "recovery"],
-      "fixtures": ["academic-mcp-job-intake", "academic-tauri-job-intake", "approval-broker", "approval-context"]
+      "fixtures": ["academic-tauri-job-intake", "approval-broker", "approval-context"]
     },
     {
       "id": "academic-task-completion",
       "preview_operations": ["task.complete.preview"],
       "commit_operation": "task.complete",
       "outcomes": ["success", "stale", "replay", "wrong-context", "no-mutation", "recovery"],
-      "fixtures": ["academic-cli-task", "academic-mcp-task", "academic-tauri-task-workflow", "approval-broker", "approval-context"]
+      "fixtures": ["academic-tauri-task-workflow", "approval-broker", "approval-context"]
     },
     {
       "id": "desktop-discovery",
@@ -374,28 +312,28 @@
   "read_families": [
     {
       "id": "generic-application",
-      "operations": ["workspace.status", "workspace.check", "agent-v3.capabilities", "agent-v3.context", "application.list", "application.show"],
-      "fixtures": ["workspace-v4-cli-recovery", "workspace-v4-mcp-reads", "generic-cli-lifecycle", "generic-tauri-lifecycle", "generic-mcp-lifecycle"]
+      "operations": ["workspace.status", "workspace.check", "application.list", "application.show"],
+      "fixtures": ["workspace-v4-cli-recovery", "workspace-v4-mcp-reads", "mixed-cli-workspace", "generic-tauri-lifecycle", "mixed-mcp-workspace"]
     },
     {
       "id": "academic-application",
-      "operations": ["agent.capabilities", "agent.context", "agent-v3.capabilities", "agent-v3.context", "application.list", "application.show", "job.list", "job.show"],
-      "fixtures": ["academic-cli-agent", "academic-cli-jobs", "academic-tauri-agent", "neutral-tauri-registry", "academic-mcp-read", "academic-v3-cli-lifecycle", "academic-v3-tauri-lifecycle", "academic-v3-mcp-lifecycle"]
+      "operations": ["application.list", "application.show"],
+      "fixtures": ["mixed-cli-workspace", "mixed-tauri-workspace", "mixed-mcp-workspace"]
     },
     {
       "id": "evidence-source",
       "operations": ["profile.source.list"],
-      "fixtures": ["academic-cli-profile", "academic-tauri-profile", "academic-mcp-read"]
+      "fixtures": ["academic-tauri-profile"]
     },
     {
       "id": "task",
       "operations": ["task.show", "task.latest"],
-      "fixtures": ["academic-cli-task-adapter", "academic-tauri-task-workflow", "academic-mcp-read"]
+      "fixtures": ["academic-tauri-task-workflow"]
     },
     {
       "id": "workflow",
       "operations": ["workflow.status"],
-      "fixtures": ["academic-cli-workflow", "academic-tauri-task-workflow", "academic-mcp-read"]
+      "fixtures": ["academic-tauri-task-workflow"]
     }
   ],
   "uncovered_policy": {

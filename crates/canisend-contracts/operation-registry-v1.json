@@ -20,7 +20,7 @@
     {"id": "application.intake.commit", "class": "canonical-leaf", "status": "implemented", "pack_scope": "any"},
     {"id": "application.plan", "class": "shared-leaf", "status": "implemented", "pack_scope": "any"},
     {"id": "application.compose", "class": "shared-leaf", "status": "implemented", "pack_scope": "any"},
-    {"id": "application.review", "class": "shared-leaf", "status": "implemented", "pack_scope": "any"},
+    {"id": "application.review", "class": "canonical-leaf", "status": "implemented", "pack_scope": "any"},
     {"id": "application.approve", "class": "shared-leaf", "status": "implemented", "pack_scope": "any"},
     {"id": "application.export", "class": "shared-leaf", "status": "implemented", "pack_scope": "any"},
     {"id": "application.archive", "class": "canonical-leaf", "status": "implemented", "pack_scope": "any"},
@@ -165,6 +165,7 @@
         {"leaf": "list_jobs", "operation": "job.list", "pack_scope": "academic-job"},
         {"leaf": "show_job", "operation": "job.show", "pack_scope": "academic-job"},
         {"leaf": "archive_job", "operation": "job.archive", "pack_scope": "academic-job"},
+        {"leaf": "preview_local_job_source", "operation": "job.intake.preview", "pack_scope": "academic-job"},
         {"leaf": "commit_job_source_preview", "operation": "job.intake.commit", "pack_scope": "academic-job"},
         {"leaf": "list_profile_sources", "operation": "profile.source.list", "pack_scope": "academic-job"},
         {"leaf": "latest_task", "operation": "task.latest", "pack_scope": "academic-job"},
@@ -183,35 +184,13 @@
       "default_status": "implemented",
       "default_pack_scope": "any",
       "leaves": [
-        "canisend_workspace_status", "canisend_workspace_check", "canisend_application_list", "canisend_application_show",
-        "canisend_agent_v3_capabilities", "canisend_agent_v3_context", "canisend_application_approve", "canisend_application_compose", "canisend_application_create", "canisend_application_export", "canisend_application_plan", "canisend_application_review", "canisend_applications_list",
-        "canisend_capabilities", "canisend_context", "canisend_job_detail", "canisend_job_intake_commit", "canisend_job_intake_preview", "canisend_jobs_list", "canisend_profile_sources", "canisend_task_completion_commit", "canisend_task_completion_preview", "canisend_task_inputs", "canisend_task_latest", "canisend_task_prepare", "canisend_workflow_status"
+        "canisend_workspace_status", "canisend_workspace_check", "canisend_application_list", "canisend_application_show"
       ],
       "bindings": [
         {"leaf": "canisend_workspace_status", "operation": "workspace.status", "pack_scope": "any"},
         {"leaf": "canisend_workspace_check", "operation": "workspace.check", "pack_scope": "any"},
-        {"leaf": "canisend_agent_v3_capabilities", "operation": "agent-v3.capabilities", "pack_scope": "any"},
-        {"leaf": "canisend_agent_v3_context", "operation": "agent-v3.context", "pack_scope": "any"},
-        {"leaf": "canisend_applications_list", "operation": "application.list", "pack_scope": "any"},
-        {"leaf": "canisend_application_create", "operation": "application.create", "pack_scope": "any"},
-        {"leaf": "canisend_application_plan", "operation": "application.plan", "pack_scope": "any"},
-        {"leaf": "canisend_application_compose", "operation": "application.compose", "pack_scope": "any"},
-        {"leaf": "canisend_application_review", "operation": "application.review", "pack_scope": "any"},
-        {"leaf": "canisend_application_approve", "operation": "application.approve", "pack_scope": "any"},
-        {"leaf": "canisend_application_export", "operation": "application.export", "pack_scope": "any"},
-        {"leaf": "canisend_capabilities", "operation": "agent.capabilities", "pack_scope": "academic-job"},
-        {"leaf": "canisend_context", "operation": "agent.context", "pack_scope": "academic-job"},
-        {"leaf": "canisend_jobs_list", "operation": "job.list", "pack_scope": "academic-job"},
-        {"leaf": "canisend_job_detail", "operation": "job.show", "pack_scope": "academic-job"},
-        {"leaf": "canisend_job_intake_preview", "operation": "job.intake.preview", "pack_scope": "academic-job"},
-        {"leaf": "canisend_job_intake_commit", "operation": "job.intake.commit", "pack_scope": "academic-job"},
-        {"leaf": "canisend_profile_sources", "operation": "profile.source.list", "pack_scope": "academic-job"},
-        {"leaf": "canisend_task_latest", "operation": "task.latest", "pack_scope": "academic-job"},
-        {"leaf": "canisend_task_prepare", "operation": "task.prepare", "pack_scope": "academic-job"},
-        {"leaf": "canisend_task_inputs", "operation": "task.inputs", "pack_scope": "academic-job"},
-        {"leaf": "canisend_task_completion_preview", "operation": "task.complete.preview", "pack_scope": "academic-job"},
-        {"leaf": "canisend_task_completion_commit", "operation": "task.complete", "pack_scope": "academic-job"},
-        {"leaf": "canisend_workflow_status", "operation": "workflow.status", "pack_scope": "academic-job"}
+        {"leaf": "canisend_application_list", "operation": "application.list", "pack_scope": "any"},
+        {"leaf": "canisend_application_show", "operation": "application.show", "pack_scope": "any"}
       ]
     }
   ]

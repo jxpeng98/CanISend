@@ -72,66 +72,21 @@ pub const CANISEND_MCP_V2_GUARDED_WRITE_TOOLS: [&str; 4] = [
     "canisend_task_prepare",
 ];
 
-pub const CANISEND_MCP_TOOLS: [&str; 26] = [
-    "canisend_agent_v3_capabilities",
-    "canisend_agent_v3_context",
-    "canisend_application_approve",
-    "canisend_application_compose",
-    "canisend_application_create",
-    "canisend_application_export",
+pub const CANISEND_MCP_TOOLS: [&str; 4] = [
     "canisend_application_list",
-    "canisend_application_plan",
-    "canisend_application_review",
     "canisend_application_show",
-    "canisend_applications_list",
-    "canisend_capabilities",
-    "canisend_context",
-    "canisend_job_detail",
-    "canisend_job_intake_commit",
-    "canisend_job_intake_preview",
-    "canisend_jobs_list",
-    "canisend_profile_sources",
-    "canisend_task_completion_commit",
-    "canisend_task_completion_preview",
-    "canisend_task_inputs",
-    "canisend_task_latest",
-    "canisend_task_prepare",
-    "canisend_workflow_status",
     "canisend_workspace_check",
     "canisend_workspace_status",
 ];
 
-pub const CANISEND_MCP_READ_ONLY_TOOLS: [&str; 17] = [
-    "canisend_agent_v3_capabilities",
-    "canisend_agent_v3_context",
-    "canisend_application_review",
+pub const CANISEND_MCP_READ_ONLY_TOOLS: [&str; 4] = [
     "canisend_application_list",
     "canisend_application_show",
-    "canisend_applications_list",
-    "canisend_capabilities",
-    "canisend_context",
-    "canisend_job_detail",
-    "canisend_job_intake_preview",
-    "canisend_jobs_list",
-    "canisend_profile_sources",
-    "canisend_task_completion_preview",
-    "canisend_task_latest",
-    "canisend_workflow_status",
     "canisend_workspace_check",
     "canisend_workspace_status",
 ];
 
-pub const CANISEND_MCP_GUARDED_WRITE_TOOLS: [&str; 9] = [
-    "canisend_application_approve",
-    "canisend_application_compose",
-    "canisend_application_create",
-    "canisend_application_export",
-    "canisend_application_plan",
-    "canisend_job_intake_commit",
-    "canisend_task_completion_commit",
-    "canisend_task_inputs",
-    "canisend_task_prepare",
-];
+pub const CANISEND_MCP_GUARDED_WRITE_TOOLS: [&str; 0] = [];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -443,7 +398,7 @@ impl Application {
     pub fn prepare_agent_mcp_configuration(
         request: &AgentMcpConfigurationRequest,
     ) -> Result<ActionReceipt<AgentMcpConfigurationReadModel>, ApplicationError> {
-        let workspace = Self::resolve_workspace_root(Some(&request.workspace))?;
+        let workspace = Self::resolve_workspace_root_v4(Some(&request.workspace))?;
         let executable = validated_mcp_executable(&request.executable)?;
         let quoted_workspace = shell_quote_path(&workspace)?;
         let quoted_executable = shell_quote_path(&executable)?;
@@ -753,8 +708,7 @@ mod tests {
         AgentCapabilitiesReadModel, AgentContextReadModel, AgentHandoffRequest, AgentHost,
         AgentMcpConfigurationRequest, AgentPackExportReadModel, AgentPackExportRequest,
         AgentSkillsInstallRequest, CANISEND_MCP_GUARDED_WRITE_TOOLS, CANISEND_MCP_PROTOCOL_VERSION,
-        CANISEND_MCP_READ_ONLY_TOOLS, CANISEND_MCP_TOOLS, CANISEND_MCP_V2_GUARDED_WRITE_TOOLS,
-        CANISEND_MCP_V2_READ_ONLY_TOOLS, CANISEND_MCP_V2_TOOLS, shell_quote_path,
+        CANISEND_MCP_READ_ONLY_TOOLS, CANISEND_MCP_TOOLS, CANISEND_MCP_V2_TOOLS, shell_quote_path,
     };
     use crate::{ActionReceipt, Application, PrivateReadConsent};
 
@@ -776,10 +730,10 @@ mod tests {
     }
 
     #[test]
-    fn mcp_configuration_is_host_specific_copyable_and_write_approval_aware() {
+    fn clean_v4_mcp_configuration_is_host_specific_and_read_only() {
         let root = temporary_root("mcp-workspace");
         let executable = temporary_root("mcp O'Brien");
-        Application::initialize_workspace(&root).expect("workspace");
+        Application::initialize_workspace_v4(&root).expect("Workspace v4");
         fs::write(&executable, b"mcp").expect("MCP executable fixture");
 
         let codex = Application::prepare_agent_mcp_configuration(&AgentMcpConfigurationRequest {
@@ -800,15 +754,13 @@ mod tests {
             .collect::<std::collections::BTreeSet<_>>();
         assert_eq!(classified.len(), codex.tools.len());
         assert!(codex.tools.iter().all(|tool| classified.contains(tool)));
-        assert_eq!(CANISEND_MCP_V2_TOOLS.len(), 13);
-        let v2_classified = CANISEND_MCP_V2_READ_ONLY_TOOLS
-            .into_iter()
-            .chain(CANISEND_MCP_V2_GUARDED_WRITE_TOOLS)
-            .collect::<std::collections::BTreeSet<_>>();
-        assert_eq!(v2_classified.len(), CANISEND_MCP_V2_TOOLS.len());
-        assert!(CANISEND_MCP_V2_TOOLS.into_iter().all(|tool| {
-            v2_classified.contains(tool) && codex.tools.iter().any(|candidate| candidate == tool)
-        }));
+        assert_eq!(codex.tools.len(), 4);
+        assert!(codex.guarded_write_tools.is_empty());
+        assert!(
+            CANISEND_MCP_V2_TOOLS
+                .into_iter()
+                .all(|legacy| !codex.tools.iter().any(|tool| tool == legacy))
+        );
         assert_eq!(codex.configuration_target, ".codex/config.toml");
         assert!(
             codex
