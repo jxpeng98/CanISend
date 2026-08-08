@@ -1,0 +1,76 @@
+{
+  "format": "canisend.operation-registry/v4",
+  "version": 4,
+  "workspace_format": "canisend.workspace/v4",
+  "agent_protocol": "canisend.agent/v4",
+  "operations": [
+    {"id":"workspace.initialize.preview","phase":"preview","context":"host","agent_task":null,"adapters":{"cli":"workspace initialize preview","mcp":"canisend_workspace_initialize_preview","tauri":"workspace_initialize_preview"}},
+    {"id":"workspace.initialize.commit","phase":"commit","context":"host","agent_task":null,"adapters":{"cli":"workspace initialize commit","mcp":"canisend_workspace_initialize_commit","tauri":"workspace_initialize_commit"}},
+    {"id":"workspace.status","phase":"read","context":"workspace","agent_task":"orientation","adapters":{"cli":"workspace status","mcp":"canisend_workspace_status","tauri":"workspace_status"}},
+    {"id":"workspace.check","phase":"read","context":"workspace","agent_task":"recovery","adapters":{"cli":"workspace check","mcp":"canisend_workspace_check","tauri":"workspace_check"}},
+    {"id":"workspace.backup.preview","phase":"preview","context":"workspace","agent_task":"recovery","adapters":{"cli":"workspace backup preview","mcp":"canisend_workspace_backup_preview","tauri":"workspace_backup_preview"}},
+    {"id":"workspace.backup.commit","phase":"commit","context":"workspace","agent_task":"recovery","adapters":{"cli":"workspace backup commit","mcp":"canisend_workspace_backup_commit","tauri":"workspace_backup_commit"}},
+    {"id":"workspace.restore.preview","phase":"preview","context":"workspace","agent_task":"recovery","adapters":{"cli":"workspace restore preview","mcp":"canisend_workspace_restore_preview","tauri":"workspace_restore_preview"}},
+    {"id":"workspace.restore.commit","phase":"commit","context":"workspace","agent_task":"recovery","adapters":{"cli":"workspace restore commit","mcp":"canisend_workspace_restore_commit","tauri":"workspace_restore_commit"}},
+    {"id":"workspace.repair.preview","phase":"preview","context":"workspace","agent_task":"recovery","adapters":{"cli":"workspace repair preview","mcp":"canisend_workspace_repair_preview","tauri":"workspace_repair_preview"}},
+    {"id":"workspace.repair.commit","phase":"commit","context":"workspace","agent_task":"recovery","adapters":{"cli":"workspace repair commit","mcp":"canisend_workspace_repair_commit","tauri":"workspace_repair_commit"}},
+
+    {"id":"application.list","phase":"read","context":"workspace","agent_task":"orientation","adapters":{"cli":"application list","mcp":"canisend_application_list","tauri":"application_list"}},
+    {"id":"application.show","phase":"read","context":"application","agent_task":"orientation","adapters":{"cli":"application show","mcp":"canisend_application_show","tauri":"application_show"}},
+    {"id":"application.create.preview","phase":"preview","context":"workspace","agent_task":"application-create","adapters":{"cli":"application create preview","mcp":"canisend_application_create_preview","tauri":"application_create_preview"}},
+    {"id":"application.create.commit","phase":"commit","context":"workspace","agent_task":"application-create","adapters":{"cli":"application create commit","mcp":"canisend_application_create_commit","tauri":"application_create_commit"}},
+    {"id":"application.archive.preview","phase":"preview","context":"application","agent_task":null,"adapters":{"cli":"application archive preview","mcp":"canisend_application_archive_preview","tauri":"application_archive_preview"}},
+    {"id":"application.archive.commit","phase":"commit","context":"application","agent_task":null,"adapters":{"cli":"application archive commit","mcp":"canisend_application_archive_commit","tauri":"application_archive_commit"}},
+
+    {"id":"profile.show","phase":"read","context":"workspace","agent_task":"profile-evidence","adapters":{"cli":"profile show","mcp":"canisend_profile_show","tauri":"profile_show"}},
+    {"id":"profile.update.preview","phase":"preview","context":"workspace","agent_task":"profile-evidence","adapters":{"cli":"profile update preview","mcp":"canisend_profile_update_preview","tauri":"profile_update_preview"}},
+    {"id":"profile.update.commit","phase":"commit","context":"workspace","agent_task":"profile-evidence","adapters":{"cli":"profile update commit","mcp":"canisend_profile_update_commit","tauri":"profile_update_commit"}},
+
+    {"id":"source.list","phase":"read","context":"application","agent_task":"intake","adapters":{"cli":"source list","mcp":"canisend_source_list","tauri":"source_list"}},
+    {"id":"source.show","phase":"read","context":"application","agent_task":"intake","adapters":{"cli":"source show","mcp":"canisend_source_show","tauri":"source_show"}},
+    {"id":"source.intake.preview","phase":"preview","context":"application","agent_task":"intake","adapters":{"cli":"source intake preview","mcp":"canisend_source_intake_preview","tauri":"source_intake_preview"}},
+    {"id":"source.intake.commit","phase":"commit","context":"application","agent_task":"intake","adapters":{"cli":"source intake commit","mcp":"canisend_source_intake_commit","tauri":"source_intake_commit"}},
+    {"id":"source.association.preview","phase":"preview","context":"application","agent_task":"intake","adapters":{"cli":"source association preview","mcp":"canisend_source_association_preview","tauri":"source_association_preview"}},
+    {"id":"source.association.commit","phase":"commit","context":"application","agent_task":"intake","adapters":{"cli":"source association commit","mcp":"canisend_source_association_commit","tauri":"source_association_commit"}},
+
+    {"id":"evidence.list","phase":"read","context":"workspace","agent_task":"profile-evidence","adapters":{"cli":"evidence list","mcp":"canisend_evidence_list","tauri":"evidence_list"}},
+    {"id":"evidence.show","phase":"read","context":"workspace","agent_task":"profile-evidence","adapters":{"cli":"evidence show","mcp":"canisend_evidence_show","tauri":"evidence_show"}},
+    {"id":"evidence.propose.preview","phase":"preview","context":"workspace","agent_task":"profile-evidence","adapters":{"cli":"evidence propose preview","mcp":"canisend_evidence_propose_preview","tauri":"evidence_propose_preview"}},
+    {"id":"evidence.propose.commit","phase":"commit","context":"workspace","agent_task":"profile-evidence","adapters":{"cli":"evidence propose commit","mcp":"canisend_evidence_propose_commit","tauri":"evidence_propose_commit"}},
+    {"id":"evidence.confirm.preview","phase":"preview","context":"workspace","agent_task":"profile-evidence","adapters":{"cli":"evidence confirm preview","mcp":"canisend_evidence_confirm_preview","tauri":"evidence_confirm_preview"}},
+    {"id":"evidence.confirm.commit","phase":"commit","context":"workspace","agent_task":"profile-evidence","adapters":{"cli":"evidence confirm commit","mcp":"canisend_evidence_confirm_commit","tauri":"evidence_confirm_commit"}},
+    {"id":"evidence.association.preview","phase":"preview","context":"application","agent_task":"fit-plan","adapters":{"cli":"evidence association preview","mcp":"canisend_evidence_association_preview","tauri":"evidence_association_preview"}},
+    {"id":"evidence.association.commit","phase":"commit","context":"application","agent_task":"fit-plan","adapters":{"cli":"evidence association commit","mcp":"canisend_evidence_association_commit","tauri":"evidence_association_commit"}},
+
+    {"id":"requirement.list","phase":"read","context":"application","agent_task":"requirements","adapters":{"cli":"requirement list","mcp":"canisend_requirement_list","tauri":"requirement_list"}},
+    {"id":"requirement.show","phase":"read","context":"application","agent_task":"requirements","adapters":{"cli":"requirement show","mcp":"canisend_requirement_show","tauri":"requirement_show"}},
+    {"id":"requirement.extract.preview","phase":"preview","context":"application","agent_task":"requirements","adapters":{"cli":"requirement extract preview","mcp":"canisend_requirement_extract_preview","tauri":"requirement_extract_preview"}},
+    {"id":"requirement.extract.commit","phase":"commit","context":"application","agent_task":"requirements","adapters":{"cli":"requirement extract commit","mcp":"canisend_requirement_extract_commit","tauri":"requirement_extract_commit"}},
+    {"id":"requirement.confirm.preview","phase":"preview","context":"application","agent_task":"requirements","adapters":{"cli":"requirement confirm preview","mcp":"canisend_requirement_confirm_preview","tauri":"requirement_confirm_preview"}},
+    {"id":"requirement.confirm.commit","phase":"commit","context":"application","agent_task":"requirements","adapters":{"cli":"requirement confirm commit","mcp":"canisend_requirement_confirm_commit","tauri":"requirement_confirm_commit"}},
+
+    {"id":"plan.show","phase":"read","context":"application","agent_task":"fit-plan","adapters":{"cli":"plan show","mcp":"canisend_plan_show","tauri":"plan_show"}},
+    {"id":"plan.propose.preview","phase":"preview","context":"application","agent_task":"fit-plan","adapters":{"cli":"plan propose preview","mcp":"canisend_plan_propose_preview","tauri":"plan_propose_preview"}},
+    {"id":"plan.propose.commit","phase":"commit","context":"application","agent_task":"fit-plan","adapters":{"cli":"plan propose commit","mcp":"canisend_plan_propose_commit","tauri":"plan_propose_commit"}},
+    {"id":"plan.confirm.preview","phase":"preview","context":"application","agent_task":"fit-plan","adapters":{"cli":"plan confirm preview","mcp":"canisend_plan_confirm_preview","tauri":"plan_confirm_preview"}},
+    {"id":"plan.confirm.commit","phase":"commit","context":"application","agent_task":"fit-plan","adapters":{"cli":"plan confirm commit","mcp":"canisend_plan_confirm_commit","tauri":"plan_confirm_commit"}},
+
+    {"id":"deliverable.list","phase":"read","context":"application","agent_task":"drafting","adapters":{"cli":"deliverable list","mcp":"canisend_deliverable_list","tauri":"deliverable_list"}},
+    {"id":"deliverable.show","phase":"read","context":"application","agent_task":"drafting","adapters":{"cli":"deliverable show","mcp":"canisend_deliverable_show","tauri":"deliverable_show"}},
+    {"id":"deliverable.draft.preview","phase":"preview","context":"application","agent_task":"drafting","adapters":{"cli":"deliverable draft preview","mcp":"canisend_deliverable_draft_preview","tauri":"deliverable_draft_preview"}},
+    {"id":"deliverable.draft.commit","phase":"commit","context":"application","agent_task":"drafting","adapters":{"cli":"deliverable draft commit","mcp":"canisend_deliverable_draft_commit","tauri":"deliverable_draft_commit"}},
+    {"id":"deliverable.revise.preview","phase":"preview","context":"application","agent_task":"drafting","adapters":{"cli":"deliverable revise preview","mcp":"canisend_deliverable_revise_preview","tauri":"deliverable_revise_preview"}},
+    {"id":"deliverable.revise.commit","phase":"commit","context":"application","agent_task":"drafting","adapters":{"cli":"deliverable revise commit","mcp":"canisend_deliverable_revise_commit","tauri":"deliverable_revise_commit"}},
+    {"id":"deliverable.audit","phase":"read","context":"application","agent_task":"drafting","adapters":{"cli":"deliverable audit","mcp":"canisend_deliverable_audit","tauri":"deliverable_audit"}},
+
+    {"id":"review.inspect","phase":"read","context":"application","agent_task":"review","adapters":{"cli":"review inspect","mcp":"canisend_review_inspect","tauri":"review_inspect"}},
+    {"id":"review.disposition.preview","phase":"preview","context":"application","agent_task":"review","adapters":{"cli":"review disposition preview","mcp":"canisend_review_disposition_preview","tauri":"review_disposition_preview"}},
+    {"id":"review.disposition.commit","phase":"commit","context":"application","agent_task":"review","adapters":{"cli":"review disposition commit","mcp":"canisend_review_disposition_commit","tauri":"review_disposition_commit"}},
+
+    {"id":"export.list","phase":"read","context":"application","agent_task":"export","adapters":{"cli":"export list","mcp":"canisend_export_list","tauri":"export_list"}},
+    {"id":"export.show","phase":"read","context":"application","agent_task":"export","adapters":{"cli":"export show","mcp":"canisend_export_show","tauri":"export_show"}},
+    {"id":"export.prepare.preview","phase":"preview","context":"application","agent_task":"export","adapters":{"cli":"export prepare preview","mcp":"canisend_export_prepare_preview","tauri":"export_prepare_preview"}},
+    {"id":"export.prepare.commit","phase":"commit","context":"application","agent_task":"export","adapters":{"cli":"export prepare commit","mcp":"canisend_export_prepare_commit","tauri":"export_prepare_commit"}}
+  ],
+  "compatibility_aliases_supported": false
+}

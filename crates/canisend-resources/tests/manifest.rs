@@ -2,8 +2,8 @@ use std::{fs, str::FromStr};
 
 use canisend_contracts::{
     AGENT_V4_PROTOCOL, AGENT_V4_SCHEMA_VERSION, AGENT_V4_TASK_MODEL_FORMAT, AgentCommitRequestV4,
-    AgentTaskRequestV4, AgentTaskResourceModelV4, AgentV4SchemaId, SemanticValidate,
-    validate_external_candidate,
+    AgentTaskRequestV4, AgentTaskResourceModelV4, AgentV4SchemaId, OPERATION_REGISTRY_V4_FORMAT,
+    OperationRegistryV4, SemanticValidate, validate_external_candidate,
 };
 use canisend_resources::{
     ACADEMIC_JOB_WORKFLOW_PACK_ID, AgentHost, AgentPackManifest, AgentSkillsInstallState,
@@ -92,6 +92,10 @@ fn agent_v4_model_schemas_and_examples_share_one_clean_contract() {
 
     let schema_resources = [
         (
+            ResourceId::SchemaAgentV4OperationRegistry,
+            AgentV4SchemaId::OperationRegistry,
+        ),
+        (
             ResourceId::SchemaAgentV4TaskRequest,
             AgentV4SchemaId::TaskRequest,
         ),
@@ -129,6 +133,52 @@ fn agent_v4_model_schemas_and_examples_share_one_clean_contract() {
             .expect("commit example JSON");
     validate_external_candidate::<AgentCommitRequestV4>(&commit)
         .expect("valid Agent v4 source intake commit");
+}
+
+#[test]
+fn operation_v4_registry_projects_one_neutral_surface_for_every_host() {
+    let resource = get(ResourceId::AgentV4OperationRegistry);
+    assert_eq!(resource.descriptor.kind, ResourceKind::Agent);
+    assert_eq!(resource.descriptor.version, AGENT_V4_SCHEMA_VERSION);
+    let registry: OperationRegistryV4 =
+        serde_json::from_slice(resource.bytes).expect("operation v4 registry JSON");
+    assert_eq!(registry.format, OPERATION_REGISTRY_V4_FORMAT);
+    assert!(registry.validate_semantics().is_empty());
+    assert!(registry.operations.len() >= 50);
+    assert!(!registry.compatibility_aliases_supported);
+
+    let model: AgentTaskResourceModelV4 =
+        serde_json::from_slice(get(ResourceId::AgentV4TaskResourceModel).bytes)
+            .expect("Agent v4 task-resource model JSON");
+    for task in model.tasks {
+        let assigned = registry
+            .operations
+            .iter()
+            .filter(|operation| operation.agent_task == Some(task.task))
+            .collect::<Vec<_>>();
+        assert!(
+            !assigned.is_empty(),
+            "task has no operations: {}",
+            task.task.as_str()
+        );
+        for prefix in task.operation_prefixes {
+            assert!(
+                assigned
+                    .iter()
+                    .any(|operation| operation.id.as_str().starts_with(&prefix)),
+                "task prefix has no operation: {} {prefix}",
+                task.task.as_str()
+            );
+        }
+    }
+
+    let encoded = String::from_utf8_lossy(resource.bytes);
+    for forbidden in ["job", "academic", "generic", "agent-v2", "agent-v3"] {
+        assert!(
+            !encoded.contains(forbidden),
+            "legacy token in v4 registry: {forbidden}"
+        );
+    }
 }
 
 #[test]
