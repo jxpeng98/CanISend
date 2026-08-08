@@ -8858,6 +8858,35 @@ fn check_svelte_parity() -> Result<(), String> {
             }
         }
 
+        let capability_path = root.join("crates/canisend-desktop/capabilities/default.json");
+        let capability: Value =
+            serde_json::from_slice(&fs::read(&capability_path).map_err(|error| {
+                format!("cannot inspect Svelte desktop capability policy: {error}")
+            })?)
+            .map_err(|error| {
+                format!("Svelte desktop capability policy is invalid JSON: {error}")
+            })?;
+        let permissions = capability["permissions"]
+            .as_array()
+            .ok_or_else(|| "Svelte desktop capability permissions must be an array".to_owned())?
+            .iter()
+            .map(|permission| {
+                permission.as_str().ok_or_else(|| {
+                    "Svelte desktop capability permissions must contain only strings".to_owned()
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let expected_permissions = [
+            "core:default",
+            "core:window:allow-start-dragging",
+            "dialog:allow-open",
+        ];
+        if permissions != expected_permissions {
+            return Err(format!(
+                "Svelte desktop capability policy must grant only the baseline, title-bar dragging, and file-open permissions; found {permissions:?}"
+            ));
+        }
+
         let vite_config = fs::read_to_string(root.join("apps/canisend-desktop/vite.config.ts"))
             .map_err(|error| format!("cannot inspect Svelte Vite configuration: {error}"))?;
         if !vite_config.contains("base: \"./\"") {
