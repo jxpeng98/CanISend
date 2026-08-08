@@ -65,6 +65,27 @@ impl LegacyCompatibilityOperation {
         Self::WorkflowStatus,
     ];
 
+    #[cfg(test)]
+    pub(crate) const REGISTERED_ALIASES: [Self; 17] = [
+        Self::AgentCapabilities,
+        Self::AgentContext,
+        Self::JobList,
+        Self::JobShow,
+        Self::JobCreate,
+        Self::JobArchive,
+        Self::JobIntakePreview,
+        Self::JobIntakeCommit,
+        Self::ProfileSources,
+        Self::TaskLatest,
+        Self::TaskPrepare,
+        Self::TaskInputs,
+        Self::TaskCompletionPreview,
+        Self::TaskCompletionCommit,
+        Self::TaskCancel,
+        Self::TaskPrepareAgain,
+        Self::WorkflowStatus,
+    ];
+
     pub(crate) const fn legacy(self) -> &'static str {
         match self {
             Self::AgentCapabilities => "agent.capabilities",
@@ -320,10 +341,10 @@ mod tests {
     static NEXT: AtomicU64 = AtomicU64::new(1);
 
     #[test]
-    fn compatibility_registry_is_total_and_unambiguous() {
+    fn compatibility_registry_is_total_for_exported_aliases_and_unambiguous() {
         let registry = OperationRegistry::built_in().expect("typed operation registry");
         let mut legacy = BTreeSet::new();
-        for operation in LegacyCompatibilityOperation::ALL {
+        for operation in LegacyCompatibilityOperation::REGISTERED_ALIASES {
             assert!(legacy.insert(operation.legacy()));
             assert!(!operation.canonical().is_empty());
             assert_ne!(operation.legacy(), operation.canonical());
@@ -336,6 +357,12 @@ mod tests {
             );
         }
         assert_eq!(legacy.len(), registry.compatibility_aliases.len());
+        for internal in [
+            LegacyCompatibilityOperation::JobImport,
+            LegacyCompatibilityOperation::TaskShow,
+        ] {
+            assert!(registry.compatibility_alias(internal.legacy()).is_none());
+        }
     }
 
     #[test]
