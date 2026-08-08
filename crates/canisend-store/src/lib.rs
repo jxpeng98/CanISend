@@ -2,6 +2,7 @@
 
 mod application_flow_v3;
 mod application_projection_v3;
+mod application_storage;
 mod application_v3;
 mod artifact;
 mod association_v4;
@@ -70,7 +71,7 @@ pub use compatibility_v3::{
 };
 pub use context::AgentContextService;
 pub use criteria::CriteriaService;
-pub use database::{DATABASE_SCHEMA_VERSION, Database};
+pub use database::{DATABASE_SCHEMA_VERSION, Database, NATIVE_APPLICATION_V4_SCHEMA_VERSION};
 pub use discovery::DiscoveryService;
 pub use document::DocumentService;
 pub use evidence::EvidenceService;
@@ -129,6 +130,10 @@ pub enum StoreError {
         "workspace format {found} is unsupported by this surface; required format is {required}"
     )]
     WorkspaceFormatUnsupported { found: String, required: String },
+    #[error(
+        "Workspace v4 uses legacy application storage at database schema {found}; native v4 storage requires schema {required} in a clean Workspace"
+    )]
+    WorkspaceV4StorageUnsupported { found: u32, required: u32 },
     #[error("workspace configuration is invalid: {0}")]
     ConfigDecode(#[from] toml::de::Error),
     #[error("workspace configuration could not be encoded: {0}")]

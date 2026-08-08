@@ -40,7 +40,7 @@
     "stable": "current-minor-latest-patch"
   },
   "workspace": {
-    "current_database_schema_version": 19,
+    "current_database_schema_version": 20,
     "downgrade": "restore-verified-pre-upgrade-backup-to-new-path",
     "format": "canisend.workspace/v2",
     "frozen_migrations_through": 13,

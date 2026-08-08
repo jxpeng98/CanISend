@@ -16,6 +16,7 @@ use sha2::{Digest, Sha256};
 
 use crate::{
     Database, StoreError, StoredApplicationModelV3,
+    application_storage::ApplicationStorage,
     application_v3::{
         enum_name, insert_audit, insert_content_blob_references, insert_dependencies,
         insert_revision, load_current, next_revision, serialize_snapshot, to_i64, validate_reason,
@@ -111,6 +112,7 @@ impl<'a> ApplicationPackMigrationService<'a> {
         let audit_id = generate_id()?;
         let actor_name = enum_name(actor)?;
         let transaction = self.database.immediate_transaction()?;
+        let storage = ApplicationStorage::detect(&transaction)?;
         let current = load_current(&transaction, application_id)?;
         if current.snapshot.application.revision != expected_revision {
             return Err(StoreError::TaskStale(format!(
@@ -146,11 +148,14 @@ impl<'a> ApplicationPackMigrationService<'a> {
         )?;
         insert_content_blob_references(&transaction, &candidate, &migrated_at)?;
         let updated = transaction.execute(
-            "UPDATE application_model_v3_heads
+            &format!(
+                "UPDATE {}
              SET opportunity_id = ?2, pack_id = ?3, pack_version = ?4, pack_digest = ?5,
                  head_revision = ?6, updated_at = ?7
              WHERE application_id = ?1 AND head_revision = ?8
                AND pack_id = ?9 AND pack_version = ?10 AND pack_digest = ?11",
+                storage.heads()
+            ),
             params![
                 application_id.as_str(),
                 candidate.opportunity.id.as_str(),
@@ -175,20 +180,26 @@ impl<'a> ApplicationPackMigrationService<'a> {
             &transaction,
             audit_id.as_str(),
             &actor_name,
-            "application-v3.pack-migrate",
+            match storage {
+                ApplicationStorage::V3 => "application-v3.pack-migrate",
+                ApplicationStorage::V4 => "application-v4.pack-migrate",
+            },
             application_id,
             candidate.application.revision,
             &reason,
             &migrated_at,
         )?;
         transaction.execute(
-            "INSERT INTO application_pack_v3_migrations(
+            &format!(
+                "INSERT INTO {}(
                 id, application_id, from_application_revision, to_application_revision,
                 pack_id, from_pack_version, from_pack_digest, to_pack_version, to_pack_digest,
                 source_manifest_sha256, target_manifest_sha256, preview_sha256,
                 plan_invalidated, stale_deliverable_count, actor, reason, created_at
              ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12,
                        ?13, ?14, ?15, ?16, ?17)",
+                storage.pack_migrations()
+            ),
             params![
                 migration_id.as_str(),
                 application_id.as_str(),
@@ -1185,10 +1196,12 @@ fn load_current_projection_paths(
     application_id: &ApplicationId,
     application_revision: Revision,
 ) -> Result<Vec<SafeRelativePath>, StoreError> {
-    let mut statement = connection.prepare(
-        "SELECT relative_path FROM application_projection_v3_manifests
+    let storage = ApplicationStorage::detect(connection)?;
+    let mut statement = connection.prepare(&format!(
+        "SELECT relative_path FROM {}
          WHERE application_id = ?1 AND application_revision = ?2 ORDER BY relative_path",
-    )?;
+        storage.projections()
+    ))?;
     statement
         .query_map(
             params![application_id.as_str(), to_i64(application_revision.get())?],
@@ -1774,6 +1787,86 @@ mod tests {
             .create(snapshot, ActorKind::User, "create-pack-migration-test")
             .expect("Application");
         (root, workspace, source, manifest, resources, application_id)
+    }
+
+    fn fixture_v4(
+        label: &str,
+    ) -> (
+        TestDirectory,
+        Workspace,
+        VerifiedWorkflowPackBundle,
+        WorkflowPackManifest,
+        BTreeMap<SafeRelativePath, Vec<u8>>,
+        ApplicationId,
+    ) {
+        let root = TestDirectory::new(label);
+        let mut workspace = Workspace::init_v4(root.path()).expect("Workspace v4");
+        let (manifest, resources) = bundle_fixture("1.0.0");
+        let source = verified(&manifest, resources.clone());
+        let content_sha256 = workspace
+            .blobs
+            .put_bytes(b"native-v4-authoritative-content")
+            .expect("content Blob");
+        let snapshot = snapshot(binding(&source), content_sha256);
+        let application_id = snapshot.application.id.clone();
+        ApplicationModelRepository::new(&mut workspace.database)
+            .create(snapshot, ActorKind::User, "create-native-v4-pack-migration")
+            .expect("native v4 Application");
+        (root, workspace, source, manifest, resources, application_id)
+    }
+
+    #[test]
+    fn native_v4_pack_migration_uses_only_native_heads_revisions_and_ledger() {
+        let (_root, mut workspace, source, manifest, resources, application_id) =
+            fixture_v4("native-v4-ledger");
+        let target = target_bundle(manifest, resources, |manifest, _| {
+            manifest.workflow.stages[0].labels = labels("Native v4 updated label");
+        });
+        let preview = ApplicationPackMigrationService::new(&mut workspace.database)
+            .preview(&application_id, &source, &target)
+            .expect("native v4 preview");
+        ApplicationPackMigrationService::new(&mut workspace.database)
+            .migrate(
+                &application_id,
+                revision(1),
+                &preview.preview_sha256,
+                &source,
+                &target,
+                ActorKind::User,
+                "upgrade-native-v4-pack",
+            )
+            .expect("native v4 Pack migration");
+
+        let native_ledger: i64 = workspace
+            .database
+            .connection()
+            .query_row(
+                "SELECT COUNT(*) FROM application_pack_v4_migrations",
+                [],
+                |row| row.get(0),
+            )
+            .expect("native v4 ledger count");
+        let legacy_ledger: i64 = workspace
+            .database
+            .connection()
+            .query_row(
+                "SELECT COUNT(*) FROM application_pack_v3_migrations",
+                [],
+                |row| row.get(0),
+            )
+            .expect("legacy v3 ledger count");
+        let native_revisions: i64 = workspace
+            .database
+            .connection()
+            .query_row(
+                "SELECT COUNT(*) FROM application_v4_revisions WHERE application_id = ?1",
+                [application_id.as_str()],
+                |row| row.get(0),
+            )
+            .expect("native v4 revision count");
+        assert_eq!(native_ledger, 1);
+        assert_eq!(legacy_ledger, 0);
+        assert_eq!(native_revisions, 2);
     }
 
     #[test]

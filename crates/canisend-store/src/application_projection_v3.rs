@@ -12,6 +12,7 @@ use sha2::{Digest, Sha256};
 use crate::{
     ApplicationModelRepository, BlobStore, DEFAULT_MAX_BLOB_BYTES, Database, StoreError,
     StoredApplicationModelV3,
+    application_storage::ApplicationStorage,
     application_v3::load_application_model_revision,
     artifact::{digest_file, write_projection},
     io_error, now_utc,
@@ -551,15 +552,20 @@ fn verify_current_application(
     connection: &Connection,
     stored: &StoredApplicationModelV3,
 ) -> Result<(), StoreError> {
+    let storage = ApplicationStorage::detect(connection)?;
     let current: Option<(i64, String, String, String, String)> = connection
         .query_row(
-            "SELECT head.head_revision, revision.snapshot_sha256,
+            &format!(
+                "SELECT head.head_revision, revision.snapshot_sha256,
                     head.pack_id, head.pack_version, head.pack_digest
-             FROM application_model_v3_heads AS head
-             JOIN application_model_v3_revisions AS revision
+             FROM {} AS head
+             JOIN {} AS revision
                ON revision.application_id = head.application_id
               AND revision.revision = head.head_revision
              WHERE head.application_id = ?1",
+                storage.heads(),
+                storage.revisions()
+            ),
             [stored.snapshot.application.id.as_str()],
             |row| {
                 Ok((
@@ -593,8 +599,10 @@ fn record_pending_projection(
     record: &ApplicationProjectionRecordV3,
     updated_at: &canisend_contracts::UtcTimestamp,
 ) -> Result<(), StoreError> {
+    let storage = ApplicationStorage::detect(connection)?;
     connection.execute(
-        "INSERT INTO application_projection_v3_manifests(
+        &format!(
+            "INSERT INTO {}(
             application_id, application_revision, snapshot_sha256,
             pack_id, pack_version, pack_digest, relative_path, projection_kind,
             deliverable_id, deliverable_revision, source_sha256, generated_sha256,
@@ -617,6 +625,8 @@ fn record_pending_projection(
             status = 'missing',
             last_error = NULL,
             updated_at = excluded.updated_at",
+            storage.projections()
+        ),
         params![
             record.application_id.as_str(),
             to_i64(record.application_revision.get())?,
@@ -643,40 +653,42 @@ fn record_pending_projection(
 fn load_all_projection_rows(
     connection: &Connection,
 ) -> Result<Vec<ApplicationProjectionRecordV3>, StoreError> {
-    query_projection_rows(
-        connection,
+    let storage = ApplicationStorage::detect(connection)?;
+    let sql = format!(
         "SELECT manifest.application_id, manifest.application_revision, manifest.snapshot_sha256,
                 manifest.pack_id, manifest.pack_version, manifest.pack_digest,
                 manifest.relative_path, manifest.projection_kind,
                 manifest.deliverable_id, manifest.deliverable_revision,
                 manifest.source_sha256, manifest.generated_sha256,
                 manifest.observed_sha256, manifest.status, manifest.updated_at
-         FROM application_projection_v3_manifests AS manifest
-         JOIN application_model_v3_heads AS head
+         FROM {} AS manifest
+         JOIN {} AS head
            ON head.application_id = manifest.application_id
           AND head.head_revision = manifest.application_revision
           AND head.pack_id = manifest.pack_id
           AND head.pack_version = manifest.pack_version
           AND head.pack_digest = manifest.pack_digest
          ORDER BY relative_path",
-        [],
-    )
+        storage.projections(),
+        storage.heads()
+    );
+    query_projection_rows(connection, &sql, [])
 }
 
 fn load_projection_rows(
     connection: &Connection,
     application_id: &ApplicationId,
 ) -> Result<Vec<ApplicationProjectionRecordV3>, StoreError> {
-    query_projection_rows(
-        connection,
+    let storage = ApplicationStorage::detect(connection)?;
+    let sql = format!(
         "SELECT application_id, application_revision, snapshot_sha256,
                 pack_id, pack_version, pack_digest, relative_path, projection_kind,
                 deliverable_id, deliverable_revision, source_sha256, generated_sha256,
                 observed_sha256, status, updated_at
-         FROM application_projection_v3_manifests
-         WHERE application_id = ?1 ORDER BY relative_path",
-        [application_id.as_str()],
-    )
+         FROM {} WHERE application_id = ?1 ORDER BY relative_path",
+        storage.projections()
+    );
+    query_projection_rows(connection, &sql, [application_id.as_str()])
 }
 
 fn query_projection_rows<P>(
@@ -783,15 +795,16 @@ fn load_projection_row(
     connection: &Connection,
     relative_path: &SafeRelativePath,
 ) -> Result<Option<ApplicationProjectionRecordV3>, StoreError> {
-    let rows = query_projection_rows(
-        connection,
+    let storage = ApplicationStorage::detect(connection)?;
+    let sql = format!(
         "SELECT application_id, application_revision, snapshot_sha256,
                 pack_id, pack_version, pack_digest, relative_path, projection_kind,
                 deliverable_id, deliverable_revision, source_sha256, generated_sha256,
                 observed_sha256, status, updated_at
-         FROM application_projection_v3_manifests WHERE relative_path = ?1",
-        [relative_path.as_str()],
-    )?;
+         FROM {} WHERE relative_path = ?1",
+        storage.projections()
+    );
+    let rows = query_projection_rows(connection, &sql, [relative_path.as_str()])?;
     Ok(rows.into_iter().next())
 }
 
@@ -955,10 +968,14 @@ fn update_observation(
     last_error: Option<&str>,
     updated_at: &canisend_contracts::UtcTimestamp,
 ) -> Result<(), StoreError> {
+    let storage = ApplicationStorage::detect(connection)?;
     let updated = connection.execute(
-        "UPDATE application_projection_v3_manifests
+        &format!(
+            "UPDATE {}
          SET observed_sha256 = ?2, status = ?3, last_error = ?4, updated_at = ?5
          WHERE relative_path = ?1",
+            storage.projections()
+        ),
         params![
             relative_path.as_str(),
             observed.map(Sha256Digest::as_str),
@@ -1292,6 +1309,56 @@ mod tests {
             )
             .expect("Application");
         (root, workspace, snapshot)
+    }
+
+    #[test]
+    fn native_v4_projections_never_write_legacy_manifests() {
+        let root = TestDirectory::new("native-v4-projections");
+        let mut workspace = Workspace::init_v4(root.path()).expect("Workspace v4");
+        let content = b"# Native v4 projection\n";
+        let content_sha256 = workspace.blobs.put_bytes(content).expect("content Blob");
+        let snapshot = snapshot(
+            851,
+            pack("org.canisend.generic-starter", 'd'),
+            None,
+            content_sha256,
+        );
+        let application_id = snapshot.application.id.clone();
+        ApplicationModelRepository::new(&mut workspace.database)
+            .create(snapshot, ActorKind::User, "create-native-v4-projection")
+            .expect("native v4 Application");
+
+        let catalog = ApplicationProjectionService::new(
+            &mut workspace.database,
+            &workspace.blobs,
+            root.path(),
+        )
+        .project(&application_id)
+        .expect("native v4 projections");
+
+        let native_count: i64 = workspace
+            .database
+            .connection()
+            .query_row(
+                "SELECT COUNT(*) FROM application_projection_v4_manifests",
+                [],
+                |row| row.get(0),
+            )
+            .expect("native manifest count");
+        let legacy_count: i64 = workspace
+            .database
+            .connection()
+            .query_row(
+                "SELECT COUNT(*) FROM application_projection_v3_manifests",
+                [],
+                |row| row.get(0),
+            )
+            .expect("legacy manifest count");
+        assert_eq!(
+            native_count,
+            i64::try_from(catalog.projections.len()).expect("count")
+        );
+        assert_eq!(legacy_count, 0);
     }
 
     #[test]

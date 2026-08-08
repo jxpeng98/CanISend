@@ -254,6 +254,11 @@ fn classify_store(error: &StoreError) -> Classification {
             ErrorCode::CompatibilityUnavailable,
             false,
         ),
+        StoreError::WorkspaceV4StorageUnsupported { .. } => (
+            "compatibility-unavailable",
+            ErrorCode::CompatibilityUnavailable,
+            false,
+        ),
         StoreError::ApplicationModelIntegrity(_) | StoreError::WorkspaceMigrationIntegrity(_) => (
             "integrity-failed",
             ErrorCode::InternalInvariantFailed,
@@ -363,6 +368,17 @@ fn classify_store(error: &StoreError) -> Classification {
             Some(NextAction {
                 action: "initialize a clean Workspace v4".to_owned(),
                 description: "Choose a new or empty directory; compatibility detection does not open, migrate, or mutate the unsupported Workspace".to_owned(),
+            }),
+        ),
+        StoreError::WorkspaceV4StorageUnsupported { found, required } => (
+            Some(serde_json::json!({
+                "found_schema": found,
+                "required_schema": required,
+                "compatibility": "unsupported",
+            })),
+            Some(NextAction {
+                action: "initialize a clean Workspace v4".to_owned(),
+                description: "Alpha.7 does not migrate or silently reuse pre-native v4 Application storage; create a clean Workspace and import reviewed Sources explicitly".to_owned(),
             }),
         ),
         StoreError::ApplicationAssociationConsentRequired(_) => (

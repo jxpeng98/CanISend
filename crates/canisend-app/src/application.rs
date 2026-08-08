@@ -76,6 +76,22 @@ pub(crate) fn open_workspace_v4(root: &Path) -> Result<Workspace, ApplicationErr
                 },
             })
         }
+        Err(StoreError::WorkspaceV4StorageUnsupported { found, required }) => {
+            Err(ApplicationError::CompatibilityUnavailable {
+                message: format!(
+                    "Workspace v4 database schema {found} uses the retired application storage bridge"
+                ),
+                details: serde_json::json!({
+                    "found_schema": found,
+                    "required_schema": required,
+                    "compatibility": "unsupported",
+                }),
+                remediation: canisend_contracts::NextAction {
+                    action: "initialize a clean Workspace v4".to_owned(),
+                    description: "Alpha.7 does not migrate or silently reuse pre-native v4 Application storage; create a clean Workspace and import reviewed Sources explicitly".to_owned(),
+                },
+            })
+        }
         Err(error) => Err(error.into()),
     }
 }

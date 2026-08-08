@@ -10,6 +10,7 @@ use rusqlite::{Connection, OptionalExtension, Transaction, params};
 
 use crate::{
     BlobStore, DEFAULT_MAX_BLOB_BYTES, Database, StoreError,
+    application_storage::ApplicationStorage,
     application_v3::{enum_name, to_i64},
     generate_id, now_utc,
 };
@@ -219,16 +220,18 @@ impl<'a> ApplicationAssociationServiceV4<'a> {
         application_id: &ApplicationId,
     ) -> Result<Vec<ApplicationSourceAssociationV4>, StoreError> {
         ensure_application(self.database.connection(), application_id)?;
-        let mut statement = self.database.connection().prepare(
+        let storage = ApplicationStorage::detect(self.database.connection())?;
+        let mut statement = self.database.connection().prepare(&format!(
             "SELECT association.source_id, association.source_revision,
                     association.source_sha256, association.consent_scope,
                     association.associated_at,
                     association.source_revision <> head.head_revision
-             FROM application_source_associations_v4 AS association
+             FROM {} AS association
              JOIN workspace_source_v4_heads AS head ON head.source_id = association.source_id
              WHERE association.application_id = ?1
              ORDER BY association.associated_at, association.source_id",
-        )?;
+            storage.source_associations()
+        ))?;
         statement
             .query_map([application_id.as_str()], |row| {
                 Ok((
@@ -286,11 +289,15 @@ impl<'a> ApplicationAssociationServiceV4<'a> {
         let event_id = generate_id()?;
         let transaction = self.database.immediate_transaction()?;
         ensure_application(&transaction, application_id)?;
+        let storage = ApplicationStorage::detect(&transaction)?;
         transaction.execute(
-            "INSERT INTO application_profile_associations_v4(
+            &format!(
+                "INSERT INTO {}(
                 application_id, profile_source_id, profile_source_revision,
                 profile_source_sha256, consent_scope, associated_at
              ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                storage.profile_associations()
+            ),
             params![
                 application_id.as_str(),
                 profile_source.id.as_str(),
@@ -325,19 +332,21 @@ impl<'a> ApplicationAssociationServiceV4<'a> {
         application_id: &ApplicationId,
     ) -> Result<Vec<ApplicationProfileAssociationV4>, StoreError> {
         ensure_application(self.database.connection(), application_id)?;
-        let mut statement = self.database.connection().prepare(
+        let storage = ApplicationStorage::detect(self.database.connection())?;
+        let mut statement = self.database.connection().prepare(&format!(
             "SELECT association.profile_source_id, association.profile_source_revision,
                     association.profile_source_sha256, association.consent_scope,
                     association.associated_at,
                     association.profile_source_revision <> latest.revision
-             FROM application_profile_associations_v4 AS association
+             FROM {} AS association
              JOIN (
                  SELECT source_id, MAX(revision) AS revision
                  FROM profile_source_revisions GROUP BY source_id
              ) AS latest ON latest.source_id = association.profile_source_id
              WHERE association.application_id = ?1
              ORDER BY association.associated_at, association.profile_source_id",
-        )?;
+            storage.profile_associations()
+        ))?;
         statement
             .query_map([application_id.as_str()], association_row)?
             .map(|row| {
@@ -398,11 +407,15 @@ impl<'a> ApplicationAssociationServiceV4<'a> {
         let event_id = generate_id()?;
         let transaction = self.database.immediate_transaction()?;
         ensure_application(&transaction, application_id)?;
+        let storage = ApplicationStorage::detect(&transaction)?;
         transaction.execute(
-            "INSERT INTO application_evidence_associations_v4(
+            &format!(
+                "INSERT INTO {}(
                 application_id, evidence_id, evidence_revision, evidence_sha256,
                 consent_scope, associated_at
              ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                storage.evidence_associations()
+            ),
             params![
                 application_id.as_str(),
                 evidence.id.as_str(),
@@ -437,19 +450,21 @@ impl<'a> ApplicationAssociationServiceV4<'a> {
         application_id: &ApplicationId,
     ) -> Result<Vec<ApplicationEvidenceAssociationV4>, StoreError> {
         ensure_application(self.database.connection(), application_id)?;
-        let mut statement = self.database.connection().prepare(
+        let storage = ApplicationStorage::detect(self.database.connection())?;
+        let mut statement = self.database.connection().prepare(&format!(
             "SELECT association.evidence_id, association.evidence_revision,
                     association.evidence_sha256, association.consent_scope,
                     association.associated_at,
                     association.evidence_revision <> latest.revision
-             FROM application_evidence_associations_v4 AS association
+             FROM {} AS association
              JOIN (
                  SELECT evidence_id, MAX(revision) AS revision
                  FROM evidence_revisions GROUP BY evidence_id
              ) AS latest ON latest.evidence_id = association.evidence_id
              WHERE association.application_id = ?1
              ORDER BY association.associated_at, association.evidence_id",
-        )?;
+            storage.evidence_associations()
+        ))?;
         statement
             .query_map([application_id.as_str()], association_row)?
             .map(|row| {
@@ -471,8 +486,9 @@ impl<'a> ApplicationAssociationServiceV4<'a> {
         source_id: &EntityId,
         actor: ActorKind,
     ) -> Result<(), StoreError> {
+        let table = ApplicationStorage::detect(self.database.connection())?.source_associations();
         self.unlink(
-            "application_source_associations_v4",
+            table,
             "source_id",
             application_id,
             source_id,
@@ -487,8 +503,9 @@ impl<'a> ApplicationAssociationServiceV4<'a> {
         source_id: &EntityId,
         actor: ActorKind,
     ) -> Result<(), StoreError> {
+        let table = ApplicationStorage::detect(self.database.connection())?.profile_associations();
         self.unlink(
-            "application_profile_associations_v4",
+            table,
             "profile_source_id",
             application_id,
             source_id,
@@ -503,8 +520,9 @@ impl<'a> ApplicationAssociationServiceV4<'a> {
         evidence_id: &EntityId,
         actor: ActorKind,
     ) -> Result<(), StoreError> {
+        let table = ApplicationStorage::detect(self.database.connection())?.evidence_associations();
         self.unlink(
-            "application_evidence_associations_v4",
+            table,
             "evidence_id",
             application_id,
             evidence_id,
@@ -521,8 +539,12 @@ impl<'a> ApplicationAssociationServiceV4<'a> {
         let deleted_at = now_utc()?;
         let event_id = generate_id()?;
         let transaction = self.database.immediate_transaction()?;
+        let storage = ApplicationStorage::detect(&transaction)?;
         let links: i64 = transaction.query_row(
-            "SELECT COUNT(*) FROM application_source_associations_v4 WHERE source_id = ?1",
+            &format!(
+                "SELECT COUNT(*) FROM {} WHERE source_id = ?1",
+                storage.source_associations()
+            ),
             [source_id.as_str()],
             |row| row.get(0),
         )?;
@@ -583,6 +605,9 @@ impl<'a> ApplicationAssociationServiceV4<'a> {
             ("application_source_associations_v4", "source_id"),
             ("application_profile_associations_v4", "profile_source_id"),
             ("application_evidence_associations_v4", "evidence_id"),
+            ("application_source_v4_associations", "source_id"),
+            ("application_profile_v4_associations", "profile_source_id"),
+            ("application_evidence_v4_associations", "evidence_id"),
         ]);
         if !allowed.contains(&(table, id_column)) {
             return Err(StoreError::Invariant(
@@ -743,11 +768,15 @@ fn insert_source_association(
     consent: Option<ConsentScope>,
     associated_at: &UtcTimestamp,
 ) -> Result<(), StoreError> {
+    let storage = ApplicationStorage::detect(transaction)?;
     transaction.execute(
-        "INSERT INTO application_source_associations_v4(
+        &format!(
+            "INSERT INTO {}(
             application_id, source_id, source_revision, source_sha256,
             consent_scope, associated_at
          ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            storage.source_associations()
+        ),
         params![
             application_id.as_str(),
             source.id.as_str(),
@@ -840,9 +869,13 @@ fn ensure_application(
     connection: &Connection,
     application_id: &ApplicationId,
 ) -> Result<(), StoreError> {
+    let storage = ApplicationStorage::detect(connection)?;
     let exists = connection
         .query_row(
-            "SELECT 1 FROM application_model_v3_heads WHERE application_id = ?1",
+            &format!(
+                "SELECT 1 FROM {} WHERE application_id = ?1",
+                storage.heads()
+            ),
             [application_id.as_str()],
             |_| Ok(()),
         )
@@ -1503,7 +1536,7 @@ mod tests {
             Err(StoreError::ApplicationAssociationConflict(_))
         ));
         let direct_wrong_digest = service.database.connection().execute(
-            "INSERT INTO application_source_associations_v4(
+            "INSERT INTO application_source_v4_associations(
                 application_id, source_id, source_revision, source_sha256,
                 consent_scope, associated_at
              ) VALUES (?1, ?2, 1, ?3, NULL, ?4)",

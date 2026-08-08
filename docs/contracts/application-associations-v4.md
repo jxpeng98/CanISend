@@ -53,3 +53,6 @@ database mutation, and database failures cannot leave a partial Application asso
 URL Source revisions additionally preserve the validated source URL, final URL, and bounded
 redirect chain. Schema migration 19 adds this provenance without rewriting migration 18. Non-URL
 Sources reject remote final-locator or redirect fields so provenance cannot silently change type.
+Schema migration 20 adds native association tables whose Application foreign keys target
+`application_v4_heads`; clean Workspace v4 operations use only those tables. The migration-18
+association tables remain historical v3 storage and are never reused by a clean Alpha.7 Workspace.
