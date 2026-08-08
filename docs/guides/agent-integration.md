@@ -36,6 +36,24 @@ Install and update are idempotent within v4. CanISend replaces only bytes record
 manifest, refuses user-modified or unmanaged paths, and performs a complete digest preflight before
 uninstalling. Host setup never writes inside `.canisend`.
 
+The standalone CLI provides the same setup path without opening the App. `setup` installs the
+managed Skills and returns the exact MCP registration command and configuration snippet. It does
+not merge host configuration automatically:
+
+```console
+canisend --workspace /absolute/path/to/workspace host setup --host codex --json
+canisend --workspace /absolute/path/to/workspace host setup --host claude --json
+canisend --workspace /absolute/path/to/workspace host status --host codex --json
+```
+
+By default the MCP guidance uses the currently running CanISend executable. A packaged or renamed
+binary can be selected explicitly with `--executable /absolute/path/to/canisend`. To remove only
+unchanged, manifest-owned Skills while preserving the host's MCP entry:
+
+```console
+canisend --workspace /absolute/path/to/workspace host remove --host codex --json
+```
+
 ## Connect the MCP adapter
 
 The native binary serves MCP `2025-11-25` over stdio and does not require the App to be open:
@@ -43,6 +61,11 @@ The native binary serves MCP `2025-11-25` over stdio and does not require the Ap
 ```console
 canisend --workspace /absolute/path/to/workspace mcp serve
 ```
+
+Apply the `registration_command` returned by `host setup` in a user-reviewed terminal, or merge its
+`configuration_snippet` into the reported `configuration_target`. Then run the returned
+`verification_command`. This explicit boundary prevents CanISend from overwriting unrelated host
+servers or user policy.
 
 Codex project configuration:
 

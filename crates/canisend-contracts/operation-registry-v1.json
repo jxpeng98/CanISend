@@ -72,7 +72,8 @@
         "schema list", "schema show",
         "resource list",
         "workspace init", "workspace status", "workspace check", "workspace backup", "workspace restore", "workspace repair",
-        "application list", "application show", "application archive", "application create"
+        "application list", "application show", "application archive", "application create",
+        "host setup", "host status", "host remove"
       ],
       "bindings": [
         {"leaf": "workspace status", "operation": "workspace.status", "pack_scope": "any"},

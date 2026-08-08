@@ -497,7 +497,7 @@ impl Application {
             "agent.assets.export",
             "exported",
             format!(
-                "Exported {} Agent v3 resources with bounded v2 compatibility for {}",
+                "Exported {} clean Agent v4 host resources for {}",
                 exported.manifest.files.len(),
                 request.host.as_str()
             ),
@@ -509,7 +509,7 @@ impl Application {
         request: &AgentSkillsInstallRequest,
     ) -> Result<ActionReceipt<AgentSkillsInstallReadModel>, ApplicationError> {
         canisend_resources::verify().map_err(ApplicationError::ResourceIntegrity)?;
-        let workspace = Self::workspace_status(&request.workspace)?.data.path;
+        let workspace = Self::resolve_workspace_root_v4(Some(&request.workspace))?;
         let installed = install_embedded_agent_skills(request.host, &workspace)?;
         Ok(ActionReceipt::new(
             "agent.skills.install",
@@ -531,7 +531,7 @@ impl Application {
         request: &AgentSkillsStatusRequest,
     ) -> Result<ActionReceipt<AgentSkillsStatusReadModel>, ApplicationError> {
         canisend_resources::verify().map_err(ApplicationError::ResourceIntegrity)?;
-        let workspace = Self::workspace_status(&request.workspace)?.data.path;
+        let workspace = Self::resolve_workspace_root_v4(Some(&request.workspace))?;
         let status = inspect_embedded_agent_skills(request.host, &workspace)?;
         Ok(ActionReceipt::new(
             "agent.skills.status",
@@ -556,7 +556,7 @@ impl Application {
         request: &AgentSkillsUninstallRequest,
     ) -> Result<ActionReceipt<AgentSkillsUninstallReadModel>, ApplicationError> {
         canisend_resources::verify().map_err(ApplicationError::ResourceIntegrity)?;
-        let workspace = Self::workspace_status(&request.workspace)?.data.path;
+        let workspace = Self::resolve_workspace_root_v4(Some(&request.workspace))?;
         let removed = uninstall_embedded_agent_skills(request.host, &workspace)?;
         Ok(ActionReceipt::new(
             "agent.skills.uninstall",
@@ -899,27 +899,30 @@ mod tests {
             serde_json::from_str(&encoded).expect("decode context receipt");
         assert_eq!(selected_round_trip, selected);
 
+        let host_workspace = temporary_root("v4-host-workspace");
+        Application::initialize_workspace_v4(&host_workspace).expect("Agent v4 Workspace");
         let installed = Application::install_agent_skills(&AgentSkillsInstallRequest {
             host: AgentHost::Codex,
-            workspace: root.clone(),
+            workspace: host_workspace.clone(),
         })
         .expect("install workflow skills");
         assert_eq!(installed.operation, "agent.skills.install");
         assert_eq!(installed.status, "installed");
         assert_eq!(installed.data.files.len(), 8);
         assert!(
-            root.join(".agents/skills/canisend-workspace/SKILL.md")
+            host_workspace
+                .join(".agents/skills/canisend-workspace/SKILL.md")
                 .is_file()
         );
         let unchanged = Application::install_agent_skills(&AgentSkillsInstallRequest {
             host: AgentHost::Codex,
-            workspace: root.clone(),
+            workspace: host_workspace.clone(),
         })
         .expect("check workflow skills");
         assert_eq!(unchanged.status, "up-to-date");
         let status = Application::agent_skills_status(&AgentSkillsInstallRequest {
             host: AgentHost::Codex,
-            workspace: root.clone(),
+            workspace: host_workspace.clone(),
         })
         .expect("inspect workflow skills");
         assert_eq!(status.operation, "agent.skills.status");
@@ -928,7 +931,7 @@ mod tests {
         assert_eq!(status.data.skills.len(), 4);
         let removed = Application::uninstall_agent_skills(&AgentSkillsInstallRequest {
             host: AgentHost::Codex,
-            workspace: root.clone(),
+            workspace: host_workspace.clone(),
         })
         .expect("remove workflow skills");
         assert_eq!(removed.operation, "agent.skills.uninstall");
@@ -978,6 +981,7 @@ mod tests {
         assert!(!internal_destination.exists());
 
         fs::remove_dir_all(root).expect("remove workspace");
+        fs::remove_dir_all(host_workspace).expect("remove Agent v4 Workspace");
         fs::remove_file(source).expect("remove source");
         fs::remove_dir_all(pack_parent).expect("remove packs");
     }
