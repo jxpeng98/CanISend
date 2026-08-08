@@ -63,7 +63,7 @@ impl Application {
     ) -> Result<ActionReceipt<ApplicationFlowReadModelV3>, ApplicationError> {
         Self::workspace_status_v4(workspace_root)?;
         let pack = requested_built_in_pack(&request.pack_id)?;
-        let mut workspace = open_workspace(workspace_root)?;
+        let mut workspace = crate::application::open_workspace_v4(workspace_root)?;
         let root = workspace.paths.root.clone();
         let result =
             ApplicationFlowServiceV3::new(&mut workspace.database, &workspace.blobs, &root)

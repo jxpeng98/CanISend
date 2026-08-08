@@ -17,8 +17,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     ActionReceipt, Application, ApplicationError, PastedTextIntakePreviewRequestV4,
-    PrivateReadConsent, application::open_workspace, application_flow_v3::requested_built_in_pack,
-    intake_v4::digest,
+    PrivateReadConsent, application::open_workspace_v4,
+    application_flow_v3::requested_built_in_pack, intake_v4::digest,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -100,7 +100,7 @@ impl Application {
                     .to_owned(),
             ));
         }
-        let mut workspace = open_workspace(workspace_root)?;
+        let mut workspace = open_workspace_v4(workspace_root)?;
         let root = workspace.paths.root.clone();
         let committed =
             ApplicationFlowServiceV3::new(&mut workspace.database, &workspace.blobs, &root)
@@ -175,7 +175,7 @@ fn prepare_local_file_intake(
     let original_sha256 = digest(&original_bytes)?;
     let normalized_sha256 = digest(normalized_text.as_bytes())?;
     let duplicates = {
-        let mut workspace = open_workspace(workspace_root)?;
+        let mut workspace = open_workspace_v4(workspace_root)?;
         ApplicationAssociationServiceV4::new(&mut workspace.database, &workspace.blobs)
             .source_duplicates(&original_sha256, &normalized_sha256)?
             .into_iter()
