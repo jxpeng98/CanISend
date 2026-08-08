@@ -1908,7 +1908,7 @@ fn check_active_release_truth_for_version(root: &Path, version: &Version) -> Res
         "# CanISend generic framework 1.0 delivery roadmap",
         "**Status:** Active — authoritative",
         "**Current machine stage:** Alpha / `pre-beta`",
-        "**Next intended checkpoints:** `v1.0.0-alpha.6`",
+        "**Next intended checkpoint:** `v1.0.0-alpha.7`",
     ] {
         if !roadmap.contains(required) {
             return Err(format!("active 1.0 roadmap header is missing `{required}`"));
@@ -16469,7 +16469,7 @@ mod tests {
              **Status:** Active — authoritative\n\n\
              **Current public checkpoint:** [`v1.0.0-alpha.5`](https://example.invalid)\n\n\
              **Current machine stage:** Alpha / `pre-beta`\n\n\
-             **Next intended checkpoints:** `v1.0.0-alpha.6` proves migration.\n",
+             **Next intended checkpoint:** `v1.0.0-alpha.7` is the breaking v4 checkpoint.\n",
         )
         .expect("write active roadmap fixture");
         write_pretty_json(

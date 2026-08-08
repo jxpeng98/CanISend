@@ -1,20 +1,29 @@
 # Generic framework transition plan
 
-**Status:** In progress — supporting
+**Status:** Historical — superseded for post-Alpha.6 work
 
-**Parent authority:** [CanISend 1.0 delivery roadmap](2026-07-25-1.0-release-roadmap.md), M0, M1,
-M2, and M3
+**Parent authority:** [CanISend 1.0 delivery roadmap](2026-07-25-1.0-release-roadmap.md), historical
+M0, M1, and M2 implementation
 
 **Decision:** [ADR-RN-0018](../../architecture/rust-native/decisions/0018-adopt-a-generic-evidence-application-framework.md)
+for the Alpha.6 boundary;
+[ADR-RN-0020](../../architecture/rust-native/decisions/0020-adopt-a-neutral-multi-application-workspace-and-new-agent-surface.md)
+for Alpha.7 and later
 
 **Created:** 2026-08-02
 
-**Exit:** Workspace v2 academic data migrates safely to Workspace v3; the academic and generic
-workflow packs complete the same kernel-owned end-to-end suite through CLI, MCP, Agent hosts, and
-desktop; Alpha.7 is publicly qualified and ready to become the Beta contract baseline.
+**Historical result:** Alpha.6 established Pack v1, Workspace/Agent v3, bounded academic
+compatibility, and two Packs on one kernel. Its proposed Alpha.7 compatibility hardening and Beta
+freeze are superseded and were not completed under this plan.
 
-This is a bounded implementation plan, not a release or stage authority. If it conflicts with the
-parent roadmap, the parent controls scheduling and this plan must be corrected.
+**Post-Alpha.6 disposition (2026-08-05):** Retain this file as implementation and audit history.
+Do not execute its GF6, v2/v3 compatibility, old-Skills, or v3 Beta-freeze instructions. The parent
+roadmap M3 and ADR-RN-0020 now own Workspace v4, Application-level Pack binding, new Agent v4
+Skills, and the clean-v4 Alpha.7 path.
+
+This was a bounded implementation plan, not a release or stage authority. Its version references,
+completed implementation evidence, and Alpha.6 boundaries are preserved as historical facts; the
+parent roadmap controls all current scheduling.
 
 ## 1. Outcome
 

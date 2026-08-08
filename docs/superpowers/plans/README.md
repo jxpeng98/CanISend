@@ -2,7 +2,7 @@
 
 **Status:** Navigational index — not a stage or release authority
 
-**Last reviewed:** 2026-08-02
+**Last reviewed:** 2026-08-05
 
 This registry prevents completed, historical, and supporting plans from competing with the current
 generic framework 1.0 delivery authority. File paths are preserved because release tooling,
@@ -27,18 +27,15 @@ unfinished release or validation work is inherited by the parent roadmap.
 
 | Plan | Parent | Current exit |
 |---|---|---|
-| [CanISend generic framework 1.0 delivery roadmap](2026-07-25-1.0-release-roadmap.md) | None | Qualify both built-in packs and v2→v3 migration, publish exact `v1.0.0`, and establish the 1.0.x support path |
+| [CanISend generic framework 1.0 delivery roadmap](2026-07-25-1.0-release-roadmap.md) | None | Qualify Workspace v4, Application-level Pack binding, new Agent v4 Skills, and both built-in Packs in one Workspace; publish exact `v1.0.0` and establish the 1.0.x support path |
 
 ## Supporting workstreams
 
 | Plan | Parent milestone | Remaining boundary |
 |---|---|---|
-| [Generic framework transition](2026-08-02-generic-framework-transition-plan.md) | M0/M1/M2/M3 | Pack v1, neutral v3 contracts, migration, academic extraction, generic pack, and dual-pack qualification |
-| [Stage 4G connected Agent workspace](2026-07-30-stage-4g-connected-agent-workspace-plan.md) | M2/M3 | Exact-candidate smoke and real Codex/Claude provider validation |
-| [Stage 4H Agent efficiency](2026-07-30-stage-4h-agent-efficiency-plan.md) | M3 | Exact-build external-host dogfood |
-| [Cross-platform desktop size optimization](../../performance/cross-platform-desktop-size-optimization-plan.md) | M2 | Native candidate qualification; no support expansion |
-| [Post-template size optimization](../../performance/post-template-upgrade-size-optimization-plan.md) | M2 | Bounded profile and native qualification |
-| [Typst template and final preview](../../architecture/typst-template-preview-execution-plan.md) | M2 | Exact native preview/export evidence |
+| [Cross-platform desktop size optimization](../../performance/cross-platform-desktop-size-optimization-plan.md) | M3 | Native candidate qualification; no support expansion |
+| [Post-template size optimization](../../performance/post-template-upgrade-size-optimization-plan.md) | M3 | Bounded profile and native qualification |
+| [Typst template and final preview](../../architecture/typst-template-preview-execution-plan.md) | M3 | Exact native preview/export evidence |
 
 ## Implemented and completed child/supporting plans
 
@@ -55,6 +52,9 @@ unfinished release or validation work is inherited by the parent roadmap.
 
 | Plan | Successor or current authority |
 |---|---|
+| [Generic framework transition](2026-08-02-generic-framework-transition-plan.md) | Historical Alpha.6 Pack/v3 implementation; ADR-RN-0020 and M3 for Workspace/Agent v4 |
+| [Stage 4G connected Agent workspace](2026-07-30-stage-4g-connected-agent-workspace-plan.md) | Historical Agent v2/v3 implementation; M3 for Agent v4 |
+| [Stage 4H Agent efficiency](2026-07-30-stage-4h-agent-efficiency-plan.md) | Historical Alpha-era Skills optimization; M3 for new canonical Skills |
 | [Rust-native greenfield rebuild](2026-07-17-rust-native-greenfield-roadmap.md) | 1.0 delivery roadmap |
 | [Post-0.7 feedback roadmap](2026-07-18-post-0.7-roadmap.md) | Historical feedback record; 1.0 roadmap for current work |
 | [Native desktop GUI design](2026-07-19-native-desktop-gui-roadmap.md) | 1.0 delivery roadmap |
