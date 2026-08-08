@@ -52,7 +52,7 @@ The built-in registry currently owns:
 
 | Adapter | Derived source | Registered leaves |
 |---|---|---:|
-| CLI | Compiled Clap command tree | 16 |
+| CLI | Compiled Clap command tree | 19 |
 | Tauri | `tauri::generate_handler!` | 116 |
 | MCP | `#[tool_router]` `canisend_*` methods | 4 |
 
@@ -61,7 +61,9 @@ Every leaf is listed. An unoverridden leaf receives a deterministic adapter-pref
 compatibility alias, so an arbitrary or Pack-incompatible shared mapping cannot be introduced.
 
 The CLI graph contains only product inspection, Schema/resource inspection, Workspace v4
-lifecycle, Pack-bound Application create/list/show/archive, and the read-only MCP server. The MCP
+lifecycle, Pack-bound Application create/list/show/archive, clean Agent v4 host
+setup/status/remove, and the read-only MCP server. Host setup installs only manifest-owned Skills
+and prepares deterministic MCP configuration; it does not rewrite host configuration. The MCP
 router contains only Workspace status/check and Application list/show. Alpha.6-era CLI families
 are refused before parsing or Workspace discovery and have no compiled command implementation.
 The remaining 17 compatibility bindings are owned by the current Tauri surface and are scheduled

@@ -15,7 +15,7 @@
       "compatibility_pack_scope": "academic-job",
       "format": "canisend.operation-registry/v1",
       "path": "crates/canisend-contracts/operation-registry-v1.json",
-      "sha256": "8fd233465611aeb37ec680fd6d727e35a891e7a03cba0dc3b38783b4ed3675a7"
+      "sha256": "06b6aaf7bae82a43a142179104732fc0a969787aecdca0793a6330b2cfcd9117"
     },
     "resource_manifest": {
       "entry_count": 87,

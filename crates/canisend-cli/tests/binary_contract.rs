@@ -293,6 +293,155 @@ fn workspace_v4_initialize_check_backup_restore_and_repair_round_trip() {
 }
 
 #[test]
+fn workspace_v4_host_setup_status_and_remove_work_without_the_app() {
+    let workspace = TestDirectory::new("host-workflows");
+    run_json(&[
+        "--workspace",
+        workspace.text(),
+        "workspace",
+        "init",
+        "--json",
+    ]);
+
+    for (host, manifest, skill_root) in [
+        ("codex", ".agents/canisend-agent-v4.json", ".agents/skills"),
+        ("claude", ".claude/canisend-agent-v4.json", ".claude/skills"),
+    ] {
+        let setup = run_json(&[
+            "--workspace",
+            workspace.text(),
+            "host",
+            "setup",
+            "--host",
+            host,
+            "--json",
+        ]);
+        assert_eq!(setup["operation"], "host.setup");
+        assert_eq!(setup["status"], "ready");
+        assert_eq!(setup["data"]["host"], host);
+        assert_eq!(setup["data"]["skills"]["state"], "installed");
+        assert_eq!(setup["data"]["mcp"]["transport"], "stdio");
+        assert_eq!(
+            setup["data"]["mcp"]["tools"].as_array().map(Vec::len),
+            Some(4)
+        );
+        assert_eq!(
+            setup["data"]["mcp"]["guarded_write_tools"]
+                .as_array()
+                .map(Vec::len),
+            Some(0)
+        );
+        assert_eq!(setup["data"]["mcp_configuration_mutated"], false);
+        assert!(workspace.path().join(manifest).is_file());
+        assert!(workspace.path().join(skill_root).is_dir());
+        let registration = setup["data"]["mcp"]["registration_command"]
+            .as_str()
+            .expect("Codex and Claude have registration commands");
+        assert!(registration.contains("canisend"));
+        assert!(registration.contains("mcp serve"));
+
+        let status = run_json(&[
+            "--workspace",
+            workspace.text(),
+            "host",
+            "status",
+            "--host",
+            host,
+            "--json",
+        ]);
+        assert_eq!(status["operation"], "host.status");
+        assert_eq!(status["status"], "ready");
+        assert_eq!(status["data"]["skills"]["state"], "up-to-date");
+        assert_eq!(status["data"]["mcp_configuration_mutated"], false);
+    }
+    assert!(!workspace.path().join(".codex/config.toml").exists());
+    assert!(!workspace.path().join(".mcp.json").exists());
+
+    let removed = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "host",
+        "remove",
+        "--host",
+        "codex",
+        "--json",
+    ]);
+    assert_eq!(removed["operation"], "host.remove");
+    assert_eq!(removed["status"], "removed");
+    assert_eq!(removed["data"]["mcp_configuration_removed"], false);
+    assert!(
+        !workspace
+            .path()
+            .join(".agents/canisend-agent-v4.json")
+            .exists()
+    );
+    assert!(
+        workspace
+            .path()
+            .join(".claude/canisend-agent-v4.json")
+            .is_file()
+    );
+}
+
+#[test]
+fn host_setup_validates_inputs_and_refuses_pre_v4_resources_without_mutation() {
+    let workspace = TestDirectory::new("host-refusal");
+    run_json(&[
+        "--workspace",
+        workspace.text(),
+        "workspace",
+        "init",
+        "--json",
+    ]);
+
+    let invalid_executable = run(&[
+        "--workspace",
+        workspace.text(),
+        "host",
+        "setup",
+        "--host",
+        "codex",
+        "--executable",
+        "/does/not/exist/canisend",
+        "--json",
+    ]);
+    assert!(!invalid_executable.status.success());
+    assert!(!workspace.path().join(".agents").exists());
+
+    let old_skill = workspace
+        .path()
+        .join(".agents/skills/canisend-application/SKILL.md");
+    fs::create_dir_all(old_skill.parent().expect("old skill directory"))
+        .expect("create pre-v4 fixture directory");
+    fs::write(&old_skill, b"PRE-V4-SENTINEL").expect("write pre-v4 fixture");
+    let before = file_snapshot(workspace.path());
+    let output = run(&[
+        "--workspace",
+        workspace.text(),
+        "host",
+        "setup",
+        "--host",
+        "codex",
+        "--json",
+    ]);
+    assert!(!output.status.success());
+    let response: Value = serde_json::from_slice(&output.stdout).expect("refusal JSON");
+    assert_eq!(response["operation"], "host.setup");
+    assert!(
+        response["error"]["message"]
+            .as_str()
+            .is_some_and(|message| message.contains("unsupported pre-v4 host resources"))
+    );
+    assert_eq!(file_snapshot(workspace.path()), before);
+    assert!(
+        !workspace
+            .path()
+            .join(".agents/canisend-agent-v4.json")
+            .exists()
+    );
+}
+
+#[test]
 fn workspace_v4_holds_generic_and_academic_applications_together() {
     let workspace = TestDirectory::new("mixed-pack");
     let candidates = TestDirectory::new("mixed-pack-candidates");
