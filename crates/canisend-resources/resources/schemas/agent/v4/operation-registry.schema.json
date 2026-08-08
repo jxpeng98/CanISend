@@ -1,0 +1,130 @@
+{
+  "$defs": {
+    "AgentTaskKindV4": {
+      "enum": [
+        "orientation",
+        "profile-evidence",
+        "intake",
+        "application-create",
+        "requirements",
+        "fit-plan",
+        "drafting",
+        "review",
+        "export",
+        "recovery"
+      ],
+      "type": "string"
+    },
+    "OperationAdaptersV4": {
+      "additionalProperties": false,
+      "properties": {
+        "cli": {
+          "type": "string"
+        },
+        "mcp": {
+          "type": "string"
+        },
+        "tauri": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "cli",
+        "mcp",
+        "tauri"
+      ],
+      "type": "object"
+    },
+    "OperationContextV4": {
+      "enum": [
+        "host",
+        "workspace",
+        "application"
+      ],
+      "type": "string"
+    },
+    "OperationDefinitionV4": {
+      "additionalProperties": false,
+      "properties": {
+        "adapters": {
+          "$ref": "#/$defs/OperationAdaptersV4"
+        },
+        "agent_task": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentTaskKindV4"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "context": {
+          "$ref": "#/$defs/OperationContextV4"
+        },
+        "id": {
+          "type": "string"
+        },
+        "phase": {
+          "$ref": "#/$defs/OperationPhaseV4"
+        }
+      },
+      "required": [
+        "id",
+        "phase",
+        "context",
+        "adapters"
+      ],
+      "type": "object"
+    },
+    "OperationPhaseV4": {
+      "enum": [
+        "read",
+        "preview",
+        "commit"
+      ],
+      "type": "string"
+    }
+  },
+  "$id": "https://schemas.canisend.dev/agent/v4/operation-registry.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "agent_protocol": {
+      "type": "string"
+    },
+    "compatibility_aliases_supported": {
+      "type": "boolean"
+    },
+    "format": {
+      "type": "string"
+    },
+    "operations": {
+      "items": {
+        "$ref": "#/$defs/OperationDefinitionV4"
+      },
+      "type": "array"
+    },
+    "version": {
+      "format": "uint16",
+      "maximum": 65535,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "workspace_format": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "format",
+    "version",
+    "workspace_format",
+    "agent_protocol",
+    "operations",
+    "compatibility_aliases_supported"
+  ],
+  "title": "OperationRegistryV4",
+  "type": "object",
+  "x-canisend-id": "canisend.operation-registry/v4",
+  "x-canisend-version": "4.0.0"
+}

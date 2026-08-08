@@ -26,16 +26,16 @@ The task-resource model declares exactly ten composable tasks:
 
 | Task | Neutral operation family | Context |
 |---|---|---|
-| `orientation` | `workspace.*`, `application.list`, `application.show` | Workspace; optional Application |
-| `profile-evidence` | `profile.*`, `evidence.*` | Workspace; optional Application |
-| `intake` | `source.intake.*`, `source.association.*` | exact Application |
-| `application-create` | `application.create` | Workspace before creation |
+| `orientation` | `workspace.status`, `application.list`, `application.show` | Workspace; optional Application |
+| `profile-evidence` | `profile.*`, Evidence list/show/propose/confirm | Workspace; optional Application |
+| `intake` | `source.intake.*`, `source.association.*`, `source.list`, `source.show` | exact Application |
+| `application-create` | `application.create.*` | Workspace before creation |
 | `requirements` | `requirement.*` | exact Application |
-| `fit-plan` | `plan.*`, `evidence.match.*` | exact Application |
+| `fit-plan` | `plan.*`, `evidence.association.*` | exact Application |
 | `drafting` | `deliverable.*` | exact Application |
 | `review` | `review.*` | exact Application |
-| `export` | `export.*`, `render.*` | exact Application |
-| `recovery` | `workspace.check`, `workspace.backup`, `workspace.restore`, `workspace.repair` | Workspace; optional Application |
+| `export` | `export.*` | exact Application |
+| `recovery` | `workspace.check`, `workspace.backup.*`, `workspace.restore.*`, `workspace.repair.*` | Workspace; optional Application |
 
 Pack vocabulary may label Requirements, stages, and Deliverables differently, but it cannot add a
 host-specific business rule or change these task identities. No operation family contains an
@@ -77,8 +77,9 @@ but never uploads or submits an Application.
 
 ## Generated schemas and examples
 
-The source gate generates and verifies six schemas under `schemas/agent/v4/`:
+The source gate generates and verifies seven schemas under `schemas/agent/v4/`:
 
+- `canisend.operation-registry/v4`;
 - `canisend.agent-task-request/v4`;
 - `canisend.agent-proposal/v4`;
 - `canisend.agent-mutation-preview/v4`;

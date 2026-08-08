@@ -80,6 +80,45 @@ impl AgentTaskKindV4 {
             Self::Orientation | Self::ApplicationCreate | Self::Recovery | Self::ProfileEvidence
         )
     }
+
+    #[must_use]
+    pub const fn operation_prefixes(self) -> &'static [&'static str] {
+        match self {
+            Self::Orientation => &["workspace.status", "application.list", "application.show"],
+            Self::ProfileEvidence => &[
+                "profile.",
+                "evidence.list",
+                "evidence.show",
+                "evidence.propose.",
+                "evidence.confirm.",
+            ],
+            Self::Intake => &[
+                "source.intake.",
+                "source.association.",
+                "source.list",
+                "source.show",
+            ],
+            Self::ApplicationCreate => &["application.create."],
+            Self::Requirements => &["requirement."],
+            Self::FitPlan => &["plan.", "evidence.association."],
+            Self::Drafting => &["deliverable."],
+            Self::Review => &["review."],
+            Self::Export => &["export."],
+            Self::Recovery => &[
+                "workspace.check",
+                "workspace.backup.",
+                "workspace.restore.",
+                "workspace.repair.",
+            ],
+        }
+    }
+
+    #[must_use]
+    pub fn accepts_operation(self, operation: &str) -> bool {
+        self.operation_prefixes()
+            .iter()
+            .any(|prefix| operation.starts_with(prefix))
+    }
 }
 
 #[derive(
@@ -286,16 +325,19 @@ impl SemanticValidate for AgentTaskRequestV4 {
             ));
         }
         validate_operation(self.operation.as_str(), "/operation", &mut violations);
-        if !canonical_operation_prefixes(self.task)
-            .iter()
-            .any(|prefix| self.operation.as_str().starts_with(prefix))
-        {
+        if !self.task.accepts_operation(self.operation.as_str()) {
             violations.push(ContractViolation::new(
                 "agent_v4.task_operation_mismatch",
                 "/operation",
                 "operation does not belong to the requested canonical task",
             ));
         }
+        validate_operation_context(
+            self.operation.as_str(),
+            &self.context,
+            "/context/application",
+            &mut violations,
+        );
         validate_resources(&self.resources, "/resources", &mut violations);
         validate_unique_consents(
             self.requested_consents.iter().copied(),
@@ -504,7 +546,14 @@ impl SemanticValidate for AgentTaskResourceModelV4 {
                     "task context policy does not match the canonical task kind",
                 ));
             }
-            if task.operation_prefixes != canonical_operation_prefixes(task.task) {
+            if task.operation_prefixes
+                != task
+                    .task
+                    .operation_prefixes()
+                    .iter()
+                    .map(|prefix| (*prefix).to_owned())
+                    .collect::<Vec<_>>()
+            {
                 violations.push(ContractViolation::new(
                     "agent_v4.operation_family_invalid",
                     format!("/tasks/{index}/operation_prefixes"),
@@ -550,27 +599,6 @@ fn validate_operation(operation: &str, pointer: &str, violations: &mut Vec<Contr
     }
 }
 
-fn canonical_operation_prefixes(task: AgentTaskKindV4) -> Vec<String> {
-    let prefixes: &[&str] = match task {
-        AgentTaskKindV4::Orientation => &["workspace.", "application.list", "application.show"],
-        AgentTaskKindV4::ProfileEvidence => &["profile.", "evidence."],
-        AgentTaskKindV4::Intake => &["source.intake.", "source.association."],
-        AgentTaskKindV4::ApplicationCreate => &["application.create"],
-        AgentTaskKindV4::Requirements => &["requirement."],
-        AgentTaskKindV4::FitPlan => &["plan.", "evidence.match."],
-        AgentTaskKindV4::Drafting => &["deliverable."],
-        AgentTaskKindV4::Review => &["review."],
-        AgentTaskKindV4::Export => &["export.", "render."],
-        AgentTaskKindV4::Recovery => &[
-            "workspace.check",
-            "workspace.backup",
-            "workspace.restore",
-            "workspace.repair",
-        ],
-    };
-    prefixes.iter().map(|prefix| (*prefix).to_owned()).collect()
-}
-
 fn validate_operation_context(
     operation: &str,
     context: &AgentContextBindingV4,
@@ -579,10 +607,9 @@ fn validate_operation_context(
 ) {
     let workspace_only = operation.starts_with("workspace.")
         || operation.starts_with("profile.")
-        || operation.starts_with("evidence.")
-        || operation == "application.create"
-        || operation == "application.list"
-        || operation == "application.show";
+        || (operation.starts_with("evidence.") && !operation.starts_with("evidence.association."))
+        || operation.starts_with("application.create.")
+        || operation == "application.list";
     if !workspace_only && context.application.is_none() {
         violations.push(ContractViolation::new(
             "agent_v4.application_context_required",

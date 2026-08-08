@@ -11,14 +11,14 @@ use crate::{
     BackupManifestData, CapabilitiesData, CriteriaSetRecord, CriterionRecord, DeliverableRecordV3,
     DiscoveryBatch, DiscoveryLeadRecord, DocumentCandidate, DocumentRecord, DocumentSetRecord,
     EvidenceCatalogRecord, EvidenceMatchProposalSet, EvidenceMatchRecord, EvidenceMatchSetRecord,
-    EvidenceProposalSet, EvidenceRecord, FindingRecord, JobRecord, OpportunityRecordV3,
-    PackageExportManifestRecord, PackageManifestRecord, ParsedJobRecord, PlanRecordV3,
-    ProfileSourceRecord, ProjectionReconcileRecord, ProjectionRecord, ReadinessRecord,
-    RenderManifestRecord, RenderedDocumentRecord, RequirementRecordV3, ReviewCandidate,
-    ReviewDispositionCandidate, ReviewFindingsRecord, SourceRecord, TaskCompletionRequest,
-    TaskDescriptor, VersionData, WORKFLOW_PACK_SCHEMA_ID, WORKFLOW_PACK_SCHEMA_URI,
-    WORKFLOW_PACK_SCHEMA_VERSION, WorkflowPackManifest, WorkflowStatusData, WorkspaceCheckData,
-    WorkspaceStatusData,
+    EvidenceProposalSet, EvidenceRecord, FindingRecord, JobRecord, OperationRegistryV4,
+    OpportunityRecordV3, PackageExportManifestRecord, PackageManifestRecord, ParsedJobRecord,
+    PlanRecordV3, ProfileSourceRecord, ProjectionReconcileRecord, ProjectionRecord,
+    ReadinessRecord, RenderManifestRecord, RenderedDocumentRecord, RequirementRecordV3,
+    ReviewCandidate, ReviewDispositionCandidate, ReviewFindingsRecord, SourceRecord,
+    TaskCompletionRequest, TaskDescriptor, VersionData, WORKFLOW_PACK_SCHEMA_ID,
+    WORKFLOW_PACK_SCHEMA_URI, WORKFLOW_PACK_SCHEMA_VERSION, WorkflowPackManifest,
+    WorkflowStatusData, WorkspaceCheckData, WorkspaceStatusData,
 };
 
 pub const PUBLIC_SCHEMA_VERSION: &str = "2.0.0";
@@ -31,6 +31,7 @@ pub const AGENT_V4_SCHEMA_BASE: &str = "https://schemas.canisend.dev/agent/v4";
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum AgentV4SchemaId {
+    OperationRegistry,
     TaskRequest,
     Proposal,
     MutationPreview,
@@ -40,7 +41,8 @@ pub enum AgentV4SchemaId {
 }
 
 impl AgentV4SchemaId {
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 7] = [
+        Self::OperationRegistry,
         Self::TaskRequest,
         Self::Proposal,
         Self::MutationPreview,
@@ -52,6 +54,7 @@ impl AgentV4SchemaId {
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
+            Self::OperationRegistry => "canisend.operation-registry/v4",
             Self::TaskRequest => "canisend.agent-task-request/v4",
             Self::Proposal => "canisend.agent-proposal/v4",
             Self::MutationPreview => "canisend.agent-mutation-preview/v4",
@@ -64,6 +67,7 @@ impl AgentV4SchemaId {
     #[must_use]
     pub const fn slug(self) -> &'static str {
         match self {
+            Self::OperationRegistry => "operation-registry",
             Self::TaskRequest => "task-request",
             Self::Proposal => "proposal",
             Self::MutationPreview => "mutation-preview",
@@ -485,6 +489,7 @@ pub fn verify_public_schemas() -> Result<(), String> {
 #[must_use]
 pub fn generate_agent_v4_schemas() -> Vec<GeneratedAgentV4Schema> {
     vec![
+        generate_agent_v4::<OperationRegistryV4>(AgentV4SchemaId::OperationRegistry),
         generate_agent_v4::<AgentTaskRequestV4>(AgentV4SchemaId::TaskRequest),
         generate_agent_v4::<AgentProposalV4>(AgentV4SchemaId::Proposal),
         generate_agent_v4::<AgentMutationPreviewV4>(AgentV4SchemaId::MutationPreview),

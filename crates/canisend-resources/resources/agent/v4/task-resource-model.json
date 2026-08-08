@@ -6,7 +6,7 @@
     {
       "task": "orientation",
       "description": "Inspect Workspace health, Packs, Applications, and the next bounded action without reading private bodies.",
-      "operation_prefixes": ["workspace.", "application.list", "application.show"],
+      "operation_prefixes": ["workspace.status", "application.list", "application.show"],
       "mutation": false,
       "phases": ["orient", "verify"],
       "workspace_only_allowed": true
@@ -14,7 +14,7 @@
     {
       "task": "profile-evidence",
       "description": "Manage the minimum Workspace Profile and user-confirmed reusable Evidence.",
-      "operation_prefixes": ["profile.", "evidence."],
+      "operation_prefixes": ["profile.", "evidence.list", "evidence.show", "evidence.propose.", "evidence.confirm."],
       "mutation": true,
       "phases": ["orient", "propose", "preview", "approve", "commit", "verify"],
       "workspace_only_allowed": true
@@ -22,7 +22,7 @@
     {
       "task": "intake",
       "description": "Import a bounded Source and create explicit Source-to-Application associations.",
-      "operation_prefixes": ["source.intake.", "source.association."],
+      "operation_prefixes": ["source.intake.", "source.association.", "source.list", "source.show"],
       "mutation": true,
       "phases": ["orient", "propose", "preview", "approve", "commit", "verify"],
       "workspace_only_allowed": false
@@ -30,7 +30,7 @@
     {
       "task": "application-create",
       "description": "Create an Application with one exact Application-level Pack binding.",
-      "operation_prefixes": ["application.create"],
+      "operation_prefixes": ["application.create."],
       "mutation": true,
       "phases": ["orient", "propose", "preview", "approve", "commit", "verify"],
       "workspace_only_allowed": true
@@ -46,7 +46,7 @@
     {
       "task": "fit-plan",
       "description": "Analyze confirmed Evidence against Requirements and commit the user decision and Plan.",
-      "operation_prefixes": ["plan.", "evidence.match."],
+      "operation_prefixes": ["plan.", "evidence.association."],
       "mutation": true,
       "phases": ["orient", "propose", "preview", "approve", "commit", "verify"],
       "workspace_only_allowed": false
@@ -70,7 +70,7 @@
     {
       "task": "export",
       "description": "Render and export reviewed Deliverables without uploading or submitting them.",
-      "operation_prefixes": ["export.", "render."],
+      "operation_prefixes": ["export."],
       "mutation": true,
       "phases": ["orient", "propose", "preview", "approve", "commit", "verify"],
       "workspace_only_allowed": false
@@ -78,7 +78,7 @@
     {
       "task": "recovery",
       "description": "Recover from stale revisions, denied consent, malformed output, restart, or Workspace damage.",
-      "operation_prefixes": ["workspace.check", "workspace.backup", "workspace.restore", "workspace.repair"],
+      "operation_prefixes": ["workspace.check", "workspace.backup.", "workspace.restore.", "workspace.repair."],
       "mutation": true,
       "phases": ["orient", "propose", "preview", "approve", "commit", "verify"],
       "workspace_only_allowed": true
