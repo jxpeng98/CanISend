@@ -211,7 +211,7 @@ fn requirement_lines(
     Ok(requirements)
 }
 
-fn digest(bytes: &[u8]) -> Result<Sha256Digest, ApplicationError> {
+pub(super) fn digest(bytes: &[u8]) -> Result<Sha256Digest, ApplicationError> {
     Sha256Digest::try_new(hex::encode(Sha256::digest(bytes)))
         .map_err(|error| ApplicationError::InvalidInput(error.to_string()))
 }

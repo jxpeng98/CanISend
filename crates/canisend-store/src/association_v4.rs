@@ -136,6 +136,37 @@ impl<'a> ApplicationAssociationServiceV4<'a> {
         load_source_revision(self.database.connection(), source_id, revision)
     }
 
+    pub fn source_duplicates(
+        &self,
+        original_sha256: &Sha256Digest,
+        normalized_sha256: &Sha256Digest,
+    ) -> Result<Vec<WorkspaceSourceRevisionV4>, StoreError> {
+        let references = {
+            let mut statement = self.database.connection().prepare(
+                "SELECT source_id, revision
+                 FROM workspace_source_v4_revisions
+                 WHERE original_sha256 = ?1 OR normalized_sha256 = ?2
+                 ORDER BY source_id, revision",
+            )?;
+            statement
+                .query_map(
+                    params![original_sha256.as_str(), normalized_sha256.as_str()],
+                    |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)),
+                )?
+                .collect::<Result<Vec<_>, _>>()?
+        };
+        references
+            .into_iter()
+            .map(|(source_id, revision)| {
+                load_source_revision(
+                    self.database.connection(),
+                    &EntityId::try_new(source_id)?,
+                    Revision::try_new(to_u64(revision)?)?,
+                )
+            })
+            .collect()
+    }
+
     pub fn associate_source(
         &mut self,
         application_id: &ApplicationId,
@@ -810,10 +841,24 @@ fn ensure_application(
 }
 
 fn source_consent(record: &WorkspaceSourceRevisionV4) -> Option<ConsentScope> {
-    match record.kind {
+    source_kind_consent(record.kind, record.privacy)
+}
+
+pub(crate) fn validate_new_source_consent(
+    source: &NewWorkspaceSourceV4,
+    provided: Option<ConsentScope>,
+) -> Result<(), StoreError> {
+    require_consent(source_kind_consent(source.kind, source.privacy), provided)
+}
+
+fn source_kind_consent(
+    kind: WorkspaceSourceKindV4,
+    privacy: PrivacyClassification,
+) -> Option<ConsentScope> {
+    match kind {
         WorkspaceSourceKindV4::PastedText | WorkspaceSourceKindV4::Url => None,
         WorkspaceSourceKindV4::LocalFile | WorkspaceSourceKindV4::TextPdf => {
-            privacy_consent(record.privacy)
+            privacy_consent(privacy)
         }
     }
 }

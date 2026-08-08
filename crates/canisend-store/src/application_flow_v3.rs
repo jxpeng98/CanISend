@@ -6,8 +6,8 @@ use std::{
 use canisend_contracts::{
     APPLICATION_MODEL_V3_MAX_REQUIREMENTS, ActorKind, ApplicationFieldValueV3, ApplicationId,
     ApplicationLifecycleV3, ApplicationModelFormatV3, ApplicationModelSnapshotV3,
-    ApplicationPackBindingV3, ApplicationRecordV3, ContentRevisionReferenceV3, ContentSpanV3,
-    DeliverableId, DeliverableKindId, DeliverableRecordV3, DeliverableStateV3,
+    ApplicationPackBindingV3, ApplicationRecordV3, ConsentScope, ContentRevisionReferenceV3,
+    ContentSpanV3, DeliverableId, DeliverableKindId, DeliverableRecordV3, DeliverableStateV3,
     EntityRevisionReferenceV3, ExecutionMode, OpportunityId, OpportunityRecordV3, PlanId,
     PlanRecordV3, PlanRevisionReferenceV3, PlanStateV3, PlannedDeliverableDispositionV3,
     PlannedDeliverableV3, PrivacyClassification, RequirementConfirmationV3, RequirementId,
@@ -25,7 +25,7 @@ use crate::{
     ApplicationModelCommitResultV3, ApplicationModelRepository, ApplicationProjectionCatalogV3,
     ApplicationProjectionService, BlobStore, DEFAULT_MAX_BLOB_BYTES, Database,
     NewWorkspaceSourceV4, StoreError, StoredApplicationModelV3,
-    association_v4::prepare_source,
+    association_v4::{prepare_source, validate_new_source_consent},
     generate_id, now_utc,
     render::{create_empty_export_directory, join_path, write_new_file},
 };
@@ -231,7 +231,49 @@ impl<'a> ApplicationFlowServiceV3<'a> {
         request: ApplicationFlowCreateRequestV3,
         actor: ActorKind,
     ) -> Result<ApplicationFlowReadModelV3, StoreError> {
+        let normalized_text = request.source_text.clone();
+        self.create_with_source_and_actor(
+            pack,
+            request,
+            NewWorkspaceSourceV4 {
+                kind: WorkspaceSourceKindV4::PastedText,
+                locator: "pasted-text".to_owned(),
+                content_type: "text/plain; charset=utf-8".to_owned(),
+                original_bytes: normalized_text.as_bytes().to_vec(),
+                normalized_text,
+                privacy: PrivacyClassification::PrivateLocal,
+            },
+            None,
+            actor,
+        )
+    }
+
+    pub fn create_with_source(
+        &mut self,
+        pack: &VerifiedWorkflowPackBundle,
+        request: ApplicationFlowCreateRequestV3,
+        source: NewWorkspaceSourceV4,
+        consent: Option<ConsentScope>,
+    ) -> Result<ApplicationFlowReadModelV3, StoreError> {
+        self.create_with_source_and_actor(pack, request, source, consent, ActorKind::User)
+    }
+
+    pub fn create_with_source_and_actor(
+        &mut self,
+        pack: &VerifiedWorkflowPackBundle,
+        request: ApplicationFlowCreateRequestV3,
+        source: NewWorkspaceSourceV4,
+        consent: Option<ConsentScope>,
+        actor: ActorKind,
+    ) -> Result<ApplicationFlowReadModelV3, StoreError> {
         validate_application_flow_create_request(pack, &request)?;
+        if source.normalized_text != request.source_text {
+            return Err(StoreError::ApplicationModelIntegrity(
+                "Source normalized text differs from the validated Requirement span authority"
+                    .to_owned(),
+            ));
+        }
+        validate_new_source_consent(&source, consent)?;
         ApplicationModelRepository::new(self.database).authority()?;
 
         let binding = pack_binding(pack);
@@ -296,30 +338,20 @@ impl<'a> ApplicationFlowServiceV3<'a> {
             deliverables: Vec::new(),
         };
         crate::application_v3::validate_snapshot(&snapshot)?;
-        let source = prepare_source(
-            self.blobs,
-            NewWorkspaceSourceV4 {
-                kind: WorkspaceSourceKindV4::PastedText,
-                locator: "pasted-text".to_owned(),
-                content_type: "text/plain; charset=utf-8".to_owned(),
-                original_bytes: request.source_text.as_bytes().to_vec(),
-                normalized_text: request.source_text,
-                privacy: PrivacyClassification::PrivateLocal,
-            },
-            source_id,
-            Revision::try_new(1)?,
-        )?;
+        let source = prepare_source(self.blobs, source, source_id, Revision::try_new(1)?)?;
         if source.record.normalized_sha256 != source_digest {
             return Err(StoreError::ApplicationModelIntegrity(
                 "prepared Source digest differs from validated Source reference".to_owned(),
             ));
         }
-        let commit = ApplicationModelRepository::new(self.database).create_with_source(
-            snapshot,
-            source,
-            actor,
-            "application-flow-intake",
-        )?;
+        let commit = ApplicationModelRepository::new(self.database)
+            .create_with_source_and_consent(
+                snapshot,
+                source,
+                consent,
+                actor,
+                "application-flow-intake",
+            )?;
         let stages = derive_stages(pack, &commit.stored.snapshot, false, false)?;
         Ok(ApplicationFlowReadModelV3 {
             stored: commit.stored,
@@ -1101,7 +1133,10 @@ fn pack_catalog_error(error: impl std::fmt::Display) -> StoreError {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::BTreeMap, fs};
+    use std::{
+        collections::{BTreeMap, BTreeSet},
+        fs,
+    };
 
     use canisend_core::{
         WorkflowPackByteLoader, WorkflowPackCapabilityRegistry, WorkflowPackOrigin,
@@ -1318,6 +1353,62 @@ mod tests {
         assert_eq!(audit_after.present, blobs_before);
         assert!(audit_after.unreferenced.is_empty());
 
+        drop(workspace);
+        fs::remove_dir_all(root).expect("remove fixture");
+    }
+
+    #[test]
+    fn private_local_source_requires_consent_before_blob_or_authority_mutation() {
+        let root = root();
+        let mut workspace = Workspace::init(&root).expect("Workspace");
+        ApplicationModelRepository::new(&mut workspace.database)
+            .activate_empty_workspace(ActorKind::User, "new-workspace-v4")
+            .expect("v4 authority");
+        let generic = bundle(generic_application_workflow_pack());
+        let text = "One exact requirement.";
+        let request = ApplicationFlowCreateRequestV3 {
+            title: "Private local Source".to_owned(),
+            opportunity_metadata: BTreeMap::new(),
+            application_metadata: BTreeMap::new(),
+            source_text: text.to_owned(),
+            requirements: vec![ApplicationFlowRequirementDraftV3 {
+                category: item("format"),
+                statement: text.to_owned(),
+                priority: RequirementPriorityV3::Mandatory,
+                start_byte: 0,
+                end_byte: u64::try_from(text.len()).expect("text length"),
+            }],
+        };
+        let before = workspace.blobs.audit(&BTreeSet::new()).expect("blob audit");
+        let error = ApplicationFlowServiceV3::new(&mut workspace.database, &workspace.blobs, &root)
+            .create_with_source(
+                &generic,
+                request,
+                NewWorkspaceSourceV4 {
+                    kind: WorkspaceSourceKindV4::LocalFile,
+                    locator: "requirements.txt".to_owned(),
+                    content_type: "text/plain; charset=utf-8".to_owned(),
+                    original_bytes: text.as_bytes().to_vec(),
+                    normalized_text: text.to_owned(),
+                    privacy: PrivacyClassification::PrivateLocal,
+                },
+                None,
+            )
+            .expect_err("private local Source consent");
+        assert!(matches!(
+            error,
+            StoreError::ApplicationAssociationConsentRequired(_)
+        ));
+        assert!(
+            ApplicationModelRepository::new(&mut workspace.database)
+                .list()
+                .expect("Applications")
+                .is_empty()
+        );
+        assert_eq!(
+            workspace.blobs.audit(&BTreeSet::new()).expect("blob audit"),
+            before
+        );
         drop(workspace);
         fs::remove_dir_all(root).expect("remove fixture");
     }

@@ -27,8 +27,29 @@ Requirement spans, Blob references, and body-free audit event as one authority t
 result remains in proposed-Requirement state until the user explicitly confirms Requirements and
 selects a Plan.
 
+## Local file and text-PDF preview
+
+The local adapter accepts `.txt`, `.md`, `.json`, and text-based `.pdf` files selected by the user.
+Private-read consent is required before Workspace or path access and is required again when commit
+re-reads the path. The bounded IO adapters reject symlinks, non-regular files, unsupported types,
+oversized inputs, invalid UTF-8, unsafe text controls, encrypted or malformed PDFs, PDFs over the
+page limit, and PDFs without extractable text.
+
+Text files retain their original bytes and deterministic normalized UTF-8 text. PDFs retain the
+original PDF bytes and a page-qualified normalized text projection; synthetic page markers are not
+proposed as Requirements. Preview reports both digests, byte and line counts, PDF page count,
+content type, Source kind, and body-free exact-revision duplicate signals. An existing duplicate is
+informational and does not silently reuse or cross-link another Application.
+
+Commit re-reads and re-normalizes the same path after consent, reconstructs the complete preview,
+and rejects changed bytes before any Blob, Source, Application, association, or audit mutation. A
+matching digest atomically stores the original and normalized Blobs, a `LocalFile` or `TextPdf`
+Source revision, the `ReadPrivateInputs` consent-bound Application link, and exact normalized-text
+Requirement spans.
+
 ## Remaining adapters
 
-Local file, text-based PDF, and URL adapters must reuse this prepared Source/Application boundary.
-They additionally own bounded input parsing, provenance, duplicate signals, and the exact required
-private-read or network-fetch consent. Scanned-document OCR remains outside the 1.0 scope.
+The URL adapter must reuse this prepared Source/Application boundary while preserving bounded
+network policy, redirects, provenance, duplicate signals, and exact network-fetch consent. Desktop,
+CLI, and Agent v4 bindings remain separate surface work. Scanned-document OCR remains outside the
+1.0 scope.

@@ -1,9 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use canisend_contracts::{
-    ActorKind, ApplicationId, ApplicationModelSnapshotV3, DeliverableId, DeliverableRecordV3,
-    DeliverableStateV3, OpportunityRecordV3, PlanId, PlanRecordV3, PlanStateV3,
-    RequirementRecordV3, Revision, SemanticValidate, Sha256Digest, UtcTimestamp,
+    ActorKind, ApplicationId, ApplicationModelSnapshotV3, ConsentScope, DeliverableId,
+    DeliverableRecordV3, DeliverableStateV3, OpportunityRecordV3, PlanId, PlanRecordV3,
+    PlanStateV3, RequirementRecordV3, Revision, SemanticValidate, Sha256Digest, UtcTimestamp,
     WORKSPACE_V4_FORMAT, WorkflowPackItemId, validate_application_model_snapshot_v3,
 };
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
@@ -103,14 +103,25 @@ impl<'a> ApplicationModelRepository<'a> {
         actor: ActorKind,
         reason: &str,
     ) -> Result<ApplicationModelCommitResultV3, StoreError> {
+        self.create_with_source_and_consent(snapshot, source, None, actor, reason)
+    }
+
+    pub fn create_with_source_and_consent(
+        &mut self,
+        snapshot: ApplicationModelSnapshotV3,
+        source: PreparedWorkspaceSourceV4,
+        consent: Option<ConsentScope>,
+        actor: ActorKind,
+        reason: &str,
+    ) -> Result<ApplicationModelCommitResultV3, StoreError> {
         validate_prepared_source_binding(&snapshot, &source)?;
-        self.create_internal(snapshot, Some(source), actor, reason)
+        self.create_internal(snapshot, Some((source, consent)), actor, reason)
     }
 
     fn create_internal(
         &mut self,
         snapshot: ApplicationModelSnapshotV3,
-        source: Option<PreparedWorkspaceSourceV4>,
+        source: Option<(PreparedWorkspaceSourceV4, Option<ConsentScope>)>,
         actor: ActorKind,
         reason: &str,
     ) -> Result<ApplicationModelCommitResultV3, StoreError> {
@@ -161,12 +172,12 @@ impl<'a> ApplicationModelRepository<'a> {
             &reason,
             &committed_at,
         )?;
-        if let Some(source) = &source {
+        if let Some((source, consent)) = &source {
             insert_prepared_source_association(
                 &transaction,
                 &snapshot.application.id,
                 source,
-                None,
+                *consent,
             )?;
         }
         insert_content_blob_references(&transaction, &snapshot, &committed_at)?;
