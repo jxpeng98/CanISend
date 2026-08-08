@@ -27,6 +27,7 @@ thiserror.workspace = true
 winreg.workspace = true
 
 [dev-dependencies]
+canisend-io = { path = "../canisend-io", version = "=1.0.0-alpha.6", features = ["test-loopback"] }
 rusqlite.workspace = true
 
 [lints]

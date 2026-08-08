@@ -5,10 +5,10 @@
   "contracts": {
     "agent_protocol": "canisend.agent/v3",
     "migration_inventory": {
-      "count": 18,
+      "count": 19,
       "directory": "crates/canisend-store/migrations",
-      "through": 18,
-      "tree_sha256": "b00d2c121600b4148a33a4a69ee0ac6b7824fb6e0e44cfb7f0ea2273c6b4f5f7"
+      "through": 19,
+      "tree_sha256": "b9c1f83ff5e9f21756124d2c4215f5f54d883e01344c096c94313754ecaa1f07"
     },
     "operation_registry": {
       "compatibility_alias_count": 19,

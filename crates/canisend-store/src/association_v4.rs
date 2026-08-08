@@ -18,6 +18,8 @@ use crate::{
 pub struct NewWorkspaceSourceV4 {
     pub kind: WorkspaceSourceKindV4,
     pub locator: String,
+    pub final_locator: Option<String>,
+    pub redirect_chain: Vec<String>,
     pub content_type: String,
     pub original_bytes: Vec<u8>,
     pub normalized_text: String,
@@ -630,6 +632,8 @@ pub(crate) fn prepare_source(
             revision,
             kind: source.kind,
             locator: source.locator,
+            final_locator: source.final_locator,
+            redirect_chain: source.redirect_chain,
             content_type: source.content_type,
             original_sha256,
             normalized_sha256,
@@ -671,6 +675,7 @@ fn insert_source_revision(
     record: &WorkspaceSourceRevisionV4,
     insert_head: bool,
 ) -> Result<(), StoreError> {
+    let redirect_chain_json = serde_json::to_string(&record.redirect_chain)?;
     if insert_head {
         transaction.execute(
             "INSERT INTO workspace_source_v4_heads(source_id, kind, head_revision, created_at)
@@ -685,13 +690,16 @@ fn insert_source_revision(
     }
     transaction.execute(
         "INSERT INTO workspace_source_v4_revisions(
-            source_id, revision, locator, content_type, original_sha256,
-            normalized_sha256, original_bytes, normalized_text_bytes, privacy, created_at
-         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            source_id, revision, locator, final_locator, redirect_chain_json, content_type,
+            original_sha256, normalized_sha256, original_bytes, normalized_text_bytes,
+            privacy, created_at
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
         params![
             record.id.as_str(),
             to_i64(record.revision.get())?,
             record.locator,
+            record.final_locator.as_deref(),
+            redirect_chain_json,
             record.content_type,
             record.original_sha256.as_str(),
             record.normalized_sha256.as_str(),
@@ -760,6 +768,8 @@ fn load_source_revision(
     type SourceRow = (
         String,
         String,
+        Option<String>,
+        String,
         String,
         String,
         String,
@@ -770,7 +780,8 @@ fn load_source_revision(
     );
     let row: Option<SourceRow> = connection
         .query_row(
-            "SELECT head.kind, revision.locator, revision.content_type,
+            "SELECT head.kind, revision.locator, revision.final_locator,
+                    revision.redirect_chain_json, revision.content_type,
                     revision.original_sha256, revision.normalized_sha256,
                     revision.original_bytes, revision.normalized_text_bytes,
                     revision.privacy, revision.created_at
@@ -789,6 +800,8 @@ fn load_source_revision(
                     row.get(6)?,
                     row.get(7)?,
                     row.get(8)?,
+                    row.get(9)?,
+                    row.get(10)?,
                 ))
             },
         )
@@ -796,6 +809,8 @@ fn load_source_revision(
     let (
         kind,
         locator,
+        final_locator,
+        redirect_chain_json,
         content_type,
         original,
         normalized,
@@ -809,6 +824,8 @@ fn load_source_revision(
         revision,
         kind: enum_value(&kind)?,
         locator,
+        final_locator,
+        redirect_chain: serde_json::from_str(&redirect_chain_json)?,
         content_type,
         original_sha256: Sha256Digest::try_new(original)?,
         normalized_sha256: Sha256Digest::try_new(normalized)?,
@@ -848,7 +865,12 @@ pub(crate) fn validate_new_source_consent(
     source: &NewWorkspaceSourceV4,
     provided: Option<ConsentScope>,
 ) -> Result<(), StoreError> {
-    require_consent(source_kind_consent(source.kind, source.privacy), provided)
+    let required = if source.kind == WorkspaceSourceKindV4::Url {
+        Some(ConsentScope::FetchUserSuppliedUrl)
+    } else {
+        source_kind_consent(source.kind, source.privacy)
+    };
+    require_consent(required, provided)
 }
 
 fn source_kind_consent(
@@ -886,9 +908,35 @@ fn require_consent(
 }
 
 fn validate_source_input(source: &NewWorkspaceSourceV4) -> Result<(), StoreError> {
-    if source.locator.trim().is_empty() || source.locator.len() > 4096 {
+    if invalid_locator(&source.locator) {
         return Err(StoreError::InvalidInput(
             "Source locator must contain 1 to 4096 bytes".to_owned(),
+        ));
+    }
+    if source
+        .final_locator
+        .as_ref()
+        .is_some_and(|locator| invalid_locator(locator))
+        || source.redirect_chain.len() > 5
+        || source
+            .redirect_chain
+            .iter()
+            .any(|locator| invalid_locator(locator))
+    {
+        return Err(StoreError::InvalidInput(
+            "Source provenance locators must be bounded non-control text with at most 5 redirects"
+                .to_owned(),
+        ));
+    }
+    if source.kind == WorkspaceSourceKindV4::Url {
+        if source.final_locator.is_none() {
+            return Err(StoreError::InvalidInput(
+                "URL Source provenance requires a final locator".to_owned(),
+            ));
+        }
+    } else if source.final_locator.is_some() || !source.redirect_chain.is_empty() {
+        return Err(StoreError::InvalidInput(
+            "non-URL Source provenance cannot contain a final locator or redirect chain".to_owned(),
         ));
     }
     if source.content_type.trim().is_empty() || source.content_type.len() > 255 {
@@ -908,6 +956,10 @@ fn validate_source_input(source: &NewWorkspaceSourceV4) -> Result<(), StoreError
         ));
     }
     Ok(())
+}
+
+fn invalid_locator(locator: &str) -> bool {
+    locator.trim().is_empty() || locator.len() > 4096 || locator.chars().any(char::is_control)
 }
 
 fn association_row(
@@ -1181,6 +1233,8 @@ mod tests {
                 NewWorkspaceSourceV4 {
                     kind: WorkspaceSourceKindV4::LocalFile,
                     locator: "fixtures/opportunity.txt".to_owned(),
+                    final_locator: None,
+                    redirect_chain: Vec::new(),
                     content_type: "text/plain".to_owned(),
                     original_bytes: b"First source revision".to_vec(),
                     normalized_text: "First source revision".to_owned(),
@@ -1232,6 +1286,8 @@ mod tests {
                 NewWorkspaceSourceV4 {
                     kind: WorkspaceSourceKindV4::LocalFile,
                     locator: "fixtures/opportunity.txt".to_owned(),
+                    final_locator: None,
+                    redirect_chain: Vec::new(),
                     content_type: "text/plain".to_owned(),
                     original_bytes: b"Second source revision".to_vec(),
                     normalized_text: "Second source revision".to_owned(),
@@ -1423,6 +1479,8 @@ mod tests {
                 NewWorkspaceSourceV4 {
                     kind: WorkspaceSourceKindV4::Url,
                     locator: "https://example.invalid/opportunity".to_owned(),
+                    final_locator: Some("https://example.invalid/opportunity".to_owned()),
+                    redirect_chain: Vec::new(),
                     content_type: "text/plain".to_owned(),
                     original_bytes: b"Public opportunity".to_vec(),
                     normalized_text: "Public opportunity".to_owned(),

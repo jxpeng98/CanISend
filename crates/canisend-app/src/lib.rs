@@ -34,6 +34,7 @@ mod review;
 mod system;
 mod task;
 mod update;
+mod url_intake_v4;
 mod workflow;
 mod workflow_pack;
 mod workflow_pack_presentation;
@@ -158,6 +159,10 @@ pub use task::{
     TaskPrepareAgainReadModel, TaskPrepareRequest,
 };
 pub use update::UpdateCheckReadModel;
+pub use url_intake_v4::{
+    UrlDocumentKindV4, UrlIntakeCommitRequestV4, UrlIntakePreviewReadModelV4,
+    UrlIntakePreviewRequestV4,
+};
 pub use workflow::{
     WorkflowBeginRequest, WorkflowCompleteRequest, WorkflowControlReadModel, WorkflowRerunPreview,
     WorkflowRerunRequest,

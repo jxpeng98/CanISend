@@ -9,6 +9,9 @@ authors.workspace = true
 repository.workspace = true
 publish.workspace = true
 
+[features]
+test-loopback = []
+
 [dependencies]
 canisend-contracts = { path = "../canisend-contracts", version = "=1.0.0-alpha.6" }
 canisend-core = { path = "../canisend-core", version = "=1.0.0-alpha.6" }
