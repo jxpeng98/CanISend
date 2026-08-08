@@ -1138,6 +1138,7 @@ mod tests {
     use std::{
         collections::{BTreeMap, BTreeSet},
         fs,
+        sync::atomic::{AtomicU64, Ordering},
     };
 
     use canisend_core::{
@@ -1150,6 +1151,8 @@ mod tests {
 
     use super::*;
     use crate::Workspace;
+
+    static NEXT_ROOT: AtomicU64 = AtomicU64::new(1);
 
     fn item(value: &str) -> WorkflowPackItemId {
         WorkflowPackItemId::try_new(value).expect("Pack item ID")
@@ -1174,8 +1177,9 @@ mod tests {
 
     fn root() -> std::path::PathBuf {
         std::env::temp_dir().join(format!(
-            "canisend-application-flow-v3-{}-{}",
+            "canisend-application-flow-v3-{}-{}-{}",
             std::process::id(),
+            NEXT_ROOT.fetch_add(1, Ordering::Relaxed),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .expect("time")
