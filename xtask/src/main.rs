@@ -6250,7 +6250,7 @@ fn check_native_test_ownership() -> Result<(), String> {
                 "version-and-doctor",
                 "documented-quickstart",
                 "host-agent-smoke",
-                "agent-v3-mcp-smoke",
+                "agent-v4-mcp-smoke",
                 "isolated-install-uninstall-workspace-retention"
             ],
             "targets": [
@@ -6454,21 +6454,23 @@ fn check_native_test_ownership() -> Result<(), String> {
             "Agent v2 host smoke must select the exact academic compatibility authority".to_owned(),
         );
     }
-    let agent_v3_mcp_smoke_path = root.join("scripts/smoke_agent_v3_mcp.sh");
-    let agent_v3_mcp_smoke = fs::read_to_string(&agent_v3_mcp_smoke_path)
-        .map_err(|error| format!("Agent v3 MCP smoke script is missing: {error}"))?;
+    let agent_v4_mcp_smoke_path = root.join("scripts/smoke_agent_v4_mcp.sh");
+    let agent_v4_mcp_smoke = fs::read_to_string(&agent_v4_mcp_smoke_path)
+        .map_err(|error| format!("Agent v4 MCP smoke script is missing: {error}"))?;
     for required in [
-        "--pack generic-application --json",
-        "canisend_agent_v3_capabilities",
-        "canisend_agent_v3_context",
-        "canisend_application_create",
-        "MCP-V3-PRIVATE-SENTINEL",
-        "--pack academic-job --json",
-        "compatibility.unavailable",
+        "workspace init --json",
+        "--pack org.canisend.generic-application",
+        "--pack org.canisend.academic-job",
+        "canisend_workspace_status",
+        "canisend_workspace_check",
+        "canisend_application_list",
+        "canisend_application_show",
+        "MCP-V4-GENERIC-PRIVATE-SENTINEL",
+        "MCP-V4-ACADEMIC-PRIVATE-SENTINEL",
     ] {
-        if !agent_v3_mcp_smoke.contains(required) {
+        if !agent_v4_mcp_smoke.contains(required) {
             return Err(format!(
-                "Agent v3 MCP smoke script is missing invariant `{required}`"
+                "Agent v4 MCP smoke script is missing invariant `{required}`"
             ));
         }
     }
@@ -6476,10 +6478,10 @@ fn check_native_test_ownership() -> Result<(), String> {
         fs::read_to_string(root.join("scripts/smoke_release_archive.sh"))
             .map_err(|error| format!("release archive smoke script is missing: {error}"))?;
     if !release_archive_smoke
-        .contains("smoke_agent_v3_mcp.sh\" \"$executable\" \"$smoke_root/agent-v3-mcp-workflow")
+        .contains("smoke_agent_v4_mcp.sh\" \"$executable\" \"$smoke_root/agent-v4-mcp-workflow")
     {
         return Err(
-            "release archive smoke must exercise Agent v3 MCP on every packaged CLI".to_owned(),
+            "release archive smoke must exercise Agent v4 MCP on every packaged CLI".to_owned(),
         );
     }
     let git_attributes_path = root.join(".gitattributes");
@@ -6937,7 +6939,7 @@ fn check_release_contract() -> Result<(), String> {
         "scripts/stage_native_bundle.sh",
         "scripts/package_native_release.sh",
         "scripts/smoke_release_archive.sh",
-        "scripts/smoke_agent_v3_mcp.sh",
+        "scripts/smoke_agent_v4_mcp.sh",
         "scripts/stage_macos_gui_app.sh",
         "scripts/package_macos_gui_release.sh",
         "scripts/smoke_macos_gui_dmg.sh",
@@ -18944,7 +18946,7 @@ mod tests {
         let registry = OperationRegistry::built_in().expect("operation registry");
         let current = validate_semantic_parity_policy(&policy, &registry, &root)
             .expect("current semantic parity policy");
-        assert_eq!(current.shared_operations, 8);
+        assert_eq!(current.shared_operations, 10);
         assert_eq!(current.preview_pairs, 6);
         assert!(!current.uncovered_bindings.is_empty());
 

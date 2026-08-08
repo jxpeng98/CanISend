@@ -118,7 +118,7 @@ impl Drop for McpProcess {
 #[test]
 fn negotiates_current_protocol_and_lists_guarded_tools_deterministically() {
     let root = temporary_root("list");
-    Application::initialize_workspace(&root).expect("initialize workspace");
+    Application::initialize_workspace_v4(&root).expect("initialize Workspace v4");
     let mut mcp = McpProcess::start(&root);
 
     mcp.send_raw(b"{malformed-json");
@@ -135,7 +135,7 @@ fn negotiates_current_protocol_and_lists_guarded_tools_deterministically() {
         initialized["result"]["instructions"]
             .as_str()
             .expect("instructions")
-            .contains("deprecated compatibility surface")
+            .contains("clean Workspace v4 state")
     );
 
     let listed = mcp.request(2, "tools/list", json!({}));
@@ -151,7 +151,11 @@ fn negotiates_current_protocol_and_lists_guarded_tools_deterministically() {
         assert_eq!(CANISEND_MCP_GUARDED_WRITE_TOOLS.contains(&name), !read_only);
         let idempotent = matches!(
             name,
-            "canisend_agent_v3_capabilities"
+            "canisend_workspace_status"
+                | "canisend_workspace_check"
+                | "canisend_application_list"
+                | "canisend_application_show"
+                | "canisend_agent_v3_capabilities"
                 | "canisend_agent_v3_context"
                 | "canisend_applications_list"
                 | "canisend_capabilities"
@@ -178,9 +182,8 @@ fn negotiates_current_protocol_and_lists_guarded_tools_deterministically() {
 #[test]
 fn returns_structured_facade_results_and_rejects_malformed_arguments() {
     let root = temporary_root("calls");
-    Application::initialize_workspace(&root).expect("initialize workspace");
-    Application::create_job(&root, "Lecturer", "University X").expect("create job");
-    let before = Application::workspace_status(&root)
+    Application::initialize_workspace_v4(&root).expect("initialize Workspace v4");
+    let before = Application::workspace_status_v4(&root)
         .expect("workspace before")
         .data
         .status;
@@ -191,28 +194,55 @@ fn returns_structured_facade_results_and_rejects_malformed_arguments() {
         2,
         "tools/call",
         json!({
-            "name": "canisend_jobs_list",
+            "name": "canisend_application_list",
             "arguments": {}
         }),
     );
     assert_eq!(
         listed["result"]["structuredContent"]["operation"],
-        json!("job.list")
+        json!("application.list")
     );
     assert_eq!(
-        listed["result"]["structuredContent"]["data"]["jobs"]
+        listed["result"]["structuredContent"]["data"]
             .as_array()
-            .expect("jobs")
+            .expect("Applications")
             .len(),
-        1
+        0
     );
     assert_eq!(listed["result"]["isError"], json!(false));
 
-    let malformed = mcp.request(
+    let status = mcp.request(
         3,
         "tools/call",
         json!({
-            "name": "canisend_context",
+            "name": "canisend_workspace_status",
+            "arguments": {}
+        }),
+    );
+    assert_eq!(status["result"]["isError"], json!(false));
+    assert_eq!(
+        status["result"]["structuredContent"]["data"]["status"]["workspace_format"],
+        json!(canisend_contracts::WORKSPACE_V4_FORMAT)
+    );
+    let check = mcp.request(
+        4,
+        "tools/call",
+        json!({
+            "name": "canisend_workspace_check",
+            "arguments": {}
+        }),
+    );
+    assert_eq!(check["result"]["isError"], json!(false));
+    assert_eq!(
+        check["result"]["structuredContent"]["data"]["check"]["ok"],
+        json!(true)
+    );
+
+    let malformed = mcp.request(
+        5,
+        "tools/call",
+        json!({
+            "name": "canisend_application_show",
             "arguments": {"unexpected": true}
         }),
     );
@@ -225,7 +255,7 @@ fn returns_structured_facade_results_and_rejects_malformed_arguments() {
     );
 
     drop(mcp);
-    let after = Application::workspace_status(&root)
+    let after = Application::workspace_status_v4(&root)
         .expect("workspace after")
         .data
         .status;
@@ -234,6 +264,7 @@ fn returns_structured_facade_results_and_rejects_malformed_arguments() {
 }
 
 #[test]
+#[ignore = "retired Alpha.7 Agent v3 MCP surface"]
 fn exposes_body_free_generic_agent_v3_context_over_stdio() {
     let root = temporary_root("agent-v3-context");
     Application::initialize_workspace_v3(&root).expect("initialize v3 workspace");
@@ -312,6 +343,7 @@ fn exposes_body_free_generic_agent_v3_context_over_stdio() {
 }
 
 #[test]
+#[ignore = "retired Alpha.7 job MCP surface"]
 fn previews_and_commits_exact_job_intake_with_a_single_use_token() {
     let root = temporary_root("job-intake");
     let source = temporary_root("private-advert").with_extension("txt");
@@ -394,6 +426,7 @@ fn previews_and_commits_exact_job_intake_with_a_single_use_token() {
 }
 
 #[test]
+#[ignore = "retired Alpha.7 task MCP surface"]
 fn prepares_and_exports_versioned_task_inputs_through_the_same_adapter() {
     let root = temporary_root("task");
     let source = temporary_root("task-advert").with_extension("txt");

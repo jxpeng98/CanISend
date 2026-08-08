@@ -227,6 +227,7 @@ fn agent_context_preserves_missing_workspace_remediation() {
 }
 
 #[test]
+#[ignore = "retired Alpha.7 legacy CLI surface"]
 fn agent_assistance_requires_a_job_and_returns_body_free_proposal_boundaries() {
     let workspace = TestDirectory::new("agent-assistance");
     run_json(&[
@@ -624,6 +625,130 @@ fn native_workspace_commands_initialize_check_backup_and_restore() {
 }
 
 #[test]
+fn workspace_v4_cli_holds_generic_and_academic_applications_together() {
+    let workspace = TestDirectory::new("workspace-v4-mixed-pack");
+    let candidates = TestDirectory::new("workspace-v4-mixed-pack-candidates");
+    fs::create_dir_all(candidates.path()).expect("candidate directory");
+    let generic_candidate = candidates.path().join("generic.json");
+    let academic_candidate = candidates.path().join("academic.json");
+    let generic_source = "Applicants must provide a project narrative.";
+    let academic_source = "Applicants must submit an academic CV.";
+    fs::write(
+        &generic_candidate,
+        serde_json::to_vec(&serde_json::json!({
+            "title": "Community programme",
+            "opportunity_metadata": {
+                "organization": {"type": "short-text", "value": "Example Foundation"},
+                "reference": {"type": "short-text", "value": "CLI-V4-001"}
+            },
+            "application_metadata": {
+                "status": {"type": "choice", "value": "planning"}
+            },
+            "source_text": generic_source,
+            "requirements": [{
+                "category": "format",
+                "statement": generic_source,
+                "priority": "mandatory",
+                "start_byte": 0,
+                "end_byte": generic_source.len()
+            }]
+        }))
+        .expect("generic candidate JSON"),
+    )
+    .expect("write generic candidate");
+    fs::write(
+        &academic_candidate,
+        serde_json::to_vec(&serde_json::json!({
+            "title": "Research fellowship",
+            "opportunity_metadata": {
+                "institution": {"type": "short-text", "value": "Example University"}
+            },
+            "application_metadata": {},
+            "source_text": academic_source,
+            "requirements": [{
+                "category": "qualification",
+                "statement": academic_source,
+                "priority": "mandatory",
+                "start_byte": 0,
+                "end_byte": academic_source.len()
+            }]
+        }))
+        .expect("academic candidate JSON"),
+    )
+    .expect("write academic candidate");
+
+    run_json(&[
+        "--workspace",
+        workspace.text(),
+        "workspace",
+        "init",
+        "--json",
+    ]);
+    let generic = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "application",
+        "create",
+        "--pack",
+        "org.canisend.generic-application",
+        "--candidate",
+        generic_candidate.to_str().expect("generic candidate path"),
+        "--json",
+    ]);
+    let academic = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "application",
+        "create",
+        "--pack",
+        "org.canisend.academic-job",
+        "--candidate",
+        academic_candidate
+            .to_str()
+            .expect("academic candidate path"),
+        "--json",
+    ]);
+    assert_eq!(generic["operation"], "application.create.commit");
+    assert_eq!(academic["operation"], "application.create.commit");
+    assert_eq!(
+        generic["data"]["stored"]["snapshot"]["pack"]["id"],
+        "org.canisend.generic-application"
+    );
+    assert_eq!(
+        academic["data"]["stored"]["snapshot"]["pack"]["id"],
+        "org.canisend.academic-job"
+    );
+
+    let listed = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "application",
+        "list",
+        "--json",
+    ]);
+    assert_eq!(listed["operation"], "application.list");
+    assert_eq!(listed["data"].as_array().map(Vec::len), Some(2));
+    let academic_id = academic["data"]["stored"]["snapshot"]["application"]["id"]
+        .as_str()
+        .expect("academic Application ID");
+    let shown = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "application",
+        "show",
+        "--application",
+        academic_id,
+        "--json",
+    ]);
+    assert_eq!(shown["operation"], "application.show");
+    assert_eq!(
+        shown["data"]["snapshot"]["pack"]["id"],
+        "org.canisend.academic-job"
+    );
+}
+
+#[test]
+#[ignore = "retired Alpha.7 legacy CLI surface"]
 fn profile_source_list_preserves_the_shared_revisioned_read_model() {
     let workspace = TestDirectory::new("profile-list-workspace");
     let input = TestDirectory::new("profile-list-input");
@@ -667,6 +792,7 @@ fn profile_source_list_preserves_the_shared_revisioned_read_model() {
 }
 
 #[test]
+#[ignore = "retired Alpha.7 legacy CLI surface"]
 fn application_dossier_commands_share_a_body_free_progress_contract() {
     let workspace = TestDirectory::new("application-dossier-workspace");
     let input = TestDirectory::new("application-dossier-input");
@@ -752,6 +878,7 @@ fn application_dossier_commands_share_a_body_free_progress_contract() {
 }
 
 #[test]
+#[ignore = "retired Alpha.7 legacy CLI surface"]
 fn content_commands_keep_catalogs_body_free_and_full_text_consent_scoped() {
     let workspace = TestDirectory::new("content-catalog-workspace");
     let input = TestDirectory::new("content-catalog-input");
@@ -893,6 +1020,7 @@ fn content_commands_keep_catalogs_body_free_and_full_text_consent_scoped() {
 }
 
 #[test]
+#[ignore = "retired Alpha.7 legacy CLI surface"]
 fn native_job_commands_import_original_and_normalized_local_text() {
     let workspace = TestDirectory::new("job-workspace");
     let input = TestDirectory::new("job-input");
@@ -1055,6 +1183,7 @@ fn native_job_commands_import_original_and_normalized_local_text() {
 }
 
 #[test]
+#[ignore = "retired Alpha.7 legacy CLI surface"]
 fn profile_source_commands_import_json_without_returning_private_bodies() {
     let workspace = TestDirectory::new("profile-workspace");
     let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -1109,6 +1238,7 @@ fn profile_source_commands_import_json_without_returning_private_bodies() {
 }
 
 #[test]
+#[ignore = "retired Alpha.7 legacy CLI surface"]
 fn workflow_cli_exposes_body_free_graph_modes_and_rerun() {
     let workspace = TestDirectory::new("workflow-workspace");
     let input = TestDirectory::new("workflow-input");
@@ -1471,6 +1601,7 @@ fn discovery_csv_dry_run_commit_and_promotion_are_agent_callable() {
 }
 
 #[test]
+#[ignore = "retired Alpha.7 legacy CLI surface"]
 fn leased_task_completion_is_validated_atomic_and_idempotent() {
     let workspace = TestDirectory::new("task-workspace");
     let input = TestDirectory::new("task-input");
@@ -1782,6 +1913,7 @@ fn leased_task_completion_is_validated_atomic_and_idempotent() {
 }
 
 #[test]
+#[ignore = "retired Alpha.7 legacy CLI surface"]
 fn task_cli_adapter_preserves_show_cancel_and_provider_consent_contracts() {
     let workspace = TestDirectory::new("task-adapter-workspace");
     let input = TestDirectory::new("task-adapter-input");
@@ -1928,6 +2060,7 @@ fn task_cli_adapter_preserves_show_cancel_and_provider_consent_contracts() {
 }
 
 #[test]
+#[ignore = "retired Alpha.7 legacy CLI surface"]
 fn evidence_workflow_is_agent_callable_and_user_confirmed_through_the_binary() {
     let workspace = TestDirectory::new("evidence-cli-workspace");
     let input = TestDirectory::new("evidence-cli-input");
@@ -2108,6 +2241,7 @@ fn evidence_workflow_is_agent_callable_and_user_confirmed_through_the_binary() {
 }
 
 #[test]
+#[ignore = "retired Alpha.7 migration surface"]
 fn canonical_v3_cli_completes_a_migrated_academic_pack_application() {
     let workspace = TestDirectory::new("academic-v3-workspace");
     let backup = TestDirectory::new("academic-v3-backup");
